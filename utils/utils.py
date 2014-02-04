@@ -1,4 +1,3 @@
-#! /usr/bin/env python
 #
 # utils.py
 #
@@ -34,4 +33,21 @@ def set_verbosity(verbosity):
     logging.basicConfig(format='[%(levelname)8s] %(message)s')
     logging.root.setLevel(levels[min(2,verbosity)])
     
+def downsample_map(pmap, binsx=0, binsy=0):
+    '''Downsample a map by integer factors in energy and/or cos(zen) by 
+       averaging over the merged bins.'''
+
+    #Make a copy of initial map
+    rmap = n.array(pmap)
+    
+    #Check that the map is dividable by this number
+    if len(n.nonzero(n.array(rmap.shape)%n.array([binsx,binsy]))[0]):
+        raise ValueError("Can not downsample map of size %s by factors of %u,%u"%
+                         (rmap.shape,binsx,binsy))
+    
+    #Average over each dimension
+    rmap = n.average([rmap[i::binsx,:] for i in range(binsx)],axis=0)
+    rmap = n.average([rmap[:,i::binsy] for i in range(binsy)],axis=0)
+    return rmap
+
 
