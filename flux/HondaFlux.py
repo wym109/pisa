@@ -26,7 +26,7 @@ from utils.json import from_json, to_json
 primaries = ['numu', 'numu_bar', 'nue', 'nue_bar']
 
 class HondaFlux():
-    '''Load aneutrino flux from Honda-styles flux tables in
+    '''Load a neutrino flux from Honda-styles flux tables in
        units of [GeV^-1 m^-2 s^-1 sr^-1] and
        return a 2D spline interpolated function per flavour.
        For now only supports azimuth-averaged input files.
