@@ -126,12 +126,11 @@ def get_osc_flux(flux_maps,deltam21,deltam31,theta12,theta13, theta23,
                              'czbins':czbins,
                              'map':(nue_bar_maps*osc_prob_maps['nue_bar_maps'][nu] +
                                     numu_bar_maps*osc_prob_maps['numu_bar_maps'][nu])}
-        
     return osc_flux_maps
 
         
 if __name__ == '__main__':
-
+    
     #Only show errors while parsing
     set_verbosity(0)
 
@@ -183,12 +182,12 @@ if __name__ == '__main__':
 
     # define osc params:
     deltam21 = params['deltam21']
-    #deltam31 = params['deltam31_nh'][10]
-    deltam31 = params['deltam31_ih'][10]
+    deltam31 = params['deltam31_nh'][10]
+    #deltam31 = params['deltam31_ih'][10]
     theta12  = params['theta12']
     theta13  = params['theta13']
     theta23  = params['theta23'][6]
-    deltacp  = params['deltacp']    
+    deltacp  = params['deltacp']
 
     logging.debug("  deltam21:    %s eV^2"%deltam21)
     logging.debug("  deltam31:    %s eV^2"%deltam31)
@@ -202,5 +201,7 @@ if __name__ == '__main__':
                                  theta23,deltacp)#,**params)
     
     outfilename = args.outfile if args.outfile else "osc_flux.json"
+    # Does this work?
+    osc_flux_maps['params'] = params
     to_json(osc_flux_maps, outfilename)
     
