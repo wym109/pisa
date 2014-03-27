@@ -15,8 +15,7 @@ import h5py
 def get_bin_centers(edges):
     '''Get the bin centers for a given set of bin edges.
        This works even if bins don't have equal width.'''
-    return (np.array(edges[:-1])+np.array(edges[1:]))/2.
-
+    return np.sqrt(np.array(edges[:-1]*np.array(edges[1:]))) if is_logarithmic(edges) else  (np.array(edges[:-1])+np.array(edges[1:]))/2.
 
 def get_bin_sizes(edges):
     '''Get the bin sizes for a given set of bin edges.
@@ -73,35 +72,65 @@ def get_osc_probLT_dict_hdf5(filename):
     fh.close()
     
     return osc_prob_maps
-        
-def get_smoothed_map(prob_map, ebinsLT, czbinsLT, ebinsSM, czbinsSM):
-    ''' 
-    Downsamples a map by averaging over the merged bins. DOES NOT
-    assume that the new binning is divisible by the old binning. FOR
-    NOW, the algorithm simply asks if the old bin's center is inside
-    the new bin, and if yes, includes it in the averaging. For very
-    small original bin sizes, this should be sufficient.
+
+def get_smoothed_map(prob_map,ebinsLT,czbinsLT,ebinsSM,czbinsSM):
+    '''
+    Downsamples a map by averaging over the look up table bins whose
+    bin center is within the new (coarser) binning. DOES NOT assume
+    that the new (SM) binning is divisible by the old (LT)
+    binning. The algorithm is that a new histogram is created from the
+    entirety of the data in the Lookup Table.
     
     NOTATION: LT - "lookup table" (finely binned)
               SM - "smoothed" binning
     '''
+    elist = []
+    czlist = []
+    weight_list = []
 
-    logging.info("Getting smoothed map...")
+    ecenLT = get_bin_centers(ebinsLT)
+    czcenLT = get_bin_centers(czbinsLT)
+    for ie,egy in enumerate(ecenLT):
+        for icz,cz in enumerate(czcenLT):
+            czlist.append(cz)
+            elist.append(egy)
+            weight_list.append(prob_map[ie][icz])
 
-    shape = (np.shape(ebinsSM)[0]-1,np.shape(czbinsSM)[0]-1)
-    smoothed_map = np.zeros(shape,dtype=np.float32)
+    map_sum_wts = np.histogram2d(elist,czlist,weights=weight_list,
+                                  bins=[ebinsSM,czbinsSM])[0]
+    map_num = np.histogram2d(elist,czlist,bins=[ebinsSM,czbinsSM])[0]
     
-    ebinsSM = get_bin_centers(ebinsSM)
-    for ie,egy in enumerate(ebinsSM[:-1]):
-        emin = ebinsSM[ie]
-        emax = ebinsSM[ie+1]
-        for icz,cz in enumerate(czbinsSM[:-1]):
-            czmin = czbinsSM[icz]
-            czmax = czbinsSM[icz+1]
-            smoothed_map[ie][icz] = get_smoothed_probability(prob_map,ebinsLT,czbinsLT,emin,emax,czmin,czmax)
-            
-    return smoothed_map
-        
+    return np.divide(map_sum_wts,map_num)
+
+
+def get_smoothed_map_old(prob_map, ebinsLT, czbinsLT, ebinsSM, czbinsSM):
+     ''' 
+     Downsamples a map by averaging over the merged bins. DOES NOT
+     assume that the new binning is divisible by the old binning. FOR
+     NOW, the algorithm simply asks if the old bin's center is inside
+     the new bin, and if yes, includes it in the averaging. For very
+     small original bin sizes, this should be sufficient.
+     
+     NOTATION: LT - "lookup table" (finely binned)
+               SM - "smoothed" binning
+     '''
+ 
+     logging.info("Getting smoothed map...")
+ 
+     shape = (np.shape(ebinsSM)[0]-1,np.shape(czbinsSM)[0]-1)
+     smoothed_map = np.zeros(shape,dtype=np.float32)
+     
+     #ebinsSM = get_bin_centers(ebinsSM)
+     for ie,egy in enumerate(ebinsSM[:-1]):
+         emin = ebinsSM[ie]
+         emax = ebinsSM[ie+1]
+         for icz,cz in enumerate(czbinsSM[:-1]):
+             czmin = czbinsSM[icz]
+             czmax = czbinsSM[icz+1]
+             smoothed_map[ie][icz] = get_smoothed_probability(prob_map,ebinsLT,czbinsLT,emin,emax,czmin,czmax)
+             
+     return smoothed_map
+         
 def get_smoothed_probability(prob_map,ebinsLT,czbinsLT,emin,emax,czmin,czmax):
     nbins = 0.0
     sum_weights = 0.0
@@ -113,25 +142,6 @@ def get_smoothed_probability(prob_map,ebinsLT,czbinsLT,emin,emax,czmin,czmax):
             if ( cz < czmin or cz > czmax ): continue
             nbins+=1.0
             sum_weights += prob_map[ie][icz]
-
-    return (sum_weights/nbins)
             
-
-#def downsample_map(pmap, binsx=0, binsy=0):
-#    '''Downsample a map by integer factors in energy and/or cos(zen) by 
-#       averaging over the merged bins.'''
-#
-#    #Make a copy of initial map
-#    rmap = n.array(pmap)
-#    
-#    #Check that the map is dividable by this number
-#    if len(n.nonzero(n.array(rmap.shape)%n.array([binsx,binsy]))[0]):
-#        raise ValueError("Can not downsample map of size %s by factors of %u,%u"%
-#                         (rmap.shape,binsx,binsy))
-#    
-#    #Average over each dimension
-#    rmap = n.average([rmap[i::binsx,:] for i in range(binsx)],axis=0)
-#    rmap = n.average([rmap[:,i::binsy] for i in range(binsy)],axis=0)
-#    return rmap
-
-
+    return (sum_weights/nbins)
+             

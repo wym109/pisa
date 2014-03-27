@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 #
-# stage1FullMC.py
+# OscillatedFluxMC.py
 #
 # This module is the implementation of the stage1 analysis using the
 # full Monte Carlo simulations. The main purpose of stage1 is to
@@ -26,6 +26,7 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 from utils.utils import set_verbosity,get_smoothed_map,get_osc_probLT_dict_hdf5
 from utils.json import from_json, to_json
 from flux.HondaFlux import get_flux_maps,HondaFlux
+from datetime import datetime
 
 # Until python2.6, default json is very slow.
 try: 
@@ -67,6 +68,9 @@ def get_osc_prob_maps(ebins, czbins, deltam21, deltam31,theta12,theta13,
     ebinsLT = osc_probLT_dict['ebins']
     czbinsLT = osc_probLT_dict['czbins']
 
+    start_time = datetime.now()
+    logging.info("Getting smoothed maps...")
+
     # do smoothing
     smoothed_maps = {}
     smoothed_maps['ebins'] = ebins
@@ -76,9 +80,14 @@ def get_osc_prob_maps(ebins, czbins, deltam21, deltam31,theta12,theta13,
         to_maps = {}
         to_nu_list = ['nue_bar','numu_bar','nutau_bar'] if 'bar' in from_nu else ['nue','numu','nutau']
         for to_nu in to_nu_list:
+            logging.info("Getting smoothed map %s"%(from_nu+'_maps/'+to_nu))
             to_maps[to_nu] = get_smoothed_map(osc_probLT_dict[from_nu+'_maps'][to_nu],
+            #to_maps[to_nu] = get_smoothed_map_old(osc_probLT_dict[from_nu+'_maps'][to_nu],
                                               ebinsLT,czbinsLT,ebins,czbins)
+            
         smoothed_maps[from_nu+'_maps'] = to_maps
+
+    logging.info("Finshed getting smoothed maps. This took: %s"%(datetime.now()-start_time))
 
     return smoothed_maps
     
@@ -177,7 +186,7 @@ if __name__ == '__main__':
         flux_model = HondaFlux(**params)
         flux_maps = get_flux_maps(flux_model,ebins,czbins,**params)
     else:
-        logging.info("Loading flux maps from %s"%args.flux_file)
+        logging.info("Loading flux maps from file.")
         flux_maps = args.flux_file
 
     # define osc params:
