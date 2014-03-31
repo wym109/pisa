@@ -9,6 +9,9 @@
 import numpy as np
 import logging
 from utils.utils import is_linear
+from nuCraft import NuCraft
+from nuCraft.NuCraft import EarthModel
+import h5py
 
 class OscProbMaps:
     '''
@@ -17,11 +20,11 @@ class OscProbMaps:
     oscillation probability is taken at the CENTER of the bin.
     
     These lookup tables become the smoothed oscillation maps which are
-    the foundation of the LLR optimizer-based analysis.
+    used in the analysis.
     '''
     def __init__(self, czbins, ebins, deltam31, theta23, **kwargs):
         self.czbins = czbins
-        self.ebins = ebins       # [GeV] or log10(E/GeV)
+        self.ebins = ebins       # [GeV]
 
         self.deltam31 = deltam31 # [eV^2]
         self.theta23 = theta23   # [deg]
@@ -39,15 +42,12 @@ class OscProbMaps:
                            'theta23':self.theta23,
                            'deltacp':self.deltacp,
                            'earth_model':self.earth_model}
-        
+
         logging.debug("Initializing OscProbMaps, with values...")
-        logging.debug("  deltam31:    %s eV^2"%self.deltam31)
-        logging.debug("  deltam21:    %s eV^2"%self.deltam21)
-        logging.debug("  theta12:     %s deg"%self.theta12)
-        logging.debug("  theta13:     %s deg"%self.theta13)
-        logging.debug("  theta23:     %s deg"%self.theta23)
-        logging.debug("  deltacp:     %s rad"%self.deltacp)
-        logging.debug("  earth_model: %s"%self.earth_model)
+        param_names = ['deltam21','deltam31','theta12','theta13','theta23','deltacp']
+        units       = ['eV^2','eV^2','deg','deg','deg','rad']
+        for param, unit in zip(param_names,units):
+            logging.debug("%10s: %.4f %s"%(param,params[param],unit))
         
         return
         
@@ -106,7 +106,6 @@ class OscProbMaps:
 
     def SaveHDF5(self,filename,oscprob_dict):
         
-        import h5py
         fh = h5py.File(filename,'w')
         logging.info("Saving file: %s",filename)
         
@@ -145,8 +144,6 @@ def MakeNuCraft(deltam31,deltam21,theta12,theta13,theta23,deltacp,earth_model):
     theta_23_tuple = (2, 3, theta23)
     angle_list = [theta_12_tuple, theta_23_tuple, theta_13_tuple]
     
-    from nuCraft import NuCraft
-    from nuCraft.NuCraft import EarthModel
     model = EarthModel(earth_model,earth_model_dict[earth_model])
     oscillation_service = NuCraft(mass_tuple, angle_list,
                                   earthModel=model)

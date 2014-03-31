@@ -10,7 +10,7 @@
 
 import logging
 import numpy as np
-import h5py
+
 
 def get_bin_centers(edges):
     '''Get the bin centers for a given set of bin edges.
@@ -33,45 +33,19 @@ def set_verbosity(verbosity):
     logging.root.setLevel(levels[min(2,verbosity)])
  
 def is_linear(edges, maxdev = 1e-5):
-    '''Check wether the bin edges correspond to a linear axis'''
+    '''Check whether the bin edges correspond to a linear axis'''
     linedges = np.linspace(edges[0],edges[-1],len(edges))
     return np.abs(edges-linedges).max() < maxdev 
     
 def is_logarithmic(edges, maxdev = 1e-5):
-    '''Check wether the bin edges correspond to a logarithmic axis'''
+    '''Check whether the bin edges correspond to a logarithmic axis'''
     logedges = np.logspace(np.log10(edges[0]),np.log10(edges[-1]),len(edges))
     return np.abs(edges-logedges).max() < maxdev 
 
-def get_map_hdf5(filename,path):
-    fh = h5py.File(filename,'r')
-    op_map = fh[path]
-    ebins  = np.array(fh[op_map.attrs['ebins']])
-    czbins = np.array(fh[op_map.attrs['czbins']])
-    op_map = np.array(op_map)
-    fh.close()
-    return op_map,ebins,czbins
-
-def get_osc_probLT_dict_hdf5(filename):
-    '''
-    Returns a dictionary of osc_prob_maps from the lookup table .hdf5 files.
-    '''
-    fh = h5py.File(filename,'r')
-    osc_prob_maps = {}
-    osc_prob_maps['ebins'] = np.array(fh['ebins'])
-    osc_prob_maps['czbins'] = np.array(fh['czbins'])
-
-    for from_nu in ['nue','numu','nue_bar','numu_bar']:
-        path_base = from_nu+'_maps'
-        to_maps = {}
-        to_nu_list = ['nue_bar','numu_bar','nutau_bar'] if 'bar' in from_nu else ['nue','numu','nutau']
-        for to_nu in to_nu_list:
-            op_map = np.array(fh[path_base+'/'+to_nu])
-            to_maps[to_nu] = op_map
-        osc_prob_maps[from_nu+'_maps'] = to_maps
-        
-    fh.close()
-    
-    return osc_prob_maps
+def check_binning(edges1,edges2,maxdev=1e-8):
+    '''Check whether the bin edges are equal.'''
+    if (np.shape(edges1)[0]) != (np.shape(edges2)[0]): return False
+    return np.abs(edges1 - edges2).max() < maxdev
 
 def get_smoothed_map(prob_map,ebinsLT,czbinsLT,ebinsSM,czbinsSM):
     '''
