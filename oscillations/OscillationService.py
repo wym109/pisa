@@ -11,7 +11,7 @@
 import logging
 import numpy as np
 from datetime import datetime
-from utils.hdf5 import get_osc_probLT_dict_hdf5
+import h5py
 from utils.utils import get_smoothed_map
 import os
 
