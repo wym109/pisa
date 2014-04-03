@@ -1,5 +1,11 @@
 #! /usr/bin/env python
 #
+# This is a service which will return an oscillation probability map
+# corresponding to the desird binning.
+#
+# author: Timothy C. Arlen
+#
+# date:   April 2, 2014
 #
 
 import logging
@@ -9,6 +15,30 @@ from utils.hdf5 import get_osc_probLT_dict_hdf5
 from utils.utils import get_smoothed_map
 import os
 
+
+def get_osc_probLT_dict_hdf5(filename):
+    '''
+    Returns a dictionary of osc_prob_maps from the lookup table .hdf5 files. 
+    '''
+    fh = h5py.File(filename,'r')
+    osc_prob_maps = {}
+    osc_prob_maps['ebins'] = np.array(fh['ebins'])
+    osc_prob_maps['czbins'] = np.array(fh['czbins'])
+
+    for from_nu in ['nue','numu','nue_bar','numu_bar']:
+        path_base = from_nu+'_maps'
+        to_maps = {}
+        to_nu_list = ['nue_bar','numu_bar','nutau_bar'] if 'bar' in from_nu else ['nue','numu','nutau']
+        for to_nu in to_nu_list:
+            op_map = np.array(fh[path_base+'/'+to_nu])
+            to_maps[to_nu] = op_map
+            osc_prob_maps[from_nu+'_maps'] = to_maps
+
+    fh.close()
+
+    return osc_prob_maps
+
+
 class OscillationService:
     """
     This class handles all tasks related to the oscillation
@@ -17,12 +47,12 @@ class OscillationService:
     def __init__(self,ebins,czbins,datadir=None):
         self.ebins = ebins
         self.czbins = czbins
-        self.datadir = "" if datadir==None else datadir
+        self.datadir = os.getenv('PISA')+'/resources/oscProbMaps/ebins500_czbins500/' if datadir==None else datadir
 
         return
     
-    def get_osc_prob_maps(self,deltam21=7.54e-5,deltam31=None,theta12=33.647, 
-                          theta13=8.931,theta23=None,deltacp=0.0):
+    def get_osc_prob_maps(self,deltam21=None,deltam31=None,theta12=None, 
+                          theta13=None,theta23=None,deltacp=None,**kwargs):
         """
         Returns an oscillation probability map dictionary calculated 
         at the values of the input parameters:
