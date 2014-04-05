@@ -13,14 +13,20 @@ import numpy as np
 from datetime import datetime
 import h5py
 from utils.utils import get_smoothed_map
-import os
+import os, sys
 
 
 def get_osc_probLT_dict_hdf5(filename):
     '''
     Returns a dictionary of osc_prob_maps from the lookup table .hdf5 files. 
     '''
-    fh = h5py.File(filename,'r')
+    try:
+      fh = h5py.File(filename,'r')
+    except IOError,e:
+      logging.error("Unable to open oscillation map file %s"%filename)
+      logging.error(e)
+      sys.exit(1)
+
     osc_prob_maps = {}
     osc_prob_maps['ebins'] = np.array(fh['ebins'])
     osc_prob_maps['czbins'] = np.array(fh['czbins'])
