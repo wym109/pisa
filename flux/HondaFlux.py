@@ -124,7 +124,7 @@ if __name__ == '__main__':
            "ebins" : [1.,2.,3. ...]
            "czbins" : [-1.0,-0.9,-0.8,...]}''')
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str, action='store',
-                        help='file to store the output')
+                        help='file to store the output', default='flux.json')
     parser.add_argument('-v', '--verbose', action='count', default=0,
                         help='set verbosity level')
     args = parser.parse_args()
@@ -157,5 +157,4 @@ if __name__ == '__main__':
     flux_maps['params'] = params
 
     #write out to a file
-    outfilename = args.outfile if args.outfile else 'flux.json'
-    to_json(flux_maps, outfilename)
+    to_json(flux_maps, args.outfile)
