@@ -34,12 +34,11 @@ def from_json(filename):
         sys.exit(1)
 
 
-def to_json(content, filename):
+def to_json(content, filename,indent=2):
     '''Write content to a JSON file using a custom parser that
        automatically converts numpy arrays to lists.'''
     with open(filename,'w') as outfile:
-        json.dump(content,outfile, cls=NumpyEncoder)
-
+        json.dump(content,outfile, cls=NumpyEncoder, indent=indent)
 
 class NumpyEncoder(json.JSONEncoder):
     """

@@ -6,6 +6,9 @@
 # author: Sebastian Boeser
 #         sboeser@physik.uni-bonn.de
 #
+# author: Tim Arlen
+#         tca3@psu.edu
+#
 # date:   2014-01-27
 
 import logging
@@ -15,8 +18,10 @@ import numpy as np
 def get_bin_centers(edges):
     '''Get the bin centers for a given set of bin edges.
        This works even if bins don't have equal width.'''
-    return (np.array(edges[:-1])+np.array(edges[1:]))/2.
-
+    if is_logarithmic(edges):
+        return np.sqrt(np.array(edges[:-1]*np.array(edges[1:])))
+    else:
+        return (np.array(edges[:-1])+np.array(edges[1:]))/2.
 
 def get_bin_sizes(edges):
     '''Get the bin sizes for a given set of bin edges.
@@ -34,30 +39,48 @@ def set_verbosity(verbosity):
     logging.root.setLevel(levels[min(2,verbosity)])
  
 def is_linear(edges, maxdev = 1e-5):
-    '''Check wether the bin edges correspond to a linear axis'''
+    '''Check whether the bin edges correspond to a linear axis'''
     linedges = np.linspace(edges[0],edges[-1],len(edges))
     return np.abs(edges-linedges).max() < maxdev 
     
 def is_logarithmic(edges, maxdev = 1e-5):
-    '''Check wether the bin edges correspond to a logarithmic axis'''
+    '''Check whether the bin edges correspond to a logarithmic axis'''
     logedges = np.logspace(np.log10(edges[0]),np.log10(edges[-1]),len(edges))
     return np.abs(edges-logedges).max() < maxdev 
 
-#def downsample_map(pmap, binsx=0, binsy=0):
-#    '''Downsample a map by integer factors in energy and/or cos(zen) by 
-#       averaging over the merged bins.'''
-#
-#    #Make a copy of initial map
-#    rmap = n.array(pmap)
-#    
-#    #Check that the map is dividable by this number
-#    if len(n.nonzero(n.array(rmap.shape)%n.array([binsx,binsy]))[0]):
-#        raise ValueError("Can not downsample map of size %s by factors of %u,%u"%
-#                         (rmap.shape,binsx,binsy))
-#    
-#    #Average over each dimension
-#    rmap = n.average([rmap[i::binsx,:] for i in range(binsx)],axis=0)
-#    rmap = n.average([rmap[:,i::binsy] for i in range(binsy)],axis=0)
-#    return rmap
+def is_equal_binning(edges1,edges2,maxdev=1e-8):
+    '''Check whether the bin edges are equal.'''
+    if (np.shape(edges1)[0]) != (np.shape(edges2)[0]): return False
+    return np.abs(edges1 - edges2).max() < maxdev
 
+# NOTE: Investigate whether we should use scipy.misc.imresize for this?
+def get_smoothed_map(prob_map,ebinsLT,czbinsLT,ebinsSM,czbinsSM):
+    '''
+    Downsamples a map by averaging over the look up table bins whose
+    bin center is within the new (coarser) binning. DOES NOT assume
+    that the new (SM) binning is divisible by the old (LT)
+    binning. The algorithm is that a new histogram is created from the
+    entirety of the data in the Lookup Table.
+    
+    NOTATION: LT - "lookup table" (finely binned)
+              SM - "smoothed" binning
+    '''
+    
+    ecenLT = get_bin_centers(ebinsLT)
+    czcenLT = get_bin_centers(czbinsLT)
+
+    elist = []
+    czlist = []
+    weight_list = []
+    for ie,egy in enumerate(ecenLT):
+        for icz,cz in enumerate(czcenLT):
+            czlist.append(cz)
+            elist.append(egy)
+            weight_list.append(prob_map[ie][icz])
+            
+    map_sum_wts = np.histogram2d(elist,czlist,weights=weight_list,
+                                 bins=[ebinsSM,czbinsSM])[0]
+    map_num = np.histogram2d(elist,czlist,bins=[ebinsSM,czbinsSM])[0]
+    
+    return np.divide(map_sum_wts,map_num)
 
