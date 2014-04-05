@@ -117,9 +117,11 @@ if __name__ == '__main__':
     osc_flux_maps = get_osc_flux(flux_maps,args.deltam21,args.deltam31,args.theta12,
                                  args.theta13,args.theta23,args.deltacp)
     
+    #Merge the new parameters into the old ones
+    osc_flux_maps['params'] = dict(flux_maps['params'].items() + osc_param_dict.items())
     
+    #Write out
     logging.info("Saving osc prob maps to file: %s",outfile)
-    osc_flux_maps['params'] = osc_param_dict
     to_json(osc_flux_maps, outfile)
     
     
