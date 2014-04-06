@@ -73,8 +73,8 @@ if __name__ == '__main__':
     set_verbosity(0)
 
     # parser
-    parser = ArgumentParser(description='Take a settings file '
-                            'as input and write out a set of flux maps',
+    parser = ArgumentParser(description='Takes the oscillation parameters '
+                            'as input and writes out a set of osc flux maps',
                             formatter_class=RawTextHelpFormatter)    
     parser.add_argument('flux_file',metavar='FLUX',type=from_json,
                         help='''JSON atm flux input file with the following parameters:
