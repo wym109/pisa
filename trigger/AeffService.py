@@ -9,7 +9,7 @@
 
 import logging
 import numpy as np
-from utils.utils import get_bin_centers
+from utils.utils import get_bin_centers, get_bin_sizes
 import h5py
 import os,sys
 
@@ -43,18 +43,16 @@ class AeffServiceMC:
                 true_coszen = np.array(fh[flavor+'/'+int_type+'/true_coszen'])
                 
                 bins = (self.ebins,self.czbins)
-                aeff_hist = np.histogram2d(true_energy,true_coszen,weights=weighted_aeff,
-                                           bins=bins)[0]
-                # Divide by bin width:
-                ecen = get_bin_centers(self.ebins)
-                czcen = get_bin_centers(self.czbins)
-                for ie,egy in enumerate(ecen):
-                    ebin_width = (self.ebins[ie+1] - self.ebins[ie])
-                    for icz,cz in enumerate(czcen):
-                        czbin_width = (self.czbins[icz+1] - self.czbins[icz])
-                        aeff_hist[ie][icz] /= (ebin_width*czbin_width*2.0*np.pi)
+                aeff_hist,_,_ = np.histogram2d(true_energy,true_coszen,
+                                               weights=weighted_aeff,bins=bins)
+                # Divide by bin widths to convert to aeff:
+                ebin_sizes = get_bin_sizes(ebins)
+                czbin_sizes = 2.0*np.pi*get_bin_sizes(czbins)
+                bin_sizes = np.meshgrid(czbin_sizes,ebin_sizes)
+                aeff_hist /= np.abs(bin_sizes[0]*bin_sizes[1])
                 
                 flavor_dict[int_type] = aeff_hist
+                
             self.aeff_dict[flavor] = flavor_dict
             
         return

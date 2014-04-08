@@ -116,6 +116,8 @@ Expects the file format to be:
     livetime = args.livetime
     nu_xsec_scale = args.nu_xsec_scale
     nubar_xsec_scale = args.nubar_xsec_scale
+    event_param_dict = {'livetime':livetime,'nu_xsec_scale':nu_xsec_scale,
+                        'nubar_xsec_scale':nubar_xsec_scale}
 
     for name,param in zip(["livetime","nu xs scale","nubar xs scale"],
                           [livetime,nu_xsec_scale,nubar_xsec_scale]):
@@ -127,7 +129,9 @@ Expects the file format to be:
 
     event_rate_maps = get_event_rates(osc_flux_maps,simfile,livetime,
                                       nu_xsec_scale,nubar_xsec_scale)
-    
+
+    event_rate_maps['params'] = dict(osc_flux_maps['params'].items() + 
+                                     event_param_dict.items())
     logging.info("Saving output to .json file...")
     to_json(event_rate_maps,args.outfile)
     
