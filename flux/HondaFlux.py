@@ -20,7 +20,7 @@ import numpy as np
 from argparse import ArgumentParser, RawTextHelpFormatter
 from scipy.interpolate import bisplrep, bisplev
 from utils.utils import get_bin_centers, get_bin_sizes, set_verbosity
-from utils.json import from_json, to_json
+from utils.json import from_json, to_json, json_string
 
 #Global definition of primaries for which there is a neutrino flux
 primaries = ['numu', 'numu_bar', 'nue', 'nue_bar']
@@ -118,11 +118,18 @@ if __name__ == '__main__':
     parser = ArgumentParser(description='Take a settings file '
         'as input and write out a set of flux maps',
         formatter_class=RawTextHelpFormatter)
-    parser.add_argument('settings', metavar='SETTINGS', type=from_json,
-        help='''JSON file with the input parameters:
-         { "params": { "tables" : path/to/tablefile.d }
-           "ebins" : [1.,2.,3. ...]
-           "czbins" : [-1.0,-0.9,-0.8,...]}''')
+    parser.add_argument('--ebins', metavar='[1.0,2.0,...]', type=json_string,
+        help= '''Edges of the energy bins in units of GeV, default is '''
+              '''80 edges (79 bins) from 1.0 to 80 GeV in logarithmic spacing.''',
+        default = np.logspace(np.log10(1.),np.log10(80),80))
+    parser.add_argument('--czbins', metavar='[-1.,-0.8.,...]', type=json_string,
+        help= '''Edges of the cos(zenith) bins, default is '''
+              '''21 edges (20 bins) from -1. (upward) to 0. horizontal in linear spacing.''',
+        default = np.linspace(-1.,0.,21))
+    parser.add_argument('--flux_file', metavar='FILE', type=str,
+        help= '''Input flux file in Honda format. '''
+              '''Default is \'resources/flux/frj-solmin-mountain-aa.d\' ''',
+        default = os.path.expandvars('$PISA/resources/flux/frj-solmin-mountain-aa.d'))
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str, action='store',
                         help='file to store the output', default='flux.json')
     parser.add_argument('-v', '--verbose', action='count', default=0,
@@ -132,29 +139,19 @@ if __name__ == '__main__':
     #Set verbosity level
     set_verbosity(args.verbose)
 
-    #Check that we got all the arguments
-    try:
-        params = args.settings['params']
-        ebins = args.settings['ebins']
-        czbins = args.settings['czbins']
-    except KeyError, k:
-        logging.error("Settings are incomplete - missing %s!"%k)
-        parser.print_help()
-        sys.exit(1)
-
     logging.debug("Using %u bins in energy from %.2f to %.2f GeV"%
-                                (len(ebins)-1,ebins[0],ebins[-1]))
+                                (len(args.ebins)-1,args.ebins[0],args.ebins[-1]))
     logging.debug("Using %u bins in cos(zenith) from %.2f to %.2f"%
-                                (len(czbins)-1,czbins[0],czbins[-1]))
+                                (len(args.czbins)-1,args.czbins[0],args.czbins[-1]))
 
     #Instantiate a flux model
-    flux_model = HondaFlux(**params)
+    flux_model = HondaFlux(args.flux_file)
     
     #get the flux 
-    flux_maps = get_flux_maps(flux_model,ebins,czbins,**params)
+    flux_maps = get_flux_maps(flux_model,args.ebins,args.czbins)
 
-    #Store parameters along with flux_maps
-    flux_maps['params'] = params
+    #Store parameters along with flux_maps (none so far)
+    flux_maps['params'] = {}
 
     #write out to a file
     to_json(flux_maps, args.outfile)

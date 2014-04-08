@@ -22,6 +22,9 @@ try:
 except ImportError:
     import json
 
+def json_string(string):
+    '''Decode a json string'''
+    return json.loads(string)
 
 def from_json(filename):
     '''Open a file in JSON format an parse the content'''
@@ -32,7 +35,6 @@ def from_json(filename):
         logging.error("Unable to read JSON file \'%s\'"%filename)
         logging.error(e)
         sys.exit(1)
-
 
 def to_json(content, filename,indent=2):
     '''Write content to a JSON file using a custom parser that
