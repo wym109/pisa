@@ -17,7 +17,7 @@ import os
 import sys
 import logging
 import numpy as np
-from argparse import ArgumentParser, RawTextHelpFormatter
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from utils.utils import set_verbosity
 from utils.json import from_json, to_json, json_string
 from HondaFluxService import HondaFluxService, primaries
@@ -48,21 +48,21 @@ if __name__ == '__main__':
     # parser
     parser = ArgumentParser(description='Take a settings file '
         'as input and write out a set of flux maps',
-        formatter_class=RawTextHelpFormatter)
+        formatter_class=ArgumentDefaultsHelpFormatter
+        )
 
     parser.add_argument('--ebins', metavar='[1.0,2.0,...]', type=json_string,
         help= '''Edges of the energy bins in units of GeV, default is '''
               '''80 edges (79 bins) from 1.0 to 80 GeV in logarithmic spacing.''',
         default = np.logspace(np.log10(1.),np.log10(80),80))
 
-    parser.add_argument('--czbins', metavar='[-1.,-0.8.,...]', type=json_string,
+    parser.add_argument('--czbins', metavar='[-1.0,-0.8.,...]', type=json_string,
         help= '''Edges of the cos(zenith) bins, default is '''
               '''21 edges (20 bins) from -1. (upward) to 0. horizontal in linear spacing.''',
         default = np.linspace(-1.,0.,21))
     
     parser.add_argument('--flux_file', metavar='FILE', type=str,
-        help= '''Input flux file in Honda format. '''
-              '''Default is \'resources/flux/frj-solmin-mountain-aa.d\' ''',
+        help= '''Input flux file in Honda format. ''',
         default = os.path.expandvars('$PISA/resources/flux/frj-solmin-mountain-aa.d'))
     
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str, action='store',
