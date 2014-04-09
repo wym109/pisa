@@ -40,7 +40,7 @@ class RecoServiceMC:
         
         return
     
-    def get_reco_maps(true_event_maps=None):
+    def get_reco_maps(self,true_event_maps=None):
         '''
         This takes the true_event_maps and applies the pdf in every
         bin to create the corresponding reco_maps...

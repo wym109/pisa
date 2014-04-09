@@ -19,11 +19,11 @@
 #
 
 
-import loggin
+import logging
 from argparse import ArgumentParser, RawTextHelpFormatter
-from utils.utils import set_verbosity
+from utils.utils import set_verbosity,is_equal_binning
+from utils.json import from_json,to_json
 from RecoService import RecoServiceMC
-
 
 def get_event_rates_reco(true_event_maps,simfile=None,e_reco_scale=None,
                          cz_reco_scale=None,**kwargs):
@@ -49,9 +49,9 @@ def get_event_rates_reco(true_event_maps,simfile=None,e_reco_scale=None,
     for nu in flavours:
         for int_type in int_types:
             if not is_equal_binning(ebins,true_event_maps[nu][int_type]['ebins']):
-                raise Exception('Osc flux maps have different energy binning!')
-            if not is_equal_binning(ebins,true_event_maps[nu][int_type]['czbins']):
-                raise Exception('Osc flux maps have different coszen binning!')
+                raise Exception('Event Rate maps have different energy binning!')
+            if not is_equal_binning(czbins,true_event_maps[nu][int_type]['czbins']):
+                raise Exception('Event Rate maps have different coszen binning!')
 
             
     logging.info("Defining RecoService...")
