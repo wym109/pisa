@@ -57,14 +57,10 @@ class AeffServiceMC:
             
         return
     
-    def get_aeff(self,nu_xsec_scale,nubar_xsec_scale):
+    def get_aeff(self,*kwargs):
         '''
-        Returns the effective area dictionary, scaled by the
-        appropriate factors.
+        Returns the effective area dictionary
         '''
-        
-        # scale each aeff by these factors...
-        
 
         return self.aeff_dict
         

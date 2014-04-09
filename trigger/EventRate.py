@@ -50,7 +50,9 @@ def get_event_rates(osc_flux_maps,sim_file=None,livetime=None,nu_xsec_scale=None
 
     logging.info("Defining aeff_service...")
     aeff_service = AeffServiceMC(ebins,czbins,simfile)
-    aeff_dict = aeff_service.get_aeff(nu_xsec_scale,nu_bar_xsec_scale)
+    aeff_dict = aeff_service.get_aeff()
+    
+    # apply the scaling for nu_xsec_scale and nubar_xsec_scale...
     
     event_rate_maps = {}
     for flavour in flavours:
