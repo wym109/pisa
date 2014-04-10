@@ -131,7 +131,7 @@ Expects the file format to be:
     
     event_rate_maps = get_event_rates(osc_flux_maps,simfile,livetime,
                                       nu_xsec_scale,nubar_xsec_scale)
-
+    
     event_rate_maps['params'] = dict(osc_flux_maps['params'].items() + 
                                      event_param_dict.items())
     logging.info("Saving output to .json file...")

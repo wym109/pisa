@@ -18,12 +18,79 @@
 # date:   April 9, 2014
 #
 
-
 import logging
 from argparse import ArgumentParser, RawTextHelpFormatter
 from utils.utils import set_verbosity,is_equal_binning
 from utils.json import from_json,to_json
 from RecoService import RecoServiceMC
+
+
+def get_reco_maps(true_event_maps=None,ebins=None,czbins=None,kernel_dict=None):
+    '''
+    This takes the true_event_maps and applies the smearing kernel in
+    every bin to create the corresponding reco_maps...  Reco maps
+    format is:
+    {'nue_cc':{'map':array,'czbins':czbins,'ebins':ebins},
+     'numu_cc':...
+     'nutau_cc':...
+     'nuall_nc':...
+    }
+    Note that in this function, the nu<x> is now combined with nu_bar<x>.
+    '''
+    
+    reco_maps = {}
+    
+    int_type = 'cc'
+    for flavor in ['nue','numu','nutau']:
+        logging.info("Getting reco event rates for %s"%flavor)
+        reco_evt_rate = np.zeros((len(ebins)-1,len(czbins)-1),
+                                 dtype=np.float32)
+        for mID in ['','_bar']:
+            flav = flavor+mID
+            true_evt_rate = true_event_maps[flav][int_type]['map']
+            
+            kernel = kernel_dict[flav][int_type]
+                
+            for ie,egy in enumerate(ebins[:-1]):
+                for icz,cz in enumerate(czbins[:-1]):
+                    # Get kernel at these true parameters
+                    kernel = kernels[ie,icz]
+                    # normalize
+                    if np.sum(kernel) > 0.0: kernel /= np.sum(kernel)
+                    reco_evt_rate += true_evt_rate[ie,icz]*kernel
+
+        reco_maps[flavor+'_'+int_type] = {'map':reco_evt_rate,
+                                          'ebins':ebins,
+                                          'czbins':czbins}
+        logging.info("  Total counts: %.2f"%np.sum(reco_evt_rate))
+            
+    int_type = 'nc'
+    reco_evt_rate = np.zeros((len(ebins)-1,len(czbins)-1),
+                             dtype=np.float32)
+    # Now do all reco_maps for nc:
+    for flavor in ['nue','numu','nutau']:
+        logging.info("Getting reco events for %s NC"%flavor)
+        for mID in ['','_bar']:
+            flav = flavor+mID
+            true_evt_rate = true_event_maps[flav][int_type]['map']
+            
+            kernels = kernel_dict[flav][int_type]
+            
+            for ie,egy in enumerate(ebins[:-1]):
+                for icz,cz in enumerate(czbins[:-1]):
+                    # Get kernel at these true parameters:
+                    kernel = kernels[ie,icz]
+                    if np.sum(kernel) > 0.0:
+                        kernel /= np.sum(kernel)
+                    reco_evt_rate += true_evt_rate[ie,icz]*kernel
+
+    reco_maps['nuall_nc'] = {'map':reco_evt_rate,
+                             'ebins':ebins,
+                             'czbins':czbins}
+    logging.info("  Total counts: %.2f"%np.sum(reco_evt_rate))
+    
+    return reco_maps
+
 
 def get_event_rates_reco(true_event_maps,simfile=None,e_reco_scale=None,
                          cz_reco_scale=None,**kwargs):
@@ -41,7 +108,6 @@ def get_event_rates_reco(true_event_maps,simfile=None,e_reco_scale=None,
     '''
     
     # Verify consistent binning....
-    # Should I move this check to RecoService:get_reco_maps()?
     ebins = true_event_maps['nue']['cc']['ebins']
     czbins = true_event_maps['nue']['cc']['czbins']
     flavours = ['nue','numu','nutau','nue_bar','numu_bar','nutau_bar']
@@ -56,7 +122,11 @@ def get_event_rates_reco(true_event_maps,simfile=None,e_reco_scale=None,
             
     logging.info("Defining RecoService...")
     reco_service = RecoServiceMC(ebins,czbins,simfile)
-    reco_maps = reco_service.get_reco_maps(true_event_maps)
+    kernels = reco_service.get_kernels()
+    reco_maps = get_reco_maps(true_event_maps,ebins,czbins,kernels)
+
+    # Apply e_reco_scaling...
+    # Apply cz_reco_scaling...
     
     return reco_maps
 
@@ -127,6 +197,7 @@ Expects the file format to be:
                                           reco_dict.items())
     
     logging.info("Saving output to .json file...")
-    to_json(event_rate_maps,args.outfile)
+    logging.debug("  saving keys: %s",[key for key in event_rate_reco_maps.keys()])
+    to_json(event_rate_reco_maps,args.outfile)
 
     

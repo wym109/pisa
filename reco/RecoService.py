@@ -36,17 +36,32 @@ class RecoServiceMC:
             logging.error(e)
             sys.exit(1)
             
-        # Create the 4D pdfs...
-        
+        # Create the 4D distribution kernels...
+        self.kernel_dict = {}
+        logging.info("Creating kernel dict...")
+        for flavor in ['nue','nue_bar','numu','numu_bar','nutau','nutau_bar']:
+            flavor_dict = {}
+            logging.debug("Working on %s kernels"%flavor)
+            for int_type in ['cc','nc']:
+                true_energy = np.array(fh[flavor+'/'+int_type+'/true_energy'])
+                true_coszen = np.array(fh[flavor+'/'+int_type+'/true_coszen'])
+                reco_energy = np.array(fh[flavor+'/'+int_type+'/reco_energy'])
+                reco_coszen = np.array(fh[flavor+'/'+int_type+'/reco_coszen'])
+
+                # True binning, reco binning...
+                bins = (self.ebins,self.czbins,self.ebins,self.czbins)
+                data = (true_energy,true_coszen,reco_energy,reco_coszen)
+                kernel,_ = np.histogramdd(data,bins=bins)
+                flavor_dict[int_type] = kernel
+            self.kernel_dict[flavor] = flavor_dict
+            
         return
+
+    def get_kernels(self,**kwargs):
+        '''
+        Returns the kernels as a dictionary
+        '''
+
+        return self.kernel_dict
     
-    def get_reco_maps(self,true_event_maps=None):
-        '''
-        This takes the true_event_maps and applies the pdf in every
-        bin to create the corresponding reco_maps...
-        '''
-        
-        reco_maps = {}
-        
-        return reco_maps
         
