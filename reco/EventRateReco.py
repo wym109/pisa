@@ -53,7 +53,7 @@ def get_reco_maps(true_event_maps=None,ebins=None,czbins=None,kernel_dict=None):
                 
             for ie,egy in enumerate(ebins[:-1]):
                 for icz,cz in enumerate(czbins[:-1]):
-                    # Get kernel at these true parameters
+                    # Get kernel at these true parameters from 4D hist
                     kernel = kernels[ie,icz]
                     # normalize
                     if np.sum(kernel) > 0.0: kernel /= np.sum(kernel)
