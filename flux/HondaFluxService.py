@@ -1,9 +1,11 @@
 #! /usr/bin/env python
 #
-# HondaFlux.py
+# HondaFluxService.py
 #
-# Load a flux table as provided by Honda (for now only able to use
-# azimuth-averaged data) and read it out in map.
+# This flux service provides flux values for a grid of energy / cos(zenith)
+# bins. It loads a flux table as provided by Honda (for now only able to use
+# azimuth-averaged data) and uses spline interpolation to provide the integrated
+# flux per bin.
 #
 # If desired, this will create a .json output file with the results of
 # the current stage of processing.
@@ -14,18 +16,15 @@
 # date:   2014-01-27
 
 import os
-import sys
 import logging
 import numpy as np
-from argparse import ArgumentParser, RawTextHelpFormatter
 from scipy.interpolate import bisplrep, bisplev
-from utils.utils import get_bin_centers, get_bin_sizes, set_verbosity
-from utils.json import from_json, to_json
+from utils.utils import get_bin_centers, get_bin_sizes
 
 #Global definition of primaries for which there is a neutrino flux
 primaries = ['numu', 'numu_bar', 'nue', 'nue_bar']
 
-class HondaFlux():
+class HondaFluxService():
     '''Load a neutrino flux from Honda-styles flux tables in
        units of [GeV^-1 m^-2 s^-1 sr^-1] and
        return a 2D spline interpolated function per flavour.
@@ -90,71 +89,3 @@ class HondaFlux():
         return_table *= np.abs(bin_sizes[0]*bin_sizes[1])
     
         return return_table.T
-
-def get_flux_maps(flux, ebins, czbins, **params):
-    '''Get a set of flux maps for the different primaries'''
-
-    maps = {}
-    for prim in primaries:
-
-        #Get the flux for this primary
-        maps[prim] = {'ebins': ebins,
-                      'czbins': czbins,
-                      'map': flux.get_flux(ebins,czbins,prim)}
-        #be a bit verbose
-        logging.debug("Total flux of %s is %u [s^-1 m^-2]"%
-                                (prim,maps[prim]['map'].sum()))
-
-    #return this map
-    return maps
-
-
-if __name__ == '__main__':
-
-    #Only show errors while parsing
-    set_verbosity(0)
-
-    # parser
-    parser = ArgumentParser(description='Take a settings file '
-        'as input and write out a set of flux maps',
-        formatter_class=RawTextHelpFormatter)
-    parser.add_argument('settings', metavar='SETTINGS', type=from_json,
-        help='''JSON file with the input parameters:
-         { "params": { "tables" : path/to/tablefile.d }
-           "ebins" : [1.,2.,3. ...]
-           "czbins" : [-1.0,-0.9,-0.8,...]}''')
-    parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str, action='store',
-                        help='file to store the output', default='flux.json')
-    parser.add_argument('-v', '--verbose', action='count', default=0,
-                        help='set verbosity level')
-    args = parser.parse_args()
-
-    #Set verbosity level
-    set_verbosity(args.verbose)
-
-    #Check that we got all the arguments
-    try:
-        params = args.settings['params']
-        ebins = args.settings['ebins']
-        czbins = args.settings['czbins']
-    except KeyError, k:
-        logging.error("Settings are incomplete - missing %s!"%k)
-        parser.print_help()
-        sys.exit(1)
-
-    logging.debug("Using %u bins in energy from %.2f to %.2f GeV"%
-                                (len(ebins)-1,ebins[0],ebins[-1]))
-    logging.debug("Using %u bins in cos(zenith) from %.2f to %.2f"%
-                                (len(czbins)-1,czbins[0],czbins[-1]))
-
-    #Instantiate a flux model
-    flux_model = HondaFlux(**params)
-    
-    #get the flux 
-    flux_maps = get_flux_maps(flux_model,ebins,czbins,**params)
-
-    #Store parameters along with flux_maps
-    flux_maps['params'] = params
-
-    #write out to a file
-    to_json(flux_maps, args.outfile)
