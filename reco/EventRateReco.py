@@ -23,7 +23,7 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 from utils.utils import set_verbosity,is_equal_binning
 from utils.json import from_json,to_json
 from RecoService import RecoServiceMC
-
+import numpy as np
 
 def get_reco_maps(true_event_maps=None,ebins=None,czbins=None,kernel_dict=None):
     '''
@@ -49,7 +49,7 @@ def get_reco_maps(true_event_maps=None,ebins=None,czbins=None,kernel_dict=None):
             flav = flavor+mID
             true_evt_rate = true_event_maps[flav][int_type]['map']
             
-            kernel = kernel_dict[flav][int_type]
+            kernels = kernel_dict[flav][int_type]
                 
             for ie,egy in enumerate(ebins[:-1]):
                 for icz,cz in enumerate(czbins[:-1]):
@@ -196,7 +196,7 @@ Expects the file format to be:
     event_rate_reco_maps['params'] = dict(event_rate_maps['params'].items() +
                                           reco_dict.items())
     
-    logging.info("Saving output to .json file...")
+    logging.info("Saving output to file: %s"%args.outfile)
     logging.debug("  saving keys: %s",[key for key in event_rate_reco_maps.keys()])
     to_json(event_rate_reco_maps,args.outfile)
 
