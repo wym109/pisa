@@ -124,11 +124,11 @@ Expects the file format to be:
     for name,param in zip(["livetime","nu xs scale","nubar xs scale"],
                           [livetime,nu_xsec_scale,nubar_xsec_scale]):
         logging.debug("%14s: %s "%(name,param))
-
+        
     logging.info("Getting oscillated flux...")    
     osc_flux_maps = args.osc_flux_file
     simfile = args.weighted_aeff_file
-
+    
     event_rate_maps = get_event_rates(osc_flux_maps,simfile,livetime,
                                       nu_xsec_scale,nubar_xsec_scale)
 
