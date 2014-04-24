@@ -54,13 +54,14 @@ if __name__ == '__main__':
     parser.add_argument('--ebins', metavar='[1.0,2.0,...]', type=json_string,
         help= '''Edges of the energy bins in units of GeV, default is '''
               '''80 edges (79 bins) from 1.0 to 80 GeV in logarithmic spacing.''',
-        default = np.logspace(np.log10(1.),np.log10(80),80))
+                        default = np.logspace(np.log10(1.0),np.log10(80.0),41) )
+                        
 
     parser.add_argument('--czbins', metavar='[-1.0,-0.8.,...]', type=json_string,
-        help= '''Edges of the cos(zenith) bins, default is '''
-              '''21 edges (20 bins) from -1. (upward) to 0. horizontal in linear spacing.''',
-        default = np.linspace(-1.,0.,21))
-    
+                        help= '''Edges of the cos(zenith) bins, default is '''
+                        '''21 edges (20 bins) from -1. (upward) to 0. horizontal in linear spacing.''',
+                        default = np.linspace(-1.,0.,21))
+                        
     parser.add_argument('--flux_file', metavar='FILE', type=str,
         help= '''Input flux file in Honda format. ''',
         default = os.path.expandvars('$PISA/resources/flux/frj-solmin-mountain-aa.d'))

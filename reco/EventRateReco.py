@@ -57,6 +57,7 @@ def get_reco_maps(true_event_maps=None,ebins=None,czbins=None,kernel_dict=None):
                     kernel = kernels[ie,icz]
                     # normalize
                     if np.sum(kernel) > 0.0: kernel /= np.sum(kernel)
+                    else: logging.debug("Skipping kernal normalization (since it's zero) at cz: %f, egy: %f"%(cz,egy))
                     reco_evt_rate += true_evt_rate[ie,icz]*kernel
 
         reco_maps[flavor+'_'+int_type] = {'map':reco_evt_rate,
@@ -119,6 +120,8 @@ def get_event_rates_reco(true_event_maps,simfile=None,e_reco_scale=None,
             if not is_equal_binning(czbins,true_event_maps[nu][int_type]['czbins']):
                 raise Exception('Event Rate maps have different coszen binning!')
 
+
+    print "  czbins: ",czbins
             
     logging.info("Defining RecoService...")
     reco_service = RecoServiceMC(ebins,czbins,simfile)
@@ -199,5 +202,5 @@ Expects the file format to be:
     logging.info("Saving output to file: %s"%args.outfile)
     logging.debug("  saving keys: %s",[key for key in event_rate_reco_maps.keys()])
     to_json(event_rate_reco_maps,args.outfile)
-
+    
     

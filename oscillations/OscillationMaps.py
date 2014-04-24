@@ -23,6 +23,7 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 from utils.utils import set_verbosity,is_equal_binning
 from utils.json import from_json, to_json
 from OscillationService import OscillationService
+from datetime import datetime
 
 # Until python2.6, default json is very slow.
 try: 
@@ -51,7 +52,11 @@ def get_osc_flux(flux_maps,deltam21=None,deltam31=None,theta12=None,
     osc_service = OscillationService(ebins,czbins)
     osc_prob_maps = osc_service.get_osc_prob_maps(deltam21,deltam31,theta12,
                                                   theta13,theta23,deltacp)
-    
+
+    test_file = "smoothed_osc_prob_maps_numu.json"
+    logging.info("Creating file %s"%test_file)
+    to_json(osc_prob_maps,test_file)
+   
     osc_flux_maps = {}
     for to_flav in ['nue','numu','nutau']:
         for mID in ['','_bar']: # 'matter' ID
@@ -104,13 +109,17 @@ if __name__ == '__main__':
     #Set verbosity level
     set_verbosity(args.verbose)
 
+    start_time = datetime.now()
+
     outfile = args.outfile
     flux_maps = args.flux_file
     osc_param_dict = vars(args)
     osc_param_dict.pop('outfile')
     osc_param_dict.pop('flux_file')
-    units = ['eV^2','eV^2','rad','rad','rad','rad']
-    for param, unit in zip(osc_param_dict.keys(),units):
+    osc_param_dict.pop('verbose')
+    # Sorted by oscillatoin parameters alphabetically...
+    units = ['rad','eV^2','eV^2','rad','rad','rad']    
+    for param, unit in zip(sorted(osc_param_dict),units):
         logging.debug("%10s: %.4e %s"%(param,osc_param_dict[param],unit))
 
     logging.info("Getting osc prob maps")
@@ -123,5 +132,6 @@ if __name__ == '__main__':
     #Write out
     logging.info("Saving osc prob maps to file: %s",outfile)
     to_json(osc_flux_maps, outfile)
+    logging.info("Total time taken to run this stage: %s",(datetime.now() - start_time))
     
     
