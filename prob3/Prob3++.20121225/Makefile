@@ -36,7 +36,7 @@ LIBNAME   = $(LIBALIAS)_$(VER)
 lib3p     = lib$(LIBNAME).a
 
 
-targets = $(lib3p) probRoot probLinear probAnalytic 
+targets = $(lib3p) probRoot
 # Added by TCA, 23 April 2014
 targets += _BargerPropagator.so BargerProp.py
 
@@ -54,26 +54,6 @@ probRoot: probRoot.o $(lib3p)
 .PHONY: probRoot.o
 probRoot.o: 
 	$(CXX) -o probRoot.o $(ROOTCFLAGS) $(CXXFLAGS) -c probRoot.cc
-
-
-probLinear: probLinear.o $(lib3p) 
-	$(RM) $@
-	$(CXX) -o $@ $(CXXFLAGS) -L. $^ $(ROOTLIBS)
-
-
-.PHONY: probLinear.o
-probLinear.o: 
-	$(CXX) -o probLinear.o $(ROOTCFLAGS) $(CXXFLAGS) -c probLinear.cc
-
-
-probAnalytic: probAnalytic.o $(lib3p) 
-	$(RM) $@
-	$(CXX) -o $@ $(CXXFLAGS) -L. $^ $(ROOTLIBS)
-
-
-.PHONY: probAnalytic.o
-probAnalytic.o: 
-	$(CXX) -o probAnalytic.o $(ROOTCFLAGS) $(CXXFLAGS) -c probAnalytic.cc
 
 
 ################################################
