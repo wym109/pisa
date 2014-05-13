@@ -70,6 +70,8 @@ def remove_downgoing(hist,czbins):
     nebins = np.shape(hist)[0]
     nczbins = len(czbins) - 1
     hist_new = np.zeros((nebins,nczbins), dtype=np.float32)
+    #print hist_new.shape
+    #print hist.shape
     for ie,egy in enumerate(hist[:]):
         hist_new[ie] = hist[ie][:-bin_rm]
 

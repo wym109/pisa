@@ -52,8 +52,23 @@ class RecoServiceMC:
                 bins = (self.ebins,self.czbins,self.ebins,self.czbins)
                 data = (true_energy,true_coszen,reco_energy,reco_coszen)
                 kernel,_ = np.histogramdd(data,bins=bins)
+
+                ###################################################
+                # Now normalize kernels:
+                # Do we need to check for minimum value in kernel?
+                for ie,egy in enumerate(ebins[:-1]):
+                    for icz, cz in enumerate(czbins[:-1]):
+                        #kernel_i = kernel[ie,icz]
+                        if np.sum(kernel[ie,icz]) > 0.0: 
+                            kernel[ie,icz] /= np.sum(kernel[ie,icz])
+                        
                 flavor_dict[int_type] = kernel
             self.kernel_dict[flavor] = flavor_dict
+
+
+
+        # normalize:
+        #if np.sum(kernel) > 0.0: kernel /= np.sum(kernel)
             
         return
 

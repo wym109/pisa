@@ -1,0 +1,102 @@
+
+ROOTCFLAGS = `root-config --cflags`
+ROOTLIBS   = `root-config --libs`
+
+CXXFLAGS += -I. -Wall
+CXX = g++
+
+#############################
+# NEEDED FOR PYTHON DLL
+PYLIB = /usr/local/Cellar/python/2.7.6_1/Frameworks/Python.framework/Versions/2.7/lib/
+PYINC = /usr/local/Cellar/python/2.7.6_1/Frameworks/Python.framework/Headers/
+PYFLAGS = -L$(PYLIB) -lpython2.7
+# Depending on your OS/compiler, you may need a different for a dynamic lib for c++
+DLLFLAG = -dynamiclib
+SWIG = /usr/local/bin/swig
+#############################
+
+%.o : %.c
+	$(RM) $@
+	$(CC) -c $(CFLAGS) -o $@ $<
+
+%.o : %.cc
+	$(RM) $@
+	$(CXX) -c $(CXXFLAGS) -o $@ $*.cc
+
+
+OBJS    = EarthDensity.o BargerPropagator.o mosc.o mosc3.o 
+
+
+LIBBASE   = ThreeProb
+VER       = 2.10
+TAG       = 
+LIBALIAS  = $(LIBBASE)$(TAG)
+LIBNAME   = $(LIBALIAS)_$(VER)
+
+lib3p     = lib$(LIBNAME).a
+
+
+targets = $(lib3p) probRoot probLinear probAnalytic 
+# Added by TCA, 23 April 2014
+targets += _BargerPropagator.so BargerProp.py
+
+$(lib3p) : $(OBJS)
+	$(RM) $@
+	ar clq $@ $(OBJS)
+	ranlib $@
+
+
+probRoot: probRoot.o $(lib3p) 
+	$(RM) $@
+	$(CXX) -o $@ $(CXXFLAGS) -L. $^ $(ROOTLIBS)
+
+
+.PHONY: probRoot.o
+probRoot.o: 
+	$(CXX) -o probRoot.o $(ROOTCFLAGS) $(CXXFLAGS) -c probRoot.cc
+
+
+probLinear: probLinear.o $(lib3p) 
+	$(RM) $@
+	$(CXX) -o $@ $(CXXFLAGS) -L. $^ $(ROOTLIBS)
+
+
+.PHONY: probLinear.o
+probLinear.o: 
+	$(CXX) -o probLinear.o $(ROOTCFLAGS) $(CXXFLAGS) -c probLinear.cc
+
+
+probAnalytic: probAnalytic.o $(lib3p) 
+	$(RM) $@
+	$(CXX) -o $@ $(CXXFLAGS) -L. $^ $(ROOTLIBS)
+
+
+.PHONY: probAnalytic.o
+probAnalytic.o: 
+	$(CXX) -o probAnalytic.o $(ROOTCFLAGS) $(CXXFLAGS) -c probAnalytic.cc
+
+
+################################################
+# Needed to generate the python dll
+_BargerPropagator.so: BargerPropagator_wrap.o BargerPropagator.o
+	$(CXX) $(DLLFLAG) BargerPropagator_wrap.o $(OBJS) $(PYFLAGS) -o $@
+
+BargerPropagator_wrap.o: BargerPropagator_wrap.cxx $(OBJS)
+	$(CXX) $(CXXFLAGS) BargerPropagator_wrap.cxx -c -g -I$(PYINC)
+
+BargerPropagator_wrap.cxx: BargerPropagator.i
+	$(SWIG) -c++ -python BargerPropagator.i
+
+BargerProp.py: BargerPropagator.i
+	$(SWIG) -c++ -python BargerPropagator.i
+#################################################
+
+.PHONY: all
+all: $(targets)
+
+.PHONY: clean
+clean:
+	$(RM) $(targets) *.o *.a *.so *.pyc *~
+
+emptyrule:: $(lib3p)
+

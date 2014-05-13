@@ -25,15 +25,9 @@ from utils.json import from_json, to_json
 from OscillationService import OscillationService
 from datetime import datetime
 
-# Until python2.6, default json is very slow.
-try: 
-    import simplejson as json
-except ImportError, e:
-    import json
-
 
 def get_osc_flux(flux_maps,deltam21=None,deltam31=None,theta12=None,
-                 theta13=None,theta23=None,deltacp=None,**kwargs):
+                 theta13=None,theta23=None,deltacp=None,osc_code=None,**kwargs):
     '''
     Uses osc_prob_maps to calculate the oscillated flux maps.
     Inputs:
@@ -41,21 +35,26 @@ def get_osc_flux(flux_maps,deltam21=None,deltam31=None,theta12=None,
       others - oscillation parameters to compute oscillation probability maps from.
     '''
 
+    units = ['rad','eV^2','eV^2','rad','rad','rad']
+    osc_param_dict = {'deltam21':deltam21,'deltam31':deltam31,'theta12':theta12,
+                      'theta13':theta13,'theta23':theta23,'deltacp':deltacp}
+    for param, unit in zip(sorted(osc_param_dict),units):
+        logging.debug("%10s: %.4e %s"%(param,osc_param_dict[param],unit))
+
     ebins = flux_maps['nue']['ebins']
-    czbins = flux_maps['nue']['czbins']
-    
+    czbins = flux_maps['nue']['czbins']    
     if not np.alltrue([is_equal_binning(ebins,flux_maps[nu]['ebins']) for nu in ['nue','nue_bar','numu','numu_bar']]):
         raise Exception('Flux maps have different energy binning!')
     if not np.alltrue([is_equal_binning(czbins,flux_maps[nu]['czbins']) for nu in ['nue','nue_bar','numu','numu_bar']]):
         raise Exception('Flux maps have different coszen binning!')
     
-    osc_service = OscillationService(ebins,czbins)
+    osc_service = OscillationService(ebins,czbins,osc_code=osc_code)
     osc_prob_maps = osc_service.get_osc_prob_maps(deltam21,deltam31,theta12,
                                                   theta13,theta23,deltacp)
-
-    test_file = "smoothed_osc_prob_maps_numu.json"
-    logging.info("Creating file %s"%test_file)
-    to_json(osc_prob_maps,test_file)
+    
+    #test_file = "smoothed_osc_prob_maps_numu.json"
+    #logging.info("Creating file %s"%test_file)
+    #to_json(osc_prob_maps,test_file)
    
     osc_flux_maps = {}
     for to_flav in ['nue','numu','nutau']:
@@ -97,38 +96,40 @@ if __name__ == '__main__':
                         help='''theta13 value [rad]''')
     parser.add_argument('--theta23',type=float,default=0.6745,
                         help='''theta23 value [rad]''')
-    parser.add_argument('--deltacp',type=float,default=np.pi,
+    parser.add_argument('--deltacp',type=float,default=0.0,
                         help='''deltaCP value to use [rad]''')
+    parser.add_argument('--osc_code',type=str,default='Prob3',
+                        help='''Oscillation prob code to use ['Prob3' (default) or 'NuCraft'] ''')
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str,
                         action='store',default="osc_flux.json",
                         help='file to store the output')
     parser.add_argument('-v', '--verbose', action='count', default=0,
                         help='set verbosity level')
     args = parser.parse_args()
-
+    
+    args_dict = vars(args)
+    
     #Set verbosity level
-    set_verbosity(args.verbose)
+    verbose = args_dict.pop('verbose')
+    set_verbosity(verbose)
+    
+    outfile = args_dict.pop('outfile')
+    flux_maps = args_dict.pop('flux_file')
+    #outfile = args.outfile
+    #flux_maps = args.flux_file
 
     start_time = datetime.now()
-
-    outfile = args.outfile
-    flux_maps = args.flux_file
-    osc_param_dict = vars(args)
-    osc_param_dict.pop('outfile')
-    osc_param_dict.pop('flux_file')
-    osc_param_dict.pop('verbose')
-    # Sorted by oscillatoin parameters alphabetically...
-    units = ['rad','eV^2','eV^2','rad','rad','rad']    
-    for param, unit in zip(sorted(osc_param_dict),units):
-        logging.debug("%10s: %.4e %s"%(param,osc_param_dict[param],unit))
-
+    
     logging.info("Getting osc prob maps")
     osc_flux_maps = get_osc_flux(flux_maps,args.deltam21,args.deltam31,args.theta12,
-                                 args.theta13,args.theta23,args.deltacp)
+                                 args.theta13,args.theta23,args.deltacp,
+                                 osc_code=args.osc_code)
     
     #Merge the new parameters into the old ones
-    osc_flux_maps['params'] = dict(flux_maps['params'].items() + osc_param_dict.items())
-    
+    osc_flux_maps['params'] = dict(flux_maps['params'].items() + args_dict.items())
+
+    logging.info("Saving params: %s"%osc_flux_maps['params'].keys())
+
     #Write out
     logging.info("Saving osc prob maps to file: %s",outfile)
     to_json(osc_flux_maps, outfile)

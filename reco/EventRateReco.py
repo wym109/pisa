@@ -27,13 +27,14 @@ import numpy as np
 
 def get_reco_maps(true_event_maps=None,ebins=None,czbins=None,kernel_dict=None):
     '''
-    This takes the true_event_maps and applies the smearing kernel in
-    every bin to create the corresponding reco_maps...  Reco maps
-    format is:
-    {'nue_cc':{'map':array,'czbins':czbins,'ebins':ebins},
+    This takes the true_event_maps and applies the smearing kernel (a
+    pdf in (reco energy, reco coszen) at a given true energy, true
+    coszen) in every bin to create the corresponding reco_maps...
+    Reco maps format is:
+    {'nue_cc': {'map':array,'czbins':czbins,'ebins':ebins},
      'numu_cc':...
-     'nutau_cc':...
-     'nuall_nc':...
+     'nutau_cc':... 
+     'nuall_nc':... 
     }
     Note that in this function, the nu<x> is now combined with nu_bar<x>.
     '''
@@ -42,7 +43,7 @@ def get_reco_maps(true_event_maps=None,ebins=None,czbins=None,kernel_dict=None):
     
     int_type = 'cc'
     for flavor in ['nue','numu','nutau']:
-        logging.info("Getting reco event rates for %s"%flavor)
+        logging.debug("Getting reco event rates for %s"%flavor)
         reco_evt_rate = np.zeros((len(ebins)-1,len(czbins)-1),
                                  dtype=np.float32)
         for mID in ['','_bar']:
@@ -55,15 +56,14 @@ def get_reco_maps(true_event_maps=None,ebins=None,czbins=None,kernel_dict=None):
                 for icz,cz in enumerate(czbins[:-1]):
                     # Get kernel at these true parameters from 4D hist
                     kernel = kernels[ie,icz]
-                    # normalize
-                    if np.sum(kernel) > 0.0: kernel /= np.sum(kernel)
-                    else: logging.debug("Skipping kernal normalization (since it's zero) at cz: %f, egy: %f"%(cz,egy))
+                    # normalize:
+                    #if np.sum(kernel) > 0.0: kernel /= np.sum(kernel)
                     reco_evt_rate += true_evt_rate[ie,icz]*kernel
 
         reco_maps[flavor+'_'+int_type] = {'map':reco_evt_rate,
                                           'ebins':ebins,
                                           'czbins':czbins}
-        logging.info("  Total counts: %.2f"%np.sum(reco_evt_rate))
+        logging.debug("  Total counts: %.2f"%np.sum(reco_evt_rate))
             
     int_type = 'nc'
     reco_evt_rate = np.zeros((len(ebins)-1,len(czbins)-1),
@@ -81,8 +81,8 @@ def get_reco_maps(true_event_maps=None,ebins=None,czbins=None,kernel_dict=None):
                 for icz,cz in enumerate(czbins[:-1]):
                     # Get kernel at these true parameters:
                     kernel = kernels[ie,icz]
-                    if np.sum(kernel) > 0.0:
-                        kernel /= np.sum(kernel)
+                    # normalize:
+                    #if np.sum(kernel) > 0.0: kernel /= np.sum(kernel)
                     reco_evt_rate += true_evt_rate[ie,icz]*kernel
 
     reco_maps['nuall_nc'] = {'map':reco_evt_rate,
@@ -93,7 +93,7 @@ def get_reco_maps(true_event_maps=None,ebins=None,czbins=None,kernel_dict=None):
     return reco_maps
 
 
-def get_event_rates_reco(true_event_maps,simfile=None,e_reco_scale=None,
+def get_event_rates_reco(true_event_maps,weighted_aeff_file=None,e_reco_scale=None,
                          cz_reco_scale=None,**kwargs):
     '''
     Primary function for this module, which returns the reconstructed
@@ -102,7 +102,7 @@ def get_event_rates_reco(true_event_maps,simfile=None,e_reco_scale=None,
     be in the form of a dictionary with parameters:
     {'nue_cc':{'ebins':ebins,'czbins':czbins,'map':map},
      'numu_cc':{...},
-     'nutau_cc':{...},
+      'nutau_cc':{...},
      'nuall_nc':{...}
     }
     where nu<x> includes both nu<x> and nu<x>_bar.
@@ -120,11 +120,10 @@ def get_event_rates_reco(true_event_maps,simfile=None,e_reco_scale=None,
             if not is_equal_binning(czbins,true_event_maps[nu][int_type]['czbins']):
                 raise Exception('Event Rate maps have different coszen binning!')
 
-
-    print "  czbins: ",czbins
+#print "  czbins: ",czbins
             
     logging.info("Defining RecoService...")
-    reco_service = RecoServiceMC(ebins,czbins,simfile)
+    reco_service = RecoServiceMC(ebins,czbins,weighted_aeff_file)
     kernels = reco_service.get_kernels()
     reco_maps = get_reco_maps(true_event_maps,ebins,czbins,kernels)
 

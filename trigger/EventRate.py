@@ -26,8 +26,8 @@ from utils.json import from_json, to_json
 from AeffService import AeffServiceMC
 from scipy.constants import Julian_year
 
-def get_event_rates(osc_flux_maps,sim_file=None,livetime=None,nu_xsec_scale=None,
-                    nu_bar_xsec_scale=None,**kwargs):
+def get_event_rates(osc_flux_maps,weighted_aeff_file=None,livetime=None,
+                    nu_xsec_scale=None,nu_bar_xsec_scale=None,**kwargs):
     '''
     Main function for this module, which returns the event rate maps
     for each flavor and interaction type, using true energy and zenith
@@ -49,7 +49,7 @@ def get_event_rates(osc_flux_maps,sim_file=None,livetime=None,nu_xsec_scale=None
         raise Exception('Osc flux maps have different coszen binning!')
 
     logging.info("Defining aeff_service...")
-    aeff_service = AeffServiceMC(ebins,czbins,simfile)
+    aeff_service = AeffServiceMC(ebins,czbins,weighted_aeff_file)
     aeff_dict = aeff_service.get_aeff()
     
     # apply the scaling for nu_xsec_scale and nubar_xsec_scale...

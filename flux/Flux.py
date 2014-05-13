@@ -22,8 +22,11 @@ from utils.utils import set_verbosity
 from utils.json import from_json, to_json, json_string
 from HondaFluxService import HondaFluxService, primaries
 
-def get_flux_maps(flux_service, ebins, czbins, **params):
+def get_flux_maps(flux_file, ebins, czbins, **params):
     '''Get a set of flux maps for the different primaries'''
+
+    #Instantiate a flux model
+    flux_service = HondaFluxService(flux_file)
 
     maps = {}
     for prim in primaries:
@@ -81,12 +84,9 @@ if __name__ == '__main__':
                                 (len(args.ebins)-1,args.ebins[0],args.ebins[-1]))
     logging.debug("Using %u bins in cos(zenith) from %.2f to %.2f"%
                                 (len(args.czbins)-1,args.czbins[0],args.czbins[-1]))
-
-    #Instantiate a flux model
-    flux_model = HondaFluxService(args.flux_file)
     
     #get the flux 
-    flux_maps = get_flux_maps(flux_model,args.ebins,args.czbins)
+    flux_maps = get_flux_maps(args.flux_file,args.ebins,args.czbins)
 
     #Store parameters along with flux_maps (none so far)
     flux_maps['params'] = {}
