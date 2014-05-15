@@ -41,8 +41,8 @@
   2) Furthermore, we changed the code so that a detector can now be
   placed at some distance below the surface of the earth, as long as
   it's still within the first layer of Earth, defined in the earth
-  model file. Note that now REarth is changed to RDetector, and the
-  corresponding get functions are also changed.
+  model file. Note that now REarth is changed to RDetector in the
+  calculations, and the corresponding get functions are also changed.
 
 */
 

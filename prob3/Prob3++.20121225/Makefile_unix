@@ -1,0 +1,83 @@
+
+ROOTCFLAGS = `root-config --cflags`
+ROOTLIBS   = `root-config --libs`
+
+CC += -fPIC
+CXXFLAGS += -I. -Wall
+CXX = g++ -fPIC
+
+#############################
+# NEEDED FOR PYTHON DLL - Change these to suit your paths
+PYLIB = /gpfs/group/icecube/tools_v4/additional_tools/Python-2.7.2/lib/
+PYINC = /gpfs/group/icecube/tools_v4/additional_tools/Python-2.7.2/include/python2.7/
+
+PYFLAGS = -L$(PYLIB) -lpython2.7
+DLLFLAG = -shared
+SWIG = /usr/bin/swig
+#############################
+
+%.o : %.c
+	$(RM) $@
+	$(CC) -c $(CFLAGS) -o $@ $<
+
+%.o : %.cc
+	$(RM) $@
+	$(CXX) -c $(CXXFLAGS) -o $@ $*.cc
+
+
+OBJS    = EarthDensity.o BargerPropagator.o mosc.o mosc3.o 
+
+
+LIBBASE   = ThreeProb
+VER       = 2.10
+TAG       = 
+LIBALIAS  = $(LIBBASE)$(TAG)
+LIBNAME   = $(LIBALIAS)_$(VER)
+
+lib3p     = lib$(LIBNAME).a
+
+
+targets = $(lib3p) probRoot
+# Added by TCA, 23 April 2014
+targets += _BargerPropagator.so BargerProp.py
+
+$(lib3p) : $(OBJS)
+	$(RM) $@
+	ar clq $@ $(OBJS)
+	ranlib $@
+
+
+probRoot: probRoot.o $(lib3p) 
+	$(RM) $@
+	$(CXX) -o $@ $(CXXFLAGS) -L. $^ $(ROOTLIBS)
+
+
+.PHONY: probRoot.o
+probRoot.o: 
+	$(CXX) -o probRoot.o $(ROOTCFLAGS) $(CXXFLAGS) -c probRoot.cc
+
+
+################################################
+# Needed to generate the python dll
+_BargerPropagator.so: BargerPropagator_wrap.o BargerPropagator.o
+	$(CXX) $(DLLFLAG) BargerPropagator_wrap.o $(OBJS) $(PYFLAGS) -o $@
+
+BargerPropagator_wrap.o: BargerPropagator_wrap.cxx $(OBJS)
+	$(CXX) $(CXXFLAGS) BargerPropagator_wrap.cxx -c -g -I$(PYINC)
+
+BargerPropagator_wrap.cxx: BargerPropagator.i
+	$(SWIG) -c++ -python BargerPropagator.i
+
+BargerProp.py: BargerPropagator.i
+	$(SWIG) -c++ -python BargerPropagator.i
+#################################################
+
+.PHONY: all
+all: $(targets)
+
+.PHONY: clean
+clean:
+	$(RM) $(targets) *.o *.a *.so *.pyc *_wrap.* *~
+
+emptyrule:: $(lib3p)
+

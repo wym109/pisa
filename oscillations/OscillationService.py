@@ -113,11 +113,6 @@ class OscillationService:
           'numu_bar_maps': {...}
         NOTE: expects all angles in [rad]
         """
-            
-        ### TEMPORARY SOLUTION:
-        #filename = 'normal_oscelot.251cz_x_251e.hdf5' if deltam31 > 0.0 else 'invert_oscelot.251cz_x_251e.hdf5'
-        #logging.info("Loading file: %s"%filename)
-        #osc_probLT_dict = get_osc_probLT_dict_hdf5(filename)
         
         osc_probLT_dict = self.get_osc_probLT_dict(theta12,theta13,theta23,
                                               deltam21,deltam31,deltacp)

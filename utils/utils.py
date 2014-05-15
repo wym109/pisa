@@ -67,14 +67,14 @@ def remove_downgoing(hist,czbins):
     czlen = len(czbins)
     czbins = czbins[np.where(czbins<=0.0)]
     bin_rm = (czlen - len(czbins))
+    if bin_rm == 0: return hist,czbins
+
     nebins = np.shape(hist)[0]
     nczbins = len(czbins) - 1
     hist_new = np.zeros((nebins,nczbins), dtype=np.float32)
-    #print hist_new.shape
-    #print hist.shape
     for ie,egy in enumerate(hist[:]):
         hist_new[ie] = hist[ie][:-bin_rm]
-
+        
     return hist_new,czbins
     
 # NOTE: Investigate whether we should use scipy.misc.imresize for this?

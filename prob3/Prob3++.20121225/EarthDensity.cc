@@ -30,10 +30,7 @@ EarthDensity::EarthDensity( const char * file, double _detectorDepth )
     _TraverseRhos         = NULL;
     _TraverseElectronFrac = NULL;
 
-    // Put this in constructor...
     DetectorDepth     = _detectorDepth;  // [km]
-    
-    cout<<"  Earth model with detector depth: "<<DetectorDepth<<" km"<<endl;
     
     LoadDensityProfile( file );
 }
@@ -108,15 +105,12 @@ void EarthDensity::SetDensityProfile( double CosineZ, double PathLength ,
      _TraverseElectronFrac[0] = default_elec_frac;
      Layers = 1;
      
-     //cout<<"PathLength: "<<PathLength/km2cm<<" TotalEarthLength: "<<TotalEarthLength/km2cm<<
-     //" _distance[0]: "<<_TraverseDistance[0]/km2cm<<endl;
      
      if (DetectorDepth > MinDetectorDepth) { 
        _TraverseRhos[1] = _Rhos[0];
        _TraverseDistance[1] = pathThroughOuterLayer;
        _TraverseElectronFrac[1] = _YeFrac[_YeFrac.size()-1];
        Layers+=1;
-       //cout<<"_distance[1]: "<<_TraverseDistance[1]/km2cm<<endl;
      }
      
      return; 
@@ -130,9 +124,6 @@ void EarthDensity::SetDensityProfile( double CosineZ, double PathLength ,
    _TraverseElectronFrac[0] = default_elec_frac;
    int iTrav = 1;
    
-   //cout<<"PathLength: "<<PathLength/km2cm<<" TotalEarthLength: "<<TotalEarthLength/km2cm<<
-   //" _distance[0]: "<<_TraverseDistance[0]/km2cm<<endl;
-
    // path through the final layer above the detector (if necessary)
    // Note: outer top layer is assumed to be the same as the next layer inward.
    if (DetectorDepth > MinDetectorDepth) { 
@@ -140,8 +131,6 @@ void EarthDensity::SetDensityProfile( double CosineZ, double PathLength ,
      _TraverseDistance[1] = PathLength - TotalEarthLength - _TraverseDistance[0];
      _TraverseElectronFrac[1] = _YeFrac[_YeFrac.size()-1];
      iTrav += 1;
-
-     //cout<<"_distance[1]: "<<_TraverseDistance[1]/km2cm<<endl;
    } 
   
    
@@ -153,11 +142,8 @@ void EarthDensity::SetDensityProfile( double CosineZ, double PathLength ,
 
    MaxLayer = Layers;
 
-   //cout<<"  MaxLayer: "<<MaxLayer<<endl;
-
    // the zeroth layer is the air!
-   // and the first layer is the top layer (if detector is not on surface)
-   
+   // and the first layer is the top layer (if detector is not on surface)   
    for ( i = 0 ; i< MaxLayer ; i++ ) {
      
      _TraverseRhos[i+iTrav]      = _Rhos[i];
@@ -184,7 +170,8 @@ void EarthDensity::SetDensityProfile( double CosineZ, double PathLength ,
    }
    
    Layers = 2*MaxLayer + iTrav - 1;  
-   
+
+   /* TESTING PURPOSES */
    //cout<<" Layers: "<<Layers<<endl;
    //cout<< " _TraverseRhos, _TraverseDistance, _TraverseElectronFrac: "<<endl;
    //for (int i=0; i<Layers; i++) {
@@ -236,16 +223,12 @@ void EarthDensity::Load()
   if (DetectorDepth < MinDetectorDepth) DetectorDepth = 0.0;
   else {
     std::map<double,double>::reverse_iterator rit;
-    //for (it = _density.begin(); it!=_density.end(); ++it)
-    // cout<<it->first<<" "<<it->second<<endl;
     
     rit = _density.rbegin();
     double largest_radius = rit->first;
     double last_rho = rit->second;
     _density.erase(largest_radius);
     largest_radius -= DetectorDepth;
-
-    cout<<"largest_radius: "<<largest_radius<<endl;
     
     // Check if there are any radii greater than this new final layer
     // and if so, quit.
@@ -262,7 +245,7 @@ void EarthDensity::Load()
     _density[largest_radius] = last_rho;
     
     RDetector = REarth - DetectorDepth;
-    cout<<"RDetector: "<<RDetector<<" =? largest_radius: "<<largest_radius<<endl;
+    cout<<"RDetector: "<<RDetector<<" DetectorDepth: "<<DetectorDepth<<endl;
     
   }
   
@@ -288,10 +271,8 @@ void EarthDensity::Load()
       MaxDepth++;
     }
 
-  // Max number of total layers = 2*(concentric layers below the
-  // detector) + 1 (atm)
+  // Max number of total layers = 2*(concentric layers below the detector) + 1 (atm)
   int MAXLAYERS = 2*MaxDepth + 1;
-  // if detector is within an earth layer, add one layer to account for it.
   if (DetectorDepth >= MinDetectorDepth) MAXLAYERS += 1;
 
   _TraverseRhos      = new double [ MAXLAYERS ];
