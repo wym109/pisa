@@ -19,9 +19,13 @@ import numpy as np
 #try and get the much faster simplejson if we can
 try:
     import simplejson as json
+    from json import JSONDecodeError
     logging.debug("Using simplejson")
 except ImportError:
     import json as json
+    #No DecodeError in default json, dummy one
+    class JSONDecodeError(ValueError):
+      pass
     logging.debug("Using json")
 
 def json_string(string):
@@ -33,7 +37,7 @@ def from_json(filename):
     try:
         content = json.load(open(os.path.expandvars(filename)),cls=NumpyDecoder)
         return content
-    except (IOError, json.JSONDecodeError), e:
+    except (IOError, JSONDecodeError), e:
         logging.error("Unable to read JSON file \'%s\'"%filename)
         logging.error(e)
         sys.exit(1)
@@ -43,6 +47,9 @@ def to_json(content, filename,indent=2):
        automatically converts numpy arrays to lists.'''
     with open(filename,'w') as outfile:
         json.dump(content,outfile, cls=NumpyEncoder, indent=indent)
+        logging.debug('Wrote %.2f kBytes to %s'%
+                  (outfile.tell()/1024.,os.path.basename(filename)))
+        
 
 class NumpyEncoder(json.JSONEncoder):
     """
