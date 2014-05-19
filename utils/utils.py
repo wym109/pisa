@@ -54,23 +54,6 @@ def is_equal_binning(edges1,edges2,maxdev=1e-8):
     if (np.shape(edges1)[0]) != (np.shape(edges2)[0]): return False
     return np.abs(edges1 - edges2).max() < maxdev
 
-def remove_downgoing_bins(czbins):
-    '''
-    Takes the current binning for coszenith, and returns the same bins
-    only with the downgoing bins removed (coszen > 0 removed).
-    '''
-    if not is_linear(czbins):
-        raise Exception("czbins must be linear!")
-
-    dtype = type(czbins[0])
-    bin_width = czbins[1] - czbins[0]
-    rczbins = []
-    for edge in czbins:
-        if edge > 0.0: continue
-        rczbins.append(edge)
-        
-    return np.array(rczbins,dtype=dtype)
-    
 # NOTE: Investigate whether we should use scipy.misc.imresize for this?
 def get_smoothed_map(prob_map,ebinsLT,czbinsLT,ebinsSM,czbinsSM):
     '''

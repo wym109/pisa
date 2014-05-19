@@ -82,17 +82,17 @@ if __name__ == '__main__':
      "numu": {...},
      "nue_bar": {...},
      "numu_bar":{...}}''')
-    parser.add_argument('--deltam21',type=float,default=7.54e-5,
+    parser.add_argument('deltam21',type=float,
                         help='''deltam21 value [eV^2]''')
-    parser.add_argument('--deltam31',type=float,default=0.00246,
+    parser.add_argument('deltam31',type=float,
                         help='''deltam31 value [eV^2]''')
-    parser.add_argument('--theta12',type=float,default=0.5873,
+    parser.add_argument('theta12',type=float,
                         help='''theta12 value [rad]''')
-    parser.add_argument('--theta13',type=float,default=0.1562,
+    parser.add_argument('theta13',type=float,
                         help='''theta13 value [rad]''')
-    parser.add_argument('--theta23',type=float,default=0.6745,
+    parser.add_argument('theta23',type=float,
                         help='''theta23 value [rad]''')
-    parser.add_argument('--deltacp',type=float,default=np.pi,
+    parser.add_argument('deltacp',type=float,
                         help='''deltaCP value to use [rad]''')
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str,
                         action='store',default="osc_flux.json",
