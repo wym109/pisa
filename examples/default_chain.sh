@@ -21,5 +21,5 @@ echo "\nRunning reconstruction stage..."
 Reco.py event_rate.json $PISA/resources/events/V15_weighted_aeff.hdf5 -vvv
 
 echo "\nRunning PID stage..."
-ApplyPID.py reco.json $PISA/resources/pid/V15_pid.hdf5 -vvv
+ApplyPID.py reco.json $PISA/resources/pid/V15_pid.json -vvv
 

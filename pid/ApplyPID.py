@@ -93,7 +93,7 @@ if __name__ == '__main__':
     parser.add_argument('pid_file',metavar='WEIGHTFILE',type=from_json,
                         help='''json file containing parameterizations of the particle ID for each event type.''')
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str,
-                        action='store',default="event_rate_pid.json",
+                        action='store',default="pid.json",
                         help='''file to store the output''')
     parser.add_argument('-v', '--verbose', action='count', default=0,
                         help='''set verbosity level''')
