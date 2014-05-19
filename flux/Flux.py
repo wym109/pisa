@@ -91,4 +91,5 @@ if __name__ == '__main__':
     flux_maps['params'] = {}
 
     #write out to a file
+    logging.info("Saving output to: %s"%args.outfile)
     to_json(flux_maps, args.outfile)

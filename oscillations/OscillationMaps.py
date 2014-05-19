@@ -121,7 +121,7 @@ if __name__ == '__main__':
     osc_flux_maps['params'] = dict(flux_maps['params'].items() + osc_param_dict.items())
     
     #Write out
-    logging.info("Saving osc prob maps to file: %s",outfile)
+    logging.info("Saving output to: %s",outfile)
     to_json(osc_flux_maps, outfile)
     
     

@@ -134,7 +134,8 @@ Expects the file format to be:
     
     event_rate_maps['params'] = dict(osc_flux_maps['params'].items() + 
                                      event_param_dict.items())
-    logging.info("Saving output to .json file...")
+
+    logging.info("Saving output to: %s"%args.outfile)
     to_json(event_rate_maps,args.outfile)
     
     

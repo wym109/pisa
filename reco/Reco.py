@@ -169,7 +169,7 @@ Expects the file format to be:
     parser.add_argument('--cz_reco_scale',type=float,default=1.0,
                         help='''Reconstructed coszen scaling.''')
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str,
-                        action='store',default="event_rate.json",
+                        action='store',default="reco.json",
                         help='''file to store the output''')
     parser.add_argument('-v', '--verbose', action='count', default=0,
                         help='''set verbosity level''')
@@ -196,8 +196,7 @@ Expects the file format to be:
     event_rate_reco_maps['params'] = dict(event_rate_maps['params'].items() +
                                           reco_dict.items())
     
-    logging.info("Saving output to file: %s"%args.outfile)
-    logging.debug("  saving keys: %s",[key for key in event_rate_reco_maps.keys()])
+    logging.info("Saving output to: %s"%args.outfile)
     to_json(event_rate_reco_maps,args.outfile)
 
     

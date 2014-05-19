@@ -108,7 +108,7 @@ if __name__ == '__main__':
 
     event_rate_pid['params'] = reco_events['params']
     
-    logging.info("Saving output to file: %s"%args.outfile)
+    logging.info("Saving output to: %s"%args.outfile)
     to_json(event_rate_pid,args.outfile)
     
     
