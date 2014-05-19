@@ -1,9 +1,10 @@
 #! /usr/bin/env python
 #
-# ApplyPID.py
+# PID.py
 #
-# Performs the particle ID step of sorting the cc event map templates
-# of stage 3 into tracks vs. cascades.
+# Performs the particle ID step of sorting the event map templates
+# of the previous stage into tracks vs. cascades. Some fraction of
+# CC events is identified as tracks, all others are cascades.
 #
 # author: Timothy C. Arlen
 #         tca3@psu.edu

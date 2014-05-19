@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 #
-# OscillationMaps.py
+# Oscillation.py
 #
 # This module is the implementation of the physics oscillation step.
 # The main purpose of this step is to produce oscillation probability

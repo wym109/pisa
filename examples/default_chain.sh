@@ -12,7 +12,7 @@ echo "\nRunning flux stage..."
 Flux.py -vvv
 
 echo "\nRunning oscillations stage..."
-OscillationMaps.py flux.json -vvv
+Oscillation.py flux.json -vvv
 
 echo "\nRunning trigger stage..."
 EventRate.py osc_flux.json $PISA/resources/events/V15_weighted_aeff.hdf5 -vvv
@@ -21,5 +21,5 @@ echo "\nRunning reconstruction stage..."
 Reco.py event_rate.json $PISA/resources/events/V15_weighted_aeff.hdf5 -vvv
 
 echo "\nRunning PID stage..."
-ApplyPID.py reco.json $PISA/resources/pid/V15_pid.json -vvv
+PID.py reco.json $PISA/resources/pid/V15_pid.json -vvv
 
