@@ -21,7 +21,7 @@
 import logging
 from argparse import ArgumentParser, RawTextHelpFormatter
 from utils.utils import set_verbosity,is_equal_binning
-from utils.json import from_json,to_json
+from utils.jsons import from_json,to_json
 from RecoService import RecoServiceMC
 import numpy as np
 

@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 #
-# json.py
+# jsons.py
 #
 # A set of utilities for dealing with JSON files.
 # Import json from this module everywhere (if you need,
@@ -19,8 +19,10 @@ import numpy as np
 #try and get the much faster simplejson if we can
 try:
     import simplejson as json
+    logging.debug("Using simplejson")
 except ImportError:
-    import json
+    import json as json
+    logging.debug("Using json")
 
 def json_string(string):
     '''Decode a json string'''
