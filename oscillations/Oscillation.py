@@ -19,6 +19,7 @@
 import os,sys
 import numpy as np
 import logging
+import inspect
 from argparse import ArgumentParser, RawTextHelpFormatter
 from utils.utils import set_verbosity,is_equal_binning
 from utils.jsons import from_json, to_json
@@ -31,24 +32,24 @@ except ImportError, e:
     import json
 
 
-def get_osc_flux(flux_maps,deltam21=None,deltam31=None,theta12=None,
+def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,theta12=None,
                  theta13=None,theta23=None,deltacp=None,**kwargs):
     '''
     Uses osc_prob_maps to calculate the oscillated flux maps.
     Inputs:
       flux_maps - dictionary of atmospheric flux ['nue','numu','nue_bar','numu_bar']
+      osc_service - a handle to an OscillationService
       others - oscillation parameters to compute oscillation probability maps from.
     '''
 
-    ebins = flux_maps['nue']['ebins']
-    czbins = flux_maps['nue']['czbins']
+    #Get list of arguments and values dict, ignoring *varargs and **kwargs 
+    args, _, _, values = inspect.getargvalues(inspect.currentframe())
+    units = ['eV^2','eV^2','rad','rad','rad','rad']
+    #Print all parameters but the first two
+    for param, unit in zip(args[2:],units):
+        logging.debug("%10s: %.4e %s"%(param,values[param],unit))
     
-    if not np.alltrue([is_equal_binning(ebins,flux_maps[nu]['ebins']) for nu in ['nue','nue_bar','numu','numu_bar']]):
-        raise Exception('Flux maps have different energy binning!')
-    if not np.alltrue([is_equal_binning(czbins,flux_maps[nu]['czbins']) for nu in ['nue','nue_bar','numu','numu_bar']]):
-        raise Exception('Flux maps have different coszen binning!')
-    
-    osc_service = OscillationService(ebins,czbins)
+    #Get oscillation probability map from service
     osc_prob_maps = osc_service.get_osc_prob_maps(deltam21,deltam31,theta12,
                                                   theta13,theta23,deltacp)
     
@@ -104,24 +105,33 @@ if __name__ == '__main__':
     #Set verbosity level
     set_verbosity(args.verbose)
 
-    outfile = args.outfile
-    flux_maps = args.flux_file
-    osc_param_dict = vars(args)
-    osc_param_dict.pop('outfile')
-    osc_param_dict.pop('flux_file')
-    units = ['eV^2','eV^2','rad','rad','rad','rad']
-    for param, unit in zip(osc_param_dict.keys(),units):
-        logging.debug("%10s: %.4e %s"%(param,osc_param_dict[param],unit))
+    ebins = args.flux_file['nue']['ebins']
+    czbins = args.flux_file['nue']['czbins']
+    
+    if not np.alltrue([is_equal_binning(ebins,args.flux_file[nu]['ebins']) for nu in ['nue','nue_bar','numu','numu_bar']]):
+        raise Exception('Flux maps have different energy binning!')
+    if not np.alltrue([is_equal_binning(czbins,args.flux_file[nu]['czbins']) for nu in ['nue','nue_bar','numu','numu_bar']]):
+        raise Exception('Flux maps have different coszen binning!')
+
+
+    #Initialize an oscillation service
+    osc_service = OscillationService(ebins,czbins)
 
     logging.info("Getting osc prob maps")
-    osc_flux_maps = get_osc_flux(flux_maps,args.deltam21,args.deltam31,args.theta12,
+    osc_flux_maps = get_osc_flux(args.flux_file,osc_service,args.deltam21,args.deltam31,args.theta12,
                                  args.theta13,args.theta23,args.deltacp)
     
     #Merge the new parameters into the old ones
-    osc_flux_maps['params'] = dict(flux_maps['params'].items() + osc_param_dict.items())
+    osc_flux_maps['params'] = args.flux_file['params']
+    osc_flux_maps['params']['deltam21'] = args.deltam21
+    osc_flux_maps['params']['deltam31'] = args.deltam31
+    osc_flux_maps['params']['theta12'] = args.theta12
+    osc_flux_maps['params']['theta13'] = args.theta13
+    osc_flux_maps['params']['theta23'] = args.theta23
+    osc_flux_maps['params']['deltacp'] = args.deltacp
     
     #Write out
-    logging.info("Saving output to: %s",outfile)
-    to_json(osc_flux_maps, outfile)
+    logging.info("Saving output to: %s",args.outfile)
+    to_json(osc_flux_maps, args.outfile)
     
     
