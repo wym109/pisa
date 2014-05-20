@@ -23,11 +23,12 @@ import logging
 from argparse import ArgumentParser, RawTextHelpFormatter
 from utils.utils import set_verbosity,is_equal_binning
 from utils.jsons import from_json, to_json
+from utils.proc import report_params, get_params, add_params
 from AeffService import AeffServiceMC
 from scipy.constants import Julian_year
 
-def get_event_rates(osc_flux_maps,sim_file=None,livetime=None,nu_xsec_scale=None,
-                    nu_bar_xsec_scale=None,**kwargs):
+def get_event_rates(osc_flux_maps,aeff_service=None,livetime=None,nu_xsec_scale=None,
+                    nubar_xsec_scale=None,**kwargs):
     '''
     Main function for this module, which returns the event rate maps
     for each flavor and interaction type, using true energy and zenith
@@ -39,22 +40,17 @@ def get_event_rates(osc_flux_maps,sim_file=None,livetime=None,nu_xsec_scale=None
      'nutau_bar': {'cc':map,'nc':map} }
     '''
 
-    # Verify consistent binning.
-    ebins = osc_flux_maps['nue']['ebins']
-    czbins = osc_flux_maps['nue']['czbins']
-    flavours = ['nue','numu','nutau','nue_bar','numu_bar','nutau_bar']
-    if not np.alltrue([is_equal_binning(ebins,osc_flux_maps[nu]['ebins']) for nu in flavours]):
-        raise Exception('Osc flux maps have different energy binning!')
-    if not np.alltrue([is_equal_binning(czbins,osc_flux_maps[nu]['czbins']) for nu in flavours]):
-        raise Exception('Osc flux maps have different coszen binning!')
+    #Get parameters used here
+    params = get_params()
+    report_params(params,units = ['yrs','',''])
 
-    logging.info("Defining aeff_service...")
-    aeff_service = AeffServiceMC(ebins,czbins,simfile)
+    #Initialize return dict
+    event_rate_maps = {'params': add_params(params,osc_flux_maps['params'])}
+    
+    #Get effective area
     aeff_dict = aeff_service.get_aeff()
-    
+
     # apply the scaling for nu_xsec_scale and nubar_xsec_scale...
-    
-    event_rate_maps = {}
     for flavour in flavours:
         osc_flux_map = osc_flux_maps[flavour]['map']
         int_type_dict = {}
@@ -74,7 +70,7 @@ if __name__ == '__main__':
     parser = ArgumentParser(description='Take an oscillated flux file '
                             'as input and write out a set of oscillated event counts. ',
                             formatter_class=RawTextHelpFormatter)
-    parser.add_argument('osc_flux_file',metavar='FLUX',type=from_json,
+    parser.add_argument('osc_flux_maps',metavar='FLUX',type=from_json,
                         help='''JSON osc flux input file with the following parameters:
       {"nue": {'czbins':[], 'ebins':[], 'map':[]}, 
        "numu": {...},
@@ -115,26 +111,24 @@ Expects the file format to be:
     #Set verbosity level
     set_verbosity(args.verbose)
 
-    livetime = args.livetime
-    nu_xsec_scale = args.nu_xsec_scale
-    nubar_xsec_scale = args.nubar_xsec_scale
-    event_param_dict = {'livetime':livetime,'nu_xsec_scale':nu_xsec_scale,
-                        'nubar_xsec_scale':nubar_xsec_scale}
-
-    for name,param in zip(["livetime","nu xs scale","nubar xs scale"],
-                          [livetime,nu_xsec_scale,nubar_xsec_scale]):
-        logging.debug("%14s: %s "%(name,param))
-        
     logging.info("Getting oscillated flux...")    
-    osc_flux_maps = args.osc_flux_file
-    simfile = args.weighted_aeff_file
-    
-    event_rate_maps = get_event_rates(osc_flux_maps,simfile,livetime,
-                                      nu_xsec_scale,nubar_xsec_scale)
-    
-    event_rate_maps['params'] = dict(osc_flux_maps['params'].items() + 
-                                     event_param_dict.items())
+    args.osc_flux_maps = args.osc_flux_maps
 
+    # Verify consistent binning.
+    ebins = args.osc_flux_maps['nue']['ebins']
+    czbins = args.osc_flux_maps['nue']['czbins']
+    flavours = ['nue','numu','nutau','nue_bar','numu_bar','nutau_bar']
+    if not np.alltrue([is_equal_binning(ebins,args.osc_flux_maps[nu]['ebins']) for nu in flavours]):
+        raise Exception('Osc flux maps have different energy binning!')
+    if not np.alltrue([is_equal_binning(czbins,args.osc_flux_maps[nu]['czbins']) for nu in flavours]):
+        raise Exception('Osc flux maps have different coszen binning!')
+
+    logging.info("Defining aeff_service...")
+    aeff_service = AeffServiceMC(ebins,czbins,args.weighted_aeff_file)
+    
+    event_rate_maps = get_event_rates(args.osc_flux_maps,aeff_service,args.livetime,
+                                      args.nu_xsec_scale,args.nubar_xsec_scale)
+    
     logging.info("Saving output to: %s"%args.outfile)
     to_json(event_rate_maps,args.outfile)
     

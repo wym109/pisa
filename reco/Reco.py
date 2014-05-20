@@ -22,23 +22,35 @@ import logging
 from argparse import ArgumentParser, RawTextHelpFormatter
 from utils.utils import set_verbosity,is_equal_binning
 from utils.jsons import from_json,to_json
+from utils.proc import report_params, get_params, add_params
 from RecoService import RecoServiceMC
 import numpy as np
 
-def get_reco_maps(true_event_maps=None,ebins=None,czbins=None,kernel_dict=None):
+
+def get_reco_maps(true_event_maps,simfile=None,e_reco_scale=None,
+                         cz_reco_scale=None, **kwargs):
     '''
-    This takes the true_event_maps and applies the smearing kernel in
-    every bin to create the corresponding reco_maps...  Reco maps
-    format is:
-    {'nue_cc':{'map':array,'czbins':czbins,'ebins':ebins},
-     'numu_cc':...
-     'nutau_cc':...
-     'nuall_nc':...
+    Primary function for this module, which returns the reconstructed
+    event rate maps from the true event rate maps, and from the
+    smearing kernal obtained from simulations. The returned maps will
+    be in the form of a dictionary with parameters:
+    {'nue_cc':{'ebins':ebins,'czbins':czbins,'map':map},
+     'numu_cc':{...},
+     'nutau_cc':{...},
+     'nuall_nc':{...}
     }
     Note that in this function, the nu<x> is now combined with nu_bar<x>.
     '''
+
+    #Be verbose on input
+    params = get_params()
+    report_params(params, units = ['',''])
     
-    reco_maps = {}
+    #Initialize return dict
+    reco_maps = {'params': add_params(params,true_event_maps['params'])}
+
+    #Get kernels from reco service
+    kernel_dict = reco_service.get_kernels()
     
     int_type = 'cc'
     for flavor in ['nue','numu','nutau']:
@@ -88,42 +100,6 @@ def get_reco_maps(true_event_maps=None,ebins=None,czbins=None,kernel_dict=None):
                              'ebins':ebins,
                              'czbins':czbins}
     logging.info("  Total counts: %.2f"%np.sum(reco_evt_rate))
-    
-    return reco_maps
-
-
-def get_event_rates_reco(true_event_maps,simfile=None,e_reco_scale=None,
-                         cz_reco_scale=None,**kwargs):
-    '''
-    Primary function for this module, which returns the reconstructed
-    event rate maps from the true event rate maps, and from the
-    smearing kernal obtained from simulations. The returned maps will
-    be in the form of a dictionary with parameters:
-    {'nue_cc':{'ebins':ebins,'czbins':czbins,'map':map},
-     'numu_cc':{...},
-     'nutau_cc':{...},
-     'nuall_nc':{...}
-    }
-    where nu<x> includes both nu<x> and nu<x>_bar.
-    '''
-    
-    # Verify consistent binning....
-    ebins = true_event_maps['nue']['cc']['ebins']
-    czbins = true_event_maps['nue']['cc']['czbins']
-    flavours = ['nue','numu','nutau','nue_bar','numu_bar','nutau_bar']
-    int_types = ['cc','nc']
-    for nu in flavours:
-        for int_type in int_types:
-            if not is_equal_binning(ebins,true_event_maps[nu][int_type]['ebins']):
-                raise Exception('Event Rate maps have different energy binning!')
-            if not is_equal_binning(czbins,true_event_maps[nu][int_type]['czbins']):
-                raise Exception('Event Rate maps have different coszen binning!')
-
-            
-    logging.info("Defining RecoService...")
-    reco_service = RecoServiceMC(ebins,czbins,simfile)
-    kernels = reco_service.get_kernels()
-    reco_maps = get_reco_maps(true_event_maps,ebins,czbins,kernels)
 
     # Apply e_reco_scaling...
     # Apply cz_reco_scaling...
@@ -139,7 +115,7 @@ if __name__ == '__main__':
                             'as input and produces a set of reconstructed templates '
                             'of nue CC, numu CC, nutau CC, and NC events.',
                             formatter_class=RawTextHelpFormatter)
-    parser.add_argument('event_rate_file',metavar='EVENTRATE',type=from_json,
+    parser.add_argument('event_rate_maps',metavar='EVENTRATE',type=from_json,
                         help='''JSON event rate input file with following parameters:
       {"nue": {'cc':{'czbins':[], 'ebins':[], 'map':[]},'nc':...}, 
        "numu": {...},
@@ -178,23 +154,24 @@ Expects the file format to be:
     #Set verbosity level
     set_verbosity(args.verbose)
 
-    e_reco_scale = args.e_reco_scale
-    cz_reco_scale = args.cz_reco_scale
-    reco_dict = {'e_reco_scale':e_reco_scale,
-                 'cz_reco_scale':cz_reco_scale}
-    
-    for key in reco_dict.keys():
-        logging.debug("%14s: %s "%(key,reco_dict[key]))
-        
     logging.info("Loading event rate maps...")
-    event_rate_maps = args.event_rate_file
-    simfile = args.weighted_aeff_file
+    # Verify consistent binning....
+    ebins = args.event_rate_maps['nue']['cc']['ebins']
+    czbins = args.event_rate_maps['nue']['cc']['czbins']
+    flavours = ['nue','numu','nutau','nue_bar','numu_bar','nutau_bar']
+    int_types = ['cc','nc']
+    for nu in flavours:
+        for int_type in int_types:
+            if not is_equal_binning(ebins,args.event_rate_maps[nu][int_type]['ebins']):
+                raise Exception('Event Rate maps have different energy binning!')
+            if not is_equal_binning(czbins,args.event_rate_maps[nu][int_type]['czbins']):
+                raise Exception('Event Rate maps have different coszen binning!')
 
-    event_rate_reco_maps = get_event_rates_reco(event_rate_maps,simfile,e_reco_scale,
-                                                cz_reco_scale)
-    
-    event_rate_reco_maps['params'] = dict(event_rate_maps['params'].items() +
-                                          reco_dict.items())
+    logging.info("Defining RecoService...")
+    reco_service = RecoServiceMC(ebins,czbins,args.weighted_aeff_file)
+
+    event_rate_reco_maps = get_reco_maps(args.event_rate_maps,reco_service,args.e_reco_scale,
+                                         args.cz_reco_scale)
     
     logging.info("Saving output to: %s"%args.outfile)
     to_json(event_rate_reco_maps,args.outfile)

@@ -19,10 +19,10 @@
 import os,sys
 import numpy as np
 import logging
-import inspect
 from argparse import ArgumentParser, RawTextHelpFormatter
 from utils.utils import set_verbosity,is_equal_binning
 from utils.jsons import from_json, to_json
+from utils.proc import report_params, get_params, add_params
 from OscillationService import OscillationService
 
 # Until python2.6, default json is very slow.
@@ -42,18 +42,17 @@ def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,theta12=
       others - oscillation parameters to compute oscillation probability maps from.
     '''
 
-    #Get list of arguments and values dict, ignoring *varargs and **kwargs 
-    args, _, _, values = inspect.getargvalues(inspect.currentframe())
-    units = ['eV^2','eV^2','rad','rad','rad','rad']
-    #Print all parameters but the first two
-    for param, unit in zip(args[2:],units):
-        logging.debug("%10s: %.4e %s"%(param,values[param],unit))
+    #Be verbose on input
+    params = get_params()
+    report_params(params, units = ['eV^2','eV^2','rad','rad','rad','rad'])
+
+    #Initialize return dict
+    osc_flux_maps = {'params': add_params(params,flux_maps['params'])}
     
     #Get oscillation probability map from service
     osc_prob_maps = osc_service.get_osc_prob_maps(deltam21,deltam31,theta12,
                                                   theta13,theta23,deltacp)
     
-    osc_flux_maps = {}
     for to_flav in ['nue','numu','nutau']:
         for mID in ['','_bar']: # 'matter' ID
             nue_flux = flux_maps['nue'+mID]['map']
@@ -77,7 +76,7 @@ if __name__ == '__main__':
     parser = ArgumentParser(description='Takes the oscillation parameters '
                             'as input and writes out a set of osc flux maps',
                             formatter_class=RawTextHelpFormatter)    
-    parser.add_argument('flux_file',metavar='FLUX',type=from_json,
+    parser.add_argument('flux_maps',metavar='FLUX',type=from_json,
                         help='''JSON atm flux input file with the following parameters:
     {"nue": {'czbins':[], 'ebins':[], 'map':[]},
      "numu": {...},
@@ -105,12 +104,12 @@ if __name__ == '__main__':
     #Set verbosity level
     set_verbosity(args.verbose)
 
-    ebins = args.flux_file['nue']['ebins']
-    czbins = args.flux_file['nue']['czbins']
+    ebins = args.flux_maps['nue']['ebins']
+    czbins = args.flux_maps['nue']['czbins']
     
-    if not np.alltrue([is_equal_binning(ebins,args.flux_file[nu]['ebins']) for nu in ['nue','nue_bar','numu','numu_bar']]):
+    if not np.alltrue([is_equal_binning(ebins,args.flux_maps[nu]['ebins']) for nu in ['nue','nue_bar','numu','numu_bar']]):
         raise Exception('Flux maps have different energy binning!')
-    if not np.alltrue([is_equal_binning(czbins,args.flux_file[nu]['czbins']) for nu in ['nue','nue_bar','numu','numu_bar']]):
+    if not np.alltrue([is_equal_binning(czbins,args.flux_maps[nu]['czbins']) for nu in ['nue','nue_bar','numu','numu_bar']]):
         raise Exception('Flux maps have different coszen binning!')
 
 
@@ -118,17 +117,8 @@ if __name__ == '__main__':
     osc_service = OscillationService(ebins,czbins)
 
     logging.info("Getting osc prob maps")
-    osc_flux_maps = get_osc_flux(args.flux_file,osc_service,args.deltam21,args.deltam31,args.theta12,
+    osc_flux_maps = get_osc_flux(args.flux_maps,osc_service,args.deltam21,args.deltam31,args.theta12,
                                  args.theta13,args.theta23,args.deltacp)
-    
-    #Merge the new parameters into the old ones
-    osc_flux_maps['params'] = args.flux_file['params']
-    osc_flux_maps['params']['deltam21'] = args.deltam21
-    osc_flux_maps['params']['deltam31'] = args.deltam31
-    osc_flux_maps['params']['theta12'] = args.theta12
-    osc_flux_maps['params']['theta13'] = args.theta13
-    osc_flux_maps['params']['theta23'] = args.theta23
-    osc_flux_maps['params']['deltacp'] = args.deltacp
     
     #Write out
     logging.info("Saving output to: %s",args.outfile)

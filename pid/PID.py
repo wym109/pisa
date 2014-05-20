@@ -16,12 +16,13 @@ import logging
 from argparse import ArgumentParser, RawTextHelpFormatter
 from utils.utils import set_verbosity,is_equal_binning,get_bin_centers
 from utils.jsons import from_json,to_json
+from utils.proc import report_params, get_params, add_params
 from PIDService import PIDService
 import numpy as np
 import scipy.stats
 
 
-def get_event_rate_pid(reco_events,pid_dict=None,**kwargs):
+def get_pid_maps(reco_events,pid_service,**kwargs):
     '''
     Takes the templates of reco_events in form of:
       'nue_cc': map
@@ -33,29 +34,26 @@ def get_event_rate_pid(reco_events,pid_dict=None,**kwargs):
        'csc': {'ebins':ebins,'czbins':czbins,'map':map}}
     '''
 
-    # Verify consistent binning
-    ebins = reco_events['nue_cc']['ebins']
-    czbins = reco_events['nue_cc']['czbins']
-    flavours = ['nue_cc','numu_cc','nutau_cc','nuall_nc']
-    for nu in flavours:
-        if not is_equal_binning(ebins,reco_events[nu]['ebins']):
-            raise Exception('Event Rate maps have different energy binning!')
-        if not is_equal_binning(czbins,reco_events[nu]['czbins']):
-            raise Exception('Event Rate maps have different coszen binning!')
-
+    #Be verbose on input
+    params = get_params()
+    report_params(params, units = [])
+    
+    #Initialize return dict
     ecen = get_bin_centers(ebins)
     czcen = get_bin_centers(czbins)
-        
-    pid_service = PIDService(pid_dict)
-    pid_dict = pid_service.get_pid_funcs()
-    
     reco_events_pid = { 'trck': {'map':np.zeros((len(ecen),len(czcen))),
                                  'czbins':czbins,
                                  'ebins':ebins},
                         'cscd': {'map':np.zeros((len(ecen),len(czcen))),
                                  'czbins':czbins,
-                                 'ebins':ebins}
-                        }
+                                 'ebins':ebins},
+                        'params': add_params(params,reco_events['params']),
+                      }
+    
+
+        
+    pid_dict = pid_service.get_pid_funcs()
+    
 
     for flav in flavours:
         event_map = reco_events[flav]['map']
@@ -85,13 +83,13 @@ if __name__ == '__main__':
                             'as input and produces a set of reconstructed templates '
                             'of tracks and cascades.',
                             formatter_class=RawTextHelpFormatter)
-    parser.add_argument('reco_event_file',metavar='RECOEVENTS',type=from_json,
+    parser.add_argument('reco_event_maps',metavar='RECOEVENTS',type=from_json,
                         help='''JSON reco event rate file with following parameters:
       {"nue_cc": {'czbins':[...], 'ebins':[...], 'map':[...]}, 
        "numu_cc": {...},
        "nutau_cc": {...},
        "nuall_nc": {...} }''')
-    parser.add_argument('pid_file',metavar='WEIGHTFILE',type=from_json,
+    parser.add_argument('pid_dict',metavar='WEIGHTFILE',type=from_json,
                         help='''json file containing parameterizations of the particle ID for each event type.''')
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str,
                         action='store',default="pid.json",
@@ -103,11 +101,22 @@ if __name__ == '__main__':
     #Set verbosity level
     set_verbosity(args.verbose)
 
-    reco_events = args.reco_event_file
-    pid_dict = args.pid_file
-    event_rate_pid = get_event_rate_pid(reco_events,pid_dict)
+    # Verify consistent binning
+    ebins = args.reco_event_maps['nue_cc']['ebins']
+    czbins = args.reco_event_maps['nue_cc']['czbins']
+    flavours = ['nue_cc','numu_cc','nutau_cc','nuall_nc']
+    for nu in flavours:
+        if not is_equal_binning(ebins,args.reco_event_maps[nu]['ebins']):
+            raise Exception('Event Rate maps have different energy binning!')
+        if not is_equal_binning(czbins,args.reco_event_maps[nu]['czbins']):
+            raise Exception('Event Rate maps have different coszen binning!')
 
-    event_rate_pid['params'] = reco_events['params']
+
+    #Initialize the PID service
+    pid_service = PIDService(args.pid_dict)
+
+    #Galculate event rates after PID
+    event_rate_pid = get_pid_maps(args.reco_event_maps,pid_service)
     
     logging.info("Saving output to: %s"%args.outfile)
     to_json(event_rate_pid,args.outfile)
