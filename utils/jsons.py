@@ -46,7 +46,8 @@ def to_json(content, filename,indent=2):
     '''Write content to a JSON file using a custom parser that
        automatically converts numpy arrays to lists.'''
     with open(filename,'w') as outfile:
-        json.dump(content,outfile, cls=NumpyEncoder, indent=indent)
+        json.dump(content,outfile, cls=NumpyEncoder,
+                  indent=indent, sort_keys=True)
         logging.debug('Wrote %.2f kBytes to %s'%
                   (outfile.tell()/1024.,os.path.basename(filename)))
         
