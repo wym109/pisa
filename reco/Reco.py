@@ -58,50 +58,34 @@ def get_reco_maps(true_event_maps,simfile=None,e_reco_scale=None,
     int_types = ['cc','nc']
     
     
-    int_type = 'cc'
-    for flavor in flavours:
-        logging.info("Getting reco event rates for %s"%flavor)
-        reco_evt_rate = np.zeros((len(ebins)-1,len(czbins)-1),
-                                 dtype=np.float32)
-        for mID in ['','_bar']:
-            flav = flavor+mID
-            true_evt_rate = true_event_maps[flav][int_type]['map']
-            
-            kernels = kernel_dict[flav][int_type]
+    for int_type in int_types:
+        for flavor in flavours:
+            logging.info("Getting reco event rates for %s %s"%(flavor,int_type))
+            reco_evt_rate = np.zeros((len(ebins)-1,len(czbins)-1),
+                                     dtype=np.float32)
+            for mID in ['','_bar']:
+                flav = flavor+mID
+                true_evt_rate = true_event_maps[flav][int_type]['map']
                 
-            for ie,egy in enumerate(ebins[:-1]):
-                for icz,cz in enumerate(czbins[:-1]):
-                    # Get kernel at these true parameters from 4D hist
-                    kernel = kernels[ie,icz]
-                    # normalize
-                    if np.sum(kernel) > 0.0: kernel /= np.sum(kernel)
-                    reco_evt_rate += true_evt_rate[ie,icz]*kernel
+                kernels = kernel_dict[flav][int_type]
+                    
+                for ie,egy in enumerate(ebins[:-1]):
+                    for icz,cz in enumerate(czbins[:-1]):
+                        # Get kernel at these true parameters from 4D hist
+                        kernel = kernels[ie,icz]
+                        # normalize
+                        if np.sum(kernel) > 0.0: kernel /= np.sum(kernel)
+                        reco_evt_rate += true_evt_rate[ie,icz]*kernel
 
-        reco_maps[flavor+'_'+int_type] = {'map':reco_evt_rate,
-                                          'ebins':ebins,
-                                          'czbins':czbins}
-        logging.info("  Total counts: %.2f"%np.sum(reco_evt_rate))
-            
-    int_type = 'nc'
-    reco_evt_rate = np.zeros((len(ebins)-1,len(czbins)-1),
-                             dtype=np.float32)
-    # Now do all reco_maps for nc:
-    for flavor in flavours:
-        logging.info("Getting reco events for %s NC"%flavor)
-        for mID in ['','_bar']:
-            flav = flavor+mID
-            true_evt_rate = true_event_maps[flav][int_type]['map']
-            
-            kernels = kernel_dict[flav][int_type]
-            
-            for ie,egy in enumerate(ebins[:-1]):
-                for icz,cz in enumerate(czbins[:-1]):
-                    # Get kernel at these true parameters:
-                    kernel = kernels[ie,icz]
-                    if np.sum(kernel) > 0.0:
-                        kernel /= np.sum(kernel)
-                    reco_evt_rate += true_evt_rate[ie,icz]*kernel
+            reco_maps[flavor+'_'+int_type] = {'map':reco_evt_rate,
+                                              'ebins':ebins,
+                                              'czbins':czbins}
+            logging.info("  Total counts: %.2f"%np.sum(reco_evt_rate))
 
+    #Finally sum up all the NC contributions
+    logging.info("Summing up rates for %s %s"%('all',int_type))
+    reco_evt_rate = np.sum([reco_maps.pop(key)['map'] for key in reco_maps.keys()
+                            if key.endswith('_nc')], axis = 0)
     reco_maps['nuall_nc'] = {'map':reco_evt_rate,
                              'ebins':ebins,
                              'czbins':czbins}
