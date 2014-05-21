@@ -1,6 +1,6 @@
 #
 # This is a service which will return an oscillation probability map
-# corresponding to the desird binning.
+# corresponding to the desired binning.
 #
 # author: Timothy C. Arlen
 #

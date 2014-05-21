@@ -20,7 +20,7 @@
 
 import logging
 from argparse import ArgumentParser, RawTextHelpFormatter
-from utils.utils import set_verbosity,is_equal_binning
+from utils.utils import set_verbosity, check_binning, get_binning
 from utils.jsons import from_json,to_json
 from utils.proc import report_params, get_params, add_params
 from RecoService import RecoServiceMC
@@ -51,9 +51,15 @@ def get_reco_maps(true_event_maps,simfile=None,e_reco_scale=None,
 
     #Get kernels from reco service
     kernel_dict = reco_service.get_kernels()
+
+    ebins, czbins = get_binning(true_event_maps)
+
+    flavours = ['nue','numu','nutau']
+    int_types = ['cc','nc']
+    
     
     int_type = 'cc'
-    for flavor in ['nue','numu','nutau']:
+    for flavor in flavours:
         logging.info("Getting reco event rates for %s"%flavor)
         reco_evt_rate = np.zeros((len(ebins)-1,len(czbins)-1),
                                  dtype=np.float32)
@@ -80,7 +86,7 @@ def get_reco_maps(true_event_maps,simfile=None,e_reco_scale=None,
     reco_evt_rate = np.zeros((len(ebins)-1,len(czbins)-1),
                              dtype=np.float32)
     # Now do all reco_maps for nc:
-    for flavor in ['nue','numu','nutau']:
+    for flavor in flavours:
         logging.info("Getting reco events for %s NC"%flavor)
         for mID in ['','_bar']:
             flav = flavor+mID
@@ -154,18 +160,8 @@ Expects the file format to be:
     #Set verbosity level
     set_verbosity(args.verbose)
 
-    logging.info("Loading event rate maps...")
-    # Verify consistent binning....
-    ebins = args.event_rate_maps['nue']['cc']['ebins']
-    czbins = args.event_rate_maps['nue']['cc']['czbins']
-    flavours = ['nue','numu','nutau','nue_bar','numu_bar','nutau_bar']
-    int_types = ['cc','nc']
-    for nu in flavours:
-        for int_type in int_types:
-            if not is_equal_binning(ebins,args.event_rate_maps[nu][int_type]['ebins']):
-                raise Exception('Event Rate maps have different energy binning!')
-            if not is_equal_binning(czbins,args.event_rate_maps[nu][int_type]['czbins']):
-                raise Exception('Event Rate maps have different coszen binning!')
+    #Check binning
+    ebins, czbins = check_binning(args.event_rate_maps)
 
     logging.info("Defining RecoService...")
     reco_service = RecoServiceMC(ebins,czbins,args.weighted_aeff_file)

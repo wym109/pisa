@@ -14,7 +14,7 @@
 
 import logging
 from argparse import ArgumentParser, RawTextHelpFormatter
-from utils.utils import set_verbosity,is_equal_binning,get_bin_centers
+from utils.utils import set_verbosity,get_binning,check_binning,get_bin_centers
 from utils.jsons import from_json,to_json
 from utils.proc import report_params, get_params, add_params
 from PIDService import PIDService
@@ -39,6 +39,7 @@ def get_pid_maps(reco_events,pid_service,**kwargs):
     report_params(params, units = [])
     
     #Initialize return dict
+    ebins, czbins = get_binning(reco_events)
     ecen = get_bin_centers(ebins)
     czcen = get_bin_centers(czbins)
     reco_events_pid = { 'trck': {'map':np.zeros((len(ecen),len(czcen))),
@@ -53,8 +54,8 @@ def get_pid_maps(reco_events,pid_service,**kwargs):
 
         
     pid_dict = pid_service.get_pid_funcs()
-    
 
+    flavours = ['nue_cc','numu_cc','nutau_cc','nuall_nc']
     for flav in flavours:
         event_map = reco_events[flav]['map']
         
@@ -101,16 +102,8 @@ if __name__ == '__main__':
     #Set verbosity level
     set_verbosity(args.verbose)
 
-    # Verify consistent binning
-    ebins = args.reco_event_maps['nue_cc']['ebins']
-    czbins = args.reco_event_maps['nue_cc']['czbins']
-    flavours = ['nue_cc','numu_cc','nutau_cc','nuall_nc']
-    for nu in flavours:
-        if not is_equal_binning(ebins,args.reco_event_maps[nu]['ebins']):
-            raise Exception('Event Rate maps have different energy binning!')
-        if not is_equal_binning(czbins,args.reco_event_maps[nu]['czbins']):
-            raise Exception('Event Rate maps have different coszen binning!')
-
+    #Check binning
+    ebins, czbins = check_binning(args.reco_event_maps)
 
     #Initialize the PID service
     pid_service = PIDService(args.pid_dict)

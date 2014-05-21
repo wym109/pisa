@@ -21,7 +21,7 @@ import os,sys
 import numpy as np
 import logging
 from argparse import ArgumentParser, RawTextHelpFormatter
-from utils.utils import set_verbosity,is_equal_binning
+from utils.utils import set_verbosity, check_binning, get_binning
 from utils.jsons import from_json, to_json
 from utils.proc import report_params, get_params, add_params
 from AeffService import AeffServiceMC
@@ -50,7 +50,10 @@ def get_event_rates(osc_flux_maps,aeff_service=None,livetime=None,nu_xsec_scale=
     #Get effective area
     aeff_dict = aeff_service.get_aeff()
 
+    ebins, czbins = get_binning(osc_flux_maps)
+
     # apply the scaling for nu_xsec_scale and nubar_xsec_scale...
+    flavours = ['nue','numu','nutau','nue_bar','numu_bar','nutau_bar']
     for flavour in flavours:
         osc_flux_map = osc_flux_maps[flavour]['map']
         int_type_dict = {}
@@ -111,17 +114,8 @@ Expects the file format to be:
     #Set verbosity level
     set_verbosity(args.verbose)
 
-    logging.info("Getting oscillated flux...")    
-    args.osc_flux_maps = args.osc_flux_maps
-
-    # Verify consistent binning.
-    ebins = args.osc_flux_maps['nue']['ebins']
-    czbins = args.osc_flux_maps['nue']['czbins']
-    flavours = ['nue','numu','nutau','nue_bar','numu_bar','nutau_bar']
-    if not np.alltrue([is_equal_binning(ebins,args.osc_flux_maps[nu]['ebins']) for nu in flavours]):
-        raise Exception('Osc flux maps have different energy binning!')
-    if not np.alltrue([is_equal_binning(czbins,args.osc_flux_maps[nu]['czbins']) for nu in flavours]):
-        raise Exception('Osc flux maps have different coszen binning!')
+    #Check binning
+    ebins, czbins = check_binning(args.osc_flux_maps)
 
     logging.info("Defining aeff_service...")
     aeff_service = AeffServiceMC(ebins,czbins,args.weighted_aeff_file)

@@ -20,7 +20,7 @@ import os,sys
 import numpy as np
 import logging
 from argparse import ArgumentParser, RawTextHelpFormatter
-from utils.utils import set_verbosity,is_equal_binning
+from utils.utils import set_verbosity, check_binning, get_binning
 from utils.jsons import from_json, to_json
 from utils.proc import report_params, get_params, add_params
 from OscillationService import OscillationService
@@ -52,6 +52,8 @@ def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,theta12=
     #Get oscillation probability map from service
     osc_prob_maps = osc_service.get_osc_prob_maps(deltam21,deltam31,theta12,
                                                   theta13,theta23,deltacp)
+
+    ebins, czbins = get_binning(flux_maps)
     
     for to_flav in ['nue','numu','nutau']:
         for mID in ['','_bar']: # 'matter' ID
@@ -104,14 +106,8 @@ if __name__ == '__main__':
     #Set verbosity level
     set_verbosity(args.verbose)
 
-    ebins = args.flux_maps['nue']['ebins']
-    czbins = args.flux_maps['nue']['czbins']
-    
-    if not np.alltrue([is_equal_binning(ebins,args.flux_maps[nu]['ebins']) for nu in ['nue','nue_bar','numu','numu_bar']]):
-        raise Exception('Flux maps have different energy binning!')
-    if not np.alltrue([is_equal_binning(czbins,args.flux_maps[nu]['czbins']) for nu in ['nue','nue_bar','numu','numu_bar']]):
-        raise Exception('Flux maps have different coszen binning!')
-
+    #Get binning
+    ebins, czbins = check_binning(args.flux_maps)
 
     #Initialize an oscillation service
     osc_service = OscillationService(ebins,czbins)
