@@ -18,6 +18,7 @@ def show_map(pmap, title=None, cbar = True,
              emin=None, emax=None,
              czmin=None, czmax=None,
              invalid=False, logE=None,
+             xlabel=r'cos(zenith)',ylabel='Energy [GeV]',
              **kwargs):
     '''Plot the given map with proper axis labels using matplotlib.
        The axis orientation follows the PINGU convention: 
@@ -81,12 +82,18 @@ def show_map(pmap, title=None, cbar = True,
     plt.pcolormesh(x,y,cmap,vmin=vmin, vmax=vmax, **kwargs)
 
     #Add nice labels
-    plt.xlabel(r'cos(zenith)',fontsize=16)
-    plt.ylabel('Energy [GeV]',fontsize=16)
+    #if xlabel == None:
+    #    plt.xlabel(r'cos(zenith)',fontsize=16)
+    #else:
+    plt.xlabel(xlabel,fontsize=16)
+    #if yabel == None:
+    #    plt.ylabel('Energy [GeV]',fontsize=16)
+    #else:
+    plt.ylabel(ylabel,fontsize=16)
 
     #And a title
     if title is not None:
-        plt.suptitle(title)
+        plt.suptitle(title,fontsize='x-large')
 
     axis = plt.gca()
     #Check wether energy axis is linear or log-scale

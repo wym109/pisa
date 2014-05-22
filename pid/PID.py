@@ -72,7 +72,6 @@ def get_pid_maps(reco_events,pid_service,**kwargs):
         reco_events_pid['trck']['map'] += to_trck_map
         reco_events_pid['cscd']['map'] += to_cscd_map
         
-        
     return reco_events_pid
 
 
