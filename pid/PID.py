@@ -8,6 +8,8 @@
 #
 # author: Timothy C. Arlen
 #         tca3@psu.edu
+# author: Sebastian Boeser
+#         sboeser@physik.uni-bonn.de
 #
 # date:   April 10, 2014
 #
@@ -40,12 +42,10 @@ def get_pid_maps(reco_events,pid_service,**kwargs):
     
     #Initialize return dict
     ebins, czbins = get_binning(reco_events)
-    ecen = get_bin_centers(ebins)
-    czcen = get_bin_centers(czbins)
-    reco_events_pid = { 'trck': {'map':np.zeros((len(ecen),len(czcen))),
+    reco_events_pid = { 'trck': {'map':np.zeros_like(reco_events['nue_cc']['map']),
                                  'czbins':czbins,
                                  'ebins':ebins},
-                        'cscd': {'map':np.zeros((len(ecen),len(czcen))),
+                        'cscd': {'map':np.zeros_like(reco_events['nue_cc']['map']),
                                  'czbins':czbins,
                                  'ebins':ebins},
                         'params': add_params(params,reco_events['params']),
@@ -53,21 +53,14 @@ def get_pid_maps(reco_events,pid_service,**kwargs):
     
 
         
-    pid_dict = pid_service.get_pid_funcs()
+    pid_dict = pid_service.get_maps()
 
     flavours = ['nue_cc','numu_cc','nutau_cc','nuall_nc']
     for flav in flavours:
         event_map = reco_events[flav]['map']
         
-        to_trck_func = pid_dict[flav]['trck']
-        to_cscd_func = pid_dict[flav]['cscd']
-
-        to_trck = to_trck_func(ecen)
-        to_trck_map = np.reshape(np.repeat(to_trck, len(czcen)), 
-                                 (len(ecen), len(czcen)))*event_map
-        to_cscd = to_cscd_func(ecen)
-        to_cscd_map = np.reshape(np.repeat(to_cscd, len(czcen)), 
-                                 (len(ecen), len(czcen)))*event_map
+        to_trck_map = event_map*pid_dict[flav]['trck']
+        to_cscd_map = event_map*pid_dict[flav]['cscd']
         
         reco_events_pid['trck']['map'] += to_trck_map
         reco_events_pid['cscd']['map'] += to_cscd_map

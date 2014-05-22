@@ -14,24 +14,30 @@ from utils.utils import get_bin_centers
 
 class PIDService:
     '''
-    Creates the pid functions for each flavor and then performs the
-    pid selection on each template.
+    Create the PID maps for each flavor from the parametrized functions, and
+    provide them for the PID stage.
     '''
-    def __init__(self,pid_data,**kwargs):
+    def __init__(self,pid_data,ebins,czbins):
 
-        #self.ebins = ebins
-        #self.czbins = czbins
-        self.pid_func_dict = {}
+        #Evaluate the functions at the bin centers
+        ecen = get_bin_centers(ebins)
+        czcen = get_bin_centers(czbins)
+
+        self.pid_maps = {}
         for signature in pid_data.keys():
+            #Generate the functions
             to_trck_func = eval(pid_data[signature]['trck'])
             to_cscd_func = eval(pid_data[signature]['cscd'])
-            self.pid_func_dict[signature] = {'trck':to_trck_func,
-                                             'cscd':to_cscd_func}
-            
-        return
+
+            #Make maps from the functions evaluate at the bin centers
+            _,to_trck_map = np.meshgrid(czcen, to_trck_func(ecen))
+            _,to_cscd_map = np.meshgrid(czcen, to_cscd_func(ecen))
+
+            self.pid_maps[signature] = {'trck':to_trck_map,
+                                        'cscd':to_cscd_map}
     
-    def get_pid_funcs(self):
+    def get_maps(self):
         '''
         Return the pid functions.
         '''
-        return self.pid_func_dict
+        return self.pid_maps
