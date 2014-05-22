@@ -105,7 +105,7 @@ if __name__ == '__main__':
     ebins, czbins = check_binning(args.reco_event_maps)
 
     #Initialize the PID service
-    pid_service = PIDService(args.pid_dict)
+    pid_service = PIDService(args.pid_dict, ebins, czbins)
 
     #Galculate event rates after PID
     event_rate_pid = get_pid_maps(args.reco_event_maps,pid_service)
