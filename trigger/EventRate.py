@@ -63,6 +63,13 @@ def get_event_rates(osc_flux_maps,weighted_aeff_file=None,livetime=None,
             int_type_dict[int_type] = {'map':event_rate,
                                        'ebins':ebins,
                                        'czbins':czbins}
+            
+            if int_type == 'cc' and flavour == 'numu':
+                logging.info("Saving aeff to file...")
+                numu_cc_aeff = {'map':   aeff_dict[flavour][int_type],
+                                'ebins': ebins,
+                                'czbins':czbins}
+                to_json(numu_cc_aeff,'aeff_numu_cc.json',)
         event_rate_maps[flavour] = int_type_dict
         
     return event_rate_maps
