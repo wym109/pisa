@@ -1,44 +1,19 @@
+# Ignore precompile packages
 *.py[cod]
 
-# C extensions
-*.so
+# Ignore auto-generated libraries and files
+_BargerPropagator.so
+BargerPropagator_wrap.cxx
+BargerPropagator_wrap.cpp
+BargerPropagator.py
 
 # Packages
-*.egg
-*.egg-info
 dist
 build
-eggs
-parts
-bin
-var
-sdist
-develop-eggs
-.installed.cfg
-lib
-lib64
-__pycache__
+pisa.egg-info
 
-# Installer logs
-pip-log.txt
-
-# Unit test / coverage reports
-.coverage
-.tox
-nosetests.xml
-
-# Translations
-*.mo
-
-# Mr Developer
-.mr.developer.cfg
-.project
-.pydevproject
-
-# emacs
+# Common editor remants
 *~
 
-# json
+# json data files
 *.json
-BargerPropagator_wrap.cxx
-BargerPropagator.py
