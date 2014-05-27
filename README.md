@@ -25,9 +25,10 @@ installed
 If you are working on OSX, we suggest [homebrew](brew.sh/) as a package manager, which supports all of the non-python packages above. 
 
 ### Obtaining `pisa`
-You can directly install via `pip` from github, using the following command
+You can directly install via `pip` from github, using the following commands
 ```
 pip install [ --src <your/source/dir> --editable ] git+https://github.com/sboeser/pisa@<branch>#egg=pisa 
+cd <your/source/dir> && git checkout <branch>
 ```
 
 where
@@ -39,14 +40,18 @@ where
   the source in `<your/source/dir>` and link this from the `<site-packages>`.
   This way, if you change the source the changes will be automatically reflected
   when you run the code. __NOTE__: a subdirectory `pisa` that holds your files will be created within `<your/source/dir>`.
+* As for now (`pip <= 1.5.6`) the additional `git checkout <branch>` is required as `pip`
+  will checkout the specific latest commit in the branch you give, rather than
+  the `HEAD` of that branch. You are thus left with a _detached HEAD_, and can
+  not commit to the branch you check out.
   
- 
 
-
-To update your installation to a later version, just run
+You can now work with your installation using the usual git commands (pull,
+push, etc.). Note however, that these won't rebuild any of the extension (i.e.
+_C/C++_) libraries. If you want to recompile these libraries, simply run
 
 ```
-pip install pisa --upgrade
+cd <your/source/dir>/pisa && python setup.py build_ext 
 ```
 
 ## Data formats
