@@ -108,7 +108,7 @@ void get_transition_matrix(nutypei,Enuf,rhof,Lenf,Aout,phase_offsetf)
      double Aout[][3][2];
      double phase_offsetf ;
 {
-  int nutype, make_average ;
+  int nutype;
   double Enu, rho, Len ;
   double dmMatVac[3][3], dmMatMat[3][3];
   double phase_offset;
@@ -244,7 +244,7 @@ void convert_from_mass_eigenstate( state, flavor, pure )
                          int    flavor;
                          double pure [][2];
 {
-  int    i,j,k;
+  int    i,j;
   double mass    [3][2];
   double conj    [3][3][2];
   int    lstate  = state - 1;

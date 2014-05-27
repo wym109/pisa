@@ -482,7 +482,7 @@ void getA(double L, double E, double rho,
 	  double Mix[][3][2], double dmMatVac[][3], double dmMatMat[][3],
 	  int antitype, double A[3][3][2], double phase_offset) {
   int n, m, i, j, k;
-  double fac=0.0, arg, c, s;
+  double arg, c, s;
   double X[3][3][2];
   static double product[3][3][3][2];
   /* (1/2)*(1/(h_bar*c)) in units of GeV/(eV^2-km) */
@@ -579,7 +579,6 @@ void setmix_sin(s12,s23,s13,dcp,Mix)
   if ( s12>1.0 ) s12=1.0;
   if ( s23>1.0 ) s23=1.0;
   if ( s13>1.0 ) s13=1.0;
-  if ( cd >1.0 ) cd =1.0;
 
   sd  = sin( dcp );
   cd  = cos( dcp );
