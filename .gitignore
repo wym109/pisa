@@ -40,3 +40,5 @@ nosetests.xml
 
 # json
 *.json
+BargerPropagator_wrap.cxx
+BargerPropagator.py
