@@ -11,7 +11,7 @@ import logging
 import numpy as np
 from datetime import datetime
 import h5py
-from utils.utils import get_smoothed_map
+from pisa.utils.utils import get_smoothed_map
 import os, sys
 
 

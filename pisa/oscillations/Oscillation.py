@@ -20,9 +20,9 @@ import os,sys
 import numpy as np
 import logging
 from argparse import ArgumentParser, RawTextHelpFormatter
-from utils.utils import set_verbosity, check_binning, get_binning
-from utils.jsons import from_json, to_json
-from utils.proc import report_params, get_params, add_params
+from pisa.utils.utils import set_verbosity, check_binning, get_binning
+from pisa.utils.jsons import from_json, to_json
+from pisa.utils.proc import report_params, get_params, add_params
 from OscillationService import OscillationService
 
 # Until python2.6, default json is very slow.

@@ -18,9 +18,9 @@ import sys
 import logging
 import numpy as np
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-from utils.utils import set_verbosity
-from utils.jsons import from_json, to_json, json_string
-from utils.proc import report_params, get_params, add_params
+from pisa.utils.utils import set_verbosity
+from pisa.utils.jsons import from_json, to_json, json_string
+from pisa.utils.proc import report_params, get_params, add_params
 from HondaFluxService import HondaFluxService, primaries
 
 def get_flux_maps(flux_service, ebins, czbins, **params):

@@ -9,7 +9,7 @@
 
 import logging
 import numpy as np
-from utils.utils import get_bin_centers, get_bin_sizes
+from pisa.utils.utils import get_bin_centers, get_bin_sizes
 import h5py
 import os,sys
 

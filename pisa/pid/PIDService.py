@@ -10,7 +10,7 @@
 
 import scipy
 import numpy as np
-from utils.utils import get_bin_centers
+from pisa.utils.utils import get_bin_centers
 
 class PIDService:
     '''

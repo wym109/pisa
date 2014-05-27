@@ -16,9 +16,9 @@
 
 import logging
 from argparse import ArgumentParser, RawTextHelpFormatter
-from utils.utils import set_verbosity,get_binning,check_binning,get_bin_centers
-from utils.jsons import from_json,to_json
-from utils.proc import report_params, get_params, add_params
+from pisa.utils.utils import set_verbosity,get_binning,check_binning,get_bin_centers
+from pisa.utils.jsons import from_json,to_json
+from pisa.utils.proc import report_params, get_params, add_params
 from PIDService import PIDService
 import numpy as np
 import scipy.stats

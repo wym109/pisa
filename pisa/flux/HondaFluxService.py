@@ -18,7 +18,7 @@ import os
 import logging
 import numpy as np
 from scipy.interpolate import bisplrep, bisplev
-from utils.utils import get_bin_centers, get_bin_sizes
+from pisa.utils.utils import get_bin_centers, get_bin_sizes
 
 #Global definition of primaries for which there is a neutrino flux
 primaries = ['numu', 'numu_bar', 'nue', 'nue_bar']
