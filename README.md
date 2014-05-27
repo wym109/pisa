@@ -18,7 +18,7 @@ installed
 * [pip](https://pip.pypa.io/)
 * [swig](http://www.swig.org/)
 * [numpy](http://www.numpy.org/)
-* [hdf5](http://www.hdfgroup.org/HDF5/)
+* [hdf5](http://www.hdfgroup.org/HDF5/) -- install with `--enable-cxx` option
 * [h5py](http://www.h5py.org/) -- install via pip
 
 If you are working on OSX, we suggest [homebrew](brew.sh/) as a package manager, which supports all of the non-python packages above. 
