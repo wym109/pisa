@@ -18,6 +18,8 @@ setup(
   author_email='sboeser@physik.uni-bonn.de',
   url='http://github.com/sboeser/pisa',
   packages=['pisa','pisa.flux','pisa.oscillations','pisa.oscillations.prob3'],
+  scripts=['examples/default_chain.sh',
+           'pisa/flux/Flux.py'],
   ext_package='pisa.oscillations.prob3',
   ext_modules=[Extension('_BargerPropagator',
                    ['pisa/oscillations/prob3/BargerPropagator.i',
