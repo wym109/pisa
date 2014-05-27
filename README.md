@@ -18,6 +18,7 @@ installed
 * [pip](https://pip.pypa.io/)
 * [swig](http://www.swig.org/)
 * [numpy](http://www.numpy.org/)
+* [scipy](http://www.scipy.org/)
 * [hdf5](http://www.hdfgroup.org/HDF5/) -- install with `--enable-cxx` option
 * [h5py](http://www.h5py.org/) -- install via pip
 
