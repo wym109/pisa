@@ -20,7 +20,7 @@ setup(
   packages=['pisa','pisa.flux','pisa.oscillations','pisa.oscillations.prob3'],
   scripts=['examples/default_chain.sh',
            'pisa/flux/Flux.py',
-           'pisa/oscillations/Oscillations.py',
+           'pisa/oscillations/Oscillation.py',
            'pisa/trigger/EventRate.py',
            'pisa/reco/Reco.py',
            'pisa/pid/PID.py',
