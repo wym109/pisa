@@ -37,7 +37,8 @@ where
   installing directories in your `<site-packages>` directory, `pip` will install
   the source in `<your/source/dir>` and link this from the `<site-packages>`.
   This way, if you change the source the changes will be automatically reflected
-  when you run the code.
+  when you run the code. __NOTE__: a subdirectory `pisa` that holds your files will be created within `<your/source/dir>`.
+  
  
 
 
