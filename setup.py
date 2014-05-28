@@ -2,13 +2,12 @@
 #
 # Allow PISA to be distributed via distutils, i.e the user can just
 #
-#   pip install git+http://git@github.com/sboeser/pisa/master
+#   pip install git+https://github.com/sboeser/pisa#egg=pisa
 #
 # author: Sebastian Boeser
 #         sboeser@physik.uni-bonn.de
 
 from distutils.core import setup, Extension
-from distutils.command import install_headers
 
 setup(
   name='pisa',
@@ -17,11 +16,18 @@ setup(
   author='Sebastian Boeser',
   author_email='sboeser@physik.uni-bonn.de',
   url='http://github.com/sboeser/pisa',
-  packages=['pisa','pisa.flux','pisa.oscillations','pisa.oscillations.prob3'],
+  packages=['pisa',
+            'pisa.flux',
+            'pisa.oscillations',
+            'pisa.oscillations.prob3',
+            'pisa.aeff',
+            'pisa.reco',
+            'pisa.pid',
+            'pisa.utils'],
   scripts=['examples/default_chain.sh',
            'pisa/flux/Flux.py',
            'pisa/oscillations/Oscillation.py',
-           'pisa/trigger/EventRate.py',
+           'pisa/aeff/Aeff.py',
            'pisa/reco/Reco.py',
            'pisa/pid/PID.py',
            ],
@@ -32,5 +38,6 @@ setup(
                     'pisa/oscillations/prob3/EarthDensity.cc',
                     'pisa/oscillations/prob3/mosc.c',
                     'pisa/oscillations/prob3/mosc3.c'],
-                    swig_opts=['-c++'])]
+                    swig_opts=['-c++'])],
+  data_files=[('share/pisa/pid', ['resources/pid/V15_pid.json'])]
 )
