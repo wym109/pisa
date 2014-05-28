@@ -39,5 +39,5 @@ setup(
                     'pisa/oscillations/prob3/mosc.c',
                     'pisa/oscillations/prob3/mosc3.c'],
                     swig_opts=['-c++'])],
-  data_files=[('share/pisa/pid', ['resources/pid/V15_pid.json'])]
+  package_data={'pisa.pid': ['data/*.json']}
 )

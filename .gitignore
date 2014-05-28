@@ -14,6 +14,3 @@ pisa.egg-info
 
 # Common editor remants
 *~
-
-# json data files
-*.json
