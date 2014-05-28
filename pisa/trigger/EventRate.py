@@ -24,7 +24,7 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 from pisa.utils.utils import set_verbosity, check_binning, get_binning
 from pisa.utils.jsons import from_json, to_json
 from pisa.utils.proc import report_params, get_params, add_params
-from AeffService import AeffServiceMC
+from pisa.trigger.AeffService import AeffServiceMC
 from scipy.constants import Julian_year
 
 def get_event_rates(osc_flux_maps,aeff_service=None,livetime=None,nu_xsec_scale=None,
