@@ -23,7 +23,8 @@ setup(
             'pisa.aeff',
             'pisa.reco',
             'pisa.pid',
-            'pisa.utils'],
+            'pisa.utils',
+            'pisa.resources'],
   scripts=['examples/default_chain.sh',
            'pisa/flux/Flux.py',
            'pisa/oscillations/Oscillation.py',
@@ -39,5 +40,6 @@ setup(
                     'pisa/oscillations/prob3/mosc.c',
                     'pisa/oscillations/prob3/mosc3.c'],
                     swig_opts=['-c++'])],
-  package_data={'pisa.pid': ['data/*.json']}
+  #package_dir={'resources':'resources'},
+  package_data={'pisa.resources': ['pid/*.json']}
 )
