@@ -40,6 +40,8 @@ setup(
                     'pisa/oscillations/prob3/mosc.c',
                     'pisa/oscillations/prob3/mosc3.c'],
                     swig_opts=['-c++'])],
-  #package_dir={'resources':'resources'},
-  package_data={'pisa.resources': ['pid/*.json']}
+  package_data={'pisa.resources': ['pid/*.json',
+                                   'flux/*.d',
+                                   'oscillations/*.hdf5',
+                                   'events/*.hdf5']}
 )
