@@ -19,16 +19,21 @@ import logging
 import numpy as np
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from utils.utils import set_verbosity
-from utils.json import from_json, to_json, json_string
+from utils.jsons import from_json, to_json, json_string
+from utils.proc import report_params, get_params, add_params
 from HondaFluxService import HondaFluxService, primaries
 
 def get_flux_maps(flux_file, ebins, czbins, **params):
     '''Get a set of flux maps for the different primaries'''
 
-    #Instantiate a flux model
-    flux_service = HondaFluxService(flux_file)
+    #Be verbose on input
+    params = get_params()
+    report_params(params, units = [])
 
-    maps = {}
+    #Initialize return dict
+    maps = {'params': params}
+
+
     for prim in primaries:
 
         #Get the flux for this primary
@@ -88,8 +93,6 @@ if __name__ == '__main__':
     #get the flux 
     flux_maps = get_flux_maps(args.flux_file,args.ebins,args.czbins)
 
-    #Store parameters along with flux_maps (none so far)
-    flux_maps['params'] = {}
-
     #write out to a file
+    logging.info("Saving output to: %s"%args.outfile)
     to_json(flux_maps, args.outfile)

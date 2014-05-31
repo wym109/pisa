@@ -54,6 +54,7 @@ def is_equal_binning(edges1,edges2,maxdev=1e-8):
     if (np.shape(edges1)[0]) != (np.shape(edges2)[0]): return False
     return np.abs(edges1 - edges2).max() < maxdev
 
+
 def remove_downgoing(hist,czbins):
     '''
     Takes a histogram, and the czbins and removes the downgoing
@@ -76,6 +77,45 @@ def remove_downgoing(hist,czbins):
         hist_new[ie] = hist[ie][:-bin_rm]
         
     return hist_new,czbins
+
+def get_binning(d, iterate=False, eset=[], czset=[]):
+    '''Iterate over all maps in the dict, and return the ebins and czbins.
+       If iterate is False, will return the first set of ebins, czbins it finds,
+       otherwise will return a list of all ebins and czbins arrays'''
+    #Only work on dicts
+    if not type(d) == dict: return
+
+    #Check if we are on map level
+    if (sorted(d.keys()) == ['czbins','ebins','map']):
+        #Immediately return if we found one
+        if not iterate:
+            return np.array(d['ebins']),np.array(d['czbins'])
+        else:
+            eset += [np.array(d['ebins'])]
+            czset += [np.array(d['czbins'])]
+    #Otherwise iterate through dict
+    else:
+        for v in d.values():
+            bins = get_binning(v,iterate,eset,czset)
+            if bins and not iterate: return bins
+
+    #In iterate mode, return sets
+    return eset, czset
+
+def check_binning(data):
+    '''
+    Check wether all maps in data have the same binning, and return it.
+    '''
+    eset, czset = get_binning(data,iterate=True)
+   
+    for binset, label in zip([eset,czset],['energy','coszen']):
+      if not np.alltrue([is_equal_binning(binset[0],bins)
+                         for bins in binset[1:]]):
+          raise Exception('Maps have different %s binning!'%label)
+
+    return eset[0],czset[0]
+    
+
     
 # NOTE: Investigate whether we should use scipy.misc.imresize for this?
 def get_smoothed_map(prob_map,ebinsLT,czbinsLT,ebinsSM,czbinsSM):

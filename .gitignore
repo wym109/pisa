@@ -40,3 +40,9 @@ nosetests.xml
 
 # json
 *.json
+
+# png
+*.png
+
+# dat
+*.dat

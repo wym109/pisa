@@ -1,4 +1,3 @@
-#! /usr/bin/env python
 #
 # This is a service which will return an oscillation probability map
 # corresponding to the desired binning.
@@ -97,6 +96,8 @@ class OscillationService:
         else:
             logging.warn("No Osc Prob Code defined!")
         
+        self.datadir = os.getenv('PISA')+'/resources/oscillations/ebins500_czbins500/' if datadir==None else datadir
+
         return
     
     def get_osc_prob_maps(self,deltam21=None,deltam31=None,theta12=None, 
