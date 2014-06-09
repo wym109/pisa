@@ -1,6 +1,5 @@
-#! /usr/bin/env python
 #
-# json.py
+# jsons.py
 #
 # A set of utilities for dealing with JSON files.
 # Import json from this module everywhere (if you need,
@@ -19,8 +18,14 @@ import numpy as np
 #try and get the much faster simplejson if we can
 try:
     import simplejson as json
+    from json import JSONDecodeError
+    logging.debug("Using simplejson")
 except ImportError:
-    import json
+    import json as json
+    #No DecodeError in default json, dummy one
+    class JSONDecodeError(ValueError):
+      pass
+    logging.debug("Using json")
 
 def json_string(string):
     '''Decode a json string'''
@@ -31,7 +36,7 @@ def from_json(filename):
     try:
         content = json.load(open(os.path.expandvars(filename)),cls=NumpyDecoder)
         return content
-    except (IOError, json.JSONDecodeError), e:
+    except (IOError, JSONDecodeError), e:
         logging.error("Unable to read JSON file \'%s\'"%filename)
         logging.error(e)
         sys.exit(1)
@@ -40,7 +45,11 @@ def to_json(content, filename,indent=2):
     '''Write content to a JSON file using a custom parser that
        automatically converts numpy arrays to lists.'''
     with open(filename,'w') as outfile:
-        json.dump(content,outfile, cls=NumpyEncoder, indent=indent)
+        json.dump(content,outfile, cls=NumpyEncoder,
+                  indent=indent, sort_keys=True)
+        logging.debug('Wrote %.2f kBytes to %s'%
+                  (outfile.tell()/1024.,os.path.basename(filename)))
+        
 
 class NumpyEncoder(json.JSONEncoder):
     """

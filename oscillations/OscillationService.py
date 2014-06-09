@@ -1,7 +1,6 @@
-#! /usr/bin/env python
 #
 # This is a service which will return an oscillation probability map
-# corresponding to the desird binning.
+# corresponding to the desired binning.
 #
 # author: Timothy C. Arlen
 #
@@ -53,7 +52,7 @@ class OscillationService:
     def __init__(self,ebins,czbins,datadir=None):
         self.ebins = ebins
         self.czbins = czbins
-        self.datadir = os.getenv('PISA')+'/resources/oscProbMaps/ebins500_czbins500/' if datadir==None else datadir
+        self.datadir = os.getenv('PISA')+'/resources/oscillations/ebins500_czbins500/' if datadir==None else datadir
 
         return
     
