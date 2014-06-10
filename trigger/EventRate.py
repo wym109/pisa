@@ -69,7 +69,7 @@ def get_event_rates(osc_flux_maps,aeff_service=None,livetime=None,nu_xsec_scale=
                 numu_cc_aeff = {'map':   aeff_dict[flavour][int_type],
                                 'ebins': ebins,
                                 'czbins':czbins}
-                to_json(numu_cc_aeff,'aeff_numu_cc.json',)
+                to_json(numu_cc_aeff,'aeff_numu_cc.json')
         event_rate_maps[flavour] = int_type_dict
         
     return event_rate_maps
@@ -89,9 +89,10 @@ if __name__ == '__main__':
        "nue_bar": {...},
        "numu_bar": {...},
        "nutau_bar": {...} }''')
-    parser.add_argument('weighted_aeff_file',metavar='WEIGHTFILE',type=str,
-                        help='''HDF5 File containing data from all flavours for a particular instumental geometry. 
-Expects the file format to be:
+    parser.add_argument('aeff_file',metavar='WEIGHTFILE',type=str,
+                        help='''aeff_file can be either: 
+1) HDF5 File containing data from all flavours for a particular instumental geometry. 
+   Expects the file format to be:
       {
         'nue': {
            'cc': {
@@ -105,7 +106,16 @@ Expects the file format to be:
              }
          },
          'nue_bar' {...},...
-      } ''')
+      } 
+OR
+
+2) JSON file containing the locations of the aeff*.dat files [in analogy with the PaPA code].
+Expects file format to be:
+  {
+    'a_eff': { },
+    'a_eff_coszen_dep': { },
+  }
+''')
     parser.add_argument('--livetime',type=float,default=1.0,
                         help='''livetime in years to re-scale by.''')
     parser.add_argument('--nu_xsec_scale',type=float,default=1.0,
@@ -126,8 +136,14 @@ Expects the file format to be:
     ebins, czbins = check_binning(args.osc_flux_maps)
 
     logging.info("Defining aeff_service...")
-    aeff_service = AeffServiceMC(ebins,czbins,args.weighted_aeff_file)
-    
+    extension = os.path.splitext(args.aeff_file)[1]
+    if extension == '.json':
+        logging.warn("  Using Parametric effective area...")
+        aeff_service = AeffServicePar(ebins,czbins,args.aeff_file)
+    else:
+        logging.warn("  Using MC-Based effective area...")
+        aeff_service = AeffServiceMC(ebins,czbins,args.aeff_file)
+        
     event_rate_maps = get_event_rates(args.osc_flux_maps,aeff_service,args.livetime,
                                       args.nu_xsec_scale,args.nubar_xsec_scale)
     
