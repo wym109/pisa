@@ -3,10 +3,10 @@
 # Oscillation.py
 #
 # This module is the implementation of the physics oscillation step.
-# The main purpose of this step is to produce oscillation probability
-# maps of each neutrino flavor into the others, for a given set of
-# oscillation parameters, and to multiply it by the corresponding flux
-# map, producing oscillated flux maps.
+# In this step, oscillation probability maps of each neutrino flavor
+# into the others are produced, for a given set of oscillation
+# parameters. It is then multiplied by the corresponding flux map,
+# producing oscillated flux maps for each flavor.
 #
 # author: Timothy C. Arlen
 #         tca3@psu.edu
@@ -15,7 +15,6 @@
 #
 
 
-## IMPORTS ##
 import os,sys
 import numpy as np
 import logging
@@ -27,7 +26,7 @@ from OscillationService import OscillationService
 from datetime import datetime
 
 
-def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,theta12=None,
+def get_osc_flux(flux_maps,osc_service,deltam21=None,deltam31=None,theta12=None,
                  theta13=None,theta23=None,deltacp=None,**kwargs):
     '''
     Uses osc_prob_maps to calculate the oscillated flux maps.
@@ -39,7 +38,7 @@ def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,theta12=
 
     #Be verbose on input
     params = get_params()
-    report_params(params, units = ['eV^2','eV^2','rad','rad','rad','rad'])
+    report_params(params, units = ['rad','eV^2','eV^2','rad','rad','rad'])
 
     #Initialize return dict
     osc_flux_maps = {'params': add_params(params,flux_maps['params'])}

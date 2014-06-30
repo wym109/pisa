@@ -2,8 +2,8 @@
 #
 # Flux.py
 #
-# Sample the atmospheric neutrino flux from a FluxService with a given binning
-# in cos(zenith) and energy.
+# Sample the atmospheric neutrino flux from a FluxService with a given
+# binning in cos(zenith) and energy.
 #
 # If desired, this will create a .json output file with the results of
 # the current stage of processing.
@@ -26,6 +26,8 @@ from HondaFluxService import HondaFluxService, primaries
 def get_flux_maps(flux_file, ebins, czbins, **params):
     '''Get a set of flux maps for the different primaries'''
 
+    flux_service = HondaFluxService(flux_file)
+
     #Be verbose on input
     params = get_params()
     report_params(params, units = [])
@@ -40,6 +42,7 @@ def get_flux_maps(flux_file, ebins, czbins, **params):
         maps[prim] = {'ebins': ebins,
                       'czbins': czbins,
                       'map': flux_service.get_flux(ebins,czbins,prim)}
+    
         #be a bit verbose
         logging.debug("Total flux of %s is %u [s^-1 m^-2]"%
                                 (prim,maps[prim]['map'].sum()))

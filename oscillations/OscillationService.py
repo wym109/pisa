@@ -21,58 +21,6 @@ from utils.utils import get_smoothed_map, get_bin_centers
 from utils.json import to_json
 
 
-def get_osc_probLT_dict_hdf5(filename):
-    '''
-    Returns a dictionary of osc_prob_maps from the lookup table .hdf5 files. 
-    '''
-    try:
-      fh = h5py.File(filename,'r')
-    except IOError,e:
-      logging.error("Unable to open oscillation map file %s"%filename)
-      logging.error(e)
-      sys.exit(1)
-
-    osc_prob_maps = {}
-    osc_prob_maps['ebins'] = np.array(fh['ebins'])
-    osc_prob_maps['czbins'] = np.array(fh['czbins'])
-
-    for from_nu in ['nue','numu','nue_bar','numu_bar']:
-        path_base = from_nu+'_maps'
-        to_maps = {}
-        to_nu_list = ['nue_bar','numu_bar','nutau_bar'] if 'bar' in from_nu else ['nue','numu','nutau']
-        for to_nu in to_nu_list:
-            op_map = np.array(fh[path_base+'/'+to_nu])
-            to_maps[to_nu] = op_map
-            osc_prob_maps[from_nu+'_maps'] = to_maps
-
-    fh.close()
-
-    return osc_prob_maps
-
-def SaveHDF5(filename,oscprob_dict):
-    # I grabbed this from OscProbMaps.py on hammer, it is just to test
-    # my prob calculator for Barger, et al.
-    import h5py
-    fh = h5py.File(filename,'w')
-    logging.info("Saving file: %s",filename)
-    
-    edata = fh.create_dataset('ebins',data=oscprob_dict['ebins'],dtype=np.float32)
-    czdata = fh.create_dataset('czbins',data=oscprob_dict['czbins'],dtype=np.float32)
-    
-    for key in oscprob_dict.keys():
-        if 'maps' in key:
-            logging.info("  key %s",key)
-            group_base = fh.create_group(key)
-            for subkey in oscprob_dict[key].keys():
-                logging.info("    subkey %s",subkey)
-                dset = group_base.create_dataset(subkey,data=oscprob_dict[key][subkey],
-                                                 dtype=np.float32)
-                dset.attrs['ebins'] = edata.ref
-                dset.attrs['czbins'] = czdata.ref
-        
-    fh.close()
-    return
-
 class OscillationService:
     """
     This class handles all tasks related to the oscillation
@@ -95,8 +43,6 @@ class OscillationService:
             logging.warn("Using NuCraft to compute oscillation probabilities...")
         else:
             logging.warn("No Osc Prob Code defined!")
-        
-        self.datadir = os.getenv('PISA')+'/resources/oscillations/ebins500_czbins500/' if datadir==None else datadir
 
         return
     
@@ -313,4 +259,4 @@ class OscillationService:
         return
 
         
-        
+    

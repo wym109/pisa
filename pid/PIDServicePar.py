@@ -12,16 +12,20 @@ import scipy
 import numpy as np
 from utils.utils import get_bin_centers
 
-class PIDService:
+class PIDServicePar:
     '''
     Creates the pid functions for each flavor and then performs the
     pid selection on each template.
     '''
-    def __init__(self,pid_data,ebins,czbins,**kwargs):
-
+    def __init__(self,settings,ebins,czbins,**kwargs):
+        '''
+        settings file - based on the PaPA code, takes a settings.json
+        file and extracts the PID information.
+        '''
         self.ebins = ebins
         self.czbins = czbins
         self.pid_func_dict = {}
+        pid_data = settings['params']['particle_ID']
         for signature in pid_data.keys():
             to_trck_func = eval(pid_data[signature]['trck'])
             to_cscd_func = eval(pid_data[signature]['cscd'])
@@ -53,8 +57,9 @@ class PIDService:
         for flav in flavours:
             event_map = reco_events[flav]['map']
             
-            to_trck_func = self.pid_func_dict[flav]['trck']
-            to_cscd_func = self.pid_func_dict[flav]['cscd']
+            if flav == 'nuall_nc': flav = 'NC'
+            to_trck_func = self.pid_func_dict[flav.strip('_cc')]['trck']
+            to_cscd_func = self.pid_func_dict[flav.strip('_cc')]['cscd']
             
             to_trck = to_trck_func(ecen)
             to_trck_map = np.reshape(np.repeat(to_trck, len(czcen)), 

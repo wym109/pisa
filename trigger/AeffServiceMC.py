@@ -18,10 +18,15 @@ class AeffServiceMC:
     Takes the weighted effective area files, and creates a dictionary
     of the 2D effective area in terms of energy and coszen, for each
     flavor (nue,nue_bar,numu,...) and interaction type (CC, NC)
+    
+    The final aeff dict for each flavor is in units of [m^2] in each
+    energy/coszen bin.
     '''
-    def __init__(self,ebins,czbins,simfile=None):
+    def __init__(self,ebins,czbins,settings=None):
         self.ebins = ebins
         self.czbins = czbins
+
+        simfile = settings['params']['aeff_file']
         
         logging.info('Opening file: %s'%(simfile))
         simfile = os.path.expandvars(simfile)

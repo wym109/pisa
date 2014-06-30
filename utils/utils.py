@@ -32,9 +32,13 @@ def get_bin_sizes(edges):
 def set_verbosity(verbosity):
     '''Set the verbosity level for the root logger,
        along with some better formatting.'''
+    logging.shutdown()
+    reload(logging)
+    
     levels = {0:logging.WARN,
               1:logging.INFO,
               2:logging.DEBUG}
+    
     logging.basicConfig(format='[%(levelname)8s] %(message)s')
     logging.root.setLevel(levels[min(2,verbosity)])
  
