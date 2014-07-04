@@ -70,7 +70,7 @@ if __name__ == '__main__':
     
     parser.add_argument('--flux_file', metavar='FILE', type=str,
         help= '''Input flux file in Honda format. ''',
-        default = os.path.expandvars('$PISA/resources/flux/frj-solmin-mountain-aa.d'))
+        default = 'flux/frj-solmin-mountain-aa.d')
     
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str, action='store',
                         help='file to store the output', default='flux.json')

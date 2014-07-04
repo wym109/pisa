@@ -7,11 +7,11 @@
 # date:   April 8, 2014
 #
 
+import h5py
 import logging
 import numpy as np
 from pisa.utils.utils import get_bin_centers, get_bin_sizes
-import h5py
-import os,sys
+from pisa.resources.resources import find_resource
 
 class AeffServiceMC:
     '''
@@ -24,9 +24,8 @@ class AeffServiceMC:
         self.czbins = czbins
         
         logging.info('Opening file: %s'%(simfile))
-        simfile = os.path.expandvars(simfile)
         try:
-            fh = h5py.File(simfile,'r')
+            fh = h5py.File(find_resource(simfile),'r')
         except IOError,e:
             logging.error("Unable to open simfile %s"%simfile)
             logging.error(e)

@@ -2,7 +2,7 @@
 # jsons.py
 #
 # A set of utilities for dealing with JSON files.
-# Import json from this module everywhere (if you need,
+# Import json from this module everywhere (if you need to at all,
 # and can not just use from_json, to_json)
 # 
 # author: Sebastian Boeser

@@ -23,14 +23,14 @@ echo "\nRunning oscillations stage..."
 Oscillation.py flux.json -vvv
 check "Oscillations"
 
-echo "\nRunning trigger stage..."
-EventRate.py osc_flux.json $PISA/resources/events/V15_weighted_aeff.hdf5 -vvv
-check "Trigger"
+echo "\nRunning effective area stage..."
+Aeff.py osc_flux.json -vvv
+check "Effective Area"
 
 echo "\nRunning reconstruction stage..."
-Reco.py event_rate.json $PISA/resources/events/V15_weighted_aeff.hdf5 -vvv
+Reco.py event_rate.json -vvv
 check "Reconstruction"
 
 echo "\nRunning PID stage..."
-PID.py reco.json $PISA/resources/pid/V15_pid.json -vvv
+PID.py reco.json -vvv
 check "PID"

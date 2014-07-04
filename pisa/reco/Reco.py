@@ -113,7 +113,8 @@ if __name__ == '__main__':
        "nue_bar": {...},
        "numu_bar": {...},
        "nutau_bar": {...} }''')
-    parser.add_argument('weighted_aeff_file',metavar='WEIGHTFILE',type=str,
+    parser.add_argument('--weighted_aeff_file',metavar='WEIGHTFILE',type=str,
+                        default='events/V15_weighted_aeff.hdf5',
                         help='''HDF5 File containing data from all flavours for a particular instumental geometry. 
 Expects the file format to be:
       {
@@ -148,7 +149,7 @@ Expects the file format to be:
     ebins, czbins = check_binning(args.event_rate_maps)
 
     logging.info("Defining RecoService...")
-    reco_service = RecoServiceMC(ebins,czbins,args.weighted_aeff_file)
+    reco_service = RecoServiceMC(ebins,czbins,simfile=args.weighted_aeff_file)
 
     event_rate_reco_maps = get_reco_maps(args.event_rate_maps,reco_service,args.e_reco_scale,
                                          args.cz_reco_scale)

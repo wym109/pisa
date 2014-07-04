@@ -15,13 +15,13 @@
 #
 
 import logging
+import numpy as np
 from argparse import ArgumentParser, RawTextHelpFormatter
 from pisa.utils.utils import set_verbosity,get_binning,check_binning,get_bin_centers
 from pisa.utils.jsons import from_json,to_json
 from pisa.utils.proc import report_params, get_params, add_params
 from pisa.pid.PIDService import PIDService
-import numpy as np
-import scipy.stats
+from pisa.resources.resources import find_resource
 
 
 def get_pid_maps(reco_events,pid_service,**kwargs):
@@ -82,7 +82,8 @@ if __name__ == '__main__':
        "numu_cc": {...},
        "nutau_cc": {...},
        "nuall_nc": {...} }''')
-    parser.add_argument('pid_dict',metavar='WEIGHTFILE',type=from_json,
+    parser.add_argument('--pid_dict',metavar='PID_JSON',type=from_json,
+                        default=from_json(find_resource('pid/V15_pid.json')),
                         help='''json file containing parameterizations of the particle ID for each event type.''')
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str,
                         action='store',default="pid.json",

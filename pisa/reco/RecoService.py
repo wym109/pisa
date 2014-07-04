@@ -8,10 +8,11 @@
 # date:   April 9, 2014
 #
 
+import sys
+import h5py
 import logging
 import numpy as np
-import h5py
-import os,sys
+from pisa.resources.resources import find_resource
 
 class RecoServiceMC:
     '''
@@ -28,9 +29,8 @@ class RecoServiceMC:
         self.czbins = czbins
         
         logging.info('Opening file: %s'%(simfile))
-        simfile = os.path.expandvars(simfile)
         try:
-            fh = h5py.File(simfile,'r')
+            fh = h5py.File(find_resource(simfile),'r')
         except IOError,e:
             logging.error("Unable to open simfile %s"%simfile)
             logging.error(e)

@@ -12,6 +12,7 @@ import numpy as np
 from datetime import datetime
 import h5py
 from pisa.utils.utils import get_smoothed_map
+from pisa.resources.resources import find_resource
 import os, sys
 
 
@@ -20,7 +21,7 @@ def get_osc_probLT_dict_hdf5(filename):
     Returns a dictionary of osc_prob_maps from the lookup table .hdf5 files. 
     '''
     try:
-      fh = h5py.File(filename,'r')
+      fh = h5py.File(find_resource(filename),'r')
     except IOError,e:
       logging.error("Unable to open oscillation map file %s"%filename)
       logging.error(e)
@@ -49,10 +50,10 @@ class OscillationService:
     This class handles all tasks related to the oscillation
     probability calculations...
     """
-    def __init__(self,ebins,czbins,datadir=None):
+    def __init__(self,ebins,czbins,datadir='oscillations'):
         self.ebins = ebins
         self.czbins = czbins
-        self.datadir = os.getenv('PISA')+'/resources/oscillations/ebins500_czbins500/' if datadir==None else datadir
+        self.datadir = datadir
 
         return
     
@@ -84,7 +85,10 @@ class OscillationService:
         #import os
         #maps_dir = os.getenv('PISA')+'/resources/oscProbMaps/ebins500_czbins500/'
         # for now, no interpolation
-        filename = self.datadir+'oscProbLT_dm31_0.246_th23_38.645.hdf5' if deltam31 > 0.0 else self.datadir+'oscProbLT_dm31_-0.238_th23_38.645.hdf5'
+        if deltam31 > 0.0:
+          filename = os.path.join(self.datadir,'oscProbLT_dm31_0.246_th23_38.645.hdf5') 
+        else:
+          filename = os.path.join(self.datadir+'oscProbLT_dm31_-0.238_th23_38.645.hdf5')
         logging.info("Loading file: %s"%filename)
         osc_probLT_dict = get_osc_probLT_dict_hdf5(filename)
         ebinsLT = osc_probLT_dict['ebins']

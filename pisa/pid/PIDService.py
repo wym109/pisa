@@ -8,8 +8,8 @@
 # date:   April 10, 2014
 #
 
-import scipy
 import numpy as np
+import scipy.stats
 from pisa.utils.utils import get_bin_centers
 
 class PIDService:

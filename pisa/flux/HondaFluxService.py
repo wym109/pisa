@@ -19,6 +19,7 @@ import logging
 import numpy as np
 from scipy.interpolate import bisplrep, bisplev
 from pisa.utils.utils import get_bin_centers, get_bin_sizes
+from pisa.resources.resources import open_resource
 
 #Global definition of primaries for which there is a neutrino flux
 primaries = ['numu', 'numu_bar', 'nue', 'nue_bar']
@@ -34,7 +35,7 @@ class HondaFluxService():
         logging.info("Loading atmospheric flux table %s" %tables)
         
         #Load the data table
-        table = np.loadtxt(os.path.expandvars(tables)).T
+        table = np.loadtxt(open_resource(tables)).T
 
         #columns in Honda files are in the same order 
         cols = ['energy']+primaries 
