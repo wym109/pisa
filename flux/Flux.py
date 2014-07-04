@@ -2,8 +2,8 @@
 #
 # Flux.py
 #
-# Sample the atmospheric neutrino flux from a FluxService with a given binning
-# in cos(zenith) and energy.
+# Sample the atmospheric neutrino flux from a FluxService with a given
+# binning in cos(zenith) and energy.
 #
 # If desired, this will create a .json output file with the results of
 # the current stage of processing.
@@ -23,8 +23,10 @@ from utils.jsons import from_json, to_json, json_string
 from utils.proc import report_params, get_params, add_params
 from HondaFluxService import HondaFluxService, primaries
 
-def get_flux_maps(flux_service, ebins, czbins, **params):
+def get_flux_maps(flux_file, ebins, czbins, **params):
     '''Get a set of flux maps for the different primaries'''
+
+    flux_service = HondaFluxService(flux_file)
 
     #Be verbose on input
     params = get_params()
@@ -33,12 +35,14 @@ def get_flux_maps(flux_service, ebins, czbins, **params):
     #Initialize return dict
     maps = {'params': params}
 
+
     for prim in primaries:
 
         #Get the flux for this primary
         maps[prim] = {'ebins': ebins,
                       'czbins': czbins,
                       'map': flux_service.get_flux(ebins,czbins,prim)}
+    
         #be a bit verbose
         logging.debug("Total flux of %s is %u [s^-1 m^-2]"%
                                 (prim,maps[prim]['map'].sum()))
@@ -61,13 +65,14 @@ if __name__ == '__main__':
     parser.add_argument('--ebins', metavar='[1.0,2.0,...]', type=json_string,
         help= '''Edges of the energy bins in units of GeV, default is '''
               '''80 edges (79 bins) from 1.0 to 80 GeV in logarithmic spacing.''',
-        default = np.logspace(np.log10(1.),np.log10(80),80))
+                        default = np.logspace(np.log10(1.0),np.log10(80.0),41) )
+                        
 
     parser.add_argument('--czbins', metavar='[-1.0,-0.8.,...]', type=json_string,
-        help= '''Edges of the cos(zenith) bins, default is '''
-              '''21 edges (20 bins) from -1. (upward) to 0. horizontal in linear spacing.''',
-        default = np.linspace(-1.,0.,21))
-    
+                        help= '''Edges of the cos(zenith) bins, default is '''
+                        '''21 edges (20 bins) from -1. (upward) to 0. horizontal in linear spacing.''',
+                        default = np.linspace(-1.,0.,21))
+                        
     parser.add_argument('--flux_file', metavar='FILE', type=str,
         help= '''Input flux file in Honda format. ''',
         default = os.path.expandvars('$PISA/resources/flux/frj-solmin-mountain-aa.d'))
@@ -87,12 +92,9 @@ if __name__ == '__main__':
                                 (len(args.ebins)-1,args.ebins[0],args.ebins[-1]))
     logging.debug("Using %u bins in cos(zenith) from %.2f to %.2f"%
                                 (len(args.czbins)-1,args.czbins[0],args.czbins[-1]))
-
-    #Instantiate a flux model
-    flux_model = HondaFluxService(args.flux_file)
     
     #get the flux 
-    flux_maps = get_flux_maps(flux_model,args.ebins,args.czbins)
+    flux_maps = get_flux_maps(args.flux_file,args.ebins,args.czbins)
 
     #write out to a file
     logging.info("Saving output to: %s"%args.outfile)

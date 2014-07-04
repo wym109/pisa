@@ -2,6 +2,7 @@
 
 # C extensions
 *.so
+*.o
 
 # Packages
 *.egg
@@ -40,3 +41,9 @@ nosetests.xml
 
 # json
 *.json
+
+# png
+*.png
+
+# dat
+*.dat

@@ -17,7 +17,7 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 from utils.utils import set_verbosity,get_binning,check_binning,get_bin_centers
 from utils.jsons import from_json,to_json
 from utils.proc import report_params, get_params, add_params
-from PIDService import PIDService
+from PIDServicePar import PIDServicePar
 import numpy as np
 import scipy.stats
 
@@ -37,42 +37,10 @@ def get_pid_maps(reco_events,pid_service,**kwargs):
     #Be verbose on input
     params = get_params()
     report_params(params, units = [])
+
+    reco_events_pid = pid_service.get_pid_maps(reco_events)
+    reco_events_pid['params'] = add_params(params,reco_events['params'])
     
-    #Initialize return dict
-    ebins, czbins = get_binning(reco_events)
-    ecen = get_bin_centers(ebins)
-    czcen = get_bin_centers(czbins)
-    reco_events_pid = { 'trck': {'map':np.zeros((len(ecen),len(czcen))),
-                                 'czbins':czbins,
-                                 'ebins':ebins},
-                        'cscd': {'map':np.zeros((len(ecen),len(czcen))),
-                                 'czbins':czbins,
-                                 'ebins':ebins},
-                        'params': add_params(params,reco_events['params']),
-                      }
-    
-
-        
-    pid_dict = pid_service.get_pid_funcs()
-
-    flavours = ['nue_cc','numu_cc','nutau_cc','nuall_nc']
-    for flav in flavours:
-        event_map = reco_events[flav]['map']
-        
-        to_trck_func = pid_dict[flav]['trck']
-        to_cscd_func = pid_dict[flav]['cscd']
-
-        to_trck = to_trck_func(ecen)
-        to_trck_map = np.reshape(np.repeat(to_trck, len(czcen)), 
-                                 (len(ecen), len(czcen)))*event_map
-        to_cscd = to_cscd_func(ecen)
-        to_cscd_map = np.reshape(np.repeat(to_cscd, len(czcen)), 
-                                 (len(ecen), len(czcen)))*event_map
-        
-        reco_events_pid['trck']['map'] += to_trck_map
-        reco_events_pid['cscd']['map'] += to_cscd_map
-        
-        
     return reco_events_pid
 
 
@@ -90,8 +58,8 @@ if __name__ == '__main__':
        "numu_cc": {...},
        "nutau_cc": {...},
        "nuall_nc": {...} }''')
-    parser.add_argument('pid_dict',metavar='WEIGHTFILE',type=from_json,
-                        help='''json file containing parameterizations of the particle ID for each event type.''')
+    parser.add_argument('settings_file',metavar='SETTINGS',type=from_json,
+                        help='''json file containing parameterizations of the particle ID for each event type, based on PaPA settings file.''')
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str,
                         action='store',default="pid.json",
                         help='''file to store the output''')
@@ -106,7 +74,7 @@ if __name__ == '__main__':
     ebins, czbins = check_binning(args.reco_event_maps)
 
     #Initialize the PID service
-    pid_service = PIDService(args.pid_dict)
+    pid_service = PIDServicePar(args.settings_file,ebins,czbins)
 
     #Galculate event rates after PID
     event_rate_pid = get_pid_maps(args.reco_event_maps,pid_service)
