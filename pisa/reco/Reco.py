@@ -27,8 +27,8 @@ from pisa.reco.RecoService import RecoServiceMC
 import numpy as np
 
 
-def get_reco_maps(true_event_maps,simfile=None,e_reco_scale=None,
-                         cz_reco_scale=None, **kwargs):
+def get_reco_maps(true_event_maps,reco_service=None,e_reco_scale=None,
+                  cz_reco_scale=None, **kwargs):
     '''
     Primary function for this module, which returns the reconstructed
     event rate maps from the true event rate maps, and from the
@@ -156,5 +156,5 @@ Expects the file format to be:
     
     logging.info("Saving output to: %s"%args.outfile)
     to_json(event_rate_reco_maps,args.outfile)
-
+    
     

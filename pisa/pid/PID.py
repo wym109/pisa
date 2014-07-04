@@ -20,7 +20,7 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 from pisa.utils.utils import set_verbosity,get_binning,check_binning,get_bin_centers
 from pisa.utils.jsons import from_json,to_json
 from pisa.utils.proc import report_params, get_params, add_params
-from pisa.pid.PIDService import PIDService
+from pisa.pid.PIDServicePar import PIDServicePar
 from pisa.resources.resources import find_resource
 
 
@@ -82,9 +82,11 @@ if __name__ == '__main__':
        "numu_cc": {...},
        "nutau_cc": {...},
        "nuall_nc": {...} }''')
-    parser.add_argument('--pid_dict',metavar='PID_JSON',type=from_json,
+
+    parser.add_argument('--settings',metavar='SETTINGS',type=from_json,
                         default=from_json(find_resource('pid/V15_pid.json')),
                         help='''json file containing parameterizations of the particle ID for each event type.''')
+
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str,
                         action='store',default="pid.json",
                         help='''file to store the output''')
@@ -99,12 +101,10 @@ if __name__ == '__main__':
     ebins, czbins = check_binning(args.reco_event_maps)
 
     #Initialize the PID service
-    pid_service = PIDService(args.pid_dict, ebins, czbins)
+    pid_service = PIDServicePar(args.settings,ebins,czbins)
 
     #Galculate event rates after PID
     event_rate_pid = get_pid_maps(args.reco_event_maps,pid_service)
     
     logging.info("Saving output to: %s"%args.outfile)
     to_json(event_rate_pid,args.outfile)
-    
-    

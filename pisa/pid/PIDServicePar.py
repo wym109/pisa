@@ -12,7 +12,7 @@ import numpy as np
 import scipy.stats
 from pisa.utils.utils import get_bin_centers
 
-class PIDService:
+class PIDServicePar:
     '''
     Create the PID maps for each flavor from the parametrized functions, and
     provide them for the PID stage.

@@ -4,8 +4,8 @@
 #
 # This module is the implementation of the stage2 analysis. The main
 # purpose of stage2 is to combine the "oscillated Flux maps" with the
-# weighted effective areas to create oscillated event rate maps,
-# using the true information.
+# effective areas to create oscillated event rate maps, using the true
+# information.
 # 
 # If desired, this will create a .json output file with the results of
 # the current stage of processing.
@@ -24,8 +24,10 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 from pisa.utils.utils import set_verbosity, check_binning, get_binning
 from pisa.utils.jsons import from_json, to_json
 from pisa.utils.proc import report_params, get_params, add_params
-from pisa.aeff.AeffService import AeffServiceMC
+from pisa.aeff.AeffServiceMC import AeffServiceMC
+from pisa.aeff.AeffServicePar import AeffServicePar
 from scipy.constants import Julian_year
+
 
 def get_event_rates(osc_flux_maps,aeff_service=None,livetime=None,nu_xsec_scale=None,
                     nubar_xsec_scale=None,**kwargs):
@@ -39,7 +41,7 @@ def get_event_rates(osc_flux_maps,aeff_service=None,livetime=None,nu_xsec_scale=
      'nue_bar': {'cc':map,'nc':map}, ...
      'nutau_bar': {'cc':map,'nc':map} }
     '''
-
+    
     #Get parameters used here
     params = get_params()
     report_params(params,units = ['yrs','',''])
@@ -49,9 +51,9 @@ def get_event_rates(osc_flux_maps,aeff_service=None,livetime=None,nu_xsec_scale=
     
     #Get effective area
     aeff_dict = aeff_service.get_aeff()
-
+    
     ebins, czbins = get_binning(osc_flux_maps)
-
+    
     # apply the scaling for nu_xsec_scale and nubar_xsec_scale...
     flavours = ['nue','numu','nutau','nue_bar','numu_bar','nutau_bar']
     for flavour in flavours:
@@ -62,14 +64,19 @@ def get_event_rates(osc_flux_maps,aeff_service=None,livetime=None,nu_xsec_scale=
             int_type_dict[int_type] = {'map':event_rate,
                                        'ebins':ebins,
                                        'czbins':czbins}
+            
+            if int_type == 'cc' and flavour == 'numu':
+                logging.info("Saving aeff to file...")
+                numu_cc_aeff = {'map':   aeff_dict[flavour][int_type],
+                                'ebins': ebins,
+                                'czbins':czbins}
+                #to_json(numu_cc_aeff,'aeff_numu_cc.json')
         event_rate_maps[flavour] = int_type_dict
         
     return event_rate_maps
 
 if __name__ == '__main__':
 
-    #Only show errors while parsing 
-    set_verbosity(0)
     parser = ArgumentParser(description='Take an oscillated flux file '
                             'as input and write out a set of oscillated event counts. ',
                             formatter_class=RawTextHelpFormatter)
@@ -81,30 +88,28 @@ if __name__ == '__main__':
        "nue_bar": {...},
        "numu_bar": {...},
        "nutau_bar": {...} }''')
+
     parser.add_argument('--weighted_aeff_file',metavar='WEIGHTFILE',type=str,
                         default='events/V15_weighted_aeff.hdf5',
-                        help='''HDF5 File containing data from all flavours for a particular instumental geometry. 
-Expects the file format to be:
-      {
-        'nue': {
-           'cc': {
-               'weighted_aeff': np.array,
-               'true_energy': np.array,
-               'true_coszen': np.array,
-               'reco_energy': np.array,
-               'reco_coszen': np.array
-            },
-            'nc': {...
-             }
-         },
-         'nue_bar' {...},...
-      } ''')
+                        help='''HDF5 File containing event data for each flavours for
+                        a particular instrumental geometry. The effective area
+                        is calculate from the event weights in this file.
+                        Only in non-parametric mode.''')
+
+    parser.add_argument('--settings_file',metavar='SETTINGS',type=str,
+                        default='aeff/V15_aeff.json',
+                        help='''json file containing parameterizations of the
+                         Aeff and czdep. Only applies in parametric mode.''')
+
     parser.add_argument('--livetime',type=float,default=1.0,
                         help='''livetime in years to re-scale by.''')
     parser.add_argument('--nu_xsec_scale',type=float,default=1.0,
                         help='''Overall scale on nu xsec.''')
     parser.add_argument('--nubar_xsec_scale',type=float,default=1.0,
                         help='''Overall scale on nu_bar xsec.''')
+    parser.add_argument('--parametric',action='store_true', default=False,
+                        help='''Use parametrized effective areas instead of
+                        extracting them from event data.''')
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str,
                         action='store',default="event_rate.json",
                         help='''file to store the output''')
@@ -114,13 +119,19 @@ Expects the file format to be:
 
     #Set verbosity level
     set_verbosity(args.verbose)
-
+        
     #Check binning
     ebins, czbins = check_binning(args.osc_flux_maps)
 
     logging.info("Defining aeff_service...")
-    aeff_service = AeffServiceMC(ebins,czbins,simfile=args.weighted_aeff_file)
     
+    if args.parametric:
+        logging.info("  Using effective area from PARAMETRIZATION...")
+        aeff_service = AeffServicePar(ebins,czbins,settings=args.settings_file)
+    else:
+        logging.info("  Using effective area from EVENT DATA...")
+        aeff_service = AeffServiceMC(ebins,czbins,simfile=args.weighted_aeff_file)
+        
     event_rate_maps = get_event_rates(args.osc_flux_maps,aeff_service,args.livetime,
                                       args.nu_xsec_scale,args.nubar_xsec_scale)
     

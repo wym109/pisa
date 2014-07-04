@@ -18,6 +18,7 @@ def show_map(pmap, title=None, cbar = True,
              emin=None, emax=None,
              czmin=None, czmax=None,
              invalid=False, logE=None,
+             fontsize=16,
              xlabel=r'cos(zenith)',ylabel='Energy [GeV]',
              **kwargs):
     '''Plot the given map with proper axis labels using matplotlib.
@@ -85,11 +86,11 @@ def show_map(pmap, title=None, cbar = True,
     #if xlabel == None:
     #    plt.xlabel(r'cos(zenith)',fontsize=16)
     #else:
-    plt.xlabel(xlabel,fontsize=16)
+    plt.xlabel(xlabel,fontsize=fontsize)
     #if yabel == None:
     #    plt.ylabel('Energy [GeV]',fontsize=16)
     #else:
-    plt.ylabel(ylabel,fontsize=16)
+    plt.ylabel(ylabel,fontsize=fontsize)
 
     #And a title
     if title is not None:

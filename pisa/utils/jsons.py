@@ -18,7 +18,7 @@ import numpy as np
 #try and get the much faster simplejson if we can
 try:
     import simplejson as json
-    from json import JSONDecodeError
+    from simplejson import JSONDecodeError
     logging.debug("Using simplejson")
 except ImportError:
     import json as json

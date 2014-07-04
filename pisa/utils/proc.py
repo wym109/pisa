@@ -31,16 +31,16 @@ def report_params(params,units):
     '''
     Print the parameter values with units
     '''
-    #Print everything
-    for arg, val, unit in zip(params.keys(),params.values(),units):
-        logging.debug("%20s: %.4e %s"%(arg,val,unit))
+    #Print everything - must be sorted
+    for key, unit in zip(sorted(params), units):
+        logging.debug("%20s: %.4e %s"%(key,params[key],unit))
     
 def add_params(setA,setB):
     '''
     Join the parameters in setA and setB,
     making sure that no parameters are overwritten
     '''
-    #chekc for overlap
+    #check for overlap
     if any(p in setA for p in setB):
         pnames = set(setA.keys()) & set(setB.keys())
         logging.error('Trying to store parameter(s) %s twice'%pnames)
@@ -48,3 +48,4 @@ def add_params(setA,setB):
 
     #Otherwise append
     return dict(setA.items() + setB.items())
+
