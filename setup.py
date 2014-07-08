@@ -41,6 +41,7 @@ setup(
                     'pisa/oscillations/prob3/mosc3.c'],
                     swig_opts=['-c++'])],
   package_data={'pisa.resources': ['aeff/*.json',
+                                   'aeff/*.dat',
                                    'pid/*.json',
                                    'flux/*.d',
                                    'oscillations/*.hdf5',

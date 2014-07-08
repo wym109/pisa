@@ -94,12 +94,13 @@ if __name__ == '__main__':
                         help='''HDF5 File containing event data for each flavours for
                         a particular instrumental geometry. The effective area
                         is calculate from the event weights in this file.
-                        Only in non-parametric mode.''')
+                        Only applies in non-parametric mode.''')
 
     parser.add_argument('--settings_file',metavar='SETTINGS',type=str,
                         default='aeff/V15_aeff.json',
                         help='''json file containing parameterizations of the
-                         Aeff and czdep. Only applies in parametric mode.''')
+                         effective area and its cos(zenith) dependence.
+                         Only applies in parametric mode.''')
 
     parser.add_argument('--livetime',type=float,default=1.0,
                         help='''livetime in years to re-scale by.''')
@@ -127,7 +128,7 @@ if __name__ == '__main__':
     
     if args.parametric:
         logging.info("  Using effective area from PARAMETRIZATION...")
-        aeff_service = AeffServicePar(ebins,czbins,settings=args.settings_file)
+        aeff_service = AeffServicePar(ebins,czbins,settings_file=args.settings_file)
     else:
         logging.info("  Using effective area from EVENT DATA...")
         aeff_service = AeffServiceMC(ebins,czbins,simfile=args.weighted_aeff_file)

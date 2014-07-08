@@ -12,12 +12,12 @@ import logging
 import numpy as np
 from pisa.utils.utils import get_bin_centers, get_bin_sizes
 from pisa.utils.jsons import from_json
-from pisa.resources.resources import find_resource
+from pisa.resources.resources import find_resource, open_resource
 from scipy.interpolate import interp1d
 
 class AeffServicePar:
     '''
-    Inputs a .json file to the locations of the .dat files, and
+    Takes a .json file with the names of .dat files, and
     creates a dictionary of the 2D effective area in terms of energy
     and coszen, for each flavor (nue,nue_bar,numu,...) and interaction
     type (CC, NC)
@@ -62,8 +62,8 @@ class AeffServicePar:
         vs. energy .dat file, an input to the parametric settings file.
         '''
 
-        aeff_file = settings['params']['aeff_files'][flavor]
-        aeff_arr = np.loadtxt(os.path.expandvars(aeff_file)).T
+        aeff_file = settings['aeff_files'][flavor]
+        aeff_arr = np.loadtxt(open_resource(aeff_file)).T
         # interpolate
         aeff_func = interp1d(aeff_arr[0], aeff_arr[1], kind='linear',
                              bounds_error=False, fill_value=0)
@@ -78,7 +78,7 @@ class AeffServicePar:
         aeff2d = np.reshape(np.repeat(aeff1d, len(czcen)), (len(ecen), len(czcen)))
             
         # Now add cz-dependence, assuming nu and nu_bar has same dependence:
-        cz_dep = eval(settings['params']['a_eff_coszen_dep'][flavor.strip('_bar')])(czcen)
+        cz_dep = eval(settings['aeff_coszen'][flavor.strip('_bar')])(czcen)
         # Normalize:
         cz_dep *= len(cz_dep)/np.sum(cz_dep)
 

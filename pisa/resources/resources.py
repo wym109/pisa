@@ -8,7 +8,7 @@
 #
 # date:   2014-06-10
 
-import os
+import os, sys
 import logging
 from pkg_resources import resource_stream, resource_filename
 
