@@ -16,7 +16,7 @@ To install this package, you'll need to have the following requirements
 installed
 
 * [pip](https://pip.pypa.io/)
-* [swig](http://www.swig.org/)
+* [swig](http://www.swig.org/) -- install with `--universal` option
 * [numpy](http://www.numpy.org/)
 * [scipy](http://www.scipy.org/)
 * [hdf5](http://www.hdfgroup.org/HDF5/) -- install with `--enable-cxx` option

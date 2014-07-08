@@ -45,5 +45,6 @@ setup(
                                    'pid/*.json',
                                    'flux/*.d',
                                    'oscillations/*.hdf5',
+                                   'oscillations/*.dat',
                                    'events/*.hdf5']}
 )
