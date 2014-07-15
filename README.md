@@ -15,7 +15,7 @@ The original drawing is [here](https://docs.google.com/drawings/edit?id=1RxQj8rP
 To install this package, you'll need to have the following requirements
 installed
 
-* [pip](https://pip.pypa.io/)
+* [pip](https://pip.pypa.io/) -- version > 1.2 recommended
 * [swig](http://www.swig.org/) -- install with `--universal` option
 * [numpy](http://www.numpy.org/)
 * [scipy](http://www.scipy.org/)
@@ -28,7 +28,7 @@ If you are working on OSX, we suggest [homebrew](brew.sh/) as a package manager,
 You can directly install via `pip` from github, using the following commands
 ```
 pip install [ --src <your/source/dir> --editable ] git+https://github.com/sboeser/pisa@<branch>#egg=pisa 
-cd <your/source/dir> && git checkout <branch>
+cd <your/source/dir>/pisa && git checkout <branch>
 ```
 
 where
