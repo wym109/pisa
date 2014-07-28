@@ -25,15 +25,24 @@ class Prob3OscillationService:
     probability calculations...
     """
     def __init__(self, ebins, czbins,
-                 earth_model='oscillations/PREM_60layer.dat'):
+                 earth_model='oscillations/PREM_60layer.dat',
+                 detector_depth=2.0, prop_height=20.0):
+        """
+        Parameters needed to instantiate a Prob3OscillationService:
+        * ebins: Energy bin edges
+        * czbins: cos(zenith) bin edges
+        * earth_model: Earth density model used for matter oscillations.
+                       Default: 60-layer PREM model shipped with pisa.
+        * detector_depth: Detector depth in km. Default: 2.0
+        * prop_height: Height in the atmosphere to begin in km. 
+                       Default: 20.0
+        """
         self.ebins = ebins
         self.czbins = czbins
+        self.prop_height = prop_height
 
         earth_model = find_resource(earth_model)
 
-        #TODO: These should be parameters
-        detector_depth = 2.0     # Detector depth in km
-        self.prop_height = 20.0  # Height in the atmosphere to begin (default= 20 km)
         self.barger_prop = BargerPropagator(earth_model, detector_depth)
         self.barger_prop.UseMassEigenstates(False)
 
