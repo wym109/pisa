@@ -26,7 +26,7 @@ class Prob3OscillationService:
     """
     def __init__(self, ebins, czbins,
                  earth_model='oscillations/PREM_60layer.dat',
-                 detector_depth=2.0, prop_height=20.0):
+                 detector_depth=2.0, prop_height=20.0, **kwargs):
         """
         Parameters needed to instantiate a Prob3OscillationService:
         * ebins: Energy bin edges
@@ -42,9 +42,13 @@ class Prob3OscillationService:
         self.prop_height = prop_height
 
         earth_model = find_resource(earth_model)
-
+        
         self.barger_prop = BargerPropagator(earth_model, detector_depth)
         self.barger_prop.UseMassEigenstates(False)
+        
+        #for key in kwargs:
+        #    logging.warn('Oscillation service received unnecessary keyword argument: %s'\
+        #                 %key)
 
     
     def get_osc_prob_maps(self,deltam21=None,deltam31=None,theta12=None, 
@@ -90,9 +94,9 @@ class Prob3OscillationService:
         
         return smoothed_maps
     
-    def get_osc_probLT_dict(self,theta12,theta13,theta23,deltam21,deltam31,deltacp,
-                            eminLT = 1.0, emaxLT =80.0, nebinsLT=500,
-                            czminLT=-1.0, czmaxLT= 1.0, nczbinsLT=500):
+    def get_osc_probLT_dict(self,theta12,theta13,theta23,
+                            deltam21,deltam31,deltacp,
+                            ebins=None, czbins=None, **kwargs):
         '''
         This will create the oscillation probability map lookup tables
         (LT) corresponding to atmospheric neutrinos oscillation
@@ -110,8 +114,10 @@ class Prob3OscillationService:
         '''
 
         # First initialize all empty maps to use in osc_prob_dict
-        ebins = np.logspace(np.log10(eminLT),np.log10(emaxLT),nebinsLT+1)
-        czbins = np.linspace(czminLT,czmaxLT,nczbinsLT+1)
+        ebins = np.logspace(np.log10(1.0), np.log10(80.0), 501) \
+                if ebins is None else ebins
+        czbins = np.linspace(-1.0, 1.0, 501) \
+                if czbins is None else czbins
         ecen = get_bin_centers(ebins)
         czcen = get_bin_centers(czbins)
         

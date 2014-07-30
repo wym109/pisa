@@ -50,10 +50,14 @@ class OscillationService:
     This class handles all tasks related to the oscillation
     probability calculations...
     """
-    def __init__(self,ebins,czbins,datadir='oscillations'):
+    def __init__(self,ebins,czbins,datadir='oscillations', **kwargs):
         self.ebins = ebins
         self.czbins = czbins
         self.datadir = datadir
+        
+        for key in kwargs:
+            logging.warn('''Oscillation service received unnecessary 
+                            keyword argument: %s'''%key)
 
         return
     
