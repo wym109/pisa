@@ -121,7 +121,7 @@ def show_map(pmap, title=None, cbar = True,
 
     #Show the colorbar
     if cbar:
-        plt.colorbar()
+        plt.colorbar(format=r'$10^{%.1f}$') if log else plt.colorbar()
     
     #Return axes for further modifications
     return axis
