@@ -54,6 +54,18 @@ def is_equal_binning(edges1,edges2,maxdev=1e-8):
     if (np.shape(edges1)[0]) != (np.shape(edges2)[0]): return False
     return np.abs(edges1 - edges2).max() < maxdev
 
+def is_contained_binning(small_bins, large_bins):
+    '''Check whether small_bins lie inside of large_bins'''
+    if (len(np.shape(small_bins)) != len(np.shape(large_bins))): return False
+    #Make it iterable
+    if len(np.shape(small_bins) == 1):
+        small_bins, large_bins = [small_bins], [large_bins]
+    #Check for all given axes
+    for sml_ax, lrg_ax in zip(small_bins, large_bins):
+        if ((sml_ax[0] < lrg_ax[0]) or (sml_ax[-1] > lrg_ax[-1])): return False
+    return True
+        
+
 def get_binning(d, iterate=False, eset=[], czset=[]):
     '''Iterate over all maps in the dict, and return the ebins and czbins.
        If iterate is False, will return the first set of ebins, czbins it finds,

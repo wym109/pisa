@@ -14,7 +14,7 @@ import logging
 import numpy as np
 from datetime import datetime 
 import os, sys
-from pisa.utils.utils import get_smoothed_map, get_bin_centers
+from pisa.utils.utils import get_smoothed_map, get_bin_centers, is_contained binning
 from pisa.oscillations.prob3.BargerPropagator import BargerPropagator
 from pisa.resources.resources import find_resource
 
@@ -50,7 +50,8 @@ class Prob3OscillationService:
         #    logging.warn('Oscillation service received unnecessary keyword argument: %s'\
         #                 %key)
 
-    
+    #TODO: Move this method to the base class 
+    #and only implement get_osc_probLT_dict individually?
     def get_osc_prob_maps(self,deltam21=None,deltam31=None,theta12=None, 
                           theta13=None,theta23=None,deltacp=None,**kwargs):
         """
@@ -66,6 +67,8 @@ class Prob3OscillationService:
         NOTE: expects all angles in [rad]
         """
         
+        #TODO: Check here whether the requested binning is actually 
+        #smaller and coarser than the one returned by the following method
         osc_probLT_dict = self.get_osc_probLT_dict(theta12,theta13,theta23,
                                               deltam21,deltam31,deltacp)
         ebinsLT = osc_probLT_dict['ebins']
@@ -94,6 +97,7 @@ class Prob3OscillationService:
         
         return smoothed_maps
     
+    #TODO: maybe even this should move to the base class?
     def get_osc_probLT_dict(self,theta12,theta13,theta23,
                             deltam21,deltam31,deltacp,
                             ebins=None, czbins=None, **kwargs):
@@ -140,6 +144,8 @@ class Prob3OscillationService:
         return osc_prob_dict
       
 
+    #NOTE: this (and __init__) are the only one that are specific for 
+    #the prob3 oscillation code!
     def fill_osc_prob(self, osc_prob_dict, ecen,czcen,
                   theta12=None, theta13=None, theta23=None,
                   deltam21=None, deltam31=None, deltacp=None):
