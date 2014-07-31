@@ -8,7 +8,7 @@
 
 import logging
 import numpy as np
-from utils.utils import is_true_subbinning, get_smoothed_map, integer_rebin_map
+from utils.utils import subbinning, get_smoothed_map, integer_rebin_map
 
 class OscillationServiceBase:
     """
@@ -60,13 +60,14 @@ class OscillationServiceBase:
         smoothed_maps['ebins'] = self.ebins
         smoothed_maps['czbins'] = self.czbins
 
-        if is_true_subbinning((self.ebins, self.czbins), 
-                               (fine_maps['ebins'], fine_maps['czbins'])):
+        rebin_info = subbinning((self.ebins, self.czbins), 
+                          (fine_maps['ebins'], fine_maps['czbins']))
+        if rebin_info:
             #Use fast numpy magic
-            raise NotImplementedError
-            #TODO: Implement
             logging.debug('Coarse map is true submap of fine map, '
                           'using numpy array magic for smoothing.')
+            def __smoothing_func(osc_map):
+                return integer_rebin_map(osc_map, rebin_info)
         else:
             def __smoothing_func(osc_map):
                 return get_smoothed_map(osc_map, 

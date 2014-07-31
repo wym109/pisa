@@ -54,6 +54,7 @@ def is_equal_binning(edges1,edges2,maxdev=1e-8):
     if (np.shape(edges1)[0]) != (np.shape(edges2)[0]): return False
     return np.abs(edges1 - edges2).max() < maxdev
 
+"""
 def is_contained_binning(small_bins, large_bins):
     '''Check whether small_bins lie inside of large_bins'''
     if (len(np.shape(small_bins)) != len(np.shape(large_bins))): return False
@@ -64,12 +65,36 @@ def is_contained_binning(small_bins, large_bins):
     for sml_ax, lrg_ax in zip(small_bins, large_bins):
         if ((sml_ax[0] < lrg_ax[0]) or (sml_ax[-1] > lrg_ax[-1])): return False
     return True
+"""
 
-def is_true_subbinning(coarse_bins, fine_bins):
+def subbinning(coarse_bins, fine_bins, maxdev=1e-8):
     '''Check whether coarse_bins can be retrieved from fine_bins 
        via integer rebinning'''
-    #TODO: implement
-    return False
+    rebin_info = []
+    #Make it iterable
+    if (len(np.shape(coarse_bins)) == 1):
+        coarse_bins, fine_bins = [coarse_bins], [fine_bins]
+    
+    for crs_ax, fn_ax in zip(coarse_bins, fine_bins):
+        #Test all possible positions...
+        for start in range(len(fn_ax)-len(crs_ax)):
+            #...and rebin factors
+            for rebin in range(1, (len(fn_ax)-start)/len(crs_ax)+1):
+                stop = start+len(crs_ax)*rebin
+                if is_equal_binning(crs_ax, 
+                                    fn_ax[start:stop:rebin],
+                                    maxdev=maxdev):
+                    rebin_info.append((start, stop, rebin))
+                    break
+            else: continue # if no matching binning was found (no break)
+            break # executed if 'continue' was skipped (break)
+        else: break # don't search on if no binning found for first axis
+    
+    if (len(rebin_info) == len(coarse_bins)):
+        #Matching binning was found for all axes
+        return rebin_info
+    else:
+        return False
 
 def get_binning(d, iterate=False, eset=[], czset=[]):
     '''Iterate over all maps in the dict, and return the ebins and czbins.
@@ -144,6 +169,20 @@ def get_smoothed_map(prob_map,ebinsLT,czbinsLT,ebinsSM,czbinsSM):
 def integer_rebin_map(prob_map, rebin_info):
     '''
     Rebins a map (or a part of it) by an integer factor in every dimension.
+    Merged bins will be averaged.
     '''
     #TODO: implement
     raise NotImplementedError
+    
+    #Make a copy of initial map
+    rmap = np.array(prob_map)
+    dim = len(rebin_info)
+    
+    for start, stop, rebin in np.array(rebin_info).T[::-1]:
+        #Roll last axis to front
+        rmap = np.rollaxis(rmap, dim-1)
+        #Select correct part and average
+        rmap = np.average([rmap[start:stop-1:rebin] for i in range(rebin)], 
+                          axis=0)
+    
+    return rmap
