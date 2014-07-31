@@ -64,7 +64,12 @@ def is_contained_binning(small_bins, large_bins):
     for sml_ax, lrg_ax in zip(small_bins, large_bins):
         if ((sml_ax[0] < lrg_ax[0]) or (sml_ax[-1] > lrg_ax[-1])): return False
     return True
-        
+
+def is_true_subbinning(coarse_bins, fine_bins):
+    '''Check whether coarse_bins can be retrieved from fine_bins 
+       via integer rebinning'''
+    #TODO: implement
+    return False
 
 def get_binning(d, iterate=False, eset=[], czset=[]):
     '''Iterate over all maps in the dict, and return the ebins and czbins.
@@ -104,7 +109,7 @@ def check_binning(data):
     return eset[0],czset[0]
     
     
-# NOTE: Investigate whether we should use scipy.misc.imresize for this?
+#NOTE: Investigate whether we should use scipy.misc.imresize for this?
 def get_smoothed_map(prob_map,ebinsLT,czbinsLT,ebinsSM,czbinsSM):
     '''
     Downsamples a map by averaging over the look up table bins whose
@@ -135,3 +140,10 @@ def get_smoothed_map(prob_map,ebinsLT,czbinsLT,ebinsSM,czbinsSM):
     
     return np.divide(map_sum_wts,map_num)
 
+
+def integer_rebin_map(prob_map, rebin_info):
+    '''
+    Rebins a map (or a part of it) by an integer factor in every dimension.
+    '''
+    #TODO: implement
+    raise NotImplementedError
