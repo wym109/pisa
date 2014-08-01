@@ -60,8 +60,8 @@ class OscillationServiceBase:
         smoothed_maps['ebins'] = self.ebins
         smoothed_maps['czbins'] = self.czbins
 
-        rebin_info = subbinning((self.ebins, self.czbins), 
-                          (fine_maps['ebins'], fine_maps['czbins']))
+        rebin_info = subbinning([self.ebins, self.czbins], 
+                          [fine_maps['ebins'], fine_maps['czbins']])
         if rebin_info:
             #Use fast numpy magic
             logging.debug('Coarse map is true submap of fine map, '

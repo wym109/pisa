@@ -69,22 +69,23 @@ def is_contained_binning(small_bins, large_bins):
 
 def subbinning(coarse_bins, fine_bins, maxdev=1e-8):
     '''Check whether coarse_bins can be retrieved from fine_bins 
-       via integer rebinning'''
+       via integer rebinning.
+       * coarse_bins = [coarse_ax1, coarse_ax2, ...]
+       * fine_bins = [fine_ax1, fine_ax2, ...]
+       where the axes should be 1d numpy arrays'''
     rebin_info = []
-    #Make it iterable
-    if (len(np.shape(coarse_bins)) == 1):
-        coarse_bins, fine_bins = [coarse_bins], [fine_bins]
     
     for crs_ax, fn_ax in zip(coarse_bins, fine_bins):
         #Test all possible positions...
         for start in range(len(fn_ax)-len(crs_ax)):
+            print start
             #...and rebin factors
             for rebin in range(1, (len(fn_ax)-start)/len(crs_ax)+1):
                 stop = start+len(crs_ax)*rebin
                 if is_equal_binning(crs_ax, 
                                     fn_ax[start:stop:rebin],
                                     maxdev=maxdev):
-                    rebin_info.append((start, stop, rebin))
+                    rebin_info.append((start, stop-rebin, rebin))
                     break
             else: continue # if no matching binning was found (no break)
             break # executed if 'continue' was skipped (break)
@@ -171,18 +172,15 @@ def integer_rebin_map(prob_map, rebin_info):
     Rebins a map (or a part of it) by an integer factor in every dimension.
     Merged bins will be averaged.
     '''
-    #TODO: implement
-    raise NotImplementedError
-    
     #Make a copy of initial map
     rmap = np.array(prob_map)
     dim = len(rebin_info)
     
-    for start, stop, rebin in np.array(rebin_info).T[::-1]:
+    for start, stop, rebin in np.array(rebin_info)[::-1]:
         #Roll last axis to front
         rmap = np.rollaxis(rmap, dim-1)
         #Select correct part and average
-        rmap = np.average([rmap[start:stop-1:rebin] for i in range(rebin)], 
+        rmap = np.average([rmap[start+i:stop:rebin] for i in range(rebin)], 
                           axis=0)
     
     return rmap
