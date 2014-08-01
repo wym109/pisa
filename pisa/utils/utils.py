@@ -54,18 +54,20 @@ def is_equal_binning(edges1,edges2,maxdev=1e-8):
     if (np.shape(edges1)[0]) != (np.shape(edges2)[0]): return False
     return np.abs(edges1 - edges2).max() < maxdev
 
-"""
-def is_contained_binning(small_bins, large_bins):
-    '''Check whether small_bins lie inside of large_bins'''
-    if (len(np.shape(small_bins)) != len(np.shape(large_bins))): return False
-    #Make it iterable
-    if len(np.shape(small_bins) == 1):
-        small_bins, large_bins = [small_bins], [large_bins]
-    #Check for all given axes
-    for sml_ax, lrg_ax in zip(small_bins, large_bins):
-        if ((sml_ax[0] < lrg_ax[0]) or (sml_ax[-1] > lrg_ax[-1])): return False
+def is_coarser_binning(coarse_bins, fine_bins):
+    '''Check whether coarse_bins lie inside of and are coarser than fine_bins'''
+    #both 1d?
+    if not(len(np.shape(coarse_bins)) == len(np.shape(fine_bins)) == 1):
+        return False
+    #contained?
+    if ((coarse_bins[0]<fine_bins[0]) or (coarse_bins[-1]>fine_bins[-1])):
+        return False
+    #actually coarser?
+    if (len(fine_bins[np.all([fine_bins>=min(coarse_bins),
+                              fine_bins<=max(coarse_bins)], axis=0)]) \
+                              < len(coarse_bins)):
+        return False
     return True
-"""
 
 def subbinning(coarse_bins, fine_bins, maxdev=1e-8):
     '''Check whether coarse_bins can be retrieved from fine_bins 
@@ -78,7 +80,6 @@ def subbinning(coarse_bins, fine_bins, maxdev=1e-8):
     for crs_ax, fn_ax in zip(coarse_bins, fine_bins):
         #Test all possible positions...
         for start in range(len(fn_ax)-len(crs_ax)):
-            print start
             #...and rebin factors
             for rebin in range(1, (len(fn_ax)-start)/len(crs_ax)+1):
                 stop = start+len(crs_ax)*rebin

@@ -51,8 +51,13 @@ def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,theta12=
     osc_flux_maps = {'params': add_params(params,flux_maps['params'])}
     
     #Get oscillation probability map from service
-    osc_prob_maps = osc_service.get_osc_prob_maps(deltam21,deltam31,theta12,
-                                                  theta13,theta23,deltacp)
+    osc_prob_maps = osc_service.get_osc_prob_maps(deltam21=deltam21,
+                                                  deltam31=deltam31,
+                                                  theta12=theta12,
+                                                  theta13=theta13,
+                                                  theta23=theta23,
+                                                  deltacp=deltacp,
+                                                  **kwargs)
 
     ebins, czbins = get_binning(flux_maps)
     
@@ -120,13 +125,17 @@ if __name__ == '__main__':
       osc_service = OscillationService(ebins,czbins)
 
     logging.info("Getting osc prob maps")
+    ebins = np.logspace(np.log10(1.),np.log10(80.),501)
+    czbins = np.linspace(-1.,1.,501)
     osc_flux_maps = get_osc_flux(args.flux_maps, osc_service, 
                                  deltam21 = args.deltam21,
                                  deltam31 = args.deltam31,
                                  deltacp = args.deltacp,
                                  theta12 = args.theta12,
                                  theta13 = args.theta13,
-                                 theta23 = args.theta23)
+                                 theta23 = args.theta23,
+                                 ebins = ebins,
+                                 czbins = czbins)
     
     #Write out
     logging.info("Saving output to: %s",args.outfile)
