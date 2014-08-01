@@ -7,13 +7,16 @@
 # date:   April 2, 2014
 #
 
+import os, sys
+
 import logging
 import numpy as np
 from datetime import datetime
 import h5py
+
+from pisa.oscillations.OscillationServiceBase import OscillationServiceBase
 from pisa.utils.utils import get_smoothed_map
 from pisa.resources.resources import find_resource
-import os, sys
 
 
 def get_osc_probLT_dict_hdf5(filename):
@@ -45,24 +48,19 @@ def get_osc_probLT_dict_hdf5(filename):
     return osc_prob_maps
 
 
-class OscillationService:
+class TableOscillationService(OscillationServiceBase):
     """
     This class handles all tasks related to the oscillation
     probability calculations...
     """
     def __init__(self,ebins,czbins,datadir='oscillations', **kwargs):
-        self.ebins = ebins
-        self.czbins = czbins
-        self.datadir = datadir
+        OscillationServiceBase.__init__(self, ebins, czbins)
         
-        for key in kwargs:
-            logging.warn('''Oscillation service received unnecessary 
-                            keyword argument: %s'''%key)
-
-        return
+        self.datadir = datadir
     
-    def get_osc_prob_maps(self,deltam21=None,deltam31=None,theta12=None, 
-                          theta13=None,theta23=None,deltacp=None,**kwargs):
+    
+    def get_osc_probLT_dict(self,deltam21=None,deltam31=None,theta12=None, 
+                            theta13=None,theta23=None,deltacp=None,**kwargs):
         """
         Returns an oscillation probability map dictionary calculated 
         at the values of the input parameters:
@@ -95,6 +93,10 @@ class OscillationService:
           filename = os.path.join(self.datadir+'oscProbLT_dm31_-0.238_th23_38.645.hdf5')
         logging.info("Loading file: %s"%filename)
         osc_probLT_dict = get_osc_probLT_dict_hdf5(filename)
+        
+        return osc_probLT_dict
+        
+        '''
         ebinsLT = osc_probLT_dict['ebins']
         czbinsLT = osc_probLT_dict['czbins']
         
@@ -120,4 +122,4 @@ class OscillationService:
         logging.info("Finshed getting smoothed maps. This took: %s"%(datetime.now()-start_time))
         
         return smoothed_maps
-    
+        '''
