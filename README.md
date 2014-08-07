@@ -60,7 +60,7 @@ _C/C++_) libraries. If you want to recompile these libraries, simply run
   also be installed by the super-user, which means you might not be able to edit
   them. In this case, just<br>
   ```cd <your/source/dir> && sudo chown -R <user> pisa```<br>
-  where `<user>` obviously just is user user name.
+  where `<user>` obviously just is your user name.
 
 ## Data formats
 
