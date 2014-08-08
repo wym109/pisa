@@ -49,7 +49,7 @@ class Prob3OscillationService(OscillationServiceBase):
                   deltam21=None, deltam31=None, deltacp=None, **kwargs):
         '''
         Loops over ecen,czcen and fills the osc_prob_dict maps, with
-        probabilities calculated according to NuCraft
+        probabilities calculated according to prob3
         '''
         
         neutrinos = ['nue','numu','nutau']
