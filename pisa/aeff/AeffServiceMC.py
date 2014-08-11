@@ -19,6 +19,7 @@ class AeffServiceMC:
     of the 2D effective area in terms of energy and coszen, for each
     flavor (nue,nue_bar,numu,...) and interaction type (CC, NC)
     '''
+
     def __init__(self,ebins,czbins,simfile=None):
         self.ebins = ebins
         self.czbins = czbins

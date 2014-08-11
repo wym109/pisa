@@ -17,7 +17,7 @@ import os, sys
 from pisa.utils.utils import get_smoothed_map, get_bin_centers
 from pisa.oscillations.prob3.BargerPropagator import BargerPropagator
 from pisa.resources.resources import find_resource
-
+from pisa.utils.jsons import to_json
 
 class Prob3OscillationService:
     """
@@ -55,11 +55,15 @@ class Prob3OscillationService:
         
         osc_probLT_dict = self.get_osc_probLT_dict(theta12,theta13,theta23,
                                               deltam21,deltam31,deltacp)
+
         ebinsLT = osc_probLT_dict['ebins']
         czbinsLT = osc_probLT_dict['czbins']
         
         start_time = datetime.now()
         logging.info("Getting smoothed maps...")
+
+        # Testing purposes:
+        #to_json(osc_probLT_dict,'osc_probLT_dict.json')
 
         # do smoothing
         smoothed_maps = {}

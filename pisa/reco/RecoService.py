@@ -65,10 +65,6 @@ class RecoServiceMC:
                 flavor_dict[int_type] = kernel
             self.kernel_dict[flavor] = flavor_dict
 
-
-
-        # normalize:
-        #if np.sum(kernel) > 0.0: kernel /= np.sum(kernel)
             
         return
 

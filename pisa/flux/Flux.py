@@ -56,26 +56,26 @@ if __name__ == '__main__':
     # parser
     parser = ArgumentParser(description='Take a settings file '
         'as input and write out a set of flux maps',
-        formatter_class=ArgumentDefaultsHelpFormatter
-        )
+        formatter_class=ArgumentDefaultsHelpFormatter)
 
     parser.add_argument('--ebins', metavar='[1.0,2.0,...]', type=json_string,
         help= '''Edges of the energy bins in units of GeV, default is '''
-              '''80 edges (79 bins) from 1.0 to 80 GeV in logarithmic spacing.''',
-        default = np.logspace(np.log10(1.),np.log10(80),80))
+              '''40 edges (39 bins) from 1.0 to 80 GeV in logarithmic spacing.''',
+              default = np.logspace(np.log10(1.0),np.log10(80.0),41) )
 
     parser.add_argument('--czbins', metavar='[-1.0,-0.8.,...]', type=json_string,
         help= '''Edges of the cos(zenith) bins, default is '''
-              '''21 edges (20 bins) from -1. (upward) to 0. horizontal in linear spacing.''',
+        '''21 edges (20 bins) from -1. (upward) to 0. horizontal in linear spacing.''',
         default = np.linspace(-1.,0.,21))
-    
+
     parser.add_argument('--flux_file', metavar='FILE', type=str,
         help= '''Input flux file in Honda format. ''',
         default = 'flux/spl-solmax-aa.d')
-    
-    parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str, action='store',
-                        help='file to store the output', default='flux.json')
-    
+
+    parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', 
+                        type=str, action='store', default='flux.json',
+                        help='file to store the output')    
+
     parser.add_argument('-v', '--verbose', action='count', default=0,
                         help='set verbosity level')
     

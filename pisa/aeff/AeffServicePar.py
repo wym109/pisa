@@ -76,7 +76,7 @@ class AeffServicePar:
         
         # Make this into a 2D array:
         aeff2d = np.reshape(np.repeat(aeff1d, len(czcen)), (len(ecen), len(czcen)))
-            
+
         # Now add cz-dependence, assuming nu and nu_bar has same dependence:
         cz_dep = eval(settings['aeff_coszen'][flavor.strip('_bar')])(czcen)
         # Normalize:

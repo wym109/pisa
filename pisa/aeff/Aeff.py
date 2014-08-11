@@ -60,17 +60,13 @@ def get_event_rates(osc_flux_maps,aeff_service=None,livetime=None,nu_xsec_scale=
         osc_flux_map = osc_flux_maps[flavour]['map']
         int_type_dict = {}
         for int_type in ['cc','nc']:
-            event_rate = osc_flux_map*aeff_dict[flavour][int_type]*livetime*Julian_year
+            event_rate = osc_flux_map*aeff_dict[flavour][int_type]
+            
+            scale = nubar_xsec_scale if 'bar' in flavour else nu_xsec_scale
+            event_rate *= (scale*livetime*Julian_year)
             int_type_dict[int_type] = {'map':event_rate,
                                        'ebins':ebins,
                                        'czbins':czbins}
-            
-            if int_type == 'cc' and flavour == 'numu':
-                logging.info("Saving aeff to file...")
-                numu_cc_aeff = {'map':   aeff_dict[flavour][int_type],
-                                'ebins': ebins,
-                                'czbins':czbins}
-                #to_json(numu_cc_aeff,'aeff_numu_cc.json')
         event_rate_maps[flavour] = int_type_dict
         
     return event_rate_maps
@@ -78,30 +74,27 @@ def get_event_rates(osc_flux_maps,aeff_service=None,livetime=None,nu_xsec_scale=
 if __name__ == '__main__':
 
     parser = ArgumentParser(description='Take an oscillated flux file '
-                            'as input and write out a set of oscillated event counts. ',
+                          'as input & write out a set of oscillated event counts. ',
                             formatter_class=RawTextHelpFormatter)
     parser.add_argument('osc_flux_maps',metavar='FLUX',type=from_json,
-                        help='''JSON osc flux input file with the following parameters:
+                     help='''JSON osc flux input file with the following parameters:
       {"nue": {'czbins':[], 'ebins':[], 'map':[]}, 
        "numu": {...},
        "nutau": {...},
        "nue_bar": {...},
        "numu_bar": {...},
        "nutau_bar": {...} }''')
-
     parser.add_argument('--weighted_aeff_file',metavar='WEIGHTFILE',type=str,
                         default='events/V15_weighted_aeff.hdf5',
                         help='''HDF5 File containing event data for each flavours for
                         a particular instrumental geometry. The effective area
                         is calculate from the event weights in this file.
                         Only applies in non-parametric mode.''')
-
     parser.add_argument('--settings_file',metavar='SETTINGS',type=str,
                         default='aeff/V15_aeff.json',
                         help='''json file containing parameterizations of the
                          effective area and its cos(zenith) dependence.
                          Only applies in parametric mode.''')
-
     parser.add_argument('--livetime',type=float,default=1.0,
                         help='''livetime in years to re-scale by.''')
     parser.add_argument('--nu_xsec_scale',type=float,default=1.0,

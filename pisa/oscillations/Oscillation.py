@@ -25,12 +25,6 @@ from pisa.utils.proc import report_params, get_params, add_params
 from pisa.oscillations.OscillationService import OscillationService
 from pisa.oscillations.Prob3OscillationService import Prob3OscillationService
 
-# Until python2.6, default json is very slow.
-try: 
-    import simplejson as json
-except ImportError, e:
-    import json
-
 
 def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,theta12=None,
                  theta13=None,theta23=None,deltacp=None,**kwargs):
@@ -110,6 +104,8 @@ if __name__ == '__main__':
     #Set verbosity level
     set_verbosity(args.verbose)
 
+    start_time = datetime.now()
+
     #Get binning
     ebins, czbins = check_binning(args.flux_maps)
 
@@ -131,3 +127,6 @@ if __name__ == '__main__':
     #Write out
     logging.info("Saving output to: %s",args.outfile)
     to_json(osc_flux_maps, args.outfile)
+    
+    logging.info("This took %s to run"%(datetime.now() - start_time))
+    
