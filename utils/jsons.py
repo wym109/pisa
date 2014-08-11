@@ -49,7 +49,8 @@ def to_json(content, filename,indent=2):
                   indent=indent, sort_keys=True)
         logging.debug('Wrote %.2f kBytes to %s'%
                   (outfile.tell()/1024.,os.path.basename(filename)))
-        
+
+    outfile.close()
 
 class NumpyEncoder(json.JSONEncoder):
     """

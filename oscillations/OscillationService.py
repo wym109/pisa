@@ -18,7 +18,7 @@ from datetime import datetime
 import h5py
 import os, sys
 from utils.utils import get_smoothed_map, get_bin_centers
-from utils.json import to_json
+from utils.jsons import to_json
 
 
 class OscillationService:
@@ -26,23 +26,29 @@ class OscillationService:
     This class handles all tasks related to the oscillation
     probability calculations...
     """
-    def __init__(self,ebins,czbins,osc_code='Prob3'):
+    def __init__(self,ebins,czbins,osc_code='Prob3',earth_model=None,
+                 **params):
         self.ebins = ebins
         self.czbins = czbins
         self.osc_code = osc_code
         if osc_code == 'Prob3':
             from BargerPropagator import BargerPropagator
             #earth_model = os.path.expandvars('$PISA/oscillations/PREM_10layer.dat')
-            earth_model = os.path.expandvars('$PISA/oscillations/PREM_60layer.dat')
+            #earth_model = os.path.expandvars('$PISA/oscillations/PREM_60layer.dat')
             detector_depth = 2.0     # Detector depth in km
             self.prop_height = 20.0  # Height in the atmosphere to begin (default= 20 km)
+            if earth_model == None: 
+                logging.error("Please define an earth model")
+                sys.exit(1)
+            earth_model = os.path.expandvars(earth_model)
             self.barger_prop = BargerPropagator(earth_model, detector_depth)
             self.barger_prop.UseMassEigenstates(False)
             logging.warn("Using Prob3 to compute oscillation probabilities...")
         elif osc_code == 'NuCraft':
             logging.warn("Using NuCraft to compute oscillation probabilities...")
         else:
-            logging.warn("No Osc Prob Code defined!")
+            logging.error("No Osc Prob Code defined!")
+            sys.exit(1)
 
         return
     
@@ -63,13 +69,15 @@ class OscillationService:
         
         osc_probLT_dict = self.get_osc_probLT_dict(theta12,theta13,theta23,
                                               deltam21,deltam31,deltacp)
-        #to_json(osc_probLT_dict,"osc_probLT_dict.json")
         
         ebinsLT = osc_probLT_dict['ebins']
         czbinsLT = osc_probLT_dict['czbins']
         
         start_time = datetime.now()
         logging.info("Getting smoothed maps...")
+
+        # Testing purposes:
+        #to_json(osc_probLT_dict,'osc_probLT_dict.json')
 
         # do smoothing
         smoothed_maps = {}

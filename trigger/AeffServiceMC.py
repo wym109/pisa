@@ -22,18 +22,16 @@ class AeffServiceMC:
     The final aeff dict for each flavor is in units of [m^2] in each
     energy/coszen bin.
     '''
-    def __init__(self,ebins,czbins,settings=None):
+    def __init__(self,ebins,czbins,aeff_file=None,**kwargs):
         self.ebins = ebins
         self.czbins = czbins
-
-        simfile = settings['params']['aeff_file']
         
-        logging.info('Opening file: %s'%(simfile))
-        simfile = os.path.expandvars(simfile)
+        logging.info('Opening file: %s'%(aeff_file))
+        aeff_file = os.path.expandvars(aeff_file)
         try:
-            fh = h5py.File(simfile,'r')
+            fh = h5py.File(aeff_file,'r')
         except IOError,e:
-            logging.error("Unable to open simfile %s"%simfile)
+            logging.error("Unable to open aeff_file %s"%aeff_file)
             logging.error(e)
             sys.exit(1)
 

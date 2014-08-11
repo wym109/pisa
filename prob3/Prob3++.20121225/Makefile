@@ -3,7 +3,7 @@ ROOTCFLAGS = `root-config --cflags`
 ROOTLIBS   = `root-config --libs`
 
 CXXFLAGS += -I. -Wall
-CXX = g++
+CXX = g++ -O3
 
 #############################
 # NEEDED FOR PYTHON DLL

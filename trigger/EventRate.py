@@ -29,8 +29,8 @@ from AeffServicePar import AeffServicePar
 from scipy.constants import Julian_year
 
 
-def get_event_rates(osc_flux_maps,aeff_service=None,livetime=None,nu_xsec_scale=None,
-                    nubar_xsec_scale=None,**kwargs):
+def get_event_rates(osc_flux_maps,aeff_service=None,livetime=None,nu_xsec_scale=1.0,
+                    nubar_xsec_scale=1.0,**kwargs):
     '''
     Main function for this module, which returns the event rate maps
     for each flavor and interaction type, using true energy and zenith
@@ -55,23 +55,25 @@ def get_event_rates(osc_flux_maps,aeff_service=None,livetime=None,nu_xsec_scale=
     
     ebins, czbins = get_binning(osc_flux_maps)
     
-    # apply the scaling for nu_xsec_scale and nubar_xsec_scale...
     flavours = ['nue','numu','nutau','nue_bar','numu_bar','nutau_bar']
     for flavour in flavours:
         osc_flux_map = osc_flux_maps[flavour]['map']
         int_type_dict = {}
         for int_type in ['cc','nc']:
-            event_rate = osc_flux_map*aeff_dict[flavour][int_type]*livetime*Julian_year
+            event_rate = osc_flux_map*aeff_dict[flavour][int_type]
+            
+            scale = nubar_xsec_scale if 'bar' in flavour else nu_xsec_scale
+            event_rate *= (scale*livetime*Julian_year)
             int_type_dict[int_type] = {'map':event_rate,
                                        'ebins':ebins,
                                        'czbins':czbins}
             
-            if int_type == 'cc' and flavour == 'numu':
-                logging.info("Saving aeff to file...")
-                numu_cc_aeff = {'map':   aeff_dict[flavour][int_type],
-                                'ebins': ebins,
-                                'czbins':czbins}
-                #to_json(numu_cc_aeff,'aeff_numu_cc.json')
+            #if int_type == 'cc' and flavour == 'numu':
+            #    logging.info("Saving aeff to file...")
+            #    numu_cc_aeff = {'map':   aeff_dict[flavour][int_type],
+            #                    'ebins': ebins,
+            #                    'czbins':czbins}
+            #    to_json(numu_cc_aeff,'aeff_numu_cc.json')
         event_rate_maps[flavour] = int_type_dict
         
     return event_rate_maps
@@ -81,17 +83,17 @@ if __name__ == '__main__':
     #Only show errors while parsing 
     #set_verbosity(0)
     parser = ArgumentParser(description='Take an oscillated flux file '
-                            'as input and write out a set of oscillated event counts. ',
+                          'as input & write out a set of oscillated event counts. ',
                             formatter_class=RawTextHelpFormatter)
     parser.add_argument('osc_flux_maps',metavar='FLUX',type=from_json,
-                        help='''JSON osc flux input file with the following parameters:
+                     help='''JSON osc flux input file with the following parameters:
       {"nue": {'czbins':[], 'ebins':[], 'map':[]}, 
        "numu": {...},
        "nutau": {...},
        "nue_bar": {...},
        "numu_bar": {...},
        "nutau_bar": {...} }''')
-    parser.add_argument('settings_file',metavar='SETTINGS',type=from_json,
+    parser.add_argument('settings',metavar='SETTINGS',type=from_json,
                         help='''json file containing parameterizations of the Aeff and 
 czdep.''')
     parser.add_argument('--livetime',type=float,default=1.0,
@@ -118,10 +120,13 @@ czdep.''')
     logging.info("Defining aeff_service...")
     if args.parametric:
         logging.warn("  Using Parametric effective area...")
-        aeff_service = AeffServicePar(ebins,czbins,args.settings_file)
+        aeff_service = AeffServicePar(ebins,czbins,
+                                      args.settings['params']['aeff_files'],
+                                      args.settings['params']['a_eff_coszen_dep'])
     else:
         logging.warn("  Using MC-Based effective area...")
-        aeff_service = AeffServiceMC(ebins,czbins,args.settings_file)
+        aeff_service = AeffServiceMC(ebins,czbins,
+                                     args.settings['params']['weighted_aeff_file'])
         
     event_rate_maps = get_event_rates(args.osc_flux_maps,aeff_service,args.livetime,
                                       args.nu_xsec_scale,args.nubar_xsec_scale)

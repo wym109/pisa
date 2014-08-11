@@ -17,15 +17,14 @@ class PIDServicePar:
     Creates the pid functions for each flavor and then performs the
     pid selection on each template.
     '''
-    def __init__(self,settings,ebins,czbins,**kwargs):
+    def __init__(self,ebins,czbins,pid_data=None,**kwargs):
         '''
-        settings file - based on the PaPA code, takes a settings.json
-        file and extracts the PID information.
+        pid_data - based on the PaPA code, for each flavor [NC,nue,numu,nutau],
+          takes a parameterization for 'trck' and 'cscd' channel.
         '''
         self.ebins = ebins
         self.czbins = czbins
         self.pid_func_dict = {}
-        pid_data = settings['params']['particle_ID']
         for signature in pid_data.keys():
             to_trck_func = eval(pid_data[signature]['trck'])
             to_cscd_func = eval(pid_data[signature]['cscd'])

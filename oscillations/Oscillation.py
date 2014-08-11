@@ -91,6 +91,7 @@ if __name__ == '__main__':
                         help='''deltaCP value to use [rad]''')
     parser.add_argument('--osc_code',type=str,default='Prob3',
                         help='''Oscillation prob code to use ['Prob3' (default) or 'NuCraft'] ''')
+    parser.add_argument('--earth_model',type=str,default='$PISA/oscillations/PREM_60layer.dat',help="Earth model to use - defined by Prob3 code.")
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str,
                         action='store',default="osc_flux.json",
                         help='file to store the output')
@@ -103,20 +104,21 @@ if __name__ == '__main__':
     #Set verbosity level
     set_verbosity(args.verbose)
 
+    start_time = datetime.now()
+
     #Get binning
     ebins, czbins = check_binning(args.flux_maps)
 
     #Initialize an oscillation service
-    osc_service = OscillationService(ebins,czbins)
-
-    start_time = datetime.now()
+    osc_service = OscillationService(ebins,czbins,earth_model=args.earth_model)
     
     logging.info("Getting osc prob maps")
-    osc_flux_maps = get_osc_flux(args.flux_maps,osc_service,args.deltam21,args.deltam31,
-                                 args.theta12, args.theta13,args.theta23,args.deltacp)
+    osc_flux_maps = get_osc_flux(args.flux_maps,osc_service,args.deltam21,
+                                 args.deltam31,args.theta12, args.theta13,
+                                 args.theta23,args.deltacp)
     
     #Write out
     logging.info("Saving output to: %s",args.outfile)
     to_json(osc_flux_maps, args.outfile)
-
+    logging.info("This took %s to run"%(datetime.now() - start_time))
     
