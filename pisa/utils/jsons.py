@@ -50,8 +50,6 @@ def to_json(content, filename,indent=2):
         logging.debug('Wrote %.2f kBytes to %s'%
                   (outfile.tell()/1024.,os.path.basename(filename)))
 
-    outfile.close()
-
 class NumpyEncoder(json.JSONEncoder):
     """
     Encode to JSON converting numpy.ndarrays to lists
