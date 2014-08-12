@@ -25,7 +25,7 @@ class AeffServicePar:
     The final aeff dict for each flavor is in units of [m^2] in each
     energy/coszen bin.
     '''
-    def __init__(self,ebins,czbins,settings_file=None):
+    def __init__(self,ebins,czbins,settings=None):
         '''
         settings - expects the dictionary from a .json file with
                         entries of 'a_eff_files', & 'a_eff_coszen_dep'
@@ -34,7 +34,7 @@ class AeffServicePar:
         self.czbins = czbins
 
         ##Load the settings from the file
-        settings = from_json(find_resource(settings_file))
+        #settings = from_json(find_resource(settings['aeff_files']))
         
         ## Load the info from .dat files into a dict...  
         ## Parametric approach treats all NC events the same

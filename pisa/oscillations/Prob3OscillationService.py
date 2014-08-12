@@ -69,16 +69,16 @@ class Prob3OscillationService:
         smoothed_maps = {}
         smoothed_maps['ebins'] = self.ebins
         smoothed_maps['czbins'] = self.czbins
-        for from_nu in ['nue','numu','nue_bar','numu_bar']:
-            path_base = from_nu+'_maps'
+        for nu_i in ['nue','numu','nue_bar','numu_bar']:
+            path_base = nu_i+'_maps'
             to_maps = {}
-            to_nu_list = ['nue_bar','numu_bar','nutau_bar'] if 'bar' in from_nu else ['nue','numu','nutau']
-            for to_nu in to_nu_list:
-                logging.info("Getting smoothed map %s"%(from_nu+'_maps/'+to_nu))
-                to_maps[to_nu]=get_smoothed_map(osc_probLT_dict[from_nu+'_maps'][to_nu],
-                                                ebinsLT,czbinsLT,self.ebins,self.czbins)
+            to_nu_list = ['nue_bar','numu_bar','nutau_bar'] if 'bar' in nu_i else ['nue','numu','nutau']
+            for nu_f in to_nu_list:
+                logging.info("Getting smoothed map %s"%(nu_i+'_maps/'+nu_f))
+                to_maps[nu_f]=get_smoothed_map(osc_probLT_dict[nu_i+'_maps'][nu_f],
+                                               ebinsLT,czbinsLT,self.ebins,self.czbins)
                 
-            smoothed_maps[from_nu+'_maps'] = to_maps
+            smoothed_maps[nu_i+'_maps'] = to_maps
 
             
         logging.info("Finshed getting smoothed maps. This took: %s"%(datetime.now()-start_time))
@@ -145,6 +145,7 @@ class Prob3OscillationService:
                      'nue_bar':1,'numu_bar':2,'nutau_bar':3}
         
         logging.info("Defining osc_prob_dict from BargerPropagator...")
+        tstart = datetime.now()
         # Set to false, since we are using sin^2(2 theta) variables
         kSquared = False
         sin2th12Sq = np.sin(2.0*theta12)**2
@@ -199,6 +200,7 @@ class Prob3OscillationService:
                         
                         
         print ""        
+        logging.info("Finshed osc_prob_dict. This took: %s"%(datetime.now()-tstart))
         
         return
 
