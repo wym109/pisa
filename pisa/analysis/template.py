@@ -32,7 +32,7 @@ from pisa.pid.PIDServicePar import PIDServicePar
 from pisa.pid.PID import get_pid_maps
 from pisa.resources.resources import find_resource
 
-def get_template(settings,save_stages=False):
+def get_template(settings,save_stages=False,**params):
   '''
   Run through the entire template generation chain, and at the end
   produces templates for trck/cscd channels for the given set of input
