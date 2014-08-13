@@ -14,6 +14,7 @@ from tempfile import NamedTemporaryFile
 import numpy as np
 
 from pisa.oscillations.OscillationServiceBase import OscillationServiceBase
+#TODO: this is NuCraft rev12! More recent versions have new interface, update?
 from pisa.oscillations.nuCraft.NuCraft import NuCraft, EarthModel
 from pisa.resources.resources import find_resource
 
