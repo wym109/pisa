@@ -14,13 +14,7 @@ from tempfile import NamedTemporaryFile
 import numpy as np
 
 from pisa.oscillations.OscillationServiceBase import OscillationServiceBase
-#TODO: Find out how to ship Nucraft along with pisa
-try:
-    #from pisa.oscillations.nuCraft.NuCraft import NuCraft, EarthModel
-    from nuCraft.NuCraft import NuCraft, EarthModel
-except ImportError, e:
-    logging.error("Can't load default oscillation code nuCraft: %s",e)
-    sys.exit(1)
+from pisa.oscillations.nuCraft.NuCraft import NuCraft, EarthModel
 from pisa.resources.resources import find_resource
 
 
@@ -89,7 +83,6 @@ class NucraftOscillationService(OscillationServiceBase):
         #Make input arrays in correct format
         es, zs = np.meshgrid(ecen, czcen)
         shape = es.shape
-        print shape
         es, zs = es.flatten(), zs.flatten()
         
         for prim in osc_prob_dict:
