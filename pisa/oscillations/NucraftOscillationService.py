@@ -53,17 +53,16 @@ class NucraftOscillationService(OscillationServiceBase):
         self.height_mode = 3 if self.prop_height is None else 1
         self.detector_depth = detector_depth # km below spherical Earth surface
         #TODO: find a way to convert between prob3 and NuCraft earth model files
-        self.earth_model = find_resource(earth_model)
-        
+        self.earth_model = self.get_earth_model(earth_model)
         
     
     def fill_osc_prob(self, osc_prob_dict, ecen, czcen,
                   theta12=None, theta13=None, theta23=None,
                   deltam21=None, deltam31=None, deltacp=None, **kwargs):
-        '''
+        """
         Loops over ecen,czcen and fills the osc_prob_dict maps, with
         probabilities calculated according to NuCraft
-        '''
+        """
         
         #Setup NuCraft for the given oscillation parameters
         mass_splitting = (1., deltam21, deltam31)
@@ -85,17 +84,41 @@ class NucraftOscillationService(OscillationServiceBase):
             engine.atmHeight = self.prop_height
         
         #TODO: file through osc_prob_dict properly
-        
-        #Convert the particle into a list of IceCube particle IDs
-        ps = n.ones_like(ecen)*GetIceCubePID(prim)
-        
-        # run it
-        logging.debug("Calculating oscillation probabilites for %s at %u points..."
-                        %(prim,len(ps)))
-        probs = engine.CalcWeights((ps, ecen, np.arccos(czcen)), 
-                                   mode=self.height_mode)
-        logging.debug("...done")
+        for prim in osc_prob_dict:
+            
+            #Convert the particle into a list of IceCube particle IDs
+            ps = n.ones_like(ecen)*GetIceCubePID(prim.rsplit('_', 1)[0])
+            
+            # run it
+            logging.debug("Calculating oscillation probabilites for %s at %u points..."
+                            %(prim,len(ps)))
+            probs = engine.CalcWeights((ps, ecen, np.arccos(czcen)), 
+                                       mode=self.height_mode)
+            logging.debug("...done")
+            
+            #Fill probabilities into dict
+            for i, sec in enumerate(['nue', 'numu', 'nutau']):
+                sec_key = sec+'_bar' if 'bar' in prim else sec
+                osc_prob_dict[prim][sec_key] = probs[i]
 
-        #Return probabilites
-        return n.array(probs)
+        return
 
+
+    def get_earth_model(self, model):
+        """
+        Check whether the specified Earth density profile has a correct 
+        NuCraft preface. If not, create a temporary file that does.
+        """
+        
+        try:
+            self.earth_model = EarthModel(model)
+            if os.path.isfile(model):
+                logging.info('Loaded Earth Model from %s'%model)
+            else:
+                logging.info('Using NuCraft built-in Earth Model "%s"'%model)
+        except NotImplementedError:
+            #Probably we have to find the correct path to the file
+            self.get_earth_model(find_resource(model))
+        except SyntaxError:
+            #Probably the file is lacking the correct preamble
+            #TODO: implement via tempfile
