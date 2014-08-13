@@ -24,6 +24,14 @@ def GetIceCubePID(name):
     return ptcl_dict[name]
 
 
+def GetPDGid(name):
+    """Return the Particle Data Group Particle ID for a given particle"""
+    ptcl_dict = {'nue': 12, 'nue_bar': -12, 
+                 'numu': 14, 'numu_bar': -14,
+                 'nutau': 16, 'nutau_bar': -16}
+    return ptcl_dict[name]
+
+
 class NucraftOscillationService(OscillationServiceBase):
     """
     This class handles all tasks related to the oscillation
@@ -91,7 +99,7 @@ class NucraftOscillationService(OscillationServiceBase):
             if 'bins' in prim: continue
             
             #Convert the particle into a list of IceCube particle IDs
-            ps = np.ones_like(es)*GetIceCubePID(prim.rsplit('_', 1)[0])
+            ps = np.ones_like(es)*GetPDGid(prim.rsplit('_', 1)[0])
             
             # run it
             logging.debug("Calculating oscillation probabilites for %s at %u points..."
