@@ -1,15 +1,6 @@
 #!/usr/bin/env python
 from __future__ import print_function, division
 
-# using \textcolor does not work in matplotlib because all LaTeX text is converted
-# to black and white before rendering (it only works for PS output with the ps backend)
-import matplotlib
-# matplotlib.use('agg')
-from matplotlib import rc
-rc('text', usetex=True)
-rc('text.latex', preamble='\usepackage{color}')
-
-from pylab import *
 from numpy import *
 max = amax
 min = amin
@@ -17,8 +8,6 @@ min = amin
 import os, sys
 from time import time
 from sys import stdout
-
-import cPickle as pickle
 
 from NuCraft import *
 
@@ -52,17 +41,30 @@ DM31   = 2.35e-3 + DM21
 # AkhmedovOsci = NuCraft((1., DM21, DM31-DM21), [(1,2,theta12),(1,3,theta13,0),(2,3,theta23)], earthModel=EarthModel("prem", y=(0.5,0.5,0.5)))
 AkhmedovOsci = NuCraft((1., DM21, DM31), [(1,2,theta12),(1,3,theta13,0),(2,3,theta23)])
 
+# To compute weights with a non-zero CP-violating phase, replace     ^  this zero
+# by the corresponding angle (in degrees); this will add the phase to the theta13 mixing matrix,
+# as it is done in the standard parametrization; alternatively, you can also add CP-violating
+# phases to the other matrices, but in the 3-flavor case more than one phase are redundant.
+
+# This parameter governs the precision with which nuCraft computes the weights; it is the upper
+# limit for the deviation of the sum of the resulting probabilities from unitarity.
+# You can verify this by checking the output plot example-standAlone2.png.
+numPrec = 5e-4
 
 
-# 68,  69:  NuMu, NuMuBar
-# 66,  67:  NuE, NuEBar
-#133, 134:  NuTau, NuTauBar
-pType = 68
+
+# 12, -12:  NuE, NuEBar
+# 14, -14:  NuMu, NuMuBar
+# 16, -16:  NuTau, NuTauBar
+pType = 14
 
 
 
 print("Calculating...")
 # two methods of using the nuCraft instance:
+
+# saving the current time to measure the time needed for the execution of the following code
+t = time()
 
 # using particles
 """
@@ -88,21 +90,25 @@ zListLong = zListLong.flatten()
 eListLong = eListLong.flatten()
 tListLong = ones_like(eListLong)*pType
 
-prob = rollaxis( array(AkhmedovOsci.CalcWeights((tListLong, eListLong, zListLong))).reshape(len(eList), len(zList),-1), 0,3)
+prob = rollaxis( array(AkhmedovOsci.CalcWeights((tListLong, eListLong, zListLong), numPrec=numPrec)).reshape(len(eList), len(zList),-1), 0,3)
      # rollaxis is only needed to get the same shape as prob from above,
      # i.e., four elements for the different zenith angles, of which each is an
      # array of 3 x eBins (three oscillation probabilities for every energy bin)
+
+print("Calculating the probabilities took %f seconds." % (time()-t))
 
 
 
 print("Plotting...")
 
-import matplotlib as mpl
-mpl.rcParams['axes.color_cycle'] = ['b', 'r', 'k']   # only available in recent versions
-mpl.rc('axes', grid=True, titlesize = 14, labelsize = 14)
-mpl.rc('xtick', labelsize = 12)
-mpl.rc('ytick', labelsize = 12)
-mpl.rc('lines', linewidth = 2)
+from matplotlib import rc
+rc('axes', grid=True, titlesize=14, labelsize=14, color_cycle=['b','r','k'])   # only available in recent versions
+rc('xtick', labelsize=12)
+rc('ytick', labelsize=12)
+rc('lines', linewidth=2)
+rc('text', usetex=True)
+from pylab import *
+
 
 
 # plot the probabilities
@@ -110,7 +116,6 @@ fig = figure(figsize = (6,10))
 
 ax1 = fig.add_subplot(411)
 ax1.plot(eList, prob[0].T)
-# ax1.set_title(r'NuMu to \textcolor{blue}{NuE}/\textcolor{red}{NuMu}/\textcolor{black}{NuTau}')
 ax1.set_title('NuMu to NuE (blue), NuMu (red), and NuTau (black)')
 ax1.set_ylabel(r'zenith angle $%d^\circ$' % (zList[0]/pi*180))
 ax1.set_xlim([1,20])

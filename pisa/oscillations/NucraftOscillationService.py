@@ -14,7 +14,6 @@ from tempfile import NamedTemporaryFile
 import numpy as np
 
 from pisa.oscillations.OscillationServiceBase import OscillationServiceBase
-#TODO: this is NuCraft rev12! More recent versions have new interface, update?
 from pisa.oscillations.nuCraft.NuCraft import NuCraft, EarthModel
 from pisa.resources.resources import find_resource
 
@@ -63,6 +62,7 @@ class NucraftOscillationService(OscillationServiceBase):
         """
         
         #Setup NuCraft for the given oscillation parameters
+        #TODO: compatible with new NuCraft version?
         mass_splitting = (1., deltam21, deltam31)
         mixing_angles = [(1,2,np.rad2deg(theta12)),
                          (1,3,np.rad2deg(theta13),np.rad2deg(deltacp)),

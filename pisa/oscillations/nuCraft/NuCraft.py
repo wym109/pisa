@@ -1,7 +1,22 @@
 #!/usr/bin/env python
-from __future__ import print_function, division
-
 """
+Main and only module of the nuCraft package that computes neutrino oscillation
+probabilities for atmospheric neutrinos by directly solving the Schroedinger
+equation.
+
+It contains the main class NuCraft with its main method CalcWeights, as well as
+the auxiliary class EarthModel.
+
+For default usage, only CalcWeights and the NuCraft constructor are needed:
+
+nC = NuCraft([1., 7.50e-5, 7.50e-5+2.32e-3], [(1,2,33.89),(1,3,9.12),(2,3,45.00)])
+nC.CalcWeights([(type1, energy1, zenith1),(type2, energy2, zenith2),...])
+
+For more information please see the docstrings of the respective classes and
+methods, or check out the example script.
+
+################################################################################
+
 Copyright (c) 2013, Marius Wallraff (mwallraff#physik.rwth-aachen.de)
 All rights reserved.
 
@@ -26,7 +41,21 @@ LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
 ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+################################################################################
+
+NuCraft heavily relies on NumPy and SciPy. If you want to use nuCraft, you might
+want to cite scipy (see www.scipy.org/Citing_SciPy) and the publication related
+to the ODE solver ZVODE, http://dx.doi.org/10.1137/0910062.
+
+NuCraft is shipped with a table of data points sampled from the Preliminary
+Earth Reference Model PREM, see http://dx.doi.org/10.1016/0031-9201(81)90046-7.
+
+Also, please cite our publication; a link and bibTeX entry will be added to this
+file as soon as it is available.
 """
+
+from __future__ import print_function, division
 
 from math import sqrt as ssqrt
 from math import cos as scos
@@ -36,29 +65,22 @@ from numpy import *
 from scipy import interpolate, integrate
 # from scipy.linalg.matfuncs import expm2 as expm2
 from scipy.stats import lognorm
-from warnings import warn
+import warnings
+def CustomWarning(message, category, filename, lineno):
+   print("%s:%s: %s:%s" % (filename, lineno, category.__name__, message))
+warnings.showwarning = CustomWarning
 from os import path
 
 set_printoptions(precision=5, linewidth=150)
 
-"""
-NuCraft heavily relies on NumPy and SciPy. If you want to use nuCraft, you might
-want to cite scipy (see www.scipy.org/Citing_SciPy) and the publication related to
-the ODE solver ZVODE, http://dx.doi.org/10.1137/0910062.
 
-NuCraft is shipped with a table of data points sampled from the Preliminary Earth
-Model PREM, see http://dx.doi.org/10.1016/0031-9201(81)90046-7.
-
-Also, please cite our publication; a link and bibTeX entry will be added to this
-file as soon as it is available.
-"""
 
 
 
 class EarthModel:
    """
-   Auxiliary class with informations regarding the matter properties at a given
-   distance from the center of the Earth, for use with nuCraft.
+   Auxiliary class with informations regarding Earth matter properties
+   at a given distance from the center of the Earth, for use with nuCraft.
    
    The class can be constructed from an entry of the included dictionary of models,
    in which case the parameter 'name' should just be the name of the model, i.e.,
@@ -125,7 +147,7 @@ class EarthModel:
          profX = [float(prof.split()[0]) for prof in profLines[6:-1]]
          profY = [float(prof.split()[1]) for prof in profLines[6:-1]]
       else:
-         raise NotImplementedError, "The Earth model name '%s' can not be found!" % name
+         raise NotImplementedError("The Earth model name '%s' can not be found!" % name)
       
       assert(len(profX) == len(profY))
       # self.profInt = interpolate.interp1d(profX, profY)   # same interface, but much slower
@@ -161,9 +183,10 @@ class EarthModel:
    
    def SetDim(self, dim):
       """
-      Small function to set the number of neutrino flavors self._dim this instance of EarthModel
-      should take into account; the dimension of A depends on this quantity. The function also 
-      computes the dim-dimensional A arrays.
+      Set the number of neutrino flavors (self._dim) this instance should take into account.
+      
+      The dimension of A depends on this quantity. The function also computes the
+      dim-dimensional A arrays.
       
       Calling this manually should not be needed because it is called by nuCraft automatically.
       """
@@ -178,8 +201,8 @@ class EarthModel:
       # is important because the relevant quantities are electron and neutron number
       # densities instead of the mass densities given by the PREM profile
       #
-      # A = 2*sqrt(2) * G_F * rho / m_N * (Y_e,0,0,1-Y_e,...) * E_nu
-      #   = 2*sqrt(2)*1.16637e-5 / 0.939 * (Y_e,0,0,1-Y_e,...)
+      # A = sqrt(2) * G_F * rho / m_N * (2*Y_e,0,0,1-Y_e,...) * E_nu
+      #   = sqrt(2)*1.16637e-5 / 0.939 * (2*Y_e,0,0,1-Y_e,...)
       #      * (1/1.783e-27)*(1.973e-15)**3 * rho/(kg/dm^3) * E/GeV  *  1e18 * eV^2
       self.A =      array([15.256e-5*self.y[0], 0., 0.]+[7.6525e-5*(1-self.y[0])]*(dim-3))
       self.AOCore = array([15.256e-5*self.y[1], 0., 0.]+[7.6525e-5*(1-self.y[1])]*(dim-3))
@@ -205,7 +228,7 @@ class EarthModel:
 
 class NuCraft:
    """
-   nuCraft is a Python class for calculation of neutrino oscillation probabilities
+   Main class that calculates atmospheric neutrino oscillation probabilities
    by directly solving the Schroedinger equation. It includes matter effects (using the
    PREM Earth density profile, modified for neutron abundance in the core), and supports
    an arbitrary number of neutrino "flavors". The first flavor is interpreted as electron
@@ -221,15 +244,16 @@ class NuCraft:
    oscillations are flat), and it supports proper handling of the Earth's atmosphere,
    which is enabled by default (atmMode 3; see docstring).
    
-   The other method solves the Schroedinger equation in the flavor basis:
-   CalcWeightsLegacy
-   It is mostly kept for comparability, as it is much slower and less precise for
+   The other method CalcWeightsLegacy solves the Schroedinger equation in the flavor basis;
+   it is mostly kept for comparability, as it is much slower and less precise for
    most problems. It can be suitable for high-energy sterile neutrino problems, where
    vacuum oscillations are reeaaally slow. Its handling of the Earth's atmosphere is
    very basic (atmMode == 0 of the other method).
    
    The code should NEVER throw warnings like "excess work done"; if it does, adjust the
    ODE solver parameters as specified in the warning, or contact the author.
+   Seldom warnings saying "the computed unitarity does not meet the specified precision"
+   are unproblematic if the inequalities thereafter are not off by much (e.g., 50%).
    """
    
    def __init__(self, deltaMi1List, angleList, earthModel=EarthModel("prem")):
@@ -251,18 +275,20 @@ class NuCraft:
          earthModel.SetDim(dim)
          self.earthModel = earthModel
       else:
-         raise ValueError, "The provided earth model '%s' is not of the EarthModel class." % earthModel
+         raise ValueError("The provided earth model '%s' is not of the EarthModel class." % earthModel)
       
+      # tuple entry 0 became redundant because of the transition from Geant-style particle IDs to
+      # PDG-style particle IDs; kept it for now because of performance reasons (prob. negligible)
       self.mcTypeDict = {}
-      self.mcTypeDict[66]  = ( 1, array([1.]        +[0.j]*(dim-1)))
-      self.mcTypeDict[67]  = (-1, array([1.]        +[0.j]*(dim-1)))
-      self.mcTypeDict[68]  = ( 1, array([0.j,1.]    +[0.j]*(dim-2)))
-      self.mcTypeDict[69]  = (-1, array([0.j,1.]    +[0.j]*(dim-2)))
-      self.mcTypeDict[133] = ( 1, array([0.j,0.j,1.]+[0.j]*(dim-3)))
-      self.mcTypeDict[134] = (-1, array([0.j,0.j,1.]+[0.j]*(dim-3)))
+      self.mcTypeDict[ 12] = ( 1, array([1.]        +[0.j]*(dim-1)))
+      self.mcTypeDict[-12] = (-1, array([1.]        +[0.j]*(dim-1)))
+      self.mcTypeDict[ 14] = ( 1, array([0.j,1.]    +[0.j]*(dim-2)))
+      self.mcTypeDict[-14] = (-1, array([0.j,1.]    +[0.j]*(dim-2)))
+      self.mcTypeDict[ 16] = ( 1, array([0.j,0.j,1.]+[0.j]*(dim-3)))
+      self.mcTypeDict[-16] = (-1, array([0.j,0.j,1.]+[0.j]*(dim-3)))
       for i in range(1,dim-2):
-         self.mcTypeDict[-2*i]   = ( 1, array([0.j]*(2+i)+[1.]+[0.j]*(dim-3-i)))
-         self.mcTypeDict[-2*i-1] = (-1, array([0.j]*(2+i)+[1.]+[0.j]*(dim-3-i)))
+         self.mcTypeDict[ 80+i] = ( 1, array([0.j]*(2+i)+[1.]+[0.j]*(dim-3-i)))
+         self.mcTypeDict[-80-i] = (-1, array([0.j]*(2+i)+[1.]+[0.j]*(dim-3-i)))
       
       # depth of the (center of the) detector below the surface of the Earth sphere, in km
       self.detectorDepth = 2.
@@ -288,9 +314,10 @@ class NuCraft:
    
    def ConstructMassMatrix(self, parList):
       """
-      constructs and returns a mass matrix out of the input list; first parameter
-      is the mass of mass state 1, the following parameters are the correctly
-      ordered squared mass differences of the other states to state 1, i.e.,
+      Construct and return a squared-mass matrix out of the input list;
+      the first parameter is the mass of mass state 1, the following parameters are
+      the correctly ordered squared mass differences of the other states to state 1,
+      all given in units of eV or eV^2, respectively, i.e.,
       parList[i] = m_i^2 - m_1^2   for i > 0; e.g.,
       parList = [1., 7.50e-5, 7.50e-5+2.32e-3]
       """
@@ -302,20 +329,20 @@ class NuCraft:
    
    def ConstructMixingMatrix(self, parList):
       """
-      constructs and returns a mixing matrix out of the input list; the list should
-      consist of tuples of the format (i,j,theta_ij), i<j, with theta in degrees,
-      and the mixing matrix will be constructed in reverse order, e.g.:
+      Construct and return a mixing matrix out of the input list;
+      the list should consist of tuples of the format (i,j,theta_ij), i<j, with theta
+      in degrees, and the mixing matrix will be constructed in reverse order, e.g.:
       parList = [(1,2,33.89),(1,3,9.12),(2,3,45.00)]
       => U = R_23 . R_13 . R_12
       
-      for CP-violating factors, use tuples like (i,j,theta_ij,delta_ij),
-      with delta_ij in degrees
+      For CP-violating factors, use tuples like (i,j,theta_ij,delta_ij),
+      with delta_ij in degrees.
       """
       dim = max([par[1] for par in parList])
       
       def RotMat(dim, i, j, ang, cp):   # actually not rotation matrices, but Gell-Mann-generated matrices
          if not i < j <= dim:
-            raise Exception, "Missconstructed rotation matrix: "+`dim`+", "+`i`+", "+`j`+", "+`ang`
+            raise Exception("Missconstructed rotation matrix: "+repr(dim)+", "+repr(i)+", "+repr(j)+", "+repr(ang))
          if cp == 0:
             R = eye(dim)
             R[i,j] = sin(ang)
@@ -340,12 +367,15 @@ class NuCraft:
    
    def InteractionAlt(self, mcType, mcEn, mcZen, mode):
       """
-      helper method; depending on mode, returns a list of one or more tuples of
-      weights and altitudes in which the neutrinos should start to be propagated:
+      Return a list of weight-altitude tuples for atmospheric propagation.
+      
+      Helper method; depending on mode, returns a list of one or more tuples of
+      weights and altitudes in which the neutrinos should start to be propagated.
+      The weights have to add up to one.
       
       mode 0:
-         returns self.rAtm = self.rE + 20. with weight 1., which means that interaction
-         is expected to happen fixed 20 km above ground level
+         returns self.earthModel.rE + self.atmHeight with weight 1., which means that the
+         interaction is expected to happen at a fixed hight (default 20 km) above ground level
       mode 1:
          samples a single altitude from a parametrization to the atmospheric interaction
          model presented in "Path length distributions of atmospheric neutrinos",
@@ -363,7 +393,7 @@ class NuCraft:
       # averaged through the atmosphere) at cos(zen) < 0.05
       cosZen = (fabs(scos(mcZen))**3 + 0.000125)**0.333333333
       
-      if mcType in (66,67):   # electron neutrinos
+      if mcType in (12, -12):   # electron neutrinos
          mu = 1.285e-9*(cosZen-4.677)**14. + 2.581
          sigma = 0.6048*cosZen**0.7667 - 0.5308*cosZen + 0.1823
       else:
@@ -380,45 +410,54 @@ class NuCraft:
       elif mode in [2, 3]:
          cdf0 = logn.cdf(0)
          qList = cdf0 + array([0.0625,0.1875,0.3125,0.4375,0.5625,0.6875,0.8125,0.9375])*(1.-cdf0)
-         return zip(ones(8)/8., logn.ppf(qList)*cosZen + self.earthModel.rE)
+         return list(zip(ones(8)/8., logn.ppf(qList)*cosZen + self.earthModel.rE))
       else:
-         raise NotImplementedError, "Unrecognized mode for neutrino interaction height estimation!"
+         raise NotImplementedError("Unrecognized mode for neutrino interaction height estimation!")
    
    
-   def CalcWeights(self, inList, vacuum=False, atmMode=3):
+   def CalcWeights(self, inList, vacuum=False, atmMode=3, numPrec=5e-4):
       """
-      calculates and returns the oscillation propabilities for 
-         NuE:      mcType = 66
-         NuEBar:   mcType = 67
-         NuMu:     mcType = 68
-         NuMuBar:  mcType = 69
-         NuTau:    mcType = 133
-         NuTauBar: mcType = 134
-         NuSterile_i:    mcType = -2*i     i = 1,2,3...
-         NuSterileBar_i: mcType = -2*i-1
+      Calculate neutrino oscillation probabilities in the interaction basis.
       
       inList may be provided in three formats:
       1 - as a tuple of three lists: mcType, neutrino energy and zenith angle,
           i.e., ([type1, type2, ...],[energy1, energy2, ...],[zenith1, zenith2, ...])
       2 - as a list of tuples (mcType, neutrinoEnergy, zenith angle),
           i.e., [(type1, energy1, zenith1),(type2, energy2, zenith2),...]
-      3 - a list of particles of a customizable format
+      3 - a list of particles of a customizable format:
              from collections import namedtuple
              SimPart = namedtuple("SimPart", (..., "zenMC", "eMC", "mcType", "oscProb", ...))
              part = SimPart(..., zenith, energy, mctype, -1., ...)
+      
+      mcType uses PDG conventions:
+         NuE:            mcType =  12
+         NuEBar:         mcType = -12
+         NuMu:           mcType =  14
+         NuMuBar:        mcType = -14
+         NuTau:          mcType =  16
+         NuTauBar:       mcType = -16
+         NuSterile_i:    mcType =  80+i     i = 1,2,3...
+         NuSterileBar_i: mcType = -80-i
+      
+      energy is expected in units of GeV, zenith angles in radian
       
       return format:
       in input format cases 1 and 2, the return format is a list of [P_E, P_Mu, P_Tau, ...];
       in case 3, the list of particles is returned with updated oscProb fields
       
       atmMode controls the handling of the atmospheric interaction altitude:
-       0 assumes a fixed height of 20 km (old default)
+       0 assumes a fixed height of self.atmHeight (20 km by default)
        1 draws a single altitude from a parametrization described in the InteractionAlt method
        2 calculates the average for eight altitudes distributed over the whole range according
-         to the same parametrization as in mode 1; this is slow and only meant for debugging
+         to the same parametrization as in mode 1; this is SLOW and only meant for debugging
        3 uses the same altitudes as mode 2, but only propagates the lowest-altitude neutrino
          and adds the remaining lengths as vacuum oscillations afterwards; this is pretty fast
-         and the new default mode
+         and used by default
+      
+      numPrec governs the numerical precision with which the Schroedinger equation is solved;
+      the unitarity condition (i.e., the fact that the sum of the resulting probabilities
+      should be 1.) is used as a simple cross-check, a warning is issued if the deviation from
+      1. is larger than numPrec.
       """
       # for the input format checks, assume that inList is homogeneous
       assert(type(vacuum) is bool)
@@ -434,12 +473,12 @@ class NuCraft:
       elif type(inList[0]).__base__ is tuple:   # input case 3
          try:
             if not set(("zenMC", "eMC", "mcType", "oscProb")).issubset(inList[0]._fields):
-               raise Exception, "NamedTuple in inList does not have the required fields!"
+               raise Exception("NamedTuple in inList does not have the required fields!")
          except AttributeError:
-            raise NotImplementedError, "Format of the input inList is not supported!"
+            raise NotImplementedError("Format of the input inList is not supported!")
          partMode = True
       else:
-         raise NotImplementedError, "Wrong input format!"
+         raise NotImplementedError("Wrong input format!")
       
       VAC = dot(self.U, dot(self.M, conj(self.U).T))
       
@@ -462,12 +501,18 @@ class NuCraft:
       global modVAC
       lCache = pi
       
-      # function to calculate the oscillation probabilities of an individual nu
-      def calcProb((mcType, mcEn, mcZen)):
+      def calcProb(inTuple):
+         """
+         Calculate the oscillation probabilities of an individual nu.
+         """
+         # python 3 does not support tuple parameter unpacking anymore
+         mcType, mcEn, mcZen = inTuple
          
-         # update the MSW-induced mass-squared matrix aMSW with the current density,
-         # and update the state-transition matrix modVAC to the current time/position
          def dscM(l, en, zen):
+            """
+            Update the MSW-induced mass-squared matrix aMSW with the current density,
+            and update the state-transition matrix modVAC to the current time/position.
+            """
             global lCache, aMSW, modVAC
             
             # if l did not change, the update is unnecessary
@@ -504,7 +549,10 @@ class NuCraft:
             return -2.533866j/en * dot(modVAC*aMSW, conj(modVAC).T)
             # <==> return -2.533866j/en * dot(dot(modVAC, diag(aMSW)), conj(modVAC).T)
          
-         mcType = self.mcTypeDict[mcType]
+         try:
+            mcType = self.mcTypeDict[mcType]
+         except KeyError:
+            raise KeyError("The mcType %d is not known to nuCraft!" % mcType)
          isAnti = mcType[0] == -1
          
          # inefficient performance-wise, but nicer code, and vacuum is fast enough anyway
@@ -529,7 +577,8 @@ class NuCraft:
             dscM(L, mcEn, mcZen)
             
             solver = integrate.ode(f, jac).set_integrator('zvode', method='adams', order=4, with_jacobian=True,
-                                                                   nsteps=120000, min_step=0.0002, max_step=500., atol=.1e-6, rtol=.1e-6)
+                                                                   nsteps=120000, min_step=0.0002, max_step=500.,
+                                                                   atol=numPrec*2e-3, rtol=numPrec*2e-3)
             solver.set_initial_value(dot(modVAC, mcType[1]), L).set_f_params(mcEn, mcZen).set_jac_params(mcEn, mcZen)
             solver.integrate(0.)
             
@@ -552,7 +601,6 @@ class NuCraft:
                   endVAC = dot(svdVAC0n * exp(-2.533866j/mcEn*svdVAC1*L), svdVAC2n)
                
                results.append( rAtmWeight * square(absolute( dot(conj(endVAC).T, solver.y) )) )
-            return sum(results, 0)
          else:
             # in this case, just stupidly propagate every neutrino in the list...
             results = []
@@ -562,7 +610,8 @@ class NuCraft:
                dscM(L, mcEn, mcZen)
                
                solver = integrate.ode(f, jac).set_integrator('zvode', method='adams', order=4, with_jacobian=True,
-                                                                      nsteps=120000, min_step=0.0002, max_step=500., atol=.1e-6, rtol=.1e-6)
+                                                                      nsteps=120000, min_step=0.0002, max_step=500.,
+                                                                      atol=numPrec*2e-3, rtol=numPrec*2e-3)
                solver.set_initial_value(dot(modVAC, mcType[1]), L).set_f_params(mcEn, mcZen).set_jac_params(mcEn, mcZen)
                solver.integrate(0.)
                
@@ -572,32 +621,25 @@ class NuCraft:
                   endVAC = dot(svdVAC0n * exp(-2.533866j/mcEn*svdVAC1*L), svdVAC2n)
                # <==> endVAC = dot(dot(svdVAC0, diag(exp(-2.533866j/mcEn*svdVAC1*L))), svdVAC2)
                results.append( rAtmWeight * square(absolute( dot(conj(endVAC).T, solver.y) )) )
-            return sum(results, 0)
+         prob = sum(results, 0)
+         if abs(1-sum(prob)) > numPrec:
+            warnings.warn("The computed unitarity does not meet the specified precision: %.2e > %.2e" % (abs(1-sum(prob)), numPrec))
+         return prob
       
       if partMode:
-         # small helper function to update the particles' oscProp fields
-         upPart = lambda p: p._replace(oscProb=calcProb((p.mcType, p.eMC, p.zenMC)))
-         return map(upPart, inList)
-      else:      
-         return map(calcProb, inList)
+         # return the list of input particles with updated oscProb fields
+         return [p._replace(oscProb=calcProb((p.mcType, p.eMC, p.zenMC))) for p in inList]
+      else:
+         # return a list with one oscillation probability array per input tuple
+         return [calcProb(t) for t in inList]
    
    
    def CalcWeightsLegacy(self, inList, vacuum=False):
       """
-      legacy mode; solves the Schroedinger equation in the flavor basis; better
-      use CalcWeights, unless you know what you are doing
+      Calculate neutrino oscillation probabilities in the flavor basis.
       
-      does not properly take into account the atmosphere (only atmMode 0 is available)
-      
-      calculates and returns the oscillation propabilities for 
-         NuE:      mcType = 66
-         NuEBar:   mcType = 67
-         NuMu:     mcType = 68
-         NuMuBar:  mcType = 69
-         NuTau:    mcType = 133
-         NuTauBar: mcType = 134
-         NuSterile_i:    mcType = -2*i         i = 1,2,3...
-         NuSterileBar_i: mcType = -2*i - 1
+      Legacy mode, solves the Schroedinger equation in the flavor basis; better
+      use CalcWeights, unless you know what you are doing.
       
       inList may be provided in three formats:
       1 - as a tuple of three lists: mcType, neutrino energy and zenith angle,
@@ -609,11 +651,26 @@ class NuCraft:
              SimPart = namedtuple("SimPart", (..., "zenMC", "eMC", "mcType", "oscProb", ...))
              part = SimPart(..., zenith, energy, mctype, -1., ...)
       
+      mcType uses PDG conventions:
+         NuE:            mcType =  12
+         NuEBar:         mcType = -12
+         NuMu:           mcType =  14
+         NuMuBar:        mcType = -14
+         NuTau:          mcType =  16
+         NuTauBar:       mcType = -16
+         NuSterile_i:    mcType =  80+i     i = 1,2,3...
+         NuSterileBar_i: mcType = -80-i
+      
+      energy is expected in units of GeV, zenith angles in radian
+      
       return format:
       in input format cases 1 and 2, the return format is a list of [P_E, P_Mu, P_Tau, ...];
       in case 3, the list of particles is returned with updated oscProb fields
+      
+      Does not properly take into account the atmosphere (only atmMode 0 is available),
+      and does not support the numPrec keyword argument.
       """
-      warn("Legacy mode methods are often slower and less precise, use at your own risk")
+      warnings.warn("Legacy mode methods are often slower and less precise, use at your own risk")
       
       # for the input format checks, assume that inList is homogeneous
       assert(type(vacuum) is bool)
@@ -628,12 +685,12 @@ class NuCraft:
       elif type(inList[0]).__base__ is tuple:   # input case 3
          try:
             if not set(("zenMC", "eMC", "mcType", "oscProb")).issubset(inList[0]._fields):
-               raise Exception, "NamedTuple in inList does not have the required fields!"
+               raise Exception("NamedTuple in inList does not have the required fields!")
          except AttributeError:
-            raise NotImplementedError, "Format of the input inList is not supported!"
+            raise NotImplementedError("Format of the input inList is not supported!")
          partMode = True
       else:
-         raise NotImplementedError, "Wrong input format!"
+         raise NotImplementedError("Wrong input format!")
       
       VACn = dot(self.U, dot(self.M, conj(self.U).T))
       VACa = conj(VACn)
@@ -648,11 +705,17 @@ class NuCraft:
       global aMSW
       lCache = pi
       
-      # function to calculate the oscillation probabilities of an individual nu
-      def calcProb((mcType, mcEn, mcZen)):
+      def calcProb(inTuple):
+         """
+         Calculate the oscillation probabilities of an individual nu.
+         """
+         # python 3 does not support tuple parameter unpacking anymore
+         mcType, mcEn, mcZen = inTuple
          
-         # update the MSW-induced mass-squared matrix aMSW with the current density
          def dscM(l, zen):
+            """
+            Update the MSW-induced mass-squared matrix aMSW with the current density.
+            """
             global lCache, aMSW
             
             # if l did not change, the update is unnecessary
@@ -676,7 +739,6 @@ class NuCraft:
                return -2.533866j/en * dot((VACa + aMSW), psi)
             else:
                return -2.533866j/en * dot((VACn + aMSW), psi)
-               
          
          def jac(l, psi, en, zen):
             dscM(l, zen)
@@ -685,7 +747,10 @@ class NuCraft:
             else:
                return -2.533866j/en * (VACn + aMSW)
          
-         mcType = self.mcTypeDict[mcType]
+         try:
+            mcType = self.mcTypeDict[mcType]
+         except KeyError:
+            raise KeyError("The mcType %d is not known to nuCraft!" % mcType)
          isAnti = mcType[0] == -1
          
          # inefficient performance-wise, but nicer code, and vacuum is fast enough anyway
@@ -702,18 +767,19 @@ class NuCraft:
          dscM(L, mcZen)
          
          solver = integrate.ode(f, jac).set_integrator('zvode', method='adams', order=4, with_jacobian=True,
-                                                                nsteps=1200000, min_step=0.0002, max_step=500., atol=.1e-6, rtol=.1e-6)
+                                                                nsteps=1200000, min_step=0.0002, max_step=500.,
+                                                                atol=.1e-6, rtol=.1e-6)
          solver.set_initial_value(mcType[1], L).set_f_params(mcEn, mcZen).set_jac_params(mcEn, mcZen)
          solver.integrate(0.)
          
          return square(absolute(solver.y))
       
       if partMode:
-         # small helper function to update the particles' oscProp fields
-         upPart = lambda p: p._replace(oscProb=calcProb((p.mcType, p.eMC, p.zenMC)))
-         return map(upPart, inList)
+         # return the list of input particles with updated oscProb fields
+         return [p._replace(oscProb=calcProb((p.mcType, p.eMC, p.zenMC))) for p in inList]
       else:
-         return map(calcProb, inList)
+         # return a list with one oscillation probability array per input tuple
+         return [calcProb(t) for t in inList]
 
 
 
