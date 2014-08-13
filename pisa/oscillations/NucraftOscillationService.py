@@ -18,12 +18,6 @@ from pisa.oscillations.nuCraft.NuCraft import NuCraft, EarthModel
 from pisa.resources.resources import find_resource
 
 
-def GetIceCubePID(name):
-    """Return the IceCube/Corsika Particle ID for a given particle"""
-    ptcl_dict = {'nue': 66, 'nue_bar': 67, 'numu': 68, 'numu_bar': 69}
-    return ptcl_dict[name]
-
-
 def GetPDGid(name):
     """Return the Particle Data Group Particle ID for a given particle"""
     ptcl_dict = {'nue': 12, 'nue_bar': -12, 
@@ -39,7 +33,8 @@ class NucraftOscillationService(OscillationServiceBase):
     """
     def __init__(self, ebins, czbins,
                  earth_model='oscillations/PREM_60layer.dat',
-                 detector_depth=2.0, prop_height=None, **kwargs):
+                 detector_depth=2.0, prop_height=None, osc_precision=5e-4,
+                 **kwargs):
         """
         Parameters needed to instantiate a NucraftOscillationService:
         * ebins: Energy bin edges
@@ -52,12 +47,14 @@ class NucraftOscillationService(OscillationServiceBase):
                        the atmospheric interaction model presented in 
                        "Path length distributions of atmospheric neutrinos",
                        Gaisser and Stanev, PhysRevD.57.1977
+        * osc_precision: Numerical precision for oscillation probabilities
         """
         OscillationServiceBase.__init__(self, ebins, czbins)
         
         self.prop_height = prop_height # km above spherical Earth surface
         self.height_mode = 3 if self.prop_height is None else 1
         self.detector_depth = detector_depth # km below spherical Earth surface
+        self.num_prec = osc_precision
         self.get_earth_model(earth_model)
         
     
@@ -105,7 +102,8 @@ class NucraftOscillationService(OscillationServiceBase):
             logging.debug("Calculating oscillation probabilites for %s at %u points..."
                             %(prim.rsplit('_', 1)[0], len(ps)))
             probs = engine.CalcWeights((ps, es, np.arccos(zs)), 
-                                       atmMode=self.height_mode)
+                                       atmMode=self.height_mode,
+                                       numPrec=self.num_prec)
             logging.debug("...done")
             
             #Bring into correct shape
