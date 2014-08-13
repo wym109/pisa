@@ -9,11 +9,15 @@
 
 import os, sys
 import logging
+from tempfile import NamedTemporaryFile
+
 import numpy as np
+
 from pisa.oscillations.OscillationServiceBase import OscillationServiceBase
 #TODO: Find out how to ship Nucraft along with pisa
 try:
-    from pisa.oscillations.nuCraft.NuCraft import NuCraft, EarthModel
+    #from pisa.oscillations.nuCraft.NuCraft import NuCraft, EarthModel
+    from nuCraft.NuCraft import NuCraft, EarthModel
 except ImportError, e:
     logging.error("Can't load default oscillation code nuCraft: %s",e)
     sys.exit(1)
@@ -52,8 +56,7 @@ class NucraftOscillationService(OscillationServiceBase):
         self.prop_height = prop_height # km above spherical Earth surface
         self.height_mode = 3 if self.prop_height is None else 1
         self.detector_depth = detector_depth # km below spherical Earth surface
-        #TODO: find a way to convert between prob3 and NuCraft earth model files
-        self.earth_model = self.get_earth_model(earth_model)
+        self.get_earth_model(earth_model)
         
     
     def fill_osc_prob(self, osc_prob_dict, ecen, czcen,
@@ -66,11 +69,11 @@ class NucraftOscillationService(OscillationServiceBase):
         
         #Setup NuCraft for the given oscillation parameters
         mass_splitting = (1., deltam21, deltam31)
-        mixing_angles = [(1,2,theta12),
-                         (1,3,theta13,deltacp),
-                         (2,3,theta23)]
+        mixing_angles = [(1,2,np.rad2deg(theta12)),
+                         (1,3,np.rad2deg(theta13),np.rad2deg(deltacp)),
+                         (2,3,np.rad2deg(theta23))]
         engine = NuCraft(mass_splitting, mixing_angles,
-                         earthModel = EarthModel(self.earthModel))
+                         earthModel = self.earth_model)
         engine.detectorDepth = self.detector_depth
         
         if self.prop_height is not None:
@@ -83,18 +86,28 @@ class NucraftOscillationService(OscillationServiceBase):
             # with r_E = 6371. km
             engine.atmHeight = self.prop_height
         
-        #TODO: file through osc_prob_dict properly
+        #Make input arrays in correct format
+        es, zs = np.meshgrid(ecen, czcen)
+        shape = es.shape
+        print shape
+        es, zs = es.flatten(), zs.flatten()
+        
         for prim in osc_prob_dict:
             
+            if 'bins' in prim: continue
+            
             #Convert the particle into a list of IceCube particle IDs
-            ps = n.ones_like(ecen)*GetIceCubePID(prim.rsplit('_', 1)[0])
+            ps = np.ones_like(es)*GetIceCubePID(prim.rsplit('_', 1)[0])
             
             # run it
             logging.debug("Calculating oscillation probabilites for %s at %u points..."
-                            %(prim,len(ps)))
-            probs = engine.CalcWeights((ps, ecen, np.arccos(czcen)), 
-                                       mode=self.height_mode)
+                            %(prim.rsplit('_', 1)[0], len(ps)))
+            probs = engine.CalcWeights((ps, es, np.arccos(zs)), 
+                                       atmMode=self.height_mode)
             logging.debug("...done")
+            
+            #Bring into correct shape
+            probs = np.array([ x.reshape(shape).T for x in np.array(probs).T ])
             
             #Fill probabilities into dict
             for i, sec in enumerate(['nue', 'numu', 'nutau']):
@@ -109,16 +122,43 @@ class NucraftOscillationService(OscillationServiceBase):
         Check whether the specified Earth density profile has a correct 
         NuCraft preface. If not, create a temporary file that does.
         """
-        
+        logging.debug('Trying to construct Earth model from "%s"'%model)
         try:
             self.earth_model = EarthModel(model)
             if os.path.isfile(model):
-                logging.info('Loaded Earth Model from %s'%model)
+                logging.info('Loaded Earth model from %s'%model)
             else:
-                logging.info('Using NuCraft built-in Earth Model "%s"'%model)
+                logging.info('Using NuCraft built-in Earth model "%s"'%model)
         except NotImplementedError:
             #Probably we have to find the correct path to the file
             self.get_earth_model(find_resource(model))
         except SyntaxError:
             #Probably the file is lacking the correct preamble
-            #TODO: implement via tempfile
+            logging.warn('Failed to construct NuCraft Earth model from '
+                         '%s! Adding default preamble...'%model)
+            #Generate tempfile with preamble
+            with open(model, 'r') as infile:
+                profile_lines = infile.readlines()
+            preamble = ['# nuCraft Earth model with PREM density '
+                         'values for use as template; keep structure '
+                         'of the first six lines unmodified!\n',
+                        '(0.5, 0.5, 0.5)   # tuple of (relative) '
+                         'electron numbers for mantle, outer core, '
+                         'and inner core\n',
+                        '6371.    # radius of the Earth\n',
+                        '3480.    # radius of the outer core\n',
+                        '1121.5   # radius of the inner core\n',
+                        '# two-columned list of radii and corresponding '
+                         'matter density values in km and kg/dm^3; '
+                         'add, remove or modify lines as necessary\n']
+            tfile = NamedTemporaryFile()
+            tfile.writelines(preamble+profile_lines)
+            tfile.flush()
+            try:
+                self.earth_model = EarthModel(tfile.name)
+            except:
+                logging.error('Could not construct Earth model from %s: %s'
+                              %(model, sys.exc_info()[1]))
+                sys.exit(1)
+            logging.info('Successfully constructed Earth model')
+            tfile.close()

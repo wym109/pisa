@@ -12,6 +12,42 @@ import numpy as np
 from pisa.utils.utils import subbinning, get_smoothed_map, integer_rebin_map
 from pisa.utils.utils import get_bin_centers, is_coarser_binning, is_linear, is_logarithmic
 
+
+def check_oversampling(fine_bins, coarse_bins, oversample):
+    
+    if fine_bins is not None:
+        if is_coarser_binning(coarse_bins, fine_bins):
+            logging.info('Using requested binning for oversampling.')
+            #everything is fine
+            return fine_bins
+        else:
+            logging.warn('Requested oversampled binning is coarser '
+                         'than output binning. Will use output binning.')
+            return coarse_bins
+    
+    #Oversample output binning by given factor
+    if is_linear(coarse_bins):
+        logging.info('Oversampling linear output binning by factor %i.'
+                %oversample)
+        fine_bins = np.linspace(coarse_bins[0], coarse_bins[-1],
+                                oversample*len(coarse_bins)-1)
+    elif is_logarithmic(coarse_bins):
+        logging.info('Oversampling logarithmic output binning by factor %i.'
+                %oversample)
+        fine_bins = np.logspace(np.log10(coarse_bins[0]),
+                                np.log10(coarse_bins[-1]),
+                                oversample*len(coarse_bins)-1)
+    else:
+        logging.warn('Irregular binning detected! Evenly oversampling '
+                     'by factor %i'%oversample)
+        fine_bins = coarse_bins
+        for i in range(oversample-1):
+            fine_bins = np.append(fine_bins, get_bin_centers(fine_bins))
+            fine_bins.sort()
+    
+    return fine_bins
+
+
 class OscillationServiceBase:
     """
     Base class for all oscillation services.
@@ -102,6 +138,7 @@ class OscillationServiceBase:
         probabilities on the fly.
         """
         #First initialize the fine binning if not explicitly given
+        """
         for fine_bins, coarse_bins in [(ebins, self.ebins),
                                         (czbins, self.czbins)]:
             if fine_bins is not None:
@@ -133,7 +170,9 @@ class OscillationServiceBase:
                 for i in range(oversample-1):
                     fine_bins = np.append(fine_bins, get_bin_centers(fine_bins))
                     fine_bins.sort()
-        
+        """
+        ebins = check_oversampling(ebins, self.ebins, oversample)
+        czbins = check_oversampling(czbins, self.czbins, oversample)
         ecen = get_bin_centers(ebins)
         czcen = get_bin_centers(czbins)
         
