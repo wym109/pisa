@@ -18,8 +18,9 @@ def show_map(pmap, title=None, cbar = True,
              emin=None, emax=None,
              czmin=None, czmax=None,
              invalid=False, logE=None,
-             fontsize=16,
-             xlabel=r'cos(zenith)',ylabel='Energy [GeV]',
+             log=False, fontsize=16,
+             xlabel=r'cos $\vartheta_\mathrm{zenith}$',
+             ylabel='Energy [GeV]',
              **kwargs):
     '''Plot the given map with proper axis labels using matplotlib.
        The axis orientation follows the PINGU convention: 
@@ -41,6 +42,8 @@ def show_map(pmap, title=None, cbar = True,
                    by the axis.
      
       * czmin/czmax: same as above for cos(zenith) 
+      
+      * log: use a logarithmic (log10) colour (z-axis) scale
 
       * logE: show the x-axis on a logarithmic scale (True or False)
               Default is "guessed" from the bins size.
@@ -56,12 +59,18 @@ def show_map(pmap, title=None, cbar = True,
     
     are just passed on to this function.
     '''
- 
+    
+    #Extract the map to plot, take the log if called for
+    cmap = np.log10(pmap['map']) if log else pmap['map']
+
+    #Mask invalid values
+    cmap = np.ma.masked_invalid(cmap) if not invalid else cmap
+    
     #Get the vertical range
-    if vmax is None:
-        vmax = np.max(np.abs(np.array(pmap['map'])[np.isfinite(pmap['map'])]))
-    if vmin is None:
-        vmin = -vmax if (pmap['map'].min() < 0) else 0.
+    if not log and vmax is None:
+        vmax = np.max(np.abs(np.array(cmap)[np.isfinite(cmap)]))
+    if not log and vmin is None:
+        vmin = -vmax if (cmap.min() < 0) else 0.
 
     #Get the energy range
     if emin is None:
@@ -74,9 +83,6 @@ def show_map(pmap, title=None, cbar = True,
         czmin = pmap['czbins'][0]
     if emax is None:
         czmax = pmap['czbins'][-1]
-
-    #Mask invalid values
-    cmap = np.ma.masked_invalid(pmap['map']) if not invalid else pmap['map']
 
     #Use pcolormesh to be able to show nonlinear spaces
     x,y = np.meshgrid(pmap['czbins'],pmap['ebins'])
@@ -115,4 +121,7 @@ def show_map(pmap, title=None, cbar = True,
 
     #Show the colorbar
     if cbar:
-        plt.colorbar()
+        plt.colorbar(format=r'$10^{%.1f}$') if log else plt.colorbar()
+    
+    #Return axes for further modifications
+    return axis

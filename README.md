@@ -45,14 +45,22 @@ where
   the `HEAD` of that branch. You are thus left with a _detached HEAD_, and can
   not commit to the branch you check out.
   
+__Notes:__
 
-You can now work with your installation using the usual git commands (pull,
+* You can work with your installation using the usual git commands (pull,
 push, etc.). Note however, that these won't rebuild any of the extension (i.e.
 _C/C++_) libraries. If you want to recompile these libraries, simply run
+<br>```cd <your/source/dir>/pisa && python setup.py build_ext```
 
-```
-cd <your/source/dir>/pisa && python setup.py build_ext 
-```
+* If you did not install `pisa` in a virtual environment, then the package will
+  be installed alongside with your other python packages. This typically means
+  that you'll need super-user priviledges to install, i.e.<br>
+  ```sudo pip install ...```<br>
+  If your are using above with the `--editable` option, the source files will
+  also be installed by the super-user, which means you might not be able to edit
+  them. In this case, just<br>
+  ```cd <your/source/dir> && sudo chown -R <user> pisa```<br>
+  where `<user>` obviously just is your user name.
 
 ## Data formats
 
