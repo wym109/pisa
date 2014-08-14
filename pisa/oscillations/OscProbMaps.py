@@ -5,6 +5,7 @@
 #
 # date:   18 March 2014
 #
+#FIXME: This might be obsolete... (LS)
 
 import numpy as np
 import logging
