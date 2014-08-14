@@ -19,8 +19,9 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 from pisa.utils.utils import set_verbosity, check_binning, get_binning
 from pisa.utils.jsons import from_json, to_json, json_string
 from pisa.utils.proc import report_params, get_params, add_params
-from pisa.oscillations.OscillationService import OscillationService
+from pisa.oscillations.TableOscillationService import TableOscillationService
 from pisa.oscillations.Prob3OscillationService import Prob3OscillationService
+from pisa.oscillations.NucraftOscillationService import NucraftOscillationService
 
 # Until python2.6, default json is very slow.
 try: 
@@ -35,8 +36,7 @@ if __name__ == '__main__':
 
     # parser
     parser = ArgumentParser(description='Takes the oscillation parameters '
-                            'as input and writes out a set of osc flux maps',
-                            formatter_class=RawTextHelpFormatter)    
+                            'as input and writes out a set of osc flux maps')
     parser.add_argument('--ebins', metavar='[1.0,2.0,...]', type=json_string,
         help= '''Edges of the energy bins in units of GeV, default is '''
               '''80 edges (79 bins) from 1.0 to 80 GeV in logarithmic spacing.''',
@@ -57,15 +57,28 @@ if __name__ == '__main__':
                         help='''theta23 value [rad]''')
     parser.add_argument('--deltacp',type=float,default=np.pi,
                         help='''deltaCP value to use [rad]''')
-    parser.add_argument('--code',type=str,choices = ['prob3','table'], default='prob3',
-                        help='''Oscillation code to use, one of [table,prob3],
-                        (default=prob3)''')
+    parser.add_argument('--code',type=str,choices = ['prob3','table','nuCraft'], 
+                        default='prob3', help='''Oscillation code to use, one of 
+                        [table, prob3, nuCraft], (default=prob3)''')
     parser.add_argument('--detector_depth', type=float, default=2.0,
                         help='''Depth of detector [km]''')
     parser.add_argument('--prop_height', type=float, default=20.0,
-                        help='''Neutrino production height [km]''')
-    parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str,
-                        action='store',default="osc_probs.json",
+                        help='''Neutrino production height [km]. If negative, 
+                        and code==nuCraft, sample from realistic distribution''')
+    parser.add_argument('--earth_model', dest='earth_model', metavar='FILE', 
+                        type=str, action='store',default="oscillations/PREM_60layer.dat",
+                        help='''File holding the Earth density model 
+                        (default: 60 layer PREM)''')
+    parser.add_argument('--oversample', dest='oversample', metavar='N', 
+                        type=int, action='store',default=2,
+                        help='''Oversampling factor for oscillation codes''')
+    parser.add_argument('--datadir', dest='datadir', metavar='DIR', 
+                        type=str, action='store',default="oscillations",
+                        help='''Directory holding the pre-calculated oscillation 
+                        probabilities in hdf5 format (default: oscillations, only 
+                        needed if code==table)''')
+    parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', 
+                        type=str, action='store',default="osc_probs.json",
                         help='file to store the output')
     parser.add_argument('-v', '--verbose', action='count', default=0,
                         help='set verbosity level')
@@ -75,13 +88,19 @@ if __name__ == '__main__':
     set_verbosity(args.verbose)
 
     #Initialize an oscillation service
+    logging.info('Using %s oscillation code'%args.code)
     if args.code=='prob3':
       osc_service = Prob3OscillationService(**vars(args))
+    elif args.code=='table':
+      osc_service = TableOscillationService(**vars(args))
+    elif args.code=='nuCraft':
+      osc_service = NucraftOscillationService(**vars(args))
     else:
-      osc_service = OscillationService(args.ebins,args.czbins)
-
+      raise NotImplementedError('Unknown oscillation service: %s'%args.code)
+      logging.error(exc_info=True)
+    
     logging.info("Getting osc prob maps")
-    osc_prob_maps = osc_service.get_osc_probLT_dict(**vars(args))
+    osc_prob_maps = osc_service.get_osc_prob_maps(**vars(args))
     
     #Write out
     logging.info("Saving output to: %s",args.outfile)

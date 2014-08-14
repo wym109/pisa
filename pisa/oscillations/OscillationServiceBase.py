@@ -122,7 +122,7 @@ class OscillationServiceBase:
         return smoothed_maps
     
     
-    def get_osc_probLT_dict(self, ebins=None, czbins=None, 
+    def get_osc_probLT_dict(self, fine_ebins=None, fine_czbins=None, 
                             oversample=2, **kwargs):
         """
         This will create the oscillation probability map lookup tables
@@ -138,41 +138,8 @@ class OscillationServiceBase:
         probabilities on the fly.
         """
         #First initialize the fine binning if not explicitly given
-        """
-        for fine_bins, coarse_bins in [(ebins, self.ebins),
-                                        (czbins, self.czbins)]:
-            if fine_bins is not None:
-                if is_coarser_binning(coarse_bins, fine_bins):
-                    logging.info('Using requested binning for oversampling.')
-                    #everything is fine
-                    continue
-                else:
-                    logging.warn('Requested oversampled binning is coarser '
-                                 'than output binning. Will use output binning.')
-                    fine_bins = coarse_bins
-            
-            #Oversample output binning by given factor
-            if is_linear(coarse_bins):
-                logging.info('Oversampling linear output binning by factor %i.'
-                        %oversample)
-                fine_bins = np.linspace(coarse_bins[0], coarse_bins[-1],
-                                        oversample*len(coarse_bins)-1)
-            elif is_logarithmic(coarse_bins):
-                logging.info('Oversampling logarithmic output binning by factor %i.'
-                        %oversample)
-                fine_bins = np.logspace(np.log10(coarse_bins[0]),
-                                        np.log10(coarse_bins[-1]),
-                                        oversample*len(coarse_bins)-1)
-            else:
-                logging.warn('Irregular binning detected! Evenly oversampling '
-                             'by factor %i'%oversample)
-                fine_bins = coarse_bins
-                for i in range(oversample-1):
-                    fine_bins = np.append(fine_bins, get_bin_centers(fine_bins))
-                    fine_bins.sort()
-        """
-        ebins = check_oversampling(ebins, self.ebins, oversample)
-        czbins = check_oversampling(czbins, self.czbins, oversample)
+        ebins = check_oversampling(fine_ebins, self.ebins, oversample)
+        czbins = check_oversampling(fine_czbins, self.czbins, oversample)
         ecen = get_bin_centers(ebins)
         czcen = get_bin_centers(czbins)
         
