@@ -12,6 +12,7 @@ import sys
 import h5py
 import logging
 import numpy as np
+from pisa.reco.RecoServiceBase import RecoServiceBase
 from pisa.resources.resources import find_resource
 
 class RecoServiceMC:
@@ -24,10 +25,17 @@ class RecoServiceMC:
     From these histograms, and the true event rate maps, calculates
     the reconstructed even rate templates.
     '''
-    def __init__(self,ebins,czbins,simfile=None):
-        self.ebins = ebins
-        self.czbins = czbins
-        
+    def __init__(self, ebins, czbins, simfile=None):
+        """
+        Parameters needed to instantiate any reconstruction service:
+        * ebins: Energy bin edges
+        * czbins: cos(zenith) bin edges
+        * simfile: HDF5 containing the MC events to construct the kernels
+        """
+        RecoServiceBase.__init__(self, ebins, czbins, simfile=simfile)
+    
+    
+    def get_reco_kernels(self, simfile=None):
         logging.info('Opening file: %s'%(simfile))
         try:
             fh = h5py.File(find_resource(simfile),'r')
@@ -37,8 +45,10 @@ class RecoServiceMC:
             sys.exit(1)
             
         # Create the 4D distribution kernels...
-        self.kernel_dict = {}
+        self.kernels = {}
         logging.info("Creating kernel dict...")
+        self.kernels['ebins'] = self.ebins
+        self.kernels['czbins'] = self.czbins
         for flavor in ['nue','nue_bar','numu','numu_bar','nutau','nutau_bar']:
             flavor_dict = {}
             logging.debug("Working on %s kernels"%flavor)
@@ -53,30 +63,8 @@ class RecoServiceMC:
                 data = (true_energy,true_coszen,reco_energy,reco_coszen)
                 kernel,_ = np.histogramdd(data,bins=bins)
 
-                ###################################################
-                # Now normalize kernels:
-                # Do we need to check for minimum value in kernel?
-                for ie,egy in enumerate(ebins[:-1]):
-                    for icz, cz in enumerate(czbins[:-1]):
-                        #kernel_i = kernel[ie,icz]
-                        if np.sum(kernel[ie,icz]) > 0.0: 
-                            kernel[ie,icz] /= np.sum(kernel[ie,icz])
-                        
                 flavor_dict[int_type] = kernel
-            self.kernel_dict[flavor] = flavor_dict
-
-
-
-        # normalize:
-        #if np.sum(kernel) > 0.0: kernel /= np.sum(kernel)
+            self.kernels[flavor] = flavor_dict
             
-        return
-
-    def get_kernels(self,**kwargs):
-        '''
-        Returns the kernels as a dictionary
-        '''
-
-        return self.kernel_dict
-    
+        return self.kernels
         

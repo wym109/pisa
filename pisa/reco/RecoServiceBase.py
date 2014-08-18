@@ -74,13 +74,15 @@ class RecoServiceBase:
                 pass
         # check shape of kernels
         shape = (len(self.ebins),len(self.czbins),len(self.ebins),len(self.czbins))
-        for channel in self.kernels:
-            if not np.shape(self.kernels[channel])==shape:
-                raise IndexError('Reconstruction kernel for %s has wrong shape: '
-                                  '%s, %s' %(channel, str(shape)
-                                  str(np.shape(self.kernels[channel]))) )
-            else:
-                pass
+        for flavour in self.kernels:
+            if flavour in ['ebins', 'czbins']: continue
+            for interaction in self.kernels[flavour]:
+                if not np.shape(self.kernels[flavour][interaction])==shape:
+                    raise IndexError('Reconstruction kernel for %s/%s has wrong shape: '
+                                      '%s, %s' %(channel, interaction, str(shape)
+                                      str(np.shape(self.kernels[channel]))) )
+                else:
+                    pass
         # normalize
         self.normalize_kernels()
         return True
@@ -90,11 +92,13 @@ class RecoServiceBase:
         """
         Ensure that all reco kernels are normalized.
         """
-        for channel in self.kernels:
-            if channel in ['ebins', 'czbins']: continue
-            k_shape = np.shape(self.kernels[channel])
-            for true_bin in product(range(k_shape[0]), range(k_shape[1])):
-                self.kernels[channel][true_bin] /= np.sum(self.kernels[channel][true_bin])
+        for flavour in self.kernels:
+            if flavour in ['ebins', 'czbins']: continue
+            for interaction in self.kernels[flavour]:
+                k_shape = np.shape(self.kernels[flavour][interaction])
+                for true_bin in product(range(k_shape[0]), range(k_shape[1])):
+                    self.kernels[flavour][interaction][true_bin] \
+                        /= np.sum(self.kernels[flavour][interaction][true_bin])
     
     
     def apply_reconstruction(self, true_map, channel):
