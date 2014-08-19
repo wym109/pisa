@@ -15,7 +15,7 @@ import numpy as np
 from pisa.reco.RecoServiceBase import RecoServiceBase
 from pisa.resources.resources import find_resource
 
-class RecoServiceMC:
+class RecoServiceMC(RecoServiceBase):
     '''
     From the simulation file, creates 4D histograms of
     [true_energy][true_coszen][reco_energy][reco_coszen] which act as
@@ -25,17 +25,17 @@ class RecoServiceMC:
     From these histograms, and the true event rate maps, calculates
     the reconstructed even rate templates.
     '''
-    def __init__(self, ebins, czbins, simfile=None):
+    def __init__(self, ebins, czbins, **kwargs):
         """
         Parameters needed to instantiate any reconstruction service:
         * ebins: Energy bin edges
         * czbins: cos(zenith) bin edges
         * simfile: HDF5 containing the MC events to construct the kernels
         """
-        RecoServiceBase.__init__(self, ebins, czbins, simfile=simfile)
+        RecoServiceBase.__init__(self, ebins, czbins, **kwargs)
     
     
-    def get_reco_kernels(self, simfile=None):
+    def get_reco_kernels(self, simfile=None, **kwargs):
         logging.info('Opening file: %s'%(simfile))
         try:
             fh = h5py.File(find_resource(simfile),'r')
