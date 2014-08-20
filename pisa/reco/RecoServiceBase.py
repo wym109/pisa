@@ -102,12 +102,9 @@ class RecoServiceBase:
             for interaction in self.kernels[flavour]:
                 k_shape = np.shape(self.kernels[flavour][interaction])
                 for true_bin in product(range(k_shape[0]), range(k_shape[1])):
-                    #TODO: here might be NaNs appearing, gotta catch 'em all!
-                    try:
-                        self.kernels[flavour][interaction][true_bin] \
-                            /= np.sum(self.kernels[flavour][interaction][true_bin])
-                    except Warning:
-                        print self.kernels[flavour][interaction][true_bin]
+                    kernel_sum = np.sum(self.kernels[flavour][interaction][true_bin])
+                    if kernel_sum > 0.:
+                        self.kernels[flavour][interaction][true_bin] /= kernel_sum
     
     
     def get_reco_maps(self, true_event_maps, recalculate=False, **kwargs):
