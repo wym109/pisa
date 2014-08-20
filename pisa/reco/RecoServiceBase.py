@@ -64,7 +64,7 @@ class RecoServiceBase:
     
     def check_kernels(self):
         """
-        Test whether the reco kernels have the correct shape and normalize them
+        Test whether the reco kernels have the correct shape.
         """
         # check axes
         logging.debug('Checking binning of reconstruction kernels')

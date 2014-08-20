@@ -27,7 +27,7 @@ class RecoServiceMC(RecoServiceBase):
     '''
     def __init__(self, ebins, czbins, **kwargs):
         """
-        Parameters needed to instantiate any reconstruction service:
+        Parameters needed to instantiate a MC-based reconstruction service:
         * ebins: Energy bin edges
         * czbins: cos(zenith) bin edges
         * simfile: HDF5 containing the MC events to construct the kernels
