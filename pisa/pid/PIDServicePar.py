@@ -8,9 +8,11 @@
 # date:   April 10, 2014
 #
 
+import sys
 import numpy as np
 import scipy.stats
 from pisa.utils.utils import get_bin_centers
+import logging
 
 class PIDServicePar:
     '''
@@ -29,10 +31,19 @@ class PIDServicePar:
             to_trck_func = eval(pid_data[signature]['trck'])
             to_cscd_func = eval(pid_data[signature]['cscd'])
 
-            #Make maps from the functions evaluate at the bin centers
+            #Make maps from the functions evaluated at the bin centers
             _,to_trck_map = np.meshgrid(czcen, to_trck_func(ecen))
             _,to_cscd_map = np.meshgrid(czcen, to_cscd_func(ecen))
-
+            
+            if (to_trck_map < 0.0).any() == True:
+                logging.debug('ERROR: trck PID map has negative values! This should never happen- investigate PID parameterization')
+                #print "  to_trck_map: ",to_trck_map
+                sys.exit(1)
+            if (to_cscd_map < 0.0).any() == True:
+                logging.debug('ERROR: cscd PID map has negative values! This should never happen- investigate PID parameterization')
+                #print "  to_cscd_map: ",to_cscd_map
+                sys.exit(1)
+                
             self.pid_maps[signature] = {'trck':to_trck_map,
                                         'cscd':to_cscd_map}
     
