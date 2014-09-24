@@ -25,14 +25,33 @@ installed
 If you are working on OSX, we suggest [homebrew](brew.sh/) as a package manager, which supports all of the non-python packages above. 
 
 ### Obtaining `pisa`
-You can directly install via `pip` from github, using the following commands
+
+**User mode:**
+
+Use this if you just want to run `pisa`, but don't want to edit it. First pick a revision from [this github page](https://github.com/sboeser/pisa/releases). Then run this command in your shell, to directly install pisa from github.
 ```
-pip install [ --src <your/source/dir> --editable ] git+https://github.com/sboeser/pisa@<branch>#egg=pisa 
+pip install git+https://github.com/sboeser/pisa@<release>#egg=pisa
+```
+
+where
+
+* `<release>` is the release number, e.g. `1.0.0`
+
+**Developer mode:**
+
+Also in developer mode, you can directly install via `pip` from github. In order to contribute, you'll first need your own fork of the `pisa` repository.
+
+1. Create your own [github account](https://github.com/)
+1. Navigate to the [pisa github page](https://github.com/sboeser/pisa) and fork the repository by clicking on the ![fork](doc/ForkButton.png) button
+1. Now go to your terminal and install `pisa` from your fork using the following commands
+```
+pip install [ --src <your/source/dir> --editable ] git+https://github.com/<user>/pisa@<branch>#egg=pisa 
 cd <your/source/dir>/pisa && git checkout <branch>
 ```
 
 where
 
+* `<user>` is the user name you picked on github.
 * `<branch>` is the branch you'd like to install. This could be either one of
   the releases, or `master`
 * `--editable` tells `pip` to make an editable installation, i.e instead of
