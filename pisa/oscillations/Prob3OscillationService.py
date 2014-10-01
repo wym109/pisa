@@ -36,7 +36,8 @@ class Prob3OscillationService(OscillationServiceBase):
         * prop_height: Height in the atmosphere to begin in km. 
                        Default: 20.0
         """
-        OscillationServiceBase.__init__(self, ebins, czbins)
+        #OscillationServiceBase.__init__(self, ebins, czbins)
+        super(Prob3OscillationService, self).__init__(ebins, czbins)
         
         self.prop_height = prop_height
         earth_model = find_resource(earth_model)

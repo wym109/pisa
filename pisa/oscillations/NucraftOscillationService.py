@@ -16,14 +16,7 @@ import numpy as np
 from pisa.oscillations.OscillationServiceBase import OscillationServiceBase
 from pisa.oscillations.nuCraft.NuCraft import NuCraft, EarthModel
 from pisa.resources.resources import find_resource
-
-
-def GetPDGid(name):
-    """Return the Particle Data Group Particle ID for a given particle"""
-    ptcl_dict = {'nue': 12, 'nue_bar': -12, 
-                 'numu': 14, 'numu_bar': -14,
-                 'nutau': 16, 'nutau_bar': -16}
-    return ptcl_dict[name]
+from pisa.utils.physics import get_PDG_ID
 
 
 class NucraftOscillationService(OscillationServiceBase):
@@ -49,7 +42,8 @@ class NucraftOscillationService(OscillationServiceBase):
                        Gaisser and Stanev, PhysRevD.57.1977
         * osc_precision: Numerical precision for oscillation probabilities
         """
-        OscillationServiceBase.__init__(self, ebins, czbins)
+        #OscillationServiceBase.__init__(self, ebins, czbins)
+        super(NucraftOscillationService, self).__init__(ebins, czbins)
         
         self.prop_height = prop_height # km above spherical Earth surface
         self.height_mode = 3 if self.prop_height is None else 1
@@ -96,7 +90,7 @@ class NucraftOscillationService(OscillationServiceBase):
             if 'bins' in prim: continue
             
             #Convert the particle into a list of IceCube particle IDs
-            ps = np.ones_like(es)*GetPDGid(prim.rsplit('_', 1)[0])
+            ps = np.ones_like(es)*get_PDG_ID(prim.rsplit('_', 1)[0])
             
             # run it
             logging.debug("Calculating oscillation probabilites for %s at %u points..."

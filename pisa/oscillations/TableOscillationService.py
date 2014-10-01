@@ -54,7 +54,8 @@ class TableOscillationService(OscillationServiceBase):
     probability calculations...
     """
     def __init__(self,ebins,czbins,datadir='oscillations', **kwargs):
-        OscillationServiceBase.__init__(self, ebins, czbins)
+        #OscillationServiceBase.__init__(self, ebins, czbins)
+        super(TableOscillationService, self).__init__(ebins, czbins)
         
         self.datadir = datadir
     

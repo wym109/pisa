@@ -6,6 +6,7 @@
 # date:   July 31, 2014
 #
 
+import sys
 import logging
 from datetime import datetime 
 import numpy as np
@@ -14,6 +15,11 @@ from pisa.utils.utils import get_bin_centers, is_coarser_binning, is_linear, is_
 
 
 def check_oversampling(fine_bins, coarse_bins, oversample):
+    """
+    This function checks whether the specified fine binning is actually
+    finer than the coarse one. If it is None, then the fine binning is 
+    created from the coarse one and the specified oversampling factor.
+    """
     
     if fine_bins is not None:
         if is_coarser_binning(coarse_bins, fine_bins):
@@ -21,9 +27,9 @@ def check_oversampling(fine_bins, coarse_bins, oversample):
             #everything is fine
             return fine_bins
         else:
-            logging.warn('Requested oversampled binning is coarser '
-                         'than output binning. Will use output binning.')
-            return coarse_bins
+            logging.error('Requested oversampled binning is coarser '
+                          'than output binning. Aborting.')
+            sys.exit(1)
     
     #Oversample output binning by given factor
     if is_linear(coarse_bins):
