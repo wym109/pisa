@@ -128,7 +128,7 @@ class OscillationServiceBase:
         return smoothed_maps
     
     
-    def get_osc_probLT_dict(self, fine_ebins=None, fine_czbins=None, 
+    def get_osc_probLT_dict(self, ebins=None, czbins=None, 
                             oversample=2, **kwargs):
         """
         This will create the oscillation probability map lookup tables
@@ -144,8 +144,8 @@ class OscillationServiceBase:
         probabilities on the fly.
         """
         #First initialize the fine binning if not explicitly given
-        ebins = check_oversampling(fine_ebins, self.ebins, oversample)
-        czbins = check_oversampling(fine_czbins, self.czbins, oversample)
+        ebins = check_oversampling(ebins, self.ebins, oversample)
+        czbins = check_oversampling(czbins, self.czbins, oversample)
         ecen = get_bin_centers(ebins)
         czcen = get_bin_centers(czbins)
         
