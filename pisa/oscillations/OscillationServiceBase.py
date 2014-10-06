@@ -64,7 +64,7 @@ class OscillationServiceBase:
         Parameters needed to instantiate any oscillation service:
         * ebins: Energy bin edges
         * czbins: cos(zenith) bin edges
-        If further member variables are needed, override this method.
+        If further member variables are needed, extend this method.
         """
         logging.debug('Instantiating %s'%self.__class__.__name__)
         self.ebins = np.array(ebins)
@@ -152,14 +152,10 @@ class OscillationServiceBase:
         osc_prob_dict = {'ebins':ebins, 'czbins':czbins}
         shape = (len(ecen),len(czcen))
         for nu in ['nue_maps','numu_maps','nue_bar_maps','numu_bar_maps']:
-            if 'bar' in nu:
-                osc_prob_dict[nu] = {'nue_bar': np.zeros(shape,dtype=np.float32),
-                                     'numu_bar': np.zeros(shape,dtype=np.float32),
-                                     'nutau_bar': np.zeros(shape,dtype=np.float32)}
-            else:
-                osc_prob_dict[nu] = {'nue': np.zeros(shape,dtype=np.float32),
-                                     'numu': np.zeros(shape,dtype=np.float32),
-                                     'nutau': np.zeros(shape,dtype=np.float32)}
+            isbar = '_bar' if 'bar' in nu else ''
+            osc_prob_dict[nu] = {'nue'+isbar: np.zeros(shape,dtype=np.float32),
+                                 'numu'+isbar: np.zeros(shape,dtype=np.float32),
+                                 'nutau'+isbar: np.zeros(shape,dtype=np.float32)}
         
         self.fill_osc_prob(osc_prob_dict, ecen, czcen, **kwargs)
         

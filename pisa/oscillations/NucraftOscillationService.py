@@ -42,8 +42,7 @@ class NucraftOscillationService(OscillationServiceBase):
                        Gaisser and Stanev, PhysRevD.57.1977
         * osc_precision: Numerical precision for oscillation probabilities
         """
-        #OscillationServiceBase.__init__(self, ebins, czbins)
-        super(NucraftOscillationService, self).__init__(ebins, czbins)
+        OscillationServiceBase.__init__(self, ebins, czbins)
         
         self.prop_height = prop_height # km above spherical Earth surface
         self.height_mode = 3 if self.prop_height is None else 1
