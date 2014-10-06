@@ -117,20 +117,15 @@ class NucraftOscillationService(OscillationServiceBase):
         """
         logging.debug('Trying to construct Earth model from "%s"'%model)
         try:
-            self.earth_model = EarthModel(model)
-            if os.path.isfile(model):
-                logging.info('Loaded Earth model from %s'%model)
-            else:
-                logging.info('Using NuCraft built-in Earth model "%s"'%model)
-        except NotImplementedError:
-            #Probably we have to find the correct path to the file
-            self.get_earth_model(find_resource(model))
+            resource_path = find_resource(model)
+            self.earth_model = EarthModel(resource_path)
+            logging.info('Loaded Earth model from %s'%model)
         except SyntaxError:
             #Probably the file is lacking the correct preamble
             logging.warn('Failed to construct NuCraft Earth model from '
-                         '%s! Adding default preamble...'%model)
+                         '%s! Adding default preamble...'%resource_path)
             #Generate tempfile with preamble
-            with open(model, 'r') as infile:
+            with open(resource_path, 'r') as infile:
                 profile_lines = infile.readlines()
             preamble = ['# nuCraft Earth model with PREM density '
                          'values for use as template; keep structure '
@@ -155,3 +150,6 @@ class NucraftOscillationService(OscillationServiceBase):
                 sys.exit(1)
             logging.info('Successfully constructed Earth model')
             tfile.close()
+        except IOError:
+            logging.info('Using NuCraft built-in Earth model "%s"'%model)
+            self.earth_model = EarthModel(model)
