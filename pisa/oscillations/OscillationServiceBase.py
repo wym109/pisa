@@ -36,20 +36,21 @@ def check_oversampling(fine_bins, coarse_bins, oversample):
         logging.info('Oversampling linear output binning by factor %i.'
                 %oversample)
         fine_bins = np.linspace(coarse_bins[0], coarse_bins[-1],
-                                oversample*len(coarse_bins)-1)
+                                oversample*(len(coarse_bins)-1)+1)
     elif is_logarithmic(coarse_bins):
         logging.info('Oversampling logarithmic output binning by factor %i.'
                 %oversample)
         fine_bins = np.logspace(np.log10(coarse_bins[0]),
                                 np.log10(coarse_bins[-1]),
-                                oversample*len(coarse_bins)-1)
+                                oversample*(len(coarse_bins)-1)+1)
     else:
         logging.warn('Irregular binning detected! Evenly oversampling '
                      'by factor %i'%oversample)
-        fine_bins = coarse_bins
-        for i in range(oversample-1):
-            fine_bins = np.append(fine_bins, get_bin_centers(fine_bins))
-            fine_bins.sort()
+        fine_bins = np.array([])
+        for i, upper_edge in enumerate(coarse_bins[1:]):
+            fine_bins = np.append(fine_bins, 
+                                  np.linspace(coarse_bins[i], upper_edge,
+                                              oversample, endpoint=False))
     
     return fine_bins
 
