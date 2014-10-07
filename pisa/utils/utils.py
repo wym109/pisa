@@ -56,9 +56,6 @@ def is_equal_binning(edges1,edges2,maxdev=1e-8):
 
 def is_coarser_binning(coarse_bins, fine_bins):
     '''Check whether coarse_bins lie inside of and are coarser than fine_bins'''
-    #both 1d?
-    if not(len(np.shape(coarse_bins)) == len(np.shape(fine_bins)) == 1):
-        return False
     #contained?
     if ((coarse_bins[0]<fine_bins[0]) or (coarse_bins[-1]>fine_bins[-1])):
         return False
