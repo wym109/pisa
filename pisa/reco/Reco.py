@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 #
-# EventRateReco.py
+# Reco.py
 #
 # This module will perform the smearing of the true event rates, with
 # the reconstructed parameters, using the detector response
@@ -80,7 +80,7 @@ def get_reco_maps(true_event_maps,reco_service=None,e_reco_scale=None,
             reco_maps[flavor+'_'+int_type] = {'map':reco_evt_rate,
                                               'ebins':ebins,
                                               'czbins':czbins}
-            logging.info("  Total counts: %.2f"%np.sum(reco_evt_rate))
+            logging.debug("  Total counts: %.2f"%np.sum(reco_evt_rate))
 
     #Finally sum up all the NC contributions
     logging.info("Summing up rates for %s %s"%('all',int_type))

@@ -29,17 +29,20 @@ class Prob3OscillationService:
         self.ebins = ebins
         self.czbins = czbins
 
-        earth_model = find_resource(earth_model)
+        logging.info('Defining Prob3OscillationService...')
 
+        earth_model = find_resource(earth_model)
+        
         #TODO: These should be parameters
         detector_depth = 2.0     # Detector depth in km
         self.prop_height = 20.0  # Height in the atmosphere to begin (default= 20 km)
-        self.barger_prop = BargerPropagator(earth_model, detector_depth)
+        self.barger_prop = BargerPropagator(str(earth_model), detector_depth)
         self.barger_prop.UseMassEigenstates(False)
 
     
     def get_osc_prob_maps(self,deltam21=None,deltam31=None,theta12=None, 
-                          theta13=None,theta23=None,deltacp=None,**kwargs):
+                          theta13=None,theta23=None,deltacp=None,energy_scale=1.0,
+                          **kwargs):
         """
         Returns an oscillation probability map dictionary calculated 
         at the values of the input parameters:
@@ -54,7 +57,7 @@ class Prob3OscillationService:
         """
         
         osc_probLT_dict = self.get_osc_probLT_dict(theta12,theta13,theta23,
-                                              deltam21,deltam31,deltacp)
+                                              deltam21,deltam31,deltacp,energy_scale)
 
         ebinsLT = osc_probLT_dict['ebins']
         czbinsLT = osc_probLT_dict['czbins']
@@ -86,21 +89,21 @@ class Prob3OscillationService:
         return smoothed_maps
     
     def get_osc_probLT_dict(self,theta12,theta13,theta23,deltam21,deltam31,deltacp,
-                            eminLT = 1.0, emaxLT =80.0, nebinsLT=500,
+                            energy_scale,eminLT = 1.0, emaxLT =80.0, nebinsLT=500,
                             czminLT=-1.0, czmaxLT= 1.0, nczbinsLT=500):
         '''
         This will create the oscillation probability map lookup tables
-        (LT) corresponding to atmospheric neutrinos oscillation
+        (LT) corresponding to atmospheric neutrinos oscillating
         through the earth, and will return a dictionary of maps:
         {'nue_maps':[to_nue_map, to_numu_map, to_nutau_map],
-         'numu_maps: [...],
+        'numu_maps: [...],
          'nue_bar_maps': [...], 
          'numu_bar_maps': [...], 
          'czbins':czbins, 
          'ebins': ebins} 
         Uses the BargerPropagator code to calculate the individual
         probabilities on the fly.
-
+        
         NOTE: Expects all angles to be in [rad], and all deltam to be in [eV^2]
         '''
 
@@ -122,16 +125,15 @@ class Prob3OscillationService:
                                      'numu': np.zeros(shape,dtype=np.float32),
                                      'nutau': np.zeros(shape,dtype=np.float32)}
         
-        self.fill_osc_prob(osc_prob_dict, ecen, czcen,
-                           theta12=theta12, theta13=theta13, theta23=theta23,
-                           deltam21=deltam21, deltam31=deltam31, deltacp=deltacp)
+        self.fill_osc_prob(osc_prob_dict, ecen, czcen, theta12, theta13, theta23,
+                           deltam21, deltam31, deltacp,energy_scale)
         
         return osc_prob_dict
       
 
     def fill_osc_prob(self, osc_prob_dict, ecen,czcen,
                   theta12=None, theta13=None, theta23=None,
-                  deltam21=None, deltam31=None, deltacp=None):
+                  deltam21=None, deltam31=None, deltacp=None,energy_scale=None):
         '''
         Loops over ecen,czcen and fills the osc_prob_dict maps, with
         probabilities calculated according to NuCraft
@@ -158,11 +160,13 @@ class Prob3OscillationService:
         for icz, coszen in enumerate(czcen):
             
             for ie,energy in enumerate(ecen):
-            
+                if energy_scale is not None: energy*=energy_scale
                 ibin+=1
                 if (ibin%mod) == 0: 
-                    sys.stdout.write(".")
-                    sys.stdout.flush()
+                    # NOTE: getEffectiveLevel() = {30 if WARN, 20 if INFO, 10 if DEBUG}
+                    if (logging.root.getEffectiveLevel() <= 20):
+                        sys.stdout.write(".")
+                        sys.stdout.flush()
                 
                 # In BargerPropagator code, it takes the "atmospheric
                 # mass difference"-the nearest two mass differences, so
@@ -190,7 +194,7 @@ class Prob3OscillationService:
                                         mAtm,deltacp,energy,kSquared,kNuBar)
                 self.barger_prop.DefinePath(coszen, self.prop_height)
                 self.barger_prop.propagate(kNuBar)
-
+                
                 for nu in ['nue_bar','numu_bar']:
                     nu_i = nu_barger[nu]
                     nu+='_maps'
