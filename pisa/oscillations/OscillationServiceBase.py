@@ -14,43 +14,49 @@ from pisa.utils.utils import get_smoothed_map
 from pisa.utils.utils import get_bin_centers, is_coarser_binning, is_linear, is_logarithmic
 
 
-def check_oversampling(fine_bins, coarse_bins, oversample):
+def check_fine_binning(fine_bins, coarse_bins):
     """
-    This function checks whether the specified fine binning is actually
-    finer than the coarse one. If it is None, then the fine binning is 
-    created from the coarse one and the specified oversampling factor.
+    This function checks whether the specified fine binning exists and 
+    is actually finer than the coarse one. 
     """
     
     if fine_bins is not None:
         if is_coarser_binning(coarse_bins, fine_bins):
             logging.info('Using requested binning for oversampling.')
             #everything is fine
-            return fine_bins
+            return True
         else:
             logging.error('Requested oversampled binning is coarser '
                           'than output binning. Aborting.')
             sys.exit(1)
     
-    #Oversample output binning by given factor
+    return False
+
+
+def oversample_binning(coarse_bins, factor):
+    """
+    Oversample bins by the given factor
+    """
+    
     if is_linear(coarse_bins):
         logging.info('Oversampling linear output binning by factor %i.'
-                %oversample)
+                %factor)
         fine_bins = np.linspace(coarse_bins[0], coarse_bins[-1],
-                                oversample*(len(coarse_bins)-1)+1)
+                                factor*(len(coarse_bins)-1)+1)
     elif is_logarithmic(coarse_bins):
         logging.info('Oversampling logarithmic output binning by factor %i.'
-                %oversample)
+                %factor)
         fine_bins = np.logspace(np.log10(coarse_bins[0]),
                                 np.log10(coarse_bins[-1]),
-                                oversample*(len(coarse_bins)-1)+1)
+                                factor*(len(coarse_bins)-1)+1)
     else:
         logging.warn('Irregular binning detected! Evenly oversampling '
-                     'by factor %i'%oversample)
+                     'by factor %i'%factor)
         fine_bins = np.array([])
         for i, upper_edge in enumerate(coarse_bins[1:]):
             fine_bins = np.append(fine_bins, 
                                   np.linspace(coarse_bins[i], upper_edge,
-                                              oversample, endpoint=False))
+                                              factor, endpoint=False))
     
     return fine_bins
 
@@ -131,10 +137,16 @@ class OscillationServiceBase:
          'ebins': ebins} 
         Will call fill_osc_prob to calculate the individual
         probabilities on the fly.
+        By default, the standard binning is oversampled by a factor 2. 
+        Alternatively, the oversampling factor can be changed or a fine 
+        binning specified explicitly. In the latter case, the oversampling 
+        factor is ignored.
         """
         #First initialize the fine binning if not explicitly given
-        ebins = check_oversampling(ebins, self.ebins, oversample)
-        czbins = check_oversampling(czbins, self.czbins, oversample)
+        if not check_fine_binning(ebins, self.ebins):
+            ebins = oversample_binning(self.ebins, oversample)
+        if not check_fine_binning(czbins, self.czbins):
+            czbins = oversample_binning(self.czbins, oversample)
         ecen = get_bin_centers(ebins)
         czcen = get_bin_centers(czbins)
         
