@@ -69,14 +69,16 @@ class Prob3OscillationService(OscillationServiceBase):
         total_bins = int(len(ecen)*len(czcen))
         mod = total_bins/50
         ibin = 0
+        loglevel = logging.root.getEffectiveLevel()
         for icz, coszen in enumerate(czcen):
             
             for ie,energy in enumerate(ecen):
             
                 ibin+=1
-                if (ibin%mod) == 0: 
-                    sys.stdout.write(".")
-                    sys.stdout.flush()
+                if loglevel <= logging.DEBUG:
+                    if (ibin%mod) == 0: 
+                        sys.stdout.write(".")
+                        sys.stdout.flush()
                 
                 # In BargerPropagator code, it takes the "atmospheric
                 # mass difference"-the nearest two mass differences, so
@@ -112,7 +114,7 @@ class Prob3OscillationService(OscillationServiceBase):
                         nu_f = nu_barger[to_nu]
                         osc_prob_dict[nu][to_nu][ie][icz] = self.barger_prop.GetProb(nu_i,nu_f)
                         
-                        
-        print ""        
+        if loglevel <= logging.DEBUG:
+            print ""
         
         return
