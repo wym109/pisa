@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 #
-# EventRate.py
+# Aeff.py
 #
 # This module is the implementation of the stage2 analysis. The main
 # purpose of stage2 is to combine the "oscillated Flux maps" with the
@@ -29,8 +29,8 @@ from pisa.aeff.AeffServicePar import AeffServicePar
 from scipy.constants import Julian_year
 
 
-def get_event_rates(osc_flux_maps,aeff_service=None,livetime=None,nu_xsec_scale=None,
-                    nubar_xsec_scale=None,**kwargs):
+def get_event_rates(osc_flux_maps,aeff_service,livetime=1.0,nu_xsec_scale=1.0,
+                    nubar_xsec_scale=1.0,aeff_scale=1.0,**kwargs):
     '''
     Main function for this module, which returns the event rate maps
     for each flavor and interaction type, using true energy and zenith
@@ -44,11 +44,11 @@ def get_event_rates(osc_flux_maps,aeff_service=None,livetime=None,nu_xsec_scale=
     
     #Get parameters used here
     params = get_params()
-    report_params(params,units = ['yrs','',''])
+    report_params(params,units = ['','yrs','',''])
 
     #Initialize return dict
     event_rate_maps = {'params': add_params(params,osc_flux_maps['params'])}
-    
+
     #Get effective area
     aeff_dict = aeff_service.get_aeff()
     
@@ -60,7 +60,7 @@ def get_event_rates(osc_flux_maps,aeff_service=None,livetime=None,nu_xsec_scale=
         osc_flux_map = osc_flux_maps[flavour]['map']
         int_type_dict = {}
         for int_type in ['cc','nc']:
-            event_rate = osc_flux_map*aeff_dict[flavour][int_type]
+            event_rate = osc_flux_map*aeff_dict[flavour][int_type]*aeff_scale
             
             scale = nubar_xsec_scale if 'bar' in flavour else nu_xsec_scale
             event_rate *= (scale*livetime*Julian_year)
@@ -101,6 +101,8 @@ if __name__ == '__main__':
                         help='''Overall scale on nu xsec.''')
     parser.add_argument('--nubar_xsec_scale',type=float,default=1.0,
                         help='''Overall scale on nu_bar xsec.''')
+    parser.add_argument('--aeff_scale',type=float,default=1.0,
+                        help='''Overall scale on aeff''')
     parser.add_argument('--parametric',action='store_true', default=False,
                         help='''Use parametrized effective areas instead of
                         extracting them from event data.''')
@@ -127,7 +129,8 @@ if __name__ == '__main__':
         aeff_service = AeffServiceMC(ebins,czbins,simfile=args.weighted_aeff_file)
         
     event_rate_maps = get_event_rates(args.osc_flux_maps,aeff_service,args.livetime,
-                                      args.nu_xsec_scale,args.nubar_xsec_scale)
+                                      args.nu_xsec_scale,args.nubar_xsec_scale,
+                                      args.aeff_scale)
     
     logging.info("Saving output to: %s"%args.outfile)
     to_json(event_rate_maps,args.outfile)

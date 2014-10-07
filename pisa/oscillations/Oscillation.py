@@ -26,8 +26,8 @@ from pisa.oscillations.OscillationService import OscillationService
 from pisa.oscillations.Prob3OscillationService import Prob3OscillationService
 
 
-def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,theta12=None,
-                 theta13=None,theta23=None,deltacp=None,**kwargs):
+def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,energy_scale=None,
+                 theta12=None,theta13=None,theta23=None,deltacp=None,**kwargs):
     '''
     Obtain a map in energy and cos(zenith) of the oscillation probabilities from
     the OscillationService and compute the oscillated flux.
@@ -39,14 +39,14 @@ def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,theta12=
 
     #Be verbose on input
     params = get_params()
-    report_params(params, units = ['rad','eV^2','eV^2','rad','rad','rad'])
+    report_params(params, units = ['rad','eV^2','eV^2','','rad','rad','rad'])
 
     #Initialize return dict
     osc_flux_maps = {'params': add_params(params,flux_maps['params'])}
     
     #Get oscillation probability map from service
     osc_prob_maps = osc_service.get_osc_prob_maps(deltam21,deltam31,theta12,
-                                                  theta13,theta23,deltacp)
+                                                  theta13,theta23,deltacp,energy_scale)
 
     ebins, czbins = get_binning(flux_maps)
     
@@ -91,6 +91,8 @@ if __name__ == '__main__':
                         help='''theta23 value [rad]''')
     parser.add_argument('--deltacp',type=float,default=np.pi,
                         help='''deltaCP value to use [rad]''')
+    parser.add_argument('--energy_scale',type=float,default=1.0,
+                        help='''Energy off scaling due to mis-calibration.''')
     parser.add_argument('--code',type=str,choices = ['prob3','table'], default='prob3',
                         help='''Oscillation code to use, one of [table,prob3],
                         (default=prob3)''')
@@ -116,13 +118,9 @@ if __name__ == '__main__':
       osc_service = OscillationService(ebins,czbins)
 
     logging.info("Getting osc prob maps")
-    osc_flux_maps = get_osc_flux(args.flux_maps, osc_service, 
-                                 deltam21 = args.deltam21,
-                                 deltam31 = args.deltam31,
-                                 deltacp = args.deltacp,
-                                 theta12 = args.theta12,
-                                 theta13 = args.theta13,
-                                 theta23 = args.theta23)
+    osc_flux_maps = get_osc_flux(args.flux_maps, osc_service,args.deltam21,args.deltam31,
+                                 args.deltacp, args.theta12,args.theta13,args.theta23,
+                                 args.energy_scale)
     
     #Write out
     logging.info("Saving output to: %s",args.outfile)

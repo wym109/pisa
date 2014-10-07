@@ -21,6 +21,8 @@ class PIDServicePar:
     '''
     def __init__(self,pid_data,ebins,czbins):
 
+        logging.info('Initializing PIDServicePar...')
+        
         #Evaluate the functions at the bin centers
         ecen = get_bin_centers(ebins)
         czcen = get_bin_centers(czbins)
@@ -37,11 +39,9 @@ class PIDServicePar:
             
             if (to_trck_map < 0.0).any() == True:
                 logging.debug('ERROR: trck PID map has negative values! This should never happen- investigate PID parameterization')
-                #print "  to_trck_map: ",to_trck_map
                 sys.exit(1)
             if (to_cscd_map < 0.0).any() == True:
                 logging.debug('ERROR: cscd PID map has negative values! This should never happen- investigate PID parameterization')
-                #print "  to_cscd_map: ",to_cscd_map
                 sys.exit(1)
                 
             self.pid_maps[signature] = {'trck':to_trck_map,

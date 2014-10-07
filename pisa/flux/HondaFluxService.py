@@ -89,3 +89,4 @@ class HondaFluxService():
         return_table *= np.abs(bin_sizes[0]*bin_sizes[1])
     
         return return_table.T
+

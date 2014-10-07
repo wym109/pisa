@@ -28,6 +28,8 @@ class RecoServiceMC:
         self.ebins = ebins
         self.czbins = czbins
         
+        logging.info("Initializing RecoService...")
+        
         logging.info('Opening file: %s'%(simfile))
         try:
             fh = h5py.File(find_resource(simfile),'r')

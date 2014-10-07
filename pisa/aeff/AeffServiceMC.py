@@ -23,6 +23,7 @@ class AeffServiceMC:
     def __init__(self,ebins,czbins,simfile=None):
         self.ebins = ebins
         self.czbins = czbins
+        logging.info('Initializing AeffServiceMC...')
         
         logging.info('Opening file: %s'%(simfile))
         try:
