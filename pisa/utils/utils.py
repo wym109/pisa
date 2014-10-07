@@ -149,23 +149,34 @@ def get_smoothed_map(prob_map,ebinsLT,czbinsLT,ebinsSM,czbinsSM):
               SM - "smoothed" binning
     '''
     
-    ecenLT = get_bin_centers(ebinsLT)
-    czcenLT = get_bin_centers(czbinsLT)
-
-    elist = []
-    czlist = []
-    weight_list = []
-    for ie,egy in enumerate(ecenLT):
-        for icz,cz in enumerate(czcenLT):
-            czlist.append(cz)
-            elist.append(egy)
-            weight_list.append(prob_map[ie][icz])
-            
-    map_sum_wts = np.histogram2d(elist,czlist,weights=weight_list,
-                                 bins=[ebinsSM,czbinsSM])[0]
-    map_num = np.histogram2d(elist,czlist,bins=[ebinsSM,czbinsSM])[0]
+    # check whether downsampling can be achieved by integer rebinning
+    rebin_info = subbinning([ebinsSM,czbinsSM], [ebinsLT,czbinsLT])
+    if rebin_info:
+        #Use fast numpy magic
+        logging.debug('Coarse map is true submap of fine map, '
+                      'using numpy array magic for smoothing.')
+        smoothed_map = integer_rebin_map(prob_map, rebin_info)
     
-    return np.divide(map_sum_wts,map_num)
+    else:
+        ecenLT = get_bin_centers(ebinsLT)
+        czcenLT = get_bin_centers(czbinsLT)
+
+        elist = []
+        czlist = []
+        weight_list = []
+        for ie,egy in enumerate(ecenLT):
+            for icz,cz in enumerate(czcenLT):
+                czlist.append(cz)
+                elist.append(egy)
+                weight_list.append(prob_map[ie][icz])
+                
+        map_sum_wts = np.histogram2d(elist,czlist,weights=weight_list,
+                                     bins=[ebinsSM,czbinsSM])[0]
+        map_num = np.histogram2d(elist,czlist,bins=[ebinsSM,czbinsSM])[0]
+        
+        smoothed_map = np.divide(map_sum_wts,map_num)
+    
+    return smoothed_map
 
 
 def integer_rebin_map(prob_map, rebin_info):

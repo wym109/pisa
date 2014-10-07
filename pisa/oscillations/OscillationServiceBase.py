@@ -10,7 +10,7 @@ import sys
 import logging
 from datetime import datetime 
 import numpy as np
-from pisa.utils.utils import subbinning, get_smoothed_map, integer_rebin_map
+from pisa.utils.utils import get_smoothed_map
 from pisa.utils.utils import get_bin_centers, is_coarser_binning, is_linear, is_logarithmic
 
 
@@ -99,27 +99,15 @@ class OscillationServiceBase:
         smoothed_maps['ebins'] = self.ebins
         smoothed_maps['czbins'] = self.czbins
 
-        rebin_info = subbinning([self.ebins, self.czbins], 
-                          [fine_maps['ebins'], fine_maps['czbins']])
-        if rebin_info:
-            #Use fast numpy magic
-            logging.debug('Coarse map is true submap of fine map, '
-                          'using numpy array magic for smoothing.')
-            def __smoothing_func(osc_map):
-                return integer_rebin_map(osc_map, rebin_info)
-        else:
-            def __smoothing_func(osc_map):
-                return get_smoothed_map(osc_map, 
-                                         fine_maps['ebins'], 
-                                         fine_maps['czbins'],
-                                         self.ebins, self.czbins)
-        
         for from_nu, tomap_dict in fine_maps.items():
             if 'bins' in from_nu: continue
             new_tomaps = {}
             for to_nu, tomap in tomap_dict.items():
                 logging.debug("Getting smoothed map %s/%s"%(from_nu,to_nu))
-                new_tomaps[to_nu] = __smoothing_func(tomap)
+                new_tomaps[to_nu] = get_smoothed_map(tomap, 
+                                         fine_maps['ebins'], 
+                                         fine_maps['czbins'],
+                                         self.ebins, self.czbins)
             smoothed_maps[from_nu] = new_tomaps
         
         logging.debug("Finshed smoothing maps. This took: %s"
