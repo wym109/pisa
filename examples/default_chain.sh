@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # This example shell script will run each stage of the PISA chain
 # by seperately calling each stage. The output will be written to
@@ -15,22 +15,22 @@ function check(){
   fi
 }
 
-echo "\nRunning flux stage..."
+echo "Running flux stage..."
 Flux.py -vvv
 check "Flux"
 
-echo "\nRunning oscillations stage..."
+echo "Running oscillations stage..."
 Oscillation.py flux.json -vvv
 check "Oscillations"
 
-echo "\nRunning effective area stage..."
+echo "Running effective area stage..."
 Aeff.py osc_flux.json -vvv
 check "Effective Area"
 
-echo "\nRunning reconstruction stage..."
+echo "Running reconstruction stage..."
 Reco.py event_rate.json -vvv
 check "Reconstruction"
 
-echo "\nRunning PID stage..."
+echo "Running PID stage..."
 PID.py reco.json -vvv
 check "PID"
