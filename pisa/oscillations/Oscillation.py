@@ -107,6 +107,10 @@ if __name__ == '__main__':
                         default='prob3',
                         help='''Oscillation code to use, one of 
                         [table, prob3, nucraft], (default=prob3)''')
+    parser.add_argument('--oversample', type=int, default=2,
+                        help='''oversampling factor for *both* energy and cos(zen); 
+                        i.e. every 2D bin will be oversampled by the square of the 
+                        factor (default=2)''')
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str,
                         action='store',default="osc_flux.json",
                         help='file to store the output')
@@ -129,8 +133,6 @@ if __name__ == '__main__':
       osc_service = OscillationService(ebins,czbins)
 
     logging.info("Getting osc prob maps")
-    ebins = np.logspace(np.log10(1.),np.log10(80.),501)
-    czbins = np.linspace(-1.,1.,501)
     osc_flux_maps = get_osc_flux(args.flux_maps, osc_service, 
                                  deltam21 = args.deltam21,
                                  deltam31 = args.deltam31,
@@ -138,8 +140,7 @@ if __name__ == '__main__':
                                  theta12 = args.theta12,
                                  theta13 = args.theta13,
                                  theta23 = args.theta23,
-                                 ebins = ebins,
-                                 czbins = czbins)
+                                 oversample = args.oversample)
     
     #Write out
     logging.info("Saving output to: %s",args.outfile)
