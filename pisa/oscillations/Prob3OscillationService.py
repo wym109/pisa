@@ -12,6 +12,7 @@
 
 import os, sys
 import logging
+from datetime import datetime
 import numpy as np
 from pisa.oscillations.OscillationServiceBase import OscillationServiceBase
 from pisa.oscillations.prob3.BargerPropagator import BargerPropagator
@@ -114,8 +115,8 @@ class Prob3OscillationService(OscillationServiceBase):
                         nu_f = nu_barger[to_nu]
                         osc_prob_dict[nu][to_nu][ie][icz] = self.barger_prop.GetProb(nu_i,nu_f)
 
-        if loglevel <= logging.DEBUG:
-            logging.info("Finshed osc_prob_dict. This took: %s"%(datetime.now()-tstart))
+        if loglevel <= logging.INFO:
             print ""
+            logging.info("Finshed osc_prob_dict. This took: %s"%(datetime.now()-tstart))
             
-    return
+        return

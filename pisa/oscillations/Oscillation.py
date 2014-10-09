@@ -47,9 +47,14 @@ def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,
     osc_flux_maps = {'params': add_params(params,flux_maps['params'])}
     
     #Get oscillation probability map from service
-    osc_prob_maps = osc_service.get_osc_prob_maps(deltam21,deltam31,theta12,
-                                                  theta13,theta23,deltacp,
-                                                  energy_scale,**kwargs)
+    osc_prob_maps = osc_service.get_osc_prob_maps(deltam21=deltam21,
+                                                  deltam31=deltam31,
+                                                  theta12=theta12,
+                                                  theta13=theta13,
+                                                  theta23=theta23,
+                                                  deltacp=deltacp,
+                                                  energy_scale=energy_scale,
+                                                  **kwargs)
 
     ebins, czbins = get_binning(flux_maps)
     
@@ -100,10 +105,10 @@ if __name__ == '__main__':
                         default='prob3',
                         help='''Oscillation code to use, one of 
                         [table, prob3, nucraft], (default=prob3)''')
-    parser.add_argument('--oversample', type=int, default=2,
+    parser.add_argument('--oversample', type=int, default=10,
                         help='''oversampling factor for *both* energy and cos(zen); 
                         i.e. every 2D bin will be oversampled by the square of the 
-                        factor (default=2)''')
+                        factor (default=10)''')
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str,
                         action='store',default="osc_flux.json",
                         help='file to store the output')

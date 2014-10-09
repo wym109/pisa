@@ -124,7 +124,7 @@ class OscillationServiceBase:
     
     
     def get_osc_probLT_dict(self, ebins=None, czbins=None, 
-                            oversample=2, **kwargs):
+                            oversample=10, **kwargs):
         """
         This will create the oscillation probability map lookup tables
         (LT) corresponding to atmospheric neutrinos oscillation
