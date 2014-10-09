@@ -16,7 +16,7 @@ from pisa.reco.RecoServiceBase import RecoServiceBase
 from pisa.resources.resources import find_resource
 
 class RecoServiceMC(RecoServiceBase):
-    '''
+    """
     From the simulation file, creates 4D histograms of
     [true_energy][true_coszen][reco_energy][reco_coszen] which act as
     2D pdfs for the probability that an event with (true_energy,
@@ -24,7 +24,7 @@ class RecoServiceMC(RecoServiceBase):
 
     From these histograms, and the true event rate maps, calculates
     the reconstructed even rate templates.
-    '''
+    """
     def __init__(self, ebins, czbins, **kwargs):
         """
         Parameters needed to instantiate a MC-based reconstruction service:
