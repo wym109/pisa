@@ -189,7 +189,7 @@ class RecoServiceBase:
         """
         logging.info('Re-calculating reconstruction kernels')
         old_kernels = self.kernels.copy()
-        self.recalculate_kernels(**kwargs)
+        self.get_reco_kernels(**kwargs)
         try:
             self.check_kernels()
             self.normalize_kernels()
