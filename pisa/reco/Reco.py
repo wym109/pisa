@@ -23,7 +23,7 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 from pisa.utils.utils import set_verbosity, check_binning, get_binning
 from pisa.utils.jsons import from_json,to_json
 from pisa.utils.proc import report_params, get_params, add_params
-from pisa.reco.RecoServiceMC import RecoServiceMC
+from pisa.reco.MCRecoService import MCRecoService
 import numpy as np
 
 
@@ -79,7 +79,7 @@ Expects the file format to be:
     ebins, czbins = check_binning(args.event_rate_maps)
 
     logging.info("Defining RecoService...")
-    reco_service = RecoServiceMC(ebins,czbins,simfile=args.weighted_aeff_file,
+    reco_service = MCRecoService(ebins,czbins,simfile=args.weighted_aeff_file,
                                  **vars(args))
 
     event_rate_reco_maps = reco_service.get_reco_maps(args.event_rate_maps)

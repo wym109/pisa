@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-#  RecoServiceParam.py
+#  ParamRecoService.py
 # 
 # Creates reconstruction kernels from a parametrization
 #
@@ -28,7 +28,7 @@ def read_param_string(param_str):
             pass
 
 
-class RecoServiceParam(RecoServiceBase):
+class ParamRecoService(RecoServiceBase):
     """
     Creates reconstruction kernels from a parametrization that is stored 
     as a json dict. The parametrizations are assumed to be double 
