@@ -14,7 +14,4 @@ pisa.egg-info
 
 # Common editor remnants
 *~
-
-# All hidden files/directories in but .gitignore itself
-.*
-!/.gitignore
+.swp
