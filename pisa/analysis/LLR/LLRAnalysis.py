@@ -43,6 +43,7 @@ def get_fiducial_params(settings,use_best=True,use_nmh=True):
     Get parameters of fiducial model (systematic + nuisance params)
     '''
     
+
     params = {}
     for param in settings['fiducial'].keys():
         params[param] = settings['fiducial'][param]['best']
