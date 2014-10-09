@@ -12,6 +12,6 @@ dist
 build
 pisa.egg-info
 
-# Common editor remants
+# Common editor remnants
 *~
 .swp
