@@ -10,133 +10,45 @@
 #         sboeser@physik.uni-bonn.de
 #
 
+import os, sys
 import logging
 import numpy as np
-from datetime import datetime 
-import os, sys
-from pisa.utils.utils import get_smoothed_map, get_bin_centers
+from pisa.oscillations.OscillationServiceBase import OscillationServiceBase
 from pisa.oscillations.prob3.BargerPropagator import BargerPropagator
 from pisa.resources.resources import find_resource
 from pisa.utils.jsons import to_json
 
-class Prob3OscillationService:
+class Prob3OscillationService(OscillationServiceBase):
     """
     This class handles all tasks related to the oscillation
-    probability calculations...
+    probability calculations using the prob3 oscillation code
     """
-    def __init__(self, ebins, czbins,
-                 earth_model='oscillations/PREM_60layer.dat'):
-        self.ebins = ebins
-        self.czbins = czbins
-
-        logging.info('Defining Prob3OscillationService...')
-
+    def __init__(self, ebins, czbins, earth_model='oscillations/PREM_60layer.dat',
+                 detector_depth=2.0, prop_height=20.0, **kwargs):
+        """
+        Parameters needed to instantiate a Prob3OscillationService:
+        * ebins: Energy bin edges
+        * czbins: cos(zenith) bin edges
+        * earth_model: Earth density model used for matter oscillations.
+                       Default: 60-layer PREM model shipped with pisa.
+        * detector_depth: Detector depth in km. Default: 2.0
+        * prop_height: Height in the atmosphere to begin in km. 
+                       Default: 20.0
+        """
+        OscillationServiceBase.__init__(self, ebins, czbins)
+        
+        self.prop_height = prop_height
         earth_model = find_resource(earth_model)
-        
-        #TODO: These should be parameters
-        detector_depth = 2.0     # Detector depth in km
-        self.prop_height = 20.0  # Height in the atmosphere to begin (default= 20 km)
-        self.barger_prop = BargerPropagator(str(earth_model), detector_depth)
+        self.barger_prop = BargerPropagator(earth_model, detector_depth)
         self.barger_prop.UseMassEigenstates(False)
-
-    
-    def get_osc_prob_maps(self,deltam21=None,deltam31=None,theta12=None, 
-                          theta13=None,theta23=None,deltacp=None,energy_scale=1.0,
-                          **kwargs):
-        """
-        Returns an oscillation probability map dictionary calculated 
-        at the values of the input parameters:
-          deltam21,deltam31,theta12,theta13,theta23,deltacp
-        for flavor_from to flavor_to, with the binning of ebins,czbins.
-        The dictionary is formatted as:
-          'nue_maps': {'nue':map,'numu':map,'nutau':map},
-          'numu_maps': {...}
-          'nue_bar_maps': {...}
-          'numu_bar_maps': {...}
-        NOTE: expects all angles in [rad]
-        """
         
-        osc_probLT_dict = self.get_osc_probLT_dict(theta12,theta13,theta23,
-                                              deltam21,deltam31,deltacp,energy_scale)
-
-        ebinsLT = osc_probLT_dict['ebins']
-        czbinsLT = osc_probLT_dict['czbins']
-        
-        start_time = datetime.now()
-        logging.info("Getting smoothed maps...")
-
-        # Testing purposes:
-        #to_json(osc_probLT_dict,'osc_probLT_dict.json')
-
-        # do smoothing
-        smoothed_maps = {}
-        smoothed_maps['ebins'] = self.ebins
-        smoothed_maps['czbins'] = self.czbins
-        for nu_i in ['nue','numu','nue_bar','numu_bar']:
-            path_base = nu_i+'_maps'
-            to_maps = {}
-            to_nu_list = ['nue_bar','numu_bar','nutau_bar'] if 'bar' in nu_i else ['nue','numu','nutau']
-            for nu_f in to_nu_list:
-                logging.info("Getting smoothed map %s"%(nu_i+'_maps/'+nu_f))
-                to_maps[nu_f]=get_smoothed_map(osc_probLT_dict[nu_i+'_maps'][nu_f],
-                                               ebinsLT,czbinsLT,self.ebins,self.czbins)
-                
-            smoothed_maps[nu_i+'_maps'] = to_maps
-
-            
-        logging.info("Finshed getting smoothed maps. This took: %s"%(datetime.now()-start_time))
-        
-        return smoothed_maps
-    
-    def get_osc_probLT_dict(self,theta12,theta13,theta23,deltam21,deltam31,deltacp,
-                            energy_scale,eminLT = 1.0, emaxLT =80.0, nebinsLT=500,
-                            czminLT=-1.0, czmaxLT= 1.0, nczbinsLT=500):
-        '''
-        This will create the oscillation probability map lookup tables
-        (LT) corresponding to atmospheric neutrinos oscillating
-        through the earth, and will return a dictionary of maps:
-        {'nue_maps':[to_nue_map, to_numu_map, to_nutau_map],
-        'numu_maps: [...],
-         'nue_bar_maps': [...], 
-         'numu_bar_maps': [...], 
-         'czbins':czbins, 
-         'ebins': ebins} 
-        Uses the BargerPropagator code to calculate the individual
-        probabilities on the fly.
-        
-        NOTE: Expects all angles to be in [rad], and all deltam to be in [eV^2]
-        '''
-
-        # First initialize all empty maps to use in osc_prob_dict
-        ebins = np.logspace(np.log10(eminLT),np.log10(emaxLT),nebinsLT+1)
-        czbins = np.linspace(czminLT,czmaxLT,nczbinsLT+1)
-        ecen = get_bin_centers(ebins)
-        czcen = get_bin_centers(czbins)
-        
-        osc_prob_dict = {'ebins':ebins, 'czbins':czbins}
-        shape = (len(ecen),len(czcen))
-        for nu in ['nue_maps','numu_maps','nue_bar_maps','numu_bar_maps']:
-            if 'bar' in nu:
-                osc_prob_dict[nu] = {'nue_bar': np.zeros(shape,dtype=np.float32),
-                                     'numu_bar': np.zeros(shape,dtype=np.float32),
-                                     'nutau_bar': np.zeros(shape,dtype=np.float32)}
-            else:
-                osc_prob_dict[nu] = {'nue': np.zeros(shape,dtype=np.float32),
-                                     'numu': np.zeros(shape,dtype=np.float32),
-                                     'nutau': np.zeros(shape,dtype=np.float32)}
-        
-        self.fill_osc_prob(osc_prob_dict, ecen, czcen, theta12, theta13, theta23,
-                           deltam21, deltam31, deltacp,energy_scale)
-        
-        return osc_prob_dict
-      
-
-    def fill_osc_prob(self, osc_prob_dict, ecen,czcen,
-                  theta12=None, theta13=None, theta23=None,
-                  deltam21=None, deltam31=None, deltacp=None,energy_scale=None):
+    def fill_osc_prob(self, osc_prob_dict, ecen, czcen,
+                      theta12=None, theta13=None, theta23=None,
+                      deltam21=None, deltam31=None, deltacp=None, 
+                      energy_scale=None,**kwargs):
         '''
         Loops over ecen,czcen and fills the osc_prob_dict maps, with
-        probabilities calculated according to NuCraft
+        probabilities calculated according to prob3
         '''
         
         neutrinos = ['nue','numu','nutau']
@@ -157,17 +69,17 @@ class Prob3OscillationService:
         total_bins = int(len(ecen)*len(czcen))
         mod = total_bins/50
         ibin = 0
+        loglevel = logging.root.getEffectiveLevel()
         for icz, coszen in enumerate(czcen):
             
             for ie,energy in enumerate(ecen):
                 if energy_scale is not None: energy*=energy_scale
                 ibin+=1
-                if (ibin%mod) == 0: 
-                    # NOTE: getEffectiveLevel() = {30 if WARN, 20 if INFO, 10 if DEBUG}
-                    if (logging.root.getEffectiveLevel() <= 20):
+                if loglevel <= logging.INFO:
+                    if (ibin%mod) == 0:
                         sys.stdout.write(".")
                         sys.stdout.flush()
-                
+                        
                 # In BargerPropagator code, it takes the "atmospheric
                 # mass difference"-the nearest two mass differences, so
                 # that it takes as input deltam31 for IMH and deltam32
@@ -201,12 +113,9 @@ class Prob3OscillationService:
                     for to_nu in anti_neutrinos:
                         nu_f = nu_barger[to_nu]
                         osc_prob_dict[nu][to_nu][ie][icz] = self.barger_prop.GetProb(nu_i,nu_f)
-                        
-                        
-        print ""        
-        logging.info("Finshed osc_prob_dict. This took: %s"%(datetime.now()-tstart))
-        
-        return
 
-        
-    
+        if loglevel <= logging.DEBUG:
+            logging.info("Finshed osc_prob_dict. This took: %s"%(datetime.now()-tstart))
+            print ""
+            
+    return
