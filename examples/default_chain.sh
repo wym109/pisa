@@ -1,11 +1,10 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This example shell script will run each stage of the PISA chain
 # by seperately calling each stage. The output will be written to
 # a JSON file in each stage. To run this example, from the main
 # PISA directory:
 #
-#   > source setup.sh
 #   > default_chain.sh
 
 function check(){
