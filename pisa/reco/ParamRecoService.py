@@ -29,6 +29,7 @@ class ParamRecoService(RecoServiceBase):
     the true energy (not the direction!). Systematic parameters 
     'energy_reco_scale' and 'coszen_reco_scale are supported.'
     """
+    
     def __init__(self, ebins, czbins, **kwargs):
         """
         Parameters needed to instantiate a reconstruction service with 
@@ -37,6 +38,7 @@ class ParamRecoService(RecoServiceBase):
         * czbins: cos(zenith) bin edges
         * paramfile: JSON containing the parametrizations
         """
+        
         RecoServiceBase.__init__(self, ebins, czbins, **kwargs)
  
  
@@ -55,9 +57,7 @@ class ParamRecoService(RecoServiceBase):
             logging.error(e)
             sys.exit(1)
         
-        logging.debug('''Scaling reconstruction resolutions
-                         \n   energy: %.2f\n   coszen: %.2f'''
-                         %(energy_reco_scale, coszen_reco_scale))
+        # Scale reconstruction widths
         self.apply_reco_scales(energy_reco_scale, coszen_reco_scale)
         
         logging.debug('Creating reconstruction kernels')
@@ -67,6 +67,10 @@ class ParamRecoService(RecoServiceBase):
     
     
     def read_param_string(self, param_str):
+        """
+        Parse the dict with the parametrization strings and evaluate for 
+        the bin energies needed.
+        """
         
         evals = get_bin_centers(self.ebins)
         n_e = len(self.ebins)-1
@@ -94,8 +98,18 @@ class ParamRecoService(RecoServiceBase):
         """
         Widen the gaussians used for reconstruction by the given factors
         """
-        #TODO: implement
-        pass
+        
+        for axis, scale in [('energy', e_scale), ('coszen', cz_scale)]:
+            
+            if scale==1.:
+                continue
+            
+            logging.debug('Scaling %s reco precision by factor %.2f'
+                          %(axis, scale))
+            
+            for channel in self.parametrization:
+                for param in ['width1', 'width2']: #the widths of the gaussians
+                    self.parametrization[channel][axis][param] *= scale
     
     
     def calculate_kernels():
@@ -103,5 +117,6 @@ class ParamRecoService(RecoServiceBase):
         Use the parametrization functions to calculate the actual reco 
         kernels (i.e. 4D histograms).
         """
+        
         #TODO: implement this
         self.kernels = None
