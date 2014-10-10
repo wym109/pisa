@@ -13,19 +13,12 @@
 import sys
 import logging
 
+import numpy as np
+
 from pisa.reco.RecoServiceBase import RecoServiceBase
 from pisa.resources.resources import find_resource
 from pisa.utils.jsons import from_json
-
-
-def read_param_string(param_str):
-    
-    parametrization = dict.fromkeys(param_str)
-    for channel in param_str:
-        logging.debug('Parsing function strings for %s'%channel)
-        for axis in ['energy', 'coszen']:
-            #TODO: implement the actual parsing
-            pass
+from pisa.utils.utils import get_bin_centers
 
 
 class ParamRecoService(RecoServiceBase):
@@ -55,7 +48,7 @@ class ParamRecoService(RecoServiceBase):
                      %paramfile)
         try:
             param_str = from_json(find_resource(paramfile))
-            self.parametrization = read_param_string(param_str)
+            self.parametrization = self.read_param_string(param_str)
         except IOError, e:
             logging.error("Unable to open parametrization file %s"
                           %paramfile)
@@ -73,12 +66,35 @@ class ParamRecoService(RecoServiceBase):
         return self.kernels
     
     
+    def read_param_string(self, param_str):
+        
+        evals = get_bin_centers(self.ebins)
+        n_e = len(self.ebins)-1
+        n_cz = len(self.czbins)-1
+        
+        parametrization = dict.fromkeys(param_str)
+        for channel in param_str:
+            logging.debug('Parsing function strings for %s'%channel)
+            for axis in param_str[channel]:    #['energy', 'coszen']
+                parameters = {}
+                for par, funcstring in param_str[channel][axis].items():
+                    # this should contain a lambda function:
+                    function = eval(funcstring)
+                    # evaluate the function at the given energies
+                    vals = function(evals)
+                    # repeat for all cos(zen) bins
+                    parameters[par] = np.repeat(vals,n_cz).reshape((n_e,n_cz))
+                parametrization[channel][axis] = parameters
+        
+        self.parametrization = parametrization
+        return parametrization
+
+
     def apply_reco_scales(self, e_scale, cz_scale):
         """
         Widen the gaussians used for reconstruction by the given factors
         """
         #TODO: implement
-        #FIXME: actually possible here or does this have to happen while parsing?
         pass
     
     
