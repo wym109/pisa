@@ -6,7 +6,7 @@
 # author: Tim Arlen
 #         tca3@psu.edu
 #
-# date:   02-July-2014
+# date:   2 July 2014
 #
 
 import logging,sys
@@ -14,41 +14,8 @@ from datetime import datetime
 import numpy as np
 import scipy.optimize as opt
 
-from LLHStatistics import get_random_map, get_binwise_llh, add_prior
-
-# FUNCTIONS
-def get_template_params(settings,use_best=True,normal_hierarchy=True):
-    '''
-    From a settings file, merge all parameters from  needed by the template
-    generator into one 'params' dict.
-
-    For fiducial parameters, we are getting the 'best' field for the value.
-    '''
-
-    params = settings['template'].copy()
-    params['ebins'] = settings['binning']['ebins']
-    params['czbins'] = settings['binning']['czbins']
-
-    for param in settings['fiducial'].keys():
-        params[param] = settings['fiducial'][param]['best']
-
-    params['deltam31'] = params['deltam31_nh'] if normal_hierarchy else params['deltam31_ih']
-    params.pop('deltam31_nh')
-    params.pop('deltam31_ih')
-
-    return params
-
-def get_fiducial_params(settings,normal_hierarchy=True):
-    '''
-    Get parameters of fiducial model (systematic + nuisance params)
-    '''
-
-    settings = select_hierarchy(settings['fiducial'],normal_hierarhcy)
-    fiducial = {}
-    for key, param in settings['fiducial']:
-        fiducial[key] = param['']
-
-    return fiducial
+from pisa.utils.params import get_values, select_hierarchy, get_fixed_params, get_free_params, get_prior_llh
+from pisa.analysis.LLR.LLHStatistics import get_random_map, get_binwise_llh
 
 def get_pseudo_data_fmap(template_maker,fiducial_params):
     '''
@@ -59,63 +26,23 @@ def get_pseudo_data_fmap(template_maker,fiducial_params):
     '''
 
     true_template = template_maker.get_template(fiducial_params)
-    true_fmap = get_true_fmap(true_template)
+    true_fmap = flatten_map(true_template)
     fmap = get_random_map(true_fmap)
 
     return fmap
 
-def get_true_fmap(true_template):
+def flatten_map(template):
     '''
-    Takes a final level true template of trck/cscd, and returns a
+    Takes a final level true (expected) template of trck/cscd, and returns a
     single flattened map of trck appended to cscd, with all zero bins
     removed.
     '''
-    true_cscd = true_template['cscd']['map'].flatten()
-    true_trck = true_template['trck']['map'].flatten()
-    true_fmap = np.append(true_cscd,true_trck)
-    true_fmap = np.array(true_fmap)[np.nonzero(true_fmap)]
+    cscd = template['cscd']['map'].flatten()
+    trck = template['trck']['map'].flatten()
+    fmap = np.append(cscd,trck)
+    fmap = np.array(fmap)[np.nonzero(fmap)]
 
-    return true_fmap
-
-def select_hierarchy(params, normal_hierarchy=True''):
-    '''
-    Corrects for a key in params being defined for both 'nh' and 'ih',
-    and returns a modified dict with one value for the given hierarchy.
-    '''
-    newparams = {}
-    for key, value in params.items():
-        if key.endswith('_nh'):
-            #Don't use if doesn't match request
-            if not normal_hierarchy: continue
-            #Use simplified key
-            key = key.split('_')[:-1]
-        if key.endswith('_ih'):
-            if normal_hierarchy: continue
-            key = key.split('_')[:-1]
-
-        newparams[key] = value
-
-    return newparams
-
-def get_param_types(fid_settings,assume_nmh):
-    '''
-    From the settings dict, define the parameters which will be
-    optimized over and which will be constant.
-    '''
-
-    syst_params = {}
-    const_params = {}
-    for key in fid_settings.keys():
-        if fid_settings[key]['fixed']:
-            const_params[key] = fid_settings[key]['best']
-        else:
-            syst_params[key] = fid_settings[key]
-
-    const_params = select_hierarchy(const_params,normal_hierarchy=assume_nmh)
-
-    logging.warn("Systematic params: %s"%syst_params.keys())
-
-    return syst_params,const_params
+    return fmap
 
 
 def find_max_llh_grid(fmap_data,true_templates):
@@ -139,7 +66,7 @@ def find_max_llh_grid(fmap_data,true_templates):
     best_fit = {}; best_fit['deltam31'] = 0.0; best_fit['theta23'] = 0.0
     #print "  num true templates: ",len(true_templates)
     for true_template in true_templates:
-        true_fmap = get_true_fmap(true_template)
+        true_fmap = flatten_map(true_template)
         llh_val = get_binwise_llh(fmap_data,true_fmap)
 
         trial_data['llh'].append(llh_val)
@@ -159,24 +86,23 @@ def find_max_llh_powell(fmap,settings,assume_nmh=True):
     maximum likelihood for a given pseudo data fmap.
     '''
 
-    # Get params dict which will be optimized (syst_params) and which
-    # won't be (const_params) but are still needed for get_template()
-    syst_params,const_params = get_param_types(settings,assume_nmh)
+    fixed_params = get_fixed_params(params,normal_hierarchy)
+    free_params = get_free_params(params,normal_hierarchy)
 
     init_vals = []
     const_args = []
     names = []
     scales = []
     priors = []
-    for key in syst_params.keys():
-        init_vals.append( (syst_params[key]['min']+syst_params[key]['max'])/2.0 )
+    for key in free_params.keys():
+        init_vals.append(free_params[key]['value'])
         names.append(key)
-        scales.append(syst_params[key]['scale'])
-        priors.append((syst_params[key]['prior'],syst_params[key]['best']))
+        scales.append(free_params[key]['scale'])
+        priors.append((free_params[key]['prior'],free_params[key]['value']))
 
     opt_steps_dict = {key:[] for key in names}
     opt_steps_dict['llh'] = []
-    const_args = (names,scales,fmap,const_params,opt_steps_dict,priors)
+    const_args = (names,scales,fmap,fixed_params,opt_steps_dict,priors)
 
     init_vals = np.array(init_vals)*np.array(scales)
 
@@ -196,11 +122,11 @@ def find_max_llh_powell(fmap,settings,assume_nmh=True):
 
     return vals
 
-def find_max_llh_opt(fmap,temp_maker,fiducial_params,llr_settings,save_opt_steps=False,
-                     assume_nmh=True):
+def find_max_llh_opt(fmap,temp_maker,params,llr_settings,save_opt_steps=False,
+                     normal_hierarchy=True):
     '''
-    Finds the template (and syst params) that maximize likelihood that
-    the data came from the chosen template of true params.
+    Finds the template (and free systematic params) that maximize likelihood
+    that the data came from the chosen template of true params.
 
     returns a dictionary of llh data and best fit params, in the format:
 
@@ -209,15 +135,16 @@ def find_max_llh_opt(fmap,temp_maker,fiducial_params,llr_settings,save_opt_steps
        'param2': [...],
        ...}
 
-    where 'param1', 'param2', ... are the systematic params varied by
+    where 'param1', 'param2', ... are the free params varied by
     optimizer, and they hold a list of all the values tested in
     optimizer algorithm, unless save_opt_steps is False, in which case
     they are one element in length-the best fit params and best fit llh.
     '''
 
-    # Get params dict which will be optimized (syst_params) and which
-    # won't be (const_params) but are still needed for get_template()
-    syst_params,const_params = get_param_types(fiducial_params,assume_nmh)
+    # Get params dict which will be optimized (free_params) and which
+    # won't be (fixed_params) but are still needed for get_template()
+    fixed_params = get_fixed_params(params,normal_hierarchy)
+    free_params = get_free_params(params,normal_hierarchy)
 
     init_vals = []
     bounds = []
@@ -225,21 +152,18 @@ def find_max_llh_opt(fmap,temp_maker,fiducial_params,llr_settings,save_opt_steps
     names = []
     scales = []
     priors = []
-    for key in syst_params.keys():
-        init_vals.append(syst_params[key]['best'])
-        #init_vals.append( (syst_params[key]['min']+syst_params[key]['max'])/2.0 )
-        bound = (syst_params[key]['min']*syst_params[key]['scale'],
-                 syst_params[key]['max']*syst_params[key]['scale'])
+    for key in free_params.keys():
+        init_vals.append(free_params[key]['value'])
+        bound = list(free_params[key]['range'])
         bounds.append(bound)
         names.append(key)
-        scales.append(syst_params[key]['scale'])
-        priors.append((syst_params[key]['prior'],syst_params[key]['best']))
-
+        scales.append(free_params[key]['scale'])
+        priors.append((free_params[key]['prior'],free_params[key]['value']))
 
     opt_steps_dict = {key:[] for key in names}
     opt_steps_dict['llh'] = []
 
-    const_args = [names,scales,fmap,const_params,temp_maker,opt_steps_dict,priors]
+    const_args = [names,scales,fmap,fixed_params,temp_maker,opt_steps_dict,priors]
 
     init_vals = np.array(init_vals)*np.array(scales)
 
@@ -302,7 +226,7 @@ def llh_bfgs(opt_vals,*args):
     function as follows:
 
     --opt_vals: [param1,param2,...,paramN] - systematics varied in the optimization.
-    --args: [names,scales,fmap,const_params,opt_steps_dict]
+    --args: [names,scales,fmap,fixed_params,template_maker,opt_steps_dict,priors]
       where
         names: are the dict keys corresponding to param1, param2,...
         scales: the scales to be applied before passing to get_template
@@ -310,8 +234,9 @@ def llh_bfgs(opt_vals,*args):
           Here, we keep them between 0.1,1 so the "epsilon" step size will vary
           the parameters in roughly the same precision.]
         fmap: pseudo data flattened map
-        const_params: dictionary of other paramters needed by the get_template()
+        fixed_params: dictionary of other paramters needed by the get_template()
           function
+        template_maker: template maker object
         opt_steps_dict: dictionary recording information regarding the steps taken
           for each trial of the optimization process.
         priors: gaussian priors corresponding to opt_vals list.
@@ -323,7 +248,7 @@ def llh_bfgs(opt_vals,*args):
     names = args[0]
     scales = args[1]
     fmap = args[2]
-    const_params = args[3]
+    fixed_params = args[3]
     temp_maker = args[4]
     opt_steps_dict = args[5]
     priors = args[6]
@@ -332,28 +257,21 @@ def llh_bfgs(opt_vals,*args):
     for i in xrange(len(opt_vals)):
         template_params[names[i]] = opt_vals[i]/scales[i]
 
-    template_params = dict(template_params.items() + const_params.items())
+    template_params = dict(template_params.items() + get_values(fixed_params).items())
 
     # Now get true template, and compute LLH
     true_template = temp_maker.get_template(template_params)
-    true_cscd = true_template['cscd']['map'].flatten()
-    true_trck = true_template['trck']['map'].flatten()
-    true_fmap = np.append(true_cscd,true_trck)
-    true_fmap = np.array(true_fmap)[np.nonzero(true_fmap)]
+    true_fmap = flatten_map(true_template)
 
     # NOTE: The minus sign is present on both of these next two lines
     # to reflect the fact that the optimizer finds a minimum rather
     # than maximum.
     llh = -get_binwise_llh(fmap,true_fmap)
     for i,prior in enumerate(priors):
-        prior_val = add_prior(opt_vals[i],priors[i])
+        prior_val = get_prior_llh(opt_vals[i],prior[1],prior[0])
         llh -= prior_val
 
     # Opt steps dict, to see what values optimizer is testing:
-    #if opt_steps_dict is not None:
-    #    for key in names:
-    #        opt_steps_dict[key].append(template_params[key])
-    #    opt_steps_dict['llh'].append(llh)
     for key in names:
         opt_steps_dict[key].append(template_params[key])
     opt_steps_dict['llh'].append(llh)

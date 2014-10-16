@@ -17,7 +17,7 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from scipy.constants import Julian_year
 
 from pisa.resources.resources import find_resource
-from pisa.analysis.LLR.LLRAnalysis import get_fiducial_params
+from pisa.utils.params import get_fixed_params, get_free_params, get_values
 from pisa.utils.jsons import from_json,to_json,json_string
 from pisa.utils.utils import set_verbosity
 
@@ -44,28 +44,26 @@ class TemplateMaker:
 
 
     '''
-    def __init__(self,template_settings,ebins=None,czbins=None,
-                 **kwargs):
+    def __init__(self,template_settings,ebins=None,czbins=None,oversample_e=None,
+                 oversample_cz=None,**kwargs):
         '''
         TemplateMaker class handles all of the setup and calculation of the
         templates for a given binning.
 
         Parameters:
-        * template_settings - dictionary of all template-making settings,
-          from input json file
+        * template_settings - dictionary of all template-making settings
         * ebins - energy bin edges
         * czbins - coszen bin edges
         '''
 
         self.ebins = ebins
         self.czbins = czbins
-        self.livetime = template_settings['livetime']
-
+        self.oversample_e = oversample_e
+        self.oversample_cz = oversample_cz
         logging.debug("Using %u bins in energy from %.2f to %.2f GeV"%
                       (len(self.ebins)-1,self.ebins[0],self.ebins[-1]))
         logging.debug("Using %u bins in cos(zenith) from %.2f to %.2f"%
                       (len(self.czbins)-1,self.czbins[0],self.czbins[-1]))
-        logging.debug("Template livetime: %.2f yr"%self.livetime)
 
         #Instantiate a flux model service
         self.flux_service = HondaFluxService(**template_settings)
@@ -108,11 +106,11 @@ class TemplateMaker:
         flux_maps = get_flux_maps(self.flux_service,self.ebins,self.czbins)
 
         logging.info("Getting osc prob maps...")
-        osc_flux_maps = get_osc_flux(flux_maps,self.osc_service,oversample=2,**params)
+        osc_flux_maps = get_osc_flux(flux_maps,self.osc_service,
+            oversample_e=self.oversample_e,oversample_cz=self.oversample_cz,**params)
 
         logging.info("Getting event rate true maps...")
-        event_rate_maps = get_event_rates(osc_flux_maps,self.aeff_service,
-                                          livetime=self.livetime, **params)
+        event_rate_maps = get_event_rates(osc_flux_maps,self.aeff_service, **params)
 
         logging.info("Getting event rate reco maps...")
         event_rate_reco_maps = get_reco_maps(event_rate_maps,self.reco_service,
@@ -147,14 +145,15 @@ if __name__ == '__main__':
 
     time0 = datetime.now()
 
-    settings = from_json(args.settings)
-    temp_maker = TemplateMaker(settings['binning'],settings['template'])
+    model_settings = from_json(args.settings)
+    template_maker = TemplateMaker(get_values(model_settings['params']),**model_settings['binning'])
 
     time1 = datetime.now()
     print "\n  >>Finished initializing in %s sec.\n"%(time1 - time0)
 
-    fiducial_params = get_fiducial_params(settings)
-    temp_maker.get_template(fiducial_params)
+    template_params= dict(get_values(get_fixed_params(model_settings['params'])).items()
+                        + get_values(get_free_params(model_settings['params'])).items())
+    template_maker.get_template(template_params)
 
     print "Finished getting template in %s sec."%(datetime.now() - time1)
     print "total time to run: %s sec."%(datetime.now() - time0)

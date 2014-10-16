@@ -124,7 +124,7 @@ class OscillationServiceBase:
 
 
     def get_osc_probLT_dict(self, ebins=None, czbins=None,
-                            oversample=10, **kwargs):
+                            oversample_e=10,oversample_cz=10, **kwargs):
         """
         This will create the oscillation probability map lookup tables
         (LT) corresponding to atmospheric neutrinos oscillation
@@ -137,16 +137,16 @@ class OscillationServiceBase:
          'ebins': ebins}
         Will call fill_osc_prob to calculate the individual
         probabilities on the fly.
-        By default, the standard binning is oversampled by a factor 2.
+        By default, the standard binning is oversampled by a factor 10.
         Alternatively, the oversampling factor can be changed or a fine
         binning specified explicitly. In the latter case, the oversampling
         factor is ignored.
         """
         #First initialize the fine binning if not explicitly given
         if not check_fine_binning(ebins, self.ebins):
-            ebins = oversample_binning(self.ebins, oversample)
+            ebins = oversample_binning(self.ebins, oversample_e)
         if not check_fine_binning(czbins, self.czbins):
-            czbins = oversample_binning(self.czbins, oversample)
+            czbins = oversample_binning(self.czbins, oversample_cz)
         ecen = get_bin_centers(ebins)
         czcen = get_bin_centers(czbins)
 
