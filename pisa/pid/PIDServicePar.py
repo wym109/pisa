@@ -19,34 +19,34 @@ class PIDServicePar:
     Create the PID maps for each flavor from the parametrized functions, and
     provide them for the PID stage.
     '''
-    def __init__(self,pid_data,ebins,czbins):
+    def __init__(self,ebins,czbins,particle_ID=None,**kwargs):
 
         logging.info('Initializing PIDServicePar...')
-        
+
         #Evaluate the functions at the bin centers
         ecen = get_bin_centers(ebins)
         czcen = get_bin_centers(czbins)
 
         self.pid_maps = {}
-        for signature in pid_data.keys():
+        for signature in particle_ID.keys():
             #Generate the functions
-            to_trck_func = eval(pid_data[signature]['trck'])
-            to_cscd_func = eval(pid_data[signature]['cscd'])
+            to_trck_func = eval(particle_ID[signature]['trck'])
+            to_cscd_func = eval(particle_ID[signature]['cscd'])
 
             #Make maps from the functions evaluated at the bin centers
             _,to_trck_map = np.meshgrid(czcen, to_trck_func(ecen))
             _,to_cscd_map = np.meshgrid(czcen, to_cscd_func(ecen))
-            
+
             if (to_trck_map < 0.0).any() == True:
                 logging.debug('ERROR: trck PID map has negative values! This should never happen- investigate PID parameterization')
                 sys.exit(1)
             if (to_cscd_map < 0.0).any() == True:
                 logging.debug('ERROR: cscd PID map has negative values! This should never happen- investigate PID parameterization')
                 sys.exit(1)
-                
+
             self.pid_maps[signature] = {'trck':to_trck_map,
                                         'cscd':to_cscd_map}
-    
+
     def get_maps(self):
         '''
         Return the pid functions.

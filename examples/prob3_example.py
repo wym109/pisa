@@ -9,7 +9,7 @@
 # oscillation probabilities in a stand-alone form. The prob3
 # oscillation code, written by members of the Super K collaboration
 # (http://www.phy.duke.edu/~raw22/public/Prob3++/) is a fast
-# oscillation probability calculator for and is based on the analytic
+# oscillation probability calculator and is based on the analytic
 # solution for the propagation of three flavor neutrino probabilities
 # of: Barger et al. Phys. Rev. D22 (1980) 2718.
 # 

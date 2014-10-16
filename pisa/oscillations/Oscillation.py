@@ -45,7 +45,7 @@ def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,
 
     #Initialize return dict
     osc_flux_maps = {'params': add_params(params,flux_maps['params'])}
-    
+
     #Get oscillation probability map from service
     osc_prob_maps = osc_service.get_osc_prob_maps(deltam21=deltam21,
                                                   deltam31=deltam31,
@@ -57,7 +57,7 @@ def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,
                                                   **kwargs)
 
     ebins, czbins = get_binning(flux_maps)
-    
+
     for to_flav in ['nue','numu','nutau']:
         for mID in ['','_bar']: # 'matter' ID
             nue_flux = flux_maps['nue'+mID]['map']
@@ -68,12 +68,12 @@ def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,
                               numu_flux*osc_prob_maps['numu'+mID+'_maps'][to_flav+mID])
                        }
             osc_flux_maps[to_flav+mID] = oscflux
-            
+
     return osc_flux_maps
 
-        
+
 if __name__ == '__main__':
-    
+
     #Only show errors while parsing
     set_verbosity(0)
 

@@ -20,102 +20,86 @@ from pisa.utils.jsons import from_json,to_json
 from LLRAnalysis import get_fiducial_params, get_pseudo_data_fmap, find_max_llh_opt, get_true_fmap
 from pisa.analysis.TemplateMaker import TemplateMaker
 
-def fill_llh_dict(llh_dict,data,trial):
+def show_time(time_stop, time_start):
     '''
-    Fills the LLH_dict with the data from 1 trial of data MH assume MH
+    This print message is repeated whenever the optimizer is finished...
     '''
-    llh_dict['llh'].append(data[0])
-    llh_dict['best'].append(data[1])
-    if llh_dict['opt_steps']:
-        llh_dict['opt_steps']['trial'+str(trial)] = dict(data[2].items())
+    print "Total time to run optimizer: ",(time_stop - time_start)
+    print "\n-------------------------------------------------------------------\n\n"
 
     return
 
-    
-parser = ArgumentParser(description='''Runs the LLR optimizer-based analysis varying a number of systematic 
-parameters defined in settings.json file and saves the likelihood ratios, 
-which will be later converted to a significance of the measurement.''',
+parser = ArgumentParser(description='''Runs the LLR optimizer-based analysis varying a number of systematic parameters
+defined in settings.json file and saves the likelihood ratios, which will be
+later converted to a significance of the measurement.''',
                         formatter_class=RawTextHelpFormatter)
-parser.add_argument('temp_settings',type=str,
-                    help='''<template_settings>.json file which stores information 
-related to the template-making part of the analysis with all relevant systematics. 
-Minimally, this will have fields for:
-      'template': {},
-      'fiducial': {} ''')
-parser.add_argument('llr_settings',type=str,
-                    help='''<llr_settings>.json file which stores information 
-related to the optimizer-based llr analysis.''')
+parser.add_argument('model_settings',type=str,metavar='JSONFILE',
+                    help='''File which stores information related to the template-making part of the
+analysis with all relevant systematics.''')
+parser.add_argument('llr_settings',type=str,metavar='JSONFILE',
+                    help='''File which stores information related to the optimizer-based llr analysis.''')
 parser.add_argument('ntrials',type=int,
                     help="Number of trials to run the LLR analysis.")
 parser.add_argument('-s','--save_opt_steps',action='store_true',default=False,
                     help="Save all steps the optimizer takes.")
-parser.add_argument('-o','--outfile',type=str,default=None,
-                    help="Output filename [.json]")
+parser.add_argument('-o','--outfile',type=str,default=None,metavar='JSONFILE',
+                    help="Output filename.")
 parser.add_argument('-v', '--verbose', action='count', default=0,
                     help='set verbosity level')
 args = parser.parse_args()
 
 set_verbosity(args.verbose)
-temp_settings = from_json(args.temp_settings)
+model_settings = from_json(args.model_settings)
 llr_settings  = from_json(args.llr_settings)
-save_opt_steps = args.save_opt_steps
 
 full_start_time = datetime.now()
 
-LLH_dict = {data: {'NMH': {'llh': [], 'best': [], 'opt_steps':{}},
-                   'IMH': {'llh': [], 'best': [], 'opt_steps':{}}}
-            for data in ['data_NMH','data_IMH'] }
+LLH_dict = {data: {'NMH':{},'IMH':{}} for data in ['data_NMH','data_IMH']}
 
-temp_maker = TemplateMaker(temp_settings['binning'],temp_settings['template'])
-    
-for itrial in xrange(args.ntrials):
-    itrial+=1
+temp_maker = TemplateMaker(model_settings['template'],**model_settings['binning'])
+
+for itrial in xrange(1,args.ntrials+1):
     logging.info(">>>Running trial: %d\n"%itrial)
-    
-    start_time = datetime.now()
-    
-    # This will get the template params assuming NMH (given to get_templates)
-    fiducial_params = get_fiducial_params(temp_settings,use_best=True,use_nmh=True)
-    fmap_nmh = get_pseudo_data_fmap(temp_maker,fiducial_params)
-    
-    nmh_assume_nmh = find_max_llh_opt(fmap_nmh,temp_maker,temp_settings['fiducial'],
-                                      llr_settings,save_opt_steps,assume_nmh=True)    
-    fill_llh_dict(LLH_dict['data_NMH']['NMH'],nmh_assume_nmh,itrial)
-    stop1 = datetime.now()
-    print "Total time to run optimizer: ",(stop1 - start_time)
-    print "\n-------------------------------------------------------------------\n\n"
 
-    nmh_assume_imh = find_max_llh_opt(fmap_nmh,temp_maker,temp_settings['fiducial'],
-                                      llr_settings,save_opt_steps,assume_nmh=False)
-    fill_llh_dict(LLH_dict['data_NMH']['IMH'],nmh_assume_imh,itrial)
+    start_time = datetime.now()
+
+    # This will get the template params assuming NMH (given to get_templates)
+    fiducial_params = get_fiducial_params(model_settings,normal_hierarchy=True)
+    fmap_nmh = get_pseudo_data_fmap(temp_maker,fiducial_params)
+
+    llh_data = find_max_llh_opt(fmap_nmh,temp_maker,model_settings['fiducial'],
+                                      llr_settings,args.save_opt_steps,assume_nmh=True)
+    LLH_dict['data_NMH']['NMH']['trial'+str(itrial)] = llh_data
+    stop1 = datetime.now()
+    show_time(stop1,start_time)
+
+    llh_data = find_max_llh_opt(fmap_nmh,temp_maker,model_settings['fiducial'],
+                                llr_settings,args.save_opt_steps,assume_nmh=False)
+    LLH_dict['data_NMH']['IMH']['trial'+str(itrial)] = llh_data
     stop2 = datetime.now()
-    print "Total time to run optimizer: ",(stop2 - stop1)
-    print "\n-------------------------------------------------------------------\n\n"
-    
+    show_time(stop2,stop1)
 
     # Now for IMH pseudo data:
-    fiducial_params = get_fiducial_params(temp_settings,use_best=True,use_nmh=False)
+    fiducial_params = get_fiducial_params(model_settings,use_best=True,normal_hierarchy=False)
     fmap_imh = get_pseudo_data_fmap(temp_maker,fiducial_params)
-    
-    imh_assume_nmh = find_max_llh_opt(fmap_imh,temp_maker,temp_settings['fiducial'],
-                                      llr_settings,save_opt_steps,assume_nmh=True)
-    fill_llh_dict(LLH_dict['data_IMH']['NMH'],imh_assume_nmh,itrial)
+
+    llh_data = find_max_llh_opt(fmap_imh,temp_maker,model_settings['fiducial'],
+                                llr_settings,args.save_opt_steps,assume_nmh=True)
+    LLH_dict['data_IMH']['NMH']['trial'+str(itrial)] = llh_data
     stop3 = datetime.now()
-    print "Total time to run optimizer: ",(stop3 - stop2)
-    print "\n-------------------------------------------------------------------\n\n"
+    show_time(stop3,stop2)
 
-    imh_assume_imh = find_max_llh_opt(fmap_imh,temp_maker,temp_settings['fiducial'],
-                                      llr_settings,save_opt_steps,assume_nmh=False)
-    fill_llh_dict(LLH_dict['data_IMH']['IMH'],imh_assume_imh,itrial)
+    llh_data = find_max_llh_opt(fmap_imh,temp_maker,model_settings['fiducial'],
+                                llr_settings,args.save_opt_steps,assume_nmh=False)
+    LLH_dict['data_IMH']['IMH']['trial'+str(itrial)] = llh_data
     stop4 = datetime.now()
-    print "Total time to run optimizer: ",(stop4 - stop3)
-    print "\n-------------------------------------------------------------------\n\n"
+    show_time(stop4,stop3)
 
-LLH_dict['temp_settings'] = temp_settings
+LLH_dict['model_settings'] = model_settings
 LLH_dict['llr_settings'] = llr_settings
 outfile = args.outfile if args.outfile is not None else "llh_data_trials_"+str(args.ntrials)+".json"
 to_json(LLH_dict,outfile)
-    
+
 print"Total time taken to run %d trials: %s"%(args.ntrials,
                                               (datetime.now() - full_start_time))
 

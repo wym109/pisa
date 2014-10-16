@@ -6,7 +6,7 @@
 # purpose of stage2 is to combine the "oscillated Flux maps" with the
 # effective areas to create oscillated event rate maps, using the true
 # information.
-# 
+#
 # If desired, this will create a .json output file with the results of
 # the current stage of processing.
 #
@@ -29,8 +29,8 @@ from pisa.aeff.AeffServicePar import AeffServicePar
 from scipy.constants import Julian_year
 
 
-def get_event_rates(osc_flux_maps,aeff_service,livetime=1.0,nu_xsec_scale=1.0,
-                    nubar_xsec_scale=1.0,aeff_scale=1.0,**kwargs):
+def get_event_rates(osc_flux_maps,aeff_service,livetime=None,nu_xsec_scale=None,
+                    nubar_xsec_scale=None,aeff_scale=None,**kwargs):
     '''
     Main function for this module, which returns the event rate maps
     for each flavor and interaction type, using true energy and zenith
@@ -41,7 +41,7 @@ def get_event_rates(osc_flux_maps,aeff_service,livetime=1.0,nu_xsec_scale=1.0,
      'nue_bar': {'cc':map,'nc':map}, ...
      'nutau_bar': {'cc':map,'nc':map} }
     '''
-    
+
     #Get parameters used here
     params = get_params()
     report_params(params,units = ['','yrs','',''])
@@ -51,9 +51,9 @@ def get_event_rates(osc_flux_maps,aeff_service,livetime=1.0,nu_xsec_scale=1.0,
 
     #Get effective area
     aeff_dict = aeff_service.get_aeff()
-    
+
     ebins, czbins = get_binning(osc_flux_maps)
-    
+
     # apply the scaling for nu_xsec_scale and nubar_xsec_scale...
     flavours = ['nue','numu','nutau','nue_bar','numu_bar','nutau_bar']
     for flavour in flavours:
@@ -61,14 +61,14 @@ def get_event_rates(osc_flux_maps,aeff_service,livetime=1.0,nu_xsec_scale=1.0,
         int_type_dict = {}
         for int_type in ['cc','nc']:
             event_rate = osc_flux_map*aeff_dict[flavour][int_type]*aeff_scale
-            
+
             scale = nubar_xsec_scale if 'bar' in flavour else nu_xsec_scale
             event_rate *= (scale*livetime*Julian_year)
             int_type_dict[int_type] = {'map':event_rate,
                                        'ebins':ebins,
                                        'czbins':czbins}
         event_rate_maps[flavour] = int_type_dict
-        
+
     return event_rate_maps
 
 if __name__ == '__main__':
@@ -78,7 +78,7 @@ if __name__ == '__main__':
                             formatter_class=RawTextHelpFormatter)
     parser.add_argument('osc_flux_maps',metavar='FLUX',type=from_json,
                      help='''JSON osc flux input file with the following parameters:
-      {"nue": {'czbins':[], 'ebins':[], 'map':[]}, 
+      {"nue": {'czbins':[], 'ebins':[], 'map':[]},
        "numu": {...},
        "nutau": {...},
        "nue_bar": {...},
@@ -115,24 +115,24 @@ if __name__ == '__main__':
 
     #Set verbosity level
     set_verbosity(args.verbose)
-        
+
     #Check binning
     ebins, czbins = check_binning(args.osc_flux_maps)
 
     logging.info("Defining aeff_service...")
-    
+
     if args.parametric:
         logging.info("  Using effective area from PARAMETRIZATION...")
         aeff_service = AeffServicePar(ebins,czbins,settings_file=args.settings_file)
     else:
         logging.info("  Using effective area from EVENT DATA...")
         aeff_service = AeffServiceMC(ebins,czbins,simfile=args.weighted_aeff_file)
-        
+
     event_rate_maps = get_event_rates(args.osc_flux_maps,aeff_service,args.livetime,
                                       args.nu_xsec_scale,args.nubar_xsec_scale,
                                       args.aeff_scale)
-    
+
     logging.info("Saving output to: %s"%args.outfile)
     to_json(event_rate_maps,args.outfile)
-    
-    
+
+

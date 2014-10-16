@@ -20,16 +20,16 @@ class AeffServiceMC:
     flavor (nue,nue_bar,numu,...) and interaction type (CC, NC)
     '''
 
-    def __init__(self,ebins,czbins,simfile=None):
+    def __init__(self,ebins,czbins,aeff_weight_file=None,**kwargs):
         self.ebins = ebins
         self.czbins = czbins
         logging.info('Initializing AeffServiceMC...')
-        
-        logging.info('Opening file: %s'%(simfile))
+
+        logging.info('Opening file: %s'%(aeff_weight_file))
         try:
-            fh = h5py.File(find_resource(simfile),'r')
+            fh = h5py.File(find_resource(aeff_weight_file),'r')
         except IOError,e:
-            logging.error("Unable to open simfile %s"%simfile)
+            logging.error("Unable to open aeff_weight_file %s"%aeff_weight_file)
             logging.error(e)
             sys.exit(1)
 
@@ -42,7 +42,7 @@ class AeffServiceMC:
                 weighted_aeff = np.array(fh[flavor+'/'+int_type+'/weighted_aeff'])
                 true_energy = np.array(fh[flavor+'/'+int_type+'/true_energy'])
                 true_coszen = np.array(fh[flavor+'/'+int_type+'/true_coszen'])
-                
+
                 bins = (self.ebins,self.czbins)
                 aeff_hist,_,_ = np.histogram2d(true_energy,true_coszen,
                                                weights=weighted_aeff,bins=bins)

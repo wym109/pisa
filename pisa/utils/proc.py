@@ -3,7 +3,7 @@
 #
 # A set of utilities for common processing tasks in
 # the different stages.
-# 
+#
 # author: Sebastian Boeser
 #         sboeser@physik.uni-bonn.de
 #
@@ -14,12 +14,12 @@ import inspect
 
 def get_params():
     '''
-    Get the parameter names and values of the calling function 
+    Get the parameter names and values of the calling function
     Ignores any non-simple parameters (classes, dicts, etc...)
     '''
     #Get the frame of the calling function
     frame = inspect.stack()[1][0]
-    #Get list of arguments and values dict, ignoring *varargs and **kwargs 
+    #Get list of arguments and values dict, ignoring *varargs and **kwargs
     args, _, _, values = inspect.getargvalues(frame)
     #Select only types with primitive values
     ptypes =  (int, float, bool, str)
@@ -34,7 +34,7 @@ def report_params(params,units):
     #Print everything - must be sorted
     for key, unit in zip(sorted(params), units):
         logging.debug("%20s: %.4e %s"%(key,params[key],unit))
-    
+
 def add_params(setA,setB):
     '''
     Join the parameters in setA and setB,

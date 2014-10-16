@@ -6,7 +6,7 @@
 # as possible to avoid re-running stages when not needed.
 #
 # author: Timothy C. Arlen - tca3@psu.edu
-# 
+#
 # date:   7 Oct 2014
 #
 
@@ -37,120 +37,125 @@ class TemplateMaker:
     '''
     This class handles all steps needed to produce a template with a
     constant binning.
-    
+
     The strategy employed will be to define all 'services' in the
     initialization process, make them members of the class, then use
     them later when needed.
-     
-    
+
+
     '''
-    def __init__(self,binning,temp_settings):
+    def __init__(self,template_settings,ebins=None,czbins=None,
+                 **kwargs):
         '''
-        TemplateMaker class handles all of the setup and calculation of the 
+        TemplateMaker class handles all of the setup and calculation of the
         templates for a given binning.
-        
-        input - temp_settings, which is a dictionary directly obtained from a
-        geometry_settings.json file.
+
+        Parameters:
+        * template_settings - dictionary of all template-making settings,
+          from input json file
+        * ebins - energy bin edges
+        * czbins - coszen bin edges
         '''
-        
-        self.ebins = binning['ebins']
-        self.czbins = binning['czbins']
-        
+
+        self.ebins = ebins
+        self.czbins = czbins
+        self.livetime = template_settings['livetime']
+
         logging.debug("Using %u bins in energy from %.2f to %.2f GeV"%
                       (len(self.ebins)-1,self.ebins[0],self.ebins[-1]))
         logging.debug("Using %u bins in cos(zenith) from %.2f to %.2f"%
                       (len(self.czbins)-1,self.czbins[0],self.czbins[-1]))
-        
+        logging.debug("Template livetime: %.2f yr"%self.livetime)
+
         #Instantiate a flux model service
-        self.flux_service = HondaFluxService(temp_settings['flux_file'])
-                
+        self.flux_service = HondaFluxService(**template_settings)
+
         # Oscillated Flux:
-        if temp_settings['osc_code']=='prob3':
+        if template_settings['osc_code']=='prob3':
             self.osc_service = Prob3OscillationService(self.ebins,self.czbins,
-                               earth_model=temp_settings['earth_model'])
+                                                       **template_settings)
         else:
             raise Exception('OscillationService is only implemented for prob3! osc_code = %s'%osc_code)
-        
+
         # Aeff/True Event Rate:
-        if temp_settings['parametric']:
+        if template_settings['parametric']:
             logging.info("  Using effective area from PARAMETRIZATION...")
             self.aeff_service = AeffServicePar(self.ebins,self.czbins,
-                              temp_settings['aeff_egy_par'],
-                              temp_settings['aeff_coszen_par'])
+                                               **template_settings)
         else:
             logging.info("  Using effective area from MC EVENT DATA...")
             self.aeff_service = AeffServiceMC(self.ebins,self.czbins,
-                         simfile=temp_settings['aeff_weight_file'])    
-            
+                                              **template_settings)
+
         # Reco Event Rate:
         self.reco_service = RecoServiceMC(self.ebins,self.czbins,
-                      simfile=temp_settings['aeff_weight_file'])
-        
+                                          **template_settings)
+
         # PID Service:
-        self.pid_service = PIDServicePar(temp_settings['particle_ID'],
-                                         self.ebins,self.czbins)
-        
+        self.pid_service = PIDServicePar(self.ebins,self.czbins,
+                                         **template_settings)
+
         return
- 
-    
-    def get_template(self,fiducial,save_stages=False):
+
+
+    def get_template(self,params,return_stages=False):
         '''
-        Makes a template, from specific parameters found in fiducial dict.
+        Runs entire template-making chain, using parameters found in
+        'params' dict. If 'return_stages' is set to True, returns
+        output from each stage as a simple tuple.
         '''
-        
+
         flux_maps = get_flux_maps(self.flux_service,self.ebins,self.czbins)
-        
+
         logging.info("Getting osc prob maps...")
-        osc_flux_maps = get_osc_flux(flux_maps,self.osc_service,**fiducial)
-        
+        osc_flux_maps = get_osc_flux(flux_maps,self.osc_service,oversample=2,**params)
+
         logging.info("Getting event rate true maps...")
         event_rate_maps = get_event_rates(osc_flux_maps,self.aeff_service,
-                                          **fiducial)
-        
+                                          livetime=self.livetime, **params)
+
         logging.info("Getting event rate reco maps...")
         event_rate_reco_maps = get_reco_maps(event_rate_maps,self.reco_service,
-                                             **fiducial)
-        
+                                             **params)
+
         logging.info("Getting pid maps...")
         final_event_rate = get_pid_maps(event_rate_reco_maps,self.pid_service)
-        
-        if save_stages:
-            final_event_rate['stages'] = {}
-            stages = final_event_rate['stages']
-            stages['flux_maps'] = flux_maps
-            stages['osc_flux_maps'] = osc_flux_maps
-            stages['event_rate_maps'] = event_rate_maps
-            stages['event_rate_reco_maps'] = event_rate_reco_maps
-            
-        return final_event_rate
-    
-    
+
+        if not return_stages:
+            return final_event_rate
+
+        # Otherwise, return all stages as a simple tuple
+        return (flux_maps, osc_flux_maps, event_rate_maps, event_rate_reco_maps,
+                final_event_rate)
+
+
 if __name__ == '__main__':
 
     #Only show errors while parsing
     set_verbosity(0)
-    
+
     # parser
     parser = ArgumentParser(description='''Runs the template making process.''',
                          formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument('settings',type=str,help="settings.json file to use.")
+    parser.add_argument('settings',type=str,metavar='JSONFILE',
+                        help="settings file to use for making templates.")
     parser.add_argument('-v','--verbose',action='count',default=0,
                         help='set verbosity level.')
     args = parser.parse_args()
-    
+
     set_verbosity(args.verbose)
 
-    time0 = datetime.now()  
-    
+    time0 = datetime.now()
+
     settings = from_json(args.settings)
     temp_maker = TemplateMaker(settings['binning'],settings['template'])
 
     time1 = datetime.now()
     print "\n  >>Finished initializing in %s sec.\n"%(time1 - time0)
-    
+
     fiducial_params = get_fiducial_params(settings)
     temp_maker.get_template(fiducial_params)
-    
+
     print "Finished getting template in %s sec."%(datetime.now() - time1)
     print "total time to run: %s sec."%(datetime.now() - time0)
-    
+
