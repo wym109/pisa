@@ -38,7 +38,7 @@ class ParamRecoService(RecoServiceBase):
     as a json dict. The parametrizations are assumed to be double 
     Gaussians in both energy and cos(zenith), shape only depending on 
     the true energy (not the direction!). Systematic parameters 
-    'energy_reco_scale' and 'coszen_reco_scale are supported.'
+    'e_reco_scale' and 'cz_reco_scale are supported.'
     """
     
     def __init__(self, ebins, czbins, **kwargs):
@@ -54,7 +54,7 @@ class ParamRecoService(RecoServiceBase):
  
  
     def get_reco_kernels(self, paramfile=None, 
-                         energy_reco_scale=1., coszen_reco_scale=1., 
+                         e_reco_scale=1., cz_reco_scale=1., 
                          **kwargs):
 
         logging.info('Opening reconstruction parametrization file %s'
@@ -69,7 +69,7 @@ class ParamRecoService(RecoServiceBase):
             sys.exit(1)
         
         # Scale reconstruction widths
-        self.apply_reco_scales(energy_reco_scale, coszen_reco_scale)
+        self.apply_reco_scales(e_reco_scale, cz_reco_scale)
         
         logging.info('Creating reconstruction kernels')
         self.calculate_kernels()
@@ -87,7 +87,7 @@ class ParamRecoService(RecoServiceBase):
         n_e = len(self.ebins)-1
         n_cz = len(self.czbins)-1
         
-        parametrization = dict.fromkeys(param_str, {'cc': None, 'nc': None})
+        parametrization = dict.fromkeys(param_str, {'cc': {}, 'nc': {}})
         for flavour in param_str:
           for int_type in ['cc', 'nc']:
             logging.debug('Parsing function strings for %s %s'
@@ -169,7 +169,7 @@ class ParamRecoService(RecoServiceBase):
             # loop over every bin in true (energy, coszen)
             for (i, j) in itertools.product(range(n_e), range(n_cz)):
                 
-                e_kern = doubleGauss(evals, 
+                e_kern = double_gauss(evals, 
                                      loc1=e_pars['loc1'][i,j]+evals[i], 
                                      width1=e_pars['width1'][i,j], 
                                      loc2=e_pars['loc2'][i,j]+evals[i], 
@@ -177,7 +177,7 @@ class ParamRecoService(RecoServiceBase):
                                      fraction=e_pars['fraction'][i,j])
                 
                 offset = n_cz if flipback else 0
-                cz_kern = doubleGauss(czvals, 
+                cz_kern = double_gauss(czvals, 
                                      loc1=cz_pars['loc1'][i,j]+czvals[j+offset], 
                                      width1=cz_pars['width1'][i,j], 
                                      loc2=cz_pars['loc2'][i,j]+czvals[j+offset], 
@@ -189,9 +189,12 @@ class ParamRecoService(RecoServiceBase):
                     cz_kern = cz_kern[:len(czvals)/2][::-1] \
                                 + cz_kern[len(czvals)/2:]
                 
-                kernel[i,j] = n.outer(e_kern, cz_kern)
+                kernel[i,j] = np.outer(e_kern, cz_kern)
             
             kernel_dict[flavour][int_type] = kernel
+        
+        kernel_dict['ebins'] = self.ebins
+        kernel_dict['czbins'] = self.czbins
         
         self.kernels = kernel_dict
         return self.kernels

@@ -15,7 +15,7 @@ import numpy as np
 from pisa.reco.RecoServiceBase import RecoServiceBase
 from pisa.resources.resources import find_resource
 
-class RecoServiceMC(RecoServiceBase):
+class MCRecoService(RecoServiceBase):
     """
     From the simulation file, creates 4D histograms of
     [true_energy][true_coszen][reco_energy][reco_coszen] which act as

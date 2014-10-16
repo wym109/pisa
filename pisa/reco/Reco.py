@@ -24,6 +24,7 @@ from pisa.utils.utils import set_verbosity, check_binning, get_binning
 from pisa.utils.jsons import from_json,to_json
 from pisa.utils.proc import report_params, get_params, add_params
 from pisa.reco.MCRecoService import MCRecoService
+from pisa.reco.ParamRecoService import ParamRecoService
 import numpy as np
 
 
@@ -61,6 +62,8 @@ Expects the file format to be:
          },
          'nue_bar' {...},...
       } ''')
+    parser.add_argument('--parametrization', type=str, default=None,
+                        help='''JSON file holding the parametrization''')
     parser.add_argument('--e_reco_scale',type=float,default=1.0,
                         help='''Reconstructed energy scaling.''')
     parser.add_argument('--cz_reco_scale',type=float,default=1.0,
@@ -79,8 +82,11 @@ Expects the file format to be:
     ebins, czbins = check_binning(args.event_rate_maps)
 
     logging.info("Defining RecoService...")
-    reco_service = MCRecoService(ebins,czbins,simfile=args.weighted_aeff_file,
-                                 **vars(args))
+    #reco_service = MCRecoService(ebins,czbins,simfile=args.weighted_aeff_file,
+    #                             **vars(args))
+    reco_service = ParamRecoService(ebins,czbins,
+                                    paramfile=args.parametrization,
+                                    **vars(args))
 
     event_rate_reco_maps = reco_service.get_reco_maps(args.event_rate_maps)
     
