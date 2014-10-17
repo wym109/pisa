@@ -14,7 +14,7 @@ from datetime import datetime
 import numpy as np
 import scipy.optimize as opt
 
-from pisa.utils.params import get_values, select_hierarchy, get_fixed_params, get_free_params, get_prior_llh
+from pisa.utils.params import get_values, select_hierarchy, get_fixed_params, get_free_params, get_prior_llh, get_param_values, get_param_scales, get_param_bounds, get_param_priors
 from pisa.analysis.LLR.LLHStatistics import get_random_map, get_binwise_llh
 
 def get_pseudo_data_fmap(template_maker,fiducial_params):
@@ -45,40 +45,50 @@ def flatten_map(template):
     return fmap
 
 
-def find_max_llh_grid(fmap_data,true_templates):
+def find_max_llh_grid(fmap_data,true_templates,save_grid_steps=True):
     '''
     Find the template from true_templates that maximizes likelihood
     that fmap_data came from the given template. Loops over all
     true_templates to find maximum.
 
-    returns
-      llh - value of max log(likelihood) found
-      best_fit_params - dict of best fit values of the systematic
-          params marginalized over.
-      trial_data - dict of (llh,deltam31,theta23) for each point
-          tested in the grid search.
+    returns dictionary of trial_data:
+      {
+        'llh':[...],
+        'deltam31': [...],
+        'theta23': [...]
+      }
+    where elements in list are the values tested in the grid search,
+    and the final values (e.g. trial_data['llh'][-1], trial_data['deltam31'][-1]
+    etc.) are the values that maximized llh.
     '''
-
 
     trial_data = {'llh':[],'deltam31':[],'theta23':[]}
 
     llh_max = -sys.float_info.max
-    best_fit = {}; best_fit['deltam31'] = 0.0; best_fit['theta23'] = 0.0
+    best_theta23 = 0.0
+    best_deltam31 = 0.0
     #print "  num true templates: ",len(true_templates)
     for true_template in true_templates:
         true_fmap = flatten_map(true_template)
         llh_val = get_binwise_llh(fmap_data,true_fmap)
 
-        trial_data['llh'].append(llh_val)
-        trial_data['deltam31'].append(true_template['params']['deltam31'])
-        trial_data['theta23'].append(true_template['params']['theta23'])
+        if save_grid_steps:
+            trial_data['llh'].append(llh_val)
+            trial_data['deltam31'].append(true_template['params']['deltam31'])
+            trial_data['theta23'].append(true_template['params']['theta23'])
 
         if llh_val > llh_max:
             llh_max = llh_val
-            best_fit['deltam31'] = true_template['params']['deltam31']
-            best_fit['theta23']  = true_template['params']['theta23']
+            best_deltam31 = true_template['params']['deltam31']
+            best_theta23  = true_template['params']['theta23']
 
-    return llh_max,best_fit,trial_data
+    # __Final__ values are the 'best' fit values-just like it is in the
+    # optimizer method.
+    trial_data['llh'].append(llh_max)
+    trial_data['deltam31'].append(best_fit['deltam31'])
+    trial_data['theta23'].append(best_fit['theta23'])
+
+    return trial_data
 
 def find_max_llh_powell(fmap,settings,assume_nmh=True):
     '''
@@ -86,8 +96,8 @@ def find_max_llh_powell(fmap,settings,assume_nmh=True):
     maximum likelihood for a given pseudo data fmap.
     '''
 
-    fixed_params = get_fixed_params(params,normal_hierarchy)
-    free_params = get_free_params(params,normal_hierarchy)
+    fixed_params = get_fixed_params(select_hierarchy(params,normal_hierarchy))
+    free_params = get_free_params(select_hierarchy(params,normal_hierarchy))
 
     init_vals = []
     const_args = []
@@ -122,19 +132,19 @@ def find_max_llh_powell(fmap,settings,assume_nmh=True):
 
     return vals
 
-def find_max_llh_opt(fmap,temp_maker,params,llr_settings,save_opt_steps=False,
-                     normal_hierarchy=True):
+def find_max_llh_bfgs(fmap,template_maker,params,bfgs_settings,save_opt_steps=False,
+                      normal_hierarchy=True):
     '''
-    Finds the template (and free systematic params) that maximize likelihood
-    that the data came from the chosen template of true params.
+    Finds the template (and free systematic params) that maximize
+    likelihood that the data came from the chosen template of true
+    params, using the limited memory BFGS algorithm subject to bounds
+    (l_bfgs_b).
 
     returns a dictionary of llh data and best fit params, in the format:
-
       {'llh': [...],
        'param1': [...],
        'param2': [...],
        ...}
-
     where 'param1', 'param2', ... are the free params varied by
     optimizer, and they hold a list of all the values tested in
     optimizer algorithm, unless save_opt_steps is False, in which case
@@ -143,52 +153,34 @@ def find_max_llh_opt(fmap,temp_maker,params,llr_settings,save_opt_steps=False,
 
     # Get params dict which will be optimized (free_params) and which
     # won't be (fixed_params) but are still needed for get_template()
-    fixed_params = get_fixed_params(params,normal_hierarchy)
-    free_params = get_free_params(params,normal_hierarchy)
+    fixed_params = get_fixed_params(select_hierarchy(params,normal_hierarchy))
+    free_params = get_free_params(select_hierarchy(params,normal_hierarchy))
 
-    init_vals = []
-    bounds = []
-    const_args = []
-    names = []
-    scales = []
-    priors = []
-    for key in free_params.keys():
-        init_vals.append(free_params[key]['value'])
-        bound = list(free_params[key]['range'])
-        bounds.append(bound)
-        names.append(key)
-        scales.append(free_params[key]['scale'])
-        priors.append((free_params[key]['prior'],free_params[key]['value']))
+    init_vals = get_param_values(free_params)
+    scales = get_param_scales(free_params)
+    bounds = get_param_bounds(free_params)
+    priors = get_param_priors(free_params)
+    names  = sorted(free_params.keys())
+
+    # Scale init-vals and bounds to work with bfgs opt:
+    init_vals = np.array(init_vals)*np.array(scales)
+    bounds = [bounds[i]*scales[i] for i in range(len(bounds))]
 
     opt_steps_dict = {key:[] for key in names}
     opt_steps_dict['llh'] = []
 
-    const_args = [names,scales,fmap,fixed_params,temp_maker,opt_steps_dict,priors]
-
-    init_vals = np.array(init_vals)*np.array(scales)
+    const_args = (names,scales,fmap,fixed_params,template_maker,opt_steps_dict,priors)
 
     print "bounds: ",bounds
     print "init_vals: ",init_vals
     print "priors: ",priors
 
-    factr = float(llr_settings['factr'])
-    epsilon = float(llr_settings['epsilon'])
-    pgtol = float(llr_settings['pgtol'])
-    m_corr = float(llr_settings['m'])
-    maxfun = float(llr_settings['maxfun'])
-    maxiter = float(llr_settings['maxiter'])
-
-    print "opt_settings: "
-    print "  factr: %.2e"%factr
-    print "  epsilon: %.2e"%epsilon
-    print "  pgtol: %.2e"%pgtol
-    print "  m: %d"%m_corr
-    print "  maxfun: %d"%maxfun
-    print "  maxiter: %d"%maxiter
+    logging.info("<<<OPTIMIZER SETTINGS>>>")
+    for key,item in bfgs_settings.items():
+        logging.info("  %s -> `%s` = %.2e"%(item['desc'],key,item['value']))
 
     vals = opt.fmin_l_bfgs_b(llh_bfgs,init_vals,args=const_args,approx_grad=True,
-                             iprint=0,bounds=bounds,epsilon=epsilon,factr=factr,
-                             pgtol=pgtol,m=m_corr,maxfun=maxfun,maxiter=maxiter)
+                             iprint=0,bounds=bounds,**get_values(bfgs_settings))
 
     best_fit_vals = vals[0]
     llh = vals[1]
@@ -198,9 +190,7 @@ def find_max_llh_opt(fmap,temp_maker,params,llr_settings,save_opt_steps=False,
     print "  best_fit_vals: ",best_fit_vals
     print "  dict_flags: ",dict_flags
 
-    best_fit_params = {}
-    for i in xrange(len(best_fit_vals)):
-        best_fit_params[names[i]] = best_fit_vals[i]
+    best_fit_params = { name: value for name, value in zip(names, best_fit_vals) }
     print "  best_fit_params: ",best_fit_params
 
     if not save_opt_steps:
@@ -245,33 +235,24 @@ def llh_bfgs(opt_vals,*args):
 
     print "\n  opt_vals: ",opt_vals
 
-    names = args[0]
-    scales = args[1]
-    fmap = args[2]
-    fixed_params = args[3]
-    temp_maker = args[4]
-    opt_steps_dict = args[5]
-    priors = args[6]
+    names,scales,fmap,fixed_params,template_maker,opt_steps_dict,priors = args
+    unscaled_free_params = { names[i]: (opt_vals[i]/scales[i])
+                             for i in xrange(len(opt_vals)) }
 
-    template_params = {}
-    for i in xrange(len(opt_vals)):
-        template_params[names[i]] = opt_vals[i]/scales[i]
-
-    template_params = dict(template_params.items() + get_values(fixed_params).items())
+    template_params = dict(unscaled_free_params.items() + get_values(fixed_params).items())
 
     # Now get true template, and compute LLH
-    true_template = temp_maker.get_template(template_params)
+    true_template = template_maker.get_template(template_params)
     true_fmap = flatten_map(true_template)
 
     # NOTE: The minus sign is present on both of these next two lines
     # to reflect the fact that the optimizer finds a minimum rather
     # than maximum.
     llh = -get_binwise_llh(fmap,true_fmap)
-    for i,prior in enumerate(priors):
-        prior_val = get_prior_llh(opt_vals[i],prior[1],prior[0])
-        llh -= prior_val
+    llh -= sum([ get_prior_llh(opt_val,sigma,value) for (opt_val,(sigma,value)) in zip(opt_vals,priors)])
 
-    # Opt steps dict, to see what values optimizer is testing:
+    # Save all optimizer-tested values to opt_steps_dict, to see
+    # optimizer history later
     for key in names:
         opt_steps_dict[key].append(template_params[key])
     opt_steps_dict['llh'].append(llh)

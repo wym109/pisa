@@ -10,6 +10,7 @@
 # date:   16 October 2014
 #
 
+
 def get_values(params):
     '''
     Takes the params dict which is of the form:
@@ -24,12 +25,7 @@ def get_values(params):
        'param2': val,...
       }
     '''
-    newparams = {}
-    for key,param in params.items():
-        newparams[key] = param['value']
-
-    return newparams
-
+    return { key: param['value'] for key, param in sorted(params.items()) }
 
 def select_hierarchy(params, normal_hierarchy=True):
     '''
@@ -51,40 +47,68 @@ def select_hierarchy(params, normal_hierarchy=True):
 
     return newparams
 
-def get_fixed_params(params, normal_hierarchy=True):
+def get_fixed_params(params):
     '''
     Finds all fixed parameters in params dict and returns them in a
     new dictionary.
     '''
 
     fixed_params = {}
-    for key, value in select_hierarchy(params,normal_hierarchy).items():
+    for key, value in params.items():
         if not value['fixed']: continue
         fixed_params[key] = value
 
     return fixed_params
 
-def get_free_params(params, normal_hierarchy=True):
+def get_free_params(params):
     '''
     Finds all free parameters in params dict and returns them in a new
     dictionary.
     '''
 
     free_params = {}
-    for key, value in select_hierarchy(params,normal_hierarchy).items():
+    for key, value in params.items():
         if value['fixed']: continue
         free_params[key] = value
 
     return free_params
 
-def get_prior_llh(value,fiducial,sigma):
+def get_prior_llh(value,sigma,fiducial):
     '''
     Returns the log(prior) for a gaussian prior probability, unless it
     has not been defined, in which case 0.0 is returned.. Ignores the
     constant term proportional to log(sigma_prior).
 
-    value - specific parameter of likelihood hypothesis
-    prior - a pair of (sigma_param,<best_fit_value>_param)
+    value - specific value of free parameter in likelihood hypothesis
+    sigma - (gaussian) prior on free parameter.
+    fiducial - best fit value of free parameter.
     '''
+    return 0.0 if sigma is None else -((value - fiducial)**2/(2.0*sigma**2))
 
-    return 0.0 if prior[0] is None else -((value - fiducial)**2/(2.0*sigma**2))
+def get_param_values(params):
+    '''
+    Returns a list of parameter values
+    '''
+    #return [ p['value'] for p in params.values()]
+    return [ val['value'] for key,val in sorted(params.items()) ]
+
+def get_param_scales(params):
+    '''
+    Returns a list of parameter scales
+    '''
+    #return [ p['scale'] for p in params.values()]
+    return [ val['scale'] for key,val in sorted(params.items()) ]
+
+def get_param_bounds(params):
+    '''
+    Returns a list of parameter bounds where elements are (min,max) pairs
+    '''
+    #return [ p['range'] for p in params.values()]
+    return [ val['range'] for key,val in sorted(params.items()) ]
+
+def get_param_priors(params):
+    '''
+    Returns a list of [(prior1,value1),...] for each param
+    '''
+    #return [ [p['prior'],p['value']] for p in params.values()]
+    return [ [val['prior'],val['value']] for key,val in sorted(params.items()) ]

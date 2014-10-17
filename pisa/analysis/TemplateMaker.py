@@ -73,7 +73,7 @@ class TemplateMaker:
             self.osc_service = Prob3OscillationService(self.ebins,self.czbins,
                                                        **template_settings)
         else:
-            raise Exception('OscillationService is only implemented for prob3! osc_code = %s'%osc_code)
+            raise NotImplementedError('OscillationService is only implemented for prob3! osc_code = %s'%osc_code)
 
         # Aeff/True Event Rate:
         if template_settings['parametric']:

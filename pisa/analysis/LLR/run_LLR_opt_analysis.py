@@ -17,7 +17,7 @@ from argparse import ArgumentParser,RawTextHelpFormatter
 
 from pisa.utils.utils import set_verbosity
 from pisa.utils.jsons import from_json,to_json
-from pisa.analysis.LLR.LLRAnalysis import get_pseudo_data_fmap, find_max_llh_opt
+from pisa.analysis.LLR.LLRAnalysis import get_pseudo_data_fmap, find_max_llh_bfgs
 from pisa.analysis.TemplateMaker import TemplateMaker
 from pisa.utils.params import get_values, select_hierarchy
 
@@ -75,13 +75,13 @@ for itrial in xrange(1,args.ntrials+1):
     fmap_nmh = get_pseudo_data_fmap(template_maker,
                                 get_values(select_hierarchy(model_settings['params'],
                                                             normal_hierarchy=True)))
-    llh_data = find_max_llh_opt(fmap_nmh,template_maker,model_settings['params'],
+    llh_data = find_max_llh_bfgs(fmap_nmh,template_maker,model_settings['params'],
                                 llr_settings,args.save_opt_steps,normal_hierarchy=True)
     LLH_dict['data_NMH']['NMH']['trial'+str(itrial)] = llh_data
     stop1 = datetime.now()
     show_time(stop1,start_time)
 
-    llh_data = find_max_llh_opt(fmap_nmh,template_maker,model_settings['params'],
+    llh_data = find_max_llh_bfgs(fmap_nmh,template_maker,model_settings['params'],
                                 llr_settings,args.save_opt_steps,normal_hierarchy=False)
     LLH_dict['data_NMH']['IMH']['trial'+str(itrial)] = llh_data
     stop2 = datetime.now()
@@ -93,13 +93,13 @@ for itrial in xrange(1,args.ntrials+1):
     fmap_imh = get_pseudo_data_fmap(template_maker,
                                get_values(select_hierarchy(model_settings['params'],
                                                            normal_hierarchy=False)))
-    llh_data = find_max_llh_opt(fmap_imh,template_maker,model_settings['params'],
+    llh_data = find_max_llh_bfgs(fmap_imh,template_maker,model_settings['params'],
                                 llr_settings,args.save_opt_steps,normal_hierarchy=True)
     LLH_dict['data_IMH']['NMH']['trial'+str(itrial)] = llh_data
     stop3 = datetime.now()
     show_time(stop3,stop2)
 
-    llh_data = find_max_llh_opt(fmap_imh,template_maker,model_settings['params'],
+    llh_data = find_max_llh_bfgs(fmap_imh,template_maker,model_settings['params'],
                                 llr_settings,args.save_opt_steps,normal_hierarchy=False)
     LLH_dict['data_IMH']['IMH']['trial'+str(itrial)] = llh_data
     stop4 = datetime.now()

@@ -1,8 +1,0 @@
-{
-    "factr": 1.0e9,
-    "epsilon": 1.0e-4,
-    "pgtol": 1.0e-5,
-    "m": 10,
-    "maxfun": 15000,
-    "maxiter": 20
-}
