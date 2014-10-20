@@ -149,7 +149,7 @@ Expects the file format to be:
     ebins, czbins = check_binning(args.event_rate_maps)
 
     logging.info("Defining RecoService...")
-    reco_service = RecoServiceMC(ebins,czbins,simfile=args.weighted_aeff_file)
+    reco_service = RecoServiceMC(ebins,czbins,reco_weight_file=args.weighted_aeff_file)
 
     event_rate_reco_maps = get_reco_maps(args.event_rate_maps,reco_service,args.e_reco_scale,
                                          args.cz_reco_scale)
