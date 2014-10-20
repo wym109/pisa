@@ -38,10 +38,10 @@ class PIDServicePar:
             _,to_trck_map = np.meshgrid(czcen, to_trck_func(ecen))
             _,to_cscd_map = np.meshgrid(czcen, to_cscd_func(ecen))
 
-            if (to_trck_map < 0.0).any() == True:
-                raise ValueError('trck PID map has negative values! This should never happen- investigate PID parameterization')
-            if (to_cscd_map < 0.0).any() == True:
-                raise ValueError('cscd PID map has negative values! This should never happen- investigate PID parameterization')
+            for label,pidmap in [('Track',to_trck_map),('Cascade',to_cscd_map)]:
+                if (pidmap < 0).any():
+                    raise ValueError('%s PID probabilites can not be negative!'
+                        ' Investigate parameterization'%label)
 
             self.pid_maps[signature] = {'trck':to_trck_map,
                                         'cscd':to_cscd_map}
