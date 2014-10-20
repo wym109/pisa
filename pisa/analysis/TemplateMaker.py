@@ -17,7 +17,7 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from scipy.constants import Julian_year
 
 from pisa.resources.resources import find_resource
-from pisa.utils.params import get_fixed_params, get_free_params, get_values
+from pisa.utils.params import get_fixed_params, get_free_params, get_values, select_hierarchy
 from pisa.utils.jsons import from_json,to_json,json_string
 from pisa.utils.utils import set_verbosity
 
@@ -137,6 +137,8 @@ if __name__ == '__main__':
                          formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument('settings',type=str,metavar='JSONFILE',
                         help="settings file to use for making templates.")
+    parser.add_argument('--normal',type=bool, default=True,
+                        help="true for normal hierarchy, otherwise false")
     parser.add_argument('-v','--verbose',action='count',default=0,
                         help='set verbosity level.')
     args = parser.parse_args()
@@ -145,16 +147,20 @@ if __name__ == '__main__':
 
     time0 = datetime.now()
 
+    #Load all the settings
     model_settings = from_json(args.settings)
-    template_maker = TemplateMaker(get_values(model_settings['params']),**model_settings['binning'])
+
+    #Select a hierarchy
+    params =  select_hierarchy(model_settings['params'],normal_hierarchy=args.normal)
+
+    #Intialize template maker
+    template_maker = TemplateMaker(get_values(params),**model_settings['binning'])
 
     time1 = datetime.now()
     print "\n  >>Finished initializing in %s sec.\n"%(time1 - time0)
 
-    template_params= dict(get_values(get_fixed_params(model_settings['params'])).items()
-                        + get_values(get_free_params(model_settings['params'])).items())
-    template_maker.get_template(template_params)
-
+    #Now get the actual template
+    template_maker.get_template(get_values(params))
     print "Finished getting template in %s sec."%(datetime.now() - time1)
     print "total time to run: %s sec."%(datetime.now() - time0)
 
