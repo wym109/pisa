@@ -62,7 +62,8 @@ Expects the file format to be:
          },
          'nue_bar' {...},...
       } ''')
-    parser.add_argument('--parametrization', type=str, default=None,
+    parser.add_argument('--parametrization', metavar='JSON', 
+                        type=str, default='reco_params/V15.json',
                         help='''JSON file holding the parametrization''')
     parser.add_argument('--e_reco_scale',type=float,default=1.0,
                         help='''Reconstructed energy scaling.''')
