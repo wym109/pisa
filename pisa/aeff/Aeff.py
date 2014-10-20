@@ -126,7 +126,7 @@ if __name__ == '__main__':
         aeff_service = AeffServicePar(ebins,czbins,settings_file=args.settings_file)
     else:
         logging.info("  Using effective area from EVENT DATA...")
-        aeff_service = AeffServiceMC(ebins,czbins,simfile=args.weighted_aeff_file)
+        aeff_service = AeffServiceMC(ebins,czbins,aeff_weight_file=args.weighted_aeff_file)
 
     event_rate_maps = get_event_rates(args.osc_flux_maps,aeff_service,args.livetime,
                                       args.nu_xsec_scale,args.nubar_xsec_scale,
