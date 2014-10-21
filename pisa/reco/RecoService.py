@@ -24,17 +24,17 @@ class RecoServiceMC:
     From these histograms, and the true event rate maps, calculates
     the reconstructed even rate templates.
     '''
-    def __init__(self,ebins,czbins,aeff_weight_file=None,**kwargs):
+    def __init__(self,ebins,czbins,reco_weight_file=None,**kwargs):
         self.ebins = ebins
         self.czbins = czbins
 
         logging.info("Initializing RecoService...")
 
-        logging.info('Opening file: %s'%(aeff_weight_file))
+        logging.info('Opening file: %s'%(reco_weight_file))
         try:
-            fh = h5py.File(find_resource(aeff_weight_file),'r')
+            fh = h5py.File(find_resource(reco_weight_file),'r')
         except IOError,e:
-            logging.error("Unable to open aeff_weight_file %s"%aeff_weight_file)
+            logging.error("Unable to open event data file %s"%reco_weight_file)
             logging.error(e)
             sys.exit(1)
 

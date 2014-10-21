@@ -18,11 +18,11 @@
 import os,sys
 import numpy as np
 import logging
+from datetime import datetime
 from argparse import ArgumentParser, RawTextHelpFormatter
 from pisa.utils.utils import set_verbosity, check_binning, get_binning
 from pisa.utils.jsons import from_json, to_json
 from pisa.utils.proc import report_params, get_params, add_params
-from pisa.oscillations.OscillationService import OscillationService
 from pisa.oscillations.Prob3OscillationService import Prob3OscillationService
 from pisa.oscillations.NucraftOscillationService import NucraftOscillationService
 

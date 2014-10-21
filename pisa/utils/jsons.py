@@ -64,7 +64,8 @@ class NumpyEncoder(json.JSONEncoder):
 
 class NumpyDecoder(json.JSONDecoder):
     """ 
-    Encode to numpy.ndarrays from JSON array
+    Encode to numpy.ndarrays from JSON array, also returns python strings
+    instead of unicode.
     """
     def __init__(self, encoding=None, object_hook=None, parse_float=None,
                  parse_int=None, parse_constant=None, strict=True,
@@ -75,9 +76,14 @@ class NumpyDecoder(json.JSONDecoder):
                                               object_pairs_hook)
         #only need to override the default array handler
         self.parse_array = self.json_array_numpy
+        self.parse_string = self.json_python_string
         #self.memo = {}
         self.scan_once = json.scanner.py_make_scanner(self)
 
     def json_array_numpy(self, s_and_end, scan_once, **kwargs):
         values, end = json.decoder.JSONArray(s_and_end, scan_once, **kwargs)
         return np.array(values), end
+
+    def json_python_string(self, s, end, encoding, strict):
+        values, end = json.decoder.scanstring(s, end, encoding, strict)
+        return values.encode('utf-8'), end
