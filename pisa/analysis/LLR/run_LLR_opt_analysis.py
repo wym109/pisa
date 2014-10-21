@@ -34,82 +34,81 @@ parser = ArgumentParser(description='''Runs the LLR optimizer-based analysis var
 defined in settings.json file and saves the likelihood ratios, which will be
 later converted to a significance of the measurement.''',
                         formatter_class=RawTextHelpFormatter)
-parser.add_argument('model_settings',type=str,metavar='JSONFILE',
-                    help='''File which stores information related to the template-making part of the
-analysis with all relevant systematics.''')
-parser.add_argument('llr_settings',type=str,metavar='JSONFILE',
-                    help='''File which stores information related to the optimizer-based llr analysis.''')
-parser.add_argument('ntrials',type=int,
-                    help="Number of trials to run the LLR analysis.")
-parser.add_argument('-s','--save_opt_steps',action='store_true',default=False,
+parser.add_argument('-t','--template_settings',type=str,
+                    metavar='JSONFILE', required = True,
+                    help='''Settings related to the template generation and systematics.''')
+parser.add_argument('-m','--minimizer_settings',type=str,
+                    metavar='JSONFILE', required = True,
+                    help='''Settings related to the optimizer used in the LLR analysis.''')
+parser.add_argument('-n','--ntrials',type=int, required = True,
+                    help="Number of trials to run")
+parser.add_argument('-s','--save_steps',action='store_true',default=False,
                     help="Save all steps the optimizer takes.")
-parser.add_argument('-o','--outfile',type=str,default=None,metavar='JSONFILE',
+parser.add_argument('-o','--outfile',type=str,default='llh_data.json',metavar='JSONFILE',
                     help="Output filename.")
 parser.add_argument('-v', '--verbose', action='count', default=0,
                     help='set verbosity level')
 args = parser.parse_args()
 
 set_verbosity(args.verbose)
-model_settings = from_json(args.model_settings)
-llr_settings  = from_json(args.llr_settings)
+
+#Read in the settings
+template_settings = from_json(args.template_settings)
+minimizer_settings  = from_json(args.minimizer_settings)
+
+#Get the parameters
+params = template_settings['params']
+
+#store results from all the trials
+trials = []
 
 full_start_time = datetime.now()
 
-LLH_dict = {data: {'NMH':{},'IMH':{}} for data in ['data_NMH','data_IMH']}
-
-template_maker = TemplateMaker(get_values(model_settings['params']),**model_settings['binning'])
+template_maker = TemplateMaker(get_values(params),**template_settings['binning'])
 
 for itrial in xrange(1,args.ntrials+1):
-    logging.info(">>>Running trial: %d\n"%itrial)
+    logging.info(">"*10 + "Running trial: %d"%itrial + "<"*10)
 
-    start_time = datetime.now()
 
     # //////////////////////////////////////////////////////////////////////
-    # 1) get a normal hierarchy pseudo data fmap from fiducial model
-    #    (best fit vals of params).
-    # 2) find max llh (and best fit free params) from matching pseudo data
-    #    to NMH templates.
-    # 3) find max llh (and best fit free params) from matching pseudo data
-    #    to IMH templates (other hierarhcy).
+    # For each trial, generate two pseudo-data experiemnts (one for each
+    # hierarchy), and for each find the best matching template in each of the
+    # hierarchy hypothesis.
     # //////////////////////////////////////////////////////////////////////
-    fmap_nmh = get_pseudo_data_fmap(template_maker,
-                                get_values(select_hierarchy(model_settings['params'],
-                                                            normal_hierarchy=True)))
-    llh_data = find_max_llh_bfgs(fmap_nmh,template_maker,model_settings['params'],
-                                llr_settings,args.save_opt_steps,normal_hierarchy=True)
-    LLH_dict['data_NMH']['NMH']['trial'+str(itrial)] = llh_data
-    stop1 = datetime.now()
-    show_time(stop1,start_time)
+    results = {}
+    for data_tag, data_normal in [('data_NMH',True),('data_IMH',False)]:
 
-    llh_data = find_max_llh_bfgs(fmap_nmh,template_maker,model_settings['params'],
-                                llr_settings,args.save_opt_steps,normal_hierarchy=False)
-    LLH_dict['data_NMH']['IMH']['trial'+str(itrial)] = llh_data
-    stop2 = datetime.now()
-    show_time(stop2,stop1)
-    # //////////////////////////////////////////////////////////////////////
+        results[data_tag] = {}
+        # 1) get a pseudo data fmap from fiducial model (best fit vals of params).
+        fmap = get_pseudo_data_fmap(template_maker,
+                                    get_values(select_hierarchy(params,
+                                                                normal_hierarchy=data_normal)))
 
+        # 2) find max llh (and best fit free params) from matching pseudo data
+        #    to templates.
+        for hypo_tag, hypo_normal in [('hypo_NMH',True),('hypo_IMH',False)]:
 
-    # Now repeat these steps for inverted hierarchy pseudo data.
-    fmap_imh = get_pseudo_data_fmap(template_maker,
-                               get_values(select_hierarchy(model_settings['params'],
-                                                           normal_hierarchy=False)))
-    llh_data = find_max_llh_bfgs(fmap_imh,template_maker,model_settings['params'],
-                                llr_settings,args.save_opt_steps,normal_hierarchy=True)
-    LLH_dict['data_IMH']['NMH']['trial'+str(itrial)] = llh_data
-    stop3 = datetime.now()
-    show_time(stop3,stop2)
+            #get some time
+            start_time = datetime.now()
 
-    llh_data = find_max_llh_bfgs(fmap_imh,template_maker,model_settings['params'],
-                                llr_settings,args.save_opt_steps,normal_hierarchy=False)
-    LLH_dict['data_IMH']['IMH']['trial'+str(itrial)] = llh_data
-    stop4 = datetime.now()
-    show_time(stop4,stop3)
+            llh_data = find_max_llh_bfgs(fmap,template_maker,params,
+                                        minimizer_settings,args.save_steps,normal_hierarchy=hypo_normal)
+            #Store the LLH data
+            results[data_tag][hypo_tag] = llh_data
 
+            #Show the time
+            stop = datetime.now()
+            show_time(stop,start_time)
 
-LLH_dict['model_settings'] = model_settings
-LLH_dict['llr_settings'] = llr_settings
-outfile = args.outfile if args.outfile is not None else "llh_data_trials_"+str(args.ntrials)+".json"
-to_json(LLH_dict,outfile)
+    #Store this trial
+    trials += [results]
+
+#Assemble output dict
+output = {'trials' : trials,
+          'template_settings' : template_settings,
+          'minimizer_settings' : minimizer_settings}
+#And write to file
+to_json(output,args.outfile)
 
 print"Total time taken to run %d trials: %s"%(args.ntrials,
                                               (datetime.now() - full_start_time))
