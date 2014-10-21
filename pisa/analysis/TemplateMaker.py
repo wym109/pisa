@@ -137,8 +137,11 @@ if __name__ == '__main__':
                          formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument('settings',type=str,metavar='JSONFILE',
                         help="settings file to use for making templates.")
-    parser.add_argument('--normal',type=bool, default=True,
-                        help="true for normal hierarchy, otherwise false")
+    hselect = parser.add_mutually_exclusive_group(required=False)
+    hselect.add_argument('--normal', dest='normal', default=True,
+                        action='store_true', help="select the normal hierarchy")
+    hselect.add_argument('--inverted', dest='normal', default = False,
+                        action='store_false', help="select the inverted hierarchy")
     parser.add_argument('-v','--verbose',action='count',default=0,
                         help='set verbosity level.')
     args = parser.parse_args()
@@ -151,6 +154,8 @@ if __name__ == '__main__':
     model_settings = from_json(args.settings)
 
     #Select a hierarchy
+    logging.info('Selected %s hierarchy'%
+            ('normal' if args.normal else 'inverted'))
     params =  select_hierarchy(model_settings['params'],normal_hierarchy=args.normal)
 
     #Intialize template maker
