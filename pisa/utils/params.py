@@ -53,12 +53,7 @@ def get_fixed_params(params):
     new dictionary.
     '''
 
-    fixed_params = {}
-    for key, value in params.items():
-        if not value['fixed']: continue
-        fixed_params[key] = value
-
-    return fixed_params
+    return { key: value for key, value in params.items() if value['fixed']}
 
 def get_free_params(params):
     '''
@@ -66,12 +61,7 @@ def get_free_params(params):
     dictionary.
     '''
 
-    free_params = {}
-    for key, value in params.items():
-        if value['fixed']: continue
-        free_params[key] = value
-
-    return free_params
+    return { key: value for key, value in params.items() if not value['fixed']}
 
 def get_prior_llh(value,sigma,fiducial):
     '''
@@ -89,26 +79,22 @@ def get_param_values(params):
     '''
     Returns a list of parameter values
     '''
-    #return [ p['value'] for p in params.values()]
     return [ val['value'] for key,val in sorted(params.items()) ]
 
 def get_param_scales(params):
     '''
     Returns a list of parameter scales
     '''
-    #return [ p['scale'] for p in params.values()]
     return [ val['scale'] for key,val in sorted(params.items()) ]
 
 def get_param_bounds(params):
     '''
     Returns a list of parameter bounds where elements are (min,max) pairs
     '''
-    #return [ p['range'] for p in params.values()]
     return [ val['range'] for key,val in sorted(params.items()) ]
 
 def get_param_priors(params):
     '''
-    Returns a list of [(prior1,value1),...] for each param
+    Returns a list of [(prior,value),...] for each param
     '''
-    #return [ [p['prior'],p['value']] for p in params.values()]
     return [ [val['prior'],val['value']] for key,val in sorted(params.items()) ]
