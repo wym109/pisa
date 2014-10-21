@@ -18,7 +18,7 @@ def get_binwise_llh(pseudo_data,template):
     '''
 
     if not np.alltrue(template >= 0.0):
-        raise Exception("template must have all bins >= 0.0! Template generation bug?")
+        raise ValueError("Template must have all bins >= 0.0! Template generation bug?")
 
     totalLLH = np.sum(np.log(poisson.pmf(pseudo_data,np.float64(template))))
 

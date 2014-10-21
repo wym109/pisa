@@ -132,7 +132,7 @@ def find_max_llh_powell(fmap,settings,assume_nmh=True):
 
     return vals
 
-def find_max_llh_bfgs(fmap,template_maker,params,bfgs_settings,save_opt_steps=False,
+def find_max_llh_bfgs(fmap,template_maker,params,bfgs_settings,save_steps=False,
                       normal_hierarchy=True):
     '''
     Finds the template (and free systematic params) that maximize
@@ -147,7 +147,7 @@ def find_max_llh_bfgs(fmap,template_maker,params,bfgs_settings,save_opt_steps=Fa
        ...}
     where 'param1', 'param2', ... are the free params varied by
     optimizer, and they hold a list of all the values tested in
-    optimizer algorithm, unless save_opt_steps is False, in which case
+    optimizer algorithm, unless save_steps is False, in which case
     they are one element in length-the best fit params and best fit llh.
     '''
 
@@ -193,7 +193,7 @@ def find_max_llh_bfgs(fmap,template_maker,params,bfgs_settings,save_opt_steps=Fa
     best_fit_params = { name: value for name, value in zip(names, best_fit_vals) }
     print "  best_fit_params: ",best_fit_params
 
-    if not save_opt_steps:
+    if not save_steps:
         # Do not store the extra history of opt steps:
         for key in opt_steps_dict.keys():
             opt_steps_dict[key] = [opt_steps_dict[key][-1]]
