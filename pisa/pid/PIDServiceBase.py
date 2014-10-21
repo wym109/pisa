@@ -53,8 +53,28 @@ class PIDServiceBase:
         """
         Check that PID maps have the correct shape and are not unphysical
         """
-        #TODO: implement
-        pass
+        for key, val in self.pid_kernels.items():
+            
+            #check axes
+            if key=='binning':
+                for (own_ax, ax) in [(self.ebins, 'ebins'), 
+                                     (self.czbins, 'czbins')]:
+                    if not is_equal_binning(val[ax], own_ax):
+                        raise ValueError("Binning of reconstruction kernel "
+                                         "doesn't match the event maps!")
+            
+            #check actual kernels
+            else:
+                #negative probabilities?
+                for chan in ['trck', 'cscd']:
+                    if (val[chan]<0).any():
+                        raise ValueError('Negative PID probability detected! '
+                                         'Check PID kernels for %s to %s'
+                                         %(key, chan))
+                #total ID probability >1?
+                if ((val['trck']+val['cscd'])>1).any():
+                    raise ValueError('Total PID probability larger than '
+                                     'one for %s events!'%key)
 
 
     def recalculate_pid_maps(self, **kwargs):
@@ -106,6 +126,8 @@ class PIDServiceBase:
         
         #Classify events
         for flav in reco_events:
+            if flav=='params':
+                continue
             event_map = reco_events[flav]['map']
             
             to_trck_map = event_map*self.pid_kernels[flav]['trck']
