@@ -75,6 +75,9 @@ class PIDServiceBase:
                 if ((val['trck']+val['cscd'])>1).any():
                     raise ValueError('Total PID probability larger than '
                                      'one for %s events!'%key)
+        
+        logging.info('PID kernels are sane')
+        return True
 
 
     def recalculate_pid_maps(self, **kwargs):

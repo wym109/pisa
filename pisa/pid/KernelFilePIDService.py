@@ -31,7 +31,7 @@ class KernelFilePIDService(PIDServiceBase):
         RecoServiceBase.__init__(self, ebins, czbins, **kwargs)
 
 
-    def get_reco_kernels(self, pid_kernelfile=None, **kwargs):
+    def get_pid_kernels(self, pid_kernelfile=None, **kwargs):
         logging.info('Opening file: %s'%(pid_kernelfile))
         try:
             self.pid_kernels = from_json(find_resource(pid_kernelfile))
