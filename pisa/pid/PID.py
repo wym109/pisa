@@ -37,10 +37,10 @@ if __name__ == '__main__':
     parser.add_argument('reco_event_maps', metavar='JSON', type=from_json,
                         help='''JSON reco event rate file with following '''
                         '''parameters:\n'''
-                         '''{"nue_cc": {'czbins':[...], 'ebins':[...], 'map':[...]}, \n'''
-                         ''' "numu_cc": {...}, \n'''
-                         ''' "nutau_cc": {...}, \n'''
-                         ''' "nuall_nc": {...} }''')
+                        '''{"nue_cc": {'czbins':[...], 'ebins':[...], 'map':[...]}, \n'''
+                        ''' "numu_cc": {...}, \n'''
+                        ''' "nutau_cc": {...}, \n'''
+                        ''' "nuall_nc": {...} }''')
     parser.add_argument('-m', '--mode', type=str, choices=['param', 'stored'],
                         default='param', help='PID service to use (default: param)')
     parser.add_argument('--param_file', metavar='JSON', type=str,

@@ -9,6 +9,7 @@
 #
 
 import logging
+from copy import deepcopy as copy
 
 import numpy as np
 
@@ -55,7 +56,9 @@ class PIDServiceBase:
         """
         Check that PID maps have the correct shape and are not unphysical
         """
+        sane = True
         if not self.pid_kernels.has_key('binning'):
+            sane = False
             raise KeyError('Binning of reco kernels not specified!')
 
         for key, val in self.pid_kernels.items():
@@ -65,24 +68,30 @@ class PIDServiceBase:
                 for (own_ax, ax) in [(self.ebins, 'ebins'), 
                                      (self.czbins, 'czbins')]:
                     if not is_equal_binning(val[ax], own_ax):
+                        sane = False
                         raise ValueError("Binning of reconstruction kernel "
                                          "doesn't match the event maps!")
-            
+
             #check actual kernels
             else:
                 #negative probabilities?
                 for chan in ['trck', 'cscd']:
                     if (val[chan]<0).any():
+                        sane = False
                         logging.warn('Negative PID probability detected! '
                                      'Check PID kernels for %s to %s'
                                       %(key, chan))
                 #total ID probability >1?
                 if ((val['trck']+val['cscd'])>1).any():
+                    sane = False
                     logging.warn('Total PID probability larger than '
                                  'one for %s events!'%key)
-        
-        logging.info('PID kernels are sane')
-        return True
+
+        if sane:
+            logging.info('PID kernels are sane')
+        else:
+            logging.warn('Problem in PID kernels detected! See logfile')
+        return sane
 
 
     def recalculate_pid_maps(self, **kwargs):
@@ -91,7 +100,7 @@ class PIDServiceBase:
         corrupted, stick with the old ones.
         """
         logging.info('Re-calculating PID maps')
-        old_kernels = self.pid_kernels.copy()
+        old_kernels = copy(self.pid_kernels)
         self.get_pid_kernels(**kwargs)
         try:
             self.check_pid_kernels()
@@ -125,15 +134,16 @@ class PIDServiceBase:
         #Initialize return dict
         empty_map = {'map': np.zeros_like(reco_events['nue_cc']['map']),
                      'czbins': self.czbins, 'ebins': self.ebins}
-        reco_events_pid = {'trck': empty_map.copy(),
-                           'cscd': empty_map.copy(),
+        reco_events_pid = {'trck': copy(empty_map),
+                           'cscd': copy(empty_map),
                            'params': add_params(params,reco_events['params']),
                           }
         if return_unknown:
-            reco_events_pid['unkn'] = empty_map.copy()
+            reco_events_pid['unkn'] = copy(empty_map)
         
         #Classify events
         for flav in reco_events:
+
             if flav=='params':
                 continue
             event_map = reco_events[flav]['map']

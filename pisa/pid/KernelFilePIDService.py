@@ -28,7 +28,7 @@ class KernelFilePIDService(PIDServiceBase):
         * czbins: cos(zenith) bin edges
         * pid_kernelfile: JSON containing the kernel dict
         """
-        RecoServiceBase.__init__(self, ebins, czbins, **kwargs)
+        PIDServiceBase.__init__(self, ebins, czbins, **kwargs)
 
 
     def get_pid_kernels(self, pid_kernelfile=None, **kwargs):
