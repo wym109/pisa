@@ -10,17 +10,18 @@
 import logging
 
 import numpy as np
-import scipy
+import scipy.stats
 
 from pisa.pid.PIDServiceBase import PIDServiceBase
 from pisa.resources.resources import find_resource
 from pisa.utils.jsons import from_json
+from pisa.utils.utils import get_bin_centers
 
 
 class ParamPIDService(PIDServiceBase):
     """
     Creates PID kernels from parametrization functions that are stored 
-    in a JSON dict. numpy is accessible as np, and scipy as scipy. 
+    in a JSON dict. numpy is accessible as np, and scipy.stats. 
     Systematic parameters 'PID_offset' and 'PID_scale' are supported.
     """
     
@@ -50,7 +51,8 @@ class ParamPIDService(PIDServiceBase):
         ecen = get_bin_centers(self.ebins)
         czcen = get_bin_centers(self.czbins)
         
-        self.pid_kernels = {}
+        self.pid_kernels = {'binning': {'ebins': self.ebins,
+                                        'czbins': self.czbins}}
         for signature in param_str.keys():
             #Generate the functions
             to_trck_func = eval(param_str[signature]['trck'])
@@ -63,4 +65,4 @@ class ParamPIDService(PIDServiceBase):
             self.pid_kernels[signature] = {'trck':to_trck_map,
                                            'cscd':to_cscd_map}
 
-            return self.pid_kernels()
+        return self.pid_kernels

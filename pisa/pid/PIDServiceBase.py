@@ -13,6 +13,8 @@ import logging
 import numpy as np
 
 from pisa.utils.jsons import to_json
+from pisa.utils.proc import get_params, report_params, add_params
+from pisa.utils.utils import is_equal_binning
 
 
 class PIDServiceBase:
@@ -36,8 +38,8 @@ class PIDServiceBase:
         self.czbins = czbins
 
         # Calculate PID kernel
-        self.get_pid_maps(**kwargs)
-        self.check_pid_maps()
+        self.get_pid_kernels(**kwargs)
+        self.check_pid_kernels()
 
 
     def get_pid_kernels(self, **kwargs):
@@ -53,8 +55,11 @@ class PIDServiceBase:
         """
         Check that PID maps have the correct shape and are not unphysical
         """
+        if not self.pid_kernels.has_key('binning'):
+            raise KeyError('Binning of reco kernels not specified!')
+
         for key, val in self.pid_kernels.items():
-            
+
             #check axes
             if key=='binning':
                 for (own_ax, ax) in [(self.ebins, 'ebins'), 
@@ -68,13 +73,13 @@ class PIDServiceBase:
                 #negative probabilities?
                 for chan in ['trck', 'cscd']:
                     if (val[chan]<0).any():
-                        raise ValueError('Negative PID probability detected! '
-                                         'Check PID kernels for %s to %s'
-                                         %(key, chan))
+                        logging.warn('Negative PID probability detected! '
+                                     'Check PID kernels for %s to %s'
+                                      %(key, chan))
                 #total ID probability >1?
                 if ((val['trck']+val['cscd'])>1).any():
-                    raise ValueError('Total PID probability larger than '
-                                     'one for %s events!'%key)
+                    logging.warn('Total PID probability larger than '
+                                 'one for %s events!'%key)
         
         logging.info('PID kernels are sane')
         return True
@@ -119,7 +124,7 @@ class PIDServiceBase:
         
         #Initialize return dict
         empty_map = {'map': np.zeros_like(reco_events['nue_cc']['map']),
-                     'czbins': self.czbins, 'ebins': self.ebins},
+                     'czbins': self.czbins, 'ebins': self.ebins}
         reco_events_pid = {'trck': empty_map.copy(),
                            'cscd': empty_map.copy(),
                            'params': add_params(params,reco_events['params']),
