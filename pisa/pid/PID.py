@@ -26,50 +26,6 @@ from pisa.utils.jsons import from_json, to_json
 from pisa.resources.resources import find_resource
 
 
-def get_pid_maps(reco_events,pid_service,**kwargs):
-    '''
-    Takes the templates of reco_events in form of:
-      'nue_cc': map
-      'numu_cc': map
-      'nutau_cc': map
-      'nuall_nc': map
-    And applies PID returning a dictionary of events in form of:
-      {'trk': {'ebins':ebins,'czbins':czbins,'map':map},
-       'csc': {'ebins':ebins,'czbins':czbins,'map':map}}
-    '''
-
-    #Be verbose on input
-    params = get_params()
-    report_params(params, units = [])
-    
-    #Initialize return dict
-    ebins, czbins = get_binning(reco_events)
-    reco_events_pid = { 'trck': {'map':np.zeros_like(reco_events['nue_cc']['map']),
-                                 'czbins':czbins,
-                                 'ebins':ebins},
-                        'cscd': {'map':np.zeros_like(reco_events['nue_cc']['map']),
-                                 'czbins':czbins,
-                                 'ebins':ebins},
-                        'params': add_params(params,reco_events['params']),
-                      }
-    
-
-        
-    pid_dict = pid_service.get_maps()
-
-    flavours = ['nue_cc','numu_cc','nutau_cc','nuall_nc']
-    for flav in flavours:
-        event_map = reco_events[flav]['map']
-        
-        to_trck_map = event_map*pid_dict[flav]['trck']
-        to_cscd_map = event_map*pid_dict[flav]['cscd']
-        
-        reco_events_pid['trck']['map'] += to_trck_map
-        reco_events_pid['cscd']['map'] += to_cscd_map
-        
-    return reco_events_pid
-
-
 if __name__ == '__main__':
 
     #Only show errors while parsing 
