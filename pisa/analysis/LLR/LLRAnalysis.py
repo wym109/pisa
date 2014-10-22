@@ -60,6 +60,10 @@ def find_max_llh_grid(fmap_data,true_templates,save_grid_steps=True):
     where elements in list are the values tested in the grid search,
     and the final values (e.g. trial_data['llh'][-1], trial_data['deltam31'][-1]
     etc.) are the values that maximized llh.
+
+    TODO (22-Oct-2014, TCA):
+    This functioni has not been standardized with other find_max_llh* functions.
+    DO NOT USE unless you are en expert.
     '''
 
     trial_data = {'llh':[],'deltam31':[],'theta23':[]}
@@ -94,6 +98,11 @@ def find_max_llh_powell(fmap,settings,assume_nmh=True):
     '''
     Uses Powell's method implementation in scipy.optimize to fine the
     maximum likelihood for a given pseudo data fmap.
+
+    TODO (22-Oct-2014, TCA): 
+    This function has not been properly tested and the return/output
+    format has not been standardized with other find_max_llh* functions.
+    DO NOT USE unless you are en expert.
     '''
 
     fixed_params = get_fixed_params(select_hierarchy(params,normal_hierarchy))
