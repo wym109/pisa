@@ -23,7 +23,7 @@ class PIDServiceBase:
     services.
     """
     def __init__(self, ebins, czbins, **kwargs):
-         """
+        """
         Parameters needed to instantiate any reconstruction service:
         * ebins: Energy bin edges
         * czbins: cos(zenith) bin edges
@@ -34,7 +34,7 @@ class PIDServiceBase:
         # Set member variables
         self.ebins = ebins
         self.czbins = czbins
-        
+
         # Calculate PID kernel
         self.get_pid_maps(**kwargs)
         self.check_pid_maps()
@@ -120,9 +120,9 @@ class PIDServiceBase:
         #Initialize return dict
         empty_map = {'map': np.zeros_like(reco_events['nue_cc']['map']),
                      'czbins': self.czbins, 'ebins': self.ebins},
-        reco_events_pid = { 'trck': empty_map.copy()
-                            'cscd': empty_map.copy()
-                            'params': add_params(params,reco_events['params']),
+        reco_events_pid = {'trck': empty_map.copy(),
+                           'cscd': empty_map.copy(),
+                           'params': add_params(params,reco_events['params']),
                           }
         if return_unknown:
             reco_events_pid['unkn'] = empty_map.copy()
