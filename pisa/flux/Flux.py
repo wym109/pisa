@@ -17,7 +17,7 @@ import os
 import sys
 import numpy as np
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-from pisa.utils.log import logging, set_verbosity
+from pisa.utils.log import logging, physics, set_verbosity
 from pisa.utils.jsons import from_json, to_json, json_string
 from pisa.utils.proc import report_params, get_params, add_params
 from pisa.flux.HondaFluxService import HondaFluxService, primaries
@@ -40,7 +40,7 @@ def get_flux_maps(flux_service, ebins, czbins, **params):
                       'map': flux_service.get_flux(ebins,czbins,prim)}
     
         #be a bit verbose
-        logging.debug("Total flux of %s is %u [s^-1 m^-2]"%
+        physics.trace("Total flux of %s is %u [s^-1 m^-2]"%
                                 (prim,maps[prim]['map'].sum()))
 
     #return this map

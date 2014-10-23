@@ -19,7 +19,7 @@
 #
 
 from argparse import ArgumentParser, RawTextHelpFormatter
-from pisa.utils.log import logging, set_verbosity
+from pisa.utils.log import logging, physics, set_verbosity
 from pisa.utils.utils import check_binning, get_binning
 from pisa.utils.jsons import from_json,to_json
 from pisa.utils.proc import report_params, get_params, add_params
@@ -80,7 +80,8 @@ def get_reco_maps(true_event_maps,reco_service=None,e_reco_scale=None,
             reco_maps[flavor+'_'+int_type] = {'map':reco_evt_rate,
                                               'ebins':ebins,
                                               'czbins':czbins}
-            logging.debug("  Total counts: %.2f"%np.sum(reco_evt_rate))
+            physics.trace("Total counts for %s %s: %.2f"
+                %(flavor,int_type,np.sum(reco_evt_rate)))
 
     #Finally sum up all the NC contributions
     logging.info("Summing up rates for %s %s"%('all',int_type))
@@ -89,7 +90,7 @@ def get_reco_maps(true_event_maps,reco_service=None,e_reco_scale=None,
     reco_maps['nuall_nc'] = {'map':reco_evt_rate,
                              'ebins':ebins,
                              'czbins':czbins}
-    logging.info("  Total counts: %.2f"%np.sum(reco_evt_rate))
+    physics.trace("Total event counts: %.2f"%np.sum(reco_evt_rate))
 
     # Apply e_reco_scaling...
     # Apply cz_reco_scaling...
