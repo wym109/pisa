@@ -28,14 +28,7 @@ If you are working on OSX, we suggest [homebrew](brew.sh/) as a package manager,
 
 **User mode:**
 
-Use this if you just want to run `pisa`, but don't want to edit it. First pick a revision from [this github page](https://github.com/sboeser/pisa/releases). Then run this command in your shell, to directly install pisa from github.
-```
-pip install git+https://github.com/sboeser/pisa@<release>#egg=pisa
-```
-
-where
-
-* `<release>` is the release number, e.g. `1.0.0`
+User mode is currently not supported, sorry.
 
 **Developer mode:**
 

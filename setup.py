@@ -11,7 +11,7 @@ from distutils.core import setup, Extension
 
 setup(
   name='pisa',
-  version='1.0',
+  version='2.0',
   description='PINGU Simulation and Analysis',
   author='Sebastian Boeser',
   author_email='sboeser@physik.uni-bonn.de',
