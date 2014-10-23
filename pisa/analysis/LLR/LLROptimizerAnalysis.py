@@ -47,7 +47,7 @@ minimizer_settings  = from_json(args.minimizer_settings)
 
 #Workaround for old scipy versions
 import scipy
-if scipy.__version__ > '0.12.0':
+if scipy.__version__ < '0.12.0':
     logging.warn('Detected scipy version %s < 0.12.0'%scipy.__version__)
     if 'maxiter' in minimizer_settings:
       logging.warn('Optimizer settings for \"maxiter\" will be ignored')
