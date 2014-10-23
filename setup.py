@@ -33,6 +33,7 @@ setup(
            'pisa/aeff/Aeff.py',
            'pisa/reco/Reco.py',
            'pisa/pid/PID.py',
+           'pisa/analysis/TemplateMaker.py'
            ],
   ext_package='pisa.oscillations.prob3',
   ext_modules=[Extension('_BargerPropagator',
@@ -42,7 +43,8 @@ setup(
                     'pisa/oscillations/prob3/mosc.c',
                     'pisa/oscillations/prob3/mosc3.c'],
                     swig_opts=['-c++'])],
-  package_data={'pisa.resources': ['aeff/*.json',
+  package_data={'pisa.resources': ['logging.json',
+                                   'aeff/*.json',
                                    'aeff/*.dat',
                                    'pid/*.json',
                                    'flux/*.d',
