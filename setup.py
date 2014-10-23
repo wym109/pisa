@@ -33,7 +33,8 @@ setup(
            'pisa/aeff/Aeff.py',
            'pisa/reco/Reco.py',
            'pisa/pid/PID.py',
-           'pisa/analysis/TemplateMaker.py'
+           'pisa/analysis/TemplateMaker.py',
+           'pisa/analysis/LLR/LLROptimizerAnalysis.py'
            ],
   ext_package='pisa.oscillations.prob3',
   ext_modules=[Extension('_BargerPropagator',
