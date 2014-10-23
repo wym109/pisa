@@ -18,9 +18,9 @@
 # date:   April 9, 2014
 #
 
-import logging
 from argparse import ArgumentParser, RawTextHelpFormatter
-from pisa.utils.utils import set_verbosity, check_binning, get_binning
+from pisa.utils.log import logging, set_verbosity
+from pisa.utils.utils import check_binning, get_binning
 from pisa.utils.jsons import from_json,to_json
 from pisa.utils.proc import report_params, get_params, add_params
 from pisa.reco.RecoService import RecoServiceMC
@@ -99,8 +99,6 @@ def get_reco_maps(true_event_maps,reco_service=None,e_reco_scale=None,
 
 if __name__ == '__main__':
 
-    #Only show errors while parsing 
-    set_verbosity(0)
     parser = ArgumentParser(description='Takes a (true, triggered) event rate file '
                             'as input and produces a set of reconstructed templates '
                             'of nue CC, numu CC, nutau CC, and NC events.',

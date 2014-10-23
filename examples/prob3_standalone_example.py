@@ -27,11 +27,11 @@
 #
 
 from argparse import ArgumentParser
-import logging
 from datetime import datetime
 import sys
 import numpy as np
 
+from pisa.utils.log import logging, set_verbosity
 from pisa.oscillations.prob3.BargerPropagator import BargerPropagator
 from pisa.resources.resources import find_resource
 from pisa.utils.jsons import to_json
@@ -111,7 +111,7 @@ for nu in ['nue_maps','numu_maps','nue_bar_maps','numu_bar_maps']:
                          'nutau'+isbar: np.zeros(shape,dtype=np.float32)}
     
     
-print "Getting oscillation probability maps..."
+logging.info("Getting oscillation probability maps...")
 total_bins = int(len(ebins)*len(czbins))
 mod = total_bins/50
 ibin = 0
@@ -149,10 +149,10 @@ for icz, coszen in enumerate(czcen):
                 osc_prob_dict[nu+'_maps'][to_nu][ie][icz]=barger_prop.GetProb(nu_i, nu_f)
 
 
-print "\nSaving to file: ",args.outfile
+logging.info("Saving to file: %s"%args.outfile)
 to_json(osc_prob_dict,args.outfile)
 
-print "\nFinished in %s seconds!"%(datetime.now() - start_time)
+logging.info("Finished in %s seconds!"%(datetime.now() - start_time))
 
 if args.plot:
     from matplotlib import pyplot as plt

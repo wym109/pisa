@@ -15,10 +15,9 @@
 
 import os
 import sys
-import logging
 import numpy as np
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-from pisa.utils.utils import set_verbosity
+from pisa.utils.log import logging, set_verbosity
 from pisa.utils.jsons import from_json, to_json, json_string
 from pisa.utils.proc import report_params, get_params, add_params
 from pisa.flux.HondaFluxService import HondaFluxService, primaries
@@ -49,9 +48,6 @@ def get_flux_maps(flux_service, ebins, czbins, **params):
 
 
 if __name__ == '__main__':
-
-    #Only show errors while parsing
-    set_verbosity(0)
 
     # parser
     parser = ArgumentParser(description='Take a settings file '

@@ -8,8 +8,8 @@
 #
 
 import h5py
-import logging
 import numpy as np
+from pisa.utils.log import logging
 from pisa.utils.utils import get_bin_centers, get_bin_sizes
 from pisa.resources.resources import find_resource
 

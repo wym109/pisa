@@ -17,10 +17,9 @@
 
 import os,sys
 import numpy as np
-import logging
-from datetime import datetime
 from argparse import ArgumentParser, RawTextHelpFormatter
-from pisa.utils.utils import set_verbosity, check_binning, get_binning
+from pisa.utils.log import logging, profile, set_verbosity
+from pisa.utils.utils import check_binning, get_binning
 from pisa.utils.jsons import from_json, to_json
 from pisa.utils.proc import report_params, get_params, add_params
 from pisa.oscillations.Prob3OscillationService import Prob3OscillationService
@@ -74,9 +73,6 @@ def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,
 
 if __name__ == '__main__':
 
-    #Only show errors while parsing
-    set_verbosity(0)
-
     # parser
     parser = ArgumentParser(description='Takes the oscillation parameters '
                             'as input and writes out a set of osc flux maps',
@@ -119,8 +115,6 @@ if __name__ == '__main__':
     #Set verbosity level
     set_verbosity(args.verbose)
 
-    start_time = datetime.now()
-
     #Get binning
     ebins, czbins = check_binning(args.flux_maps)
 
@@ -146,6 +140,3 @@ if __name__ == '__main__':
     #Write out
     logging.info("Saving output to: %s",args.outfile)
     to_json(osc_flux_maps, args.outfile)
-    
-    logging.info("This took %s to run"%(datetime.now() - start_time))
-    

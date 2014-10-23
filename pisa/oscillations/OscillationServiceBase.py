@@ -7,9 +7,8 @@
 #
 
 import sys
-import logging
-from datetime import datetime
 import numpy as np
+from pisa.utils.log import logging, profile
 from pisa.utils.utils import get_smoothed_map
 from pisa.utils.utils import get_bin_centers, is_coarser_binning, is_linear, is_logarithmic
 
@@ -101,7 +100,7 @@ class OscillationServiceBase:
         fine_maps = self.get_osc_probLT_dict(**kwargs)
 
         logging.info("Smoothing fine maps...")
-        start_time = datetime.now()
+        profile.info("start smoothing maps")
         smoothed_maps = {}
         smoothed_maps['ebins'] = self.ebins
         smoothed_maps['czbins'] = self.czbins
@@ -117,8 +116,7 @@ class OscillationServiceBase:
                                          self.ebins, self.czbins)
             smoothed_maps[from_nu] = new_tomaps
 
-        logging.debug("Finshed smoothing maps. This took: %s"
-                        %(datetime.now()-start_time))
+        profile.info("stop smoothing maps")
 
         return smoothed_maps
 

@@ -14,10 +14,10 @@
 # date:   April 10, 2014
 #
 
-import logging
 import numpy as np
 from argparse import ArgumentParser, RawTextHelpFormatter
-from pisa.utils.utils import set_verbosity,get_binning,check_binning,get_bin_centers
+from pisa.utils.log import logging, set_verbosity
+from pisa.utils.utils import get_binning,check_binning,get_bin_centers
 from pisa.utils.jsons import from_json,to_json
 from pisa.utils.proc import report_params, get_params, add_params
 from pisa.pid.PIDServicePar import PIDServicePar
@@ -68,8 +68,6 @@ def get_pid_maps(reco_events,pid_service,**kwargs):
 
 if __name__ == '__main__':
 
-    #Only show errors while parsing
-    set_verbosity(0)
     parser = ArgumentParser(description='Takes a reco event rate file '
                             'as input and produces a set of reconstructed templates '
                             'of tracks and cascades.',

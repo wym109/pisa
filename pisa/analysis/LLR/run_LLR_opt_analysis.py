@@ -4,31 +4,20 @@
 #
 # Runs the LLR optimizer-based LLR analysis
 #
-# author: Tim Arlen
-#         tca3@psu.edu
+# author: Tim Arlen - tca3@psu.edu
+#         Sebatian Boeser - sboeser@uni-mainz.de
 #
 # date:   02-July-2014
 #
 
-import logging,os
-from datetime import datetime
 import numpy as np
 from argparse import ArgumentParser,RawTextHelpFormatter
 
-from pisa.utils.utils import set_verbosity
+from pisa.utils.log import logging, profile, physics, set_verbosity
 from pisa.utils.jsons import from_json,to_json
 from pisa.analysis.LLR.LLRAnalysis import get_pseudo_data_fmap, find_max_llh_bfgs
 from pisa.analysis.TemplateMaker import TemplateMaker
 from pisa.utils.params import get_values, select_hierarchy
-
-def show_time(time_stop, time_start):
-    '''
-    This print message is repeated whenever the optimizer is finished...
-    '''
-    print "Total time to run optimizer: ",(time_stop - time_start)
-    print "\n-------------------------------------------------------------------\n\n"
-
-    return
 
 parser = ArgumentParser(description='''Runs the LLR optimizer-based analysis varying a number of systematic parameters
 defined in settings.json file and saves the likelihood ratios, which will be
@@ -62,12 +51,11 @@ params = template_settings['params']
 #store results from all the trials
 trials = []
 
-full_start_time = datetime.now()
-
 template_maker = TemplateMaker(get_values(params),**template_settings['binning'])
 
 for itrial in xrange(1,args.ntrials+1):
-    logging.info(">"*10 + "Running trial: %d"%itrial + "<"*10)
+    profile.info("start trial %d"%itrial)
+    logging.info(">"*10 + "Running trial: %05d"%itrial + "<"*10)
 
 
     # //////////////////////////////////////////////////////////////////////
@@ -88,20 +76,19 @@ for itrial in xrange(1,args.ntrials+1):
         #    to templates.
         for hypo_tag, hypo_normal in [('hypo_NMH',True),('hypo_IMH',False)]:
 
-            #get some time
-            start_time = datetime.now()
-
+            physics.info("Finding best fit for %s under %s assumption"%(data_tag,hypo_tag))
+            profile.info("start optimizer")
             llh_data = find_max_llh_bfgs(fmap,template_maker,params,
                                         minimizer_settings,args.save_steps,normal_hierarchy=hypo_normal)
+            profile.info("stop optimizer")
+
             #Store the LLH data
             results[data_tag][hypo_tag] = llh_data
 
-            #Show the time
-            stop = datetime.now()
-            show_time(stop,start_time)
 
     #Store this trial
     trials += [results]
+    profile.info("stop trial %d"%itrial)
 
 #Assemble output dict
 output = {'trials' : trials,
@@ -109,7 +96,3 @@ output = {'trials' : trials,
           'minimizer_settings' : minimizer_settings}
 #And write to file
 to_json(output,args.outfile)
-
-print"Total time taken to run %d trials: %s"%(args.ntrials,
-                                              (datetime.now() - full_start_time))
-

@@ -9,11 +9,10 @@
 
 import os, sys
 
-import logging
 import numpy as np
-from datetime import datetime
 import h5py
 
+from pisa.utils.log import logging
 from pisa.oscillations.OscillationServiceBase import OscillationServiceBase
 from pisa.utils.utils import get_smoothed_map
 from pisa.resources.resources import find_resource

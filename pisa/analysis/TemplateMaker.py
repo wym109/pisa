@@ -6,20 +6,20 @@
 # as possible to avoid re-running stages when not needed.
 #
 # author: Timothy C. Arlen - tca3@psu.edu
+#         Sebastian Boeser - sboeser@uni-mainz.de
 #
 # date:   7 Oct 2014
 #
 
-import logging,sys
+import sys
 import numpy as np
-from datetime import datetime
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from scipy.constants import Julian_year
 
+from pisa.utils.log import logging, profile, set_verbosity
 from pisa.resources.resources import find_resource
 from pisa.utils.params import get_fixed_params, get_free_params, get_values, select_hierarchy
 from pisa.utils.jsons import from_json,to_json,json_string
-from pisa.utils.utils import set_verbosity
 
 from pisa.flux.HondaFluxService import HondaFluxService
 from pisa.flux.Flux import get_flux_maps
@@ -77,11 +77,11 @@ class TemplateMaker:
 
         # Aeff/True Event Rate:
         if template_settings['parametric']:
-            logging.info("  Using effective area from PARAMETRIZATION...")
+            logging.info(" Using effective area from PARAMETRIZATION...")
             self.aeff_service = AeffServicePar(self.ebins,self.czbins,
                                                **template_settings)
         else:
-            logging.info("  Using effective area from MC EVENT DATA...")
+            logging.info(" Using effective area from MC EVENT DATA...")
             self.aeff_service = AeffServiceMC(self.ebins,self.czbins,
                                               **template_settings)
 
@@ -129,9 +129,6 @@ class TemplateMaker:
 
 if __name__ == '__main__':
 
-    #Only show errors while parsing
-    set_verbosity(0)
-
     # parser
     parser = ArgumentParser(description='''Runs the template making process.''',
                          formatter_class=ArgumentDefaultsHelpFormatter)
@@ -148,7 +145,7 @@ if __name__ == '__main__':
 
     set_verbosity(args.verbose)
 
-    time0 = datetime.now()
+    profile.info("start initializing")
 
     #Load all the settings
     model_settings = from_json(args.settings)
@@ -161,11 +158,9 @@ if __name__ == '__main__':
     #Intialize template maker
     template_maker = TemplateMaker(get_values(params),**model_settings['binning'])
 
-    time1 = datetime.now()
-    print "\n  >>Finished initializing in %s sec.\n"%(time1 - time0)
+    profile.info("stop initializing")
 
     #Now get the actual template
+    profile.info("start template calculation")
     template_maker.get_template(get_values(params))
-    print "Finished getting template in %s sec."%(datetime.now() - time1)
-    print "total time to run: %s sec."%(datetime.now() - time0)
-
+    profile.info("stop template calculation")

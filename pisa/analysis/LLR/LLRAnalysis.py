@@ -9,11 +9,11 @@
 # date:   2 July 2014
 #
 
-import logging,sys
-from datetime import datetime
+import sys
 import numpy as np
 import scipy.optimize as opt
 
+from pisa.utils.log import logging, physics, profile
 from pisa.utils.params import get_values, select_hierarchy, get_fixed_params, get_free_params, get_prior_llh, get_param_values, get_param_scales, get_param_bounds, get_param_priors
 from pisa.analysis.LLR.LLHStatistics import get_random_map, get_binwise_llh
 
@@ -171,27 +171,37 @@ def find_max_llh_bfgs(fmap,template_maker,params,bfgs_settings,save_steps=False,
 
     const_args = (names,scales,fmap,fixed_params,template_maker,opt_steps_dict,priors)
 
-    print "bounds: ",bounds
-    print "init_vals: ",init_vals
-    print "priors: ",priors
+    physics.info('%d parameters to be optimized'%len(free_params))
+    for name,init,(down,up),(prior, best) in zip(names, init_vals, bounds, priors):
+        physics.info(('%20s : init = %6.4f, bounds = [%6.4f,%6.4f], '
+                     'best = %6.4f, prior = '+
+                     ('%6.4f' if prior else "%s"))%
+                     (name, init, up, down, best, prior))
 
-    logging.info("<<<OPTIMIZER SETTINGS>>>")
+    physics.debug("Optimizer settings:")
     for key,item in bfgs_settings.items():
-        logging.info("  %s -> `%s` = %.2e"%(item['desc'],key,item['value']))
+        physics.debug("  %s -> `%s` = %.2e"%(item['desc'],key,item['value']))
 
-    vals = opt.fmin_l_bfgs_b(llh_bfgs,init_vals,args=const_args,approx_grad=True,
-                             iprint=0,bounds=bounds,**get_values(bfgs_settings))
-
-    best_fit_vals = vals[0]
-    llh = vals[1]
-    dict_flags = vals[2]
-
-    print "  llh: ",llh
-    print "  best_fit_vals: ",best_fit_vals
-    print "  dict_flags: ",dict_flags
+    best_fit_vals,llh,dict_flags = opt.fmin_l_bfgs_b(llh_bfgs,
+                                                     init_vals,
+                                                     args=const_args,
+                                                     approx_grad=True,
+                                                     iprint=0,
+                                                     bounds=bounds,
+                                                     **get_values(bfgs_settings))
 
     best_fit_params = { name: value for name, value in zip(names, best_fit_vals) }
-    print "  best_fit_params: ",best_fit_params
+
+    #Report best fit
+    physics.info('Found best LLH = %.2f in %d calls at:'
+        %(llh,dict_flags['funcalls']))
+    for name, val in best_fit_params.items():
+        physics.info('  %20s = %6.4f'%(name,val))
+
+    #Report any warnings if there are
+    lvl = logging.WARN if (dict_flags['warnflag'] != 0) else logging.DEBUG
+    for name, val in dict_flags.items():
+        physics.log(lvl," %s : %s"%(name,val))
 
     if not save_steps:
         # Do not store the extra history of opt steps:
@@ -233,16 +243,18 @@ def llh_bfgs(opt_vals,*args):
           Format: [(prior1,best1),(prior2,best2),...,(priorN,bestN)]
     '''
 
-    print "\n  opt_vals: ",opt_vals
 
     names,scales,fmap,fixed_params,template_maker,opt_steps_dict,priors = args
+
     unscaled_free_params = { names[i]: (opt_vals[i]/scales[i])
                              for i in xrange(len(opt_vals)) }
 
     template_params = dict(unscaled_free_params.items() + get_values(fixed_params).items())
 
     # Now get true template, and compute LLH
+    profile.info('start template calculation')
     true_template = template_maker.get_template(template_params)
+    profile.info('stop template calculation')
     true_fmap = flatten_map(true_template)
 
     # NOTE: The minus sign is present on both of these next two lines
@@ -257,7 +269,9 @@ def llh_bfgs(opt_vals,*args):
         opt_steps_dict[key].append(template_params[key])
     opt_steps_dict['llh'].append(llh)
 
-    print "  llh: ",llh
-
+    physics.debug("LLH is %.2f at: "%llh) 
+    for name, val in zip(names, opt_vals):
+        physics.debug(" %20s = %6.4f" %(name,val))
+    
     return llh
 

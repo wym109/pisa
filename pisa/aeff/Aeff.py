@@ -19,9 +19,9 @@
 
 import os,sys
 import numpy as np
-import logging
 from argparse import ArgumentParser, RawTextHelpFormatter
-from pisa.utils.utils import set_verbosity, check_binning, get_binning
+from pisa.utils.log import logging, set_verbosity
+from pisa.utils.utils import check_binning, get_binning
 from pisa.utils.jsons import from_json, to_json
 from pisa.utils.proc import report_params, get_params, add_params
 from pisa.aeff.AeffServiceMC import AeffServiceMC

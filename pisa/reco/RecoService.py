@@ -10,8 +10,8 @@
 
 import sys
 import h5py
-import logging
 import numpy as np
+from pisa.utils.log import logging
 from pisa.resources.resources import find_resource
 
 class RecoServiceMC:

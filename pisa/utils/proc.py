@@ -9,8 +9,8 @@
 #
 # date:   2014-05-19
 
-import logging
 import inspect
+from pisa.utils.log import logging
 
 def get_params():
     '''

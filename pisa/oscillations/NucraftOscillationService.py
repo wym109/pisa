@@ -8,11 +8,11 @@
 #
 
 import os, sys
-import logging
 from tempfile import NamedTemporaryFile
 
 import numpy as np
 
+from pisa.utils.log import logging
 from pisa.oscillations.OscillationServiceBase import OscillationServiceBase
 from pisa.oscillations.nuCraft.NuCraft import NuCraft, EarthModel
 from pisa.resources.resources import find_resource

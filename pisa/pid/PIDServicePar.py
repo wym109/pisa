@@ -11,8 +11,8 @@
 import sys
 import numpy as np
 import scipy.stats
+from pisa.utils.log import logging
 from pisa.utils.utils import get_bin_centers
-import logging
 
 class PIDServicePar:
     '''

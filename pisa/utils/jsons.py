@@ -12,20 +12,20 @@
 
 import os
 import sys
-import logging
 import numpy as np
+from pisa.utils.log import logging
 
 #try and get the much faster simplejson if we can
 try:
     import simplejson as json
     from simplejson import JSONDecodeError
-    logging.debug("Using simplejson")
+    logging.trace("Using simplejson")
 except ImportError:
     import json as json
     #No DecodeError in default json, dummy one
     class JSONDecodeError(ValueError):
       pass
-    logging.debug("Using json")
+    logging.trace("Using json")
 
 def json_string(string):
     '''Decode a json string'''

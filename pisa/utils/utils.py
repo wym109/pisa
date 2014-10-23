@@ -11,8 +11,8 @@
 #
 # date:   2014-01-27
 
-import logging
 import numpy as np
+from pisa.utils.log import logging
 
 
 def get_bin_centers(edges):
@@ -23,28 +23,18 @@ def get_bin_centers(edges):
     else:
         return (np.array(edges[:-1])+np.array(edges[1:]))/2.
 
+
 def get_bin_sizes(edges):
     '''Get the bin sizes for a given set of bin edges.
        This works even if bins don't have equal width.'''
     return np.array(edges[1:]) - np.array(edges[:-1])
 
 
-def set_verbosity(verbosity):
-    '''Set the verbosity level for the root logger,
-       along with some better formatting.'''
-    logging.shutdown()
-    reload(logging)
-
-    levels = {0:logging.WARN,
-              1:logging.INFO,
-              2:logging.DEBUG}
-    logging.basicConfig(format='[%(levelname)8s] %(message)s')
-    logging.root.setLevel(levels[min(2,verbosity)])
-
 def is_linear(edges, maxdev = 1e-5):
     '''Check whether the bin edges correspond to a linear axis'''
     linedges = np.linspace(edges[0],edges[-1],len(edges))
     return np.abs(edges-linedges).max() < maxdev
+
 
 def is_logarithmic(edges, maxdev = 1e-5):
     '''Check whether the bin edges correspond to a logarithmic axis'''
@@ -52,10 +42,12 @@ def is_logarithmic(edges, maxdev = 1e-5):
     logedges = np.logspace(np.log10(edges[0]),np.log10(edges[-1]),len(edges))
     return np.abs(edges-logedges).max() < maxdev
 
+
 def is_equal_binning(edges1,edges2,maxdev=1e-8):
     '''Check whether the bin edges are equal.'''
     if (np.shape(edges1)[0]) != (np.shape(edges2)[0]): return False
     return np.abs(edges1 - edges2).max() < maxdev
+
 
 def is_coarser_binning(coarse_bins, fine_bins):
     '''Check whether coarse_bins lie inside of and are coarser than fine_bins'''
@@ -68,6 +60,7 @@ def is_coarser_binning(coarse_bins, fine_bins):
                               < len(coarse_bins)):
         return False
     return True
+
 
 def subbinning(coarse_bins, fine_bins, maxdev=1e-8):
     '''Check whether coarse_bins can be retrieved from fine_bins
@@ -98,6 +91,7 @@ def subbinning(coarse_bins, fine_bins, maxdev=1e-8):
     else:
         return False
 
+
 def get_binning(d, iterate=False, eset=[], czset=[]):
     '''Iterate over all maps in the dict, and return the ebins and czbins.
        If iterate is False, will return the first set of ebins, czbins it finds,
@@ -121,6 +115,7 @@ def get_binning(d, iterate=False, eset=[], czset=[]):
 
     #In iterate mode, return sets
     return eset, czset
+
 
 def check_binning(data):
     '''
