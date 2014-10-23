@@ -11,7 +11,7 @@
 #
 
 import numpy as np
-from argparse import ArgumentParser,ArgumentDefaultsHelpFormatter
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 from pisa.utils.log import logging, profile, physics, set_verbosity
 from pisa.utils.jsons import from_json,to_json
@@ -29,7 +29,7 @@ parser.add_argument('-t','--template_settings',type=str,
 parser.add_argument('-m','--minimizer_settings',type=str,
                     metavar='JSONFILE', required = True,
                     help='''Settings related to the optimizer used in the LLR analysis.''')
-parser.add_argument('-n','--ntrials',type=int, required = True,default=1,
+parser.add_argument('-n','--ntrials',type=int, required = True, default = 1,
                     help="Number of trials to run")
 parser.add_argument('-s','--save_steps',action='store_true',default=False,
                     help="Save all steps the optimizer takes.")
