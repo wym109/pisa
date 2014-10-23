@@ -6,6 +6,13 @@
 # and finally the package resources. The loggers found in there will be lifted
 # to the module namespace.
 # 
+# Currently, we have three loggers
+# * root: generic for what is going on  (typically: 'opening file x` or `doing this now` messages)
+# * physics: for any physics output that might be interesting ('have x many events`, ` the flux is ...`)
+# * profile: for how much time it takes to run some step (in the format of `time : start bla`, `time : stop bla`)
+#
+# The last on is temporary and should be replaced by a proper profiler.
+#
 # author: Sebastian Boeser
 #         sboeser@physik.uni-bonn.de
 #
@@ -44,6 +51,9 @@ def set_verbosity(verbosity):
     '''Overwrite the verbosity level for the root logger
        Verbosity should be an integer with the levels just below.
     '''
+    #Ignore if no verbosity is given
+    if verbosity is None: return
+
     #define verbosity levels
     levels = {0:logging.WARN,
               1:logging.INFO,

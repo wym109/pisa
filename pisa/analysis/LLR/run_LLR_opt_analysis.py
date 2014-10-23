@@ -35,7 +35,7 @@ parser.add_argument('-s','--save_steps',action='store_true',default=False,
                     help="Save all steps the optimizer takes.")
 parser.add_argument('-o','--outfile',type=str,default='llh_data.json',metavar='JSONFILE',
                     help="Output filename.")
-parser.add_argument('-v', '--verbose', action='count', default=0,
+parser.add_argument('-v', '--verbose', action='count', default=None,
                     help='set verbosity level')
 args = parser.parse_args()
 

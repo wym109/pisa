@@ -107,7 +107,7 @@ if __name__ == '__main__':
                         help='''File to store the output. Format is guessed 
                         from filename extension: either JSON (.json/.js) or 
                         HDF5 (.hdf/.hd5/.hdf5). Default: osc_probs.json''')
-    parser.add_argument('-v', '--verbose', action='count', default=0,
+    parser.add_argument('-v', '--verbose', action='count', default=None,
                         help='set verbosity level')
     args = parser.parse_args()
     

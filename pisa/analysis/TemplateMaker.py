@@ -139,7 +139,7 @@ if __name__ == '__main__':
                         action='store_true', help="select the normal hierarchy")
     hselect.add_argument('--inverted', dest='normal', default = False,
                         action='store_false', help="select the inverted hierarchy")
-    parser.add_argument('-v','--verbose',action='count',default=0,
+    parser.add_argument('-v','--verbose',action='count',default=None,
                         help='set verbosity level.')
     args = parser.parse_args()
 

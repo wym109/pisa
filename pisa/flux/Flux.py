@@ -72,7 +72,7 @@ if __name__ == '__main__':
                         type=str, action='store', default='flux.json',
                         help='file to store the output')    
 
-    parser.add_argument('-v', '--verbose', action='count', default=0,
+    parser.add_argument('-v', '--verbose', action='count', default=None,
                         help='set verbosity level')
     
     args = parser.parse_args()

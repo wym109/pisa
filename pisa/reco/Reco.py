@@ -137,7 +137,7 @@ Expects the file format to be:
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str,
                         action='store',default="reco.json",
                         help='''file to store the output''')
-    parser.add_argument('-v', '--verbose', action='count', default=0,
+    parser.add_argument('-v', '--verbose', action='count', default=None,
                         help='''set verbosity level''')
     args = parser.parse_args()
 

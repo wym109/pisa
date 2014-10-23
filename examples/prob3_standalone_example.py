@@ -62,7 +62,7 @@ parser.add_argument('--outfile',type=str,default='osc_prob_dict.json',
                     help="output file for osc probs [.json]")
 parser.add_argument('--plot',action='store_true',default=False,
                     help="Plot the numu survival probability when finished.")
-parser.add_argument('-v', '--verbose', action='count', default=0,
+parser.add_argument('-v', '--verbose', action='count', default=None,
                     help='set verbosity level')
 args = parser.parse_args()
 
