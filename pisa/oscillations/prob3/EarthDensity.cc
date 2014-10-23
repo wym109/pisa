@@ -48,8 +48,8 @@ void EarthDensity::LoadDensityProfile( const char * file )
     cerr<<"EarthDensity::Load ERROR OPENING " << DensityFileName << endl;
     exit(1);
   }
-  else
-    cout << "Loading Density profile from: " << DensityFileName << endl;
+  //else
+  //  cout << "Loading Density profile from: " << DensityFileName << endl;
   
   while( !PREM_dat.eof( ) ) {
     PREM_dat >> r_dist >> rho ;
@@ -245,7 +245,7 @@ void EarthDensity::Load()
     _density[largest_radius] = last_rho;
     
     RDetector = REarth - DetectorDepth;
-    cout<<"RDetector: "<<RDetector<<" DetectorDepth: "<<DetectorDepth<<endl;
+    //cout<<"RDetector: "<<RDetector<<" DetectorDepth: "<<DetectorDepth<<endl;
     
   }
   

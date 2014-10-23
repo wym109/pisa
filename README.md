@@ -18,7 +18,7 @@ installed
 * [pip](https://pip.pypa.io/) -- version > 1.2 recommended
 * [swig](http://www.swig.org/) -- install with `--universal` option
 * [numpy](http://www.numpy.org/)
-* [scipy](http://www.scipy.org/)
+* [scipy](http://www.scipy.org/) -- version > 0.12 recommended
 * [hdf5](http://www.hdfgroup.org/HDF5/) -- install with `--enable-cxx` option
 * [h5py](http://www.h5py.org/) -- install via pip
 

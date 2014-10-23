@@ -10,9 +10,9 @@
 
 import sys
 import h5py
-import logging
 import numpy as np
 from pisa.reco.RecoServiceBase import RecoServiceBase
+from pisa.utils.log import logging
 from pisa.resources.resources import find_resource
 
 class MCRecoService(RecoServiceBase):
@@ -40,10 +40,10 @@ class MCRecoService(RecoServiceBase):
         try:
             fh = h5py.File(find_resource(simfile),'r')
         except IOError,e:
-            logging.error("Unable to open simfile %s"%simfile)
+            logging.error("Unable to open event data file %s"%simfile)
             logging.error(e)
             sys.exit(1)
-            
+
         # Create the 4D distribution kernels...
         self.kernels = {}
         logging.info("Creating kernel dict...")
@@ -67,4 +67,3 @@ class MCRecoService(RecoServiceBase):
             self.kernels[flavor] = flavor_dict
             
         return self.kernels
-        

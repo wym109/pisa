@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 #
-# EventRateReco.py
+# Reco.py
 #
 # This module will perform the smearing of the true event rates, with
 # the reconstructed parameters, using the detector response
@@ -18,9 +18,9 @@
 # date:   April 9, 2014
 #
 
-import logging
 from argparse import ArgumentParser, RawTextHelpFormatter
-from pisa.utils.utils import set_verbosity, check_binning, get_binning
+from pisa.utils.log import logging, physics, set_verbosity
+from pisa.utils.utils import check_binning, get_binning
 from pisa.utils.jsons import from_json,to_json
 from pisa.utils.proc import report_params, get_params, add_params
 from pisa.reco.MCRecoService import MCRecoService
@@ -31,8 +31,6 @@ import numpy as np
 
 if __name__ == '__main__':
 
-    #Only show errors while parsing 
-    set_verbosity(0)
     parser = ArgumentParser(description='Takes a (true, triggered) event rate file '
                             'as input and produces a set of reconstructed templates '
                             'of nue CC, numu CC, nutau CC, and NC events.',
@@ -78,7 +76,7 @@ Expects the file format to be:
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='JSON', 
                         type=str, action='store',default="reco.json",
                         help='''file to store the output''')
-    parser.add_argument('-v', '--verbose', action='count', default=0,
+    parser.add_argument('-v', '--verbose', action='count', default=None,
                         help='''set verbosity level''')
     args = parser.parse_args()
 
@@ -103,8 +101,8 @@ Expects the file format to be:
                                              **vars(args))
 
     event_rate_reco_maps = reco_service.get_reco_maps(args.event_rate_maps)
-    
+
     logging.info("Saving output to: %s"%args.outfile)
     to_json(event_rate_reco_maps,args.outfile)
-    
-    
+
+

@@ -13,11 +13,11 @@
 #
 
 import os,sys
-import logging
 from argparse import ArgumentParser
 import numpy as np
 import h5py
-from pisa.utils.utils import set_verbosity, check_binning, get_binning
+from pisa.utils.log import logging, set_verbosity
+from pisa.utils.utils import check_binning, get_binning
 from pisa.utils.jsons import from_json, to_json, json_string
 from pisa.utils.proc import report_params, get_params, add_params
 from pisa.oscillations.TableOscillationService import TableOscillationService
@@ -59,9 +59,6 @@ def to_hdf5(oscprob_dict, filename, param_dict):
 
 if __name__ == '__main__':
     
-    #Only show errors while parsing
-    set_verbosity(0)
-
     # parser
     parser = ArgumentParser(description='Takes the oscillation parameters '
                             'as input and writes out a set of osc flux maps')
@@ -110,7 +107,7 @@ if __name__ == '__main__':
                         help='''File to store the output. Format is guessed 
                         from filename extension: either JSON (.json/.js) or 
                         HDF5 (.hdf/.hd5/.hdf5). Default: osc_probs.json''')
-    parser.add_argument('-v', '--verbose', action='count', default=0,
+    parser.add_argument('-v', '--verbose', action='count', default=None,
                         help='set verbosity level')
     args = parser.parse_args()
     

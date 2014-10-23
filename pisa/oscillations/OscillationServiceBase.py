@@ -7,19 +7,18 @@
 #
 
 import sys
-import logging
-from datetime import datetime 
 import numpy as np
+from pisa.utils.log import logging, profile
 from pisa.utils.utils import get_smoothed_map
 from pisa.utils.utils import get_bin_centers, is_coarser_binning, is_linear, is_logarithmic
 
 
 def check_fine_binning(fine_bins, coarse_bins):
     """
-    This function checks whether the specified fine binning exists and 
-    is actually finer than the coarse one. 
+    This function checks whether the specified fine binning exists and
+    is actually finer than the coarse one.
     """
-    
+
     if fine_bins is not None:
         if is_coarser_binning(coarse_bins, fine_bins):
             logging.info('Using requested binning for oversampling.')
@@ -29,7 +28,7 @@ def check_fine_binning(fine_bins, coarse_bins):
             logging.error('Requested oversampled binning is coarser '
                           'than output binning. Aborting.')
             sys.exit(1)
-    
+
     return False
 
 
@@ -37,7 +36,7 @@ def oversample_binning(coarse_bins, factor):
     """
     Oversample bins by the given factor
     """
-    
+
     if is_linear(coarse_bins):
         logging.info('Oversampling linear output binning by factor %i.'
                 %factor)
@@ -54,10 +53,10 @@ def oversample_binning(coarse_bins, factor):
                      'by factor %i'%factor)
         fine_bins = np.array([])
         for i, upper_edge in enumerate(coarse_bins[1:]):
-            fine_bins = np.append(fine_bins, 
+            fine_bins = np.append(fine_bins,
                                   np.linspace(coarse_bins[i], upper_edge,
                                               factor, endpoint=False))
-    
+
     return fine_bins
 
 
@@ -65,7 +64,7 @@ class OscillationServiceBase:
     """
     Base class for all oscillation services.
     """
-    
+
     def __init__(self, ebins, czbins):
         """
         Parameters needed to instantiate any oscillation service:
@@ -79,11 +78,11 @@ class OscillationServiceBase:
         for ax in [self.ebins, self.czbins]:
             if (len(np.shape(ax)) != 1):
                 raise IndexError('Axes must be 1d! '+str(np.shape(ax)))
-    
-    
+
+
     def get_osc_prob_maps(self, **kwargs):
         """
-        Returns an oscillation probability map dictionary calculated 
+        Returns an oscillation probability map dictionary calculated
         at the values of the input parameters:
           deltam21,deltam31,theta12,theta13,theta23,deltacp
         for flavor_from to flavor_to, with the binning of ebins,czbins.
@@ -99,9 +98,9 @@ class OscillationServiceBase:
         #Get the finely binned maps as implemented in the derived class
         logging.info('Retrieving finely binned maps')
         fine_maps = self.get_osc_probLT_dict(**kwargs)
-        
+
         logging.info("Smoothing fine maps...")
-        start_time = datetime.now()
+        profile.info("start smoothing maps")
         smoothed_maps = {}
         smoothed_maps['ebins'] = self.ebins
         smoothed_maps['czbins'] = self.czbins
@@ -111,45 +110,44 @@ class OscillationServiceBase:
             new_tomaps = {}
             for to_nu, tomap in tomap_dict.items():
                 logging.debug("Getting smoothed map %s/%s"%(from_nu,to_nu))
-                new_tomaps[to_nu] = get_smoothed_map(tomap, 
-                                         fine_maps['ebins'], 
+                new_tomaps[to_nu] = get_smoothed_map(tomap,
+                                         fine_maps['ebins'],
                                          fine_maps['czbins'],
                                          self.ebins, self.czbins)
             smoothed_maps[from_nu] = new_tomaps
-        
-        logging.debug("Finshed smoothing maps. This took: %s"
-                        %(datetime.now()-start_time))
-        
+
+        profile.info("stop smoothing maps")
+
         return smoothed_maps
-    
-    
-    def get_osc_probLT_dict(self, ebins=None, czbins=None, 
-                            oversample=2, **kwargs):
+
+
+    def get_osc_probLT_dict(self, ebins=None, czbins=None,
+                            oversample_e=10,oversample_cz=10, **kwargs):
         """
         This will create the oscillation probability map lookup tables
         (LT) corresponding to atmospheric neutrinos oscillation
         through the earth, and will return a dictionary of maps:
         {'nue_maps':[to_nue_map, to_numu_map, to_nutau_map],
          'numu_maps: [...],
-         'nue_bar_maps': [...], 
-         'numu_bar_maps': [...], 
-         'czbins':czbins, 
-         'ebins': ebins} 
+         'nue_bar_maps': [...],
+         'numu_bar_maps': [...],
+         'czbins':czbins,
+         'ebins': ebins}
         Will call fill_osc_prob to calculate the individual
         probabilities on the fly.
-        By default, the standard binning is oversampled by a factor 2. 
-        Alternatively, the oversampling factor can be changed or a fine 
-        binning specified explicitly. In the latter case, the oversampling 
+        By default, the standard binning is oversampled by a factor 10.
+        Alternatively, the oversampling factor can be changed or a fine
+        binning specified explicitly. In the latter case, the oversampling
         factor is ignored.
         """
         #First initialize the fine binning if not explicitly given
         if not check_fine_binning(ebins, self.ebins):
-            ebins = oversample_binning(self.ebins, oversample)
+            ebins = oversample_binning(self.ebins, oversample_e)
         if not check_fine_binning(czbins, self.czbins):
-            czbins = oversample_binning(self.czbins, oversample)
+            czbins = oversample_binning(self.czbins, oversample_cz)
         ecen = get_bin_centers(ebins)
         czcen = get_bin_centers(czbins)
-        
+
         osc_prob_dict = {'ebins':ebins, 'czbins':czbins}
         shape = (len(ecen),len(czcen))
         for nu in ['nue_maps','numu_maps','nue_bar_maps','numu_bar_maps']:
@@ -157,17 +155,17 @@ class OscillationServiceBase:
             osc_prob_dict[nu] = {'nue'+isbar: np.zeros(shape,dtype=np.float32),
                                  'numu'+isbar: np.zeros(shape,dtype=np.float32),
                                  'nutau'+isbar: np.zeros(shape,dtype=np.float32)}
-        
+
         self.fill_osc_prob(osc_prob_dict, ecen, czcen, **kwargs)
-        
+
         return osc_prob_dict
-    
-    
+
+
     def fill_osc_prob(self, osc_prob_dict, ecen, czcen,
                   theta12=None, theta13=None, theta23=None,
                   deltam21=None, deltam31=None, deltacp=None, **kwargs):
         """
-        This method is called by get_osc_probLT_dict and should be 
+        This method is called by get_osc_probLT_dict and should be
         implemented in any derived class individually as here the actual
         oscillation code should be run.
         NOTE: Expects all angles to be in [rad], and all deltam to be in [eV^2]
