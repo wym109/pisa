@@ -1,5 +1,5 @@
 #
-# LLRAnalysis.py
+# LLHAnalysis.py
 #
 # Helper module for running the Optimizer-based LLR analysis.
 #
