@@ -14,22 +14,18 @@
 # date:   April 10, 2014
 #
 
-import logging
-from argparse import ArgumentParser, RawTextHelpFormatter
-
 import numpy as np
-
-from pisa.pid.ParamPIDService import ParamPIDService
-from pisa.pid.KernelFilePIDService import KernelFilePIDService
-from pisa.utils.utils import set_verbosity, check_binning
+from argparse import ArgumentParser, RawTextHelpFormatter
+from pisa.utils.log import logging, set_verbosity
+from pisa.utils.utils import check_binning
 from pisa.utils.jsons import from_json, to_json
 from pisa.resources.resources import find_resource
+from pisa.pid.ParamPIDService import ParamPIDService
+from pisa.pid.KernelFilePIDService import KernelFilePIDService
 
 
 if __name__ == '__main__':
 
-    #Only show errors while parsing 
-    set_verbosity(0)
     parser = ArgumentParser(description='Takes a reco event rate file '
                             'as input and produces a set of reconstructed \n'
                             'templates of tracks and cascades.',
@@ -52,7 +48,7 @@ if __name__ == '__main__':
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str,
                         action='store',default="pid.json",
                         help='''file to store the output''')
-    parser.add_argument('-v', '--verbose', action='count', default=0,
+    parser.add_argument('-v', '--verbose', action='count', default=None,
                         help='''set verbosity level''')
     args = parser.parse_args()
 
@@ -72,6 +68,6 @@ if __name__ == '__main__':
 
     #Calculate event rates after PID
     event_rate_pid = pid_service.get_pid_maps(args.reco_event_maps)
-    
+
     logging.info("Saving output to: %s"%args.outfile)
     to_json(event_rate_pid,args.outfile)

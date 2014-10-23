@@ -8,11 +8,11 @@
 #
 
 import os, sys
-import logging
 from tempfile import NamedTemporaryFile
 
 import numpy as np
 
+from pisa.utils.log import logging
 from pisa.oscillations.OscillationServiceBase import OscillationServiceBase
 from pisa.oscillations.nuCraft.NuCraft import NuCraft, EarthModel
 from pisa.resources.resources import find_resource
@@ -35,30 +35,31 @@ class NucraftOscillationService(OscillationServiceBase):
         * earth_model: Earth density model used for matter oscillations.
                        Default: 60-layer PREM model shipped with pisa.
         * detector_depth: Detector depth in km. Default: 2.0
-        * prop_height: Height in the atmosphere to begin in km. 
-                       Default: None, samples from a parametrization to 
-                       the atmospheric interaction model presented in 
+        * prop_height: Height in the atmosphere to begin in km.
+                       Default: None, samples from a parametrization to
+                       the atmospheric interaction model presented in
                        "Path length distributions of atmospheric neutrinos",
                        Gaisser and Stanev, PhysRevD.57.1977
         * osc_precision: Numerical precision for oscillation probabilities
         """
         OscillationServiceBase.__init__(self, ebins, czbins)
-        
+
         self.prop_height = prop_height # km above spherical Earth surface
         self.height_mode = 3 if self.prop_height is None else 1
         self.detector_depth = detector_depth # km below spherical Earth surface
         self.num_prec = osc_precision
         self.get_earth_model(earth_model)
-        
-    
+
+
     def fill_osc_prob(self, osc_prob_dict, ecen, czcen,
-                  theta12=None, theta13=None, theta23=None,
-                  deltam21=None, deltam31=None, deltacp=None, **kwargs):
+                      theta12=None, theta13=None, theta23=None,
+                      deltam21=None, deltam31=None, deltacp=None,
+                      energy_scale=None,**kwargs):
         """
         Loops over ecen,czcen and fills the osc_prob_dict maps, with
         probabilities calculated according to NuCraft
         """
-        
+
         #Setup NuCraft for the given oscillation parameters
         #TODO: compatible with new NuCraft version?
         mass_splitting = (1., deltam21, deltam31)
@@ -68,40 +69,43 @@ class NucraftOscillationService(OscillationServiceBase):
         engine = NuCraft(mass_splitting, mixing_angles,
                          earthModel = self.earth_model)
         engine.detectorDepth = self.detector_depth
-        
+
         if self.prop_height is not None:
-            # Fix neutrino production height and detector depth for 
-            # simulating reactor experiments. 
-            # In this case, there should be only one zenith angle corresponding 
+            # Fix neutrino production height and detector depth for
+            # simulating reactor experiments.
+            # In this case, there should be only one zenith angle corresponding
             # to the baseline B. It can be calculated according to:
             #   cos(zen) = ( (r_E - detectorDepth)**2 + B**2 (r_E + atmHeight)**2 ) \
             #               / ( 2 * (r_E + detectorDepth) * B)
             # with r_E = 6371. km
             engine.atmHeight = self.prop_height
-        
+
         #Make input arrays in correct format
         es, zs = np.meshgrid(ecen, czcen)
         shape = es.shape
         es, zs = es.flatten(), zs.flatten()
-        
+
+        # Apply Energy scaling factor:
+        es *= energy_scale
+
         for prim in osc_prob_dict:
-            
+
             if 'bins' in prim: continue
-            
+
             #Convert the particle into a list of IceCube particle IDs
             ps = np.ones_like(es)*get_PDG_ID(prim.rsplit('_', 1)[0])
-            
+
             # run it
             logging.debug("Calculating oscillation probabilites for %s at %u points..."
                             %(prim.rsplit('_', 1)[0], len(ps)))
-            probs = engine.CalcWeights((ps, es, np.arccos(zs)), 
+            probs = engine.CalcWeights((ps, es, np.arccos(zs)),
                                        atmMode=self.height_mode,
                                        numPrec=self.num_prec)
             logging.debug("...done")
-            
+
             #Bring into correct shape
             probs = np.array([ x.reshape(shape).T for x in np.array(probs).T ])
-            
+
             #Fill probabilities into dict
             for i, sec in enumerate(['nue', 'numu', 'nutau']):
                 sec_key = sec+'_bar' if 'bar' in prim else sec
@@ -112,7 +116,7 @@ class NucraftOscillationService(OscillationServiceBase):
 
     def get_earth_model(self, model):
         """
-        Check whether the specified Earth density profile has a correct 
+        Check whether the specified Earth density profile has a correct
         NuCraft preface. If not, create a temporary file that does.
         """
         logging.debug('Trying to construct Earth model from "%s"'%model)

@@ -10,8 +10,8 @@
 
 import sys
 import h5py
-import logging
 import numpy as np
+from pisa.utils.log import logging
 from pisa.resources.resources import find_resource
 
 class RecoServiceMC:
@@ -24,18 +24,20 @@ class RecoServiceMC:
     From these histograms, and the true event rate maps, calculates
     the reconstructed even rate templates.
     '''
-    def __init__(self,ebins,czbins,simfile=None):
+    def __init__(self,ebins,czbins,reco_weight_file=None,**kwargs):
         self.ebins = ebins
         self.czbins = czbins
-        
-        logging.info('Opening file: %s'%(simfile))
+
+        logging.info("Initializing RecoService...")
+
+        logging.info('Opening file: %s'%(reco_weight_file))
         try:
-            fh = h5py.File(find_resource(simfile),'r')
+            fh = h5py.File(find_resource(reco_weight_file),'r')
         except IOError,e:
-            logging.error("Unable to open simfile %s"%simfile)
+            logging.error("Unable to open event data file %s"%reco_weight_file)
             logging.error(e)
             sys.exit(1)
-            
+
         # Create the 4D distribution kernels...
         self.kernel_dict = {}
         logging.info("Creating kernel dict...")
@@ -61,15 +63,11 @@ class RecoServiceMC:
                         #kernel_i = kernel[ie,icz]
                         if np.sum(kernel[ie,icz]) > 0.0: 
                             kernel[ie,icz] /= np.sum(kernel[ie,icz])
-                        
+
                 flavor_dict[int_type] = kernel
             self.kernel_dict[flavor] = flavor_dict
 
 
-
-        # normalize:
-        #if np.sum(kernel) > 0.0: kernel /= np.sum(kernel)
-            
         return
 
     def get_kernels(self,**kwargs):
@@ -78,5 +76,4 @@ class RecoServiceMC:
         '''
 
         return self.kernel_dict
-    
-        
+

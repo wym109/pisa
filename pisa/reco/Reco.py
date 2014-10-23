@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 #
-# EventRateReco.py
+# Reco.py
 #
 # This module will perform the smearing of the true event rates, with
 # the reconstructed parameters, using the detector response
@@ -18,9 +18,9 @@
 # date:   April 9, 2014
 #
 
-import logging
 from argparse import ArgumentParser, RawTextHelpFormatter
-from pisa.utils.utils import set_verbosity, check_binning, get_binning
+from pisa.utils.log import logging, physics, set_verbosity
+from pisa.utils.utils import check_binning, get_binning
 from pisa.utils.jsons import from_json,to_json
 from pisa.utils.proc import report_params, get_params, add_params
 from pisa.reco.RecoService import RecoServiceMC
@@ -80,7 +80,8 @@ def get_reco_maps(true_event_maps,reco_service=None,e_reco_scale=None,
             reco_maps[flavor+'_'+int_type] = {'map':reco_evt_rate,
                                               'ebins':ebins,
                                               'czbins':czbins}
-            logging.info("  Total counts: %.2f"%np.sum(reco_evt_rate))
+            physics.trace("Total counts for %s %s: %.2f"
+                %(flavor,int_type,np.sum(reco_evt_rate)))
 
     #Finally sum up all the NC contributions
     logging.info("Summing up rates for %s %s"%('all',int_type))
@@ -89,7 +90,7 @@ def get_reco_maps(true_event_maps,reco_service=None,e_reco_scale=None,
     reco_maps['nuall_nc'] = {'map':reco_evt_rate,
                              'ebins':ebins,
                              'czbins':czbins}
-    logging.info("  Total counts: %.2f"%np.sum(reco_evt_rate))
+    physics.trace("Total event counts: %.2f"%np.sum(reco_evt_rate))
 
     # Apply e_reco_scaling...
     # Apply cz_reco_scaling...
@@ -99,8 +100,6 @@ def get_reco_maps(true_event_maps,reco_service=None,e_reco_scale=None,
 
 if __name__ == '__main__':
 
-    #Only show errors while parsing 
-    set_verbosity(0)
     parser = ArgumentParser(description='Takes a (true, triggered) event rate file '
                             'as input and produces a set of reconstructed templates '
                             'of nue CC, numu CC, nutau CC, and NC events.',
@@ -138,7 +137,7 @@ Expects the file format to be:
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str,
                         action='store',default="reco.json",
                         help='''file to store the output''')
-    parser.add_argument('-v', '--verbose', action='count', default=0,
+    parser.add_argument('-v', '--verbose', action='count', default=None,
                         help='''set verbosity level''')
     args = parser.parse_args()
 
@@ -149,7 +148,7 @@ Expects the file format to be:
     ebins, czbins = check_binning(args.event_rate_maps)
 
     logging.info("Defining RecoService...")
-    reco_service = RecoServiceMC(ebins,czbins,simfile=args.weighted_aeff_file)
+    reco_service = RecoServiceMC(ebins,czbins,reco_weight_file=args.weighted_aeff_file)
 
     event_rate_reco_maps = get_reco_maps(args.event_rate_maps,reco_service,args.e_reco_scale,
                                          args.cz_reco_scale)

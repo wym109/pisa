@@ -17,23 +17,18 @@
 
 import os,sys
 import numpy as np
-import logging
 from argparse import ArgumentParser, RawTextHelpFormatter
-from pisa.utils.utils import set_verbosity, check_binning, get_binning
+from pisa.utils.log import logging, profile, set_verbosity
+from pisa.utils.utils import check_binning, get_binning
 from pisa.utils.jsons import from_json, to_json
 from pisa.utils.proc import report_params, get_params, add_params
 from pisa.oscillations.Prob3OscillationService import Prob3OscillationService
 from pisa.oscillations.NucraftOscillationService import NucraftOscillationService
 
-# Until python2.6, default json is very slow.
-try: 
-    import simplejson as json
-except ImportError, e:
-    import json
 
-
-def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,theta12=None,
-                 theta13=None,theta23=None,deltacp=None,**kwargs):
+def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,
+                 energy_scale=None, theta12=None,theta13=None,theta23=None,
+                 deltacp=None,**kwargs):
     '''
     Obtain a map in energy and cos(zenith) of the oscillation probabilities from
     the OscillationService and compute the oscillated flux.
@@ -45,11 +40,11 @@ def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,theta12=
 
     #Be verbose on input
     params = get_params()
-    report_params(params, units = ['rad','eV^2','eV^2','rad','rad','rad'])
+    report_params(params, units = ['rad','eV^2','eV^2','','rad','rad','rad'])
 
     #Initialize return dict
     osc_flux_maps = {'params': add_params(params,flux_maps['params'])}
-    
+
     #Get oscillation probability map from service
     osc_prob_maps = osc_service.get_osc_prob_maps(deltam21=deltam21,
                                                   deltam31=deltam31,
@@ -57,10 +52,11 @@ def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,theta12=
                                                   theta13=theta13,
                                                   theta23=theta23,
                                                   deltacp=deltacp,
+                                                  energy_scale=energy_scale,
                                                   **kwargs)
 
     ebins, czbins = get_binning(flux_maps)
-    
+
     for to_flav in ['nue','numu','nutau']:
         for mID in ['','_bar']: # 'matter' ID
             nue_flux = flux_maps['nue'+mID]['map']
@@ -71,14 +67,11 @@ def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,theta12=
                               numu_flux*osc_prob_maps['numu'+mID+'_maps'][to_flav+mID])
                        }
             osc_flux_maps[to_flav+mID] = oscflux
-            
+
     return osc_flux_maps
 
-        
+
 if __name__ == '__main__':
-    
-    #Only show errors while parsing
-    set_verbosity(0)
 
     # parser
     parser = ArgumentParser(description='Takes the oscillation parameters '
@@ -102,18 +95,20 @@ if __name__ == '__main__':
                         help='''theta23 value [rad]''')
     parser.add_argument('--deltacp',type=float,default=np.pi,
                         help='''deltaCP value to use [rad]''')
-    parser.add_argument('--code',type=str,choices = ['prob3','table', 'nucraft'], 
+    parser.add_argument('--energy_scale',type=float,default=1.0,
+                        help='''Energy off scaling due to mis-calibration.''')
+    parser.add_argument('--code',type=str,choices = ['prob3','table','nucraft'], 
                         default='prob3',
                         help='''Oscillation code to use, one of 
                         [table, prob3, nucraft], (default=prob3)''')
-    parser.add_argument('--oversample', type=int, default=2,
+    parser.add_argument('--oversample', type=int, default=10,
                         help='''oversampling factor for *both* energy and cos(zen); 
                         i.e. every 2D bin will be oversampled by the square of the 
-                        factor (default=2)''')
+                        factor (default=10)''')
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str,
                         action='store',default="osc_flux.json",
                         help='file to store the output')
-    parser.add_argument('-v', '--verbose', action='count', default=0,
+    parser.add_argument('-v', '--verbose', action='count', default=None,
                         help='set verbosity level')
     args = parser.parse_args()
 
@@ -139,7 +134,8 @@ if __name__ == '__main__':
                                  theta12 = args.theta12,
                                  theta13 = args.theta13,
                                  theta23 = args.theta23,
-                                 oversample = args.oversample)
+                                 oversample = args.oversample,
+                                 energy_scale = args.energy_scale)
     
     #Write out
     logging.info("Saving output to: %s",args.outfile)

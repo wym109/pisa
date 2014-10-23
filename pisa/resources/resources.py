@@ -9,11 +9,11 @@
 # date:   2014-06-10
 
 import os, sys
-import logging
+from pisa.utils.log import logging
 from pkg_resources import resource_stream, resource_filename
 
 
-def find_resource(filename):
+def find_resource(filename, fail = True):
     '''
     Try to find the resource given by directory/filename. Will first check if
     filename is an absolute path, then relative to the $PISA
@@ -24,11 +24,13 @@ def find_resource(filename):
 
     #First check for absolute path
     fpath = os.path.expanduser(os.path.expandvars(filename))
+    logging.trace("Checking if %s is a file..."%fpath)
     if os.path.isfile(fpath):
         logging.debug('Found %s'%(fpath))
         return fpath
     
     #Next check if $PISA is set in environment
+    logging.trace("Checking environment for $PISA...")
     if 'PISA' in os.environ:
         rpath = os.path.expanduser(os.path.expandvars(os.environ['PISA']))
         logging.debug('Searching resource path PISA=%s'%rpath)
@@ -39,14 +41,18 @@ def find_resource(filename):
             return fpath
 
     #Not in the resource path, so look inside the package
-    logging.debug('Searching package resources...')
+    logging.trace('Searching package resources...')
     fpath = resource_filename(__name__,filename)
     if os.path.isfile(fpath):
         logging.debug('Found %s at %s'%(filename,fpath))
         return fpath
 
     #Nowhere to be found
-    raise IOError('Could not find resource "%s"'%filename)
+    if fail:
+        raise IOError('Could not find resource "%s"'%filename)
+    else:
+        logging.debug('Could not find resource "%s"'%filename)
+        return None
 
 
 def open_resource(filename):
