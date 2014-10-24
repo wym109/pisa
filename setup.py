@@ -46,6 +46,7 @@ setup(
                     'pisa/oscillations/prob3/mosc.c',
                     'pisa/oscillations/prob3/mosc3.c'],
                     swig_opts=['-c++'])],
+  py_modules=['pisa/oscillations/prob3/BargerPropagator.py'],
   package_data={'pisa.resources': ['logging.json',
                                    'aeff/*.json',
                                    'aeff/V15/cuts_V3/*.dat',

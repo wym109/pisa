@@ -62,7 +62,7 @@ __Notes:__
 * You can work with your installation using the usual git commands (pull,
 push, etc.). Note however, that these won't rebuild any of the extension (i.e.
 _C/C++_) libraries. If you want to recompile these libraries, simply run
-<br>```cd <your/source/dir>/pisa && python setup.py build_ext```
+<br>```cd <your/source/dir>/pisa && python setup.py build_ext --inplace```
 
 * If you did not install `pisa` in a virtual environment, then the package will
   be installed alongside with your other python packages. This typically means
