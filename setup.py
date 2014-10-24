@@ -39,7 +39,7 @@ setup(
            'pisa/analysis/LLR/LLROptimizerAnalysis.py'
            ],
   ext_package='pisa.oscillations.prob3',
-  ext_modules=[Extension('_BargerPropagator',
+  ext_modules=[Extension('BargerPropagator',
                    ['pisa/oscillations/prob3/BargerPropagator.i',
                     'pisa/oscillations/prob3/BargerPropagator.cc',
                     'pisa/oscillations/prob3/EarthDensity.cc',
