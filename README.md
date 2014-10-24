@@ -28,7 +28,14 @@ If you are working on OSX, we suggest [homebrew](brew.sh/) as a package manager,
 
 **User mode:**
 
-User mode is currently not supported, sorry.
+Use this if you just want to run `pisa`, but don't want to edit it. First pick a revision from [this github page](https://github.com/sboeser/pisa/releases). Then run this command in your shell, to directly install pisa from github.
+```
+pip install git+https://github.com/sboeser/pisa@<release>#egg=pisa
+```
+
+where
+
+* `<release>` is the release number, e.g. `2.0.0`
 
 **Developer mode:**
 
@@ -78,7 +85,11 @@ _C/C++_) libraries. If you want to recompile these libraries, simply run
 
 **Developer mode:**
 
-The simplest way to update pisa is just to checkout the version you want in git. However, this will not update the version number for `pip`, and it also won't recompile the `prob3` oscillation package. In order to get those updated, the best way is to simply
+To upgrade to new version of pisa, just run the install command again with a new version number and the `--upgrade` flag. 
+
+**Developer mode:**
+
+The simplest way to update pisa is just to checkout the version you want in git. However, this will not update the version number for `pip`, and it also won't recompile the `prob3` oscillation package. In order to get those updated, the best way is to
 
 1. Make sure your _fork_ of pisa on github has the right version
 2. Run the install command again
