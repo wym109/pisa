@@ -74,6 +74,19 @@ _C/C++_) libraries. If you want to recompile these libraries, simply run
   ```cd <your/source/dir> && sudo chown -R <user> pisa```<br>
   where `<user>` obviously just is your user name.
 
+### Updating `pisa`
+
+**Developer mode:**
+
+The simplest way to update pisa is just to checkout the version you want in git. However, this will not update the version number for `pip`, and it also won't recompile the `prob3` oscillation package. In order to get those updated, the best way is to simply
+
+1. Make sure your _fork_ of pisa on github has the right version
+2. Run the install command again
+```
+pip install --src <your/source/dir> --editable git+https://github.com/<user>/pisa@<branch>#egg=pisa 
+```
+Git will automatically realize that there is already a version of `pisa` in `<your/source/dir>`, so it will just update, but won't delete any of the files you have in there. 
+
 ## Data formats
 
 This [working document](https://docs.google.com/document/d/1qPVrtECZUDHVVJz_CncCemqmeHk5nOgPlceIU7-jNGc/edit#) describes some of the data formats that will be used in the different steps.
