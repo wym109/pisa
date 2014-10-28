@@ -39,7 +39,13 @@ This function returns maps of events counts for each flavour and interaction typ
 So far, two effective area services are surported, one for __parametrized__ effective areas, the other one builds effective areas directly from MC events.
 
 ###AeffServiceMC
-This service takes the energy and cos(zenith) bins as well as a data file in HDF5 format in the constructor. I then reads the events weights for each flavour and interaction type from the datafile and creates histogram of the effective area. The structure of the datafile is
+
+```
+class AeffServiceMC:
+    def __init__(self,ebins,czbins,aeff_weight_file=None,**kwargs):
+````
+
+This service takes the energy and cos(zenith) bins as well as a data file (`aeff_weight_file`) in HDF5 format in the constructor. I then reads the events weights for each flavour and interaction type from the datafile and creates histogram of the effective area. The structure of the datafile is
 ```
 flavour / int_type / value
 ```
@@ -61,9 +67,32 @@ where
   * `N_files` is the total number of data files included
   * the factor 2 reflects that in IceCube simulation both `nu` and `nubar` are simulated in the same runs, while we have seperate effective areas for each of them.
 
-The units of the resulting weights are in [GeV m^2 sr]. To obtain the effective area, these weights are histrogrammed in the given binning as a function of cos(zenith) and energy. To obtain the effective area in each, it is multiplied with the covered solid angle and energy range. 
+To obtain the effective area, these weights are histrogrammed in the given binning as a function of cos(zenith) and energy. To obtain the effective area in each bin _i_, the sum of weights in this bin is divided with the solid angle and energy range covered by the bin. 
 
-![Aeff](aeff.png)
+![AeffMC](aeffmc.png)
 
-and will be in units of [GeV m^2 sr] (convert OneWeight unit of cm^2 to m^2)
-* `AeffServicePar`
+### AeffServicePar
+```
+class AeffServicePar:
+    def __init__(self,ebins,czbins,aeff_egy_par,aeff_coszen_par,**kwargs):
+```
+This service uses pre-made datatables to describe the energy dependence of the effective area, while the cos(zenith) dependence is described as a functional form (i.e parametrization).
+* **Energy dependence**:  `aeff_egy_par` is a dictionary that lists datatables for the 1D energy dependence for each flavour for charged-current interactions  (`nue`,`nue_bar`,`numu`,`numu_bar`,`nutau`,`nutau_bar`), while neutral-current interactions are modelled as flavour-independent (`NC`,`NC_bar`). A simple text file is used for the datatables with the format
+
+    ```
+    energy aeff
+    ```
+
+   where `energy` is in GeV and `aeff` is in m^2. These files are parsed using `numpy.loadtxt`, and interpolated using 1D linear interpolation with all ranges outside the interpolation range set to 0. 
+   
+* **cos(zenith) dependence**: `aeff_coszen_par` is a dictionary with one entry per flavour for charged-current and one for neutral-current events (`nue`,`numu`,`nutau`,`NC`). Each entry holds a function definition (typically a `lambda` function) that takes the cos(zenith) angle and returns a modification function for the energy-dependent functions.
+    ```
+    { 'nue' : 'lambda cz: 0.882 * np.abs(cz)**0.508 + 0.415', ...}
+    ```
+    The function strings are evaluated using `eval` to return python function objects.
+
+The total effective area is calculated for each bin _i_ by evaluating the both parametrization functions at the bin centers in energy and cos(zenith) and multiplying them, where the cos(zenith) functions are also normalized to unity over the energy range. 
+
+![AeffPar](aeffpar.png)
+
+
