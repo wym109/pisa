@@ -40,6 +40,12 @@ This stage returns maps of reconstructed event counts for each "flavour":
 {"nue_cc": {'czbins':[], 'ebins':[], 'map':[]},
  "numu_cc": {...},
  "nutau_cc": {...},
- "nuall_nc": {...},
+ "nuall_nc": {...}}
 ```
- 
+
+## Services
+
+The base service class `RecoServiceBase` contains everything that is 
+related to actually applying the reconstruction kernels to the data, as 
+well as sanity checks of the kernels. The methods common to all reco 
+services (which are all implemented here) are:
