@@ -1,10 +1,10 @@
 # Stage 1: Flux
 
-The purpose of this stage is to get the expected flux produced in the atmosphere for different particles at different energies and angles. It is therefore possible to reweight a dataset using the effective area to investigate uncertainties from using different flux models. The neutrino files come from several different measurements made at different positions on the earth and currently can only use azimuth-averaged data. <!---The cosmic ray muon fluxes are produced using the MuonGun splines of Corsika simulation.-->
+The purpose of this stage is to get the expected flux produced in the atmosphere for different particles at different energies and angles. It is therefore possible to reweight a dataset using the effective area to investigate uncertainties from using different flux models. The neutrino files come from several different measurements made at different positions on the earth and currently can only use azimuth-averaged data. 
 
 ## Main Module
 
-The main module for this stage is `Flux.py`, which gets a flux service and then produces splined flux maps for all angles and energies from binned data files. <!---Two flux services are available: MuonFluxService and HondaFluxService.--> The flux service is implemented with the function:
+The main module for this stage is `Flux.py`, which gets a flux service and then produces splined flux maps for all angles and energies from binned data files. The flux service is implemented with the function:
 
 ```flux_service = HondaFluxService(data_file)```
 
@@ -23,11 +23,6 @@ And then the splined flux maps are produced using the function:
 This function returns splined maps of flux (`map`) in bins of energy (`ebins`) and cos(zenith) (`czbins`).
 ```
 {
-<!---  "muons": {
-        "czbins": []
-        "ebins": []
-        "map": []
-  } -->
   "nue" {
         "czbins": []
         "ebins": []
