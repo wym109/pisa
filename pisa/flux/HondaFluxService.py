@@ -15,9 +15,9 @@
 # date:   2014-01-27
 
 import os
-import logging
 import numpy as np
 from scipy.interpolate import bisplrep, bisplev
+from pisa.utils.log import logging
 from pisa.utils.utils import get_bin_centers, get_bin_sizes
 from pisa.resources.resources import open_resource
 
@@ -30,28 +30,28 @@ class HondaFluxService():
        return a 2D spline interpolated function per flavour.
        For now only supports azimuth-averaged input files.
     '''
-    
-    def __init__(self, tables, smooth=0.05, **params):
-        logging.info("Loading atmospheric flux table %s" %tables)
-        
-        #Load the data table
-        table = np.loadtxt(open_resource(tables)).T
 
-        #columns in Honda files are in the same order 
-        cols = ['energy']+primaries 
+    def __init__(self, flux_file=None, smooth=0.05, **params):
+        logging.info("Loading atmospheric flux table %s" %flux_file)
+
+        #Load the data table
+        table = np.loadtxt(open_resource(flux_file)).T
+
+        #columns in Honda files are in the same order
+        cols = ['energy']+primaries
 
         flux_dict = dict(zip(cols, table))
         for key in flux_dict.iterkeys():
-            
+
             #There are 20 lines per zenith range
             flux_dict[key] = np.array(np.split(flux_dict[key], 20))
             if not key=='energy':
                 flux_dict[key] = flux_dict[key].T
-    
-        #Set the zenith and energy range 
+
+        #Set the zenith and energy range
         flux_dict['energy'] = flux_dict['energy'][0]
         flux_dict['coszen'] = np.linspace(0.95, -0.95, 20)
-    
+
         #Now get a spline representation of the flux table.
         logging.debug('Make spline representation of flux')
         # do this in log of energy and log of flux (more stable)
@@ -89,3 +89,4 @@ class HondaFluxService():
         return_table *= np.abs(bin_sizes[0]*bin_sizes[1])
     
         return return_table.T
+
