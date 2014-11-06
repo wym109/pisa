@@ -71,6 +71,9 @@ def find_max_grid(fmap,template_maker,params,grid_settings,save_steps=True,
     fixed_params = get_fixed_params(select_hierarchy(params,normal_hierarchy))
     free_params = get_free_params(select_hierarchy(params,normal_hierarchy))
 
+    #Obtain just the priors
+    priors = get_param_priors(free_params)
+
     #Calculate steps for all free parameters
     calc_steps(free_params, grid_settings['steps'])
 
@@ -96,7 +99,10 @@ def find_max_grid(fmap,template_maker,params,grid_settings,save_steps=True,
 
         #and calculate the likelihood
         llh = -get_binwise_llh(fmap,true_fmap)
-        #llh -= sum([ get_prior_llh(opt_val,sigma,value) for (opt_val,(sigma,value)) in zip(opt_vals,priors)])
+
+        #get sorted vals to match wiht priors
+        vals = [ v for v,k in sorted(pos) ]   
+        llh -= sum([ get_prior_llh(vals,sigma,value) for (vals,(sigma,value)) in zip(vals,priors)])
 
         # Save all values to steps and report
         steps['llh'].append(llh)
@@ -106,7 +112,7 @@ def find_max_grid(fmap,template_maker,params,grid_settings,save_steps=True,
             physics.debug(" %20s = %6.4f" %(key, val))
 
     #Find best fit value
-    maxllh = max(steps['llh'])
+    maxllh = min(steps['llh'])
     maxpos = steps['llh'].index(maxllh)
 
     #Report best fit
