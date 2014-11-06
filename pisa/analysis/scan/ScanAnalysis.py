@@ -1,13 +1,10 @@
 #! /usr/bin/env python
 #
-# run_LLR_opt_analysis.py
+# LLRScanAnalysis.py
 #
-# Runs the LLR optimizer-based LLR analysis
+# Runs a brute-force scan LLR analysis
 #
-# author: Tim Arlen - tca3@psu.edu
-#         Sebatian Boeser - sboeser@uni-mainz.de
-#
-# date:   02-July-2014
+# author: Sebatian Boeser - sboeser@uni-mainz.de
 #
 
 import numpy as np
@@ -15,24 +12,25 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 from pisa.utils.log import logging, profile, physics, set_verbosity
 from pisa.utils.jsons import from_json,to_json
-from pisa.analysis.llr.LLHAnalysis import get_pseudo_data_fmap, find_max_llh_bfgs
+from pisa.analysis.llr.LLHAnalysis import get_pseudo_data_fmap,
+from pisa.analysis.scan.ScanAnalysis import find_max_grid
 from pisa.analysis.TemplateMaker import TemplateMaker
 from pisa.utils.params import get_values, select_hierarchy
 
-parser = ArgumentParser(description='''Runs the LLR optimizer-based analysis varying a number of systematic parameters
+parser = ArgumentParser(description='''Runs a brute-force scan analysis varying a number of systematic parameters
 defined in settings.json file and saves the likelihood values for all
 combination of hierarchies.''',
                         formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('-t','--template_settings',type=str,
                     metavar='JSONFILE', required = True,
                     help='''Settings related to the template generation and systematics.''')
-parser.add_argument('-m','--minimizer_settings',type=str,
+parser.add_argument('-g','--grid_settings',type=str,
                     metavar='JSONFILE', required = True,
-                    help='''Settings related to the optimizer used in the LLR analysis.''')
+                    help='''Settings for the grid search.''')
 parser.add_argument('-n','--ntrials',type=int, default = 1,
                     help="Number of trials to run")
 parser.add_argument('-s','--save_steps',action='store_true',default=False,
-                    help="Save all steps the optimizer takes.")
+                    help="Save all steps (not just the maximum)")
 parser.add_argument('-o','--outfile',type=str,default='llh_data.json',metavar='JSONFILE',
                     help="Output filename.")
 parser.add_argument('-v', '--verbose', action='count', default=None,
@@ -44,14 +42,6 @@ set_verbosity(args.verbose)
 #Read in the settings
 template_settings = from_json(args.template_settings)
 minimizer_settings  = from_json(args.minimizer_settings)
-
-#Workaround for old scipy versions
-import scipy
-if scipy.__version__ < '0.12.0':
-    logging.warn('Detected scipy version %s < 0.12.0'%scipy.__version__)
-    if 'maxiter' in minimizer_settings:
-      logging.warn('Optimizer settings for \"maxiter\" will be ignored')
-      minimizer_settings.pop('maxiter')
 
 #Get the parameters
 params = template_settings['params']
@@ -85,10 +75,10 @@ for itrial in xrange(1,args.ntrials+1):
         for hypo_tag, hypo_normal in [('hypo_NMH',True),('hypo_IMH',False)]:
 
             physics.info("Finding best fit for %s under %s assumption"%(data_tag,hypo_tag))
-            profile.info("start optimizer")
-            llh_data = find_max_llh_bfgs(fmap,template_maker,params,
+            profile.info("start scan")
+            llh_data = find_max_grid(fmap,template_maker,params,
                                         minimizer_settings,args.save_steps,normal_hierarchy=hypo_normal)
-            profile.info("stop optimizer")
+            profile.info("stop scan")
 
             #Store the LLH data
             results[data_tag][hypo_tag] = llh_data
