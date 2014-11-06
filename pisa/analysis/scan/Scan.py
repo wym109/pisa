@@ -116,7 +116,8 @@ def find_max_grid(fmap,template_maker,params,grid_settings,save_steps=True,
     maxpos = steps['llh'].index(maxllh)
 
     #Report best fit
-    physics.info('Found best LLH = %.2f in %d calls at:'  %(llh,len(pos)))
+    physics.info('Found best LLH = %.2f in %d calls at:'
+                 %(maxllh,len(steps['llh'])))
     for name, vals in steps.items():
         physics.info('  %20s = %6.4f'%(name,vals[maxpos]))
 
