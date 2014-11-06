@@ -15,7 +15,7 @@ import scipy.optimize as opt
 
 from pisa.utils.log import logging, physics, profile
 from pisa.utils.params import get_values, select_hierarchy, get_fixed_params, get_free_params, get_prior_llh, get_param_values, get_param_scales, get_param_bounds, get_param_priors
-from pisa.analysis.LLR.LLHStatistics import get_random_map, get_binwise_llh
+from pisa.analysis.stats.LLHStatistics import get_random_map, get_binwise_llh
 
 def get_pseudo_data_fmap(template_maker,fiducial_params):
     '''

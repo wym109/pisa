@@ -15,7 +15,7 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 from pisa.utils.log import logging, profile, physics, set_verbosity
 from pisa.utils.jsons import from_json,to_json
-from pisa.analysis.LLR.LLHAnalysis import get_pseudo_data_fmap, find_max_llh_bfgs
+from pisa.analysis.llr.LLHAnalysis import get_pseudo_data_fmap, find_max_llh_bfgs
 from pisa.analysis.TemplateMaker import TemplateMaker
 from pisa.utils.params import get_values, select_hierarchy
 
