@@ -3,17 +3,54 @@
 #
 # Helper module for brute-force scanning analysis over the whole parameter space
 #
-# author: Sebastian Böser <sboeser@uni-mainz.de>
+# author: Sebastian Boeser <sboeser@uni-mainz.de>
 #
 
 import sys
 import numpy as np
+from itertools import product
 
 from pisa.utils.log import logging, physics, profile
 from pisa.utils.params import get_values, select_hierarchy, get_fixed_params, get_free_params, get_prior_llh, get_param_values, get_param_scales, get_param_bounds, get_param_priors
+from pisa.analysis.stats.Maps import flatten_map
 from pisa.analysis.stats.LLHStatistics import get_binwise_llh
 
-def find_max_grid(fmap,template_maker,params,grid_settings,normal_hierarchy,save_steps=True):
+def calc_steps(params, settings):
+    '''
+    Get the actual grid values for each key. If settings is a list of
+    values, use these directly as steps. If settings has single value,
+    generate this many steps within the bounds given for the parameter.
+    Parameters are identified by names, or "*" which is the default for all
+    parameters
+    '''
+
+    #Collect the steps settings for each parameter
+    for key in params:
+
+        #If specific steps are given, use these
+        if key in settings:
+            params[key]['steps'] = settings[key]
+        else:
+            params[key]['steps'] = settings['*']
+
+    #Now convert number of steps to actual steps
+    for key in params:
+        #ignore if we already have those
+        if isinstance(params[key]['steps'],np.ndarray): continue
+        
+        #calculate the steps
+        lower, upper = params[key]['range']
+        nsteps = params[key]['steps']
+        params[key]['steps'] = np.linspace(lower,upper,nsteps)
+
+    #report for all
+    for name, steps in [ (k,v['steps']) for k,v in params.items()]:
+       logging.debug("Using %u steps for %s from %.5f to %.5f" % 
+                          (len(steps), name, steps[0], steps[-1]))
+
+
+def find_max_grid(fmap,template_maker,params,grid_settings,save_steps=True,
+                                                     normal_hierarchy=True):
     '''
     Finds the template (and free systematic params) that maximize
     likelihood that the data came from the chosen template of true
@@ -34,53 +71,51 @@ def find_max_grid(fmap,template_maker,params,grid_settings,normal_hierarchy,save
     fixed_params = get_fixed_params(select_hierarchy(params,normal_hierarchy))
     free_params = get_free_params(select_hierarchy(params,normal_hierarchy))
 
-    #Create the grid from the bounds and/or grid settings
-    for key in free_params:
-        #Use the default if none is specified
-        if not key in grid_settings:
-            nsteps = grid_settings["*"]
-            logging.trace("Using %u steps for %s from %.5f to %.5f" % 
-                            (nsteps, key, *free_params[key]['range']))
+    #Calculate steps for all free parameters
+    calc_steps(free_params, grid_settings['steps'])
 
-    sys.exit(1)
+    #Build a list from all parameters that holds a list of (name, step) tuples
+    steplist = [ [(name,step) for step in param['steps']] for name, param in sorted(free_params.items())]
 
+    #Prepare to store all the steps
+    steps = {key:[] for key in free_params.keys()}
+    steps['llh'] = []
 
-    #Store all the steps
-    steps_dict = {key:[] for key in fixed_params.keys()}
-    steps_dict['llh'] = []
+    #Iterate over the cartesian product
+    for pos in product(*steplist):
 
-    
-    template_params = dict(get_values(free_params).items() + get_values(fixed_params).items())
+        #Get a dict with all parameter values at this position
+        #including the fixed parameters
+        template_params = dict(list(pos) + get_values(fixed_params).items())
+ 
+        # Now get true template
+        profile.info('start template calculation')
+        true_template = template_maker.get_template(template_params)
+        profile.info('stop template calculation')
+        true_fmap = flatten_map(true_template)
 
-    # Now get true template
-    profile.info('start template calculation')
-    true_template = template_maker.get_template(template_params)
-    profile.info('stop template calculation')
-    true_fmap = flatten_map(true_template)
+        #and calculate the likelihood
+        llh = -get_binwise_llh(fmap,true_fmap)
+        #llh -= sum([ get_prior_llh(opt_val,sigma,value) for (opt_val,(sigma,value)) in zip(opt_vals,priors)])
 
-    #and calculate the likelihood
-    llh = -get_binwise_llh(fmap,true_fmap)
-    llh -= sum([ get_prior_llh(opt_val,sigma,value) for (opt_val,(sigma,value)) in zip(opt_vals,priors)])
+        # Save all values to steps and report
+        steps['llh'].append(llh)
+        physics.debug("LLH is %.2f at: "%llh) 
+        for key, val in pos:
+            steps[key].append(val)
+            physics.debug(" %20s = %6.4f" %(key, val))
 
-    # Save all optimizer-tested values to opt_steps_dict, to see
-    # optimizer history later
-    for key in names:
-        opt_steps_dict[key].append(template_params[key])
-    opt_steps_dict['llh'].append(llh)
+    #Find best fit value
+    maxllh = max(steps['llh'])
+    maxpos = steps['llh'].index(maxllh)
 
-   physics.debug("LLH is %.2f at: "%llh) 
-    for name, val in zip(names, opt_vals):
-        physics.debug(" %20s = %6.4f" %(name,val))
-    
-
-    #Only return best fit value?
-    #use np.array maximum here...
-    #llh_max = -sys.float_info.max
     #Report best fit
-    #physics.info('Found best LLH = %.2f in %d calls at:'
-    #    %(llh,dict_flags['funcalls']))
-    #for name, val in best_fit_params.items():
-    #    physics.info('  %20s = %6.4f'%(name,val))
+    physics.info('Found best LLH = %.2f in %d calls at:'  %(llh,len(pos)))
+    for name, vals in steps.items():
+        physics.info('  %20s = %6.4f'%(name,vals[maxpos]))
 
-    return steps_dict
+        #only save this maximum if asked for
+        if not save_steps:
+            steps[name]=vals[maxpos]
 
+    return steps

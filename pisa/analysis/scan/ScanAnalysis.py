@@ -12,8 +12,8 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 from pisa.utils.log import logging, profile, physics, set_verbosity
 from pisa.utils.jsons import from_json,to_json
-from pisa.analysis.llr.LLHAnalysis import get_pseudo_data_fmap,
-from pisa.analysis.scan.ScanAnalysis import find_max_grid
+from pisa.analysis.stats.Maps import get_pseudo_data_fmap
+from pisa.analysis.scan.Scan import find_max_grid
 from pisa.analysis.TemplateMaker import TemplateMaker
 from pisa.utils.params import get_values, select_hierarchy
 
@@ -29,8 +29,13 @@ parser.add_argument('-g','--grid_settings',type=str,
                     help='''Settings for the grid search.''')
 parser.add_argument('-n','--ntrials',type=int, default = 1,
                     help="Number of trials to run")
-parser.add_argument('-s','--save_steps',action='store_true',default=False,
-                    help="Save all steps (not just the maximum)")
+sselect = parser.add_mutually_exclusive_group(required=False)
+sselect.add_argument('--save-steps',action='store_true',
+                    default=True, dest='save_steps',
+                    help="Save all steps")
+sselect.add_argument('--no-save-steps', action='store_false',
+                    default=False, dest='save_steps',
+                    help="Save just the maximum")
 parser.add_argument('-o','--outfile',type=str,default='llh_data.json',metavar='JSONFILE',
                     help="Output filename.")
 parser.add_argument('-v', '--verbose', action='count', default=None,
@@ -41,7 +46,7 @@ set_verbosity(args.verbose)
 
 #Read in the settings
 template_settings = from_json(args.template_settings)
-minimizer_settings  = from_json(args.minimizer_settings)
+grid_settings  = from_json(args.grid_settings)
 
 #Get the parameters
 params = template_settings['params']
@@ -77,7 +82,7 @@ for itrial in xrange(1,args.ntrials+1):
             physics.info("Finding best fit for %s under %s assumption"%(data_tag,hypo_tag))
             profile.info("start scan")
             llh_data = find_max_grid(fmap,template_maker,params,
-                                        minimizer_settings,args.save_steps,normal_hierarchy=hypo_normal)
+                                        grid_settings,args.save_steps,normal_hierarchy=hypo_normal)
             profile.info("stop scan")
 
             #Store the LLH data
@@ -91,6 +96,6 @@ for itrial in xrange(1,args.ntrials+1):
 #Assemble output dict
 output = {'trials' : trials,
           'template_settings' : template_settings,
-          'minimizer_settings' : minimizer_settings}
+          'grid_settings' : grid_settings}
 #And write to file
 to_json(output,args.outfile)
