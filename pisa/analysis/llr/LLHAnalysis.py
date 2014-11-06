@@ -45,6 +45,102 @@ def flatten_map(template):
     return fmap
 
 
+def find_max_llh_grid(fmap_data,true_templates,save_grid_steps=True):
+    '''
+    Find the template from true_templates that maximizes likelihood
+    that fmap_data came from the given template. Loops over all
+    true_templates to find maximum.
+
+    returns dictionary of trial_data:
+      {
+        'llh':[...],
+        'deltam31': [...],
+        'theta23': [...]
+      }
+    where elements in list are the values tested in the grid search,
+    and the final values (e.g. trial_data['llh'][-1], trial_data['deltam31'][-1]
+    etc.) are the values that maximized llh.
+
+    TODO (22-Oct-2014, TCA):
+    This functioni has not been standardized with other find_max_llh* functions.
+    DO NOT USE unless you are en expert.
+    '''
+
+    trial_data = {'llh':[],'deltam31':[],'theta23':[]}
+
+    llh_max = -sys.float_info.max
+    best_theta23 = 0.0
+    best_deltam31 = 0.0
+    #print "  num true templates: ",len(true_templates)
+    for true_template in true_templates:
+        true_fmap = flatten_map(true_template)
+        llh_val = get_binwise_llh(fmap_data,true_fmap)
+
+        if save_grid_steps:
+            trial_data['llh'].append(llh_val)
+            trial_data['deltam31'].append(true_template['params']['deltam31'])
+            trial_data['theta23'].append(true_template['params']['theta23'])
+
+        if llh_val > llh_max:
+            llh_max = llh_val
+            best_deltam31 = true_template['params']['deltam31']
+            best_theta23  = true_template['params']['theta23']
+
+    # __Final__ values are the 'best' fit values-just like it is in the
+    # optimizer method.
+    trial_data['llh'].append(llh_max)
+    trial_data['deltam31'].append(best_fit['deltam31'])
+    trial_data['theta23'].append(best_fit['theta23'])
+
+    return trial_data
+
+def find_max_llh_powell(fmap,settings,assume_nmh=True):
+    '''
+    Uses Powell's method implementation in scipy.optimize to fine the
+    maximum likelihood for a given pseudo data fmap.
+
+    TODO (22-Oct-2014, TCA): 
+    This function has not been properly tested and the return/output
+    format has not been standardized with other find_max_llh* functions.
+    DO NOT USE unless you are en expert.
+    '''
+
+    fixed_params = get_fixed_params(select_hierarchy(params,normal_hierarchy))
+    free_params = get_free_params(select_hierarchy(params,normal_hierarchy))
+
+    init_vals = []
+    const_args = []
+    names = []
+    scales = []
+    priors = []
+    for key in free_params.keys():
+        init_vals.append(free_params[key]['value'])
+        names.append(key)
+        scales.append(free_params[key]['scale'])
+        priors.append((free_params[key]['prior'],free_params[key]['value']))
+
+    opt_steps_dict = {key:[] for key in names}
+    opt_steps_dict['llh'] = []
+    const_args = (names,scales,fmap,fixed_params,opt_steps_dict,priors)
+
+    init_vals = np.array(init_vals)*np.array(scales)
+
+    print "init_vals: ",init_vals
+    print "priors: ",priors
+
+    #
+    # PUT THIS INTO SETTINGS FILE LATER!
+    #
+    print "opt_settings: "
+    ftol = 1.0e-7
+    print "  ftol: %.2e"%ftol
+    vals = opt.fmin_powell(llh_bfgs,init_vals,args=const_args,ftol=ftol,full_output=1)
+
+    print "\n        CONVERGENCE!\n"
+    print "returns: \n",vals
+
+    return vals
+
 def find_max_llh_bfgs(fmap,template_maker,params,bfgs_settings,save_steps=False,
                       normal_hierarchy=True):
     '''
