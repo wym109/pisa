@@ -25,17 +25,15 @@ class NucraftOscillationService(OscillationServiceBase):
     This class handles all tasks related to the oscillation
     probability calculations using the prob3 oscillation code
     """
-    def __init__(self, ebins, czbins,
-                 earth_model='oscillations/PREM_60layer.dat',
-                 detector_depth=2.0, prop_height=None, osc_precision=5e-4,
+    def __init__(self, ebins, czbins, detector_depth=None, earth_model=None,
+                 prop_height=None, osc_precision=None,
                  **kwargs):
         """
         Parameters needed to instantiate a NucraftOscillationService:
         * ebins: Energy bin edges
         * czbins: cos(zenith) bin edges
         * earth_model: Earth density model used for matter oscillations.
-                       Default: 60-layer PREM model shipped with pisa.
-        * detector_depth: Detector depth in km. Default: 2.0
+        * detector_depth: Detector depth in km.
         * prop_height: Height in the atmosphere to begin in km.
                        Default: 'sample', samples from a parametrization to
                        the atmospheric interaction model presented in
@@ -130,8 +128,8 @@ class NucraftOscillationService(OscillationServiceBase):
             logging.info('Loaded Earth model from %s'%model)
         except SyntaxError:
             #Probably the file is lacking the correct preamble
-            logging.warn('Failed to construct NuCraft Earth model from '
-                         '%s! Adding default preamble...'%resource_path)
+            logging.info('Failed to construct NuCraft Earth model directly from'
+                         ' %s! Adding default preamble...'%resource_path)
             #Generate tempfile with preamble
             with open(resource_path, 'r') as infile:
                 profile_lines = infile.readlines()

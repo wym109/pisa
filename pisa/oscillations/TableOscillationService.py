@@ -53,7 +53,7 @@ class TableOscillationService(OscillationServiceBase):
     This class handles all tasks related to the oscillation
     probability calculations...
     """
-    def __init__(self,ebins,czbins,datadir='oscillations', **kwargs):
+    def __init__(self,ebins,czbins,datadir=None, **kwargs):
         OscillationServiceBase.__init__(self, ebins, czbins)
         
         report_params(get_params(),[''])
