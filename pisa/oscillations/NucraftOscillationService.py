@@ -17,6 +17,7 @@ from pisa.oscillations.OscillationServiceBase import OscillationServiceBase
 from pisa.oscillations.nuCraft.NuCraft import NuCraft, EarthModel
 from pisa.resources.resources import find_resource
 from pisa.utils.physics import get_PDG_ID
+from pisa.utils.proc import get_params, report_params
 
 
 class NucraftOscillationService(OscillationServiceBase):
@@ -43,6 +44,9 @@ class NucraftOscillationService(OscillationServiceBase):
         * osc_precision: Numerical precision for oscillation probabilities
         """
         OscillationServiceBase.__init__(self, ebins, czbins)
+
+        print get_params()
+        report_params(get_params(),['km','','','km'])
 
         self.prop_height = prop_height # km above spherical Earth surface
         self.height_mode = 3 if self.prop_height is None else 1

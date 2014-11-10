@@ -16,6 +16,7 @@ from pisa.utils.log import logging
 from pisa.oscillations.OscillationServiceBase import OscillationServiceBase
 from pisa.utils.utils import get_smoothed_map
 from pisa.resources.resources import find_resource
+from pisa.utils.proc import get_params, report_params
 
 
 def get_osc_probLT_dict_hdf5(filename):
@@ -55,6 +56,7 @@ class TableOscillationService(OscillationServiceBase):
     def __init__(self,ebins,czbins,datadir='oscillations', **kwargs):
         OscillationServiceBase.__init__(self, ebins, czbins)
         
+        report_params(get_params(),[''])
         self.datadir = datadir
     
     

@@ -17,6 +17,7 @@ from pisa.oscillations.OscillationServiceBase import OscillationServiceBase
 from pisa.oscillations.prob3.BargerPropagator import BargerPropagator
 from pisa.resources.resources import find_resource
 from pisa.utils.jsons import to_json
+from pisa.utils.proc import get_params, report_params
 
 class Prob3OscillationService(OscillationServiceBase):
     """
@@ -36,6 +37,8 @@ class Prob3OscillationService(OscillationServiceBase):
                        Default: 20.0
         """
         OscillationServiceBase.__init__(self, ebins, czbins)
+
+        report_params(get_params(),['km','','km'])
 
         self.prop_height = prop_height
         earth_model = find_resource(earth_model)
