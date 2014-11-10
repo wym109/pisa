@@ -37,7 +37,7 @@ class NucraftOscillationService(OscillationServiceBase):
                        Default: 60-layer PREM model shipped with pisa.
         * detector_depth: Detector depth in km. Default: 2.0
         * prop_height: Height in the atmosphere to begin in km.
-                       Default: None, samples from a parametrization to
+                       Default: 'sample', samples from a parametrization to
                        the atmospheric interaction model presented in
                        "Path length distributions of atmospheric neutrinos",
                        Gaisser and Stanev, PhysRevD.57.1977
@@ -49,7 +49,7 @@ class NucraftOscillationService(OscillationServiceBase):
         report_params(get_params(),['km','','','km'])
 
         self.prop_height = prop_height # km above spherical Earth surface
-        self.height_mode = 3 if self.prop_height is None else 1
+        self.height_mode = 3 if self.prop_height is 'sample' else 1
         self.detector_depth = detector_depth # km below spherical Earth surface
         self.num_prec = osc_precision
         self.get_earth_model(earth_model)
@@ -74,7 +74,7 @@ class NucraftOscillationService(OscillationServiceBase):
                          earthModel = self.earth_model)
         engine.detectorDepth = self.detector_depth
 
-        if self.prop_height is not None:
+        if self.prop_height is not 'sample':
             # Fix neutrino production height and detector depth for
             # simulating reactor experiments.
             # In this case, there should be only one zenith angle corresponding
