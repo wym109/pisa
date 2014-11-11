@@ -23,9 +23,9 @@ from pisa.utils.log import logging, physics, set_verbosity
 from pisa.utils.utils import check_binning, get_binning
 from pisa.utils.jsons import from_json,to_json
 from pisa.utils.proc import report_params, get_params, add_params
-from pisa.reco.MCRecoService import MCRecoService
-from pisa.reco.ParamRecoService import ParamRecoService
-from pisa.reco.KernelFileRecoService import KernelFileRecoService
+from pisa.reco.RecoServiceMC import RecoServiceMC
+from pisa.reco.RecoServiceParam import RecoServiceParam
+from pisa.reco.RecoServiceKernelFile import RecoServiceKernelFile
 import numpy as np
 
 
@@ -88,15 +88,15 @@ Expects the file format to be:
 
     logging.info("Defining RecoService...")
     if args.mode=='MC':
-        reco_service = MCRecoService(ebins, czbins, 
+        reco_service = RecoServiceMC(ebins, czbins, 
                                      simfile=args.mc_file,
                                      **vars(args))
     elif args.mode=='param':
-        reco_service = ParamRecoService(ebins,czbins, 
+        reco_service = RecoServiceParam(ebins,czbins, 
                                         paramfile=args.param_file,
                                         **vars(args))
     elif args.mode=='stored':
-        reco_service = KernelFileRecoService(ebins, czbins,
+        reco_service = RecoServiceKernelFile(ebins, czbins,
                                              kernelfile=args.kernel_file, 
                                              **vars(args))
 

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-#  ParamRecoService.py
+#  RecoServiceParam.py
 # 
 # Creates reconstruction kernels from a parametrization
 #
@@ -32,7 +32,7 @@ def double_gauss(x, loc1=0, width1=1.e-6, loc2=0., width2=1.e-6, fraction=0.):
 
 
 
-class ParamRecoService(RecoServiceBase):
+class RecoServiceParam(RecoServiceBase):
     """
     Creates reconstruction kernels from a parametrization that is stored 
     as a json dict. The parametrizations are assumed to be double 
