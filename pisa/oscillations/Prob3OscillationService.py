@@ -17,25 +17,26 @@ from pisa.oscillations.OscillationServiceBase import OscillationServiceBase
 from pisa.oscillations.prob3.BargerPropagator import BargerPropagator
 from pisa.resources.resources import find_resource
 from pisa.utils.jsons import to_json
+from pisa.utils.proc import get_params, report_params
 
 class Prob3OscillationService(OscillationServiceBase):
     """
     This class handles all tasks related to the oscillation
     probability calculations using the prob3 oscillation code
     """
-    def __init__(self, ebins, czbins, earth_model='oscillations/PREM_60layer.dat',
-                 detector_depth=2.0, prop_height=20.0, **kwargs):
+    def __init__(self, ebins, czbins, detector_depth=None, earth_model=None,
+                 prop_height=None, **kwargs):
         """
         Parameters needed to instantiate a Prob3OscillationService:
         * ebins: Energy bin edges
         * czbins: cos(zenith) bin edges
         * earth_model: Earth density model used for matter oscillations.
-                       Default: 60-layer PREM model shipped with pisa.
-        * detector_depth: Detector depth in km. Default: 2.0
+        * detector_depth: Detector depth in km.
         * prop_height: Height in the atmosphere to begin in km.
-                       Default: 20.0
         """
         OscillationServiceBase.__init__(self, ebins, czbins)
+
+        report_params(get_params(),['km','','km'])
 
         self.prop_height = prop_height
         earth_model = find_resource(earth_model)
