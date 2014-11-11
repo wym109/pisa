@@ -1,8 +1,8 @@
 #
-# Base class for reconstruction services, handles the actual smearing 
+# Base class for reconstruction services, handles the actual smearing
 # of events from the reco kernels. Kernel generation has to be implemented
 # in the derived classes.
-# 
+#
 #
 # author: Lukas Schulte
 #         schulte@physik.uni-bonn.de
@@ -23,11 +23,11 @@ from pisa.utils.proc import report_params, get_params, add_params
 
 class RecoServiceBase:
     """
-    Base class for reconstruction services, handles the actual smearing 
+    Base class for reconstruction services, handles the actual smearing
     of events from the reco kernels. Kernel generation has to be implemented
     in the derived classes.
     """
-    
+
     def __init__(self, ebins, czbins, **kwargs):
         """
         Parameters needed to instantiate any reconstruction service:
@@ -41,27 +41,27 @@ class RecoServiceBase:
         for ax in [self.ebins, self.czbins]:
             if (len(np.shape(ax)) != 1):
                 raise IndexError('Axes must be 1d! '+str(np.shape(ax)))
-        
+
         #Get kernels already now. Can be recalculated later, if needed.
         self.kernels = self.get_reco_kernels(**kwargs)
         self.check_kernels()
         self.normalize_kernels()
-    
-    
+
+
     def get_reco_kernels(self, **kwargs):
         """
-        This method is called to construct the reco kernels, i.e. a 4D 
-        histogram of true (1st and 2nd axis) vs. reconstructed (3rd and 
-        4th axis) energy (1st and 3rd axis) and cos(zenith) (2nd and 4th 
-        axis). It has to be implemented in the derived classes individually, 
+        This method is called to construct the reco kernels, i.e. a 4D
+        histogram of true (1st and 2nd axis) vs. reconstructed (3rd and
+        4th axis) energy (1st and 3rd axis) and cos(zenith) (2nd and 4th
+        axis). It has to be implemented in the derived classes individually,
         since the way the reco kernels are generated is the depends on
-        the reco method. Normalization of the kernels is taken care of 
+        the reco method. Normalization of the kernels is taken care of
         elsewhere.
         """
         raise NotImplementedError('Method not implemented for %s'
                                     %self.__class__.__name__)
-    
-    
+
+
     def check_kernels(self):
         """
         Test whether the reco kernels have the correct shape.
@@ -77,7 +77,7 @@ class RecoServiceBase:
                 pass
         # check shape of kernels
         logging.debug('Checking shape of reconstruction kernels')
-        shape = (len(self.ebins)-1, len(self.czbins)-1, 
+        shape = (len(self.ebins)-1, len(self.czbins)-1,
                  len(self.ebins)-1, len(self.czbins)-1)
         for flavour in self.kernels:
             if flavour in ['ebins', 'czbins']: continue
@@ -90,8 +90,8 @@ class RecoServiceBase:
                     pass
         logging.info('Reconstruction kernels are sane')
         return True
-    
-    
+
+
     def normalize_kernels(self):
         """
         Ensure that all reco kernels are normalized.
@@ -105,82 +105,14 @@ class RecoServiceBase:
                     kernel_sum = np.sum(self.kernels[flavour][interaction][true_bin])
                     if kernel_sum > 0.:
                         self.kernels[flavour][interaction][true_bin] /= kernel_sum
-    
-    
-    def get_reco_maps(self, true_event_maps, recalculate=False, **kwargs):
-        """
-        Primary function for this service, which returns the reconstructed
-        event rate maps from the true event rate maps. The returned maps will
-        be in the form of a dictionary with parameters:
-        {'nue_cc':{'ebins':ebins,'czbins':czbins,'map':map},
-         'numu_cc':{...},
-         'nutau_cc':{...},
-         'nuall_nc':{...}
-        }
-        Note that in this function, the nu<x> is now combined with nu_bar<x>.
-        """
-        if recalculate: 
-            self.recalculate_kernels(**kwargs)
-        
-        #Be verbose on input
-        params = get_params()
-        report_params(params, units = ['',''])
-        
-        #Initialize return dict
-        reco_maps = {'params': add_params(params,true_event_maps['params'])}
+        return
 
-        #Check binning
-        ebins, czbins = get_binning(true_event_maps)
-        for map_axis, own_axis in [(ebins, self.ebins),
-                                    (czbins, self.czbins)]:
-            if not is_equal_binning(map_axis, own_axis):
-                raise ValueError("Binning of reconstruction kernel doesn't "
-                                  "match the event maps!")
-            else:
-                pass
-        
-        flavours = ['nue','numu','nutau']
-        int_types = ['cc','nc']
-        
-        for int_type in int_types:
-            for flavor in flavours:
-                logging.info("Getting reco event rates for %s %s"%(flavor,int_type))
-                reco_evt_rate = np.zeros((len(ebins)-1,len(czbins)-1),
-                                         dtype=np.float32)
-                for mID in ['','_bar']:
-                    flav = flavor+mID
-                    true_evt_rate = true_event_maps[flav][int_type]['map']
-                    
-                    kernels = self.kernels[flav][int_type]
-                        
-                    for ie,egy in enumerate(ebins[:-1]):
-                        for icz,cz in enumerate(czbins[:-1]):
-                            # Get kernel at these true parameters from 4D hist
-                            reco_evt_rate += true_evt_rate[ie,icz]*kernels[ie,icz]
-                
-                reco_maps[flavor+'_'+int_type] = {'map':reco_evt_rate,
-                                                  'ebins':ebins,
-                                                  'czbins':czbins}
-                logging.info("  Total counts: %.2f"%np.sum(reco_evt_rate))
-
-        #Finally sum up all the NC contributions
-        logging.info("Summing up rates for %s %s"%('all',int_type))
-        reco_evt_rate = np.sum([reco_maps.pop(key)['map'] for key in reco_maps.keys()
-                                if key.endswith('_nc')], axis = 0)
-        reco_maps['nuall_nc'] = {'map':reco_evt_rate,
-                                 'ebins':ebins,
-                                 'czbins':czbins}
-        logging.info("  Total counts: %.2f"%np.sum(reco_evt_rate))
-
-        return reco_maps
-    
-    
     def store_kernels(self, filename):
         """
         Store reconstruction kernels in json format
         """
         to_json(self.kernels, filename)
-
+        return
 
     def recalculate_kernels(self, **kwargs):
         """
@@ -197,3 +129,4 @@ class RecoServiceBase:
             logging.error('Failed to recalculate reconstruction kernels, '
                           'keeping old ones: ', exc_info=True)
             self.kernels = old_kernels
+        return
