@@ -20,8 +20,8 @@ from pisa.utils.log import logging, set_verbosity
 from pisa.utils.utils import check_binning
 from pisa.utils.jsons import from_json, to_json
 from pisa.resources.resources import find_resource
-from pisa.pid.ParamPIDService import ParamPIDService
-from pisa.pid.KernelFilePIDService import KernelFilePIDService
+from pisa.pid.PIDServiceParam import PIDServiceParam
+from pisa.pid.PIDServiceKernelFile import PIDServiceKernelFile
 
 
 if __name__ == '__main__':
@@ -60,10 +60,10 @@ if __name__ == '__main__':
 
     #Initialize the PID service
     if args.mode=='param':
-        pid_service = ParamPIDService(ebins, czbins, 
+        pid_service = PIDServiceParam(ebins, czbins, 
                             pid_paramfile=args.param_file, **vars(args))
     elif args.mode=='stored':
-        pid_service = KernelFilePIDService(ebins, czbins, 
+        pid_service = PIDServiceKernelFile(ebins, czbins, 
                             pid_kernelfile=args.kernel_file, **vars(args))
 
     #Calculate event rates after PID

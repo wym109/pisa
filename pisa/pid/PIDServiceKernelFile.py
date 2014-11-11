@@ -15,7 +15,7 @@ from pisa.resources.resources import find_resource
 from pisa.utils.jsons import from_json
 
 
-class KernelFilePIDService(PIDServiceBase):
+class PIDServiceKernelFile(PIDServiceBase):
     """
     Loads a pre-calculated PID kernel (that has been saved via
     pid_service.store_kernels) from disk and uses that for classification.

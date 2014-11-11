@@ -18,7 +18,7 @@ from pisa.utils.jsons import from_json
 from pisa.utils.utils import get_bin_centers
 
 
-class ParamPIDService(PIDServiceBase):
+class PIDServiceParam(PIDServiceBase):
     """
     Creates PID kernels from parametrization functions that are stored 
     in a JSON dict. numpy is accessible as np, and scipy.stats. 
