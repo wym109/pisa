@@ -24,6 +24,7 @@ from pisa.utils.jsons import from_json, to_json
 from pisa.utils.proc import report_params, get_params, add_params
 from pisa.oscillations.Prob3OscillationService import Prob3OscillationService
 from pisa.oscillations.NucraftOscillationService import NucraftOscillationService
+from pisa.oscillations.TableOscillationService import TableOscillationService
 
 
 def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,
@@ -95,7 +96,11 @@ if __name__ == '__main__':
                         help='''theta23 value [rad]''')
     parser.add_argument('--deltacp',type=float,default=np.pi,
                         help='''deltaCP value to use [rad]''')
-    parser.add_argument('--energy_scale',type=float,default=1.0,
+    parser.add_argument('--earth-model',type=str,default='oscillations/PREM_60layer.dat',
+                        dest='earth_model',
+                        help='''Earth model data (density as function of radius)''')
+    parser.add_argument('--energy-scale',type=float,default=1.0,
+                        dest='energy_scale',
                         help='''Energy off scaling due to mis-calibration.''')
     parser.add_argument('--code',type=str,choices = ['prob3','table','nucraft'], 
                         default='prob3',
@@ -103,8 +108,22 @@ if __name__ == '__main__':
                         [table, prob3, nucraft], (default=prob3)''')
     parser.add_argument('--oversample', type=int, default=10,
                         help='''oversampling factor for *both* energy and cos(zen); 
-                        i.e. every 2D bin will be oversampled by the square of the 
-                        factor (default=10)''')
+                        i.e. every 2D bin will be oversampled by this factor in
+                        each dimension (default=10)''')
+    parser.add_argument('--detector-depth', type=float, default=2.0,
+                        dest='detector_depth',
+                        help='''Detector depth in km''')
+    parser.add_argument('--propagation-height', default=None,
+                        dest='prop_height',
+                        help='''Height in the atmosphere to begin propagation in km.
+                       Prob3 default: 20.0 km
+                       NuCraft default: 'sample' from a distribution''')
+    parser.add_argument('--precision', type=float, default=5e-4,
+                        dest='osc_precision',
+                        help='''Requested precision for unitarity (NuCraft only)''')
+    parser.add_argument('--tabledir', type=str, default='oscillations',
+                        dest='datadir',
+                        help='''Path to stored oscillation data (Tables only)''')
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str,
                         action='store',default="osc_flux.json",
                         help='file to store the output')
@@ -119,12 +138,20 @@ if __name__ == '__main__':
     ebins, czbins = check_binning(args.flux_maps)
 
     #Initialize an oscillation service
+    iniargs = {'earth_model': args.earth_model,
+               'detector_depth': args.detector_depth,
+               'prop_height': args.prop_height,
+               'osc_precision': args.osc_precision,
+               'datadir': args.datadir}
+
     if args.code=='prob3':
-      osc_service = Prob3OscillationService(ebins,czbins)
+      if iniargs['prop_height'] is None: iniargs['prop_height'] = 20.0
+      osc_service = Prob3OscillationService(ebins, czbins, **iniargs)
     elif args.code=='nucraft':
-      osc_service = NucraftOscillationService(ebins, czbins)
+      if iniargs['prop_height'] is None: iniargs['prop_height'] = 'sample'
+      osc_service = NucraftOscillationService(ebins, czbins, **iniargs)
     else:
-      osc_service = OscillationService(ebins,czbins)
+      osc_service = TableOscillationService(ebins, czbins, **iniargs)
 
     logging.info("Getting osc prob maps")
     osc_flux_maps = get_osc_flux(args.flux_maps, osc_service, 
@@ -134,7 +161,8 @@ if __name__ == '__main__':
                                  theta12 = args.theta12,
                                  theta13 = args.theta13,
                                  theta23 = args.theta23,
-                                 oversample = args.oversample,
+                                 oversample_e = args.oversample,
+                                 oversample_cz = args.oversample,
                                  energy_scale = args.energy_scale)
     
     #Write out
