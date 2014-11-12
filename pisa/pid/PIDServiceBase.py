@@ -9,12 +9,10 @@
 #
 
 import logging
-from copy import deepcopy as copy
 
 import numpy as np
 
 from pisa.utils.jsons import to_json
-from pisa.utils.proc import get_params, report_params, add_params
 from pisa.utils.utils import is_equal_binning
 
 
@@ -115,47 +113,3 @@ class PIDServiceBase:
         Store PID maps in JSON format
         """
         to_json(self.pid_kernels, filename)
-
-
-    def get_pid_maps(self, reco_events, recalculate=False, 
-                     return_unknown=False, **kwargs):
-        """
-        Primary function for this service, which returns the classified
-        event rate maps (sorted after tracks and cascades) from the 
-        reconstructed ones (sorted after nu[e,mu,tau]_cc and nuall_nc).
-        """
-        if recalculate:
-            self.recalculate_pid_maps(**kwargs)
-        
-        #Be verbose on input
-        params = get_params()
-        report_params(params, units = [])
-        
-        #Initialize return dict
-        empty_map = {'map': np.zeros_like(reco_events['nue_cc']['map']),
-                     'czbins': self.czbins, 'ebins': self.ebins}
-        reco_events_pid = {'trck': copy(empty_map),
-                           'cscd': copy(empty_map),
-                           'params': add_params(params,reco_events['params']),
-                          }
-        if return_unknown:
-            reco_events_pid['unkn'] = copy(empty_map)
-        
-        #Classify events
-        for flav in reco_events:
-
-            if flav=='params':
-                continue
-            event_map = reco_events[flav]['map']
-            
-            to_trck_map = event_map*self.pid_kernels[flav]['trck']
-            to_cscd_map = event_map*self.pid_kernels[flav]['cscd']
-            
-            reco_events_pid['trck']['map'] += to_trck_map
-            reco_events_pid['cscd']['map'] += to_cscd_map
-            if return_unknown:
-                reco_events_pid['unkn']['map'] += (event_map \
-                                                    -to_trck_map \
-                                                    -to_cscd_map)
-            
-        return reco_events_pid

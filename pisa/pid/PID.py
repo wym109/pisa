@@ -16,12 +16,59 @@
 
 import numpy as np
 from argparse import ArgumentParser, RawTextHelpFormatter
+from copy import deepcopy as copy
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.utils import check_binning
+from pisa.utils.proc import get_params, report_params, add_params
 from pisa.utils.jsons import from_json, to_json
 from pisa.resources.resources import find_resource
 from pisa.pid.PIDServiceParam import PIDServiceParam
 from pisa.pid.PIDServiceKernelFile import PIDServiceKernelFile
+
+
+def get_pid_maps(reco_events, pid_service=None, recalculate=False, 
+                 return_unknown=False, **kwargs):
+    """
+    Primary function for this service, which returns the classified
+    event rate maps (sorted after tracks and cascades) from the 
+    reconstructed ones (sorted after nu[e,mu,tau]_cc and nuall_nc).
+    """
+    if recalculate:
+        pid_service.recalculate_pid_maps(**kwargs)
+    
+    #Be verbose on input
+    params = get_params()
+    report_params(params, units = [])
+    
+    #Initialize return dict
+    empty_map = {'map': np.zeros_like(reco_events['nue_cc']['map']),
+                 'czbins': pid_service.czbins, 'ebins': pid_service.ebins}
+    reco_events_pid = {'trck': copy(empty_map),
+                       'cscd': copy(empty_map),
+                       'params': add_params(params,reco_events['params']),
+                      }
+    if return_unknown:
+        reco_events_pid['unkn'] = copy(empty_map)
+    
+    #Classify events
+    for flav in reco_events:
+
+        if flav=='params':
+            continue
+        event_map = reco_events[flav]['map']
+        
+        to_trck_map = event_map*pid_service.pid_kernels[flav]['trck']
+        to_cscd_map = event_map*pid_service.pid_kernels[flav]['cscd']
+        
+        reco_events_pid['trck']['map'] += to_trck_map
+        reco_events_pid['cscd']['map'] += to_cscd_map
+        if return_unknown:
+            reco_events_pid['unkn']['map'] += (event_map \
+                                                -to_trck_map \
+                                                -to_cscd_map)
+        
+    return reco_events_pid
+
 
 
 if __name__ == '__main__':
@@ -67,7 +114,7 @@ if __name__ == '__main__':
                             pid_kernelfile=args.kernel_file, **vars(args))
 
     #Calculate event rates after PID
-    event_rate_pid = pid_service.get_pid_maps(args.reco_event_maps)
+    event_rate_pid = get_pid_maps(args.reco_event_maps, pid_service=pid_service)
 
     logging.info("Saving output to: %s"%args.outfile)
     to_json(event_rate_pid,args.outfile)
