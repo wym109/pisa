@@ -3,7 +3,7 @@
 # re-scaled as desired.
 #
 # author: Timothy C. Arlen
-# 
+#
 # date:   April 8, 2014
 #
 
@@ -51,18 +51,17 @@ class AeffServiceMC:
                 czbin_sizes = 2.0*np.pi*get_bin_sizes(czbins)
                 bin_sizes = np.meshgrid(czbin_sizes,ebin_sizes)
                 aeff_hist /= np.abs(bin_sizes[0]*bin_sizes[1])
-                
+
                 flavor_dict[int_type] = aeff_hist
-                
+
             self.aeff_dict[flavor] = flavor_dict
-            
+
         return
-    
+
     def get_aeff(self,*kwargs):
         '''
         Returns the effective area dictionary
         '''
 
         return self.aeff_dict
-        
-        
+

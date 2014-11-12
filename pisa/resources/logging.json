@@ -1,4 +1,4 @@
-{ 
+{
   "version" : 1,
   "formatters": {
     "simple": {
@@ -7,34 +7,34 @@
     "time": {
       "format": "%(asctime)s : %(message)s"
     }
-  }, 
+  },
   "handlers": {
     "console": {
-      "class": "logging.StreamHandler", 
-      "formatter": "simple", 
+      "class": "logging.StreamHandler",
+      "formatter": "simple",
       "stream": "ext://sys.stdout"
     },
     "file": {
-      "class": "logging.FileHandler", 
-      "formatter": "time", 
+      "class": "logging.FileHandler",
+      "formatter": "time",
       "filename": "profile.log",
       "mode" : "w+"
     }
-  }, 
+  },
   "loggers": {
     "profile": {
-      "handlers": [ "file" ], 
-      "level": "INFO", 
+      "handlers": [ "console" ],
+      "level": "DEBUG",
       "propagate": false
     },
     "physics": {
-      "handlers": [ "console" ], 
-      "level": "INFO", 
+      "handlers": [ "console" ],
+      "level": "DEBUG",
       "propagate": false
     }
   },
   "root": {
-    "handlers": [ "console" ], 
+    "handlers": [ "console" ],
     "level": "WARN"
-  } 
+  }
 }
