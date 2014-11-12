@@ -70,7 +70,7 @@ services (which are all implemented here) are:
 The different derived reconstruction services (i.e. different implementations 
 of `get_reco_kernels`) are:
 
-### MCRecoService
+### RecoServiceMC
 
 Argument(s):
 * `simfile`: MC file in `HDF5` format containing data from all flavours for a 
@@ -94,7 +94,7 @@ Expects the file format to be:
 }
 ```
 
-### ParamRecoService
+### RecoServiceParam
 
 Argument(s):
 * `paramfile`: `JSON` file containing the parametrizations as strings defining 
@@ -132,7 +132,7 @@ gaussians then take the form
 with `fraction`, `loc1`, `loc2`, `width1`, and `width2` all being functions of 
 the true energy as defined in the parametrization file.
 
-### KernelFileRecoService
+### RecoServiceKernelFile
 
 Argument(s):
 * `kernelfile`: `JSON` file containing a previously calculated reconstruction 
