@@ -92,7 +92,7 @@ class PIDServiceBase:
         return sane
 
 
-    def recalculate_pid_maps(self, **kwargs):
+    def recalculate_kernels(self, **kwargs):
         """
         Re-calculate PID maps and check for sanity. If new maps are 
         corrupted, stick with the old ones.

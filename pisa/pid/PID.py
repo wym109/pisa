@@ -34,7 +34,7 @@ def get_pid_maps(reco_events, pid_service=None, recalculate=False,
     reconstructed ones (sorted after nu[e,mu,tau]_cc and nuall_nc).
     """
     if recalculate:
-        pid_service.recalculate_pid_maps(**kwargs)
+        pid_service.recalculate_kernels(**kwargs)
     
     #Be verbose on input
     params = get_params()
