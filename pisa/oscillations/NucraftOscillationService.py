@@ -17,6 +17,7 @@ from pisa.oscillations.OscillationServiceBase import OscillationServiceBase
 from pisa.oscillations.nuCraft.NuCraft import NuCraft, EarthModel
 from pisa.resources.resources import find_resource
 from pisa.utils.physics import get_PDG_ID
+from pisa.utils.proc import get_params, report_params
 
 
 class NucraftOscillationService(OscillationServiceBase):
@@ -24,19 +25,17 @@ class NucraftOscillationService(OscillationServiceBase):
     This class handles all tasks related to the oscillation
     probability calculations using the prob3 oscillation code
     """
-    def __init__(self, ebins, czbins,
-                 earth_model='oscillations/PREM_60layer.dat',
-                 detector_depth=2.0, prop_height=None, osc_precision=5e-4,
+    def __init__(self, ebins, czbins, detector_depth=None, earth_model=None,
+                 prop_height=None, osc_precision=None,
                  **kwargs):
         """
         Parameters needed to instantiate a NucraftOscillationService:
         * ebins: Energy bin edges
         * czbins: cos(zenith) bin edges
         * earth_model: Earth density model used for matter oscillations.
-                       Default: 60-layer PREM model shipped with pisa.
-        * detector_depth: Detector depth in km. Default: 2.0
+        * detector_depth: Detector depth in km.
         * prop_height: Height in the atmosphere to begin in km.
-                       Default: None, samples from a parametrization to
+                       Default: 'sample', samples from a parametrization to
                        the atmospheric interaction model presented in
                        "Path length distributions of atmospheric neutrinos",
                        Gaisser and Stanev, PhysRevD.57.1977
@@ -44,8 +43,11 @@ class NucraftOscillationService(OscillationServiceBase):
         """
         OscillationServiceBase.__init__(self, ebins, czbins)
 
+        print get_params()
+        report_params(get_params(),['km','','','km'])
+
         self.prop_height = prop_height # km above spherical Earth surface
-        self.height_mode = 3 if self.prop_height is None else 1
+        self.height_mode = 3 if self.prop_height is 'sample' else 1
         self.detector_depth = detector_depth # km below spherical Earth surface
         self.num_prec = osc_precision
         self.get_earth_model(earth_model)
@@ -70,7 +72,7 @@ class NucraftOscillationService(OscillationServiceBase):
                          earthModel = self.earth_model)
         engine.detectorDepth = self.detector_depth
 
-        if self.prop_height is not None:
+        if self.prop_height is not 'sample':
             # Fix neutrino production height and detector depth for
             # simulating reactor experiments.
             # In this case, there should be only one zenith angle corresponding
@@ -126,8 +128,8 @@ class NucraftOscillationService(OscillationServiceBase):
             logging.info('Loaded Earth model from %s'%model)
         except SyntaxError:
             #Probably the file is lacking the correct preamble
-            logging.warn('Failed to construct NuCraft Earth model from '
-                         '%s! Adding default preamble...'%resource_path)
+            logging.info('Failed to construct NuCraft Earth model directly from'
+                         ' %s! Adding default preamble...'%resource_path)
             #Generate tempfile with preamble
             with open(resource_path, 'r') as infile:
                 profile_lines = infile.readlines()

@@ -22,7 +22,7 @@ def get_params():
     #Get list of arguments and values dict, ignoring *varargs and **kwargs
     args, _, _, values = inspect.getargvalues(frame)
     #Select only types with primitive values
-    ptypes =  (int, float, bool, str)
+    ptypes =  (int, float, bool, str, type(None))
     args = [ arg for arg in args if type(values[arg]) in ptypes]
     values = [ values[arg] for arg in args]
     return dict(zip(args,values))
@@ -31,9 +31,15 @@ def report_params(params,units):
     '''
     Print the parameter values with units
     '''
+    formatter = {int: '%i',
+               float: '%.4e',
+               str: '%s',
+               bool: '%s',
+               type(None): '%s'}
     #Print everything - must be sorted
-    for key, unit in zip(sorted(params), units):
-        logging.debug("%20s: %.4e %s"%(key,params[key],unit))
+    forms = [formatter[type(v)] for k,v in sorted(params.items())] 
+    for key, form, unit in zip(sorted(params), forms, units):
+        logging.debug(('%20s: '+form+' %s')%(key,params[key],unit))
 
 def add_params(setA,setB):
     '''

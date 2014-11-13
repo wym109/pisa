@@ -72,7 +72,7 @@ class OscillationServiceBase:
         * czbins: cos(zenith) bin edges
         If further member variables are needed, extend this method.
         """
-        logging.debug('Instantiating %s'%self.__class__.__name__)
+        logging.trace('Instantiating %s'%self.__class__.__name__)
         self.ebins = np.array(ebins)
         self.czbins = np.array(czbins)
         for ax in [self.ebins, self.czbins]:
@@ -122,7 +122,7 @@ class OscillationServiceBase:
 
 
     def get_osc_probLT_dict(self, ebins=None, czbins=None,
-                            oversample_e=10,oversample_cz=10, **kwargs):
+                            oversample_e=None,oversample_cz=None, **kwargs):
         """
         This will create the oscillation probability map lookup tables
         (LT) corresponding to atmospheric neutrinos oscillation
