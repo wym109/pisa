@@ -88,6 +88,14 @@ all flavours. This should look like
 ```
 such that it can be evaluated via pythons `eval()` function. In the function 
 definitions, `numpy` (as `np`) and `scipy.stats` can be used.
+* `PID_scale` (default: 1): Systematic parameter, scales *all* PID functions 
+ by this factor. Reflects the fact that particle ID might be more or less 
+ effective than assumed. Note that `PID_scale != 1` will lead to losing or 
+ generating additional  events if the `unkn` channel is not enabled!
+* `PID_offset` in GeV (default: 0): Systematic parameter, shifts all PID 
+ functions in energy. Stands for the possibility that particle ID, which can 
+ usually be described by a step-like function, might become effecive at higher 
+ (lower) energies than assumed.
 
 ### PIDServiceKernelFile
 
