@@ -73,6 +73,21 @@ The different derived PID services (i.e. different implementations
 of `get_pid_kernels`) are:
 
 ### PIDServiceParam
+Argument(s):
+* `pid_paramfile`: `JSON` file containing the PID functions as strings for 
+all flavours. This should look like
+```
+{"nue_cc": {
+   "cscd": "lambda E: some_func_of(E)",
+   "trck": "lambda E: some_other_func_of(E)"
+ },
+ "numu_cc": {...},
+ "nutau_cc": {...},
+ "nuall_nc": {...}
+}
+```
+such that it can be evaluated via pythons `eval()` function. In the function 
+definitions, `numpy` (as `np`) and `scipy.stats` can be used.
 
 ### PIDServiceKernelFile
 
