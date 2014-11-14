@@ -157,8 +157,6 @@ if __name__ == '__main__':
                         action='store_true', help="select the normal hierarchy")
     hselect.add_argument('--inverted', dest='normal', default = False,
                         action='store_false', help="select the inverted hierarchy")
-    parser.add_argument('-o','--outfile',default=None,
-                        help="Output file to save templates")
     parser.add_argument('-v','--verbose',action='count',default=None,
                         help='set verbosity level.')
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str,
@@ -188,6 +186,5 @@ if __name__ == '__main__':
     template_maps = template_maker.get_template(get_values(params))
     profile.info("stop template calculation")
 
-    if args.outfile is not None:
-        logging.info("Saving file to %s"%args.outfile)
-        to_json(template_maps,args.outfile)
+    logging.info("Saving file to %s"%args.outfile)
+    to_json(template_maps,args.outfile)

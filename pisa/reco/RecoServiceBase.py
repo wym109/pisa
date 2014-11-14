@@ -73,8 +73,7 @@ class RecoServiceBase:
             if not is_equal_binning(kernel_axis, own_axis):
                 raise ValueError("Binning of reconstruction kernel doesn't "
                                   "match the event maps!")
-            else:
-                pass
+
         # check shape of kernels
         logging.debug('Checking shape of reconstruction kernels')
         shape = (len(self.ebins)-1, len(self.czbins)-1,
@@ -86,8 +85,7 @@ class RecoServiceBase:
                     raise IndexError('Reconstruction kernel for %s/%s has wrong shape: '
                                       '%s, %s' %(flavour, interaction, str(shape),
                                       str(np.shape(self.kernels[flavour][interaction]))) )
-                else:
-                    pass
+
         logging.info('Reconstruction kernels are sane')
         return True
 

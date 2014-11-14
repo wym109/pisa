@@ -5,14 +5,10 @@
 # This module will perform the smearing of the true event rates, with
 # the reconstructed parameters, using the detector response
 # resolutions, in energy and coszen.
-#
-# The approach used to apply the reconstruction kernel is variable.
-#  1. The MC-based approach takes the full pdf of the
-#     (true_energy,true_coszen) directly from simulations to be
-#     reconstructed at (reco_energy,reco_coszen) and will apply these
-#     pdfs to the true event rates, taken from the previous stage.
-#     The result is the reconstructed event rate per flavor.
-#  2. The Parameterized approach...
+# Therefore, a RecoService is invoked that generates smearing kernels 
+# by some specific algorithm (see individual services for details). 
+# Then the true event rates are convoluted with the kernels to get the 
+# event rates after reconstruction.
 #
 # author: Timothy C. Arlen
 #         tca3@psu.edu
@@ -84,16 +80,14 @@ def get_reco_maps(true_event_maps, reco_service=None,e_reco_scale=None,
                                               'czbins':czbins}
             physics.trace("Total counts: %.2f"%np.sum(reco_evt_rate))
 
-
     #Finally sum up all the NC contributions
-    logging.info("Summing up rates for %s %s"%('all',int_type))
+    logging.info("Summing up rates for all nc events")
     reco_evt_rate = np.sum([reco_maps.pop(key)['map'] for key in reco_maps.keys()
                             if key.endswith('_nc')], axis = 0)
     reco_maps['nuall_nc'] = {'map':reco_evt_rate,
                              'ebins':ebins,
                              'czbins':czbins}
     physics.trace("Total counts: %.2f"%np.sum(reco_evt_rate))
-
 
     return reco_maps
 

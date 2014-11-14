@@ -37,11 +37,6 @@ class RecoServiceKernelFile(RecoServiceBase):
     def get_reco_kernels(self, kernelfile=None, **kwargs):
         
         logging.info('Opening file: %s'%(kernelfile))
-        try:
-            self.kernels = from_json(find_resource(kernelfile))
-        except IOError, e:
-            logging.error("Unable to open kernel file %s"%kernelfile)
-            logging.error(e)
-            sys.exit(1)
-        
+        self.kernels = from_json(find_resource(kernelfile))
+
         return self.kernels
