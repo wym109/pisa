@@ -78,7 +78,8 @@ def get_reco_maps(true_event_maps, reco_service=None,e_reco_scale=None,
             reco_maps[flavor+'_'+int_type] = {'map':reco_evt_rate,
                                               'ebins':ebins,
                                               'czbins':czbins}
-            physics.trace("Total counts: %.2f"%np.sum(reco_evt_rate))
+            physics.trace("Total counts for %s %s: %.2f"%(flavor, int_type, 
+                                                          np.sum(reco_evt_rate)))
 
     #Finally sum up all the NC contributions
     logging.info("Summing up rates for all nc events")
@@ -87,7 +88,7 @@ def get_reco_maps(true_event_maps, reco_service=None,e_reco_scale=None,
     reco_maps['nuall_nc'] = {'map':reco_evt_rate,
                              'ebins':ebins,
                              'czbins':czbins}
-    physics.trace("Total counts: %.2f"%np.sum(reco_evt_rate))
+    physics.trace("Total counts for nuall nc: %.2f"%np.sum(reco_evt_rate))
 
     return reco_maps
 
