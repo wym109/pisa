@@ -13,6 +13,7 @@
 import sys
 import logging
 import itertools
+from copy import deepcopy as copy
 
 import numpy as np
 from scipy.stats import norm
@@ -41,7 +42,7 @@ class RecoServiceParam(RecoServiceBase):
     'e_reco_scale' and 'cz_reco_scale are supported.'
     """
     
-    def __init__(self, ebins, czbins, **kwargs):
+    def __init__(self, ebins, czbins, paramfile=None, **kwargs):
         """
         Parameters needed to instantiate a reconstruction service with 
         parametrizations:
@@ -50,33 +51,15 @@ class RecoServiceParam(RecoServiceBase):
         * paramfile: JSON containing the parametrizations
         """
         
-        RecoServiceBase.__init__(self, ebins, czbins, **kwargs)
- 
- 
-    def get_reco_kernels(self, paramfile=None, 
-                         e_reco_scale=1., cz_reco_scale=1., 
-                         **kwargs):
-
+        # Load parametrization
         logging.info('Opening reconstruction parametrization file %s'
                      %paramfile)
-        try:
-            param_str = from_json(find_resource(paramfile))
-            self.parametrization = self.read_param_string(param_str)
-        except IOError, e:
-            logging.error("Unable to open parametrization file %s"
-                          %paramfile)
-            logging.error(e)
-            sys.exit(1)
+        param_str = from_json(find_resource(paramfile))
+        self.parametrization = self.read_param_string(param_str)
         
-        # Scale reconstruction widths
-        self.apply_reco_scales(e_reco_scale, cz_reco_scale)
-        
-        logging.info('Creating reconstruction kernels')
-        self.calculate_kernels()
-        
-        return self.kernels
-    
-    
+        RecoServiceBase.__init__(self, ebins, czbins, **kwargs)
+
+ 
     def read_param_string(self, param_str):
         """
         Parse the dict with the parametrization strings and evaluate for 
@@ -103,7 +86,6 @@ class RecoServiceParam(RecoServiceBase):
                     parameters[par] = np.repeat(vals,n_cz).reshape((n_e,n_cz))
                 parametrization[flavour][int_type][axis] = parameters
         
-        self.parametrization = parametrization
         return parametrization
 
 
@@ -112,10 +94,9 @@ class RecoServiceParam(RecoServiceBase):
         Widen the gaussians used for reconstruction by the given factors
         """
         
+        new_parametrization = copy(self.parametrization)
+        
         for axis, scale in [('energy', e_scale), ('coszen', cz_scale)]:
-            
-            if scale==1.:
-                continue
             
             logging.debug('Scaling %s reco precision by factor %.2f'
                           %(axis, scale))
@@ -123,15 +104,20 @@ class RecoServiceParam(RecoServiceBase):
             for flavour in self.parametrization:
               for int_type in ['cc', 'nc']:
                 for param in ['width1', 'width2']: #the widths of the gaussians
-                    self.parametrization[flavour][int_type][axis][param] *= scale
+                    new_parametrization[flavour][int_type][axis][param] *= scale
+        
+        return new_parametrization
     
     
-    def calculate_kernels(self, flipback=True):
+    def _get_reco_kernels(self, flipback=True, 
+                          e_reco_scale=1., cz_reco_scale=1., 
+                          **kwargs):
         """
         Use the parametrization functions to calculate the actual reco 
         kernels (i.e. 4D histograms). If flipback==True, the zenith angle 
         part that goes below the zenith will be mirrored back in.
         """
+        logging.info('Creating parametrized reconstruction kernels')
         
         # get binning information
         evals, esizes = get_bin_centers(self.ebins), get_bin_sizes(self.ebins)
@@ -139,22 +125,22 @@ class RecoServiceParam(RecoServiceBase):
         n_e, n_cz = len(evals), len(czvals)
         
         # prepare for folding back at lower edge
+        if not is_linear(self.czbins):
+            logging.warn("cos(zenith) bins have different "
+                         "sizes! Unable to fold around edge "
+                         "of histogram, will not do that.")
+            flipback = False
+        
         if flipback:
-            if is_linear(self.czbins):
-                czvals = np.append(czvals-(self.czbins[-1] \
-                                            - self.czbins[0]), 
-                                   czvals)
-                czsizes = np.append(czsizes, czsizes)
-            else:
-                logging.warn("cos(zenith) bins have different "
-                             "sizes! Unable to fold around edge "
-                             "of histogram, will not do that.")
-                flipback = False
+            czvals = np.append(czvals-(self.czbins[-1]-self.czbins[0]), 
+                               czvals)
+            czsizes = np.append(czsizes, czsizes)
         
-        kernel_dict = dict.fromkeys(self.parametrization, 
-                                    {'cc': None, 'nc': None})
+        # get properly scaled parametrization, initialize kernels
+        parametrization = self.apply_reco_scales(e_reco_scale, cz_reco_scale)
+        kernel_dict = dict.fromkeys(parametrization, {'cc': None, 'nc': None})
         
-        for flavour in self.parametrization:
+        for flavour in parametrization:
           for int_type in ['cc', 'nc']:
             logging.debug('Calculating parametrized reconstruction kernel for %s %s'
                           %(flavour, int_type))
@@ -163,8 +149,8 @@ class RecoServiceParam(RecoServiceBase):
             kernel = np.zeros((n_e, n_cz, n_e, n_cz))
             
             # quick handle to parametrization
-            e_pars = self.parametrization[flavour][int_type]['energy']
-            cz_pars = self.parametrization[flavour][int_type]['coszen']
+            e_pars = parametrization[flavour][int_type]['energy']
+            cz_pars = parametrization[flavour][int_type]['coszen']
             
             # loop over every bin in true (energy, coszen)
             for (i, j) in itertools.product(range(n_e), range(n_cz)):
@@ -196,7 +182,4 @@ class RecoServiceParam(RecoServiceBase):
         kernel_dict['ebins'] = self.ebins
         kernel_dict['czbins'] = self.czbins
         
-        self.kernels = kernel_dict
-        return self.kernels
-
-
+        return kernel_dict

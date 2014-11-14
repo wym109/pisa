@@ -54,7 +54,11 @@ def get_reco_maps(true_event_maps, reco_service=None,e_reco_scale=None,
 
     #Check binning
     ebins, czbins = get_binning(true_event_maps)
+    
+    #Retrieve all reconstruction kernels
+    reco_kernel_dict = reco_service.get_reco_kernels(**kwargs)
 
+    #Do smearing
     flavours = ['nue','numu','nutau']
     int_types = ['cc','nc']
 
@@ -67,7 +71,7 @@ def get_reco_maps(true_event_maps, reco_service=None,e_reco_scale=None,
                 flav = flavor+mID
                 true_evt_rate = true_event_maps[flav][int_type]['map']
 
-                kernels = reco_service.kernels[flav][int_type]
+                kernels = reco_kernel_dict[flav][int_type]
 
                 for ie,egy in enumerate(ebins[:-1]):
                     for icz,cz in enumerate(czbins[:-1]):
