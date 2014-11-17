@@ -82,7 +82,7 @@ for itrial in xrange(1,args.ntrials+1):
         # 1) get a pseudo data fmap from fiducial model (best fit vals of params).
         fmap = get_pseudo_data_fmap(template_maker,
                                     get_values(select_hierarchy(params,
-                                                                normal_hierarchy=data_normal))
+                                                                normal_hierarchy=data_normal)),
                                     seed=results[data_tag]['seed'])
 
         # 2) find max llh (and best fit free params) from matching pseudo data
