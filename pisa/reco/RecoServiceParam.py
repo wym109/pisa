@@ -54,10 +54,17 @@ class RecoServiceParam(RecoServiceBase):
         # Load parametrization
         logging.info('Opening reconstruction parametrization file %s'
                      %paramfile)
+        
+        # Needed for self.read_param_string()
+        self.ebins = ebins
+        self.czbins = czbins
+        
+        # Get parametrization
         param_str = from_json(find_resource(paramfile))
         self.parametrization = self.read_param_string(param_str)
         
-        RecoServiceBase.__init__(self, ebins, czbins, **kwargs)
+        # No **kwargs, so stored kernels will always have reco scales 1.0
+        RecoServiceBase.__init__(self, ebins, czbins)
 
  
     def read_param_string(self, param_str):
@@ -107,8 +114,8 @@ class RecoServiceParam(RecoServiceBase):
                     new_parametrization[flavour][int_type][axis][param] *= scale
         
         return new_parametrization
-    
-    
+
+
     def _get_reco_kernels(self, flipback=True, 
                           e_reco_scale=1., cz_reco_scale=1., 
                           **kwargs):
@@ -117,6 +124,10 @@ class RecoServiceParam(RecoServiceBase):
         kernels (i.e. 4D histograms). If flipback==True, the zenith angle 
         part that goes below the zenith will be mirrored back in.
         """
+        if all([hasattr(self, 'kernels'), e_reco_scale==1., cz_reco_scale==1.]):
+            logging.info('Using existing kernels for reconstruction')
+            return self.kernels
+        
         logging.info('Creating parametrized reconstruction kernels')
         
         # get binning information

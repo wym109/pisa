@@ -174,7 +174,8 @@ Expects the file format to be:
         reco_service = RecoServiceKDE(ebins,czbins,kdefile=args.kde_file,
                                       **vars(args))
 
-    event_rate_reco_maps = get_reco_maps(args.event_rate_maps,reco_service)
+    event_rate_reco_maps = get_reco_maps(args.event_rate_maps,
+                                         reco_service, **vars(args))
 
     logging.info("Saving output to: %s"%args.outfile)
     to_json(event_rate_reco_maps,args.outfile)

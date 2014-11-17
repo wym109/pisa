@@ -33,7 +33,7 @@ class RecoServiceMC(RecoServiceBase):
         * simfile: HDF5 containing the MC events to construct the kernels
         """
         self.simfile = simfile
-        RecoServiceBase.__init__(self, ebins, czbins, **kwargs)
+        RecoServiceBase.__init__(self, ebins, czbins, simfile=simfile, **kwargs)
     
     
     def kernel_from_simfile(self, simfile=None, **kwargs):
@@ -80,10 +80,10 @@ class RecoServiceMC(RecoServiceBase):
         
         if not simfile in [self.simfile, None]:
             logging.info('Reconstruction from non-default MC file %s!'%simfile)
-            return kernel_from_simfile(find_resource(simfile))
+            return kernel_from_simfile(simfile=simfile)
         
-        if not self.kernels:
+        if not hasattr(self, 'kernels'):
             logging.info('Using file %s for default reconstruction'%(simfile))
-            self.kernels = kernel_from_simfile(find_resource(simfile))
+            self.kernels = self.kernel_from_simfile(simfile=simfile)
 
         return self.kernels

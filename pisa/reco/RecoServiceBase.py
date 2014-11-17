@@ -60,7 +60,7 @@ class RecoServiceBase:
                 raise IndexError('Axes must be 1d! '+str(np.shape(ax)))
 
         #Get kernels already now. Can be recalculated later, if needed.
-        kernels = self.get_reco_kernels(**kwargs)
+        self.kernels = self.get_reco_kernels(**kwargs)
 
 
     def get_reco_kernels(self, **kwargs):
@@ -122,22 +122,3 @@ class RecoServiceBase:
         """
         to_json(self.kernels, filename)
         return
-
-'''
-    def recalculate_kernels(self, **kwargs):
-        """
-        Re-calculate reconstruction kernels and do all necessary checks.
-        If new kernels are corrupted, stick with the old ones.
-        """
-        logging.info('Re-calculating reconstruction kernels')
-        old_kernels = self.kernels.copy()
-        self.get_reco_kernels(**kwargs)
-        try:
-            self.check_kernels()
-            self.normalize_kernels()
-        except:
-            logging.error('Failed to recalculate reconstruction kernels, '
-                          'keeping old ones: ', exc_info=True)
-            self.kernels = old_kernels
-        return
-'''

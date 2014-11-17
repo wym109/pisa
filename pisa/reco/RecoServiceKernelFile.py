@@ -32,7 +32,8 @@ class RecoServiceKernelFile(RecoServiceBase):
         * kernelfile: JSON containing the kernel dict
         """
         self.kernelfile = kernelfile
-        RecoServiceBase.__init__(self, ebins, czbins, **kwargs)
+        RecoServiceBase.__init__(self, ebins, czbins, 
+                                 kernelfile=kernelfile, **kwargs)
 
 
     def _get_reco_kernels(self, kernelfile=None, **kwargs):
@@ -47,7 +48,7 @@ class RecoServiceKernelFile(RecoServiceBase):
             logging.info('Reconstruction from non-default kernel file %s!'%kernelfile)
             return from_json(find_resource(kernelfile))
         
-        if not self.kernels:
+        if not hasattr(self, 'kernels'):
             logging.info('Using file %s for default reconstruction'%(kernelfile))
             self.kernels = from_json(find_resource(kernelfile))
 
