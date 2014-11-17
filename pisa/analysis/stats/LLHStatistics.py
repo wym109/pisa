@@ -24,12 +24,16 @@ def get_binwise_llh(pseudo_data,template):
 
     return totalLLH
 
-def get_random_map(template):
+def get_random_map(template, seed=None):
     '''
     Gets an event map with integer entries from non-integer entries
     (in general) in the template, varied according to Poisson
     statistics.
     '''
+    #Set the seed if given
+    if not seed is None:
+        np.random.seed(seed=seed)
+
     return poisson.rvs(template)
 
 

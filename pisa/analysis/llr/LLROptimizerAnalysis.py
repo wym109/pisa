@@ -16,7 +16,7 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from pisa.utils.log import logging, profile, physics, set_verbosity
 from pisa.utils.jsons import from_json,to_json
 from pisa.analysis.llr.LLHAnalysis import find_max_llh_bfgs
-from pisa.analysis.stats.Maps import get_pseudo_data_fmap
+from pisa.analysis.stats.Maps import get_pseudo_data_fmap, get_seed
 from pisa.analysis.TemplateMaker import TemplateMaker
 from pisa.utils.params import get_values, select_hierarchy
 
@@ -77,10 +77,13 @@ for itrial in xrange(1,args.ntrials+1):
     for data_tag, data_normal in [('data_NMH',True),('data_IMH',False)]:
 
         results[data_tag] = {}
+        # 0) get a random seed and store with the data
+        results[data_tag]['seed'] = get_seed()
         # 1) get a pseudo data fmap from fiducial model (best fit vals of params).
         fmap = get_pseudo_data_fmap(template_maker,
                                     get_values(select_hierarchy(params,
-                                                                normal_hierarchy=data_normal)))
+                                                                normal_hierarchy=data_normal))
+                                    seed=results[data_tag]['seed'])
 
         # 2) find max llh (and best fit free params) from matching pseudo data
         #    to templates.
