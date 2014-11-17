@@ -27,11 +27,15 @@ def get_values(params):
     '''
     return { key: param['value'] for key, param in sorted(params.items()) }
 
-def select_hierarchy(params, normal_hierarchy=True):
+def select_hierarchy(params, normal_hierarchy):
     '''
     Corrects for a key in params being defined for both 'nh' and 'ih',
     and returns a modified dict with one value for the given hierarchy.
     '''
+
+    if not isinstance(normal_hierarchy, bool):
+        raise ValueError('Hierarchy selection must be boolean value')
+
     newparams = {}
     for key, value in params.items():
         if key.endswith('_nh'):
