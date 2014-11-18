@@ -15,34 +15,8 @@ import scipy.optimize as opt
 
 from pisa.utils.log import logging, physics, profile
 from pisa.utils.params import get_values, select_hierarchy, get_fixed_params, get_free_params, get_prior_llh, get_param_values, get_param_scales, get_param_bounds, get_param_priors
-from pisa.analysis.LLR.LLHStatistics import get_random_map, get_binwise_llh
-
-def get_pseudo_data_fmap(template_maker,fiducial_params):
-    '''
-    Creates a true template from fiducial_params, then uses Poisson statistics
-    to vary the expected counts per bin to create a pseudo data set.
-
-    IMPORTANT: returns a SINGLE flattened map of trck/cscd combined
-    '''
-
-    true_template = template_maker.get_template(fiducial_params)
-    true_fmap = flatten_map(true_template)
-    fmap = get_random_map(true_fmap)
-
-    return fmap
-
-def flatten_map(template):
-    '''
-    Takes a final level true (expected) template of trck/cscd, and returns a
-    single flattened map of trck appended to cscd, with all zero bins
-    removed.
-    '''
-    cscd = template['cscd']['map'].flatten()
-    trck = template['trck']['map'].flatten()
-    fmap = np.append(cscd,trck)
-    fmap = np.array(fmap)[np.nonzero(fmap)]
-
-    return fmap
+from pisa.analysis.stats.LLHStatistics import get_binwise_llh
+from pisa.analysis.stats.Maps import flatten_map
 
 
 def find_max_llh_bfgs(fmap,template_maker,params,bfgs_settings,save_steps=False,
@@ -159,9 +133,10 @@ def llh_bfgs(opt_vals,*args):
 
     names,scales,fmap,fixed_params,template_maker,opt_steps_dict,priors = args
 
-    unscaled_free_params = { names[i]: (opt_vals[i]/scales[i])
-                             for i in xrange(len(opt_vals)) }
+    # free parameters being "optimized" by minimizer re-scaled to their true values.
+    unscaled_opt_vals = [opt_vals[i]/scales[i] for i in xrange(len(opt_vals))]
 
+    unscaled_free_params = { names[i]: val for i,val in enumerate(unscaled_opt_vals) }
     template_params = dict(unscaled_free_params.items() + get_values(fixed_params).items())
 
     # Now get true template, and compute LLH
@@ -174,7 +149,8 @@ def llh_bfgs(opt_vals,*args):
     # to reflect the fact that the optimizer finds a minimum rather
     # than maximum.
     llh = -get_binwise_llh(fmap,true_fmap)
-    llh -= sum([ get_prior_llh(opt_val,sigma,value) for (opt_val,(sigma,value)) in zip(opt_vals,priors)])
+    llh -= sum([ get_prior_llh(opt_val,sigma,value)
+                 for (opt_val,(sigma,value)) in zip(unscaled_opt_vals,priors)])
 
     # Save all optimizer-tested values to opt_steps_dict, to see
     # optimizer history later
@@ -182,9 +158,9 @@ def llh_bfgs(opt_vals,*args):
         opt_steps_dict[key].append(template_params[key])
     opt_steps_dict['llh'].append(llh)
 
-    physics.debug("LLH is %.2f at: "%llh) 
+    physics.debug("LLH is %.2f at: "%llh)
     for name, val in zip(names, opt_vals):
         physics.debug(" %20s = %6.4f" %(name,val))
-    
+
     return llh
 

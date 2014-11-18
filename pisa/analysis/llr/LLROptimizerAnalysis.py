@@ -15,13 +15,14 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 from pisa.utils.log import logging, profile, physics, set_verbosity
 from pisa.utils.jsons import from_json,to_json
-from pisa.analysis.LLR.LLHAnalysis import get_pseudo_data_fmap, find_max_llh_bfgs
+from pisa.analysis.llr.LLHAnalysis import find_max_llh_bfgs
+from pisa.analysis.stats.Maps import get_pseudo_data_fmap, get_seed
 from pisa.analysis.TemplateMaker import TemplateMaker
 from pisa.utils.params import get_values, select_hierarchy
 
 parser = ArgumentParser(description='''Runs the LLR optimizer-based analysis varying a number of systematic parameters
-defined in settings.json file and saves the likelihood ratios, which will be
-later converted to a significance of the measurement.''',
+defined in settings.json file and saves the likelihood values for all
+combination of hierarchies.''',
                         formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('-t','--template_settings',type=str,
                     metavar='JSONFILE', required = True,
@@ -31,7 +32,8 @@ parser.add_argument('-m','--minimizer_settings',type=str,
                     help='''Settings related to the optimizer used in the LLR analysis.''')
 parser.add_argument('-n','--ntrials',type=int, default = 1,
                     help="Number of trials to run")
-parser.add_argument('-s','--save_steps',action='store_true',default=False,
+parser.add_argument('-s','--save-steps',action='store_true',default=False,
+                    dest='save_steps',
                     help="Save all steps the optimizer takes.")
 parser.add_argument('-o','--outfile',type=str,default='llh_data.json',metavar='JSONFILE',
                     help="Output filename.")
@@ -75,10 +77,13 @@ for itrial in xrange(1,args.ntrials+1):
     for data_tag, data_normal in [('data_NMH',True),('data_IMH',False)]:
 
         results[data_tag] = {}
+        # 0) get a random seed and store with the data
+        results[data_tag]['seed'] = get_seed()
         # 1) get a pseudo data fmap from fiducial model (best fit vals of params).
         fmap = get_pseudo_data_fmap(template_maker,
                                     get_values(select_hierarchy(params,
-                                                                normal_hierarchy=data_normal)))
+                                                                normal_hierarchy=data_normal)),
+                                    seed=results[data_tag]['seed'])
 
         # 2) find max llh (and best fit free params) from matching pseudo data
         #    to templates.
