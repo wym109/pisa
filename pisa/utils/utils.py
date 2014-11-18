@@ -191,14 +191,3 @@ def integer_rebin_map(prob_map, rebin_info):
                           axis=0)
 
     return rmap
-
-def get_arb_cuts(data, cut_list, cut_sim_down=False):
-    '''
-    Make arbitrary set of cuts, defined from cut_list and data, which is a
-    PyTables file object.
-    '''
-    conditions = []
-    conditions = [data.__getattr__(cut[0]).col(cut[1]) == cut[2] for cut in cut_list]
-    if cut_sim_down: conditions.append(np.cos(data.MCNeutrino.col('zenith'))<0.)
-
-    return np.alltrue(np.array(conditions),axis=0)

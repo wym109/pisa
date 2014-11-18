@@ -5,14 +5,10 @@
 # This module will perform the smearing of the true event rates, with
 # the reconstructed parameters, using the detector response
 # resolutions, in energy and coszen.
-#
-# The approach used to apply the reconstruction kernel is variable.
-#  1. The MC-based approach takes the full pdf of the
-#     (true_energy,true_coszen) directly from simulations to be
-#     reconstructed at (reco_energy,reco_coszen) and will apply these
-#     pdfs to the true event rates, taken from the previous stage.
-#     The result is the reconstructed event rate per flavor.
-#  2. The Parameterized approach...
+# Therefore, a RecoService is invoked that generates smearing kernels 
+# by some specific algorithm (see individual services for details). 
+# Then the true event rates are convoluted with the kernels to get the 
+# event rates after reconstruction.
 #
 # author: Timothy C. Arlen
 #         tca3@psu.edu
@@ -28,11 +24,10 @@ from pisa.utils.log import logging, physics, set_verbosity
 from pisa.utils.utils import check_binning, get_binning
 from pisa.utils.jsons import from_json,to_json
 from pisa.utils.proc import report_params, get_params, add_params
-
 from pisa.reco.RecoServiceMC import RecoServiceMC
-from pisa.reco.RecoServicePar import RecoServicePar
+from pisa.reco.RecoServiceParam import RecoServiceParam
 from pisa.reco.RecoServiceKernelFile import RecoServiceKernelFile
-from pisa.reco.RecoServiceKDE import RecoServiceKDE
+#from pisa.reco.RecoServiceKDE import RecoServiceKDE
 import numpy as np
 
 
@@ -59,7 +54,11 @@ def get_reco_maps(true_event_maps, reco_service=None,e_reco_scale=None,
 
     #Check binning
     ebins, czbins = get_binning(true_event_maps)
+    
+    #Retrieve all reconstruction kernels
+    reco_kernel_dict = reco_service.get_reco_kernels(**kwargs)
 
+    #Do smearing
     flavours = ['nue','numu','nutau']
     int_types = ['cc','nc']
 
@@ -72,7 +71,7 @@ def get_reco_maps(true_event_maps, reco_service=None,e_reco_scale=None,
                 flav = flavor+mID
                 true_evt_rate = true_event_maps[flav][int_type]['map']
 
-                kernels = reco_service.kernels[flav][int_type]
+                kernels = reco_kernel_dict[flav][int_type]
 
                 for ie,egy in enumerate(ebins[:-1]):
                     for icz,cz in enumerate(czbins[:-1]):
@@ -83,18 +82,17 @@ def get_reco_maps(true_event_maps, reco_service=None,e_reco_scale=None,
             reco_maps[flavor+'_'+int_type] = {'map':reco_evt_rate,
                                               'ebins':ebins,
                                               'czbins':czbins}
-            physics.trace("Total counts: %.2f"%np.sum(reco_evt_rate))
-
+            physics.trace("Total counts for %s %s: %.2f"%(flavor, int_type, 
+                                                          np.sum(reco_evt_rate)))
 
     #Finally sum up all the NC contributions
-    logging.info("Summing up rates for %s %s"%('all',int_type))
+    logging.info("Summing up rates for all nc events")
     reco_evt_rate = np.sum([reco_maps.pop(key)['map'] for key in reco_maps.keys()
                             if key.endswith('_nc')], axis = 0)
     reco_maps['nuall_nc'] = {'map':reco_evt_rate,
                              'ebins':ebins,
                              'czbins':czbins}
-    physics.trace("Total counts: %.2f"%np.sum(reco_evt_rate))
-
+    physics.trace("Total counts for nuall nc: %.2f"%np.sum(reco_evt_rate))
 
     return reco_maps
 
@@ -161,11 +159,11 @@ Expects the file format to be:
 
     logging.info("Defining RecoService...")
     if args.mode=='MC':
-        reco_service = RecoServiceMC(ebins, czbins,
+        reco_service = RecoServiceMC(ebins, czbins, 
                                      simfile=args.mc_file,
                                      **vars(args))
     elif args.mode=='param':
-        reco_service = RecoServicePar(ebins,czbins,
+        reco_service = RecoServiceParam(ebins,czbins, 
                                         paramfile=args.param_file,
                                         **vars(args))
     elif args.mode=='stored':
@@ -176,9 +174,8 @@ Expects the file format to be:
         reco_service = RecoServiceKDE(ebins,czbins,kdefile=args.kde_file,
                                       **vars(args))
 
-    event_rate_reco_maps = get_reco_maps(args.event_rate_maps,reco_service)
+    event_rate_reco_maps = get_reco_maps(args.event_rate_maps,
+                                         reco_service, **vars(args))
 
     logging.info("Saving output to: %s"%args.outfile)
     to_json(event_rate_reco_maps,args.outfile)
-
-

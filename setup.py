@@ -38,7 +38,8 @@ setup(
             'pisa.reco',
             'pisa.pid',
             'pisa.analysis',
-            'pisa.analysis.LLR',
+            'pisa.analysis.llr',
+            'pisa.analysis.scan',
             'pisa.utils',
             'pisa.resources'],
   scripts=['examples/default_chain.sh',
@@ -49,7 +50,8 @@ setup(
            'pisa/reco/Reco.py',
            'pisa/pid/PID.py',
            'pisa/analysis/TemplateMaker.py',
-           'pisa/analysis/LLR/LLROptimizerAnalysis.py'
+           'pisa/analysis/scan/ScanAnalysis.py',
+           'pisa/analysis/llr/LLROptimizerAnalysis.py'
            ],
   ext_package='pisa.oscillations.prob3',
   ext_modules=[Extension('_BargerPropagator',
