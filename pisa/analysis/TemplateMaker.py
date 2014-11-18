@@ -31,7 +31,7 @@ from pisa.aeff.AeffServicePar import AeffServicePar
 from pisa.aeff.Aeff import get_event_rates
 
 from pisa.reco.RecoServiceMC import RecoServiceMC
-from pisa.reco.RecoServicePar import RecoServicePar
+from pisa.reco.RecoServiceParam import RecoServiceParam
 from pisa.reco.RecoServiceKDE import RecoServiceKDE
 from pisa.reco.Reco import get_reco_maps
 
@@ -96,7 +96,7 @@ class TemplateMaker:
             self.reco_service = RecoServiceMC(self.ebins,self.czbins,
                                               **template_settings)
         elif reco_mode == 'param':
-            self.reco_service = RecoServicePar(self.ebins,self.czbins,
+            self.reco_service = RecoServiceParam(self.ebins,self.czbins,
                                                **template_settings)
         elif reco_mode == 'kde':
             self.reco_service = RecoServiceKDE(self.ebins,self.czbins,

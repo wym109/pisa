@@ -34,7 +34,7 @@ def normalize_kernels(kernels):
                 kernel_sum = np.sum(kernels[flavour][interaction][true_bin])
                 if kernel_sum > 0.:
                     kernels[flavour][interaction][true_bin] /= kernel_sum
-    
+
     return kernels
 
 
@@ -69,7 +69,7 @@ class RecoServiceBase:
         ensures that reco kernels are in correct shape and normalized
         """
         kernels = self._get_reco_kernels(**kwargs)
-        
+
         if self.check_kernels(kernels):
             return normalize_kernels(kernels)
 

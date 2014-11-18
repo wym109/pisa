@@ -5,9 +5,9 @@
 # This module will perform the smearing of the true event rates, with
 # the reconstructed parameters, using the detector response
 # resolutions, in energy and coszen.
-# Therefore, a RecoService is invoked that generates smearing kernels 
-# by some specific algorithm (see individual services for details). 
-# Then the true event rates are convoluted with the kernels to get the 
+# Therefore, a RecoService is invoked that generates smearing kernels
+# by some specific algorithm (see individual services for details).
+# Then the true event rates are convoluted with the kernels to get the
 # event rates after reconstruction.
 #
 # author: Timothy C. Arlen
@@ -54,7 +54,7 @@ def get_reco_maps(true_event_maps, reco_service=None,e_reco_scale=None,
 
     #Check binning
     ebins, czbins = get_binning(true_event_maps)
-    
+
     #Retrieve all reconstruction kernels
     reco_kernel_dict = reco_service.get_reco_kernels(**kwargs)
 
@@ -115,29 +115,16 @@ if __name__ == '__main__':
                         default='MC', help='Reco service to use (default: MC)')
     parser.add_argument('--mc_file',metavar='HDF5',type=str,
                         default='events/V15_weighted_aeff_joined_nu_nubar.hdf5',
-                        help='''HDF5 File containing data from all flavours for a particular instumental geometry.
-Expects the file format to be:
-      {
-        'nue': {
-           'cc': {
-               ...
-               'true_energy': np.array,
-               'true_coszen': np.array,
-               'reco_energy': np.array,
-               'reco_coszen': np.array
-            },
-            'nc': {...
-             }
-         },
-         'nue_bar' {...},...
-      } 
-To be used for both MC and KDE reconstruction modes''')
+                        help='''HDF5 File containing reconstruction data from all flavours for a particular instument geometry.''')
     parser.add_argument('--param_file', metavar='JSON',
                         type=str, default='reco_params/V15.json',
                         help='''JSON file holding the parametrization''')
     parser.add_argument('--kernel_file', metavar='JSON',
                         type=str, default=None,
                         help='''JSON file holding the pre-calculated kernels''')
+    parser.add_argument('--kde_file',metavar='HDF5',type=str,
+                        default='events/V15_weighted_aeff_joined_nu_nubar.hdf5',
+                        help='''file holding the info on how to define KDEs''')
     parser.add_argument('--e_reco_scale',type=float,default=1.0,
                         help='''Reconstructed energy scaling.''')
     parser.add_argument('--cz_reco_scale',type=float,default=1.0,
@@ -158,18 +145,18 @@ To be used for both MC and KDE reconstruction modes''')
     logging.info("Defining RecoService...")
     if args.mode=='MC':
         reco_service = RecoServiceMC(ebins, czbins, 
-                                     simfile=args.mc_file,
+                                     reco_mc_wt_file=args.mc_file,
                                      **vars(args))
     elif args.mode=='param':
         reco_service = RecoServiceParam(ebins,czbins, 
-                                        paramfile=args.param_file,
+                                        reco_param_file=args.param_file,
                                         **vars(args))
     elif args.mode=='stored':
         reco_service = RecoServiceKernelFile(ebins, czbins,
-                                             kernelfile=args.kernel_file,
+                                             reco_kernel_file=args.kernel_file,
                                              **vars(args))
     elif args.mode=='kde':
-        reco_service = RecoServiceKDE(ebins,czbins,kdefile=args.mc_file,
+        reco_service = RecoServiceKDE(ebins,czbins,reco_kde_file=args.kde_file,
                                       **vars(args))
 
     event_rate_reco_maps = get_reco_maps(args.event_rate_maps,

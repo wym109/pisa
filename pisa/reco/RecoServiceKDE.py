@@ -25,50 +25,40 @@ class RecoServiceKDE(RecoServiceBase):
     Creates reconstruction kernels using Kernel Density Estimation (KDE).
     """
 
-    def __init__(self, ebins, czbins, kdefile=None, **kwargs):
+    def __init__(self, ebins, czbins, **kwargs):
         """
         Parameters needed to instantiate a reconstruction service with
         parametrizations:
         * ebins: Energy bin edges
         * czbins: cos(zenith) bin edges
-        * kdefile: HDF5 file containing the MC events.
         """
-        self.kdefile = kdefile
-        RecoServiceBase.__init__(self, ebins, czbins, kdefile=kdefile, **kwargs)
+        self.kernels = None
+        RecoServiceBase.__init__(self, ebins, czbins, **kwargs)
 
 
-    def _get_reco_kernels(self, kdefile=None, remove_sim_downgoing=True,
+    def _get_reco_kernels(self, reco_kde_file=None, remove_sim_downgoing=True,
+                         e_reco_scale=1., cz_reco_scale=1.,
                          **kwargs):
-        
-        # Check for invalid reco scales
-        for reco_scale in ['e_reco_scale', 'cz_reco_scale']:
-            if reco_scale in kwargs:
-                if not kwargs[reco_scale]==1:
-                    raise ValueError('%s = %.2f not valid for RecoServiceMC!'
-                                     %(reco_scale, kwargs[reco_scale]))
 
-        if not kdefile in [self.kdefile, None]:
-            logging.info('Reconstruction from non-default MC file %s!'%kdefile)
-            temp_kde_dict = self.construct_KDEs(kdefile,remove_sim_downgoing=remove_sim_downgoing)
-            return self.calculate_kernels(kde_dict=temp_kde_dict)
-        
-        if not hasattr(self, 'kde_dict'):
-            logging.info('Constructing KDEs from file: %s'%kdefile)
-            self.kde_dict = self.construct_KDEs(kdefile,remove_sim_downgoing=remove_sim_downgoing)
 
-        if not hasattr(self, 'kernels'):
-            logging.info('Creating reconstruction kernels')
-            self.kernels = self.calculate_kernels(kde_dict=self.kde_dict)
+        if self.kernels is not None:
+            # Scale reconstruction widths
+            #self.apply_reco_scales(e_reco_scale, cz_reco_scale)
+            return self.kernels
 
-        #TODO: future: if reco scales != 1, recalculate
+        logging.info('Constructing KDEs from file: %s'%reco_kde_file)
+        self.kde_dict = self.construct_KDEs(reco_kde_file,
+                                            remove_sim_downgoing=remove_sim_downgoing)
+
+        logging.info('Creating reconstruction kernels')
+        self.kernels = self.calculate_kernels(kde_dict=self.kde_dict)
 
         return self.kernels
 
 
     def calculate_kernels(self, kde_dict=None, flipback=True):
-        
         #TODO: implement reco scales here
-        
+
         # get binning information
         evals, esizes = get_bin_centers(self.ebins), get_bin_sizes(self.ebins)
         czvals, czsizes = get_bin_centers(self.czbins), get_bin_sizes(self.czbins)
@@ -131,7 +121,7 @@ class RecoServiceKDE(RecoServiceBase):
         return kernel_dict
 
 
-    def _get_1D_kernel(self, flavour, int_type, energy, kvals, 
+    def _get_1D_kernel(self, flavour, int_type, energy, kvals,
                        kde_dict=None, ktype=None):
         '''
         For the specified flavour, int_type, returns the estimated 1D kernel
