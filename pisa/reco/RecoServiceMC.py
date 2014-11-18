@@ -25,17 +25,17 @@ class RecoServiceMC(RecoServiceBase):
     From these histograms, and the true event rate maps, calculates
     the reconstructed even rate templates.
     """
-    def __init__(self, ebins, czbins, simfile=None, **kwargs):
+    def __init__(self, ebins, czbins, reco_mc_wt_file=None, **kwargs):
         """
         Parameters needed to instantiate a MC-based reconstruction service:
         * ebins: Energy bin edges
         * czbins: cos(zenith) bin edges
-        * simfile: HDF5 containing the MC events to construct the kernels
+        * reco_weight_file: HDF5 containing the MC events to construct the kernels
         """
-        self.simfile = simfile
-        RecoServiceBase.__init__(self, ebins, czbins, simfile=simfile, **kwargs)
-    
-    
+        self.simfile = reco_mc_wt_file
+        RecoServiceBase.__init__(self, ebins, czbins, simfile=self.simfile, **kwargs)
+
+
     def kernel_from_simfile(self, simfile=None, **kwargs):
         logging.info('Opening file: %s'%(simfile))
         try:
@@ -66,22 +66,22 @@ class RecoServiceMC(RecoServiceBase):
 
                 flavor_dict[int_type] = kernel
             kernels[flavor] = flavor_dict
-            
+
         return kernels
 
 
     def _get_reco_kernels(self, simfile=None, **kwargs):
-        
+
         for reco_scale in ['e_reco_scale', 'cz_reco_scale']:
             if reco_scale in kwargs:
                 if not kwargs[reco_scale]==1:
                     raise ValueError('%s = %.2f not valid for RecoServiceMC!'
                                      %(reco_scale, kwargs[reco_scale]))
-        
+
         if not simfile in [self.simfile, None]:
             logging.info('Reconstruction from non-default MC file %s!'%simfile)
             return kernel_from_simfile(simfile=simfile)
-        
+
         if not hasattr(self, 'kernels'):
             logging.info('Using file %s for default reconstruction'%(simfile))
             self.kernels = self.kernel_from_simfile(simfile=simfile)

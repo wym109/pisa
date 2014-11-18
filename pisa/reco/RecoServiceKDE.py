@@ -17,7 +17,7 @@ import h5py
 from pisa.reco.RecoServiceBase import RecoServiceBase
 from pisa.resources.resources import find_resource
 from pisa.utils.jsons import from_json
-from pisa.utils.utils import get_arb_cuts, get_bin_centers, get_bin_sizes, is_linear
+from pisa.utils.utils import get_bin_centers, get_bin_sizes, is_linear
 from pisa.utils.log import logging, physics
 
 class RecoServiceKDE(RecoServiceBase):
@@ -31,24 +31,30 @@ class RecoServiceKDE(RecoServiceBase):
         parametrizations:
         * ebins: Energy bin edges
         * czbins: cos(zenith) bin edges
-        * kdefile: JSON file containing the locations of sim files and cuts.
+        * reco_kde_file: HDF5 file for generating KDEs
         """
-
+        self.kernels = None
         RecoServiceBase.__init__(self, ebins, czbins, **kwargs)
 
 
-    def get_reco_kernels(self, kdefile=None, remove_sim_downgoing=True,
+    def _get_reco_kernels(self, reco_kde_file=None, remove_sim_downgoing=True,
                          e_reco_scale=1., cz_reco_scale=1.,
                          **kwargs):
 
-        logging.info('Constructing KDEs from file: %s'%kdefile)
-        self.kde_dict = self.construct_KDEs(kdefile,remove_sim_downgoing=remove_sim_downgoing)
 
-        # Scale reconstruction widths
-        #self.apply_reco_scales(e_reco_scale, cz_reco_scale)
+        if self.kernels is not None:
+            # Scale reconstruction widths
+            #self.apply_reco_scales(e_reco_scale, cz_reco_scale)
+            return self.kernels
+
+        logging.info('Constructing KDEs from file: %s'%reco_kde_file)
+        self.kde_dict = self.construct_KDEs(reco_kde_file,remove_sim_downgoing=remove_sim_downgoing)
 
         logging.info('Creating reconstruction kernels')
         self.calculate_kernels()
+
+        # Scale reconstruction widths
+        #self.apply_reco_scales(e_reco_scale, cz_reco_scale)
 
         return self.kernels
 

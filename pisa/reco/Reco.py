@@ -27,7 +27,7 @@ from pisa.utils.proc import report_params, get_params, add_params
 from pisa.reco.RecoServiceMC import RecoServiceMC
 from pisa.reco.RecoServiceParam import RecoServiceParam
 from pisa.reco.RecoServiceKernelFile import RecoServiceKernelFile
-#from pisa.reco.RecoServiceKDE import RecoServiceKDE
+from pisa.reco.RecoServiceKDE import RecoServiceKDE
 import numpy as np
 
 
@@ -54,7 +54,7 @@ def get_reco_maps(true_event_maps, reco_service=None,e_reco_scale=None,
 
     #Check binning
     ebins, czbins = get_binning(true_event_maps)
-    
+
     #Retrieve all reconstruction kernels
     reco_kernel_dict = reco_service.get_reco_kernels(**kwargs)
 
@@ -137,9 +137,9 @@ Expects the file format to be:
     parser.add_argument('--kernel_file', metavar='JSON',
                         type=str, default=None,
                         help='''JSON file holding the pre-calculated kernels''')
-    parser.add_argument('--kde_file',metavar='JSON',type=str,
+    parser.add_argument('--kde_file',metavar='HDF5',type=str,
                         default='events/V15_weighted_aeff_joined_nu_nubar.hdf5',
-                        help='''JSON file holding the info on how to define KDEs''')
+                        help='''file holding the info on how to define KDEs''')
     parser.add_argument('--e_reco_scale',type=float,default=1.0,
                         help='''Reconstructed energy scaling.''')
     parser.add_argument('--cz_reco_scale',type=float,default=1.0,
@@ -160,18 +160,18 @@ Expects the file format to be:
     logging.info("Defining RecoService...")
     if args.mode=='MC':
         reco_service = RecoServiceMC(ebins, czbins, 
-                                     simfile=args.mc_file,
+                                     reco_mc_wt_file=args.mc_file,
                                      **vars(args))
     elif args.mode=='param':
         reco_service = RecoServiceParam(ebins,czbins, 
-                                        paramfile=args.param_file,
+                                        reco_param_file=args.param_file,
                                         **vars(args))
     elif args.mode=='stored':
         reco_service = RecoServiceKernelFile(ebins, czbins,
-                                             kernelfile=args.kernel_file,
+                                             reco_kernel_file=args.kernel_file,
                                              **vars(args))
     elif args.mode=='kde':
-        reco_service = RecoServiceKDE(ebins,czbins,kdefile=args.kde_file,
+        reco_service = RecoServiceKDE(ebins,czbins,reco_kde_file=args.kde_file,
                                       **vars(args))
 
     event_rate_reco_maps = get_reco_maps(args.event_rate_maps,
