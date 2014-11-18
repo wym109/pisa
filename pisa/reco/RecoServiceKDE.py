@@ -25,7 +25,7 @@ class RecoServiceKDE(RecoServiceBase):
     Creates reconstruction kernels using Kernel Density Estimation (KDE).
     """
 
-    def __init__(self, ebins, czbins, **kwargs):
+    def __init__(self, ebins, czbins, reco_kde_file=None, **kwargs):
         """
         Parameters needed to instantiate a reconstruction service with
         parametrizations:
@@ -33,7 +33,9 @@ class RecoServiceKDE(RecoServiceBase):
         * czbins: cos(zenith) bin edges
         """
         self.kernels = None
-        RecoServiceBase.__init__(self, ebins, czbins, **kwargs)
+        self.duplicate_nu_bar = False
+        RecoServiceBase.__init__(self, ebins, czbins, reco_kde_file=reco_kde_file,
+                                 **kwargs)
 
 
     def _get_reco_kernels(self, reco_kde_file=None, remove_sim_downgoing=True,
@@ -77,7 +79,12 @@ class RecoServiceKDE(RecoServiceBase):
                 flipback = False
 
         kernel_dict = {key:{'cc':None,'nc':None} for key in kde_dict.keys()}
-        for flavour in kde_dict.keys():
+        flavours = kde_dict.keys()
+        # If nu_bar are duplicates, remove from keys to loop over and
+        # simply initialize them to their non-bar counterparts.
+        if self.duplicate_nu_bar:
+            flavours = [flav for flav in flavours if '_bar' not in flav]
+        for flavour in flavours:
             for int_type in ['cc','nc']:
                 logging.debug('Calculating KDE based reconstruction kernel for %s %s'
                               %(flavour, int_type))
@@ -105,16 +112,12 @@ class RecoServiceKDE(RecoServiceBase):
 
                         kernel[i,j] = np.outer(e_kern, cz_kern)
 
-                        if np.any(np.isnan(kernel[i,j])):
-                            print "nan found! --why??"
-                            #print "  kernel: ",kernel[i,j]
-                            print "  cz_kern: ",cz_kern
-                            print "  e_kern: ",e_kern
-                            print "energy: %.2f, cz: %.2f"%(evals[i],czvals[j])
-                            sys.exit(1)
-
-
                 kernel_dict[flavour][int_type] = kernel
+                if self.duplicate_nu_bar:
+                    flav_bar = flavour+'_bar'
+                    logging.debug('Duplicating reco kernel of %s/%s = %s/%s'
+                                  %(flav_bar, int_type,flavour,int_type))
+                    kernel_dict[flav_bar][int_type] = kernel
         kernel_dict['ebins'] = self.ebins
         kernel_dict['czbins'] = self.czbins
 
@@ -224,12 +227,18 @@ class RecoServiceKDE(RecoServiceBase):
             logging.error(e)
             sys.exit(1)
 
-        logging.debug("Removing simulated downgoing events in KDE construction.")
+        flavours = ['nue','nue_bar','numu','numu_bar','nutau','nutau_bar']
+        int_types = ['cc','nc']
+        self.duplicate_nu_bar = self._check_duplicate_nu_bar(kde_fh)
+        if self.duplicate_nu_bar:
+            #duplicates = ['nue_bar','numu_bar','nutau_bar']
+            flavours = ['nue','numu','nutau']
+
         kde_dict = {}
-        for flavour in ['nue','nue_bar','numu','numu_bar','nutau','nutau_bar']:
+        for flavour in flavours:
             flavour_dict = {}
             logging.debug("Working on %s kernels"%flavour)
-            for int_type in ['cc','nc']:
+            for int_type in int_types:
                 true_energy = np.array(kde_fh[flavour+'/'+int_type+'/true_energy'])
                 true_coszen = np.array(kde_fh[flavour+'/'+int_type+'/true_coszen'])
                 reco_energy = np.array(kde_fh[flavour+'/'+int_type+'/reco_energy'])
@@ -237,6 +246,7 @@ class RecoServiceKDE(RecoServiceBase):
 
                 # Cut on simulated downgoing:
                 if remove_sim_downgoing:
+                    logging.debug("Removing simulated downgoing events in KDE construction.")
                     cuts = np.alltrue(np.array([true_coszen < 0.0]),axis=0)
                     true_energy = true_energy[cuts]
                     true_coszen = true_coszen[cuts]
@@ -246,8 +256,30 @@ class RecoServiceKDE(RecoServiceBase):
                 flavour_dict[int_type] = self.get_kde_list(true_energy,true_coszen,
                                                           reco_energy,reco_coszen)
             kde_dict[flavour] = flavour_dict
+            if self.duplicate_nu_bar:
+                flavour += '_bar'
+                logging.debug("   >Copying into %s kernels"%flavour)
+                kde_dict[flavour]  = flavour_dict
 
         return kde_dict
+
+    def _check_duplicate_nu_bar(self,kde_fh):
+        '''
+        If nu<flav> and nu<flav>_bar have duplicate fields, then don't
+        duplicate the KDE construction, but use the same KDEs for each
+        (saves time and increases statistics).
+        '''
+
+        if (np.all(np.array(kde_fh['nue/cc/reco_energy'])==
+            np.array(kde_fh['nue_bar/cc/reco_energy'])) and
+            np.all(np.array(kde_fh['numu/cc/reco_energy'])==
+            np.array(kde_fh['numu_bar/cc/reco_energy'])) and
+            np.all(np.array(kde_fh['nutau/cc/reco_energy'])==
+            np.array(kde_fh['nutau_bar/cc/reco_energy']))):
+            return True
+        else:
+            return False
+
 
     def get_kde_list(self,e_true,cz_true,e_reco,cz_reco):
         '''
