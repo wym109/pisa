@@ -5,9 +5,9 @@
 # This module will perform the smearing of the true event rates, with
 # the reconstructed parameters, using the detector response
 # resolutions, in energy and coszen.
-# Therefore, a RecoService is invoked that generates smearing kernels 
-# by some specific algorithm (see individual services for details). 
-# Then the true event rates are convoluted with the kernels to get the 
+# Therefore, a RecoService is invoked that generates smearing kernels
+# by some specific algorithm (see individual services for details).
+# Then the true event rates are convoluted with the kernels to get the
 # event rates after reconstruction.
 #
 # author: Timothy C. Arlen
@@ -115,22 +115,7 @@ if __name__ == '__main__':
                         default='MC', help='Reco service to use (default: MC)')
     parser.add_argument('--mc_file',metavar='HDF5',type=str,
                         default='events/V15_weighted_aeff_joined_nu_nubar.hdf5',
-                        help='''HDF5 File containing data from all flavours for a particular instumental geometry.
-Expects the file format to be:
-      {
-        'nue': {
-           'cc': {
-               ...
-               'true_energy': np.array,
-               'true_coszen': np.array,
-               'reco_energy': np.array,
-               'reco_coszen': np.array
-            },
-            'nc': {...
-             }
-         },
-         'nue_bar' {...},...
-      } ''')
+                        help='''HDF5 File containing reconstruction data from all flavours for a particular instument geometry.''')
     parser.add_argument('--param_file', metavar='JSON',
                         type=str, default='reco_params/V15.json',
                         help='''JSON file holding the parametrization''')

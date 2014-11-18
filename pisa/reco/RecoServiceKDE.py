@@ -31,7 +31,6 @@ class RecoServiceKDE(RecoServiceBase):
         parametrizations:
         * ebins: Energy bin edges
         * czbins: cos(zenith) bin edges
-        * reco_kde_file: HDF5 file for generating KDEs
         """
         self.kernels = None
         RecoServiceBase.__init__(self, ebins, czbins, **kwargs)
@@ -48,18 +47,17 @@ class RecoServiceKDE(RecoServiceBase):
             return self.kernels
 
         logging.info('Constructing KDEs from file: %s'%reco_kde_file)
-        self.kde_dict = self.construct_KDEs(reco_kde_file,remove_sim_downgoing=remove_sim_downgoing)
+        self.kde_dict = self.construct_KDEs(reco_kde_file,
+                                            remove_sim_downgoing=remove_sim_downgoing)
 
         logging.info('Creating reconstruction kernels')
-        self.calculate_kernels()
-
-        # Scale reconstruction widths
-        #self.apply_reco_scales(e_reco_scale, cz_reco_scale)
+        self.kernels = self.calculate_kernels(kde_dict=self.kde_dict)
 
         return self.kernels
 
 
-    def calculate_kernels(self,flipback=True):
+    def calculate_kernels(self, kde_dict=None, flipback=True):
+        #TODO: implement reco scales here
 
         # get binning information
         evals, esizes = get_bin_centers(self.ebins), get_bin_sizes(self.ebins)
@@ -78,8 +76,8 @@ class RecoServiceKDE(RecoServiceBase):
                              "of histogram, will not do that.")
                 flipback = False
 
-        kernel_dict = {key:{'cc':None,'nc':None} for key in self.kde_dict.keys()}
-        for flavour in self.kde_dict.keys():
+        kernel_dict = {key:{'cc':None,'nc':None} for key in kde_dict.keys()}
+        for flavour in kde_dict.keys():
             for int_type in ['cc','nc']:
                 logging.debug('Calculating KDE based reconstruction kernel for %s %s'
                               %(flavour, int_type))
@@ -92,14 +90,14 @@ class RecoServiceKDE(RecoServiceBase):
                     energy = evals[i]
                     kvals = evals - energy
                     e_kern = self._get_1D_kernel(flavour,int_type,energy,kvals,
-                                                 ktype="energy")
+                                                 kde_dict=kde_dict,ktype="energy")
 
                     for j in range(n_cz):
                         offset = n_cz if flipback else 0
                         #print "energy: %.2f coszen: %.2f"%(evals[i],czvals[j+offset])
                         kvals = czvals - czvals[j+offset]
                         cz_kern = self._get_1D_kernel(flavour,int_type,energy,kvals,
-                                                      ktype="coszen")
+                                                      kde_dict=kde_dict,ktype="coszen")
 
                         if flipback:
                             # fold back
@@ -120,10 +118,11 @@ class RecoServiceKDE(RecoServiceBase):
         kernel_dict['ebins'] = self.ebins
         kernel_dict['czbins'] = self.czbins
 
-        self.kernels = kernel_dict
         return kernel_dict
 
-    def _get_1D_kernel(self,flavour,int_type,energy,kvals,ktype=None):
+
+    def _get_1D_kernel(self, flavour, int_type, energy, kvals,
+                       kde_dict=None, ktype=None):
         '''
         For the specified flavour, int_type, returns the estimated 1D kernel
         at 'energy' using linear histogram interpolation from KDEs defined
@@ -135,11 +134,12 @@ class RecoServiceKDE(RecoServiceBase):
           * kvals - values to apply reco kernel to. If coszen
             kernel, these should be (czvals - coszen) or if energy
             kernels, should be (evals - energy).
+          * kde_dict - dict holding the kde parameters
           * ktype - kernel type to extract, either 'coszen' or 'energy'
         '''
 
         # For easy access:
-        kde_dict = self.kde_dict[flavour][int_type]
+        kde_dict = kde_dict[flavour][int_type]
 
         kde_key = ""
         if ktype == 'coszen': kde_key = "cz_kde"
