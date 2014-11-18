@@ -38,9 +38,8 @@ class RecoServiceKDE(RecoServiceBase):
                                  **kwargs)
 
 
-    def _get_reco_kernels(self, reco_kde_file=None, remove_sim_downgoing=True,
-                         e_reco_scale=1., cz_reco_scale=1.,
-                         **kwargs):
+    def _get_reco_kernels(self, reco_kde_file=None,e_reco_scale=None,
+                          cz_reco_scale=None,**kwargs):
 
 
         if self.kernels is not None:
@@ -50,7 +49,7 @@ class RecoServiceKDE(RecoServiceBase):
 
         logging.info('Constructing KDEs from file: %s'%reco_kde_file)
         self.kde_dict = self.construct_KDEs(reco_kde_file,
-                                            remove_sim_downgoing=remove_sim_downgoing)
+                                            remove_sim_downgoing=True)
 
         logging.info('Creating reconstruction kernels')
         self.kernels = self.calculate_kernels(kde_dict=self.kde_dict)
