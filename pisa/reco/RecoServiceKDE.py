@@ -17,7 +17,7 @@ import h5py
 from pisa.reco.RecoServiceBase import RecoServiceBase
 from pisa.resources.resources import find_resource
 from pisa.utils.jsons import from_json
-from pisa.utils.utils import get_arb_cuts, get_bin_centers, get_bin_sizes, is_linear
+from pisa.utils.utils import get_bin_centers, get_bin_sizes, is_linear
 from pisa.utils.log import logging, physics
 
 class RecoServiceKDE(RecoServiceBase):
@@ -25,36 +25,50 @@ class RecoServiceKDE(RecoServiceBase):
     Creates reconstruction kernels using Kernel Density Estimation (KDE).
     """
 
-    def __init__(self, ebins, czbins, **kwargs):
+    def __init__(self, ebins, czbins, kdefile=None, **kwargs):
         """
         Parameters needed to instantiate a reconstruction service with
         parametrizations:
         * ebins: Energy bin edges
         * czbins: cos(zenith) bin edges
-        * kdefile: JSON file containing the locations of sim files and cuts.
+        * kdefile: HDF5 file containing the MC events.
         """
+        self.kdefile = kdefile
+        RecoServiceBase.__init__(self, ebins, czbins, kdefile=kdefile, **kwargs)
 
-        RecoServiceBase.__init__(self, ebins, czbins, **kwargs)
 
-
-    def get_reco_kernels(self, kdefile=None, remove_sim_downgoing=True,
-                         e_reco_scale=1., cz_reco_scale=1.,
+    def _get_reco_kernels(self, kdefile=None, remove_sim_downgoing=True,
                          **kwargs):
+        
+        # Check for invalid reco scales
+        for reco_scale in ['e_reco_scale', 'cz_reco_scale']:
+            if reco_scale in kwargs:
+                if not kwargs[reco_scale]==1:
+                    raise ValueError('%s = %.2f not valid for RecoServiceMC!'
+                                     %(reco_scale, kwargs[reco_scale]))
 
-        logging.info('Constructing KDEs from file: %s'%kdefile)
-        self.kde_dict = self.construct_KDEs(kdefile,remove_sim_downgoing=remove_sim_downgoing)
+        if not kdefile in [self.kdefile, None]:
+            logging.info('Reconstruction from non-default MC file %s!'%kdefile)
+            temp_kde_dict = self.construct_KDEs(kdefile,remove_sim_downgoing=remove_sim_downgoing)
+            return self.calculate_kernels(kde_dict=temp_kde_dict)
+        
+        if not hasattr(self, 'kde_dict'):
+            logging.info('Constructing KDEs from file: %s'%kdefile)
+            self.kde_dict = self.construct_KDEs(kdefile,remove_sim_downgoing=remove_sim_downgoing)
 
-        # Scale reconstruction widths
-        #self.apply_reco_scales(e_reco_scale, cz_reco_scale)
+        if not hasattr(self, 'kernels'):
+            logging.info('Creating reconstruction kernels')
+            self.kernels = self.calculate_kernels(kde_dict=self.kde_dict)
 
-        logging.info('Creating reconstruction kernels')
-        self.calculate_kernels()
+        #TODO: future: if reco scales != 1, recalculate
 
         return self.kernels
 
 
-    def calculate_kernels(self,flipback=True):
-
+    def calculate_kernels(self, kde_dict=None, flipback=True):
+        
+        #TODO: implement reco scales here
+        
         # get binning information
         evals, esizes = get_bin_centers(self.ebins), get_bin_sizes(self.ebins)
         czvals, czsizes = get_bin_centers(self.czbins), get_bin_sizes(self.czbins)
@@ -72,8 +86,8 @@ class RecoServiceKDE(RecoServiceBase):
                              "of histogram, will not do that.")
                 flipback = False
 
-        kernel_dict = {key:{'cc':None,'nc':None} for key in self.kde_dict.keys()}
-        for flavour in self.kde_dict.keys():
+        kernel_dict = {key:{'cc':None,'nc':None} for key in kde_dict.keys()}
+        for flavour in kde_dict.keys():
             for int_type in ['cc','nc']:
                 logging.debug('Calculating KDE based reconstruction kernel for %s %s'
                               %(flavour, int_type))
@@ -86,14 +100,14 @@ class RecoServiceKDE(RecoServiceBase):
                     energy = evals[i]
                     kvals = evals - energy
                     e_kern = self._get_1D_kernel(flavour,int_type,energy,kvals,
-                                                 ktype="energy")
+                                                 kde_dict=kde_dict,ktype="energy")
 
                     for j in range(n_cz):
                         offset = n_cz if flipback else 0
                         #print "energy: %.2f coszen: %.2f"%(evals[i],czvals[j+offset])
                         kvals = czvals - czvals[j+offset]
                         cz_kern = self._get_1D_kernel(flavour,int_type,energy,kvals,
-                                                      ktype="coszen")
+                                                      kde_dict=kde_dict,ktype="coszen")
 
                         if flipback:
                             # fold back
@@ -114,10 +128,11 @@ class RecoServiceKDE(RecoServiceBase):
         kernel_dict['ebins'] = self.ebins
         kernel_dict['czbins'] = self.czbins
 
-        self.kernels = kernel_dict
         return kernel_dict
 
-    def _get_1D_kernel(self,flavour,int_type,energy,kvals,ktype=None):
+
+    def _get_1D_kernel(self, flavour, int_type, energy, kvals, 
+                       kde_dict=None, ktype=None):
         '''
         For the specified flavour, int_type, returns the estimated 1D kernel
         at 'energy' using linear histogram interpolation from KDEs defined
@@ -129,11 +144,12 @@ class RecoServiceKDE(RecoServiceBase):
           * kvals - values to apply reco kernel to. If coszen
             kernel, these should be (czvals - coszen) or if energy
             kernels, should be (evals - energy).
+          * kde_dict - dict holding the kde parameters
           * ktype - kernel type to extract, either 'coszen' or 'energy'
         '''
 
         # For easy access:
-        kde_dict = self.kde_dict[flavour][int_type]
+        kde_dict = kde_dict[flavour][int_type]
 
         kde_key = ""
         if ktype == 'coszen': kde_key = "cz_kde"

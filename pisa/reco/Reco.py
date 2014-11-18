@@ -27,7 +27,7 @@ from pisa.utils.proc import report_params, get_params, add_params
 from pisa.reco.RecoServiceMC import RecoServiceMC
 from pisa.reco.RecoServiceParam import RecoServiceParam
 from pisa.reco.RecoServiceKernelFile import RecoServiceKernelFile
-#from pisa.reco.RecoServiceKDE import RecoServiceKDE
+from pisa.reco.RecoServiceKDE import RecoServiceKDE
 import numpy as np
 
 
@@ -130,16 +130,14 @@ Expects the file format to be:
              }
          },
          'nue_bar' {...},...
-      } ''')
+      } 
+To be used for both MC and KDE reconstruction modes''')
     parser.add_argument('--param_file', metavar='JSON',
                         type=str, default='reco_params/V15.json',
                         help='''JSON file holding the parametrization''')
     parser.add_argument('--kernel_file', metavar='JSON',
                         type=str, default=None,
                         help='''JSON file holding the pre-calculated kernels''')
-    parser.add_argument('--kde_file',metavar='JSON',type=str,
-                        default='events/V15_weighted_aeff_joined_nu_nubar.hdf5',
-                        help='''JSON file holding the info on how to define KDEs''')
     parser.add_argument('--e_reco_scale',type=float,default=1.0,
                         help='''Reconstructed energy scaling.''')
     parser.add_argument('--cz_reco_scale',type=float,default=1.0,
@@ -171,7 +169,7 @@ Expects the file format to be:
                                              kernelfile=args.kernel_file,
                                              **vars(args))
     elif args.mode=='kde':
-        reco_service = RecoServiceKDE(ebins,czbins,kdefile=args.kde_file,
+        reco_service = RecoServiceKDE(ebins,czbins,kdefile=args.mc_file,
                                       **vars(args))
 
     event_rate_reco_maps = get_reco_maps(args.event_rate_maps,
