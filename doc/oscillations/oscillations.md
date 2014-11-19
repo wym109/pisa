@@ -16,7 +16,6 @@ def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,
                  energy_scale=None, theta12=None,theta13=None,theta23=None,
                  deltacp=None,**kwargs):
 ```
-The total event __flux__ in each bin is then given by
 
 ### Parameters
 * `flux_maps`: A set of atmospheric flux maps in the format, with one
