@@ -150,7 +150,7 @@ class RecoServiceParam(RecoServiceBase):
 
         # get properly scaled parametrization, initialize kernels
         parametrization = self.apply_reco_scales(e_reco_scale, cz_reco_scale)
-        kernel_dict = {}#dict.fromkeys(parametrization, {'cc': None, 'nc': None})
+        kernel_dict = {}
 
         for flavour in parametrization:
           kernel_dict[flavour] = {}
