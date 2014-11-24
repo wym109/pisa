@@ -170,14 +170,49 @@ class RecoServiceKDE(RecoServiceBase):
         kde_high = kde_dict[i_high][kde_key]
         e_high = kde_dict[i_high]['ecen']
 
-        # Now interpolate these two pdfs:
-        points = [[e_low,val] for val in kvals] + [[e_high,val] for val in kvals]
-        points = np.array(points)
-        values = np.append(kde_low.evaluate(kvals),kde_high.evaluate(kvals))
-        grid = np.array([[energy,val] for val in kvals])
-        pdf = griddata(points,values,grid,method='linear')
-
+        pdf = self._interpolate_pdf(kde_low,kde_high,e_low,e_high,energy,kvals)
         return pdf
+
+
+    def _interpolate_pdf(self,kde_low,kde_high,val_low,val_high,value,xvals):
+        '''
+        Interpolate two pdfs defined on the xaxis=xvals for some
+        parameter q defined at q=val_low and q=val_high.
+
+        Using formula of "Linear Interpolation of Histograms" by
+        A.L. Read, Nuc. Instr. and Methods in Physics Research A 425
+        (1999) 357-360.
+
+        \params:
+          * kde_low - KDE describing distribution at val_low
+          * kde_high - KDE describing distribution at val_high
+          * val_low - value of parameter where kde_low is defined.
+          * val_high - value of parameter where kde_high is defined.
+          * value - value of parameter where we wish to define the pdf
+            using interpolated data from kde_low and kde_high
+          * xvals - values of x-axis on which to define the pdf.
+        '''
+        b = (value - val_low)/(val_high - val_low)
+        a = 1.0 - b
+
+        if (a+b > 1.0):
+            raise ValueError('a + b can never be greater than 1!')
+
+        f1 = kde_low
+        f2 = kde_high
+        pdf = []
+        for x in xvals:
+            x1 = x; x2 = x1
+            yval = []
+            if (f2.evaluate(x2) < 1.0e-10 and f1.evaluate(x1) < 1.0e-10):
+                yval.append(0.0)
+            else:
+                f1_pdf = f1.evaluate(x1)
+                f2_pdf = f2.evaluate(x2)
+                yval = f1_pdf*f2_pdf/(a*f2_pdf + b*f1_pdf)
+            pdf.append(yval[0])
+
+        return np.array(pdf)
 
 
     def construct_KDEs(self,kdefile,remove_sim_downgoing=True):
