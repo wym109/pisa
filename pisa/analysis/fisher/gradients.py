@@ -10,9 +10,9 @@
 
 from pisa.utils.log import logging
 
-def get_gradient(param,template_maker,fiducial_params,grid_settings):
+def get_gradients(param,template_maker,fiducial_params,grid_settings):
 
-  logging.INFO("Working on parameter %s."%param)
+  logging.info("Working on parameter %s."%param)
   return
 
  # if param=='hierarchy':

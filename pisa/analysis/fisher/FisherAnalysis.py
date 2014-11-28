@@ -14,8 +14,8 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from pisa.utils.log import logging, profile, physics, set_verbosity
 from pisa.utils.jsons import from_json,to_json
 from pisa.analysis.TemplateMaker import TemplateMaker
-from pisa.utils.params import select_hierarchy, get_free_params
-from pisa.analysis.fisher.Gradients import get_gradient
+from pisa.utils.params import select_hierarchy, get_free_params, get_values
+from pisa.analysis.fisher.gradients import get_gradients
 
 
 parser = ArgumentParser(description='''Runs a brute-force scan analysis varying a number of systematic parameters
@@ -59,8 +59,6 @@ params['hierarchy_nh'] = { "value": 0., "range": [0.,1.],
 params['hierarchy_ih'] = { "value": 1., "range": [0.,1.],
                            "fixed": False, "prior": None}
 
-#Get the free parameters (i.e. those for which the gradients should be calculated)
-free_params = get_free_params(params)
 
 #Get a template maker with the settings used to initialize
 template_maker = TemplateMaker(get_values(params),**bins)
@@ -71,6 +69,9 @@ for data_tag, data_normal in [('data_NMH',True),('data_IMH',False)]:
   #The fiducial params are selected from the hierachy case that does NOT match
   #the data, as we are varying from this model to find the 'best fit' 
   fiducial_params = select_hierarchy(params,not data_normal)
+
+  #Get the free parameters (i.e. those for which the gradients should be calculated)
+  free_params = select_hierarchy(get_free_params(params),not data_normal)
 
   gradient_maps = {}
   for param in free_params.keys():
