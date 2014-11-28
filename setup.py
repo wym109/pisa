@@ -40,6 +40,7 @@ setup(
             'pisa.analysis',
             'pisa.analysis.llr',
             'pisa.analysis.scan',
+            'pisa.analysis.fisher',
             'pisa.utils',
             'pisa.resources'],
   scripts=['examples/default_chain.sh',
@@ -51,6 +52,7 @@ setup(
            'pisa/pid/PID.py',
            'pisa/analysis/TemplateMaker.py',
            'pisa/analysis/scan/ScanAnalysis.py',
+           'pisa/analysis/fisher/FisherAnalysis.py',
            'pisa/analysis/llr/LLROptimizerAnalysis.py'
            ],
   ext_package='pisa.oscillations.prob3',
