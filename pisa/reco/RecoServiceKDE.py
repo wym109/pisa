@@ -160,7 +160,7 @@ class RecoServiceKDE(RecoServiceBase):
                     reco_energy = reco_energy[cuts]
                     reco_coszen = reco_coszen[cuts]
 
-                flavour_dict[int_type] = self.get_1Dkernels(true_energy,true_coszen,
+                flavour_dict[int_type] = self._get_1Dkernels(true_energy,true_coszen,
                                                             reco_energy,reco_coszen)
             kern1D_dict[flavour] = flavour_dict
             if self.duplicate_nu_bar:
@@ -188,7 +188,7 @@ class RecoServiceKDE(RecoServiceBase):
             return False
 
 
-    def get_1Dkernels(self,e_true,cz_true,e_reco,cz_reco):
+    def _get_1Dkernels(self,e_true,cz_true,e_reco,cz_reco):
         '''
         For the set of true/reco data, form the 1D energy/coszen
         kernel vs. energy at discrete energy bins of self.ebins. Due
@@ -216,7 +216,7 @@ class RecoServiceKDE(RecoServiceBase):
                                           e_true < max_edge]),axis=0)
             nevents = np.sum(in_bin)
             # TESTING:
-            logging.trace("working on energy %.2f, nevents: %.2f "%(energy,nevents))
+            #logging.trace("working on energy %.2f, nevents: %.2f "%(energy,nevents))
             if ((nevents < min_events) or (bin_width < min_bin_width) ):
                 logging.trace("  Increasing bin size for-> energy: %.2f, nevents: %.2d"
                               %(energy,nevents))

@@ -144,11 +144,11 @@ if __name__ == '__main__':
 
     logging.info("Defining RecoService...")
     if args.mode=='MC':
-        reco_service = RecoServiceMC(ebins, czbins, 
+        reco_service = RecoServiceMC(ebins, czbins,
                                      reco_mc_wt_file=args.mc_file,
                                      **vars(args))
     elif args.mode=='param':
-        reco_service = RecoServiceParam(ebins,czbins, 
+        reco_service = RecoServiceParam(ebins,czbins,
                                         reco_param_file=args.param_file,
                                         **vars(args))
     elif args.mode=='stored':
