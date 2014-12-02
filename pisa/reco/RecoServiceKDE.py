@@ -12,7 +12,6 @@ import sys
 
 import numpy as np
 from scipy.stats import norm, gaussian_kde
-from scipy.interpolate import griddata
 import h5py
 
 from pisa.reco.RecoServiceBase import RecoServiceBase
@@ -49,11 +48,11 @@ class RecoServiceKDE(RecoServiceBase):
             return self.kernels
 
         logging.info('Constructing KDEs from file: %s'%reco_kde_file)
-        self.kde_dict = self.construct_KDEs(reco_kde_file,
-                                            remove_sim_downgoing=True)
+        self.kern1D_dict = self.construct_1Dkern_dict(reco_kde_file,
+                                                      remove_sim_downgoing=True)
 
         logging.info('Creating reconstruction kernels')
-        self.kernels = self.calculate_kernels(kde_dict=self.kde_dict)
+        self.kernels = self.calculate_kernels(kde_dict=self.kern1D_dict)
 
         return self.kernels
 
@@ -96,18 +95,15 @@ class RecoServiceKDE(RecoServiceBase):
                 for i in range(n_e):
                     energy = evals[i]
                     kvals = evals - energy
-                    e_kern = self._get_1D_kernel(flavour,int_type,energy,kvals,
-                                                 kde_dict=kde_dict,ktype="energy")
+                    e_kern = kde_dict[flavour][int_type]['energy'][i].evaluate(kvals)
 
                     for j in range(n_cz):
                         offset = n_cz if flipback else 0
-                        #print "energy: %.2f coszen: %.2f"%(evals[i],czvals[j+offset])
+
                         kvals = czvals - czvals[j+offset]
-                        cz_kern = self._get_1D_kernel(flavour,int_type,energy,kvals,
-                                                      kde_dict=kde_dict,ktype="coszen")
+                        cz_kern = kde_dict[flavour][int_type]['coszen'][i].evaluate(kvals)
 
                         if flipback:
-                            # fold back
                             cz_kern = cz_kern[:len(czvals)/2][::-1] + cz_kern[len(czvals)/2:]
 
                         kernel[i,j] = np.outer(e_kern, cz_kern)
@@ -124,101 +120,12 @@ class RecoServiceKDE(RecoServiceBase):
         return kernel_dict
 
 
-    def _get_1D_kernel(self, flavour, int_type, energy, kvals,
-                       kde_dict=None, ktype=None):
-        '''
-        For the specified flavour, int_type, returns the estimated 1D kernel
-        at 'energy' using linear histogram interpolation from KDEs defined
-        at discrete energies.
-        \params:
-          * flavour - flavour of neutrino to get KDE for
-          * int_type - interaction type ['cc' or 'nc']
-          * energy - energy of bin center to get 1D kernel
-          * kvals - values to apply reco kernel to. If coszen
-            kernel, these should be (czvals - coszen) or if energy
-            kernels, should be (evals - energy).
-          * kde_dict - dict holding the kde parameters
-          * ktype - kernel type to extract, either 'coszen' or 'energy'
-        '''
-
-        # For easy access:
-        kde_dict = kde_dict[flavour][int_type]
-
-        kde_key = ""
-        if ktype == 'coszen': kde_key = "cz_kde"
-        elif ktype == 'energy': kde_key = "egy_kde"
-        else:
-            raise NameError("ktype of %s is invalid. Please choose from strings [coszen, energy]"%ktype)
-
-        # If energy lies outside the bounds of the defined KDEs,
-        # simply return the pdf defined at the bound
-        if energy <= kde_dict[0]["ecen"]:
-            return (kde_dict[0][kde_key]).evaluate(kvals)
-        if energy >= kde_dict[-1]["ecen"]:
-            return (kde_dict[-1][kde_key]).evaluate(kvals)
-
-        # Find nearest neighbors, then interpolate kde...
-        i_low = 0
-        for i in range(len((kde_dict[:]))):
-            if (energy >= kde_dict[i]['ecen'] and energy <= kde_dict[i+1]['ecen']):
-                i_low = i
-                break
-
-        kde_low = kde_dict[i_low][kde_key]
-        e_low = kde_dict[i_low]['ecen']
-        i_high = i_low+1
-        kde_high = kde_dict[i_high][kde_key]
-        e_high = kde_dict[i_high]['ecen']
-
-        pdf = self._interpolate_pdf(kde_low,kde_high,e_low,e_high,energy,kvals)
-        return pdf
-
-
-    def _interpolate_pdf(self,kde_low,kde_high,val_low,val_high,value,xvals):
-        '''
-        Interpolate two pdfs defined on the xaxis=xvals for some
-        parameter q defined at q=val_low and q=val_high.
-
-        Using formula of "Linear Interpolation of Histograms" by
-        A.L. Read, Nuc. Instr. and Methods in Physics Research A 425
-        (1999) 357-360.
-
-        \params:
-          * kde_low - KDE describing distribution at val_low
-          * kde_high - KDE describing distribution at val_high
-          * val_low - value of parameter where kde_low is defined.
-          * val_high - value of parameter where kde_high is defined.
-          * value - value of parameter where we wish to define the pdf
-            using interpolated data from kde_low and kde_high
-          * xvals - values of x-axis on which to define the pdf.
-        '''
-        b = (value - val_low)/(val_high - val_low)
-        a = 1.0 - b
-
-        if (a+b > 1.0):
-            raise ValueError('a + b can never be greater than 1!')
-
-        f1 = kde_low
-        f2 = kde_high
-        pdf = []
-        for x in xvals:
-            x1 = x; x2 = x1
-            yval = []
-            if (f2.evaluate(x2) < 1.0e-10 and f1.evaluate(x1) < 1.0e-10):
-                yval.append(0.0)
-            else:
-                f1_pdf = f1.evaluate(x1)
-                f2_pdf = f2.evaluate(x2)
-                yval = f1_pdf*f2_pdf/(a*f2_pdf + b*f1_pdf)
-            pdf.append(yval[0])
-
-        return np.array(pdf)
-
-
-    def construct_KDEs(self,kdefile,remove_sim_downgoing=True):
+    def construct_1Dkern_dict(self,kdefile,remove_sim_downgoing=True):
         """
-        Constructs the KDEs from the data files in 'kde_settings'. KDEs are then
-        used as a parametrization to get the kernels in calculate_kernels()
+        Constructs the 1D energy and coszen kernels from the data in
+        kdefile, and stores them in self.kern1D_dict. These resulting
+        1D kernels are then used to create the full 4D parameterized
+        kernels in calculate_kernels()
         """
 
         try:
@@ -232,10 +139,9 @@ class RecoServiceKDE(RecoServiceBase):
         int_types = ['cc','nc']
         self.duplicate_nu_bar = self._check_duplicate_nu_bar(kde_fh)
         if self.duplicate_nu_bar:
-            #duplicates = ['nue_bar','numu_bar','nutau_bar']
             flavours = ['nue','numu','nutau']
 
-        kde_dict = {}
+        kern1D_dict = {}
         for flavour in flavours:
             flavour_dict = {}
             logging.debug("Working on %s kernels"%flavour)
@@ -254,15 +160,15 @@ class RecoServiceKDE(RecoServiceBase):
                     reco_energy = reco_energy[cuts]
                     reco_coszen = reco_coszen[cuts]
 
-                flavour_dict[int_type] = self.get_kde_list(true_energy,true_coszen,
-                                                          reco_energy,reco_coszen)
-            kde_dict[flavour] = flavour_dict
+                flavour_dict[int_type] = self.get_1Dkernels(true_energy,true_coszen,
+                                                            reco_energy,reco_coszen)
+            kern1D_dict[flavour] = flavour_dict
             if self.duplicate_nu_bar:
                 flavour += '_bar'
                 logging.debug("   >Copying into %s kernels"%flavour)
-                kde_dict[flavour]  = flavour_dict
+                kern1D_dict[flavour]  = flavour_dict
 
-        return kde_dict
+        return kern1D_dict
 
     def _check_duplicate_nu_bar(self,kde_fh):
         '''
@@ -282,96 +188,67 @@ class RecoServiceKDE(RecoServiceBase):
             return False
 
 
-    def get_kde_list(self,e_true,cz_true,e_reco,cz_reco):
+    def get_1Dkernels(self,e_true,cz_true,e_reco,cz_reco):
         '''
-        For the set of true/reco data, form the kde vs. energy at discrete
-        energy bins. Due to decreasing statistics at higher energies, the bin
-        size with which to characterize the KDE will be varied, so that a min.
-        number of counts will be present in each determination of the KDE of
-        the resolution.
+        For the set of true/reco data, form the 1D energy/coszen
+        kernel vs. energy at discrete energy bins of self.ebins. Due
+        to decreasing statistics at higher energies, the bin size with
+        which to characterize the KDE will be varied, so that a min.
+        number of counts will be present in each determination of the
+        KDE at the given bin.
 
-        returns - List of KDE where each element is (emin,emax,pdf_eres,pdf_czres)
-        so that
+        returns - dictionary of 1D energy/coszen kernels (pdfs) in the format of
+          'energy': [pdf_eres(E1),pdf_eres(E2),...,pdf_eres(En)]
+          'coszen': [pdf_czres(E1),pdf_czres(E2),...,pdf_czres(En)]
+        where self.ebins = [E1,E2,...,En]
         '''
-        min_egy = self.ebins[0]
-        max_egy = self.ebins[-1]
-        ebin_width = 2 # GeV
+
+        ecen = get_bin_centers(self.ebins)
+        kern_dict = {'energy': [],
+                     'coszen': []}
         min_events = 800
-
-        min_edge = min_egy
-        max_edge = min_egy + ebin_width
-        kde_list = []
-        while (min_edge < max_egy):
-            energy = (min_edge + max_edge)/2.0
+        min_bin_width = 1.5
+        for ie,energy in enumerate(ecen):
+            min_edge = self.ebins[ie]
+            max_edge = self.ebins[ie+1]
+            bin_width = (max_edge - min_edge)
             in_bin = np.alltrue(np.array([e_true >= min_edge,
-                                          e_true < max_edge]), axis=0)
+                                          e_true < max_edge]),axis=0)
+            nevents = np.sum(in_bin)
+            # TESTING:
+            logging.trace("working on energy %.2f, nevents: %.2f "%(energy,nevents))
+            if ((nevents < min_events) or (bin_width < min_bin_width) ):
+                logging.trace("  Increasing bin size for-> energy: %.2f, nevents: %.2d"
+                              %(energy,nevents))
+                lo_indx = ie
+                hi_indx = ie+1
+                while( (nevents < min_events) or (bin_width < min_bin_width) ):
+
+                    # Decrement lower bin edge if not at lowest:
+                    if lo_indx > 0: lo_indx -= 1
+                    min_edge = self.ebins[lo_indx]
+
+                    # Try increasing upper bin edge if not at max bin:
+                    hi_indx += 1
+                    try:
+                        max_edge = self.ebins[hi_indx]
+                    except:
+                        hi_indx -= 1
+                        max_edge = self.ebins[hi_indx]
+
+                    bin_width = (max_edge - min_edge)
+                    in_bin = np.alltrue(np.array([e_true >= min_edge,
+                                                  e_true < max_edge]),axis=0)
+                    nevents = np.sum(in_bin)
+
+                logging.trace("    Using %d bins for nevents: %d and width: %.2f"
+                              %((hi_indx - lo_indx),nevents,bin_width))
+
             e_res_data = e_reco[in_bin] - e_true[in_bin]
             cz_res_data = cz_reco[in_bin] - cz_true[in_bin]
-            nevents = np.sum(in_bin)
-            if (nevents < min_events):
-                logging.trace("  Sliding bin width for-> energy: %.2f, nevents: %.2d"
-                              %(energy,nevents))
-                max_edge = self._get_max_edge(min_events,min_edge,max_egy,
-                                              e_true,e_reco)
-                # Break out of the loop, and stop getting the KDEs when
-                # the bin edge can't be extended beyond the max energy
-                # in the simulated data.
-                if (max_edge >= max_egy): break
-                in_bin = np.alltrue(np.array([e_true >= min_edge,
-                                              e_true < max_edge]), axis=0)
-                e_res_data = e_reco[in_bin] - e_true[in_bin]
-                cz_res_data = cz_reco[in_bin] - cz_true[in_bin]
-
-
             egy_kde = gaussian_kde(e_res_data)
             cz_kde = gaussian_kde(cz_res_data)
-            kde_list.append({"min_edge":min_edge,"max_edge":max_edge,
-                             "ecen":(min_edge + max_edge)/2.0,
-                             "egy_kde":egy_kde,"cz_kde":cz_kde})
+            kern_dict['energy'].append(egy_kde)
+            kern_dict['coszen'].append(cz_kde)
 
-            min_edge = max_edge
-            max_edge = min_edge + ebin_width
-
-        return kde_list
-
-    def _get_max_edge(self,min_events,min_edge,max_egy,e_true,e_reco):
-        '''
-        If the number of events to define the KDE for this bin is too
-        small, then redefine the bin size by extending the max edge of
-        the bin until the number of counts is sufficient to get a good
-        characterization of the KDE.
-
-        \params:
-          * min_edge - lower edge of the energy bin
-          * max_egy  - maximum energy of the energy bins
-          * e_true   - true energy list for simulated data
-          * e_reco   - reco energy list for simulated data
-        '''
-
-        # First, make sure that there EXISTS a max edge betwen min_edge, max_egy:
-        in_bin = np.alltrue(np.array([e_true >= min_edge,e_true < max_egy]),axis=0)
-        e_res_data = e_reco[in_bin] - e_true[in_bin]
-        if (np.sum(in_bin) < min_events): return max_egy
-
-        # Give 10 as an error in number of counts:
-        delta_N = 10
-
-        # Find new ebin_width, get new res_data
-        e_upper = max_egy
-        e_lower = min_edge
-        e_next = 0.0
-        while(True):
-            e_next = (e_upper + e_lower)/2.0
-            in_bin = np.alltrue(np.array([e_true >=min_edge,
-                                          e_true < e_next]),axis=0)
-            e_res_data = e_reco[in_bin] - e_true[in_bin]
-            counts = np.sum(in_bin)
-            if(np.fabs(min_events - counts) < delta_N): break
-            else:
-                if(counts > min_events): e_upper = e_next
-                else: e_lower = e_next
-
-            #raw_input("PAUSED...")
-
-        #print "new max edge found of: ",e_next
-        return e_next
+        return kern_dict
