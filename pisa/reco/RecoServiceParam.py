@@ -77,11 +77,13 @@ class RecoServiceParam(RecoServiceBase):
         n_e = len(self.ebins)-1
         n_cz = len(self.czbins)-1
 
-        parametrization = dict.fromkeys(param_str, {'cc': {}, 'nc': {}})
+        parametrization = {}
         for flavour in param_str:
+          parametrization[flavour] = {}
           for int_type in ['cc', 'nc']:
             logging.debug('Parsing function strings for %s %s'
                           %(flavour, int_type))
+            parametrization[flavour][int_type] = {}
             for axis in param_str[flavour][int_type]:    #['energy', 'coszen']
                 parameters = {}
                 for par, funcstring in param_str[flavour][int_type][axis].items():
@@ -91,8 +93,7 @@ class RecoServiceParam(RecoServiceBase):
                     vals = function(evals)
                     # repeat for all cos(zen) bins
                     parameters[par] = np.repeat(vals,n_cz).reshape((n_e,n_cz))
-                parametrization[flavour][int_type][axis] = parameters
-
+                parametrization[flavour][int_type][axis] = copy(parameters)
         return parametrization
 
 
@@ -149,9 +150,10 @@ class RecoServiceParam(RecoServiceBase):
 
         # get properly scaled parametrization, initialize kernels
         parametrization = self.apply_reco_scales(e_reco_scale, cz_reco_scale)
-        kernel_dict = dict.fromkeys(parametrization, {'cc': None, 'nc': None})
+        kernel_dict = {}
 
         for flavour in parametrization:
+          kernel_dict[flavour] = {}
           for int_type in ['cc', 'nc']:
             logging.debug('Calculating parametrized reconstruction kernel for %s %s'
                           %(flavour, int_type))
@@ -188,7 +190,7 @@ class RecoServiceParam(RecoServiceBase):
 
                 kernel[i,j] = np.outer(e_kern, cz_kern)
 
-            kernel_dict[flavour][int_type] = kernel
+            kernel_dict[flavour][int_type] = copy(kernel)
 
         kernel_dict['ebins'] = self.ebins
         kernel_dict['czbins'] = self.czbins
