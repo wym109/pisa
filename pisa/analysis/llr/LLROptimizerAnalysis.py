@@ -78,12 +78,12 @@ for itrial in xrange(1,args.ntrials+1):
 
         results[data_tag] = {}
         # 0) get a random seed and store with the data
-        results[data_tag]['seed'] = get_seed()
+        #results[data_tag]['seed'] = get_seed()
         # 1) get a pseudo data fmap from fiducial model (best fit vals of params).
         fmap = get_pseudo_data_fmap(template_maker,
                                     get_values(select_hierarchy(params,
-                                                                normal_hierarchy=data_normal)),
-                                    seed=results[data_tag]['seed'])
+                                                                normal_hierarchy=data_normal)))
+                                    #seed=results[data_tag]['seed'])
 
         # 2) find max llh (and best fit free params) from matching pseudo data
         #    to templates.
