@@ -77,12 +77,17 @@ def get_reco_maps(true_event_maps, reco_service=None,e_reco_scale=None,
                     for icz,cz in enumerate(czbins[:-1]):
                         # Get kernel at these true parameters from 4D hist
                         kernel = kernels[ie,icz]
+                        #if flavor == 'numu' and int_type == 'cc': #ie == 5 and icz == 5:
+                        #    print "  egy: %.2f, cz: %.2f "%(egy,cz)
+                        #    print "  kernel: ",kernel[ie]
+                        #    print "  sum: ",np.sum(kernel)
+                        #    raw_input("PAUSED")
                         reco_evt_rate += true_evt_rate[ie,icz]*kernel
 
             reco_maps[flavor+'_'+int_type] = {'map':reco_evt_rate,
                                               'ebins':ebins,
                                               'czbins':czbins}
-            physics.trace("Total counts for %s %s: %.2f"%(flavor, int_type, 
+            physics.trace("AFTER RECO: Total counts for %s %s: %.2f"%(flavor, int_type,
                                                           np.sum(reco_evt_rate)))
 
     #Finally sum up all the NC contributions

@@ -67,6 +67,8 @@ def get_event_rates(osc_flux_maps,aeff_service,livetime=None,nu_xsec_scale=None,
             int_type_dict[int_type] = {'map':event_rate,
                                        'ebins':ebins,
                                        'czbins':czbins}
+            logging.debug("  Event Rate before reco for %s/%s: %.2f"
+                          %(flavour,int_type,np.sum(event_rate)))
         event_rate_maps[flavour] = int_type_dict
 
     return event_rate_maps

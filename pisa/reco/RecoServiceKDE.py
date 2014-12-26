@@ -96,17 +96,21 @@ class RecoServiceKDE(RecoServiceBase):
                     energy = evals[i]
                     kvals = evals - energy
                     e_kern = kde_dict[flavour][int_type]['energy'][i].evaluate(kvals)
+                    e_kern_int = np.sum(e_kern*esizes)
 
                     for j in range(n_cz):
                         offset = n_cz if flipback else 0
 
                         kvals = czvals - czvals[j+offset]
                         cz_kern = kde_dict[flavour][int_type]['coszen'][i].evaluate(kvals)
+                        cz_kern_int = np.sum(cz_kern*czsizes)
 
                         if flipback:
                             cz_kern = cz_kern[:len(czvals)/2][::-1] + cz_kern[len(czvals)/2:]
 
                         kernel[i,j] = np.outer(e_kern, cz_kern)
+                        # normalize correctly:
+                        kernel[i,j]*=e_kern_int*cz_kern_int/np.sum(kernel[i,j])
 
                 kernel_dict[flavour][int_type] = kernel
                 if self.duplicate_nu_bar:
