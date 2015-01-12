@@ -14,6 +14,11 @@
       "formatter": "simple",
       "stream": "ext://sys.stdout"
     },
+    "console_time": {
+      "class": "logging.StreamHandler",
+      "formatter": "time",
+      "stream": "ext://sys.stdout"
+    },
     "file": {
       "class": "logging.FileHandler",
       "formatter": "time",
@@ -23,13 +28,13 @@
   },
   "loggers": {
     "profile": {
-      "handlers": [ "console" ],
-      "level": "DEBUG",
+      "handlers": [ "console_time"  ],
+      "level": "INFO",
       "propagate": false
     },
     "physics": {
       "handlers": [ "console" ],
-      "level": "DEBUG",
+      "level": "TRACE",
       "propagate": false
     }
   },
