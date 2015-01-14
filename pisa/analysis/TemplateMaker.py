@@ -159,6 +159,8 @@ if __name__ == '__main__':
                         action='store_false', help="select the inverted hierarchy")
     parser.add_argument('-v','--verbose',action='count',default=None,
                         help='set verbosity level.')
+    parser.add_argument('-s','--save_all',action='store_true',default=False,
+                        help="Save all stages.")
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str,
                         action='store',default="template.json",
                         help='file to store the output')
@@ -183,7 +185,7 @@ if __name__ == '__main__':
 
     #Now get the actual template
     profile.info("start template calculation")
-    template_maps = template_maker.get_template(get_values(params))
+    template_maps = template_maker.get_template(get_values(params),return_stages=args.save_all)
     profile.info("stop template calculation")
 
     logging.info("Saving file to %s"%args.outfile)

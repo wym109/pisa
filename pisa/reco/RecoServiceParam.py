@@ -190,6 +190,7 @@ class RecoServiceParam(RecoServiceBase):
                     # fold back
                     cz_kern = cz_kern[:len(czvals)/2][::-1] + cz_kern[len(czvals)/2:]
 
+
                 kernel[i,j] = np.outer(e_kern, cz_kern)
                 # normalize correctly:
                 kernel[i,j]*=e_kern_int*cz_kern_int/np.sum(kernel[i,j])
