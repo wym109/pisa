@@ -74,12 +74,12 @@ class Prob3OscillationService(OscillationServiceBase):
         mod = total_bins/50
         loglevel = logging.root.getEffectiveLevel()
         for ie,energy in enumerate(ecen):
+            if energy_scale is not None: energy*=energy_scale
             for icz, coszen in enumerate(czcen):
                 index = int((ie+1)*(icz+1) - 1)
                 evals.append(energy)
                 czvals.append(coszen)
 
-                if energy_scale is not None: energy*=energy_scale
                 if loglevel <= logging.INFO:
                     if ( ((len(ecen)+1)*(len(czcen)+1))%mod ) == 0:
                         sys.stdout.write(".")
