@@ -9,8 +9,7 @@
 import sys
 import numpy as np
 from pisa.utils.log import logging, profile
-from pisa.utils.utils import get_smoothed_map
-from pisa.utils.utils import get_bin_centers, is_coarser_binning, is_linear, is_logarithmic
+from pisa.utils.utils import get_smoothed_map, get_bin_centers, is_coarser_binning, is_linear, is_logarithmic, Timer
 
 
 def check_fine_binning(fine_bins, coarse_bins):
@@ -97,7 +96,9 @@ class OscillationServiceBase:
         """
         #Get the finely binned maps as implemented in the derived class
         logging.info('Retrieving finely binned maps')
-        fine_maps = self.get_osc_probLT_dict(**kwargs)
+        with Timer(verbose=False) as t:
+            fine_maps = self.get_osc_probLT_dict(**kwargs)
+        #print "  => elapsed time to get all fine maps: %s sec"%t.secs
 
         logging.info("Smoothing fine maps...")
         profile.info("start smoothing maps")
@@ -105,18 +106,22 @@ class OscillationServiceBase:
         smoothed_maps['ebins'] = self.ebins
         smoothed_maps['czbins'] = self.czbins
 
-        for from_nu, tomap_dict in fine_maps.items():
-            if 'bins' in from_nu: continue
-            new_tomaps = {}
-            for to_nu, tomap in tomap_dict.items():
-                logging.debug("Getting smoothed map %s/%s"%(from_nu,to_nu))
-                new_tomaps[to_nu] = get_smoothed_map(tomap,
-                                         fine_maps['ebins'],
-                                         fine_maps['czbins'],
-                                         self.ebins, self.czbins)
-            smoothed_maps[from_nu] = new_tomaps
-
+        with Timer(verbose=False) as t:
+            for from_nu, tomap_dict in fine_maps.items():
+                if 'vals' in from_nu: continue
+                new_tomaps = {}
+                for to_nu, pvals in tomap_dict.items():
+                    logging.debug("Getting smoothed map %s/%s"%(from_nu,to_nu))
+                    new_tomaps[to_nu] = get_smoothed_map(pvals,
+                                                         fine_maps['evals'],
+                                                         fine_maps['czvals'],
+                                                         self.ebins, self.czbins)
+                smoothed_maps[from_nu] = new_tomaps
+        #print"  ==> elapsed time to smooth maps: %s sec"%t.secs
         profile.info("stop smoothing maps")
+
+        from pisa.utils.jsons import to_json
+        to_json(smoothed_maps,'sm_maps_test.json')
 
         return smoothed_maps
 
@@ -148,15 +153,16 @@ class OscillationServiceBase:
         ecen = get_bin_centers(ebins)
         czcen = get_bin_centers(czbins)
 
-        osc_prob_dict = {'ebins':ebins, 'czbins':czbins}
-        shape = (len(ecen),len(czcen))
+        osc_prob_dict = {}
         for nu in ['nue_maps','numu_maps','nue_bar_maps','numu_bar_maps']:
             isbar = '_bar' if 'bar' in nu else ''
-            osc_prob_dict[nu] = {'nue'+isbar: np.zeros(shape,dtype=np.float32),
-                                 'numu'+isbar: np.zeros(shape,dtype=np.float32),
-                                 'nutau'+isbar: np.zeros(shape,dtype=np.float32)}
+            osc_prob_dict[nu] = {'nue'+isbar: [],
+                                 'numu'+isbar: [],
+                                 'nutau'+isbar: [],}
 
-        self.fill_osc_prob(osc_prob_dict, ecen, czcen, **kwargs)
+        evals,czvals = self.fill_osc_prob(osc_prob_dict, ecen, czcen, **kwargs)
+        osc_prob_dict['evals'] = evals
+        osc_prob_dict['czvals'] = czvals
 
         return osc_prob_dict
 

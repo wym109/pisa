@@ -25,6 +25,19 @@ from pisa.utils.log import logging, physics
 class RecoServiceKDE(RecoServiceBase):
     """
     Creates reconstruction kernels using Kernel Density Estimation (KDE).
+
+    NOTE: (tca) 22 Jan 2015 - For some reason V36 (noisy) is not
+    being well characterized by the KDE automatically, like V15
+    was. It would be nice to get to the bottom of why this is,
+    but I haven't been able to do so yet. For now, it's recommended
+    to either:
+
+    1) Use the notebook in $PISA/pisa/i3utils to find the KDEs
+    and convert them to kernelfiles
+
+    or
+
+    2) Use the parameterization method rather than KDEs.
     """
 
     def __init__(self, ebins, czbins, reco_kde_file=None, **kwargs):
@@ -45,10 +58,11 @@ class RecoServiceKDE(RecoServiceBase):
     def _get_reco_kernels(self, reco_kde_file=None,e_reco_scale=None,
                           cz_reco_scale=None,**kwargs):
 
+        if reco_kde_file is None:
+            logging.warn("Did not receive a reco_kde_file-> returning WITHOUT constructing kernels.")
+            return
 
         if self.kernels is not None:
-            # Scale reconstruction widths
-            #self.apply_reco_scales(e_reco_scale, cz_reco_scale)
             return self.kernels
 
         # This is the step that is analagous to finding
@@ -70,8 +84,6 @@ class RecoServiceKDE(RecoServiceBase):
         reco energy, reco coszen) for each flavour and interaction
         type.
         '''
-
-#TODO: implement reco scales here
 
         # get binning information
         evals, esizes = get_bin_centers(self.ebins), get_bin_sizes(self.ebins)
@@ -148,7 +160,7 @@ class RecoServiceKDE(RecoServiceBase):
         """
         Constructs the 1D energy and coszen KDEs from the data in
         kdefile, and stores them in self.kde_dict. These resulting
-        1D KDEs are then used to create the full 4D parameterized
+        1D KDEs can be used to create the full 4D parameterized
         kernels in calculate_kernels()
         """
 
@@ -213,7 +225,7 @@ class RecoServiceKDE(RecoServiceBase):
         ecen = get_bin_centers(self.ebins)
         kde_dict = {'energy': [],
                      'coszen': []}
-        min_events = 500#800
+        min_events = 500
         min_bin_width = 1.0
         for ie,energy in enumerate(ecen):
             min_edge = self.ebins[ie]
@@ -223,7 +235,7 @@ class RecoServiceKDE(RecoServiceBase):
                                           e_true < max_edge]),axis=0)
             nevents = np.sum(in_bin)
             # TESTING:
-            #logging.trace("working on energy %.2f, nevents: %.2f "%(energy,nevents))
+            logging.trace("working on energy %.2f, nevents: %.2f "%(energy,nevents))
             if ((nevents < min_events) or (bin_width < min_bin_width) ):
                 logging.trace("  Increasing bin size for-> energy: %.2f, nevents: %.2d"
                               %(energy,nevents))
@@ -254,14 +266,6 @@ class RecoServiceKDE(RecoServiceBase):
             e_res_data = e_reco[in_bin] - e_true[in_bin]
             cz_res_data = cz_reco[in_bin] - cz_true[in_bin]
             egy_kde = gaussian_kde(e_res_data)
-
-            ########## TESTING #############
-            bw = max(0.02,2*energy/500.0)
-            egy_kde.set_bandwidth(bw)
-            cz_kde = gaussian_kde(cz_res_data)
-            bw = 0.1
-            cz_kde.set_bandwidth(bw)
-            #################################
 
             kde_dict['energy'].append(egy_kde)
             kde_dict['coszen'].append(cz_kde)

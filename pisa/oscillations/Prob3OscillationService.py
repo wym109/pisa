@@ -19,6 +19,7 @@ from pisa.resources.resources import find_resource
 from pisa.utils.jsons import to_json
 from pisa.utils.proc import get_params, report_params
 
+
 class Prob3OscillationService(OscillationServiceBase):
     """
     This class handles all tasks related to the oscillation
@@ -67,17 +68,20 @@ class Prob3OscillationService(OscillationServiceBase):
         sin2th13Sq = np.sin(2.0*theta13)**2
         sin2th23Sq = np.sin(2.0*theta23)**2
 
+        evals = []
+        czvals = []
         total_bins = int(len(ecen)*len(czcen))
         mod = total_bins/50
-        ibin = 0
         loglevel = logging.root.getEffectiveLevel()
-        for icz, coszen in enumerate(czcen):
+        for ie,energy in enumerate(ecen):
+            for icz, coszen in enumerate(czcen):
+                index = int((ie+1)*(icz+1) - 1)
+                evals.append(energy)
+                czvals.append(coszen)
 
-            for ie,energy in enumerate(ecen):
                 if energy_scale is not None: energy*=energy_scale
-                ibin+=1
                 if loglevel <= logging.INFO:
-                    if (ibin%mod) == 0:
+                    if ( ((len(ecen)+1)*(len(czcen)+1))%mod ) == 0:
                         sys.stdout.write(".")
                         sys.stdout.flush()
 
@@ -99,7 +103,8 @@ class Prob3OscillationService(OscillationServiceBase):
                     nu = nu+'_maps'
                     for to_nu in neutrinos:
                         nu_f = nu_barger[to_nu]
-                        osc_prob_dict[nu][to_nu][ie][icz]=self.barger_prop.GetProb(nu_i,nu_f)
+                        osc_prob_dict[nu][to_nu].append(self.barger_prop.GetProb(nu_i,
+                                                                                 nu_f))
 
                 ########### SECOND FOR ANTINEUTRINOS ##########
                 kNuBar = -1
@@ -113,11 +118,12 @@ class Prob3OscillationService(OscillationServiceBase):
                     nu+='_maps'
                     for to_nu in anti_neutrinos:
                         nu_f = nu_barger[to_nu]
-                        osc_prob_dict[nu][to_nu][ie][icz] = self.barger_prop.GetProb(nu_i,nu_f)
+                        osc_prob_dict[nu][to_nu].append(self.barger_prop.GetProb(nu_i,
+                                                                                 nu_f))
 
         if loglevel <= logging.INFO:
             sys.stdout.write("\n")
 
         profile.info("stop oscillation calculation")
 
-        return
+        return evals,czvals

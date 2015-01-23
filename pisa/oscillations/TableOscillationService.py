@@ -55,15 +55,14 @@ class TableOscillationService(OscillationServiceBase):
     """
     def __init__(self,ebins,czbins,datadir=None, **kwargs):
         OscillationServiceBase.__init__(self, ebins, czbins)
-        
+
         report_params(get_params(),[''])
         self.datadir = datadir
-    
-    
-    def get_osc_probLT_dict(self,deltam21=None,deltam31=None,theta12=None, 
+
+    def get_osc_probLT_dict(self,deltam21=None,deltam31=None,theta12=None,
                             theta13=None,theta23=None,deltacp=None,**kwargs):
         """
-        Returns an oscillation probability map dictionary calculated 
+        Returns an oscillation probability map dictionary calculated
         at the values of the input parameters:
           deltam21,deltam31,theta12,theta13,theta23,deltacp
         for flavor_from to flavor_to, with the binning of ebins,czbins.
@@ -73,7 +72,7 @@ class TableOscillationService(OscillationServiceBase):
           'nue_bar_maps': {...}
           'numu_bar_maps': {...}
         """
-    
+
         ########################################################################
         ### TRUE ALGORITHM WHEN WE DECIDE ON HOW TO HANDLE OSC PROB DATA     ###
         # step 1: identify where the data is located: on disk or on server?    #
@@ -82,12 +81,12 @@ class TableOscillationService(OscillationServiceBase):
         #         maps for (deltam21,deltam31,theta12,theta13,theta23,deltacp) #
         # return dictionary of smoothed, interpolated map.                     #
         ########################################################################
-        
+
         if deltam31 > 0.0:
-          filename = os.path.join(self.datadir,'oscProbLT_dm31_0.246_th23_38.645.hdf5') 
+          filename = os.path.join(self.datadir,'oscProbLT_dm31_0.246_th23_38.645.hdf5')
         else:
           filename = os.path.join(self.datadir+'oscProbLT_dm31_-0.238_th23_38.645.hdf5')
         logging.info("Loading file: %s"%filename)
         osc_probLT_dict = get_osc_probLT_dict_hdf5(filename)
-        
+
         return osc_probLT_dict

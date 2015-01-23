@@ -32,6 +32,7 @@ def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,
                  deltacp=None,**kwargs):
     '''
     Obtain a map in energy and cos(zenith) of the oscillation probabilities from
+
     the OscillationService and compute the oscillated flux.
     Inputs:
       flux_maps - dictionary of atmospheric flux ['nue','numu','nue_bar','numu_bar']
@@ -41,6 +42,7 @@ def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,
 
     #Be verbose on input
     params = get_params()
+
     report_params(params, units = ['rad','eV^2','eV^2','','rad','rad','rad'])
 
     #Initialize return dict
@@ -77,7 +79,7 @@ if __name__ == '__main__':
     # parser
     parser = ArgumentParser(description='Takes the oscillation parameters '
                             'as input and writes out a set of osc flux maps',
-                            formatter_class=RawTextHelpFormatter)    
+                            formatter_class=RawTextHelpFormatter)
     parser.add_argument('flux_maps',metavar='FLUX',type=from_json,
                         help='''JSON atm flux input file with the following parameters:
     {"nue": {'czbins':[], 'ebins':[], 'map':[]},
