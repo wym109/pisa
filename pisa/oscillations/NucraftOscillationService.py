@@ -23,7 +23,7 @@ from pisa.utils.proc import get_params, report_params
 class NucraftOscillationService(OscillationServiceBase):
     """
     This class handles all tasks related to the oscillation
-    probability calculations using the prob3 oscillation code
+    probability calculations using the NuCraft oscillation code
     """
     def __init__(self, ebins, czbins, detector_depth=None, earth_model=None,
                  prop_height=None, osc_precision=None,
