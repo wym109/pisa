@@ -13,6 +13,7 @@ import sys
 import numpy as np
 import scipy.optimize as opt
 
+from pisa.utils.jsons import to_json
 from pisa.utils.log import logging, physics, profile
 from pisa.utils.params import get_values, select_hierarchy, get_fixed_params, get_free_params, get_prior_llh, get_param_values, get_param_scales, get_param_bounds, get_param_priors
 from pisa.analysis.stats.LLHStatistics import get_binwise_llh
@@ -141,9 +142,24 @@ def llh_bfgs(opt_vals,*args):
 
     # Now get true template, and compute LLH
     profile.info('start template calculation')
+
+    ###############
+    # PUT BACK INTO PRODUCTION VERSION:
     true_template = template_maker.get_template(template_params)
     profile.info('stop template calculation')
     true_fmap = flatten_map(true_template)
+    ##############
+
+    # DEVO VERSION:
+    #all_stages = template_maker.get_template(template_params,return_stages=True)
+    #all_maps = {('map_'+str(i)) : stage for i,stage in enumerate(all_stages) }
+    #true_template = all_stages[-1]
+    #profile.info('stop template calculation')
+    #true_fmap = flatten_map(true_template)
+    #to_json(template_params,'failed_template_params.json')
+    #to_json(all_maps,'all_maps.json')
+    #print "true_fmap: ",true_fmap
+
 
     # NOTE: The minus sign is present on both of these next two lines
     # to reflect the fact that the optimizer finds a minimum rather

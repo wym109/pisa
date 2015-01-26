@@ -97,7 +97,7 @@ for itrial in xrange(1,args.ntrials+1):
 
             #Store the LLH data
             results[data_tag][hypo_tag] = llh_data
-
+            raw_input("PAUSED")
 
     #Store this trial
     trials += [results]
