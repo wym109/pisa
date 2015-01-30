@@ -143,6 +143,34 @@ class TemplateMaker:
         return (flux_maps, osc_flux_maps, event_rate_maps, event_rate_reco_maps,
                 final_event_rate)
 
+    def get_template_no_osc(self,params):
+        '''
+        Runs template making chain, but without oscillations
+        '''
+
+        flux_maps = get_flux_maps(self.flux_service,self.ebins,self.czbins)
+
+        # Create the empty nutau maps:
+        test_map = flux_maps['nue']
+
+        flavours = ['nutau','nutau_bar']
+        for flav in flavours:
+            flux_maps[flav] = {'map': np.zeros_like(test_map['map']),
+                               'ebins': np.zeros_like(test_map['ebins']),
+                               'czbins': np.zeros_like(test_map['czbins'])}
+
+        logging.info("Getting event rate true maps...")
+        event_rate_maps = get_event_rates(flux_maps,self.aeff_service, **params)
+
+        logging.info("Getting event rate reco maps...")
+        event_rate_reco_maps = get_reco_maps(event_rate_maps,self.reco_service,
+                                             **params)
+
+        logging.info("Getting pid maps...")
+        final_event_rate = get_pid_maps(event_rate_reco_maps,self.pid_service)
+
+        return final_event_rate
+
 
 if __name__ == '__main__':
 

@@ -142,24 +142,17 @@ def llh_bfgs(opt_vals,*args):
 
     # Now get true template, and compute LLH
     profile.info('start template calculation')
+    if template_params['theta23'] == 0.0:
+        logging.info("Zero theta23, so generating no oscillations template...")
+        true_template = arg_dict['template_maker'].get_template_no_osc(template_params)
+    else:
+        true_template = arg_dict['template_maker'].get_template(template_params)
+    profile.info('stop template calculation')
+    true_fmap = flatten_map(true_template,chan=arg_dict['chan'])
 
-    ###############
-    # PUT BACK INTO PRODUCTION VERSION:
     true_template = template_maker.get_template(template_params)
     profile.info('stop template calculation')
     true_fmap = flatten_map(true_template)
-    ##############
-
-    # DEVO VERSION:
-    #all_stages = template_maker.get_template(template_params,return_stages=True)
-    #all_maps = {('map_'+str(i)) : stage for i,stage in enumerate(all_stages) }
-    #true_template = all_stages[-1]
-    #profile.info('stop template calculation')
-    #true_fmap = flatten_map(true_template)
-    #to_json(template_params,'failed_template_params.json')
-    #to_json(all_maps,'all_maps.json')
-    #print "true_fmap: ",true_fmap
-
 
     # NOTE: The minus sign is present on both of these next two lines
     # to reflect the fact that the optimizer finds a minimum rather
