@@ -144,15 +144,12 @@ def llh_bfgs(opt_vals,*args):
     profile.info('start template calculation')
     if template_params['theta23'] == 0.0:
         logging.info("Zero theta23, so generating no oscillations template...")
-        true_template = arg_dict['template_maker'].get_template_no_osc(template_params)
+        true_template = template_maker.get_template_no_osc(template_params)
     else:
-        true_template = arg_dict['template_maker'].get_template(template_params)
-    profile.info('stop template calculation')
-    true_fmap = flatten_map(true_template,chan=arg_dict['chan'])
-
-    true_template = template_maker.get_template(template_params)
+        true_template = template_maker.get_template(template_params)
     profile.info('stop template calculation')
     true_fmap = flatten_map(true_template)
+
 
     # NOTE: The minus sign is present on both of these next two lines
     # to reflect the fact that the optimizer finds a minimum rather
