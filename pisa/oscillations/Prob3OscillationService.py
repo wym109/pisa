@@ -79,7 +79,7 @@ class Prob3OscillationService(OscillationServiceBase):
                 evals.append(energy)
                 czvals.append(coszen)
                 if energy_scale is not None:
-                    if ie ==0: energy*=energy_scale
+                    if icz == 0: energy*=energy_scale
 
                 if loglevel <= logging.INFO:
                     if ( ((len(ecen)+1)*(len(czcen)+1))%mod ) == 0:

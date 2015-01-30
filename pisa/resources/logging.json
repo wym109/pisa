@@ -18,23 +18,17 @@
       "class": "logging.StreamHandler",
       "formatter": "time",
       "stream": "ext://sys.stdout"
-    },
-    "file": {
-      "class": "logging.FileHandler",
-      "formatter": "time",
-      "filename": "profile.log",
-      "mode" : "w+"
     }
   },
   "loggers": {
     "profile": {
       "handlers": [ "console_time"  ],
-      "level": "INFO",
+      "level": "DEBUG",
       "propagate": false
     },
     "physics": {
       "handlers": [ "console" ],
-      "level": "INFO",
+      "level": "DEBUG",
       "propagate": false
     }
   },

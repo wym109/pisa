@@ -120,9 +120,6 @@ class OscillationServiceBase:
         #print"  ==> elapsed time to smooth maps: %s sec"%t.secs
         profile.info("stop smoothing maps")
 
-        from pisa.utils.jsons import to_json
-        to_json(smoothed_maps,'sm_maps_test.json')
-
         return smoothed_maps
 
 
