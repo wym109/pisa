@@ -113,5 +113,8 @@ for itrial in xrange(1,args.ntrials+1):
 output = {'trials' : trials,
           'template_settings' : template_settings,
           'minimizer_settings' : minimizer_settings}
-#And write to file
+if args.pseudo_data_settings is not None:
+    output['pseudo_data_settings'] = pseudo_data_settings
+
+    #And write to file
 to_json(output,args.outfile)
