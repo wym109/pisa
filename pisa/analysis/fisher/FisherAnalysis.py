@@ -10,6 +10,7 @@
 
 import numpy as np
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+import tempfile
 
 from pisa.utils.log import logging, profile, physics, set_verbosity
 from pisa.utils.jsons import from_json,to_json
@@ -36,8 +37,8 @@ sselect.add_argument('--save-templates',action='store_true',
 sselect.add_argument('--no-save-templates', action='store_false',
                     default=False, dest='save_templates',
                     help="Save just the fiducial templates")
-parser.add_argument('-o','--outfile',type=str,default='fisher_data.json',metavar='JSONFILE',
-                    help="Output filename.")
+parser.add_argument('-o','--outdir',type=str,default='fisher_data.json',metavar='DIR',
+                    help="Output directory")
 parser.add_argument('-v', '--verbose', action='count', default=None,
                     help='set verbosity level')
 args = parser.parse_args()
@@ -46,7 +47,11 @@ set_verbosity(args.verbose)
 
 #Read in the settings
 template_settings = from_json(args.template_settings)
+# this has only the number of test points in the parameter ranges and the chi2 criterion
 grid_settings  = from_json(args.grid_settings)
+
+#Here all the templates will be stored (temporarily):
+template_directory = 
 
 #Get the parameters
 params = template_settings['params']
@@ -64,6 +69,7 @@ params['hierarchy_ih'] = { "value": 1., "range": [0.,1.],
 template_maker = TemplateMaker(get_values(params),**bins)
 
 #Calculate both cases (NHM true and IMH true)
+# TODO: This would run the analysis twice! do we need that?
 for data_tag, data_normal in [('data_NMH',True),('data_IMH',False)]:
 
   #The fiducial params are selected from the hierachy case that does NOT match
@@ -76,12 +82,22 @@ for data_tag, data_normal in [('data_NMH',True),('data_IMH',False)]:
   gradient_maps = {}
   for param in free_params.keys():
     
-    gradient_maps[param] = get_gradients(param,template_maker,fiducial_params,grid_settings)
+    store_directory = args.outdir if args.save_templates else tempfile.gettempdir()
+    
+    gradient_maps[param] = get_gradients(param,
+                                         template_maker,
+                                         fiducial_params,
+                                         grid_settings,
+                                         store_directory)
     
   #fiducal_map = template_maker.get_template(get_values(fiducal_params))
   #fisher[data_tag] = build_fisher_matrix(gradient_maps,fiducial_map)
- 
-#priors, combine channels happens outside in "FisherResults.py"
+
+for channel in fisher[data_tag]:
+    # add priors, labels, ...
+
+for true_hierarchy in fisher:
+    true_hierarchy[''] = true_hierarchy['cscd'] + true_hierarchy['trck']
 
 #Outfile: fisher,
 #         fiducial_templates (NH, IH),
