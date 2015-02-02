@@ -65,6 +65,8 @@ params['hierarchy_ih'] = { "value": 1., "range": [0.,1.],
                            "fixed": False, "prior": None}
 
 
+# generate fiducial templates and call to get_hierarchy_gradients for nh and ih
+ 
 #Get a template maker with the settings used to initialize
 template_maker = TemplateMaker(get_values(params),**bins)
 
