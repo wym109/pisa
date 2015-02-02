@@ -10,3 +10,5 @@
 #
 
 def build_fisher_matrix(...)
+
+    # TODO: chi_square test for derivatives
