@@ -16,7 +16,6 @@
 ### IMPORTS ###
 
 import numpy as n
-import fileinput
 import operator
 import copy
 import sys
@@ -28,8 +27,6 @@ from matplotlib import pylab
 from matplotlib.patches import Ellipse, Rectangle
 from matplotlib.lines import Line2D
 from math import pi
-
-from significance import conv_sigma_to_bin_sigma
 
 from pisa.utils.jsons import from_json, to_json
 
@@ -111,8 +108,8 @@ class FisherMatrix:
             par, prior_dict = loaded_dict.popitem()
             
             #self.parameters.append(par)
-            for (key, value) in prior_dict.iteritems():
-                new_fm.addPrior(par, key, value)
+            for value in prior_dict.itervalues():
+                new_fm.addPrior(par, value)
         
         new_fm.checkConsistency()
         new_fm.calculateCovariance()
@@ -247,7 +244,7 @@ class FisherMatrix:
             raise ValueError('Fisher Matrix is singular, cannot be inverted!')
         
         self.covariance = n.linalg.inv(self.matrix \
-                                + n.diag([1./s**2 if s is not None else 0. for s in self.priors]))
+                                + n.diag([1./self.getPrior(p)**2 for p in self.parameters]))
     
     
     def getBestFit(self, par):
@@ -318,11 +315,11 @@ class FisherMatrix:
         
         idx = self.getParameterIndex(par)
         
-        if self.parameters[idx] is not None:
-            self.parameters[idx] = n.sqrt(self.parameters[idx]**2 + sigma**2)
+        if self.priors[idx] is not None:
+            self.priors[idx] = n.sqrt(self.priors[idx]**2 + sigma**2)
             self.calculateCovariance()
         else:
-            self.addPrior(par, sigma)
+            self.setPrior(par, sigma)
     
     
     def removeAllPriors(self):
@@ -341,8 +338,12 @@ class FisherMatrix:
         """
         
         idx = self.getParameterIndex(par)
+        prior = self.priors[idx]
         
-        return self.priors[idx]
+        if prior is None:
+            return n.inf
+        else:
+            return prior
     
     
     def getPriorDict(self):
@@ -479,7 +480,7 @@ class FisherMatrix:
         for par in pars:
             result = (param_width, par, self.getBestFit(par), self.getSigma(par),
                       self.getSigmaStatistical(par), self.getSigmaSystematic(par),
-                      self.getSigmaPriors(par))
+                      self.getPrior(par))
             par_str = '%*s    %10.3e     %.3e     %.3e     %.3e     %.3e'%result
             par_str = par_str.replace('inf', 'free')
             print par_str
@@ -528,13 +529,13 @@ class FisherMatrix:
             if latex:
                 result = (self.getLabel(par), impact, self.getBestFit(par), self.getSigma(par),
                           self.getSigmaStatistical(par), self.getSigmaSystematic(par),
-                          self.getSigmaPriors(par))
+                          self.getPrior(par))
                 par_str = '%s & %.1f & \\num{%.2e} & \\num{%.2e} & \\num{%.2e} & \\num{%.2e} & \\num{%.2e} \\\\'%result
                 par_str = par_str.replace('\\num{inf}', 'free')
             else:
                 result = (param_width, par, impact, self.getBestFit(par), self.getSigma(par),
                           self.getSigmaStatistical(par), self.getSigmaSystematic(par),
-                          self.getSigmaPriors(par))
+                          self.getPrior(par))
                 par_str = '%*s          %5.1f    %10.3e     %.3e     %.3e     %.3e     %.3e'%result
                 par_str = par_str.replace('inf', 'free')
             
