@@ -93,10 +93,10 @@ for data_tag, data_normal in [('data_NMH',True),('data_IMH',False)]:
                                          store_directory)
     
   #fiducal_map = template_maker.get_template(get_values(fiducal_params))
-  #fisher[data_tag] = build_fisher_matrix(gradient_maps,fiducial_map)
+  #fisher[data_tag] = build_fisher_matrix(gradient_maps,fiducial_map,template_settings)
 
 for channel in fisher[data_tag]:
-    # add priors, labels, ...
+    # add labels if needed, priors are already there
 
 for true_hierarchy in fisher:
     true_hierarchy[''] = true_hierarchy['cscd'] + true_hierarchy['trck']

@@ -16,7 +16,6 @@
 ### IMPORTS ###
 
 import numpy as n
-import fileinput
 import operator
 import copy
 import sys
@@ -29,7 +28,7 @@ from matplotlib.patches import Ellipse, Rectangle
 from matplotlib.lines import Line2D
 from math import pi
 
-from significance import conv_sigma_to_bin_sigma
+from pisa.utils.jsons import from_json, to_json
 
 
 ### HELPER FUNCTIONS ###
@@ -58,37 +57,64 @@ def derivative_from_polycoefficients(coeff, loc):
 class FisherMatrix:
     
     def __init__(self, matrix=None, parameters=None, best_fits=None, 
-                 labels=None, file=None):
+                 priors=None, labels=None):
         """
         Construct a fisher matrix object from
            matrix: matrix itself,
-           parameters: the identified used for each parameter
+           parameters: the identifiers used for each parameter
+           best_fits: best fit values for each parameter
         """
         
-        ## -> Why all this effort to construct and empty 0x0-matrix?
-        ##    Isn't that quite useless?
-        self.matrix = matrix if matrix is not None else n.matrix('')
-        
-        self.parameters = parameters if parameters is not None else []
-        
-        self.best_fits = best_fits if best_fits is not None else []
-        
+        self.matrix = matrix
+        self.parameters = parameters
+        self.best_fits = best_fits
+        self.priors = priors if priors is not None else [None for p in self.parameters]
         self.labels = labels if labels is not None else parameters
-        
-        self.priors = [dict() for par in self.parameters] # doesn't work with numpy arrays
         
         #I think we need to check Consistency here  
         self.checkConsistency()
         
-        self.covariance = None
+        self.covariance = self.calculateCovariance()
         
-        if file is not None:
+    
+    @classmethod
+    def fromFile(cls, filename):
+        """
+        Load a Fisher matrix from a json file
+        """
+        
+        return cls(**from_json(filename))
+    
+    
+    @classmethod
+    def fromPaPAFile(cls, filename):
+        """
+        Load Fisher matrix from json file
+        """
+        # TODO: use json format
+        
+        loaded_dict = json.load(open(filename, 'r'))
+        
+        matrix = n.matrix(loaded_dict.pop('matrix'))
+        parameters = loaded_dict.pop('parameters')
+        best_fits = loaded_dict.pop('best_fits')
+        labels = loaded_dict.pop('labels')
+        
+        new_fm = cls(matrix=matrix, parameters=parameters, 
+                     best_fits=best_fits, labels=labels)
+        
+        while not len(loaded_dict)==0:
             
-            if (matrix is not None or parameters is not None):
-                print 'Loading Fisher matrix from file, previously given values \
-                        for matrix and parameters will be overridden!'
+            par, prior_dict = loaded_dict.popitem()
             
-            self.loadFile(file)
+            #self.parameters.append(par)
+            for value in prior_dict.itervalues():
+                new_fm.addPrior(par, value)
+        
+        new_fm.checkConsistency()
+        new_fm.calculateCovariance()
+        
+        return new_fm
     
     
     def __add__(self, other):
@@ -136,12 +162,12 @@ class FisherMatrix:
             for summand in [self, other]:
                 
                 try:
-                    prior_dict = summand.listPriors(par)
+                    prior_dict = summand.getPriorDict()
                 except IndexError:
                     continue
                 
-                for key, sigma in prior_dict.items():
-                    new_object.addPrior(par, key, sigma)
+                for par, sigma in prior_dict.items():
+                    new_object.addPrior(par, sigma)
         
         # ...and we're done!
         return new_object
@@ -167,44 +193,19 @@ class FisherMatrix:
         return True
     
     
-    def loadFile(self, filename):
-        """
-        Load Fisher matrix from json file
-        """
-        # TODO: use json format
-        
-        loaded_dict = json.load(open(filename, 'r'))
-        
-        self.parameters = loaded_dict.pop('parameters')
-        self.matrix = n.matrix(loaded_dict.pop('matrix'))
-        self.best_fits = loaded_dict.pop('best_fits')
-        self.labels = loaded_dict.pop('labels')
-        self.priors = [dict() for par in self.parameters] 
-        
-        while not len(loaded_dict)==0:
-            
-            par, prior_dict = loaded_dict.popitem()
-            
-            #self.parameters.append(par)
-            for (key, value) in prior_dict.iteritems():
-                self.addPrior(par, key, value)
-        
-        self.checkConsistency()
-        self.calculateCovariance()
-    
-    
     def saveFile(self, filename):
         """
         Write Fisher matrix to json file
         """
         
-        dict_to_write = dict([(par, self.priors[self.getParameterIndex(par)]) for par in self.parameters])
+        dict_to_write = {}
+        dict_to_write['matrix'] = self.matrix
         dict_to_write['parameters'] = self.parameters
-        dict_to_write['matrix'] = self.matrix.tolist()
         dict_to_write['best_fits'] = self.best_fits
         dict_to_write['labels'] = self.labels
+        dict_to_write['priors'] = self.priors
         
-        json.dump(dict_to_write, open(filename, 'w'), indent=2)
+        to_json(dict_to_write, filename)
     
     
     def getParameterIndex(self, par):
@@ -234,19 +235,16 @@ class FisherMatrix:
         self.parameters[idx] = toname
     
     
-    ### ***FIXME***
-    ### Before inversion, we should check that the determant of the matrix is not
-    ### zero, i.e. that the matrix is not singular and can be inverted. Otherwise,
-    ### the diagonal elements of the inverted matrix can become negative!
     def calculateCovariance(self):
         """
         Calculate covariance matrix from Fisher matrix (i.e. invert including priors).
-        If
         """
         
+        if n.linalg.det(self.matrix)==0:
+            raise ValueError('Fisher Matrix is singular, cannot be inverted!')
+        
         self.covariance = n.linalg.inv(self.matrix \
-                                + n.diag([sum([1./sigma**2 for sigma in p.values()])\
-                                                           for p in self.priors]))
+                                + n.diag([1./self.getPrior(p)**2 for p in self.parameters]))
     
     
     def getBestFit(self, par):
@@ -298,31 +296,30 @@ class FisherMatrix:
         self.calculateCovariance()
     
     
-    def addPrior(self, par, prior_key, prior_sigma):
+    def setPrior(self, par, sigma):
         """
-        Add prior of name 'prior_key' with value prior_sigma to parameter 'par'
-        """
-        
-        if ' ' in prior_key:
-            raise ValueError('Please use prior names without spaces!')
-        
-        idx = self.getParameterIndex(par)
-        
-        self.priors[idx].update(dict({prior_key: prior_sigma}))
-        
-        self.calculateCovariance()
-    
-    
-    def removePrior(self, par, prior_key):
-        """
-        Remove prior 'prior_key' from parameter 'par'
+        Set prior for parameter 'par' to value sigma. If sigma==None, no prior is assumed
         """
         
         idx = self.getParameterIndex(par)
         
-        del self.priors[idx][prior_key]
+        self.priors[idx] = sigma
         
         self.calculateCovariance()
+    
+    
+    def addPrior(self, par, sigma):
+        """
+        Add a prior of value sigma to the existing one for par (in quadrature)
+        """
+        
+        idx = self.getParameterIndex(par)
+        
+        if self.priors[idx] is not None:
+            self.priors[idx] = n.sqrt(self.priors[idx]**2 + sigma**2)
+            self.calculateCovariance()
+        else:
+            self.setPrior(par, sigma)
     
     
     def removeAllPriors(self):
@@ -330,28 +327,31 @@ class FisherMatrix:
         Remove *all* priors from this Fisher Matrix
         """
         
-        for i in range(len(self.priors)):
-            self.priors[i] = {}
+        self.priors = [None for p in self.parameters]
         
         self.calculateCovariance()
     
     
-    def listPriors(self, par):
+    def getPrior(self, par):
         """
-        List all priors (sigma values) already added to par
+        List the prior (sigma value) for par
         """
         
         idx = self.getParameterIndex(par)
+        prior = self.priors[idx]
         
-        return self.priors[idx]
+        if prior is None:
+            return n.inf
+        else:
+            return prior
     
     
-    def listAllPriors(self):
+    def getPriorDict(self):
         """
         List priors of all parameters (sigma values)
         """
         
-        return [(par, self.listPriors(par)) for par in self.parameters]
+        return dict(zip(self.parameters, self.priors))
     
     
     def getCovariance(self, par1, par2):
@@ -391,12 +391,11 @@ class FisherMatrix:
         
         # make temporary priors with the ones corresponding to par removed
         temp_priors = copy.deepcopy(self.priors)
-        temp_priors[idx] = {}
+        temp_priors[idx] = None
         
         # calculate covariance with these priors
         temp_covariance = n.linalg.inv(self.matrix \
-                            + n.diag([sum([1./sigma**2 for sigma in p.values()])\
-                                                    for p in temp_priors]))
+                            + n.diag([1./s**2 if s is not None else 0. for s in temp_priors]))
         
         return n.sqrt(temp_covariance[idx,idx])
     
@@ -409,21 +408,6 @@ class FisherMatrix:
         
         idx = self.getParameterIndex(par)
         return 1./n.sqrt(self.matrix[idx,idx])
-    
-    
-    def getSigmaPriors(self, par):
-        """
-        Returns standard deviation of all priors imposed on par combined
-        """
-        
-        idx = self.getParameterIndex(par)
-        
-        if len(self.priors[idx])==0:
-            sigma = n.inf
-        else:
-            sigma = 1./n.sqrt(sum([1./sigma**2 for sigma in self.priors[idx].values()]))
-        
-        return sigma
     
     
     def getSigmaSystematic(self, par):
@@ -496,7 +480,7 @@ class FisherMatrix:
         for par in pars:
             result = (param_width, par, self.getBestFit(par), self.getSigma(par),
                       self.getSigmaStatistical(par), self.getSigmaSystematic(par),
-                      self.getSigmaPriors(par))
+                      self.getPrior(par))
             par_str = '%*s    %10.3e     %.3e     %.3e     %.3e     %.3e'%result
             par_str = par_str.replace('inf', 'free')
             print par_str
@@ -545,13 +529,13 @@ class FisherMatrix:
             if latex:
                 result = (self.getLabel(par), impact, self.getBestFit(par), self.getSigma(par),
                           self.getSigmaStatistical(par), self.getSigmaSystematic(par),
-                          self.getSigmaPriors(par))
+                          self.getPrior(par))
                 par_str = '%s & %.1f & \\num{%.2e} & \\num{%.2e} & \\num{%.2e} & \\num{%.2e} & \\num{%.2e} \\\\'%result
                 par_str = par_str.replace('\\num{inf}', 'free')
             else:
                 result = (param_width, par, impact, self.getBestFit(par), self.getSigma(par),
                           self.getSigmaStatistical(par), self.getSigmaSystematic(par),
-                          self.getSigmaPriors(par))
+                          self.getPrior(par))
                 par_str = '%*s          %5.1f    %10.3e     %.3e     %.3e     %.3e     %.3e'%result
                 par_str = par_str.replace('inf', 'free')
             
@@ -584,38 +568,6 @@ class FisherMatrix:
                                reverse=True)
         
         return sorted_impact
-    
-    
-    def calculateParamBestFit(self, par_to_fit, par_to_minimize):
-        """
-        Returns an estimated best-fit value for par_to_fit 
-        by minimizing the significance of par_to_minimize.
-        """
-        
-        # Since the Fisher matrix assumes the injected point is within
-        # the Gaussian limit of the true minimum, if you scan the inverse
-        # error of par_to_minimize as a function of par_to_fit, you 
-        # should end up with a parabola we will call y(x).
-        #
-        # Since we know y(x_0) = y_0 and dy/dx(x_0) = dy_0 at the 
-        # injection point as well as y(x_min) = y_min, the value at the
-        # minimum, we can calculate the position x_min of the minimum as
-        #    x_min = (-2*y_0 +2*y_min +dy_0*x_0)/dy_0
-        # if I did my math correctly...
-        
-        x_0 = self.getBestFit(par_to_fit)
-        
-        y_0 = 1./self.getSigmaStatistical(par_to_minimize)
-        
-        idx_to_fit = self.getParameterIndex(par_to_fit)
-        idx_to_minimize = self.getParameterIndex(par_to_minimize)
-        dy_0 = self.matrix[idx_to_fit, idx_to_minimize]
-        
-        y_min = 1./self.getSigmaNoPriors(par_to_minimize)
-        
-        x_min = (-2*y_0 +2*y_min +dy_0*x_0)/dy_0
-        
-        return x_min
 
 
 # FIXME: Do we need this?
