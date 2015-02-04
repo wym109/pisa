@@ -6,12 +6,14 @@
 #
 # author: Lukas Schulte - schulte@physik.uni-bonn.de
 #         Sebastian Boeser - sboeser@uni-mainz.de
-#
+#	  Thomas Ehrhardt - tehrhard@uni-mainz.de
 
 from pisa.utils.jsons import to_json
 from pisa.utils.log import logging
+from pisa.utils.params import get_values
 import numpy as np
 import os
+import tempfile
 
 
 def derivative_from_polycoefficients(coeff, loc):
@@ -32,68 +34,121 @@ def derivative_from_polycoefficients(coeff, loc):
     return result
 
 
-# copied from PaPA, modify treatment of data
-def getDerivativeMap(data, test_points=None, fiducial=None , degree=2):
+def get_derivative_map(data, fiducial=None , degree=2):
   """
   Get the approximate derivative of data w.r.t parameter par
-  at location loc with polynomic degree of approximation, default: 2
-  Data is a 3D-array, i.e. a list of coszen-enery maps
+  at location loc with polynomic degree of approximation, default: 2.
+  
+  Data is a dictionary of the form
+  {
+  'test_point1': {'params': {},
+		  'trck': {'map': [[],[],...],
+			    'ebins': [],
+			    'czbins': []
+			  },
+		  'cscd': {'map': [[],[],...],
+			    'ebins': [],
+			    'czbins': []
+			  }
+		  }
+		  
+  'test_point2': ...		 
+  }
   """
+  derivative_map = {'trck':{},'cscd':{}}
+  test_points = sorted(data.keys())
 
-  # TODO: chi2 test
-
-  # All bins are treated equally, so we just flatten out the maps to linear arrays
-  fdata = [ n.array(pmap['map']).flatten() for pmap in data ]
-
-  # Now we have one row per map, and one column per bin, so data is
-  # in the right format for making the polyfit
-  fitparams = n.polyfit(test_points,fdata, deg=degree)
-
-  #Get the actual derivatives at the best fit point
-  #(no need to reshape result as map)
-  return derivative_from_polycoefficients(fitparams[::-1], fiducial['value'])
-
+  # TODO ?: chi2 test
+  for channel in ['trck','cscd']:
+    channel_data = [ np.array(data[pvalue][channel]['map']).flatten() for pvalue in test_points ]
+    channel_fit_params = np.polyfit(test_points,channel_data, deg=degree)
+    # Get partial derivatives at fiducial values
+    derivative_map[channel]['map'] = derivative_from_polycoefficients(channel_fit_params[::-1], fiducial['value'])
+  
+  return derivative_map
 
 
 
 def get_steps(param, grid_settings, fiducial_params):
-  
+  """
+  Prepare the linear sequence of test points: use a globally valid
+  number of test points if grid_settings makes no specifications
+  for the parameter.
+  """
   try:
     n_points = grid_settings['npoints'][param]
   except:
     n_points = grid_settings['npoints']['default']
 
-  return np.linspace(*fiducial_params[param]['range'],n_points)
+  return np.linspace(fiducial_params[param]['range'][0],fiducial_params[param]['range'][1],n_points)
+
 
   
+def get_hierarchy_gradients(fiducial_maps,fiducial_params,grid_settings,store_dir):
+  """
+  Use the hierarchy interpolation between the two fiducial maps to obtain the
+  gradients.
+  """
+  logging.info("Working on parameter hierarchy.")
 
-def get_gradients(param,template_maker,fiducial_params,grid_settings,store_directory):
+  steps = get_steps('hierarchy', grid_settings, fiducial_params)
 
+  hmap = dict.fromkeys(steps,{'trck':{},'cscd':{}})
+
+  for h in steps:
+    for channel in ['trck','cscd']:
+   	# Superpose bin counts
+    	hmap[h][channel]['map'] = fiducial_maps['NMH'][channel]['map']*h + fiducial_maps['IMH'][channel]['map']*(1.-h)	
+	# Obtain binning from one of the maps, since identical by construction (cf. FisherAnalysis)	
+	hmap[h][channel]['ebins'] = fiducial_maps['NMH'][channel]['ebins']
+	hmap[h][channel]['czbins'] = fiducial_maps['NMH'][channel]['czbins']
+  
+  # TODO: give hmap the same structure as pmaps? 
+  # Get_derivative_map works even if 'params' and 'ebins','czbins' not in 'data'
+  
+  # Store the maps used to calculate partial derivatives
+  if store_dir != tempfile.gettempdir():
+  	logging.info("Writing maps for parameter 'hierarchy' to %s"%store_dir)
+  to_json(hmap,os.path.join(store_dir,'hierarchy.json'))
+  
+  gradient_map = get_derivative_map(hmap, fiducial_params['hierarchy'],degree=2)
+ 
+  return gradient_map
+
+
+
+def get_gradients(param,template_maker,fiducial_params,grid_settings,store_dir):
+  """
+  Use the template maker to create all the templates needed to obtain the gradients.
+  """
   logging.info("Working on parameter %s."%param)
-
-  # store_subdir = os.path.join(store_directory,param)
-
-  # os.mkdir(store_subdir)
 
   steps = get_steps(param, grid_settings, fiducial_params)
   
   pmaps = {}  
 
-  for param_value in steps:
-      maps = template_maker.get_template(dict(fiducial_params,
-                                              **{param: param_value}))
+  # Generate one template for each value of the parameter in question and store in pmaps
+  for param_value in steps:	 
+      """
+      maps = template_maker.get_template(get_values(dict(fiducial_params,
+                                              **{param['value']: param_value})))
+      """
       
+      new_dict = dict(fiducial_params)
+      new_dict[param]['value'] = param_value 
+      maps = template_maker.get_template(get_values(new_dict))
+      
+
       pmaps[param_value] = maps
 
-  # gradient_maps = get_derivative_map(pmaps,steps,fiducial_params[param])    
+  # Store the maps used to calculate partial derivatives
+  if store_dir != tempfile.gettempdir():
+  	logging.info("Writing maps for parameter %s to %s"%(param,store_dir))
 
-  to_json(pmaps, os.path.join(store_directory,param+".json"))            
+  to_json(pmaps, os.path.join(store_dir,param+".json"))
+  
+  gradient_map = get_derivative_map(pmaps,fiducial_params[param],degree=2)                
 
-  return gradient_maps
-
- # if param=='hierarchy':
- #    get the special hiearchy interpolation to get the maps
- # else:
- #    use templateMaker to get the maps
+  return gradient_map
      
  

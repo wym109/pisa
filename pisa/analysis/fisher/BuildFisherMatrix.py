@@ -12,14 +12,14 @@
 import numpy as n
 
 from pisa.analysis.fisher.Fisher import FisherMatrix
+from pisa.utils.log import logging
 
 # copied from PaPA, TODO: adopt to PISA scheme
-def build_fisher_matrix(gradient_maps, fiducial_map, template_settings)
+def build_fisher_matrix(gradient_maps, fiducial_map, template_settings):
     
   # fix the ordering of parameters
   params = gradient_maps.keys()
   fisher = {}
-  
   for chan in gradient_maps[params[0]]:
   
     #Find non-empty bins in flattened map
@@ -40,7 +40,7 @@ def build_fisher_matrix(gradient_maps, fiducial_map, template_settings)
       fmatrix += n.outer(bin_gradients, bin_gradients)/bin_sigma**2
     
     #And construct the fisher matrix object
-    fisher[flavour] = FisherMatrix(matrix=fmatrix,
+    fisher[chan] = FisherMatrix(matrix=fmatrix,
                                    parameters=params,  #order is important here!
                                    best_fits=[template_settings[par]['value'] for par in params],
                                    priors=[template_settings[par]['prior'] for par in params],
