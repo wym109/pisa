@@ -65,16 +65,16 @@ class FisherMatrix:
            best_fits: best fit values for each parameter
         """
         
-        self.matrix = matrix
-        self.parameters = parameters
-        self.best_fits = best_fits
-        self.priors = priors if priors is not None else [None for p in self.parameters]
-        self.labels = labels if labels is not None else parameters
+        self.matrix = n.matrix(matrix)
+        self.parameters = list(parameters)
+        self.best_fits = list(best_fits)
+        self.priors = list(priors) if priors is not None else [None for p in self.parameters]
+        self.labels = list(labels) if labels is not None else parameters
         
         #I think we need to check Consistency here  
         self.checkConsistency()
         
-        self.covariance = self.calculateCovariance()
+        self.calculateCovariance()
         
     
     @classmethod
@@ -316,7 +316,7 @@ class FisherMatrix:
         idx = self.getParameterIndex(par)
         
         if self.priors[idx] is not None:
-            self.priors[idx] = n.sqrt(self.priors[idx]**2 + sigma**2)
+            self.priors[idx] = 1./n.sqrt(1./self.priors[idx]**2 + 1./sigma**2)
             self.calculateCovariance()
         else:
             self.setPrior(par, sigma)
@@ -443,6 +443,7 @@ class FisherMatrix:
           a_sq = (sigma2**2 + sigma1**2)/2. - n.sqrt((sigma2**2 - sigma1**2)**2/4. + cov**2)
           b_sq = (sigma2**2 + sigma1**2)/2. + n.sqrt((sigma2**2 - sigma1**2)**2/4. + cov**2)
 
+        #FIXME: this cannot be correct since sigma1 and sigma2 can have different dimensions!
         tan_2_th = 2.*cov / (sigma1**2 - sigma2**2)
         
         # we are dealing with a 2D error ellipse here
