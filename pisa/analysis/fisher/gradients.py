@@ -14,6 +14,7 @@ from pisa.utils.params import get_values
 import numpy as np
 import os
 import tempfile
+import copy
 
 
 def derivative_from_polycoefficients(coeff, loc):
@@ -84,7 +85,7 @@ def get_steps(param, grid_settings, fiducial_params):
 
 
   
-def get_hierarchy_gradients(fiducial_maps,fiducial_params,grid_settings,store_dir):
+def get_hierarchy_gradients(data_tag, fiducial_maps,fiducial_params,grid_settings,store_dir):
   """
   Use the hierarchy interpolation between the two fiducial maps to obtain the
   gradients.
@@ -93,7 +94,7 @@ def get_hierarchy_gradients(fiducial_maps,fiducial_params,grid_settings,store_di
 
   steps = get_steps('hierarchy', grid_settings, fiducial_params)
 
-  hmap = dict.fromkeys(steps,{'trck':{},'cscd':{}})
+  hmap = {step:{'trck':{},'cscd':{}} for step in steps}
 
   for h in steps:
     for channel in ['trck','cscd']:
@@ -109,7 +110,7 @@ def get_hierarchy_gradients(fiducial_maps,fiducial_params,grid_settings,store_di
   # Store the maps used to calculate partial derivatives
   if store_dir != tempfile.gettempdir():
   	logging.info("Writing maps for parameter 'hierarchy' to %s"%store_dir)
-  to_json(hmap,os.path.join(store_dir,'hierarchy.json'))
+  to_json(hmap,os.path.join(store_dir,"hierarchy_"+data_tag+".json"))
   
   gradient_map = get_derivative_map(hmap, fiducial_params['hierarchy'],degree=2)
  
@@ -117,7 +118,7 @@ def get_hierarchy_gradients(fiducial_maps,fiducial_params,grid_settings,store_di
 
 
 
-def get_gradients(param,template_maker,fiducial_params,grid_settings,store_dir):
+def get_gradients(data_tag, param,template_maker,fiducial_params,grid_settings,store_dir):
   """
   Use the template maker to create all the templates needed to obtain the gradients.
   """
@@ -129,15 +130,13 @@ def get_gradients(param,template_maker,fiducial_params,grid_settings,store_dir):
 
   # Generate one template for each value of the parameter in question and store in pmaps
   for param_value in steps:	 
-      """
+      	
+      print "fiducial value of %s:"%param,fiducial_params[param]['value']
+            
+      # Make the template corresponding to the current value of the parameter
       maps = template_maker.get_template(get_values(dict(fiducial_params,
-                                              **{param['value']: param_value})))
-      """
-      
-      new_dict = dict(fiducial_params)
-      new_dict[param]['value'] = param_value 
-      maps = template_maker.get_template(get_values(new_dict))
-      
+                                              **{param:dict(fiducial_params[param],**{'value': param_value})})))
+           
 
       pmaps[param_value] = maps
 
@@ -145,9 +144,9 @@ def get_gradients(param,template_maker,fiducial_params,grid_settings,store_dir):
   if store_dir != tempfile.gettempdir():
   	logging.info("Writing maps for parameter %s to %s"%(param,store_dir))
 
-  to_json(pmaps, os.path.join(store_dir,param+".json"))
+  to_json(pmaps, os.path.join(store_dir,param+"_"+data_tag+".json"))
   
-  gradient_map = get_derivative_map(pmaps,fiducial_params[param],degree=2)                
+  gradient_map = get_derivative_map(pmaps,fiducial_params[param],degree=2)            
 
   return gradient_map
      
