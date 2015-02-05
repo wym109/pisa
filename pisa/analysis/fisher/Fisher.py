@@ -91,7 +91,6 @@ class FisherMatrix:
         """
         Load Fisher matrix from json file
         """
-        # TODO: use json format
         
         loaded_dict = json.load(open(filename, 'r'))
         
@@ -422,12 +421,13 @@ class FisherMatrix:
     
     def getErrorEllipse(self, par1, par2, confLevel=0.6827):
         """
-        Returns a, b, theta of confLevel error ellipse 
+        Returns a, b, tan(2 theta) of confLevel error ellipse 
         in par1-par2-plane with:
         
         a: large half axis
         b: small half axis
-        theta: tilt angle
+        tan(2 theta): tilt angle, has to be divided by the aspect
+                      ratio of the actual plot before taking arctan
         
         Formulae taken from arXiv:0906.4123
         """
@@ -443,13 +443,13 @@ class FisherMatrix:
           a_sq = (sigma2**2 + sigma1**2)/2. - n.sqrt((sigma2**2 - sigma1**2)**2/4. + cov**2)
           b_sq = (sigma2**2 + sigma1**2)/2. + n.sqrt((sigma2**2 - sigma1**2)**2/4. + cov**2)
 
-        #FIXME: this cannot be correct since sigma1 and sigma2 can have different dimensions!
+        #Note: this has weird dimensions (actual size of the plot)!
         tan_2_th = 2.*cov / (sigma1**2 - sigma2**2)
         
         # we are dealing with a 2D error ellipse here
         scaling = n.sqrt(chi2.ppf(confLevel, 2))
         
-        return scaling*n.sqrt(a_sq), scaling*n.sqrt(b_sq), n.arctan(tan_2_th)/2.
+        return scaling*n.sqrt(a_sq), scaling*n.sqrt(b_sq), tan_2_th
     
     
     def getCorrelation(self, par1, par2):
