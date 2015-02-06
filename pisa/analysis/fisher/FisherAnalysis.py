@@ -133,26 +133,22 @@ for data_tag, data_normal in chosen_data:
 
   logging.info("Building Fisher matrix for %s."%(data_tag.split('_')[1]))
     
+  # Build Fisher matrices for the given hierarchy
   fisher[data_tag] = build_fisher_matrix(gradient_maps,fiducial_maps['IMH'] if data_normal else fiducial_maps['NMH'],fiducial_params)
   
   for chan in fisher[data_tag]:
     logging.info("Writing Fisher matrix for channel %s to %s"%(chan,os.path.join(args.outdir,'fisher_data_%s_%s.json'%(data_tag.split('_')[1],chan))))
     fisher[data_tag][chan].saveFile(os.path.join(args.outdir,'fisher_data_%s_%s.json'%(data_tag.split('_')[1],chan)))
+
+  # Build the combined matrix
+  if len(fisher[data_tag].keys()) > 1:
+    fisher[data_tag][''] = FisherMatrix(matrix=np.array([f.matrix for f in  fisher[data_tag].itervalues()]).sum(axis=0),
+                                   	parameters=gradient_maps.keys(),  #order is important here!
+                                   	best_fits=[fiducial_params[par]['value'] for par in gradient_maps.keys()],
+                                   	priors=[fiducial_params[par]['prior'] for par in gradient_maps.keys()],
+                                   	)
+    logging.info("Writing combined Fisher matrix to %s"%(os.path.join(args.outdir,'fisher_data_%s.json'%data_tag.split('_')[1])))
+    fisher[data_tag][''].saveFile(os.path.join(args.outdir,'fisher_data_%s.json'%data_tag.split('_')[1]))
 	
 #for channel in fisher[data_tag]:
     # add labels if needed, priors are already there
-
-"""
-# Add Fisher matrices
-for data_tag in fisher:
-    fisher[data_tag][''] = sum(fisher[data_tag][chan]['matrix'] for chan in fisher[data_tag])
-    logging.info("Writing complete Fisher matrix for %s to %s"%(data_tag.split('_')[1],os.path.join(store_dir,'fisher_data_%s.json'%(data_tag.split('_')[1]))))
-    fisher[data_tag][''].saveFile(os.path.join(store_dir,'fisher_data_%s.json'%data_tag.split('_')[1]))
-"""
-#Outfile: fisher,
-#         fiducial_templates (NH, IH),
-#         templates?
-#
-#fisher = {'tracks' : type<FisherMatrix>,
-#    'cascades': type<FisherMatrix>,
-#    '': type<FisherMatrix>}

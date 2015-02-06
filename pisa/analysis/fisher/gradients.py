@@ -130,9 +130,7 @@ def get_gradients(data_tag, param,template_maker,fiducial_params,grid_settings,s
 
   # Generate one template for each value of the parameter in question and store in pmaps
   for param_value in steps:	 
-      	
-      print "fiducial value of %s:"%param,fiducial_params[param]['value']
-            
+      	            
       # Make the template corresponding to the current value of the parameter
       maps = template_maker.get_template(get_values(dict(fiducial_params,
                                               **{param:dict(fiducial_params[param],**{'value': param_value})})))
