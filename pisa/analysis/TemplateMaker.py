@@ -25,11 +25,16 @@ from pisa.flux.HondaFluxService import HondaFluxService
 from pisa.flux.Flux import get_flux_maps
 from pisa.oscillations.Prob3OscillationService import Prob3OscillationService
 from pisa.oscillations.Oscillation import get_osc_flux
+
 from pisa.aeff.AeffServiceMC import AeffServiceMC
 from pisa.aeff.AeffServicePar import AeffServicePar
 from pisa.aeff.Aeff import get_event_rates
-from pisa.reco.RecoService import RecoServiceMC
+
+from pisa.reco.RecoServiceMC import RecoServiceMC
+from pisa.reco.RecoServiceParam import RecoServiceParam
+from pisa.reco.RecoServiceKDE import RecoServiceKDE
 from pisa.reco.Reco import get_reco_maps
+
 from pisa.pid.PIDServicePar import PIDServicePar
 from pisa.pid.PID import get_pid_maps
 
@@ -86,8 +91,20 @@ class TemplateMaker:
                                               **template_settings)
 
         # Reco Event Rate:
-        self.reco_service = RecoServiceMC(self.ebins,self.czbins,
-                                          **template_settings)
+        reco_mode = template_settings['reco_mode']
+        if reco_mode == 'MC':
+            self.reco_service = RecoServiceMC(self.ebins,self.czbins,
+                                              **template_settings)
+        elif reco_mode == 'param':
+            self.reco_service = RecoServiceParam(self.ebins,self.czbins,
+                                               **template_settings)
+        elif reco_mode == 'kde':
+            self.reco_service = RecoServiceKDE(self.ebins,self.czbins,
+                                               **template_settings)
+        else:
+            error_msg = "reco_mode: %s is not implemented! "%reco_mode
+            error_msg+=" Please choose among: ['MC','kde','param']"
+            raise NotImplementedError(error_msg)
 
         # PID Service:
         self.pid_service = PIDServicePar(self.ebins,self.czbins,
@@ -166,9 +183,8 @@ if __name__ == '__main__':
 
     #Now get the actual template
     profile.info("start template calculation")
-    template = template_maker.get_template(get_values(params))
+    template_maps = template_maker.get_template(get_values(params))
     profile.info("stop template calculation")
 
-    #Write out
-    logging.info("Saving output to: %s",args.outfile)
-    to_json(template, args.outfile)
+    logging.info("Saving file to %s"%args.outfile)
+    to_json(template_maps,args.outfile)
