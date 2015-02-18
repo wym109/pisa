@@ -1,10 +1,10 @@
 {
-        "desc": "The number of test points for each parameter (for a linear sequence). Default value is overwritten for parameters specified."
+        "desc": "The number of test points for each parameter (for a linear sequence ). Default value is overwritten for parameters specified.",
 	"npoints" :
     		{
-		 "aeff_scale": 4,
-		 "nu_xsec_scale": 4,
-		 "nubar_xsec_scale": 4,
+		 "aeff_scale": 3,
+		 "nu_xsec_scale": 3,
+		 "nubar_xsec_scale": 3,
 		 "default" : 10
 		}
 
