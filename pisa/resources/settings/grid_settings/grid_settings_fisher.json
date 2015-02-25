@@ -3,6 +3,7 @@
 	"npoints" :
     		{
 		 "aeff_scale": 3,
+		 "nu_nubar_ratio": 3,
 		 "default" : 10
 		}
 
