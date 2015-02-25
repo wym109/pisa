@@ -147,6 +147,34 @@ class TemplateMaker:
         return (flux_maps, osc_flux_maps, event_rate_maps, event_rate_reco_maps,
                 final_event_rate)
 
+    def get_template_no_osc(self,params):
+        '''
+        Runs template making chain, but without oscillations
+        '''
+
+        flux_maps = get_flux_maps(self.flux_service,self.ebins,self.czbins)
+
+        # Create the empty nutau maps:
+        test_map = flux_maps['nue']
+
+        flavours = ['nutau','nutau_bar']
+        for flav in flavours:
+            flux_maps[flav] = {'map': np.zeros_like(test_map['map']),
+                               'ebins': np.zeros_like(test_map['ebins']),
+                               'czbins': np.zeros_like(test_map['czbins'])}
+
+        logging.info("Getting event rate true maps...")
+        event_rate_maps = get_event_rates(flux_maps,self.aeff_service, **params)
+
+        logging.info("Getting event rate reco maps...")
+        event_rate_reco_maps = get_reco_maps(event_rate_maps,self.reco_service,
+                                             **params)
+
+        logging.info("Getting pid maps...")
+        final_event_rate = get_pid_maps(event_rate_reco_maps,self.pid_service)
+
+        return final_event_rate
+
 
 if __name__ == '__main__':
 
@@ -163,6 +191,8 @@ if __name__ == '__main__':
                         action='store_false', help="select the inverted hierarchy")
     parser.add_argument('-v','--verbose',action='count',default=None,
                         help='set verbosity level.')
+    parser.add_argument('-s','--save_all',action='store_true',default=False,
+                        help="Save all stages.")
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str,
                         action='store',default="template.json",
                         help='file to store the output')
@@ -187,7 +217,7 @@ if __name__ == '__main__':
 
     #Now get the actual template
     profile.info("start template calculation")
-    template_maps = template_maker.get_template(get_values(params))
+    template_maps = template_maker.get_template(get_values(params),return_stages=args.save_all)
     profile.info("stop template calculation")
 
     logging.info("Saving file to %s"%args.outfile)

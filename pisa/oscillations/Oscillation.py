@@ -17,7 +17,7 @@
 
 import os,sys
 import numpy as np
-from argparse import ArgumentParser, RawTextHelpFormatter
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from pisa.utils.log import logging, profile, set_verbosity
 from pisa.utils.utils import check_binning, get_binning
 from pisa.utils.jsons import from_json, to_json
@@ -32,6 +32,7 @@ def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,
                  deltacp=None,**kwargs):
     '''
     Obtain a map in energy and cos(zenith) of the oscillation probabilities from
+
     the OscillationService and compute the oscillated flux.
     Inputs:
       flux_maps - dictionary of atmospheric flux ['nue','numu','nue_bar','numu_bar']
@@ -41,6 +42,7 @@ def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,
 
     #Be verbose on input
     params = get_params()
+
     report_params(params, units = ['rad','eV^2','eV^2','','rad','rad','rad'])
 
     #Initialize return dict
@@ -77,7 +79,7 @@ if __name__ == '__main__':
     # parser
     parser = ArgumentParser(description='Takes the oscillation parameters '
                             'as input and writes out a set of osc flux maps',
-                            formatter_class=RawTextHelpFormatter)    
+                            formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument('flux_maps',metavar='FLUX',type=from_json,
                         help='''JSON atm flux input file with the following parameters:
     {"nue": {'czbins':[], 'ebins':[], 'map':[]},
@@ -102,12 +104,12 @@ if __name__ == '__main__':
     parser.add_argument('--energy-scale',type=float,default=1.0,
                         dest='energy_scale',
                         help='''Energy off scaling due to mis-calibration.''')
-    parser.add_argument('--code',type=str,choices = ['prob3','table','nucraft'], 
+    parser.add_argument('--code',type=str,choices = ['prob3','table','nucraft'],
                         default='prob3',
-                        help='''Oscillation code to use, one of 
+                        help='''Oscillation code to use, one of
                         [table, prob3, nucraft], (default=prob3)''')
     parser.add_argument('--oversample', type=int, default=10,
-                        help='''oversampling factor for *both* energy and cos(zen); 
+                        help='''oversampling factor for *both* energy and cos(zen);
                         i.e. every 2D bin will be oversampled by this factor in
                         each dimension (default=10)''')
     parser.add_argument('--detector-depth', type=float, default=2.0,
@@ -154,7 +156,7 @@ if __name__ == '__main__':
       osc_service = TableOscillationService(ebins, czbins, **iniargs)
 
     logging.info("Getting osc prob maps")
-    osc_flux_maps = get_osc_flux(args.flux_maps, osc_service, 
+    osc_flux_maps = get_osc_flux(args.flux_maps, osc_service,
                                  deltam21 = args.deltam21,
                                  deltam31 = args.deltam31,
                                  deltacp = args.deltacp,
@@ -164,7 +166,7 @@ if __name__ == '__main__':
                                  oversample_e = args.oversample,
                                  oversample_cz = args.oversample,
                                  energy_scale = args.energy_scale)
-    
+
     #Write out
     logging.info("Saving output to: %s",args.outfile)
     to_json(osc_flux_maps, args.outfile)

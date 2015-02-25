@@ -12,7 +12,25 @@
 # date:   2014-01-27
 
 import numpy as np
+from scipy.stats import binned_statistic_2d
 from pisa.utils.log import logging
+import inspect,time
+
+
+class Timer(object):
+    def __init__(self, verbose=False):
+        self.verbose = verbose
+
+    def __enter__(self):
+        self.start = time.time()
+        return self
+
+    def __exit__(self, *args):
+        self.end = time.time()
+        self.secs = self.end - self.start
+        self.msecs = self.secs * 1000  # millisecs
+        if self.verbose:
+            print 'elapsed time: %f ms' % self.msecs
 
 
 def get_bin_centers(edges):
@@ -130,9 +148,29 @@ def check_binning(data):
 
     return eset[0],czset[0]
 
+def get_smoothed_map(pvals,evals,czvals,e_coarse_bins,cz_coarse_bins):
+    '''
+    Creates a 'smoothed' oscillation probability map with binning
+    given by e_coarse_bins, cz_coarse_bins through the use of the
+    scipy.binned_statistic_2d function.
+
+    \params:
+      * pvals - array-like object of probability values
+      * evals - array-like object of energy (GeV) values
+      * czvals - array-like object of coszen values
+      * e_coarse_bins - energy bins of final smoothed histogram (probability map)
+      * cz_coarse_bins - coszen bins of final smoothed histogram
+
+    '''
+
+    smooth_map = binned_statistic_2d(evals,czvals,pvals,statistic='mean',
+                                     bins=[e_coarse_bins,cz_coarse_bins])[0]
+    return smooth_map
+
 
 #NOTE: Investigate whether we should use scipy.misc.imresize for this?
-def get_smoothed_map(prob_map,ebinsLT,czbinsLT,ebinsSM,czbinsSM):
+# NOT CURRENTLY USED - 22 Jan 2015 (TCA) -> Do we remove it?
+def get_smoothed_map_old(prob_map,ebinsLT,czbinsLT,ebinsSM,czbinsSM):
     '''
     Downsamples a map by averaging over the look up table bins whose
     bin center is within the new (coarser) binning. DOES NOT assume
@@ -191,3 +229,12 @@ def integer_rebin_map(prob_map, rebin_info):
                           axis=0)
 
     return rmap
+
+def inspect_cur_frame():
+    '''
+    Very useful for showing exactly where the code is executing, in
+    tracing down an error or in debugging.
+    '''
+
+    (frame,filename,line_num,fn_name,lines,index) = inspect.getouterframes(inspect.currentframe())[1]
+    return "%s:%s at %s"%(filename,line_num,fn_name)

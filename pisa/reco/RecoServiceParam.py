@@ -89,6 +89,7 @@ class RecoServiceParam(RecoServiceBase):
                 for par, funcstring in param_str[flavour][int_type][axis].items():
                     # this should contain a lambda function:
                     function = eval(funcstring)
+                    logging.trace('  function: %s'%funcstring)
                     # evaluate the function at the given energies
                     vals = function(evals)
                     # repeat for all cos(zen) bins
@@ -174,6 +175,7 @@ class RecoServiceParam(RecoServiceBase):
                                      loc2=e_pars['loc2'][i,j]+evals[i],
                                      width2=e_pars['width2'][i,j],
                                      fraction=e_pars['fraction'][i,j])
+                e_kern_int = np.sum(e_kern*esizes)
 
                 offset = n_cz if flipback else 0
                 cz_kern = double_gauss(czvals,
@@ -182,13 +184,16 @@ class RecoServiceParam(RecoServiceBase):
                                      loc2=cz_pars['loc2'][i,j]+czvals[j+offset],
                                      width2=cz_pars['width2'][i,j],
                                      fraction=cz_pars['fraction'][i,j])
+                cz_kern_int = np.sum(cz_kern*czsizes)
 
                 if flipback:
                     # fold back
-                    cz_kern = cz_kern[:len(czvals)/2][::-1] \
-                                + cz_kern[len(czvals)/2:]
+                    cz_kern = cz_kern[:len(czvals)/2][::-1] + cz_kern[len(czvals)/2:]
+
 
                 kernel[i,j] = np.outer(e_kern, cz_kern)
+                # normalize correctly:
+                kernel[i,j]*=e_kern_int*cz_kern_int/np.sum(kernel[i,j])
 
             kernel_dict[flavour][int_type] = copy(kernel)
 

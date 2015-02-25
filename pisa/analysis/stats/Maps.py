@@ -44,5 +44,5 @@ def get_seed():
     Returns a random seed from /dev/urandom that can be used to seed the random
     state, e.g. for the poisson random variates.
     '''
-    return int(os.urandom(8).encode('hex'),16)
+    return int(os.urandom(4).encode('hex'),16)
 

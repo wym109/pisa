@@ -29,8 +29,8 @@ from pisa.aeff.AeffServicePar import AeffServicePar
 from scipy.constants import Julian_year
 
 
-def get_event_rates(osc_flux_maps,aeff_service,livetime=None,nu_xsec_scale=None,
-                    nubar_xsec_scale=None,aeff_scale=None,**kwargs):
+def get_event_rates(osc_flux_maps,aeff_service,livetime=None,nu_nubar_ratio=None,
+                    aeff_scale=None,**kwargs):
     '''
     Main function for this module, which returns the event rate maps
     for each flavor and interaction type, using true energy and zenith
@@ -44,7 +44,7 @@ def get_event_rates(osc_flux_maps,aeff_service,livetime=None,nu_xsec_scale=None,
 
     #Get parameters used here
     params = get_params()
-    report_params(params,units = ['','yrs','',''])
+    report_params(params,units = ['','yrs',''])
 
     #Initialize return dict
     event_rate_maps = {'params': add_params(params,osc_flux_maps['params'])}
@@ -62,11 +62,13 @@ def get_event_rates(osc_flux_maps,aeff_service,livetime=None,nu_xsec_scale=None,
         for int_type in ['cc','nc']:
             event_rate = osc_flux_map*aeff_dict[flavour][int_type]*aeff_scale
 
-            scale = nubar_xsec_scale if 'bar' in flavour else nu_xsec_scale
+            scale = 1.0 if 'bar' in flavour else nu_nubar_ratio
             event_rate *= (scale*livetime*Julian_year)
             int_type_dict[int_type] = {'map':event_rate,
                                        'ebins':ebins,
                                        'czbins':czbins}
+            logging.debug("  Event Rate before reco for %s/%s: %.2f"
+                          %(flavour,int_type,np.sum(event_rate)))
         event_rate_maps[flavour] = int_type_dict
 
     return event_rate_maps
@@ -97,10 +99,8 @@ if __name__ == '__main__':
                          Only applies in parametric mode.''')
     parser.add_argument('--livetime',type=float,default=1.0,
                         help='''livetime in years to re-scale by.''')
-    parser.add_argument('--nu_xsec_scale',type=float,default=1.0,
+    parser.add_argument('--nu_nubar_ratio',type=float,default=1.0,
                         help='''Overall scale on nu xsec.''')
-    parser.add_argument('--nubar_xsec_scale',type=float,default=1.0,
-                        help='''Overall scale on nu_bar xsec.''')
     parser.add_argument('--aeff_scale',type=float,default=1.0,
                         help='''Overall scale on aeff''')
     parser.add_argument('--parametric',action='store_true', default=False,
@@ -129,8 +129,7 @@ if __name__ == '__main__':
         aeff_service = AeffServiceMC(ebins,czbins,aeff_weight_file=args.weighted_aeff_file)
 
     event_rate_maps = get_event_rates(args.osc_flux_maps,aeff_service,args.livetime,
-                                      args.nu_xsec_scale,args.nubar_xsec_scale,
-                                      args.aeff_scale)
+                                      args.nu_nubar_ratio,args.aeff_scale)
 
     logging.info("Saving output to: %s"%args.outfile)
     to_json(event_rate_maps,args.outfile)

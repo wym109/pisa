@@ -21,23 +21,6 @@ from pisa.utils.jsons import to_json
 from pisa.utils.proc import report_params, get_params, add_params
 
 
-def normalize_kernels(kernels):
-    """
-    Ensure that all reco kernels are normalized.
-    """
-    logging.debug('Normalizing reconstruction kernels')
-    for flavour in kernels:
-        if flavour in ['ebins', 'czbins']: continue
-        for interaction in kernels[flavour]:
-            k_shape = np.shape(kernels[flavour][interaction])
-            for true_bin in product(range(k_shape[0]), range(k_shape[1])):
-                kernel_sum = np.sum(kernels[flavour][interaction][true_bin])
-                if kernel_sum > 0.:
-                    kernels[flavour][interaction][true_bin] /= kernel_sum
-
-    return kernels
-
-
 class RecoServiceBase:
     """
     Base class for reconstruction services, handles the actual smearing
@@ -69,9 +52,11 @@ class RecoServiceBase:
         ensures that reco kernels are in correct shape and normalized
         """
         kernels = self._get_reco_kernels(**kwargs)
+        if kernels is None:
+            logging.warn("No kernels defined yet...")
+            return kernels
 
-        if self.check_kernels(kernels):
-            return normalize_kernels(kernels)
+        if self.check_kernels(kernels): return kernels
 
 
     def _get_reco_kernels(self, **kwargs):

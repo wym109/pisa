@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 #  RecoServiceKernelFile.py
-# 
+#
 # Loads a pre-calculated dict of reconstruction kernels stored in json format.
 #
 # author: Lukas Schulte
@@ -20,7 +20,7 @@ from pisa.utils.jsons import from_json
 
 class RecoServiceKernelFile(RecoServiceBase):
     """
-    Loads a pre-calculated reconstruction kernel (that has been saved via 
+    Loads a pre-calculated reconstruction kernel (that has been saved via
     reco_service.store_kernels) from disk and uses that for reconstruction.
     """
     def __init__(self, ebins, czbins, reco_kernel_file=None, **kwargs):
