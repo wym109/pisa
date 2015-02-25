@@ -3,8 +3,6 @@
 	"npoints" :
     		{
 		 "aeff_scale": 3,
-		 "nu_xsec_scale": 3,
-		 "nubar_xsec_scale": 3,
 		 "default" : 10
 		}
 
