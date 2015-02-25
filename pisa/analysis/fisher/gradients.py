@@ -59,10 +59,12 @@ def get_derivative_map(data, fiducial=None , degree=2):
   derivative_map = {'trck':{},'cscd':{}}
   test_points = sorted(data.keys())
 
-  # TODO ?: chi2 test
+  # TODO: linearity check?
   for channel in ['trck','cscd']:
+    # Flatten data map for use with polyfit
     channel_data = [ np.array(data[pvalue][channel]['map']).flatten() for pvalue in test_points ]
-    channel_fit_params = np.polyfit(test_points,channel_data, deg=degree)
+    # Polynomial fit of bin counts
+    channel_fit_params = np.polyfit(test_points, channel_data, deg=degree)
     # Get partial derivatives at fiducial values
     derivative_map[channel]['map'] = derivative_from_polycoefficients(channel_fit_params[::-1], fiducial['value'])
   
