@@ -115,7 +115,15 @@ class NucraftOscillationService(OscillationServiceBase):
                 sec_key = sec+'_bar' if 'bar' in prim else sec
                 osc_prob_dict[prim][sec_key] = probs[i]
 
-        return
+	# fix: return energy-cz values as requested by OscillationServiceBase
+	evals = []
+	czvals = []
+	for ie,energy in enumerate(ecen):
+            for icz, coszen in enumerate(czcen):
+	        evals.append(energy)
+		czvals.append(coszen)
+
+        return evals,czvals
 
 
     def get_earth_model(self, model):
