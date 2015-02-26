@@ -2,6 +2,7 @@
 # This is the base class all other oscillation services should be derived from
 #
 # author: Lukas Schulte <lschulte@physik.uni-bonn.de>
+#         Timothy C. Arlen tca3@psu.edu
 #
 # date:   July 31, 2014
 #
@@ -9,54 +10,7 @@
 import sys
 import numpy as np
 from pisa.utils.log import logging, profile
-from pisa.utils.utils import get_smoothed_map, get_bin_centers, is_coarser_binning, is_linear, is_logarithmic, Timer
-
-
-def check_fine_binning(fine_bins, coarse_bins):
-    """
-    This function checks whether the specified fine binning exists and
-    is actually finer than the coarse one.
-    """
-
-    if fine_bins is not None:
-        if is_coarser_binning(coarse_bins, fine_bins):
-            logging.info('Using requested binning for oversampling.')
-            #everything is fine
-            return True
-        else:
-            logging.error('Requested oversampled binning is coarser '
-                          'than output binning. Aborting.')
-            sys.exit(1)
-
-    return False
-
-
-def oversample_binning(coarse_bins, factor):
-    """
-    Oversample bins by the given factor
-    """
-
-    if is_linear(coarse_bins):
-        logging.info('Oversampling linear output binning by factor %i.'
-                %factor)
-        fine_bins = np.linspace(coarse_bins[0], coarse_bins[-1],
-                                factor*(len(coarse_bins)-1)+1)
-    elif is_logarithmic(coarse_bins):
-        logging.info('Oversampling logarithmic output binning by factor %i.'
-                %factor)
-        fine_bins = np.logspace(np.log10(coarse_bins[0]),
-                                np.log10(coarse_bins[-1]),
-                                factor*(len(coarse_bins)-1)+1)
-    else:
-        logging.warn('Irregular binning detected! Evenly oversampling '
-                     'by factor %i'%factor)
-        fine_bins = np.array([])
-        for i, upper_edge in enumerate(coarse_bins[1:]):
-            fine_bins = np.append(fine_bins,
-                                  np.linspace(coarse_bins[i], upper_edge,
-                                              factor, endpoint=False))
-
-    return fine_bins
+from pisa.utils.utils import get_smoothed_map, get_bin_centers, is_coarser_binning, is_linear, is_logarithmic, check_fine_binning, oversample_binning, Timer
 
 
 class OscillationServiceBase:
@@ -98,7 +52,7 @@ class OscillationServiceBase:
         logging.info('Retrieving finely binned maps')
         with Timer(verbose=False) as t:
             fine_maps = self.get_osc_probLT_dict(**kwargs)
-        #print "  => elapsed time to get all fine maps: %s sec"%t.secs
+        print "       ==> elapsed time to get all fine maps: %s sec"%t.secs
 
         logging.info("Smoothing fine maps...")
         profile.info("start smoothing maps")
@@ -112,12 +66,33 @@ class OscillationServiceBase:
                 new_tomaps = {}
                 for to_nu, pvals in tomap_dict.items():
                     logging.debug("Getting smoothed map %s/%s"%(from_nu,to_nu))
+
                     new_tomaps[to_nu] = get_smoothed_map(pvals,
                                                          fine_maps['evals'],
                                                          fine_maps['czvals'],
                                                          self.ebins, self.czbins)
+
+                    # Saving smoooth maps: Testing/Debugging purposes!
+                    #if 'bar' in from_nu: to_nu+='_bar'
+                    #filename = (from_nu+'_'+to_nu+'.dat').replace('_maps','').replace('_bar','bar')
+                    #print "Saving to file: ",filename
+                    #fh = open(filename,'w')
+                    #ecen = get_bin_centers(self.ebins)
+                    #czcen = get_bin_centers(self.czbins)
+                    #evals = []; czvals = []; pvals = []
+                    #for ie,eval in enumerate(ecen):
+                    #    for icz,czval in enumerate(czcen):
+                    #        pval = new_tomaps[to_nu][ie][icz]
+                    #        line = str(eval)+' '+str(czval)+' '+str(pval)+'\n'
+                    #        fh.write(line)
+                    #fh.close()
+
                 smoothed_maps[from_nu] = new_tomaps
-        #print"  ==> elapsed time to smooth maps: %s sec"%t.secs
+
+                #from pisa.utils.jsons import to_json
+                #if from_nu == 'nue_maps':
+                #    to_json(smoothed_maps[from_nu]['nue'],'nue_maps.json')
+        print "       ==> elapsed time to smooth maps: %s sec"%t.secs
         profile.info("stop smoothing maps")
 
         return smoothed_maps

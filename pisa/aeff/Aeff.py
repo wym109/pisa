@@ -19,14 +19,17 @@
 
 import os,sys
 import numpy as np
+from scipy.constants import Julian_year
 from argparse import ArgumentParser, RawTextHelpFormatter
+
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.utils import check_binning, get_binning
 from pisa.utils.jsons import from_json, to_json
 from pisa.utils.proc import report_params, get_params, add_params
+from pisa.resources.resources import find_resource
+
 from pisa.aeff.AeffServiceMC import AeffServiceMC
 from pisa.aeff.AeffServicePar import AeffServicePar
-from scipy.constants import Julian_year
 
 
 def get_event_rates(osc_flux_maps,aeff_service,livetime=None,nu_nubar_ratio=None,
@@ -93,7 +96,7 @@ if __name__ == '__main__':
                         is calculate from the event weights in this file.
                         Only applies in non-parametric mode.''')
     parser.add_argument('--settings_file',metavar='SETTINGS',type=str,
-                        default='aeff/V15_aeff.json',
+                        default='aeff/V36_aeff.json',
                         help='''json file containing parameterizations of the
                          effective area and its cos(zenith) dependence.
                          Only applies in parametric mode.''')
@@ -103,9 +106,9 @@ if __name__ == '__main__':
                         help='''Overall scale on nu xsec.''')
     parser.add_argument('--aeff_scale',type=float,default=1.0,
                         help='''Overall scale on aeff''')
-    parser.add_argument('--parametric',action='store_true', default=False,
-                        help='''Use parametrized effective areas instead of
-                        extracting them from event data.''')
+    parser.add_argument('--mc_mode',action='store_true', default=False,
+                        help='''Use MC-based effective areas instead of
+                        using the parameterized versions.''')
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str,
                         action='store',default="event_rate.json",
                         help='''file to store the output''')
@@ -121,12 +124,14 @@ if __name__ == '__main__':
 
     logging.info("Defining aeff_service...")
 
-    if args.parametric:
-        logging.info("  Using effective area from PARAMETRIZATION...")
-        aeff_service = AeffServicePar(ebins,czbins,settings_file=args.settings_file)
-    else:
+    if args.mc_mode:
         logging.info("  Using effective area from EVENT DATA...")
         aeff_service = AeffServiceMC(ebins,czbins,aeff_weight_file=args.weighted_aeff_file)
+    else:
+        logging.info("  Using effective area from PARAMETRIZATION...")
+        aeff_settings = from_json(find_resource(args.settings_file))
+        aeff_service = AeffServicePar(ebins,czbins,**aeff_settings)
+
 
     event_rate_maps = get_event_rates(args.osc_flux_maps,aeff_service,args.livetime,
                                       args.nu_nubar_ratio,args.aeff_scale)
