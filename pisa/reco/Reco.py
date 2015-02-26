@@ -20,15 +20,17 @@
 #
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+import numpy as np
+
 from pisa.utils.log import logging, physics, set_verbosity
 from pisa.utils.utils import check_binning, get_binning
 from pisa.utils.jsons import from_json,to_json
 from pisa.utils.proc import report_params, get_params, add_params
+
 from pisa.reco.RecoServiceMC import RecoServiceMC
 from pisa.reco.RecoServiceParam import RecoServiceParam
 from pisa.reco.RecoServiceKernelFile import RecoServiceKernelFile
 from pisa.reco.RecoServiceKDE import RecoServiceKDE
-import numpy as np
 
 
 def get_reco_maps(true_event_maps, reco_service=None,e_reco_scale=None,
@@ -77,18 +79,14 @@ def get_reco_maps(true_event_maps, reco_service=None,e_reco_scale=None,
                     for icz,cz in enumerate(czbins[:-1]):
                         # Get kernel at these true parameters from 4D hist
                         kernel = kernels[ie,icz]
-                        #if flavor == 'numu' and int_type == 'cc': #ie == 5 and icz == 5:
-                        #    print "  egy: %.2f, cz: %.2f "%(egy,cz)
-                        #    print "  kernel: ",kernel[ie]
-                        #    print "  sum: ",np.sum(kernel)
-                        #    raw_input("PAUSED")
                         reco_evt_rate += true_evt_rate[ie,icz]*kernel
 
             reco_maps[flavor+'_'+int_type] = {'map':reco_evt_rate,
                                               'ebins':ebins,
                                               'czbins':czbins}
-            physics.trace("after RECO: Total counts for %s %s: %.2f"%(flavor, int_type,
-                                                          np.sum(reco_evt_rate)))
+            logging.debug("after RECO: Total counts for (%s + %s) %s: %.2f"%(flavor,
+                                                                    flavor+'_bar', int_type,
+                                                                    np.sum(reco_evt_rate)))
 
     #Finally sum up all the NC contributions
     logging.info("Summing up rates for all nc events")
@@ -97,7 +95,7 @@ def get_reco_maps(true_event_maps, reco_service=None,e_reco_scale=None,
     reco_maps['nuall_nc'] = {'map':reco_evt_rate,
                              'ebins':ebins,
                              'czbins':czbins}
-    physics.trace("Total counts for nuall nc: %.2f"%np.sum(reco_evt_rate))
+    physics.debug("Total counts for nuall nc: %.2f"%np.sum(reco_evt_rate))
 
     return reco_maps
 
@@ -117,12 +115,12 @@ if __name__ == '__main__':
        "numu_bar": {...},
        "nutau_bar": {...} }''')
     parser.add_argument('-m', '--mode', type=str, choices=['MC', 'param', 'stored', 'kde'],
-                        default='MC', help='Reco service to use (default: MC)')
+                        default='param', help='Reco service to use')
     parser.add_argument('--mc_file',metavar='HDF5',type=str,
                         default='events/V15_weighted_aeff_joined_nu_nubar.hdf5',
                         help='''HDF5 File containing reconstruction data from all flavours for a particular instument geometry.''')
     parser.add_argument('--param_file', metavar='JSON',
-                        type=str, default='reco_params/V15.json',
+                        type=str, default='reco_params/V36_reco.json',
                         help='''JSON file holding the parametrization''')
     parser.add_argument('--kernel_file', metavar='JSON',
                         type=str, default=None,

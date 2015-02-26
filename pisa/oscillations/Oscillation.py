@@ -96,7 +96,7 @@ if __name__ == '__main__':
                         help='''theta13 value [rad]''')
     parser.add_argument('--theta23',type=float,default=0.6745,
                         help='''theta23 value [rad]''')
-    parser.add_argument('--deltacp',type=float,default=np.pi,
+    parser.add_argument('--deltacp',type=float,default=0.0,
                         help='''deltaCP value to use [rad]''')
     parser.add_argument('--earth-model',type=str,default='oscillations/PREM_60layer.dat',
                         dest='earth_model',
@@ -107,19 +107,23 @@ if __name__ == '__main__':
     parser.add_argument('--code',type=str,choices = ['prob3','table','nucraft'],
                         default='prob3',
                         help='''Oscillation code to use, one of
-                        [table, prob3, nucraft], (default=prob3)''')
-    parser.add_argument('--oversample', type=int, default=10,
-                        help='''oversampling factor for *both* energy and cos(zen);
+                        [table, prob3, nucraft]''')
+    parser.add_argument('--oversample_e', type=int, default=13,
+                        help='''oversampling factor for energy;
                         i.e. every 2D bin will be oversampled by this factor in
-                        each dimension (default=10)''')
+                        each dimension''')
+    parser.add_argument('--oversample_cz', type=int, default=12,
+                        help='''oversampling factor for  cos(zen);
+                        i.e. every 2D bin will be oversampled by this factor in
+                        each dimension ''')
     parser.add_argument('--detector-depth', type=float, default=2.0,
                         dest='detector_depth',
                         help='''Detector depth in km''')
     parser.add_argument('--propagation-height', default=None,
                         dest='prop_height',
                         help='''Height in the atmosphere to begin propagation in km.
-                       Prob3 default: 20.0 km
-                       NuCraft default: 'sample' from a distribution''')
+                        Prob3 default: 20.0 km
+                        NuCraft default: 'sample' from a distribution''')
     parser.add_argument('--precision', type=float, default=5e-4,
                         dest='osc_precision',
                         help='''Requested precision for unitarity (NuCraft only)''')
@@ -163,8 +167,8 @@ if __name__ == '__main__':
                                  theta12 = args.theta12,
                                  theta13 = args.theta13,
                                  theta23 = args.theta23,
-                                 oversample_e = args.oversample,
-                                 oversample_cz = args.oversample,
+                                 oversample_e = args.oversample_e,
+                                 oversample_cz = args.oversample_cz,
                                  energy_scale = args.energy_scale)
 
     #Write out

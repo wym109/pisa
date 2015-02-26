@@ -20,6 +20,7 @@ from pisa.utils.log import logging, profile, set_verbosity
 from pisa.resources.resources import find_resource
 from pisa.utils.params import get_fixed_params, get_free_params, get_values, select_hierarchy
 from pisa.utils.jsons import from_json,to_json,json_string
+from pisa.utils.utils import Timer
 
 from pisa.flux.HondaFluxService import HondaFluxService
 from pisa.flux.Flux import get_flux_maps
@@ -33,6 +34,7 @@ from pisa.aeff.Aeff import get_event_rates
 from pisa.reco.RecoServiceMC import RecoServiceMC
 from pisa.reco.RecoServiceParam import RecoServiceParam
 from pisa.reco.RecoServiceKDE import RecoServiceKDE
+from pisa.reco.RecoServiceKernelFile import RecoServiceKernelFile
 from pisa.reco.Reco import get_reco_maps
 
 from pisa.pid.PIDServicePar import PIDServicePar
@@ -101,6 +103,9 @@ class TemplateMaker:
         elif reco_mode == 'kde':
             self.reco_service = RecoServiceKDE(self.ebins,self.czbins,
                                                **template_settings)
+        elif reco_mode == 'stored':
+            self.reco_service = RecoServiceKernelFile(self.ebins, self.czbins,
+                                                      **template_settings)
         else:
             error_msg = "reco_mode: %s is not implemented! "%reco_mode
             error_msg+=" Please choose among: ['MC','kde','param']"
@@ -120,20 +125,24 @@ class TemplateMaker:
         output from each stage as a simple tuple.
         '''
 
+        logging.info("STAGE 0: Getting Atm Flux maps...")
         flux_maps = get_flux_maps(self.flux_service,self.ebins,self.czbins)
 
-        logging.info("Getting osc prob maps...")
-        osc_flux_maps = get_osc_flux(flux_maps,self.osc_service,
-            oversample_e=self.oversample_e,oversample_cz=self.oversample_cz,**params)
+        logging.info("STAGE 1: Getting osc prob maps...")
+        with Timer(verbose=False) as t:
+            osc_flux_maps = get_osc_flux(flux_maps,self.osc_service,
+                                         oversample_e=self.oversample_e,
+                                         oversample_cz=self.oversample_cz,**params)
+        print "       ==> elapsed time for oscillations stage: %s sec"%t.secs
 
-        logging.info("Getting event rate true maps...")
+        logging.info("STAGE 2: Getting event rate true maps...")
         event_rate_maps = get_event_rates(osc_flux_maps,self.aeff_service, **params)
 
-        logging.info("Getting event rate reco maps...")
+        logging.info("STAGE 3: Getting event rate reco maps...")
         event_rate_reco_maps = get_reco_maps(event_rate_maps,self.reco_service,
                                              **params)
 
-        logging.info("Getting pid maps...")
+        logging.info("STAGE 4: Getting pid maps...")
         final_event_rate = get_pid_maps(event_rate_reco_maps,self.pid_service)
 
         if not return_stages:
@@ -209,11 +218,13 @@ if __name__ == '__main__':
     #Intialize template maker
     template_maker = TemplateMaker(get_values(params),**model_settings['binning'])
 
-    profile.info("stop initializing")
+    profile.info("stop initializing\n")
 
     #Now get the actual template
     profile.info("start template calculation")
-    template_maps = template_maker.get_template(get_values(params),return_stages=args.save_all)
+    with Timer(verbose=False) as t:
+        template_maps = template_maker.get_template(get_values(params),return_stages=args.save_all)
+    print "       ==> elapsed time to get template: %s sec"%t.secs
     profile.info("stop template calculation")
 
     logging.info("Saving file to %s"%args.outfile)
