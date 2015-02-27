@@ -212,8 +212,9 @@ class Prob3GPUOscillationService():
         """
 
         #include_path = os.expandvars()
-        self.module = SourceModule(kernel_template,
-                                   include_dirs=["/Users/timothyarlen/icecube/pisa_pip/pisa/oscillations/grid_propagator/"])
+        include_path = os.path.expandvars('$PISA/pisa/oscillations/grid_propagator/')
+        print "INC PATH: ",include_path
+        self.module = SourceModule(kernel_template, include_dirs=[include_path])
         self.propGrid = self.module.get_function("propagateGrid")
 
         return
