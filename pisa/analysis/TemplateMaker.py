@@ -26,6 +26,8 @@ from pisa.flux.HondaFluxService import HondaFluxService
 from pisa.flux.Flux import get_flux_maps
 from pisa.oscillations.Prob3OscillationService import Prob3OscillationService
 from pisa.oscillations.Oscillation import get_osc_flux
+from pisa.oscillations.Prob3GPUOscillationService import Prob3GPUOscillationService
+from pisa.oscillations.NucraftOscillationService import NucraftOscillationService
 
 from pisa.aeff.AeffServiceMC import AeffServiceMC
 from pisa.aeff.AeffServicePar import AeffServicePar
@@ -79,8 +81,15 @@ class TemplateMaker:
         if template_settings['osc_code']=='prob3':
             self.osc_service = Prob3OscillationService(self.ebins,self.czbins,
                                                        **template_settings)
+        elif template_settings['osc_code'] == 'gpu':
+            self.osc_service = Prob3GPUOscillationService(self.ebins,self.czbins,
+                    oversample_e=self.oversample_e,oversample_cz=self.oversample_cz,
+                                                          **template_settings)
+        elif template_settings['osc_code'] == 'nucraft':
+            self.osc_service = NucraftOscillationService(ebins, czbins, **template_settings)
         else:
-            raise NotImplementedError('OscillationService is only implemented for prob3! osc_code = %s'%osc_code)
+            error_msg = 'OscillationService NOT implemented for osc_code = %s'%osc_code
+            raise NotImplementedError(error_msg)
 
         # Aeff/True Event Rate:
         if template_settings['parametric']:

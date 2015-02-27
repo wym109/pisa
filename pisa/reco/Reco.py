@@ -95,7 +95,7 @@ def get_reco_maps(true_event_maps, reco_service=None,e_reco_scale=None,
     reco_maps['nuall_nc'] = {'map':reco_evt_rate,
                              'ebins':ebins,
                              'czbins':czbins}
-    physics.debug("Total counts for nuall nc: %.2f"%np.sum(reco_evt_rate))
+    logging.debug("Total counts for nuall nc: %.2f"%np.sum(reco_evt_rate))
 
     return reco_maps
 
