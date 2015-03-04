@@ -30,6 +30,7 @@ class PIDServicePar:
 
         self.pid_maps = {}
         for signature in particle_ID.keys():
+            logging.debug('Getting pid for type: %s'%signature)
             #Generate the functions
             to_trck_func = eval(particle_ID[signature]['trck'])
             to_cscd_func = eval(particle_ID[signature]['cscd'])
@@ -38,10 +39,10 @@ class PIDServicePar:
             _,to_trck_map = np.meshgrid(czcen, to_trck_func(ecen))
             _,to_cscd_map = np.meshgrid(czcen, to_cscd_func(ecen))
 
-            for label,pidmap in [('Track',to_trck_map),('Cascade',to_cscd_map)]:
-                if (pidmap < 0).any():
-                    raise ValueError('%s PID probabilites can not be negative!'
-                        ' Investigate parameterization'%label)
+            #for label,pidmap in [('Track',to_trck_map),('Cascade',to_cscd_map)]:
+            #    if (pidmap < 0).any():
+            #        raise ValueError('%s PID probabilites can not be negative!'
+            #            ' Investigate parameterization'%label)
 
             self.pid_maps[signature] = {'trck':to_trck_map,
                                         'cscd':to_cscd_map}

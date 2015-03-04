@@ -12,7 +12,25 @@
 # date:   2014-01-27
 
 import numpy as np
+from scipy.stats import binned_statistic_2d
 from pisa.utils.log import logging
+import inspect,time
+
+
+class Timer(object):
+    def __init__(self, verbose=False):
+        self.verbose = verbose
+
+    def __enter__(self):
+        self.start = time.time()
+        return self
+
+    def __exit__(self, *args):
+        self.end = time.time()
+        self.secs = self.end - self.start
+        self.msecs = self.secs * 1000  # millisecs
+        if self.verbose:
+            print 'elapsed time: %f ms' % self.msecs
 
 
 def get_bin_centers(edges):
@@ -119,7 +137,7 @@ def get_binning(d, iterate=False, eset=[], czset=[]):
 
 def check_binning(data):
     '''
-    Check wether all maps in data have the same binning, and return it.
+    Check whether all maps in data have the same binning, and return it.
     '''
     eset, czset = get_binning(data,iterate=True)
 
@@ -131,47 +149,72 @@ def check_binning(data):
     return eset[0],czset[0]
 
 
-#NOTE: Investigate whether we should use scipy.misc.imresize for this?
-def get_smoothed_map(prob_map,ebinsLT,czbinsLT,ebinsSM,czbinsSM):
-    '''
-    Downsamples a map by averaging over the look up table bins whose
-    bin center is within the new (coarser) binning. DOES NOT assume
-    that the new (SM) binning is divisible by the old (LT)
-    binning. The algorithm is that a new histogram is created from the
-    entirety of the data in the Lookup Table.
 
-    NOTATION: LT - "lookup table" (finely binned)
-              SM - "smoothed" binning
-    '''
+def check_fine_binning(fine_bins, coarse_bins):
+    """
+    This function checks whether the specified fine binning exists and
+    is actually finer than the coarse one.
+    """
 
-    # check whether downsampling can be achieved by integer rebinning
-    rebin_info = subbinning([ebinsSM,czbinsSM], [ebinsLT,czbinsLT])
-    if rebin_info:
-        #Use fast numpy magic
-        logging.debug('Coarse map is true submap of fine map, '
-                      'using numpy array magic for smoothing.')
-        smoothed_map = integer_rebin_map(prob_map, rebin_info)
+    if fine_bins is not None:
+        if is_coarser_binning(coarse_bins, fine_bins):
+            logging.info('Using requested binning for oversampling.')
+            #everything is fine
+            return True
+        else:
+            logging.error('Requested oversampled binning is coarser '
+                          'than output binning. Aborting.')
+            sys.exit(1)
 
+    return False
+
+
+def oversample_binning(coarse_bins, factor):
+    """
+    Oversample bin edges (coarse_bins) by the given factor
+    """
+
+    if is_linear(coarse_bins):
+        logging.info('Oversampling linear output binning by factor %i.'
+                %factor)
+        fine_bins = np.linspace(coarse_bins[0], coarse_bins[-1],
+                                factor*(len(coarse_bins)-1)+1)
+    elif is_logarithmic(coarse_bins):
+        logging.info('Oversampling logarithmic output binning by factor %i.'
+                %factor)
+        fine_bins = np.logspace(np.log10(coarse_bins[0]),
+                                np.log10(coarse_bins[-1]),
+                                factor*(len(coarse_bins)-1)+1)
     else:
-        ecenLT = get_bin_centers(ebinsLT)
-        czcenLT = get_bin_centers(czbinsLT)
+        logging.warn('Irregular binning detected! Evenly oversampling '
+                     'by factor %i'%factor)
+        fine_bins = np.array([])
+        for i, upper_edge in enumerate(coarse_bins[1:]):
+            fine_bins = np.append(fine_bins,
+                                  np.linspace(coarse_bins[i], upper_edge,
+                                              factor, endpoint=False))
 
-        elist = []
-        czlist = []
-        weight_list = []
-        for ie,egy in enumerate(ecenLT):
-            for icz,cz in enumerate(czcenLT):
-                czlist.append(cz)
-                elist.append(egy)
-                weight_list.append(prob_map[ie][icz])
+    return fine_bins
 
-        map_sum_wts = np.histogram2d(elist,czlist,weights=weight_list,
-                                     bins=[ebinsSM,czbinsSM])[0]
-        map_num = np.histogram2d(elist,czlist,bins=[ebinsSM,czbinsSM])[0]
 
-        smoothed_map = np.divide(map_sum_wts,map_num)
+def get_smoothed_map(pvals,evals,czvals,e_coarse_bins,cz_coarse_bins):
+    '''
+    Creates a 'smoothed' oscillation probability map with binning
+    given by e_coarse_bins, cz_coarse_bins through the use of the
+    scipy.binned_statistic_2d function.
 
-    return smoothed_map
+    \params:
+      * pvals - array-like object of probability values
+      * evals - array-like object of energy (GeV) values
+      * czvals - array-like object of coszen values
+      * e_coarse_bins - energy bins of final smoothed histogram (probability map)
+      * cz_coarse_bins - coszen bins of final smoothed histogram
+
+    '''
+
+    smooth_map = binned_statistic_2d(evals,czvals,pvals,statistic='mean',
+                                     bins=[e_coarse_bins,cz_coarse_bins])[0]
+    return smooth_map
 
 
 def integer_rebin_map(prob_map, rebin_info):
@@ -191,3 +234,12 @@ def integer_rebin_map(prob_map, rebin_info):
                           axis=0)
 
     return rmap
+
+def inspect_cur_frame():
+    '''
+    Very useful for showing exactly where the code is executing, in
+    tracing down an error or in debugging.
+    '''
+
+    (frame,filename,line_num,fn_name,lines,index) = inspect.getouterframes(inspect.currentframe())[1]
+    return "%s:%s at %s"%(filename,line_num,fn_name)

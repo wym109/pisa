@@ -16,8 +16,8 @@ from pisa.utils.log import logging, profile
 from pisa.oscillations.OscillationServiceBase import OscillationServiceBase
 from pisa.oscillations.prob3.BargerPropagator import BargerPropagator
 from pisa.resources.resources import find_resource
-from pisa.utils.jsons import to_json
 from pisa.utils.proc import get_params, report_params
+
 
 class Prob3OscillationService(OscillationServiceBase):
     """
@@ -61,23 +61,26 @@ class Prob3OscillationService(OscillationServiceBase):
 
         logging.info("Defining osc_prob_dict from BargerPropagator...")
         profile.info("start oscillation calculation")
-        # Set to false, since we are using sin^2(2 theta) variables
-        kSquared = False
-        sin2th12Sq = np.sin(2.0*theta12)**2
-        sin2th13Sq = np.sin(2.0*theta13)**2
-        sin2th23Sq = np.sin(2.0*theta23)**2
-
+        # Set to true, since we are using sin^2(theta) variables
+        kSquared = True
+        sin2th12Sq = np.sin(theta12)**2
+        sin2th13Sq = np.sin(theta13)**2
+        sin2th23Sq = np.sin(theta23)**2
+        evals = []
+        czvals = []
         total_bins = int(len(ecen)*len(czcen))
-        mod = total_bins/50
-        ibin = 0
+        mod = total_bins/20
         loglevel = logging.root.getEffectiveLevel()
-        for icz, coszen in enumerate(czcen):
+        for ie,energy in enumerate(ecen):
+            for icz, coszen in enumerate(czcen):
+                index = int((ie+1)*(icz+1) - 1)
+                evals.append(energy)
+                czvals.append(coszen)
+                if energy_scale is not None:
+                    if icz == 0: energy*=energy_scale
 
-            for ie,energy in enumerate(ecen):
-                if energy_scale is not None: energy*=energy_scale
-                ibin+=1
                 if loglevel <= logging.INFO:
-                    if (ibin%mod) == 0:
+                    if( (ie+1)*(icz+1) % mod == 0):
                         sys.stdout.write(".")
                         sys.stdout.flush()
 
@@ -99,7 +102,9 @@ class Prob3OscillationService(OscillationServiceBase):
                     nu = nu+'_maps'
                     for to_nu in neutrinos:
                         nu_f = nu_barger[to_nu]
-                        osc_prob_dict[nu][to_nu][ie][icz]=self.barger_prop.GetProb(nu_i,nu_f)
+                        osc_prob_dict[nu][to_nu].append(self.barger_prop.GetProb(nu_i,
+                                                                                 nu_f))
+
 
                 ########### SECOND FOR ANTINEUTRINOS ##########
                 kNuBar = -1
@@ -113,11 +118,21 @@ class Prob3OscillationService(OscillationServiceBase):
                     nu+='_maps'
                     for to_nu in anti_neutrinos:
                         nu_f = nu_barger[to_nu]
-                        osc_prob_dict[nu][to_nu][ie][icz] = self.barger_prop.GetProb(nu_i,nu_f)
+                        osc_prob_dict[nu][to_nu].append(self.barger_prop.GetProb(nu_i,
+                                                                                 nu_f))
 
         if loglevel <= logging.INFO:
             sys.stdout.write("\n")
 
         profile.info("stop oscillation calculation")
 
-        return
+        # Saving fine maps: Testing purposes!
+        #for from_nu in ['nue','numu','nue_bar','numu_bar']:
+        #    from_nu += '_maps'
+        #    for to_nu in ['nue','numu','nutau']:
+        #        if 'bar' in from_nu: to_nu+='_bar'
+        #        filename = (from_nu+'_'+to_nu+'.dat').replace('_maps','').replace('_bar','bar')
+        #        print "Saving to file: ",filename
+        #        np.savetxt(filename,(evals,czvals,osc_prob_dict[from_nu][to_nu]))
+
+        return evals,czvals

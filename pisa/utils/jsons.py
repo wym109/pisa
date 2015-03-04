@@ -63,7 +63,7 @@ class NumpyEncoder(json.JSONEncoder):
 
 
 class NumpyDecoder(json.JSONDecoder):
-    """ 
+    """
     Encode to numpy.ndarrays from JSON array, also returns python strings
     instead of unicode.
     """

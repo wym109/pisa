@@ -21,6 +21,7 @@ def show_map(pmap, title=None, cbar = True,
              log=False, fontsize=16,
              xlabel=r'cos $\vartheta_\mathrm{zenith}$',
              ylabel='Energy [GeV]',
+             zlabel=None,
              **kwargs):
     '''Plot the given map with proper axis labels using matplotlib.
        The axis orientation follows the PINGU convention: 
@@ -121,7 +122,36 @@ def show_map(pmap, title=None, cbar = True,
 
     #Show the colorbar
     if cbar:
-        plt.colorbar(format=r'$10^{%.1f}$') if log else plt.colorbar()
+        col_bar = plt.colorbar(format=r'$10^{%.1f}$') if log else plt.colorbar()
+        if zlabel:
+            col_bar.set_label(zlabel)
     
     #Return axes for further modifications
     return axis
+
+
+def delta_map(amap, bmap):
+    '''
+    Calculate the differerence between the two maps (amap - bmap), and return as
+    a map dictionary.
+    '''
+    if not np.allclose(amap['ebins'],bmap['ebins']) or \
+       not np.allclose(amap['czbins'],bmap['czbins']):
+       raise ValueError('Map range does not match!')
+
+    return { 'ebins': amap['ebins'],
+             'czbins': amap['czbins'],
+             'map' : amap['map'] - bmap['map'] }
+
+def sum_map(amap, bmap):
+    '''
+    Calculate the sum of two maps (amap + bmap), and return as
+    a map dictionary.
+    '''
+    if not np.allclose(amap['ebins'],bmap['ebins']) or \
+       not np.allclose(amap['czbins'],bmap['czbins']):
+       raise ValueError('Map range does not match!')
+
+    return { 'ebins': amap['ebins'],
+             'czbins': amap['czbins'],
+             'map' : amap['map'] + bmap['map'] }

@@ -14,4 +14,4 @@ pisa.egg-info
 
 # Common editor remnants
 *~
-.swp
+*.swp

@@ -17,7 +17,7 @@
 
 import os,sys
 import numpy as np
-from argparse import ArgumentParser, RawTextHelpFormatter
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from pisa.utils.log import logging, profile, set_verbosity
 from pisa.utils.utils import check_binning, get_binning
 from pisa.utils.jsons import from_json, to_json
@@ -32,6 +32,7 @@ def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,
                  deltacp=None,**kwargs):
     '''
     Obtain a map in energy and cos(zenith) of the oscillation probabilities from
+
     the OscillationService and compute the oscillated flux.
     Inputs:
       flux_maps - dictionary of atmospheric flux ['nue','numu','nue_bar','numu_bar']
@@ -41,6 +42,7 @@ def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,
 
     #Be verbose on input
     params = get_params()
+
     report_params(params, units = ['rad','eV^2','eV^2','','rad','rad','rad'])
 
     #Initialize return dict
@@ -77,7 +79,7 @@ if __name__ == '__main__':
     # parser
     parser = ArgumentParser(description='Takes the oscillation parameters '
                             'as input and writes out a set of osc flux maps',
-                            formatter_class=RawTextHelpFormatter)    
+                            formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument('flux_maps',metavar='FLUX',type=from_json,
                         help='''JSON atm flux input file with the following parameters:
     {"nue": {'czbins':[], 'ebins':[], 'map':[]},
@@ -94,7 +96,7 @@ if __name__ == '__main__':
                         help='''theta13 value [rad]''')
     parser.add_argument('--theta23',type=float,default=0.6745,
                         help='''theta23 value [rad]''')
-    parser.add_argument('--deltacp',type=float,default=np.pi,
+    parser.add_argument('--deltacp',type=float,default=0.0,
                         help='''deltaCP value to use [rad]''')
     parser.add_argument('--earth-model',type=str,default='oscillations/PREM_60layer.dat',
                         dest='earth_model',
@@ -102,22 +104,26 @@ if __name__ == '__main__':
     parser.add_argument('--energy-scale',type=float,default=1.0,
                         dest='energy_scale',
                         help='''Energy off scaling due to mis-calibration.''')
-    parser.add_argument('--code',type=str,choices = ['prob3','table','nucraft'], 
+    parser.add_argument('--code',type=str,choices = ['prob3','table','nucraft'],
                         default='prob3',
-                        help='''Oscillation code to use, one of 
-                        [table, prob3, nucraft], (default=prob3)''')
-    parser.add_argument('--oversample', type=int, default=10,
-                        help='''oversampling factor for *both* energy and cos(zen); 
+                        help='''Oscillation code to use, one of
+                        [table, prob3, nucraft]''')
+    parser.add_argument('--oversample_e', type=int, default=13,
+                        help='''oversampling factor for energy;
                         i.e. every 2D bin will be oversampled by this factor in
-                        each dimension (default=10)''')
+                        each dimension''')
+    parser.add_argument('--oversample_cz', type=int, default=12,
+                        help='''oversampling factor for  cos(zen);
+                        i.e. every 2D bin will be oversampled by this factor in
+                        each dimension ''')
     parser.add_argument('--detector-depth', type=float, default=2.0,
                         dest='detector_depth',
                         help='''Detector depth in km''')
     parser.add_argument('--propagation-height', default=None,
                         dest='prop_height',
                         help='''Height in the atmosphere to begin propagation in km.
-                       Prob3 default: 20.0 km
-                       NuCraft default: 'sample' from a distribution''')
+                        Prob3 default: 20.0 km
+                        NuCraft default: 'sample' from a distribution''')
     parser.add_argument('--precision', type=float, default=5e-4,
                         dest='osc_precision',
                         help='''Requested precision for unitarity (NuCraft only)''')
@@ -154,17 +160,17 @@ if __name__ == '__main__':
       osc_service = TableOscillationService(ebins, czbins, **iniargs)
 
     logging.info("Getting osc prob maps")
-    osc_flux_maps = get_osc_flux(args.flux_maps, osc_service, 
+    osc_flux_maps = get_osc_flux(args.flux_maps, osc_service,
                                  deltam21 = args.deltam21,
                                  deltam31 = args.deltam31,
                                  deltacp = args.deltacp,
                                  theta12 = args.theta12,
                                  theta13 = args.theta13,
                                  theta23 = args.theta23,
-                                 oversample_e = args.oversample,
-                                 oversample_cz = args.oversample,
+                                 oversample_e = args.oversample_e,
+                                 oversample_cz = args.oversample_cz,
                                  energy_scale = args.energy_scale)
-    
+
     #Write out
     logging.info("Saving output to: %s",args.outfile)
     to_json(osc_flux_maps, args.outfile)
