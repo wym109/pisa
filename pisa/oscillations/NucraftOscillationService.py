@@ -86,11 +86,14 @@ class NucraftOscillationService(OscillationServiceBase):
 
         #Make input arrays in correct format
         es, zs = np.meshgrid(ecen, czcen)
-        shape = es.shape
+        # shape = es.shape
         es, zs = es.flatten(), zs.flatten()
+	# check whether this actually returns probabilities correctly
+	shape = int(len(ecen)*len(czcen))
 
         # Apply Energy scaling factor:
-        es *= energy_scale
+	if energy_scale is not None:
+	    es *= energy_scale
 
         for prim in osc_prob_dict:
 
@@ -100,7 +103,7 @@ class NucraftOscillationService(OscillationServiceBase):
             ps = np.ones_like(es)*get_PDG_ID(prim.rsplit('_', 1)[0])
 
             # run it
-            logging.debug("Calculating oscillation probabilites for %s at %u points..."
+            logging.debug("Calculating oscillation probabilities for %s at %u points..."
                             %(prim.rsplit('_', 1)[0], len(ps)))
             probs = engine.CalcWeights((ps, es, np.arccos(zs)),
                                        atmMode=self.height_mode,
@@ -114,6 +117,7 @@ class NucraftOscillationService(OscillationServiceBase):
             for i, sec in enumerate(['nue', 'numu', 'nutau']):
                 sec_key = sec+'_bar' if 'bar' in prim else sec
                 osc_prob_dict[prim][sec_key] = probs[i]
+		#print "shape probs %s :%s"%(sec,np.array(probs[i]).shape)
 
 	# fix: return energy-cz values as requested by OscillationServiceBase
 	evals = []
