@@ -61,6 +61,11 @@ if scipy.__version__ < '0.12.0':
 
 template_maker = TemplateMaker(get_values(template_settings['params']),
                                **template_settings['binning'])
+if args.pseudo_data_settings:
+    pseudo_data_template_maker = TemplateMaker(get_values(pseudo_data_settings['params']),
+                                               **pseudo_data_settings['binning'])
+else:
+    pseudo_data_template_maker = template_maker
 
 #store results from all the trials
 trials = []
@@ -82,9 +87,6 @@ for itrial in xrange(1,args.ntrials+1):
         results[data_tag]['seed'] = get_seed()
         logging.info("  RNG seed: %ld"%results[data_tag]['seed'])
         # 1) get a pseudo data fmap from fiducial model (best fit vals of params).
-        pseudo_data_template_maker = TemplateMaker(get_values(pseudo_data_settings['params']),
-                                                   **pseudo_data_settings['binning'])
-
         fmap = get_pseudo_data_fmap(pseudo_data_template_maker,
                         get_values(select_hierarchy(pseudo_data_settings['params'],
                                                     normal_hierarchy=data_normal)),
