@@ -92,14 +92,19 @@ class TemplateMaker:
             raise NotImplementedError(error_msg)
 
         # Aeff/True Event Rate:
-        if template_settings['parametric']:
+        aeff_mode = template_settings['aeff_mode']
+        if aeff_mode == 'param':
             logging.info(" Using effective area from PARAMETRIZATION...")
             self.aeff_service = AeffServicePar(self.ebins,self.czbins,
                                                **template_settings)
-        else:
+        elif aeff_mode == 'MC':
             logging.info(" Using effective area from MC EVENT DATA...")
             self.aeff_service = AeffServiceMC(self.ebins,self.czbins,
                                               **template_settings)
+        else:
+            error_msg = "aeff_mode: '%s' is not implemented! "%aeff_mode
+            error_msg+=" Please choose among: ['MC','param']"
+            raise NotImplementedError(error_msg)
 
         # Reco Event Rate:
         reco_mode = template_settings['reco_mode']
