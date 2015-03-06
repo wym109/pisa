@@ -84,11 +84,10 @@ class NucraftOscillationService(OscillationServiceBase):
             # with r_E = 6371. km
             engine.atmHeight = self.prop_height
 
-        #Make input arrays in correct format
-        es, zs = np.meshgrid(ecen, czcen)
-        # shape = es.shape
+        # Make input arrays in correct format (nucraft input type 1)
+	zs, es = np.meshgrid(czcen, ecen)
         es, zs = es.flatten(), zs.flatten()
-	# check whether this actually returns probabilities correctly
+	# we need flat lists with probabilities for further processing
 	shape = int(len(ecen)*len(czcen))
 
         # Apply Energy scaling factor:
@@ -117,7 +116,6 @@ class NucraftOscillationService(OscillationServiceBase):
             for i, sec in enumerate(['nue', 'numu', 'nutau']):
                 sec_key = sec+'_bar' if 'bar' in prim else sec
                 osc_prob_dict[prim][sec_key] = probs[i]
-		#print "shape probs %s :%s"%(sec,np.array(probs[i]).shape)
 
 	# fix: return energy-cz values as requested by OscillationServiceBase
 	evals = []
