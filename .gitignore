@@ -3,9 +3,10 @@
 
 # Ignore auto-generated libraries and files
 _BargerPropagator.so
-BargerPropagator_wrap.cxx
-BargerPropagator_wrap.cpp
+*_wrap.cxx
+*_wrap.cpp
 BargerPropagator.py
+*.o
 
 # Packages
 dist

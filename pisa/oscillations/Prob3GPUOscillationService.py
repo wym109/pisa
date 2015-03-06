@@ -211,10 +211,15 @@ class Prob3GPUOscillationService():
           }
         """
 
-        #include_path = os.expandvars()
         include_path = os.path.expandvars('$PISA/pisa/oscillations/grid_propagator/')
-        print "INC PATH: ",include_path
-        self.module = SourceModule(kernel_template, include_dirs=[include_path])
+        cache_dir=os.path.expandvars('$PISA/pisa/oscillations/'+'.cache_dir')
+        logging.trace("  pycuda INC PATH: %s"%include_path)
+        logging.trace("  pycuda cache_dir: %s"%cache_dir)
+        logging.trace("  pycuda FLAGS: %s"%pycuda.compiler.DEFAULT_NVCC_FLAGS)
+        self.module = SourceModule(kernel_template,
+                                   include_dirs=[include_path],
+                                   cache_dir=cache_dir,
+                                   keep=True)
         self.propGrid = self.module.get_function("propagateGrid")
 
         return
