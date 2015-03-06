@@ -59,6 +59,16 @@ if scipy.__version__ < '0.12.0':
       logging.warn('Optimizer settings for \"maxiter\" will be ignored')
       minimizer_settings.pop('maxiter')
 
+
+# make sure that both pseudo data and template are using the same
+# channel. Raise Exception and quit otherwise
+channel = template_settings['params']['channel']['value']
+if channel != pseudo_data_settings['params']['channel']['value']:
+    error_msg = "Both template and pseudo data must have same channel!\n"
+    error_msg += " pseudo_data_settings chan: '%s', template chan: '%s' "%(pseudo_data_settings['params']['channel']['value'],channel)
+    raise ValueError(error_msg)
+
+
 template_maker = TemplateMaker(get_values(template_settings['params']),
                                **template_settings['binning'])
 if args.pseudo_data_settings:
@@ -90,7 +100,7 @@ for itrial in xrange(1,args.ntrials+1):
         fmap = get_pseudo_data_fmap(pseudo_data_template_maker,
                         get_values(select_hierarchy(pseudo_data_settings['params'],
                                                     normal_hierarchy=data_normal)),
-                                    seed=results[data_tag]['seed'])
+                                    seed=results[data_tag]['seed'],chan=channel)
 
         # 2) find max llh (and best fit free params) from matching pseudo data
         #    to templates.
