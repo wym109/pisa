@@ -40,8 +40,8 @@ def get_flux_maps(flux_service, ebins, czbins, **params):
                       'map': flux_service.get_flux(ebins,czbins,prim)}
 
         #be a bit verbose
-        physics.trace("Total flux of %s is %u [s^-1 m^-2]"%
-                                (prim,maps[prim]['map'].sum()))
+        logging.trace("Total flux of %s is %u [s^-1 m^-2]"%
+                      (prim,maps[prim]['map'].sum()))
 
     return maps
 
