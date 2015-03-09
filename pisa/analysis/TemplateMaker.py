@@ -77,16 +77,17 @@ class TemplateMaker:
         self.flux_service = HondaFluxService(**template_settings)
 
         # Oscillated Flux:
-        if template_settings['osc_code']=='prob3':
+	osc_code = template_settings['osc_code']
+        if osc_code == 'prob3':
             self.osc_service = Prob3OscillationService(self.ebins,self.czbins,
                                                        **template_settings)
-        else:
-            raise NotImplementedError('OscillationService is only implemented for prob3! osc_code = %s'%template_settings['osc_code'])
-	    """
-	    # not working yet
+        elif osc_code == 'nucraft':
             self.osc_service = NucraftOscillationService(self.ebins,self.czbins,
 							 **template_settings)
-            """
+	else:
+	    error_msg = "osc_code: %s is not implemented! "%osc_code
+	    error_msg+= "Please choose among: ['prob3','nucraft']"
+	    raise NotImplementedError(error_msg)
   
         # Aeff/True Event Rate:
         if template_settings['parametric']:
