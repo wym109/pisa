@@ -2,11 +2,13 @@
 *.py[cod]
 
 # Ignore auto-generated libraries and files
-_BargerPropagator.so
+_*.so
 *_wrap.cxx
 *_wrap.cpp
 BargerPropagator.py
 *.o
+
+# Ignore test files in src dir
 pisa/flux/*.json
 pisa/oscillations/*.json
 pisa/aeff/*.json
