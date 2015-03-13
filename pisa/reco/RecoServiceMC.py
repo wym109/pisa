@@ -11,6 +11,7 @@
 import sys
 import h5py
 import numpy as np
+from itertools import product
 from pisa.reco.RecoServiceBase import RecoServiceBase
 from pisa.utils.log import logging
 from pisa.resources.resources import find_resource
@@ -63,6 +64,12 @@ class RecoServiceMC(RecoServiceBase):
                 bins = (self.ebins,self.czbins,self.ebins,self.czbins)
                 data = (true_energy,true_coszen,reco_energy,reco_coszen)
                 kernel,_ = np.histogramdd(data,bins=bins)
+
+                # Normalize correctly - I THINK this is correct...
+                k_shape = np.shape(kernel)
+                for true_bin in product(range(k_shape[0]),range(k_shape[1])):
+                    kernel_sum = np.sum(kernel[true_bin])
+                    if kernel_sum > 0.0: kernel[true_bin] /= kernel_sum
 
                 flavor_dict[int_type] = kernel
             kernels[flavor] = flavor_dict

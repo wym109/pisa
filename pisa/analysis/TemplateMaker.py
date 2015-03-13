@@ -140,7 +140,7 @@ class TemplateMaker:
         '''
 
         logging.info("STAGE 0: Getting Atm Flux maps...")
-        flux_maps = get_flux_maps(self.flux_service,self.ebins,self.czbins)
+        flux_maps = get_flux_maps(self.flux_service,self.ebins,self.czbins,**params)
 
         logging.info("STAGE 1: Getting osc prob maps...")
         with Timer(verbose=False) as t:
@@ -171,7 +171,7 @@ class TemplateMaker:
         Runs template making chain, but without oscillations
         '''
 
-        flux_maps = get_flux_maps(self.flux_service,self.ebins,self.czbins)
+        flux_maps = get_flux_maps(self.flux_service,self.ebins,self.czbins,**params)
 
         # Create the empty nutau maps:
         test_map = flux_maps['nue']

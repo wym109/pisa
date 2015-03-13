@@ -11,7 +11,7 @@ import numpy as np
 from pisa.analysis.stats.LLHStatistics import get_random_map
 from pisa.utils.log import logging
 
-def get_pseudo_data_fmap(template_maker,fiducial_params,seed=None,chan='all'):
+def get_pseudo_data_fmap(template_maker,fiducial_params,seed=None,chan=None):
     '''
     Creates a true template from fiducial_params, then uses Poisson statistics
     to vary the expected counts per bin to create a pseudo data set.
@@ -31,6 +31,19 @@ def get_pseudo_data_fmap(template_maker,fiducial_params,seed=None,chan='all'):
 
     return fmap
 
+def get_asimov_fmap(template_maker,fiducial_params,chan=None):
+    '''
+    Creates a true template from fiducial_params, then converts the true_template
+    expected counts to an integer number of counts to simulate an experiment at the
+    average expected value.
+    '''
+
+    true_template = template_maker.get_template(fiducial_params)
+    fmap = flatten_map(true_template,chan=chan)
+    fmap = np.int32(fmap+0.5)
+
+    return fmap
+
 def flatten_map(template,chan='all'):
     '''
     Takes a final level true (expected) template of trck/cscd, and returns a
@@ -43,23 +56,23 @@ def flatten_map(template,chan='all'):
         cscd = template['cscd']['map'].flatten()
         trck = template['trck']['map'].flatten()
         fmap = np.append(cscd,trck)
-        fmap = np.array(fmap)[np.nonzero(fmap)]
     elif chan == 'trck':
         trck = template[chan]['map'].flatten()
         fmap = np.array(trck)
-        fmap = np.array(fmap)[np.nonzero(fmap)]
+        #fmap = np.array(fmap)[np.nonzero(fmap)]
     elif chan == 'cscd':
         cscd = template[chan]['map'].flatten()
         fmap = np.array(cscd)
-        fmap = np.array(fmap)[np.nonzero(fmap)]
+        #fmap = np.array(fmap)[np.nonzero(fmap)]
     elif chan == 'combined':
         cscd = template['cscd']['map'].flatten()
         trck = template['trck']['map'].flatten()
         fmap = cscd + trck
-        fmap = np.array(fmap)[np.nonzero(fmap)]
+        #fmap = np.array(fmap)[np.nonzero(fmap)]
     else:
         raise ValueError("chan: '%s' not implemented! Only 'all', 'trck', or 'cscd' is allowed")
 
+    fmap = np.array(fmap)[np.nonzero(fmap)]
     return fmap
 
 def get_seed():

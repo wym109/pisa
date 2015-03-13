@@ -30,9 +30,9 @@ def get_arb_cuts(data,cut_list):
     '''
     conditions = []
     try:
-        conditions = [data.__getattr__(cut[0]).col(cut[1]) == cut[2] for cut in cut_list]
+        conditions = [data.root.__getattr__(cut[0]).col(cut[1]) == cut[2] for cut in cut_list]
     except:
-        conditions = [data.__getattribute__(cut[0]).col(cut[1]) == cut[2] for cut in cut_list]
+        conditions = [data.root.__getattribute__(cut[0]).col(cut[1]) == cut[2] for cut in cut_list]
 
     return np.alltrue(np.array(conditions),axis=0)
 
@@ -42,19 +42,19 @@ def get_arrays(data,cuts,files_per_run,reco_string='MultiNest_8D_Neutrino'):
     '''
 
     logging.warn('Getting reconstructions from: %s'%reco_string)
-    
-    nfiles = len(set(data.I3EventHeader.col('Run')))*files_per_run
-    sim_weight = ((2.0*data.I3MCWeightDict.col('OneWeight')[cuts]*CMSQ_TO_MSQ)/
-                  (data.I3MCWeightDict.col('NEvents')[cuts]*nfiles))
-    true_egy = data.MCNeutrino.col('energy')[cuts]
-    true_cz = np.cos(data.MCNeutrino.col('zenith'))[cuts]
+
+    nfiles = len(set(data.root.I3EventHeader.col('Run')))*files_per_run
+    sim_weight = ((2.0*data.root.I3MCWeightDict.col('OneWeight')[cuts]*CMSQ_TO_MSQ)/
+                  (data.root.I3MCWeightDict.col('NEvents')[cuts]*nfiles))
+    true_egy = data.root.MCNeutrino.col('energy')[cuts]
+    true_cz = np.cos(data.root.MCNeutrino.col('zenith'))[cuts]
 
     try:
-        reco_cz = np.cos(data.__getattr__(reco_string).col('zenith'))[cuts]
-        reco_egy = data.__getattr__(reco_string).col('energy')[cuts]
+        reco_cz = np.cos(data.root.__getattr__(reco_string).col('zenith'))[cuts]
+        reco_egy = data.root.__getattr__(reco_string).col('energy')[cuts]
     except:
-        reco_cz = np.cos(data.__getattribute__(reco_string).col('zenith'))[cuts]
-        reco_egy = data.__getattribute__(reco_string).col('energy')[cuts]
+        reco_cz = np.cos(data.root.__getattribute__(reco_string).col('zenith'))[cuts]
+        reco_egy = data.root.__getattribute__(reco_string).col('energy')[cuts]
 
     arrays = [sim_weight,true_egy,true_cz,reco_egy,reco_cz]
 
@@ -147,11 +147,11 @@ elif args.cutsV5:
     cut_list.append(('Cuts_V5_Step1','value',True))
     cut_list.append(('Cuts_V5_Step2','value',True))
 
-    
+
 # First do NC events:
 for f in data_files.values():
     dummy = tables.openFile(f,mode='r')
-data_nc = HDFChain(data_files.values()).root
+data_nc = HDFChain(data_files.values())
 nc_cut_list = cut_list + [('I3MCWeightDict','InteractionType',2)]
 cuts_nc = get_arb_cuts(data_nc,nc_cut_list)
 nfiles_nc = (args.nfiles_nue+args.nfiles_numu+args.nfiles_nutau)
@@ -161,7 +161,7 @@ logging.warn("NC number of events: %d"%np.sum(cuts_nc))
 # Now do CC events, and write to file:
 cc_cut_list = cut_list + [('I3MCWeightDict','InteractionType',1)]
 for flavor in data_files.keys():
-    data = tables.openFile(data_files[flavor],'r').root
+    data = tables.openFile(data_files[flavor],'r')
 
     nfiles = nfiles_flav[flavor]
 
