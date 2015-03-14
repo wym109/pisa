@@ -65,11 +65,16 @@ class RecoServiceMC(RecoServiceBase):
                 data = (true_energy,true_coszen,reco_energy,reco_coszen)
                 kernel,_ = np.histogramdd(data,bins=bins)
 
-                # Normalize correctly - I THINK this is correct...
+                # This takes into account the correct kernel normalization:
                 k_shape = np.shape(kernel)
-                for true_bin in product(range(k_shape[0]),range(k_shape[1])):
-                    kernel_sum = np.sum(kernel[true_bin])
-                    if kernel_sum > 0.0: kernel[true_bin] /= kernel_sum
+                for i,j in product(range(k_shape[0]),range(k_shape[1])):
+                    in_bin = np.alltrue(np.array([true_energy >= self.ebins[i],
+                                                  true_energy < self.ebins[i+1],
+                                                  true_coszen >= self.czbins[j],
+                                                  true_coszen < self.czbins[j+1]
+                                                  ]),axis=0)
+                    nevents_in_bin = float(np.sum(in_bin))
+                    if nevents_in_bin > 0.0: kernel[i,j] /= nevents_in_bin
 
                 flavor_dict[int_type] = kernel
             kernels[flavor] = flavor_dict
