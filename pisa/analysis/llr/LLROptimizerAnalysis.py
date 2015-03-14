@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 #
-# run_LLR_opt_analysis.py
+# LLROptimizerAnalysis.py
 #
 # Runs the LLR optimizer-based LLR analysis
 #
@@ -30,6 +30,9 @@ parser.add_argument('-t','--template_settings',type=str,
 parser.add_argument('-m','--minimizer_settings',type=str,
                     metavar='JSONFILE', required = True,
                     help='''Settings related to the optimizer used in the LLR analysis.''')
+parser.add_argument('-pd','--pseudo_data_settings',type=str,
+                    metavar='JSONFILE',default=None,
+                    help='''Settings for pseudo data templates, if desired to be different from template_settings.''')
 parser.add_argument('-n','--ntrials',type=int, default = 1,
                     help="Number of trials to run")
 parser.add_argument('-s','--save-steps',action='store_true',default=False,
@@ -46,6 +49,7 @@ set_verbosity(args.verbose)
 #Read in the settings
 template_settings = from_json(args.template_settings)
 minimizer_settings  = from_json(args.minimizer_settings)
+pseudo_data_settings = from_json(args.pseudo_data_settings) if args.pseudo_data_settings is not None else template_settings
 
 #Workaround for old scipy versions
 import scipy
@@ -55,14 +59,11 @@ if scipy.__version__ < '0.12.0':
       logging.warn('Optimizer settings for \"maxiter\" will be ignored')
       minimizer_settings.pop('maxiter')
 
-#Get the parameters
-params = template_settings['params']
+template_maker = TemplateMaker(get_values(template_settings['params']),
+                               **template_settings['binning'])
 
 #store results from all the trials
 trials = []
-
-template_maker = TemplateMaker(get_values(params),**template_settings['binning'])
-
 for itrial in xrange(1,args.ntrials+1):
     profile.info("start trial %d"%itrial)
     logging.info(">"*10 + "Running trial: %05d"%itrial + "<"*10)
@@ -79,10 +80,14 @@ for itrial in xrange(1,args.ntrials+1):
         results[data_tag] = {}
         # 0) get a random seed and store with the data
         results[data_tag]['seed'] = get_seed()
+        logging.info("  RNG seed: %ld"%results[data_tag]['seed'])
         # 1) get a pseudo data fmap from fiducial model (best fit vals of params).
-        fmap = get_pseudo_data_fmap(template_maker,
-                                    get_values(select_hierarchy(params,
-                                                                normal_hierarchy=data_normal)),
+        pseudo_data_template_maker = TemplateMaker(get_values(pseudo_data_settings['params']),
+                                                   **pseudo_data_settings['binning'])
+
+        fmap = get_pseudo_data_fmap(pseudo_data_template_maker,
+                        get_values(select_hierarchy(pseudo_data_settings['params'],
+                                                    normal_hierarchy=data_normal)),
                                     seed=results[data_tag]['seed'])
 
         # 2) find max llh (and best fit free params) from matching pseudo data
@@ -91,8 +96,9 @@ for itrial in xrange(1,args.ntrials+1):
 
             physics.info("Finding best fit for %s under %s assumption"%(data_tag,hypo_tag))
             profile.info("start optimizer")
-            llh_data = find_max_llh_bfgs(fmap,template_maker,params,
-                                        minimizer_settings,args.save_steps,normal_hierarchy=hypo_normal)
+            llh_data = find_max_llh_bfgs(fmap,template_maker,template_settings['params'],
+                                         minimizer_settings,args.save_steps,
+                                         normal_hierarchy=hypo_normal)
             profile.info("stop optimizer")
 
             #Store the LLH data
@@ -107,5 +113,8 @@ for itrial in xrange(1,args.ntrials+1):
 output = {'trials' : trials,
           'template_settings' : template_settings,
           'minimizer_settings' : minimizer_settings}
-#And write to file
+if args.pseudo_data_settings is not None:
+    output['pseudo_data_settings'] = pseudo_data_settings
+
+    #And write to file
 to_json(output,args.outfile)

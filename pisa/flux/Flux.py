@@ -38,12 +38,11 @@ def get_flux_maps(flux_service, ebins, czbins, **params):
         maps[prim] = {'ebins': ebins,
                       'czbins': czbins,
                       'map': flux_service.get_flux(ebins,czbins,prim)}
-    
+
         #be a bit verbose
         physics.trace("Total flux of %s is %u [s^-1 m^-2]"%
                                 (prim,maps[prim]['map'].sum()))
 
-    #return this map
     return maps
 
 
@@ -53,28 +52,20 @@ if __name__ == '__main__':
     parser = ArgumentParser(description='Take a settings file '
         'as input and write out a set of flux maps',
         formatter_class=ArgumentDefaultsHelpFormatter)
-
     parser.add_argument('--ebins', metavar='[1.0,2.0,...]', type=json_string,
-        help= '''Edges of the energy bins in units of GeV, default is '''
-              '''40 edges (39 bins) from 1.0 to 80 GeV in logarithmic spacing.''',
-              default = np.logspace(np.log10(1.0),np.log10(80.0),41) )
-
+                        help= '''Edges of the energy bins in units of GeV. ''',
+                        default=np.logspace(np.log10(1.0),np.log10(80.0),40) )
     parser.add_argument('--czbins', metavar='[-1.0,-0.8.,...]', type=json_string,
-        help= '''Edges of the cos(zenith) bins, default is '''
-        '''21 edges (20 bins) from -1. (upward) to 0. horizontal in linear spacing.''',
-        default = np.linspace(-1.,0.,21))
-
+                        help= '''Edges of the cos(zenith) bins.''',
+                        default = np.linspace(-1.,0.,21))
     parser.add_argument('--flux_file', metavar='FILE', type=str,
-        help= '''Input flux file in Honda format. ''',
-        default = 'flux/spl-solmax-aa.d')
-
-    parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', 
+                        help= '''Input flux file in Honda format. ''',
+                        default = 'flux/spl-solmax-aa.d')
+    parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE',
                         type=str, action='store', default='flux.json',
-                        help='file to store the output')    
-
+                        help='file to store the output')
     parser.add_argument('-v', '--verbose', action='count', default=None,
                         help='set verbosity level')
-    
     args = parser.parse_args()
 
     #Set verbosity level
@@ -87,8 +78,8 @@ if __name__ == '__main__':
 
     #Instantiate a flux model
     flux_model = HondaFluxService(args.flux_file)
-    
-    #get the flux 
+
+    #get the flux
     flux_maps = get_flux_maps(flux_model,args.ebins,args.czbins)
 
     #write out to a file

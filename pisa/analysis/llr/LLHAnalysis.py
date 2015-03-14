@@ -13,6 +13,7 @@ import sys
 import numpy as np
 import scipy.optimize as opt
 
+from pisa.utils.jsons import to_json
 from pisa.utils.log import logging, physics, profile
 from pisa.utils.params import get_values, select_hierarchy, get_fixed_params, get_free_params, get_prior_llh, get_param_values, get_param_scales, get_param_bounds, get_param_priors
 from pisa.analysis.stats.LLHStatistics import get_binwise_llh
@@ -141,9 +142,14 @@ def llh_bfgs(opt_vals,*args):
 
     # Now get true template, and compute LLH
     profile.info('start template calculation')
-    true_template = template_maker.get_template(template_params)
+    if template_params['theta23'] == 0.0:
+        logging.info("Zero theta23, so generating no oscillations template...")
+        true_template = template_maker.get_template_no_osc(template_params)
+    else:
+        true_template = template_maker.get_template(template_params)
     profile.info('stop template calculation')
     true_fmap = flatten_map(true_template)
+
 
     # NOTE: The minus sign is present on both of these next two lines
     # to reflect the fact that the optimizer finds a minimum rather

@@ -14,16 +14,15 @@
       "formatter": "simple",
       "stream": "ext://sys.stdout"
     },
-    "file": {
-      "class": "logging.FileHandler",
+    "console_time": {
+      "class": "logging.StreamHandler",
       "formatter": "time",
-      "filename": "profile.log",
-      "mode" : "w+"
+      "stream": "ext://sys.stdout"
     }
   },
   "loggers": {
     "profile": {
-      "handlers": [ "console" ],
+      "handlers": [ "console_time"  ],
       "level": "DEBUG",
       "propagate": false
     },

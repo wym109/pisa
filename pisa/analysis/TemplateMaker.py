@@ -20,16 +20,23 @@ from pisa.utils.log import logging, profile, set_verbosity
 from pisa.resources.resources import find_resource
 from pisa.utils.params import get_fixed_params, get_free_params, get_values, select_hierarchy
 from pisa.utils.jsons import from_json,to_json,json_string
+from pisa.utils.utils import Timer
 
 from pisa.flux.HondaFluxService import HondaFluxService
 from pisa.flux.Flux import get_flux_maps
 from pisa.oscillations.Prob3OscillationService import Prob3OscillationService
 from pisa.oscillations.Oscillation import get_osc_flux
+
 from pisa.aeff.AeffServiceMC import AeffServiceMC
 from pisa.aeff.AeffServicePar import AeffServicePar
 from pisa.aeff.Aeff import get_event_rates
-from pisa.reco.RecoService import RecoServiceMC
+
+from pisa.reco.RecoServiceMC import RecoServiceMC
+from pisa.reco.RecoServiceParam import RecoServiceParam
+from pisa.reco.RecoServiceKDE import RecoServiceKDE
+from pisa.reco.RecoServiceKernelFile import RecoServiceKernelFile
 from pisa.reco.Reco import get_reco_maps
+
 from pisa.pid.PIDServicePar import PIDServicePar
 from pisa.pid.PID import get_pid_maps
 
@@ -86,8 +93,23 @@ class TemplateMaker:
                                               **template_settings)
 
         # Reco Event Rate:
-        self.reco_service = RecoServiceMC(self.ebins,self.czbins,
-                                          **template_settings)
+        reco_mode = template_settings['reco_mode']
+        if reco_mode == 'MC':
+            self.reco_service = RecoServiceMC(self.ebins,self.czbins,
+                                              **template_settings)
+        elif reco_mode == 'param':
+            self.reco_service = RecoServiceParam(self.ebins,self.czbins,
+                                               **template_settings)
+        elif reco_mode == 'kde':
+            self.reco_service = RecoServiceKDE(self.ebins,self.czbins,
+                                               **template_settings)
+        elif reco_mode == 'stored':
+            self.reco_service = RecoServiceKernelFile(self.ebins, self.czbins,
+                                                      **template_settings)
+        else:
+            error_msg = "reco_mode: %s is not implemented! "%reco_mode
+            error_msg+=" Please choose among: ['MC','kde','param']"
+            raise NotImplementedError(error_msg)
 
         # PID Service:
         self.pid_service = PIDServicePar(self.ebins,self.czbins,
@@ -103,20 +125,24 @@ class TemplateMaker:
         output from each stage as a simple tuple.
         '''
 
+        logging.info("STAGE 0: Getting Atm Flux maps...")
         flux_maps = get_flux_maps(self.flux_service,self.ebins,self.czbins)
 
-        logging.info("Getting osc prob maps...")
-        osc_flux_maps = get_osc_flux(flux_maps,self.osc_service,
-            oversample_e=self.oversample_e,oversample_cz=self.oversample_cz,**params)
+        logging.info("STAGE 1: Getting osc prob maps...")
+        with Timer(verbose=False) as t:
+            osc_flux_maps = get_osc_flux(flux_maps,self.osc_service,
+                                         oversample_e=self.oversample_e,
+                                         oversample_cz=self.oversample_cz,**params)
+        print "       ==> elapsed time for oscillations stage: %s sec"%t.secs
 
-        logging.info("Getting event rate true maps...")
+        logging.info("STAGE 2: Getting event rate true maps...")
         event_rate_maps = get_event_rates(osc_flux_maps,self.aeff_service, **params)
 
-        logging.info("Getting event rate reco maps...")
+        logging.info("STAGE 3: Getting event rate reco maps...")
         event_rate_reco_maps = get_reco_maps(event_rate_maps,self.reco_service,
                                              **params)
 
-        logging.info("Getting pid maps...")
+        logging.info("STAGE 4: Getting pid maps...")
         final_event_rate = get_pid_maps(event_rate_reco_maps,self.pid_service)
 
         if not return_stages:
@@ -125,6 +151,34 @@ class TemplateMaker:
         # Otherwise, return all stages as a simple tuple
         return (flux_maps, osc_flux_maps, event_rate_maps, event_rate_reco_maps,
                 final_event_rate)
+
+    def get_template_no_osc(self,params):
+        '''
+        Runs template making chain, but without oscillations
+        '''
+
+        flux_maps = get_flux_maps(self.flux_service,self.ebins,self.czbins)
+
+        # Create the empty nutau maps:
+        test_map = flux_maps['nue']
+
+        flavours = ['nutau','nutau_bar']
+        for flav in flavours:
+            flux_maps[flav] = {'map': np.zeros_like(test_map['map']),
+                               'ebins': np.zeros_like(test_map['ebins']),
+                               'czbins': np.zeros_like(test_map['czbins'])}
+
+        logging.info("Getting event rate true maps...")
+        event_rate_maps = get_event_rates(flux_maps,self.aeff_service, **params)
+
+        logging.info("Getting event rate reco maps...")
+        event_rate_reco_maps = get_reco_maps(event_rate_maps,self.reco_service,
+                                             **params)
+
+        logging.info("Getting pid maps...")
+        final_event_rate = get_pid_maps(event_rate_reco_maps,self.pid_service)
+
+        return final_event_rate
 
 
 if __name__ == '__main__':
@@ -142,6 +196,8 @@ if __name__ == '__main__':
                         action='store_false', help="select the inverted hierarchy")
     parser.add_argument('-v','--verbose',action='count',default=None,
                         help='set verbosity level.')
+    parser.add_argument('-s','--save_all',action='store_true',default=False,
+                        help="Save all stages.")
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str,
                         action='store',default="template.json",
                         help='file to store the output')
@@ -162,13 +218,14 @@ if __name__ == '__main__':
     #Intialize template maker
     template_maker = TemplateMaker(get_values(params),**model_settings['binning'])
 
-    profile.info("stop initializing")
+    profile.info("stop initializing\n")
 
     #Now get the actual template
     profile.info("start template calculation")
-    template = template_maker.get_template(get_values(params))
+    with Timer(verbose=False) as t:
+        template_maps = template_maker.get_template(get_values(params),return_stages=args.save_all)
+    print "       ==> elapsed time to get template: %s sec"%t.secs
     profile.info("stop template calculation")
 
-    #Write out
-    logging.info("Saving output to: %s",args.outfile)
-    to_json(template, args.outfile)
+    logging.info("Saving file to %s"%args.outfile)
+    to_json(template_maps,args.outfile)
