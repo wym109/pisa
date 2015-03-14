@@ -37,7 +37,8 @@ from pisa.reco.RecoServiceKDE import RecoServiceKDE
 from pisa.reco.RecoServiceKernelFile import RecoServiceKernelFile
 from pisa.reco.Reco import get_reco_maps
 
-from pisa.pid.PIDServicePar import PIDServicePar
+from pisa.pid.PIDServiceParam import PIDServiceParam
+from pisa.pid.PIDServiceKernelFile import PIDServiceKernelFile
 from pisa.pid.PID import get_pid_maps
 
 class TemplateMaker:
@@ -112,8 +113,17 @@ class TemplateMaker:
             raise NotImplementedError(error_msg)
 
         # PID Service:
-        self.pid_service = PIDServicePar(self.ebins,self.czbins,
-                                         **template_settings)
+        pid_mode = template_settings['pid_mode']
+        if pid_mode == 'param':
+            self.pid_service = PIDServiceParam(self.ebins,self.czbins,
+                                               **template_settings)
+        elif pid_mode == 'stored':
+            self.pid_service = PIDServiceKernelFile(self.ebins,self.czbins,
+                                                    **template_settings)
+        else:
+            error_msg = "pid_mode: %s is not implemented! "%pid_mode
+            error_msg+=" Please choose among: ['stored','param']"
+            raise NotImplementedError(error_msg)
 
         return
 
