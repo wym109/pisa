@@ -19,48 +19,38 @@ from pisa.analysis.TemplateMaker import TemplateMaker
 from pisa.utils.params import select_hierarchy, get_free_params, get_values
 from pisa.analysis.fisher.gradients import get_gradients, get_hierarchy_gradients
 from pisa.analysis.fisher.BuildFisherMatrix import build_fisher_matrix
-from pisa.analysis.fisher.Fisher import FisherMatrix 
+from pisa.analysis.fisher.Fisher import FisherMatrix
 
 
-parser = ArgumentParser(description='''Runs the Fisher analysis method by varying a number of systematic parameters 
+parser = ArgumentParser(description='''Runs the Fisher analysis method by varying a number of systematic parameters
 			defined in a settings.json file, taking the number of test points from a grid_settings.json file, and saves the
 			Fisher matrices for the desired hierarchy.''',
                         formatter_class=ArgumentDefaultsHelpFormatter)
-
 parser.add_argument('-t','--template_settings',type=str,
                     metavar='JSONFILE', required = True,
                     help='Settings related to template generation and systematics.')
-
 parser.add_argument('-g','--grid_settings',type=str,
                     metavar='JSONFILE', required = True,
                     help='''Settings for the grid on which the gradients are
                     calculated (number of test points for each parameter).''')
-
 parser.add_argument('--normal-truth',action='store_true',
 		    default=False, dest='normal_truth',
 		    help='Compute Fisher matrix for true normal hierarchy.')
-
 parser.add_argument('--inverted-truth',action='store_true',
 		    default=False, dest='inverted_truth',
 		    help='Compute Fisher matrix for true inverted hierarchy.')
-
 parser.add_argument('--dump-all-stages', action='store_true',dest='dump_all_stages', default=False,
-                    help='''Store histograms at all simulation stages for fiducial model in 
+                    help='''Store histograms at all simulation stages for fiducial model in
                     normal and inverted hierarchy.''')
-
 sselect = parser.add_mutually_exclusive_group(required=False)
-
 sselect.add_argument('--save-templates',action='store_true',
                     default=True, dest='save_templates',
                     help="Save all the templates used to obtain the gradients.")
-
 sselect.add_argument('--no-save-templates', action='store_false',
                     default=False, dest='save_templates',
                     help="Do not save the templates for the different test points.")
-
-parser.add_argument('-o','--outdir',type=str,default='fisher_data.json',metavar='DIR',
+parser.add_argument('-o','--outdir',type=str,default='',metavar='DIR',
                     help="Output directory")
-
 parser.add_argument('-v', '--verbose', action='count', default=None,
                     help='set verbosity level')
 
