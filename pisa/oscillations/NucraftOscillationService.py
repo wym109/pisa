@@ -26,7 +26,7 @@ class NucraftOscillationService(OscillationServiceBase):
     probability calculations using the NuCraft oscillation code
     """
     def __init__(self, ebins, czbins, detector_depth=None, earth_model=None,
-                 prop_height=None, osc_precision=None,
+                 prop_height=None, osc_precision=5e-4,
                  **kwargs):
         """
         Parameters needed to instantiate a NucraftOscillationService:
@@ -47,7 +47,9 @@ class NucraftOscillationService(OscillationServiceBase):
         report_params(get_params(),['km','','','km'])
 
         self.prop_height = prop_height # km above spherical Earth surface
-        self.height_mode = 3 if self.prop_height is 'sample' else 1
+ 	''' height_mode = 0 ensures that interaction takes place at chosen height '''
+	''' whereas height_mode = 1 samples single altitude from distribution '''
+        self.height_mode = 3 if self.prop_height is 'sample' else 0 # 1
         self.detector_depth = detector_depth # km below spherical Earth surface
         self.num_prec = osc_precision
         self.get_earth_model(earth_model)
@@ -113,7 +115,15 @@ class NucraftOscillationService(OscillationServiceBase):
                 sec_key = sec+'_bar' if 'bar' in prim else sec
                 osc_prob_dict[prim][sec_key] = probs[i]
 
-        return
+	# fix: return energy-cz values as requested by OscillationServiceBase
+	evals = []
+	czvals = []
+	for ie,energy in enumerate(ecen):
+            for icz, coszen in enumerate(czcen):
+	        evals.append(energy)
+		czvals.append(coszen)
+
+        return evals,czvals
 
 
     def get_earth_model(self, model):

@@ -25,6 +25,7 @@ from pisa.utils.utils import Timer
 from pisa.flux.HondaFluxService import HondaFluxService
 from pisa.flux.Flux import get_flux_maps
 from pisa.oscillations.Prob3OscillationService import Prob3OscillationService
+from pisa.oscillations.NucraftOscillationService import NucraftOscillationService
 from pisa.oscillations.Oscillation import get_osc_flux
 
 from pisa.aeff.AeffServiceMC import AeffServiceMC
@@ -81,8 +82,13 @@ class TemplateMaker:
             self.osc_service = Prob3OscillationService(self.ebins,self.czbins,
                                                        **template_settings)
         else:
-            raise NotImplementedError('OscillationService is only implemented for prob3! osc_code = %s'%osc_code)
-
+            raise NotImplementedError('OscillationService is only implemented for prob3! osc_code = %s'%template_settings['osc_code'])
+	    """
+	    # not working yet
+            self.osc_service = NucraftOscillationService(self.ebins,self.czbins,
+							 **template_settings)
+            """
+  
         # Aeff/True Event Rate:
         if template_settings['parametric']:
             logging.info(" Using effective area from PARAMETRIZATION...")
