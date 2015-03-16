@@ -24,8 +24,8 @@ from pisa.analysis.fisher.BuildFisherMatrix import build_fisher_matrix
 from pisa.analysis.fisher.Fisher import FisherMatrix 
 
 
-def get_fisher_matrices(template_settings,grid_settings,IMH=True,NMH=False,dump_all_stages=False,
-		        save_templates=False,outdir=None,**kwargs):
+def get_fisher_matrices(template_settings, grid_settings, IMH=True, NMH=False, dump_all_stages=False,
+		        save_templates=False, outdir=None):
   '''
   Main function that runs the Fisher analysis for the chosen hierarchy(ies) (inverted by default).
 
@@ -146,7 +146,8 @@ def get_fisher_matrices(template_settings,grid_settings,IMH=True,NMH=False,dump_
                                            template_maker,
                                            fiducial_params,
                                            grid_settings,
-                                           store_dir)
+                                           store_dir
+                                           )
 
       logging.info("Building Fisher matrix for %s."%(data_tag))
 
