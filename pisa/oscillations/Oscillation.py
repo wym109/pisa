@@ -25,8 +25,10 @@ from pisa.utils.proc import report_params, get_params, add_params
 from pisa.oscillations.Prob3OscillationService import Prob3OscillationService
 from pisa.oscillations.NucraftOscillationService import NucraftOscillationService
 from pisa.oscillations.TableOscillationService import TableOscillationService
-from pisa.oscillations.Prob3GPUOscillationService import Prob3GPUOscillationService
-
+try:
+    from pisa.oscillations.Prob3GPUOscillationService import Prob3GPUOscillationService
+except:
+    logging.info("NOT loading Prob3GPUOscillationService in Oscillation.py")
 
 def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,
                  energy_scale=None, theta12=None,theta13=None,theta23=None,

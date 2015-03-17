@@ -12,7 +12,7 @@
 # oscillation probability calculator and is based on the analytic
 # solution for the propagation of three flavor neutrino probabilities
 # of: Barger et al. Phys. Rev. D22 (1980) 2718.
-# 
+#
 # Output of all oscillation maps:
 #   nue -> nue, numu, nutau
 #   numu -> nue, numu, nutau
@@ -35,7 +35,8 @@ from pisa.utils.log import logging, set_verbosity
 from pisa.oscillations.prob3.BargerPropagator import BargerPropagator
 from pisa.resources.resources import find_resource
 from pisa.utils.jsons import to_json
-from pisa.utils.utils import set_verbosity, get_bin_centers
+from pisa.utils.log import set_verbosity
+from pisa.utils.utils import get_bin_centers
 from pisa.utils.proc import report_params
 from pisa.resources.resources import find_resource
 

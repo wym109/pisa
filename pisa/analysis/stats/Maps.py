@@ -64,13 +64,13 @@ def flatten_map(template,chan='all'):
         cscd = template[chan]['map'].flatten()
         fmap = np.array(cscd)
         #fmap = np.array(fmap)[np.nonzero(fmap)]
-    elif chan == 'combined':
+    elif chan == 'no_pid':
         cscd = template['cscd']['map'].flatten()
         trck = template['trck']['map'].flatten()
         fmap = cscd + trck
         #fmap = np.array(fmap)[np.nonzero(fmap)]
     else:
-        raise ValueError("chan: '%s' not implemented! Only 'all', 'trck', or 'cscd' is allowed")
+        raise ValueError("chan: '%s' not implemented! Allowed: ['all', 'trck', 'cscd','no_pid']")
 
     fmap = np.array(fmap)[np.nonzero(fmap)]
     return fmap
