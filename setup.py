@@ -45,7 +45,7 @@ setup(
             'pisa.resources'],
   scripts=['examples/default_chain.sh',
            'examples/prob3_standalone_example.py',
-           'examples/test_asymmetry.py',
+           'examples/template_checks.py',
            'pisa/flux/Flux.py',
            'pisa/oscillations/Oscillation.py',
            'pisa/oscillations/OscillationProbs.py',

@@ -1,18 +1,15 @@
 #! /usr/bin/env python
 #
-# make_reco_mc_file_join.py
+# make_aeff_mc_file.py
 #
 # author: Timothy C. Arlen
 #         tca3@psu.edu
 #
-# date:   July 7, 2014
+# date:   March 15, 2015
 #
-# Makes data files, used in MC-based reco step, but uses approximation
-# of EQUIVALENT resolutions of nu/nu_bar CC and ALL NC
-# interactions. However, it maintains their distinction at the final
-# level of writing to the output file, to conform to the way the pisa
-# code is written which DOES allow for the possibility later on to
-# actually use separate distributions for nu/nubar and cc/nc.
+# Makes aeff MC file from the raw PyTables HDF5
+# simulation/reconstruction i3 files. Keeps separate effective areas
+# for all flavours and interaction types (UNLIKE in the reco MC stage).
 #
 
 import tables, h5py
@@ -24,7 +21,9 @@ from pisa.i3utils.sim_utils import get_arb_cuts
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
-def get_reco_arrays(data,cuts,reco_string=None):
+CMSQ_TO_MSQ = 1.0e-4
+
+def get_reco_arrays(data,cuts,files_per_run,reco_string=None):
     '''
     Forms arrays of reco events for true/reco energy/coszen from the
     data_files
@@ -32,6 +31,9 @@ def get_reco_arrays(data,cuts,reco_string=None):
 
     logging.warn('Getting reconstructions from: %s'%reco_string)
 
+    nfiles = len(set(data.root.I3EventHeader.col('Run')))*files_per_run
+    sim_weight = ((2.0*data.root.I3MCWeightDict.col('OneWeight')[cuts]*CMSQ_TO_MSQ)/
+                  (data.root.I3MCWeightDict.col('NEvents')[cuts]*nfiles))
     true_egy = data.root.MCNeutrino.col('energy')[cuts]
     true_cz = np.cos(data.root.MCNeutrino.col('zenith'))[cuts]
 
@@ -42,7 +44,7 @@ def get_reco_arrays(data,cuts,reco_string=None):
         reco_cz = np.cos(data.root.__getattribute__(reco_string).col('zenith'))[cuts]
         reco_egy = data.root.__getattribute__(reco_string).col('energy')[cuts]
 
-    arrays = [true_egy,true_cz,reco_egy,reco_cz]
+    arrays = [true_egy,true_cz,reco_egy,reco_cz,sim_weight]
 
     return arrays
 
@@ -58,6 +60,7 @@ def write_group(nu_group,intType,data_nu):
     sub_group.create_dataset('true_coszen',data=data_nu[1],dtype=np.float32)
     sub_group.create_dataset('reco_energy',data=data_nu[2],dtype=np.float32)
     sub_group.create_dataset('reco_coszen',data=data_nu[3],dtype=np.float32)
+    sub_group.create_dataset('weighted_aeff',data=data_nu[4],dtype=np.float32)
 
     return
 
@@ -75,7 +78,8 @@ def write_to_hdf5(outfilename,flavor,data_nu_cc,data_nu_nc):
 
 
 set_verbosity(0)
-parser = ArgumentParser(description='''Takes the simulated (and reconstructed) data files (in hdf5 format) as input and writes out the sim_wt arrays for use in the aeff and reco stage of the template maker.''',formatter_class=ArgumentDefaultsHelpFormatter)
+parser = ArgumentParser(description='''Takes the simulated (and reconstructed) data files (in hdf5 format) as input and writes out the sim_wt arrays for use in the aeff and reco stage of the template maker. Keeps the nu/nubar and nu nc/ nubar nc separate.''',
+                        formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('nue', metavar='HDF5',type=str,
                     help='''nue_data file, which should be a <geometry>_nue.hd5 file.''')
 parser.add_argument('numu', metavar='HDF5',type=str,
@@ -84,8 +88,16 @@ parser.add_argument('nutau', metavar='HDF5',type=str,
                     help='''nutau_data file, which should be a <geometry>_nutau.hd5 file.''')
 parser.add_argument('outfile',metavar='HDF5',type=str,
                     help='''output filename''')
+parser.add_argument("--nfiles_nue",type=float,default=200.0,
+                    help="Num simulation files for this run")
+parser.add_argument("--nfiles_numu",type=float,default=200.0,
+                    help="Num simulation files for this run")
+parser.add_argument("--nfiles_nutau",type=float,default=200.0,
+                    help="Num simulation files for this run")
 parser.add_argument('--mn_reco',metavar="STRING",type=str,default='MultiNest_8D_Neutrino',
                     help='Reco field to use to access reconstruction parameters')
+parser.add_argument('--old_pid',action='store_true',default=False,
+                    help='Use older convention for PID enumeration.')
 select_cuts = parser.add_mutually_exclusive_group(required=True)
 select_cuts.add_argument('--cutsV3', default=False, action='store_true',
                          help="Use V3 selection cuts.")
@@ -99,7 +111,10 @@ args = parser.parse_args()
 
 set_verbosity(args.verbose)
 
-data_files = {'nue':args.nue,'numu':args.numu,'nutau':args.nutau}
+data_files = {
+    'nue': {'filename': args.nue,'nfiles': args.nfiles_nue},
+    'numu': {'filename': args.numu,'nfiles': args.nfiles_numu},
+    'nutau': {'filename': args.nutau,'nfiles': args.nfiles_nutau}}
 
 logging.info("input files:\n%s"%data_files)
 
@@ -125,31 +140,56 @@ elif args.cutsV5:
     cut_list.append(('Cuts_V5_Step2','value',True))
 
 
-# First do all NC events combined-must keep filehandle open
-dummy_fh = [tables.openFile(f,mode='r') for f in data_files.values()]
-data_nc = HDFChain(data_files.values())
+nuDict = {}
+if args.old_pid:
+    nuDict = {'nue':66,'numu':68,'nutau':133,'nue_bar':67,'numu_bar':69,'nutau_bar':134}
+else:
+    nuDict = {'nue':12,'numu':14,'nutau':16,'nue_bar':-12,'numu_bar':-14,'nutau_bar':-16}
 
-nc_cut_list = cut_list + [('I3MCWeightDict','InteractionType',2)]
-cuts_nc = get_arb_cuts(data_nc,nc_cut_list)
-arrays_nc = get_reco_arrays(data_nc,cuts_nc,reco_string=args.mn_reco)
-logging.warn("NC number of events: %d"%np.sum(cuts_nc))
+
+# First do all NC events combined-must keep filehandle open
+#dummy_fh = [tables.openFile(data_files[key]['filename'],mode='r') for key in data_files.keys()]
+#data_nc = HDFChain(data_files.values())
+
+#nc_files_per_run = np.sum(np.array([data_files[flav]['nfiles']
+#                                    for flav in data_files.keys()]))/3
 
 # Now do CC events, and write to file:
 cc_cut_list = cut_list + [('I3MCWeightDict','InteractionType',1)]
+nc_cut_list = cut_list + [('I3MCWeightDict','InteractionType',2)]
 for flavor in data_files.keys():
-    data = tables.openFile(data_files[flavor],'r')
+    data = tables.openFile(data_files[flavor]['filename'],'r')
 
-    cuts_cc = get_arb_cuts(data,cc_cut_list)
-    arrays_cc = get_reco_arrays(data,cuts_cc,reco_string=args.mn_reco)
-    logging.warn("flavor %s number of events: %d"%(flavor,np.sum(cuts_cc)))
+    #############
+    # First do nu:
+    cuts_cc = get_arb_cuts(data,cc_cut_list,nuIDList=[nuDict[flavor]])
+    arrays_cc = get_reco_arrays(data,cuts_cc,data_files[flavor]['nfiles'],
+                                reco_string=args.mn_reco)
+    logging.warn("flavor %s number of CC events: %d"%(flavor,np.sum(cuts_cc)))
+
+    cuts_nc = get_arb_cuts(data,nc_cut_list,nuIDList=[nuDict[flavor]])
+    arrays_nc = get_reco_arrays(data,cuts_nc,data_files[flavor]['nfiles'],
+                                reco_string=args.mn_reco)
+    logging.warn("flavor %s number of NC events: %d"%(flavor,np.sum(cuts_nc)))
 
     logging.info("Saving %s..."%flavor)
     write_to_hdf5(outfilename,flavor,arrays_cc,arrays_nc)
 
-    # Duplicate and write to <flavor>_bar
-    flavor+='_bar'
-    logging.info("Saving %s..."%flavor)
-    write_to_hdf5(outfilename,flavor,arrays_cc,arrays_nc)
+    ################
+    # Next do nu_bar:
+    flav_bar = flavor+'_bar'
+    cuts_cc = get_arb_cuts(data,cc_cut_list,nuIDList=[nuDict[flav_bar]])
+    arrays_cc = get_reco_arrays(data,cuts_cc,data_files[flavor]['nfiles'],
+                                reco_string=args.mn_reco)
+    logging.warn("flavor %s number of CC events: %d"%(flav_bar,np.sum(cuts_cc)))
+
+    cuts_nc = get_arb_cuts(data,nc_cut_list,nuIDList=[nuDict[flav_bar]])
+    arrays_nc = get_reco_arrays(data,cuts_nc,data_files[flavor]['nfiles'],
+                                reco_string=args.mn_reco)
+    logging.warn("flavor %s number of NC events: %d"%(flav_bar,np.sum(cuts_nc)))
+
+    logging.info("Saving %s..."%flav_bar)
+    write_to_hdf5(outfilename,flav_bar,arrays_cc,arrays_nc)
 
     data.close()
 
