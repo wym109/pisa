@@ -57,7 +57,9 @@ def get_reco_maps(true_event_maps, reco_service=None,e_reco_scale=None,
     ebins, czbins = get_binning(true_event_maps)
 
     #Retrieve all reconstruction kernels
-    reco_kernel_dict = reco_service.get_reco_kernels(**kwargs)
+    reco_kernel_dict = reco_service.get_reco_kernels(e_reco_scale=e_reco_scale,
+                                                     cz_reco_scale=cz_reco_scale,
+                                                     **kwargs)
 
     #Do smearing
     flavours = ['nue','numu','nutau']
