@@ -236,5 +236,5 @@ if __name__ == '__main__':
         logging.info("%s: writing combined Fisher matrix to %s"%(data_tag,outfile))
       else:
         outfile = os.path.join(args.outdir,fisher_basename+'_%s.json'%chan)
-        logging.info("%s: writing Fisher matrix for channel %s to %s"%(data_tag,chan,os.path.join(args.outdir,fisher_basename+'_%s.json'%chan)))
+        logging.info("%s: writing Fisher matrix for channel %s to %s"%(data_tag,chan,outfile))
       fisher_matrices[data_tag][chan].saveFile(outfile)
