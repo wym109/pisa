@@ -40,11 +40,11 @@ def get_fisher_matrices(template_settings, grid_settings, IMH=True, NMH=False, d
          }
   }
 
-  If no hierarchy is given and if save_templates=True, fiducial templates and templates for the different
-  parameter values will be written out.
+  If save_templates=True and no hierarchy is given, only fiducial templates will be written out;
+  if one is given, then the templates used to obtain the gradients will be written out in
+  addition.
   '''
-
-  if save_templates or dump_all_stages and outdir==None:
+  if outdir is None and (save_templates or dump_all_stages):
     logging.info("No output directory specified. Will save templates to current working directory.")
     outdir = os.getcwd()
 
