@@ -64,7 +64,7 @@ class RecoServiceParam(RecoServiceBase):
         self.parametrization = self.read_param_string(param_str)
 
         # No **kwargs, so stored kernels will always have reco scales 1.0
-        RecoServiceBase.__init__(self, ebins, czbins)
+        RecoServiceBase.__init__(self, ebins, czbins,**kwargs)
 
 
     def read_param_string(self, param_str):
@@ -119,7 +119,7 @@ class RecoServiceParam(RecoServiceBase):
 
 
     def _get_reco_kernels(self, flipback=True,
-                          e_reco_scale=1., cz_reco_scale=1.,
+                          e_reco_scale=None, cz_reco_scale=None,
                           **kwargs):
         """
         Use the parametrization functions to calculate the actual reco
