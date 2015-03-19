@@ -2,14 +2,14 @@
 
 BargerPropagator::BargerPropagator()
 {
-   Earth = new EarthDensity( );	
+   Earth = new EarthDensity( );
    init();
 }
 
 
 BargerPropagator::BargerPropagator( bool k )
 {
-   Earth = new EarthDensity( );	
+   Earth = new EarthDensity( );
    init();
 }
 
@@ -52,41 +52,40 @@ void BargerPropagator::propagate( int NuFlavor ){
    int    Layers;
    double TransitionMatrix[3][3][2];
    double TransitionProduct[3][3][2];
-   double TransitionTemp[3][3][2];	
+   double TransitionTemp[3][3][2];
    double RawInputPsi[3][2];
    double OutputPsi[3][2];
 
 
    if( ! kSuppressWarnings )
-   if(   
-       ( kAntiMNSMatrix && NuFlavor > 0) ||  
-       (!kAntiMNSMatrix && NuFlavor < 0)  
+   if(
+       ( kAntiMNSMatrix && NuFlavor > 0) ||
+       (!kAntiMNSMatrix && NuFlavor < 0)
      )
    {
-      std::cout << " Warning BargerPropagator::propagate - " << std::endl;       
-      std::cout << "     Propagating neutrino flavor and MNS matrix definition differ :" << std::endl;       
-      std::cout << "     MNS Matrix was defined for : " << ( kAntiMNSMatrix ? " Nubar " : "Nu" )<< std::endl; 
-      std::cout << "     Propagation is for         : " << ( NuFlavor < 0   ? " Nubar " : "Nu" )<< std::endl; 
-      std::cout << "     Please check your call to BargerPropagator::SetMNS() " << std::endl; 
+     std::cout << " Warning BargerPropagator::propagate - " << std::endl;
+     std::cout << "     Propagating neutrino flavor and MNS matrix definition differ :" << std::endl;
+      std::cout << "     MNS Matrix was defined for : " << ( kAntiMNSMatrix ? " Nubar " : "Nu" )<< std::endl;
+      std::cout << "     Propagation is for         : " << ( NuFlavor < 0   ? " Nubar " : "Nu" )<< std::endl;
+      std::cout << "     Please check your call to BargerPropagator::SetMNS() " << std::endl;
       std::cout << "     This message can be suppressed with a call to BargerPropagator::SuppressWarnings() " << std::endl;
-   
       exit(-1);
-   }  
+   }
 
    clear_complex_matrix( TransitionMatrix );
    clear_complex_matrix( TransitionProduct );
    clear_complex_matrix( TransitionTemp );
-	
+
    ClearProbabilities();
 
-	
+
    Earth->SetDensityProfile( CosineZenith, PathLength, ProductionHeight );
    Layers = Earth->get_LayersTraversed( );
 
    //cout<<"density, distanceAcrossLayer, density_convert:"<<endl;
 
    // TCA: (07May2014) Modifying this next for loop
-   // Adding electron fraction to be something other than 0.5 in each layer	
+   // Adding electron fraction to be something other than 0.5 in each layer
    for ( i = 0; i < Layers ; i++ ) {
      double density = Earth->get_DensityInLayer(i);
      double distanceAcrossLayer = Earth->get_DistanceAcrossLayer(i)/1.0e5;
@@ -94,45 +93,44 @@ void BargerPropagator::propagate( int NuFlavor ){
 
      //cout<<density<<"   "<<distanceAcrossLayer<<"    "<<density_convert<<endl;
 
-     get_transition_matrix( NuFlavor, 
+     get_transition_matrix( NuFlavor,
 			    Energy,		         // in GeV
 			    density*density_convert,
 			    distanceAcrossLayer,         // in km
 			    TransitionMatrix,	         // Output transition matrix
-			    0.0  			 // phase offset 
+			    0.0  			 // phase offset
 			    );
-     
+
      if ( i == 0 )
        copy_complex_matrix( TransitionMatrix , TransitionProduct );
 
       if ( i >0 ){
-         clear_complex_matrix( TransitionTemp );	
-         multiply_complex_matrix( TransitionMatrix, TransitionProduct, TransitionTemp ); 
+         clear_complex_matrix( TransitionTemp );
+         multiply_complex_matrix( TransitionMatrix, TransitionProduct, TransitionTemp );
          copy_complex_matrix( TransitionTemp, TransitionProduct );
       }//for other layers
     }// end of layer loop
 
-	
+
    // loop on neutrino types
    for ( i = 0 ; i < 3 ; i++ )
    {
       for ( j = 0 ; j < 3 ; j++ )
       {  RawInputPsi[j][0] = 0.0; RawInputPsi[j][1] = 0.0;   }
-      
-      if( kUseMassEigenstates )	      
+
+      if( kUseMassEigenstates )
          convert_from_mass_eigenstate( i+1, NuFlavor,  RawInputPsi );
       else
          RawInputPsi[i][0] = 1.0;
 
- 
+
       multiply_complex_matvec( TransitionProduct, RawInputPsi, OutputPsi );
       Probability[i][0] += OutputPsi[0][0] * OutputPsi[0][0] + OutputPsi[0][1]*OutputPsi[0][1];
       Probability[i][1] += OutputPsi[1][0] * OutputPsi[1][0] + OutputPsi[1][1]*OutputPsi[1][1];
       Probability[i][2] += OutputPsi[2][0] * OutputPsi[2][0] + OutputPsi[2][1]*OutputPsi[2][1];
 
    }//end of neutrino loop
-	
-	
+
 }
 
 
@@ -146,8 +144,8 @@ void BargerPropagator::ClearProbabilities()
 
 }
 
-void BargerPropagator::SetMNS( double x12, double x13, double x23, 
-                               double m21, double mAtm, double delta, 
+void BargerPropagator::SetMNS( double x12, double x13, double x23,
+                               double m21, double mAtm, double delta,
                                double Energy_ , bool kSquared, int kNuType )
 {
    Energy = Energy_;
@@ -157,30 +155,29 @@ void BargerPropagator::SetMNS( double x12, double x13, double x23,
    double sin23;
 
    double lm32 = mAtm ;
-   // Dominant Mixing mode assumes the user 
-   // simply changes the sign of the input atmospheric 
-   // mixing to invert the hierarchy 
-   //  so the input for  NH corresponds to m32  
+   // Dominant Mixing mode assumes the user
+   // simply changes the sign of the input atmospheric
+   // mixing to invert the hierarchy
+   //  so the input for  NH corresponds to m32
    // and the input for  IH corresponds to m31
-   if( kOneDominantMass ) 
+   if( kOneDominantMass )
    {
       // For the inverted Hierarchy, adjust the input
-      // by the solar mixing (should be positive) 
+      // by the solar mixing (should be positive)
       // to feed the core libraries the correct value of m32
-      if( mAtm < 0.0 )  
-          lm32 = mAtm - m21 ;
+      if( mAtm < 0.0 ) lm32 = mAtm - m21 ;
    }
-   else 
+   else
    {
        if( !kSuppressWarnings )
        {
-         std::cout << " BargerPropagator::SetMNS - " << std::endl;       
-         std::cout << "     You have opted to specify the value of m23 by yourself. " << std::endl;       
-         std::cout << "     This means you must correct the value of m23 when switching " << std::endl; 
-         std::cout << "     between the mass hierarchy options. " << std::endl; 
+         std::cout << " BargerPropagator::SetMNS - " << std::endl;
+         std::cout << "     You have opted to specify the value of m23 by yourself. " << std::endl;
+         std::cout << "     This means you must correct the value of m23 when switching " << std::endl;
+         std::cout << "     between the mass hierarchy options. " << std::endl;
          std::cout << "     This message can be suppressed with BargerPropagator::SuppressWarnings()"<< std::endl;
       }
-   } 
+   }
 
 
 
@@ -203,7 +200,7 @@ void BargerPropagator::SetMNS( double x12, double x13, double x23,
      delta *= -1.0 ;
      kAntiMNSMatrix = true ;
    }
-   else 
+   else
    {
      kAntiMNSMatrix = false ;
    }
@@ -226,19 +223,19 @@ void BargerPropagator::DefinePath(double cz, double ProdHeight, bool kSetProfile
   ProductionHeight = ProdHeight*1e5;
 
   if(cz < 0) {
-    PathLength = sqrt((RDetector + ProductionHeight +depth)*(RDetector + ProductionHeight +depth) 
+    PathLength = sqrt((RDetector + ProductionHeight +depth)*(RDetector + ProductionHeight +depth)
 		      - (RDetector*RDetector)*( 1 - cz*cz)) - RDetector*cz;
   } else {
     double kappa = (depth + ProductionHeight)/RDetector;
     PathLength = RDetector*sqrt(cz*cz - 1 + (1 + kappa)*(1 + kappa)) - RDetector*cz;
-    
+
   }
 
 
   CosineZenith = cz;
   if( kSetProfile )
     Earth->SetDensityProfile( CosineZenith, PathLength, ProductionHeight );
-  
+
 }
 
 
@@ -268,7 +265,7 @@ double BargerPropagator::GetVacuumProb( int Alpha, int Beta , double Energy, dou
    // alpha -> 1:e 2:mu 3:tau
    // Energy[GeV]
    // Path[km]
-   /// simple referes to the fact that in the 3 flavor analysis 
+   /// simple referes to the fact that in the 3 flavor analysis
    //  the solar mass term is zero
    double Probs[3][3];
 
@@ -279,14 +276,14 @@ double BargerPropagator::GetVacuumProb( int Alpha, int Beta , double Energy, dou
    Beta = abs(Beta);
 
    if ( Alpha > 0 )
-      return Probs[Alpha-1][Beta-1]; 
+      return Probs[Alpha-1][Beta-1];
 
    if ( Alpha < 0 ) // assuming CPT!!!
-      return Probs[Beta-1][Alpha-1]; 
+      return Probs[Beta-1][Alpha-1];
 
    std::cerr << " BargerPropagator::GetVacuumProb neutrino must be non-zero: " << std::endl;
-   return -1.0; 
-   
+   return -1.0;
+
 }
 
 
@@ -298,41 +295,41 @@ void BargerPropagator::propagateLinear( int NuFlavor, double pathlength, double 
 
    double TransitionMatrix[3][3][2];
    double TransitionProduct[3][3][2];
-   double TransitionTemp[3][3][2];	
+   double TransitionTemp[3][3][2];
    double RawInputPsi[3][2];
    double OutputPsi[3][2];
 
    if( ! kSuppressWarnings )
-   if(   
-       ( kAntiMNSMatrix && NuFlavor > 0) ||  
-       (!kAntiMNSMatrix && NuFlavor < 0)     
+   if(
+       ( kAntiMNSMatrix && NuFlavor > 0) ||
+       (!kAntiMNSMatrix && NuFlavor < 0)
      )
    {
-      std::cout << " Warning BargerPropagator::propagateLinear - " << std::endl;       
-      std::cout << "     Propagating neutrino flavor and MNS matrix definition differ :" << std::endl;       
-      std::cout << "     MNS Matrix was defined for : " << ( kAntiMNSMatrix ? " Nubar " : "Nu" )<< std::endl; 
-      std::cout << "     Propagation is for         : " << ( NuFlavor < 0   ? " Nubar " : "Nu" )<< std::endl; 
-      std::cout << "     Please check your call to BargerPropagator::SetMNS() " << std::endl; 
+      std::cout << " Warning BargerPropagator::propagateLinear - " << std::endl;
+      std::cout << "     Propagating neutrino flavor and MNS matrix definition differ :" << std::endl;
+      std::cout << "     MNS Matrix was defined for : " << ( kAntiMNSMatrix ? " Nubar " : "Nu" )<< std::endl;
+      std::cout << "     Propagation is for         : " << ( NuFlavor < 0   ? " Nubar " : "Nu" )<< std::endl;
+      std::cout << "     Please check your call to BargerPropagator::SetMNS() " << std::endl;
       std::cout << "     This message can be suppressed with a call to BargerPropagator::SuppressWarnings() " << std::endl;
-   
+
       exit(-1);
-   }  
+   }
 
    clear_complex_matrix( TransitionMatrix );
    clear_complex_matrix( TransitionProduct );
    clear_complex_matrix( TransitionTemp );
-	
+
    ClearProbabilities();
 
-   
-   get_transition_matrix( NuFlavor, 
+
+   get_transition_matrix( NuFlavor,
                   Energy	,		// in GeV
-                  Density * density_convert, 
+                  Density * density_convert,
                   pathlength ,      	// in km
                   TransitionMatrix,	// Output transition matrix
-                  0.0  			
-            );			
-		
+                  0.0
+            );
+
    copy_complex_matrix( TransitionMatrix , TransitionProduct );
 
    for ( i = 0 ; i < 3 ; i++ )
@@ -340,11 +337,11 @@ void BargerPropagator::propagateLinear( int NuFlavor, double pathlength, double 
       for ( j = 0 ; j < 3 ; j++ )
       {       RawInputPsi[j][0] = 0.0; RawInputPsi[j][1] = 0.0;   }
 
-      if( kUseMassEigenstates )	      
+      if( kUseMassEigenstates )
          convert_from_mass_eigenstate( i+1, NuFlavor,  RawInputPsi );
       else
          RawInputPsi[i][0] = 1.0;
-   	      
+
       multiply_complex_matvec( TransitionProduct, RawInputPsi, OutputPsi );
 
       Probability[i][0] += OutputPsi[0][0] * OutputPsi[0][0] + OutputPsi[0][1]*OutputPsi[0][1];
@@ -352,9 +349,6 @@ void BargerPropagator::propagateLinear( int NuFlavor, double pathlength, double 
       Probability[i][2] += OutputPsi[2][0] * OutputPsi[2][0] + OutputPsi[2][1]*OutputPsi[2][1];
 
    }// end of loop on neutrino types
-	
+
 }
 
-
-
-	

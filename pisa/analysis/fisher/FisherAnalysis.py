@@ -21,7 +21,7 @@ from pisa.utils.utils import Timer
 
 from pisa.analysis.fisher.gradients import get_gradients, get_hierarchy_gradients
 from pisa.analysis.fisher.BuildFisherMatrix import build_fisher_matrix
-from pisa.analysis.fisher.Fisher import FisherMatrix 
+from pisa.analysis.fisher.Fisher import FisherMatrix
 
 
 def get_fisher_matrices(template_settings, grid_settings, IMH=True, NMH=False, dump_all_stages=False,

@@ -20,7 +20,7 @@
 import os,sys
 import numpy as np
 from scipy.constants import Julian_year
-from argparse import ArgumentParser, RawTextHelpFormatter
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.utils import check_binning, get_binning
@@ -80,7 +80,7 @@ if __name__ == '__main__':
 
     parser = ArgumentParser(description='Take an oscillated flux file '
                           'as input & write out a set of oscillated event counts. ',
-                            formatter_class=RawTextHelpFormatter)
+                            formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument('osc_flux_maps',metavar='FLUX',type=from_json,
                      help='''JSON osc flux input file with the following parameters:
       {"nue": {'czbins':[], 'ebins':[], 'map':[]},
@@ -91,15 +91,13 @@ if __name__ == '__main__':
        "nutau_bar": {...} }''')
     parser.add_argument('--weighted_aeff_file',metavar='WEIGHTFILE',type=str,
                         default='events/V15_weighted_aeff.hdf5',
-                        help='''HDF5 File containing event data for each flavours for
-                        a particular instrumental geometry. The effective area
-                        is calculate from the event weights in this file.
-                        Only applies in non-parametric mode.''')
+                        help='''HDF5 File containing event data for each flavours for a particular
+instrumental geometry. The effective area is calculated from the event
+weights in this file. Only applies in non-parametric mode.''')
     parser.add_argument('--settings_file',metavar='SETTINGS',type=str,
                         default='aeff/V36_aeff.json',
-                        help='''json file containing parameterizations of the
-                         effective area and its cos(zenith) dependence.
-                         Only applies in parametric mode.''')
+                        help='''json file containing parameterizations of the effective
+area and its cos(zenith) dependence. Only applies in parametric mode.''')
     parser.add_argument('--livetime',type=float,default=1.0,
                         help='''livetime in years to re-scale by.''')
     parser.add_argument('--nu_nubar_ratio',type=float,default=1.0,
@@ -107,8 +105,7 @@ if __name__ == '__main__':
     parser.add_argument('--aeff_scale',type=float,default=1.0,
                         help='''Overall scale on aeff''')
     parser.add_argument('--mc_mode',action='store_true', default=False,
-                        help='''Use MC-based effective areas instead of
-                        using the parameterized versions.''')
+                        help='''Use MC-based effective areas instead of using the parameterized versions.''')
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str,
                         action='store',default="event_rate.json",
                         help='''file to store the output''')
