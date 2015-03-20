@@ -44,10 +44,13 @@ class OscillationServiceBase:
           'numu_maps': {...}
           'nue_bar_maps': {...}
           'numu_bar_maps': {...}
-        NOTES: * expects all angles in [rad]
-               * this method doesn't calculate the oscillation probabi-
-                 lities itself, but calls get_osc_probLT_dict internally
+        NOTES:
+          * expects all angles in [rad]
+          * this method doesn't calculate the oscillation probabilities
+            itself, but calls get_osc_probLT_dict internally, to get a
+            high resolution map of the oscillation probs,
         """
+
         #Get the finely binned maps as implemented in the derived class
         logging.info('Retrieving finely binned maps')
         with Timer(verbose=False) as t:

@@ -77,6 +77,10 @@ class AeffServicePar:
         # Get 1D array interpolated values at bin centers, assume no cz dep
         aeff1d = aeff_func(ecen)
 
+        # Correct for final energy bin, since interpolation does not
+        # extend to JUST right outside the final bin:
+        if aeff1d[-1] == 0.0: aeff1d[-1] = aeff1d[-2]
+
         # Make this into a 2D array:
         aeff2d = np.reshape(np.repeat(aeff1d, len(czcen)), (len(ecen), len(czcen)))
 

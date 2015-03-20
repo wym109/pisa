@@ -42,6 +42,7 @@ class NucraftOscillationService(OscillationServiceBase):
         * osc_precision: Numerical precision for oscillation probabilities
         """
         OscillationServiceBase.__init__(self, ebins, czbins)
+        logging.info('Initializing %s...'%self.__class__.__name__)
 
         print get_params()
         report_params(get_params(),['km','','','km'])

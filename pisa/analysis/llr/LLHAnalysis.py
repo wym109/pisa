@@ -148,8 +148,7 @@ def llh_bfgs(opt_vals,*args):
     else:
         true_template = template_maker.get_template(template_params)
     profile.info('stop template calculation')
-    true_fmap = flatten_map(true_template)
-
+    true_fmap = flatten_map(true_template,chan=template_params['channel'])
 
     # NOTE: The minus sign is present on both of these next two lines
     # to reflect the fact that the optimizer finds a minimum rather

@@ -30,7 +30,6 @@ from pisa.utils.proc import report_params, get_params, add_params
 from pisa.reco.RecoServiceMC import RecoServiceMC
 from pisa.reco.RecoServiceParam import RecoServiceParam
 from pisa.reco.RecoServiceKernelFile import RecoServiceKernelFile
-from pisa.reco.RecoServiceKDE import RecoServiceKDE
 
 
 def get_reco_maps(true_event_maps, reco_service=None,e_reco_scale=None,
@@ -58,7 +57,9 @@ def get_reco_maps(true_event_maps, reco_service=None,e_reco_scale=None,
     ebins, czbins = get_binning(true_event_maps)
 
     #Retrieve all reconstruction kernels
-    reco_kernel_dict = reco_service.get_reco_kernels(**kwargs)
+    reco_kernel_dict = reco_service.get_reco_kernels(e_reco_scale=e_reco_scale,
+                                                     cz_reco_scale=cz_reco_scale,
+                                                     **kwargs)
 
     #Do smearing
     flavours = ['nue','numu','nutau']
@@ -84,9 +85,10 @@ def get_reco_maps(true_event_maps, reco_service=None,e_reco_scale=None,
             reco_maps[flavor+'_'+int_type] = {'map':reco_evt_rate,
                                               'ebins':ebins,
                                               'czbins':czbins}
-            logging.debug("after RECO: Total counts for (%s + %s) %s: %.2f"%(flavor,
-                                                                    flavor+'_bar', int_type,
-                                                                    np.sum(reco_evt_rate)))
+            msg = "after RECO: counts for (%s + %s) %s: %.2f"%(flavor,flavor+'_bar',
+                                                               int_type,
+                                                               np.sum(reco_evt_rate))
+            logging.debug(msg)
 
     #Finally sum up all the NC contributions
     logging.info("Summing up rates for all nc events")
@@ -95,7 +97,7 @@ def get_reco_maps(true_event_maps, reco_service=None,e_reco_scale=None,
     reco_maps['nuall_nc'] = {'map':reco_evt_rate,
                              'ebins':ebins,
                              'czbins':czbins}
-    physics.debug("Total counts for nuall nc: %.2f"%np.sum(reco_evt_rate))
+    logging.debug("Total counts for nuall nc: %.2f"%np.sum(reco_evt_rate))
 
     return reco_maps
 
@@ -114,7 +116,7 @@ if __name__ == '__main__':
        "nue_bar": {...},
        "numu_bar": {...},
        "nutau_bar": {...} }''')
-    parser.add_argument('-m', '--mode', type=str, choices=['MC', 'param', 'stored', 'kde'],
+    parser.add_argument('-m', '--mode', type=str, choices=['MC', 'param', 'stored'],
                         default='param', help='Reco service to use')
     parser.add_argument('--mc_file',metavar='HDF5',type=str,
                         default='events/V15_weighted_aeff_joined_nu_nubar.hdf5',
@@ -125,9 +127,6 @@ if __name__ == '__main__':
     parser.add_argument('--kernel_file', metavar='JSON',
                         type=str, default=None,
                         help='''JSON file holding the pre-calculated kernels''')
-    parser.add_argument('--kde_file',metavar='HDF5',type=str,
-                        default='events/V15_weighted_aeff_joined_nu_nubar.hdf5',
-                        help='''file holding the info on how to define KDEs''')
     parser.add_argument('--e_reco_scale',type=float,default=1.0,
                         help='''Reconstructed energy scaling.''')
     parser.add_argument('--cz_reco_scale',type=float,default=1.0,
@@ -158,9 +157,6 @@ if __name__ == '__main__':
         reco_service = RecoServiceKernelFile(ebins, czbins,
                                              reco_kernel_file=args.kernel_file,
                                              **vars(args))
-    elif args.mode=='kde':
-        reco_service = RecoServiceKDE(ebins,czbins,reco_kde_file=args.kde_file,
-                                      **vars(args))
 
     event_rate_reco_maps = get_reco_maps(args.event_rate_maps,
                                          reco_service, **vars(args))
