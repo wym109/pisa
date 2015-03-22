@@ -20,7 +20,8 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 from pisa.analysis.TemplateMaker import TemplateMaker
 from pisa.utils.params import get_values, select_hierarchy
-from pisa.utils.log import set_verbosity,logging
+from pisa.utils.log import set_verbosity,logging,profile
+from pisa.utils.utils import Timer
 from pisa.utils.jsons import from_json
 from pisa.utils.plot import show_map
 
@@ -318,8 +319,12 @@ settings file. ''')
                                   normal_hierarchy=True)
     imh_params = select_hierarchy(template_settings['params'],
                                   normal_hierarchy=False)
-    nmh = template_maker.get_template(get_values(nmh_params),return_stages=args.all)
-    imh = template_maker.get_template(get_values(imh_params),return_stages=args.all)
+    with Timer(verbose=False) as t:
+        nmh = template_maker.get_template(get_values(nmh_params),return_stages=args.all)
+    profile.info("==> elapsed time to get NMH template: %s sec"%t.secs)
+    with Timer(verbose=False) as t:
+        imh = template_maker.get_template(get_values(imh_params),return_stages=args.all)
+    profile.info("==> elapsed time to get IMH template: %s sec"%t.secs)
 
     # Or equivalently, if args.all:
     if type(nmh) is tuple:
