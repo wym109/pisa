@@ -15,7 +15,7 @@
 
 ### IMPORTS ###
 
-import numpy as n
+import numpy as np
 import operator
 import copy
 import sys
@@ -65,7 +65,7 @@ class FisherMatrix:
            best_fits: best fit values for each parameter
         """
         
-        self.matrix = n.matrix(matrix)
+        self.matrix = np.matrix(matrix)
         self.parameters = list(parameters)
         self.best_fits = list(best_fits)
         self.priors = list(priors) if priors is not None else [None for p in self.parameters]
@@ -94,7 +94,7 @@ class FisherMatrix:
         
         loaded_dict = json.load(open(filename, 'r'))
         
-        matrix = n.matrix(loaded_dict.pop('matrix'))
+        matrix = np.matrix(loaded_dict.pop('matrix'))
         parameters = loaded_dict.pop('parameters')
         best_fits = loaded_dict.pop('best_fits')
         labels = loaded_dict.pop('labels')
@@ -135,7 +135,7 @@ class FisherMatrix:
             new_labels.append(lbl)
         
         # generate blank matrix
-        new_matrix = n.matrix( n.zeros((len(new_params), len(new_params))) )
+        new_matrix = np.matrix( np.zeros((len(new_params), len(new_params))) )
         
         # fill new matrix
         for (i,j) in itertools.product(range(len(new_params)), range(len(new_params))):
@@ -178,16 +178,16 @@ class FisherMatrix:
         matrix is symmetrical, and parameter names are unique
         """
         
-        if not len(self.parameters)==n.shape(self.matrix)[1]:
+        if not len(self.parameters)==np.shape(self.matrix)[1]:
             raise IndexError('Number of parameters does not match dimension of Fisher matrix! [%i, %i]' \
                 %(len(self.parameters), len(self.matrix)) )
         
-        if not n.all(self.matrix.T==self.matrix):
+        if not np.all(self.matrix.T==self.matrix):
             raise ValueError('Fisher matrix not symmetric!')
         
         if not len(self.parameters)==len(set(self.parameters)):
             raise ValueError('Parameter names not unique! %s' \
-                %(n.array2string(n.array(self.parameters))) )
+                %(np.array2string(np.array(self.parameters))) )
         
         return True
     
@@ -214,7 +214,7 @@ class FisherMatrix:
         
         if not par in self.parameters:
             raise IndexError('%s not found in parameter list %s'\
-                %(par, n.array2string(n.array(self.parameters)) ) )
+                %(par, np.array2string(np.array(self.parameters)) ) )
         else:
             return self.parameters.index(par)
     
@@ -229,7 +229,7 @@ class FisherMatrix:
         
         if toname in self.parameters[self.parameters!=fromname]:
             raise ValueError('%s already in parameter list %s'\
-                %(toname, n.array2string(n.array(self.parameters)) ) )
+                %(toname, np.array2string(np.array(self.parameters)) ) )
         
         self.parameters[idx] = toname
     
@@ -239,11 +239,11 @@ class FisherMatrix:
         Calculate covariance matrix from Fisher matrix (i.e. invert including priors).
         """
         
-        if n.linalg.det(self.matrix)==0:
+        if np.linalg.det(self.matrix)==0:
             raise ValueError('Fisher Matrix is singular, cannot be inverted!')
         
-        self.covariance = n.linalg.inv(self.matrix \
-                                + n.diag([1./self.getPrior(p)**2 for p in self.parameters]))
+        self.covariance = np.linalg.inv(self.matrix \
+                                + np.diag([1./self.getPrior(p)**2 for p in self.parameters]))
     
     
     def getBestFit(self, par):
@@ -284,13 +284,13 @@ class FisherMatrix:
         idx = self.getParameterIndex(par)
         
         # drop from parameter, best fit, and prior list
-        self.parameters = list(n.delete(n.array(self.parameters), idx))
-        self.best_fits = list(n.delete(n.array(self.best_fits), idx))
-        self.labels = list(n.delete(n.array(self.labels), idx))
-        self.priors = list(n.delete(self.priors, idx))
+        self.parameters = list(np.delete(np.array(self.parameters), idx))
+        self.best_fits = list(np.delete(np.array(self.best_fits), idx))
+        self.labels = list(np.delete(np.array(self.labels), idx))
+        self.priors = list(np.delete(self.priors, idx))
         
         # drop from matrix (first row, then column)
-        self.matrix = n.delete(n.delete(self.matrix, idx, axis=0), idx, axis=1)
+        self.matrix = np.delete(np.delete(self.matrix, idx, axis=0), idx, axis=1)
         
         self.calculateCovariance()
     
@@ -315,7 +315,7 @@ class FisherMatrix:
         idx = self.getParameterIndex(par)
         
         if self.priors[idx] is not None:
-            self.priors[idx] = 1./n.sqrt(1./self.priors[idx]**2 + 1./sigma**2)
+            self.priors[idx] = 1./np.sqrt(1./self.priors[idx]**2 + 1./sigma**2)
             self.calculateCovariance()
         else:
             self.setPrior(par, sigma)
@@ -340,7 +340,7 @@ class FisherMatrix:
         prior = self.priors[idx]
         
         if prior is None:
-            return n.inf
+            return np.inf
         else:
             return prior
     
@@ -377,7 +377,7 @@ class FisherMatrix:
         marginalized over all other parameters
         """
         
-        return n.sqrt(self.getVariance(par))
+        return np.sqrt(self.getVariance(par))
     
     
     def getSigmaNoPriors(self, par):
@@ -393,10 +393,10 @@ class FisherMatrix:
         temp_priors[idx] = None
         
         # calculate covariance with these priors
-        temp_covariance = n.linalg.inv(self.matrix \
-                            + n.diag([1./s**2 if s is not None else 0. for s in temp_priors]))
+        temp_covariance = np.linalg.inv(self.matrix \
+                            + np.diag([1./s**2 if s is not None else 0. for s in temp_priors]))
         
-        return n.sqrt(temp_covariance[idx,idx])
+        return np.sqrt(temp_covariance[idx,idx])
     
     
     def getSigmaStatistical(self, par):
@@ -406,7 +406,7 @@ class FisherMatrix:
         """
         
         idx = self.getParameterIndex(par)
-        return 1./n.sqrt(self.matrix[idx,idx])
+        return 1./np.sqrt(self.matrix[idx,idx])
     
     
     def getSigmaSystematic(self, par):
@@ -415,7 +415,7 @@ class FisherMatrix:
         (i.e. systematic error)
         """
         
-        return n.sqrt((self.getSigmaNoPriors(par))**2 \
+        return np.sqrt((self.getSigmaNoPriors(par))**2 \
                         - (self.getSigmaStatistical(par))**2)
     
     
@@ -437,19 +437,19 @@ class FisherMatrix:
         
         #for this we need sigma1 > sigma2, otherwise just swap parameters
         if sigma1 > sigma2:
-          a_sq = (sigma1**2 + sigma2**2)/2. + n.sqrt((sigma1**2 - sigma2**2)**2/4. + cov**2)
-          b_sq = (sigma1**2 + sigma2**2)/2. - n.sqrt((sigma1**2 - sigma2**2)**2/4. + cov**2)
+          a_sq = (sigma1**2 + sigma2**2)/2. + np.sqrt((sigma1**2 - sigma2**2)**2/4. + cov**2)
+          b_sq = (sigma1**2 + sigma2**2)/2. - np.sqrt((sigma1**2 - sigma2**2)**2/4. + cov**2)
         else:
-          a_sq = (sigma2**2 + sigma1**2)/2. - n.sqrt((sigma2**2 - sigma1**2)**2/4. + cov**2)
-          b_sq = (sigma2**2 + sigma1**2)/2. + n.sqrt((sigma2**2 - sigma1**2)**2/4. + cov**2)
+          a_sq = (sigma2**2 + sigma1**2)/2. - np.sqrt((sigma2**2 - sigma1**2)**2/4. + cov**2)
+          b_sq = (sigma2**2 + sigma1**2)/2. + np.sqrt((sigma2**2 - sigma1**2)**2/4. + cov**2)
 
         #Note: this has weird dimensions (actual size of the plot)!
         tan_2_th = 2.*cov / (sigma1**2 - sigma2**2)
         
         # we are dealing with a 2D error ellipse here
-        scaling = n.sqrt(chi2.ppf(confLevel, 2))
+        scaling = np.sqrt(chi2.ppf(confLevel, 2))
         
-        return scaling*n.sqrt(a_sq), scaling*n.sqrt(b_sq), tan_2_th
+        return scaling*np.sqrt(a_sq), scaling*np.sqrt(b_sq), tan_2_th
     
     
     def getCorrelation(self, par1, par2):
@@ -714,7 +714,7 @@ class PrettyFisher:
                 if axes.is_last_row() and axes.is_last_col(): 
                     sigmaTot = sigma2
                     sigmaStat = self.fisher.getSigmaStatistical(par2)
-                    sigmaSys = n.sqrt(sigmaTot**2 - sigmaStat**2)
+                    sigmaSys = np.sqrt(sigmaTot**2 - sigmaStat**2)
                     axes.yaxis.set_label_position('right')
                     pylab.ylabel("%s\n $\mathsf{= %.2f \pm %.2f(stat) \pm %.2f(sys)}$"%
                                 (parnames[idx2], parvalues[idx2], sigmaStat, sigmaSys),
