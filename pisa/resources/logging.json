@@ -22,7 +22,7 @@
   },
   "loggers": {
     "profile": {
-      "handlers": [ "console_time"  ],
+      "handlers": [ "console"  ],
       "level": "DEBUG",
       "propagate": false
     },

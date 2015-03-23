@@ -25,7 +25,10 @@ from pisa.utils.proc import report_params, get_params, add_params
 from pisa.oscillations.Prob3OscillationService import Prob3OscillationService
 from pisa.oscillations.NucraftOscillationService import NucraftOscillationService
 from pisa.oscillations.TableOscillationService import TableOscillationService
-
+try:
+    from pisa.oscillations.Prob3GPUOscillationService import Prob3GPUOscillationService
+except:
+    logging.info("NOT loading Prob3GPUOscillationService in Oscillation.py")
 
 def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,
                  energy_scale=None, theta12=None,theta13=None,theta23=None,
@@ -104,10 +107,9 @@ if __name__ == '__main__':
     parser.add_argument('--energy-scale',type=float,default=1.0,
                         dest='energy_scale',
                         help='''Energy off scaling due to mis-calibration.''')
-    parser.add_argument('--code',type=str,choices = ['prob3','table','nucraft'],
+    parser.add_argument('--code',type=str,choices = ['prob3','table','nucraft','gpu'],
                         default='prob3',
-                        help='''Oscillation code to use, one of
-                        [table, prob3, nucraft]''')
+                        help='''Oscillation code to use''')
     parser.add_argument('--oversample_e', type=int, default=13,
                         help='''oversampling factor for energy;
                         i.e. every 2D bin will be oversampled by this factor in
@@ -119,7 +121,7 @@ if __name__ == '__main__':
     parser.add_argument('--detector-depth', type=float, default=2.0,
                         dest='detector_depth',
                         help='''Detector depth in km''')
-    parser.add_argument('--propagation-height', default=None,
+    parser.add_argument('--propagation-height', type=float, default=None,
                         dest='prop_height',
                         help='''Height in the atmosphere to begin propagation in km.
                         Prob3 default: 20.0 km
@@ -156,6 +158,9 @@ if __name__ == '__main__':
     elif args.code=='nucraft':
       if iniargs['prop_height'] is None: iniargs['prop_height'] = 'sample'
       osc_service = NucraftOscillationService(ebins, czbins, **iniargs)
+    elif args.code=='gpu':
+        settings = vars(args)
+        osc_service = Prob3GPUOscillationService(ebins, czbins, **settings)
     else:
       osc_service = TableOscillationService(ebins, czbins, **iniargs)
 
