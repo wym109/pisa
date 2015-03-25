@@ -121,7 +121,7 @@ if __name__ == '__main__':
     parser.add_argument('--detector-depth', type=float, default=2.0,
                         dest='detector_depth',
                         help='''Detector depth in km''')
-    parser.add_argument('--propagation-height', default=None,
+    parser.add_argument('--propagation-height', type=float, default=None,
                         dest='prop_height',
                         help='''Height in the atmosphere to begin propagation in km.
                         Prob3 default: 20.0 km

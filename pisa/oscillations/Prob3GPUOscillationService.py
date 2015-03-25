@@ -46,7 +46,8 @@ class Prob3GPUOscillationService():
           * detector_depth: Detector depth in km.
           * prop_height: Height in the atmosphere to begin in km.
         """
-        logging.trace('Instantiating %s'%self.__class__.__name__)
+
+        logging.info('Instantiating %s'%self.__class__.__name__)
         self.ebins = np.array(ebins)
         self.czbins = np.array(czbins)
         for ax in [self.ebins, self.czbins]:

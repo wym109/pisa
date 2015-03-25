@@ -82,15 +82,17 @@ class TemplateMaker:
         self.flux_service = HondaFluxService(**template_settings)
 
         # Oscillated Flux Service:
-        if template_settings['osc_code']=='prob3':
+	osc_code = template_settings['osc_code']
+        if osc_code == 'prob3':
             self.osc_service = Prob3OscillationService(self.ebins,self.czbins,
                                                        **template_settings)
-        elif template_settings['osc_code'] == 'gpu':
+        elif osc_code == 'gpu':
             self.osc_service = Prob3GPUOscillationService(self.ebins,self.czbins,
                     oversample_e=self.oversample_e,oversample_cz=self.oversample_cz,
                                                           **template_settings)
-        elif template_settings['osc_code'] == 'nucraft':
-            self.osc_service = NucraftOscillationService(ebins, czbins, **template_settings)
+        elif osc_code == 'nucraft':
+            self.osc_service = NucraftOscillationService(self.ebins,self.czbins,
+							 **template_settings)
         else:
             error_msg = 'OscillationService NOT implemented for osc_code = %s'%osc_code
             raise NotImplementedError(error_msg)
@@ -123,7 +125,7 @@ class TemplateMaker:
                                                       **template_settings)
         else:
             error_msg = "reco_mode: %s is not implemented! "%reco_mode
-            error_msg+=" Please choose among: ['MC','kde','param']"
+            error_msg+=" Please choose among: ['MC','param','stored']"
             raise NotImplementedError(error_msg)
 
         # PID Service:

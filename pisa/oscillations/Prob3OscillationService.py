@@ -35,6 +35,7 @@ class Prob3OscillationService(OscillationServiceBase):
         * prop_height: Height in the atmosphere to begin in km.
         """
         OscillationServiceBase.__init__(self, ebins, czbins)
+        logging.info('Initializing %s...'%self.__class__.__name__)
 
         report_params(get_params(),['km','','km'])
 

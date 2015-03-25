@@ -42,6 +42,7 @@ class NucraftOscillationService(OscillationServiceBase):
         * osc_precision: Numerical precision for oscillation probabilities
         """
         OscillationServiceBase.__init__(self, ebins, czbins)
+        logging.info('Initializing %s...'%self.__class__.__name__)
 
         print get_params()
         report_params(get_params(),['km','','','km'])
@@ -49,7 +50,7 @@ class NucraftOscillationService(OscillationServiceBase):
         self.prop_height = prop_height # km above spherical Earth surface
  	''' height_mode = 0 ensures that interaction takes place at chosen height '''
 	''' whereas height_mode = 1 samples single altitude from distribution '''
-        self.height_mode = 3 if self.prop_height is 'sample' else 0 # 1
+        self.height_mode = 3 if self.prop_height is 'sample' else 0
         self.detector_depth = detector_depth # km below spherical Earth surface
         self.num_prec = osc_precision
         self.get_earth_model(earth_model)
@@ -84,13 +85,15 @@ class NucraftOscillationService(OscillationServiceBase):
             # with r_E = 6371. km
             engine.atmHeight = self.prop_height
 
-        #Make input arrays in correct format
-        es, zs = np.meshgrid(ecen, czcen)
-        shape = es.shape
-        es, zs = es.flatten(), zs.flatten()
+        # Make input arrays in correct format (nucraft input type 1)
+	zs, es = np.meshgrid(czcen, ecen)
+        zs, es = zs.flatten(), es.flatten()
+	# we need flat lists with probabilities for further processing
+	shape = int(len(ecen)*len(czcen))
 
         # Apply Energy scaling factor:
-        es *= energy_scale
+	if energy_scale is not None:
+	    es *= energy_scale
 
         for prim in osc_prob_dict:
 
@@ -100,7 +103,7 @@ class NucraftOscillationService(OscillationServiceBase):
             ps = np.ones_like(es)*get_PDG_ID(prim.rsplit('_', 1)[0])
 
             # run it
-            logging.debug("Calculating oscillation probabilites for %s at %u points..."
+            logging.debug("Calculating oscillation probabilities for %s at %u points..."
                             %(prim.rsplit('_', 1)[0], len(ps)))
             probs = engine.CalcWeights((ps, es, np.arccos(zs)),
                                        atmMode=self.height_mode,
@@ -115,15 +118,8 @@ class NucraftOscillationService(OscillationServiceBase):
                 sec_key = sec+'_bar' if 'bar' in prim else sec
                 osc_prob_dict[prim][sec_key] = probs[i]
 
-	# fix: return energy-cz values as requested by OscillationServiceBase
-	evals = []
-	czvals = []
-	for ie,energy in enumerate(ecen):
-            for icz, coszen in enumerate(czcen):
-	        evals.append(energy)
-		czvals.append(coszen)
-
-        return evals,czvals
+        evals,czvals = np.meshgrid(ecen,czcen,indexing='ij')
+        return evals.flatten(),czvals.flatten()
 
 
     def get_earth_model(self, model):

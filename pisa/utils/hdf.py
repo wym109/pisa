@@ -41,5 +41,6 @@ def from_hdf(filename):
 
 
     #run over the whole dataset
-    visit_group(hdf5_data,data)
+    for obj in hdf5_data.values():
+        visit_group(obj,data)
     return data

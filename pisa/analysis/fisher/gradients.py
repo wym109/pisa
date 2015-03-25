@@ -8,13 +8,14 @@
 #         Sebastian Boeser - sboeser@uni-mainz.de
 #	  Thomas Ehrhardt - tehrhard@uni-mainz.de
 
-from pisa.utils.jsons import to_json
-from pisa.utils.log import logging
-from pisa.utils.params import get_values
 import numpy as np
 import os
 import tempfile
 import copy
+
+from pisa.utils.jsons import to_json
+from pisa.utils.log import logging
+from pisa.utils.params import get_values
 
 
 def derivative_from_polycoefficients(coeff, loc):
