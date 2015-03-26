@@ -234,7 +234,7 @@ void EarthDensity::Load()
     // and if so, quit.
     for (std::map<double,double>::iterator it = _density.begin(); it!=_density.end(); ++it) {
       if (it->first > largest_radius) {
-/	cerr<<"ERROR! detector is placed too deep-no support for multiple layers "
+	cerr<<"ERROR! detector is placed too deep-no support for multiple layers "
 	    <<"above detector"<<endl;
 	cerr<<"layer radius: "<<it->first<<" detector radius: "
 	    <<largest_radius<<endl;
