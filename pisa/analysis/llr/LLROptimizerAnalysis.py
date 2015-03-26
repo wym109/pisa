@@ -15,10 +15,10 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 from pisa.utils.log import logging, profile, physics, set_verbosity
 from pisa.utils.jsons import from_json,to_json
+from pisa.utils.params import get_values, select_hierarchy
 from pisa.analysis.llr.LLHAnalysis import find_max_llh_bfgs
 from pisa.analysis.stats.Maps import get_pseudo_data_fmap, get_seed
 from pisa.analysis.TemplateMaker import TemplateMaker
-from pisa.utils.params import get_values, select_hierarchy
 
 parser = ArgumentParser(description='''Runs the LLR optimizer-based analysis varying a number of systematic parameters
 defined in settings.json file and saves the likelihood values for all
