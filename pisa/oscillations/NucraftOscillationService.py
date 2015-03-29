@@ -48,9 +48,11 @@ class NucraftOscillationService(OscillationServiceBase):
         report_params(get_params(),['km','','','km'])
 
         self.prop_height = prop_height # km above spherical Earth surface
+        #print "\n\n self.prop_height: ",self.prop_height
  	''' height_mode = 0 ensures that interaction takes place at chosen height '''
 	''' whereas height_mode = 1 samples single altitude from distribution '''
-        self.height_mode = 3 if self.prop_height is 'sample' else 0
+        self.height_mode = 3 if self.prop_height == 'sample' else 0
+        logging.debug("NuCraft height mode: %d"%self.height_mode)
         self.detector_depth = detector_depth # km below spherical Earth surface
         self.num_prec = osc_precision
         self.get_earth_model(earth_model)
@@ -82,7 +84,7 @@ class NucraftOscillationService(OscillationServiceBase):
                          #earthModel = self.earth_model)
         engine.detectorDepth = self.detector_depth
 
-        if self.prop_height is not 'sample':
+        if self.prop_height != 'sample':
             # Fix neutrino production height and detector depth for
             # simulating reactor experiments.
             # In this case, there should be only one zenith angle corresponding
