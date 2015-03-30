@@ -82,7 +82,7 @@ class TemplateMaker:
         self.flux_service = HondaFluxService(**template_settings)
 
         # Oscillated Flux Service:
-	osc_code = template_settings['osc_code']
+        osc_code = template_settings['osc_code']
         if osc_code == 'prob3':
             self.osc_service = Prob3OscillationService(self.ebins,self.czbins,
                                                        **template_settings)
@@ -123,6 +123,9 @@ class TemplateMaker:
         elif reco_mode == 'stored':
             self.reco_service = RecoServiceKernelFile(self.ebins, self.czbins,
                                                       **template_settings)
+        elif reco_mode == 'vbwkde':
+            self.reco_service = RecoServiceVBWKDE(self.ebins, self.czbins,
+                                                  **template_settings)
         else:
             error_msg = "reco_mode: %s is not implemented! "%reco_mode
             error_msg+=" Please choose among: ['MC','param','stored']"
