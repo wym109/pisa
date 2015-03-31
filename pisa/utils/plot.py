@@ -22,6 +22,7 @@ def show_map(pmap, title=None, cbar = True,
              xlabel=r'cos $\vartheta_\mathrm{zenith}$',
              ylabel='Energy [GeV]',
              zlabel=None,
+             zlabel_size='large',
              **kwargs):
     '''Plot the given map with proper axis labels using matplotlib.
        The axis orientation follows the PINGU convention:
@@ -101,7 +102,7 @@ def show_map(pmap, title=None, cbar = True,
 
     #And a title
     if title is not None:
-        plt.suptitle(title,fontsize='x-large')
+        plt.suptitle(title,fontsize=fontsize)
 
     axis = plt.gca()
     #Check wether energy axis is linear or log-scale
@@ -124,8 +125,8 @@ def show_map(pmap, title=None, cbar = True,
     if cbar:
         col_bar = plt.colorbar(format=r'$10^{%.1f}$') if log else plt.colorbar()
         if zlabel:
-            col_bar.set_label(zlabel,fontsize='x-large')
-
+            col_bar.set_label(zlabel,fontsize=fontsize)
+        col_bar.ax.tick_params(labelsize=zlabel_size)
     #Return axes for further modifications
     return axis
 
