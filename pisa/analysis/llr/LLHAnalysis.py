@@ -16,6 +16,7 @@ import scipy.optimize as opt
 from pisa.utils.jsons import to_json
 from pisa.utils.log import logging, physics, profile
 from pisa.utils.params import get_values, select_hierarchy, get_fixed_params, get_free_params, get_prior_llh, get_param_values, get_param_scales, get_param_bounds, get_param_priors
+from pisa.utils.utils import Timer
 from pisa.analysis.stats.LLHStatistics import get_binwise_llh
 from pisa.analysis.stats.Maps import flatten_map
 
@@ -141,13 +142,13 @@ def llh_bfgs(opt_vals,*args):
     template_params = dict(unscaled_free_params.items() + get_values(fixed_params).items())
 
     # Now get true template, and compute LLH
-    profile.info('start template calculation')
-    if template_params['theta23'] == 0.0:
-        logging.info("Zero theta23, so generating no oscillations template...")
-        true_template = template_maker.get_template_no_osc(template_params)
-    else:
-        true_template = template_maker.get_template(template_params)
-    profile.info('stop template calculation')
+    with Timer() as t:
+        if template_params['theta23'] == 0.0:
+            logging.info("Zero theta23, so generating no oscillations template...")
+            true_template = template_maker.get_template_no_osc(template_params)
+        else:
+            true_template = template_maker.get_template(template_params)
+    profile.info("==> elapsed time for template maker: %s sec"%t.secs)
     true_fmap = flatten_map(true_template,chan=template_params['channel'])
 
     # NOTE: The minus sign is present on both of these next two lines

@@ -101,7 +101,7 @@ if __name__ == '__main__':
                         help='''theta23 value [rad]''')
     parser.add_argument('--deltacp',type=float,default=0.0,
                         help='''deltaCP value to use [rad]''')
-    parser.add_argument('--earth-model',type=str,default='oscillations/PREM_60layer.dat',
+    parser.add_argument('--earth-model',type=str,default='oscillations/PREM_12layer.dat',
                         dest='earth_model',
                         help='''Earth model data (density as function of radius)''')
     parser.add_argument('--energy-scale',type=float,default=1.0,
