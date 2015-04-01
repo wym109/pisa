@@ -31,6 +31,7 @@ from pisa.utils.proc import report_params, get_params, add_params
 from pisa.reco.RecoServiceMC import RecoServiceMC
 from pisa.reco.RecoServiceParam import RecoServiceParam
 from pisa.reco.RecoServiceKernelFile import RecoServiceKernelFile
+from pisa.reco.RecoServiceVBWKDE import RecoServiceVBWKDE
 
 
 def get_reco_maps(true_event_maps, reco_service=None, e_reco_scale=None,
@@ -125,6 +126,9 @@ if __name__ == '__main__':
     parser.add_argument('--mc_file', metavar='HDF5', type=str,
                         default='events/V15_weighted_aeff_joined_nu_nubar.hdf5',
                         help='''HDF5 File containing reconstruction data from all flavours for a particular instument geometry.''')
+    parser.add_argument('--vbwkde_evts_file', metavar='HDF5', type=str,
+                        default='events/V15_weighted_aeff_joined_nu_nubar.hdf5',
+                        help='''HDF5 File containing reconstruction data from all flavours for a particular instument geometry.''')
     parser.add_argument('--param_file', metavar='JSON',
                         type=str, default='reco_params/V36_reco.json',
                         help='''JSON file holding the parametrization''')
@@ -161,6 +165,12 @@ if __name__ == '__main__':
         reco_service = RecoServiceKernelFile(ebins, czbins,
                                              reco_kernel_file=args.kernel_file,
                                              **vars(args))
+    elif args.mode=='vbwkde':
+        reco_service = RecoServiceVBWKDE(
+            ebins=ebins, czbins=czbins,
+            reco_vbwkde_evts_file=args.reco_vbwkde_evts_file,
+            **vars(args)
+        )
 
     event_rate_reco_maps = get_reco_maps(args.event_rate_maps,
                                          reco_service, **vars(args))

@@ -43,7 +43,6 @@ def find_resource(filename, fail=True):
     # Not in the resource path, so look inside the package
     logging.trace('Searching package resources...')
     fpath = resource_filename(__name__, filename)
-    print os.path.abspath(fpath)
     if os.path.isfile(fpath):
         logging.debug('Found %s at %s' % (filename, fpath))
         return fpath

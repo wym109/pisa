@@ -38,7 +38,7 @@ class RecoServiceVBWKDE(RecoServiceBase):
     It is expected that the _get_reco_kernels method is called
 
     """
-    def __init__(self, ebins, czbins, reco_mc_wt_file, **kwargs):
+    def __init__(self, ebins, czbins, reco_vbwkde_evts_file, **kwargs):
         """Initializtion
 
         Parameters
@@ -49,7 +49,7 @@ class RecoServiceVBWKDE(RecoServiceBase):
         czbins : sequence
             Cosine-of-zenith histogram bin edges
 
-        reco_mc_wt_file : str or dict
+        reco_vbwkde_evts_file : str or dict
             Resource location of HDF5 file containing event reconstruction
             information for each of the neutrino flavors and interaction types.
             If an HDF5 file name is specified, the method utils.hdf.from_hdf
@@ -73,10 +73,10 @@ class RecoServiceVBWKDE(RecoServiceBase):
         self.ENERGY_RANGE = [0, 501]
 
         RecoServiceBase.__init__(self, ebins=ebins, czbins=czbins,
-                                 reco_mc_wt_file=reco_mc_wt_file,
+                                 reco_vbwkde_evts_file=reco_vbwkde_evts_file,
                                  **kwargs)
 
-    def _get_reco_kernels(self, reco_mc_wt_file=None, reco_mc_wt_dict=None,
+    def _get_reco_kernels(self, reco_vbwkde_evts_file=None, evts_dict=None,
                           **kwargs):
         """Given a reco events resource (resource file name or dictionary),
         retrieve data from it then serialize and hash the data. If the object
@@ -87,12 +87,12 @@ class RecoServiceVBWKDE(RecoServiceBase):
         ---------
         NOTE: One--and only one--of the two arguments must be specified.
 
-        reco_mc_wt_file : str (or dict)
+        reco_vbwkde_evts_file : str (or dict)
             Name or path to file containing event reco info. See doc for
             __init__ method for details about contents. If a dict is passed
-            in, it is automatically populated to reco_mc_wt_dict (see below).
+            in, it is automatically populated to evts_dict (see below).
 
-        reco_mc_wt_dict : dict
+        evts_dict : dict
             Dictionary containing event reco info. Allows user to pass in a
             non-string-object to avoid re-loading a file to check whether the
             contents have changed each time. See doc for __init__ method for
@@ -101,29 +101,29 @@ class RecoServiceVBWKDE(RecoServiceBase):
         """
         REMOVE_SIM_DOWNGOING = True
 
-        if (reco_mc_wt_file is not None) and (reco_mc_wt_dict is not None):
+        if (reco_vbwkde_evts_file is not None) and (evts_dict is not None):
             raise TypeError(
-                'One--and only one--of reco_mc_wt_{file|dict} may be ' +
-                'specified'
+                'One--and only one--of {reco_vbwkde_evts_file|evts_dict} ' +
+                'may be specified'
             )
 
-        if isinstance(reco_mc_wt_file, dict):
-            reco_mc_wt_dict = reco_mc_wt_file
-            reco_mc_wt_dict = None
+        if isinstance(reco_vbwkde_evts_file, dict):
+            evts_dict = reco_vbwkde_evts_file
+            evts_dict = None
 
-        if isinstance(reco_mc_wt_file, str):
+        if isinstance(reco_vbwkde_evts_file, str):
             logging.info('Constructing VBWKDEs from event true & reco ' +
-                         'info in file: %s' % reco_mc_wt_file)
-            fpath = find_resource(reco_mc_wt_file)
+                         'info in file: %s' % reco_vbwkde_evts_file)
+            fpath = find_resource(reco_vbwkde_evts_file)
             eventsdict = hdf.from_hdf(fpath)
             new_hash = utils.hash_file(fpath)
-        elif isinstance(reco_mc_wt_dict, dict):
-            eventsdict = reco_mc_wt_dict
+        elif isinstance(evts_dict, dict):
+            eventsdict = evts_dict
             new_hash = utils.hash_obj(eventsdict)
         else:
-            raise TypeError('A reco_mc_wt_{file|dict} must be provided, ' +
-                            'where the former must be a str and the latter ' +
-                            'must be a dict.')
+            raise TypeError('A {reco_vbwkde_evts_file|evts_dict} must be' +
+                            'provided, where the former must be a str ' +
+                            'and the latter must be a dict.')
 
         if (self.kernels is not None) and (new_hash == self.reco_events_hash):
             return self.kernels
@@ -163,14 +163,14 @@ class RecoServiceVBWKDE(RecoServiceBase):
         kernels['czbins'] = self.czbins
         computed_datahashes = {}
         for flavor, int_type in flav_ints:
-            logging.debug("Working on %s/%s kernels" % (flavor, int_type))
+            logging.info("Working on %s/%s kernels" % (flavor, int_type))
             e_true = eventsdict[flavor][int_type]['true_energy']
             e_reco = eventsdict[flavor][int_type]['reco_energy']
             cz_true = eventsdict[flavor][int_type]['true_coszen']
             cz_reco = eventsdict[flavor][int_type]['reco_coszen']
 
             if remove_sim_downgoing:
-                logging.debug("Removing simulated downgoing " +
+                logging.info("Removing simulated downgoing " +
                               "events in KDE construction.")
                 keep_inds = np.where(cz_true < 0.0)
                 e_true = e_true[keep_inds]
@@ -182,7 +182,7 @@ class RecoServiceVBWKDE(RecoServiceBase):
                                        cz_true.tolist(), cz_reco.tolist()))
             if datahash in computed_datahashes:
                 ref_flavor, ref_int_type = computed_datahashes[datahash]
-                logging.debug("   > Found duplicate source data; " +
+                logging.info("   > Found duplicate source data; " +
                               "copying kernels already computed for " +
                               "%s/%s to %s/%s."
                               % (ref_flavor, ref_int_type, flavor, int_type))
@@ -285,7 +285,7 @@ class RecoServiceVBWKDE(RecoServiceBase):
             ebin_mid = (ebin_min+ebin_max)/2.0
             ebin_wid = ebin_max-ebin_min
 
-            logging.info(
+            logging.debug(
                 '  processing true-energy bin_n=' + str(ebin_n) + ' of ' +
                 str(n_ebins-1) + ', E_{nu,true} in ' +
                 '[' + str(ebin_min) + ', ' + str(ebin_max) + '] ...'
@@ -347,7 +347,7 @@ class RecoServiceVBWKDE(RecoServiceBase):
             kde_range = np.diff(egy_kde_lims)
             num_pts0 = kde_range/(min_bin_width/min_pts_smallest_bin)
             kde_num_pts = int(max(2**10, 2**np.ceil(np.log2(num_pts0))))
-            logging.info(
+            logging.debug(
                 ' Nevts=' + str(n_in_bin) + ' taken from [' +
                 str(ebin_mid-thresh_enu_dist) + ', ' +
                 str(ebin_mid+thresh_enu_dist) + ']' + ', KDE lims=' +
@@ -677,16 +677,9 @@ class RecoServiceVBWKDE(RecoServiceBase):
                 assert (np.sum(kernel4d[ebin_n, czbin_n]) -
                         tot_ebin_area*tot_czbin_area) < self.EPSILON
 
-            logging.info(' done.')
+        check_areas = kernel4d.sum(axis=(2,3))
 
-        # TODO: double check removal as duplicate of aggregate_map
-        check_areas0 = np.array(
-            [[np.sum(kernel4d[en,czn]) for czn in range(n_czbins)]
-             for en in range(n_ebins)]
-        )
-        check_areas1 = kernel4d.sum(axis=(0,1))
-
-        assert np.max(check_areas0) < 1 + self.EPSILON, str(np.max(check_areas0))
-        assert np.min(check_areas0) > 0 - self.EPSILON, str(np.min(check_areas0))
+        assert np.max(check_areas) < 1 + self.EPSILON, str(np.max(check_areas))
+        assert np.min(check_areas) > 0 - self.EPSILON, str(np.min(check_areas))
 
         return kernel4d
