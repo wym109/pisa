@@ -13,9 +13,10 @@
 import numpy as np
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
-from pisa.utils.log import logging, profile, physics, set_verbosity
 from pisa.utils.jsons import from_json,to_json
+from pisa.utils.log import logging, profile, physics, set_verbosity
 from pisa.utils.params import get_values, select_hierarchy
+from pisa.utils.utils import Timer
 from pisa.analysis.llr.LLHAnalysis import find_max_llh_bfgs
 from pisa.analysis.stats.Maps import get_pseudo_data_fmap, get_seed
 from pisa.analysis.TemplateMaker import TemplateMaker
@@ -107,11 +108,11 @@ for itrial in xrange(1,args.ntrials+1):
         for hypo_tag, hypo_normal in [('hypo_NMH',True),('hypo_IMH',False)]:
 
             physics.info("Finding best fit for %s under %s assumption"%(data_tag,hypo_tag))
-            profile.info("start optimizer")
-            llh_data = find_max_llh_bfgs(fmap,template_maker,template_settings['params'],
-                                         minimizer_settings,args.save_steps,
-                                         normal_hierarchy=hypo_normal)
-            profile.info("stop optimizer")
+            with Timer() as t:
+                llh_data = find_max_llh_bfgs(fmap,template_maker,template_settings['params'],
+                                             minimizer_settings,args.save_steps,
+                                             normal_hierarchy=hypo_normal)
+            profile.info("==> elapsed time for optimizer: %s sec"%t.secs)
 
             #Store the LLH data
             results[data_tag][hypo_tag] = llh_data
