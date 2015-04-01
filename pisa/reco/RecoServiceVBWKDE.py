@@ -38,7 +38,6 @@ class RecoServiceVBWKDE(RecoServiceBase):
     It is expected that the _get_reco_kernels method is called 
     
     """
-    
     def __init__(self, ebins, czbins, reco_mc_wt_file, **kwargs):
         """Initializtion
         
@@ -77,36 +76,6 @@ class RecoServiceVBWKDE(RecoServiceBase):
                                  reco_mc_wt_file=reco_mc_wt_file,
                                  **kwargs)
     
-    #@staticmethod
-    #def check_duplicate_nux_cc_bar(eventsdict):
-    #    """Check if nu<flav> and nu<flav>_bar have duplicate fields"""
-    #    
-    #    if (np.all(eventsdict['nue']['cc']['reco_energy'] ==
-    #               eventsdict['nue_bar']['cc']['reco_energy']) and
-    #        np.all(eventsdict['numu']['cc']['reco_energy'] ==
-    #               eventsdict['numu_bar']['cc']['reco_energy']) and
-    #        np.all(eventsdict['nutau']['cc']['reco_energy'] ==
-    #               eventsdict['nutau_bar']['cc']['reco_energy'])):
-    #        return True
-    #    return False
-    #
-    #@staticmethod
-    #def check_duplicate_nux_nc_x(eventsdict):
-    #    """Check if all nc reco energies are the same"""
-    #    
-    #    if (np.all(eventsdict['nue']['nc']['reco_energy'] ==
-    #               eventsdict['nue_bar']['nc']['reco_energy']) and
-    #        np.all(eventsdict['numu']['nc']['reco_energy'] ==
-    #               eventsdict['numu_bar']['nc']['reco_energy']) and
-    #        np.all(eventsdict['nutau']['nc']['reco_energy'] ==
-    #               eventsdict['nutau_bar']['nc']['reco_energy']) and
-    #        np.all(eventsdict['nutau']['nc']['reco_energy'] ==
-    #               eventsdict['nue']['nc']['reco_energy']) and
-    #        np.all(eventsdict['nutau']['nc']['reco_energy'] ==
-    #               eventsdict['numu']['nc']['reco_energy'])):
-    #        return True
-    #    return False
-    
     def _get_reco_kernels(self, reco_mc_wt_file=None, reco_mc_wt_dict=None,
                           **kwargs):
         """Given a reco events resource (resource file name or dictionary),
@@ -118,9 +87,10 @@ class RecoServiceVBWKDE(RecoServiceBase):
         ---------
         NOTE: One--and only one--of the two arguments must be specified.
         
-        reco_mc_wt_file : str
+        reco_mc_wt_file : str (or dict)
             Name or path to file containing event reco info. See doc for
-            __init__ method for details about contents.
+            __init__ method for details about contents. If a dict is passed
+            in, it is automatically populated to reco_mc_wt_dict (see below).
         
         reco_mc_wt_dict : dict
             Dictionary containing event reco info. Allows user to pass in a
@@ -129,12 +99,17 @@ class RecoServiceVBWKDE(RecoServiceBase):
             details about the dictionary's format.
         
         """
+        REMOVE_SIM_DOWNGOING = True
+        
         if (reco_mc_wt_file is not None) and (reco_mc_wt_dict is not None):
             raise TypeError(
                 'One--and only one--of reco_mc_wt_{file|dict} may be ' +
                 'specified'
             )
-        REMOVE_SIM_DOWNGOING = True
+        
+        if isinstance(reco_mc_wt_file, dict):
+            reco_mc_wt_dict = reco_mc_wt_file
+            reco_mc_wt_dict = None
         
         if isinstance(reco_mc_wt_file, str):
             logging.info('Constructing VBWKDEs from event true & reco ' +
@@ -157,6 +132,7 @@ class RecoServiceVBWKDE(RecoServiceBase):
             eventsdict=eventsdict, remove_sim_downgoing=REMOVE_SIM_DOWNGOING
         )
         self.reco_events_hash = new_hash
+        
         return self.kernels
     
     def all_kernels_from_events(self, eventsdict, remove_sim_downgoing):
@@ -177,23 +153,10 @@ class RecoServiceVBWKDE(RecoServiceBase):
             resolutions.
         
         """
-
-        #self.duplicate_nu_bar_cc = self.check_duplicate_nux_cc_bar(eventsdict)
-        #self.duplicate_nc = self.check_duplicate_nux_nc_x(eventsdict)
-        
         all_flavors = \
                 ['nue', 'nue_bar', 'numu', 'numu_bar', 'nutau', 'nutau_bar']
         all_ints = ['cc', 'nc']
         flav_ints = itertools.product(all_flavors, all_ints)
-        #if self.duplicate_nu_bar_cc:
-        #    flavors = [f for f in all_flavors if 'bar' not in f]
-        #else:
-        #    flavors = copy.deepcopy(all_flavors)
-        #if self.duplicate_nc:
-        #    flav_ints = [fi for fi in itertools.product(flavors, ['cc'])]
-        #    flav_ints.append(('nue', 'nc'))
-        #else:
-        #    flav_ints = [fi for fi in itertools.product(flavors, all_ints)]
         
         kernels = {f:{} for f in all_flavors}
         kernels['ebins'] = self.ebins
@@ -233,18 +196,7 @@ class RecoServiceVBWKDE(RecoServiceBase):
                 e_reco=e_reco, cz_reco=cz_reco
             )
             computed_datahashes[datahash] = (flavor, int_type)
-            #if self.duplicate_nu_bar_cc and int_type == 'cc':
-            #    flavor_bar = flavor + '_bar'
-            #    logging.debug("   >Copying %s kernels to %s" % (flavor,
-            #                                                    flavor_bar))
-            #    kernels[flavor_bar][int_type] = copy.deepcopy(
-            #        kernels[flavor][int_type]
-            #    )
-        #if self.duplicate_nc:
-        #    remaining_flavors = copy.deepcopy(all_flavors)
-        #    remaining_flavors.remove('nue')
-        #    for flavor in remaining_flavors:
-        #        kernels[flavor]['nc'] = copy.deepcopy(kernels['nue']['nc'])
+        
         return kernels
     
     def single_kernel_set(self, e_true, cz_true, e_reco, cz_reco):
@@ -732,15 +684,7 @@ class RecoServiceVBWKDE(RecoServiceBase):
         )
         check_areas1 = kernel4d.sum(axis=(0,1))
         
-        print 'check_areas0 max:', np.max(check_areas0)
         assert np.max(check_areas0) < 1 + self.EPSILON, str(np.max(check_areas0))
         assert np.min(check_areas0) > 0 - self.EPSILON, str(np.min(check_areas0))
-        
-        #print 'check_areas1 max:', np.max(check_areas1)
-        #assert np.max(check_areas1) < 1 + self.EPSILON, str(np.max(check_areas1))
-        #assert np.min(check_areas1) > 0 - self.EPSILON, str(np.min(check_areas1))
-        
-        #assert np.max(aggregate_map) < 1 + self.EPSILON, str(np.max(aggregate_map))
-        #assert np.min(aggregate_map) > 0 - self.EPSILON, str(np.min(aggregate_map))
         
         return kernel4d
