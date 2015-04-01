@@ -12,6 +12,7 @@
 # date:   2014-01-27
 
 
+import sys
 import inspect
 import time
 import hashlib
@@ -143,12 +144,12 @@ def get_binning(d, iterate=False, eset=[], czset=[]):
 
 def check_binning(data):
     """Check whether all maps in data have the same binning, and return it."""
-    eset, czset = get_binning(data,iterate=True)
+    eset, czset = get_binning(data, iterate=True)
 
-    for binset, label in zip([eset,czset],['energy','coszen']):
-      if not np.alltrue([is_equal_binning(binset[0],bins)
-                         for bins in binset[1:]]):
-          raise Exception('Maps have different %s binning!'%label)
+    for binset, label in zip([eset,czset], ['energy','coszen']):
+        if not np.alltrue([is_equal_binning(binset[0],bins)
+                           for bins in binset[1:]]):
+            raise Exception('Maps have different %s binning!'%label)
 
     return eset[0],czset[0]
 
@@ -255,5 +256,5 @@ def hash_obj(obj):
 
 def hash_file(fname):
     md5 = hashlib.md5()
-    md5.update(file('/home/justin/cowen/code/pisa/pisa/resources/events/V36_weighted_aeff_joined_nu_nubar.hdf5','rb').read())
+    md5.update(file(fname, 'rb').read())
     return md5.hexdigest()

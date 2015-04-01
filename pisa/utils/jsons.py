@@ -4,7 +4,7 @@
 # A set of utilities for dealing with JSON files.
 # Import json from this module everywhere (if you need to at all,
 # and can not just use from_json, to_json)
-# 
+#
 # author: Sebastian Boeser
 #         sboeser@physik.uni-bonn.de
 #
@@ -36,7 +36,8 @@ def json_string(string):
 def from_json(filename):
     """Open a file in JSON format an parse the content"""
     try:
-        content = json.load(open(os.path.expandvars(filename)),cls=NumpyDecoder)
+        content = json.load(open(os.path.expandvars(filename)),
+                            cls=NumpyDecoder)
         return content
     except (IOError, JSONDecodeError), e:
         logging.error("Unable to read JSON file \'%s\'"%filename)
@@ -47,11 +48,11 @@ def from_json(filename):
 def to_json(content, filename, indent=2):
     """Write content to a JSON file using a custom parser that automatically
     converts numpy arrays to lists."""
-    with open(filename,'w') as outfile:
-        json.dump(content,outfile, cls=NumpyEncoder,
+    with open(filename, 'w') as outfile:
+        json.dump(content, outfile, cls=NumpyEncoder,
                   indent=indent, sort_keys=True)
         logging.debug('Wrote %.2f kBytes to %s'%
-                  (outfile.tell()/1024.,os.path.basename(filename)))
+                      (outfile.tell()/1024., os.path.basename(filename)))
 
 
 class NumpyEncoder(json.JSONEncoder):
@@ -68,10 +69,10 @@ class NumpyDecoder(json.JSONDecoder):
     def __init__(self, encoding=None, object_hook=None, parse_float=None,
                  parse_int=None, parse_constant=None, strict=True,
                  object_pairs_hook=None):
-        
-        super(NumpyDecoder,self).__init__(encoding, object_hook, parse_float,
-                                              parse_int, parse_constant, strict,
-                                              object_pairs_hook)
+
+        super(NumpyDecoder, self).__init__(encoding, object_hook, parse_float,
+                                          parse_int, parse_constant, strict,
+                                          object_pairs_hook)
         #only need to override the default array handler
         self.parse_array = self.json_array_numpy
         self.parse_string = self.json_python_string

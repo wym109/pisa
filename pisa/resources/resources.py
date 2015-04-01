@@ -1,7 +1,7 @@
 #
 # resources.py
 #
-# Tools to obtain one of the input resources files needed for PISA. 
+# Tools to obtain one of the input resources files needed for PISA.
 #
 # author: Sebastian Boeser
 #         sboeser@physik.uni-bonn.de
@@ -10,10 +10,10 @@
 
 import os, sys
 from pisa.utils.log import logging
-from pkg_resources import resource_stream, resource_filename
+from pkg_resources import resource_filename
 
 
-def find_resource(filename, fail = True):
+def find_resource(filename, fail=True):
     '''
     Try to find the resource given by directory/filename. Will first check if
     filename is an absolute path, then relative to the $PISA
@@ -28,16 +28,16 @@ def find_resource(filename, fail = True):
     if os.path.isfile(fpath):
         logging.debug('Found %s' % (fpath))
         return fpath
-    
+
     # Next check if $PISA is set in environment
     logging.trace("Checking environment for $PISA...")
     if 'PISA' in os.environ:
         rpath = os.path.expanduser(os.path.expandvars(os.environ['PISA']))
         logging.debug('Searching resource path PISA=%s' % rpath)
 
-        fpath = os.path.join(rpath,filename)
+        fpath = os.path.join(rpath, filename)
         if os.path.isfile(fpath):
-            logging.debug('Found %s at %s' % (filename,fpath))
+            logging.debug('Found %s at %s' % (filename, fpath))
             return fpath
 
     # Not in the resource path, so look inside the package
@@ -45,7 +45,7 @@ def find_resource(filename, fail = True):
     fpath = resource_filename(__name__, filename)
     print os.path.abspath(fpath)
     if os.path.isfile(fpath):
-        logging.debug('Found %s at %s' % (filename,fpath))
+        logging.debug('Found %s at %s' % (filename, fpath))
         return fpath
 
     # Nowhere to be found

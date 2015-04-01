@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
-# 
+#
 # gaussians.pyx
-# 
+#
 # Computation of a single guassian (function "gaussian") or multiple guassians,
 # summed together (function "gaussians"). Note that each function requires an
 # output buffer be provided as the first argument, to which the result is added
 # (so the user must handle initialization of the buffer)
-# 
+#
 # author:  J.L. Lanfanchi
 #          jll1062@phys.psu.edu
-# 
+#
 # date:    March 28, 2015
-# 
+#
 
 cimport cython
 from cython.parallel import prange
@@ -31,28 +31,28 @@ def gaussian(double[::1] outbuf,
     """
     Computation of a single, normalized gaussian function at points (x), given
     a mean (mu) and standard deviation (sigma).
-    
+
     The result is added to the first argument (outbuf).
-    
+
     Arguments
     ---------
     outbuf   Populated with the sum of the values already in the buffer and the
              computed gaussian.
              NOTE: The user of this function is responsible for initializing
              the buffer with meaningful values (e.g., zeros)
-    
+
     x        Points at which to evaluate the gaussian
-    
+
     mu       Gaussian mean
-    
+
     sigma    Gaussian standard deviation (half-width at ~68.3% coverage)
-    
+
     threads  Number of OpenMP threads to use for parallelizing the computation
-    
+
     Returns
     -------
     None
-    
+
     """
     cdef double twosigma2 = 2*(sigma*sigma)
     cdef double sqrt2pisigma = sqrt2pi * sigma
@@ -79,9 +79,9 @@ def gaussians(double[::1] outbuf,
     """
     Computation of a single, normalized gaussian function at points (x), given
     a mean (mu) and standard deviation (sigma).
-    
+
     The result is added to the first argument (outbuf).
-    
+
     Arguments
     ---------
     outbuf : array of double
@@ -89,18 +89,19 @@ def gaussians(double[::1] outbuf,
         computed sum-of-gaussians. NOTE: The user of this function is
         responsible for initializing the buffer with meaningful values (e.g.,
         zeros)
-    
+
     x : array of double
         Points at which to evaluate the gaussians
-    
+
     mu : array of double
         Means of each gaussian
-    
+
     sigma : array of double
         Standard deviations (half-widths at ~68.3% coverage) of each gaussian
-    
+
     threads : int
         Number of OpenMP threads to use for parallelizing the computation
+
     """
     cdef double twosigma2
     cdef double sqrt2pisigma

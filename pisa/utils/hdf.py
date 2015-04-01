@@ -2,14 +2,13 @@
 # hdf.py
 #
 # A set of utilities for dealing with HDF5 files.
-# 
+#
 # author: Sebastian Boeser
 #         sboeser@uni-mainz.de
 #
 # date:   2015-03-05
 
 import os
-import sys
 import numpy as np
 import h5py
 from pisa.utils.log import logging
@@ -24,11 +23,11 @@ def from_hdf(filename):
         logging.error("Unable to read HDF5 file \'%s\'" % filename)
         logging.error(e)
         raise e
-    
+
     data = {}
-    
+
     # Iteratively parse the file to create the dictionary
-    def visit_group(obj, sdict): 
+    def visit_group(obj, sdict):
         name = obj.name.split('/')[-1]
         #indent = len(obj.name.split('/'))-1
         #print "  "*indent,name, obj.value if (type(obj) == h5py.Dataset) else ":"
@@ -38,17 +37,17 @@ def from_hdf(filename):
             sdict[name] = {}
             for sobj in obj.values():
                 visit_group(sobj, sdict[name])
-    
+
     # Run over the whole dataset
     for obj in hdf5_data.values():
         visit_group(obj, data)
-    
+
     return data
 
 
 def to_hdf(d, filename):
     """Store a (possibly nested) dictionary to HDF5 file"""
-    
+
     def store_recursively(fh, node, path=[]):
         if isinstance(node, dict):
             try:
@@ -68,16 +67,16 @@ def to_hdf(d, filename):
                               compression_opts = 9,
                               shuffle = True,
                               fletcher32 = False)
-    
+
     try:
         hdf5_data = h5py.File(os.path.expandvars(filename), 'w')
     except IOError, e:
         logging.error("Unable to write to HDF5 file \'%s\'" % filename)
         logging.error(e)
         raise e
-    
+
     try:
         store_recursively(fh=hdf5_data, node=d)
     finally:
         hdf5_data.close()
-    
+
