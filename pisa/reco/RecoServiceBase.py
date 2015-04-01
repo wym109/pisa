@@ -10,15 +10,15 @@
 # date:   August 15, 2014
 #
 
+
 import sys, os
 import logging
 
 import numpy as np
 from itertools import product
 
-from pisa.utils.utils import is_equal_binning, get_binning
-from pisa.utils.jsons import to_json
-from pisa.utils.proc import report_params, get_params, add_params
+from pisa.utils.utils import is_equal_binning
+from pisa.utils import hdf
 
 
 class RecoServiceBase:
@@ -27,7 +27,7 @@ class RecoServiceBase:
     of events from the reco kernels. Kernel generation has to be implemented
     in the derived classes.
     """
-
+    
     def __init__(self, ebins, czbins, **kwargs):
         """
         Parameters needed to instantiate any reconstruction service:
@@ -35,17 +35,17 @@ class RecoServiceBase:
         * czbins: cos(zenith) bin edges
         If further member variables are needed, override this method.
         """
-        logging.debug('Instantiating %s'%self.__class__.__name__)
+        logging.debug('Instantiating %s' % self.__class__.__name__)
         self.ebins = ebins
         self.czbins = czbins
         for ax in [self.ebins, self.czbins]:
             if (len(np.shape(ax)) != 1):
                 raise IndexError('Axes must be 1d! '+str(np.shape(ax)))
-
-        #Get kernels already now. Can be recalculated later, if needed.
+        
+        # Get kernels already now. Can be recalculated later, if needed.
         self.kernels = self.get_reco_kernels(**kwargs)
-
-
+    
+    
     def get_reco_kernels(self, **kwargs):
         """
         Wrapper around _get_reco_kernels() that is to be used from outside,
@@ -55,10 +55,11 @@ class RecoServiceBase:
         if kernels is None:
             logging.warn("No kernels defined yet...")
             return kernels
-
-        if self.check_kernels(kernels): return kernels
-
-
+        
+        if self.check_kernels(kernels):
+            return kernels
+    
+    
     def _get_reco_kernels(self, **kwargs):
         """
         This method is called to construct the reco kernels, i.e. a 4D
@@ -70,21 +71,19 @@ class RecoServiceBase:
         elsewhere.
         """
         raise NotImplementedError('Method not implemented for %s'
-                                    %self.__class__.__name__)
-
-
+                                  % self.__class__.__name__)
+    
+    
     def check_kernels(self, kernels):
-        """
-        Test whether the reco kernels have the correct shape.
-        """
+        """Test whether the reco kernels have the correct shape."""
         # check axes
         logging.debug('Checking binning of reconstruction kernels')
         for kernel_axis, own_axis in [(kernels['ebins'], self.ebins),
                                       (kernels['czbins'], self.czbins)]:
             if not is_equal_binning(kernel_axis, own_axis):
                 raise ValueError("Binning of reconstruction kernel doesn't "
-                                  "match the event maps!")
-
+                                 "match the event maps!")
+        
         # check shape of kernels
         logging.debug('Checking shape of reconstruction kernels')
         shape = (len(self.ebins)-1, len(self.czbins)-1,
@@ -93,17 +92,19 @@ class RecoServiceBase:
             if flavour in ['ebins', 'czbins']: continue
             for interaction in kernels[flavour]:
                 if not np.shape(kernels[flavour][interaction])==shape:
-                    raise IndexError('Reconstruction kernel for %s/%s has wrong shape: '
-                                      '%s, %s' %(flavour, interaction, str(shape),
-                                      str(np.shape(kernels[flavour][interaction]))) )
-
+                    raise IndexError(
+                        'Reconstruction kernel for %s/%s has wrong shape: '
+                        '%s, %s' %(flavour, interaction, str(shape),
+                                   str(np.shape(kernels[flavour][interaction])))
+                    )
+        
         logging.info('Reconstruction kernels are sane')
         return True
-
-
-    def store_kernels(self, filename):
-        """
-        Store reconstruction kernels in json format
-        """
-        to_json(self.kernels, filename)
-        return
+    
+    @staticmethod
+    def store_kernels(filename, fmt='hdf5'):
+        """Store reconstruction kernels in HDF5 format"""
+        if fmt.lower() in ['hdf', 'h5', 'hdf5']:
+            hdf.to_hdf(self.kernels, filename)
+        else:
+            raise NotImplementedError('Only hdf5 is implemented')

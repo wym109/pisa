@@ -15,58 +15,56 @@ import sys
 import numpy as np
 from pisa.utils.log import logging
 
-#try and get the much faster simplejson if we can
+# Try and get the much faster simplejson if we can
 try:
     import simplejson as json
     from simplejson import JSONDecodeError
     logging.trace("Using simplejson")
 except ImportError:
     import json as json
-    #No DecodeError in default json, dummy one
+    # No DecodeError in default json, dummy one
     class JSONDecodeError(ValueError):
-      pass
+        pass
     logging.trace("Using json")
 
+
 def json_string(string):
-    '''Decode a json string'''
+    """Decode a json string"""
     return json.loads(string)
 
+
 def from_json(filename):
-    '''Open a file in JSON format an parse the content'''
+    """Open a file in JSON format an parse the content"""
     try:
         content = json.load(open(os.path.expandvars(filename)),cls=NumpyDecoder)
         return content
     except (IOError, JSONDecodeError), e:
         logging.error("Unable to read JSON file \'%s\'"%filename)
         logging.error(e)
-        sys.exit(1)
+        raise e
 
-def to_json(content, filename,indent=2):
-    '''Write content to a JSON file using a custom parser that
-       automatically converts numpy arrays to lists.'''
+
+def to_json(content, filename, indent=2):
+    """Write content to a JSON file using a custom parser that automatically
+    converts numpy arrays to lists."""
     with open(filename,'w') as outfile:
         json.dump(content,outfile, cls=NumpyEncoder,
                   indent=indent, sort_keys=True)
         logging.debug('Wrote %.2f kBytes to %s'%
                   (outfile.tell()/1024.,os.path.basename(filename)))
 
-class NumpyEncoder(json.JSONEncoder):
-    """
-    Encode to JSON converting numpy.ndarrays to lists
-    """
-    def default(self, o):
 
+class NumpyEncoder(json.JSONEncoder):
+    """Encode to JSON converting numpy.ndarrays to lists"""
+    def default(self, o):
         if isinstance(o, np.ndarray):
             return o.tolist()
-
         return json.JSONEncoder.default(self, o)
 
 
 class NumpyDecoder(json.JSONDecoder):
-    """
-    Encode to numpy.ndarrays from JSON array, also returns python strings
-    instead of unicode.
-    """
+    """Encode to numpy.ndarrays from JSON array, also returns python strings
+    instead of unicode."""
     def __init__(self, encoding=None, object_hook=None, parse_float=None,
                  parse_int=None, parse_constant=None, strict=True,
                  object_pairs_hook=None):

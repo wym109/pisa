@@ -79,7 +79,10 @@
 from __future__ import division
 
 import numpy as np
-import scipy as sp
+from scipy import fftpack
+from scipy import optimize
+from scipy import interpolate
+
 openmp_num_threads = 1
 pi = np.pi
 sqrtpi = np.sqrt(pi)
@@ -123,7 +126,7 @@ def fbw_kde(data, N=None, MIN=None, MAX=None, overfit_factor=1.0):
     DataHist, bins = np.histogram(data, bins=N, range=(MIN,MAX))
     DataHist = DataHist/M
     
-    DCTData = sp.fftpack.dct(DataHist, norm=None)
+    DCTData = fftpack.dct(DataHist, norm=None)
     
     M = M
     I = np.arange(1,N, dtype=np.float64)**2
@@ -133,7 +136,7 @@ def fbw_kde(data, N=None, MIN=None, MAX=None, overfit_factor=1.0):
     failure = True
     for guess in np.logspace(-1,2,20):
         try:
-            t_star = sp.optimize.brentq(fixed_point,
+            t_star = optimize.brentq(fixed_point,
                                         0, guess,
                                         args=(np.float64(M), I, SqDCTData))
             failure = False
@@ -249,7 +252,7 @@ def vbw_kde(data, N=None, MIN=None, MAX=None, evaluate_dens=True,
     DataHist, bins = np.histogram(data, bins=N, range=(MIN,MAX))
     DataHist = DataHist/M
     
-    DCTData = sp.fftpack.dct(DataHist, norm=None)
+    DCTData = fftpack.dct(DataHist, norm=None)
     
     M = M
     I = np.arange(1,N, dtype=np.float64)**2
@@ -259,7 +262,7 @@ def vbw_kde(data, N=None, MIN=None, MAX=None, evaluate_dens=True,
     failure = True
     for guess in np.logspace(-1,2,20):
         try:
-            t_star = sp.optimize.brentq(fixed_point,
+            t_star = optimize.brentq(fixed_point,
                                         0, guess,
                                         args=(np.float64(M), I, SqDCTData))
             failure = False
@@ -275,7 +278,7 @@ def vbw_kde(data, N=None, MIN=None, MAX=None, evaluate_dens=True,
     SmDCTData = DCTData*np.exp(-np.arange(N)**2*pisq*t_star/(2*overfit_factor))
     
     # Inverse DCT to get density
-    fbw_dens_on_mesh = sp.fftpack.idct(SmDCTData, norm=None)*N/R
+    fbw_dens_on_mesh = fftpack.idct(SmDCTData, norm=None)*N/R
     
     # Start by defining the mesh as the bins' centers
     mesh = (bins[0:-1]+bins[1:])/2.
@@ -285,7 +288,7 @@ def vbw_kde(data, N=None, MIN=None, MAX=None, evaluate_dens=True,
     
     # Create linear interpolator for this new density then find density est. at
     # the original data points' locations; call this fbw_dens_at_datapoints
-    interp = sp.interpolate.interp1d(x             = mesh,
+    interp = interpolate.interp1d(x             = mesh,
                                      y             = fbw_dens_on_mesh,
                                      kind          = 'linear',
                                      copy          = False,
@@ -312,12 +315,12 @@ def vbw_kde(data, N=None, MIN=None, MAX=None, evaluate_dens=True,
     
     if not evaluate_dens:
         return kernel_bandwidths, evaluate_at, None
-    vbw_dens_est = np.zeros_like(evaluate_at)
+    vbw_dens_est = np.zeros_like(evaluate_at, dtype=np.double)
     gaussians(outbuf  = vbw_dens_est,
-              x       = evaluate_at,
-              mu      = data,
-              sigma   = kernel_bandwidths,
-              threads = openmp_num_threads)
+              x       = evaluate_at.astype(np.double),
+              mu      = data.astype(np.double),
+              sigma   = kernel_bandwidths.astype(np.double),
+              threads = int(openmp_num_threads))
     
     # Normalize distribution to have area of 1
     vbw_dens_est = vbw_dens_est/np.trapz(y=vbw_dens_est, x=evaluate_at)

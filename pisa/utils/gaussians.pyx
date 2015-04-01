@@ -28,7 +28,7 @@ def gaussian(double[::1] outbuf,
              double mu,
              double sigma,
              int threads=4):
-    '''
+    """
     Computation of a single, normalized gaussian function at points (x), given
     a mean (mu) and standard deviation (sigma).
     
@@ -52,7 +52,8 @@ def gaussian(double[::1] outbuf,
     Returns
     -------
     None
-    '''
+    
+    """
     cdef double twosigma2 = 2*(sigma*sigma)
     cdef double sqrt2pisigma = sqrt2pi * sigma
     cdef double xlessmu
@@ -75,7 +76,7 @@ def gaussians(double[::1] outbuf,
               double[::1] mu,
               double[::1] sigma,
               int threads=4):
-    '''
+    """
     Computation of a single, normalized gaussian function at points (x), given
     a mean (mu) and standard deviation (sigma).
     
@@ -83,20 +84,24 @@ def gaussians(double[::1] outbuf,
     
     Arguments
     ---------
-    outbuf   Populated with the sum of the values already in the buffer and the
-             computed sum-of-gaussians.
-             NOTE: The user of this function is responsible for initializing
-             the buffer with meaningful values (e.g., zeros)
+    outbuf : array of double
+        Populated with the sum of the values already in the buffer and the
+        computed sum-of-gaussians. NOTE: The user of this function is
+        responsible for initializing the buffer with meaningful values (e.g.,
+        zeros)
     
-    x        Points at which to evaluate the gaussians
+    x : array of double
+        Points at which to evaluate the gaussians
     
-    mu       Iterable containing means of each gaussian
+    mu : array of double
+        Means of each gaussian
     
-    sigma    Iterable containing standard deviations (half-widths at ~68.3%
-             coverage) of each gaussian
+    sigma : array of double
+        Standard deviations (half-widths at ~68.3% coverage) of each gaussian
     
-    threads  Number of OpenMP threads to use for parallelizing the computation
-    '''
+    threads : int
+        Number of OpenMP threads to use for parallelizing the computation
+    """
     cdef double twosigma2
     cdef double sqrt2pisigma
     cdef double xlessmu
