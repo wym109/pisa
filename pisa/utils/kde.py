@@ -137,8 +137,8 @@ def fbw_kde(data, N=None, MIN=None, MAX=None, overfit_factor=1.0):
     for guess in np.logspace(-1,2,20):
         try:
             t_star = optimize.brentq(fixed_point,
-                                        0, guess,
-                                        args=(np.float64(M), I, SqDCTData))
+                                     0, guess,
+                                     args=(np.float64(M), I, SqDCTData))
             failure = False
             break
         except ValueError:
@@ -263,8 +263,8 @@ def vbw_kde(data, N=None, MIN=None, MAX=None, evaluate_dens=True,
     for guess in np.logspace(-1,2,20):
         try:
             t_star = optimize.brentq(fixed_point,
-                                        0, guess,
-                                        args=(np.float64(M), I, SqDCTData))
+                                     0, guess,
+                                     args=(np.float64(M), I, SqDCTData))
             failure = False
             break
         except ValueError:
@@ -289,12 +289,12 @@ def vbw_kde(data, N=None, MIN=None, MAX=None, evaluate_dens=True,
     # Create linear interpolator for this new density then find density est. at
     # the original data points' locations; call this fbw_dens_at_datapoints
     interp = interpolate.interp1d(x             = mesh,
-                                     y             = fbw_dens_on_mesh,
-                                     kind          = 'linear',
-                                     copy          = False,
-                                     bounds_error  = True,
-                                     fill_value    = np.nan,
-                                     assume_sorted = True) 
+                                  y             = fbw_dens_on_mesh,
+                                  kind          = 'linear',
+                                  copy          = False,
+                                  bounds_error  = True,
+                                  fill_value    = np.nan,
+                                  assume_sorted = True) 
     fbw_dens_at_datapoints = interp(data)
     
     # Note below diverges from the published Ambramson method, by forcing the
