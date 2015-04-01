@@ -63,8 +63,7 @@ def to_hdf(d, filename):
                               data = node,
                               chunks = True,
                               maxshape = np.shape(node),
-                              compression = 'gzip',
-                              compression_opts = 9,
+                              compression = None,
                               shuffle = True,
                               fletcher32 = False)
 

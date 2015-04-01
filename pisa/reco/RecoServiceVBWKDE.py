@@ -339,11 +339,12 @@ class RecoServiceVBWKDE(RecoServiceBase):
             e_upperlim = max((np.max(ebin_edges)-ebin_mid)*1.5, dmax+drange*0.5)
             egy_kde_lims = np.array([e_lowerlim, e_upperlim])
 
-            # Use at least 2**10 points and at most the next-highest integer-
-            # power-of-two that allows for at least two points in the smallest
-            # energy bin
+            # Use at least min_num_pts points and at most the next-highest
+            # integer-power-of-two that allows for at least 10 points in the
+            # smallest energy bin
+            min_num_pts = 2**12
             min_bin_width = np.min(ebin_edges)
-            min_pts_smallest_bin = 2.0
+            min_pts_smallest_bin = 10.0
             kde_range = np.diff(egy_kde_lims)
             num_pts0 = kde_range/(min_bin_width/min_pts_smallest_bin)
             kde_num_pts = int(max(2**10, 2**np.ceil(np.log2(num_pts0))))
@@ -488,7 +489,7 @@ class RecoServiceVBWKDE(RecoServiceBase):
             # number, the longer it takes to compute the densities at all the
             # points. Here, just choosing a fixed number regardless of the data
             # or binning
-            N_cz_mesh = 2**9
+            N_cz_mesh = 2**10
 
             # Data range for VBWKDE to consider
             cz_gaus_kde_min = -3

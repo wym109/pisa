@@ -91,7 +91,7 @@ sqrt2pi = np.sqrt(2*pi)
 pisq = pi**2
 
 try:
-    import gaussians as GAUS
+    import pisa.utils.gaussians as GAUS
 except:
     def gaussian(outbuf, x, mu, sigma):
         xlessmu = x-mu
