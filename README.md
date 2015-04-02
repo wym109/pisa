@@ -21,6 +21,7 @@ installed
 * [scipy](http://www.scipy.org/) -- version > 0.12 recommended
 * [hdf5](http://www.hdfgroup.org/HDF5/) -- install with `--enable-cxx` option
 * [h5py](http://www.h5py.org/) -- install via pip
+* [cython](http://cython.org/) -- install via pip
 
 If you are working on OSX, we suggest [homebrew](brew.sh/) as a package manager, which supports all of the non-python packages above. 
 

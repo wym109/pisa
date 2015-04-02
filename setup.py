@@ -9,6 +9,7 @@
 
 from distutils.core import setup, Extension
 from distutils.command.build import build as _build
+from Cython.Build import cythonize
 
 #Define custom build order, so that the python interface module
 #created by SWIG is staged in build_py.
@@ -57,18 +58,15 @@ setup(
            'pisa/analysis/fisher/FisherAnalysis.py',
            'pisa/analysis/llr/LLROptimizerAnalysis.py'
            ],
-  #ext_package='pisa.oscillations.prob3',
+  ext_package='pisa.oscillations.prob3',
   ext_modules=[Extension('pisa.oscillations.prob3._BargerPropagator',
                    ['pisa/oscillations/prob3/BargerPropagator.i',
                     'pisa/oscillations/prob3/BargerPropagator.cc',
                     'pisa/oscillations/prob3/EarthDensity.cc',
                     'pisa/oscillations/prob3/mosc.c',
                     'pisa/oscillations/prob3/mosc3.c'],
-                    swig_opts=['-c++']),
-               Extension('pisa.utils.gaussians',
-                         ['pisa/utils/gaussians.c'],
-                         extra_compile_args=['-fopenmp'],
-                         extra_link_args=['-fopenmp'])],
+                    swig_opts=['-c++'])]+
+               cythonize('pisa/utils/gaussians.pyx'),
   package_data={'pisa.resources': ['logging.json',
                                    'aeff/*.json',
                                    'aeff/V15/cuts_V3/*.dat',
