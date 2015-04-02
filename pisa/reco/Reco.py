@@ -130,7 +130,7 @@ if __name__ == '__main__':
                         default='events/V15_weighted_aeff_joined_nu_nubar.hdf5',
                         help='''HDF5 File containing reconstruction data from all flavours for a particular instument geometry.''')
     parser.add_argument('--param_file', metavar='JSON',
-                        type=str, default='reco_params/V36_reco.json',
+                        type=str, default='reco/V36.json',
                         help='''JSON file holding the parametrization''')
     parser.add_argument('--kernel_file', metavar='JSON',
                         type=str, default=None,
@@ -168,7 +168,7 @@ if __name__ == '__main__':
     elif args.mode=='vbwkde':
         reco_service = RecoServiceVBWKDE(
             ebins=ebins, czbins=czbins,
-            reco_vbwkde_evts_file=args.reco_vbwkde_evts_file,
+            reco_vbwkde_evts_file=args.vbwkde_evts_file,
             **vars(args)
         )
 
