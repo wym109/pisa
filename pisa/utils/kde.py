@@ -83,38 +83,19 @@ import numpy as np
 from scipy import fftpack
 from scipy import optimize
 from scipy import interpolate
+from pisa.utils.gaussians import gaussians
 
-openmp_num_threads = 1
 pi = np.pi
 sqrtpi = np.sqrt(pi)
 sqrt2pi = np.sqrt(2*pi)
 pisq = pi**2
 
 try:
-    import pisa.utils.gaussians as GAUS
+    import multiprocessing
+    openmp_num_threads = multiprocessing.cpu_count()
 except:
-    def gaussian(outbuf, x, mu, sigma):
-        xlessmu = x-mu
-        outbuf += 1./(sqrt2pi*sigma) * np.exp(-xlessmu*xlessmu/(2.*sigma*sigma))
-    def gaussians(outbuf, x, mu, sigma, **kwargs):
-        [gaussian(outbuf, x, mu[n], sigma[n]) for n in xrange(len(mu))]
-else:
-    gaussian = GAUS.gaussian
-    gaussians = GAUS.gaussians
-    try:
-        import multiprocessing
-    except:
-        pass
-    else:
-        openmp_num_threads = multiprocessing.cpu_count()
+    openmp_num_threads = 1
 
-
-##try
-##    import multiprocessing
-##except ImportError:
-##    openmp_num_threads = 1
-##else:
-##    openmp_num_threads = multiprocessing.cpu_count()
 
 
 def fbw_kde(data, N=None, MIN=None, MAX=None, overfit_factor=1.0):
