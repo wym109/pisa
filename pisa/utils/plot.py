@@ -2,7 +2,7 @@
 # plots.py
 #
 # Utility function for plotting maps
-# 
+#
 # author: Sebastian Boeser
 #         sboeser@physik.uni-bonn.de
 #
@@ -22,9 +22,10 @@ def show_map(pmap, title=None, cbar = True,
              xlabel=r'cos $\vartheta_\mathrm{zenith}$',
              ylabel='Energy [GeV]',
              zlabel=None,
+             zlabel_size='large',
              **kwargs):
     '''Plot the given map with proper axis labels using matplotlib.
-       The axis orientation follows the PINGU convention: 
+       The axis orientation follows the PINGU convention:
           - energy to the right
           - cos(zenith) to the top
 
@@ -41,9 +42,9 @@ def show_map(pmap, title=None, cbar = True,
       * emin/emax: set the minimum maximum energy range to show.
                    If not value is provided use the full range covered
                    by the axis.
-     
-      * czmin/czmax: same as above for cos(zenith) 
-      
+
+      * czmin/czmax: same as above for cos(zenith)
+
       * log: use a logarithmic (log10) colour (z-axis) scale
 
       * logE: show the x-axis on a logarithmic scale (True or False)
@@ -57,16 +58,16 @@ def show_map(pmap, title=None, cbar = True,
     particular
 
       * cmap: defines the colormap
-    
+
     are just passed on to this function.
     '''
-    
+
     #Extract the map to plot, take the log if called for
     cmap = np.log10(pmap['map']) if log else pmap['map']
 
     #Mask invalid values
     cmap = np.ma.masked_invalid(cmap) if not invalid else cmap
-    
+
     #Get the vertical range
     if not log and vmax is None:
         vmax = np.max(np.abs(np.array(cmap)[np.isfinite(cmap)]))
@@ -101,7 +102,7 @@ def show_map(pmap, title=None, cbar = True,
 
     #And a title
     if title is not None:
-        plt.suptitle(title,fontsize='x-large')
+        plt.suptitle(title,fontsize=fontsize)
 
     axis = plt.gca()
     #Check wether energy axis is linear or log-scale
@@ -124,8 +125,8 @@ def show_map(pmap, title=None, cbar = True,
     if cbar:
         col_bar = plt.colorbar(format=r'$10^{%.1f}$') if log else plt.colorbar()
         if zlabel:
-            col_bar.set_label(zlabel)
-    
+            col_bar.set_label(zlabel,fontsize=fontsize)
+        col_bar.ax.tick_params(labelsize=zlabel_size)
     #Return axes for further modifications
     return axis
 
@@ -155,3 +156,16 @@ def sum_map(amap, bmap):
     return { 'ebins': amap['ebins'],
              'czbins': amap['czbins'],
              'map' : amap['map'] + bmap['map'] }
+
+def ratio_map(amap,bmap):
+    '''
+    Get the ratio of two maps (amap/bmap) and return as a map
+    dictionary.
+    '''
+    if (not np.allclose(amap['ebins'],bmap['ebins']) or
+        not np.allclose(amap['czbins'],bmap['czbins'])):
+        raise ValueError('Map range does not match!')
+
+    return { 'ebins': amap['ebins'],
+             'czbins': amap['czbins'],
+             'map' : amap['map']/bmap['map']}
