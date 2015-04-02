@@ -67,7 +67,7 @@ setup(
                     'pisa/oscillations/prob3/mosc3.c'],
                     swig_opts=['-c++'])]+
                cythonize(Extension('pisa.utils.gaussians',
-                             ['pisa/utils/gaussians.c'])),
+                             ['pisa/utils/gaussians.pyx'])),
   package_data={'pisa.resources': ['logging.json',
                                    'aeff/*.json',
                                    'aeff/V15/cuts_V3/*.dat',
