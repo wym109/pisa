@@ -99,6 +99,13 @@ class RecoServiceVBWKDE(RecoServiceBase):
             details about the dictionary's format.
 
         """
+
+        for reco_scale in ['e_reco_scale', 'cz_reco_scale']:
+            if reco_scale in kwargs and kwargs[reco_scale] != 1:
+                raise ValueError('%s = %.2f, must be 1.0 for RecoServiceVBWKDE!'
+                                  %(reco_scale, kwargs[reco_scale]))
+        
+
         REMOVE_SIM_DOWNGOING = True
 
         if (reco_vbwkde_evts_file is not None) and (evts_dict is not None):
