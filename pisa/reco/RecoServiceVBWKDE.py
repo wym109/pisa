@@ -284,8 +284,8 @@ class RecoServiceVBWKDE(RecoServiceBase):
             ebin_max = right_ebin_edges[ebin_n]
             ebin_mid = (ebin_min+ebin_max)/2.0
             ebin_wid = ebin_max-ebin_min
-
-            logging.debug(
+            
+            logging.trace(
                 '  processing true-energy bin_n=' + str(ebin_n) + ' of ' +
                 str(n_ebins-1) + ', E_{nu,true} in ' +
                 '[' + str(ebin_min) + ', ' + str(ebin_max) + '] ...'
@@ -400,8 +400,7 @@ class RecoServiceVBWKDE(RecoServiceBase):
                 kind          = 'linear',
                 copy          = True,
                 bounds_error  = True,
-                fill_value    = np.nan,
-                assume_sorted = True
+                fill_value    = np.nan
             )
 
             # Insert all bin edges' exact locations into the mesh (For accurate
@@ -554,8 +553,7 @@ class RecoServiceVBWKDE(RecoServiceBase):
                     kind          = 'linear',
                     copy          = True,
                     bounds_error  = False,
-                    fill_value    = 0,
-                    assume_sorted = True,
+                    fill_value    = 0
                 )
 
                 # Figure out where all bin edges lie in this re-centered

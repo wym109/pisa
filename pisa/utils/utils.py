@@ -250,7 +250,7 @@ def hash_obj(obj):
     return hash(jsons.json.dumps(obj, sort_keys=True, cls=None, indent=None,
                                  ensure_ascii=False, check_circular=True,
                                  allow_nan=True, separators=(',',':'),
-                                 use_decimal=True, namedtuple_as_object=True,
+                                 use_decimal=True, #namedtuple_as_object=True,
                                  tuple_as_array=True, bigint_as_string=True))
 
 

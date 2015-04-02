@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python, gaussians
 
 #
 # kde.py
@@ -84,7 +84,6 @@ from scipy import fftpack
 from scipy import optimize
 from scipy import interpolate
 
-openmp_num_threads = 1
 pi = np.pi
 sqrtpi = np.sqrt(pi)
 sqrt2pi = np.sqrt(2*pi)
@@ -107,6 +106,14 @@ else:
         pass
     else:
         openmp_num_threads = multiprocessing.cpu_count()
+
+
+##try
+##    import multiprocessing
+##except ImportError:
+##    openmp_num_threads = 1
+##else:
+##    openmp_num_threads = multiprocessing.cpu_count()
 
 
 def fbw_kde(data, N=None, MIN=None, MAX=None, overfit_factor=1.0):
@@ -294,8 +301,7 @@ def vbw_kde(data, N=None, MIN=None, MAX=None, evaluate_dens=True,
                                   kind          = 'linear',
                                   copy          = False,
                                   bounds_error  = True,
-                                  fill_value    = np.nan,
-                                  assume_sorted = True)
+                                  fill_value    = np.nan)
     fbw_dens_at_datapoints = interp(data)
 
     # Note below diverges from the published Ambramson method, by forcing the
