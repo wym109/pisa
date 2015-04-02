@@ -169,3 +169,13 @@ def ratio_map(amap,bmap):
     return { 'ebins': amap['ebins'],
              'czbins': amap['czbins'],
              'map' : amap['map']/bmap['map']}
+
+def distinguishability_map(amap,bmap):
+    '''
+    Calculate the Akhmedov-Style distinguishability map of two maps,
+    defined as amap-bmap/sqrt(amap)
+    '''
+    sqrt_map = {'ebins': amap['ebins'],
+                'czbins': amap['czbins'],
+                'map':np.sqrt(amap['map'])}
+    return ratio_map(delta_map(amap,bmap),sqrt_map)
