@@ -20,7 +20,37 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from pisa.utils.log import logging, physics, set_verbosity
 from pisa.utils.jsons import from_json, to_json, json_string
 from pisa.utils.proc import report_params, get_params, add_params
+from pisa.analysis.stats.Maps import apply_ratio_scale
 from pisa.flux.HondaFluxService import HondaFluxService, primaries
+
+def apply_nue_numu_ratio(flux_maps, nue_numu_ratio):
+    '''
+    Applies the nue_numu_ratio systematic to the flux maps
+    and returns the scaled maps. The actual calculation is
+    done by apply_ratio_scale.
+    '''
+    # keep both nu and nubar flux constant
+    scaled_nue_flux, scaled_numu_flux = apply_ratio_scale(
+        orig_maps = flux_maps,
+        key1 = 'nue', key2 = 'numu',
+        ratio_scale = nue_numu_ratio,
+        is_flux_scale = True
+    )
+
+    scaled_nue_bar_flux, scaled_numu_bar_flux = apply_ratio_scale(
+        orig_maps = flux_maps,
+        key1 = 'nue_bar', key2 = 'numu_bar',
+        ratio_scale = nue_numu_ratio,
+        is_flux_scale = True
+    )
+
+    flux_maps['nue']['map'] = scaled_nue_flux
+    flux_maps['nue_bar']['map']  =  scaled_nue_bar_flux
+    flux_maps['numu']['map'] = scaled_numu_flux
+    flux_maps['numu_bar']['map']  = scaled_numu_bar_flux
+
+    return flux_maps
+
 
 def get_flux_maps(flux_service, ebins, czbins, nue_numu_ratio=None, **kwargs):
     '''
@@ -30,8 +60,10 @@ def get_flux_maps(flux_service, ebins, czbins, nue_numu_ratio=None, **kwargs):
       * flux_service -
       * ebins/czbins - energy/coszenith bins to calculate flux
       * nue_numu_ratio - systematic to be a proxy for the realistic
-        (Flux_nue + Flux_nuebar)/(Flux_numu + Flux_numubar). Enters here as a
-        scaling factor for nue and nue_bar flux jointly.
+        Flux_nue/Flux_numu and Flux_nuebar/Flux_numubar ratios,
+        keeping both the total flux from neutrinos and antineutrinos
+        constant. The adjusted ratios are given by
+        "nue_numu_ratio * original ratio".
     '''
 
     #Be verbose on input
@@ -43,17 +75,21 @@ def get_flux_maps(flux_service, ebins, czbins, nue_numu_ratio=None, **kwargs):
 
     for prim in primaries:
 
-        flux_scale = nue_numu_ratio if 'nue' in prim else 1.0
-
         #Get the flux for this primary
         maps[prim] = {'ebins': ebins,
                       'czbins': czbins,
-                      'map': flux_scale*flux_service.get_flux(ebins,czbins,prim)}
+                      'map': flux_service.get_flux(ebins,czbins,prim)}
 
         #be a bit verbose
         logging.trace("Total flux of %s is %u [s^-1 m^-2]"%
                       (prim,maps[prim]['map'].sum()))
 
+    # now scale the nue(bar) / numu(bar) flux ratios, keeping the total
+    # flux (nue + numu, nue_bar + numu_bar) constant
+    if nue_numu_ratio != 1.:
+        return apply_nue_numu_ratio(maps, nue_numu_ratio)
+
+    # else: no scaling to be applied
     return maps
 
 
