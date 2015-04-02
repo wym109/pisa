@@ -43,6 +43,7 @@ setup(
             'pisa.analysis.scan',
             'pisa.analysis.fisher',
             'pisa.utils',
+            'pisa.utils.gaussians',
             'pisa.resources'],
   scripts=['examples/default_chain.sh',
            'examples/prob3_standalone_example.py',
@@ -58,7 +59,6 @@ setup(
            'pisa/analysis/fisher/FisherAnalysis.py',
            'pisa/analysis/llr/LLROptimizerAnalysis.py'
            ],
-  ext_package='pisa.oscillations.prob3',
   ext_modules=[Extension('pisa.oscillations.prob3._BargerPropagator',
                    ['pisa/oscillations/prob3/BargerPropagator.i',
                     'pisa/oscillations/prob3/BargerPropagator.cc',
@@ -66,7 +66,10 @@ setup(
                     'pisa/oscillations/prob3/mosc.c',
                     'pisa/oscillations/prob3/mosc3.c'],
                     swig_opts=['-c++'])]+
-               cythonize('pisa/utils/gaussians.pyx'),
+               cythonize(Extension('pisa.utils.gaussians',
+                             ['pisa/utils/gaussians.c'])),
+#                                extra_compile_args=['-fopenmp'],
+#                                extra_link_args=['-fopenmp'])),
   package_data={'pisa.resources': ['logging.json',
                                    'aeff/*.json',
                                    'aeff/V15/cuts_V3/*.dat',
