@@ -31,18 +31,18 @@ def apply_nue_numu_ratio(flux_maps, nue_numu_ratio):
     '''
     # keep both nu and nubar flux constant
     scaled_nue_flux, scaled_numu_flux = apply_ratio_scale(
-                                            orig_maps = flux_maps,
-                                            key1 = 'nue', key2 = 'numu',
-                                            ratio_scale = nue_numu_ratio,
-                                            is_flux_scale = True
-                                            )
+        orig_maps = flux_maps,
+        key1 = 'nue', key2 = 'numu',
+        ratio_scale = nue_numu_ratio,
+        is_flux_scale = True
+    )
 
     scaled_nue_bar_flux, scaled_numu_bar_flux = apply_ratio_scale(
-                                                    orig_maps = flux_maps,
-                                                    key1 = 'nue_bar', key2 = 'numu_bar',
-                                                    ratio_scale = nue_numu_ratio,
-                                                    is_flux_scale = True
-                                                    )
+        orig_maps = flux_maps,
+        key1 = 'nue_bar', key2 = 'numu_bar',
+        ratio_scale = nue_numu_ratio,
+        is_flux_scale = True
+    )
 
     flux_maps['nue']['map'] = scaled_nue_flux
     flux_maps['nue_bar']['map']  =  scaled_nue_bar_flux

@@ -17,10 +17,8 @@ def apply_ratio_scale(orig_maps, key1, key2, ratio_scale, is_flux_scale, int_typ
     Scales the ratio of the entries of two maps, conserving the total.
     '''
 
-    if is_flux_scale:
-        log_str = 'flux'
-    else:
-        log_str = 'event rate (%s)'%int_type
+    if is_flux_scale: log_str = 'flux'
+    else: log_str = 'event rate (%s)'%int_type
 
     if not is_flux_scale:
 	# we have maps of event counts of a certain interaction type

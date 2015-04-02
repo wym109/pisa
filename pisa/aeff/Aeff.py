@@ -5,13 +5,14 @@
 # This module is the implementation of the stage2 analysis. The main
 # purpose of stage2 is to combine the "oscillated Flux maps" with the
 # effective areas to create oscillated event rate maps, using the true
-# information.
+# information. This signifies what the "true" event rate would be for
+# a detector with our effective areas, but with perfect PID and
+# resolutions.
 #
 # If desired, this will create a .json output file with the results of
 # the current stage of processing.
 #
 # author: Timothy C. Arlen
-#
 #         tca3@psu.edu
 #
 # date:   April 8, 2014
@@ -40,8 +41,7 @@ def apply_nu_nubar_ratio(event_rate_maps, nu_nubar_ratio):
     done by apply_ratio_scale.
     '''
     flavours = event_rate_maps.keys()
-    if 'params' in flavours:
-        flavours.remove('params')
+    if 'params' in flavours: flavours.remove('params')
 
     for flavour in flavours:
         # process nu and nubar in one go
@@ -49,12 +49,12 @@ def apply_nu_nubar_ratio(event_rate_maps, nu_nubar_ratio):
              # do this for each interaction channel (cc and nc)
              for int_type in event_rate_maps[flavour].keys():
                  scaled_nu_rates, scaled_nubar_rates = apply_ratio_scale(
-                                                           orig_maps = event_rate_maps,
-                                                           key1 = flavour, key2 = flavour+'_bar',
-                                                           ratio_scale = nu_nubar_ratio,
-                                                           is_flux_scale = False,
-                                                           int_type = int_type
-                                                           )
+                     orig_maps = event_rate_maps,
+                     key1 = flavour, key2 = flavour+'_bar',
+                     ratio_scale = nu_nubar_ratio,
+                     is_flux_scale = False,
+                     int_type = int_type
+                 )
 
                  event_rate_maps[flavour][int_type]['map'] = scaled_nu_rates
                  event_rate_maps[flavour+'_bar'][int_type]['map'] = scaled_nubar_rates
