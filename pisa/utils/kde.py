@@ -84,6 +84,7 @@ from scipy import fftpack
 from scipy import optimize
 from scipy import interpolate
 
+openmp_num_threads = 1
 pi = np.pi
 sqrtpi = np.sqrt(pi)
 sqrt2pi = np.sqrt(2*pi)
