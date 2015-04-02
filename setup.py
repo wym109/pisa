@@ -71,6 +71,7 @@ setup(
                                    'aeff/*.json',
                                    'aeff/V15/cuts_V3/*.dat',
                                    'aeff/V36/cuts_V5/*.dat',
+                                   'reco/*.json',
                                    'pid/*.json',
                                    'flux/*.d',
                                    'settings/*.json',
