@@ -1,1 +1,3 @@
 include pisa/oscillations/prob3/*.h
+include pisa/utils/gaussians.pyx
+include pisa/utils/gaussians.c
