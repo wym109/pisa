@@ -70,6 +70,7 @@ setup(
   package_data={'pisa.resources': ['logging.json',
                                    'aeff/*.json',
                                    'aeff/V15/cuts_V3/*.dat',
+                                   'aeff/V36/cuts_V5/*.dat',
                                    'pid/*.json',
                                    'flux/*.d',
                                    'settings/*.json',
