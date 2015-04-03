@@ -41,11 +41,18 @@ def get_bin_centers(edges):
     else:
         return (np.array(edges[:-1])+np.array(edges[1:]))/2.
 
-def get_bin_edges_from_cen(centers):
+def get_edges_from_cen(bincen):
     '''Get the bin edges from a given set of bin centers. This only works
     for log10 or linear binning'''
-    if is_logarithmic(centers):
-
+    if is_logarithmic(bincen):
+        hwidth = 0.5*(np.log10(bincen[-1]) - np.log10(bincen[0]))/(len(bincen)-1)
+        return np.append([10**(np.log10(bincen[0]) -hwidth)],10**(np.log10(bincen[:])+hwidth))
+    elif is_linear(bincen):
+        hwidth = 0.5*(bincen[1] - bincen[0])
+        return np.append([bincen[0] - hwidth],bincen[:]+hwidth)
+    else:
+        raise NotImplementedError('Only bin centers evenly spaced in '
+                                  'log10 or linear space can be computed')
 
 def get_bin_sizes(edges):
 

@@ -52,7 +52,7 @@ def apply_nue_numu_ratio(flux_maps, nue_numu_ratio):
     return flux_maps
 
 
-def get_flux_maps(flux_service, ebins, czbins, nue_numu_ratio=None, **kwargs):
+def get_flux_maps(flux_service, ebins, czbins, nue_numu_ratio, energy_scale, **kwargs):
     '''
     Get a set of flux maps for the different primaries.
 
@@ -64,6 +64,7 @@ def get_flux_maps(flux_service, ebins, czbins, nue_numu_ratio=None, **kwargs):
         keeping both the total flux from neutrinos and antineutrinos
         constant. The adjusted ratios are given by
         "nue_numu_ratio * original ratio".
+      * energy_scale - factor to scale energy bin centers by
     '''
 
     #Be verbose on input
@@ -78,19 +79,20 @@ def get_flux_maps(flux_service, ebins, czbins, nue_numu_ratio=None, **kwargs):
         #Get the flux for this primary
         maps[prim] = {'ebins': ebins,
                       'czbins': czbins,
-                      'map': flux_service.get_flux(ebins,czbins,prim)}
+                      'map': flux_service.get_flux(ebins*energy_scale,czbins,prim)}
 
         #be a bit verbose
         logging.trace("Total flux of %s is %u [s^-1 m^-2]"%
                       (prim,maps[prim]['map'].sum()))
 
     # now scale the nue(bar) / numu(bar) flux ratios, keeping the total
-    # flux (nue + numu, nue_bar + numu_bar) constant
-    if nue_numu_ratio != 1.:
-        return apply_nue_numu_ratio(maps, nue_numu_ratio)
+    # flux (nue + numu, nue_bar + numu_bar) constant, or return unscaled maps:
+    return apply_nue_numu_ratio(maps, nue_numu_ratio) if nue_numu_ratio != 1.0 else maps
 
+    #if nue_numu_ratio != 1.:
+    #    return apply_nue_numu_ratio(maps, nue_numu_ratio)
     # else: no scaling to be applied
-    return maps
+    #return maps
 
 
 if __name__ == '__main__':
@@ -109,7 +111,7 @@ if __name__ == '__main__':
                         help= '''Input flux file in Honda format. ''',
                         default = 'flux/spl-solmax-aa.d')
     parser.add_argument('--nue_numu_ratio',metavar='FLOAT',type=float,
-                        help='''Factor to scale nue_flux by (works as a ratio when used in conjunction with aeff_scale)) ''',default=1.0)
+                        help='''Factor to scale nue_flux by''',default=1.0)
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE',
                         type=str, action='store', default='flux.json',
                         help='file to store the output')
