@@ -160,7 +160,7 @@ class TemplateMaker:
         with Timer() as t:
             flux_maps = get_flux_maps(self.flux_service, self.ebins,
                                       self.czbins, **params)
-        profile.info("==> elapsed time for flux stage: %s sec"%t.secs)
+        profile.debug("==> elapsed time for flux stage: %s sec"%t.secs)
 
         logging.info("STAGE 2: Getting osc prob maps...")
         with Timer() as t:
@@ -168,26 +168,26 @@ class TemplateMaker:
                                          oversample_e=self.oversample_e,
                                          oversample_cz=self.oversample_cz,
                                          **params)
-        profile.info("==> elapsed time for oscillations stage: %s sec"%t.secs)
+        profile.debug("==> elapsed time for oscillations stage: %s sec"%t.secs)
 
         logging.info("STAGE 3: Getting event rate true maps...")
         with Timer() as t:
             event_rate_maps = get_event_rates(osc_flux_maps,
                                               self.aeff_service, **params)
-        profile.info("==> elapsed time for aeff stage: %s sec"%t.secs)
+        profile.debug("==> elapsed time for aeff stage: %s sec"%t.secs)
 
         logging.info("STAGE 4: Getting event rate reco maps...")
         with Timer() as t:
             event_rate_reco_maps = get_reco_maps(event_rate_maps,
                                                  self.reco_service,
                                                  **params)
-        profile.info("==> elapsed time for reco stage: %s sec"%t.secs)
+        profile.debug("==> elapsed time for reco stage: %s sec"%t.secs)
 
         logging.info("STAGE 5: Getting pid maps...")
         with Timer(verbose=False) as t:
             final_event_rate = get_pid_maps(event_rate_reco_maps,
                                             self.pid_service)
-        profile.info("==> elapsed time for pid stage: %s sec"%t.secs)
+        profile.debug("==> elapsed time for pid stage: %s sec"%t.secs)
 
         if not return_stages:
             return final_event_rate
@@ -205,7 +205,7 @@ class TemplateMaker:
         with Timer() as t:
             flux_maps = get_flux_maps(self.flux_service, self.ebins,
                                       self.czbins, **params)
-        profile.info("==> elapsed time for flux stage: %s sec"%t.secs)
+        profile.debug("==> elapsed time for flux stage: %s sec"%t.secs)
 
         # Skipping oscillation stage...
         logging.info("  >>Skipping Stage 2 in no oscillations case...")
@@ -221,19 +221,19 @@ class TemplateMaker:
         with Timer() as t:
             event_rate_maps = get_event_rates(flux_maps, self.aeff_service,
                                               **params)
-        profile.info("==> elapsed time for aeff stage: %s sec"%t.secs)
+        profile.debug("==> elapsed time for aeff stage: %s sec"%t.secs)
 
         logging.info("STAGE 4: Getting event rate reco maps...")
         with Timer() as t:
             event_rate_reco_maps = get_reco_maps(event_rate_maps,
                                                  self.reco_service, **params)
-        profile.info("==> elapsed time for reco stage: %s sec"%t.secs)
+        profile.debug("==> elapsed time for reco stage: %s sec"%t.secs)
 
         logging.info("STAGE 5: Getting pid maps...")
         with Timer(verbose=False) as t:
             final_event_rate = get_pid_maps(event_rate_reco_maps,
                                             self.pid_service)
-        profile.info("==> elapsed time for pid stage: %s sec"%t.secs)
+        profile.debug("==> elapsed time for pid stage: %s sec"%t.secs)
 
         return final_event_rate
 
