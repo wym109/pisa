@@ -49,8 +49,18 @@ def add_params(setA,setB):
     #check for overlap
     if any(p in setA for p in setB):
         pnames = set(setA.keys()) & set(setB.keys())
-        logging.error('Trying to store parameter(s) %s twice'%pnames)
-        raise KeyError('Trying to store parameter(s) %s twice'%pnames)
+        # Since energy scale is implemented in two stages, need to allow this.
+        # So ensure equality then continue.
+        if 'energy_scale' in pnames:
+            if (setA['energy_scale'] != setB['energy_scale']):
+                logging.error(
+                    'setA energy scale: %f, setB energy scale: %f'
+                    %(setA['energy_scale'],setB['energy_scale']))
+                raise KeyError('SetA and SetB have different energy scale values!')
+            pnames = pnames.difference(['energy_scale'])
+            if len(pnames) > 0:
+                logging.error('Trying to store parameter(s) %s twice'%pnames)
+                raise KeyError('Trying to store parameter(s) %s twice'%pnames)
 
     #Otherwise append
     return dict(setA.items() + setB.items())

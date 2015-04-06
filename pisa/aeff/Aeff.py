@@ -5,13 +5,14 @@
 # This module is the implementation of the stage2 analysis. The main
 # purpose of stage2 is to combine the "oscillated Flux maps" with the
 # effective areas to create oscillated event rate maps, using the true
-# information.
+# information. This signifies what the "true" event rate would be for
+# a detector with our effective areas, but with perfect PID and
+# resolutions.
 #
 # If desired, this will create a .json output file with the results of
 # the current stage of processing.
 #
 # author: Timothy C. Arlen
-#
 #         tca3@psu.edu
 #
 # date:   April 8, 2014
@@ -30,6 +31,35 @@ from pisa.resources.resources import find_resource
 
 from pisa.aeff.AeffServiceMC import AeffServiceMC
 from pisa.aeff.AeffServicePar import AeffServicePar
+from pisa.analysis.stats.Maps import apply_ratio_scale
+
+
+def apply_nu_nubar_ratio(event_rate_maps, nu_nubar_ratio):
+    '''
+    Applies the nu_nubar_ratio systematic to the event rate
+    maps and returns the scaled maps. The actual calculation is
+    done by apply_ratio_scale.
+    '''
+    flavours = event_rate_maps.keys()
+    if 'params' in flavours: flavours.remove('params')
+
+    for flavour in flavours:
+        # process nu and nubar in one go
+        if not 'bar' in flavour:
+             # do this for each interaction channel (cc and nc)
+             for int_type in event_rate_maps[flavour].keys():
+                 scaled_nu_rates, scaled_nubar_rates = apply_ratio_scale(
+                     orig_maps = event_rate_maps,
+                     key1 = flavour, key2 = flavour+'_bar',
+                     ratio_scale = nu_nubar_ratio,
+                     is_flux_scale = False,
+                     int_type = int_type
+                 )
+
+                 event_rate_maps[flavour][int_type]['map'] = scaled_nu_rates
+                 event_rate_maps[flavour+'_bar'][int_type]['map'] = scaled_nubar_rates
+
+    return event_rate_maps
 
 
 def get_event_rates(osc_flux_maps,aeff_service,livetime=None,nu_nubar_ratio=None,
@@ -43,6 +73,15 @@ def get_event_rates(osc_flux_maps,aeff_service,livetime=None,nu_nubar_ratio=None
     {'nue': {'cc':map,'nc':map},
      'nue_bar': {'cc':map,'nc':map}, ...
      'nutau_bar': {'cc':map,'nc':map} }
+    \params:
+      * osc_flux_maps - maps containing oscillated fluxes
+      * aeff_service - the effective area service to use
+      * livetime - detector livetime for which to calculate event counts
+      * nu_nubar_ratio - systematic to be a proxy for the realistic
+        counts_nue(cc/nc) / counts_nuebar(cc/nc), ... ratios,
+        keeping the total flavour counts constant.
+        The adjusted ratios are given by "nu_nubar_ratio * original ratio".
+      * aeff_scale - systematic to be a proxy for the realistic effective area
     '''
 
     #Get parameters used here
@@ -65,8 +104,7 @@ def get_event_rates(osc_flux_maps,aeff_service,livetime=None,nu_nubar_ratio=None
         for int_type in ['cc','nc']:
             event_rate = osc_flux_map*aeff_dict[flavour][int_type]*aeff_scale
 
-            scale = 1.0 if 'bar' in flavour else nu_nubar_ratio
-            event_rate *= (scale*livetime*Julian_year)
+            event_rate *= (livetime*Julian_year)
             int_type_dict[int_type] = {'map':event_rate,
                                        'ebins':ebins,
                                        'czbins':czbins}
@@ -74,6 +112,12 @@ def get_event_rates(osc_flux_maps,aeff_service,livetime=None,nu_nubar_ratio=None
                           %(flavour,int_type,np.sum(event_rate)))
         event_rate_maps[flavour] = int_type_dict
 
+    # now scale the nu(e/mu/tau) / nu(e/mu/tau)bar event count ratios, keeping the total
+    # (nue + nuebar etc.) constant
+    if nu_nubar_ratio != 1.:
+        return apply_nu_nubar_ratio(event_rate_maps, nu_nubar_ratio)
+
+    # else: no scaling to be applied
     return event_rate_maps
 
 if __name__ == '__main__':

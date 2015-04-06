@@ -96,8 +96,10 @@ def get_fisher_matrices(template_settings, grid_settings, IMH=True, NMH=False, d
 
       # Generate fiducial maps, either all of them or only the ultimate one
       profile.info("start template calculation")
-      fid_maps = template_maker.get_template(get_values(fiducial_params),return_stages=dump_all_stages)
-      profile.info("stop template calculation")
+      with Timer() as t:
+        fid_maps = template_maker.get_template(get_values(fiducial_params),
+                                               return_stages=dump_all_stages)
+      profile.info("==> elapsed time for template: %s sec"%t.secs)
 
       fiducial_maps[hierarchy] = fid_maps[4] if dump_all_stages else fid_maps
 

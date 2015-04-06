@@ -41,13 +41,25 @@ class Timer(object):
 
 
 def get_bin_centers(edges):
-    '''Get the bin centers for a given set of bin edges.
-       This works even if bins don't have equal width.'''
+    """Get the bin centers for a given set of bin edges.
+       This works even if bins don't have equal width."""
     if is_logarithmic(edges):
         return np.sqrt(np.array(edges[:-1]*np.array(edges[1:])))
     else:
         return (np.array(edges[:-1])+np.array(edges[1:]))/2.
 
+def get_edges_from_cen(bincen):
+    """Get the bin edges from a given set of bin centers. This only works
+    for log10 or linear binning"""
+    if is_logarithmic(bincen):
+        hwidth = 0.5*(np.log10(bincen[-1]) - np.log10(bincen[0]))/(len(bincen)-1)
+        return np.append([10**(np.log10(bincen[0]) -hwidth)],10**(np.log10(bincen[:])+hwidth))
+    elif is_linear(bincen):
+        hwidth = 0.5*(bincen[1] - bincen[0])
+        return np.append([bincen[0] - hwidth],bincen[:]+hwidth)
+    else:
+        raise NotImplementedError('Only bin centers evenly spaced in '
+                                  'log10 or linear space can be computed')
 
 def get_bin_sizes(edges):
     """Get the bin sizes for a given set of bin edges.
