@@ -13,7 +13,8 @@ import numpy as np
 import sys, logging
 from pisa.utils.utils import get_bin_sizes
 
-def get_arb_cuts(data, cut_list, nuIDList=None, cut_sim_down=False):
+def get_arb_cuts(data, cut_list, mcnu='MCNeutrino', nuIDList=None,
+                 cut_sim_down=False):
     '''
     Make arbitrary set of cuts, defined from cut_list and data.
 
@@ -21,6 +22,8 @@ def get_arb_cuts(data, cut_list, nuIDList=None, cut_sim_down=False):
       * data - PyTables filehandle object, to obtain the cut information
       * cut_list - list of cuts, expects each element in the list to be a
         tuple of (attribute, column, value) where attribute.col(column) == value
+      * mcnu - Monte Carlo neutrino field/key in hdf5 file to use for MC
+        true information.
       * nuIDList - if defined, will be a list of flavor IDs to match i.e. [12,-12]
       * cut_sim_down - removes the simulated downgoing neutrinos using MCNeutrino.
     '''
@@ -40,7 +43,7 @@ def get_arb_cuts(data, cut_list, nuIDList=None, cut_sim_down=False):
     return np.alltrue(np.array(conditions),axis=0)
 
 
-def get_aeff1D(data,cuts_list,ebins,files_per_run,
+def get_aeff1D(data,cuts_list,ebins,files_per_run,mcnu='MCNeutrino',
                nc=False,solid_angle=None):
     '''
     Return 1D Aeff directly from simulations (using OneWeight) as a
@@ -54,6 +57,8 @@ def get_aeff1D(data,cuts_list,ebins,files_per_run,
       * files_per_run - file number normalization to correctly calculate
         simulation weight for Aeff. Should be number of simulation files
         per run for flavour.
+      * mcnu - Monte Carlo neutrino field/key in hdf5 file to use for MC
+        true information.
       * solid_angle - total solid angle to integrate over. Most of the
         time, we only calculate Aeff for upgoing events, so we do half
         the 4pi solid angle of the whole sky, which would be 2.0*np.pi
@@ -69,7 +74,7 @@ def get_aeff1D(data,cuts_list,ebins,files_per_run,
     # NOTE: solid_angle should be coordinated with get_arb_cuts(cut_sim_down=bool)
     sim_wt_array = (data.root.I3MCWeightDict.col('OneWeight')[cuts_list]/
                     total_events/solid_angle)
-    egy_array = data.root.MCNeutrino.col('energy')[cuts_list]
+    egy_array = data.root.__getattribute__(mcnu).col('energy')[cuts_list]
     aeff,xedges = np.histogram(egy_array,weights=sim_wt_array,bins=ebins)
 
     egy_bin_widths = get_bin_sizes(ebins)
