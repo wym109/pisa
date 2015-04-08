@@ -39,16 +39,16 @@ def LoadData(directory,geometry,flavor):
     nutau_file = os.path.join(directory,geometry+"_nutau"+ext)
     if flavor == 'NC':
         # First open the filehandles:
-        data_nue = tables.open_file(nue_file,'r')
-        data_numu = tables.open_file(numu_file,'r')
-        data_nutau = tables.open_file(nutau_file,'r')
+        data_nue = tables.openFile(nue_file,'r')
+        data_numu = tables.openFile(numu_file,'r')
+        data_nutau = tables.openFile(nutau_file,'r')
 
         return HDFChain([nue_file,numu_file,nutau_file])
 
     else:
-        if 'nue' in flavor: return tables.open_file(nue_file,'r')
-        elif 'numu' in flavor: return tables.open_file(numu_file,'r')
-        elif 'nutau' in flavor: return tables.open_file(nutau_file,'r')
+        if 'nue' in flavor: return tables.openFile(nue_file,'r')
+        elif 'numu' in flavor: return tables.openFile(numu_file,'r')
+        elif 'nutau' in flavor: return tables.openFile(nutau_file,'r')
         else: raise ValueError("flavor: %s is unknown!"%s)
 
 
@@ -131,9 +131,9 @@ args = parser.parse_args()
 set_verbosity(args.verbose)
 
 print "FILE NORMALIZATION: "
-print "  >> nue: ",args.nfiles_nue
-print "  >> numu: ",args.nfiles_numu
-print "  >> nutau: ",args.nfiles_nutau
+print "  >> nue: ",args.ne
+print "  >> numu: ",args.nmu
+print "  >> nutau: ",args.ntau
 
 ebins = np.linspace(args.emin,args.emax,args.nebins) if args.elin else np.logspace(np.log10(args.emin), np.log10(args.emax), args.nebins)
 
@@ -188,9 +188,9 @@ for flav,val in nuDict.items():
 
     logging.info("  NEvents: %d"%np.sum(cut_list))
 
-    if 'nue' in flav: nfiles = args.nfiles_nue
-    elif 'numu' in flav: nfiles = args.nfiles_numu
-    elif 'nutau' in flav: nfiles = args.nfiles_nutau
+    if 'nue' in flav: nfiles = args.ne
+    elif 'numu' in flav: nfiles = args.nmu
+    elif 'nutau' in flav: nfiles = args.ntau
     else: raise ValueError("Unrecognized flav: %s"%flav)
 
     aeff_cc,aeff_cc_err,xedges = get_aeff1D(data,cut_list,ebins,nfiles,
@@ -220,11 +220,13 @@ cuts_nc_bar = get_arb_cuts(data_nc,nc_cut_list,mcnu=args.mcnu,nuIDList=nc_bar_li
 logging.info("  NC NEvents: %d"%np.sum(cuts_nc))
 logging.info("  NCBar NEvents: %d"%np.sum(cuts_nc_bar))
 
-nfiles_per_run = (args.nfiles_nue + args.nfiles_numu + args.nfiles_nutau)/3.0
-aeff_nc_nu,aeff_nc_nu_err,xedges = get_aeff1D(data_nc,cuts_nc,ebins,
-                                              nfiles_per_run,nc=True,solid_angle=solid_angle)
-aeff_nc_nubar,aeff_nc_nubar_err,xedges = get_aeff1D(data_nc,cuts_nc_bar,ebins,
-                                                    nfiles_per_run,nc=True,solid_angle=solid_angle)
+nfiles_per_run = (args.ne + args.nmu + args.ntau)/3.0
+aeff_nc_nu,aeff_nc_nu_err,xedges = get_aeff1D(
+    data_nc,cuts_nc,ebins,nfiles_per_run,mcnu=args.mcnu,nc=True,
+    solid_angle=solid_angle)
+aeff_nc_nubar,aeff_nc_nubar_err,xedges = get_aeff1D(
+    data_nc,cuts_nc_bar,ebins,nfiles_per_run,mcnu=args.mcnu,nc=True,
+    solid_angle=solid_angle)
 
 aeff_list.append(aeff_nc_nu)
 aeff_err_list.append(aeff_nc_nu_err)
@@ -238,4 +240,4 @@ for i,flavor in enumerate(flavor_list):
     logging.info("Saving: %s to %s"%(flavor,args.outdir))
     SaveAeff(aeff_list[i],aeff_err_list[i],ebins,flavor,args.outdir)
 
-print "\nFINISHED..."
+print "\nFINISHED...\n"
