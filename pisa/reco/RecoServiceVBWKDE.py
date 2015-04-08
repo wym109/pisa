@@ -285,9 +285,12 @@ class RecoServiceVBWKDE(RecoServiceBase):
         OVERFIT_FACTOR = 1.0
 
         if make_plots:
+            import matplotlib as mpl
             import matplotlib.pyplot as plt
             from matplotlib.backends.backend_pdf import PdfPages
             from matplotlib.patches import Rectangle
+            plt.close(1)
+            plt.close(2)
             def rugplot(a, y0, dy, ax, **kwargs):
                 return ax.plot([a,a], [y0, y0+dy], **kwargs)
             plot_fname = '_'.join(['resolutions', 'vbwkde', flav, int_type]) + '.pdf'
@@ -901,15 +904,33 @@ class RecoServiceVBWKDE(RecoServiceBase):
                 suptitle = fig1.suptitle(stt)
                 suptitle.set_fontsize(16)
                 suptitle.set_position((0.5,0.98))
-            
                 fig1.savefig(pdfpgs, format='pdf')
 
         check_areas = kernel4d.sum(axis=(2,3))
 
         assert np.max(check_areas) < 1 + self.EPSILON, str(np.max(check_areas))
         assert np.min(check_areas) > 0 - self.EPSILON, str(np.min(check_areas))
-        
+
         if make_plots:
+            fig2 = plt.figure(2, figsize=(8,10), dpi=90)
+            fig2.clf()
+            ax = fig2.add_subplot(111)
+            X, Y = np.meshgrid(range(n_czbins), range(n_ebins))
+            cm = mpl.cm.Paired_r
+            cm.set_over((1,1,1), 1)
+            cm.set_under((0,0,0), 1)
+            plt.pcolor(X, Y, check_areas, vmin=0+self.EPSILON, vmax=1.0,
+                       shading='faceted', cmap=cm)
+            plt.colorbar(ticks=np.linspace(0,1,11))
+            ax.grid(0)
+            ax.axis('tight')
+            ax.set_xlabel(r'$\cos\vartheta\mathrm{\,bin\,num.}$')
+            ax.set_ylabel(r'$E_\nu\mathrm{\,bin\,num.}$')
+            ax.set_title(r'$\mathrm{Areas\,for\,each\,2D\,sub-hist.,\,i.e.,\,kernel\,at\,coord.}\,(E_{\nu,\mathrm{true}},\,\cos\vartheta_\mathrm{true})$'+
+                 '\n'+r'$\mathrm{None\,should\,be\,>1\,(shown\,white);\,0-event\,bins\,are\,black;\,avg.}=' + format(np.mean(check_areas),'0.3f') + r'$')
+            fig2.tight_layout()
+            fig2.savefig(pdfpgs, format='pdf')
+
             pdfpgs.close()
 
         return kernel4d
