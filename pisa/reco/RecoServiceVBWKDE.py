@@ -291,6 +291,7 @@ class RecoServiceVBWKDE(RecoServiceBase):
             from matplotlib.patches import Rectangle
             plt.close(1)
             plt.close(2)
+            plt.close(3)
             def rugplot(a, y0, dy, ax, **kwargs):
                 return ax.plot([a,a], [y0, y0+dy], **kwargs)
             plot_fname = '_'.join(['resolutions', 'vbwkde', flav, int_type]) + '.pdf'
@@ -364,7 +365,7 @@ class RecoServiceVBWKDE(RecoServiceBase):
             ebin_mid = (ebin_min+ebin_max)/2.0
             ebin_wid = ebin_max-ebin_min
 
-            logging.trace(
+            logging.debug(
                 'Processing true-energy bin_n=' + format(ebin_n, 'd') + ' of ' +
                 format(n_ebins-1, 'd') + ', E_{nu,true} in ' +
                 '[' + format(ebin_min, '0.3f') + ', ' +
@@ -430,10 +431,10 @@ class RecoServiceVBWKDE(RecoServiceBase):
             # smallest energy bin
             min_num_pts = 2**12
             min_bin_width = np.min(ebin_edges[1:]-ebin_edges[:-1])
-            min_pts_smallest_bin = 10.0
+            min_pts_smallest_bin = 5.0
             kde_range = np.diff(egy_kde_lims)
             num_pts0 = kde_range/(min_bin_width/min_pts_smallest_bin)
-            kde_num_pts = int(max(2**10, 2**np.ceil(np.log2(num_pts0))))
+            kde_num_pts = int(max(min_num_pts, 2**np.ceil(np.log2(num_pts0))))
             logging.debug(
                 '  N_evts=' + str(n_in_bin) + ', taken from [' +
                 format(actual_left_ebin_edge, '0.3f') + ', ' +
@@ -921,15 +922,35 @@ class RecoServiceVBWKDE(RecoServiceBase):
             cm.set_under((0,0,0), 1)
             plt.pcolor(X, Y, check_areas, vmin=0+self.EPSILON, vmax=1.0,
                        shading='faceted', cmap=cm)
-            plt.colorbar(ticks=np.linspace(0,1,11))
+            plt.colorbar(ticks=np.arange(0, 1.05, 0.05))
             ax.grid(0)
             ax.axis('tight')
-            ax.set_xlabel(r'$\cos\vartheta\mathrm{\,bin\,num.}$')
-            ax.set_ylabel(r'$E_\nu\mathrm{\,bin\,num.}$')
-            ax.set_title(r'$\mathrm{Areas\,for\,each\,2D\,sub-hist.,\,i.e.,\,kernel\,at\,coord.}\,(E_{\nu,\mathrm{true}},\,\cos\vartheta_\mathrm{true})$'+
-                 '\n'+r'$\mathrm{None\,should\,be\,>1\,(shown\,white);\,0-event\,bins\,are\,black;\,avg.}=' + format(np.mean(check_areas),'0.3f') + r'$')
+            ax.set_xlabel(r'$\cos\vartheta_\mathrm{true}\mathrm{\,bin\,num.}$')
+            ax.set_ylabel(r'$E_{\nu,\mathrm{true}}\mathrm{\,bin\,num.}$')
+            ax.set_title(r'$\mathrm{Fract\,of\,evts\,starting\,in\,each}\,(E_{\nu,\mathrm{true}},\,\cos\vartheta_\mathrm{true})\,\mathrm{bin\,that\,reco\,in\,bounds}$'+
+                 '\n'+r'$\mathrm{None\,should\,be\,>1\,(shown\,white);\,no-event\,bins\,are\,black;\,avg.}=' + format(np.mean(check_areas),'0.3f') + r'$')
             fig2.tight_layout()
             fig2.savefig(pdfpgs, format='pdf')
+
+            check_areas2 = kernel4d.sum(axis=(0,1))
+            fig3 = plt.figure(2, figsize=(8,10), dpi=90)
+            fig3.clf()
+            ax = fig3.add_subplot(111)
+            X, Y = np.meshgrid(range(n_czbins), range(n_ebins))
+            cm = mpl.cm.Paired_r
+            cm.set_over((1,1,1), 1)
+            cm.set_under((0,0,0), 1)
+            plt.pcolor(X, Y, check_areas2, vmin=0+self.EPSILON,# vmax=1.0,
+                       shading='faceted', cmap=cm)
+            plt.colorbar(ticks=np.arange(0, 0.1+np.ceil(10.*np.max(check_areas2))/10., 0.05))
+            ax.grid(0)
+            ax.axis('tight')
+            ax.set_xlabel(r'$\cos\vartheta_\mathrm{reco}\mathrm{\,bin\,num.}$')
+            ax.set_ylabel(r'$E_{\nu,\mathrm{reco}}\mathrm{\,bin\,num.}$')
+            ax.set_title(r'$\mathrm{Normed\,num\,events\,reconstructing\,into\,each}\,(E_{\nu,\mathrm{reco}},\,\cos\vartheta_\mathrm{reco})\,\mathrm{bin}$'+
+                 '\n'+r'$\mathrm{No-event\,bins\,are\,black;\,avg.}=' + format(np.mean(check_areas2),'0.3f') + r'$')
+            fig3.tight_layout()
+            fig3.savefig(pdfpgs, format='pdf')
 
             pdfpgs.close()
 
