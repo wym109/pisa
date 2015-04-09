@@ -669,10 +669,10 @@ class RecoServiceVBWKDE(RecoServiceBase):
             N_cz_mesh = 2**10
 
             # Data range for VBWKDE to consider
-            cz_gaus_kde_min = -3
-            cz_gaus_kde_max = +2
+            cz_kde_min = -3
+            cz_kde_max = +2
 
-            cz_gaus_kde_failed = False
+            cz_kde_failed = False
             previous_fail = False
             for n in xrange(3):
                 # TODO: only catch specific exception
@@ -680,32 +680,32 @@ class RecoServiceVBWKDE(RecoServiceBase):
                     cz_bw, cz_mesh, cz_pdf = kde.vbw_kde(
                         data           = cz_err,
                         overfit_factor = OVERFIT_FACTOR,
-                        MIN            = cz_gaus_kde_min,
-                        MAX            = cz_gaus_kde_max,
+                        MIN            = cz_kde_min,
+                        MAX            = cz_kde_max,
                         N              = N_cz_mesh
                     )
                 except:
-                    cz_gaus_kde_failed = True
+                    cz_kde_failed = True
                     if n == 0:
                         logging.trace('(cz vbwkde ')
                     logging.trace('fail, ')
                     # If failure occurred in vbw_kde, expand the data range it
                     # takes into account; this usually helps
-                    cz_gaus_kde_min -= 1
-                    cz_gaus_kde_max += 1
+                    cz_kde_min -= 1
+                    cz_kde_max += 1
                 else:
-                    if cz_gaus_kde_failed:
+                    if cz_kde_failed:
                         previous_fail = True
                         logging.trace('success!')
-                    cz_gaus_kde_failed = False
+                    cz_kde_failed = False
                 finally:
                     if previous_fail:
                         logging.trace(')')
                     previous_fail = False
-                    if not cz_gaus_kde_failed:
+                    if not cz_kde_failed:
                         break
 
-            if cz_gaus_kde_failed:
+            if cz_kde_failed:
                 logging.warn('Failed to fit VBWKDE!')
                 continue
 
@@ -718,6 +718,7 @@ class RecoServiceVBWKDE(RecoServiceBase):
             assert np.min(cz_pdf) >= -self.EPSILON, \
                 str(np.min(cz_pdf))
 
+            # TODO: test and/or visualize the shifting & re-binning process
             for czbin_n in range(n_czbins):
                 czbin_mid = czbin_centers[czbin_n]
 
