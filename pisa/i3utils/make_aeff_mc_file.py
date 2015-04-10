@@ -171,12 +171,12 @@ for flavor in data_files.keys():
     # First do nu:
     cuts_cc = get_arb_cuts(data,cc_cut_list,nuIDList=[nuDict[flavor]],mcnu=args.mcnu)
     arrays_cc = get_reco_arrays(data,cuts_cc,data_files[flavor]['nfiles'],
-                                reco_string=args.mn_reco)
+                                reco_string=args.mn_reco,mcnu=args.mcnu)
     logging.warn("flavor %s number of CC events: %d"%(flavor,np.sum(cuts_cc)))
 
     cuts_nc = get_arb_cuts(data,nc_cut_list,nuIDList=[nuDict[flavor]],mcnu=args.mcnu)
     arrays_nc = get_reco_arrays(data,cuts_nc,data_files[flavor]['nfiles'],
-                                reco_string=args.mn_reco)
+                                reco_string=args.mn_reco,mcnu=args.mcnu)
     logging.warn("flavor %s number of NC events: %d"%(flavor,np.sum(cuts_nc)))
 
     logging.info("Saving %s..."%flavor)
@@ -187,12 +187,12 @@ for flavor in data_files.keys():
     flav_bar = flavor+'_bar'
     cuts_cc = get_arb_cuts(data,cc_cut_list,nuIDList=[nuDict[flav_bar]],mcnu=args.mcnu)
     arrays_cc = get_reco_arrays(data,cuts_cc,data_files[flavor]['nfiles'],
-                                reco_string=args.mn_reco)
+                                reco_string=args.mn_reco,mcnu=args.mcnu)
     logging.warn("flavor %s number of CC events: %d"%(flav_bar,np.sum(cuts_cc)))
 
     cuts_nc = get_arb_cuts(data,nc_cut_list,nuIDList=[nuDict[flav_bar]],mcnu=args.mcnu)
     arrays_nc = get_reco_arrays(data,cuts_nc,data_files[flavor]['nfiles'],
-                                reco_string=args.mn_reco)
+                                reco_string=args.mn_reco,mcnu=args.mcnu)
     logging.warn("flavor %s number of NC events: %d"%(flav_bar,np.sum(cuts_nc)))
 
     logging.info("Saving %s..."%flav_bar)
