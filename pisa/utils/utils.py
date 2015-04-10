@@ -11,10 +11,17 @@
 #
 # date:   2014-01-27
 
+
+import sys
+import inspect
+import time
+import hashlib
+
 import numpy as np
 from scipy.stats import binned_statistic_2d
+
+from pisa.utils import jsons
 from pisa.utils.log import logging
-import inspect,time
 
 
 class Timer(object):
@@ -34,16 +41,16 @@ class Timer(object):
 
 
 def get_bin_centers(edges):
-    '''Get the bin centers for a given set of bin edges.
-       This works even if bins don't have equal width.'''
+    """Get the bin centers for a given set of bin edges.
+       This works even if bins don't have equal width."""
     if is_logarithmic(edges):
         return np.sqrt(np.array(edges[:-1]*np.array(edges[1:])))
     else:
         return (np.array(edges[:-1])+np.array(edges[1:]))/2.
 
 def get_edges_from_cen(bincen):
-    '''Get the bin edges from a given set of bin centers. This only works
-    for log10 or linear binning'''
+    """Get the bin edges from a given set of bin centers. This only works
+    for log10 or linear binning"""
     if is_logarithmic(bincen):
         hwidth = 0.5*(np.log10(bincen[-1]) - np.log10(bincen[0]))/(len(bincen)-1)
         return np.append([10**(np.log10(bincen[0]) -hwidth)],10**(np.log10(bincen[:])+hwidth))
@@ -55,33 +62,32 @@ def get_edges_from_cen(bincen):
                                   'log10 or linear space can be computed')
 
 def get_bin_sizes(edges):
-
-    '''Get the bin sizes for a given set of bin edges.
-       This works even if bins don't have equal width.'''
+    """Get the bin sizes for a given set of bin edges.
+       This works even if bins don't have equal width."""
     return np.array(edges[1:]) - np.array(edges[:-1])
 
 
-def is_linear(edges, maxdev = 1e-5):
-    '''Check whether the bin edges correspond to a linear axis'''
+def is_linear(edges, maxdev=1e-5):
+    """Check whether the bin edges correspond to a linear axis"""
     linedges = np.linspace(edges[0],edges[-1],len(edges))
     return np.abs(edges-linedges).max() < maxdev
 
 
 def is_logarithmic(edges, maxdev = 1e-5):
-    '''Check whether the bin edges correspond to a logarithmic axis'''
+    """Check whether the bin edges correspond to a logarithmic axis"""
     if np.any(np.array(edges) < 0): return False
     logedges = np.logspace(np.log10(edges[0]),np.log10(edges[-1]),len(edges))
     return np.abs(edges-logedges).max() < maxdev
 
 
 def is_equal_binning(edges1,edges2,maxdev=1e-8):
-    '''Check whether the bin edges are equal.'''
+    """Check whether the bin edges are equal."""
     if (np.shape(edges1)[0]) != (np.shape(edges2)[0]): return False
     return np.abs(edges1 - edges2).max() < maxdev
 
 
 def is_coarser_binning(coarse_bins, fine_bins):
-    '''Check whether coarse_bins lie inside of and are coarser than fine_bins'''
+    """Check whether coarse_bins lie inside of and are coarser than fine_bins"""
     #contained?
     if ((coarse_bins[0]<fine_bins[0]) or (coarse_bins[-1]>fine_bins[-1])):
         return False
@@ -94,11 +100,11 @@ def is_coarser_binning(coarse_bins, fine_bins):
 
 
 def subbinning(coarse_bins, fine_bins, maxdev=1e-8):
-    '''Check whether coarse_bins can be retrieved from fine_bins
+    """Check whether coarse_bins can be retrieved from fine_bins
        via integer rebinning.
        * coarse_bins = [coarse_ax1, coarse_ax2, ...]
        * fine_bins = [fine_ax1, fine_ax2, ...]
-       where the axes should be 1d numpy arrays'''
+       where the axes should be 1d numpy arrays"""
     rebin_info = []
 
     for crs_ax, fn_ax in zip(coarse_bins, fine_bins):
@@ -124,9 +130,9 @@ def subbinning(coarse_bins, fine_bins, maxdev=1e-8):
 
 
 def get_binning(d, iterate=False, eset=[], czset=[]):
-    '''Iterate over all maps in the dict, and return the ebins and czbins.
+    """Iterate over all maps in the dict, and return the ebins and czbins.
        If iterate is False, will return the first set of ebins, czbins it finds,
-       otherwise will return a list of all ebins and czbins arrays'''
+       otherwise will return a list of all ebins and czbins arrays"""
     #Only work on dicts
     if not type(d) == dict: return
 
@@ -149,15 +155,13 @@ def get_binning(d, iterate=False, eset=[], czset=[]):
 
 
 def check_binning(data):
-    '''
-    Check whether all maps in data have the same binning, and return it.
-    '''
-    eset, czset = get_binning(data,iterate=True)
+    """Check whether all maps in data have the same binning, and return it."""
+    eset, czset = get_binning(data, iterate=True)
 
-    for binset, label in zip([eset,czset],['energy','coszen']):
-      if not np.alltrue([is_equal_binning(binset[0],bins)
-                         for bins in binset[1:]]):
-          raise Exception('Maps have different %s binning!'%label)
+    for binset, label in zip([eset,czset], ['energy','coszen']):
+        if not np.alltrue([is_equal_binning(binset[0],bins)
+                           for bins in binset[1:]]):
+            raise Exception('Maps have different %s binning!'%label)
 
     return eset[0],czset[0]
 
@@ -211,8 +215,7 @@ def oversample_binning(coarse_bins, factor):
 
 
 def get_smoothed_map(pvals,evals,czvals,e_coarse_bins,cz_coarse_bins):
-    '''
-    Creates a 'smoothed' oscillation probability map with binning
+    """Creates a 'smoothed' oscillation probability map with binning
     given by e_coarse_bins, cz_coarse_bins through the use of the
     scipy.binned_statistic_2d function.
 
@@ -223,36 +226,45 @@ def get_smoothed_map(pvals,evals,czvals,e_coarse_bins,cz_coarse_bins):
       * e_coarse_bins - energy bins of final smoothed histogram (probability map)
       * cz_coarse_bins - coszen bins of final smoothed histogram
 
-    '''
+    """
 
-    smooth_map = binned_statistic_2d(evals,czvals,pvals,statistic='mean',
-                                     bins=[e_coarse_bins,cz_coarse_bins])[0]
+    smooth_map = binned_statistic_2d(evals, czvals, pvals, statistic='mean',
+                                     bins=[e_coarse_bins, cz_coarse_bins])[0]
     return smooth_map
 
 
 def integer_rebin_map(prob_map, rebin_info):
-    '''
-    Rebins a map (or a part of it) by an integer factor in every dimension.
-    Merged bins will be averaged.
-    '''
-    #Make a copy of initial map
+    """Rebins a map (or a part of it) by an integer factor in every dimension.
+    Merged bins will be averaged."""
+    # Make a copy of initial map
     rmap = np.array(prob_map)
     dim = len(rebin_info)
 
     for start, stop, rebin in np.array(rebin_info)[::-1]:
-        #Roll last axis to front
+        # Roll last axis to front
         rmap = np.rollaxis(rmap, dim-1)
-        #Select correct part and average
+        # Select correct part and average
         rmap = np.average([rmap[start+i:stop:rebin] for i in range(rebin)],
                           axis=0)
 
     return rmap
 
+
 def inspect_cur_frame():
-    '''
-    Very useful for showing exactly where the code is executing, in
-    tracing down an error or in debugging.
-    '''
+    """Very useful for showing exactly where the code is executing, in tracing
+    down an error or in debugging."""
 
     (frame,filename,line_num,fn_name,lines,index) = inspect.getouterframes(inspect.currentframe())[1]
     return "%s:%s at %s"%(filename,line_num,fn_name)
+
+
+def hash_obj(obj):
+    return hash(jsons.json.dumps(obj, sort_keys=True, cls=None, indent=None,
+                                 ensure_ascii=False, check_circular=True,
+                                 allow_nan=True, separators=(',',':')))
+
+
+def hash_file(fname):
+    md5 = hashlib.md5()
+    md5.update(file(fname, 'rb').read())
+    return md5.hexdigest()

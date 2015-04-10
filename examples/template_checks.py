@@ -311,8 +311,10 @@ settings file. ''')
 
     template_settings = from_json(args.template_settings)
 
-    template_maker = TemplateMaker(get_values(template_settings['params']),
-                                   **template_settings['binning'])
+    with Timer() as t:
+        template_maker = TemplateMaker(get_values(template_settings['params']),
+                                       **template_settings['binning'])
+    profile.info("==> elapsed time to initialize templates: %s sec"%t.secs)
 
     # Make nmh template:
     nmh_params = select_hierarchy(template_settings['params'],

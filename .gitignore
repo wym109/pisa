@@ -7,6 +7,8 @@ _*.so
 *_wrap.cpp
 BargerPropagator.py
 *.o
+gaussians.c
+gaussians.so
 
 # Ignore test files in src dir
 pisa/flux/*.json
