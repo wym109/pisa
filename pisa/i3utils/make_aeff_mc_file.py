@@ -23,7 +23,8 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 CMSQ_TO_MSQ = 1.0e-4
 
-def get_reco_arrays(data,cuts,files_per_run,reco_string=None):
+def get_reco_arrays(data,cuts,files_per_run,reco_string=None,
+                    mcnu='MCNeutrino'):
     '''
     Forms arrays of reco events for true/reco energy/coszen from the
     data_files
@@ -34,13 +35,15 @@ def get_reco_arrays(data,cuts,files_per_run,reco_string=None):
     nfiles = len(set(data.root.I3EventHeader.col('Run')))*files_per_run
     sim_weight = ((2.0*data.root.I3MCWeightDict.col('OneWeight')[cuts]*CMSQ_TO_MSQ)/
                   (data.root.I3MCWeightDict.col('NEvents')[cuts]*nfiles))
-    true_egy = data.root.MCNeutrino.col('energy')[cuts]
-    true_cz = np.cos(data.root.MCNeutrino.col('zenith'))[cuts]
 
     try:
+        true_cz = np.cos(data.root.__getattr__(mcnu).col('zenith'))[cuts]
+        true_egy = data.root.__getattr__(mcnu).col('energy')[cuts]
         reco_cz = np.cos(data.root.__getattr__(reco_string).col('zenith'))[cuts]
         reco_egy = data.root.__getattr__(reco_string).col('energy')[cuts]
     except:
+        true_cz = np.cos(data.root.__getattribute__(mcnu).col('zenith'))[cuts]
+        true_egy = data.root.__getattribute__(mcnu).col('energy')[cuts]
         reco_cz = np.cos(data.root.__getattribute__(reco_string).col('zenith'))[cuts]
         reco_egy = data.root.__getattribute__(reco_string).col('energy')[cuts]
 
@@ -96,15 +99,20 @@ parser.add_argument("--nfiles_nutau",type=float,default=200.0,
                     help="Num simulation files for this run")
 parser.add_argument('--mn_reco',metavar="STRING",type=str,default='MultiNest_8D_Neutrino',
                     help='Reco field to use to access reconstruction parameters')
+parser.add_argument('--mcnu',metavar='STR',type=str,default='MCNeutrino',
+                    help='Key in hdf5 file from which to extract MC True information')
 parser.add_argument('--old_pid',action='store_true',default=False,
                     help='Use older convention for PID enumeration.')
-select_cuts = parser.add_mutually_exclusive_group(required=True)
-select_cuts.add_argument('--cutsV3', default=False, action='store_true',
-                         help="Use V3 selection cuts.")
-select_cuts.add_argument('--cutsV4', default = False, action='store_true',
-                         help="Use V4 selection cuts.")
-select_cuts.add_argument('--cutsV5',default=False,action='store_true',
-                         help='Use V5 selection cuts')
+# Step1/Step2 cuts options (or NONE - for most DeepCore analyses):
+hcut = parser.add_mutually_exclusive_group(required=True)
+hcut.add_argument('--v3cuts',action='store_true',default=False,
+                  help='Use V3 version of the cuts')
+hcut.add_argument('--v4cuts',action='store_true',default=False,
+                  help='Use V4 version of the cuts')
+hcut.add_argument('--V5cuts',action='store_true',default=False,
+                  help='Use V5 selection cuts')
+hcut.add_argument('--nocuts',action='store_true',default=False,
+                  help='Do not use any stage of the selection cuts on the files.')
 parser.add_argument('-v', '--verbose', action='count', default=0,
                     help='set verbosity level')
 args = parser.parse_args()
@@ -126,18 +134,24 @@ logging.info("Writing to file: %s",outfilename)
 
 # Define V3, V4, or V5 cuts:
 cut_list = []
-if args.cutsV3:
+if args.V3cuts:
     logging.warn("Using cuts V3...")
     cut_list.append(('NewestBgRejCutsStep1','value',True))
     cut_list.append(('NewestBgRejCutsStep2','value',True))
-elif args.cutsV4:
+elif args.V4cuts:
     logging.warn("Using cuts V4...")
     cut_list.append(('Cuts_V4_Step1','value',True))
     cut_list.append(('Cuts_V4_Step2','value',True))
-elif args.cutsV5:
+elif args.V5cuts:
     logging.warn("Using cuts V5...")
     cut_list.append(('Cuts_V5_Step1','value',True))
     cut_list.append(('Cuts_V5_Step2','value',True))
+elif args.nocuts:
+    logging.warn("Using NO S1/S2 selection CUTS")
+    cut_list = []
+else:
+    # This should never happen...
+    logging.warn("NO CUT OPTION DEFINED!!!")
 
 
 nuDict = {}
@@ -146,13 +160,6 @@ if args.old_pid:
 else:
     nuDict = {'nue':12,'numu':14,'nutau':16,'nue_bar':-12,'numu_bar':-14,'nutau_bar':-16}
 
-
-# First do all NC events combined-must keep filehandle open
-#dummy_fh = [tables.openFile(data_files[key]['filename'],mode='r') for key in data_files.keys()]
-#data_nc = HDFChain(data_files.values())
-
-#nc_files_per_run = np.sum(np.array([data_files[flav]['nfiles']
-#                                    for flav in data_files.keys()]))/3
 
 # Now do CC events, and write to file:
 cc_cut_list = cut_list + [('I3MCWeightDict','InteractionType',1)]
