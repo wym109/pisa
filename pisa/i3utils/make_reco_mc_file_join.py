@@ -24,7 +24,7 @@ from pisa.i3utils.sim_utils import get_arb_cuts
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
-def get_reco_arrays(data,cuts,reco_string=None):
+def get_reco_arrays(data,cuts,reco_string=None,mcnu='MCNeutrino'):
     '''
     Forms arrays of reco events for true/reco energy/coszen from the
     data_files
@@ -32,13 +32,17 @@ def get_reco_arrays(data,cuts,reco_string=None):
 
     logging.warn('Getting reconstructions from: %s'%reco_string)
 
-    true_egy = data.root.MCNeutrino.col('energy')[cuts]
-    true_cz = np.cos(data.root.MCNeutrino.col('zenith'))[cuts]
+    #true_egy = data.root.MCNeutrino.col('energy')[cuts]
+    #true_cz = np.cos(data.root.MCNeutrino.col('zenith'))[cuts]
 
     try:
+        true_egy = data.root.__getattr__(mcnu).col('energy')[cuts]
+        true_cz = np.cos(data.root.__getattr__(mcnu).col('zenith'))[cuts]
         reco_cz = np.cos(data.root.__getattr__(reco_string).col('zenith'))[cuts]
         reco_egy = data.root.__getattr__(reco_string).col('energy')[cuts]
     except:
+        true_egy = data.root.__getattribute__(mcnu).col('energy')[cuts]
+        true_cz = np.cos(data.root.__getattribute__(mcnu).col('zenith'))[cuts]
         reco_cz = np.cos(data.root.__getattribute__(reco_string).col('zenith'))[cuts]
         reco_egy = data.root.__getattribute__(reco_string).col('energy')[cuts]
 
@@ -86,6 +90,9 @@ parser.add_argument('outfile',metavar='HDF5',type=str,
                     help='''output filename''')
 parser.add_argument('--mn_reco',metavar="STRING",type=str,default='MultiNest_8D_Neutrino',
                     help='Reco field to use to access reconstruction parameters')
+parser.add_argument('--mcnu',metavar='STR',type=str,default='MCNeutrino',
+                    help='Key in hdf5 file from which to extract MC True information')
+# Cuts:
 select_cuts = parser.add_mutually_exclusive_group(required=True)
 select_cuts.add_argument('--cutsV3', default=False, action='store_true',
                          help="Use V3 selection cuts.")
@@ -93,6 +100,8 @@ select_cuts.add_argument('--cutsV4', default = False, action='store_true',
                          help="Use V4 selection cuts.")
 select_cuts.add_argument('--cutsV5',default=False,action='store_true',
                          help='Use V5 selection cuts')
+select_cuts.add_argument('--nocuts',action='store_true',default=False,
+                         help='Do not use any stage of the selection cuts on the files.')
 parser.add_argument('-v', '--verbose', action='count', default=0,
                     help='set verbosity level')
 args = parser.parse_args()
@@ -123,15 +132,21 @@ elif args.cutsV5:
     logging.warn("Using cuts V5...")
     cut_list.append(('Cuts_V5_Step1','value',True))
     cut_list.append(('Cuts_V5_Step2','value',True))
-
+elif args.nocuts:
+    logging.warn("Using no selection cuts!")
+    cut_list = []
+else:
+    logging.warn("No cuts selected!")
+    # Should never happen!
 
 # First do all NC events combined-must keep filehandle open
 dummy_fh = [tables.openFile(f,mode='r') for f in data_files.values()]
 data_nc = HDFChain(data_files.values())
 
 nc_cut_list = cut_list + [('I3MCWeightDict','InteractionType',2)]
-cuts_nc = get_arb_cuts(data_nc,nc_cut_list)
-arrays_nc = get_reco_arrays(data_nc,cuts_nc,reco_string=args.mn_reco)
+cuts_nc = get_arb_cuts(data_nc,nc_cut_list,mcnu=args.mcnu)
+arrays_nc = get_reco_arrays(data_nc,cuts_nc,reco_string=args.mn_reco,
+                            mcnu=args.mcnu)
 logging.warn("NC number of events: %d"%np.sum(cuts_nc))
 
 # Now do CC events, and write to file:
@@ -139,8 +154,9 @@ cc_cut_list = cut_list + [('I3MCWeightDict','InteractionType',1)]
 for flavor in data_files.keys():
     data = tables.openFile(data_files[flavor],'r')
 
-    cuts_cc = get_arb_cuts(data,cc_cut_list)
-    arrays_cc = get_reco_arrays(data,cuts_cc,reco_string=args.mn_reco)
+    cuts_cc = get_arb_cuts(data,cc_cut_list,mcnu=args.mcnu)
+    arrays_cc = get_reco_arrays(data,cuts_cc,reco_string=args.mn_reco,
+                                mcnu=args.mcnu)
     logging.warn("flavor %s number of events: %d"%(flavor,np.sum(cuts_cc)))
 
     logging.info("Saving %s..."%flavor)
