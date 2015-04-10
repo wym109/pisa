@@ -105,9 +105,9 @@ parser.add_argument('--old_pid',action='store_true',default=False,
                     help='Use older convention for PID enumeration.')
 # Step1/Step2 cuts options (or NONE - for most DeepCore analyses):
 hcut = parser.add_mutually_exclusive_group(required=True)
-hcut.add_argument('--v3cuts',action='store_true',default=False,
+hcut.add_argument('--V3cuts',action='store_true',default=False,
                   help='Use V3 version of the cuts')
-hcut.add_argument('--v4cuts',action='store_true',default=False,
+hcut.add_argument('--V4cuts',action='store_true',default=False,
                   help='Use V4 version of the cuts')
 hcut.add_argument('--V5cuts',action='store_true',default=False,
                   help='Use V5 selection cuts')
