@@ -142,6 +142,8 @@ weights in this file. Only applies in non-parametric mode.''')
                         default='aeff/V36_aeff.json',
                         help='''json file containing parameterizations of the effective
 area and its cos(zenith) dependence. Only applies in parametric mode.''')
+    parser.add_argument('--coszen_par',metavar='JSON',type=str,
+                        default='aeff/V36/V36_aeff_cz.json')
     parser.add_argument('--livetime',type=float,default=1.0,
                         help='''livetime in years to re-scale by.''')
     parser.add_argument('--nu_nubar_ratio',type=float,default=1.0,

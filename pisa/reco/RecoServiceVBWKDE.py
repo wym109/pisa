@@ -57,7 +57,7 @@ class RecoServiceVBWKDE(RecoServiceBase):
 
     """
     def __init__(self, ebins, czbins, reco_vbwkde_evts_file,
-                 reco_vbwkde_make_plots, **kwargs):
+                 reco_vbwkde_make_plots=False, **kwargs):
         """Initializtion
 
         Parameters
@@ -97,7 +97,7 @@ class RecoServiceVBWKDE(RecoServiceBase):
                                  **kwargs)
 
     def _get_reco_kernels(self, reco_vbwkde_evts_file=None, evts_dict=None,
-                          reco_vbwkde_make_plots=None, **kwargs):
+                          reco_vbwkde_make_plots=False, **kwargs):
         """Given a reco events resource (resource file name or dictionary),
         retrieve data from it then serialize and hash the data. If the object
         attribute kernels were computed from the same source data, simply
@@ -119,7 +119,6 @@ class RecoServiceVBWKDE(RecoServiceBase):
             details about the dictionary's format.
 
         reco_vbwkde_make_plots : bool
-
         """
         if not isinstance(reco_vbwkde_make_plots, bool):
             raise ValueError("Option reco_vbwkde_make_plots must be specified and of bool type")
