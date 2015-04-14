@@ -75,7 +75,9 @@ setup(
                                    'reco/*.json',
                                    'pid/*.json',
                                    'flux/*.d',
-                                   'settings/*.json',
+                                   'settings/grid_settings/*.json',
+                                   'settings/minimizer_settings/*.json',
+                                   'settings/template_settings/*.json',
                                    'oscillations/*.hdf5',
                                    'oscillations/*.dat',
                                    'events/*.hdf5']}

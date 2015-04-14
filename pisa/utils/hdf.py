@@ -7,13 +7,13 @@
 #         sboeser@uni-mainz.de
 #
 # date:   2015-03-05
+#
 
 import os
 import numpy as np
 import h5py
 from pisa.utils.log import logging 
 from pisa.utils as utils
-
 
 def from_hdf(filename):
     """Open a file in HDF5 format, parse the content and return as dictionary
@@ -43,6 +43,8 @@ def from_hdf(filename):
     for obj in hdf5_data.values():
         visit_group(obj, data)
 
+        
+    hdf5_data.close()
     return data
 
 
