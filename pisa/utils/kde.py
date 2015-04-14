@@ -84,6 +84,7 @@ from scipy import fftpack
 from scipy import optimize
 from scipy import interpolate
 from pisa.utils.gaussians import gaussians
+from pisa.utils.log import logging
 
 pi = np.pi
 sqrtpi = np.sqrt(pi)
@@ -229,7 +230,7 @@ def vbw_kde(data, N=None, MIN=None, MAX=None, evaluate_dens=True,
         maximum = max(data)
         Range = maximum - minimum
         if Range == 0:
-            warnings.warn('Range of data is 0; there are ' + str(len(data)) +
+            logging.warn('Range of data is 0; there are ' + str(len(data)) +
                           ' data points.')
         MIN = minimum - Range/10 if MIN is None else MIN
         MAX = maximum + Range/10 if MAX is None else MAX
