@@ -11,12 +11,10 @@
 #
 
 
-import logging
-
 import numpy as np
 
-from pisa.utils.utils import is_equal_binning
-from pisa.utils import hdf
+from pisa.utils.log import logging
+from pisa.utils import utils
 
 
 class RecoServiceBase:
@@ -78,7 +76,7 @@ class RecoServiceBase:
         logging.debug('Checking binning of reconstruction kernels')
         for kernel_axis, own_axis in [(kernels['ebins'], self.ebins),
                                       (kernels['czbins'], self.czbins)]:
-            if not is_equal_binning(kernel_axis, own_axis):
+            if not utils.is_equal_binning(kernel_axis, own_axis):
                 raise ValueError("Binning of reconstruction kernel doesn't "
                                  "match the event maps!")
 
@@ -87,7 +85,8 @@ class RecoServiceBase:
         shape = (len(self.ebins)-1, len(self.czbins)-1,
                  len(self.ebins)-1, len(self.czbins)-1)
         for flavour in kernels:
-            if flavour in ['ebins', 'czbins']: continue
+            if flavour in ['ebins', 'czbins']:
+                continue
             for interaction in kernels[flavour]:
                 if not np.shape(kernels[flavour][interaction]) == shape:
                     raise IndexError(
@@ -99,9 +98,6 @@ class RecoServiceBase:
         logging.info('Reconstruction kernels are sane')
         return True
 
-    def store_kernels(self, filename, fmt='hdf5'):
-        """Store reconstruction kernels in HDF5 format"""
-        if fmt.lower() in ['hdf', 'h5', 'hdf5']:
-            hdf.to_hdf(self.kernels, filename)
-        else:
-            raise NotImplementedError('Only hdf5 is implemented')
+    def store_kernels(self, filename, fmt=None):
+        """Store reconstruction kernels to file"""
+        utils.to_file(self.kernels, filename, fmt=fmt)

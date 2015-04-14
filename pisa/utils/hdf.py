@@ -11,7 +11,8 @@
 import os
 import numpy as np
 import h5py
-from pisa.utils.log import logging
+from pisa.utils.log import logging 
+from pisa.utils as utils
 
 
 def from_hdf(filename):
@@ -46,36 +47,58 @@ def from_hdf(filename):
 
 
 def to_hdf(d, filename):
-    """Store a (possibly nested) dictionary to HDF5 file"""
+    """Store a (possibly nested) dictionary to HDF5 file, creating hardlinks
+    for repeated leaf nodes (datasets)"""
+    if not isinstance(d, dict):
+        errmsg = 'Only dictionaries may be written to HDF5 files.'
+        logging.error(errmsg)
+        raise TypeError(errmsg)
 
-    def store_recursively(fh, node, path=[]):
+    def store_recursively(fhandle, node, path=[], node_hashes={}):
+        full_path = '/' + '/'.join(path)
         if isinstance(node, dict):
             try:
-                fh.create_group('/' + '/'.join(path))
+                fhandle.create_group(full_path)
             except ValueError:
                 pass
             for key in sorted(node.iterkeys()):
+                key_str = str(key)
+                if not isinstance(key, str):
+                    logging.warn('Stringifying key "' + key_str +
+                                 '"for use as name in HDF5 file')
                 val = node[key]
-                new_path = path + [key]
-                store_recursively(fh=fh, node=val, path=new_path)
+                new_path = path + [key_str]
+                store_recursively(fhandle=fhandle, node=val, path=new_path,
+                                  node_hashes=node_hashes)
         else:
-            fh.create_dataset(name = '/' + '/'.join(path),
-                              data = node,
-                              chunks = True,
-                              maxshape = np.shape(node),
-                              compression = None,
-                              shuffle = True,
-                              fletcher32 = False)
-
+            # Check for existing node
+            node_hash = utils.utils.hash_obj(node)
+            if node_hash in node_hashes:
+                # Hardlink the matching existing dataset
+                fhandle[full_path] = fhandle[node_hashes[node_hash]]
+                return
+            node_hashes[node_hash] = full_path
+            # "Scalar datasets don't support chunk/filter options"; extra
+            # checking that a sequence isn't a string, also. Shuffling is
+            # a good idea since subsequent compression will generally benefit;
+            # shuffling requires chunking. Compression is not done here
+            # since it is slow.
+            if hasattr(node, '__iter__') and not isinstance(node, basestring):
+                shuffle = True
+                chunks = True
+            else:
+                shuffle = False
+                chunks = None
+            fhandle.create_dataset(name=full_path, data=node, chunks=chunks,
+                              compression=None, shuffle=shuffle,
+                              fletcher32=False)
     try:
         hdf5_data = h5py.File(os.path.expandvars(filename), 'w')
     except IOError, e:
         logging.error("Unable to write to HDF5 file \'%s\'" % filename)
         logging.error(e)
         raise e
-
     try:
-        store_recursively(fh=hdf5_data, node=d)
+        store_recursively(fhandle=hdf5_data, node=d)
     finally:
         hdf5_data.close()
-
