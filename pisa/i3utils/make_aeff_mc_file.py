@@ -97,7 +97,7 @@ parser.add_argument("--nfiles_numu",type=float,default=200.0,
                     help="Num simulation files for this run")
 parser.add_argument("--nfiles_nutau",type=float,default=200.0,
                     help="Num simulation files for this run")
-parser.add_argument('--mn_reco',metavar="STRING",type=str,default='MultiNest_8D_Neutrino',
+parser.add_argument('--mn_reco',metavar='STR',type=str,default='MultiNest_8D_Neutrino',
                     help='Reco field to use to access reconstruction parameters')
 parser.add_argument('--mcnu',metavar='STR',type=str,default='MCNeutrino',
                     help='Key in hdf5 file from which to extract MC True information')
@@ -113,6 +113,13 @@ hcut.add_argument('--V5cuts',action='store_true',default=False,
                   help='Use V5 selection cuts')
 hcut.add_argument('--nocuts',action='store_true',default=False,
                   help='Do not use any stage of the selection cuts on the files.')
+hcut.add_argument('--custom',action='store_true',default=False,
+                  help='Use custom cuts, given by args.custom_str')
+parser.add_argument('--custom_str',metavar='STR',type=str,
+                    default="[('IC86_Dunkman_L6','result',True)]",
+                    help='''Python string which will be evaluated as a list of tuples of cuts
+                    where tuple is (Attribute,ColName,bool) See function
+                    sim_utils.get_arb_cuts for more details if needed.''')
 parser.add_argument('-v', '--verbose', action='count', default=0,
                     help='set verbosity level')
 args = parser.parse_args()
@@ -149,6 +156,9 @@ elif args.V5cuts:
 elif args.nocuts:
     logging.warn("Using NO S1/S2 selection CUTS")
     cut_list = []
+elif args.custom:
+    logging.warn("Using CUSTOM cuts: %s..."%args.custom_str)
+    cut_list = eval(args.custom_str)
 else:
     # This should never happen...
     logging.warn("NO CUT OPTION DEFINED!!!")
