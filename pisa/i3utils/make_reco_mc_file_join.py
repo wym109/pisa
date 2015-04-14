@@ -102,6 +102,14 @@ select_cuts.add_argument('--cutsV5',default=False,action='store_true',
                          help='Use V5 selection cuts')
 select_cuts.add_argument('--nocuts',action='store_true',default=False,
                          help='Do not use any stage of the selection cuts on the files.')
+select_cuts.add_argument('--custom',action='store_true',default=False,
+                         help='Use custom cuts, given by args.custom_str')
+parser.add_argument('--custom_str',metavar='STR',type=str,
+                    default="[('IC86_Dunkman_L6','result',True)]",
+                    help='''Python string which will be evaluated as a list of tuples of cuts
+                    where tuple is (Attribute,ColName,bool) See function
+                    sim_utils.get_arb_cuts for more details if needed.''')
+
 parser.add_argument('-v', '--verbose', action='count', default=0,
                     help='set verbosity level')
 args = parser.parse_args()
@@ -135,6 +143,9 @@ elif args.cutsV5:
 elif args.nocuts:
     logging.warn("Using no selection cuts!")
     cut_list = []
+elif args.custom:
+    logging.warn("Using CUSTOM cuts: %s..."%args.custom_str)
+    cut_list = eval(args.custom_str)
 else:
     logging.warn("No cuts selected!")
     # Should never happen!

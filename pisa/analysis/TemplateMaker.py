@@ -31,6 +31,7 @@ try:
     #print "Trying to import Prob3GPUOscillationService..."
     from pisa.oscillations.Prob3GPUOscillationService import Prob3GPUOscillationService
 except:
+    pass
     #print "CAN NOT import Prob3GPUOscillationService..."
 from pisa.oscillations.Oscillation import get_osc_flux
 
