@@ -15,19 +15,11 @@ import h5py
 from pisa.utils.log import logging 
 from pisa.utils as utils
 
+
 def from_hdf(filename):
     """Open a file in HDF5 format, parse the content and return as dictionary
     with numpy arrays"""
-    try:
-        hdf5_data = h5py.File(os.path.expandvars(filename), 'r')
-    except IOError, e:
-        logging.error("Unable to read HDF5 file \'%s\'" % filename)
-        logging.error(e)
-        raise e
-
-    data = {}
-
-    # Iteratively parse the file to create the dictionary
+    # Function for iteratively parsing the file to create the dictionary
     def visit_group(obj, sdict):
         name = obj.name.split('/')[-1]
         #indent = len(obj.name.split('/'))-1
@@ -39,12 +31,19 @@ def from_hdf(filename):
             for sobj in obj.values():
                 visit_group(sobj, sdict[name])
 
-    # Run over the whole dataset
-    for obj in hdf5_data.values():
-        visit_group(obj, data)
+    data = {}
+    try:
+        h5file = h5py.File(os.path.expandvars(filename), 'r')
+        # Run over the whole dataset
+        for obj in h5file.values():
+            visit_group(obj, data)
+    except IOError, e:
+        logging.error("Unable to read HDF5 file \'%s\'" % filename)
+        logging.error(e)
+        raise e
+    finally:
+        h5file.close()
 
-        
-    hdf5_data.close()
     return data
 
 
