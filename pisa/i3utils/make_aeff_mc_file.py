@@ -158,7 +158,7 @@ elif args.nocuts:
     cut_list = []
 elif args.custom:
     logging.warn("Using CUSTOM cuts: %s..."%args.custom_str)
-cut_list = eval(args.custom_str)
+    cut_list = eval(args.custom_str)
 else:
     # This should never happen...
     logging.warn("NO CUT OPTION DEFINED!!!")
