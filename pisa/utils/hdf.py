@@ -49,12 +49,17 @@ def from_hdf(filename):
 
 def to_hdf(d, filename):
     """Store a (possibly nested) dictionary to HDF5 file, creating hardlinks
-    for repeated leaf nodes (datasets)"""
+    for repeated leaf nodes (datasets).
+    
+    NOTE: Branch nodes are sorted before storing for consistency in the
+    generated file despite Python dictionaries having no defined ordering among
+    keys."""
     if not isinstance(d, dict):
         errmsg = 'Only dictionaries may be written to HDF5 files.'
         logging.error(errmsg)
         raise TypeError(errmsg)
 
+    # Define a function for iteratively doing the work
     def store_recursively(fhandle, node, path=[], node_hashes={}):
         full_path = '/' + '/'.join(path)
         if isinstance(node, dict):
@@ -93,13 +98,14 @@ def to_hdf(d, filename):
             fhandle.create_dataset(name=full_path, data=node, chunks=chunks,
                               compression=None, shuffle=shuffle,
                               fletcher32=False)
+    
+    # Perform the actual operation using the dict passed in by user
     try:
-        hdf5_data = h5py.File(os.path.expandvars(filename), 'w')
+        h5file = h5py.File(os.path.expandvars(filename), 'w')
+        store_recursively(fhandle=h5file, node=d)
     except IOError, e:
         logging.error("Unable to write to HDF5 file \'%s\'" % filename)
         logging.error(e)
         raise e
-    try:
-        store_recursively(fhandle=hdf5_data, node=d)
     finally:
-        hdf5_data.close()
+        h5file.close()
