@@ -58,7 +58,6 @@ class OscillationServiceBase:
         print "       ==> elapsed time to get all fine maps: %s sec"%t.secs
 
         logging.info("Smoothing fine maps...")
-        profile.info("start smoothing maps")
         smoothed_maps = {}
         smoothed_maps['ebins'] = self.ebins
         smoothed_maps['czbins'] = self.czbins
@@ -70,33 +69,13 @@ class OscillationServiceBase:
                 for to_nu, pvals in tomap_dict.items():
                     logging.debug("Getting smoothed map %s/%s"%(from_nu,to_nu))
 
-                    new_tomaps[to_nu] = get_smoothed_map(pvals,
-                                                         fine_maps['evals'],
-                                                         fine_maps['czvals'],
-                                                         self.ebins, self.czbins)
-
-                    # Saving smoooth maps: Testing/Debugging purposes!
-                    #if 'bar' in from_nu: to_nu+='_bar'
-                    #filename = (from_nu+'_'+to_nu+'.dat').replace('_maps','').replace('_bar','bar')
-                    #print "Saving to file: ",filename
-                    #fh = open(filename,'w')
-                    #ecen = get_bin_centers(self.ebins)
-                    #czcen = get_bin_centers(self.czbins)
-                    #evals = []; czvals = []; pvals = []
-                    #for ie,eval in enumerate(ecen):
-                    #    for icz,czval in enumerate(czcen):
-                    #        pval = new_tomaps[to_nu][ie][icz]
-                    #        line = str(eval)+' '+str(czval)+' '+str(pval)+'\n'
-                    #        fh.write(line)
-                    #fh.close()
+                    new_tomaps[to_nu] = get_smoothed_map(
+                        pvals,fine_maps['evals'],fine_maps['czvals'],
+                        self.ebins, self.czbins)
 
                 smoothed_maps[from_nu] = new_tomaps
 
-                #from pisa.utils.jsons import to_json
-                #if from_nu == 'nue_maps':
-                #    to_json(smoothed_maps[from_nu]['nue'],'nue_maps.json')
-        print "       ==> elapsed time to smooth maps: %s sec"%t.secs
-        profile.info("stop smoothing maps")
+        profile.debug("       ==> elapsed time to smooth maps: %s sec"%t.secs)
 
         return smoothed_maps
 

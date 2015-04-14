@@ -30,8 +30,7 @@ class AeffServicePar:
         Parameters:
         * aeff_egy_par - effective area vs. Energy 1D parameterizations for each flavor,
         in a text file (.dat)
-        * aeff_coszen_par - 1D coszen parameterization for each flavor as a json_string
-        code.
+        * aeff_coszen_par - json file containing 1D coszen parameterization for each flavor 
         '''
         logging.info('Initializing AeffServicePar...')
 
@@ -41,8 +40,9 @@ class AeffServicePar:
 
         ## Load the info from .dat files into a dict...
         ## Parametric approach treats all NC events the same
-        aeff2d_nc = self.get_aeff_flavor('NC',aeff_egy_par,aeff_coszen_par)
-        aeff2d_nc_bar = self.get_aeff_flavor('NC_bar',aeff_egy_par,aeff_coszen_par)
+        aeff_coszen_par_str = from_json(find_resource(aeff_coszen_par))
+        aeff2d_nc = self.get_aeff_flavor('NC',aeff_egy_par,aeff_coszen_par_str)
+        aeff2d_nc_bar = self.get_aeff_flavor('NC_bar',aeff_egy_par,aeff_coszen_par_str)
 
         self.aeff_dict = {}
         logging.info("Creating effective area parametric dict...")
@@ -50,7 +50,7 @@ class AeffServicePar:
             flavor_dict = {}
             logging.debug("Working on %s effective areas"%flavor)
 
-            aeff2d = self.get_aeff_flavor(flavor,aeff_egy_par,aeff_coszen_par)
+            aeff2d = self.get_aeff_flavor(flavor,aeff_egy_par,aeff_coszen_par_str)
 
             flavor_dict['cc'] = aeff2d
             flavor_dict['nc'] = aeff2d_nc_bar if 'bar' in flavor else aeff2d_nc

@@ -74,11 +74,9 @@ class Prob3OscillationService(OscillationServiceBase):
         loglevel = logging.root.getEffectiveLevel()
         for ie,energy in enumerate(ecen):
             for icz, coszen in enumerate(czcen):
-                index = int((ie+1)*(icz+1) - 1)
                 evals.append(energy)
                 czvals.append(coszen)
-                if energy_scale is not None:
-                    if icz == 0: energy*=energy_scale
+                scaled_energy = energy*energy_scale
 
                 if loglevel <= logging.INFO:
                     if( (ie+1)*(icz+1) % mod == 0):
@@ -94,7 +92,7 @@ class Prob3OscillationService(OscillationServiceBase):
                 ########### FIRST FOR NEUTRINOS ##########
                 kNuBar = 1 # +1 for nu -1 for nubar
                 self.barger_prop.SetMNS(sin2th12Sq,sin2th13Sq,sin2th23Sq,deltam21,mAtm,
-                                        deltacp,energy,kSquared,kNuBar)
+                                        deltacp,scaled_energy,kSquared,kNuBar)
                 self.barger_prop.DefinePath(coszen, self.prop_height)
                 self.barger_prop.propagate(kNuBar)
 
@@ -103,14 +101,14 @@ class Prob3OscillationService(OscillationServiceBase):
                     nu = nu+'_maps'
                     for to_nu in neutrinos:
                         nu_f = nu_barger[to_nu]
-                        osc_prob_dict[nu][to_nu].append(self.barger_prop.GetProb(nu_i,
-                                                                                 nu_f))
+                        osc_prob_dict[nu][to_nu].append(
+                            self.barger_prop.GetProb(nu_i,nu_f))
 
 
                 ########### SECOND FOR ANTINEUTRINOS ##########
                 kNuBar = -1
                 self.barger_prop.SetMNS(sin2th12Sq,sin2th13Sq,sin2th23Sq,deltam21,
-                                        mAtm,deltacp,energy,kSquared,kNuBar)
+                                        mAtm,deltacp,scaled_energy,kSquared,kNuBar)
                 self.barger_prop.DefinePath(coszen, self.prop_height)
                 self.barger_prop.propagate(kNuBar)
 
@@ -119,21 +117,11 @@ class Prob3OscillationService(OscillationServiceBase):
                     nu+='_maps'
                     for to_nu in anti_neutrinos:
                         nu_f = nu_barger[to_nu]
-                        osc_prob_dict[nu][to_nu].append(self.barger_prop.GetProb(nu_i,
-                                                                                 nu_f))
+                        osc_prob_dict[nu][to_nu].append(
+                            self.barger_prop.GetProb(nu_i,nu_f))
 
-        if loglevel <= logging.INFO:
-            sys.stdout.write("\n")
+        if loglevel <= logging.INFO: sys.stdout.write("\n")
 
         profile.info("stop oscillation calculation")
-
-        # Saving fine maps: Testing purposes!
-        #for from_nu in ['nue','numu','nue_bar','numu_bar']:
-        #    from_nu += '_maps'
-        #    for to_nu in ['nue','numu','nutau']:
-        #        if 'bar' in from_nu: to_nu+='_bar'
-        #        filename = (from_nu+'_'+to_nu+'.dat').replace('_maps','').replace('_bar','bar')
-        #        print "Saving to file: ",filename
-        #        np.savetxt(filename,(evals,czvals,osc_prob_dict[from_nu][to_nu]))
 
         return evals,czvals

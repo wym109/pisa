@@ -97,7 +97,7 @@ class Prob3GPUOscillationService():
 
         self.d_ecen_fine = cuda.mem_alloc(self.ecen_fine.nbytes)
         self.d_czcen_fine = cuda.mem_alloc(self.czcen_fine.nbytes)
-        cuda.memcpy_htod(self.d_ecen_fine,self.ecen_fine)
+        #cuda.memcpy_htod(self.d_ecen_fine,self.ecen_fine)
         cuda.memcpy_htod(self.d_czcen_fine,self.czcen_fine)
 
         ###############################################
@@ -226,9 +226,8 @@ class Prob3GPUOscillationService():
         return
 
 
-    def get_osc_prob_maps(self,theta12=None, theta13=None, theta23=None,
-                          deltam21=None, deltam31=None, deltacp=None,
-                          **kwargs):
+    def get_osc_prob_maps(self, theta12, theta13, theta23, deltam21, deltam31,
+                          deltacp, energy_scale, **kwargs):
         """
         Returns an oscillation probability map dictionary calculated
         at the values of the input parameters:
@@ -243,6 +242,7 @@ class Prob3GPUOscillationService():
         \params:
           * theta12,theta13,theta23 - in [rad]
           * deltam21, deltam31 - in [eV^2]
+          * energy_scale - factor to scale energy bin centers
         """
 
         sin2th12Sq = np.sin(theta12)**2
@@ -284,6 +284,8 @@ class Prob3GPUOscillationService():
         nebins = np.uint32(len(self.ebins)-1)
         nczbins = np.uint32(len(self.czbins)-1)
 
+        # This goes here, so it can use the energy_scale systematic:
+        cuda.memcpy_htod(self.d_ecen_fine,self.ecen_fine*energy_scale)
 
         smooth_maps = np.zeros((nczbins*nebins*12),dtype=self.FTYPE)
         d_smooth_maps = cuda.mem_alloc(smooth_maps.nbytes)
