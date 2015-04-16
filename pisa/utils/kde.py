@@ -83,7 +83,6 @@ import numpy as np
 from scipy import fftpack
 from scipy import optimize
 from scipy import interpolate
-from pisa.utils.gaussians import gaussians
 
 pi = np.pi
 sqrtpi = np.sqrt(pi)
@@ -91,10 +90,21 @@ sqrt2pi = np.sqrt(2*pi)
 pisq = pi**2
 
 try:
-    import multiprocessing
-    openmp_num_threads = multiprocessing.cpu_count()
+    import pisa.utils.gaussians as GAUS
 except:
-    openmp_num_threads = 1
+    def gaussian(outbuf, x, mu, sigma):
+        xlessmu = x-mu
+        outbuf += 1./(sqrt2pi*sigma) * np.exp(-xlessmu*xlessmu/(2.*sigma*sigma))
+    def gaussians(outbuf, x, mu, sigma, **kwargs):
+        [gaussian(outbuf, x, mu[n], sigma[n]) for n in xrange(len(mu))]
+else:
+    gaussian = GAUS.gaussian
+    gaussians = GAUS.gaussians
+    try:
+        import multiprocessing
+        openmp_num_threads = max(multiprocessing.cpu_count(), 8)
+    except:
+        openmp_num_threads = 1
 
 
 

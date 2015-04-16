@@ -29,9 +29,9 @@ If you are working on OSX, we suggest [homebrew](brew.sh/) as a package manager,
 
 **User mode:**
 
-Use this if you just want to run `pisa`, but don't want to edit it. First pick a revision from [this github page](https://github.com/sboeser/pisa/releases). Then run this command in your shell, to directly install pisa from github.
+Use this if you just want to run `pisa`, but don't want to edit it. First pick a revision from [this github page](https://github.com/tarlen5/pisa/releases). Then run this command in your shell, to directly install pisa from github.
 ```
-pip install git+https://github.com/sboeser/pisa@<release>#egg=pisa
+pip install git+https://github.com/tarlen5/pisa@<release>#egg=pisa
 ```
 
 where
@@ -43,7 +43,7 @@ where
 Also in developer mode, you can directly install via `pip` from github. In order to contribute, you'll first need your own fork of the `pisa` repository.
 
 1. Create your own [github account](https://github.com/)
-1. Navigate to the [pisa github page](https://github.com/sboeser/pisa) and fork the repository by clicking on the ![fork](doc/ForkButton.png) button
+1. Navigate to the [pisa github page](https://github.com/tarlen5/pisa) and fork the repository by clicking on the ![fork](doc/ForkButton.png) button
 1. Now go to your terminal and install `pisa` from your fork using the following commands
 ```
 pip install [ --src <your/source/dir> --editable ] git+https://github.com/<user>/pisa@<branch>#egg=pisa 
