@@ -25,6 +25,8 @@
 #include "EarthDensity.h"
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 // Put these in the constants.h header later??
 #define fType double

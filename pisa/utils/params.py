@@ -42,10 +42,10 @@ def select_hierarchy(params, normal_hierarchy):
             #Don't use if doesn't match request
             if not normal_hierarchy: continue
             #Use simplified key
-            key = key.split('_')[0]
+            key = key.rsplit('_',1)[0]
         if key.endswith('_ih'):
             if normal_hierarchy: continue
-            key = key.split('_')[0]
+            key = key.rsplit('_',1)[0]
 
         newparams[key] = value
 

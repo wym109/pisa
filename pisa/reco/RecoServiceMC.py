@@ -85,10 +85,9 @@ class RecoServiceMC(RecoServiceBase):
     def _get_reco_kernels(self, simfile=None, **kwargs):
 
         for reco_scale in ['e_reco_scale', 'cz_reco_scale']:
-            if reco_scale in kwargs:
-                if not kwargs[reco_scale]==1:
-                    raise ValueError('%s = %.2f not valid for RecoServiceMC!'
-                                     %(reco_scale, kwargs[reco_scale]))
+            if reco_scale in kwargs and kwargs[reco_scale] != 1:
+                raise ValueError('%s = %.2f, must be 1.0 for RecoServiceMC!'
+                                  %(reco_scale, kwargs[reco_scale]))
 
         if not simfile in [self.simfile, None]:
             logging.info('Reconstruction from non-default MC file %s!'%simfile)

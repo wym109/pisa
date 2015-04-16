@@ -20,8 +20,8 @@ from pisa.utils.proc import get_params, report_params
 from pisa.utils.utils import get_bin_centers, is_coarser_binning, is_linear
 from pisa.utils.utils import is_logarithmic, check_fine_binning, oversample_binning, Timer
 
+# Put CUDA imports in the constructor
 import pycuda.driver as cuda
-import pycuda.autoinit
 from pycuda.compiler import SourceModule
 
 #
@@ -36,7 +36,7 @@ class Prob3GPUOscillationService():
     the GPU.
     """
     def __init__(self, ebins, czbins, detector_depth=None, earth_model=None,
-                 prop_height=None, oversample_e=None,oversample_cz=None,
+                 prop_height=None, oversample_e=None,oversample_cz=None,gpu_id=None,
                  **kwargs):
         """
         \params:
@@ -45,8 +45,20 @@ class Prob3GPUOscillationService():
           * earth_model: Earth density model used for matter oscillations.
           * detector_depth: Detector depth in km.
           * prop_height: Height in the atmosphere to begin in km.
+          * gpu_id: If running on a system with multiple GPUs, it will choose 
+            the one with gpu_id. Otherwise, defaults to default context
         """
 
+        self.gpu_id = gpu_id
+        try:
+            import pycuda.autoinit
+            self.context = cuda.Device(self.gpu_id).make_context()
+            print "Initializing PyCUDA using gpu id: %d"%self.gpu_id
+        except:
+            import pycuda.autoinit
+            print "Auto initializing PyCUDA..."
+
+        
         logging.info('Instantiating %s'%self.__class__.__name__)
         self.ebins = np.array(ebins)
         self.czbins = np.array(czbins)
@@ -75,7 +87,7 @@ class Prob3GPUOscillationService():
         that will be passed to the propagateGrid() kernel and 3) the
         kernel module.
         '''
-
+        
         self.grid_prop  = GridPropagator(self.earth_model,self.czcen_fine)
         self.maxLayers  = self.grid_prop.GetMaxLayers()
         nczbins_fine    = len(self.czcen_fine)
@@ -97,7 +109,7 @@ class Prob3GPUOscillationService():
 
         self.d_ecen_fine = cuda.mem_alloc(self.ecen_fine.nbytes)
         self.d_czcen_fine = cuda.mem_alloc(self.czcen_fine.nbytes)
-        cuda.memcpy_htod(self.d_ecen_fine,self.ecen_fine)
+        #cuda.memcpy_htod(self.d_ecen_fine,self.ecen_fine)
         cuda.memcpy_htod(self.d_czcen_fine,self.czcen_fine)
 
         ###############################################
@@ -216,19 +228,18 @@ class Prob3GPUOscillationService():
         #cache_dir=os.path.expandvars('$PISA/pisa/oscillations/'+'.cache_dir')
         logging.trace("  pycuda INC PATH: %s"%include_path)
         #logging.trace("  pycuda cache_dir: %s"%cache_dir)
-        logging.trace("  pycuda FLAGS: %s"%pycuda.compiler.DEFAULT_NVCC_FLAGS)
+        #logging.trace("  pycuda FLAGS: %s"%pycuda.compiler.DEFAULT_NVCC_FLAGS)
         self.module = SourceModule(kernel_template,
                                    include_dirs=[include_path],
                                    #cache_dir=cache_dir,
                                    keep=True)
         self.propGrid = self.module.get_function("propagateGrid")
-
+        
         return
 
 
-    def get_osc_prob_maps(self,theta12=None, theta13=None, theta23=None,
-                          deltam21=None, deltam31=None, deltacp=None,
-                          **kwargs):
+    def get_osc_prob_maps(self, theta12, theta13, theta23, deltam21, deltam31,
+                          deltacp, energy_scale, **kwargs):
         """
         Returns an oscillation probability map dictionary calculated
         at the values of the input parameters:
@@ -243,6 +254,7 @@ class Prob3GPUOscillationService():
         \params:
           * theta12,theta13,theta23 - in [rad]
           * deltam21, deltam31 - in [eV^2]
+          * energy_scale - factor to scale energy bin centers
         """
 
         sin2th12Sq = np.sin(theta12)**2
@@ -284,6 +296,8 @@ class Prob3GPUOscillationService():
         nebins = np.uint32(len(self.ebins)-1)
         nczbins = np.uint32(len(self.czbins)-1)
 
+        # This goes here, so it can use the energy_scale systematic:
+        cuda.memcpy_htod(self.d_ecen_fine,self.ecen_fine*energy_scale)
 
         smooth_maps = np.zeros((nczbins*nebins*12),dtype=self.FTYPE)
         d_smooth_maps = cuda.mem_alloc(smooth_maps.nbytes)

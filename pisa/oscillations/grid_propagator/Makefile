@@ -7,19 +7,22 @@
 # Needed to create the __init__.py
 SHELL:=/bin/bash
 
-CXXFLAGS += -I. -Wall -Wno-c++11-compat-deprecated-writable-strings
-CXX = g++ -O3
+CXXFLAGS += -I. -Wall
+#-Wno-c++11-compat-deprecated-writable-strings
+CXX = g++ -O3 -fPIC
 
 #############################
 # NEEDED FOR PYTHON DLL
-PYLIB = /Users/timothyarlen/anaconda/pkgs/python-2.7.8-1/lib/python2.7/
-PYINC = /Users/timothyarlen/anaconda/pkgs/python-2.7.8-1/include/python2.7/
+PYLIB = /gpfs/home/tca3/local/anaconda/pkgs/python-2.7.8-1/lib/
+PYINC = /gpfs/home/tca3/local/anaconda/pkgs/python-2.7.8-1/include/python2.7/
 PYFLAGS = -L$(PYLIB) -lpython2.7
 NUMPYINC = /usr/local/lib/python2.7/site-packages/numpy/core/include/
 
 # Depending on your OS/compiler, you may need a different for a dynamic lib for c++
-DLLFLAG = -dynamiclib
-SWIG = /usr/local/bin/swig
+#DLLFLAG = -dynamiclib
+DLLFLAG = -shared
+SWIG = /usr/bin/swig
+#SWIG = /usr/local/bin/swig
 #############################
 
 %.o : %.cpp

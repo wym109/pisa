@@ -117,13 +117,13 @@ class HDFChain(object):
             if table._v_depth > maxdepth:
                 continue
             if table.name in self._tables:
-                print "WARN: skipping additional occurence of table %s at %s (using %s)!" % (table.name, 
+                print "WARN: skipping additional occurence of table %s at %s (using %s)!" % (table.name,
                       table._v_pathname, self._tables[table.name].path)
                 continue
             else:
                 proxy = HDFTableProxy(table, self.files)
                 self._tables[table.name] = proxy
-                self.pathes[table._v_pathname] = proxy 
+                self.pathes[table._v_pathname] = proxy
 
         self.root = TableAccessor(self._tables)
 
@@ -137,4 +137,4 @@ class HDFChain(object):
 
     def getNode(self, path):
         return self.pathes[path]
-        
+
