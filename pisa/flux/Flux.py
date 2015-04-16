@@ -112,6 +112,8 @@ if __name__ == '__main__':
                         default = 'flux/spl-solmax-aa.d')
     parser.add_argument('--nue_numu_ratio',metavar='FLOAT',type=float,
                         help='''Factor to scale nue_flux by''',default=1.0)
+    parser.add_argument('--energy_scale',metavar='FLOAT',type=float,
+                        help='''Factor to scale TRUE energy by''',default=1.0)
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE',
                         type=str, action='store', default='flux.json',
                         help='file to store the output')
@@ -132,7 +134,8 @@ if __name__ == '__main__':
 
     #get the flux
     flux_maps = get_flux_maps(flux_model,args.ebins,args.czbins,
-                              nue_numu_ratio=args.nue_numu_ratio)
+                              args.nue_numu_ratio,args.energy_scale)
+
 
     #write out to a file
     logging.info("Saving output to: %s"%args.outfile)
