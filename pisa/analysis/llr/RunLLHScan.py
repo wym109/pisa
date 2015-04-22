@@ -43,9 +43,9 @@ parser.add_argument('-g','--grid_settings',type=str,metavar='JSONFILE', required
 parser.add_argument('-s','--save-steps',action='store_true',default=False,
                     dest='save_steps',
                     help='''Save all steps the optimizer takes.''')
-parser.add_argument('-c','--chan',type=str,default='all',
-                    choices=['trck','cscd','all','no_pid'],
-                    help='''which channel to use in the fit.''')
+#parser.add_argument('-c','--chan',type=str,default='all',
+#                    choices=['trck','cscd','all','no_pid'],
+#                    help='''which channel to use in the fit.''')
 parser.add_argument('-o','--outfile',type=str,default='llh_data.json',metavar='JSONFILE',
                     help='''Output filename.''')
 parser.add_argument('-v', '--verbose', action='count', default=None,
@@ -80,7 +80,8 @@ with Timer() as t:
     template_maker = TemplateMaker(get_values(params),**template_settings['binning'])
 profile.info("==> elapsed time to initialize templates: %s sec"%t.secs)
 
-data_types = [('data_NMH',True),('data_IMH',False)]
+#data_types = [('data_NMH',True),('data_IMH',False)]
+data_types = [('data_NMH',True)]
 
 results = {}
 # Store for future checking:
@@ -96,7 +97,8 @@ for data_tag, data_normal in data_types:
     asimov_data_set = get_asimov_fmap(template_maker,get_values(data_params),
                                       chan=channel)
     results[data_tag]['asimov_data'] = asimov_data_set
-    hypo_types = [('hypo_NMH',True),('hypo_IMH',False)]
+    hypo_types = [('hypo_NMH',True)]
+    #hypo_types = [('hypo_NMH',True),('hypo_IMH',False)]
     for hypo_tag, hypo_normal in hypo_types:
 
         hypo_params = select_hierarchy(params,normal_hierarchy=hypo_normal)
