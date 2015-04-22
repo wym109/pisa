@@ -45,6 +45,13 @@ def find_max_llh_bfgs(fmap,template_maker,params,bfgs_settings,save_steps=False,
     fixed_params = get_fixed_params(select_hierarchy(params,normal_hierarchy))
     free_params = get_free_params(select_hierarchy(params,normal_hierarchy))
 
+    if len(free_params) == 0:
+        logging.warn("NO FREE PARAMS, returning LLH")
+        true_template = template_maker.get_template(get_values(fixed_params))
+        channel = params['channel']['value']
+        true_fmap = flatten_map(true_template,chan=channel)
+        return {'llh': [-get_binwise_llh(fmap,true_fmap)]}
+    
     init_vals = get_param_values(free_params)
     scales = get_param_scales(free_params)
     bounds = get_param_bounds(free_params)
