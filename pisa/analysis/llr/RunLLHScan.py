@@ -89,65 +89,65 @@ results['template_settings'] = template_settings
 results['minimizer_settings'] = minimizer_settings
 results['grid_settings'] = grid_settings
 
-#try:
-for data_tag, data_normal in data_types:
-    results[data_tag] = {}
+try:
+    for data_tag, data_normal in data_types:
+        results[data_tag] = {}
 
-    data_params = select_hierarchy(params,normal_hierarchy=data_normal)
-    asimov_data_set = get_asimov_fmap(template_maker,get_values(data_params),
-                                      chan=channel)
-    results[data_tag]['asimov_data'] = asimov_data_set
-    hypo_types = [('hypo_NMH',True)]
-    #hypo_types = [('hypo_NMH',True),('hypo_IMH',False)]
-    for hypo_tag, hypo_normal in hypo_types:
+        data_params = select_hierarchy(params,normal_hierarchy=data_normal)
+        asimov_data_set = get_asimov_fmap(template_maker,get_values(data_params),
+                                          chan=channel)
+        results[data_tag]['asimov_data'] = asimov_data_set
+        hypo_types = [('hypo_NMH',True)]
+        #hypo_types = [('hypo_NMH',True),('hypo_IMH',False)]
+        for hypo_tag, hypo_normal in hypo_types:
 
-        hypo_params = select_hierarchy(params,normal_hierarchy=hypo_normal)
-        # Now scan over theta23,deltam31 values and fix params to
-        # these values:
-        # Calculate steps for all free parameters
-        atm_params = get_atm_params(hypo_params)
-        calc_steps(atm_params, grid_settings['steps'])
+            hypo_params = select_hierarchy(params,normal_hierarchy=hypo_normal)
+            # Now scan over theta23,deltam31 values and fix params to
+            # these values:
+            # Calculate steps for all free parameters
+            atm_params = get_atm_params(hypo_params)
+            calc_steps(atm_params, grid_settings['steps'])
 
-        # Build a list from all parameters that holds a list of (name, step) tuples
-        steplist = [ [(name,step) for step in param['steps']]
-                     for name, param in sorted(atm_params.items())]
+            # Build a list from all parameters that holds a list of (name, step) tuples
+            steplist = [ [(name,step) for step in param['steps']]
+                         for name, param in sorted(atm_params.items())]
 
-        print "steplist: ",steplist
-        print "atm_params: ",atm_params
+            print "steplist: ",steplist
+            print "atm_params: ",atm_params
 
-        # Prepare to store all the steps
-        steps = {key:[] for key in atm_params.keys()}
-        steps['llh'] = []
+            # Prepare to store all the steps
+            steps = {key:[] for key in atm_params.keys()}
+            steps['llh'] = []
 
-        # Iterate over the cartesian product, and set fixed parameter to value
-        for pos in product(*steplist):
-            pos_dict = dict(list(pos))
-            print "Running at params-pos dict: ",pos_dict
-            for k,v in pos_dict.items():
-                hypo_params[k]['value'] = v
-                steps[k].append(v)
+            # Iterate over the cartesian product, and set fixed parameter to value
+            for pos in product(*steplist):
+                pos_dict = dict(list(pos))
+                print "Running at params-pos dict: ",pos_dict
+                for k,v in pos_dict.items():
+                    hypo_params[k]['value'] = v
+                    steps[k].append(v)
 
-            #print "\nhypo_params: "
-            #for key in hypo_params.keys():
-            #    print "  key: %s, value: %s"%(key,hypo_params[key]['value'])
+                #print "\nhypo_params: "
+                #for key in hypo_params.keys():
+                #    print "  key: %s, value: %s"%(key,hypo_params[key]['value'])
 
-            with Timer() as t:
-                llh_data = find_max_llh_bfgs(asimov_data_set,template_maker,hypo_params,
-                                             minimizer_settings,args.save_steps,
-                                             normal_hierarchy=hypo_normal)
-            profile.info("==> elapsed time for optimizer: %s sec"%t.secs)
+                with Timer() as t:
+                    llh_data = find_max_llh_bfgs(asimov_data_set,template_maker,hypo_params,
+                                                 minimizer_settings,args.save_steps,
+                                                 normal_hierarchy=hypo_normal)
+                profile.info("==> elapsed time for optimizer: %s sec"%t.secs)
 
-            steps['llh'].append(llh_data['llh'][-1])
+                steps['llh'].append(llh_data['llh'][-1])
 
-            # Then save the minimized free params later??
-            #print "\n\nsteps: ",steps
+                # Then save the minimized free params later??
+                #print "\n\nsteps: ",steps
 
-        #Store the LLH data
-        results[data_tag][hypo_tag] = steps
+            #Store the LLH data
+            results[data_tag][hypo_tag] = steps
 
-#except:
-#    print "error message: ",sys.exc_info()
-#    logging.warn("ERROR: outputting what we have now...")
+except:
+    print "error message: ",sys.exc_info()
+    logging.warn("ERROR: outputting what we have now...")
 
 logging.warn("FINISHED. Saving to file: %s"%args.outfile)
 to_json(results,args.outfile)
