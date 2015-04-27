@@ -23,7 +23,8 @@ def poisson_pmf_float(data,expectation):
     calculate the poisson likelihood, so we'll use this version, which
     is appropriate for float data types.
     """
-    return (expectation**data)*np.exp(-expectation)/gamma(data+1)
+    lnpoisson = data*np.log(expectation) - expectation - np.log(gamma(data+1.0))
+    return np.exp(lnpoisson)
 
 def get_binwise_llh(pseudo_data,template):
     """
@@ -37,7 +38,13 @@ def get_binwise_llh(pseudo_data,template):
     if bool(re.match('^int',pseudo_data.dtype.name)):
         totalLLH = np.sum(np.log(poisson.pmf(pseudo_data,template)))
     elif bool(re.match('^float',pseudo_data.dtype.name)):
-        totalLLH = np.sum(np.log(poisson_pmf_float(pseudo_data,template)))
+        pseudo_data = np.int32(pseudo_data+0.5)
+        totalLLH = np.sum(np.log(poisson_pmf_float(pseudo_data,np.float64(template))))
+        print "\npseudo_data: ",pseudo_data[0:100]
+        print "\ntemplate: ",template[0:100]
+        print "totalLLH: ",totalLLH
+        print "template isnan?: ",np.any(np.isnan(np.log(poisson_pmf_float(pseudo_data,template))))
+        raw_input("PAUSED")
     else:
         raise ValueError(
             "Unknown pseudo_data dtype: %s. Must be float or int!"%psuedo_data.dtype)
