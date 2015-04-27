@@ -9,7 +9,7 @@
 
 import re
 import numpy as np
-from scipfy.special import gamma
+from scipy.special import gamma
 from scipy.stats import poisson
 
 from pisa.utils.jsons import from_json
