@@ -1,6 +1,9 @@
 #
 # LLHStatistics.py
 #
+# author: Timothy C. Arlen
+#         tca3@psu.edu
+#
 # Generic module that has the helper functions for performing an LLH
 # calculations on a set of templates. Operates on templates, which are
 # numpy arrays. No input/output operations or reading from customized
