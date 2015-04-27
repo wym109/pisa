@@ -12,19 +12,33 @@
 
 import re
 import numpy as np
-from scipy.special import gamma
+from scipy.special import multigammaln
 from scipy.stats import poisson
 
 from pisa.utils.jsons import from_json
 
-def poisson_pmf_float(data,expectation):
+
+def generalized_ln_poisson(data,expectation):
     """
     When the data set is not integer based, we need a different way to
     calculate the poisson likelihood, so we'll use this version, which
-    is appropriate for float data types.
+    is appropriate for float data types (using the continuous version
+    of the poisson pmf) as well as the standard integer data type for
+    the discrete Poisson pmf
     """
-    lnpoisson = data*np.log(expectation) - expectation - np.log(gamma(data+1.0))
-    return np.exp(lnpoisson)
+
+    if not np.alltrue(data >= 0.0):
+        raise ValueError(
+            "Template must have all bins >= 0.0! Template generation bug?")
+
+    ln_poisson = 0.0
+    if bool(re.match('^int',data.dtype.name)):
+        return np.log(poisson.pmf(data,expectation))
+    elif bool(re.match('^float',data.dtype.name)):
+        return (data*np.log(expectation) - expectation - multigammaln(data+1.0,1))
+    else:
+        raise ValueError(
+            "Unknown data dtype: %s. Must be float or int!"%psuedo_data.dtype)
 
 def get_binwise_llh(pseudo_data,template):
     """
@@ -35,14 +49,7 @@ def get_binwise_llh(pseudo_data,template):
     if not np.alltrue(template >= 0.0):
         raise ValueError("Template must have all bins >= 0.0! Template generation bug?")
 
-    if bool(re.match('^int',pseudo_data.dtype.name)):
-        totalLLH = np.sum(np.log(poisson.pmf(pseudo_data,template)))
-    elif bool(re.match('^float',pseudo_data.dtype.name)):
-        pseudo_data = np.int32(pseudo_data+0.5)
-        totalLLH = np.sum(np.log(poisson_pmf_float(pseudo_data,np.float64(template))))
-    else:
-        raise ValueError(
-            "Unknown pseudo_data dtype: %s. Must be float or int!"%psuedo_data.dtype)
+    totalLLH = np.sum(generalized_ln_poisson(pseudo_data,template))
 
     return totalLLH
 
