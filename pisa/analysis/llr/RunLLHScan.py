@@ -127,10 +127,6 @@ try:
                     hypo_params[k]['value'] = v
                     steps[k].append(v)
 
-                #print "\nhypo_params: "
-                #for key in hypo_params.keys():
-                #    print "  key: %s, value: %s"%(key,hypo_params[key]['value'])
-
                 with Timer() as t:
                     llh_data = find_max_llh_bfgs(asimov_data_set,template_maker,hypo_params,
                                                  minimizer_settings,args.save_steps,
