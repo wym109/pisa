@@ -66,17 +66,10 @@ def get_pseudo_data_fmap(template_maker,fiducial_params,seed=None,chan=None):
     return fmap
 
 def get_asimov_fmap(template_maker,fiducial_params,chan=None):
-    """
-    Creates a true template from fiducial_params, then converts the true_template
-    expected counts to an integer number of counts to simulate an experiment at the
-    average expected value.
-    """
+    """Creates a true template from fiducial_params"""
 
     true_template = template_maker.get_template(fiducial_params)
-    fmap = flatten_map(true_template,chan=chan)
-    fmap = np.int32(fmap+0.5)
-
-    return fmap
+    return flatten_map(true_template,chan=chan)
 
 def flatten_map(template,chan='all'):
     """
@@ -115,5 +108,6 @@ def get_seed():
     Returns a random seed from /dev/urandom that can be used to seed the random
     state, e.g. for the poisson random variates.
     """
+
     return int(os.urandom(4).encode('hex'),16)
 
