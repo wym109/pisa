@@ -47,7 +47,8 @@ class Prob3OscillationService(OscillationServiceBase):
     def fill_osc_prob(self, osc_prob_dict, ecen, czcen,
                       theta12=None, theta13=None, theta23=None,
                       deltam21=None, deltam31=None, deltacp=None,
-                      energy_scale=None,**kwargs):
+                      energy_scale=None, YeI = None, YeO = None,
+                      YeM = None,**kwargs):
         '''
         Loops over ecen,czcen and fills the osc_prob_dict maps, with
         probabilities calculated according to prob3
@@ -93,7 +94,8 @@ class Prob3OscillationService(OscillationServiceBase):
                 kNuBar = 1 # +1 for nu -1 for nubar
                 self.barger_prop.SetMNS(sin2th12Sq,sin2th13Sq,sin2th23Sq,deltam21,mAtm,
                                         deltacp,scaled_energy,kSquared,kNuBar)
-                self.barger_prop.DefinePath(coszen, self.prop_height)
+
+                self.barger_prop.DefinePath(coszen, self.prop_height, YeI, YeO, YeM)
                 self.barger_prop.propagate(kNuBar)
 
                 for nu in ['nue','numu']:

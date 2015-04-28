@@ -49,8 +49,10 @@ class BargerPropagator : public NeutrinoPropagator
       // specify, cosine of zenith angle   -1 : upward going 0: horizontal +1: downward going
       // specify production height in the the atmosphere [km]
       // specify if the profile withing EarthDensity object should be recomputed, default is true
-      virtual void DefinePath( double, double, bool kSetProfile = true  );
-      
+      //virtual void DefinePath( double, double, bool kSetProfile = true  );
+      virtual void DefinePath( double, double, double YeI = 0.4656, double YeO = 0.4656, double YeM = 0.4957,
+                               bool kSetProfile = true  );
+
       // determine the neutrino oscillation parameters
       // This routine must be called _before_ propagate* routines!
       // Specify the neutrino oscillation parameters, and energy

@@ -120,6 +120,10 @@ class EarthDensity
   double * _TraverseRhos;
   double * _TraverseElectronFrac;
 
+  double _YeI;
+  double _YeO;
+  double _YeM;
+  
   double REarth;
   double RDetector;
   double DetectorDepth;
