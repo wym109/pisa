@@ -92,6 +92,7 @@ sqrtpi = np.sqrt(pi)
 sqrt2pi = np.sqrt(2*pi)
 pisq = pi**2
 
+openmp_num_threads = 1
 try:
     import pisa.utils.gaussians as GAUS
 except:
