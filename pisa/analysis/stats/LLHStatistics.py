@@ -24,7 +24,11 @@ def generalized_ln_poisson(data,expectation):
     calculate the poisson likelihood, so we'll use this version, which
     is appropriate for float data types (using the continuous version
     of the poisson pmf) as well as the standard integer data type for
-    the discrete Poisson pmf
+    the discrete Poisson pmf.
+
+    Returns: the natural logarithm of the value of the continuous form
+    of the poisson probability mass function, given detected counts,
+    'data' from expected counts 'expectation'.
     """
 
     if not np.alltrue(data >= 0.0):

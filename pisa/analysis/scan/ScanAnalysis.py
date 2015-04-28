@@ -17,10 +17,11 @@ from pisa.analysis.scan.Scan import find_max_grid
 from pisa.analysis.TemplateMaker import TemplateMaker
 from pisa.utils.params import get_values, select_hierarchy
 
-parser = ArgumentParser(description='''Runs a brute-force scan analysis varying a number of systematic parameters
-defined in settings.json file and saves the likelihood values for all
-combination of hierarchies.''',
-                        formatter_class=ArgumentDefaultsHelpFormatter)
+parser = ArgumentParser(
+    description='''Runs a brute-force scan analysis varying a number of systematic parameters
+    defined in settings.json file and saves the likelihood values for all
+    combination of hierarchies.''',
+    formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('-t','--template_settings',type=str,
                     metavar='JSONFILE', required = True,
                     help='''Settings related to the template generation and systematics.''')
