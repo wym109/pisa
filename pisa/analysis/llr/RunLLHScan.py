@@ -43,6 +43,8 @@ parser.add_argument('-g','--grid_settings',type=str,metavar='JSONFILE', required
 parser.add_argument('-s','--save-steps',action='store_true',default=False,
                     dest='save_steps',
                     help='''Save all steps the optimizer takes.''')
+parser.add_argument('--gpu_id',type=int,default=None,
+                    help="GPU ID if available.")
 #parser.add_argument('-c','--chan',type=str,default='all',
 #                    choices=['trck','cscd','all','no_pid'],
 #                    help='''which channel to use in the fit.''')
@@ -67,6 +69,11 @@ if scipy.__version__ < '0.12.0':
     if 'maxiter' in minimizer_settings:
         logging.warn('Optimizer settings for \"maxiter\" will be ignored')
         minimizer_settings.pop('maxiter')
+
+if args.gpu_id is not None:
+    template_settings['params']['gpu_id'] = {}
+    template_settings['params']['gpu_id']['value'] = args.gpu_id
+    template_settings['params']['gpu_id']['fixed'] = True
 
 #Get the parameters
 params = template_settings['params']
