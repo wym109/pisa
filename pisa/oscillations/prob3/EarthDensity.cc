@@ -19,6 +19,10 @@ EarthDensity::EarthDensity( )
   _density[ 5701.0 ]  =  5.0 ;
   _density[ 6371.0 ]  =  3.3 ;
 
+  _YeI = 0.4656;
+  _YeO = 0.4656;
+  _YeM = 0.4957;
+
   init();
 }
 
