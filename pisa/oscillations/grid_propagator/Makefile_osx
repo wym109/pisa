@@ -7,15 +7,10 @@
 # Needed to create the __init__.py
 SHELL:=/bin/bash
 
-CXXFLAGS += -I. -Wall -Wno-c++11-compat-deprecated-writable-strings
-CXX = g++ -O3 -fPIC
-
 #############################
 # NEEDED FOR PYTHON DLL
 PYTHONDIR=/Users/timothyarlen/local/anaconda/
 NUMPYINC = $(PYTHONDIR)/lib/python2.7/site-packages/numpy/core/include/
-#PYINC = $(PYTHONDIR)pkgs/python-2.7.9-1/include/python2.7/
-#PYFLAGS = -L$(PYLIB) -lpython2.7
 PYINC=`python-config --cflags`
 PYFLAGS=`python-config --ldflags`
 
@@ -24,9 +19,20 @@ DLLFLAG = -dynamiclib
 SWIG = /usr/local/bin/swig
 #############################
 
-%.o : %.cpp
+################################################
+# NEEDED FOR getting Earth Model in one place
+################################################
+INC=$(PISA)pisa/oscillations/prob3/
+
+CXX = g++ -O3 -fPIC
+CXXFLAGS += -I$(INC) -I. -Wall -Wno-c++11-compat-deprecated-writable-strings
+
+GridPropagator.o : GridPropagator.cpp
 	$(RM) $@
-	$(CXX) -c $(CXXFLAGS) -o $@ $*.cpp
+	$(CXX) -c $(CXXFLAGS) -o $@ $<
+EarthDensity.o : $(INC)/EarthDensity.cc
+	$(RM) $@
+	$(CXX) -c $(CXXFLAGS) -o $@ $<
 
 
 OBJS = EarthDensity.o GridPropagator.o

@@ -40,25 +40,23 @@ class GridPropagator
 {
  public:
 
-  GridPropagator(char* earthModelFile, fType* czcen, int nczbins);
+  GridPropagator(char* earthModelFile, fType* czcen, int nczbins, fType detector_depth);
 
   //void Propagate(fType sinSqT12, fType sinSqT13, fType sinSqT23,
   //fType dmSolar, fType dmAtm, fType deltacp);
 
   // SetMNS() - re-initialize mixing matrices...
+  void SetEarthDensityParams(fType prop_height, fType YeI, fType YeO, fType YeM);
   void  SetMNS(fType dm_solar,fType dm_atm,fType x12,fType x13,fType x23,
                fType deltacp);
+  fType DefinePath(fType cz, fType prod_height, fType rDetector);
 
   // Public member variables
-
 
   ////////////////////////////////////
   // Simple Accessors - returns the pointer to host memory location.
   // Recall that the first dimension (row) is cz_cen, & the 2nd dimension
   // is the layer in m_numberOfLayers.
-  //fType* GetDensityInLayer( void ) { return m_densityInLayer; }
-  //fType* GetDistanceInLayer( void) { return m_distanceInLayer; }
-  //int*   GetNumberOfLayers( void ) { return m_numberOfLayers; }
   void Get_dm_mat(fType dm_mat[3][3]);
   void Get_mix_mat(fType mix_mat[3][3][2]);
   void GetDensityInLayer( fType* densityInLayer, int len);
@@ -80,8 +78,7 @@ class GridPropagator
 
  private:
 
-  void  SetEarthDensityParams(char* earthModelFile);
-  fType DefinePath(fType cz, fType prod_height, fType rDetector);
+  //  void  SetEarthDensityParams(char* earthModelFile);
   //void  setmix_sin(double s12,double s23,double s13,double dcp);
   //void  setmass(double dms21, double dms23);
 
