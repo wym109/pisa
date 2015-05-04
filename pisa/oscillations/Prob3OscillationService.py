@@ -111,7 +111,7 @@ class Prob3OscillationService(OscillationServiceBase):
                 kNuBar = -1
                 self.barger_prop.SetMNS(sin2th12Sq,sin2th13Sq,sin2th23Sq,deltam21,
                                         mAtm,deltacp,scaled_energy,kSquared,kNuBar)
-                self.barger_prop.DefinePath(coszen, self.prop_height)
+                self.barger_prop.DefinePath(coszen, self.prop_height, YeI, YeO, YeM)
                 self.barger_prop.propagate(kNuBar)
 
                 for nu in ['nue_bar','numu_bar']:

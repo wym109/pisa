@@ -21,36 +21,37 @@
 class BargerPropagator : public NeutrinoPropagator
 {
   public:
-      
+
       BargerPropagator( );
       // const char specifies an input radial density profile, c.f. PREM.dat
       BargerPropagator( bool );
       BargerPropagator( const char *, double detectorDepth = 0.0);
      ~BargerPropagator(      );
-      
+
       // main driving routine for computing oscillations through a sphere
       // called after SetMNS(...) !!
-      // specify neutrino type:   +int : neutrino   -int: anti-neutrino 
+      // specify neutrino type:   +int : neutrino   -int: anti-neutrino
       virtual void propagate( int );
-      
-      // driving routine for oscillations through linear media of contstant density 
+
+      // driving routine for oscillations through linear media of contstant density
       // called after SetMNS(...)
-      // specify neutrino type:   +int : neutrino   -int: anti-neutrino 
+      // specify neutrino type:   +int : neutrino   -int: anti-neutrino
       // specify Path length in the matter
       // specify density of the matter
       virtual void propagateLinear( int , double, double );
-      
+
       // driving routine for oscillations in vaccuum!
       // called after SetMNS(...)
-      // specify           nu_in, nu_out, Energy [GeV] , pathlength [km]  
+      // specify           nu_in, nu_out, Energy [GeV] , pathlength [km]
       virtual double GetVacuumProb( int , int   , double , double );
-      
+
       // determines the pathlength and density profile for a neutrino propagating through a sphere
       // specify, cosine of zenith angle   -1 : upward going 0: horizontal +1: downward going
       // specify production height in the the atmosphere [km]
       // specify if the profile withing EarthDensity object should be recomputed, default is true
       //virtual void DefinePath( double, double, bool kSetProfile = true  );
-      virtual void DefinePath( double, double, double YeI = 0.4656, double YeO = 0.4656, double YeM = 0.4957,
+      virtual void DefinePath( double, double,
+                               double YeI = 0.4656, double YeO = 0.4656,double YeM = 0.4957,
                                bool kSetProfile = true  );
 
       // determine the neutrino oscillation parameters
