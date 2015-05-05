@@ -11,6 +11,9 @@
 # author: Sebastian Boeser
 #         sboeser@physik.uni-bonn.de
 #
+# author: Timothy C. Arlen
+#         tca3@psu.edu
+#
 # date:   2014-01-27
 
 import os
@@ -80,12 +83,6 @@ def get_median_energy(flux_map):
     with keys 'map', 'ebins', 'czbins'
     """
 
-    # This finds the mean (Not used)
-    #flux1D = np.sum(flux_map['map'],axis=1)
-    #ecen = get_bin_centers(flux_map['ebins'])
-    #energy = np.sum(flux1D*ecen)/flux1D.sum()
-    #logging.trace("Median energy: %f",energy)
-
     ecen = get_bin_centers(flux_map['ebins'])
     energy = ecen[len(ecen)/2]
 
@@ -127,7 +124,7 @@ def get_flux_maps(flux_service, ebins, czbins, nue_numu_ratio, energy_scale,
                       (prim,maps[prim]['map'].sum()))
 
     # now scale the nue(bar) / numu(bar) flux ratios, keeping the total
-    # flux (nue + numu, nue_bar + numu_bar) constant, or return unscaled maps:
+    # Flux (nue + numu, nue_bar + numu_bar) constant, or return unscaled maps:
     scaled_maps = apply_nue_numu_ratio(maps, nue_numu_ratio) if nue_numu_ratio != 1.0 else maps
 
     median_energy = get_median_energy(maps['numu'])
