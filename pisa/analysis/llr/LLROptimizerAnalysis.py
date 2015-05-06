@@ -13,18 +13,19 @@
 import numpy as np
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
-from pisa.utils.jsons import from_json,to_json
-from pisa.utils.log import logging, profile, physics, set_verbosity
-from pisa.utils.params import get_values, select_hierarchy
-from pisa.utils.utils import Timer
 from pisa.analysis.llr.LLHAnalysis import find_max_llh_bfgs
 from pisa.analysis.stats.Maps import get_pseudo_data_fmap, get_seed
 from pisa.analysis.TemplateMaker import TemplateMaker
+from pisa.utils.log import logging, profile, physics, set_verbosity
+from pisa.utils.jsons import from_json,to_json
+from pisa.utils.params import get_values, select_hierarchy
+from pisa.utils.utils import Timer
 
-parser = ArgumentParser(description='''Runs the LLR optimizer-based analysis varying a number of systematic parameters
-defined in settings.json file and saves the likelihood values for all
-combination of hierarchies.''',
-                        formatter_class=ArgumentDefaultsHelpFormatter)
+parser = ArgumentParser(
+    description='''Runs the LLR optimizer-based analysis varying a number of systematic
+    parameters defined in settings.json file and saves the likelihood values for all
+    combination of hierarchies.''',
+    formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('-t','--template_settings',type=str,
                     metavar='JSONFILE', required = True,
                     help='''Settings related to the template generation and systematics.''')
@@ -33,7 +34,8 @@ parser.add_argument('-m','--minimizer_settings',type=str,
                     help='''Settings related to the optimizer used in the LLR analysis.''')
 parser.add_argument('-pd','--pseudo_data_settings',type=str,
                     metavar='JSONFILE',default=None,
-                    help='''Settings for pseudo data templates, if desired to be different from template_settings.''')
+                    help='''Settings for pseudo data templates, if desired to be different from
+                    template_settings.''')
 parser.add_argument('-n','--ntrials',type=int, default = 1,
                     help="Number of trials to run")
 parser.add_argument('--gpu_id',type=int,default=None,
@@ -98,7 +100,7 @@ try:
         # //////////////////////////////////////////////////////////////////////
         # For each trial, generate two pseudo-data experiemnts (one for each
         # hierarchy), and for each find the best matching template in each of the
-        # hierarchy hypothesis.
+        # hierarchy hypotheses.
         # //////////////////////////////////////////////////////////////////////
         results = {}
         for data_tag, data_normal in [('data_NMH',True),('data_IMH',False)]:
