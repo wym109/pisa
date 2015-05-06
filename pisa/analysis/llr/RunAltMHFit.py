@@ -90,7 +90,9 @@ for true_tag, true_normal in mctrue_types:
                  for name, param in sorted(free_params.items()) ]
 
     # Set up the arrays to store the true/fit values in:
-    for key in free_params.keys(): result['true_'+key] = []
+    for key in free_params.keys():
+        result['true_'+key] = []
+        result['fit_'+key] = []
     result['asimov_data'] = []
 
     # Iterate over the Cartesian product, setting free parameters to the values in step
