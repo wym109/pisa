@@ -21,7 +21,7 @@ from pisa.analysis.stats.LLHStatistics import get_binwise_llh
 from pisa.analysis.stats.Maps import flatten_map
 
 def find_alt_hierarchy_fit(asimov_data_set, template_maker,hypo_params,hypo_normal,
-                           minimizer_settings,only_atm_params=True):
+                           minimizer_settings,only_atm_params=True,check_octant=False):
     """
     For the hypothesis of the mass hierarchy being NMH
     ('normal_hierarchy'=True) or IMH ('normal_hierarchy'=False), finds the
@@ -34,7 +34,7 @@ def find_alt_hierarchy_fit(asimov_data_set, template_maker,hypo_params,hypo_norm
         generate the asimov data set.
       * hypo_params - parameters for template generation
       * hypo_normal - boolean for NMH (True) or IMH (False)
-      * minimizer_settings - 
+      * minimizer_settings - settings for bfgs minimization
       * only_atm_params - boolean to denote whether the fit will be over the
         atmospheric oscillation parameters only or over all the free params
         in params
@@ -48,13 +48,31 @@ def find_alt_hierarchy_fit(asimov_data_set, template_maker,hypo_params,hypo_norm
     with Timer() as t:
         llh_data = find_max_llh_bfgs(
             asimov_data_set,template_maker,hypo_params,minimizer_settings,
-            normal_hierarchy=hypo_normal)
+            normal_hierarchy=hypo_normal,check_octant=check_octant)
     profile.info("==> elapsed time for optimizer: %s sec"%t.secs)
 
     return llh_data
 
-def find_max_llh_bfgs(fmap,template_maker,params,bfgs_settings,save_steps=False,
-                      normal_hierarchy=None):
+def display_optimizer_settings(free_params, names, init_vals, bounds, priors,
+                               bfgs_settings):
+    """
+    Displays parameters and optimization settings that minimizer will run.
+    """
+    physics.info('%d parameters to be optimized'%len(free_params))
+    for name,init,(down,up),(prior, best) in zip(names, init_vals, bounds, priors):
+        physics.info(('%20s : init = %6.4f, bounds = [%6.4f,%6.4f], '
+                     'best = %6.4f, prior = '+
+                     ('%6.4f' if prior else "%s"))%
+                     (name, init, up, down, best, prior))
+
+    physics.debug("Optimizer settings:")
+    for key,item in bfgs_settings.items():
+        physics.debug("  %s -> `%s` = %.2e"%(item['desc'],key,item['value']))
+
+    return
+
+def find_max_llh_bfgs(fmap, template_maker, params, bfgs_settings, save_steps=False,
+                      normal_hierarchy=None, check_octant=False):
     """
     Finds the template (and free systematic params) that maximize
     likelihood that the data came from the chosen template of true
@@ -99,24 +117,34 @@ def find_max_llh_bfgs(fmap,template_maker,params,bfgs_settings,save_steps=False,
 
     const_args = (names,scales,fmap,fixed_params,template_maker,opt_steps_dict,priors)
 
-    physics.info('%d parameters to be optimized'%len(free_params))
-    for name,init,(down,up),(prior, best) in zip(names, init_vals, bounds, priors):
-        physics.info(('%20s : init = %6.4f, bounds = [%6.4f,%6.4f], '
-                     'best = %6.4f, prior = '+
-                     ('%6.4f' if prior else "%s"))%
-                     (name, init, up, down, best, prior))
+    display_optimizer_settings(free_params, names, init_vals, bounds, priors,
+                               bfgs_settings)
 
-    physics.debug("Optimizer settings:")
-    for key,item in bfgs_settings.items():
-        physics.debug("  %s -> `%s` = %.2e"%(item['desc'],key,item['value']))
+    best_fit_vals,llh,dict_flags = opt.fmin_l_bfgs_b(
+        llh_bfgs, init_vals, args=const_args, approx_grad=True, iprint=0,
+        bounds=bounds, **get_values(bfgs_settings))
 
-    best_fit_vals,llh,dict_flags = opt.fmin_l_bfgs_b(llh_bfgs,
-                                                     init_vals,
-                                                     args=const_args,
-                                                     approx_grad=True,
-                                                     iprint=0,
-                                                     bounds=bounds,
-                                                     **get_values(bfgs_settings))
+    # If needed, run optimizer again, checking for second octant solution:
+    if check_octant and ('theta23' in free_params.keys()):
+        physics.info("Checking alternative octant solution")
+        old_th23_val = free_params['theta23']['value']
+        delta = np.pi - old_th23_val
+        free_params['theta23']['value'] = np.pi + delta
+        init_vals = get_param_values(free_params)
+
+        const_args = (names,scales,fmap,fixed_params,template_maker,opt_steps_dict,priors)
+        display_optimizer_settings(free_params, names, init_vals, bounds, priors,
+                                   bfgs_settings)
+        alt_fit_vals,alt_llh,alt_dict_flags = opt.fmin_l_bfgs_b(
+            llh_bfgs, init_vals, args=const_args, approx_grad=True, iprint=0,
+            bounds=bounds, **get_values(bfgs_settings))
+
+        # Alternative octant solution is optimal:
+        if alt_llh < llh:
+            best_fit_vals = alt_fit_vals
+            llh = alt_llh
+            dict_flags = alt_dict_flags
+
 
     best_fit_params = { name: value for name, value in zip(names, best_fit_vals) }
 

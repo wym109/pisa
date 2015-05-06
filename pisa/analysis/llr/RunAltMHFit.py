@@ -40,6 +40,8 @@ parser.add_argument('-g','--grid_settings',type=str,metavar='JSONFILE', required
                     according to these input settigs to.''')
 parser.add_argument('--gpu_id',type=int,default=None,
                     help="GPU ID if available.")
+parser.add_argument('--check_octant',action='store_true', default=False,
+                    help='''Checks alternative octant llh to see if optimum is there.''')
 parser.add_argument('-o','--outfile',type=str,default='alt_hypo_study.json',metavar='JSONFILE',
                     help="Output filename.")
 parser.add_argument('-v', '--verbose', action='count', default=None,
@@ -113,9 +115,9 @@ for true_tag, true_normal in mctrue_types:
         hypo_tag = 'hypo_IMH' if true_normal else 'hypo_NMH'
         llh_data = find_alt_hierarchy_fit(
             asimov_data_set,template_maker, params, hypo_normal,
-            minimizer_settings, only_atm_params=False)
+            minimizer_settings, only_atm_params=False, check_octant=args.check_octant)
 
-        for key in free_params.keys(): result['fit_'+key].append(llh_data[key])
+        for key in free_params.keys(): result['fit_'+key].append(llh_data[key][-1])
 
     results[true_tag] = result
 
