@@ -4,7 +4,7 @@
 #
 # Runs the Optimizer analysis for the Asimov data set for the hypothesized MH
 # template and finds the values of the systematics that maximize the LLH of
-# the alternative Hierarchy hypothesis.
+# the alternative Hierarchy hypothesis, as a function of theta23.
 #
 # author: Tim Arlen - tca3@psu.edu
 #
@@ -23,6 +23,46 @@ from pisa.utils.log import logging, profile, physics, set_verbosity
 from pisa.utils.jsons import from_json,to_json
 from pisa.utils.params import get_values, select_hierarchy, get_atm_params, get_free_params, get_fixed_params
 from pisa.utils.utils import Timer
+
+
+def fixAllButTheta23(params):
+    new_params = {}
+    free_param = 'theta23'
+    for key, value in params.items():
+        new_params[key] = value.copy()
+        new_params[key]['fixed'] = False if free_param in key else True
+
+    return new_params
+
+def createStepList(params,true_normal,grid_settings):
+    """
+    No matter how many params are listed as free, only force theta23 to be free.
+    """
+
+    new_params = fixAllButTheta23(params)
+
+    free_params = select_hierarchy(get_free_params(new_params),
+                                   normal_hierarchy=true_normal)
+    fixed_params = select_hierarchy(get_fixed_params(new_params),
+                                    normal_hierarchy=true_normal)
+    calc_steps(free_params, grid_settings['steps'])
+
+    # Form list from all parameters that holds a list of (name,step) tuples.
+
+    #steplist = [(name,step) for step in param['steps'] for name, param in free_params.items()]
+    steplist = free_params['theta23']['steps']
+
+    #steplist = [(name, step) for step in param['steps']
+    #            for name, param in sorted(free_params.items()) ]
+
+    return steplist
+
+def getAsimovParams(params,true_normal,th23_val):
+    asimov_params = select_hierarchy(params,normal_hierarchy=true_normal)
+    asimov_params['theta23']['value'] = th23_val
+
+    return asimov_params
+
 
 parser = ArgumentParser(
     description='''Runs the Optimizer analysis for the Asimov data set for the hypothesized MH
@@ -81,15 +121,12 @@ for true_tag, true_normal in mctrue_types:
     results[true_tag] = {}
 
     result = {}
+
+    steplist = createStepList(params,true_normal,grid_settings)
+    print steplist
+
     free_params = select_hierarchy(get_free_params(params),
                                    normal_hierarchy=true_normal)
-    fixed_params = select_hierarchy(get_fixed_params(params),
-                                    normal_hierarchy=true_normal)
-    calc_steps(free_params, grid_settings['steps'])
-
-    # Form list from all parameters that holds a list of (name,step) tuples.
-    steplist = [ [(name, step) for step in param['steps']]
-                 for name, param in sorted(free_params.items()) ]
 
     # Set up the arrays to store the true/fit values in:
     for key in free_params.keys():
@@ -97,17 +134,21 @@ for true_tag, true_normal in mctrue_types:
         result['fit_'+key] = []
     result['asimov_data'] = []
 
-    # Iterate over the Cartesian product, setting free parameters to the values in step
-    for step in product(*steplist):
-        step_dict = dict(list(step))
+    # This will actually only iterate over theta23 (for now):
+    for step in steplist:
+        print "step: ",step
 
-        logging.info("Running at asimov parameters: %s"%step_dict)
-        asimov_params = dict(step_dict.items() + get_values(fixed_params).items())
-        asimov_data_set = get_asimov_fmap(template_maker, asimov_params,
-                                          chan=asimov_params['channel'])
+        logging.info("Running at asimov parameters: %s"%step)
+        asimov_params = get_values(getAsimovParams(params,true_normal,step))
+        print "asimov_params: ",asimov_params
+        asimov_data_set = get_asimov_fmap(
+            template_maker, asimov_params,
+            chan=asimov_params['channel'])
 
         # Store injected true values in result:
-        for k,v in step_dict.items(): result['true_'+k].append(v)
+        result['true_theta23'].append(step)
+        result['true_deltam31'].append(asimov_params['deltam31'])
+
         result['asimov_data'].append(asimov_data_set)
 
         # now get fitted values of opposite hierarchy:
