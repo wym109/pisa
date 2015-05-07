@@ -36,7 +36,7 @@ def fixAllButTheta23(params):
 
 def createStepList(params,true_normal,grid_settings):
     """
-    No matter how many params are listed as free, only force theta23 to be free.
+    No matter how many params are listed as free, force only theta23 to be free.
     """
 
     new_params = fixAllButTheta23(params)
@@ -130,24 +130,27 @@ for true_tag, true_normal in mctrue_types:
 
     # Set up the arrays to store the true/fit values in:
     for key in free_params.keys():
+        #if key == 'theta23': continue
         result['true_'+key] = []
         result['fit_'+key] = []
     result['asimov_data'] = []
 
-    # This will actually only iterate over theta23 (for now):
+    # This will actually only iterate over theta23 (for now), changing
+    # the asimov data set:
     for step in steplist:
-        print "step: ",step
 
-        logging.info("Running at asimov parameters: %s"%step)
+        print "Running at asimov parameters: %s"%step
         asimov_params = get_values(getAsimovParams(params,true_normal,step))
-        print "asimov_params: ",asimov_params
         asimov_data_set = get_asimov_fmap(
             template_maker, asimov_params,
             chan=asimov_params['channel'])
 
         # Store injected true values in result:
+        #result['true_theta23'].append(step)
+        #result['true_deltam31'].append(asimov_params['deltam31'])
+        for key in free_params.keys():
+            result['true_'+key].append(asimov_params[key])
         result['true_theta23'].append(step)
-        result['true_deltam31'].append(asimov_params['deltam31'])
 
         result['asimov_data'].append(asimov_data_set)
 
@@ -159,6 +162,11 @@ for true_tag, true_normal in mctrue_types:
             minimizer_settings, only_atm_params=False, check_octant=args.check_octant)
 
         for key in free_params.keys(): result['fit_'+key].append(llh_data[key][-1])
+
+        print "\n\n  result: ",result
+        for k,v in result.items():
+            print "key: %s, value: %s"%(k,v)
+        raw_input("PAUSED...")
 
     results[true_tag] = result
 
