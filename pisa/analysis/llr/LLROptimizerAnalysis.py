@@ -9,17 +9,52 @@
 #
 # date:   02-July-2014
 #
+# revision: 07-May-2015
+# Re-wrote how the alternative hierarchy (null hypothesis) is handled.
+# Rather than assuming the alternative hypothesis best fit of the
+# oscillation parameters is unchanged,  we allow the asimov data set to
+# find the best fit null hypothesis to be changed.
+#
 
 import numpy as np
+from copy import deepcopy
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
-from pisa.analysis.llr.LLHAnalysis import find_max_llh_bfgs
-from pisa.analysis.stats.Maps import get_pseudo_data_fmap, get_seed
+from pisa.analysis.llr.LLHAnalysis import find_max_llh_bfgs, find_alt_hierarchy_fit
+from pisa.analysis.stats.LLHStatistics import get_random_map
+from pisa.analysis.stats.Maps import get_pseudo_data_fmap, get_seed, get_asimov_fmap
 from pisa.analysis.TemplateMaker import TemplateMaker
 from pisa.utils.log import logging, profile, physics, set_verbosity
 from pisa.utils.jsons import from_json,to_json
 from pisa.utils.params import get_values, select_hierarchy
 from pisa.utils.utils import Timer
+
+def getAsimovData(template_maker, params, data_normal):
+    """
+    Gets the asimov data set (expected counts distribution) at params assuming
+    hierarchy given by data_normal
+    """
+
+    fiducial_params = get_values(select_hierarchy(
+        params,normal_hierarchy=data_normal))
+    return get_asimov_fmap(template_maker,fiducial_params,
+                           chan=fiducial_params['channel'])
+
+
+def getAltHierarchyBestFit(asimov_data, template_maker, params, minimizer_settings,
+                           hypo_normal):
+
+    llh_data = find_alt_hierarchy_fit(
+        asimov_data,template_maker, params, hypo_normal,
+        minimizer_settings, only_atm_params=True, check_octant=True)
+
+    alt_params = get_values(select_hierarchy(params,normal_hierarchy=data_normal))
+    for key in llh_data.keys():
+        if key == 'llh': continue
+        alt_params[key] = llh_data[key][-1]
+
+    return alt_params
+
 
 parser = ArgumentParser(
     description='''Runs the LLR optimizer-based analysis varying a number of systematic
@@ -32,10 +67,10 @@ parser.add_argument('-t','--template_settings',type=str,
 parser.add_argument('-m','--minimizer_settings',type=str,
                     metavar='JSONFILE', required = True,
                     help='''Settings related to the optimizer used in the LLR analysis.''')
-parser.add_argument('-pd','--pseudo_data_settings',type=str,
-                    metavar='JSONFILE',default=None,
-                    help='''Settings for pseudo data templates, if desired to be different from
-                    template_settings.''')
+#parser.add_argument('-pd','--pseudo_data_settings',type=str,
+#                    metavar='JSONFILE',default=None,
+#                    help='''Settings for pseudo data templates, if desired to be different from
+#                    template_settings.''')
 parser.add_argument('-n','--ntrials',type=int, default = 1,
                     help="Number of trials to run")
 parser.add_argument('--gpu_id',type=int,default=None,
@@ -54,7 +89,6 @@ set_verbosity(args.verbose)
 #Read in the settings
 template_settings = from_json(args.template_settings)
 minimizer_settings  = from_json(args.minimizer_settings)
-pseudo_data_settings = from_json(args.pseudo_data_settings) if args.pseudo_data_settings is not None else template_settings
 
 #Workaround for old scipy versions
 import scipy
@@ -64,15 +98,6 @@ if scipy.__version__ < '0.12.0':
       logging.warn('Optimizer settings for \"maxiter\" will be ignored')
       minimizer_settings.pop('maxiter')
 
-
-# make sure that both pseudo data and template are using the same
-# channel. Raise Exception and quit otherwise
-channel = template_settings['params']['channel']['value']
-if channel != pseudo_data_settings['params']['channel']['value']:
-    error_msg = "Both template and pseudo data must have same channel!\n"
-    error_msg += " pseudo_data_settings chan: '%s', template chan: '%s' "%(pseudo_data_settings['params']['channel']['value'],channel)
-    raise ValueError(error_msg)
-
 if args.gpu_id is not None:
     template_settings['params']['gpu_id'] = {}
     template_settings['params']['gpu_id']['value'] = args.gpu_id
@@ -80,71 +105,64 @@ if args.gpu_id is not None:
 
 template_maker = TemplateMaker(get_values(template_settings['params']),
                                **template_settings['binning'])
-if args.pseudo_data_settings:
-    pseudo_data_template_maker = TemplateMaker(get_values(pseudo_data_settings['params']),
-                                               **pseudo_data_settings['binning'])
-else:
-    pseudo_data_template_maker = template_maker
+
+# Assemble output dict
+output = {'template_settings' : template_settings,
+          'minimizer_settings' : minimizer_settings}
 
 
-# Put in try/except block?
+asimov_data = {}
+asimov_data_null = {}
+alt_mh_settings = {}
+for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
+    profile.info("Assuming: %s"%data_tag)
 
-#store results from all the trials
-trials = []
+    output[data_tag] = {}
 
-try:
+    # Get Asimov data set for assuming true: data_tag
+    asimov_data = getAsimovData(
+        template_maker, template_settings['params'], data_normal)
+    # Find best fit atm parameters (theta23, deltam31) for alternative hierarchy hypothesis
+    alt_mh_settings = getAltHierarchyBestFit(
+        asimov_data, template_maker, template_settings['params'],minimizer_settings,
+        (not data_normal))
+    # Get asimov data set at null hypothesis
+    asimov_data_null = get_asimov_fmap(template_maker, alt_mh_settings,
+                                       chan=alt_mh_settings['channel'])
+
+    # Store all data tag related inputs:
+    output[data_tag]['asimov_data'] = asimov_data
+    output[data_tag]['asimov_data_null'] = asimov_data_null
+    output[data_tag]['alt_mh_settings'] = alt_mh_settings
+
+    trials = []
     for itrial in xrange(1,args.ntrials+1):
+        results = {} # one trial of results
+
         profile.info("start trial %d"%itrial)
         logging.info(">"*10 + "Running trial: %05d"%itrial + "<"*10)
 
-        # //////////////////////////////////////////////////////////////////////
-        # For each trial, generate two pseudo-data experiemnts (one for each
-        # hierarchy), and for each find the best matching template in each of the
-        # hierarchy hypotheses.
-        # //////////////////////////////////////////////////////////////////////
-        results = {}
-        for data_tag, data_normal in [('data_NMH',True),('data_IMH',False)]:
+        results['seed'] = get_seed()
+        logging.info("  RNG seed: %ld"%results['seed'])
 
-            results[data_tag] = {}
-            # 0) get a random seed and store with the data
-            results[data_tag]['seed'] = get_seed()
-            logging.info("  RNG seed: %ld"%results[data_tag]['seed'])
-            # 1) get a pseudo data fmap from fiducial model (best fit vals of params).
-            fmap = get_pseudo_data_fmap(
-                pseudo_data_template_maker,
-                get_values(select_hierarchy(pseudo_data_settings['params'],
-                                            normal_hierarchy=data_normal)),
-                seed=results[data_tag]['seed'],chan=channel)
+        # 1) get random pseudo data map from asimov alternative hypothesis:
+        fmap = get_random_map(asimov_data_null, seed=results['seed'])
 
-            # 2) find max llh (and best fit free params) from matching pseudo data
-            #    to templates.
-            for hypo_tag, hypo_normal in [('hypo_NMH',True),('hypo_IMH',False)]:
+        for hypo_tag, hypo_normal in [('hypo_NMH',True),('hypo_IMH',False)]:
 
-                physics.info("Finding best fit for %s under %s assumption"%(data_tag,hypo_tag))
-                with Timer() as t:
-                    llh_data = find_max_llh_bfgs(fmap,template_maker,template_settings['params'],
-                                                 minimizer_settings,args.save_steps,
-                                                 normal_hierarchy=hypo_normal)
-                profile.info("==> elapsed time for optimizer: %s sec"%t.secs)
+            physics.info("Finding best fit for %s under %s assumption"%(data_tag,hypo_tag))
+            with Timer() as t:
+                llh_data = find_max_llh_bfgs(fmap,template_maker,template_settings['params'],
+                                             minimizer_settings,args.save_steps,
+                                             normal_hierarchy=hypo_normal)
+            profile.info("==> elapsed time for optimizer: %s sec"%t.secs)
 
-                # Store the LLH data
-                results[data_tag][hypo_tag] = llh_data
+            # Store the LLH data
+            results[hypo_tag] = llh_data
 
-
-        # Store this trial
         trials += [results]
         profile.info("stop trial %d"%itrial)
 
-except:
-    logging.warn("ERROR IN TRIAL %i, so outputting what we have now!!"%itrial)
+    output[data_tag]['trials'] = trials
 
-
-#Assemble output dict
-output = {'trials' : trials,
-          'template_settings' : template_settings,
-          'minimizer_settings' : minimizer_settings}
-if args.pseudo_data_settings is not None:
-    output['pseudo_data_settings'] = pseudo_data_settings
-
-    #And write to file
 to_json(output,args.outfile)
