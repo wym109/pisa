@@ -49,11 +49,7 @@ def createStepList(params,true_normal,grid_settings):
 
     # Form list from all parameters that holds a list of (name,step) tuples.
 
-    #steplist = [(name,step) for step in param['steps'] for name, param in free_params.items()]
     steplist = free_params['theta23']['steps']
-
-    #steplist = [(name, step) for step in param['steps']
-    #            for name, param in sorted(free_params.items()) ]
 
     return steplist
 
@@ -119,18 +115,14 @@ results['grid_settings'] = grid_settings
 
 for true_tag, true_normal in mctrue_types:
     results[true_tag] = {}
-
     result = {}
-
     steplist = createStepList(params,true_normal,grid_settings)
-    print steplist
 
     free_params = select_hierarchy(get_free_params(params),
                                    normal_hierarchy=true_normal)
 
     # Set up the arrays to store the true/fit values in:
     for key in free_params.keys():
-        #if key == 'theta23': continue
         result['true_'+key] = []
         result['fit_'+key] = []
     result['asimov_data'] = []
@@ -146,9 +138,8 @@ for true_tag, true_normal in mctrue_types:
             chan=asimov_params['channel'])
 
         # Store injected true values in result:
-        #result['true_theta23'].append(step)
-        #result['true_deltam31'].append(asimov_params['deltam31'])
         for key in free_params.keys():
+            if 'theta23' in key: continue
             result['true_'+key].append(asimov_params[key])
         result['true_theta23'].append(step)
 
@@ -162,11 +153,6 @@ for true_tag, true_normal in mctrue_types:
             minimizer_settings, only_atm_params=False, check_octant=args.check_octant)
 
         for key in free_params.keys(): result['fit_'+key].append(llh_data[key][-1])
-
-        print "\n\n  result: ",result
-        for k,v in result.items():
-            print "key: %s, value: %s"%(k,v)
-        raw_input("PAUSED...")
 
     results[true_tag] = result
 
