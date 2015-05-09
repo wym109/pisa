@@ -42,11 +42,11 @@ def getAsimovData(template_maker, params, data_normal):
 
 
 def getAltHierarchyBestFit(asimov_data, template_maker, params, minimizer_settings,
-                           hypo_normal):
+                           hypo_normal,check_octant):
 
     llh_data = find_alt_hierarchy_fit(
         asimov_data,template_maker, params, hypo_normal,
-        minimizer_settings, only_atm_params=True, check_octant=True)
+        minimizer_settings, only_atm_params=True, check_octant=check_octant)
 
     alt_params = get_values(select_hierarchy(params,normal_hierarchy=data_normal))
     for key in llh_data.keys():
@@ -78,6 +78,8 @@ parser.add_argument('--gpu_id',type=int,default=None,
 parser.add_argument('-s','--save-steps',action='store_true',default=False,
                     dest='save_steps',
                     help="Save all steps the optimizer takes.")
+parser.add_argument('--check_octant',action='store_true',default=False,
+                    help='''Checks opposite octant for a minimum llh solution''')
 parser.add_argument('-o','--outfile',type=str,default='llh_data.json',metavar='JSONFILE',
                     help="Output filename.")
 parser.add_argument('-v', '--verbose', action='count', default=None,
@@ -125,7 +127,7 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
     # Find best fit atm parameters (theta23, deltam31) for alternative hierarchy hypothesis
     alt_mh_settings = getAltHierarchyBestFit(
         asimov_data, template_maker, template_settings['params'],minimizer_settings,
-        (not data_normal))
+        (not data_normal), args.check_octant)
     # Get asimov data set at null hypothesis
     asimov_data_null = get_asimov_fmap(template_maker, alt_mh_settings,
                                        chan=alt_mh_settings['channel'])
@@ -154,7 +156,7 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
             with Timer() as t:
                 llh_data = find_max_llh_bfgs(fmap,template_maker,template_settings['params'],
                                              minimizer_settings,args.save_steps,
-                                             normal_hierarchy=hypo_normal)
+                                             normal_hierarchy=hypo_normal,check_octant=args.check_octant)
             profile.info("==> elapsed time for optimizer: %s sec"%t.secs)
 
             # Store the LLH data
