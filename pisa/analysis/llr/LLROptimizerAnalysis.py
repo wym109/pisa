@@ -145,13 +145,10 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
     alt_mh_settings = getAltHierarchyBestFit(
         asimov_data, template_maker, alt_params, minimizer_settings,
         (not data_normal), args.check_octant)
-    # Get asimov data set at null hypothesis
-    #print "alt_mh_settings: ",alt_mh_settings.items()
-    #raw_input("PAUSED...")
+    # Get asimov data set at null hypothesis    
     print "Alt settings for asimov: "
     print "  theta23: ",alt_mh_settings['theta23']
     print "  deltam31: ",alt_mh_settings['deltam31']
-    raw_input("PAUSED")
     asimov_data_null = get_asimov_fmap(template_maker, alt_mh_settings,
                                        chan=alt_mh_settings['channel'])
 
