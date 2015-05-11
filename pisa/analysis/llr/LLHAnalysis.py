@@ -132,7 +132,8 @@ def find_max_llh_bfgs(fmap, template_maker, params, bfgs_settings, save_steps=Fa
         free_params['theta23']['value'] = np.pi + delta
         init_vals = get_param_values(free_params)
 
-        const_args = (names,scales,fmap,fixed_params,template_maker,opt_steps_dict,priors)
+        const_args = (names,scales,fmap,fixed_params,template_maker,
+                      opt_steps_dict,priors)
         display_optimizer_settings(free_params, names, init_vals, bounds, priors,
                                    bfgs_settings)
         alt_fit_vals,alt_llh,alt_dict_flags = opt.fmin_l_bfgs_b(

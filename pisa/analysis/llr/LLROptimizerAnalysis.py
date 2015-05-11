@@ -154,9 +154,10 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
 
             physics.info("Finding best fit for %s under %s assumption"%(data_tag,hypo_tag))
             with Timer() as t:
-                llh_data = find_max_llh_bfgs(fmap,template_maker,template_settings['params'],
-                                             minimizer_settings,args.save_steps,
-                                             normal_hierarchy=hypo_normal,check_octant=args.check_octant)
+                llh_data = find_max_llh_bfgs(
+                    fmap,template_maker, template_settings['params'],
+                    minimizer_settings,args.save_steps,
+                    normal_hierarchy=hypo_normal,check_octant=args.check_octant)
             profile.info("==> elapsed time for optimizer: %s sec"%t.secs)
 
             # Store the LLH data
