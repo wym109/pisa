@@ -32,7 +32,7 @@ except:
 
 def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,
                  energy_scale=None, theta12=None,theta13=None,theta23=None,
-                 deltacp=None,**kwargs):
+                 deltacp=None,YeI=None,YeO=None,YeM=None,**kwargs):
     '''
     Obtain a map in energy and cos(zenith) of the oscillation probabilities from
 
@@ -59,6 +59,7 @@ def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,
                                                   theta23=theta23,
                                                   deltacp=deltacp,
                                                   energy_scale=energy_scale,
+                                                  YeI=YeI,YeO=YeO,YeM=YeM,
                                                   **kwargs)
 
     ebins, czbins = get_binning(flux_maps)
@@ -107,6 +108,12 @@ if __name__ == '__main__':
     parser.add_argument('--energy-scale',type=float,default=1.0,
                         dest='energy_scale',
                         help='''Energy off scaling due to mis-calibration.''')
+    parser.add_argument('--YeI',type=float,default=0.5,
+                        help='''Ye (elec frac) in inner core.''')
+    parser.add_argument('--YeO',type=float,default=0.5,
+                        help='''Ye (elec frac) in outer core.''')
+    parser.add_argument('--YeM',type=float,default=0.5,
+                        help='''Ye (elec frac) in mantle.''')
     parser.add_argument('--code',type=str,choices = ['prob3','table','nucraft','gpu'],
                         default='prob3',
                         help='''Oscillation code to use''')
@@ -121,7 +128,7 @@ if __name__ == '__main__':
     parser.add_argument('--detector-depth', type=float, default=2.0,
                         dest='detector_depth',
                         help='''Detector depth in km''')
-    parser.add_argument('--propagation-height', type=float, default=None,
+    parser.add_argument('--propagation-height', type=float, default=20.0,
                         dest='prop_height',
                         help='''Height in the atmosphere to begin propagation in km.
                         Prob3 default: 20.0 km
@@ -174,7 +181,8 @@ if __name__ == '__main__':
                                  theta23 = args.theta23,
                                  oversample_e = args.oversample_e,
                                  oversample_cz = args.oversample_cz,
-                                 energy_scale = args.energy_scale)
+                                 energy_scale = args.energy_scale,
+                                 YeI=args.YeI, YeO=args.YeO, YeM=args.YeM)
 
     #Write out
     logging.info("Saving output to: %s",args.outfile)
