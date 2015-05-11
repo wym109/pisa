@@ -71,7 +71,7 @@ class Prob3GPUOscillationService():
             if (len(np.shape(ax)) != 1):
                 raise IndexError('Axes must be 1d! '+str(np.shape(ax)))
 
-        report_params(get_params(),['km','','','','km'])
+        report_params(get_params(),['km','','','',''])
 
         earth_model = find_resource(earth_model)
         self.earth_model = earth_model
@@ -323,7 +323,7 @@ class Prob3GPUOscillationService():
         smooth_maps = np.zeros((nczbins*nebins*12),dtype=self.FTYPE)
         d_smooth_maps = cuda.mem_alloc(smooth_maps.nbytes)
         cuda.memcpy_htod(d_smooth_maps,smooth_maps)
-        block_size = (10,10,1)
+        block_size = (16,16,1)
         grid_size = (nczbins_fine/block_size[0] + 1, nebins_fine/block_size[1] + 1,2)
         self.propGrid(d_smooth_maps,
                  d_dm_mat,d_mix_mat,

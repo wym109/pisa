@@ -46,7 +46,7 @@ def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,
     #Be verbose on input
     params = get_params()
 
-    report_params(params, units = ['rad','eV^2','eV^2','','rad','rad','rad'])
+    report_params(params, units = ['','','','rad','eV^2','eV^2','','rad','rad','rad'])
 
     #Initialize return dict
     osc_flux_maps = {'params': add_params(params,flux_maps['params'])}
