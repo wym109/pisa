@@ -18,7 +18,7 @@
 import os,sys
 import numpy as np
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-from pisa.utils.log import logging, profile, set_verbosity
+from pisa.utils.log import logging, tprofile, set_verbosity
 from pisa.utils.utils import check_binning, get_binning
 from pisa.utils.jsons import from_json, to_json
 from pisa.utils.proc import report_params, get_params, add_params

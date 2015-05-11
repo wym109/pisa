@@ -12,7 +12,7 @@
 
 import sys
 import numpy as np
-from pisa.utils.log import logging, profile
+from pisa.utils.log import logging, tprofile
 from pisa.oscillations.OscillationServiceBase import OscillationServiceBase
 from pisa.oscillations.prob3.BargerPropagator import BargerPropagator
 from pisa.resources.resources import find_resource
@@ -62,7 +62,7 @@ class Prob3OscillationService(OscillationServiceBase):
                      'nue_bar':1,'numu_bar':2,'nutau_bar':3}
 
         logging.info("Defining osc_prob_dict from BargerPropagator...")
-        profile.info("start oscillation calculation")
+        tprofile.info("start oscillation calculation")
         # Set to true, since we are using sin^2(theta) variables
         kSquared = True
         sin2th12Sq = np.sin(theta12)**2
@@ -124,6 +124,6 @@ class Prob3OscillationService(OscillationServiceBase):
 
         if loglevel <= logging.INFO: sys.stdout.write("\n")
 
-        profile.info("stop oscillation calculation")
+        tprofile.info("stop oscillation calculation")
 
         return evals,czvals

@@ -9,7 +9,7 @@
 
 import sys
 import numpy as np
-from pisa.utils.log import logging, profile
+from pisa.utils.log import logging, pprofile
 from pisa.utils.utils import get_smoothed_map, get_bin_centers, is_coarser_binning, is_linear, is_logarithmic, check_fine_binning, oversample_binning, Timer
 
 
@@ -75,7 +75,7 @@ class OscillationServiceBase:
 
                 smoothed_maps[from_nu] = new_tomaps
 
-        profile.debug("       ==> elapsed time to smooth maps: %s sec"%t.secs)
+        pprofile.debug("       ==> elapsed time to smooth maps: %s sec"%t.secs)
 
         return smoothed_maps
 

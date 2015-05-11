@@ -24,7 +24,7 @@ from pisa.analysis.llr.LLHAnalysis import find_max_llh_bfgs, find_alt_hierarchy_
 from pisa.analysis.stats.LLHStatistics import get_random_map
 from pisa.analysis.stats.Maps import get_pseudo_data_fmap, get_seed, get_asimov_fmap
 from pisa.analysis.TemplateMaker import TemplateMaker
-from pisa.utils.log import logging, profile, physics, set_verbosity
+from pisa.utils.log import logging, tprofile, physics, set_verbosity
 from pisa.utils.jsons import from_json,to_json
 from pisa.utils.params import get_values, select_hierarchy, fix_all_params, fix_non_atm_params
 from pisa.utils.utils import Timer
@@ -120,7 +120,7 @@ asimov_data = {}
 asimov_data_null = {}
 alt_mh_settings = {}
 for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
-    profile.info("Assuming: %s"%data_tag)
+    tprofile.info("Assuming: %s"%data_tag)
 
     output[data_tag] = {}
 
@@ -164,7 +164,7 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
     for itrial in xrange(1,args.ntrials+1):
         results = {} # one trial of results
 
-        profile.info("start trial %d"%itrial)
+        tprofile.info("start trial %d"%itrial)
         logging.info(">"*10 + "Running trial: %05d"%itrial + "<"*10)
 
         results['seed'] = get_seed()
@@ -177,16 +177,17 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
 
             physics.info("Finding best fit for %s under %s assumption"%(data_tag,hypo_tag))
             with Timer() as t:
-                llh_data = find_max_llh_bfgs(fmap,template_maker,template_settings['params'],
-                                             minimizer_settings,args.save_steps,
-                                             normal_hierarchy=hypo_normal,check_octant=args.check_octant)
-            profile.info("==> elapsed time for optimizer: %s sec"%t.secs)
+                llh_data = find_max_llh_bfgs(
+                    fmap,template_maker, template_settings['params'], minimizer_settings,
+                    args.save_steps, normal_hierarchy=hypo_normal,
+                    check_octant=args.check_octant)
+            tprofile.info("==> elapsed time for optimizer: %s sec"%t.secs)
 
             # Store the LLH data
             results[hypo_tag] = llh_data
 
         trials += [results]
-        profile.info("stop trial %d"%itrial)
+        tprofile.info("stop trial %d"%itrial)
 
     output[data_tag]['trials'] = trials
 
