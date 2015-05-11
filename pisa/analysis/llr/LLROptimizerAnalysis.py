@@ -26,7 +26,7 @@ from pisa.analysis.stats.Maps import get_pseudo_data_fmap, get_seed, get_asimov_
 from pisa.analysis.TemplateMaker import TemplateMaker
 from pisa.utils.log import logging, profile, physics, set_verbosity
 from pisa.utils.jsons import from_json,to_json
-from pisa.utils.params import get_values, select_hierarchy
+from pisa.utils.params import get_values, select_hierarchy, fix_all_params, fix_non_atm_params
 from pisa.utils.utils import Timer
 
 def getAsimovData(template_maker, params, data_normal):
@@ -48,7 +48,7 @@ def getAltHierarchyBestFit(asimov_data, template_maker, params, minimizer_settin
         asimov_data,template_maker, params, hypo_normal,
         minimizer_settings, only_atm_params=True, check_octant=check_octant)
 
-    alt_params = get_values(select_hierarchy(params,normal_hierarchy=data_normal))
+    alt_params = get_values(select_hierarchy(params,normal_hierarchy=hypo_normal))
     for key in llh_data.keys():
         if key == 'llh': continue
         alt_params[key] = llh_data[key][-1]
@@ -78,6 +78,9 @@ parser.add_argument('--gpu_id',type=int,default=None,
 parser.add_argument('-s','--save-steps',action='store_true',default=False,
                     dest='save_steps',
                     help="Save all steps the optimizer takes.")
+parser.add_argument('--no_alt_fit',action='store_true',default=False,
+                    help='''Fix all parameters in the alternative MH fit, so just uses the Fiducial
+                    for opposite hierarchy''')
 parser.add_argument('--check_octant',action='store_true',default=False,
                     help='''Checks opposite octant for a minimum llh solution''')
 parser.add_argument('-o','--outfile',type=str,default='llh_data.json',metavar='JSONFILE',
@@ -125,10 +128,30 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
     asimov_data = getAsimovData(
         template_maker, template_settings['params'], data_normal)
     # Find best fit atm parameters (theta23, deltam31) for alternative hierarchy hypothesis
+    #print "template_settings params: ",get_values(template_settings['params'])
+    print "Template settings for asimov: "
+    print "  theta23: ",get_values(select_hierarchy(
+        template_settings['params'],normal_hierarchy=data_normal))['theta23']
+    print "  deltam31: ",get_values(select_hierarchy(
+        template_settings['params'],normal_hierarchy=data_normal))['deltam31']
+    if args.no_alt_fit:
+        # Fix all so no fit - should recover close to what we had with joint llr distributions.
+        alt_params = fix_all_params(template_settings['params'])
+    else:
+        # Fit only for atm params - so that we find best fit
+        # atmospheric oscillation parameters
+        alt_params = fix_non_atm_params(template_settings['params'])
+    
     alt_mh_settings = getAltHierarchyBestFit(
-        asimov_data, template_maker, template_settings['params'],minimizer_settings,
+        asimov_data, template_maker, alt_params, minimizer_settings,
         (not data_normal), args.check_octant)
     # Get asimov data set at null hypothesis
+    #print "alt_mh_settings: ",alt_mh_settings.items()
+    #raw_input("PAUSED...")
+    print "Alt settings for asimov: "
+    print "  theta23: ",alt_mh_settings['theta23']
+    print "  deltam31: ",alt_mh_settings['deltam31']
+    raw_input("PAUSED")
     asimov_data_null = get_asimov_fmap(template_maker, alt_mh_settings,
                                        chan=alt_mh_settings['channel'])
 
