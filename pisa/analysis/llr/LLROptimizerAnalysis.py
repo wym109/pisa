@@ -127,25 +127,28 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
     # Get Asimov data set for assuming true: data_tag
     asimov_data = getAsimovData(
         template_maker, template_settings['params'], data_normal)
-    # Find best fit atm parameters (theta23, deltam31) for alternative hierarchy hypothesis
-    #print "template_settings params: ",get_values(template_settings['params'])
+
+    # Find best fit atm parameters (theta23, deltam31) for alternative
+    # hierarchy hypothesis
     print "Template settings for asimov: "
     print "  theta23: ",get_values(select_hierarchy(
         template_settings['params'],normal_hierarchy=data_normal))['theta23']
     print "  deltam31: ",get_values(select_hierarchy(
         template_settings['params'],normal_hierarchy=data_normal))['deltam31']
-    if args.no_alt_fit:
-        # Fix all so no fit - should recover close to what we had with joint llr distributions.
-        alt_params = fix_all_params(template_settings['params'])
-    else:
-        # Fit only for atm params - so that we find best fit
-        # atmospheric oscillation parameters
-        alt_params = fix_non_atm_params(template_settings['params'])
-    
+    #if args.no_alt_fit:
+    #    # Fix all so no fit - should recover close to what we had with
+    #    # joint llr distributions.
+    #    alt_params = fix_all_params(template_settings['params'])
+    #else:
+    #    # Fit only for atm params - so that we find best fit
+    #    # atmospheric oscillation parameters
+    #    alt_params = fix_non_atm_params(template_settings['params'])
+
+    alt_params = fix_non_atm_params(template_settings['params'])
     alt_mh_settings = getAltHierarchyBestFit(
         asimov_data, template_maker, alt_params, minimizer_settings,
         (not data_normal), args.check_octant)
-    # Get asimov data set at null hypothesis    
+    # Get asimov data set at null hypothesis
     print "Alt settings for asimov: "
     print "  theta23: ",alt_mh_settings['theta23']
     print "  deltam31: ",alt_mh_settings['deltam31']
@@ -168,11 +171,25 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
         logging.info("  RNG seed: %ld"%results['seed'])
 
         # 1) get random pseudo data map from asimov alternative hypothesis:
-        fmap = get_random_map(asimov_data_null, seed=results['seed'])
+        if args.no_alt_fit:
+            # We CHANGE the asimov_data_null here so that it is not
+            # the same as that used to maximize asimov_data to alt
+            # hierarchy hypothesis. If the true(atm params) = fit(atm
+            # params) for alt hierarchy, then we needn't do this.
+            null_settings = get_values(select_hierarchy(
+                template_settings['params'], normal_hierarchy= (not data_normal)))
+            asimov_data_null = get_asimov_fmap(
+                template_maker, null_settings, chan=alt_mh_settings['channel'])
+            fmap = get_random_map(asimov_data_null, seed=results['seed'])
+        else:
+            fmap = get_random_map(asimov_data_null, seed=results['seed'])
+
 
         for hypo_tag, hypo_normal in [('hypo_NMH',True),('hypo_IMH',False)]:
 
-            physics.info("Finding best fit for %s under %s assumption"%(data_tag,hypo_tag))
+            physics.info(
+                "Finding best fit for %s under %s assumption"%(data_tag,hypo_tag)
+            )
             with Timer() as t:
                 llh_data = find_max_llh_bfgs(
                     fmap,template_maker, template_settings['params'], minimizer_settings,
