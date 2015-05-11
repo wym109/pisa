@@ -58,6 +58,10 @@ class Prob3GPUOscillationService():
             import pycuda.autoinit
             print "Auto initializing PyCUDA..."
 
+        #mfree,mtot = cuda.mem_get_info()
+        #print "free memory: %s mb",mfree/1.0e6
+        #print "tot memory:  %s mb",mtot/1.0e6
+        #raw_input("PAUSED...")
 
         logging.info('Instantiating %s'%self.__class__.__name__)
         self.ebins = np.array(ebins)
@@ -83,11 +87,11 @@ class Prob3GPUOscillationService():
         return
 
     def initialize_kernel(self,detector_depth,**kwargs):
-        '''
+        """
         Initializes: 1) the grid_propagator class, 2) the device arrays
         that will be passed to the propagateGrid() kernel and 3) the
         kernel module.
-        '''
+        """
 
         self.grid_prop  = GridPropagator(self.earth_model,self.czcen_fine,detector_depth)
 
@@ -243,6 +247,15 @@ class Prob3GPUOscillationService():
 
         return
 
+    def free_device_memory(self):
+        self.d_numLayers.free()
+        self.d_densityInLayer.free()
+        self.d_distanceInLayer.free()
+
+        self.d_ecen_fine.free()
+        self.d_czcen_fine.free()
+
+
     def get_osc_prob_maps(self, theta12, theta13, theta23, deltam21, deltam31,
                           deltacp, energy_scale, YeI, YeO, YeM, **kwargs):
         """
@@ -292,7 +305,8 @@ class Prob3GPUOscillationService():
         cuda.memcpy_htod(d_mix_mat,mix_mat)
 
 
-        # NEXT: set up smooth maps to give to kernel, and then use PyCUDA to launch kernel...
+        # NEXT: set up smooth maps to give to kernel, and then use
+        # PyCUDA to launch kernel...
         logging.info("Initialize smooth maps...")
         smoothed_maps = {}
         smoothed_maps['ebins'] = self.ebins
@@ -322,6 +336,11 @@ class Prob3GPUOscillationService():
                  block=block_size,grid=grid_size)
 
         cuda.memcpy_dtoh(smooth_maps,d_smooth_maps)
+
+        self.free_device_memory()
+        d_smooth_maps.free()
+        d_dm_mat.free()
+        d_mix_mat.free()
 
         # Now put these into smoothed_maps in the correct format as
         # the other oscillation services, to interface properly with
