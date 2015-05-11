@@ -24,9 +24,9 @@ from pisa.analysis.llr.LLHAnalysis import find_max_llh_bfgs, find_alt_hierarchy_
 from pisa.analysis.stats.LLHStatistics import get_random_map
 from pisa.analysis.stats.Maps import get_pseudo_data_fmap, get_seed, get_asimov_fmap
 from pisa.analysis.TemplateMaker import TemplateMaker
-from pisa.utils.log import logging, profile, physics, set_verbosity
+from pisa.utils.log import logging, tprofile, physics, set_verbosity
 from pisa.utils.jsons import from_json,to_json
-from pisa.utils.params import get_values, select_hierarchy
+from pisa.utils.params import get_values, select_hierarchy, fix_all_params, fix_non_atm_params
 from pisa.utils.utils import Timer
 
 def getAsimovData(template_maker, params, data_normal):
@@ -48,7 +48,7 @@ def getAltHierarchyBestFit(asimov_data, template_maker, params, minimizer_settin
         asimov_data,template_maker, params, hypo_normal,
         minimizer_settings, only_atm_params=True, check_octant=check_octant)
 
-    alt_params = get_values(select_hierarchy(params,normal_hierarchy=data_normal))
+    alt_params = get_values(select_hierarchy(params,normal_hierarchy=hypo_normal))
     for key in llh_data.keys():
         if key == 'llh': continue
         alt_params[key] = llh_data[key][-1]
@@ -78,6 +78,9 @@ parser.add_argument('--gpu_id',type=int,default=None,
 parser.add_argument('-s','--save-steps',action='store_true',default=False,
                     dest='save_steps',
                     help="Save all steps the optimizer takes.")
+parser.add_argument('--no_alt_fit',action='store_true',default=False,
+                    help='''Fix all parameters in the alternative MH fit, so just uses the Fiducial
+                    for opposite hierarchy''')
 parser.add_argument('--check_octant',action='store_true',default=False,
                     help='''Checks opposite octant for a minimum llh solution''')
 parser.add_argument('-o','--outfile',type=str,default='llh_data.json',metavar='JSONFILE',
@@ -117,7 +120,7 @@ asimov_data = {}
 asimov_data_null = {}
 alt_mh_settings = {}
 for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
-    profile.info("Assuming: %s"%data_tag)
+    tprofile.info("Assuming: %s"%data_tag)
 
     output[data_tag] = {}
 
@@ -125,10 +128,27 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
     asimov_data = getAsimovData(
         template_maker, template_settings['params'], data_normal)
     # Find best fit atm parameters (theta23, deltam31) for alternative hierarchy hypothesis
+    #print "template_settings params: ",get_values(template_settings['params'])
+    print "Template settings for asimov: "
+    print "  theta23: ",get_values(select_hierarchy(
+        template_settings['params'],normal_hierarchy=data_normal))['theta23']
+    print "  deltam31: ",get_values(select_hierarchy(
+        template_settings['params'],normal_hierarchy=data_normal))['deltam31']
+    if args.no_alt_fit:
+        # Fix all so no fit - should recover close to what we had with joint llr distributions.
+        alt_params = fix_all_params(template_settings['params'])
+    else:
+        # Fit only for atm params - so that we find best fit
+        # atmospheric oscillation parameters
+        alt_params = fix_non_atm_params(template_settings['params'])
+    
     alt_mh_settings = getAltHierarchyBestFit(
-        asimov_data, template_maker, template_settings['params'],minimizer_settings,
+        asimov_data, template_maker, alt_params, minimizer_settings,
         (not data_normal), args.check_octant)
-    # Get asimov data set at null hypothesis
+    # Get asimov data set at null hypothesis    
+    print "Alt settings for asimov: "
+    print "  theta23: ",alt_mh_settings['theta23']
+    print "  deltam31: ",alt_mh_settings['deltam31']
     asimov_data_null = get_asimov_fmap(template_maker, alt_mh_settings,
                                        chan=alt_mh_settings['channel'])
 
@@ -141,7 +161,7 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
     for itrial in xrange(1,args.ntrials+1):
         results = {} # one trial of results
 
-        profile.info("start trial %d"%itrial)
+        tprofile.info("start trial %d"%itrial)
         logging.info(">"*10 + "Running trial: %05d"%itrial + "<"*10)
 
         results['seed'] = get_seed()
@@ -155,16 +175,16 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
             physics.info("Finding best fit for %s under %s assumption"%(data_tag,hypo_tag))
             with Timer() as t:
                 llh_data = find_max_llh_bfgs(
-                    fmap,template_maker, template_settings['params'],
-                    minimizer_settings,args.save_steps,
-                    normal_hierarchy=hypo_normal,check_octant=args.check_octant)
-            profile.info("==> elapsed time for optimizer: %s sec"%t.secs)
+                    fmap,template_maker, template_settings['params'], minimizer_settings,
+                    args.save_steps, normal_hierarchy=hypo_normal,
+                    check_octant=args.check_octant)
+            tprofile.info("==> elapsed time for optimizer: %s sec"%t.secs)
 
             # Store the LLH data
             results[hypo_tag] = llh_data
 
         trials += [results]
-        profile.info("stop trial %d"%itrial)
+        tprofile.info("stop trial %d"%itrial)
 
     output[data_tag]['trials'] = trials
 

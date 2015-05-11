@@ -14,12 +14,13 @@ import numpy as np
 import scipy.optimize as opt
 
 from pisa.utils.jsons import to_json
-from pisa.utils.log import logging, physics, profile
+from pisa.utils.log import logging, physics, tprofile
 from pisa.utils.params import get_values, select_hierarchy, get_fixed_params, get_free_params, get_prior_llh, get_param_values, get_param_scales, get_param_bounds, get_param_priors
 from pisa.utils.utils import Timer
 from pisa.analysis.stats.LLHStatistics import get_binwise_llh
 from pisa.analysis.stats.Maps import flatten_map
 
+#@profile
 def find_alt_hierarchy_fit(asimov_data_set, template_maker,hypo_params,hypo_normal,
                            minimizer_settings,only_atm_params=True,check_octant=False):
     """
@@ -49,7 +50,7 @@ def find_alt_hierarchy_fit(asimov_data_set, template_maker,hypo_params,hypo_norm
         llh_data = find_max_llh_bfgs(
             asimov_data_set,template_maker,hypo_params,minimizer_settings,
             normal_hierarchy=hypo_normal,check_octant=check_octant)
-    profile.info("==> elapsed time for optimizer: %s sec"%t.secs)
+    tprofile.info("==> elapsed time for optimizer: %s sec"%t.secs)
 
     return llh_data
 
@@ -71,6 +72,7 @@ def display_optimizer_settings(free_params, names, init_vals, bounds, priors,
 
     return
 
+#@profile
 def find_max_llh_bfgs(fmap, template_maker, params, bfgs_settings, save_steps=False,
                       normal_hierarchy=None, check_octant=False):
     """
@@ -216,7 +218,7 @@ def llh_bfgs(opt_vals,*args):
             true_template = template_maker.get_template_no_osc(template_params)
         else:
             true_template = template_maker.get_template(template_params)
-    profile.info("==> elapsed time for template maker: %s sec"%t.secs)
+    tprofile.info("==> elapsed time for template maker: %s sec"%t.secs)
     true_fmap = flatten_map(true_template,chan=template_params['channel'])
 
     # NOTE: The minus sign is present on both of these next two lines

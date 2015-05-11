@@ -10,6 +10,7 @@
 # date:   16 October 2014
 #
 
+import re
 
 def get_values(params):
     """
@@ -136,7 +137,37 @@ def fix_atm_params(params):
     atm_params = ['deltam31','theta23']
     for key,value in params.items():
         new_params[key] = value.copy()
-        for akey in atm_params:
-            if akey in key:
-                new_params[key]['fixed'] = True
+        #for akey in atm_params:
+        if (bool(re.match('^theta23', key)) or bool(re.match('^deltam31', key))):
+            new_params[key]['fixed'] = True
+    return new_params
+
+def fix_non_atm_params(params):
+    """
+    Returns dict identical to params dict but with all params fixed
+    except for atmospheric oscillation parameters.
+    """
+    new_params = {}
+    # or initialize with new copy by dict(params)
+    #atm_params = ['deltam31','theta23']
+    for key,value in params.items():
+        new_params[key] = value.copy()
+        #for akey in atm_params:
+            #if akey not in key:
+        if (bool(re.match('^theta23', key)) or bool(re.match('^deltam31', key))):
+            new_params[key]['fixed'] = False 
+        else:
+            new_params[key]['fixed'] = True
+    
+    return new_params
+
+def fix_all_params(params):
+    """
+    Returns dictionary identical to params, but with all
+    parameters fixed.
+    """
+    new_params = {}
+    for k,v in params.items():
+        new_params[k] = v.copy()
+        new_params[k]['fixed'] = True
     return new_params

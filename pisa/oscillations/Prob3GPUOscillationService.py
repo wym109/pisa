@@ -15,7 +15,7 @@ import numpy as np
 
 from pisa.oscillations.grid_propagator.GridPropagator import GridPropagator
 from pisa.resources.resources import find_resource
-from pisa.utils.log import logging, profile
+from pisa.utils.log import logging, tprofile
 from pisa.utils.proc import get_params, report_params
 from pisa.utils.utils import get_bin_centers, is_coarser_binning, is_linear
 from pisa.utils.utils import is_logarithmic, check_fine_binning, oversample_binning, Timer
@@ -309,7 +309,7 @@ class Prob3GPUOscillationService():
         smooth_maps = np.zeros((nczbins*nebins*12),dtype=self.FTYPE)
         d_smooth_maps = cuda.mem_alloc(smooth_maps.nbytes)
         cuda.memcpy_htod(d_smooth_maps,smooth_maps)
-        block_size = (20,20,1)
+        block_size = (10,10,1)
         grid_size = (nczbins_fine/block_size[0] + 1, nebins_fine/block_size[1] + 1,2)
         self.propGrid(d_smooth_maps,
                  d_dm_mat,d_mix_mat,
