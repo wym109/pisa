@@ -109,7 +109,8 @@ class Prob3GPUOscillationService():
                                         const double* const d_ecen_fine,
                                         const double* const d_czcen_fine,
                                         const int nebins_fine, const int nczbins_fine,
-                                        const int nebins, const int nczbins, const int maxLayers,
+                                        const int nebins, const int nczbins,
+                                        const int maxLayers,
                                         const int* const d_numberOfLayers,
                                         const double* const d_densityInLayer,
                                         const double* const d_distanceInLayer)
@@ -126,6 +127,7 @@ class Prob3GPUOscillationService():
             int czidx = thread_2D_pos.x;
 
             int kNuBar;
+            //if(threadIdx.z == 0) kNuBar = 1;
             if(blockIdx.z == 0) kNuBar = 1;
             else kNuBar=-1;
 
@@ -323,17 +325,18 @@ class Prob3GPUOscillationService():
         smooth_maps = np.zeros((nczbins*nebins*12),dtype=self.FTYPE)
         d_smooth_maps = cuda.mem_alloc(smooth_maps.nbytes)
         cuda.memcpy_htod(d_smooth_maps,smooth_maps)
+        #block_size = (16,16,2)
+        #grid_size = (nczbins_fine/block_size[0] + 1, nebins_fine/block_size[1] + 1,1)
         block_size = (16,16,1)
         grid_size = (nczbins_fine/block_size[0] + 1, nebins_fine/block_size[1] + 1,2)
-        self.propGrid(d_smooth_maps,
-                 d_dm_mat,d_mix_mat,
-                 self.d_ecen_fine,self.d_czcen_fine,
-                 nebins_fine,nczbins_fine,
-                 nebins,nczbins,
-                 np.uint32(self.maxLayers),
-                 self.d_numLayers,self.d_densityInLayer,
-                 self.d_distanceInLayer,
-                 block=block_size,grid=grid_size)
+        self.propGrid(
+            d_smooth_maps, d_dm_mat, d_mix_mat,
+            self.d_ecen_fine, self.d_czcen_fine,
+            nebins_fine, nczbins_fine,
+            nebins,nczbins, np.uint32(self.maxLayers),
+            self.d_numLayers, self.d_densityInLayer,
+            self.d_distanceInLayer,
+            block=block_size, grid=grid_size)
 
         cuda.memcpy_dtoh(smooth_maps,d_smooth_maps)
 

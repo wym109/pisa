@@ -29,6 +29,7 @@ from pisa.utils.jsons import from_json,to_json
 from pisa.utils.params import get_values, select_hierarchy, fix_all_params, fix_non_atm_params
 from pisa.utils.utils import Timer
 
+
 def getAsimovData(template_maker, params, data_normal):
     """
     Gets the asimov data set (expected counts distribution) at params assuming
@@ -42,7 +43,7 @@ def getAsimovData(template_maker, params, data_normal):
 
 
 def getAltHierarchyBestFit(asimov_data, template_maker, params, minimizer_settings,
-                           hypo_normal,check_octant):
+                           hypo_normal, check_octant):
 
     llh_data = find_alt_hierarchy_fit(
         asimov_data,template_maker, params, hypo_normal,
@@ -53,7 +54,7 @@ def getAltHierarchyBestFit(asimov_data, template_maker, params, minimizer_settin
         if key == 'llh': continue
         alt_params[key] = llh_data[key][-1]
 
-    return alt_params
+    return alt_params, llh_data
 
 
 parser = ArgumentParser(
@@ -130,11 +131,11 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
 
     # Find best fit atm parameters (theta23, deltam31) for alternative
     # hierarchy hypothesis
-    print "Template settings for asimov: "
-    print "  theta23: ",get_values(select_hierarchy(
-        template_settings['params'],normal_hierarchy=data_normal))['theta23']
-    print "  deltam31: ",get_values(select_hierarchy(
-        template_settings['params'],normal_hierarchy=data_normal))['deltam31']
+    #print "Template settings for asimov: "
+    #print "  theta23: ",get_values(select_hierarchy(
+    #    template_settings['params'],normal_hierarchy=data_normal))['theta23']
+    #print "  deltam31: ",get_values(select_hierarchy(
+    #    template_settings['params'],normal_hierarchy=data_normal))['deltam31']
     #if args.no_alt_fit:
     #    # Fix all so no fit - should recover close to what we had with
     #    # joint llr distributions.
@@ -145,13 +146,13 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
     #    alt_params = fix_non_atm_params(template_settings['params'])
 
     alt_params = fix_non_atm_params(template_settings['params'])
-    alt_mh_settings = getAltHierarchyBestFit(
+    alt_mh_settings, llh_data = getAltHierarchyBestFit(
         asimov_data, template_maker, alt_params, minimizer_settings,
         (not data_normal), args.check_octant)
     # Get asimov data set at null hypothesis
-    print "Alt settings for asimov: "
-    print "  theta23: ",alt_mh_settings['theta23']
-    print "  deltam31: ",alt_mh_settings['deltam31']
+    #print "Alt settings for asimov: "
+    #print "  theta23: ",alt_mh_settings['theta23']
+    #print "  deltam31: ",alt_mh_settings['deltam31']
     asimov_data_null = get_asimov_fmap(template_maker, alt_mh_settings,
                                        chan=alt_mh_settings['channel'])
 
@@ -159,6 +160,7 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
     output[data_tag]['asimov_data'] = asimov_data
     output[data_tag]['asimov_data_null'] = asimov_data_null
     output[data_tag]['alt_mh_settings'] = alt_mh_settings
+    output[data_tag]['llh_null'] = llh_data
 
     trials = []
     for itrial in xrange(1,args.ntrials+1):
