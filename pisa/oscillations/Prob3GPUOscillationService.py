@@ -71,7 +71,7 @@ class Prob3GPUOscillationService():
             if (len(np.shape(ax)) != 1):
                 raise IndexError('Axes must be 1d! '+str(np.shape(ax)))
 
-        report_params(get_params(),['km','','','','km'])
+        report_params(get_params(),['km','','','',''])
 
         earth_model = find_resource(earth_model)
         self.earth_model = earth_model
@@ -109,7 +109,8 @@ class Prob3GPUOscillationService():
                                         const double* const d_ecen_fine,
                                         const double* const d_czcen_fine,
                                         const int nebins_fine, const int nczbins_fine,
-                                        const int nebins, const int nczbins, const int maxLayers,
+                                        const int nebins, const int nczbins,
+                                        const int maxLayers,
                                         const int* const d_numberOfLayers,
                                         const double* const d_densityInLayer,
                                         const double* const d_distanceInLayer)
@@ -126,6 +127,7 @@ class Prob3GPUOscillationService():
             int czidx = thread_2D_pos.x;
 
             int kNuBar;
+            //if(threadIdx.z == 0) kNuBar = 1;
             if(blockIdx.z == 0) kNuBar = 1;
             else kNuBar=-1;
 
@@ -324,6 +326,7 @@ class Prob3GPUOscillationService():
         smooth_maps = np.zeros((nczbins*nebins*12),dtype=self.FTYPE)
         d_smooth_maps = cuda.mem_alloc(smooth_maps.nbytes)
         cuda.memcpy_htod(d_smooth_maps,smooth_maps)
+
         block_size = (16,16,1)
         grid_size = (nczbins_fine/block_size[0] + 1, nebins_fine/block_size[1] + 1,2)
         self.propGrid(d_smooth_maps,
@@ -334,9 +337,8 @@ class Prob3GPUOscillationService():
                       np.uint32(self.maxLayers),
                       self.d_numLayers, self.d_densityInLayer,
                       self.d_distanceInLayer,
-                      block=block_size, grid=grid_size,
-                      shared=16384)
-        
+                      block=block_size, grid=grid_size)
+                      #shared=16384)
         cuda.memcpy_dtoh(smooth_maps,d_smooth_maps)
 
         self.free_device_memory()

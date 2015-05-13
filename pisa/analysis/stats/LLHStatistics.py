@@ -35,12 +35,11 @@ def generalized_ln_poisson(data,expectation):
         raise ValueError(
             "Template must have all bins >= 0.0! Template generation bug?")
 
-    ln_poisson = 0.0
     if bool(re.match('^int',data.dtype.name)):
         return np.log(poisson.pmf(data,expectation))
     elif bool(re.match('^float',data.dtype.name)):
         return (data*np.log(expectation) - expectation - multigammaln(data+1.0,1))
-    else:
+    else:                                                                                                                                
         raise ValueError(
             "Unknown data dtype: %s. Must be float or int!"%psuedo_data.dtype)
 
@@ -49,7 +48,6 @@ def get_binwise_llh(pseudo_data,template):
     Computes the log-likelihood (llh) of the pseudo_data from the
     template, where each input is expected to be a 2d numpy array
     """
-
     if not np.alltrue(template >= 0.0):
         raise ValueError("Template must have all bins >= 0.0! Template generation bug?")
 

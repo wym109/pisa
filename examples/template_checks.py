@@ -20,7 +20,7 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 from pisa.analysis.TemplateMaker import TemplateMaker
 from pisa.utils.params import get_values, select_hierarchy
-from pisa.utils.log import set_verbosity, logging, profile
+from pisa.utils.log import set_verbosity, logging, tprofile
 from pisa.utils.utils import Timer
 from pisa.utils.jsons import from_json
 from pisa.utils.plot import show_map
@@ -314,7 +314,7 @@ settings file. ''')
     with Timer() as t:
         template_maker = TemplateMaker(get_values(template_settings['params']),
                                        **template_settings['binning'])
-    profile.info("==> elapsed time to initialize templates: %s sec"%t.secs)
+    tprofile.info("==> elapsed time to initialize templates: %s sec"%t.secs)
 
     # Make nmh template:
     nmh_params = select_hierarchy(template_settings['params'],
@@ -323,10 +323,10 @@ settings file. ''')
                                   normal_hierarchy=False)
     with Timer(verbose=False) as t:
         nmh = template_maker.get_template(get_values(nmh_params), return_stages=args.all)
-    profile.info("==> elapsed time to get NMH template: %s sec"%t.secs)
+    tprofile.info("==> elapsed time to get NMH template: %s sec"%t.secs)
     with Timer(verbose=False) as t:
         imh = template_maker.get_template(get_values(imh_params), return_stages=args.all)
-    profile.info("==> elapsed time to get IMH template: %s sec"%t.secs)
+    tprofile.info("==> elapsed time to get IMH template: %s sec"%t.secs)
 
     # Or equivalently, if args.all:
     if type(nmh) is tuple:
