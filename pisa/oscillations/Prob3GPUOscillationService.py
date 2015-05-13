@@ -217,7 +217,8 @@ class Prob3GPUOscillationService():
                                    #cache_dir=cache_dir,
                                    keep=True)
         self.propGrid = self.module.get_function("propagateGrid")
-
+        #self.propGrid.set_shared_config(49152)
+        
         return
 
     def prepare_device_arrays(self):
@@ -319,22 +320,23 @@ class Prob3GPUOscillationService():
 
         # This goes here, so it can use the energy_scale systematic:
         cuda.memcpy_htod(self.d_ecen_fine,self.ecen_fine*energy_scale)
-
+        
         smooth_maps = np.zeros((nczbins*nebins*12),dtype=self.FTYPE)
         d_smooth_maps = cuda.mem_alloc(smooth_maps.nbytes)
         cuda.memcpy_htod(d_smooth_maps,smooth_maps)
-        block_size = (10,10,1)
+        block_size = (16,16,1)
         grid_size = (nczbins_fine/block_size[0] + 1, nebins_fine/block_size[1] + 1,2)
         self.propGrid(d_smooth_maps,
-                 d_dm_mat,d_mix_mat,
-                 self.d_ecen_fine,self.d_czcen_fine,
-                 nebins_fine,nczbins_fine,
-                 nebins,nczbins,
-                 np.uint32(self.maxLayers),
-                 self.d_numLayers,self.d_densityInLayer,
-                 self.d_distanceInLayer,
-                 block=block_size,grid=grid_size)
-
+                      d_dm_mat, d_mix_mat,
+                      self.d_ecen_fine, self.d_czcen_fine,
+                      nebins_fine, nczbins_fine,
+                      nebins, nczbins,
+                      np.uint32(self.maxLayers),
+                      self.d_numLayers, self.d_densityInLayer,
+                      self.d_distanceInLayer,
+                      block=block_size, grid=grid_size,
+                      shared=16384)
+        
         cuda.memcpy_dtoh(smooth_maps,d_smooth_maps)
 
         self.free_device_memory()
