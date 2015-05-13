@@ -32,18 +32,38 @@ from pisa.utils.utils import Timer
 
 def getAsimovData(template_maker, params, data_normal):
     """
-    Gets the asimov data set (expected counts distribution) at params assuming
-    hierarchy given by data_normal
+    Generates the asimov data set (expected counts distribution) at
+    parameters assuming hierarchy of data_normal
+
+    \Params:
+      * template_maker - instance of class TemplateMaker service.
+      * params - parameters with values, fixed, range, etc. of systematics
+      * data_normal - bool for Mass hierarchy being Noraml (True) 
+        or inverted (False)
     """
 
     fiducial_params = get_values(select_hierarchy(
-        params,normal_hierarchy=data_normal))
-    return get_asimov_fmap(template_maker,fiducial_params,
+        params, normal_hierarchy=data_normal))
+    return get_asimov_fmap(template_maker, fiducial_params,
                            chan=fiducial_params['channel'])
 
 
 def getAltHierarchyBestFit(asimov_data, template_maker, params, minimizer_settings,
                            hypo_normal, check_octant):
+    """
+    Finds the best fit value of alternative hierarchy to that which
+    was used to produce the asimov data set.
+    
+    \Params:
+      * asimov_data - array of values of asimov data set (float)
+      * template_maker - instance of class TemplateMaker service.
+      * params - parameters with values, fixed, range, etc. of systematics
+      * minimizer_settings - used with bfgs_b minimizer
+      * hypo_normal - bool for Mass hierarchy being Noraml (True) 
+        or inverted (False)
+      * check_octant - bool to check the opposite octant for a solution 
+        to the minimization of the LLH.
+    """
 
     llh_data = find_alt_hierarchy_fit(
         asimov_data,template_maker, params, hypo_normal,
@@ -64,10 +84,11 @@ parser = ArgumentParser(
     formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('-t','--template_settings',type=str,
                     metavar='JSONFILE', required = True,
-                    help='''Settings related to the template generation and systematics.''')
+                    help='''Settings related to the template generation & systematics''')
 parser.add_argument('-m','--minimizer_settings',type=str,
                     metavar='JSONFILE', required = True,
-                    help='''Settings related to the optimizer used in the LLR analysis.''')
+                    help='''Settings related to the optimizer used in the LLR 
+                    analysis.''')
 #parser.add_argument('-pd','--pseudo_data_settings',type=str,
 #                    metavar='JSONFILE',default=None,
 #                    help='''Settings for pseudo data templates, if desired to be different from
@@ -80,9 +101,10 @@ parser.add_argument('-s','--save-steps',action='store_true',default=False,
                     dest='save_steps',
                     help="Save all steps the optimizer takes.")
 parser.add_argument('--no_alt_fit',action='store_true',default=False,
-                    help='''Fix all parameters in the alternative MH fit, so just uses the Fiducial
+                    help='''Fix all parameters in the alternative MH fit, so just uses 
+                    the Fiducial
                     for opposite hierarchy''')
-parser.add_argument('--check_octant',action='store_true',default=False,
+parser.add_argument('--single_octant',action='store_true',default=False,
                     help='''Checks opposite octant for a minimum llh solution''')
 parser.add_argument('-o','--outfile',type=str,default='llh_data.json',metavar='JSONFILE',
                     help="Output filename.")
@@ -95,6 +117,9 @@ set_verbosity(args.verbose)
 #Read in the settings
 template_settings = from_json(args.template_settings)
 minimizer_settings  = from_json(args.minimizer_settings)
+
+# Change this throughout code later?
+check_octant = not args.single_octant
 
 #Workaround for old scipy versions
 import scipy
@@ -129,30 +154,21 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
     asimov_data = getAsimovData(
         template_maker, template_settings['params'], data_normal)
 
-    # Find best fit atm parameters (theta23, deltam31) for alternative
-    # hierarchy hypothesis
-    #print "Template settings for asimov: "
-    #print "  theta23: ",get_values(select_hierarchy(
-    #    template_settings['params'],normal_hierarchy=data_normal))['theta23']
-    #print "  deltam31: ",get_values(select_hierarchy(
-    #    template_settings['params'],normal_hierarchy=data_normal))['deltam31']
-    #if args.no_alt_fit:
-    #    # Fix all so no fit - should recover close to what we had with
-    #    # joint llr distributions.
-    #    alt_params = fix_all_params(template_settings['params'])
-    #else:
-    #    # Fit only for atm params - so that we find best fit
-    #    # atmospheric oscillation parameters
-    #    alt_params = fix_non_atm_params(template_settings['params'])
+    # Get alternative hypothesis template to compare to:
+    if args.no_alt_fit:     # Do not fit for LLH_max for null hypo
+        fixed_settings = fix_all_params(template_settings['params'])
 
-    alt_params = fix_non_atm_params(template_settings['params'])
-    alt_mh_settings, llh_data = getAltHierarchyBestFit(
-        asimov_data, template_maker, alt_params, minimizer_settings,
-        (not data_normal), args.check_octant)
-    # Get asimov data set at null hypothesis
-    #print "Alt settings for asimov: "
-    #print "  theta23: ",alt_mh_settings['theta23']
-    #print "  deltam31: ",alt_mh_settings['deltam31']
+        llh_data = find_alt_hierarchy_fit(
+            asimov_data,template_maker, fixed_settings, (not data_normal),
+            minimizer_settings, check_octant=check_octant)
+        alt_mh_settings = get_values(select_hierarchy(
+                template_settings['params'], (not data_normal)))
+    else:                   # Do fit for LLH_max for null hypo
+        alt_params = fix_non_atm_params(template_settings['params'])
+        alt_mh_settings, llh_data = getAltHierarchyBestFit(
+            asimov_data, template_maker, alt_params, minimizer_settings,
+            (not data_normal), check_octant)
+        
     asimov_data_null = get_asimov_fmap(template_maker, alt_mh_settings,
                                        chan=alt_mh_settings['channel'])
 
@@ -161,6 +177,15 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
     output[data_tag]['asimov_data_null'] = asimov_data_null
     output[data_tag]['alt_mh_settings'] = alt_mh_settings
     output[data_tag]['llh_null'] = llh_data
+    
+    #if True:
+    #    print "\n\n\ndata_normal: ",data_normal
+    #    print "output: "
+    #    print output[data_tag]['asimov_data']
+    #    print output[data_tag]['asimov_data_null']
+    #    print sorted(output[data_tag]['alt_mh_settings'])
+    #    print output[data_tag]['llh_null']
+        
 
     trials = []
     for itrial in xrange(1,args.ntrials+1):
@@ -170,22 +195,8 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
         logging.info(">"*10 + "Running trial: %05d"%itrial + "<"*10)
 
         results['seed'] = get_seed()
-        logging.info("  RNG seed: %ld"%results['seed'])
-
-        # 1) get random pseudo data map from asimov alternative hypothesis:
-        if args.no_alt_fit:
-            # We CHANGE the asimov_data_null here so that it is not
-            # the same as that used to maximize asimov_data to alt
-            # hierarchy hypothesis. If the true(atm params) = fit(atm
-            # params) for alt hierarchy, then we needn't do this.
-            null_settings = get_values(select_hierarchy(
-                template_settings['params'], normal_hierarchy= (not data_normal)))
-            asimov_data_null = get_asimov_fmap(
-                template_maker, null_settings, chan=alt_mh_settings['channel'])
-            fmap = get_random_map(asimov_data_null, seed=results['seed'])
-        else:
-            fmap = get_random_map(asimov_data_null, seed=results['seed'])
-
+        logging.info("  RNG seed: %ld"%results['seed'])        
+        fmap = get_random_map(asimov_data_null, seed=results['seed'])
 
         for hypo_tag, hypo_normal in [('hypo_NMH',True),('hypo_IMH',False)]:
 
@@ -196,7 +207,7 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
                 llh_data = find_max_llh_bfgs(
                     fmap,template_maker, template_settings['params'], minimizer_settings,
                     args.save_steps, normal_hierarchy=hypo_normal,
-                    check_octant=args.check_octant)
+                    check_octant=check_octant)
             tprofile.info("==> elapsed time for optimizer: %s sec"%t.secs)
 
             # Store the LLH data
