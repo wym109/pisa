@@ -98,7 +98,8 @@ def flatten_map(template,chan='all'):
         #fmap = np.array(fmap)[np.nonzero(fmap)]
     else:
         raise ValueError(
-            "chan: '%s' not implemented! Allowed: ['all', 'trck', 'cscd','no_pid']")
+            "chan: '%s' not implemented! Allowed: ['all', 'trck', 'cscd','no_pid']"
+            %chan)
 
     fmap = np.array(fmap)[np.nonzero(fmap)]
     return fmap

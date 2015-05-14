@@ -154,21 +154,11 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
     asimov_data = getAsimovData(
         template_maker, template_settings['params'], data_normal)
 
-    # Get alternative hypothesis template to compare to:
-    if args.no_alt_fit:     # Do not fit for LLH_max for null hypo
-        fixed_settings = fix_all_params(template_settings['params'])
-
-        llh_data = find_alt_hierarchy_fit(
-            asimov_data,template_maker, fixed_settings, (not data_normal),
-            minimizer_settings, check_octant=check_octant)
-        alt_mh_settings = get_values(select_hierarchy(
-                template_settings['params'], (not data_normal)))
-    else:                   # Do fit for LLH_max for null hypo
-        alt_params = fix_non_atm_params(template_settings['params'])
-        alt_mh_settings, llh_data = getAltHierarchyBestFit(
-            asimov_data, template_maker, alt_params, minimizer_settings,
-            (not data_normal), check_octant)
-        
+    alt_params = fix_non_atm_params(template_settings['params'])
+    alt_mh_settings, llh_data = getAltHierarchyBestFit(
+        asimov_data, template_maker, alt_params, minimizer_settings,
+        (not data_normal), check_octant)
+    
     asimov_data_null = get_asimov_fmap(template_maker, alt_mh_settings,
                                        chan=alt_mh_settings['channel'])
 
@@ -178,13 +168,19 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
     output[data_tag]['alt_mh_settings'] = alt_mh_settings
     output[data_tag]['llh_null'] = llh_data
     
-    #if True:
-    #    print "\n\n\ndata_normal: ",data_normal
-    #    print "output: "
-    #    print output[data_tag]['asimov_data']
-    #    print output[data_tag]['asimov_data_null']
-    #    print sorted(output[data_tag]['alt_mh_settings'])
-    #    print output[data_tag]['llh_null']
+    # If we are not taking the best fit of the asimov data to the
+    # alternative hierarchy as the "null hypothesis", then we will use
+    # the parameters of the alternative hierarchy in the settings
+    # file, which correspond to the world best fit values.
+    if args.no_alt_fit:
+        alt_mh_expectation = get_asimov_fmap(
+            template_maker,
+            get_values(select_hierarchy(template_settings['params'],
+                                        normal_hierarchy= (not data_normal))),
+            chan=template_settings['params']['channel']['value']
+            )
+    else:
+        alt_mh_expectation = asimov_data_null
         
 
     trials = []
@@ -196,7 +192,7 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
 
         results['seed'] = get_seed()
         logging.info("  RNG seed: %ld"%results['seed'])        
-        fmap = get_random_map(asimov_data_null, seed=results['seed'])
+        fmap = get_random_map(alt_mh_expectation, seed=results['seed'])
 
         for hypo_tag, hypo_normal in [('hypo_NMH',True),('hypo_IMH',False)]:
 
@@ -205,9 +201,9 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
             )
             with Timer() as t:
                 llh_data = find_max_llh_bfgs(
-                    fmap,template_maker, template_settings['params'], minimizer_settings,
-                    args.save_steps, normal_hierarchy=hypo_normal,
-                    check_octant=check_octant)
+                    fmap, template_maker, template_settings['params'], 
+                    minimizer_settings, args.save_steps, 
+                    normal_hierarchy=hypo_normal, check_octant=check_octant)
             tprofile.info("==> elapsed time for optimizer: %s sec"%t.secs)
 
             # Store the LLH data
