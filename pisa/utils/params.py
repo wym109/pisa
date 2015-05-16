@@ -79,6 +79,17 @@ def get_prior_llh(value,sigma,fiducial):
     """
     return 0.0 if sigma is None else -((value - fiducial)**2/(2.0*sigma**2))
 
+def get_prior_chisquare(value, sigma, fiducial):
+    """
+    Returns the gaussian prior chisquare penalty term, unless it
+    has not been defined, in which case 0.0 is returned.
+
+    value - specific value of free parameter in hypothesis
+    sigma - (gaussian) prior on free parameter
+    fiducial - best fit value of free parameter
+    """
+    return 0.0 if sigma is None else ((value-fiducial)/sigma)**2
+
 def get_param_values(params):
     """
     Returns a list of parameter values

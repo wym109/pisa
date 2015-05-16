@@ -6,7 +6,7 @@
 # LLROptimizerAnalysis, but the primary difference is that it only
 # uses the one fiducial model template of the "pseudo data set" and
 # fits to the templates finding the best fit template by maximizing
-# the LLH using the optimizer.
+# the LLH / or minimizing the chisquare using the optimizer.
 #
 # author: Tim Arlen - tca3@psu.edu
 #         Sebatian Boeser - sboeser@uni-mainz.de
@@ -19,14 +19,14 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 from pisa.utils.log import logging, profile, physics, set_verbosity
 from pisa.utils.jsons import from_json,to_json
-from pisa.analysis.llr.LLHAnalysis import find_max_llh_bfgs
+from pisa.analysis.llr.LLHAnalysis import find_max_llh_bfgs, find_min_chisquare_bfgs
 from pisa.analysis.stats.Maps import get_asimov_fmap
 from pisa.analysis.TemplateMaker import TemplateMaker
 from pisa.utils.params import get_values, select_hierarchy
 
 parser = ArgumentParser(description='''Runs the Asimov optimizer-based analysis varying a number of systematic parameters
-defined in settings.json file and saves the likelihood values for all
-combination of hierarchies.''',
+defined in settings.json file and saves the likelihood (or chisquare) values for all
+combinations of hierarchies.''',
                         formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('-t','--template_settings',type=str,
                     metavar='JSONFILE', required = True,
@@ -34,6 +34,8 @@ parser.add_argument('-t','--template_settings',type=str,
 parser.add_argument('-m','--minimizer_settings',type=str,
                     metavar='JSONFILE', required = True,
                     help='''Settings related to the optimizer used in the LLR analysis.''')
+parser.add_argument('-c','--chisquare',action='store_true', default=False,
+                    dest='use_chisquare', help='''Use chisquare metric instead of log-likelihood.''')
 parser.add_argument('-pd','--pseudo_data_settings',type=str,
                     metavar='JSONFILE',default=None,
                     help='''Settings for pseudo data templates, if desired to be different from template_settings.''')
@@ -98,27 +100,43 @@ for data_tag, data_normal in [('data_NMH',True),('data_IMH',False)]:
     # 2) find max llh (and best fit free params) from matching pseudo data
     #    to templates.
     for hypo_tag, hypo_normal in [('hypo_NMH',True),('hypo_IMH',False)]:
-
         physics.info("Finding best fit for %s under %s assumption"%(data_tag,hypo_tag))
         profile.info("start optimizer")
-        llh_data = find_max_llh_bfgs(asimov_fmap,template_maker,template_settings['params'],
-                                     minimizer_settings,args.save_steps,
-                                     normal_hierarchy=hypo_normal)
-        profile.info("stop optimizer")
+	if not args.use_chisquare:
+	    profile.info("Using llh")
+	    opt_data = find_max_llh_bfgs(asimov_fmap,template_maker,template_settings['params'],
+                                         minimizer_settings,args.save_steps,
+                                         normal_hierarchy=hypo_normal)
+        else:
+	    profile.info("Using chisquare")
+	    if data_normal==hypo_normal:
+		# skip the case where hypothesis corresponds to truth, since chi2 zero by construction
+		profile.info("Skipping %s"%hypo_tag)
+		continue
+	    opt_data = find_min_chisquare_bfgs(asimov_fmap,template_maker,template_settings['params'],
+                                               minimizer_settings,args.save_steps,
+                                               normal_hierarchy=hypo_normal)
+	profile.info("stop optimizer")
 
         #Store the LLH data
-        results[data_tag][hypo_tag] = llh_data
+        results[data_tag][hypo_tag] = opt_data
 
 #Assemble output dict
 output = {'results' : results,
           'template_settings' : template_settings,
           'minimizer_settings' : minimizer_settings}
+
 if args.pseudo_data_settings is not None:
     output['pseudo_data_settings'] = pseudo_data_settings
 
-llr_nmh = -(np.array(results['data_NMH']['hypo_IMH']['llh']) - np.array(results['data_NMH']['hypo_NMH']['llh']))
-llr_imh = -(np.array(results['data_IMH']['hypo_IMH']['llh']) - np.array(results['data_IMH']['hypo_NMH']['llh']))
-logging.info('(hypo NMH is numerator): llr_nmh: %.4f, llr_imh: %.4f'%(llr_nmh,llr_imh))
+if not args.use_chisquare:
+    llr_nmh = -(np.min(results['data_NMH']['hypo_IMH']['llh']) - np.min(results['data_NMH']['hypo_NMH']['llh']))
+    llr_imh = -(np.min(results['data_IMH']['hypo_IMH']['llh']) - np.min(results['data_IMH']['hypo_NMH']['llh']))
+    logging.info('(hypo NMH is numerator): llr_nmh: %.4f, llr_imh: %.4f'%(llr_nmh,llr_imh))
+else:
+    chi2_nmh = np.min(results['data_NMH']['hypo_IMH']['chisquare'])
+    chi2_imh = np.min(results['data_IMH']['hypo_NMH']['chisquare'])
+    logging.info('chi2_nmh: %.4f, chi2_imh: %.4f'%(chi2_nmh, chi2_imh))
 
 #And write to file
 to_json(output,args.outfile)

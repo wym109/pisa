@@ -15,9 +15,9 @@ import scipy.optimize as opt
 
 from pisa.utils.jsons import to_json
 from pisa.utils.log import logging, physics, profile
-from pisa.utils.params import get_values, select_hierarchy, get_fixed_params, get_free_params, get_prior_llh, get_param_values, get_param_scales, get_param_bounds, get_param_priors
+from pisa.utils.params import get_values, select_hierarchy, get_fixed_params, get_free_params, get_prior_llh, get_prior_chisquare, get_param_values, get_param_scales, get_param_bounds, get_param_priors
 from pisa.utils.utils import Timer
-from pisa.analysis.stats.LLHStatistics import get_binwise_llh
+from pisa.analysis.stats.LLHStatistics import get_binwise_llh, get_binwise_chisquare
 from pisa.analysis.stats.Maps import flatten_map
 
 def find_alt_hierarchy_fit(asimov_data_set, template_maker,hypo_params,hypo_normal,
@@ -237,3 +237,122 @@ def llh_bfgs(opt_vals,*args):
 
     return llh
 
+# Adapted from find_max_llh_bfgs
+def find_min_chisquare_bfgs(fmap, template_maker, params, bfgs_settings, save_steps=False,
+                            normal_hierarchy=True):
+    '''
+    Finds the template (and free systematic params) that minimise
+    chisquare under the normal/inverted hierarchy hypothesis
+    w.r.t. fmap, using the limited memory BFGS algorithm subject to bounds
+    (l_bfgs_b).
+    returns a dictionary of chi-square and parameter values, in the format:
+      {'chisquare': [...],
+       'param1': [...],
+       'param2': [...],
+       ...}
+    where 'param1', 'param2', ... are the free params varied by the
+    optimizer, and they hold a list of all the values tested in
+    optimizer algorithm, unless save_steps is False, in which case
+    they are one element in length-the best fit params and minimum chisquare.
+    '''
+
+    # Get params dict which will be optimized (free_params) and which
+    # won't be (fixed_params) but are still needed for get_template()
+    fixed_params = get_fixed_params(select_hierarchy(params,normal_hierarchy))
+    free_params = get_free_params(select_hierarchy(params,normal_hierarchy))
+
+    init_vals = get_param_values(free_params)
+    scales = get_param_scales(free_params)
+    bounds = get_param_bounds(free_params)
+    priors = get_param_priors(free_params)
+    names  = sorted(free_params.keys())
+
+    # Scale init-vals and bounds to work with bfgs opt:
+    init_vals = np.array(init_vals)*np.array(scales)
+    bounds = [bounds[i]*scales[i] for i in range(len(bounds))]
+
+    opt_steps_dict = {key:[] for key in names}
+    opt_steps_dict['chisquare'] = []
+
+    const_args = (names,scales,fmap,fixed_params,template_maker,opt_steps_dict,priors)
+
+    physics.info('%d parameters to be optimized'%len(free_params))
+    for name,init,(down,up),(prior, best) in zip(names, init_vals, bounds, priors):
+        physics.info(('%20s : init = %6.4f, bounds = [%6.4f,%6.4f], '
+                     'best = %6.4f, prior = '+
+                     ('%6.4f' if prior else "%s"))%
+                     (name, init, up, down, best, prior))
+
+    physics.debug("Optimizer settings:")
+    for key,item in bfgs_settings.items():
+        physics.debug("  %s -> `%s` = %.2e"%(item['desc'],key,item['value']))
+
+    best_fit_vals,chisquare,dict_flags = opt.fmin_l_bfgs_b(chisquare_bfgs,
+                                                     init_vals,
+                                                     args=const_args,
+                                                     approx_grad=True,
+                                                     iprint=0,
+                                                     bounds=bounds,
+                                                     **get_values(bfgs_settings))
+
+    best_fit_params = { name: value for name, value in zip(names, best_fit_vals) }
+
+    #Report best fit
+    physics.info('Found minimum chisquare = %.2f in %d calls at:'
+        %(chisquare,dict_flags['funcalls']))
+    for name, val in best_fit_params.items():
+        physics.info('  %20s = %6.4f'%(name,val))
+
+    #Report any warnings if there are
+    lvl = logging.WARN if (dict_flags['warnflag'] != 0) else logging.DEBUG
+    for name, val in dict_flags.items():
+        physics.log(lvl," %s : %s"%(name,val))
+
+    if not save_steps:
+        # Do not store the extra history of opt steps:
+        for key in opt_steps_dict.keys():
+            opt_steps_dict[key] = [opt_steps_dict[key][-1]]
+
+    return opt_steps_dict
+
+# Adapted from llh_bfgs
+def chisquare_bfgs(opt_vals,*args):
+    '''
+    Function that the bfgs algorithm tries to minimize.
+    Wrapper function around get_template() and get_binwise_chisquare().
+    Cf. llh_bfgs for details.
+    '''
+
+    names,scales,fmap,fixed_params,template_maker,opt_steps_dict,priors = args
+
+    # free parameters being "optimized" by minimizer re-scaled to their true values.
+    unscaled_opt_vals = [opt_vals[i]/scales[i] for i in xrange(len(opt_vals))]
+
+    unscaled_free_params = { names[i]: val for i,val in enumerate(unscaled_opt_vals) }
+    template_params = dict(unscaled_free_params.items() + get_values(fixed_params).items())
+
+    # Now get true template, and compute chi-square
+    with Timer() as t:
+        if template_params['theta23'] == 0.0:
+            logging.info("Zero theta23, so generating no oscillations template...")
+            true_template = template_maker.get_template_no_osc(template_params)
+        else:
+            true_template = template_maker.get_template(template_params)
+    profile.info("==> elapsed time for template maker: %s sec"%t.secs)
+    true_fmap = flatten_map(true_template,chan=template_params['channel'])
+
+    chisquare = get_binwise_chisquare(fmap,true_fmap)
+    chisquare += sum([ get_prior_chisquare(opt_val,sigma,value)
+                 for (opt_val,(sigma,value)) in zip(unscaled_opt_vals,priors)])
+
+    # Save all optimizer-tested values to opt_steps_dict, to see
+    # optimizer history later
+    for key in names:
+        opt_steps_dict[key].append(template_params[key])
+    opt_steps_dict['chisquare'].append(chisquare)
+
+    physics.debug("chisquare is %.2f at: "%chisquare)
+    for name, val in zip(names, opt_vals):
+        physics.debug(" %20s = %6.4f" %(name,val))
+
+    return chisquare
