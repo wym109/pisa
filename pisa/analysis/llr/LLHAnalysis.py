@@ -64,7 +64,7 @@ def display_optimizer_settings(free_params, names, init_vals, bounds, priors,
         physics.info(('%20s : init = %6.4f, bounds = [%6.4f,%6.4f], '
                      'best = %6.4f, prior = '+
                      ('%6.4f' if prior else "%s"))%
-                     (name, init, up, down, best, prior))
+                     (name, init, down, up, best, prior))
 
     physics.debug("Optimizer settings:")
     for key,item in bfgs_settings.items():
@@ -143,7 +143,9 @@ def find_max_llh_bfgs(fmap, template_maker, params, bfgs_settings, save_steps=Fa
             bounds=bounds, **get_values(bfgs_settings))
 
         # Alternative octant solution is optimal:
-        if alt_llh < llh:
+        print "ALT LLH: ",alt_llh
+        print "llh: ",llh
+        if alt_llh > llh:
             best_fit_vals = alt_fit_vals
             llh = alt_llh
             dict_flags = alt_dict_flags
