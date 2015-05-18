@@ -130,12 +130,17 @@ def find_max_llh_bfgs(fmap, template_maker, params, bfgs_settings, save_steps=Fa
     if check_octant and ('theta23' in free_params.keys()):
         physics.info("Checking alternative octant solution")
         old_th23_val = free_params['theta23']['value']
-        delta = np.pi - old_th23_val
-        free_params['theta23']['value'] = np.pi + delta
+
+        # Reflect across pi/4.0:
+        delta = (np.pi/4.0) - old_th23_val
+        free_params['theta23']['value'] = (np.pi/4.0) + delta
+
         init_vals = get_param_values(free_params)
 
+        alt_opt_steps_dict = {key:[] for key in names}
+        alt_opt_steps_dict['llh'] = []
         const_args = (names,scales,fmap,fixed_params,template_maker,
-                      opt_steps_dict,priors)
+                      alt_opt_steps_dict,priors)
         display_optimizer_settings(free_params, names, init_vals, bounds, priors,
                                    bfgs_settings)
         alt_fit_vals,alt_llh,alt_dict_flags = opt.fmin_l_bfgs_b(
@@ -145,10 +150,12 @@ def find_max_llh_bfgs(fmap, template_maker, params, bfgs_settings, save_steps=Fa
         # Alternative octant solution is optimal:
         print "ALT LLH: ",alt_llh
         print "llh: ",llh
-        if alt_llh > llh:
+        if alt_llh < llh:
+            print "  >>TRUE..."
             best_fit_vals = alt_fit_vals
             llh = alt_llh
             dict_flags = alt_dict_flags
+            opt_steps_dict = alt_opt_steps_dict
 
 
     best_fit_params = { name: value for name, value in zip(names, best_fit_vals) }
