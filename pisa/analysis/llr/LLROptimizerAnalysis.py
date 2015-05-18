@@ -153,7 +153,9 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
     # Get Asimov data set for assuming true: data_tag
     asimov_data = getAsimovData(
         template_maker, template_settings['params'], data_normal)
-
+    # This is in now as a check:
+    asimov_data = np.int32(asimov_data + 0.5)
+    
     alt_params = fix_non_atm_params(template_settings['params'])
     alt_mh_settings, llh_data = getAltHierarchyBestFit(
         asimov_data, template_maker, alt_params, minimizer_settings,
@@ -161,7 +163,7 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
     
     asimov_data_null = get_asimov_fmap(template_maker, alt_mh_settings,
                                        chan=alt_mh_settings['channel'])
-
+    
     # Store all data tag related inputs:
     output[data_tag]['asimov_data'] = asimov_data
     output[data_tag]['asimov_data_null'] = asimov_data_null
@@ -173,12 +175,17 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
     # the parameters of the alternative hierarchy in the settings
     # file, which correspond to the world best fit values.
     if args.no_alt_fit:
+        null_settings = get_values(
+            select_hierarchy(template_settings['params'],
+                             normal_hierarchy= (not data_normal)))
         alt_mh_expectation = get_asimov_fmap(
-            template_maker,
-            get_values(select_hierarchy(template_settings['params'],
-                                        normal_hierarchy= (not data_normal))),
-            chan=template_settings['params']['channel']['value']
+            template_maker, null_settings, chan=null_settings['channel']
             )
+        print "null_settings: "
+        print sorted(null_settings.items())
+        print "\n\n  alt_mh_expectation: ",alt_mh_expectation[0:20]
+        print "\n\n  asimov_data_null:   ",asimov_data_null[0:20]
+        exit()
     else:
         alt_mh_expectation = asimov_data_null
         
@@ -197,8 +204,7 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
         for hypo_tag, hypo_normal in [('hypo_NMH',True),('hypo_IMH',False)]:
 
             physics.info(
-                "Finding best fit for %s under %s assumption"%(data_tag,hypo_tag)
-            )
+                "Finding best fit for %s under %s assumption"%(data_tag,hypo_tag))
             with Timer() as t:
                 llh_data = find_max_llh_bfgs(
                     fmap, template_maker, template_settings['params'], 
