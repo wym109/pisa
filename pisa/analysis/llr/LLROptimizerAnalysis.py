@@ -53,7 +53,7 @@ def getAltHierarchyBestFit(asimov_data, template_maker, params, minimizer_settin
     """
     Finds the best fit value of alternative hierarchy to that which
     was used to produce the asimov data set.
-    
+
     \Params:
       * asimov_data - array of values of asimov data set (float)
       * template_maker - instance of class TemplateMaker service.
@@ -153,8 +153,6 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
     # Get Asimov data set for assuming true: data_tag
     asimov_data = getAsimovData(
         template_maker, template_settings['params'], data_normal)
-    # This is in now as a check:
-    asimov_data = np.int32(asimov_data + 0.5)
 
     alt_params = fix_non_atm_params(template_settings['params'])
     alt_mh_settings, llh_data = getAltHierarchyBestFit(
