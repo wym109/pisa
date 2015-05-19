@@ -29,6 +29,15 @@ from pisa.utils.jsons import from_json,to_json
 from pisa.utils.params import get_values, select_hierarchy, fix_all_params, fix_non_atm_params
 from pisa.utils.utils import Timer
 
+def check_scipy_version(minimizer_settings):
+    #Workaround for old scipy versions
+    import scipy
+    if scipy.__version__ < '0.12.0':
+        logging.warn('Detected scipy version %s < 0.12.0'%scipy.__version__)
+        if 'maxiter' in minimizer_settings:
+            logging.warn('Optimizer settings for \"maxiter\" will be ignored')
+            minimizer_settings.pop('maxiter')
+    return
 
 def getAsimovData(template_maker, params, data_normal):
     """
@@ -38,7 +47,7 @@ def getAsimovData(template_maker, params, data_normal):
     \Params:
       * template_maker - instance of class TemplateMaker service.
       * params - parameters with values, fixed, range, etc. of systematics
-      * data_normal - bool for Mass hierarchy being Noraml (True) 
+      * data_normal - bool for Mass hierarchy being Normal (True)
         or inverted (False)
     """
 
@@ -59,9 +68,9 @@ def getAltHierarchyBestFit(asimov_data, template_maker, params, minimizer_settin
       * template_maker - instance of class TemplateMaker service.
       * params - parameters with values, fixed, range, etc. of systematics
       * minimizer_settings - used with bfgs_b minimizer
-      * hypo_normal - bool for Mass hierarchy being Noraml (True) 
+      * hypo_normal - bool for Mass hierarchy being Normal (True)
         or inverted (False)
-      * check_octant - bool to check the opposite octant for a solution 
+      * check_octant - bool to check the opposite octant for a solution
         to the minimization of the LLH.
     """
 
@@ -121,13 +130,7 @@ minimizer_settings  = from_json(args.minimizer_settings)
 # Change this throughout code later?
 check_octant = not args.single_octant
 
-#Workaround for old scipy versions
-import scipy
-if scipy.__version__ < '0.12.0':
-    logging.warn('Detected scipy version %s < 0.12.0'%scipy.__version__)
-    if 'maxiter' in minimizer_settings:
-      logging.warn('Optimizer settings for \"maxiter\" will be ignored')
-      minimizer_settings.pop('maxiter')
+check_scipy_version(minimizer_settings)
 
 if args.gpu_id is not None:
     template_settings['params']['gpu_id'] = {}
@@ -177,13 +180,7 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
             select_hierarchy(template_settings['params'],
                              normal_hierarchy= (not data_normal)))
         alt_mh_expectation = get_asimov_fmap(
-            template_maker, null_settings, chan=null_settings['channel']
-            )
-        print "null_settings: "
-        print sorted(null_settings.items())
-        print "\n\n  alt_mh_expectation: ",alt_mh_expectation[0:20]
-        print "\n\n  asimov_data_null:   ",asimov_data_null[0:20]
-        exit()
+            template_maker, null_settings, chan=null_settings['channel'] )
     else:
         alt_mh_expectation = asimov_data_null
 
