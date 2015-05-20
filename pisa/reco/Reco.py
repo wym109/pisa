@@ -63,6 +63,9 @@ def get_reco_maps(true_event_maps, reco_service=None, e_reco_scale=None,
         e_reco_scale=e_reco_scale, cz_reco_scale=cz_reco_scale, **kwargs
     )
 
+    # DEBUG / HACK to store the computed kernels to a file
+    #reco_service.store_kernels('reco_kernels.hdf5', fmt='hdf5')
+
     # Do smearing
     flavours = ['nue', 'numu', 'nutau']
     int_types = ['cc', 'nc']
@@ -132,7 +135,7 @@ if __name__ == '__main__':
     parser.add_argument('--param_file', metavar='JSON',
                         type=str, default='reco/V36.json',
                         help='''JSON file holding the parametrization''')
-    parser.add_argument('--kernel_file', metavar='JSON',
+    parser.add_argument('--kernel_file', metavar='JSON/HDF5',
                         type=str, default=None,
                         help='''JSON file holding the pre-calculated kernels''')
     parser.add_argument('--e_reco_scale', type=float, default=1.0,

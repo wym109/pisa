@@ -20,8 +20,8 @@ from pisa.utils.proc import get_params, report_params
 from pisa.utils.utils import get_bin_centers, is_coarser_binning, is_linear
 from pisa.utils.utils import is_logarithmic, check_fine_binning, oversample_binning, Timer
 
+# Put CUDA imports in the constructor
 import pycuda.driver as cuda
-import pycuda.autoinit
 from pycuda.compiler import SourceModule
 
 #
@@ -36,7 +36,7 @@ class Prob3GPUOscillationService():
     the GPU.
     """
     def __init__(self, ebins, czbins, detector_depth=None, earth_model=None,
-                 prop_height=None, oversample_e=None,oversample_cz=None,
+                 prop_height=None, oversample_e=None,oversample_cz=None,gpu_id=None,
                  **kwargs):
         """
         \params:
@@ -45,11 +45,24 @@ class Prob3GPUOscillationService():
           * earth_model: Earth density model used for matter oscillations.
           * detector_depth: Detector depth in km.
           * prop_height: Height in the atmosphere to begin in km.
+          * gpu_id: If running on a system with multiple GPUs, it will choose
+            the one with gpu_id. Otherwise, defaults to default context
         """
+
+        self.gpu_id = gpu_id
+        try:
+            import pycuda.autoinit
+            self.context = cuda.Device(self.gpu_id).make_context()
+            print "Initializing PyCUDA using gpu id: %d"%self.gpu_id
+        except:
+            import pycuda.autoinit
+            print "Auto initializing PyCUDA..."
+
 
         logging.info('Instantiating %s'%self.__class__.__name__)
         self.ebins = np.array(ebins)
         self.czbins = np.array(czbins)
+        self.prop_height = prop_height
         for ax in [self.ebins, self.czbins]:
             if (len(np.shape(ax)) != 1):
                 raise IndexError('Axes must be 1d! '+str(np.shape(ax)))
@@ -65,40 +78,18 @@ class Prob3GPUOscillationService():
         self.ecen_fine = get_bin_centers(self.ebins_fine)
         self.czcen_fine = get_bin_centers(self.czbins_fine)
 
-        self.initialize_kernel()
+        self.initialize_kernel(detector_depth,**kwargs)
 
         return
 
-    def initialize_kernel(self):
+    def initialize_kernel(self,detector_depth,**kwargs):
         '''
         Initializes: 1) the grid_propagator class, 2) the device arrays
         that will be passed to the propagateGrid() kernel and 3) the
         kernel module.
         '''
 
-        self.grid_prop  = GridPropagator(self.earth_model,self.czcen_fine)
-        self.maxLayers  = self.grid_prop.GetMaxLayers()
-        nczbins_fine    = len(self.czcen_fine)
-        numLayers       = np.zeros(nczbins_fine,dtype=np.int32)
-        densityInLayer  = np.zeros((nczbins_fine*self.maxLayers),dtype=self.FTYPE)
-        distanceInLayer = np.zeros((nczbins_fine*self.maxLayers),dtype=self.FTYPE)
-
-        self.grid_prop.GetNumberOfLayers(numLayers)
-        self.grid_prop.GetDensityInLayer(densityInLayer)
-        self.grid_prop.GetDistanceInLayer(distanceInLayer)
-
-        # Copy all these earth info arrays to device:
-        self.d_numLayers       = cuda.mem_alloc(numLayers.nbytes)
-        self.d_densityInLayer  = cuda.mem_alloc(densityInLayer.nbytes)
-        self.d_distanceInLayer = cuda.mem_alloc(distanceInLayer.nbytes)
-        cuda.memcpy_htod(self.d_numLayers,numLayers)
-        cuda.memcpy_htod(self.d_densityInLayer,densityInLayer)
-        cuda.memcpy_htod(self.d_distanceInLayer,distanceInLayer)
-
-        self.d_ecen_fine = cuda.mem_alloc(self.ecen_fine.nbytes)
-        self.d_czcen_fine = cuda.mem_alloc(self.czcen_fine.nbytes)
-        #cuda.memcpy_htod(self.d_ecen_fine,self.ecen_fine)
-        cuda.memcpy_htod(self.d_czcen_fine,self.czcen_fine)
+        self.grid_prop  = GridPropagator(self.earth_model,self.czcen_fine,detector_depth)
 
         ###############################################
         ###### DEFINE KERNEL
@@ -216,7 +207,7 @@ class Prob3GPUOscillationService():
         #cache_dir=os.path.expandvars('$PISA/pisa/oscillations/'+'.cache_dir')
         logging.trace("  pycuda INC PATH: %s"%include_path)
         #logging.trace("  pycuda cache_dir: %s"%cache_dir)
-        logging.trace("  pycuda FLAGS: %s"%pycuda.compiler.DEFAULT_NVCC_FLAGS)
+        #logging.trace("  pycuda FLAGS: %s"%pycuda.compiler.DEFAULT_NVCC_FLAGS)
         self.module = SourceModule(kernel_template,
                                    include_dirs=[include_path],
                                    #cache_dir=cache_dir,
@@ -225,9 +216,35 @@ class Prob3GPUOscillationService():
 
         return
 
+    def prepare_device_arrays(self):
+
+        self.maxLayers  = self.grid_prop.GetMaxLayers()
+        nczbins_fine    = len(self.czcen_fine)
+        numLayers       = np.zeros(nczbins_fine,dtype=np.int32)
+        densityInLayer  = np.zeros((nczbins_fine*self.maxLayers),dtype=self.FTYPE)
+        distanceInLayer = np.zeros((nczbins_fine*self.maxLayers),dtype=self.FTYPE)
+
+        self.grid_prop.GetNumberOfLayers(numLayers)
+        self.grid_prop.GetDensityInLayer(densityInLayer)
+        self.grid_prop.GetDistanceInLayer(distanceInLayer)
+
+        # Copy all these earth info arrays to device:
+        self.d_numLayers       = cuda.mem_alloc(numLayers.nbytes)
+        self.d_densityInLayer  = cuda.mem_alloc(densityInLayer.nbytes)
+        self.d_distanceInLayer = cuda.mem_alloc(distanceInLayer.nbytes)
+        cuda.memcpy_htod(self.d_numLayers,numLayers)
+        cuda.memcpy_htod(self.d_densityInLayer,densityInLayer)
+        cuda.memcpy_htod(self.d_distanceInLayer,distanceInLayer)
+
+        self.d_ecen_fine = cuda.mem_alloc(self.ecen_fine.nbytes)
+        self.d_czcen_fine = cuda.mem_alloc(self.czcen_fine.nbytes)
+        cuda.memcpy_htod(self.d_ecen_fine,self.ecen_fine)
+        cuda.memcpy_htod(self.d_czcen_fine,self.czcen_fine)
+
+        return
 
     def get_osc_prob_maps(self, theta12, theta13, theta23, deltam21, deltam31,
-                          deltacp, energy_scale, **kwargs):
+                          deltacp, energy_scale, YeI, YeO, YeM, **kwargs):
         """
         Returns an oscillation probability map dictionary calculated
         at the values of the input parameters:
@@ -258,6 +275,8 @@ class Prob3GPUOscillationService():
         #if mAtm < 0.0: mAtm -= deltam21;
 
         self.grid_prop.SetMNS(deltam21,mAtm,sin2th12Sq,sin2th13Sq,sin2th23Sq,deltacp)
+        self.grid_prop.SetEarthDensityParams(self.prop_height,YeI,YeO,YeM)
+        self.prepare_device_arrays()
 
         dm_mat = np.zeros((3,3),dtype=self.FTYPE)
         self.grid_prop.Get_dm_mat(dm_mat)

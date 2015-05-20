@@ -83,18 +83,32 @@ import numpy as np
 from scipy import fftpack
 from scipy import optimize
 from scipy import interpolate
-from pisa.utils.gaussians import gaussians
+
+from pisa.utils.log import logging
+
 
 pi = np.pi
 sqrtpi = np.sqrt(pi)
 sqrt2pi = np.sqrt(2*pi)
 pisq = pi**2
 
+openmp_num_threads = 1
 try:
-    import multiprocessing
-    openmp_num_threads = multiprocessing.cpu_count()
+    import pisa.utils.gaussians as GAUS
 except:
-    openmp_num_threads = 1
+    def gaussian(outbuf, x, mu, sigma):
+        xlessmu = x-mu
+        outbuf += 1./(sqrt2pi*sigma) * np.exp(-xlessmu*xlessmu/(2.*sigma*sigma))
+    def gaussians(outbuf, x, mu, sigma, **kwargs):
+        [gaussian(outbuf, x, mu[n], sigma[n]) for n in xrange(len(mu))]
+else:
+    gaussian = GAUS.gaussian
+    gaussians = GAUS.gaussians
+    try:
+        import multiprocessing
+        openmp_num_threads = max(multiprocessing.cpu_count(), 8)
+    except:
+        openmp_num_threads = 1
 
 
 
@@ -229,7 +243,7 @@ def vbw_kde(data, N=None, MIN=None, MAX=None, evaluate_dens=True,
         maximum = max(data)
         Range = maximum - minimum
         if Range == 0:
-            warnings.warn('Range of data is 0; there are ' + str(len(data)) +
+            logging.warn('Range of data is 0; there are ' + str(len(data)) +
                           ' data points.')
         MIN = minimum - Range/10 if MIN is None else MIN
         MAX = maximum + Range/10 if MAX is None else MAX

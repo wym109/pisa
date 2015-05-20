@@ -66,11 +66,11 @@ def find_max_grid(fmap,template_maker,params,grid_settings,save_steps=True,
     and llh values.
     '''
 
-    print "NOW INSIDE find_max_grid:"
-    print "After fixing to their true values, params dict is now: "
-    for key in params.keys():
-        try: print "  >>param: %s value: %s"%(key,str(params[key]['best']))
-        except: continue
+    #print "NOW INSIDE find_max_grid:"
+    #print "After fixing to their true values, params dict is now: "
+    #for key in params.keys():
+    #    try: print "  >>param: %s value: %s"%(key,str(params[key]['best']))
+    #    except: continue
 
 
     # Get params dict which will be optimized (free_params) and which
@@ -98,10 +98,10 @@ def find_max_grid(fmap,template_maker,params,grid_settings,save_steps=True,
         #including the fixed parameters
         template_params = dict(list(pos) + get_values(fixed_params).items())
 
-        print "   >> NOW IN LOOP: "
-        for key in template_params.keys():
-            try: print "  >>param: %s value: %s"%(key,str(template_params[key]['value']))
-            except: continue
+        #print "   >> NOW IN LOOP: "
+        #for key in template_params.keys():
+        #    try: print "  >>param: %s value: %s"%(key,str(template_params[key]['value']))
+        #    except: continue
 
         # Now get true template
         profile.info('start template calculation')

@@ -83,12 +83,14 @@ class EarthDensity
   // number of layers the current neutrino sees
   int get_LayersTraversed( ) {return Layers;};
   double get_DetectorDepth() {return DetectorDepth;}
-  double get_RDetector()     {return RDetector;}
+  double get_RDetector()     {return RDetector;}  // km
 
   // self-explanatory
   double get_DistanceAcrossLayer( int i) { return _TraverseDistance[i];};
   double get_DensityInLayer( int i) { return _TraverseRhos[i];};
   double get_ElectronFractionInLayer(int i) {return _TraverseElectronFrac[i];}
+
+  double get_MaxLayers() { return 2.0*_Radii.size(); }
 
   // return total path length through the sphere, including vacuum layers
   double get_Pathlength(){
@@ -119,6 +121,10 @@ class EarthDensity
   double * _TraverseDistance;
   double * _TraverseRhos;
   double * _TraverseElectronFrac;
+
+  double _YeI;
+  double _YeO;
+  double _YeM;
 
   double REarth;
   double RDetector;

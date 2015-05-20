@@ -13,18 +13,19 @@
 import numpy as np
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
-from pisa.utils.jsons import from_json,to_json
-from pisa.utils.log import logging, profile, physics, set_verbosity
-from pisa.utils.params import get_values, select_hierarchy
-from pisa.utils.utils import Timer
 from pisa.analysis.llr.LLHAnalysis import find_max_llh_bfgs
 from pisa.analysis.stats.Maps import get_pseudo_data_fmap, get_seed
 from pisa.analysis.TemplateMaker import TemplateMaker
+from pisa.utils.log import logging, profile, physics, set_verbosity
+from pisa.utils.jsons import from_json,to_json
+from pisa.utils.params import get_values, select_hierarchy
+from pisa.utils.utils import Timer
 
-parser = ArgumentParser(description='''Runs the LLR optimizer-based analysis varying a number of systematic parameters
-defined in settings.json file and saves the likelihood values for all
-combination of hierarchies.''',
-                        formatter_class=ArgumentDefaultsHelpFormatter)
+parser = ArgumentParser(
+    description='''Runs the LLR optimizer-based analysis varying a number of systematic
+    parameters defined in settings.json file and saves the likelihood values for all
+    combination of hierarchies.''',
+    formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('-t','--template_settings',type=str,
                     metavar='JSONFILE', required = True,
                     help='''Settings related to the template generation and systematics.''')
@@ -33,9 +34,12 @@ parser.add_argument('-m','--minimizer_settings',type=str,
                     help='''Settings related to the optimizer used in the LLR analysis.''')
 parser.add_argument('-pd','--pseudo_data_settings',type=str,
                     metavar='JSONFILE',default=None,
-                    help='''Settings for pseudo data templates, if desired to be different from template_settings.''')
+                    help='''Settings for pseudo data templates, if desired to be different from
+                    template_settings.''')
 parser.add_argument('-n','--ntrials',type=int, default = 1,
                     help="Number of trials to run")
+parser.add_argument('--gpu_id',type=int,default=None,
+                    help="GPU ID if available.")
 parser.add_argument('-s','--save-steps',action='store_true',default=False,
                     dest='save_steps',
                     help="Save all steps the optimizer takes.")
@@ -69,6 +73,10 @@ if channel != pseudo_data_settings['params']['channel']['value']:
     error_msg += " pseudo_data_settings chan: '%s', template chan: '%s' "%(pseudo_data_settings['params']['channel']['value'],channel)
     raise ValueError(error_msg)
 
+if args.gpu_id is not None:
+    template_settings['params']['gpu_id'] = {}
+    template_settings['params']['gpu_id']['value'] = args.gpu_id
+    template_settings['params']['gpu_id']['fixed'] = True
 
 template_maker = TemplateMaker(get_values(template_settings['params']),
                                **template_settings['binning'])
@@ -78,49 +86,58 @@ if args.pseudo_data_settings:
 else:
     pseudo_data_template_maker = template_maker
 
+
+# Put in try/except block?
+
 #store results from all the trials
 trials = []
-for itrial in xrange(1,args.ntrials+1):
-    profile.info("start trial %d"%itrial)
-    logging.info(">"*10 + "Running trial: %05d"%itrial + "<"*10)
+
+try:
+    for itrial in xrange(1,args.ntrials+1):
+        profile.info("start trial %d"%itrial)
+        logging.info(">"*10 + "Running trial: %05d"%itrial + "<"*10)
+
+        # //////////////////////////////////////////////////////////////////////
+        # For each trial, generate two pseudo-data experiemnts (one for each
+        # hierarchy), and for each find the best matching template in each of the
+        # hierarchy hypotheses.
+        # //////////////////////////////////////////////////////////////////////
+        results = {}
+        for data_tag, data_normal in [('data_NMH',True),('data_IMH',False)]:
+
+            results[data_tag] = {}
+            # 0) get a random seed and store with the data
+            results[data_tag]['seed'] = get_seed()
+            logging.info("  RNG seed: %ld"%results[data_tag]['seed'])
+            # 1) get a pseudo data fmap from fiducial model (best fit vals of params).
+            fmap = get_pseudo_data_fmap(
+                pseudo_data_template_maker,
+                get_values(select_hierarchy(pseudo_data_settings['params'],
+                                            normal_hierarchy=data_normal)),
+                seed=results[data_tag]['seed'],chan=channel)
+
+            # 2) find max llh (and best fit free params) from matching pseudo data
+            #    to templates.
+            for hypo_tag, hypo_normal in [('hypo_NMH',True),('hypo_IMH',False)]:
+
+                physics.info("Finding best fit for %s under %s assumption"%(data_tag,hypo_tag))
+                with Timer() as t:
+                    llh_data = find_max_llh_bfgs(fmap,template_maker,template_settings['params'],
+                                                 minimizer_settings,args.save_steps,
+                                                 normal_hierarchy=hypo_normal)
+                profile.info("==> elapsed time for optimizer: %s sec"%t.secs)
+
+                # Store the LLH data
+                results[data_tag][hypo_tag] = llh_data
 
 
-    # //////////////////////////////////////////////////////////////////////
-    # For each trial, generate two pseudo-data experiemnts (one for each
-    # hierarchy), and for each find the best matching template in each of the
-    # hierarchy hypothesis.
-    # //////////////////////////////////////////////////////////////////////
-    results = {}
-    for data_tag, data_normal in [('data_NMH',True),('data_IMH',False)]:
+        # Store this trial
+        trials += [results]
+        profile.info("stop trial %d"%itrial)
 
-        results[data_tag] = {}
-        # 0) get a random seed and store with the data
-        results[data_tag]['seed'] = get_seed()
-        logging.info("  RNG seed: %ld"%results[data_tag]['seed'])
-        # 1) get a pseudo data fmap from fiducial model (best fit vals of params).
-        fmap = get_pseudo_data_fmap(pseudo_data_template_maker,
-                        get_values(select_hierarchy(pseudo_data_settings['params'],
-                                                    normal_hierarchy=data_normal)),
-                                    seed=results[data_tag]['seed'],chan=channel)
+except:
+    logging.warn("ERROR IN TRIAL %i, so outputting what we have now!!"%itrial)
 
-        # 2) find max llh (and best fit free params) from matching pseudo data
-        #    to templates.
-        for hypo_tag, hypo_normal in [('hypo_NMH',True),('hypo_IMH',False)]:
-
-            physics.info("Finding best fit for %s under %s assumption"%(data_tag,hypo_tag))
-            with Timer() as t:
-                llh_data = find_max_llh_bfgs(fmap,template_maker,template_settings['params'],
-                                             minimizer_settings,args.save_steps,
-                                             normal_hierarchy=hypo_normal)
-            profile.info("==> elapsed time for optimizer: %s sec"%t.secs)
-
-            #Store the LLH data
-            results[data_tag][hypo_tag] = llh_data
-
-
-    #Store this trial
-    trials += [results]
-    profile.info("stop trial %d"%itrial)
 
 #Assemble output dict
 output = {'trials' : trials,
