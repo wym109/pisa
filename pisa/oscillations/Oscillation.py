@@ -19,7 +19,7 @@ import os,sys
 import numpy as np
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from pisa.utils.log import logging, tprofile, set_verbosity
-from pisa.utils.utils import check_binning, get_binning
+from pisa.utils.utils import check_binning, get_binning, Timer
 from pisa.utils.jsons import from_json, to_json
 from pisa.utils.proc import report_params, get_params, add_params
 from pisa.oscillations.Prob3OscillationService import Prob3OscillationService
@@ -117,11 +117,11 @@ if __name__ == '__main__':
     parser.add_argument('--code',type=str,choices = ['prob3','table','nucraft','gpu'],
                         default='prob3',
                         help='''Oscillation code to use''')
-    parser.add_argument('--oversample_e', type=int, default=13,
+    parser.add_argument('--oversample_e', type=int, default=10,
                         help='''oversampling factor for energy;
                         i.e. every 2D bin will be oversampled by this factor in
                         each dimension''')
-    parser.add_argument('--oversample_cz', type=int, default=12,
+    parser.add_argument('--oversample_cz', type=int, default=10,
                         help='''oversampling factor for  cos(zen);
                         i.e. every 2D bin will be oversampled by this factor in
                         each dimension ''')
@@ -172,17 +172,19 @@ if __name__ == '__main__':
       osc_service = TableOscillationService(ebins, czbins, **iniargs)
 
     logging.info("Getting osc prob maps")
-    osc_flux_maps = get_osc_flux(args.flux_maps, osc_service,
-                                 deltam21 = args.deltam21,
-                                 deltam31 = args.deltam31,
-                                 deltacp = args.deltacp,
-                                 theta12 = args.theta12,
-                                 theta13 = args.theta13,
-                                 theta23 = args.theta23,
-                                 oversample_e = args.oversample_e,
-                                 oversample_cz = args.oversample_cz,
-                                 energy_scale = args.energy_scale,
-                                 YeI=args.YeI, YeO=args.YeO, YeM=args.YeM)
+    with Timer(verbose=False) as t:
+        osc_flux_maps = get_osc_flux(args.flux_maps, osc_service,
+                                     deltam21 = args.deltam21,
+                                     deltam31 = args.deltam31,
+                                     deltacp = args.deltacp,
+                                     theta12 = args.theta12,
+                                     theta13 = args.theta13,
+                                     theta23 = args.theta23,
+                                     oversample_e = args.oversample_e,
+                                     oversample_cz = args.oversample_cz,
+                                     energy_scale = args.energy_scale,
+                                     YeI=args.YeI, YeO=args.YeO, YeM=args.YeM)
+    print "       ==> elapsed time to get osc flux maps: %s sec"%t.secs
 
     #Write out
     logging.info("Saving output to: %s",args.outfile)
