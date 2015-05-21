@@ -8,6 +8,13 @@
 #
 # date:   26 Feb 2015
 #
+#
+# NOTE: 2015-05-21 (TCA) attempted to use single precision, and at
+# least on my system, I got all junk in the output of my osc prob
+# maps. Unfortunately, I don't want to spend the time right now to
+# figure out WHY this is the case, but until someone figures this out,
+# keep fType to double and np.float64.
+#
 
 
 import sys,os
@@ -22,6 +29,7 @@ from pisa.utils.utils import is_logarithmic, check_fine_binning, oversample_binn
 
 # Put CUDA imports in the constructor
 import pycuda.driver as cuda
+import pycuda.compiler
 from pycuda.compiler import SourceModule
 
 #
@@ -93,7 +101,9 @@ class Prob3GPUOscillationService():
         kernel module.
         """
 
-        self.grid_prop  = GridPropagator(self.earth_model,self.czcen_fine,detector_depth)
+        self.grid_prop  = GridPropagator(
+            self.earth_model, self.FTYPE(self.czcen_fine),
+            detector_depth)
 
         ###############################################
         ###### DEFINE KERNEL
@@ -102,18 +112,20 @@ class Prob3GPUOscillationService():
           #include "mosc.cu"
           #include "mosc3.cu"
           #include "utils.h"
+          #include "constants.h"
           #include <stdio.h>
 
-          __global__ void propagateGrid(double* d_smooth_maps,
-                                        double d_dm[3][3], double d_mix[3][3][2],
-                                        const double* const d_ecen_fine,
-                                        const double* const d_czcen_fine,
+
+          __global__ void propagateGrid(fType* d_smooth_maps,
+                                        fType d_dm[3][3], fType d_mix[3][3][2],
+                                        const fType* const d_ecen_fine,
+                                        const fType* const d_czcen_fine,
                                         const int nebins_fine, const int nczbins_fine,
                                         const int nebins, const int nczbins,
                                         const int maxLayers,
                                         const int* const d_numberOfLayers,
-                                        const double* const d_densityInLayer,
-                                        const double* const d_distanceInLayer)
+                                        const fType* const d_densityInLayer,
+                                        const fType* const d_distanceInLayer)
           {
 
             const int2 thread_2D_pos = make_int2(blockIdx.x*blockDim.x + threadIdx.x,
@@ -133,12 +145,12 @@ class Prob3GPUOscillationService():
 
             bool kUseMassEstates = false;
 
-            double TransitionMatrix[3][3][2];
-            double TransitionProduct[3][3][2];
-            double TransitionTemp[3][3][2];
-            double RawInputPsi[3][2];
-            double OutputPsi[3][2];
-            double Probability[3][3];
+            fType TransitionMatrix[3][3][2];
+            fType TransitionProduct[3][3][2];
+            fType TransitionTemp[3][3][2];
+            fType RawInputPsi[3][2];
+            fType OutputPsi[3][2];
+            fType Probability[3][3];
 
             clear_complex_matrix( TransitionMatrix );
             clear_complex_matrix( TransitionProduct );
@@ -147,11 +159,11 @@ class Prob3GPUOscillationService():
 
             int layers = *(d_numberOfLayers + czidx);
 
-            double energy = d_ecen_fine[eidx];
-            //double coszen = d_czcen_fine[czidx];
+            fType energy = d_ecen_fine[eidx];
+            //fType coszen = d_czcen_fine[czidx];
             for( int i=0; i<layers; i++) {
-              double density = *(d_densityInLayer + czidx*maxLayers + i);
-              double distance = *(d_distanceInLayer + czidx*maxLayers + i);
+              fType density = *(d_densityInLayer + czidx*maxLayers + i);
+              fType distance = *(d_distanceInLayer + czidx*maxLayers + i);
 
               get_transition_matrix( kNuBar,
                                      energy,
@@ -192,7 +204,7 @@ class Prob3GPUOscillationService():
             int czfctr = nczbins_fine/nczbins;
             int eidx_smooth = eidx/efctr;
             int czidx_smooth = czidx/czfctr;
-            double scale = double(efctr*czfctr);
+            fType scale = fType(efctr*czfctr);
             for (int i=0;i<2;i++) {
               int iMap = 0;
               if (kNuBar == 1) iMap = i*3;
@@ -200,7 +212,7 @@ class Prob3GPUOscillationService():
 
               for (unsigned to_nu=0; to_nu<3; to_nu++) {
                 int k = (iMap+to_nu);
-                double prob = Probability[i][to_nu];
+                fType prob = Probability[i][to_nu];
                 atomicAdd((d_smooth_maps + k*nczbins*nebins + eidx_smooth*nczbins +
                            czidx_smooth),prob/scale);
               }
@@ -211,16 +223,16 @@ class Prob3GPUOscillationService():
 
         include_path = os.path.expandvars('$PISA/pisa/oscillations/grid_propagator/')
         #cache_dir=os.path.expandvars('$PISA/pisa/oscillations/'+'.cache_dir')
-        logging.trace("  pycuda INC PATH: %s"%include_path)
+        logging.info("  pycuda INC PATH: %s"%include_path)
         #logging.trace("  pycuda cache_dir: %s"%cache_dir)
-        #logging.trace("  pycuda FLAGS: %s"%pycuda.compiler.DEFAULT_NVCC_FLAGS)
+        logging.info("  pycuda FLAGS: %s"%pycuda.compiler.DEFAULT_NVCC_FLAGS)
         self.module = SourceModule(kernel_template,
                                    include_dirs=[include_path],
                                    #cache_dir=cache_dir,
                                    keep=True)
         self.propGrid = self.module.get_function("propagateGrid")
         #self.propGrid.set_shared_config(49152)
-        
+
         return
 
     def prepare_device_arrays(self):
@@ -322,7 +334,7 @@ class Prob3GPUOscillationService():
 
         # This goes here, so it can use the energy_scale systematic:
         cuda.memcpy_htod(self.d_ecen_fine,self.ecen_fine*energy_scale)
-        
+
         smooth_maps = np.zeros((nczbins*nebins*12),dtype=self.FTYPE)
         d_smooth_maps = cuda.mem_alloc(smooth_maps.nbytes)
         cuda.memcpy_htod(d_smooth_maps,smooth_maps)

@@ -64,6 +64,10 @@ def get_osc_flux(flux_maps,osc_service=None,deltam21=None,deltam31=None,
 
     ebins, czbins = get_binning(flux_maps)
 
+    #to_json(osc_prob_maps,'osc_prob_maps_double_prec.json')
+    to_json(osc_prob_maps,
+            '/Users/timothyarlen/icecube/pisa_nmh_related/pisa_testing/prob3GPU_tests/single_prec_tests/osc_prob_maps_double_prec.json')
+
     for to_flav in ['nue','numu','nutau']:
         for mID in ['','_bar']: # 'matter' ID
             nue_flux = flux_maps['nue'+mID]['map']
