@@ -144,21 +144,22 @@ def fix_atm_params(params):
 
 def fix_non_atm_params(params):
     """
-    Returns dict identical to params dict but with all params fixed
-    except for atmospheric oscillation parameters.
+    Returns dict identical to params dict, except that it fixes all
+    parameters besides that atmospheric mixing params:
+    theta23/deltam31. Does not modify atm mix params, leaving them
+    fixed or not, as they were..
     """
+
     new_params = {}
     # or initialize with new copy by dict(params)
-    #atm_params = ['deltam31','theta23']
     for key,value in params.items():
         new_params[key] = value.copy()
-        #for akey in atm_params:
-            #if akey not in key:
         if (bool(re.match('^theta23', key)) or bool(re.match('^deltam31', key))):
-            new_params[key]['fixed'] = False 
+            #new_params[key]['fixed'] = False
+            continue
         else:
             new_params[key]['fixed'] = True
-    
+
     return new_params
 
 def fix_all_params(params):

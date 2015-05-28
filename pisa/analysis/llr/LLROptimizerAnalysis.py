@@ -98,10 +98,6 @@ parser.add_argument('-m','--minimizer_settings',type=str,
                     metavar='JSONFILE', required = True,
                     help='''Settings related to the optimizer used in the LLR
                     analysis.''')
-#parser.add_argument('-pd','--pseudo_data_settings',type=str,
-#                    metavar='JSONFILE',default=None,
-#                    help='''Settings for pseudo data templates, if desired to be different from
-#                    template_settings.''')
 parser.add_argument('-n','--ntrials',type=int, default = 1,
                     help="Number of trials to run")
 parser.add_argument('--gpu_id',type=int,default=None,
