@@ -23,10 +23,11 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 from pisa.analysis.stats.Maps import apply_ratio_scale
 from pisa.flux.HondaFluxService import HondaFluxService, primaries
-from pisa.utils.log import logging, physics, set_verbosity
 from pisa.utils.jsons import from_json, to_json, json_string
+from pisa.utils.log import logging, physics, set_verbosity
 from pisa.utils.proc import report_params, get_params, add_params
 from pisa.utils.utils import get_bin_centers
+
 
 def apply_nue_numu_ratio(flux_maps, nue_numu_ratio):
     """

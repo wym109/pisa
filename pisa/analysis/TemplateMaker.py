@@ -70,7 +70,7 @@ class TemplateMaker:
         * czbins - coszen bin edges
         '''
 
-        
+
         self.ebins = ebins
         self.czbins = czbins
         self.oversample_e = oversample_e

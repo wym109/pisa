@@ -23,11 +23,11 @@ import numpy as np
 from scipy.constants import Julian_year
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
-from pisa.utils.log import logging, set_verbosity
-from pisa.utils.utils import check_binning, get_binning
-from pisa.utils.jsons import from_json, to_json
-from pisa.utils.proc import report_params, get_params, add_params
 from pisa.resources.resources import find_resource
+from pisa.utils.jsons import from_json, to_json
+from pisa.utils.log import logging, set_verbosity
+from pisa.utils.proc import report_params, get_params, add_params
+from pisa.utils.utils import check_binning, get_binning
 
 from pisa.aeff.AeffServiceMC import AeffServiceMC
 from pisa.aeff.AeffServicePar import AeffServicePar
@@ -58,6 +58,9 @@ def apply_nu_nubar_ratio(event_rate_maps, nu_nubar_ratio):
 
                  event_rate_maps[flavour][int_type]['map'] = scaled_nu_rates
                  event_rate_maps[flavour+'_bar'][int_type]['map'] = scaled_nubar_rates
+
+    #print "nu_nubar_ratio != 1, : ", nu_nubar_ratio
+    #raw_input("PAUSED...")
 
     return event_rate_maps
 
