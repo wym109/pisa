@@ -33,7 +33,7 @@ from pisa.aeff.AeffServiceMC import AeffServiceMC
 from pisa.aeff.AeffServicePar import AeffServicePar
 
 
-def get_event_rates(osc_flux_maps,aeff_service,livetime=None,nu_nubar_ratio=None,
+def get_event_rates(osc_flux_maps,aeff_service,livetime=None,
                     aeff_scale=None,**kwargs):
     '''
     Main function for this module, which returns the event rate maps
@@ -48,10 +48,6 @@ def get_event_rates(osc_flux_maps,aeff_service,livetime=None,nu_nubar_ratio=None
       * osc_flux_maps - maps containing oscillated fluxes
       * aeff_service - the effective area service to use
       * livetime - detector livetime for which to calculate event counts
-      * nu_nubar_ratio - systematic to be a proxy for the realistic
-        counts_nue(cc/nc) / counts_nuebar(cc/nc), ... ratios,
-        keeping the total flavour counts constant.
-        The adjusted ratios are given by "nu_nubar_ratio * original ratio".
       * aeff_scale - systematic to be a proxy for the realistic effective area
     '''
 
@@ -112,8 +108,6 @@ area and its cos(zenith) dependence. Only applies in parametric mode.''')
                         default='aeff/V36/V36_aeff_cz.json')
     parser.add_argument('--livetime',type=float,default=1.0,
                         help='''livetime in years to re-scale by.''')
-    parser.add_argument('--nu_nubar_ratio',type=float,default=1.0,
-                        help='''Overall scale on nu xsec.''')
     parser.add_argument('--aeff_scale',type=float,default=1.0,
                         help='''Overall scale on aeff''')
     parser.add_argument('--mc_mode',action='store_true', default=False,
@@ -142,8 +136,8 @@ area and its cos(zenith) dependence. Only applies in parametric mode.''')
         aeff_service = AeffServicePar(ebins,czbins,**aeff_settings)
 
 
-    event_rate_maps = get_event_rates(args.osc_flux_maps,aeff_service,args.livetime,
-                                      args.nu_nubar_ratio,args.aeff_scale)
+    event_rate_maps = get_event_rates(
+        args.osc_flux_maps, aeff_service, args.livetime, args.aeff_scale)
 
     logging.info("Saving output to: %s"%args.outfile)
     to_json(event_rate_maps,args.outfile)
