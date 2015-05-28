@@ -31,38 +31,6 @@ from pisa.utils.utils import check_binning, get_binning
 
 from pisa.aeff.AeffServiceMC import AeffServiceMC
 from pisa.aeff.AeffServicePar import AeffServicePar
-from pisa.analysis.stats.Maps import apply_ratio_scale
-
-
-def apply_nu_nubar_ratio(event_rate_maps, nu_nubar_ratio):
-    '''
-    Applies the nu_nubar_ratio systematic to the event rate
-    maps and returns the scaled maps. The actual calculation is
-    done by apply_ratio_scale.
-    '''
-    flavours = event_rate_maps.keys()
-    if 'params' in flavours: flavours.remove('params')
-
-    for flavour in flavours:
-        # process nu and nubar in one go
-        if not 'bar' in flavour:
-             # do this for each interaction channel (cc and nc)
-             for int_type in event_rate_maps[flavour].keys():
-                 scaled_nu_rates, scaled_nubar_rates = apply_ratio_scale(
-                     orig_maps = event_rate_maps,
-                     key1 = flavour, key2 = flavour+'_bar',
-                     ratio_scale = nu_nubar_ratio,
-                     is_flux_scale = False,
-                     int_type = int_type
-                 )
-
-                 event_rate_maps[flavour][int_type]['map'] = scaled_nu_rates
-                 event_rate_maps[flavour+'_bar'][int_type]['map'] = scaled_nubar_rates
-
-    #print "nu_nubar_ratio != 1, : ", nu_nubar_ratio
-    #raw_input("PAUSED...")
-
-    return event_rate_maps
 
 
 def get_event_rates(osc_flux_maps,aeff_service,livetime=None,nu_nubar_ratio=None,
@@ -114,11 +82,6 @@ def get_event_rates(osc_flux_maps,aeff_service,livetime=None,nu_nubar_ratio=None
             logging.debug("  Event Rate before reco for %s/%s: %.2f"
                           %(flavour,int_type,np.sum(event_rate)))
         event_rate_maps[flavour] = int_type_dict
-
-    # now scale the nu(e/mu/tau) / nu(e/mu/tau)bar event count ratios, keeping the total
-    # (nue + nuebar etc.) constant
-    if nu_nubar_ratio != 1.:
-        return apply_nu_nubar_ratio(event_rate_maps, nu_nubar_ratio)
 
     # else: no scaling to be applied
     return event_rate_maps

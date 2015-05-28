@@ -57,6 +57,31 @@ def apply_nue_numu_ratio(flux_maps, nue_numu_ratio):
 
     return flux_maps
 
+def apply_nu_nubar_ratio(event_rate_maps, nu_nubar_ratio):
+    """
+    Applies the nu_nubar_ratio systematic to the event rate
+    maps and returns the scaled maps. The actual calculation is
+    done by apply_ratio_scale.
+    """
+    flavours = event_rate_maps.keys()
+    if 'params' in flavours: flavours.remove('params')
+
+    for flavour in flavours:
+        # process nu and nubar in one go
+        if not 'bar' in flavour:
+            # do this for each interaction channel (cc and nc)
+            scaled_nu_rates, scaled_nubar_rates = apply_ratio_scale(
+                orig_maps = event_rate_maps,
+                key1 = flavour, key2 = flavour+'_bar',
+                ratio_scale = nu_nubar_ratio,
+                is_flux_scale = True,
+            )
+            event_rate_maps[flavour]['map'] = scaled_nu_rates
+            event_rate_maps[flavour+'_bar']['map'] = scaled_nubar_rates
+
+    return event_rate_maps
+
+
 def apply_delta_index(flux_maps, delta_index, egy_med):
     """
     Applies the spectral index systematic to the flux maps by scaling
@@ -89,8 +114,8 @@ def get_median_energy(flux_map):
 
     return energy
 
-def get_flux_maps(flux_service, ebins, czbins, nue_numu_ratio, energy_scale,
-                  atm_delta_index,**kwargs):
+def get_flux_maps(flux_service, ebins, czbins, nue_numu_ratio, nu_nubar_ratio,
+                  energy_scale, atm_delta_index,**kwargs):
     """
     Get a set of flux maps for the different primaries.
 
@@ -102,6 +127,8 @@ def get_flux_maps(flux_service, ebins, czbins, nue_numu_ratio, energy_scale,
         keeping both the total flux from neutrinos and antineutrinos
         constant. The adjusted ratios are given by
         "nue_numu_ratio * original ratio".
+      * nu_nubar_ratio - systematic to be a proxy for the
+        neutrino/anti-neutrino production/cross section ratio.
       * energy_scale - factor to scale energy bin centers by
       * atm_delta_index  - change in spectral index from fiducial
     """
@@ -128,8 +155,12 @@ def get_flux_maps(flux_service, ebins, czbins, nue_numu_ratio, energy_scale,
     # Flux (nue + numu, nue_bar + numu_bar) constant, or return unscaled maps:
     scaled_maps = apply_nue_numu_ratio(maps, nue_numu_ratio) if nue_numu_ratio != 1.0 else maps
 
-    median_energy = get_median_energy(maps['numu'])
+    # now scale the nu(e/mu) / nu(e/mu)bar event count ratios, keeping the total
+    # (nue + nuebar etc.) constant
+    if nu_nubar_ratio != 1.:
+        scaled_maps = apply_nu_nubar_ratio(scaled_maps, nu_nubar_ratio)
 
+    median_energy = get_median_energy(maps['numu'])
     if atm_delta_index != 0.0:
         scaled_maps = apply_delta_index(scaled_maps, atm_delta_index, median_energy)
 
@@ -153,6 +184,8 @@ if __name__ == '__main__':
                         default = 'flux/spl-solmax-aa.d')
     parser.add_argument('--nue_numu_ratio',metavar='FLOAT',type=float,
                         help='''Factor to scale nue_flux by''',default=1.0)
+    parser.add_argument('--nu_nubar_ratio',metavar='FLOAT',type=float,
+                        help='''Factor to scale nu_nubar_flux by''',default=1.0)
     parser.add_argument('--delta_index',metavar='FLOAT',type=float,
                         default=0.0,help='''Shift in spectral index of numu''')
     parser.add_argument('--energy_scale',metavar='FLOAT',type=float,
@@ -177,9 +210,8 @@ if __name__ == '__main__':
 
     #get the flux
     flux_maps = get_flux_maps(
-        flux_model,args.ebins,args.czbins,args.nue_numu_ratio,args.energy_scale,
-        args.delta_index)
-
+        flux_model, args.ebins, args.czbins, args.nue_numu_ratio, args.nu_nubar_ratio,
+        args.energy_scale, args.delta_index)
 
     #write out to a file
     logging.info("Saving output to: %s"%args.outfile)
