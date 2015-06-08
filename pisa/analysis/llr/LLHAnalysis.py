@@ -167,42 +167,50 @@ def find_max_llh_bfgs(fmap, template_maker, params, bfgs_settings, save_steps=Fa
     return opt_steps_dict
 
 
-def llh_bfgs(opt_vals,*args):
-    """
-    Function that the bfgs algorithm tries to minimize. Essentially,
-    it is a wrapper function around get_template() and
-    get_binwise_llh().
+def llh_bfgs(opt_vals, names, scales, fmap, fixed_params, template_maker,
+             opt_steps_dict, priors):
+    '''
+    Function that the bfgs algorithm tries to minimize: wraps get_template()
+    and get_binwise_llh(), and returns the negative log likelihood.
 
-    This fuction is set up this way, because the fmin_l_bfgs_b
-    algorithm must take a function with two inputs: params & *args,
-    where 'params' are the actual VALUES to be varied, and must
-    correspond to the limits in 'bounds', and 'args' are arguments
-    which are not varied and optimized, but needed by the
-    get_template() function here. Thus, we pass the arguments to this
-    function as follows:
+    This fuction is set up this way because the fmin_l_bfgs_b algorithm must
+    take a function with two inputs: params & *args, where 'params' are the
+    actual VALUES to be varied, and must correspond to the limits in 'bounds',
+    and 'args' are arguments which are not varied and optimized, but needed by
+    the get_template() function here.
 
-    --opt_vals: [param1,param2,...,paramN] - systematics varied in the optimization.
-    --args: [names,scales,fmap,fixed_params,template_maker,opt_steps_dict,priors]
-      where
-        names: are the dict keys corresponding to param1, param2,...
-        scales: the scales to be applied before passing to get_template
-          [IMPORTANT! In the optimizer, all parameters must be ~ the same order.
-          Here, we keep them between 0.1,1 so the "epsilon" step size will vary
-          the parameters in roughly the same precision.]
-        fmap: pseudo data flattened map
-        fixed_params: dictionary of other paramters needed by the get_template()
-          function
-        template_maker: template maker object
-        opt_steps_dict: dictionary recording information regarding the steps taken
-          for each trial of the optimization process.
-        priors: gaussian priors corresponding to opt_vals list.
-          Format: [(prior1,best1),(prior2,best2),...,(priorN,bestN)]
-    """
+    Parameters
+    ----------
+    opt_vals : sequence of scalars
+        Systematics varied in the optimization.
+        Format: [param1, param2, ... , paramN]
+    names : sequence of str
+        Dictionary keys corresponding to param1, param2, ...
+    scales : sequence of float
+        Scales to be applied before passing to get_template
+        [IMPORTANT! In the optimizer, all parameters must be ~ the same order.
+        Here, we keep them between 0.1,1 so the "epsilon" step size will vary
+        the parameters with roughly the same precision.]
+    fmap : sequence of float
+        Pseudo data flattened map
+    fixed_params : dict
+        Other paramters needed by the get_template() function.
+    template_maker : template maker object
+    opt_steps_dict: dict
+        Dictionary recording information regarding the steps taken for each
+        trial of the optimization process.
+    priors : sequence of 2-tuples
+        Gaussian priors corresponding to opt_vals list.
+        Format: [(prior1,best1),(prior2,best2),...,(priorN,bestN)]
 
+    Returns
+    -------
+    neg_llh : float
+        Minimum negative log likelihood found by BFGS minimizer
 
-    names,scales,fmap,fixed_params,template_maker,opt_steps_dict,priors = args
-
-    # free parameters being "optimized" by minimizer re-scaled to their true values.
+    '''
+    # free parameters being "optimized" by minimizer re-scaled to their true
+    # values.
     unscaled_opt_vals = [opt_vals[i]/scales[i] for i in xrange(len(opt_vals))]
 
     unscaled_free_params = { names[i]: val for i,val in enumerate(unscaled_opt_vals) }
@@ -221,19 +229,19 @@ def llh_bfgs(opt_vals,*args):
     # NOTE: The minus sign is present on both of these next two lines
     # to reflect the fact that the optimizer finds a minimum rather
     # than maximum.
-    llh = -get_binwise_llh(fmap,true_fmap)
-    llh -= sum([ get_prior_llh(opt_val,sigma,value)
-                 for (opt_val,(sigma,value)) in zip(unscaled_opt_vals,priors)])
+    neg_llh = -get_binwise_llh(fmap, true_fmap)
+    neg_llh -= sum([get_prior_llh(opt_val, *p)
+                for (opt_val, p) in zip(unscaled_opt_vals, priors)])
 
     # Save all optimizer-tested values to opt_steps_dict, to see
     # optimizer history later
     for key in names:
         opt_steps_dict[key].append(template_params[key])
-    opt_steps_dict['llh'].append(llh)
+    opt_steps_dict['llh'].append(neg_llh)
 
-    physics.debug("LLH is %.2f at: "%llh)
+    physics.debug("LLH is %.2f at: "%neg_llh)
     for name, val in zip(names, opt_vals):
         physics.debug(" %20s = %6.4f" %(name,val))
 
-    return llh
+    return neg_llh
 

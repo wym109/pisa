@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 #
-# LLRScanAnalysis.py
+# ScanAnalysis.py
 #
 # Runs a brute-force scan LLR analysis
 #

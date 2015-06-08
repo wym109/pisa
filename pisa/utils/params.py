@@ -10,6 +10,8 @@
 # date:   16 October 2014
 #
 
+import scipy as sp
+import numpy as np
 
 def get_values(params):
     """
@@ -67,17 +69,69 @@ def get_free_params(params):
 
     return { key: value for key, value in params.items() if not value['fixed']}
 
-def get_prior_llh(value,sigma,fiducial):
-    """
-    Returns the log(prior) for a gaussian prior probability, unless it
-    has not been defined, in which case 0.0 is returned.. Ignores the
-    constant term proportional to log(sigma_prior).
+def get_prior_llh(value, p1=None, p2=None):
+    '''
+    Value of the log prior at a hypothesized parameter value.
 
-    value - specific value of free parameter in likelihood hypothesis
-    sigma - (gaussian) prior on free parameter.
-    fiducial - best fit value of free parameter.
-    """
-    return 0.0 if sigma is None else -((value - fiducial)**2/(2.0*sigma**2))
+    Can specify no log prior, a parabolic log prior (i.e., a Gaussian prior),
+    or an arbitrary continuous, piecewise-linearly-interpolated log prior. Note
+    that the latter is linearly interpolated in log space.
+
+    Parameters
+    ----------
+    value : float
+        Parameter's (hypothesized) value
+
+    p1 : None, float or sequence of floats
+        If None: Return 0.0 (no prior)
+        If float: Width (sigma) of the parabolic log prior (Gaussian prior)
+        If sequence of floats: Parameter values at which the piecewise-linear
+            log prior is defined
+        Default: None
+
+    p2 : None, float or sequence of floats (must match that of p1)
+        If float: Parameter's best-fit value (i.e., parameter value
+            corresponding to parabolic log prior's vertex or, equivalently,
+            Gaussian prior's mu)
+        If sequence of floats: Log prior values corresponding to parameter
+            values p1
+        Default: None
+
+    Returns
+    -------
+    log_prior : float
+        If a log prior is specified and the hypothesized value lies within the
+        specified domain in the case of a piecewise-linear log prior, returns
+        the corresponding log prior's value for the hypothesis; otherwise,
+        returns 0.0.
+
+    Note
+    ----
+    Additive constants are irrelevant, and thus the implementation here of a
+    parabolic log prior (Gaussian prior) ignores the normalization constant.
+
+    '''
+    # No log prior
+    if p1 is None:
+        log_prior = np.zeros_like(value)
+
+    # Piecewise-linear log prior (returns 0.0 if hypothesis lies outside specified
+    # range)
+    elif hasattr(p1, '__len__'):
+        interpolant = sp.interpolate.interp1d(x=p1, y=p2,
+                                              kind='linear',
+                                              copy=True,
+                                              bounds_error=False,
+                                              fill_value=0.0)
+        log_prior = float(interpolant(value))
+        
+    # Parabolic log prior (Gaussian prior)
+    else:
+        sigma = p1
+        fiducial = p2
+        log_prior = -((value - fiducial)**2/(2.0*sigma**2))
+
+    return log_prior
 
 def get_param_values(params):
     """

@@ -109,12 +109,12 @@ def find_max_grid(fmap,template_maker,params,grid_settings,save_steps=True,
         profile.info('stop template calculation')
         true_fmap = flatten_map(true_template)
 
-        #and calculate the likelihood
+        # and calculate the likelihood
         llh = -get_binwise_llh(fmap,true_fmap)
 
-        #get sorted vals to match with priors
+        # get sorted vals to match with priors
         vals = [ v for k,v in sorted(pos) ]
-        llh -= sum([ get_prior_llh(vals,sigma,value) for (vals,(sigma,value)) in zip(vals,priors)])
+        llh -= sum([get_prior_llh(v, *p) for v,p in zip(vals, priors)])
 
         # Save all values to steps and report
         steps['llh'].append(llh)
