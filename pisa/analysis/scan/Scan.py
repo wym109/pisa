@@ -11,7 +11,7 @@ import numpy as np
 from itertools import product
 
 from pisa.utils.log import logging, physics, profile
-from pisa.utils.params import get_values, select_hierarchy, get_fixed_params, get_free_params, get_prior_llh, get_param_values, get_param_scales, get_param_bounds, get_param_priors
+from pisa.utils.params import get_values, select_hierarchy, get_fixed_params, get_free_params, get_param_values, get_param_scales, get_param_bounds, get_param_priors
 from pisa.analysis.stats.Maps import flatten_map
 from pisa.analysis.stats.LLHStatistics import get_binwise_llh
 
@@ -75,13 +75,13 @@ def find_max_grid(fmap,template_maker,params,grid_settings,save_steps=True,
 
     # Get params dict which will be optimized (free_params) and which
     # won't be (fixed_params) but are still needed for get_template()
-    fixed_params = get_fixed_params(select_hierarchy(params,normal_hierarchy))
-    free_params = get_free_params(select_hierarchy(params,normal_hierarchy))
+    fixed_params = get_fixed_params(select_hierarchy(params, normal_hierarchy))
+    free_params = get_free_params(select_hierarchy(params, normal_hierarchy))
 
     #Obtain just the priors
     priors = get_param_priors(free_params)
 
-    #Calculate steps for all free parameters
+    #Calculate steps [(prior,value),...] for all free parameters
     calc_steps(free_params, grid_settings['steps'])
 
     #Build a list from all parameters that holds a list of (name, step) tuples
@@ -114,7 +114,7 @@ def find_max_grid(fmap,template_maker,params,grid_settings,save_steps=True,
 
         # get sorted vals to match with priors
         vals = [ v for k,v in sorted(pos) ]
-        llh -= sum([get_prior_llh(v, *p) for v,p in zip(vals, priors)])
+        llh -= sum([prior.llh(val) for val, prior in zip(vals, priors)])
 
         # Save all values to steps and report
         steps['llh'].append(llh)
