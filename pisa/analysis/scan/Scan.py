@@ -49,8 +49,8 @@ def calc_steps(params, settings):
                           (len(steps), name, steps[0], steps[-1]))
 
 
-def find_max_grid(fmap,template_maker,params,grid_settings,save_steps=True,
-                                                     normal_hierarchy=True):
+def find_max_grid(fmap, template_maker, params, grid_settings, save_steps=True,
+                  normal_hierarchy=True):
     '''
     Finds the template (and free systematic params) that maximize
     likelihood that the data came from the chosen template of true
