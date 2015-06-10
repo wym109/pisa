@@ -7,6 +7,7 @@
 # date:   April 8, 2014
 #
 
+import sys
 import h5py
 import numpy as np
 from pisa.utils.log import logging
@@ -31,7 +32,7 @@ class AeffServiceMC:
         except IOError,e:
             logging.error("Unable to open aeff_weight_file %s"%aeff_weight_file)
             logging.error(e)
-            sys.exit(1)
+            raise
 
         self.aeff_dict = {}
         logging.info("Creating effective area dict...")

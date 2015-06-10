@@ -104,7 +104,7 @@ def find_max_llh_bfgs(fmap, template_maker, params, bfgs_settings,
         logging.warn("NO FREE PARAMS, returning LLH")
         true_template = template_maker.get_template(get_values(fixed_params))
         channel = params['channel']['value']
-        true_fmap = flatten_map(true_template, chan=channel)
+        true_fmap = flatten_map(template=true_template, channel=channel)
         return {'llh': [-get_binwise_llh(fmap, true_fmap)]}
 
     init_vals = get_param_values(free_params)
@@ -232,7 +232,8 @@ def llh_bfgs(opt_vals, names, scales, fmap, fixed_params, template_maker,
         else:
             true_template = template_maker.get_template(template_params)
     profile.info("==> elapsed time for template maker: %s sec"%t.secs)
-    true_fmap = flatten_map(true_template,chan=template_params['channel'])
+    true_fmap = flatten_map(template=true_template,
+                            channel=template_params['channel'])
 
     # NOTE: The minus sign is present on both of these next two lines
     # because the optimizer finds a minimum rather than maximum, so we

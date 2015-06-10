@@ -70,7 +70,7 @@ if scipy.__version__ < '0.12.0':
 channel = template_settings['params']['channel']['value']
 if channel != pseudo_data_settings['params']['channel']['value']:
     error_msg = "Both template and pseudo data must have same channel!\n"
-    error_msg += " pseudo_data_settings chan: '%s', template chan: '%s' "%(pseudo_data_settings['params']['channel']['value'],channel)
+    error_msg += " pseudo_data_settings channel: '%s', template channel: '%s' "%(pseudo_data_settings['params']['channel']['value'],channel)
     raise ValueError(error_msg)
 
 if args.gpu_id is not None:
@@ -110,11 +110,13 @@ try:
             results[data_tag]['seed'] = get_seed()
             logging.info("  RNG seed: %ld"%results[data_tag]['seed'])
             # 1) get a pseudo data fmap from fiducial model (best fit vals of params).
+            fiducial_params = get_values(select_hierarchy(pseudo_data_settings['params'], normal_hierarchy=data_normal))
             fmap = get_pseudo_data_fmap(
-                pseudo_data_template_maker,
-                get_values(select_hierarchy(pseudo_data_settings['params'],
-                                            normal_hierarchy=data_normal)),
-                seed=results[data_tag]['seed'],chan=channel)
+                template_maker=pseudo_data_template_maker,
+                fiducial_params=fiducial_params,
+                channel=channel,
+                seed=results[data_tag]['seed']
+            )
 
             # 2) find max llh (and best fit free params) from matching pseudo data
             #    to templates.
