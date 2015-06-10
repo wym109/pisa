@@ -52,12 +52,12 @@ grid_settings  = from_json(args.grid_settings)
 # Get the parameters
 params = template_settings['params']
 
-# store results from all the trials
+# List to store results from all the trials
 trials = []
 
 template_maker = TemplateMaker(get_values(params), **template_settings['binning'])
 
-for itrial in xrange(1,args.ntrials+1):
+for itrial in xrange(1, args.ntrials+1):
     profile.info("start trial %d"%itrial)
     logging.info(">"*10 + "Running trial: %05d"%itrial + "<"*10)
 
@@ -95,7 +95,7 @@ for itrial in xrange(1,args.ntrials+1):
 
 
     # Store this trial
-    trials += [results]
+    trials.append(results)
     profile.info("stop trial %d"%itrial)
 
 # Assemble output dict
@@ -103,4 +103,4 @@ output = {'trials' : trials,
           'template_settings' : template_settings,
           'grid_settings' : grid_settings}
 # And write to file
-to_json(output,args.outfile)
+to_json(output, args.outfile)

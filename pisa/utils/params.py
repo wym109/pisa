@@ -144,6 +144,21 @@ def select_hierarchy(params, normal_hierarchy):
 
     return newparams
 
+def select_hierarchy_and_nutau_norm(params, normal_hierarchy, nutau_norm_value):
+    ''' Select one hierarchy and change the value of nutau_norm (for the pseudo settings file)'''
+    newparams = select_hierarchy(params, normal_hierarchy)
+    newparams["nutau_norm"]["value"] = nutau_norm_value
+    return newparams
+
+def change_nutau_norm_settings(params, nutau_norm_val, nutau_norm_fix):
+    ''' Change the value of nutau_norm["value"] and ["fixed"] (for the template settings file)'''
+    if not isinstance(nutau_norm_fix, bool):
+                raise ValueError('nutau_norm_fix must be boolean value')
+    newparams = select_hierarchy(params, True)
+    newparams["nutau_norm"]["value"] = nutau_norm_val
+    newparams["nutau_norm"]["fixed"] = nutau_norm_fix
+    return newparams
+
 def get_fixed_params(params):
     """
     Finds all fixed parameters in params dict and returns them in a
