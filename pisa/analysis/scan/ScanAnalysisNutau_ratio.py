@@ -177,7 +177,7 @@ for itrial in xrange(1, args.ntrials+1):
 
 
     # Store this trial
-    trials.append(results)
+    trials += [results]
     profile.info("stop trial %d"%itrial)
 
 # Assemble output dict

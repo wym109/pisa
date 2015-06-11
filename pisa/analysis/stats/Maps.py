@@ -87,47 +87,47 @@ def get_pseudo_data_fmap(template_maker, fiducial_params, channel, seed=None):
         template_maker_down = template_maker[1]
         template_up = template_maker_up.get_template(fiducial_params)  
         template_down = template_maker_down.get_template(fiducial_params)  
-        reflected_template_down = get_flipped_map(template_down,channel=fiducial_params['channel'])
-        true_fmap_up = flatten_map(template_up,channel=fiducial_params['channel'])
-        true_fmap_down = flatten_map(reflected_template_down,channel=fiducial_params['channel'])
+        reflected_template_down = get_flipped_map(template_down, channel=fiducial_params['channel'])
+        true_fmap_up = flatten_map(template_up, channel=fiducial_params['channel'])
+        true_fmap_down = flatten_map(reflected_template_down, channel=fiducial_params['channel'])
         fmap_up = get_random_map(true_fmap_up, seed=get_seed())
         fmap_down = get_random_map(true_fmap_down, seed=get_seed())
         if fiducial_params['residual_up_down']:
             fmap = fmap_up-fmap_down
         elif fiducial_params['ratio_up_down']:
-            fmap = np.array([fmap_up,fmap_down])
+            fmap = np.array([fmap_up, fmap_down])
         else:
-            fmap = np.append(fmap_up,fmap_down)
+            fmap = np.append(fmap_up, fmap_down)
     else:
         true_template = template_maker.get_template(fiducial_params)
         true_fmap = flatten_map(true_template, channel=channel)
         fmap = get_random_map(true_fmap, seed=seed)
     return fmap
 
-def get_true_template(template_params,template_maker):
+def get_true_template(template_params, template_maker):
     if template_params['theta23'] == 0.0:
         logging.info("Zero theta23, so generating no oscillations template...")
         true_template = template_maker.get_template_no_osc(template_params)
-        true_fmap = flatten_map(true_template,channel=template_params['channel'])
+        true_fmap = flatten_map(true_template, channel=template_params['channel'])
     elif type(template_maker)==list and len(template_maker)==2:
         template_maker_up = template_maker[0]
         template_maker_down = template_maker[1]
         template_up = template_maker_up.get_template(template_params)  
         template_down = template_maker_down.get_template(template_params)  
-        reflected_template_down = get_flipped_map(template_down,chan=template_params['channel'])
-        true_fmap_up = flatten_map(template_up,chan=template_params['channel'])
-        true_fmap_down = flatten_map(reflected_template_down,chan=template_params['channel'])
+        reflected_template_down = get_flipped_map(template_down, channel=template_params['channel'])
+        true_fmap_up = flatten_map(template_up, channel=template_params['channel'])
+        true_fmap_down = flatten_map(reflected_template_down, channel=template_params['channel'])
         if template_params['residual_up_down'] or template_params['ratio_up_down']:
-            true_fmap = np.array([true_fmap_up,true_fmap_down])
+            true_fmap = np.array([true_fmap_up, true_fmap_down])
         else:
-            true_fmap = np.append(true_fmap_up,true_fmap_down)
+            true_fmap = np.append(true_fmap_up, true_fmap_down)
     else:
         true_template = template_maker.get_template(template_params)  
-        true_fmap = flatten_map(true_template,chan=template_params['channel'])
+        true_fmap = flatten_map(true_template, channel=template_params['channel'])
 
     return true_fmap
 
-def get_pseudo_tau_fmap(template_maker,fiducial_params,seed=None,chan=None):
+def get_pseudo_tau_fmap(template_maker, fiducial_params, channel=None, seed=None):
     '''
     Creates a true template from fiducial_params, then uses Poisson statistics
     to vary the expected counts per bin to create a pseudo data set.
@@ -136,7 +136,7 @@ def get_pseudo_tau_fmap(template_maker,fiducial_params,seed=None,chan=None):
 
     IMPORTANT: returns a SINGLE flattened map of trck/cscd combined
     \params:
-      * chan = channel of flattened fmap to use.
+      * channel = channel of flattened fmap to use.
         if 'all': returns a single flattened map of trck/cscd combined.
         if 'cscd' or 'trck' only returns the channel requested.
     ''' 
@@ -145,20 +145,20 @@ def get_pseudo_tau_fmap(template_maker,fiducial_params,seed=None,chan=None):
         template_maker_down = template_maker[1]
         template_up = template_maker_up.get_tau_template(fiducial_params)  
         template_down = template_maker_down.get_tau_template(fiducial_params)  
-        reflected_template_down = get_flipped_map(template_down,chan=fiducial_params['channel'])
-        true_fmap_up = flatten_map(template_up,chan=fiducial_params['channel'])
-        true_fmap_down = flatten_map(reflected_template_down,chan=fiducial_params['channel'])
+        reflected_template_down = get_flipped_map(template_down, channel=fiducial_params['channel'])
+        true_fmap_up = flatten_map(template_up, channel=fiducial_params['channel'])
+        true_fmap_down = flatten_map(reflected_template_down, channel=fiducial_params['channel'])
         fmap_up = get_random_map(true_fmap_up, seed=get_seed())
         fmap_down = get_random_map(true_fmap_down, seed=get_seed())
         if fiducial_params['residual_up_down']:
             fmap = fmap_up-fmap_down
         elif fiducial_params['ratio_up_down']:
-            fmap = np.array([fmap_up,fmap_down])
+            fmap = np.array([fmap_up, fmap_down])
         else:
-            fmap = np.append(fmap_up,fmap_down)
+            fmap = np.append(fmap_up, fmap_down)
     else:
         true_template = template_maker.get_tau_template(fiducial_params)  
-        true_fmap = flatten_map(true_template,chan=chan)
+        true_fmap = flatten_map(true_template, channel=channel)
         fmap = get_random_map(true_fmap, seed=seed)
     return fmap
 
@@ -166,7 +166,7 @@ def get_asimov_fmap(template_maker, fiducial_params, channel=None):
     """Creates a true template from fiducial_params"""
 
     true_template = template_maker.get_template(fiducial_params)
-    return flatten_map(true_template,channel=channel)
+    return flatten_map(true_template, channel=channel)
 
 def flatten_map(template, channel='all'):
     """
@@ -180,7 +180,7 @@ def flatten_map(template, channel='all'):
     if channel == 'all':
         cscd = template['cscd']['map'].flatten()
         trck = template['trck']['map'].flatten()
-        fmap = np.append(cscd,trck)
+        fmap = np.append(cscd, trck)
     elif channel == 'trck':
         trck = template[channel]['map'].flatten()
         fmap = np.array(trck)
@@ -196,7 +196,7 @@ def flatten_map(template, channel='all'):
         #fmap = np.array(fmap)[np.nonzero(fmap)]
     else:
         raise ValueError(
-            "channel: '%s' not implemented! Allowed: ['all', 'trck', 'cscd','no_pid']"%channel)
+            "channel: '%s' not implemented! Allowed: ['all', 'trck', 'cscd', 'no_pid']"%channel)
 
     fmap = np.array(fmap)[np.nonzero(fmap)]
     return fmap
@@ -207,12 +207,12 @@ def get_seed():
     state, e.g. for the poisson random variates.
     """
 
-    return int(os.urandom(4).encode('hex'),16)
+    return int(os.urandom(4).encode('hex'), 16)
 
-def get_up_map(map,channel):
+def get_up_map(map, channel):
     ''' Gets the upgoing map from a full sky map and flip it.'''
     if channel =='all':
-        flavs=['trck','cscd']
+        flavs=['trck', 'cscd']
     elif channel =='trck':
         flavs=['trck']
     elif channel =='cscd':
@@ -223,7 +223,7 @@ def get_up_map(map,channel):
             'ebins':map['trck']['ebins'],
             'czbins': map['trck']['czbins'][0:czbin_mid_idx+1] }}
     else:
-        raise ValueError("channel: '%s' not implemented! Allowed: ['all', 'trck', 'cscd','no_pid']"%channel)
+        raise ValueError("channel: '%s' not implemented! Allowed: ['all', 'trck', 'cscd', 'no_pid']"%channel)
     czbin_edges = len(map['cscd']['czbins'])
     czbin_mid_idx = (czbin_edges-1)/2
     return {flav:{
@@ -237,7 +237,7 @@ def get_flipped_down_map(map, channel):
     czbin_edges = len(map['cscd']['czbins'])
     czbin_mid_idx = (czbin_edges-1)/2
     if  channel=='all':
-        flavs=['trck','cscd']
+        flavs=['trck', 'cscd']
     elif  channel=='trck':
         flavs=['trck']
     elif  channel=='cscd':
@@ -248,19 +248,19 @@ def get_flipped_down_map(map, channel):
             'ebins':map['trck']['ebins'],
             'czbins': np.sort(-map['trck']['czbins'][czbin_mid_idx:]) }}
     else:
-        raise ValueError(" channel: '%s' not implemented! Allowed: ['all', 'trck', 'cscd','no_pid']"%channel)
+        raise ValueError(" channel: '%s' not implemented! Allowed: ['all', 'trck', 'cscd', 'no_pid']"%channel)
     return {flav:{
         'map': np.fliplr(map[flav]['map'][:,czbin_mid_idx:]),
         'ebins':map[flav]['ebins'],
         'czbins': np.sort(-map['trck']['czbins'][czbin_mid_idx:]) }
             for flav in flavs}
 
-def get_flipped_map(map,channel):
+def get_flipped_map(map, channel):
     ''' Flip a map.'''
     if not np.alltrue(map['cscd']['czbins']>=0):
         raise ValueError("This map has to be down-going neutrinos!")
     if channel=='all':
-        flavs=['trck','cscd']
+        flavs=['trck', 'cscd']
     elif channel=='trck':
         flavs=['trck']
     elif channel=='cscd':
@@ -271,7 +271,7 @@ def get_flipped_map(map,channel):
             'ebins':map['trck']['ebins'],
             'czbins': np.sort(-map['cscd']['czbins']) }}
     else:
-        raise ValueError("channel: '%s' not implemented! Allowed: ['all', 'trck', 'cscd','no_pid']"%channel)
+        raise ValueError("channel: '%s' not implemented! Allowed: ['all', 'trck', 'cscd', 'no_pid']"%channel)
     return {flav:{
         'map': np.fliplr(map[flav]['map']),
         'ebins':map[flav]['ebins'],

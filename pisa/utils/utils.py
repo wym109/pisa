@@ -71,14 +71,15 @@ def get_bin_sizes(edges):
 
 def is_linear(edges, maxdev=1e-5):
     """Check whether the bin edges correspond to a linear axis"""
-    linedges = np.linspace(edges[0],edges[-1],len(edges))
+    linedges = np.linspace(edges[0], edges[-1], len(edges))
     return np.abs(edges-linedges).max() < maxdev
 
 
-def is_logarithmic(edges, maxdev = 1e-5):
+def is_logarithmic(edges, maxdev=1e-5):
     """Check whether the bin edges correspond to a logarithmic axis"""
-    if np.any(np.array(edges) < 0): return False
-    logedges = np.logspace(np.log10(edges[0]),np.log10(edges[-1]),len(edges))
+    if np.any(np.array(edges) < 0):
+        return False
+    logedges = np.logspace(np.log10(edges[0]), np.log10(edges[-1]), len(edges))
     return np.abs(edges-logedges).max() < maxdev
 
 
