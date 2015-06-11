@@ -14,10 +14,12 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 from pisa.utils.log import logging, profile, physics, set_verbosity
 from pisa.utils.jsons import from_json,to_json
-from pisa.analysis.stats.Maps import get_pseudo_data_fmap, get_seed,get_asimov_data_fmap_up_down 
-from pisa.analysis.scan.Scan import find_max_grid
+from pisa.analysis.stats.Maps import get_seed
+from pisa.analysis.stats.Maps_nutau import get_pseudo_data_fmap, get_asimov_data_fmap_up_down 
+from pisa.analysis.scan.Scan_nutau import find_max_grid
 from pisa.analysis.TemplateMaker import TemplateMaker
-from pisa.utils.params import get_values, select_hierarchy_and_nutau_norm, change_nutau_norm_settings
+from pisa.utils.params import get_values
+from pisa.utils.params_nutau import select_hierarchy_and_nutau_norm, change_nutau_norm_settings
 import random as rnd
 
 parser = ArgumentParser(

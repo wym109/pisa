@@ -253,4 +253,3 @@ def llh_bfgs(opt_vals, names, scales, fmap, fixed_params, template_maker,
         physics.debug(" %20s = %6.4f" %(name,val))
 
     return neg_llh
-
