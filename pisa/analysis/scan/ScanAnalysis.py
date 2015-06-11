@@ -93,7 +93,6 @@ for itrial in xrange(1, args.ntrials+1):
             # Store the LLH data
             results[data_tag][hypo_tag] = llh_data
 
-
     # Store this trial
     trials.append(results)
     profile.info("stop trial %d"%itrial)
