@@ -12,10 +12,12 @@
 
 import scipy as sp
 import numpy as np
+import copy
+
 
 class Prior(object):
     def __init__(self, **kwargs):
-        self.constructor_args = kwargs
+        self.constructor_args = copy.deepcopy(kwargs)
         if not kwargs.has_key('kind'):
             raise TypeError(str(self.__class__) + ' __init__ requires `kind` kwarg to be specified')
         kind = kwargs.pop('kind')
@@ -32,15 +34,36 @@ class Prior(object):
             raise TypeError('Unknown Prior kind `' + str(kind) + '`')
 
     @classmethod
-    def from_old_style_param_dict(cls, param_dict):
-        if not param_dict.has_key('prior'):
-            return None #cls(kind='uniform')
-        prior = param_dict['prior']
+    def from_param(cls, param):
+        '''Factory method for generating a Prior object from a param dict.'''
+
+        if not isinstance(param, dict):
+            raise TypeError("`from_param` factory method can only instantiate a Prior object from a param dict")
+
+        # If param has no 'prior', do not create a Prior object
+        # NOTE: This is probably a poor design decision, but maintains a more
+        # "sparse" config file; probably should change in future.
+        if 'prior' not in param:
+            return None
+
+        prior = param['prior']
+
+        # Old-style prior specs that translate to a uniform prior
         if prior is None or (isinstance(prior, str) and prior.lower() == 'none'):
             return cls(kind='uniform')
-        fiducial = param_dict['value']
-        sigma = prior
-        return cls(kind='gaussian', fiducial=fiducial, sigma=sigma)
+
+        # Old-style prior spec that translates to a gaussian prior
+        elif isinstance(prior, (int, float)):
+            fiducial = param['value']
+            sigma = prior
+            return cls(kind='gaussian', fiducial=fiducial, sigma=sigma)
+
+        # New-style prior is a dictionary
+        elif isinstance(prior, dict):
+            return cls(**prior)
+
+        else:
+            raise TypeError("Uninterpretable param dict 'prior': " + str(prior))
 
     def __str__(self):
         return self._str(self)
@@ -103,6 +126,7 @@ class Prior(object):
     def check_range(self, x_range):
         return min(x_range) >= self.valid_range[0] and max(x_range) <= self.valid_range[1]
 
+
 def get_values(params):
     """
     Takes the params dict which is of the form:
@@ -118,6 +142,7 @@ def get_values(params):
       }
     """
     return { key: param['value'] for key, param in sorted(params.items()) }
+
 
 def select_hierarchy(params, normal_hierarchy):
     """
@@ -143,6 +168,7 @@ def select_hierarchy(params, normal_hierarchy):
 
     return newparams
 
+
 def get_fixed_params(params):
     """
     Finds all fixed parameters in params dict and returns them in a
@@ -150,6 +176,7 @@ def get_fixed_params(params):
     """
 
     return { key: value for key, value in params.items() if value['fixed']}
+
 
 def get_free_params(params):
     """
@@ -159,11 +186,13 @@ def get_free_params(params):
 
     return { key: value for key, value in params.items() if not value['fixed']}
 
+
 def get_param_values(params):
     """
     Returns a list of parameter values
     """
     return [ val['value'] for key,val in sorted(params.items()) ]
+
 
 def get_param_scales(params):
     """
@@ -171,11 +200,13 @@ def get_param_scales(params):
     """
     return [ val['scale'] for key,val in sorted(params.items()) ]
 
+
 def get_param_bounds(params):
     """
     Returns a list of parameter bounds where elements are (min,max) pairs
     """
     return [ val['range'] for key,val in sorted(params.items()) ]
+
 
 def get_param_priors(params):
     """
@@ -191,6 +222,7 @@ def get_param_priors(params):
         priors.append(prior)
     return priors
 
+
 def get_atm_params(params):
     """
     Returns dictionary of just the atmospheric parameters
@@ -198,6 +230,7 @@ def get_atm_params(params):
     atm_params = ['deltam31','theta23']
     return { key: value for key, value in params.items()
              for p in atm_params if p in key}
+
 
 def fix_osc_params(params):
     """
@@ -213,6 +246,7 @@ def fix_osc_params(params):
             if okey in key:
                 new_params[key]['fixed'] = True
     return new_params
+
 
 def fix_atm_params(params):
     """

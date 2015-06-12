@@ -23,9 +23,10 @@ from pisa.utils import params as ppars
 ts0 = putils.from_file(args.infile)
 ts1 = copy.deepcopy(ts0)
 for paramname, param in sorted(ts0['params'].iteritems()):
-    new_prior = ppars.Prior.from_old_style_param_dict(param_dict=param)
+    new_prior = ppars.Prior.from_param(param)
     if new_prior is None:
         continue
+    print 'Converting prior for param `' + paramname + '`'
     new_param = copy.deepcopy(param)
     new_param.update(new_prior.build_dict())
     ts1['params'][paramname] = new_param
