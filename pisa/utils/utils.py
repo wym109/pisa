@@ -12,8 +12,6 @@
 # date:   2014-01-27
 
 
-import os
-import sys
 import inspect
 import time
 import hashlib
@@ -185,17 +183,16 @@ def check_fine_binning(fine_bins, coarse_bins):
     This function checks whether the specified fine binning exists and
     is actually finer than the coarse one.
     """
-
     if fine_bins is not None:
         if is_coarser_binning(coarse_bins, fine_bins):
             logging.info('Using requested binning for oversampling.')
             #everything is fine
             return True
         else:
-            logging.error('Requested oversampled binning is coarser '
-                          'than output binning. Aborting.')
-            sys.exit(1)
-
+            errmsg = 'Requested oversampled binning is coarser ' + \
+                    'than output binning. Aborting.'
+            logging.error(errmsg)
+            raise ValueError(errmsg)
     return False
 
 
@@ -283,6 +280,3 @@ def hash_file(fname):
     md5 = hashlib.md5()
     md5.update(file(fname, 'rb').read())
     return md5.hexdigest()
-
-
-

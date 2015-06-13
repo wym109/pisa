@@ -217,7 +217,8 @@ def get_param_priors(params):
         try:
             prior = Prior(**param['prior'])
         except TypeError:
-            print "Check the template settings format, may be old-style priors"
+            logging.error("  Check template settings format, "
+                          "may have old-style priors")
             raise
         priors.append(prior)
     return priors
@@ -229,7 +230,7 @@ def get_atm_params(params):
     """
     atm_params = ['deltam31','theta23']
     return { key: value for key, value in params.items()
-             for p in atm_params if p in key}
+             for p in atm_params if p in key }
 
 
 def fix_osc_params(params):
@@ -239,7 +240,8 @@ def fix_osc_params(params):
     """
     new_params = {}
     # or initialize with new copy by dict(params)
-    osc_params = ['deltam31','deltam21','theta23','theta13','theta12','deltacp']
+    osc_params = ['deltam31', 'deltam21', 'theta23', 'theta13', 'theta12',
+                  'deltacp']
     for key,value in params.items():
         new_params[key] = value.copy()
         for okey in osc_params:
@@ -255,7 +257,7 @@ def fix_atm_params(params):
     """
     new_params = {}
     # or initialize with new copy by dict(params)
-    atm_params = ['deltam31','theta23']
+    atm_params = ['deltam31', 'theta23']
     for key,value in params.items():
         new_params[key] = value.copy()
         for akey in atm_params:

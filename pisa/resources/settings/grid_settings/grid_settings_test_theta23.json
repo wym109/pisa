@@ -1,9 +1,0 @@
-{ 
-  "steps" :
-    {
-      "desc": "steps for each paramter, can either be the number or a list of step values",
-      "*" : 1,
-      "theta23" : 100,
-      "deltam31" : 1
-    }
-}
