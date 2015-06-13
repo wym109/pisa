@@ -65,9 +65,8 @@ def display_optimizer_settings(free_params, names, init_vals, bounds, priors,
     """
     physics.info('%d parameters to be optimized'%len(free_params))
     for name, init_val, bound, prior in zip(names, init_vals, bounds, priors):
-        physics.info(('%20s : init = %6.4f, bounds = [%6.4f,%6.4f], '
-                      'best = %6.4f, prior = %s') %
-                     (name, init_val, up, down, best, prior))
+        physics.info(('%20s : init = %6.4f, bounds = [%6.4f,%6.4f], prior = %s')
+                     %(name, init_val, bound[0], bound[1], prior))
 
     physics.debug("Optimizer settings:")
     for key,item in bfgs_settings.items():

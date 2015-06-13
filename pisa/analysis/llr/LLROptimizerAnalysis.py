@@ -139,6 +139,7 @@ try:
 
 except:
     logging.warn("ERROR IN TRIAL %i, so outputting what we have now!!"%itrial)
+    raise
 
 
 # Assemble output dict

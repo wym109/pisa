@@ -17,12 +17,11 @@ import sys
 import inspect
 import time
 import hashlib
-import cPickle
 
 import numpy as np
 from scipy.stats import binned_statistic_2d
 
-from pisa.utils import hdf, jsons
+from pisa.utils import jsons
 from pisa.utils.log import logging
 
 
@@ -286,44 +285,4 @@ def hash_file(fname):
     return md5.hexdigest()
 
 
-JSON_EXTS = ['json']
-HDF5_EXTS = ['hdf', 'h5', 'hdf5']
-PKL_EXTS = ['pickle', 'pkl', 'p']
 
-def from_file(fname, fmt=None):
-    """Dispatch correct file reader based on fmt (if specified) or guess
-    based on file name's extension"""
-    if fmt is None:
-        base, ext = os.path.splitext(fname)
-        ext = ext.replace('.', '').lower()
-    else:
-        ext = fmt.lower()
-    if ext in JSON_EXTS:
-        return jsons.from_json(fname)
-    elif ext in HDF5_EXTS:
-        return hdf.from_hdf(fname)
-    elif ext in PKL_EXTS:
-        return cPickle.load(file(fname,'rb'))
-    else:
-        errmsg = 'Unrecognized file type/extension: ' + ext
-        logging.error(errmsg)
-        raise TypeError(errmsg)
-
-def to_file(obj, fname, fmt=None):
-    """Dispatch correct file writer based on fmt (if specified) or guess
-    based on file name's extension"""
-    if fmt is None:
-        base, ext = os.path.splitext(fname)
-        ext = ext.replace('.', '').lower()
-    else:
-        ext = fmt.lower()
-    if ext in JSON_EXTS:
-        return jsons.to_json(obj, fname)
-    elif ext in HDF5_EXTS:
-        return hdf.to_hdf(obj, fname)
-    elif ext in PKL_EXTS:
-        return cPickle.dump(obj, file(fname, 'wb'))
-    else:
-        errmsg = 'Unrecognized file type/extension: ' + ext
-        logging.error(errmsg)
-        raise TypeError(errmsg)
