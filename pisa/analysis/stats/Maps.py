@@ -12,7 +12,7 @@ from pisa.analysis.stats.LLHStatistics import get_random_map
 from pisa.utils.log import logging
 
 
-def apply_ratio_scale(orig_maps, key1, key2, ratio_scale, is_flux_scale, int_type = None):
+def apply_ratio_scale(orig_maps, key1, key2, ratio_scale, is_flux_scale, int_type=None):
     """
     Scales the ratio of the entries of two maps, conserving the total.
     """
@@ -44,8 +44,7 @@ def apply_ratio_scale(orig_maps, key1, key2, ratio_scale, is_flux_scale, int_typ
 
     return scaled_map1, scaled_map2
 
-
-def get_pseudo_data_fmap(template_maker,fiducial_params,seed=None,chan=None):
+def get_pseudo_data_fmap(template_maker, fiducial_params, channel, seed=None):
     """
     Creates a true template from fiducial_params, then uses Poisson statistics
     to vary the expected counts per bin to create a pseudo data set.
@@ -54,51 +53,51 @@ def get_pseudo_data_fmap(template_maker,fiducial_params,seed=None,chan=None):
 
     IMPORTANT: returns a SINGLE flattened map of trck/cscd combined
     \params:
-      * chan = channel of flattened fmap to use.
+      * channel = channel of flattened fmap to use.
         if 'all': returns a single flattened map of trck/cscd combined.
         if 'cscd' or 'trck' only returns the channel requested.
     """
 
     true_template = template_maker.get_template(fiducial_params)
-    true_fmap = flatten_map(true_template,chan=chan)
+    true_fmap = flatten_map(true_template, channel=channel)
     fmap = get_random_map(true_fmap, seed=seed)
-
     return fmap
 
-def get_asimov_fmap(template_maker,fiducial_params,chan=None):
+def get_asimov_fmap(template_maker, fiducial_params, channel=None):
     """Creates a true template from fiducial_params"""
 
     true_template = template_maker.get_template(fiducial_params)
-    return flatten_map(true_template,chan=chan)
+    return flatten_map(true_template, channel=channel)
 
-def flatten_map(template,chan='all'):
+def flatten_map(template, channel='all'):
     """
     Takes a final level true (expected) template of trck/cscd, and returns a
     single flattened map of trck appended to cscd, with all zero bins
     removed.
     """
 
-    logging.trace("Getting flattened map of chan: %s"%chan)
-    if chan == 'all':
+    logging.trace("Getting flattened map of channel: %s"%channel)
+
+    if channel == 'all':
         cscd = template['cscd']['map'].flatten()
         trck = template['trck']['map'].flatten()
-        fmap = np.append(cscd,trck)
-    elif chan == 'trck':
-        trck = template[chan]['map'].flatten()
+        fmap = np.append(cscd, trck)
+    elif channel == 'trck':
+        trck = template[channel]['map'].flatten()
         fmap = np.array(trck)
         #fmap = np.array(fmap)[np.nonzero(fmap)]
-    elif chan == 'cscd':
-        cscd = template[chan]['map'].flatten()
+    elif channel == 'cscd':
+        cscd = template[channel]['map'].flatten()
         fmap = np.array(cscd)
         #fmap = np.array(fmap)[np.nonzero(fmap)]
-    elif chan == 'no_pid':
+    elif channel == 'no_pid':
         cscd = template['cscd']['map'].flatten()
         trck = template['trck']['map'].flatten()
         fmap = cscd + trck
         #fmap = np.array(fmap)[np.nonzero(fmap)]
     else:
         raise ValueError(
-            "chan: '%s' not implemented! Allowed: ['all', 'trck', 'cscd','no_pid']")
+            "channel: '%s' not implemented! Allowed: ['all', 'trck', 'cscd', 'no_pid']"%channel)
 
     fmap = np.array(fmap)[np.nonzero(fmap)]
     return fmap
@@ -109,5 +108,4 @@ def get_seed():
     state, e.g. for the poisson random variates.
     """
 
-    return int(os.urandom(4).encode('hex'),16)
-
+    return int(os.urandom(4).encode('hex'), 16)

@@ -51,12 +51,12 @@ args = parser.parse_args()
 
 set_verbosity(args.verbose)
 
-#Read in the settings
+# Read in the settings
 template_settings = from_json(args.template_settings)
 minimizer_settings  = from_json(args.minimizer_settings)
 pseudo_data_settings = from_json(args.pseudo_data_settings) if args.pseudo_data_settings is not None else template_settings
 
-#Workaround for old scipy versions
+# Workaround for old scipy versions
 import scipy
 if scipy.__version__ < '0.12.0':
     logging.warn('Detected scipy version %s < 0.12.0'%scipy.__version__)
@@ -70,7 +70,7 @@ if scipy.__version__ < '0.12.0':
 channel = template_settings['params']['channel']['value']
 if channel != pseudo_data_settings['params']['channel']['value']:
     error_msg = "Both template and pseudo data must have same channel!\n"
-    error_msg += " pseudo_data_settings chan: '%s', template chan: '%s' "%(pseudo_data_settings['params']['channel']['value'],channel)
+    error_msg += " pseudo_data_settings channel: '%s', template channel: '%s' "%(pseudo_data_settings['params']['channel']['value'],channel)
     raise ValueError(error_msg)
 
 if args.gpu_id is not None:
@@ -89,7 +89,7 @@ else:
 
 # Put in try/except block?
 
-#store results from all the trials
+# store results from all the trials
 trials = []
 
 try:
@@ -110,11 +110,13 @@ try:
             results[data_tag]['seed'] = get_seed()
             logging.info("  RNG seed: %ld"%results[data_tag]['seed'])
             # 1) get a pseudo data fmap from fiducial model (best fit vals of params).
+            fiducial_param_values = get_values(select_hierarchy(pseudo_data_settings['params'], normal_hierarchy=data_normal))
             fmap = get_pseudo_data_fmap(
-                pseudo_data_template_maker,
-                get_values(select_hierarchy(pseudo_data_settings['params'],
-                                            normal_hierarchy=data_normal)),
-                seed=results[data_tag]['seed'],chan=channel)
+                template_maker=pseudo_data_template_maker,
+                fiducial_params=fiducial_param_values,
+                channel=channel,
+                seed=results[data_tag]['seed']
+            )
 
             # 2) find max llh (and best fit free params) from matching pseudo data
             #    to templates.
@@ -137,14 +139,15 @@ try:
 
 except:
     logging.warn("ERROR IN TRIAL %i, so outputting what we have now!!"%itrial)
+    raise
 
 
-#Assemble output dict
+# Assemble output dict
 output = {'trials' : trials,
           'template_settings' : template_settings,
           'minimizer_settings' : minimizer_settings}
 if args.pseudo_data_settings is not None:
     output['pseudo_data_settings'] = pseudo_data_settings
 
-    #And write to file
+# And write to file
 to_json(output,args.outfile)
