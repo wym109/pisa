@@ -177,7 +177,7 @@ def find_max_llh_bfgs(fmap, template_maker, params, bfgs_settings,
 
 def llh_bfgs(opt_vals, names, scales, fmap, fixed_params, template_maker,
              opt_steps_dict, priors):
-    '''
+    """
     Function that the bfgs algorithm tries to minimize: wraps get_template()
     and get_binwise_llh(), and returns the negative log likelihood.
 
@@ -215,7 +215,7 @@ def llh_bfgs(opt_vals, names, scales, fmap, fixed_params, template_maker,
     neg_llh : float
         Minimum negative log likelihood found by BFGS minimizer
 
-    '''
+    """
     # free parameters being "optimized" by minimizer re-scaled to their true
     # values.
     unscaled_opt_vals = [opt_vals[i]/scales[i] for i in xrange(len(opt_vals))]

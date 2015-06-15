@@ -7,7 +7,6 @@
 # date:   April 8, 2014
 #
 
-import sys
 import h5py
 import numpy as np
 from pisa.utils.log import logging
