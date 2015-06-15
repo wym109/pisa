@@ -72,18 +72,20 @@ for itrial in xrange(1,args.ntrials+1):
 
         results[data_tag] = {}
         # 1) get a pseudo data fmap from fiducial model (best fit vals of params).
-        fmap = get_pseudo_data_fmap(template_maker,
-                                    get_values(select_hierarchy(params,
-                                                                normal_hierarchy=data_normal)))
+        fmap = get_pseudo_data_fmap(
+            template_maker, get_values(
+                select_hierarchy(params, normal_hierarchy=data_normal)))
 
         # 2) find max llh (and best fit free params) from matching pseudo data
         #    to templates.
         for hypo_tag, hypo_normal in [('hypo_NMH',True),('hypo_IMH',False)]:
 
-            physics.info("Finding best fit for %s under %s assumption"%(data_tag,hypo_tag))
+            physics.info(
+                "Finding best fit for %s under %s assumption"%(data_tag,hypo_tag))
             profile.info("start scan")
-            llh_data = find_max_grid(fmap,template_maker,params,
-                                        grid_settings,args.save_steps,normal_hierarchy=hypo_normal)
+            llh_data = find_max_grid(
+                fmap,template_maker,params,
+                grid_settings,args.save_steps,normal_hierarchy=hypo_normal)
             profile.info("stop scan")
 
             #Store the LLH data
