@@ -53,8 +53,7 @@ def find_alt_hierarchy_fit(asimov_data_set, template_maker,hypo_params,hypo_norm
             params=hypo_params,
             bfgs_settings=minimizer_settings,
             normal_hierarchy=hypo_normal,
-            check_octant=check_octant
-        )
+            check_octant=check_octant)
     tprofile.info("==> elapsed time for optimizer: %s sec"%t.secs)
 
     return llh_data
@@ -144,7 +143,7 @@ def find_max_llh_bfgs(fmap, template_maker, params, bfgs_settings,
         alt_opt_steps_dict = {key:[] for key in names}
         alt_opt_steps_dict['llh'] = []
         const_args = (names, scales, fmap, fixed_params, template_maker,
-                      opt_steps_dict, priors)
+                      alt_opt_steps_dict, priors)
         display_optimizer_settings(free_params=free_params,
                                    names=names,
                                    init_vals=init_vals,

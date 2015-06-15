@@ -51,10 +51,12 @@ def getAsimovData(template_maker, params, data_normal):
         or inverted (False)
     """
 
-    fiducial_params = get_values(select_hierarchy(
+    fiducial_param_vals = get_values(select_hierarchy(
         params, normal_hierarchy=data_normal))
-    return get_asimov_fmap(template_maker, fiducial_params,
-                           chan=fiducial_params['channel'])
+    return get_asimov_fmap(
+        template_maker=template_maker,
+        fiducial_params=fiducial_param_vals,
+        channel=fiducial_param_vals['channel'])
 
 
 def getAltHierarchyBestFit(asimov_data, template_maker, params, minimizer_settings,
@@ -75,10 +77,10 @@ def getAltHierarchyBestFit(asimov_data, template_maker, params, minimizer_settin
     """
 
     llh_data = find_alt_hierarchy_fit(
-        asimov_data,template_maker, params, hypo_normal,
+        asimov_data, template_maker, params, hypo_normal,
         minimizer_settings, only_atm_params=True, check_octant=check_octant)
 
-    alt_params = get_values(select_hierarchy(params,normal_hierarchy=hypo_normal))
+    alt_params = get_values(select_hierarchy(params, normal_hierarchy=hypo_normal))
     for key in llh_data.keys():
         if key == 'llh': continue
         alt_params[key] = llh_data[key][-1]
@@ -125,17 +127,7 @@ minimizer_settings  = from_json(args.minimizer_settings)
 
 # Change this throughout code later?
 check_octant = not args.single_octant
-
 check_scipy_version(minimizer_settings)
-
-# make sure that both pseudo data and template are using the same
-# channel. Raise Exception and quit otherwise
-channel = template_settings['params']['channel']['value']
-if channel != pseudo_data_settings['params']['channel']['value']:
-    error_msg = "Both template and pseudo data must have same channel!\n"
-    error_msg += " pseudo_data_settings channel: '%s', template channel: '%s' "%(pseudo_data_settings['params']['channel']['value'],channel)
-    raise ValueError(error_msg)
-
 
 if args.gpu_id is not None:
     template_settings['params']['gpu_id'] = {}
@@ -167,8 +159,11 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
         asimov_data, template_maker, alt_params, minimizer_settings,
         (not data_normal), check_octant)
 
-    asimov_data_null = get_asimov_fmap(template_maker, alt_mh_settings,
-                                       chan=alt_mh_settings['channel'])
+    asimov_data_null = get_asimov_fmap(
+        template_maker=template_maker,
+        fiducial_params=alt_mh_settings,
+        channel=alt_mh_settings['channel'])
+
     # Store all data tag related inputs:
     output[data_tag]['asimov_data'] = asimov_data
     output[data_tag]['asimov_data_null'] = asimov_data_null
