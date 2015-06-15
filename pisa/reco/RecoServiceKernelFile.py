@@ -16,7 +16,7 @@ import logging
 
 from pisa.reco.RecoServiceBase import RecoServiceBase
 from pisa.resources.resources import find_resource
-from pisa.utils import utils
+from pisa.utils import fileio
 
 
 class RecoServiceKernelFile(RecoServiceBase):
@@ -47,10 +47,10 @@ class RecoServiceKernelFile(RecoServiceBase):
 
         if not kernelfile in [self.kernelfile, None]:
             logging.info('Reconstruction from non-default kernel file %s!'%kernelfile)
-            return utils.from_file(find_resource(kernelfile))
+            return fileio.from_file(find_resource(kernelfile))
 
         if not hasattr(self, 'kernels'):
             logging.info('Using file %s for default reconstruction'%(kernelfile))
-            self.kernels = utils.from_file(find_resource(kernelfile))
+            self.kernels = fileio.from_file(find_resource(kernelfile))
 
         return self.kernels

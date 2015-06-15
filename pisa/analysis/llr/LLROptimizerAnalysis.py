@@ -119,7 +119,7 @@ args = parser.parse_args()
 
 set_verbosity(args.verbose)
 
-#Read in the settings
+# Read in the settings
 template_settings = from_json(args.template_settings)
 minimizer_settings  = from_json(args.minimizer_settings)
 
@@ -127,6 +127,15 @@ minimizer_settings  = from_json(args.minimizer_settings)
 check_octant = not args.single_octant
 
 check_scipy_version(minimizer_settings)
+
+# make sure that both pseudo data and template are using the same
+# channel. Raise Exception and quit otherwise
+channel = template_settings['params']['channel']['value']
+if channel != pseudo_data_settings['params']['channel']['value']:
+    error_msg = "Both template and pseudo data must have same channel!\n"
+    error_msg += " pseudo_data_settings channel: '%s', template channel: '%s' "%(pseudo_data_settings['params']['channel']['value'],channel)
+    raise ValueError(error_msg)
+
 
 if args.gpu_id is not None:
     template_settings['params']['gpu_id'] = {}
@@ -160,7 +169,6 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
 
     asimov_data_null = get_asimov_fmap(template_maker, alt_mh_settings,
                                        chan=alt_mh_settings['channel'])
-
     # Store all data tag related inputs:
     output[data_tag]['asimov_data'] = asimov_data
     output[data_tag]['asimov_data_null'] = asimov_data_null

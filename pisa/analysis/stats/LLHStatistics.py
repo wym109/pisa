@@ -18,7 +18,7 @@ from scipy.stats import poisson
 from pisa.utils.jsons import from_json
 
 
-def generalized_ln_poisson(data,expectation):
+def generalized_ln_poisson(data, expectation):
     """
     When the data set is not integer based, we need a different way to
     calculate the poisson likelihood, so we'll use this version, which
@@ -38,12 +38,12 @@ def generalized_ln_poisson(data,expectation):
     if bool(re.match('^int',data.dtype.name)):
         return np.log(poisson.pmf(data,expectation))
     elif bool(re.match('^float',data.dtype.name)):
-        return (data*np.log(expectation) - expectation - multigammaln(data+1.0,1))
-    else:                                                                                                                                
+        return (data*np.log(expectation) - expectation - multigammaln(data+1.0, 1))
+    else:
         raise ValueError(
             "Unknown data dtype: %s. Must be float or int!"%psuedo_data.dtype)
 
-def get_binwise_llh(pseudo_data,template):
+def get_binwise_llh(pseudo_data, template):
     """
     Computes the log-likelihood (llh) of the pseudo_data from the
     template, where each input is expected to be a 2d numpy array
@@ -61,10 +61,8 @@ def get_random_map(template, seed=None):
     (in general) in the template, varied according to Poisson
     statistics.
     """
-    #Set the seed if given
+    # Set the seed if given
     if not seed is None:
         np.random.seed(seed=seed)
 
     return poisson.rvs(template)
-
-

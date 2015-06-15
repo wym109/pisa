@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 #
-# LLRScanAnalysis.py
+# ScanAnalysis.py
 #
 # Runs a brute-force scan LLR analysis
 #
@@ -45,19 +45,19 @@ args = parser.parse_args()
 
 set_verbosity(args.verbose)
 
-#Read in the settings
+# Read in the settings
 template_settings = from_json(args.template_settings)
 grid_settings  = from_json(args.grid_settings)
 
-#Get the parameters
+# Get the parameters
 params = template_settings['params']
 
-#store results from all the trials
+# List to store results from all the trials
 trials = []
 
-template_maker = TemplateMaker(get_values(params),**template_settings['binning'])
+template_maker = TemplateMaker(get_values(params), **template_settings['binning'])
 
-for itrial in xrange(1,args.ntrials+1):
+for itrial in xrange(1, args.ntrials+1):
     profile.info("start trial %d"%itrial)
     logging.info(">"*10 + "Running trial: %05d"%itrial + "<"*10)
 
@@ -72,31 +72,34 @@ for itrial in xrange(1,args.ntrials+1):
 
         results[data_tag] = {}
         # 1) get a pseudo data fmap from fiducial model (best fit vals of params).
-        fmap = get_pseudo_data_fmap(template_maker,
-                                    get_values(select_hierarchy(params,
-                                                                normal_hierarchy=data_normal)))
+        fiducial_param_values = get_values(select_hierarchy(params, normal_hierarchy=data_normal))
+        fmap = get_pseudo_data_fmap(template_maker=template_maker,
+                                    fiducial_params=fiducial_param_values,
+                                    channel=fiducial_param_values['channel'])
 
         # 2) find max llh (and best fit free params) from matching pseudo data
         #    to templates.
         for hypo_tag, hypo_normal in [('hypo_NMH',True),('hypo_IMH',False)]:
-
             physics.info("Finding best fit for %s under %s assumption"%(data_tag,hypo_tag))
             profile.info("start scan")
-            llh_data = find_max_grid(fmap,template_maker,params,
-                                        grid_settings,args.save_steps,normal_hierarchy=hypo_normal)
+            llh_data = find_max_grid(fmap=fmap,
+                                     template_maker=template_maker,
+                                     params=params,
+                                     grid_settings=grid_settings,
+                                     save_steps=args.save_steps,
+                                     normal_hierarchy=hypo_normal)
             profile.info("stop scan")
 
-            #Store the LLH data
+            # Store the LLH data
             results[data_tag][hypo_tag] = llh_data
 
-
-    #Store this trial
-    trials += [results]
+    # Store this trial
+    trials.append(results)
     profile.info("stop trial %d"%itrial)
 
-#Assemble output dict
+# Assemble output dict
 output = {'trials' : trials,
           'template_settings' : template_settings,
           'grid_settings' : grid_settings}
-#And write to file
-to_json(output,args.outfile)
+# And write to file
+to_json(output, args.outfile)
