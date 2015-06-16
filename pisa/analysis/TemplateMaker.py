@@ -16,7 +16,7 @@ import numpy as np
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from scipy.constants import Julian_year
 
-from pisa.utils.log import logging, profile, set_verbosity
+from pisa.utils.log import logging, tprofile, set_verbosity
 from pisa.resources.resources import find_resource
 from pisa.utils.params import get_fixed_params, get_free_params, get_values, select_hierarchy
 from pisa.utils.jsons import from_json, to_json, json_string
@@ -27,12 +27,12 @@ from pisa.flux.Flux import get_flux_maps
 
 from pisa.oscillations.Prob3OscillationService import Prob3OscillationService
 from pisa.oscillations.NucraftOscillationService import NucraftOscillationService
-try:
-    #print "Trying to import Prob3GPUOscillationService..."
-    from pisa.oscillations.Prob3GPUOscillationService import Prob3GPUOscillationService
-except:
-    pass
-    #print "CAN NOT import Prob3GPUOscillationService..."
+#try:
+#    print "Trying to import Prob3GPUOscillationService..."
+from pisa.oscillations.Prob3GPUOscillationService import Prob3GPUOscillationService
+#except:
+#    pass
+#    print "CAN NOT import Prob3GPUOscillationService..."
 from pisa.oscillations.Oscillation import get_osc_flux
 
 from pisa.aeff.AeffServiceMC import AeffServiceMC
@@ -70,7 +70,7 @@ class TemplateMaker:
         * czbins - coszen bin edges
         '''
 
-        
+
         self.ebins = ebins
         self.czbins = czbins
         self.oversample_e = oversample_e
@@ -163,7 +163,7 @@ class TemplateMaker:
         with Timer() as t:
             flux_maps = get_flux_maps(self.flux_service, self.ebins,
                                       self.czbins, **params)
-        profile.debug("==> elapsed time for flux stage: %s sec"%t.secs)
+        tprofile.debug("==> elapsed time for flux stage: %s sec"%t.secs)
 
         logging.info("STAGE 2: Getting osc prob maps...")
         with Timer() as t:
@@ -171,26 +171,26 @@ class TemplateMaker:
                                          oversample_e=self.oversample_e,
                                          oversample_cz=self.oversample_cz,
                                          **params)
-        profile.debug("==> elapsed time for oscillations stage: %s sec"%t.secs)
+        tprofile.debug("==> elapsed time for oscillations stage: %s sec"%t.secs)
 
         logging.info("STAGE 3: Getting event rate true maps...")
         with Timer() as t:
             event_rate_maps = get_event_rates(osc_flux_maps,
                                               self.aeff_service, **params)
-        profile.debug("==> elapsed time for aeff stage: %s sec"%t.secs)
+        tprofile.debug("==> elapsed time for aeff stage: %s sec"%t.secs)
 
         logging.info("STAGE 4: Getting event rate reco maps...")
         with Timer() as t:
             event_rate_reco_maps = get_reco_maps(event_rate_maps,
                                                  self.reco_service,
                                                  **params)
-        profile.debug("==> elapsed time for reco stage: %s sec"%t.secs)
+        tprofile.debug("==> elapsed time for reco stage: %s sec"%t.secs)
 
         logging.info("STAGE 5: Getting pid maps...")
         with Timer(verbose=False) as t:
             final_event_rate = get_pid_maps(event_rate_reco_maps,
                                             self.pid_service)
-        profile.debug("==> elapsed time for pid stage: %s sec"%t.secs)
+        tprofile.debug("==> elapsed time for pid stage: %s sec"%t.secs)
 
         if not return_stages:
             return final_event_rate
@@ -208,7 +208,7 @@ class TemplateMaker:
         with Timer() as t:
             flux_maps = get_flux_maps(self.flux_service, self.ebins,
                                       self.czbins, **params)
-        profile.debug("==> elapsed time for flux stage: %s sec"%t.secs)
+        tprofile.debug("==> elapsed time for flux stage: %s sec"%t.secs)
 
         # Skipping oscillation stage...
         logging.info("  >>Skipping Stage 2 in no oscillations case...")
@@ -224,19 +224,19 @@ class TemplateMaker:
         with Timer() as t:
             event_rate_maps = get_event_rates(flux_maps, self.aeff_service,
                                               **params)
-        profile.debug("==> elapsed time for aeff stage: %s sec"%t.secs)
+        tprofile.debug("==> elapsed time for aeff stage: %s sec"%t.secs)
 
         logging.info("STAGE 4: Getting event rate reco maps...")
         with Timer() as t:
             event_rate_reco_maps = get_reco_maps(event_rate_maps,
                                                  self.reco_service, **params)
-        profile.debug("==> elapsed time for reco stage: %s sec"%t.secs)
+        tprofile.debug("==> elapsed time for reco stage: %s sec"%t.secs)
 
         logging.info("STAGE 5: Getting pid maps...")
         with Timer(verbose=False) as t:
             final_event_rate = get_pid_maps(event_rate_reco_maps,
                                             self.pid_service)
-        profile.debug("==> elapsed time for pid stage: %s sec"%t.secs)
+        tprofile.debug("==> elapsed time for pid stage: %s sec"%t.secs)
 
         return final_event_rate
 
@@ -281,13 +281,13 @@ if __name__ == '__main__':
         #Intialize template maker
         template_maker = TemplateMaker(get_values(params),
                                        **model_settings['binning'])
-    profile.info("  ==> elapsed time to initialize templates: %s sec"%t.secs)
+    tprofile.info("  ==> elapsed time to initialize templates: %s sec"%t.secs)
 
     #Now get the actual template
     with Timer(verbose=False) as t:
         template_maps = template_maker.get_template(get_values(params),
                                                     return_stages=args.save_all)
-    profile.info("==> elapsed time to get template: %s sec"%t.secs)
+    tprofile.info("==> elapsed time to get template: %s sec"%t.secs)
 
     logging.info("Saving file to %s"%args.outfile)
     to_json(template_maps, args.outfile)

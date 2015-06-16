@@ -23,18 +23,12 @@
 #define __GRIDPROPAGATOR_H__
 
 #include "EarthDensity.h"
+#include "constants.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-// Put these in the constants.h header later??
-#define fType double
-const fType kmTOcm = 1.0e5;
-
-
-// debugging purposes:
-#define VERBOSE false
 
 class GridPropagator
 {

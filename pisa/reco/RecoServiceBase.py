@@ -15,6 +15,7 @@ import numpy as np
 
 from pisa.utils.log import logging
 from pisa.utils import utils
+from pisa.utils import fileio
 
 
 class RecoServiceBase:
@@ -100,4 +101,4 @@ class RecoServiceBase:
 
     def store_kernels(self, filename, fmt=None):
         """Store reconstruction kernels to file"""
-        utils.to_file(self.kernels, filename, fmt=fmt)
+        fileio.to_file(self.kernels, filename, fmt=fmt)
