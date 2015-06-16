@@ -20,7 +20,7 @@ from pisa.analysis.llr.LLHAnalysis import find_max_llh_bfgs
 from pisa.analysis.stats.Maps import get_asimov_fmap
 from pisa.analysis.scan.Scan import calc_steps
 from pisa.analysis.TemplateMaker import TemplateMaker
-from pisa.utils.log import logging, profile, physics, set_verbosity
+from pisa.utils.log import logging, tprofile, physics, set_verbosity
 from pisa.utils.jsons import from_json,to_json
 from pisa.utils.params import get_values, select_hierarchy, fix_atm_params, get_atm_params
 from pisa.utils.utils import Timer
@@ -29,7 +29,7 @@ parser = ArgumentParser(
     description='''Runs the LLR optimizer-based analysis varying a number of systematic
     parameters defined in settings.json file and saves the likelihood values for all
     combination of hierarchies. Does not compute any pseudo data sets, but rather takes
-    the Asimov data set (or expected counts template) at the given value of atm params.''',
+    the Asimov data set (or expected counts template) at given value of atm params''',
     formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('-t','--template_settings',type=str,
                     metavar='JSONFILE', required = True,
@@ -40,14 +40,15 @@ parser.add_argument('-m','--minimizer_settings',type=str,
 parser.add_argument('-g','--grid_settings',type=str,metavar='JSONFILE', required = True,
                     help='''Get llh value at defined oscillation parameter grid values,
                     according to these input settigs to.''')
+parser.add_argument('--data_nmh',action='store_true',default=False,
+                    help='''If true, takes data sets from NMH in the fit, otherwise takes data from IMH.''')
+parser.add_argument('--hypo_nmh',action='store_true',default=False,
+                    help='''If true: fitting data to assumed NMH, otherwise assumes IMH''')
 parser.add_argument('-s','--save-steps',action='store_true',default=False,
                     dest='save_steps',
                     help='''Save all steps the optimizer takes.''')
 parser.add_argument('--gpu_id',type=int,default=None,
                     help="GPU ID if available.")
-#parser.add_argument('-c','--chan',type=str,default='all',
-#                    choices=['trck','cscd','all','no_pid'],
-#                    help='''which channel to use in the fit.''')
 parser.add_argument('-o','--outfile',type=str,default='llh_data.json',metavar='JSONFILE',
                     help='''Output filename.''')
 parser.add_argument('-v', '--verbose', action='count', default=None,
@@ -81,14 +82,10 @@ params = template_settings['params']
 # Make sure that atmospheric parameters are fixed:
 logging.warn("Ensuring that atmospheric parameters are fixed for this analysis")
 params = fix_atm_params(params)
-#print "params: ",params.items()
 
 with Timer() as t:
     template_maker = TemplateMaker(get_values(params),**template_settings['binning'])
-profile.info("==> elapsed time to initialize templates: %s sec"%t.secs)
-
-#data_types = [('data_NMH',True),('data_IMH',False)]
-data_types = [('data_NMH',True)]
+tprofile.info("==> elapsed time to initialize templates: %s sec"%t.secs)
 
 results = {}
 # Store for future checking:
@@ -96,61 +93,66 @@ results['template_settings'] = template_settings
 results['minimizer_settings'] = minimizer_settings
 results['grid_settings'] = grid_settings
 
-try:
-    for data_tag, data_normal in data_types:
-        results[data_tag] = {}
 
-        data_params = select_hierarchy(params,normal_hierarchy=data_normal)
-        asimov_data_set = get_asimov_fmap(template_maker,get_values(data_params),
-                                          chan=channel)
-        results[data_tag]['asimov_data'] = asimov_data_set
-        hypo_types = [('hypo_NMH',True)]
-        #hypo_types = [('hypo_NMH',True),('hypo_IMH',False)]
-        for hypo_tag, hypo_normal in hypo_types:
+# Set up data/hypo nmh or imh
+if args.data_nmh:
+    data_tag = 'data_NMH'
+    data_normal = True
+else:
+    data_tag = 'data_IMH'
+    data_normal = False
+if args.hypo_nmh:
+    hypo_tag = 'hypo_NMH'
+    hypo_normal = True
+else:
+    hypo_tag = 'hypo_IMH'
+    hypo_normal = False
 
-            hypo_params = select_hierarchy(params,normal_hierarchy=hypo_normal)
-            # Now scan over theta23,deltam31 values and fix params to
-            # these values:
-            # Calculate steps for all free parameters
-            atm_params = get_atm_params(hypo_params)
-            calc_steps(atm_params, grid_settings['steps'])
+logging.info("Running with data: %s and hypo: %s"%(data_tag, hypo_tag))
+results[data_tag] = {}
 
-            # Build a list from all parameters that holds a list of (name, step) tuples
-            steplist = [ [(name,step) for step in param['steps']]
-                         for name, param in sorted(atm_params.items())]
+data_params = select_hierarchy(params,normal_hierarchy=data_normal)
+asimov_data_set = get_asimov_fmap(template_maker,get_values(data_params),
+                                  chan=channel)
+results[data_tag]['asimov_data'] = asimov_data_set
 
-            print "steplist: ",steplist
-            print "atm_params: ",atm_params
 
-            # Prepare to store all the steps
-            steps = {key:[] for key in atm_params.keys()}
-            steps['llh'] = []
+hypo_params = select_hierarchy(params,normal_hierarchy=hypo_normal)
+# Now scan over theta23,deltam31 values and fix params to
+# these values:
+# Calculate steps for all free parameters
+atm_params = get_atm_params(hypo_params)
+calc_steps(atm_params, grid_settings['steps'])
 
-            # Iterate over the cartesian product, and set fixed parameter to value
-            for pos in product(*steplist):
-                pos_dict = dict(list(pos))
-                print "Running at params-pos dict: ",pos_dict
-                for k,v in pos_dict.items():
-                    hypo_params[k]['value'] = v
-                    steps[k].append(v)
+# Build a list from all parameters that holds a list of (name, step) tuples
+steplist = [ [(name,step) for step in param['steps']]
+             for name, param in sorted(atm_params.items())]
 
-                with Timer() as t:
-                    llh_data = find_max_llh_bfgs(asimov_data_set,template_maker,hypo_params,
-                                                 minimizer_settings,args.save_steps,
-                                                 normal_hierarchy=hypo_normal)
-                profile.info("==> elapsed time for optimizer: %s sec"%t.secs)
+print "steplist: ",steplist
+print "atm_params: ",atm_params
 
-                steps['llh'].append(llh_data['llh'][-1])
+# Prepare to store all the steps
+steps = {key:[] for key in atm_params.keys()}
+steps['llh'] = []
 
-                # Then save the minimized free params later??
-                #print "\n\nsteps: ",steps
+# Iterate over the cartesian product, and set fixed parameter to value
+for pos in product(*steplist):
+    pos_dict = dict(list(pos))
+    print "Running at params-pos dict: ",pos_dict
+    for k,v in pos_dict.items():
+        hypo_params[k]['value'] = v
+        steps[k].append(v)
 
-            #Store the LLH data
-            results[data_tag][hypo_tag] = steps
+    with Timer() as t:
+        llh_data = find_max_llh_bfgs(asimov_data_set,template_maker,hypo_params,
+                                     minimizer_settings,args.save_steps,
+                                     normal_hierarchy=hypo_normal)
+    tprofile.info("==> elapsed time for optimizer: %s sec"%t.secs)
 
-except:
-    print "error message: ",sys.exc_info()
-    logging.warn("ERROR: outputting what we have now...")
+    steps['llh'].append(llh_data['llh'][-1])
+
+    #Store the LLH data
+    results[data_tag][hypo_tag] = steps
 
 logging.warn("FINISHED. Saving to file: %s"%args.outfile)
 to_json(results,args.outfile)
