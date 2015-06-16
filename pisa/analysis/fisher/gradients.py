@@ -89,7 +89,8 @@ def get_steps(param, grid_settings, fiducial_params):
 
 
 
-def get_hierarchy_gradients(data_tag, fiducial_maps,fiducial_params,grid_settings,store_dir):
+def get_hierarchy_gradients(data_tag, fiducial_maps, fiducial_params,
+                            grid_settings, store_dir):
   """
   Use the hierarchy interpolation between the two fiducial maps to obtain the
   gradients.
@@ -122,7 +123,8 @@ def get_hierarchy_gradients(data_tag, fiducial_maps,fiducial_params,grid_setting
 
 
 
-def get_gradients(data_tag, param,template_maker,fiducial_params,grid_settings,store_dir):
+def get_gradients(data_tag, param, template_maker, fiducial_params,
+                  grid_settings, store_dir):
   """
   Use the template maker to create all the templates needed to obtain the gradients.
   """
