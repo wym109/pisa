@@ -335,12 +335,13 @@ class FisherMatrix:
         """
         if np.isscalar(prior):
             return float(prior)
-
+        
         if prior is None:
             return np.inf
         
-        #if not isinstance(prior, Prior):
-        #    print prior
+        # TODO: debug following check, which fails even when types are "same";
+        # multiple import of Prior?
+        # if not isinstance(prior, Prior):
         #    raise TypeError('prior must be Prior object, numeric, or None; got `%s` instead' % type(prior))
         
         if prior.kind == 'uniform':
@@ -348,7 +349,7 @@ class FisherMatrix:
         elif prior.kind == 'gaussian':
             return prior.sigma
         else:
-            raise TypeError('Prior object must be of either gaussian or uniform kind')
+            raise TypeError('Prior object must be of either gaussian or uniform kind; got kind `'+str(prior.kind)+'` instead')
     
     
     def setPrior(self, par, sigma):

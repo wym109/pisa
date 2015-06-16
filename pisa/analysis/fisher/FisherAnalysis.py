@@ -186,32 +186,27 @@ if __name__ == '__main__':
          Fisher matrices for the desired hierarchy.''',
         formatter_class=ArgumentDefaultsHelpFormatter
     )
-  
     parser.add_argument(
         '-t', '--template_settings',
         type=str, metavar='JSONFILE', required=True,
         help='Settings related to template generation and systematics.'
     )
-  
     parser.add_argument(
         '-g', '--grid_settings',
         type=str, metavar='JSONFILE', required=True,
         help="Settings for the grid on which the gradients are "
              "calculated (number of test points for each parameter)."
     )
-  
     parser.add_argument(
         '-nh', '--normal-truth',
         action='store_true', default=False, dest='normal_truth',
         help='Compute Fisher matrix for true normal hierarchy.'
     )
-  
     parser.add_argument(
         '-ih', '--inverted-truth',
         action='store_true', default=False, dest='inverted_truth',
         help='Compute Fisher matrix for true inverted hierarchy.'
     )
-  
     parser.add_argument(
         '-d', '--dump-all-stages',
         action='store_true', dest='dump_all_stages', default=False,
@@ -226,24 +221,21 @@ if __name__ == '__main__':
         action='store_true', default=True, dest='save_templates',
         help="Save all the templates used to obtain the gradients."
     )
-  
     sselect.add_argument(
         '-n', '--no-save-templates',
         action='store_false', default=False, dest='save_templates',
         help="Do not save the templates for the different test points."
     )
-  
     parser.add_argument(
         '-o', '--outdir',
         type=str, default=os.getcwd(), metavar='DIR',
         help="Output directory"
     )
-  
     parser.add_argument(
         '-v', '--verbose',
         action='count', default=None,
-        help='set verbosity level')
-  
+        help='set verbosity level'
+    )
     args = parser.parse_args()
   
     # Set verbosity level
