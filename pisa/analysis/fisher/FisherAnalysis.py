@@ -13,7 +13,7 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import tempfile
 import os
 
-from pisa.utils.log import logging, profile, physics, set_verbosity
+from pisa.utils.log import logging, tprofile, physics, set_verbosity
 from pisa.utils.jsons import from_json,to_json
 from pisa.analysis.TemplateMaker import TemplateMaker
 from pisa.utils.params import Prior, select_hierarchy, get_free_params, get_values
@@ -49,7 +49,7 @@ def get_fisher_matrices(template_settings, grid_settings, IMH=True, NMH=False,
     logging.info("No output directory specified. Will save templates to current working directory.")
     outdir = os.getcwd()
 
-  profile.info("start initializing")
+  tprofile.info("start initializing")
 
   # Get the parameters
   params = template_settings['params']
@@ -83,7 +83,7 @@ def get_fisher_matrices(template_settings, grid_settings, IMH=True, NMH=False,
     # Get a template maker with the settings used to initialize
     template_maker = TemplateMaker(get_values(params),**bins)
 
-    profile.info("stop initializing\n")
+    tprofile.info("stop initializing\n")
 
     # Generate fiducial templates for both hierarchies (needed for partial derivatives
     # w.r.t. hierarchy parameter)
@@ -96,11 +96,11 @@ def get_fisher_matrices(template_settings, grid_settings, IMH=True, NMH=False,
       fiducial_params = select_hierarchy(params,normal_hierarchy=(hierarchy=='NMH'))
 
       # Generate fiducial maps, either all of them or only the ultimate one
-      profile.info("start template calculation")
+      tprofile.info("start template calculation")
       with Timer() as t:
         fid_maps = template_maker.get_template(get_values(fiducial_params),
                                                return_stages=dump_all_stages)
-      profile.info("==> elapsed time for template: %s sec"%t.secs)
+      tprofile.info("==> elapsed time for template: %s sec"%t.secs)
 
       fiducial_maps[hierarchy] = fid_maps[4] if dump_all_stages else fid_maps
 

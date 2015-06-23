@@ -14,7 +14,7 @@ import tempfile
 import copy
 
 from pisa.utils.jsons import to_json
-from pisa.utils.log import logging, profile
+from pisa.utils.log import logging, tprofile
 from pisa.utils.params import get_values
 from pisa.utils.utils import Timer
 
@@ -142,7 +142,7 @@ def get_gradients(data_tag, param, template_maker, fiducial_params,
           maps = template_maker.get_template(
               get_values(dict(fiducial_params,**{param:dict(fiducial_params[param],
                                                             **{'value': param_value})})))
-      profile.info("==> elapsed time for template: %s sec"%t.secs)
+      tprofile.info("==> elapsed time for template: %s sec"%t.secs)
 
       pmaps[param_value] = maps
 
