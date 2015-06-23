@@ -18,7 +18,7 @@ import numpy as np
 from copy import deepcopy
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
-from pisa.analysis.llr.LLHAnalysis import find_max_llh_bfgs, find_alt_hierarchy_fit
+from pisa.analysis.llr.LLHAnalysis import find_opt_bfgs, find_alt_hierarchy_fit
 from pisa.analysis.stats.LLHStatistics import get_random_map
 from pisa.analysis.stats.Maps import get_pseudo_data_fmap, get_seed, get_asimov_fmap
 from pisa.analysis.TemplateMaker import TemplateMaker
@@ -53,7 +53,7 @@ def getAsimovData(template_maker, params, data_normal):
     fiducial_params = get_values(select_hierarchy(
         params, normal_hierarchy=data_normal))
     return get_asimov_fmap(template_maker, fiducial_params,
-                           chan=fiducial_params['channel'])
+                           channel=fiducial_params['channel'])
 
 
 parser = ArgumentParser(
@@ -139,7 +139,7 @@ for data_tag, data_normal in [('data_NMH',True),('data_IMH',False)]:
             physics.info(
                 "Finding best fit for %s under %s assumption"%(data_tag,hypo_tag))
             with Timer() as t:
-                llh_data = find_max_llh_bfgs(
+                llh_data = find_opt_bfgs(
                     fmap, template_maker, template_settings['params'],
                     minimizer_settings, args.save_steps,
                     normal_hierarchy=hypo_normal, check_octant=check_octant)
