@@ -15,6 +15,7 @@ import re
 import scipy as sp
 import numpy as np
 import copy
+from pisa.utils.log import logging
 
 class Prior(object):
     def __init__(self, **kwargs):
@@ -24,13 +25,13 @@ class Prior(object):
         kind = kwargs.pop('kind')
         # Dispatch the correct initialization method
         if kind.lower() in ['none', 'uniform'] or kind is None:
-            Prior.__init_uniform(self, **kwargs)
+            self.__init_uniform(**kwargs)
         elif kind.lower() == 'gaussian':
-            Prior.__init_gaussian(self, **kwargs)
+            self.__init_gaussian(**kwargs)
         elif kind.lower() == 'linterp':
-            Prior.__init_linterp(self, **kwargs)
+            self.__init_linterp(**kwargs)
         elif kind.lower() == 'spline':
-            Prior.__init_spline(self, **kwargs)
+            self.__init_spline(**kwargs)
         else:
             raise TypeError('Unknown Prior kind `' + str(kind) + '`')
 

@@ -156,10 +156,7 @@ def find_max_llh_bfgs(fmap, template_maker, params, bfgs_settings,
 
 
         # Alternative octant solution is optimal:
-        print "ALT LLH: ",alt_llh
-        print "llh: ",llh
         if alt_llh < llh:
-            print "  >>TRUE..."
             best_fit_vals = alt_fit_vals
             llh = alt_llh
             dict_flags = alt_dict_flags
