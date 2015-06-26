@@ -11,6 +11,7 @@
 #
 
 import sys
+import os
 import logging
 import itertools
 from copy import deepcopy as copy
@@ -21,17 +22,18 @@ from scipy.stats import norm
 from pisa.reco.RecoServiceBase import RecoServiceBase
 from pisa.resources.resources import find_resource
 from pisa.utils.jsons import from_json
-from pisa.utils.utils import get_bin_centers, get_bin_sizes, is_linear
+from pisa.utils.utils import get_binning, is_logarithmic, get_bin_centers, get_bin_sizes, is_linear
 
 
 
-def double_gauss(x, loc1=0, width1=1.e-6, loc2=0., width2=1.e-6, fraction=0.):
+def double_gauss(bin_centers, bin_edges, loc1=0, width1=1.e-6, loc2=0, width2=1.e-6, fraction=0.):
     """Superposition of two gaussians"""
 
-    return (1.-fraction)*norm(loc=loc1, scale=width1).pdf(x)\
-             + (fraction)*norm(loc=loc2, scale=width2).pdf(x)
+    n1 = norm(loc=loc1, scale=width1)
+    n2 = norm(loc=loc2, scale=width2)
+    cdfs = (1.-fraction)*n1.cdf(bin_edges) + fraction*n2.cdf(bin_edges) 
 
-
+    return (cdfs[1:]-cdfs[:-1])
 
 class RecoServiceParam(RecoServiceBase):
     """
@@ -80,7 +82,8 @@ class RecoServiceParam(RecoServiceBase):
         parametrization = {}
         for flavour in param_str:
           parametrization[flavour] = {}
-          for int_type in ['cc', 'nc']:
+          #for int_type in ['cc', 'nc']:
+          for int_type in param_str[flavour]:    #['cc', 'nc']
             logging.debug('Parsing function strings for %s %s'
                           %(flavour, int_type))
             parametrization[flavour][int_type] = {}
@@ -135,6 +138,7 @@ class RecoServiceParam(RecoServiceBase):
         # get binning information
         evals, esizes = get_bin_centers(self.ebins), get_bin_sizes(self.ebins)
         czvals, czsizes = get_bin_centers(self.czbins), get_bin_sizes(self.czbins)
+        czbins = self.czbins 
         n_e, n_cz = len(evals), len(czvals)
 
         # prepare for folding back at lower edge
@@ -147,6 +151,8 @@ class RecoServiceParam(RecoServiceBase):
         if flipback:
             czvals = np.append(czvals-(self.czbins[-1]-self.czbins[0]),
                                czvals)
+            czbins = np.append(czbins[:-1]-(self.czbins[-1]-self.czbins[0]),
+                               czbins)
             czsizes = np.append(czsizes, czsizes)
 
         # get properly scaled parametrization, initialize kernels
@@ -169,31 +175,32 @@ class RecoServiceParam(RecoServiceBase):
             # loop over every bin in true (energy, coszen)
             for (i, j) in itertools.product(range(n_e), range(n_cz)):
 
-                e_kern = double_gauss(evals,
-                                     loc1=e_pars['loc1'][i,j]+evals[i],
-                                     width1=e_pars['width1'][i,j],
-                                     loc2=e_pars['loc2'][i,j]+evals[i],
-                                     width2=e_pars['width2'][i,j],
-                                     fraction=e_pars['fraction'][i,j])
-                e_kern_int = np.sum(e_kern*esizes)
-
+                e_kern_cdf = double_gauss(evals,
+                                          self.ebins,
+                                          loc1=e_pars['loc1'][i,j]+evals[i],
+                                          width1=e_pars['width1'][i,j],
+                                          loc2=e_pars['loc2'][i,j]+evals[i],
+                                          width2=e_pars['width2'][i,j],
+                                          fraction=e_pars['fraction'][i,j])
+		e_kern_int = np.sum(e_kern_cdf)
                 offset = n_cz if flipback else 0
-                cz_kern = double_gauss(czvals,
-                                     loc1=cz_pars['loc1'][i,j]+czvals[j+offset],
-                                     width1=cz_pars['width1'][i,j],
-                                     loc2=cz_pars['loc2'][i,j]+czvals[j+offset],
-                                     width2=cz_pars['width2'][i,j],
-                                     fraction=cz_pars['fraction'][i,j])
-                cz_kern_int = np.sum(cz_kern*czsizes)
+
+                cz_kern_cdf = double_gauss(czvals,
+                                           czbins,
+                                           loc1=cz_pars['loc1'][i,j]+czvals[j+offset],
+                                           width1=cz_pars['width1'][i,j],
+                                           loc2=cz_pars['loc2'][i,j]+czvals[j+offset],
+                                           width2=cz_pars['width2'][i,j],
+                                           fraction=cz_pars['fraction'][i,j])
+                cz_kern_int = np.sum(cz_kern_cdf)
 
                 if flipback:
                     # fold back
-                    cz_kern = cz_kern[:len(czvals)/2][::-1] + cz_kern[len(czvals)/2:]
+                    cz_kern_cdf = cz_kern_cdf[:len(czbins)/2][::-1] + cz_kern_cdf[len(czbins)/2:]
 
-
-                kernel[i,j] = np.outer(e_kern, cz_kern)
-                # normalize correctly:
+                kernel[i,j] = np.outer(e_kern_cdf, cz_kern_cdf)
                 kernel[i,j]*=e_kern_int*cz_kern_int/np.sum(kernel[i,j])
+                
 
             kernel_dict[flavour][int_type] = copy(kernel)
 
