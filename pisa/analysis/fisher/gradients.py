@@ -14,7 +14,7 @@ import tempfile
 import copy
 
 from pisa.utils.jsons import to_json
-from pisa.utils.log import logging, profile
+from pisa.utils.log import logging, tprofile
 from pisa.utils.params import get_values
 from pisa.utils.utils import Timer
 
@@ -89,7 +89,8 @@ def get_steps(param, grid_settings, fiducial_params):
 
 
 
-def get_hierarchy_gradients(data_tag, fiducial_maps,fiducial_params,grid_settings,store_dir):
+def get_hierarchy_gradients(data_tag, fiducial_maps, fiducial_params,
+                            grid_settings, store_dir):
   """
   Use the hierarchy interpolation between the two fiducial maps to obtain the
   gradients.
@@ -122,7 +123,8 @@ def get_hierarchy_gradients(data_tag, fiducial_maps,fiducial_params,grid_setting
 
 
 
-def get_gradients(data_tag, param,template_maker,fiducial_params,grid_settings,store_dir):
+def get_gradients(data_tag, param, template_maker, fiducial_params,
+                  grid_settings, store_dir):
   """
   Use the template maker to create all the templates needed to obtain the gradients.
   """
@@ -140,7 +142,7 @@ def get_gradients(data_tag, param,template_maker,fiducial_params,grid_settings,s
           maps = template_maker.get_template(
               get_values(dict(fiducial_params,**{param:dict(fiducial_params[param],
                                                             **{'value': param_value})})))
-      profile.info("==> elapsed time for template: %s sec"%t.secs)
+      tprofile.info("==> elapsed time for template: %s sec"%t.secs)
 
       pmaps[param_value] = maps
 

@@ -29,6 +29,7 @@ from matplotlib.lines import Line2D
 from math import pi
 
 from pisa.utils.jsons import from_json, to_json
+from pisa.utils.params import Prior
 
 
 ### HELPER FUNCTIONS ###
@@ -56,26 +57,42 @@ def derivative_from_polycoefficients(coeff, loc):
 
 class FisherMatrix:
     
-    def __init__(self, matrix=None, parameters=None, best_fits=None, 
-                 priors=None, labels=None):
+    def __init__(self, matrix, parameters, best_fits, priors=None,
+                 labels=None):
         """
-        Construct a fisher matrix object from
-           matrix: matrix itself,
-           parameters: the identifiers used for each parameter
-           best_fits: best fit values for each parameter
+        Construct a fisher matrix object
+
+        Arguments
+        ---------
+        matrix : len(parameters) x len(parameters) matrix or 2D array
+            Matrix values
+        parameters : sequence of str
+            Identifiers used for each parameter
+        best_fits : sequence of numbers
+            Best-fit values for each parameter
+        priors : sequence of Prior objects or None
+            Priors for each parameter; only accepts Gaussian or uniform priors,
+            otherwise raises TypeError. Note that uniform priors are
+            functionally equivalent to no prior. If None, uniform priors are
+            used for all parameters (i.e., sigma=np.inf).
+        labels : sequence of str or None
+            Pretty-print labels for the parameters. If None, use `paramaters`
+            strings as labels.
+        
         """
         
         self.matrix = np.matrix(matrix)
         self.parameters = list(parameters)
         self.best_fits = list(best_fits)
-        self.priors = list(priors) if priors is not None else [None for p in self.parameters]
+        if priors is None:
+            self.priors = [np.inf for p in self.parameters]
+        else:
+            self.priors = [self.translatePrior(prior) for prior in priors]
         self.labels = list(labels) if labels is not None else parameters
         
-        #I think we need to check Consistency here  
         self.checkConsistency()
-        
         self.calculateCovariance()
-        
+    
     
     @classmethod
     def fromFile(cls, filename):
@@ -152,7 +169,6 @@ class FisherMatrix:
         # create new FisherMatrix object
         new_object = FisherMatrix(matrix=new_matrix, parameters=new_params, 
                                   best_fits=new_best_fits, labels=new_labels)
-        new_object.checkConsistency()
         new_object.calculateCovariance()
         
         # fill in priors
@@ -174,20 +190,25 @@ class FisherMatrix:
     
     def checkConsistency(self):
         """
-        Check whether number of parameters matches dimension of matrix, 
-        matrix is symmetrical, and parameter names are unique
+        Check whether number of parameters matches dimension of matrix; 
+        matrix is symmetrical; parameter names are unique; and number of
+        best_fits, labels, and priors all match number of parameters.
         """
         
-        if not len(self.parameters)==np.shape(self.matrix)[1]:
+        if not len(self.parameters) == np.shape(self.matrix)[1]:
             raise IndexError('Number of parameters does not match dimension of Fisher matrix! [%i, %i]' \
                 %(len(self.parameters), len(self.matrix)) )
         
-        if not np.all(self.matrix.T==self.matrix):
+        if not np.all(self.matrix.T == self.matrix):
             raise ValueError('Fisher matrix not symmetric!')
         
-        if not len(self.parameters)==len(set(self.parameters)):
+        if not len(self.parameters) == len(set(self.parameters)):
             raise ValueError('Parameter names not unique! %s' \
                 %(np.array2string(np.array(self.parameters))) )
+        
+        if not len(self.parameters) == len(self.best_fits) == len(self.labels) == len(self.priors):
+            raise ValueError('Parameters, best_fits, labels, and priors must all have same length! (lengths = %d, %d, %d, %d)' \
+                %(len(self.parameters), len(self.best_fits), len(self.labels), len(self.priors)) )
         
         return True
     
@@ -239,11 +260,12 @@ class FisherMatrix:
         Calculate covariance matrix from Fisher matrix (i.e. invert including priors).
         """
         
-        if np.linalg.det(self.matrix)==0:
+        if np.linalg.det(self.matrix) == 0:
             raise ValueError('Fisher Matrix is singular, cannot be inverted!')
         
-        self.covariance = np.linalg.inv(self.matrix \
-                                + np.diag([1./self.getPrior(p)**2 for p in self.parameters]))
+        self.covariance = np.linalg.inv(
+            self.matrix + np.diag([1./self.getPrior(p)**2 for p in self.parameters])
+        )
     
     
     def getBestFit(self, par):
@@ -284,26 +306,60 @@ class FisherMatrix:
         idx = self.getParameterIndex(par)
         
         # drop from parameter, best fit, and prior list
-        self.parameters = list(np.delete(np.array(self.parameters), idx))
-        self.best_fits = list(np.delete(np.array(self.best_fits), idx))
-        self.labels = list(np.delete(np.array(self.labels), idx))
-        self.priors = list(np.delete(self.priors, idx))
+        self.parameters.pop(idx)
+        self.best_fits.pop(idx)
+        self.labels.pop(idx)
+        self.priors.pop(idx)
         
         # drop from matrix (first row, then column)
         self.matrix = np.delete(np.delete(self.matrix, idx, axis=0), idx, axis=1)
         
+        self.checkConsistency()
         self.calculateCovariance()
+    
+    
+    @staticmethod
+    def translatePrior(prior):
+        """
+        Translates a Prior object, numeric, or None to the simplistic prior
+        format used internally (a value for sigma).
+        
+        Arguments
+        ---------
+        prior : Prior object (gaussian or uniform), float, or None
+
+        Returns
+        -------
+        sigma : Standard deviation of prior (np.inf for uniform Prior or None)
+        
+        """
+        if np.isscalar(prior):
+            return float(prior)
+        
+        if prior is None:
+            return np.inf
+        
+        # TODO: debug following check, which fails even when types are "same";
+        # multiple import of Prior?
+        # if not isinstance(prior, Prior):
+        #    raise TypeError('prior must be Prior object, numeric, or None; got `%s` instead' % type(prior))
+        
+        if prior.kind == 'uniform':
+            return np.inf
+        elif prior.kind == 'gaussian':
+            return prior.sigma
+        else:
+            raise TypeError('Prior object must be of either gaussian or uniform kind; got kind `'+str(prior.kind)+'` instead')
     
     
     def setPrior(self, par, sigma):
         """
-        Set prior for parameter 'par' to value sigma. If sigma==None, no prior is assumed
+        Set prior for parameter 'par' to value sigma. If sigma is None, no
+        prior is assumed
         """
         
         idx = self.getParameterIndex(par)
-        
         self.priors[idx] = sigma
-        
         self.calculateCovariance()
     
     
@@ -313,12 +369,8 @@ class FisherMatrix:
         """
         
         idx = self.getParameterIndex(par)
-        
-        if self.priors[idx] is not None:
-            self.priors[idx] = 1./np.sqrt(1./self.priors[idx]**2 + 1./sigma**2)
-            self.calculateCovariance()
-        else:
-            self.setPrior(par, sigma)
+        self.priors[idx] = 1./np.sqrt(1./self.priors[idx]**2 + 1./sigma**2)
+        self.calculateCovariance()
     
     
     def removeAllPriors(self):
@@ -326,8 +378,7 @@ class FisherMatrix:
         Remove *all* priors from this Fisher Matrix
         """
         
-        self.priors = [None for p in self.parameters]
-        
+        self.priors = [np.inf for p in self.parameters]
         self.calculateCovariance()
     
     
@@ -337,12 +388,7 @@ class FisherMatrix:
         """
         
         idx = self.getParameterIndex(par)
-        prior = self.priors[idx]
-        
-        if prior is None:
-            return np.inf
-        else:
-            return prior
+        return self.priors[idx]
     
     
     def getPriorDict(self):
@@ -358,7 +404,7 @@ class FisherMatrix:
         Returns the covariance of par1 and par2
         """
         
-        #Return the respective element
+        # Return the respective element
         idx1, idx2 = self.getParameterIndex(par1), self.getParameterIndex(par2)
         return self.covariance[idx1, idx2]
     
@@ -390,11 +436,12 @@ class FisherMatrix:
         
         # make temporary priors with the ones corresponding to par removed
         temp_priors = copy.deepcopy(self.priors)
-        temp_priors[idx] = None
+        temp_priors[idx] = np.inf
         
         # calculate covariance with these priors
-        temp_covariance = np.linalg.inv(self.matrix \
-                            + np.diag([1./s**2 if s is not None else 0. for s in temp_priors]))
+        temp_covariance = np.linalg.inv(
+            self.matrix + np.diag([1./s**2 for s in temp_priors])
+        )
         
         return np.sqrt(temp_covariance[idx,idx])
     
@@ -415,8 +462,8 @@ class FisherMatrix:
         (i.e. systematic error)
         """
         
-        return np.sqrt((self.getSigmaNoPriors(par))**2 \
-                        - (self.getSigmaStatistical(par))**2)
+        return np.sqrt(self.getSigmaNoPriors(par)**2 -
+                       self.getSigmaStatistical(par)**2)
     
     
     def getErrorEllipse(self, par1, par2, confLevel=0.6827):
@@ -575,7 +622,7 @@ class FisherMatrix:
 class PrettyFisher:
     '''
     A wrapper class around a fisher matrix that allows to draw
-    and pretty print in iypthon
+    and pretty print in ipython
     '''
 
     def __init__(self, fisher=None, parnames=None, parvalues=None):
@@ -589,8 +636,8 @@ class PrettyFisher:
         self.parnames = parnames
         self.parvalues = parvalues
 
-        #Some consistency checks
-        if not (str(self.fisher.__class__) == 'Fisher.Fisher.FisherMatrix'):
+        # Some consistency checks
+        if not isinstance(self.fisher, FisherMatrix):
             raise ValueError('Expected FisherMatrix object, got %s instead'%(fisher.__class__))
 
         if not len(self.fisher.parameters)==len(self.parnames):
