@@ -26,7 +26,7 @@ from pisa.utils.utils import get_binning, is_logarithmic, get_bin_centers, get_b
 
 
 
-def double_gauss(bin_centers, bin_edges, loc1=0, width1=1.e-6, loc2=0, width2=1.e-6, fraction=0.):
+def double_gauss(bin_edges, loc1=0, width1=1.e-6, loc2=0, width2=1.e-6, fraction=0.):
     """Superposition of two gaussians"""
 
     n1 = norm(loc=loc1, scale=width1)
@@ -175,8 +175,7 @@ class RecoServiceParam(RecoServiceBase):
             # loop over every bin in true (energy, coszen)
             for (i, j) in itertools.product(range(n_e), range(n_cz)):
 
-                e_kern_cdf = double_gauss(evals,
-                                          self.ebins,
+                e_kern_cdf = double_gauss(self.ebins,
                                           loc1=e_pars['loc1'][i,j]+evals[i],
                                           width1=e_pars['width1'][i,j],
                                           loc2=e_pars['loc2'][i,j]+evals[i],
@@ -185,8 +184,7 @@ class RecoServiceParam(RecoServiceBase):
 		e_kern_int = np.sum(e_kern_cdf)
                 offset = n_cz if flipback else 0
 
-                cz_kern_cdf = double_gauss(czvals,
-                                           czbins,
+                cz_kern_cdf = double_gauss(czbins,
                                            loc1=cz_pars['loc1'][i,j]+czvals[j+offset],
                                            width1=cz_pars['width1'][i,j],
                                            loc2=cz_pars['loc2'][i,j]+czvals[j+offset],
