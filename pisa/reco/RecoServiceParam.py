@@ -182,6 +182,7 @@ class RecoServiceParam(RecoServiceBase):
                                           width2=e_pars['width2'][i,j],
                                           fraction=e_pars['fraction'][i,j])
 		e_kern_int = np.sum(e_kern_cdf)
+
                 offset = n_cz if flipback else 0
 
                 cz_kern_cdf = double_gauss(czbins,
@@ -197,8 +198,6 @@ class RecoServiceParam(RecoServiceBase):
                     cz_kern_cdf = cz_kern_cdf[:len(czbins)/2][::-1] + cz_kern_cdf[len(czbins)/2:]
 
                 kernel[i,j] = np.outer(e_kern_cdf, cz_kern_cdf)
-                kernel[i,j]*=e_kern_int*cz_kern_int/np.sum(kernel[i,j])
-                
 
             kernel_dict[flavour][int_type] = copy(kernel)
 
