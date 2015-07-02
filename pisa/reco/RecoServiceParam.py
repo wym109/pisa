@@ -82,7 +82,6 @@ class RecoServiceParam(RecoServiceBase):
         parametrization = {}
         for flavour in param_str:
           parametrization[flavour] = {}
-          #for int_type in ['cc', 'nc']:
           for int_type in param_str[flavour]:    #['cc', 'nc']
             logging.debug('Parsing function strings for %s %s'
                           %(flavour, int_type))
