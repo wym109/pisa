@@ -10,8 +10,6 @@
 # date:   October 9, 2014
 #
 
-import sys
-import os
 import logging
 import itertools
 from copy import deepcopy as copy
