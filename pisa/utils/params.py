@@ -92,6 +92,7 @@ class Prior(object):
         self.fiducial = fiducial
         self.sigma = sigma
         self.llh = lambda x: -(x-self.fiducial)**2 / (2*self.sigma**2)
+        self.chi2 = lambda x: (x-self.fiducial)**2 / (self.sigma**2)
         self.valid_range = [-np.inf, np.inf]
         self.max_at = self.fiducial
         self.max_at_str = format(self.max_at, '6.4f')

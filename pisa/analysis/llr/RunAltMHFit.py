@@ -15,7 +15,7 @@ import numpy as np
 from itertools import product
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
-from pisa.analysis.llr.LLHAnalysis import find_max_llh_bfgs, find_alt_hierarchy_fit
+from pisa.analysis.llr.LLHAnalysis import find_alt_hierarchy_fit
 from pisa.analysis.stats.Maps import get_asimov_fmap
 from pisa.analysis.scan.Scan import calc_steps
 from pisa.analysis.TemplateMaker import TemplateMaker
@@ -135,7 +135,7 @@ for true_tag, true_normal in mctrue_types:
         asimov_params = get_values(getAsimovParams(params,true_normal,step))
         asimov_data_set = get_asimov_fmap(
             template_maker, asimov_params,
-            chan=asimov_params['channel'])
+            channel=asimov_params['channel'])
 
         # Store injected true values in result:
         for key in free_params.keys():
