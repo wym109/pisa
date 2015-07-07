@@ -20,7 +20,7 @@ import numpy as np
 from copy import deepcopy
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
-from pisa.analysis.llr.LLHAnalysis import find_opt_bfgs, find_alt_hierarchy_fit
+from pisa.analysis.llr.LLHAnalysis import find_max_llh_bfgs, find_alt_hierarchy_fit
 from pisa.analysis.stats.LLHStatistics import get_random_map
 from pisa.analysis.stats.Maps import get_pseudo_data_fmap, get_seed, get_asimov_fmap
 from pisa.analysis.TemplateMaker import TemplateMaker
@@ -137,8 +137,8 @@ def get_llh_hypothesis(
             # Store the LLH data
             results[hypo_tag] = llh_data
 
-        trials += [results]
-        tprofile.info("stop trial %d"%itrial)
+            trials += [results]
+            tprofile.info("stop trial %d"%itrial)
 
     return trials
 
@@ -216,32 +216,8 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
         template_settings["params"], minimizer_settings,
         args.save_steps, check_octant)
 
-    asimov_data_null = get_asimov_fmap(
-        template_maker=template_maker,
-        fiducial_params=alt_mh_settings,
-        channel=alt_mh_settings['channel'])
+    output[data_tag]["true_h_fiducial"] = trials
 
-    # Store all data tag related inputs:
-    output[data_tag]['asimov_data'] = asimov_data
-    output[data_tag]['asimov_data_null'] = asimov_data_null
-    output[data_tag]['alt_mh_settings'] = alt_mh_settings
-    output[data_tag]['llh_null'] = llh_data
-
-    # If we are not taking the best fit of the asimov data to the
-    # alternative hierarchy as the "null hypothesis", then we will use
-    # the parameters of the alternative hierarchy in the settings
-    # file, which correspond to the world best fit values.
-    if args.no_alt_fit:
-        null_settings = get_values(
-            select_hierarchy(template_settings['params'],
-                             normal_hierarchy= (not data_normal)))
-        alt_mh_expectation = get_asimov_fmap(
-            template_maker, null_settings, channel=null_settings['channel'] )
-    else:
-        alt_mh_expectation = asimov_data_null
-
-
-    #
     # If we do not run the alt_fit, then we simply continue in the for
     # loop and the LLR distributions will be interpreted as the
     # ability to discriminate between hierarchies, without fitting for
@@ -257,15 +233,10 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
             asimov_data, template_maker, false_h_params, minimizer_settings,
             (not data_normal), check_octant)
 
-        physics.info(
-            "Finding best fit for %s under %s assumption"%(data_tag,hypo_tag))
-            with Timer() as t:
-                llh_data = find_opt_bfgs(
-                    fmap, template_maker, template_settings['params'],
-                    minimizer_settings, args.save_steps,
-                    normal_hierarchy=hypo_normal, check_octant=check_octant)
-            tprofile.info("==> elapsed time for optimizer: %s sec"%t.secs)
-
+        asimov_data_null = get_asimov_fmap(
+            template_maker=template_maker,
+            fiducial_params=false_h_settings,
+            channel=false_h_settings['channel'])
 
         # Store all data tag related inputs:
         output[data_tag]['false_h_best_fit']['false_h_settings'] = false_h_settings
