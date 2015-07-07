@@ -17,7 +17,7 @@ from pisa.utils.jsons import to_json
 from pisa.utils.log import logging, physics, tprofile
 from pisa.utils.params import get_values, select_hierarchy, get_fixed_params, get_free_params, get_param_values, get_param_scales, get_param_bounds, get_param_priors
 from pisa.utils.utils import Timer
-from pisa.analysis.stats.LLHStatistics import get_binwise_llh, get_binwise_chisquare
+from pisa.analysis.stats.LLHStatistics import get_binwise_llh
 from pisa.analysis.stats.Maps import flatten_map
 
 #@profile
@@ -47,7 +47,7 @@ def find_alt_hierarchy_fit(asimov_data_set, template_maker,hypo_params,hypo_norm
     hypo_params = select_hierarchy(hypo_params, normal_hierarchy=hypo_normal)
 
     with Timer() as t:
-        llh_data = find_opt_bfgs(
+        llh_data = find_max_llh_bfgs(
             fmap=asimov_data_set,
             template_maker=template_maker,
             params=hypo_params,
@@ -74,24 +74,24 @@ def display_optimizer_settings(free_params, names, init_vals, bounds, priors,
 
     return
 
-def find_opt_bfgs(fmap, template_maker, params, bfgs_settings,
-                  save_steps=False, normal_hierarchy=None,
-                  check_octant=False, metric_name='llh'):
+def find_max_llh_bfgs(fmap, template_maker, params, bfgs_settings,
+                      save_steps=False, normal_hierarchy=None,
+                      check_octant=False):
     """
     Finds the template (and free systematic params) that maximize
-    likelihood that the data came from the chosen template of
-    true params (or minimize chisquare), using the limited memory BFGS
-    algorithm subject to bounds (l_bfgs_b).
+    likelihood that the data came from the chosen template of true
+    params, using the limited memory BFGS algorithm subject to bounds
+    (l_bfgs_b).
 
-    returns a dictionary of llh/chisquare data and best fit params, in the format:
-      {'llh/chisquare': [...],
+    returns a dictionary of llh data and best fit params, in the format:
+      {'llh': [...],
        'param1': [...],
        'param2': [...],
        ...}
     where 'param1', 'param2', ... are the free params varied by
     optimizer, and they hold a list of all the values tested in
     optimizer algorithm, unless save_steps is False, in which case
-    they are one element in length-the best fit params and best fit llh/chi2.
+    they are one element in length-the best fit params and best fit llh.
     """
 
     # Get params dict which will be optimized (free_params) and which
@@ -100,14 +100,11 @@ def find_opt_bfgs(fmap, template_maker, params, bfgs_settings,
     free_params = get_free_params(select_hierarchy(params, normal_hierarchy))
 
     if len(free_params) == 0:
-	logging.warn("NO FREE PARAMS, returning %s"%metric_name)
-	true_template = template_maker.get_template(get_values(fixed_params))
-	channel = params['channel']['value']
-	true_fmap = flatten_map(template=true_template, channel=channel)
-	if metric_name=='chisquare':
-            return {'chisquare': [get_binwise_chisquare(fmap, true_fmap)]}
-	elif metric_name=='llh':
-            return {'llh': [-get_binwise_llh(fmap, true_fmap)]}
+        logging.warn("NO FREE PARAMS, returning LLH")
+        true_template = template_maker.get_template(get_values(fixed_params))
+        channel = params['channel']['value']
+        true_fmap = flatten_map(template=true_template, channel=channel)
+        return {'llh': [-get_binwise_llh(fmap, true_fmap)]}
 
     init_vals = get_param_values(free_params)
     scales = get_param_scales(free_params)
@@ -120,16 +117,16 @@ def find_opt_bfgs(fmap, template_maker, params, bfgs_settings,
     bounds = [bounds[i]*scales[i] for i in range(len(bounds))]
 
     opt_steps_dict = {key:[] for key in names}
-    opt_steps_dict[metric_name] = []
+    opt_steps_dict['llh'] = []
 
     const_args = (names, scales, fmap, fixed_params, template_maker,
-                  opt_steps_dict, priors, metric_name)
+                  opt_steps_dict, priors)
 
     display_optimizer_settings(free_params, names, init_vals, bounds, priors,
                                bfgs_settings)
 
-    best_fit_vals,metric_val,dict_flags = opt.fmin_l_bfgs_b(
-        func=bfgs_metric, x0=init_vals, args=const_args, approx_grad=True,
+    best_fit_vals,llh,dict_flags = opt.fmin_l_bfgs_b(
+        func=llh_bfgs, x0=init_vals, args=const_args, approx_grad=True,
         iprint=0, bounds=bounds, **get_values(bfgs_settings))
 
     # If needed, run optimizer again, checking for second octant solution:
@@ -144,32 +141,32 @@ def find_opt_bfgs(fmap, template_maker, params, bfgs_settings,
         init_vals = get_param_values(free_params)
 
         alt_opt_steps_dict = {key:[] for key in names}
-        alt_opt_steps_dict[metric_name] = []
+        alt_opt_steps_dict['llh'] = []
         const_args = (names, scales, fmap, fixed_params, template_maker,
-                      alt_opt_steps_dict, priors, metric_name)
+                      alt_opt_steps_dict, priors)
         display_optimizer_settings(free_params=free_params,
                                    names=names,
                                    init_vals=init_vals,
                                    bounds=bounds,
                                    priors=priors,
                                    bfgs_settings=bfgs_settings)
-        alt_fit_vals, alt_metric_val, alt_dict_flags = opt.fmin_l_bfgs_b(
-            func=bfgs_metric, x0=init_vals, args=const_args, approx_grad=True,
+        alt_fit_vals, alt_llh, alt_dict_flags = opt.fmin_l_bfgs_b(
+            func=llh_bfgs, x0=init_vals, args=const_args, approx_grad=True,
             iprint=0, bounds=bounds, **get_values(bfgs_settings))
 
 
         # Alternative octant solution is optimal:
         if alt_llh < llh:
             best_fit_vals = alt_fit_vals
-            metric_val = alt_metric_val
+            llh = alt_llh
             dict_flags = alt_dict_flags
             opt_steps_dict = alt_opt_steps_dict
 
     best_fit_params = { name: value for name, value in zip(names, best_fit_vals) }
 
     # Report best fit
-    physics.info('Found best %s = %.2f in %d calls at:'
-        %(metric_name, metric_val, dict_flags['funcalls']))
+    physics.info('Found best LLH = %.2f in %d calls at:'
+        %(llh, dict_flags['funcalls']))
     for name, val in best_fit_params.items():
         physics.info('  %20s = %6.4f'%(name,val))
 
@@ -186,14 +183,13 @@ def find_opt_bfgs(fmap, template_maker, params, bfgs_settings,
     return opt_steps_dict
 
 
-def bfgs_metric(opt_vals, names, scales, fmap, fixed_params, template_maker,
-                opt_steps_dict, priors, metric_name='llh'):
+def llh_bfgs(opt_vals, names, scales, fmap, fixed_params, template_maker,
+             opt_steps_dict, priors):
     """
     Function that the bfgs algorithm tries to minimize: wraps get_template()
-    and get_binwise_llh() (or get_binwise_chisquare()), and returns
-    the negative log likelihood (the chisquare).
+    and get_binwise_llh(), and returns the negative log likelihood.
 
-    This function is set up this way because the fmin_l_bfgs_b algorithm must
+    This fuction is set up this way because the fmin_l_bfgs_b algorithm must
     take a function with two inputs: params & *args, where 'params' are the
     actual VALUES to be varied, and must correspond to the limits in 'bounds',
     and 'args' are arguments which are not varied and optimized, but needed by
@@ -221,14 +217,11 @@ def bfgs_metric(opt_vals, names, scales, fmap, fixed_params, template_maker,
         trial of the optimization process.
     priors : sequence of pisa.utils.params.Prior objects
         Priors corresponding to opt_vals list.
-    metric_name : string
-	Returns chisquare instead of negative llh if metric_name is 'chisquare'.
-	Note: this string has to be present as a key in opt_steps_dict
 
     Returns
     -------
-    metric_val : float
-        either minimum negative llh or chisquare found by BFGS minimizer
+    neg_llh : float
+        Minimum negative log likelihood found by BFGS minimizer
 
     """
     # free parameters being "optimized" by minimizer re-scaled to their true
@@ -239,7 +232,7 @@ def bfgs_metric(opt_vals, names, scales, fmap, fixed_params, template_maker,
     template_params = dict(unscaled_free_params.items() +
                            get_values(fixed_params).items())
 
-    # Now get true template, and compute metric
+    # Now get true template, and compute LLH
     with Timer() as t:
         if template_params['theta23'] == 0.0:
             logging.info("Zero theta23, so generating no oscillations template...")
@@ -254,23 +247,18 @@ def bfgs_metric(opt_vals, names, scales, fmap, fixed_params, template_maker,
     # NOTE: The minus sign is present on both of these next two lines
     # because the optimizer finds a minimum rather than maximum, so we
     # have to minimize the negative of the log likelhood.
-    if metric_name=='chisquare':
-	metric_val = get_binwise_chisquare(fmap, true_fmap)
-	metric_val += sum([prior.chi2(opt_val)
-                           for (opt_val, prior) in zip(unscaled_opt_vals, priors)])
-    elif metric_name=='llh':
-	metric_val = -get_binwise_llh(fmap, true_fmap)
-	metric_val -= sum([prior.llh(opt_val)
-                           for (opt_val, prior) in zip(unscaled_opt_vals, priors)])
+    neg_llh = -get_binwise_llh(fmap, true_fmap)
+    neg_llh -= sum([prior.llh(opt_val)
+                    for (opt_val, prior) in zip(unscaled_opt_vals, priors)])
 
     # Save all optimizer-tested values to opt_steps_dict, to see
     # optimizer history later
     for key in names:
         opt_steps_dict[key].append(template_params[key])
-    opt_steps_dict[metric_name].append(metric_val)
+    opt_steps_dict['llh'].append(neg_llh)
 
-    physics.debug("%s is %.2f at: "%(metric_name, metric_val))
+    physics.debug("LLH is %.2f at: "%neg_llh)
     for name, val in zip(names, opt_vals):
         physics.debug(" %20s = %6.4f" %(name,val))
 
-    return metric_val
+    return neg_llh
