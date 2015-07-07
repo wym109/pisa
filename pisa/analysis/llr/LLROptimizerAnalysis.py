@@ -137,8 +137,8 @@ def get_llh_hypothesis(
             # Store the LLH data
             results[hypo_tag] = llh_data
 
-            trials += [results]
-            tprofile.info("stop trial %d"%itrial)
+        trials += [results]
+        tprofile.info("stop trial %d"%itrial)
 
     return trials
 
