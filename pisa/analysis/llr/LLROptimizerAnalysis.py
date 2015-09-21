@@ -88,10 +88,66 @@ def getAltHierarchyBestFit(asimov_data, template_maker, params, minimizer_settin
     return alt_params, llh_data
 
 
+def get_llh_hypothesis(
+        data_tag, asimov_data, ntrials, template_maker, template_params,
+        minimizer_settings, save_steps, check_octant):
+    """
+    Runs the llh fitter ntrials number of times, pulling pseudo data sets from
+    asimov_data.
+
+    \Params:
+      * data_tag - hierarchy type running for assumed true.
+      * asimov_data - asimov (unfluctuated) data from which to generate poisson
+        fluctuated pseudo data
+      * ntrials - number of trials to run for each hierarchy hypothesis
+      * template_maker - instance of TemplateMaker class, from which to fit pseudo
+        data to
+      * template_params - dictionary of parameters at which to test the pseudo
+        data and find the best match llh
+      * minimizer_settings - settings for bfgs minimizer in llh fit
+      * save_steps - flag to save the optimizer steps
+      * check_octant - boolean to check both octants of theta23
+
+    \returns - trials list that holds the dictionaries of llh results.
+    """
+
+    trials = []
+    for itrial in xrange(1,ntrials+1):
+        results = {} # one trial of results
+
+        tprofile.info("start trial %d"%itrial)
+        logging.info(">"*10 + "Running trial: %05d"%itrial + "<"*10)
+
+        results['seed'] = get_seed()
+        logging.info("  RNG seed: %ld"%results['seed'])
+        # Get random map generated from asimov data (or from data_tag).
+        fmap = get_random_map(asimov_data, seed=results['seed'])
+
+        for hypo_tag, hypo_normal in [('hypo_NMH',True),('hypo_IMH',False)]:
+
+            physics.info(
+                "Finding best fit for %s under %s assumption"%(data_tag,hypo_tag))
+            with Timer() as t:
+                llh_data = find_max_llh_bfgs(
+                    fmap, template_maker, template_params,
+                    minimizer_settings, save_steps,
+                    normal_hierarchy=hypo_normal, check_octant=check_octant)
+            tprofile.info("==> elapsed time for optimizer: %s sec"%t.secs)
+
+            # Store the LLH data
+            results[hypo_tag] = llh_data
+
+        trials += [results]
+        tprofile.info("stop trial %d"%itrial)
+
+    return trials
+
 parser = ArgumentParser(
     description='''Runs the LLR optimizer-based analysis varying a number of systematic
-    parameters defined in settings.json file and saves the likelihood values for all
-    combination of hierarchies.''',
+    parameters defined in settings input .json file and saves the likelihood values for
+    a combination of hierarchies. Standard output will provide 8 LLH values per trial-
+    4 LLH values for hypothesized Normal, and 4 LLH values for hypothesized Inverted.
+    If run in --no_alt_fit mode, 4 LLH values per trial are produced.''',
     formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('-t','--template_settings',type=str,
                     metavar='JSONFILE', required = True,
@@ -108,11 +164,13 @@ parser.add_argument('-s','--save-steps',action='store_true',default=False,
                     dest='save_steps',
                     help="Save all steps the optimizer takes.")
 parser.add_argument('--no_alt_fit',action='store_true',default=False,
-                    help='''Fix all parameters in the alternative MH fit, so just uses
-                    the Fiducial
-                    for opposite hierarchy''')
+                    help='''Does not fit for the oscillation parameters that best match
+                    the alternative hierarchy hypothesis, but instead uses the fiducial
+                    values of the alternative hierarchy to produce the LLR distribution.
+                    (Not recommended for values of theta23 close to maximal).''')
 parser.add_argument('--single_octant',action='store_true',default=False,
-                    help='''Checks opposite octant for a minimum llh solution''')
+                    help='''Checks opposite octant for a minimum llh solution.
+                    Especially important for theta23 close to maximal.''')
 parser.add_argument('-o','--outfile',type=str,default='llh_data.json',metavar='JSONFILE',
                     help="Output filename.")
 parser.add_argument('-v', '--verbose', action='count', default=None,
@@ -141,77 +199,54 @@ template_maker = TemplateMaker(get_values(template_settings['params']),
 output = {'template_settings' : template_settings,
           'minimizer_settings' : minimizer_settings}
 
-
-asimov_data = {}
-asimov_data_null = {}
-alt_mh_settings = {}
 for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
     tprofile.info("Assuming: %s"%data_tag)
 
-    output[data_tag] = {}
+    output[data_tag] = {"true_h_fiducial": {}}
+
+    # Always do the true hierarchy fiducial LLR distribution:
+    true_h_fiducial = {}
 
     # Get Asimov data set for assuming true: data_tag
     asimov_data = getAsimovData(
         template_maker, template_settings['params'], data_normal)
 
-    alt_params = fix_non_atm_params(template_settings['params'])
-    alt_mh_settings, llh_data = getAltHierarchyBestFit(
-        asimov_data, template_maker, alt_params, minimizer_settings,
-        (not data_normal), check_octant)
+    trials = get_llh_hypothesis(
+        data_tag, asimov_data, args.ntrials, template_maker,
+        template_settings["params"], minimizer_settings,
+        args.save_steps, check_octant)
 
-    asimov_data_null = get_asimov_fmap(
-        template_maker=template_maker,
-        fiducial_params=alt_mh_settings,
-        channel=alt_mh_settings['channel'])
+    output[data_tag]["true_h_fiducial"] = trials
 
-    # Store all data tag related inputs:
-    output[data_tag]['asimov_data'] = asimov_data
-    output[data_tag]['asimov_data_null'] = asimov_data_null
-    output[data_tag]['alt_mh_settings'] = alt_mh_settings
-    output[data_tag]['llh_null'] = llh_data
+    # If we do not run the alt_fit, then we simply continue in the for
+    # loop and the LLR distributions will be interpreted as the
+    # ability to discriminate between hierarchies, without fitting for
+    # the false hierarchy parameters that match best to the True
+    # hierarchy fiducial model.
 
-    # If we are not taking the best fit of the asimov data to the
-    # alternative hierarchy as the "null hypothesis", then we will use
-    # the parameters of the alternative hierarchy in the settings
-    # file, which correspond to the world best fit values.
-    if args.no_alt_fit:
-        null_settings = get_values(
-            select_hierarchy(template_settings['params'],
-                             normal_hierarchy= (not data_normal)))
-        alt_mh_expectation = get_asimov_fmap(
-            template_maker, null_settings, channel=null_settings['channel'] )
-    else:
-        alt_mh_expectation = asimov_data_null
+    if not args.no_alt_fit:
+        logging.info("Running false hierarchy best fit...")
+        output[data_tag]["false_h_best_fit"] = {}
 
+        false_h_params = fix_non_atm_params(template_settings['params'])
+        false_h_settings, llh_data = getAltHierarchyBestFit(
+            asimov_data, template_maker, false_h_params, minimizer_settings,
+            (not data_normal), check_octant)
 
-    trials = []
-    for itrial in xrange(1,args.ntrials+1):
-        results = {} # one trial of results
+        asimov_data_null = get_asimov_fmap(
+            template_maker=template_maker,
+            fiducial_params=false_h_settings,
+            channel=false_h_settings['channel'])
 
-        tprofile.info("start trial %d"%itrial)
-        logging.info(">"*10 + "Running trial: %05d"%itrial + "<"*10)
+        # Store all data tag related inputs:
+        output[data_tag]['false_h_best_fit']['false_h_settings'] = false_h_settings
+        output[data_tag]['false_h_best_fit']['llh_null'] = llh_data
 
-        results['seed'] = get_seed()
-        logging.info("  RNG seed: %ld"%results['seed'])
-        fmap = get_random_map(alt_mh_expectation, seed=results['seed'])
+        trials = get_llh_hypothesis(
+            data_tag, asimov_data_null, args.ntrials, template_maker,
+            template_settings["params"], minimizer_settings,
+            args.save_steps, check_octant)
 
-        for hypo_tag, hypo_normal in [('hypo_NMH',True),('hypo_IMH',False)]:
-
-            physics.info(
-                "Finding best fit for %s under %s assumption"%(data_tag,hypo_tag))
-            with Timer() as t:
-                llh_data = find_opt_bfgs(
-                    fmap, template_maker, template_settings['params'],
-                    minimizer_settings, args.save_steps,
-                    normal_hierarchy=hypo_normal, check_octant=check_octant)
-            tprofile.info("==> elapsed time for optimizer: %s sec"%t.secs)
-
-            # Store the LLH data
-            results[hypo_tag] = llh_data
-
-        trials += [results]
-        tprofile.info("stop trial %d"%itrial)
-
-    output[data_tag]['trials'] = trials
+        output[data_tag]["false_h_best_fit"] = trials
 
 to_json(output,args.outfile)

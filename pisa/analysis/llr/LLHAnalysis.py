@@ -158,12 +158,8 @@ def find_opt_bfgs(fmap, template_maker, params, bfgs_settings,
             iprint=0, bounds=bounds, **get_values(bfgs_settings))
 
 
-	# Alternative octant solution is optimal:
-	# Note: can use "<" for both metrics since neg. llh returned
-	print "ALT %s: "%metric_name, alt_metric_val
-	print "%s: "%metric_name, metric_val
-	if alt_metric_val < metric_val:
-            print "  >>TRUE..."
+        # Alternative octant solution is optimal:
+        if alt_llh < llh:
             best_fit_vals = alt_fit_vals
             metric_val = alt_metric_val
             dict_flags = alt_dict_flags
@@ -266,6 +262,11 @@ def bfgs_metric(opt_vals, names, scales, fmap, fixed_params, template_maker,
 	metric_val = -get_binwise_llh(fmap, true_fmap)
 	metric_val -= sum([prior.llh(opt_val)
                            for (opt_val, prior) in zip(unscaled_opt_vals, priors)])
+
+    #prior_list = [prior.llh(opt_val)
+    #         for (opt_val, prior) in zip(unscaled_opt_vals, priors)]
+    #print("  prior sum: ",sum(prior_list))
+    #neg_llh -= sum(prior_list)
 
     # Save all optimizer-tested values to opt_steps_dict, to see
     # optimizer history later
