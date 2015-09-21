@@ -281,7 +281,6 @@ def fix_non_atm_params(params):
     for key,value in params.items():
         new_params[key] = value.copy()
         if (bool(re.match('^theta23', key)) or bool(re.match('^deltam31', key))):
-            #new_params[key]['fixed'] = False
             continue
         else:
             new_params[key]['fixed'] = True
