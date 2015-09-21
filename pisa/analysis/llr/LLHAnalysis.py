@@ -251,6 +251,11 @@ def llh_bfgs(opt_vals, names, scales, fmap, fixed_params, template_maker,
     neg_llh -= sum([prior.llh(opt_val)
                     for (opt_val, prior) in zip(unscaled_opt_vals, priors)])
 
+    #prior_list = [prior.llh(opt_val)
+    #         for (opt_val, prior) in zip(unscaled_opt_vals, priors)]
+    #print("  prior sum: ",sum(prior_list))
+    #neg_llh -= sum(prior_list)
+
     # Save all optimizer-tested values to opt_steps_dict, to see
     # optimizer history later
     for key in names:
