@@ -1,6 +1,9 @@
 #! /usr/bin/env python
 #
-# Initializes job files
+# Initializes job files to be run on a computing cluster.
+#
+# NOTE: This script is highly cluster-specific, and will need to be
+# modified for clusters different than the MSU GPU cluster.
 #
 #
 
@@ -21,7 +24,8 @@ def create_job_file_preamble():
     preamble.append("#PBS -l feature='gpgpu:intel14'\n")
     preamble.append('#\n')
     preamble.append('#PBS -m a\n')
-    preamble.append('#PBS -M tca3+PBS@psu.edu\n')
+    # Your email here if desired:
+    #preamble.append('#PBS -M tca3+PBS@psu.edu\n')
     
     return preamble
 
