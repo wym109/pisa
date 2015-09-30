@@ -25,7 +25,7 @@ from pisa.analysis.stats.LLHStatistics import get_random_map
 from pisa.analysis.stats.Maps import get_pseudo_data_fmap, get_seed, get_asimov_fmap
 from pisa.analysis.TemplateMaker import TemplateMaker
 from pisa.utils.log import logging, tprofile, physics, set_verbosity
-from pisa.utils.jsons import from_json, to_json
+from pisa.utils.jsons import from_json,to_json
 from pisa.utils.params import get_values, select_hierarchy, fix_all_params, fix_non_atm_params
 from pisa.utils.utils import Timer
 
