@@ -12,7 +12,7 @@
 
 import sys
 import numpy as np
-from pisa.utils.log import logging, profile
+from pisa.utils.log import logging, tprofile
 from pisa.oscillations.OscillationServiceBase import OscillationServiceBase
 from pisa.oscillations.prob3.BargerPropagator import BargerPropagator
 from pisa.resources.resources import find_resource
@@ -47,7 +47,8 @@ class Prob3OscillationService(OscillationServiceBase):
     def fill_osc_prob(self, osc_prob_dict, ecen, czcen,
                       theta12=None, theta13=None, theta23=None,
                       deltam21=None, deltam31=None, deltacp=None,
-                      energy_scale=None,**kwargs):
+                      energy_scale=None, YeI = None, YeO = None,
+                      YeM = None,**kwargs):
         '''
         Loops over ecen,czcen and fills the osc_prob_dict maps, with
         probabilities calculated according to prob3
@@ -61,7 +62,7 @@ class Prob3OscillationService(OscillationServiceBase):
                      'nue_bar':1,'numu_bar':2,'nutau_bar':3}
 
         logging.info("Defining osc_prob_dict from BargerPropagator...")
-        profile.info("start oscillation calculation")
+        tprofile.info("start oscillation calculation")
         # Set to true, since we are using sin^2(theta) variables
         kSquared = True
         sin2th12Sq = np.sin(theta12)**2
@@ -93,7 +94,8 @@ class Prob3OscillationService(OscillationServiceBase):
                 kNuBar = 1 # +1 for nu -1 for nubar
                 self.barger_prop.SetMNS(sin2th12Sq,sin2th13Sq,sin2th23Sq,deltam21,mAtm,
                                         deltacp,scaled_energy,kSquared,kNuBar)
-                self.barger_prop.DefinePath(coszen, self.prop_height)
+
+                self.barger_prop.DefinePath(coszen, self.prop_height, YeI, YeO, YeM)
                 self.barger_prop.propagate(kNuBar)
 
                 for nu in ['nue','numu']:
@@ -109,7 +111,7 @@ class Prob3OscillationService(OscillationServiceBase):
                 kNuBar = -1
                 self.barger_prop.SetMNS(sin2th12Sq,sin2th13Sq,sin2th23Sq,deltam21,
                                         mAtm,deltacp,scaled_energy,kSquared,kNuBar)
-                self.barger_prop.DefinePath(coszen, self.prop_height)
+                self.barger_prop.DefinePath(coszen, self.prop_height, YeI, YeO, YeM)
                 self.barger_prop.propagate(kNuBar)
 
                 for nu in ['nue_bar','numu_bar']:
@@ -122,6 +124,6 @@ class Prob3OscillationService(OscillationServiceBase):
 
         if loglevel <= logging.INFO: sys.stdout.write("\n")
 
-        profile.info("stop oscillation calculation")
+        tprofile.info("stop oscillation calculation")
 
         return evals,czvals

@@ -19,11 +19,15 @@ EarthDensity::EarthDensity( )
   _density[ 5701.0 ]  =  5.0 ;
   _density[ 6371.0 ]  =  3.3 ;
 
+  _YeI = 0.4656;
+  _YeO = 0.4656;
+  _YeM = 0.4957;
+
   init();
 }
 
 
-EarthDensity::EarthDensity( const char * file, double _detectorDepth )
+EarthDensity::EarthDensity( const char * file, fType _detectorDepth )
 {
   _TraverseDistance     = NULL;
   _TraverseRhos         = NULL;
@@ -37,8 +41,8 @@ EarthDensity::EarthDensity( const char * file, double _detectorDepth )
 void EarthDensity::LoadDensityProfile( const char * file )
 {
   ifstream PREM_dat;
-  double r_dist;          // radial distance -- map key //
-  double rho;             // density at that distance -- map value //
+  fType r_dist;          // radial distance -- map key //
+  fType rho;             // density at that distance -- map value //
 
   DensityFileName = file;
 
@@ -71,8 +75,8 @@ void EarthDensity::init()
 
 
 ///// Really need to clean this bit up, slow and bulky!
-void EarthDensity::SetDensityProfile( double CosineZ, double PathLength ,
-				      double ProductionHeight)
+void EarthDensity::SetDensityProfile( fType CosineZ, fType PathLength ,
+				      fType ProductionHeight)
 /*
   10 May 2014 (TCA): Changed this code so that it calculates the path
   through the atmosphere and if the detectorDepth is greater than
@@ -81,24 +85,24 @@ void EarthDensity::SetDensityProfile( double CosineZ, double PathLength ,
 {
    int i;
    int MaxLayer;
-   double km2cm = 1.0e5;
-   double TotalEarthLength =  -2.0*CosineZ*RDetector*km2cm; // in [cm]  -YES check - TCA
-   double CrossThis, CrossNext;
-   double default_elec_frac = 0.5;
+   fType km2cm = 1.0e5;
+   fType TotalEarthLength =  -2.0*CosineZ*RDetector*km2cm; // in [cm]  -YES check - TCA
+   fType CrossThis, CrossNext;
+   fType default_elec_frac = 0.5;
 
-   map<double, double>::iterator _i;
+   map<fType, fType>::iterator _i;
 
 
    // TCA: Correctly handle above horizon, through outermost layer...
    if( CosineZ >= 0 ) {
      // Path through the air:
 
-     double kappa = DetectorDepth/RDetector;
-     double lambda = CosineZ + sqrt(CosineZ*CosineZ - 1 + (1+kappa)*(1+kappa));
+     fType kappa = DetectorDepth/RDetector;
+     fType lambda = CosineZ + sqrt(CosineZ*CosineZ - 1 + (1+kappa)*(1+kappa));
      lambda*=(km2cm*RDetector);
-     double pathThroughAtm = (ProductionHeight*(ProductionHeight + 2.0*DetectorDepth*km2cm +
+     fType pathThroughAtm = (ProductionHeight*(ProductionHeight + 2.0*DetectorDepth*km2cm +
 						2.0*RDetector*km2cm))/(PathLength + lambda);
-     double pathThroughOuterLayer = PathLength - pathThroughAtm;
+     fType pathThroughOuterLayer = PathLength - pathThroughAtm;
      _TraverseRhos[0] = 0.0;
      _TraverseDistance[0] =  pathThroughAtm;
      _TraverseElectronFrac[0] = default_elec_frac;
@@ -181,7 +185,7 @@ void EarthDensity::SetDensityProfile( double CosineZ, double PathLength ,
 }
 
 
-void EarthDensity::SetElecFrac(double YeI, double YeO, double YeM)
+void EarthDensity::SetElecFrac(fType YeI, fType YeO, fType YeM)
 {
   if (_YeOuterRadius.size() != 3) {
     cerr<<"\nERROR: Expects only 3 regions of variable electron fraction! \n"<<
@@ -199,7 +203,7 @@ void EarthDensity::SetElecFrac(double YeI, double YeO, double YeM)
 // now using Zenith angle to compute minimum conditions...20050620 rvw
 void EarthDensity::ComputeMinLengthToLayers()
 {
-  double x;
+  fType x;
 
   _CosLimit.clear();
 
@@ -220,7 +224,7 @@ void EarthDensity::Load()
 
   int MaxDepth = 0;
 
-  map<double, double>::reverse_iterator _i;
+  map<fType, fType>::reverse_iterator _i;
   _i = _density.rbegin();
   REarth = _i->first;
 
@@ -235,17 +239,17 @@ void EarthDensity::Load()
   // that is defined by the radius from earth's center to the detector.
   if (DetectorDepth < MinDetectorDepth) DetectorDepth = 0.0;
   else {
-    std::map<double,double>::reverse_iterator rit;
+    std::map<fType,fType>::reverse_iterator rit;
 
     rit = _density.rbegin();
-    double largest_radius = rit->first;
-    double last_rho = rit->second;
+    fType largest_radius = rit->first;
+    fType last_rho = rit->second;
     _density.erase(largest_radius);
     largest_radius -= DetectorDepth;
 
     // Check if there are any radii greater than this new final layer
     // and if so, quit.
-    for (std::map<double,double>::iterator it = _density.begin(); it!=_density.end(); ++it) {
+    for (std::map<fType,fType>::iterator it = _density.begin(); it!=_density.end(); ++it) {
       if (it->first > largest_radius) {
 	cerr<<"ERROR! detector is placed too deep-no support for multiple layers "
 	    <<"above detector"<<endl;
@@ -289,9 +293,9 @@ void EarthDensity::Load()
   int MAXLAYERS = 2*MaxDepth + 1;
   if (DetectorDepth >= MinDetectorDepth) MAXLAYERS += 1;
 
-  _TraverseRhos      = new double [ MAXLAYERS ];
-  _TraverseDistance  = new double [ MAXLAYERS ];
-  _TraverseElectronFrac    = new double [ MAXLAYERS ];
+  _TraverseRhos      = new fType [ MAXLAYERS ];
+  _TraverseDistance  = new fType [ MAXLAYERS ];
+  _TraverseElectronFrac    = new fType [ MAXLAYERS ];
 
   return;
 

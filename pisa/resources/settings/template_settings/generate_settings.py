@@ -156,9 +156,10 @@ parser.add_argument('--livetime',metavar='FLOAT',type=float,default=1.0,
 parser.add_argument('--channel',metavar='STR', type=str,
                     choices=['trck', 'cscd','all','no_pid'],default='all',
                     help='''Channel to use in analysis''')
-parser.add_argument('--free_params',metavar='LIST',default=None,nargs='*',
+parser.add_argument('--free_params',metavar='LIST',default=None,nargs='+',
                     help='''List of parameters to leave as free from systematics database.
-                    If not set, will use fixed as set in database.''')
+                    If not set, will use fixed as set in database.
+                    (Ex: --free_params deltam31 theta23 nue_numu_ratio)''')
 
 
 args = parser.parse_args()
@@ -174,6 +175,8 @@ template_settings['binning']['ebins'] = ebins
 template_settings['binning']['czbins'] = czbins
 template_settings['binning']['oversample_e'] = args.oversample_e
 template_settings['binning']['oversample_cz'] = args.oversample_cz
+
+#print "free params: ",args.free_params
 
 # Now process the (possibly not fixed) systematic parameters of the database:
 dbparams = processDatabase(args.dbfile,args.free_params)

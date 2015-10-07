@@ -25,11 +25,11 @@ from pisa.resources.resources import open_resource
 primaries = ['numu', 'numu_bar', 'nue', 'nue_bar']
 
 class HondaFluxService():
-    '''Load a neutrino flux from Honda-styles flux tables in
-       units of [GeV^-1 m^-2 s^-1 sr^-1] and
-       return a 2D spline interpolated function per flavour.
-       For now only supports azimuth-averaged input files.
-    '''
+    """Load a neutrino flux from Honda-styles flux tables in units of
+       [GeV^-1 m^-2 s^-1 sr^-1] and return a 2D spline interpolated
+       function per flavour.  For now only supports azimuth-averaged
+       input files.
+    """
 
     def __init__(self, flux_file=None, smooth=0.05, **params):
         logging.info("Loading atmospheric flux table %s" %flux_file)
@@ -67,26 +67,26 @@ class HondaFluxService():
             self.spline_dict[nutype] = spline
 
     def get_flux(self, ebins, czbins, prim):
-        '''Get the flux in units [m^-2 s^-1] for the given
-           bin edges in energy and cos(zenith) and the primary.'''
-        
+        """Get the flux in units [m^-2 s^-1] for the given
+           bin edges in energy and cos(zenith) and the primary."""
+
         #Evaluate the flux at the bin centers
         evals = get_bin_centers(ebins)
         czvals = get_bin_centers(czbins)
-    
+
         # Get the spline interpolation, which is in
         # log(flux) as function of log(E), cos(zenith)
         return_table = bisplev(np.log10(evals), czvals, self.spline_dict[prim])
         return_table = np.power(10., return_table).T
-    
+
         #Flux is given per sr and GeV, so we need to multiply
         #by bin width in both dimensions
         #Get the bin size in both dimensions
         ebin_sizes = get_bin_sizes(ebins)
         czbin_sizes = 2.*np.pi*get_bin_sizes(czbins)
         bin_sizes = np.meshgrid(ebin_sizes, czbin_sizes)
-    
+
         return_table *= np.abs(bin_sizes[0]*bin_sizes[1])
-    
+
         return return_table.T
 

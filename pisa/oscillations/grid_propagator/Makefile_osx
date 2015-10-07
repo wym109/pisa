@@ -1,7 +1,7 @@
 # Makefile
 #
-# IMPORTANT! If you don't rename EarthDensity.py -> <something
-# else>.py, then bad things/name collisions happen!
+# IMPORTANT! If you don't rename <something>.py ->
+# <something_else>.py, then bad things/name collisions happen!
 #
 
 # Needed to create the __init__.py
@@ -9,23 +9,23 @@ SHELL:=/bin/bash
 
 #############################
 # NEEDED FOR PYTHON DLL
-PYLIB = /gpfs/home/tca3/local/anaconda/pkgs/python-2.7.8-1/lib/
-PYINC = /gpfs/home/tca3/local/anaconda/pkgs/python-2.7.8-1/include/python2.7/
-PYFLAGS = -L$(PYLIB) -lpython2.7
-NUMPYINC = /usr/local/lib/python2.7/site-packages/numpy/core/include/
+PYTHONDIR=/Users/timothyarlen/local/anaconda/
+NUMPYINC = $(PYTHONDIR)/lib/python2.7/site-packages/numpy/core/include/
+PYINC=`python-config --cflags`
+PYFLAGS=`python-config --ldflags`
 
 # Depending on your OS/compiler, you may need a different for a dynamic lib for c++
-DLLFLAG = -shared
-SWIG = /usr/bin/swig
+DLLFLAG = -dynamiclib
+SWIG = /usr/local/bin/swig
 #############################
 
 ################################################
 # NEEDED FOR getting Earth Model in one place
 ################################################
-INC=$(PISA)/pisa/oscillations/prob3/
+INC=$(PISA)pisa/oscillations/prob3/
 
 CXX = g++ -O3 -fPIC
-CXXFLAGS += -I$(INC) -I. -Wall
+CXXFLAGS += -I$(INC) -I. -Wall -Wno-c++11-compat-deprecated-writable-strings
 
 GridPropagator.o : GridPropagator.cpp
 	$(RM) $@
@@ -42,7 +42,7 @@ targets = _GridPropagator.so GridProp.py
 
 # Now generate the python dll
 _GridPropagator.so: GridPropagator_wrap.o GridPropagator.o
-	$(CXX) $(DLLFLAG) GridPropagator_wrap.o $(OBJS) $(PYFLAGS) -o $@
+	$(CXX) $(DLLFLAG) $(PYFLAGS) -v GridPropagator_wrap.o $(OBJS) -o $@
 	touch __init__.py
 
 GridPropagator_wrap.o: GridPropagator_wrap.cxx $(OBJS)
@@ -59,6 +59,6 @@ all: $(targets)
 
 .PHONY: clean
 clean:
-	$(RM) $(targets) *.o *.a *.so *.pyc *~ *.cxx
+	$(RM) $(targets) *.o *.a *.so *.pyc *~ *.cxx *.py
 
 emptyrule: $(targets)

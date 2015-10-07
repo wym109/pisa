@@ -1,19 +1,17 @@
 #! /usr/bin/env python
 #
-# LLROptimizerAnalysis.py
+# GenerateLLRMCTrue.py
 #
-# Runs the LLR optimizer-based LLR analysis
+# Generates the LLR distributions at the MC True values of all
+# parameters, so that we can find the mean for the MC True case and
+# use it to determine the average Test Statistic of LLR for the MC
+# True parameters. (This can be compared to the Asimov mean to see
+# which is more accurate).
 #
 # author: Tim Arlen - tca3@psu.edu
-#         Sebatian Boeser - sboeser@uni-mainz.de
 #
-# date:   02-July-2014
+# date:   19-May-2015
 #
-# revision: 07-May-2015
-# Re-wrote how the alternative hierarchy (null hypothesis) is handled.
-# Rather than assuming the alternative hypothesis best fit of the
-# oscillation parameters is unchanged,  we allow the asimov data set to
-# find the best fit null hypothesis to be changed.
 #
 
 import numpy as np
@@ -39,6 +37,7 @@ def check_scipy_version(minimizer_settings):
             minimizer_settings.pop('maxiter')
     return
 
+
 def getAsimovData(template_maker, params, data_normal):
     """
     Generates the asimov data set (expected counts distribution) at
@@ -51,41 +50,10 @@ def getAsimovData(template_maker, params, data_normal):
         or inverted (False)
     """
 
-    fiducial_param_vals = get_values(select_hierarchy(
+    fiducial_params = get_values(select_hierarchy(
         params, normal_hierarchy=data_normal))
-    return get_asimov_fmap(
-        template_maker=template_maker,
-        fiducial_params=fiducial_param_vals,
-        channel=fiducial_param_vals['channel'])
-
-
-def getAltHierarchyBestFit(asimov_data, template_maker, params, minimizer_settings,
-                           hypo_normal, check_octant):
-    """
-    Finds the best fit value of alternative hierarchy to that which
-    was used to produce the asimov data set.
-
-    \Params:
-      * asimov_data - array of values of asimov data set (float)
-      * template_maker - instance of class TemplateMaker service.
-      * params - parameters with values, fixed, range, etc. of systematics
-      * minimizer_settings - used with bfgs_b minimizer
-      * hypo_normal - bool for Mass hierarchy being Normal (True)
-        or inverted (False)
-      * check_octant - bool to check the opposite octant for a solution
-        to the minimization of the LLH.
-    """
-
-    llh_data = find_alt_hierarchy_fit(
-        asimov_data, template_maker, params, hypo_normal,
-        minimizer_settings, only_atm_params=True, check_octant=check_octant)
-
-    alt_params = get_values(select_hierarchy(params, normal_hierarchy=hypo_normal))
-    for key in llh_data.keys():
-        if key == 'llh': continue
-        alt_params[key] = llh_data[key][-1]
-
-    return alt_params, llh_data
+    return get_asimov_fmap(template_maker, fiducial_params,
+                           channel=fiducial_params['channel'])
 
 
 parser = ArgumentParser(
@@ -121,12 +89,13 @@ args = parser.parse_args()
 
 set_verbosity(args.verbose)
 
-# Read in the settings
+#Read in the settings
 template_settings = from_json(args.template_settings)
 minimizer_settings  = from_json(args.minimizer_settings)
 
 # Change this throughout code later?
 check_octant = not args.single_octant
+
 check_scipy_version(minimizer_settings)
 
 if args.gpu_id is not None:
@@ -142,47 +111,16 @@ output = {'template_settings' : template_settings,
           'minimizer_settings' : minimizer_settings}
 
 
-asimov_data = {}
-asimov_data_null = {}
-alt_mh_settings = {}
-for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
+for data_tag, data_normal in [('data_NMH',True),('data_IMH',False)]:
     tprofile.info("Assuming: %s"%data_tag)
 
     output[data_tag] = {}
 
-    # Get Asimov data set for assuming true: data_tag
+    # Get Asimov data set for assuming true: data_tag, and store for
+    # later comparison
     asimov_data = getAsimovData(
         template_maker, template_settings['params'], data_normal)
-
-    alt_params = fix_non_atm_params(template_settings['params'])
-    alt_mh_settings, llh_data = getAltHierarchyBestFit(
-        asimov_data, template_maker, alt_params, minimizer_settings,
-        (not data_normal), check_octant)
-
-    asimov_data_null = get_asimov_fmap(
-        template_maker=template_maker,
-        fiducial_params=alt_mh_settings,
-        channel=alt_mh_settings['channel'])
-
-    # Store all data tag related inputs:
     output[data_tag]['asimov_data'] = asimov_data
-    output[data_tag]['asimov_data_null'] = asimov_data_null
-    output[data_tag]['alt_mh_settings'] = alt_mh_settings
-    output[data_tag]['llh_null'] = llh_data
-
-    # If we are not taking the best fit of the asimov data to the
-    # alternative hierarchy as the "null hypothesis", then we will use
-    # the parameters of the alternative hierarchy in the settings
-    # file, which correspond to the world best fit values.
-    if args.no_alt_fit:
-        null_settings = get_values(
-            select_hierarchy(template_settings['params'],
-                             normal_hierarchy= (not data_normal)))
-        alt_mh_expectation = get_asimov_fmap(
-            template_maker, null_settings, channel=null_settings['channel'] )
-    else:
-        alt_mh_expectation = asimov_data_null
-
 
     trials = []
     for itrial in xrange(1,args.ntrials+1):
@@ -193,7 +131,8 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
 
         results['seed'] = get_seed()
         logging.info("  RNG seed: %ld"%results['seed'])
-        fmap = get_random_map(alt_mh_expectation, seed=results['seed'])
+        # Get random map generated from asimov data (or from data_tag).
+        fmap = get_random_map(asimov_data, seed=results['seed'])
 
         for hypo_tag, hypo_normal in [('hypo_NMH',True),('hypo_IMH',False)]:
 

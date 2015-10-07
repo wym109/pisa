@@ -20,12 +20,12 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 from pisa.analysis.TemplateMaker import TemplateMaker
 from pisa.utils.params import get_values, select_hierarchy
-from pisa.utils.log import set_verbosity,logging,profile
+from pisa.utils.log import set_verbosity, logging, tprofile
 from pisa.utils.utils import Timer
 from pisa.utils.jsons import from_json
 from pisa.utils.plot import show_map
 
-def get_asymmetry(nmh,imh,flavs,iType=None):
+def get_asymmetry(nmh, imh, flavs, iType=None):
     if iType is None:
         return {flav:{
             'map': np.nan_to_num((imh[flav]['map']-nmh[flav]['map'])/
@@ -42,12 +42,12 @@ def get_asymmetry(nmh,imh,flavs,iType=None):
                 for flav in flavs}
 
 
-def plot_pid_stage(nmh,imh,title='',save=False,dpi=150,outdir=""):
+def plot_pid_stage(nmh, imh, title='', save=False, dpi=150, outdir=""):
     '''
     Plots templates and asymmetry for only the final level stage
     '''
 
-    h_asym = get_asymmetry(nmh,imh,['trck','cscd'])
+    h_asym = get_asymmetry(nmh, imh, ['trck','cscd'])
 
     logging.info("  Total trck events (NMH): %d"%np.sum(nmh['trck']['map']))
     logging.info("  Total trck events (IMH): %d"%np.sum(imh['trck']['map']))
@@ -314,7 +314,7 @@ settings file. ''')
     with Timer() as t:
         template_maker = TemplateMaker(get_values(template_settings['params']),
                                        **template_settings['binning'])
-    profile.info("==> elapsed time to initialize templates: %s sec"%t.secs)
+    tprofile.info("==> elapsed time to initialize templates: %s sec"%t.secs)
 
     # Make nmh template:
     nmh_params = select_hierarchy(template_settings['params'],
@@ -322,16 +322,16 @@ settings file. ''')
     imh_params = select_hierarchy(template_settings['params'],
                                   normal_hierarchy=False)
     with Timer(verbose=False) as t:
-        nmh = template_maker.get_template(get_values(nmh_params),return_stages=args.all)
-    profile.info("==> elapsed time to get NMH template: %s sec"%t.secs)
+        nmh = template_maker.get_template(get_values(nmh_params), return_stages=args.all)
+    tprofile.info("==> elapsed time to get NMH template: %s sec"%t.secs)
     with Timer(verbose=False) as t:
-        imh = template_maker.get_template(get_values(imh_params),return_stages=args.all)
-    profile.info("==> elapsed time to get IMH template: %s sec"%t.secs)
+        imh = template_maker.get_template(get_values(imh_params), return_stages=args.all)
+    tprofile.info("==> elapsed time to get IMH template: %s sec"%t.secs)
 
     # Or equivalently, if args.all:
     if type(nmh) is tuple:
-        plot_stages(nmh,imh,title=args.title,save=args.save,outdir=args.outdir)
-    else: plot_pid_stage(nmh,imh,title=args.title,save=args.save,outdir=args.outdir)
+        plot_stages(nmh, imh, title=args.title, save=args.save, outdir=args.outdir)
+    else: plot_pid_stage(nmh, imh, title=args.title, save=args.save, outdir=args.outdir)
 
     if not args.save: plt.show()
-    else: print "\n-->>Saved all files to: ",args.outdir
+    else: print "\n-->>Saved all files to: ", args.outdir
