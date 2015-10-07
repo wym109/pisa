@@ -30,8 +30,8 @@ def create_job_file_preamble():
     return preamble
 
 parser = ArgumentParser(
-    'Runs the LLR analysis on a number files, submitted to the rcc cluster. 
-NOTE: log directory requires ABSOLUTE path!',
+    '''Runs the LLR analysis on a number files, submitted to the rcc cluster. 
+NOTE: log directory requires ABSOLUTE path!''',
     formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('template_settings',type=str,
                     help="Settings file to use for template making.")
@@ -59,9 +59,7 @@ parser.add_argument('--mem_size',type=int,default=7,
 args = parser.parse_args()
 
 
-scriptname = os.path.join(
-    os.path.expandvars("$PISA"),
-    "/pisa/analysis/llr/LLROptimizerAnalysis.py")
+scriptname = os.path.expandvars("$PISA/pisa/analysis/llr/LLROptimizerAnalysis.py")
 
 # step 1: Create job file preamble
 job_file_common = []

@@ -32,14 +32,18 @@ def getTimeStamp(iline, logfile_lines):
     """
 
     # matches expressions of the form Wkday Month Day HH:MM::SS YYYY
-    expr = '[A-Z][a-z][a-z] [0-3][0-9] [0-2][0-9]:[0-5][0-9]:[0-5][0-9] \d\d\d\d'
+    expr1 = '[A-Z][a-z][a-z] [0-3][0-9] [0-2][0-9]:[0-5][0-9]:[0-5][0-9] \d\d\d\d'
+    expr2 = '[A-Z][a-z][a-z] [ ][0-9] [0-2][0-9]:[0-5][0-9]:[0-5][0-9] \d\d\d\d'
 
     # find date, then break
     time_stamp = ""
     while iline < len(logfile_lines):
         line = logfile_lines[iline].rstrip()
         line_split = line.split()
-        if re.search(expr, line):
+        if re.search(expr1, line):
+            time_stamp = line
+            break
+        elif re.search(expr2, line):
             time_stamp = line
             break
         iline+=1
@@ -144,7 +148,7 @@ def processLogFile(iline, logfile_lines, output_data):
 
     #print("total number of lines to process: ",len(logfile_lines))
     while iline < len(logfile_lines):
-
+        
         # Until we get nonzero itrial, keep advancing in the file
         if itrial == 0:
             if "[    INFO] start trial" in logfile_lines[iline]:
@@ -164,7 +168,7 @@ def processLogFile(iline, logfile_lines, output_data):
                 n_template_calls += 1
                 iline+=1
 
-            if ("[   DEBUG]  warnflag :" in logfile_lines[iline]):
+            if ("]  warnflag :" in logfile_lines[iline]):
 
                 # optimizer run has ended! Collect all info now:
                 iline = collectRunInfo(output_data[data_h][llr_type][hypo_h],
@@ -218,9 +222,24 @@ def processLogFile(iline, logfile_lines, output_data):
                                 iline+=1
                                 break
                             iline+=1
-
+                elif ("[    INFO] start trial 1" in
+                      logfile_lines[iline]):
+                    
+                    if 'true_h' in llr_type:
+                        llr_type = 'false_h_best_fit'
+                    else:
+                        llr_type = 'true_h_fiducial'
+                        
+                    data_h, hypo_h, itrial, iline = getTrialStart(
+                        iline, logfile_lines, llr_type)
+                    iline+=1
+                    
                 else:
-                    print (logfile_lines[iline])
+                    print ("\n\nLine Number:", iline )
+                    print (logfile_lines[iline-2].rstrip())
+                    print (logfile_lines[iline-1].rstrip())
+                    print (logfile_lines[iline].rstrip())
+                    print (logfile_lines[iline+1].rstrip())
                     raise Exception(
                         "Failed to find correct output after optimization!")
         iline+=1

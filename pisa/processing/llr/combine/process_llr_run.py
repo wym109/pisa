@@ -92,9 +92,10 @@ llhfiles = glob(os.path.join(args.data_dir,'llh_data*'))
 
 if args.log_dir is not None:
     logfiles = glob(os.path.join(args.log_dir,'log*'))
-    # These MUST have the same number if we are using the logging
-    # information. Otherwise, perhaps one of the directories are incorrect
-    assert(len(llhfiles) == len(logfiles)),"Data and log directories don't match?"
+    # These MUST have the same number initialized if we are using the logging
+    # information. Otherwise, perhaps one of the directories are incorrect.
+    # Sometimes there are fewere llh files, since they crash before writing out.
+    assert(len(llhfiles) <= len(logfiles)),"Data and log directories don't match?"
 
 # Output to save to hdf5 file:
 output_data = {'minimizer_settings': {},
@@ -104,7 +105,7 @@ output_data = {'minimizer_settings': {},
 
 logging.warn("Processing {0:d} files".format(len(llhfiles)))
 
-mod = len(llhfiles)/20
+mod = len(llhfiles)//20
 start = time.time()
 for i,filename in enumerate(llhfiles):
 
@@ -135,7 +136,8 @@ for i,filename in enumerate(llhfiles):
         # where '#' in range(1, nfiles)
         logfilename = os.path.join(args.log_dir,
                                    ('log_'+filename.split('_')[-1]))
-
+        
+        #print("File: ",logfilename)
         fh = open(logfilename, 'r')
         all_lines = fh.readlines()
         iline = 0
@@ -145,7 +147,12 @@ for i,filename in enumerate(llhfiles):
         if 'timestamp' not in output_data.keys():
 
             # First write timestamp if not yet recorded:
-            timestamp, iline = getTimeStamp(iline, all_lines)
+            try:
+                timestamp, iline = getTimeStamp(iline, all_lines)
+            except:
+                print("File failed: \n    ",logfilename)
+                raise
+                
             output_data['timestamp'] = timestamp
 
             # Second write the logging portion of the dictionary container
@@ -158,9 +165,13 @@ for i,filename in enumerate(llhfiles):
                         output_data[k1][k2][k3]['task'] = []
                         output_data[k1][k2][k3]['nit'] = []
                         output_data[k1][k2][k3]['funcalls'] = []
-
+        
         # Now gather all log file information for this partial run:
-        processLogFile(iline, all_lines, output_data)
+        try:
+            processLogFile(iline, all_lines, output_data)
+        except:
+            print("File failed: \n    ",logfilename)
+            raise
 
 
 delta_sec = (time.time() - start)
