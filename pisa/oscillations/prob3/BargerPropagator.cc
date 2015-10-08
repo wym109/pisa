@@ -209,7 +209,9 @@ void BargerPropagator::SetMNS( double x12, double x13, double x23,
 
 }
 
-void BargerPropagator::DefinePath(double cz, double ProdHeight, bool kSetProfile )
+void BargerPropagator::DefinePath(double cz, double ProdHeight,
+                                  double YeI, double YeO, double YeM,
+                                  bool kSetProfile )
 /*
   10May2014 (TCA): Changed this to calculate the correct PathLength
   taking into account detector depth and a neutrino path above the
@@ -233,9 +235,10 @@ void BargerPropagator::DefinePath(double cz, double ProdHeight, bool kSetProfile
 
 
   CosineZenith = cz;
-  if( kSetProfile )
+  if( kSetProfile ) {
     Earth->SetDensityProfile( CosineZenith, PathLength, ProductionHeight );
-
+    Earth->SetElecFrac(YeI, YeO, YeM);
+  }
 }
 
 

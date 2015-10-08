@@ -9,7 +9,7 @@
 # Currently, we have three loggers
 # * root: generic for what is going on  (typically: 'opening file x` or `doing this now` messages)
 # * physics: for any physics output that might be interesting ('have x many events`, ` the flux is ...`)
-# * profile: for how much time it takes to run some step (in the format of `time : start bla`, `time : stop bla`)
+# * tprofile: for how much time it takes to run some step (in the format of `time : start bla`, `time : stop bla`)
 #
 # The last on is temporary and should be replaced by a proper profiler.
 #
@@ -44,7 +44,7 @@ logging.config.dictConfig(logconfig)
 #Make the loggers public
 #In case they haven't been defined, this will just inherit from the root logger
 physics = logging.getLogger('physics')
-profile = logging.getLogger('profile')
+tprofile = logging.getLogger('profile')
 
 
 def set_verbosity(verbosity):
@@ -54,11 +54,13 @@ def set_verbosity(verbosity):
     #Ignore if no verbosity is given
     if verbosity is None: return
 
-    #define verbosity levels
+    # define verbosity levels
     levels = {0:logging.WARN,
               1:logging.INFO,
               2:logging.DEBUG,
               3:logging.TRACE}
 
-    #Overwrite the root logger with the verbosity level
+    # Overwrite the root logger with the verbosity level
     logging.root.setLevel(levels[min(3,verbosity)])
+
+    

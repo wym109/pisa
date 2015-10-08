@@ -63,6 +63,9 @@ def get_reco_maps(true_event_maps, reco_service=None, e_reco_scale=None,
         e_reco_scale=e_reco_scale, cz_reco_scale=cz_reco_scale, **kwargs
     )
 
+    # DEBUG / HACK to store the computed kernels to a file
+    #reco_service.store_kernels('reco_kernels.hdf5', fmt='hdf5')
+
     # Do smearing
     flavours = ['nue', 'numu', 'nutau']
     int_types = ['cc', 'nc']
@@ -126,13 +129,13 @@ if __name__ == '__main__':
     parser.add_argument('--mc_file', metavar='HDF5', type=str,
                         default='events/V15_weighted_aeff_joined_nu_nubar.hdf5',
                         help='''HDF5 File containing reconstruction data from all flavours for a particular instument geometry.''')
-    parser.add_argument('--vbwkde_evts_file', metavar='HDF5', type=str,
+    parser.add_argument('--reco_vbwkde_evts_file', metavar='HDF5', type=str,
                         default='events/V15_weighted_aeff_joined_nu_nubar.hdf5',
                         help='''HDF5 File containing reconstruction data from all flavours for a particular instument geometry.''')
     parser.add_argument('--param_file', metavar='JSON',
-                        type=str, default='reco_params/V36_reco.json',
+                        type=str, default='reco/V36.json',
                         help='''JSON file holding the parametrization''')
-    parser.add_argument('--kernel_file', metavar='JSON',
+    parser.add_argument('--kernel_file', metavar='JSON/HDF5',
                         type=str, default=None,
                         help='''JSON file holding the pre-calculated kernels''')
     parser.add_argument('--e_reco_scale', type=float, default=1.0,
@@ -167,10 +170,7 @@ if __name__ == '__main__':
                                              **vars(args))
     elif args.mode=='vbwkde':
         reco_service = RecoServiceVBWKDE(
-            ebins=ebins, czbins=czbins,
-            reco_vbwkde_evts_file=args.reco_vbwkde_evts_file,
-            **vars(args)
-        )
+            ebins=ebins, czbins=czbins, **vars(args))
 
     event_rate_reco_maps = get_reco_maps(args.event_rate_maps,
                                          reco_service, **vars(args))

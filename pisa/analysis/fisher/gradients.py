@@ -14,8 +14,9 @@ import tempfile
 import copy
 
 from pisa.utils.jsons import to_json
-from pisa.utils.log import logging
+from pisa.utils.log import logging, tprofile
 from pisa.utils.params import get_values
+from pisa.utils.utils import Timer
 
 
 def derivative_from_polycoefficients(coeff, loc):
@@ -40,7 +41,7 @@ def get_derivative_map(data, fiducial=None , degree=2):
   """
   Get the approximate derivative of data w.r.t parameter par
   at location loc with polynomic degree of approximation, default: 2.
-  
+
   Data is a dictionary of the form
   {
   'test_point1': {'params': {},
@@ -53,8 +54,8 @@ def get_derivative_map(data, fiducial=None , degree=2):
 			    'czbins': []
 			  }
 		  }
-		  
-  'test_point2': ...		 
+
+  'test_point2': ...
   }
   """
   derivative_map = {'trck':{},'cscd':{}}
@@ -68,7 +69,7 @@ def get_derivative_map(data, fiducial=None , degree=2):
     channel_fit_params = np.polyfit(test_points, channel_data, deg=degree)
     # Get partial derivatives at fiducial values
     derivative_map[channel]['map'] = derivative_from_polycoefficients(channel_fit_params[::-1], fiducial['value'])
-  
+
   return derivative_map
 
 
@@ -87,8 +88,9 @@ def get_steps(param, grid_settings, fiducial_params):
   return np.linspace(fiducial_params[param]['range'][0],fiducial_params[param]['range'][1],n_points)
 
 
-  
-def get_hierarchy_gradients(data_tag, fiducial_maps,fiducial_params,grid_settings,store_dir):
+
+def get_hierarchy_gradients(data_tag, fiducial_maps, fiducial_params,
+                            grid_settings, store_dir):
   """
   Use the hierarchy interpolation between the two fiducial maps to obtain the
   gradients.
@@ -102,42 +104,45 @@ def get_hierarchy_gradients(data_tag, fiducial_maps,fiducial_params,grid_setting
   for h in steps:
     for channel in ['trck','cscd']:
    	# Superpose bin counts
-    	hmap[h][channel]['map'] = fiducial_maps['NMH'][channel]['map']*h + fiducial_maps['IMH'][channel]['map']*(1.-h)	
-	# Obtain binning from one of the maps, since identical by construction (cf. FisherAnalysis)	
+    	hmap[h][channel]['map'] = fiducial_maps['NMH'][channel]['map']*h + fiducial_maps['IMH'][channel]['map']*(1.-h)
+	# Obtain binning from one of the maps, since identical by construction (cf. FisherAnalysis)
 	hmap[h][channel]['ebins'] = fiducial_maps['NMH'][channel]['ebins']
 	hmap[h][channel]['czbins'] = fiducial_maps['NMH'][channel]['czbins']
-  
-  # TODO: give hmap the same structure as pmaps? 
+
+  # TODO: give hmap the same structure as pmaps?
   # Get_derivative_map works even if 'params' and 'ebins','czbins' not in 'data'
-  
+
   # Store the maps used to calculate partial derivatives
   if store_dir != tempfile.gettempdir():
   	logging.info("Writing maps for parameter 'hierarchy' to %s"%store_dir)
   to_json(hmap,os.path.join(store_dir,"hierarchy_"+data_tag+".json"))
-  
+
   gradient_map = get_derivative_map(hmap, fiducial_params['hierarchy'],degree=2)
- 
+
   return gradient_map
 
 
 
-def get_gradients(data_tag, param,template_maker,fiducial_params,grid_settings,store_dir):
+def get_gradients(data_tag, param, template_maker, fiducial_params,
+                  grid_settings, store_dir):
   """
   Use the template maker to create all the templates needed to obtain the gradients.
   """
   logging.info("Working on parameter %s."%param)
 
   steps = get_steps(param, grid_settings, fiducial_params)
-  
-  pmaps = {}  
+
+  pmaps = {}
 
   # Generate one template for each value of the parameter in question and store in pmaps
-  for param_value in steps:	 
-      	            
+  for param_value in steps:
+
       # Make the template corresponding to the current value of the parameter
-      maps = template_maker.get_template(get_values(dict(fiducial_params,
-                                              **{param:dict(fiducial_params[param],**{'value': param_value})})))
-           
+      with Timer() as t:
+          maps = template_maker.get_template(
+              get_values(dict(fiducial_params,**{param:dict(fiducial_params[param],
+                                                            **{'value': param_value})})))
+      tprofile.info("==> elapsed time for template: %s sec"%t.secs)
 
       pmaps[param_value] = maps
 
@@ -146,9 +151,8 @@ def get_gradients(data_tag, param,template_maker,fiducial_params,grid_settings,s
   	logging.info("Writing maps for parameter %s to %s"%(param,store_dir))
 
   to_json(pmaps, os.path.join(store_dir,param+"_"+data_tag+".json"))
-  
-  gradient_map = get_derivative_map(pmaps,fiducial_params[param],degree=2)            
+
+  gradient_map = get_derivative_map(pmaps,fiducial_params[param],degree=2)
 
   return gradient_map
-     
- 
+

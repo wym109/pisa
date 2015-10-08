@@ -5,13 +5,14 @@
 # This module is the implementation of the stage2 analysis. The main
 # purpose of stage2 is to combine the "oscillated Flux maps" with the
 # effective areas to create oscillated event rate maps, using the true
-# information.
+# information. This signifies what the "true" event rate would be for
+# a detector with our effective areas, but with perfect PID and
+# resolutions.
 #
 # If desired, this will create a .json output file with the results of
 # the current stage of processing.
 #
 # author: Timothy C. Arlen
-#
 #         tca3@psu.edu
 #
 # date:   April 8, 2014
@@ -22,17 +23,17 @@ import numpy as np
 from scipy.constants import Julian_year
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
-from pisa.utils.log import logging, set_verbosity
-from pisa.utils.utils import check_binning, get_binning
-from pisa.utils.jsons import from_json, to_json
-from pisa.utils.proc import report_params, get_params, add_params
 from pisa.resources.resources import find_resource
+from pisa.utils.jsons import from_json, to_json
+from pisa.utils.log import logging, set_verbosity
+from pisa.utils.proc import report_params, get_params, add_params
+from pisa.utils.utils import check_binning, get_binning
 
 from pisa.aeff.AeffServiceMC import AeffServiceMC
 from pisa.aeff.AeffServicePar import AeffServicePar
 
 
-def get_event_rates(osc_flux_maps,aeff_service,livetime=None,nu_nubar_ratio=None,
+def get_event_rates(osc_flux_maps,aeff_service,livetime=None,
                     aeff_scale=None,**kwargs):
     '''
     Main function for this module, which returns the event rate maps
@@ -43,6 +44,11 @@ def get_event_rates(osc_flux_maps,aeff_service,livetime=None,nu_nubar_ratio=None
     {'nue': {'cc':map,'nc':map},
      'nue_bar': {'cc':map,'nc':map}, ...
      'nutau_bar': {'cc':map,'nc':map} }
+    \params:
+      * osc_flux_maps - maps containing oscillated fluxes
+      * aeff_service - the effective area service to use
+      * livetime - detector livetime for which to calculate event counts
+      * aeff_scale - systematic to be a proxy for the realistic effective area
     '''
 
     #Get parameters used here
@@ -65,8 +71,7 @@ def get_event_rates(osc_flux_maps,aeff_service,livetime=None,nu_nubar_ratio=None
         for int_type in ['cc','nc']:
             event_rate = osc_flux_map*aeff_dict[flavour][int_type]*aeff_scale
 
-            scale = 1.0 if 'bar' in flavour else nu_nubar_ratio
-            event_rate *= (scale*livetime*Julian_year)
+            event_rate *= (livetime*Julian_year)
             int_type_dict[int_type] = {'map':event_rate,
                                        'ebins':ebins,
                                        'czbins':czbins}
@@ -74,6 +79,7 @@ def get_event_rates(osc_flux_maps,aeff_service,livetime=None,nu_nubar_ratio=None
                           %(flavour,int_type,np.sum(event_rate)))
         event_rate_maps[flavour] = int_type_dict
 
+    # else: no scaling to be applied
     return event_rate_maps
 
 if __name__ == '__main__':
@@ -98,10 +104,10 @@ weights in this file. Only applies in non-parametric mode.''')
                         default='aeff/V36_aeff.json',
                         help='''json file containing parameterizations of the effective
 area and its cos(zenith) dependence. Only applies in parametric mode.''')
+    parser.add_argument('--coszen_par',metavar='JSON',type=str,
+                        default='aeff/V36/V36_aeff_cz.json')
     parser.add_argument('--livetime',type=float,default=1.0,
                         help='''livetime in years to re-scale by.''')
-    parser.add_argument('--nu_nubar_ratio',type=float,default=1.0,
-                        help='''Overall scale on nu xsec.''')
     parser.add_argument('--aeff_scale',type=float,default=1.0,
                         help='''Overall scale on aeff''')
     parser.add_argument('--mc_mode',action='store_true', default=False,
@@ -130,8 +136,8 @@ area and its cos(zenith) dependence. Only applies in parametric mode.''')
         aeff_service = AeffServicePar(ebins,czbins,**aeff_settings)
 
 
-    event_rate_maps = get_event_rates(args.osc_flux_maps,aeff_service,args.livetime,
-                                      args.nu_nubar_ratio,args.aeff_scale)
+    event_rate_maps = get_event_rates(
+        args.osc_flux_maps, aeff_service, args.livetime, args.aeff_scale)
 
     logging.info("Saving output to: %s"%args.outfile)
     to_json(event_rate_maps,args.outfile)

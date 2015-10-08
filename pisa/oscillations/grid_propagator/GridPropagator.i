@@ -5,7 +5,8 @@
 
 %module GridPropagator
 
-#define fType double
+ //#define fType float
+%include "constants.h"
 
 %{
 #define SWIG_FILE_WITH_INIT

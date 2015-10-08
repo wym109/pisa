@@ -6,17 +6,17 @@
 #
 # author: Lukas Schulte - schulte@physik.uni-bonn.de
 #         Sebastian Boeser - sboeser@uni-mainz.de
-#	  Thomas Ehrhardt - tehrhard@uni-mainz.de
+#         Thomas Ehrhardt - tehrhard@uni-mainz.de
 
 import numpy as np
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import tempfile
 import os
 
-from pisa.utils.log import logging, profile, physics, set_verbosity
+from pisa.utils.log import logging, tprofile, physics, set_verbosity
 from pisa.utils.jsons import from_json,to_json
 from pisa.analysis.TemplateMaker import TemplateMaker
-from pisa.utils.params import select_hierarchy, get_free_params, get_values
+from pisa.utils.params import Prior, select_hierarchy, get_free_params, get_values
 from pisa.utils.utils import Timer
 
 from pisa.analysis.fisher.gradients import get_gradients, get_hierarchy_gradients
@@ -24,8 +24,9 @@ from pisa.analysis.fisher.BuildFisherMatrix import build_fisher_matrix
 from pisa.analysis.fisher.Fisher import FisherMatrix
 
 
-def get_fisher_matrices(template_settings, grid_settings, IMH=True, NMH=False, dump_all_stages=False,
-		        save_templates=False, outdir=None):
+def get_fisher_matrices(template_settings, grid_settings, IMH=True, NMH=False,
+                        dump_all_stages=False, save_templates=False,
+                        outdir=None):
   '''
   Main function that runs the Fisher analysis for the chosen hierarchy(ies) (inverted by default).
 
@@ -48,7 +49,7 @@ def get_fisher_matrices(template_settings, grid_settings, IMH=True, NMH=False, d
     logging.info("No output directory specified. Will save templates to current working directory.")
     outdir = os.getcwd()
 
-  profile.info("start initializing")
+  tprofile.info("start initializing")
 
   # Get the parameters
   params = template_settings['params']
@@ -82,7 +83,7 @@ def get_fisher_matrices(template_settings, grid_settings, IMH=True, NMH=False, d
     # Get a template maker with the settings used to initialize
     template_maker = TemplateMaker(get_values(params),**bins)
 
-    profile.info("stop initializing\n")
+    tprofile.info("stop initializing\n")
 
     # Generate fiducial templates for both hierarchies (needed for partial derivatives
     # w.r.t. hierarchy parameter)
@@ -95,9 +96,11 @@ def get_fisher_matrices(template_settings, grid_settings, IMH=True, NMH=False, d
       fiducial_params = select_hierarchy(params,normal_hierarchy=(hierarchy=='NMH'))
 
       # Generate fiducial maps, either all of them or only the ultimate one
-      profile.info("start template calculation")
-      fid_maps = template_maker.get_template(get_values(fiducial_params),return_stages=dump_all_stages)
-      profile.info("stop template calculation")
+      tprofile.info("start template calculation")
+      with Timer() as t:
+        fid_maps = template_maker.get_template(get_values(fiducial_params),
+                                               return_stages=dump_all_stages)
+      tprofile.info("==> elapsed time for template: %s sec"%t.secs)
 
       fiducial_maps[hierarchy] = fid_maps[4] if dump_all_stages else fid_maps
 
@@ -134,33 +137,41 @@ def get_fisher_matrices(template_settings, grid_settings, IMH=True, NMH=False, d
       for param in free_params.keys():
         # Special treatment for the hierarchy parameter
         if param=='hierarchy':
-          gradient_maps[param] = get_hierarchy_gradients(data_tag,
-						     fiducial_maps,
-						     fiducial_params,
-						     grid_settings,
-						     store_dir,
-						     )
+          gradient_maps[param] = get_hierarchy_gradients(
+              data_tag=data_tag,
+              fiducial_maps=fiducial_maps,
+              fiducial_params=fiducial_params,
+              grid_settings=grid_settings,
+              store_dir=store_dir
+          )
         else:
-          gradient_maps[param] = get_gradients(data_tag,
-					   param,
-                                           template_maker,
-                                           fiducial_params,
-                                           grid_settings,
-                                           store_dir
-                                           )
+          gradient_maps[param] = get_gradients(
+              data_tag=data_tag,
+              param=param,
+              template_maker=template_maker,
+              fiducial_params=fiducial_params,
+              grid_settings=grid_settings,
+              store_dir=store_dir
+          )
 
       logging.info("Building Fisher matrix for %s."%(data_tag))
 
       # Build Fisher matrices for the given hierarchy
-      fisher[data_tag] = build_fisher_matrix(gradient_maps,fiducial_maps['IMH'] if data_normal else fiducial_maps['NMH'],fiducial_params)
+      fisher[data_tag] = build_fisher_matrix(
+          gradient_maps=gradient_maps,
+          fiducial_map=fiducial_maps['IMH'] if data_normal else fiducial_maps['NMH'],
+          template_settings=fiducial_params
+      )
 
-      # If Fisher matrices exist for both channels, add the matrices to obtain the combined one.
+      # If Fisher matrices exist for both channels, add the matrices to obtain
+      # the combined one.
       if len(fisher[data_tag].keys()) > 1:
-        fisher[data_tag]['comb'] = FisherMatrix(matrix=np.array([f.matrix for f in fisher[data_tag].itervalues()]).sum(axis=0),
-                                              parameters=gradient_maps.keys(),  #order is important here!
-                                              best_fits=[fiducial_params[par]['value'] for par in gradient_maps.keys()],
-                                              priors=[fiducial_params[par]['prior'] for par in gradient_maps.keys()],
-                                              )
+        fisher[data_tag]['comb'] = FisherMatrix(
+            matrix=np.array([f.matrix for f in fisher[data_tag].itervalues()]).sum(axis=0),
+            parameters=gradient_maps.keys(),  #order is important here!
+            best_fits=[fiducial_params[par]['value'] for par in gradient_maps.keys()],
+            priors=[Prior.from_param(fiducial_params[par]) for par in gradient_maps.keys()],
+        )
     return fisher
 
   else:
@@ -169,72 +180,91 @@ def get_fisher_matrices(template_settings, grid_settings, IMH=True, NMH=False, d
 
 
 if __name__ == '__main__':
-  parser = ArgumentParser(description='''Runs the Fisher analysis method by varying a number of systematic parameters
-			defined in a settings.json file, taking the number of test points from a grid_settings.json file, and saves the
-			Fisher matrices for the desired hierarchy.''',
-                        formatter_class=ArgumentDefaultsHelpFormatter)
-
-  parser.add_argument('-t','--template_settings',type=str,
-                    metavar='JSONFILE', required = True,
-                    help='Settings related to template generation and systematics.')
-
-  parser.add_argument('-g','--grid_settings',type=str,
-                    metavar='JSONFILE', required = True,
-                    help='''Settings for the grid on which the gradients are
-                    calculated (number of test points for each parameter).''')
-
-  parser.add_argument('-nh','--normal-truth',action='store_true',
-		    default=False, dest='normal_truth',
-		    help='Compute Fisher matrix for true normal hierarchy.')
-
-  parser.add_argument('-ih','--inverted-truth',action='store_true',
-		    default=False, dest='inverted_truth',
-		    help='Compute Fisher matrix for true inverted hierarchy.')
-
-  parser.add_argument('-d','--dump-all-stages', action='store_true',dest='dump_all_stages', default=False,
-                    help='''Store histograms at all simulation stages for fiducial model in 
-                    normal and inverted hierarchy.''')
-
-  sselect = parser.add_mutually_exclusive_group(required=False)
-
-  sselect.add_argument('-s','--save-templates',action='store_true',
-                    default=True, dest='save_templates',
-                    help="Save all the templates used to obtain the gradients.")
-
-  sselect.add_argument('-n','--no-save-templates', action='store_false',
-                    default=False, dest='save_templates',
-                    help="Do not save the templates for the different test points.")
-
-  parser.add_argument('-o','--outdir',type=str,default=os.getcwd(),metavar='DIR',
-                    help="Output directory")
-
-  parser.add_argument('-v', '--verbose', action='count', default=None,
-                    help='set verbosity level')
-
-  args = parser.parse_args()
-
-  # Set verbosity level
-  set_verbosity(args.verbose)
-
-  # Read the template settings
-  template_settings = from_json(args.template_settings)
-
-  # This file only contains the number of test points for each parameter (and perhaps eventually a non-linearity criterion)
-  grid_settings  = from_json(args.grid_settings)
-
-  # Get the Fisher matrices for the desired hierarchy and fiducial settings
-  fisher_matrices = get_fisher_matrices(template_settings,grid_settings,args.inverted_truth,args.normal_truth,
-                                    args.dump_all_stages,args.save_templates,args.outdir)
-
+    parser = ArgumentParser(
+        description='''Runs the Fisher analysis method by varying a number of systematic parameters
+          defined in a settings.json file, taking the number of test points from a grid_settings.json file, and saves the
+         Fisher matrices for the desired hierarchy.''',
+        formatter_class=ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument(
+        '-t', '--template_settings',
+        type=str, metavar='JSONFILE', required=True,
+        help='Settings related to template generation and systematics.'
+    )
+    parser.add_argument(
+        '-g', '--grid_settings',
+        type=str, metavar='JSONFILE', required=True,
+        help="Settings for the grid on which the gradients are "
+             "calculated (number of test points for each parameter)."
+    )
+    parser.add_argument(
+        '-nh', '--normal-truth',
+        action='store_true', default=False, dest='normal_truth',
+        help='Compute Fisher matrix for true normal hierarchy.'
+    )
+    parser.add_argument(
+        '-ih', '--inverted-truth',
+        action='store_true', default=False, dest='inverted_truth',
+        help='Compute Fisher matrix for true inverted hierarchy.'
+    )
+    parser.add_argument(
+        '-d', '--dump-all-stages',
+        action='store_true', dest='dump_all_stages', default=False,
+        help="Store histograms at all simulation stages for fiducial model in "
+             "normal and inverted hierarchy."
+    )
   
-  # Fisher matrices are saved in any case
-  for data_tag in fisher_matrices:
-    fisher_basename = 'fisher_data_%s'%data_tag
-    for chan in fisher_matrices[data_tag]:
-      if chan == 'comb':
-        outfile = os.path.join(args.outdir,fisher_basename+'.json')
-        logging.info("%s: writing combined Fisher matrix to %s"%(data_tag,outfile))
-      else:
-        outfile = os.path.join(args.outdir,fisher_basename+'_%s.json'%chan)
-        logging.info("%s: writing Fisher matrix for channel %s to %s"%(data_tag,chan,outfile))
-      fisher_matrices[data_tag][chan].saveFile(outfile)
+    sselect = parser.add_mutually_exclusive_group(required=False)
+  
+    sselect.add_argument(
+        '-s', '--save-templates',
+        action='store_true', default=True, dest='save_templates',
+        help="Save all the templates used to obtain the gradients."
+    )
+    sselect.add_argument(
+        '-n', '--no-save-templates',
+        action='store_false', default=False, dest='save_templates',
+        help="Do not save the templates for the different test points."
+    )
+    parser.add_argument(
+        '-o', '--outdir',
+        type=str, default=os.getcwd(), metavar='DIR',
+        help="Output directory"
+    )
+    parser.add_argument(
+        '-v', '--verbose',
+        action='count', default=None,
+        help='set verbosity level'
+    )
+    args = parser.parse_args()
+  
+    # Set verbosity level
+    set_verbosity(args.verbose)
+  
+    # Read the template settings
+    template_settings = from_json(args.template_settings)
+  
+    # This file only contains the number of test points for each parameter (and
+    # perhaps eventually a non-linearity criterion)
+    grid_settings  = from_json(args.grid_settings)
+  
+    # Get the Fisher matrices for the desired hierarchy and fiducial settings
+    fisher_matrices = get_fisher_matrices(template_settings=template_settings,
+                                          grid_settings=grid_settings,
+                                          IMH=args.inverted_truth,
+                                          NMH=args.normal_truth,
+                                          dump_all_stages=args.dump_all_stages,
+                                          save_templates=args.save_templates,
+                                          outdir=args.outdir)
+  
+    # Fisher matrices are saved in any case
+    for data_tag in fisher_matrices:
+        fisher_basename = 'fisher_data_%s'%data_tag
+        for chan in fisher_matrices[data_tag]:
+            if chan == 'comb':
+                outfile = os.path.join(args.outdir,fisher_basename+'.json')
+                logging.info("%s: writing combined Fisher matrix to %s"%(data_tag,outfile))
+            else:
+                outfile = os.path.join(args.outdir,fisher_basename+'_%s.json'%chan)
+                logging.info("%s: writing Fisher matrix for channel %s to %s"%(data_tag,chan,outfile))
+            fisher_matrices[data_tag][chan].saveFile(outfile)

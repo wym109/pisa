@@ -49,7 +49,7 @@ class PIDServiceParam(PIDServiceBase):
             logging.error("Unable to open PID parametrization file %s"
                           %pid_paramfile)
             logging.error(e)
-            sys.exit(1)
+            raise
 
         ecen = get_bin_centers(self.ebins)
         czcen = get_bin_centers(self.czbins)

@@ -12,6 +12,8 @@
 #ifndef __OSCUTILS_H__
 #define __OSCUTILS_H__
 
+#include "constants.h"
+
 // WARNING: PUT IN SEPARATE INCLUDE FILE
 //#define fType double
 
@@ -19,10 +21,10 @@
 #define im (1)
 
 
-inline void setmix_sin(double s12,double s23,double s13,double dcp,
-                double Mix[3][3][2])
+inline void setmix_sin(fType s12,fType s23,fType s13,fType dcp,
+                fType Mix[3][3][2])
 {
-  double c12,c23,c13,sd,cd;
+  fType c12,c23,c13,sd,cd;
 
   if ( s12>1.0 ) s12=1.0;
   if ( s23>1.0 ) s23=1.0;
@@ -58,11 +60,11 @@ inline void setmix_sin(double s12,double s23,double s13,double dcp,
 
 }
 
-inline void setmass(double dms21, double dms23, double dmVacVac[][3])
+inline void setmass(fType dms21, fType dms23, fType dmVacVac[][3])
 {
 
-  double delta=5.0e-9;
-  double mVac[3];
+  fType delta=5.0e-9;
+  fType mVac[3];
 
   mVac[0] = 0.0;
   mVac[1] = dms21;

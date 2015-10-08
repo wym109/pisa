@@ -61,7 +61,8 @@ void GridPropagator::GetNumberOfLayers( int* numLayers, int len)
 }
 
 
-GridPropagator::GridPropagator(char* earthModelFile,fType* czcen, int nczbins)
+GridPropagator::GridPropagator(char* earthModelFile,fType* czcen, int nczbins,
+                               fType detector_depth)
 /*
   \params:
     * earthModelFile - earth density model file to initialize earth_density
@@ -83,7 +84,9 @@ GridPropagator::GridPropagator(char* earthModelFile,fType* czcen, int nczbins)
   m_distanceInLayer = NULL;
   m_numberOfLayers = NULL;
 
-  SetEarthDensityParams(earthModelFile);
+  //SetEarthDensityParams(earthModelFile,detector_depth);
+  //LoadEarthModel(earthModelFile,detector_depth);
+  m_earthModel = new EarthDensity(earthModelFile, detector_depth);
 
 }
 
@@ -144,7 +147,60 @@ void GridPropagator::SetMNS(fType dm_solar,fType dm_atm,fType x12,fType x13,fTyp
 
 }
 
+void GridPropagator::SetEarthDensityParams(fType prop_height,
+                                           fType YeI, fType YeO, fType YeM)
+/*
+  prop_height - atmospheric propagation height in km
+*/
+{
 
+  prop_height *= kmTOcm;
+
+  fType rDetector = m_earthModel->get_RDetector()*kmTOcm;
+  m_earthModel->SetElecFrac(YeI, YeO, YeM);
+
+  // Set member variable pointers/arrays:
+  m_maxLayers = m_earthModel->get_MaxLayers();
+
+  size_t layer_size = m_nczbins*m_maxLayers*sizeof(fType);
+  m_densityInLayer = (fType*)malloc(layer_size);
+  memset(m_densityInLayer,0.0,layer_size);
+  m_distanceInLayer = (fType*)malloc(layer_size);
+  memset(m_distanceInLayer,0.0,layer_size);
+
+  m_numberOfLayers = (int*)malloc(m_nczbins*sizeof(int));
+
+  for (int i=0; i<m_nczbins; i++) {
+    fType coszen = m_czcen[i];
+    fType pathLength = DefinePath(coszen, prop_height, rDetector);
+    m_earthModel->SetDensityProfile( coszen, pathLength, prop_height );
+
+    //printf("here?\n");
+    *(m_numberOfLayers+i) = m_earthModel->get_LayersTraversed();
+    if (VERBOSE) {
+      printf("coszen: %f, layers traversed: %d, path length: %f\n",coszen,
+             *(m_numberOfLayers+i), pathLength/kmTOcm);
+    }
+    for (int j=0; j < *(m_numberOfLayers+i); j++) {
+      fType density = m_earthModel->get_DensityInLayer(j)*
+        m_earthModel->get_ElectronFractionInLayer(j);
+      *(m_densityInLayer + i*m_maxLayers + j) = density;
+
+      fType distance = m_earthModel->get_DistanceAcrossLayer(j)/kmTOcm;
+      *(m_distanceInLayer + i*m_maxLayers + j) = distance;
+
+      if (VERBOSE) {
+        printf("  >> Layer: %d, density: %f, distance: %f\n",j,
+               *(m_densityInLayer + i*m_maxLayers + j),
+               *(m_distanceInLayer + i*m_maxLayers + j));
+      }
+    }
+  }  // end loop over number of cz bins
+
+
+}
+
+/*
 void GridPropagator::SetEarthDensityParams(char* earthModelFile)
 {
 
@@ -193,19 +249,19 @@ void GridPropagator::SetEarthDensityParams(char* earthModelFile)
   }  // end loop over number of cz bins
 
 }
+*/
 
 
 fType GridPropagator::DefinePath(fType cz, fType prod_height, fType rDetector)
 /*
   prod_height - Atmospheric production height [cm]
   rDetector - Detector radius [cm]
+
  */
 {
 
   fType path_length = 0.0;
   fType depth = (fType)m_earthModel->get_DetectorDepth()*kmTOcm;
-
-  //fType ProductionHeight = prod_height*kmTOcm;
 
   if(cz < 0) {
     path_length = sqrt((rDetector + prod_height +depth)*(rDetector + prod_height +depth)

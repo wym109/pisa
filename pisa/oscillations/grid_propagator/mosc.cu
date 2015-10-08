@@ -19,17 +19,17 @@ static int matrixtype = standard_type;
   Compute the matter-mass vector M, dM = M_i-M_j and
   and dMimj. type<0 means anti-neutrinos type>0 means "real" neutrinos
 ***********************************************************************/
-__device__ void getM(double Enu, double rho,
-                     double Mix[][3][2], double dmVacVac[][3], int antitype,
-                     double dmMatMat[][3], double dmMatVac[][3])
+__device__ void getM(fType Enu, fType rho,
+                     fType Mix[][3][2], fType dmVacVac[][3], int antitype,
+                     fType dmMatMat[][3], fType dmMatVac[][3])
 {
   int i, j, k;
-  double alpha, beta, gamma, fac=0.0, arg, tmp;
-  double alphaV, betaV, gammaV, argV, tmpV;
-  double theta0, theta1, theta2;
-  double theta0V, theta1V, theta2V;
-  double mMatU[3], mMatV[3], mMat[3];
-  double tworttwoGf = 1.52588e-4;
+  fType alpha, beta, gamma, fac=0.0, arg, tmp;
+  fType alphaV, betaV, gammaV, argV, tmpV;
+  fType theta0, theta1, theta2;
+  fType theta0V, theta1V, theta2V;
+  fType mMatU[3], mMatV[3], mMat[3];
+  fType tworttwoGf = 1.52588e-4;
 
   /* Equations (22) fro Barger et.al.*/
   /* Reverse the sign of the potential depending on neutrino type */
@@ -138,10 +138,10 @@ __device__ void getM(double Enu, double rho,
  getA
  Calculate the transition amplitude matrix A (equation 10)
 ***********************************************************************/
-__device__ void getA(double L, double E, double rho,
-                     double Mix[][3][2], double dmMatVac[][3],
-                     double dmMatMat[][3], int antitype, double A[3][3][2],
-                     double phase_offset)
+__device__ void getA(fType L, fType E, fType rho,
+                     fType Mix[][3][2], fType dmMatVac[][3],
+                     fType dmMatMat[][3], int antitype, fType A[3][3][2],
+                     fType phase_offset)
 {
 
   /*
@@ -149,12 +149,12 @@ __device__ void getA(double L, double E, double rho,
   */
 
   //int n, m, i, j, k;
-  double /*fac=0.0,*/ arg, c, s;
+  fType /*fac=0.0,*/ arg, c, s;
   // TCA ADDITION: set equal to 0!
-  double X[3][3][2] = {0.0};
-  double product[3][3][3][2] = {0.0};
+  fType X[3][3][2] = {0.0};
+  fType product[3][3][3][2] = {0.0};
   /* (1/2)*(1/(h_bar*c)) in units of GeV/(eV^2-km) */
-  const double LoEfac = 2.534;
+  const fType LoEfac = 2.534;
 
   if ( phase_offset==0.0 )
     {
@@ -171,8 +171,8 @@ __device__ void getA(double L, double E, double rho,
   }
 
   /* Make the sum with the exponential factor */
-  //cudaMemset(X, 0, 3*3*2*sizeof(double));
-  //memset(X, 0, 3*3*2*sizeof(double));
+  //cudaMemset(X, 0, 3*3*2*sizeof(fType));
+  //memset(X, 0, 3*3*2*sizeof(fType));
   for (int k=0; k<3; k++)
     {
       arg = -LoEfac*dmMatVac[k][0]*L/E;
@@ -234,15 +234,15 @@ __device__ void getA(double L, double E, double rho,
 }
 
 
-__device__ void get_product(double L, double E, double rho,double Mix[][3][2],
-                            double dmMatVac[][3], double dmMatMat[][3],
+__device__ void get_product(fType L, fType E, fType rho,fType Mix[][3][2],
+                            fType dmMatVac[][3], fType dmMatMat[][3],
                             int antitype,
-                            double product[][3][3][2])
+                            fType product[][3][3][2])
 {
 
-  double fac=0.0;
-  double twoEHmM[3][3][3][2];
-  double tworttwoGf = 1.52588e-4;
+  fType fac=0.0;
+  fType twoEHmM[3][3][3][2];
+  fType tworttwoGf = 1.52588e-4;
 
   /* (1/2)*(1/(h_bar*c)) in units of GeV/(eV^2-km) */
   /* Reverse the sign of the potential depending on neutrino type */

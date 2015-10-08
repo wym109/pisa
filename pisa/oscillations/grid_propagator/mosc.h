@@ -11,6 +11,8 @@
 #ifndef MOSCHINCLUDED
 #define MOSCHINCLUDED
 
+#include "constants.h"
+
 #define elec (0)
 #define muon (1)
 #define tau  (2)
@@ -31,17 +33,17 @@ typedef enum matrix_type {
   barger_type} MatrixType;
 
 
-__device__ void getM(double Enu, double rho,
-                     double Mix[][3][2], double dmVacVac[][3], int antitype,
-                     double dmMatMat[][3], double dmMatVac[][3]);
-__device__ void getA(double L, double E, double rho,
-                     double Mix[][3][2], double dmMatVac[][3],
-                     double dmMatMat[][3], int antitype, double A[3][3][2],
-                     double phase_offset);
-__device__ void get_product(double L, double E, double rho,double Mix[][3][2],
-                            double dmMatVac[][3], double dmMatMat[][3],
+__device__ void getM(fType Enu, fType rho,
+                     fType Mix[][3][2], fType dmVacVac[][3], int antitype,
+                     fType dmMatMat[][3], fType dmMatVac[][3]);
+__device__ void getA(fType L, fType E, fType rho,
+                     fType Mix[][3][2], fType dmMatVac[][3],
+                     fType dmMatMat[][3], int antitype, fType A[3][3][2],
+                     fType phase_offset);
+__device__ void get_product(fType L, fType E, fType rho,fType Mix[][3][2],
+                            fType dmMatVac[][3], fType dmMatMat[][3],
                             int antitype,
-                            double product[][3][3][2]);
+                            fType product[][3][3][2]);
 
 
 #endif /* MOSCHINCLUDED */

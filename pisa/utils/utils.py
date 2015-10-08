@@ -12,7 +12,6 @@
 # date:   2014-01-27
 
 
-import sys
 import inspect
 import time
 import hashlib
@@ -41,45 +40,65 @@ class Timer(object):
 
 
 def get_bin_centers(edges):
-    '''Get the bin centers for a given set of bin edges.
-       This works even if bins don't have equal width.'''
+    """Get the bin centers for a given set of bin edges.
+       This works even if bins don't have equal width."""
+    edges = np.array(edges, dtype=np.float)
     if is_logarithmic(edges):
-        return np.sqrt(np.array(edges[:-1]*np.array(edges[1:])))
+        return np.sqrt(edges[:-1]*edges[1:])
     else:
-        return (np.array(edges[:-1])+np.array(edges[1:]))/2.
+        return (edges[:-1] + edges[1:])/2.
+
+
+def get_edges_from_cen(bincen):
+    """Get the bin edges from a given set of bin centers. This only works
+    for log or linear binning"""
+    if is_logarithmic(bincen):
+        hwidth = 0.5*(np.log10(bincen[-1]) - np.log10(bincen[0]))/(len(bincen)-1)
+        return np.append([10**(np.log10(bincen[0])-hwidth)], 10**(np.log10(bincen[:])+hwidth))
+    elif is_linear(bincen):
+        hwidth = 0.5*(bincen[1] - bincen[0])
+        return np.append([bincen[0] - hwidth],bincen[:]+hwidth)
+    else:
+        raise NotImplementedError('Only bin centers evenly spaced in '
+                                  'log or linear space can be computed')
 
 
 def get_bin_sizes(edges):
     """Get the bin sizes for a given set of bin edges.
-       This works even if bins don't have equal width."""
-    return np.array(edges[1:]) - np.array(edges[:-1])
+    This works even if bins don't have equal width."""
+    return np.diff(edges)
 
 
 def is_linear(edges, maxdev=1e-5):
-    """Check whether the bin edges correspond to a linear axis"""
-    linedges = np.linspace(edges[0],edges[-1],len(edges))
-    return np.abs(edges-linedges).max() < maxdev
+    """Check whether the bin edges are evenly spaced on a linear scale"""
+    # Only 1 bin: might as well be linear
+    if len(edges) < 3:
+        return True
+    bin_widths = np.diff(edges)
+    return np.allclose(bin_widths, bin_widths[0], rtol=maxdev)
 
 
-def is_logarithmic(edges, maxdev = 1e-5):
-    """Check whether the bin edges correspond to a logarithmic axis"""
-    if np.any(np.array(edges) < 0): return False
-    logedges = np.logspace(np.log10(edges[0]),np.log10(edges[-1]),len(edges))
-    return np.abs(edges-logedges).max() < maxdev
+def is_logarithmic(edges, maxdev=1e-5):
+    """Check whether the bin edges are evenly spaced on a log scale"""
+    edges = np.array(edges, dtype=np.float)
+    # Only 1 bin or <= 0: not log
+    if len(edges) < 3 or np.any(edges <= 0):
+        return False
+    bin_mult_widths = edges[1:] / edges[:-1]
+    return np.allclose(bin_mult_widths, bin_mult_widths[0], rtol=maxdev)
 
 
-def is_equal_binning(edges1,edges2,maxdev=1e-8):
+def is_equal_binning(edges1, edges2, maxdev=1e-8):
     """Check whether the bin edges are equal."""
-    if (np.shape(edges1)[0]) != (np.shape(edges2)[0]): return False
-    return np.abs(edges1 - edges2).max() < maxdev
+    return np.shape(edges1) == np.shape(edges2) and np.allclose(edges1, edges2, rtol=maxdev)
 
 
 def is_coarser_binning(coarse_bins, fine_bins):
     """Check whether coarse_bins lie inside of and are coarser than fine_bins"""
-    #contained?
+    # contained?
     if ((coarse_bins[0]<fine_bins[0]) or (coarse_bins[-1]>fine_bins[-1])):
         return False
-    #actually coarser?
+    # actually coarser?
     if (len(fine_bins[np.all([fine_bins>=min(coarse_bins),
                               fine_bins<=max(coarse_bins)], axis=0)]) \
                               < len(coarse_bins)):
@@ -117,28 +136,33 @@ def subbinning(coarse_bins, fine_bins, maxdev=1e-8):
         return False
 
 
-def get_binning(d, iterate=False, eset=[], czset=[]):
+def get_binning(d, iterate=False, eset=None, czset=None):
     """Iterate over all maps in the dict, and return the ebins and czbins.
        If iterate is False, will return the first set of ebins, czbins it finds,
        otherwise will return a list of all ebins and czbins arrays"""
-    #Only work on dicts
-    if not type(d) == dict: return
+    # Only work on dicts
+    if not isinstance(d, dict):
+        return
 
-    #Check if we are on map level
+    eset = [] if eset is None else eset
+    czset = [] if czset is None else czset
+
+    # Check if we are on map level
     if (sorted(d.keys()) == ['czbins','ebins','map']):
-        #Immediately return if we found one
+        # Immediately return if we found one
         if not iterate:
-            return np.array(d['ebins']),np.array(d['czbins'])
+            return np.array(d['ebins']), np.array(d['czbins'])
         else:
-            eset += [np.array(d['ebins'])]
-            czset += [np.array(d['czbins'])]
-    #Otherwise iterate through dict
+            eset.append(np.array(d['ebins']))
+            czset.append(np.array(d['czbins']))
+    # Otherwise iterate through dict
     else:
         for v in d.values():
             bins = get_binning(v,iterate,eset,czset)
-            if bins and not iterate: return bins
+            if bins and not iterate:
+                return bins
 
-    #In iterate mode, return sets
+    # In iterate mode, return sets
     return eset, czset
 
 
@@ -154,23 +178,21 @@ def check_binning(data):
     return eset[0],czset[0]
 
 
-
 def check_fine_binning(fine_bins, coarse_bins):
     """
     This function checks whether the specified fine binning exists and
     is actually finer than the coarse one.
     """
-
     if fine_bins is not None:
         if is_coarser_binning(coarse_bins, fine_bins):
             logging.info('Using requested binning for oversampling.')
             #everything is fine
             return True
         else:
-            logging.error('Requested oversampled binning is coarser '
-                          'than output binning. Aborting.')
-            sys.exit(1)
-
+            errmsg = 'Requested oversampled binning is coarser ' + \
+                    'than output binning. Aborting.'
+            logging.error(errmsg)
+            raise ValueError(errmsg)
     return False
 
 
@@ -247,11 +269,11 @@ def inspect_cur_frame():
 
 
 def hash_obj(obj):
+    if isinstance(obj, np.ndarray) or isinstance(obj, np.matrix):
+        return hash(obj.tostring())
     return hash(jsons.json.dumps(obj, sort_keys=True, cls=None, indent=None,
                                  ensure_ascii=False, check_circular=True,
-                                 allow_nan=True, separators=(',',':'),
-                                 use_decimal=True, namedtuple_as_object=True,
-                                 tuple_as_array=True, bigint_as_string=True))
+                                 allow_nan=True, separators=(',',':')))
 
 
 def hash_file(fname):

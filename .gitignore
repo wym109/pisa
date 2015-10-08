@@ -6,7 +6,10 @@ _*.so
 *_wrap.cxx
 *_wrap.cpp
 BargerPropagator.py
+GridPropagator.py
 *.o
+gaussians.c
+gaussians.so
 
 # Ignore test files in src dir
 pisa/flux/*.json

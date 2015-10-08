@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python, gaussians
 
 #
 # kde.py
@@ -84,12 +84,15 @@ from scipy import fftpack
 from scipy import optimize
 from scipy import interpolate
 
-openmp_num_threads = 1
+from pisa.utils.log import logging
+
+
 pi = np.pi
 sqrtpi = np.sqrt(pi)
 sqrt2pi = np.sqrt(2*pi)
 pisq = pi**2
 
+openmp_num_threads = 1
 try:
     import pisa.utils.gaussians as GAUS
 except:
@@ -103,10 +106,10 @@ else:
     gaussians = GAUS.gaussians
     try:
         import multiprocessing
+        openmp_num_threads = max(multiprocessing.cpu_count(), 8)
     except:
-        pass
-    else:
-        openmp_num_threads = multiprocessing.cpu_count()
+        openmp_num_threads = 1
+
 
 
 def fbw_kde(data, N=None, MIN=None, MAX=None, overfit_factor=1.0):
@@ -240,7 +243,7 @@ def vbw_kde(data, N=None, MIN=None, MAX=None, evaluate_dens=True,
         maximum = max(data)
         Range = maximum - minimum
         if Range == 0:
-            warnings.warn('Range of data is 0; there are ' + str(len(data)) +
+            logging.warn('Range of data is 0; there are ' + str(len(data)) +
                           ' data points.')
         MIN = minimum - Range/10 if MIN is None else MIN
         MAX = maximum + Range/10 if MAX is None else MAX
@@ -294,8 +297,7 @@ def vbw_kde(data, N=None, MIN=None, MAX=None, evaluate_dens=True,
                                   kind          = 'linear',
                                   copy          = False,
                                   bounds_error  = True,
-                                  fill_value    = np.nan,
-                                  assume_sorted = True)
+                                  fill_value    = np.nan)
     fbw_dens_at_datapoints = interp(data)
 
     # Note below diverges from the published Ambramson method, by forcing the

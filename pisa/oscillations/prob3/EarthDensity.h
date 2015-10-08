@@ -47,7 +47,17 @@
 */
 
 
+/*
+# NOTE: 2015-05-21 (TCA) attempted to use single precision, and at
+# least on my system, I got all junk in the output of my osc prob
+# maps. Unfortunately, I don't want to spend the time right now to
+# figure out WHY this is the case, but until someone figures this out,
+# keep fType to double and np.float64.
+*/
+
 using namespace std;
+
+#define fType double
 
 class EarthDensity
 {
@@ -57,7 +67,7 @@ class EarthDensity
   EarthDensity( );
 
   // constructor for a user-specified density profile, see PREM.dat
-  EarthDensity( const char *, double detectorDepth = 0.0);
+  EarthDensity( const char *, fType detectorDepth = 0.0);
   virtual ~EarthDensity( );
 
   void init();
@@ -67,32 +77,34 @@ class EarthDensity
   //    ProdHt - amount of vacuum to travese before matter
   //		corresponds to height in atmosphere for atmospheric neutrinos
   //	  	or distance from neutrion source for extraplanetary nu's
-  virtual void SetDensityProfile( double CosineZ, double PathLength , double ProdHt);
+  virtual void SetDensityProfile( fType CosineZ, fType PathLength , fType ProdHt);
 
   // Set electron fraction: YeI - Ye (Inner Core), YeO - Ye (Outer Core)
   //   YeM - Ye (Mantle)
-  void SetElecFrac(double YeI, double YeO, double YeM);
+  void SetElecFrac(fType YeI, fType YeO, fType YeM);
 
   // Read in radii and densities
   void Load();
-  double GetEarthRadiuskm( ) { return  REarth; };
+  fType GetEarthRadiuskm( ) { return  REarth; };
 
   // The next accessor functions are only available after a call to
   // SetDensityProfile...
 
   // number of layers the current neutrino sees
   int get_LayersTraversed( ) {return Layers;};
-  double get_DetectorDepth() {return DetectorDepth;}
-  double get_RDetector()     {return RDetector;}
+  fType get_DetectorDepth() {return DetectorDepth;}
+  fType get_RDetector()     {return RDetector;}  // km
 
   // self-explanatory
-  double get_DistanceAcrossLayer( int i) { return _TraverseDistance[i];};
-  double get_DensityInLayer( int i) { return _TraverseRhos[i];};
-  double get_ElectronFractionInLayer(int i) {return _TraverseElectronFrac[i];}
+  fType get_DistanceAcrossLayer( int i) { return _TraverseDistance[i];};
+  fType get_DensityInLayer( int i) { return _TraverseRhos[i];};
+  fType get_ElectronFractionInLayer(int i) {return _TraverseElectronFrac[i];}
+
+  fType get_MaxLayers() { return 2.0*_Radii.size(); }
 
   // return total path length through the sphere, including vacuum layers
-  double get_Pathlength(){
-    double Sum = 0.0;
+  fType get_Pathlength(){
+    fType Sum = 0.0;
     for( int i=0 ; i < Layers ; i++ )
       Sum += _TraverseDistance[i];
     return Sum;
@@ -108,22 +120,26 @@ class EarthDensity
 
   string DensityFileName;
 
-  map<double, double>	_CosLimit;
-  map<double, double>	_density;
+  map<fType, fType>	_CosLimit;
+  map<fType, fType>	_density;
 
-  vector< double >	_Radii;
-  vector< double >	_Rhos;
-  vector< double >      _YeOuterRadius;
-  vector< double >      _YeFrac;
+  vector< fType >	_Radii;
+  vector< fType >	_Rhos;
+  vector< fType >      _YeOuterRadius;
+  vector< fType >      _YeFrac;
 
-  double * _TraverseDistance;
-  double * _TraverseRhos;
-  double * _TraverseElectronFrac;
+  fType * _TraverseDistance;
+  fType * _TraverseRhos;
+  fType * _TraverseElectronFrac;
 
-  double REarth;
-  double RDetector;
-  double DetectorDepth;
-  double MinDetectorDepth;
+  fType _YeI;
+  fType _YeO;
+  fType _YeM;
+
+  fType REarth;
+  fType RDetector;
+  fType DetectorDepth;
+  fType MinDetectorDepth;
   int    Layers;
 
 };
