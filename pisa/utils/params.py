@@ -82,6 +82,7 @@ class Prior(object):
     def __init_uniform(self):
         self.kind = 'uniform'
         self.llh = lambda x: 0.*x
+        self.chi2 = lambda x: 0.*x
         self.valid_range = [-np.inf, np.inf]
         self.max_at = np.nan
         self.max_at_str = "no maximum"
