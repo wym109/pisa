@@ -19,7 +19,7 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 from pisa.utils.log import logging, tprofile, physics, set_verbosity
 from pisa.utils.jsons import from_json,to_json
-from pisa.analysis.llr.LLHAnalysis import find_opt_bfgs
+from pisa.analysis.llr.LLHAnalysis import find_opt_scipy
 from pisa.analysis.stats.Maps import get_asimov_fmap
 from pisa.analysis.TemplateMaker import TemplateMaker
 from pisa.utils.params import get_values, select_hierarchy
@@ -110,10 +110,10 @@ for data_tag, data_normal in [('data_NMH',True),('data_IMH',False)]:
 	tprofile.info("start optimizer")
 	tprofile.info("Using %s"%metric_name)
 
-	opt_data = find_opt_bfgs(asimov_fmap,template_maker,template_settings['params'],
-				 minimizer_settings,args.save_steps,
-				 normal_hierarchy=hypo_normal, check_octant=args.check_octant,
-				 metric_name=metric_name)
+	opt_data = find_opt_scipy(asimov_fmap,template_maker,template_settings['params'],
+                                  minimizer_settings,args.save_steps,
+                                  normal_hierarchy=hypo_normal, check_octant=args.check_octant,
+                                  metric_name=metric_name)
 
 	tprofile.info("stop optimizer")
 
