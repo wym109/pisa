@@ -175,10 +175,10 @@ if __name__ == '__main__':
         formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument('--ebins', metavar='[1.0,2.0,...]', type=json_string,
                         help= '''Edges of the energy bins in units of GeV. ''',
-                        default=np.logspace(np.log10(1.0),np.log10(80.0),40) )
+                        default=np.logspace(np.log10(1.0),np.log10(80.0),20) )
     parser.add_argument('--czbins', metavar='[-1.0,-0.8.,...]', type=json_string,
                         help= '''Edges of the cos(zenith) bins.''',
-                        default = np.linspace(-1.,0.,21))
+                        default = np.linspace(-1.,0.,11))
     parser.add_argument('--flux_file', metavar='FILE', type=str,
                         help= '''Input flux file in Honda format. ''',
                         default = 'flux/spl-solmax-aa.d')

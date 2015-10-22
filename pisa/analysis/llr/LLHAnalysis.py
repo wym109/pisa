@@ -10,6 +10,7 @@
 #
 
 import sys
+from copy import deepcopy
 import numpy as np
 import scipy.optimize as opt
 
@@ -134,20 +135,21 @@ def find_opt_bfgs(fmap, template_maker, params, bfgs_settings,
 
     # If needed, run optimizer again, checking for second octant solution:
     if check_octant and ('theta23' in free_params.keys()):
+        free_params_copy = deepcopy(free_params)
         physics.info("Checking alternative octant solution")
-        old_th23_val = free_params['theta23']['value']
+        old_th23_val = free_params_copy['theta23']['value']
 
         # Reflect across pi/4.0:
         delta = (np.pi/4.0) - old_th23_val
-        free_params['theta23']['value'] = (np.pi/4.0) + delta
+        free_params_copy['theta23']['value'] = (np.pi/4.0) + delta
 
-        init_vals = get_param_values(free_params)
+        init_vals = get_param_values(free_params_copy)
 
         alt_opt_steps_dict = {key:[] for key in names}
         alt_opt_steps_dict[metric_name] = []
         const_args = (names, scales, fmap, fixed_params, template_maker,
                       alt_opt_steps_dict, priors, metric_name)
-        display_optimizer_settings(free_params=free_params,
+        display_optimizer_settings(free_params=free_params_copy,
                                    names=names,
                                    init_vals=init_vals,
                                    bounds=bounds,
@@ -158,12 +160,8 @@ def find_opt_bfgs(fmap, template_maker, params, bfgs_settings,
             iprint=0, bounds=bounds, **get_values(bfgs_settings))
 
 
-	# Alternative octant solution is optimal:
-	# Note: can use "<" for both metrics since neg. llh returned
-	print "ALT %s: "%metric_name, alt_metric_val
-	print "%s: "%metric_name, metric_val
-	if alt_metric_val < metric_val:
-            print "  >>TRUE..."
+        # Alternative octant solution is optimal:
+        if alt_metric_val < metric_val:
             best_fit_vals = alt_fit_vals
             metric_val = alt_metric_val
             dict_flags = alt_dict_flags
@@ -266,6 +264,11 @@ def bfgs_metric(opt_vals, names, scales, fmap, fixed_params, template_maker,
 	metric_val = -get_binwise_llh(fmap, true_fmap)
 	metric_val -= sum([prior.llh(opt_val)
                            for (opt_val, prior) in zip(unscaled_opt_vals, priors)])
+
+    #prior_list = [prior.llh(opt_val)
+    #         for (opt_val, prior) in zip(unscaled_opt_vals, priors)]
+    #print("  prior sum: ",sum(prior_list))
+    #neg_llh -= sum(prior_list)
 
     # Save all optimizer-tested values to opt_steps_dict, to see
     # optimizer history later

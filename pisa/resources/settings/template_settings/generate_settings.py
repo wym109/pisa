@@ -42,18 +42,28 @@ def processDatabase(dbfile,free_params):
         print "  %s %s %s %s %s %s %s" % tuple(col_names)
         for row in data: print "  %s %s %s %s %s %s %s" % row
 
-    # Systematic params dict:
-    params = {row[0]: {'value': row[1], 'range': [row[5],row[4]],
-                       'fixed': bool(row[6]),'scale': row[3] ,'prior': row[2]}
-              for row in data}
-
-    # Convert deg to rad:
-    for key in params.keys():
-        if 'theta' in key:
-            for subkey in ['value','prior','range']:
-                if params[key][subkey] is not None:
-                    params[key][subkey] = np.deg2rad(params[key][subkey])
-
+    # Convert all row's angles from degrees to rad:
+    for irow,row in enumerate(data):
+        if 'theta' in row[0]:
+            row = list(row)
+            row[1] = np.deg2rad(row[1])
+            if row[2] is not None:
+                row[2] = np.deg2rad(row[2])
+            row[4] = np.deg2rad(row[4])
+            row[5] = np.deg2rad(row[5])
+            data[irow] = row
+            
+            
+    params = {}
+    for row in data:
+        prior_dict = {'kind': 'uniform'} if row[2] is None else {'fiducial': row[1], 
+                                                                 'kind': 'gaussian', 
+                                                                 'sigma': row[2]}
+            
+        params[row[0]] = {'value': row[1], 'range': [row[5],row[4]],
+                          'fixed': bool(row[6]),'scale': row[3],
+                          'prior': prior_dict}                    
+    
     # now make fixed/free:
     if free_params is not None:
         # modify the free params to include the '_ih'/'_nh' tags:
