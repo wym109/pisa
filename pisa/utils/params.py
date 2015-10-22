@@ -190,7 +190,6 @@ def get_free_params(params):
 
     return { key: value for key, value in params.items() if not value['fixed']}
 
-
 def get_param_values(params):
     """
     Returns a list of parameter values
