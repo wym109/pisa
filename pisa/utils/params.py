@@ -14,12 +14,12 @@
 import re
 import scipy as sp
 import numpy as np
-import copy
+from copy import deepcopy
 from pisa.utils.log import logging
 
 class Prior(object):
     def __init__(self, **kwargs):
-        self.constructor_args = copy.deepcopy(kwargs)
+        self.constructor_args = deepcopy(kwargs)
         if not kwargs.has_key('kind'):
             raise TypeError(str(self.__class__) + ' __init__ requires `kind` kwarg to be specified')
         kind = kwargs.pop('kind')
@@ -145,7 +145,7 @@ def get_values(params):
        'param2': val,...
       }
     """
-    return { key: param['value'] for key, param in sorted(params.items()) }
+    return deepcopy({ key: param['value'] for key, param in sorted(params.items()) })
 
 
 def select_hierarchy(params, normal_hierarchy):
@@ -170,7 +170,7 @@ def select_hierarchy(params, normal_hierarchy):
 
         newparams[key] = value
 
-    return newparams
+    return deepcopy(newparams)
 
 
 def get_fixed_params(params):
@@ -179,7 +179,7 @@ def get_fixed_params(params):
     new dictionary.
     """
 
-    return { key: value for key, value in params.items() if value['fixed']}
+    return deepcopy({ key: value for key, value in params.items() if value['fixed']})
 
 
 def get_free_params(params):
@@ -188,27 +188,27 @@ def get_free_params(params):
     dictionary.
     """
 
-    return { key: value for key, value in params.items() if not value['fixed']}
+    return deepcopy({ key: value for key, value in params.items() if not value['fixed']})
 
 def get_param_values(params):
     """
     Returns a list of parameter values
     """
-    return [ val['value'] for key,val in sorted(params.items()) ]
+    return [ deepcopy(val['value']) for key,val in sorted(params.items()) ]
 
 
 def get_param_scales(params):
     """
     Returns a list of parameter scales
     """
-    return [ val['scale'] for key,val in sorted(params.items()) ]
+    return [ deepcopy(val['scale']) for key,val in sorted(params.items()) ]
 
 
 def get_param_bounds(params):
     """
     Returns a list of parameter bounds where elements are (min,max) pairs
     """
-    return [ val['range'] for key,val in sorted(params.items()) ]
+    return [ deepcopy(val['range']) for key,val in sorted(params.items()) ]
 
 
 def get_param_priors(params):
@@ -232,8 +232,8 @@ def get_atm_params(params):
     Returns dictionary of just the atmospheric parameters
     """
     atm_params = ['deltam31','theta23']
-    return { key: value for key, value in params.items()
-             for p in atm_params if p in key }
+    return deepcopy({ key: value for key, value in params.items()
+             for p in atm_params if p in key })
 
 
 def fix_osc_params(params):
@@ -246,11 +246,11 @@ def fix_osc_params(params):
     osc_params = ['deltam31', 'deltam21', 'theta23', 'theta13', 'theta12',
                   'deltacp']
     for key,value in params.items():
-        new_params[key] = value.copy()
+        new_params[key] = value
         for okey in osc_params:
             if okey in key:
                 new_params[key]['fixed'] = True
-    return new_params
+    return deepcopy(new_params)
 
 
 def fix_atm_params(params):
@@ -262,11 +262,11 @@ def fix_atm_params(params):
     # or initialize with new copy by dict(params)
     atm_params = ['deltam31', 'theta23']
     for key,value in params.items():
-        new_params[key] = value.copy()
+        new_params[key] = value
         #for akey in atm_params:
         if (bool(re.match('^theta23', key)) or bool(re.match('^deltam31', key))):
             new_params[key]['fixed'] = True
-    return new_params
+    return deepcopy(new_params)
 
 def fix_non_atm_params(params):
     """
@@ -279,13 +279,13 @@ def fix_non_atm_params(params):
     new_params = {}
     # or initialize with new copy by dict(params)
     for key,value in params.items():
-        new_params[key] = value.copy()
+        new_params[key] = value
         if (bool(re.match('^theta23', key)) or bool(re.match('^deltam31', key))):
             continue
         else:
             new_params[key]['fixed'] = True
 
-    return new_params
+    return deepcopy(new_params)
 
 def fix_all_params(params):
     """
@@ -294,6 +294,6 @@ def fix_all_params(params):
     """
     new_params = {}
     for k,v in params.items():
-        new_params[k] = v.copy()
+        new_params[k] = v
         new_params[k]['fixed'] = True
-    return new_params
+    return deepcopy(new_params)
