@@ -161,6 +161,8 @@ def find_opt_scipy(fmap, template_maker, params, minim_settings,
         free_params_copy['theta23']['value'] = (np.pi/4.0) + delta
 
         init_vals = get_param_values(free_params_copy)
+        # Also scale init-vals, bounds are unchanged
+        init_vals = np.array(init_vals)*np.array(scales)
 
         alt_opt_steps_dict = {key:[] for key in names}
         alt_opt_steps_dict[metric_name] = []
@@ -184,7 +186,7 @@ def find_opt_scipy(fmap, template_maker, params, minim_settings,
         alt_dict_flags = {}
         alt_dict_flags['warnflag'] = alt_minim_result.status
         alt_dict_flags['task'] = alt_minim_result.message
-        if minim_result.has_key(jac):
+        if minim_result.has_key('jac'):
             alt_dict_flags['grad'] = alt_minim_result.jac
         alt_dict_flags['funcalls'] = alt_minim_result.nfev
         alt_dict_flags['nit'] = alt_minim_result.nit
