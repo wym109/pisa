@@ -12,8 +12,12 @@
 # date:   2014-01-27
 
 
+import os
+import re
+import itertools
 import inspect
 import time
+import numbers
 import hashlib
 
 import numpy as np
@@ -37,6 +41,237 @@ class Timer(object):
         self.msecs = self.secs * 1000  # millisecs
         if self.verbose:
             print 'elapsed time: %f ms' % self.msecs
+
+
+def engfmt(n, units, sigfigs=3, decimals=None, sign_always=False):
+    prefixes = {-18:'a', -15:'f', -12:'p', -9:'n', -6:'u', -3:'m', 0:'',
+                3:'k', 6:'M', 9:'G', 12:'T', 15:'P', 18:'E'}
+    # Logs don't like negative numbers...
+    sign = np.sign(n)
+    n *= sign
+
+    mag = int(np.floor(np.log10(n)))
+    pfx_mag = int(np.floor(np.log10(n)/3.0)*3)
+
+    if decimals is None:
+        decimals = sigfigs-1 - (mag-pfx_mag)
+
+    round_to = decimals
+    if sigfigs is not None:
+        round_to = sigfigs-1 - (mag-pfx_mag)
+
+    scaled_rounded = np.round(n/10.0**pfx_mag, round_to)
+
+    sign_str = ''
+    if sign_always and sign > 0:
+        sign_str = '+'
+    num_str = sign_str + format(sign*scaled_rounded, '.'+str(decimals)+'f')
+
+    if pfx_mag not in prefixes:
+        return num_str + 'e'+str(mag) + ' ' + units
+    return  num_str + ' ' + prefixes[pfx_mag] + units
+
+
+def timediffstamp(dt_sec, hms_always=False, sigfigs=3):
+    sign_str = ''
+    sgn = 1
+    if dt_sec < 0:
+        sgn = -1
+        sign_str = '-'
+    dt_sec = sgn*dt_sec
+    
+    r = dt_sec % 3600
+    h = int((dt_sec - r)/3600)
+    s = r % 60
+    m = int((r - s)/60)
+    strdt = ''
+    if hms_always or h != 0:
+        strdt += format(h, '02d') + ':'
+    if hms_always or h != 0 or m != 0:
+        strdt += format(m, '02d') + ':'
+    
+    if float(s) == int(s):
+        s = int(s)
+        s_fmt = 'd' if len(strdt) == 0 else '02d'
+    else:
+        # If no hours or minutes, use engineering fmt
+        if (h == 0) and (m == 0) and not hms_always:
+            return engfmt(dt_sec*sgn, sigfigs=sigfigs, units='s')
+        # Otherwise, round seconds to sigfigs-1 decimal digits (so sigfigs
+        # isn't really acting as significant figures in this case)
+        s = np.round(s, sigfigs-1)
+        s_fmt = '.'+str(sigfigs-1)+'f' if len(strdt) == 0 else '06.'+str(sigfigs-1)+'f'
+    if len(strdt) > 0:
+        strdt += format(s, s_fmt)
+    else:
+        strdt += format(s, s_fmt) + ' s'
+    
+    return sign + strdt
+
+
+def timestamp(d=True, t=True, tz=True, utc=False, winsafe=False):
+    '''Simple utility to print out a time, date, or time&date stamp,
+    with some reconfigurability for commonly-used options.
+
+    Options:
+        d          print date (default: True)
+        t          print time (default: True)
+        tz         print timezone offset from UTC (default: True)
+        utc        print UTC time/date vs local time (default: False)
+        winsafe    omit colons between hours/minutes (default: False)
+    '''
+    if utc:
+        timeTuple = time.gmtime()
+    else:
+        timeTuple = time.localtime()
+
+    dts = ''
+    if d:
+        dts += time.strftime('%Y-%m-%d', timeTuple)
+        if t:
+            dts += 'T'
+    if t:
+        if winsafe:
+            dts += time.strftime('%H%M%S', timeTuple)
+        else:
+            dts += time.strftime('%H:%M:%S', timeTuple)
+
+        if tz:
+            if utc:
+                if winsafe:
+                    dts += time.strftime('+0000')
+                else:
+                    dts += time.strftime('+0000')
+            else:
+                offset = time.strftime('%z')
+                if not winsafe:
+                    offset = offset[:-2:] + '' + offset[-2::]
+                dts += offset
+    return dts
+
+
+def hrlist_formatter(start, end, step):
+    if step == 1:
+        return '{}-{}'.format(start, end)
+    return '{}-{}:{}'.format(start, end, step)
+
+
+def list2hrlist(lst):
+    '''Convert a list of numbers to a compact and human-readable string'''
+    ''' Below is adapted by me to make scientific notation work correctly from
+    Scott B's adaptation to Python 2 of Rik Poggi's answer to his question:
+    stackoverflow.com/questions/9847601/convert-list-of-numbers-to-string-ranges
+    '''
+    if isinstance(lst, numbers.Number):
+        lst = [lst]
+    lst = sorted(lst)
+    TOL = np.finfo(float).resolution
+    n = len(lst)
+    result = []
+    scan = 0
+    while n - scan > 2:
+        step = lst[scan + 1] - lst[scan]
+        if not np.isclose(lst[scan + 2] - lst[scan + 1], step, rtol=TOL):
+            result.append(str(lst[scan]))
+            scan += 1
+            continue
+        for j in xrange(scan+2, n-1):
+            if not np.isclose(lst[j+1] - lst[j], step, rtol=TOL):
+                result.append(hrlist_formatter(lst[scan], lst[j], step))
+                scan = j+1
+                break
+        else:
+            result.append(hrlist_formatter(lst[scan], lst[-1], step))
+            return ','.join(result)
+    if n - scan == 1:
+        result.append(str(lst[scan]))
+    elif n - scan == 2:
+        result.append(','.join(itertools.imap(str, lst[scan:])))
+    
+    return ','.join(result)
+
+
+def expandPath(path, exp_user=True, exp_vars=True, absolute=False):
+    if exp_user:
+        path = os.path.expanduser(path)
+    if exp_vars:
+        path = os.path.expandvars(path)
+    if absolute:
+        path = os.path.abspath(path)
+    return path
+
+
+def mkdir(d, mode=0750):
+    '''Simple wrapper around os.makedirs to create a directory but not raise an
+    exception if the dir already exists'''
+    try:
+        os.makedirs(d, mode=mode)
+    except OSError as err:
+        if err[0] == 17:
+            logging.info('Directory "' + str(d) + '" already exists')
+        else:
+            raise err
+    else:
+        logging.info('Created directory "' + d + '"')
+
+
+nsort_re = re.compile("(\\d+)")
+def nsort(l):
+    '''Numbers sorted by value, not by alpha order. Code from
+    http://nedbatchelder.com/blog/200712/human_sorting.html#comments'''
+    return sorted(l, key=lambda a:zip(nsort_re.split(a)[0::2], map(int, nsort_re.split(a)[1::2])))
+
+
+def findFiles(root, regex=None, fname=None, recurse=True, dir_sorter=nsort,
+              file_sorter=nsort):
+    '''Find files by re or name recursively w/ ordering.
+
+    Returns an iterator over 3-tuples containing (fullfilepath, basename, match)
+    
+    Code in part from
+    http://stackoverflow.com/questions/18282370/python-os-walk-what-order'''
+    if isinstance(regex, basestring):
+        regex = re.compile(regex)
+
+    # Define a function for accepting a filename as a match
+    if regex is None:
+        if fname is None:
+            def validfilefunc(fn):
+                return True, None
+        else:
+            def validfilefunc(fn):
+                if fn == fname:
+                    return True, None
+                return False, None
+    else:
+        def validfilefunc(fn):
+            match = regex.match(fn)
+            if match and (len(match.groups()) == regex.groups):
+                return True, match
+            return False, None
+
+    if recurse:
+        for rootdir, dirs, files in os.walk(root):
+            for basename in file_sorter(files):
+                fullfilepath = os.path.join(root, basename)
+                isValid, match = validfilefunc(basename)
+                if isValid:
+                    yield fullfilepath, basename, match
+            for dirname in dir_sorter(dirs):
+                fulldirpath = os.path.join(rootdir, dirname)
+                for basename in file_sorter(os.listdir(fulldirpath)):
+                    fullfilepath = os.path.join(fulldirpath, basename)
+                    if os.path.isfile(fullfilepath):
+                        isValid, match = validfilefunc(basename)
+                        if isValid:
+                            yield fullfilepath, basename, match
+    else:
+        for basename in file_sorter(os.listdir(root)):
+            fullfilepath = os.path.join(root, basename)
+            #if os.path.isfile(fullfilepath):
+            isValid, match = validfilefunc(basename)
+            if isValid:
+                yield fullfilepath, basename, match
 
 
 def get_bin_centers(edges):

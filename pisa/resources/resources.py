@@ -23,7 +23,7 @@ def find_resource(filename, fail=True):
     '''
 
     # First check for absolute path
-    fpath = os.path.expanduser(os.path.expandvars(filename))
+    fpath = os.path.expandvars(os.path.expanduser(filename))
     logging.trace("Checking if %s is a file..." % fpath)
     if os.path.isfile(fpath):
         logging.debug('Found %s' % (fpath))
@@ -32,7 +32,7 @@ def find_resource(filename, fail=True):
     # Next check if $PISA is set in environment
     logging.trace("Checking environment for $PISA...")
     if 'PISA' in os.environ:
-        rpath = os.path.expanduser(os.path.expandvars(os.environ['PISA']))
+        rpath = os.path.expandvars(os.path.expanduser(os.environ['PISA']))
         logging.debug('Searching resource path PISA=%s' % rpath)
 
         fpath = os.path.join(rpath, filename)
