@@ -10,6 +10,8 @@
 
 from pisa.utils.jsons import *
 from pisa.utils.hdf import *
+import pisa.resources.resources as RES
+from pisa.utils.log import logging, set_verbosity
 import cPickle
 
 
@@ -26,6 +28,7 @@ def from_file(fname, fmt=None):
         ext = ext.replace('.', '').lower()
     else:
         ext = fmt.lower()
+    fname = RES.find_resource(fname)
     if ext in JSON_EXTS:
         return from_json(fname)
     elif ext in HDF5_EXTS:
@@ -38,7 +41,7 @@ def from_file(fname, fmt=None):
         raise TypeError(errmsg)
 
 
-def to_file(obj, fname, fmt=None):
+def to_file(obj, fname, *args, **kwargs):
     """Dispatch correct file writer based on fmt (if specified) or guess
     based on file name's extension"""
     if fmt is None:
@@ -47,11 +50,12 @@ def to_file(obj, fname, fmt=None):
     else:
         ext = fmt.lower()
     if ext in JSON_EXTS:
-        return to_json(obj, fname)
+        return to_json(obj, fname, *args, **kwargs)
     elif ext in HDF5_EXTS:
-        return to_hdf(obj, fname)
+        return to_hdf(obj, fname, *args, **kwargs)
     elif ext in PKL_EXTS:
-        return cPickle.dump(obj, file(fname, 'wb'))
+        return cPickle.dump(obj, file(fname, 'wb'),
+                            protocol=cPickle.HIGHEST_PROTOCOL)
     else:
         errmsg = 'Unrecognized file type/extension: ' + ext
         logging.error(errmsg)
