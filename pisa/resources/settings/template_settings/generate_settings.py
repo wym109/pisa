@@ -35,7 +35,7 @@ def processDatabase(dbfile,free_params):
     data = cur.fetchall()
 
     try:
-         print tabulate(data,headers=["Name","Value","GaussianPrior","Scale","Max","Min","Fixed"],tablefmt="grid")
+        print tabulate(data,headers=["Name","Value","GaussianPrior","Scale","Max","Min","Fixed"],tablefmt="grid")
     except:
         print "PARAMETER TABLE: \n"
         col_names = [col[0] for col in cur.description]
