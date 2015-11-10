@@ -16,7 +16,7 @@ import numpy as np
 from itertools import product
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
-from pisa.analysis.llr.LLHAnalysis import find_opt_bfgs
+from pisa.analysis.llr.LLHAnalysis import find_opt_scipy
 from pisa.analysis.stats.Maps import get_asimov_fmap
 from pisa.analysis.scan.Scan import calc_steps
 from pisa.analysis.TemplateMaker import TemplateMaker
@@ -144,9 +144,9 @@ for pos in product(*steplist):
         steps[k].append(v)
 
     with Timer() as t:
-        llh_data = find_opt_bfgs(asimov_data_set,template_maker,hypo_params,
-                                 minimizer_settings,args.save_steps,
-                                 normal_hierarchy=hypo_normal)
+        llh_data = find_opt_scipy(asimov_data_set,template_maker,hypo_params,
+                                  minimizer_settings,args.save_steps,
+                                  normal_hierarchy=hypo_normal)
     tprofile.info("==> elapsed time for optimizer: %s sec"%t.secs)
 
     steps['llh'].append(llh_data['llh'][-1])

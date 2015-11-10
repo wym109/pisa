@@ -20,7 +20,7 @@ import numpy as np
 from copy import deepcopy
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
-from pisa.analysis.llr.LLHAnalysis import find_opt_bfgs, find_alt_hierarchy_fit
+from pisa.analysis.llr.LLHAnalysis import find_opt_scipy, find_alt_hierarchy_fit
 from pisa.analysis.stats.LLHStatistics import get_random_map
 from pisa.analysis.stats.Maps import get_pseudo_data_fmap, get_seed, get_asimov_fmap
 from pisa.analysis.TemplateMaker import TemplateMaker
@@ -128,7 +128,7 @@ def get_llh_hypothesis(
             physics.info(
                 "Finding best fit for %s under %s assumption"%(data_tag,hypo_tag))
             with Timer() as t:
-                llh_data = find_max_llh_bfgs(
+                llh_data = find_opt_scipy(
                     fmap, template_maker, template_params,
                     minimizer_settings, save_steps,
                     normal_hierarchy=hypo_normal, check_octant=check_octant)
@@ -237,7 +237,7 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
             template_maker=template_maker,
             fiducial_params=false_h_settings,
             channel=false_h_settings['channel'])
-
+        
         # Store all data tag related inputs:
         output[data_tag]['false_h_best_fit']['false_h_settings'] = false_h_settings
         output[data_tag]['false_h_best_fit']['llh_null'] = llh_data
