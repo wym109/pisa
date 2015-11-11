@@ -41,7 +41,7 @@ def from_file(fname, fmt=None):
         raise TypeError(errmsg)
 
 
-def to_file(obj, fname, *args, **kwargs):
+def to_file(obj, fname, fmt=None, **kwargs):
     """Dispatch correct file writer based on fmt (if specified) or guess
     based on file name's extension"""
     if fmt is None:
@@ -50,9 +50,9 @@ def to_file(obj, fname, *args, **kwargs):
     else:
         ext = fmt.lower()
     if ext in JSON_EXTS:
-        return to_json(obj, fname, *args, **kwargs)
+        return to_json(obj, fname, **kwargs)
     elif ext in HDF5_EXTS:
-        return to_hdf(obj, fname, *args, **kwargs)
+        return to_hdf(obj, fname, **kwargs)
     elif ext in PKL_EXTS:
         return cPickle.dump(obj, file(fname, 'wb'),
                             protocol=cPickle.HIGHEST_PROTOCOL)

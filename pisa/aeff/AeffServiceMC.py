@@ -33,10 +33,7 @@ class AeffServiceMC:
         self.aeff_dict = flavInt.FIData()
         logging.info("Creating effective area dict...")
         for kind in flavInt.ALL_KINDS:
-            flav = str(kind.flav())
-            int_type = str(kind.intType())
             logging.debug("Working on %s effective areas" % kind)
-
             bins = (self.ebins, self.czbins)
             aeff_hist,_,_ = np.histogram2d(
                 events.get(kind, 'true_energy'),
@@ -44,13 +41,13 @@ class AeffServiceMC:
                 weights=events.get(kind, 'weighted_aeff'),
                 bins=bins
             )
-            # Divide by bin widths to convert to aeff:
+            # Divide histogram by bin ExCZ "widths" to convert to aeff
             ebin_sizes = get_bin_sizes(ebins)
             czbin_sizes = 2.0*np.pi*get_bin_sizes(czbins)
             bin_sizes = np.meshgrid(czbin_sizes, ebin_sizes)
             aeff_hist /= np.abs(bin_sizes[0]*bin_sizes[1])
-
-            self.aeff_dict[flav][int_type] = aeff_hist
+            # Save the result to the FIData object
+            self.aeff_dict.set(kind, aeff_hist)
 
     def get_aeff(self, **kwargs):
         '''

@@ -14,6 +14,7 @@ import h5py
 
 import pisa.utils.flavInt as flavInt
 import pisa.utils.hdf as hdf
+import pisa.resources.resources as resources
 
 
 class Events(flavInt.FIData):
@@ -30,7 +31,6 @@ class Events(flavInt.FIData):
         d = flavInt.FIData()
         if isinstance(val, basestring) or isinstance(val, h5py.Group):
             d, meta = self.load(val)
-            print d.keys()
         elif isinstance(val, dict):
             d = val
         self.metadata.update(meta)
@@ -39,7 +39,8 @@ class Events(flavInt.FIData):
 
     @staticmethod
     def load(fname):
-        with h5py.File(fname, 'r') as f:
+        fpath = resources.find_resource(fname)
+        with h5py.File(fpath, 'r') as f:
             meta = dict(f.attrs)
             d = hdf.from_hdf(f)
         return d, meta
