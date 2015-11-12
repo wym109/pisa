@@ -27,12 +27,12 @@ from pisa.flux.Flux import get_flux_maps
 
 from pisa.oscillations.Prob3OscillationService import Prob3OscillationService
 from pisa.oscillations.NucraftOscillationService import NucraftOscillationService
-#try:
-#    print "Trying to import Prob3GPUOscillationService..."
-from pisa.oscillations.Prob3GPUOscillationService import Prob3GPUOscillationService
-#except:
-#    pass
-#    print "CAN NOT import Prob3GPUOscillationService..."
+try:
+    print "Trying to import Prob3GPUOscillationService..."
+    from pisa.oscillations.Prob3GPUOscillationService import Prob3GPUOscillationService
+except:
+    pass
+    print "CAN NOT import Prob3GPUOscillationService..."
 from pisa.oscillations.Oscillation import get_osc_flux
 
 from pisa.aeff.AeffServiceMC import AeffServiceMC

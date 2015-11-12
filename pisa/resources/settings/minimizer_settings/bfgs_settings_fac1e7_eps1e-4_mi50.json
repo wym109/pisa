@@ -6,12 +6,12 @@
   "options":{
     "value": {
       "disp"   : 0,
-      "ftol"   : 2e-7,
+      "ftol"   : 2e-9,
       "eps"    : 1.0e-4,
       "gtol"   : 1.0e-5,
       "maxcor" : 10,
       "maxfun" : 15000,
-      "maxiter": 20
+      "maxiter": 50
     },
     "desc": {
       "disp"   : "Set to True to print convergence messages",
