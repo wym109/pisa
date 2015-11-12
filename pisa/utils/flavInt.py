@@ -618,6 +618,18 @@ class FIData(dict):
         self.validate(d)
         self.update(d)
 
+    def __eq__(self, other):
+        for k in ALL_KINDS:
+            if not np.all(self.get(k) == other.get(k)):
+                return False
+        return True
+
+    def allclose(self, other, rtol=1e-05, atol=1e-08):
+        for k in ALL_KINDS:
+            if not np.allclose(self.get(k), other.get(k), rtol=rtol, atol=atol):
+                return False
+        return True
+
     def basic_get(self, key, *subkeys):
         try:
             kind = NuKind(key)
