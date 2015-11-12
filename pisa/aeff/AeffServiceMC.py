@@ -3,10 +3,9 @@
 # re-scaled as desired.
 #
 # author: Timothy C. Arlen
-# author: Justin L. Lanfranchi
 #
-# rev0:   2014-04-08
-# rev1:   2015-11-06
+# date:   April 8, 2014
+#
 
 import numpy as np
 from pisa.utils.log import logging, set_verbosity
