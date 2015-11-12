@@ -137,12 +137,18 @@ def to_hdf(data_dict, tgt, attrs=None, overwrite=True):
                 # Store the node_hash for linking to later if this is more than
                 # a scalar datatype. Assumed that "None" has 
                 node_hashes[node_hash] = full_path
-            # TODO: Treat strings as follows? Would this break compatibility
-            # with pytables/Pandas? What are benefits? Leaving out for now.
             if isinstance(node, basestring):
+                # TODO: Treat strings as follows? Would this break
+                # compatibility with pytables/Pandas? What are benefits?
+                # Leaving the following two lines out for now...
+
                 #dtype = h5py.special_dtype(vlen=str)
                 #fh.create_dataset(k,data=v,dtype=dtype)
+
+                # ... Instead: creating length-1 array out of string; this
+                # seems to be compatible with both h5py and pytables
                 node = np.array(node)
+
             logging.trace("  creating dataset at node '%s', hash %s" %
                           (full_path, node_hash))
             try:
