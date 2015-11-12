@@ -12,13 +12,13 @@
 import os
 import numpy as np
 import h5py
-from pisa.utils.log import logging 
+from pisa.utils.log import logging, set_verbosity
 import pisa.utils.utils as utils
 
+# TODO: retrieve attributes from an HDF5 file
 
 def from_hdf(val):
-    """Open a file in HDF5 format, parse the content and return as dictionary
-    with numpy arrays"""
+    """Open a file in HDF5 format, parse the content and return as dictionary"""
     # Function for iteratively parsing the file to create the dictionary
     def visit_group(obj, sdict):
         name = obj.name.split('/')[-1]
@@ -83,14 +83,9 @@ def to_hdf(data_dict, tgt, attrs=None, overwrite=True):
         raise TypeError(errmsg)
 
     # Define a function for interatively doing the work
-    global node_hashes
-    node_hashes = {}
-    def store_recursively(fhandle, node, path=None, attrs=None):
-        global node_hashes
-        if path is None:
-            path = []
-        if node_hashes is None:
-            node_hashes = {}
+    def store_recursively(fhandle, node, path=None, attrs=None, node_hashes=None):
+        path = [] if path is None else path
+        node_hashes = {} if node_hashes is None else node_hashes
         full_path = '/' + '/'.join(path)
         if isinstance(node, dict):
             logging.trace("  creating Group '%s'" % full_path)
@@ -108,7 +103,8 @@ def to_hdf(data_dict, tgt, attrs=None, overwrite=True):
                                  "'for use as name in HDF5 file")
                 val = node[key]
                 new_path = path + [key_str]
-                store_recursively(fhandle=fhandle, node=val, path=new_path)
+                store_recursively(fhandle=fhandle, node=val, path=new_path,
+                                  node_hashes=node_hashes)
         else:
             # Check for existing node
             node_hash = utils.hash_obj(node)
@@ -200,3 +196,48 @@ def to_hdf(data_dict, tgt, attrs=None, overwrite=True):
         errmsg = "to_hdf: Invalid `tgt` type: " + type(target_entity)
         logging.error(errmsg)
         raise TypeError(errmsg)
+
+
+def test():
+    set_verbosity(3)
+    data = {
+        'top': {
+            'secondlvl1':{
+                'thirdlvl11': np.linspace(1,100,10000),
+                'thirdlvl12': "this is a string"
+            },
+            'secondlvl2':{
+                'thirdlvl21': np.linspace(1,100,10000),
+                'thirdlvl22': "this is a string"
+            },
+            'secondlvl3':{
+                'thirdlvl31': np.linspace(1,100,10000),
+                'thirdlvl32': "this is a string"
+            },
+            'secondlvl4':{
+                'thirdlvl41': np.linspace(1,100,10000),
+                'thirdlvl42': "this is a string"
+            },
+            'secondlvl5':{
+                'thirdlvl51': np.linspace(1,100,10000),
+                'thirdlvl52': "this is a string"
+            },
+            'secondlvl6':{
+                'thirdlvl61': np.linspace(100,1000,10000),
+                'thirdlvl62': "this is a string"
+            },
+        }
+    }
+    attrs = {
+        'this_is_a_stringattr': "string attribute!",
+        'float': 9.98237,
+        'pi': np.pi,
+        'int': 1,
+    }
+    to_hdf(data, '/tmp/to_hdf.hdf5', attrs=attrs, overwrite=True)
+
+    data = from_hdf('/tmp/to_hdf.hdf5')
+
+
+if __name__ == "__main__":
+    test()
