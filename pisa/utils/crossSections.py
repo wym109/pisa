@@ -1,4 +1,12 @@
 #!/usr/bin/env python
+# 
+# CrossSections class for importing, working with, and storing cross sections
+#
+# author: J.L. Lanfranchi
+#         jll1062+pisa@phys.psu.edu
+#
+# date:   October 24, 2015
+#
 
 import os
 import numpy as np
@@ -15,6 +23,7 @@ from pisa.utils.log import logging, set_verbosity
 # TODO: make class for groups of CX or just a function for finding eisting
 # versions in a json file; eliminate the optional ver parameters in
 # CrossSections class methods
+
 
 class CrossSections(FI.FIData):
     def __init__(self, xsec='cross_sections/cross_sections.json', ver=None):

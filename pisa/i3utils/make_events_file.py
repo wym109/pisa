@@ -1,14 +1,13 @@
 #! /usr/bin/env python
 #
-# make_aeff_mc_file.py
+# Generate a PISA-standard events file from HDF5 file(s) which in turn were
+# generated from I3 files by the icecube.hdfwriter.I3HDFTableService
 #
 # author: Justin L. Lanfranchi
-#         jll1062@phys.psu.edu
+#         jll1062+pisa@phys.psu.edu
 #
 # date:   October 24, 2015
 #
-# Generate a "standard" PISA events file from HDF5 file(s) in the format
-# created with icecube.hdfwriter.I3HDFTableService converts I3 files.
 
 import os
 import numpy as np

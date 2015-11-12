@@ -1,14 +1,13 @@
 #!/usr/bin/env python
 #
-# mcSimRunSettings.py
+# Handle flavors, interactions types, "kinds" (flav+int. type), and kind groups
+# in a consistent and convenient manner.
 #
 # author: Justin L. Lanfranchi
-#         jll1062@phys.psu.edu
+#         jll1062+pisa@phys.psu.edu
 #
 # date:   October 24, 2015
 #
-# Handle flavors, interactions types, "kinds" (flav+int. type), and kind groups
-# in a consistent and convenient manner.
 
 
 import pisa.utils.fileio as FIO

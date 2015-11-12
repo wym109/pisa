@@ -1,14 +1,25 @@
 #! /usr/bin/env python
 #
-# flavInt.py
+# Classes for working with neutrino flavors (NuFlav), interactions types
+# (IntType), "kinds" (a flavor and an interaction type) (NuKind), and kind
+# groups (NuKindGroup) in a consistent and convenient manner.
+#
+# FIData class for working with data stored by kind (flavor & interaction
+# type). This should replace the PISA convention of using raw doubly-nested
+# dictionaries indexed as [<flavor>][<interaction type>]. For now, FIData
+# objects can be drop-in replacements for such dictionaries (they can be
+# accessed and written to in the same way since FIData subclasses dict) but
+# this should be deprecated; eventually, all direct access of the data
+# structure should be eliminated and disallowed by the FIData object.
+#
+# Define convenience tuples ALL_{x} for easy iteration
+#
 #
 # author: Justin L. Lanfranchi
-#         jll1062@phys.psu.edu
+#         jll1062+pisa@phys.psu.edu
 #
 # date:   October 24, 2015
 #
-# Handle flavors, interactions types, "kinds" (flav+int. type), and kind groups
-# in a consistent and convenient manner.
 
 
 import sys, traceback
@@ -280,6 +291,7 @@ class IntType(object):
 
     def tex(self):
         return self.i2tex[self.__int_type]
+
 
 ALL_INT_TYPES = (IntType('cc'), IntType('nc'))
 

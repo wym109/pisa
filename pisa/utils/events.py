@@ -1,13 +1,12 @@
 #! /usr/bin/env python
 #
-# Events.py
+# Class Events for working with PISA events files
 #
 # author: Justin L. Lanfranchi
-#         jll1062@phys.psu.edu
+#         jll1062+pisa@phys.psu.edu
 #
-# date:   2015-11-07
+# date:   October 24, 2015
 #
-# Class for working with PISA events files
 
 
 import h5py

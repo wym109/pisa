@@ -1,4 +1,13 @@
 #!/usr/bin/env python
+# 
+# DataProcParams class for importing, working with, and storing data processing
+# parameters (e.g., PINGU V5 processing)
+#
+# author: J.L. Lanfranchi
+#         jll1062+pisa@phys.psu.edu
+#
+# date:   October 24, 2015
+#
 
 
 import os
@@ -39,6 +48,9 @@ class DataProcParams(dict):
             except:
                 self.nu_code_to_pdg_map = self['nu_code_to_pdg_map']
 
+        # NOTE: the keys are strings so the particular string formatting is
+        # important for indexing into the dict!
+        
         # Add generic cuts
         self['cuts'].update({
             # Cut for particles only (no anti-particles)
