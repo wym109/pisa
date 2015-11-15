@@ -191,6 +191,118 @@ def list2hrlist(lst):
     return ','.join(result)
 
 
+def recEq(x, y):
+    '''Recursively verify equality between two objects.
+    '''
+    # Scalar
+    if np.isscalar(x):
+        if not np.isscalar(y):
+            return False
+        if x != y:
+            return False
+    # Dict
+    elif isinstance(x, dict):
+        if not isinstance(y, dict):
+            return False
+        xkeys = sorted(x.keys())
+        if not xkeys == sorted(y.keys()):
+            return False
+        for k in xkeys:
+            #logging.trace('traversing into key "%s"' % str(k))
+            if not recEq(x[k], y[k]):
+                return False
+    # Sequence
+    elif hasattr(x, '__len__'):
+        if not len(x) == len(y):
+            return False
+        if isinstance(x, list) or isinstance(x, tuple):
+            if not isinstance(y, list) or isinstance(y, tuple):
+                return False
+            for n, (xs, ys) in enumerate(itertools.izip(x, y)):
+                #logging.trace('traversing into element %d of iterable' % n)
+                if not recEq(xs, ys):
+                    return False
+        elif isinstance(x, np.ndarray):
+            if not isinstance(y, np.ndarray):
+                return False
+            #logging.trace('comparing np.ndarrays')
+            if not np.alltrue(x == y):
+                return False
+        else:
+            raise TypeError('Unhandled type(s): %s, x=%s, y=%s' %
+                            (type(x),str(x), str(y)))
+    # Something else
+    else:
+        raise TypeError('Unhandled type(s): %s, x=%s, y=%s' %
+                        (type(x),str(x), str(y)))
+    # If you make it to here, must be equal
+    return True
+
+
+def recAllclose(x, y, *args, **kwargs):
+    '''Recursively verify equality between two objects.
+    '''
+    # Scalar
+    if np.isscalar(x):
+        if not np.isscalar(y):
+            return False
+        if not np.allclose(x, y, *args, **kwargs):
+            return False
+    # Dict
+    elif isinstance(x, dict):
+        if not isinstance(y, dict):
+            return False
+        xkeys = sorted(x.keys())
+        if not xkeys == sorted(y.keys()):
+            return False
+        for k in xkeys:
+            #logging.trace('traversing into key "%s"' % str(k))
+            if not recAllclose(x[k], y[k], *args, **kwargs):
+                return False
+    # Sequence
+    elif hasattr(x, '__len__'):
+        if not len(x) == len(y):
+            return False
+        if isinstance(x, list) or isinstance(x, tuple):
+            if not isinstance(y, list) or isinstance(y, tuple):
+                return False
+            for xs, ys in izip(x, y):
+                if not recAllclose(xs, ys, *args, **kwargs):
+                    return False
+        elif isinstance(x, np.ndarray):
+            if not isinstance(y, np.ndarray):
+                return False
+            if not np.allclose(x, y, *args, **kwargs):
+                return False
+        else:
+            raise TypeError('Unhandled type(s): %s, x=%s, y=%s' %
+                            (type(x),str(x), str(y)))
+    # Something else
+    else:
+        raise TypeError('Unhandled type(s): %s, x=%s, y=%s' %
+                        (type(x),str(x), str(y)))
+    # If you make it to here, must be close
+    return True
+
+
+def test_recEq():
+    d1 = {'one':1, 'two':2}
+    d2 = {'one':1.0, 'two':2.0}
+    d3 = {'one':np.arange(0,100), 'two':[{'three':{'four':np.arange(1,2)}}, np.arange(3,4)]}
+    d4 = {'one':np.arange(0,100), 'two':[{'three':{'four':np.arange(1,2)}}, np.arange(3,4)]}
+    d5 = {'one':np.arange(0,100), 'two':[{'three':{'four':np.arange(1,3)}}, np.arange(3,4)]}
+    d6 = {'one':np.arange(0,100), 'two':[{'three':{'four':np.arange(1.1,2.1)}}, np.arange(3,4)]}
+    assert not recEq(d1, d3)
+    assert recEq(d1, d2)
+    assert recEq(d3, d4)
+    assert not recEq(d3, d5)
+    assert not recEq(d4, d5)
+    assert not recEq(d3, d6)
+    assert not recEq(d4, d6)
+
+    logging.info('<< PASSED >> recEq')
+
+
 def expandPath(path, exp_user=True, exp_vars=True, absolute=False):
     if exp_user:
         path = os.path.expanduser(path)
