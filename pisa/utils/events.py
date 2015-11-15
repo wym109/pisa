@@ -17,6 +17,8 @@ import pisa.resources.resources as resources
 
 
 class Events(flavInt.FIData):
+    '''Container for storing events, including metadata about the events
+    '''
     def __init__(self, val=None):
         self.metadata = {
             'detector': '',
@@ -29,19 +31,19 @@ class Events(flavInt.FIData):
         meta = {}
         d = flavInt.FIData()
         if isinstance(val, basestring) or isinstance(val, h5py.Group):
-            d, meta = self.load(val)
+            d, meta = self.__load(val)
         elif isinstance(val, dict):
             d = val
         self.metadata.update(meta)
         self.validate(d)
         self.update(d)
 
-    @staticmethod
-    def load(fname):
+    def __load(self, fname):
         fpath = resources.find_resource(fname)
         with h5py.File(fpath, 'r') as f:
             meta = dict(f.attrs)
             d = hdf.from_hdf(f)
+        self.validate(d)
         return d, meta
 
     def save(self, fname, overwrite=True):
