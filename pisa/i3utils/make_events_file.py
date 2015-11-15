@@ -84,7 +84,7 @@ def makeEventsFile(data_files, outdir, run_settings, proc_settings, cut,
         logging.info('Events in the following groups will be joined together:'
                      ' (none)')
     else:
-        grouped, ungrouped = FI.xlateGroupsStr(join)
+        grouped, ungrouped = FI.CombinedFIData.xlateGroupsStr(join)
         evts.metadata['kinds_joined'] = [str(g) for g in grouped]
         groups_label = 'joined_G_' + '_G_'.join([str(g) for g in grouped])
         logging.info('Events in the following groups will be joined together: '
