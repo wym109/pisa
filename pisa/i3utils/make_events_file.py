@@ -76,35 +76,25 @@ def makeEventsFile(data_files, outdir, run_settings, proc_settings, cut,
     detector_label = str(proc_settings.detector)
     proc_label = 'proc_v' + str(proc_settings.proc_ver)
 
-    # Set "bar" (vs. "_bar") as naming convention (output file uses the latter
-    # convention so this will be changed prior to writing the data for that file)
-    FI.set_bar_ssep('')
-
     # What kinds to group together
     if join is None or join == '':
-        kind_groupings = []
+        grouped = []
+        ungrouped = [FI.NuKindGroup(k) for k in FI.ALL_KINDS]
         groups_label = 'unjoined'
         logging.info('Events in the following groups will be joined together:'
                      ' (none)')
     else:
-        kind_groupings = [FI.NuKindGroup(s) for s in join.split(';')]
-        evts.metadata['kinds_joined'] = [str(g) for g in kind_groupings]
-        groups_label = 'joined_G_' + '_G_'.join([
-            g.simpleStr(flavsep='_', flavintsep='_', kindsep='_', addsep='')
-            for g in kind_groupings
-        ])
+        grouped, ungrouped = FI.xlateGroupsStr(join)
+        evts.metadata['kinds_joined'] = [str(g) for g in grouped]
+        groups_label = 'joined_G_' + '_G_'.join([str(g) for g in grouped])
         logging.info('Events in the following groups will be joined together: '
-                     + '; '.join([str(g) for g in kind_groupings]))
+                     + '; '.join([str(g) for g in grouped]))
     # Find any kinds not included in the above groupings
-    all_kinds = set(FI.ALL_KINDS)
-    all_grouped_kinds = set(FI.NuKindGroup(kind_groupings))
-    ungrouped_kinds = [FI.NuKindGroup(k) for k in
-                       sorted(all_kinds.difference(all_grouped_kinds))]
-    kind_groupings.extend(ungrouped_kinds)
-    if len(ungrouped_kinds) == 0:
-        ungrouped_kinds = ['(none)']
+    kind_groupings = grouped + ungrouped
+    if len(ungrouped) == 0:
+        ungrouped = ['(none)']
     logging.info('Events of the following kinds will NOT be joined together: '
-                 + '; '.join([str(k) for k in ungrouped_kinds]))
+                 + '; '.join([str(k) for k in ungrouped]))
 
     # Enforce that kinds composing groups are mutually exclusive
     for n, kg0 in enumerate(kind_groupings[:-1]):
