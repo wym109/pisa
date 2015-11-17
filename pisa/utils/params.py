@@ -246,11 +246,12 @@ def fix_osc_params(params):
     osc_params = ['deltam31', 'deltam21', 'theta23', 'theta13', 'theta12',
                   'deltacp']
     for key,value in params.items():
-        new_params[key] = value
+        new_params[key] = deepcopy(value)
         for okey in osc_params:
             if okey in key:
                 new_params[key]['fixed'] = True
-    return deepcopy(new_params)
+
+    return new_params
 
 
 def fix_atm_params(params):
@@ -262,11 +263,12 @@ def fix_atm_params(params):
     # or initialize with new copy by dict(params)
     atm_params = ['deltam31', 'theta23']
     for key,value in params.items():
-        new_params[key] = value
+        new_params[key] = deepcopy(value)
         #for akey in atm_params:
         if (bool(re.match('^theta23', key)) or bool(re.match('^deltam31', key))):
             new_params[key]['fixed'] = True
-    return deepcopy(new_params)
+
+    return new_params
 
 def fix_non_atm_params(params):
     """
@@ -279,13 +281,13 @@ def fix_non_atm_params(params):
     new_params = {}
     # or initialize with new copy by dict(params)
     for key,value in params.items():
-        new_params[key] = value
+        new_params[key] = deepcopy(value)
         if (bool(re.match('^theta23', key)) or bool(re.match('^deltam31', key))):
             continue
         else:
             new_params[key]['fixed'] = True
 
-    return deepcopy(new_params)
+    return new_params
 
 def fix_all_params(params):
     """
@@ -294,6 +296,7 @@ def fix_all_params(params):
     """
     new_params = {}
     for k,v in params.items():
-        new_params[k] = v
+        new_params[k] = deepcopy(v)
         new_params[k]['fixed'] = True
-    return deepcopy(new_params)
+
+    return new_params
