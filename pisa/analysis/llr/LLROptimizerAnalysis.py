@@ -228,7 +228,6 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
         logging.info("Running false hierarchy best fit...")
         output[data_tag]["false_h_best_fit"] = {}
 
-        #proxy_settings = deepcopy(template_settings['params'])
         false_h_params = fix_non_atm_params(template_settings['params'])
         false_h_settings, llh_data = getAltHierarchyBestFit(
             asimov_data, template_maker, false_h_params, minimizer_settings,
