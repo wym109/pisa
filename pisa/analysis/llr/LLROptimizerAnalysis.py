@@ -211,12 +211,12 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
     asimov_data = getAsimovData(
         template_maker, template_settings['params'], data_normal)
 
-    trials = get_llh_hypothesis(
-        data_tag, asimov_data, args.ntrials, template_maker,
-        template_settings["params"], minimizer_settings,
-        args.save_steps, check_octant)
+    #trials = get_llh_hypothesis(
+    #    data_tag, asimov_data, args.ntrials, template_maker,
+    #    template_settings["params"], minimizer_settings,
+    #    args.save_steps, check_octant)
 
-    output[data_tag]['true_h_fiducial']['trials'] = trials
+    #output[data_tag]['true_h_fiducial']['trials'] = trials
 
     # If we do not run the alt_fit, then we simply continue in the for
     # loop and the LLR distributions will be interpreted as the
@@ -228,8 +228,8 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
         logging.info("Running false hierarchy best fit...")
         output[data_tag]["false_h_best_fit"] = {}
 
-        proxy_settings = deepcopy(template_settings['params'])
-        false_h_params = fix_non_atm_params(proxy_settings)
+        #proxy_settings = deepcopy(template_settings['params'])
+        false_h_params = fix_non_atm_params(template_settings['params'])
         false_h_settings, llh_data = getAltHierarchyBestFit(
             asimov_data, template_maker, false_h_params, minimizer_settings,
             (not data_normal), check_octant)
