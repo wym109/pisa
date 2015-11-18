@@ -147,7 +147,6 @@ class DataProcParams(dict):
         cut_strings = set()
         cut_fields = set()
         for cut in cuts:
-            #try:
             if isinstance(cut, dict):
                 self.validateCutSpec(cut)
             elif self['cuts'].has_key(cut.lower()):

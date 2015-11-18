@@ -192,10 +192,14 @@ def list2hrlist(lst):
 
 
 def recEq(x, y):
-    '''Recursively verify equality between two objects.
+    '''Recursively verify equality between two objects x and y.
     '''
+    # None
+    if x is None:
+        if not (y is None):
+            return False
     # Scalar
-    if np.isscalar(x):
+    elif np.isscalar(x):
         if not np.isscalar(y):
             return False
         if x != y:
@@ -208,7 +212,6 @@ def recEq(x, y):
         if not xkeys == sorted(y.keys()):
             return False
         for k in xkeys:
-            #logging.trace('traversing into key "%s"' % str(k))
             if not recEq(x[k], y[k]):
                 return False
     # Sequence
@@ -219,19 +222,16 @@ def recEq(x, y):
             if not isinstance(y, list) or isinstance(y, tuple):
                 return False
             for n, (xs, ys) in enumerate(itertools.izip(x, y)):
-                #logging.trace('traversing into element %d of iterable' % n)
                 if not recEq(xs, ys):
                     return False
         elif isinstance(x, np.ndarray):
             if not isinstance(y, np.ndarray):
                 return False
-            #logging.trace('comparing np.ndarrays')
             if not np.alltrue(x == y):
                 return False
         else:
             raise TypeError('Unhandled type(s): %s, x=%s, y=%s' %
                             (type(x),str(x), str(y)))
-    # Something else
     else:
         raise TypeError('Unhandled type(s): %s, x=%s, y=%s' %
                         (type(x),str(x), str(y)))
@@ -240,10 +240,17 @@ def recEq(x, y):
 
 
 def recAllclose(x, y, *args, **kwargs):
-    '''Recursively verify equality between two objects.
+    '''Recursively verify close-equality between two objects x and y. If
+    structure is different between the two objects, returns False
+
+    args and kwargs are passed into numpy.allclose() function
     '''
+    # None
+    if x is None:
+        if not (y is None):
+            return False
     # Scalar
-    if np.isscalar(x):
+    elif np.isscalar(x):
         if not np.isscalar(y):
             return False
         if not np.allclose(x, y, *args, **kwargs):
@@ -256,7 +263,6 @@ def recAllclose(x, y, *args, **kwargs):
         if not xkeys == sorted(y.keys()):
             return False
         for k in xkeys:
-            #logging.trace('traversing into key "%s"' % str(k))
             if not recAllclose(x[k], y[k], *args, **kwargs):
                 return False
     # Sequence
@@ -277,7 +283,6 @@ def recAllclose(x, y, *args, **kwargs):
         else:
             raise TypeError('Unhandled type(s): %s, x=%s, y=%s' %
                             (type(x),str(x), str(y)))
-    # Something else
     else:
         raise TypeError('Unhandled type(s): %s, x=%s, y=%s' %
                         (type(x),str(x), str(y)))
@@ -286,14 +291,18 @@ def recAllclose(x, y, *args, **kwargs):
 
 
 def test_recEq():
-    d1 = {'one':1, 'two':2}
-    d2 = {'one':1.0, 'two':2.0}
-    d3 = {'one':np.arange(0,100), 'two':[{'three':{'four':np.arange(1,2)}}, np.arange(3,4)]}
-    d4 = {'one':np.arange(0,100), 'two':[{'three':{'four':np.arange(1,2)}}, np.arange(3,4)]}
-    d5 = {'one':np.arange(0,100), 'two':[{'three':{'four':np.arange(1,3)}}, np.arange(3,4)]}
-    d6 = {'one':np.arange(0,100), 'two':[{'three':{'four':np.arange(1.1,2.1)}}, np.arange(3,4)]}
-    assert not recEq(d1, d3)
+    d1 = {'one':1, 'two':2, 'three': None}
+    d2 = {'one':1.0, 'two':2.0, 'three': None}
+    d3 = {'one':np.arange(0,100), 'two':[{'three':{'four':np.arange(1,2)}},
+                                         np.arange(3,4)]}
+    d4 = {'one':np.arange(0,100), 'two':[{'three':{'four':np.arange(1,2)}},
+                                         np.arange(3,4)]}
+    d5 = {'one':np.arange(0,100), 'two':[{'three':{'four':np.arange(1,3)}},
+                                         np.arange(3,4)]}
+    d6 = {'one':np.arange(0,100), 'two':[{'three':{'four':np.arange(1.1,2.1)}},
+                                         np.arange(3,4)]}
     assert recEq(d1, d2)
+    assert not recEq(d1, d3)
     assert recEq(d3, d4)
     assert not recEq(d3, d5)
     assert not recEq(d4, d5)
@@ -627,3 +636,7 @@ def hash_file(fname):
     md5 = hashlib.md5()
     md5.update(file(fname, 'rb').read())
     return md5.hexdigest()
+
+
+if __name__ == "__main__":
+    test_recEq()

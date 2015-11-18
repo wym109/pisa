@@ -984,9 +984,9 @@ class FIData(dict):
             if not match:
                 dupe_kindgroups.append(NuKindGroup(kind))
                 dupe_kindgroups_data.append(this_datum)
-        indices = np.argsort(dupe_kindgroups)
-        dupe_kindgroups = [dupe_kindgroups[idx] for idx in indices]
-        dupe_kindgroups_data = [dupe_kindgroups_data[idx] for idx in indices]
+        #indices = np.argsort(dupe_kindgroups)[0]
+        #dupe_kindgroups = [dupe_kindgroups[idx] for idx in indices]
+        #dupe_kindgroups_data = [dupe_kindgroups_data[idx] for idx in indices]
         return dupe_kindgroups, dupe_kindgroups_data
 
 
@@ -1077,6 +1077,12 @@ class CombinedFIData(FIData):
             self.deduplicate(close_rtol=dedup_close_rtol)
 
     def deduplicate(self, close_rtol=False):
+        '''Identify duplicate datasets and combine the associated kinds
+        together, elinimating redundancy in the data.
+
+        This forces any kinds with identical data to be tied to one another
+        into the future
+        '''
         dupe_kgs, dupe_kgs_data = self.idDupes(close_rtol=close_rtol)
         d = {str(kg):dat for kg,dat in izip(dupe_kgs, dupe_kgs_data)}
         self.validate(d)
@@ -1130,7 +1136,7 @@ class CombinedFIData(FIData):
                 old_val = lvl[node_key]
                 lvl[node_key] = new_val
                 try:
-                    self.validate()
+                    self.validate(self)
                 except:
                     lvl[node_key] = old_val
                     raise
@@ -1579,14 +1585,27 @@ def test_CombinedFIData():
     cfid7 = CombinedFIData(val=d1, dedup=True, dedup_close_rtol=1e-14)
     assert cfid1 == cfid7
 
+    cfidat = CombinedFIData(
+        kind_groupings='nuecc+nuebarcc;'
+                       'numucc+numubarcc;'
+                       'nutaucc+nutaubarcc;'
+                       'nuallnc;'
+                       'nuallbarnc'
+    )
+    for k in ALL_KINDS:
+        cfidat.set(k, np.arange(10))
+    cfidat.deduplicate()
+    assert len(cfidat.kinds_to_keys) == 1
+    assert cfidat.kinds_to_keys[0][0] == NuKindGroup('nuall+nuallbar')
+
     logging.info(str([NuKindGroup(k) for k in cfid1.keys()]))
     logging.info('<< ???? >> : CombinedFIData')
 
 
 if __name__ == "__main__":
-    test_IntType()
-    test_NuFlav()
-    test_NuKind()
-    test_NuKindGroup()
-    test_FIData()
+    #test_IntType()
+    #test_NuFlav()
+    #test_NuKind()
+    #test_NuKindGroup()
+    #test_FIData()
     test_CombinedFIData()

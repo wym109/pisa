@@ -114,7 +114,7 @@ class DetMCSimRunsSettings(dict):
             raise TypeError('Unhandled run_settings type passed in arg: ' +
                             type(run_settings))
 
-        if not detector is None:
+        if detector:
             detector = str(detector).lower()
         self.detector = detector
 

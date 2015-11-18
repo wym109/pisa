@@ -26,7 +26,17 @@ from pisa.utils.log import logging, set_verbosity
 
 
 class CrossSections(FI.FIData):
-    def __init__(self, xsec='cross_sections/cross_sections.json', ver=None):
+    '''Cross sections for each neutrino flavor & interaction type ("kind").
+
+    ver : str
+        version of cross sections to load from file. e.g.: 'genie_2.6.4'
+
+    xsec : str, dict, or another CrossSections object
+        xsec=str: provides PISA resource name
+        xsec=dict or CrossSections object: construct cross sections from a
+            deepcopy of that object
+    '''
+    def __init__(self, ver=None, xsec='cross_sections/cross_sections.json'):
         self.__ver = None
         if xsec is None:
             raise NotImplementedError('Not able to instantiate an empty CrossSections object.')
@@ -49,23 +59,6 @@ class CrossSections(FI.FIData):
             self.validate(xsec)
 
         self.update(xsec)
-
-    def __eq__(self, other):
-        if not np.all(self.get('energy') == other.get('energy')):
-            return False
-        for k in FI.ALL_KINDS:
-            if not np.all(self.get(k) == other.get(k)):
-                return False
-        return True
-
-    def allclose(self, other, rtol=1e-05, atol=1e-08):
-        if not np.allclose(self.get('energy'), other.get('energy'),
-                           rtol=rtol, atol=atol):
-            return False
-        for k in FI.ALL_KINDS:
-            if not np.allclose(self.get(k), other.get(k), rtol=rtol, atol=atol):
-                return False
-        return True
 
     @staticmethod
     def load(fpath, ver=None):
@@ -132,7 +125,7 @@ class CrossSections(FI.FIData):
     @staticmethod
     def validate(xsec):
         # Make sure the basics are present
-        FI.FIData.basic_validate(xsec)
+        FI.FIData(xsec)
         assert xsec.has_key('energy'), "missing 'energy'"
 
         e = xsec['energy']
@@ -161,13 +154,13 @@ class CrossSections(FI.FIData):
     def get(self, val):
         if isinstance(val, basestring) and val.lower() in ['e','energy','enu','e_nu']:
             return deepcopy(self['energy'])
-        return self.basic_get(val)
+        return FI.FIData.get(self, val)
 
     def set(self, key, val):
         if isinstance(key, basestring) and key.lower() in ['e','energy','enu','e_nu']:
             self['energy'] = deepcopy(val)
             return
-        self.basic_set(key, val)
+        FI.FIData.set(self, key, val)
 
     def save(self, fpath, ver=None):
         if ver is None:
@@ -376,7 +369,7 @@ class CrossSections(FI.FIData):
             f.savefig(**save)
 
 
-def test():
+def test_CrossSections():
     set_verbosity(2)
 
     # "Standard" location of cross sections file in PISA; retrieve 2.6.4 for
@@ -415,10 +408,10 @@ def test():
                 test_dir,
                 'pisa_' + ver + '_nuxCCNC_H2O_cross_sections.pdf'
             ))
-    except Import Error as exc:
+    except ImportError as exc:
         logging.debug('Could not plot; possible that matplotlib not'
                       'installed. ImportError: %s' % exc)
 
 
 if __name__ == "__main__":
-    test()
+    test_CrossSections()
