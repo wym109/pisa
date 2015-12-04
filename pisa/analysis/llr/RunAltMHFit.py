@@ -86,7 +86,7 @@ args = parser.parse_args()
 
 set_verbosity(args.verbose)
 
-#Read in the settings
+# Read in the settings
 template_settings = from_json(args.template_settings)
 minimizer_settings  = from_json(args.minimizer_settings)
 grid_settings = from_json(args.grid_settings)
@@ -99,13 +99,13 @@ if args.gpu_id is not None:
 with Timer() as t:
     template_maker = TemplateMaker(get_values(template_settings['params']),
                                    **template_settings['binning'])
-profile.info("==> elapsed time to initialize templates: %s sec"%t.secs)
+profile.info("==> elapsed time to initialize templates: %s sec" % t.secs)
 
 
-#Get the parameters
+# Get the parameters
 params = template_settings['params']
 
-mctrue_types = [('true_NMH',True),('true_IMH',False)]
+mctrue_types = [('true_NMH',True), ('true_IMH',False)]
 
 results = {}
 # Store for future checking:
@@ -131,8 +131,8 @@ for true_tag, true_normal in mctrue_types:
     # the asimov data set:
     for step in steplist:
 
-        print "Running at asimov parameters: %s"%step
-        asimov_params = get_values(getAsimovParams(params,true_normal,step))
+        print "Running at asimov parameters: %s" % step
+        asimov_params = get_values(getAsimovParams(params, true_normal, step))
         asimov_data_set = get_asimov_fmap(
             template_maker, asimov_params,
             channel=asimov_params['channel'])
@@ -149,12 +149,19 @@ for true_tag, true_normal in mctrue_types:
         hypo_normal = False if true_normal else True
         hypo_tag = 'hypo_IMH' if true_normal else 'hypo_NMH'
         llh_data = find_alt_hierarchy_fit(
-            asimov_data_set,template_maker, params, hypo_normal,
-            minimizer_settings, only_atm_params=False, check_octant=args.check_octant)
+            asimov_data_set,
+            template_maker,
+            params,
+            hypo_normal,
+            minimizer_settings,
+            only_atm_params=False,
+            check_octant=args.check_octant
+        )
 
-        for key in free_params.keys(): result['fit_'+key].append(llh_data[key][-1])
+        for key in free_params.keys():
+            result['fit_'+key].append(llh_data[key][-1])
 
     results[true_tag] = result
 
-logging.warn("FINISHED. Saving to file: %s"%args.outfile)
+logging.warn("FINISHED. Saving to file: %s" % args.outfile)
 to_json(results,args.outfile)

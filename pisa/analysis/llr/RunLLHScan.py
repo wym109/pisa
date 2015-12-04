@@ -4,7 +4,7 @@
 #
 # Runs the LLH Scan analysis, which scans over the space of
 # atmospheric oscillation parameters, minimizing the LLH value over
-# the nuisance parameters by using the bfgs minimizer algorithm.
+# the nuisance parameters
 #
 # author: Tim Arlen - tca3@psu.edu
 #
