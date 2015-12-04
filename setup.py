@@ -57,17 +57,19 @@ setup(
            'pisa/analysis/TemplateMaker.py',
            'pisa/analysis/scan/ScanAnalysis.py',
            'pisa/analysis/fisher/FisherAnalysis.py',
-           'pisa/analysis/llr/LLROptimizerAnalysis.py'
+           'pisa/analysis/llr/LLROptimizerAnalysis.py',
+           'pisa/analysis/llr/RunLLHScan.py'
            ],
-  ext_modules=[Extension('pisa.oscillations.prob3._BargerPropagator',
-                   ['pisa/oscillations/prob3/BargerPropagator.i',
-                    'pisa/oscillations/prob3/BargerPropagator.cc',
-                    'pisa/oscillations/prob3/EarthDensity.cc',
-                    'pisa/oscillations/prob3/mosc.c',
-                    'pisa/oscillations/prob3/mosc3.c'],
-                    swig_opts=['-c++'])]+
-               cythonize(Extension('pisa.utils.gaussians',
-                             ['pisa/utils/gaussians.pyx'])),
+  ext_modules=\
+    [Extension('pisa.oscillations.prob3._BargerPropagator',
+               ['pisa/oscillations/prob3/BargerPropagator.i',
+                'pisa/oscillations/prob3/BargerPropagator.cc',
+                'pisa/oscillations/prob3/EarthDensity.cc',
+                'pisa/oscillations/prob3/mosc.c',
+                'pisa/oscillations/prob3/mosc3.c'],
+               swig_opts=['-c++'])]
+    + cythonize(Extension('pisa.utils.gaussians',
+                          ['pisa/utils/gaussians.pyx'])),
   package_data={'pisa.resources': ['logging.json',
                                    'aeff/*.json',
                                    'aeff/V15/cuts_V3/*.dat',
