@@ -22,7 +22,7 @@ from pisa.analysis.stats.Maps import get_asimov_fmap
 from pisa.analysis.scan.Scan import calc_steps
 from pisa.analysis.TemplateMaker import TemplateMaker
 from pisa.utils.log import logging, tprofile, physics, set_verbosity
-from pisa.utils.jsons import from_json,to_json
+import pisa.utils.fileio as fileio
 from pisa.utils.params import get_values, select_hierarchy, fix_atm_params, get_atm_params
 from pisa.utils.utils import Timer
 
@@ -48,17 +48,31 @@ parser.add_argument(
     help='''Get llh value at defined oscillation parameter grid values,
     according to these input settigs to.'''
 )
-parser.add_argument(
-    '--data_nmh',
-    action='store_true', default=False,
-    help='''If true, takes data sets from NMH in the fit, otherwise takes data
-    from IMH.'''
+
+dselect = parser.add_mutually_exclusive_group(required=True)
+dselect.add_argument(
+    '--data-nh',
+    action='store_true', dest='data_nh',
+    help='Take data sets from NH'
 )
-parser.add_argument(
-    '--hypo_nmh',
-    action='store_true', default=False,
-    help='''If true: fitting data to assumed NMH, otherwise assumes IMH'''
+dselect.add_argument(
+    '--data-ih',
+    action='store_false', dest='data_nh',
+    help='Take data sets from IH'
 )
+
+hselect = parser.add_mutually_exclusive_group(required=True)
+hselect.add_argument(
+    '--hypo-nh',
+    action='store_true', dest='hypo_nh',
+    help='Fit data to assumed-NH'
+)
+hselect.add_argument(
+    '--hypo-ih',
+    action='store_false', dest='hypo_nh',
+    help='Fit data to assumed-IH'
+)
+
 parser.add_argument(
     '-s', '--save-steps',
     action='store_true', default=False, dest='save_steps',
@@ -84,15 +98,15 @@ args = parser.parse_args()
 set_verbosity(args.verbose)
 
 # Read in the settings
-template_settings = from_json(args.template_settings)
-minimizer_settings = from_json(args.minimizer_settings)
-grid_settings = from_json(args.grid_settings)
+template_settings = fileio.from_file(args.template_settings)
+minimizer_settings = fileio.from_file(args.minimizer_settings)
+grid_settings = fileio.from_file(args.grid_settings)
 
 channel = template_settings['params']['channel']['value']
 
 # Workaround for old scipy versions
 if scipy.__version__ < '0.12.0':
-    logging.warn('Detected scipy version %s < 0.12.0'%scipy.__version__)
+    logging.warn('Detected scipy version %s < 0.12.0' % scipy.__version__)
     if 'maxiter' in minimizer_settings:
         logging.warn('Optimizer settings for \"maxiter\" will be ignored')
         minimizer_settings.pop('maxiter')
@@ -106,12 +120,12 @@ if args.gpu_id is not None:
 params = template_settings['params']
 
 # Make sure that atmospheric parameters are fixed:
-logging.warn("Ensuring that atmospheric parameters are fixed for this analysis")
+logging.info("Ensuring that atmospheric parameters are fixed for this analysis")
 params = fix_atm_params(params)
 
 with Timer() as t:
     template_maker = TemplateMaker(get_values(params),**template_settings['binning'])
-tprofile.info("==> elapsed time to initialize templates: %s sec"%t.secs)
+tprofile.info("==> elapsed time to initialize templates: %s sec" % t.secs)
 
 # Store for future checking:
 results = {}
@@ -119,21 +133,21 @@ results['template_settings'] = template_settings
 results['minimizer_settings'] = minimizer_settings
 results['grid_settings'] = grid_settings
 
-# Set up data/hypo nmh or imh
-if args.data_nmh:
-    data_tag = 'data_NMH'
+# Set up data/hypo nh or ih
+if args.data_nh:
+    data_tag = 'data_NH'
     data_normal = True
 else:
-    data_tag = 'data_IMH'
+    data_tag = 'data_IH'
     data_normal = False
-if args.hypo_nmh:
-    hypo_tag = 'hypo_NMH'
+if args.hypo_nh:
+    hypo_tag = 'hypo_NH'
     hypo_normal = True
 else:
-    hypo_tag = 'hypo_IMH'
+    hypo_tag = 'hypo_IH'
     hypo_normal = False
 
-logging.info("Running with data: %s and hypo: %s"%(data_tag, hypo_tag))
+logging.info("Running with data: %s and hypo: %s" % (data_tag, hypo_tag))
 results[data_tag] = {}
 
 data_params = select_hierarchy(params,normal_hierarchy=data_normal)
@@ -154,8 +168,8 @@ calc_steps(atm_params, grid_settings['steps'])
 steplist = [[(name,step) for step in param['steps']]
              for name, param in sorted(atm_params.items())]
 
-logging.info("steplist: " + str(steplist))
-logging.info("atm_params: " + str(atm_params))
+logging.debug("steplist: " + str(steplist))
+logging.debug("atm_params: " + str(atm_params))
 
 # Prepare to store all the steps
 steps = {key:[] for key in atm_params.keys()}
@@ -173,12 +187,12 @@ for pos in product(*steplist):
         llh_data = find_opt_scipy(asimov_data_set,template_maker,hypo_params,
                                   minimizer_settings,args.save_steps,
                                   normal_hierarchy=hypo_normal)
-    tprofile.info("==> elapsed time for optimizer: %s sec"%t.secs)
+    tprofile.info("==> elapsed time for optimizer: %s sec" % t.secs)
 
     steps['llh'].append(llh_data['llh'][-1])
 
     # Store the LLH data
     results[data_tag][hypo_tag] = steps
 
-logging.warn("FINISHED. Saving to file: %s"%args.outfile)
-to_json(results,args.outfile)
+logging.info("FINISHED. Saving to file: %s" % args.outfile)
+fileio.to_file(results, args.outfile)
