@@ -99,6 +99,9 @@ def find_opt_scipy(fmap, template_maker, params, minim_settings,
     optimizer algorithm, unless save_steps is False, in which case
     they are one element in length-the best fit params and best fit llh/chi2.
     """
+    metric_name = metric_name.lower()
+    if not metric_name in ['llh', 'chisquare']:
+        raise ValueError('Unrecognized metric_name: "%s"' % (metric_name,))
 
     # Get params dict which will be optimized (free_params) and which
     # won't be (fixed_params) but are still needed for get_template()
@@ -106,13 +109,13 @@ def find_opt_scipy(fmap, template_maker, params, minim_settings,
     free_params = get_free_params(select_hierarchy(params, normal_hierarchy))
 
     if len(free_params) == 0:
-	logging.warn("NO FREE PARAMS, returning %s"%metric_name)
-	true_template = template_maker.get_template(get_values(fixed_params))
-	channel = params['channel']['value']
-	true_fmap = flatten_map(template=true_template, channel=channel)
-	if metric_name=='chisquare':
+        logging.warn("NO FREE PARAMS, returning %s"%metric_name)
+        true_template = template_maker.get_template(get_values(fixed_params))
+        channel = params['channel']['value']
+        true_fmap = flatten_map(template=true_template, channel=channel)
+        if metric_name == 'chisquare':
             return {'chisquare': [get_binwise_chisquare(fmap, true_fmap)]}
-	elif metric_name=='llh':
+        elif metric_name == 'llh':
             return {'llh': [-get_binwise_llh(fmap, true_fmap)]}
 
     init_vals = get_param_values(free_params)
@@ -255,8 +258,8 @@ def minim_metric(opt_vals, names, scales, fmap, fixed_params, template_maker,
     priors : sequence of pisa.utils.params.Prior objects
         Priors corresponding to opt_vals list.
     metric_name : string
-	Returns chisquare instead of negative llh if metric_name is 'chisquare'.
-	Note: this string has to be present as a key in opt_steps_dict
+    Returns chisquare instead of negative llh if metric_name is 'chisquare'.
+    Note: this string has to be present as a key in opt_steps_dict
 
     Returns
     -------
@@ -288,12 +291,12 @@ def minim_metric(opt_vals, names, scales, fmap, fixed_params, template_maker,
     # because the optimizer finds a minimum rather than maximum, so we
     # have to minimize the negative of the log likelhood.
     if metric_name=='chisquare':
-	metric_val = get_binwise_chisquare(fmap, true_fmap)
-	metric_val += sum([prior.chi2(opt_val)
+        metric_val = get_binwise_chisquare(fmap, true_fmap)
+        metric_val += sum([prior.chi2(opt_val)
                            for (opt_val, prior) in zip(unscaled_opt_vals, priors)])
     elif metric_name=='llh':
-	metric_val = -get_binwise_llh(fmap, true_fmap)
-	metric_val -= sum([prior.llh(opt_val)
+        metric_val = -get_binwise_llh(fmap, true_fmap)
+        metric_val -= sum([prior.llh(opt_val)
                            for (opt_val, prior) in zip(unscaled_opt_vals, priors)])
 
     #prior_list = [prior.llh(opt_val)

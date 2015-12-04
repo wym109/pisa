@@ -13,6 +13,7 @@
 
 import sys
 import numpy as np
+import scipy
 from itertools import product
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
@@ -31,40 +32,65 @@ parser = ArgumentParser(
     combination of hierarchies. Does not compute any pseudo data sets, but rather takes
     the Asimov data set (or expected counts template) at given value of atm params''',
     formatter_class=ArgumentDefaultsHelpFormatter)
-parser.add_argument('-t','--template_settings',type=str,
-                    metavar='JSONFILE', required = True,
-                    help='''Settings related to the template generation and systematics.''')
-parser.add_argument('-m','--minimizer_settings',type=str,
-                    metavar='JSONFILE', required = True,
-                    help='''Settings related to the optimizer used in the LLR analysis.''')
-parser.add_argument('-g','--grid_settings',type=str,metavar='JSONFILE', required = True,
-                    help='''Get llh value at defined oscillation parameter grid values,
-                    according to these input settigs to.''')
-parser.add_argument('--data_nmh',action='store_true',default=False,
-                    help='''If true, takes data sets from NMH in the fit, otherwise takes data from IMH.''')
-parser.add_argument('--hypo_nmh',action='store_true',default=False,
-                    help='''If true: fitting data to assumed NMH, otherwise assumes IMH''')
-parser.add_argument('-s','--save-steps',action='store_true',default=False,
-                    dest='save_steps',
-                    help='''Save all steps the optimizer takes.''')
-parser.add_argument('--gpu_id',type=int,default=None,
-                    help="GPU ID if available.")
-parser.add_argument('-o','--outfile',type=str,default='llh_data.json',metavar='JSONFILE',
-                    help='''Output filename.''')
-parser.add_argument('-v', '--verbose', action='count', default=None,
-                    help='''set verbosity level''')
+parser.add_argument(
+    '-t', '--template_settings',
+    type=str, metavar='JSONFILE', required=True,
+    help='Settings related to the template generation and systematics.'
+)
+parser.add_argument(
+    '-m', '--minimizer_settings',
+    type=str, metavar='JSONFILE', required=True,
+    help='Settings related to the optimizer used in the LLR analysis.'
+)
+parser.add_argument(
+    '-g', '--grid_settings',
+    type=str, metavar='JSONFILE', required=True,
+    help='''Get llh value at defined oscillation parameter grid values,
+    according to these input settigs to.'''
+)
+parser.add_argument(
+    '--data_nmh',
+    action='store_true', default=False,
+    help='''If true, takes data sets from NMH in the fit, otherwise takes data
+    from IMH.'''
+)
+parser.add_argument(
+    '--hypo_nmh',
+    action='store_true', default=False,
+    help='''If true: fitting data to assumed NMH, otherwise assumes IMH'''
+)
+parser.add_argument(
+    '-s', '--save-steps',
+    action='store_true', default=False, dest='save_steps',
+    help='''Save all steps the optimizer takes.'''
+)
+parser.add_argument(
+    '--gpu_id',
+    type=int, default=None,
+    help='GPU ID if available.'
+)
+parser.add_argument(
+    '-o', '--outfile',
+    type=str, default='llh_data.json', metavar='JSONFILE',
+    help='Output filename.'
+)
+parser.add_argument(
+    '-v', '--verbose',
+    action='count', default=None,
+    help='set verbosity level'
+)
 args = parser.parse_args()
 
 set_verbosity(args.verbose)
 
-#Read in the settings
+# Read in the settings
 template_settings = from_json(args.template_settings)
-minimizer_settings  = from_json(args.minimizer_settings)
+minimizer_settings = from_json(args.minimizer_settings)
 grid_settings = from_json(args.grid_settings)
 
 channel = template_settings['params']['channel']['value']
-#Workaround for old scipy versions
-import scipy
+
+# Workaround for old scipy versions
 if scipy.__version__ < '0.12.0':
     logging.warn('Detected scipy version %s < 0.12.0'%scipy.__version__)
     if 'maxiter' in minimizer_settings:
@@ -76,7 +102,7 @@ if args.gpu_id is not None:
     template_settings['params']['gpu_id']['value'] = args.gpu_id
     template_settings['params']['gpu_id']['fixed'] = True
 
-#Get the parameters
+# Get the parameters
 params = template_settings['params']
 
 # Make sure that atmospheric parameters are fixed:
@@ -87,12 +113,11 @@ with Timer() as t:
     template_maker = TemplateMaker(get_values(params),**template_settings['binning'])
 tprofile.info("==> elapsed time to initialize templates: %s sec"%t.secs)
 
-results = {}
 # Store for future checking:
+results = {}
 results['template_settings'] = template_settings
 results['minimizer_settings'] = minimizer_settings
 results['grid_settings'] = grid_settings
-
 
 # Set up data/hypo nmh or imh
 if args.data_nmh:
@@ -117,7 +142,8 @@ asimov_data_set = get_asimov_fmap(template_maker,get_values(data_params),
 results[data_tag]['asimov_data'] = asimov_data_set
 
 
-hypo_params = select_hierarchy(params,normal_hierarchy=hypo_normal)
+hypo_params = select_hierarchy(params, normal_hierarchy=hypo_normal)
+
 # Now scan over theta23,deltam31 values and fix params to
 # these values:
 # Calculate steps for all free parameters
@@ -125,11 +151,11 @@ atm_params = get_atm_params(hypo_params)
 calc_steps(atm_params, grid_settings['steps'])
 
 # Build a list from all parameters that holds a list of (name, step) tuples
-steplist = [ [(name,step) for step in param['steps']]
+steplist = [[(name,step) for step in param['steps']]
              for name, param in sorted(atm_params.items())]
 
-print "steplist: ",steplist
-print "atm_params: ",atm_params
+logging.info("steplist: " + str(steplist))
+logging.info("atm_params: " + str(atm_params))
 
 # Prepare to store all the steps
 steps = {key:[] for key in atm_params.keys()}
@@ -138,7 +164,7 @@ steps['llh'] = []
 # Iterate over the cartesian product, and set fixed parameter to value
 for pos in product(*steplist):
     pos_dict = dict(list(pos))
-    print "Running at params-pos dict: ",pos_dict
+    logging.info("Running at params-pos dict: " + str(pos_dict))
     for k,v in pos_dict.items():
         hypo_params[k]['value'] = v
         steps[k].append(v)
@@ -151,7 +177,7 @@ for pos in product(*steplist):
 
     steps['llh'].append(llh_data['llh'][-1])
 
-    #Store the LLH data
+    # Store the LLH data
     results[data_tag][hypo_tag] = steps
 
 logging.warn("FINISHED. Saving to file: %s"%args.outfile)

@@ -13,7 +13,7 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from pisa.utils.log import logging, physics, set_verbosity
 import pisa.utils.fileio as fileio
 import pisa.analysis.stats.Maps as Maps
-import pisa.analysis.scan.Scan as Scan #import find_max_grid
+import pisa.analysis.scan.Scan as Scan
 from pisa.analysis.TemplateMaker import TemplateMaker
 from pisa.utils.params import get_values, select_hierarchy
 
@@ -124,12 +124,14 @@ for itrial in xrange(1, args.ntrials+1):
         for hypo_tag, hypo_normal in [('hypo_NMH',True),('hypo_IMH',False)]:
             physics.info("Finding best fit for %s under %s assumption"%(data_tag,hypo_tag))
             logging.info("start scan")
-            llh_data = Scan.find_max_grid(fmap=fmap,
-                                          template_maker=template_maker,
-                                          params=params,
-                                          grid_settings=grid_settings,
-                                          save_steps=args.save_steps,
-                                          normal_hierarchy=hypo_normal)
+            llh_data = Scan.find_max_grid(
+                fmap=fmap,
+                template_maker=template_maker,
+                params=params,
+                grid_settings=grid_settings,
+                save_steps=args.save_steps,
+                normal_hierarchy=hypo_normal
+            )
             logging.info("stop scan")
 
             # Store the LLH data
