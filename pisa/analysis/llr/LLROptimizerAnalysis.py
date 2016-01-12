@@ -216,7 +216,7 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
         template_settings["params"], minimizer_settings,
         args.save_steps, check_octant)
 
-    output[data_tag]["true_h_fiducial"] = trials
+    output[data_tag]['true_h_fiducial']['trials'] = trials
 
     # If we do not run the alt_fit, then we simply continue in the for
     # loop and the LLR distributions will be interpreted as the
@@ -247,6 +247,6 @@ for data_tag, data_normal in [('true_NMH',True),('true_IMH',False)]:
             template_settings["params"], minimizer_settings,
             args.save_steps, check_octant)
 
-        output[data_tag]["false_h_best_fit"] = trials
+        output[data_tag]['false_h_best_fit']['trials'] = trials
 
 to_json(output,args.outfile)
