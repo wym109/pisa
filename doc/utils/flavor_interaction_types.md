@@ -8,6 +8,7 @@
 
 ## Examples using flavor/interaction type objects
 ```python
+import numpy as np
 import pisa.utils.flavInt as flavInt
 import pisa.utils.events as events
 
@@ -20,7 +21,7 @@ numubar = -numu # flip parity
 cc = flavInt.IntType('Cc') # permissive
 nc = flavInt.IntType(2) # from code
 
-# flavInt = flavor + int. type
+# A NuflavInt combines flavor and interaction type
 numucc = flavInt.NuFlavInt('numu_bar_cc')
 numucc = flavInt.NuFlavInt(numu, cc)
 numubarcc = -numucc
@@ -36,29 +37,34 @@ numubarcc.tex() # -> '{{\bar\nu_\mu} \, {\rm CC}}'
 # NuFlavIntGroup
 nkg = flavInt.NuFlavIntGroup('numucc,numubarcc')
 nkg = numucc + numubarcc # works!
-nkg.kinds() # -> (numu_cc, numubar_cc)
+nkg.flavints() # -> (numu_cc, numubar_cc)
 nkg.particles() # -> (numu_cc,)
-nkg -= numucc # remove a kind
-nkg.kinds() # -> (numubar_cc,)
+nkg -= numucc # remove a flavInt
+nkg.flavints() # -> (numubar_cc,)
 
 # No intType spec=BOTH intTypes
 nkg = flavInt.NuFlavIntGroup('numu')
-nkg.kinds() # -> (numu_cc, numu_nc)
+nkg.flavints() # -> (numu_cc, numu_nc)
 nkg.ccFlavInts() # -> (numu_cc,)
 
-# Loop over all particle CC kinds
-for k in flavInt.NuFlavIntGroup('nuallcc'):
+# Loop over all particle CC flavInts
+for fi in flavInt.NuFlavIntGroup('nuallcc'):
+    print fi
 
 # String, TeX
-nkg = flavInt.NuFlavIntGroup('nuallcc'):
+nkg = flavInt.NuFlavIntGroup('nuallcc')
 print nkg # -> 'nuall_cc'
 nkg.tex() # -> '{\nu_{\rm all}} \, {\rm CC}'
 
 ```
 
-## Examples using container objects
-***Old way***: Instantiate an empty flav/int-type nested dict
+## Examples of using FlavIntData container object
 ```python
+import numpy as np
+from flavInt import *
+
+# Old way to instantiate an empty flav/int-type nested dict
+import itertools
 oldfidat = {}
 flavs = ['nue', 'numu', 'nutau']
 int_types = ['cc', 'nc']
@@ -68,53 +74,65 @@ for baseflav, int_type in itertools.product(flavs, int_types):
         if not flav in oldfidat:
             oldfidat[flav] = {}
         oldfidat[flav][int_type] = None
-```
 
-***New way***: Using FlavIntData
-```python
-from pisa.utils.flavInt import FlavIntData, ALL_KINDS
-fidat = FlavIntData()
-```
+# New way to instantiate, using a FlavIntData object
+fidat = flavInt.FlavIntData()
 
-```python
-# Loop through the old way
+# Old way to iterate over the old nested dicts
 for baseflav, int_type in itertools.product(flavs, int_types):
     for mID in ['', '_bar']:
         flav = baseflav + mID
-        oldfidat[flav][int_type]['map'] = np.arange(0,100)
-        m = fidat[flav][int_type]['map']
+        oldfidat[flav][int_type] = {'map': np.arange(0,100)}
+        m = oldfidat[flav][int_type]['map']
 
-# The new way
-for kind in ALL_KINDS:
-    fidat.set(kind, np.arange(0,100))
-    m = fidat.get(kind, 'map')
+# New way to iterate through a FlavIntData object
+for flavint in flavInt.ALL_NUFLAVINTS:
+    # Store data to flavint node
+    fidat.set(flavint, {'map': np.arange(0,100)})
+    
+    # Retrieve flavint node, then get the 'map' data
+    m1 = (fidat.get(flavint))['map']
 
-# But if you really like nested dictionaries, you can still do:
+    # Retrieve the 'map' data in one call (syntax works for all
+    # nested dicts, where each subsequent arg is interpreted
+    # as a key to a further-nested dict)
+    m2 = fidat.get(flavint, 'map')
+    assert np.alltrue(m1 == m2)
+
+# But if you really like nested dictionaries, you can still access a
+# FlavIntData object as if it where a nested dict:
 fidat['nue_bar']['cc']['map']
 
 # ...easier to use set() and get() though! Can use strings, but the
 # interface is awesome now: you don't have to know that you need
 # lower-case, '_' infix between 'numu' and 'bar', or structure of
 # data structure being used!
-fidat.get('numu bar CC')
+fidat.get('numu bar CC', 'map')
 
-# This gets the entire branch at 'numu' 
-fidat.get('numu') # -> {'cc': None, 'nc': None}
+# Get the entire branch starting at 'numu'
+# (i.e., includes both interaction types)
+fidat.get('numu') # -> {'cc': ..., 'nc': ...}
 
 # Save it to a JSON file
 fidat.save('data.json')
 
-# Load, instantiate new object
-fidat2 = FlavIntData('data.json')
+# Save it to a HDF5 file (recognizes 'h5', 'hdf', and 'hdf5' extensions)
+fidat.save('data.hdf5')
 
-# Compare, recursing into any sub-structs (lists, dicts)
+# Load, instantiate new object
+fidat2 = flavInt.FlavIntData('data.json')
+
+# Comparisons: intelligently recurses through the
+# structure and any nested sub-structures
+# (lists, dicts) when "==" is used
 print fidat == fidat2 # -> True
 
 # There is a function for doing this in utils.Utils.py:
-from utils.Utils import recEq, recAllclose
-print recEq(fidat, fidat2) # -> True
+import utils.utils as utils
+print utils.recursiveEquality(nested_obj1, nested_obj2) # -> True
 ```
 
+## Examples of using Events container object
 ```python
 from pisa.utils.events import Events
 
@@ -122,6 +140,7 @@ ev = Events('events/events__pingu__v36__runs_388-390__proc_v5__joined_G_nuall_nc
 
 print ev.metadata
 ```
+Result:
 ```
 {'cuts': array(['analysis'], 
        dtype='|S8'),
@@ -133,22 +152,30 @@ print ev.metadata
  'runs': array([388, 389, 390])}
 ```
 
+## Examples of using CombinedFlavIntData object
 ```python
 from pisa.utils.flavInt import CombinedFlavIntData as CFID
 
-cfidat = CFID(kind_groupings='nuecc+nuebarcc; numucc+numubarcc;'
+cfidat = CFID(flavint_groupings='nuecc+nuebarcc; numucc+numubarcc;'
               'nutaucc+nutaubarcc; nuallnc; nuallbarnc')
 
+# Iterate through the defined flavInt groupings
 [cfidat.set(grp, np.random.rand(10)) for grp in cfidat.keys()]
+
+# Save to JSON file
 cfidat.save('/tmp/cfidat.json') # save to JSON file
-cfidat2 = CFID('/tmp/cfidat.json') # load from file
-cfidat3 = CFID(cfidat2) # make another copy
+
+# Load from JSON file
+cfidat2 = CFID('/tmp/cfidat.json')
+
+# Make an independent (deep) copy
+cfidat3 = CFID(cfidat2)
 
 # Force all data to be equal
 [cfidat2.set(k, np.arange(10)) for k in cfidat2.keys()]
 
 # Eliminate redundancy (should be just one unique dataset!)
-cfidat2.dedupicate()
+cfidat2.deduplicate()
 len(cfidat2) # -> 1
 cfidat2.keys() # -> ['nuall+nuallbar']
 ```
