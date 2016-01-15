@@ -191,7 +191,7 @@ def list2hrlist(lst):
     return ','.join(result)
 
 
-def recEq(x, y):
+def recursiveEquality(x, y):
     '''Recursively verify equality between two objects x and y.
     '''
     # None
@@ -212,7 +212,7 @@ def recEq(x, y):
         if not xkeys == sorted(y.keys()):
             return False
         for k in xkeys:
-            if not recEq(x[k], y[k]):
+            if not recursiveEquality(x[k], y[k]):
                 return False
     # Sequence
     elif hasattr(x, '__len__'):
@@ -222,7 +222,7 @@ def recEq(x, y):
             if not isinstance(y, list) or isinstance(y, tuple):
                 return False
             for n, (xs, ys) in enumerate(itertools.izip(x, y)):
-                if not recEq(xs, ys):
+                if not recursiveEquality(xs, ys):
                     return False
         elif isinstance(x, np.ndarray):
             if not isinstance(y, np.ndarray):
@@ -239,7 +239,7 @@ def recEq(x, y):
     return True
 
 
-def recAllclose(x, y, *args, **kwargs):
+def recursiveAllclose(x, y, *args, **kwargs):
     '''Recursively verify close-equality between two objects x and y. If
     structure is different between the two objects, returns False
 
@@ -263,7 +263,7 @@ def recAllclose(x, y, *args, **kwargs):
         if not xkeys == sorted(y.keys()):
             return False
         for k in xkeys:
-            if not recAllclose(x[k], y[k], *args, **kwargs):
+            if not recursiveAllclose(x[k], y[k], *args, **kwargs):
                 return False
     # Sequence
     elif hasattr(x, '__len__'):
@@ -273,7 +273,7 @@ def recAllclose(x, y, *args, **kwargs):
             if not isinstance(y, list) or isinstance(y, tuple):
                 return False
             for xs, ys in izip(x, y):
-                if not recAllclose(xs, ys, *args, **kwargs):
+                if not recursiveAllclose(xs, ys, *args, **kwargs):
                     return False
         elif isinstance(x, np.ndarray):
             if not isinstance(y, np.ndarray):
@@ -290,7 +290,7 @@ def recAllclose(x, y, *args, **kwargs):
     return True
 
 
-def test_recEq():
+def test_recursiveEquality():
     d1 = {'one':1, 'two':2, 'three': None}
     d2 = {'one':1.0, 'two':2.0, 'three': None}
     d3 = {'one':np.arange(0,100), 'two':[{'three':{'four':np.arange(1,2)}},
@@ -301,15 +301,15 @@ def test_recEq():
                                          np.arange(3,4)]}
     d6 = {'one':np.arange(0,100), 'two':[{'three':{'four':np.arange(1.1,2.1)}},
                                          np.arange(3,4)]}
-    assert recEq(d1, d2)
-    assert not recEq(d1, d3)
-    assert recEq(d3, d4)
-    assert not recEq(d3, d5)
-    assert not recEq(d4, d5)
-    assert not recEq(d3, d6)
-    assert not recEq(d4, d6)
+    assert recursiveEquality(d1, d2)
+    assert not recursiveEquality(d1, d3)
+    assert recursiveEquality(d3, d4)
+    assert not recursiveEquality(d3, d5)
+    assert not recursiveEquality(d4, d5)
+    assert not recursiveEquality(d3, d6)
+    assert not recursiveEquality(d4, d6)
 
-    logging.info('<< PASSED >> recEq')
+    logging.info('<< PASSED >> recursiveEquality')
 
 
 def expandPath(path, exp_user=True, exp_vars=True, absolute=False):
@@ -639,4 +639,4 @@ def hash_file(fname):
 
 
 if __name__ == "__main__":
-    test_recEq()
+    test_recursiveEquality()

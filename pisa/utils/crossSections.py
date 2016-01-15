@@ -14,10 +14,10 @@ from copy import deepcopy
 
 from scipy.interpolate import interp1d, splrep, splev
 
-import pisa.utils.fileio as FIO
-import pisa.utils.flavInt as FI
+import pisa.utils.fileio as fileio
+import pisa.utils.flavInt as flavInt
 import pisa.utils.utils as utils
-from pisa.resources import resources as RES
+from pisa.resources import resources as resources
 from pisa.utils.log import logging, set_verbosity
 
 # TODO: make class for groups of CX or just a function for finding eisting
@@ -25,8 +25,8 @@ from pisa.utils.log import logging, set_verbosity
 # CrossSections class methods
 
 
-class CrossSections(FI.FIData):
-    '''Cross sections for each neutrino flavor & interaction type ("kind").
+class CrossSections(flavInt.FlavIntData):
+    '''Cross sections for each neutrino flavor & interaction type ("flavint").
 
     ver : str
         version of cross sections to load from file. e.g.: 'genie_2.6.4'
@@ -39,13 +39,16 @@ class CrossSections(FI.FIData):
     def __init__(self, ver=None, xsec='cross_sections/cross_sections.json'):
         self.__ver = None
         if xsec is None:
-            raise NotImplementedError('Not able to instantiate an empty CrossSections object.')
+            raise NotImplementedError(
+                'Not able to instantiate an empty CrossSections object.'
+            )
         elif isinstance(xsec, dict):
             xsec = deepcopy(xsec)
         elif isinstance(xsec, basestring):
             xsec = self.load(fpath=xsec, ver=ver)
         else:
-            raise TypeError('Unhandled xsec type passed in arg: ' + str(type(xsec)))
+            raise TypeError('Unhandled xsec type passed in arg: ' +
+                            str(type(xsec)))
 
         if ver is not None:
             self.set_ver(ver)
@@ -65,7 +68,7 @@ class CrossSections(FI.FIData):
         '''Load cross sections from a file locatable and readable by the PISA
         from_file command. If `ver` is provided, it is used to index into the
         top level of the loaded dictionary'''
-        xsec = FIO.from_file(fpath)
+        xsec = fileio.from_file(fpath)
         if ver is not None:
             xsec = xsec[ver]
         return xsec
@@ -98,18 +101,18 @@ class CrossSections(FI.FIData):
 
         rfile = ROOT.TFile(fpath)
         try:
-            xsec = FI.FIData()
-            for kind in FI.ALL_KINDS:
-                O16_e, O16_xs = extractData(rfile, str(kind) + o_sfx)
-                H1_e, H1_xs = extractData(rfile, str(kind) + h_sfx)
+            xsec = flavInt.FlavIntData()
+            for flavint in flavInt.ALL_NUFLAVINTS:
+                O16_e, O16_xs = extractData(rfile, str(flavint) + o_sfx)
+                H1_e, H1_xs = extractData(rfile, str(flavint) + h_sfx)
                 if not xsec.has_key('energy'):
                     xsec['energy'] = O16_e
                 assert np.alltrue(O16_e == xsec['energy'])
                 assert np.alltrue(H1_e == xsec['energy'])
                 # Note that units in ROOT files are [1e-38 cm^2] but PISA
                 # requires units of [m^2], so the conversion is made here.
-                this_kind_xs = (H1_xs*2 + O16_xs) * 1e-38 * 1e-4
-                xsec.set(kind, this_kind_xs)
+                this_flavint_xs = (H1_xs*2 + O16_xs) * 1e-38 * 1e-4
+                xsec.set(flavint, this_flavint_xs)
         finally:
             rfile.Close()
 
@@ -125,7 +128,7 @@ class CrossSections(FI.FIData):
     @staticmethod
     def validate(xsec):
         # Make sure the basics are present
-        FI.FIData(xsec)
+        flavInt.FlavIntData(xsec)
         assert xsec.has_key('energy'), "missing 'energy'"
 
         e = xsec['energy']
@@ -134,8 +137,8 @@ class CrossSections(FI.FIData):
         # Energy spans at least 1-100 GeV
         assert np.min(e) <= 1
         assert np.max(e) >= 100
-        # All event kinds need to be present
-        for k in FI.ALL_KINDS:
+        # All event flavints need to be present
+        for k in flavInt.ALL_NUFLAVINTS:
             # Uses "standard" PISA indexing scheme
             x = k.pidx(xsec)
             # Arrays are same lengths
@@ -154,13 +157,13 @@ class CrossSections(FI.FIData):
     def get(self, val):
         if isinstance(val, basestring) and val.lower() in ['e','energy','enu','e_nu']:
             return deepcopy(self['energy'])
-        return FI.FIData.get(self, val)
+        return flavInt.FlavIntData.get(self, val)
 
     def set(self, key, val):
         if isinstance(key, basestring) and key.lower() in ['e','energy','enu','e_nu']:
             self['energy'] = deepcopy(val)
             return
-        FI.FIData.set(self, key, val)
+        flavInt.FlavIntData.set(self, key, val)
 
     def save(self, fpath, ver=None):
         if ver is None:
@@ -171,24 +174,25 @@ class CrossSections(FI.FIData):
                 )
             ver = self.__ver
         try:
-            fpath = RES.find_resource(fpath)
+            fpath = resources.find_resource(fpath)
         except IOError:
             pass
         fpath = os.path.expandvars(os.path.expanduser(fpath))
         all_xs = {}
         if os.path.exists(fpath):
-            old_data = FIO.from_file(fpath)
+            old_data = fileio.from_file(fpath)
             all_xs.update({k:CrossSections(v) for k,v in old_data.iteritems()})
             if ver in all_xs:
                 logging.warning('Overwriting existing version "' + ver +
                                 '" in file ' + fpath)
         all_xs[ver] = self
-        FIO.to_file(all_xs, fpath)
+        fileio.to_file(all_xs, fpath)
 
-    def __combineXS(self, kind_group):
-        '''Combine all cross sections specified by the kinds in kind_group. All
-        CC (NC) interactions are grouped together and averaged with one another
-        and then the average of each interaction type is added to the other.
+    def __combineXS(self, flavint_group):
+        '''Combine all cross sections specified by the flavints in
+        flavint_group. All CC (NC) interactions are grouped together and
+        averaged with one another and then the average of each interaction type
+        is added to the other.
         
         If CC and NC interactions present, they *must* be from the same
         flavor(s). I.e., it doesn't make sense (and so causes an exception) if
@@ -196,35 +200,36 @@ class CrossSections(FI.FIData):
         numu and numubar CC with numu and numubar NC, though, and this is
         allowed.
         '''
-        kind_group = FI.NuKindGroup(kind_group)
-        cc_kinds = kind_group.ccKinds()
-        nc_kinds = kind_group.ncKinds()
-        if cc_kinds and nc_kinds:
-            assert kind_group.ccFlavs() == kind_group.ncFlavs(), \
+        flavint_group = flavInt.NuFlavIntGroup(flavint_group)
+        cc_flavints = flavint_group.ccFlavInts()
+        nc_flavints = flavint_group.ncFlavInts()
+        if cc_flavints and nc_flavints:
+            assert flavint_group.ccFlavs() == flavint_group.ncFlavs(), \
                     'Combining CC and NC but CC flavors do not match NC flavors'
         cc_avg_xs = 0
-        if cc_kinds:
-            logging.trace('cc_kinds = %s' % (cc_kinds,))
-            cc_avg_xs = np.sum([self.get(k) for k in cc_kinds], axis=0) / len(cc_kinds)
+        if cc_flavints:
+            logging.trace('cc_flavints = %s' % (cc_flavints,))
+            cc_avg_xs = np.sum([self.get(k) for k in cc_flavints], axis=0) / len(cc_flavints)
         nc_avg_xs = 0
-        if nc_kinds:
-            logging.trace('nc_kinds = %s' % (nc_kinds,))
-            nc_avg_xs = np.sum([self.get(k) for k in nc_kinds], axis=0) / len(nc_kinds)
+        if nc_flavints:
+            logging.trace('nc_flavints = %s' % (nc_flavints,))
+            nc_avg_xs = np.sum([self.get(k) for k in nc_flavints], axis=0) / len(nc_flavints)
         tot_xs = cc_avg_xs + nc_avg_xs
         logging.trace('mean(tot_xs) = %s' % (np.mean(tot_xs),))
         return tot_xs
 
-    def integrate(self, kind_group, e_range, gamma=0):
+    def integrate(self, flavint_group, e_range, gamma=0):
         '''Numerical integral using trapezoidal rule of combined cross sections
-        of kinds specfied in `kind_group`; if `gamma` specified, weight integral
-        by simulated spectrum with that power-spectral index (E^{-\gamma})'''
+        of flavints specfied in `flavint_group`; if `gamma` specified, weight
+        integral by simulated spectrum with that power-spectral index
+        (E^{-\gamma})'''
         e_min = min(e_range)
         e_max = max(e_range)
         n_steps = int(max(1e5, np.ceil( 1e5*(e_max-e_min) )))
         energy = np.linspace(e_min, e_max, n_steps)
         
-        # Get combined cross section for all kinds
-        xs_data = self.__combineXS(kind_group)
+        # Get combined cross section for all flavints
+        xs_data = self.__combineXS(flavint_group)
 
         logging.trace('mean(xs_data) = %e' % (np.mean(xs_data)))
         
@@ -263,28 +268,28 @@ class CrossSections(FI.FIData):
 
         return xs_integral
 
-    def ratio(self, kind_group0, kind_group1, e_range, gamma):
+    def ratio(self, flavint_group0, flavint_group1, e_range, gamma):
         '''Ratio of numerical integrals of combined cross sections for
-        kind_group0 to combined cross sections for kind_group1, using the
+        flavint_group0 to combined cross sections for flavint_group1, using the
         integrate method defined elsewhere in this class. Integral is from
         min(e_range) to max(e_range) and is weighted by E**(-gamma), the
         simlation spectrum.'''
-        int0 = self.integrate(kind_group=kind_group0,
+        int0 = self.integrate(flavint_group=flavint_group0,
                               e_range=e_range,
                               gamma=gamma)
-        int1 = self.integrate(kind_group=kind_group1,
+        int1 = self.integrate(flavint_group=flavint_group1,
                               e_range=e_range,
                               gamma=gamma)
         ratio = int0 / int1
         logging.trace('int0/int1 = %e' % (ratio))
         return ratio
 
-    def mean(self, kind_group, e_range, gamma):
-        '''Mean of combined cross sections for kinds in `kind_group`, using the
-        integrate method defined elsewhere in this class. Mean is from
-        min(`e_range`) to max(`e_range`) and is weighted by E**(-`gamma`), the
-        simlation spectrum.'''
-        int0 = self.integrate(kind_group=kind_group,
+    def mean(self, flavint_group, e_range, gamma):
+        '''Mean of combined cross sections for flavints in `flavint_group`,
+        using the integrate method defined elsewhere in this class. Mean is
+        from min(`e_range`) to max(`e_range`) and is weighted by E**(-`gamma`),
+        the simlation spectrum.'''
+        int0 = self.integrate(flavint_group=flavint_group,
                               e_range=e_range,
                               gamma=gamma)
         mean = int0 / (max(e_range) - min(e_range))
@@ -327,20 +332,20 @@ class CrossSections(FI.FIData):
         
         energy = self['energy']
         nc_n = cc_n = 0
-        for kind in list(FI.ALL_KINDS.particles()) + \
-                list(FI.ALL_KINDS.antiParticles()):
+        for flavint in list(flavInt.ALL_NUFLAVINTS.particles()) + \
+                list(flavInt.ALL_NUFLAVINTS.antiParticles()):
             # Convert from [m^2] to [1e-38 cm^2]
-            xs = kind.pidx(self) * 1e38 * 1e4
-            if kind.isCC():
+            xs = flavint.pidx(self) * 1e38 * 1e4
+            if flavint.isCC():
                 ax1.plot(energy, xs/energy,
                          alpha=alpha,
-                         label=FI.tex(kind.flav(),d=1),
+                         label=flavInt.tex(flavint.flav(),d=1),
                          **ls[cc_n%len(ls)])
                 cc_n += 1
             else:
                 ax2.plot(energy, xs/energy,
                          alpha=alpha,
-                         label=FI.tex(kind.flav(),d=1),
+                         label=flavInt.tex(flavint.flav(),d=1),
                          **ls[nc_n%len(ls)])
                 nc_n += 1
 
@@ -375,7 +380,7 @@ def test_CrossSections():
     # "Standard" location of cross sections file in PISA; retrieve 2.6.4 for
     # testing purposes
     pisa_xs_file = 'cross_sections/cross_sections.json'
-    xs = CrossSections(pisa_xs_file, ver='genie_2.6.4')
+    xs = CrossSections(ver='genie_2.6.4', xsec=pisa_xs_file)
 
     # Location of the root file to use (not included in PISA at the moment)
     test_dir = utils.expandPath('$PISA/test/cross_sections')
@@ -383,12 +388,13 @@ def test_CrossSections():
 
     # Make sure that the XS newly-imported from ROOT match those stored in PISA
     if os.path.isfile(ROOT_xs_file):
-        xs_from_root = CrossSections.newFromROOT(ROOT_xs_file, ver='genie_2.6.4')
+        xs_from_root = CrossSections.newFromROOT(ROOT_xs_file,
+                                                 ver='genie_2.6.4')
         assert xs_from_root.allclose(xs, rtol=1e-7)
 
     # Check XS ratio for numu_cc to numu_cc + numu_nc (user must inspect)
-    kg0 = FI.NuKindGroup('numu_cc')
-    kg1 = FI.NuKindGroup('numu_nc')
+    kg0 = flavInt.NuFlavIntGroup('numu_cc')
+    kg1 = flavInt.NuFlavIntGroup('numu_nc')
     logging.info('\int_1^80 xs(numu_cc) E^{-1} dE = %e' %
                  xs.integrate(kg0, e_range=[1,80], gamma=-1))
     logging.info('int(sigma_numu_cc)/int(sigma_(numu_cc+numu_nc)) = %e' %
@@ -400,10 +406,10 @@ def test_CrossSections():
 
     # Plot all cross sections stored in PISA xs file
     try:
-        alldata = FIO.from_file(pisa_xs_file)
+        alldata = fileio.from_file(pisa_xs_file)
         xs_versions = alldata.keys()
         for ver in xs_versions:
-            xs = CrossSections(pisa_xs_file, ver=ver)
+            xs = CrossSections(ver=ver, xsec=pisa_xs_file)
             xs.plot(save=os.path.join(
                 test_dir,
                 'pisa_' + ver + '_nuxCCNC_H2O_cross_sections.pdf'

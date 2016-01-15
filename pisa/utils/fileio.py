@@ -10,7 +10,7 @@
 
 from pisa.utils.jsons import *
 from pisa.utils.hdf import *
-import pisa.resources.resources as RES
+import pisa.resources.resources as resources
 from pisa.utils.log import logging, set_verbosity
 import cPickle
 
@@ -28,7 +28,7 @@ def from_file(fname, fmt=None):
         ext = ext.replace('.', '').lower()
     else:
         ext = fmt.lower()
-    fname = RES.find_resource(fname)
+    fname = resources.find_resource(fname)
     if ext in JSON_EXTS:
         return from_json(fname)
     elif ext in HDF5_EXTS:

@@ -17,9 +17,9 @@ import pisa.resources.resources as resources
 import pisa.utils.utils as utils
 
 
-class Events(flavInt.FIData):
-    '''Container for storing events, including metadata about the events
-    '''
+class Events(flavInt.FlavIntData):
+    """Container for storing events, including metadata about the events
+    """
     def __init__(self, val=None):
         self.metadata = {
             'detector': '',
@@ -27,10 +27,10 @@ class Events(flavInt.FIData):
             'runs': [],
             'proc_ver': '',
             'cuts': [],
-            'kinds_joined': [],
+            'flavints_joined': [],
         }
         meta = {}
-        d = flavInt.FIData()
+        d = flavInt.FlavIntData()
         if isinstance(val, basestring) or isinstance(val, h5py.Group):
             d, meta = self.__load(val)
         elif isinstance(val, dict):
@@ -40,10 +40,10 @@ class Events(flavInt.FIData):
         self.update(d)
 
     def meta_eq(self, other):
-        return utils.recEq(self.metadata, other.metadata)
+        return utils.recursiveEquality(self.metadata, other.metadata)
 
     def data_eq(self, other):
-        return utils.recEq(self, other)
+        return utils.recursiveEquality(self, other)
 
     def __eq__(self, other):
         return (self.meta_eq(other) and self.data_eq(other))
@@ -60,9 +60,9 @@ class Events(flavInt.FIData):
         hdf.to_hdf(self, fname, attrs=self.metadata, overwrite=overwrite)
 
 
-def test():
+def test_Events():
     events = Events()
 
 
 if __name__ == "__main__":
-    test()
+    test_Events()

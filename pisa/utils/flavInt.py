@@ -1,16 +1,17 @@
 #! /usr/bin/env python
 #
 # Classes for working with neutrino flavors (NuFlav), interactions types
-# (IntType), "kinds" (a flavor and an interaction type) (NuKind), and kind
-# groups (NuKindGroup) in a consistent and convenient manner.
+# (IntType), "flavints" (a flavor and an interaction type) (NuFlavInt), and
+# flavint groups (NuFlavIntGroup) in a consistent and convenient manner.
 #
-# FIData class for working with data stored by kind (flavor & interaction
-# type). This should replace the PISA convention of using raw doubly-nested
-# dictionaries indexed as [<flavor>][<interaction type>]. For now, FIData
-# objects can be drop-in replacements for such dictionaries (they can be
-# accessed and written to in the same way since FIData subclasses dict) but
-# this should be deprecated; eventually, all direct access of the data
-# structure should be eliminated and disallowed by the FIData object.
+# FlavIntData class for working with data stored by flavint (flavor &
+# interaction type). This should replace the PISA convention of using raw
+# doubly-nested dictionaries indexed as [<flavor>][<interaction type>]. For
+# now, FlavIntData objects can be drop-in replacements for such dictionaries
+# (they can be accessed and written to in the same way since FlavIntData
+# subclasses dict) but this should be deprecated; eventually, all direct access
+# of the data structure should be eliminated and disallowed by the FlavIntData
+# object.
 #
 # Define convenience tuples ALL_{x} for easy iteration
 #
@@ -21,7 +22,7 @@
 # date:   October 24, 2015
 #
 
-# TODO: make simpleStr() method convertible back to NuKindGroup, either by
+# TODO: make simpleStr() method convertible back to NuFlavIntGroup, either by
 # increasing the intelligence of interpret(), by modifying what simpleStr()
 # produces, or by adding another function to interpret simple strings. (I'm
 # leaning towards the second option at the moment, since I don't see how to
@@ -177,7 +178,7 @@ class NuFlav(object):
         return NuFlav(self.__flav*-1)
 
     def __add__(self, other):
-        return NuKindGroup(self, other)
+        return NuFlavIntGroup(self, other)
 
     def tex(self):
         return self.f2tex[self.__flav]
@@ -202,14 +203,14 @@ class NuFlav(object):
         return field
 
 
-ALL_PARTICLES = (NuFlav(12), NuFlav(14), NuFlav(16))
-ALL_ANTIPARTICLES = (NuFlav(-12), NuFlav(-14), NuFlav(-16))
-ALL_FLAVS = tuple(sorted(list(ALL_PARTICLES) + list(ALL_ANTIPARTICLES)))
+ALL_NUPARTICLES = (NuFlav(12), NuFlav(14), NuFlav(16))
+ALL_NUANTIPARTICLES = (NuFlav(-12), NuFlav(-14), NuFlav(-16))
+ALL_NUFLAVS = tuple(sorted(list(ALL_NUPARTICLES) + list(ALL_NUANTIPARTICLES)))
 
 
 class AllNu(object):
     def __init__(self):
-        self.__flav = [p for p in ALL_PARTICLES]
+        self.__flav = [p for p in ALL_NUPARTICLES]
 
     def flav(self):
         return self.__flav
@@ -223,7 +224,7 @@ class AllNu(object):
 
 class AllNuBar(object):
     def __init__(self):
-        self.__flav = [p for p in ALL_ANTIPARTICLES]
+        self.__flav = [p for p in ALL_NUANTIPARTICLES]
 
     def flav(self):
         return self.__flav
@@ -236,7 +237,7 @@ class AllNuBar(object):
 
 
 class IntType(object):
-    '''
+    """
     Interaction type object.
 
     Instantiate via
@@ -245,7 +246,7 @@ class IntType(object):
         ignored)
       * Instantiated IntType object (or any method implementing intTypeCode()
         which returns a valid interaction type code)
-      * Instantiated NuKind object (or any object implementing intType()
+      * Instantiated NuFlavInt object (or any object implementing intType()
         which returns a valid IntType object)
 
     The following, e.g., are all interpreted as charged-current IntTypes:
@@ -255,8 +256,8 @@ class IntType(object):
       IntType(1)
       IntType(1.0)
       IntType(IntType('cc'))
-      IntType(NuKind('numubarcc'))
-    '''
+      IntType(NuFlavInt('numubarcc'))
+    """
     CC_CODE = 1
     NC_CODE = 2
     IT_RE = re.compile(r'(cc|nc)')
@@ -329,17 +330,17 @@ class IntType(object):
         return self.i2tex[self.__int_type]
 
 
-ALL_INT_TYPES = (IntType('cc'), IntType('nc'))
+ALL_NUINT_TYPES = (IntType('cc'), IntType('nc'))
 
 
-class NuKind(object):
-    '''A neutrino "kind" encompasses both the neutrino flavor and its
+class NuFlavInt(object):
+    """A neutrino "flavint" encompasses both the neutrino flavor and its
     interaction type.
     
     Instantiate via
       * String containing a single flavor and a single interaction type
         e.g.: 'numucc', 'nu_mu_cc', 'nu mu CC', 'numu_bar CC', etc.
-      * Another instantiated NuKind object
+      * Another instantiated NuFlavInt object
       * Two separate objects that can be converted to a valid NuFlav
         and a valid IntType (in that order)
       * An iterable of length two which contains such objects
@@ -347,7 +348,7 @@ class NuKind(object):
 
     String specifications simply ignore all characters not recognized as a
     valid token.
-    '''
+    """
     TOKENS = re.compile('(nu|e|mu|tau|bar|nc|cc)')
     FINT_RE = re.compile(
         r'(?P<fullflav>(?:nue|numu|nutau)'
@@ -369,7 +370,7 @@ class NuKind(object):
             flav_int = (kwargs['flav'], kwargs['int_type'])
         elif args:
             if len(args) == 0:
-                raise TypeError('No kind specification provided')
+                raise TypeError('No flavint specification provided')
             elif len(args) == 1:
                 flav_int = args[0]
             elif len(args) == 2:
@@ -382,13 +383,13 @@ class NuKind(object):
             orig_flav_int = flav_int
             try:
                 flav_int = ''.join(self.TOKENS.findall(flav_int.lower()))
-                kind_dict = self.FINT_RE.match(flav_int).groupdict()
-                self.__flav = NuFlav(kind_dict['fullflav'])
-                self.__int_type = IntType(kind_dict['int_type'])
+                flavint_dict = self.FINT_RE.match(flav_int).groupdict()
+                self.__flav = NuFlav(flavint_dict['fullflav'])
+                self.__int_type = IntType(flavint_dict['int_type'])
             except (UnboundLocalError, ValueError, AttributeError):
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 raise ValueError(
-                    'Could not interpret value "%s" as valid kind: %s' %
+                    'Could not interpret value "%s" as valid flavint: %s' %
                     (str(orig_flav_int),
                      '\n'.join(traceback.format_exception(exc_type, exc_value,
                                                           exc_traceback)))
@@ -396,7 +397,7 @@ class NuKind(object):
         elif hasattr(flav_int, '__len__'):
             self.__flav = NuFlav(flav_int[0])
             self.__int_type = IntType(flav_int[1])
-        elif isinstance(flav_int, NuKind):
+        elif isinstance(flav_int, NuFlavInt):
             self.__flav = NuFlav(flav_int.flav())
             self.__int_type = IntType(flav_int.intTypeCode())
         else:
@@ -414,17 +415,17 @@ class NuKind(object):
         return hash( (self.flavCode(), self.intTypeCode()) )
 
     def __cmp__(self, other):
-        if not isinstance(other, NuKind):
+        if not isinstance(other, NuFlavInt):
             return 1
         return cmp(
             (self.flav(), self.intType()), (other.flav(), other.intType())
         )
 
     def __neg__(self):
-        return NuKind(-self.__flav, self.__int_type)
+        return NuFlavInt(-self.__flav, self.__int_type)
 
     def __add__(self, other):
-        return NuKindGroup(self, other)
+        return NuFlavIntGroup(self, other)
 
     def pidx(self, d, *args):
         with BarSep('_'):
@@ -478,12 +479,12 @@ class NuKind(object):
                              self.intTypeTex())
 
 
-class NuKindGroup(collections.MutableSequence):
-    '''
-    Grouping of neutrino kinds. Specification can be via
+class NuFlavIntGroup(collections.MutableSequence):
+    """
+    Grouping of neutrino flavints. Specification can be via
       * A single `NuFlav` object; this gets promoted to include both
         interaction types
-      * A single `NuKind` object
+      * A single `NuFlavInt` object
       * String:
         * Ignores anything besides valid tokens
         * A flavor with no interaction type specified will include both CC
@@ -493,15 +494,15 @@ class NuKindGroup(collections.MutableSequence):
         * Interprets "nuall" as nue+numu+nutau and "nuallbar" as
           nuebar+numubar+nutaubar
       * Iterable containing any of the above (i.e., objects convertible to
-        `NuKind` objects). Note that a valid iterable is another `NuKindGroup`
+        `NuFlavInt` objects). Note that a valid iterable is another `NuFlavIntGroup`
         object.
-    '''
+    """
     TOKENS = re.compile('(nu|e|mu|tau|all|bar|nc|cc)')
     K_RE = re.compile(r'((?:nue|numu|nutau|nuall)(?:bar){0,1}(?:cc|nc){0,2})')
     F_RE = re.compile(r'(?P<fullflav>(?:nue|numu|nutau|nuall)(?:bar){0,1})')
     def __init__(self, *args):
-        self.kind_ssep = '+'
-        self.__kinds = []
+        self.flavint_ssep = '+'
+        self.__flavints = []
         # Possibly a special case if len(args) == 2, so send as a single entity
         # if this is the case
         if len(args) == 2:
@@ -509,30 +510,30 @@ class NuKindGroup(collections.MutableSequence):
         [self.__iadd__(a) for a in args]
 
     def __add__(self, val):
-        kind_list = sorted(set(self.__kinds + self.interpret(val)))
-        return NuKindGroup(kind_list)
+        flavint_list = sorted(set(self.__flavints + self.interpret(val)))
+        return NuFlavIntGroup(flavint_list)
 
     def __iadd__(self, val):
-        self.__kinds = sorted(set(self.__kinds + self.interpret(val)))
+        self.__flavints = sorted(set(self.__flavints + self.interpret(val)))
         return self
 
     def __delitem__(self, idx):
-        self.__kinds.__delitem__(idx)
+        self.__flavints.__delitem__(idx)
 
     def remove(self, val):
-        '''
-        Remove a kind from this group.
+        """
+        Remove a flavint from this group.
 
         `val` must be valid for the interpret() method
-        '''
-        kind_list = sorted(set(self.interpret(val)))
-        for k in kind_list:
+        """
+        flavint_list = sorted(set(self.interpret(val)))
+        for k in flavint_list:
             try:
-                idx = self.__kinds.index(k)
+                idx = self.__flavints.index(k)
             except ValueError:
                 pass
             else:
-                del self.__kinds[idx]
+                del self.__flavints[idx]
 
     def __sub__(self, val):
         cp = deepcopy(self)
@@ -544,91 +545,91 @@ class NuKindGroup(collections.MutableSequence):
         return self
 
     def __setitem__(self, idx, val):
-        self.__kinds[idx] = val
+        self.__flavints[idx] = val
 
     def insert(self, idx, val):
-        self.__kinds.insert(idx, val)
+        self.__flavints.insert(idx, val)
 
     def __cmp__(self, other):
-        if not isinstance(other, NuKindGroup):
+        if not isinstance(other, NuFlavIntGroup):
             return 1
         if len(other) != len(self):
             return len(self) - len(other)
-        cmps = [cmp(mine, other[n]) for n,mine in enumerate(self.__kinds)]
+        cmps = [cmp(mine, other[n]) for n,mine in enumerate(self.__flavints)]
         if all([c==0 for c in cmps]):
             return 0
         return [c for c in cmps if c != 0][0]
 
     def __contains__(self, val):
-        return all([(k in self.__kinds) for k in self.interpret(val)])
+        return all([(k in self.__flavints) for k in self.interpret(val)])
 
     def __len__(self):
-        return len(self.__kinds)
+        return len(self.__flavints)
 
     def __getitem__(self, idx):
-        return self.__kinds[idx]
+        return self.__flavints[idx]
 
     def __str__(self):
-        allkg = set(self.kinds())
+        allkg = set(self.flavints())
 
         # Check if nuall or nuallbar CC, NC, or both
         nuallcc, nuallbarcc, nuallnc, nuallbarnc = False, False, False, False
-        ccKinds = NuKindGroup(self.ccKinds())
-        ncKinds = NuKindGroup(self.ncKinds())
-        if len(ccKinds.particles()) == 3:
+        ccFlavInts = NuFlavIntGroup(self.ccFlavInts())
+        ncFlavInts = NuFlavIntGroup(self.ncFlavInts())
+        if len(ccFlavInts.particles()) == 3:
             nuallcc = True
-        if len(ccKinds.antiParticles()) == 3:
+        if len(ccFlavInts.antiParticles()) == 3:
             nuallbarcc = True
-        if len(ncKinds.particles()) == 3:
+        if len(ncFlavInts.particles()) == 3:
             nuallnc = True
-        if len(ncKinds.antiParticles()) == 3:
+        if len(ncFlavInts.antiParticles()) == 3:
             nuallbarnc = True
 
         # Construct nuall(bar) part(s) of string
         strs = []
         if nuallcc and nuallnc:
             strs.append('nuall')
-            [allkg.remove(NuKind(k, 'cc')) for k in ALL_PARTICLES]
-            [allkg.remove(NuKind(k, 'nc')) for k in ALL_PARTICLES]
+            [allkg.remove(NuFlavInt(k, 'cc')) for k in ALL_NUPARTICLES]
+            [allkg.remove(NuFlavInt(k, 'nc')) for k in ALL_NUPARTICLES]
         elif nuallcc:
-            strs.append('nuall' + NuKind.FINT_SSEP + str(IntType('cc')))
-            [allkg.remove(NuKind(k, 'cc')) for k in ALL_PARTICLES]
+            strs.append('nuall' + NuFlavInt.FINT_SSEP + str(IntType('cc')))
+            [allkg.remove(NuFlavInt(k, 'cc')) for k in ALL_NUPARTICLES]
         elif nuallnc:
-            strs.append('nuall' + NuKind.FINT_SSEP + str(IntType('nc')))
-            [allkg.remove(NuKind(k, 'nc')) for k in ALL_PARTICLES]
+            strs.append('nuall' + NuFlavInt.FINT_SSEP + str(IntType('nc')))
+            [allkg.remove(NuFlavInt(k, 'nc')) for k in ALL_NUPARTICLES]
 
         if nuallbarcc and nuallbarnc:
             strs.append('nuallbar')
-            [allkg.remove(NuKind(k, 'cc')) for k in ALL_ANTIPARTICLES]
-            [allkg.remove(NuKind(k, 'nc')) for k in ALL_ANTIPARTICLES]
+            [allkg.remove(NuFlavInt(k, 'cc')) for k in ALL_NUANTIPARTICLES]
+            [allkg.remove(NuFlavInt(k, 'nc')) for k in ALL_NUANTIPARTICLES]
         elif nuallbarcc:
-            strs.append('nuallbar' + NuKind.FINT_SSEP + str(IntType('cc')))
-            [allkg.remove(NuKind(k, 'cc')) for k in ALL_ANTIPARTICLES]
+            strs.append('nuallbar' + NuFlavInt.FINT_SSEP + str(IntType('cc')))
+            [allkg.remove(NuFlavInt(k, 'cc')) for k in ALL_NUANTIPARTICLES]
         elif nuallbarnc:
-            strs.append('nuallbar' + NuKind.FINT_SSEP + str(IntType('nc')))
-            [allkg.remove(NuKind(k, 'nc')) for k in ALL_ANTIPARTICLES]
+            strs.append('nuallbar' + NuFlavInt.FINT_SSEP + str(IntType('nc')))
+            [allkg.remove(NuFlavInt(k, 'nc')) for k in ALL_NUANTIPARTICLES]
 
-        # Among remaining kinds, group by flavor and combine if both CC and NC
-        # are present for individual flavors (i.e., eliminate the intType
+        # Among remaining flavints, group by flavor and combine if both CC and
+        # NC are present for individual flavors (i.e., eliminate the intType
         # string altogether)
-        for flav in ALL_PARTICLES + ALL_ANTIPARTICLES:
+        for flav in ALL_NUPARTICLES + ALL_NUANTIPARTICLES:
             if flav in [k.flav() for k in allkg]:
                 cc, nc = False, False
-                if NuKind(flav, 'cc') in allkg:
+                if NuFlavInt(flav, 'cc') in allkg:
                     cc = True
-                if NuKind(flav, 'nc') in allkg:
+                if NuFlavInt(flav, 'nc') in allkg:
                     nc = True
                 if cc and nc:
                     strs.append(str(flav))
-                    allkg.remove(NuKind(flav, 'cc'))
-                    allkg.remove(NuKind(flav, 'nc'))
+                    allkg.remove(NuFlavInt(flav, 'cc'))
+                    allkg.remove(NuFlavInt(flav, 'nc'))
                 elif cc:
-                    strs.append(str(NuKind(flav, 'cc')))
-                    allkg.remove(NuKind(flav, 'cc'))
+                    strs.append(str(NuFlavInt(flav, 'cc')))
+                    allkg.remove(NuFlavInt(flav, 'cc'))
                 elif nc:
-                    strs.append(str(NuKind(flav, 'nc')))
-                    allkg.remove(NuKind(flav, 'nc'))
-        return self.kind_ssep.join(strs)
+                    strs.append(str(NuFlavInt(flav, 'nc')))
+                    allkg.remove(NuFlavInt(flav, 'nc'))
+        return self.flavint_ssep.join(strs)
 
     def __repr__(self):
         return self.__str__()
@@ -636,34 +637,34 @@ class NuKindGroup(collections.MutableSequence):
     # TODO:
     # Technically, since this is a mutable type, the __hash__ method shouldn't
     # be implemented as this will allow for "illegal" behavior, like using
-    # a NuKindGroup as a key in a dict. So this should be fixed, maybe.
+    # a NuFlavIntGroup as a key in a dict. So this should be fixed, maybe.
     #__hash__ = None
     def __hash__(self):
-        return hash(tuple(self.__kinds))
+        return hash(tuple(self.__flavints))
 
     @staticmethod
     def interpret(val):
-        '''
-        Interpret a NuKindGroup arg
-        '''
+        """
+        Interpret a NuFlavIntGroup arg
+        """
         if isinstance(val, basestring):
             orig_val = val
             try:
-                kinds = []
+                flavints = []
                 orig_val = val
                 val = val.lower()
 
                 # Eliminate anything besides valid tokens
-                val = ''.join(NuKindGroup.TOKENS.findall(val))
+                val = ''.join(NuFlavIntGroup.TOKENS.findall(val))
 
-                # Find all kinds specified
-                allkinds_str = NuKindGroup.K_RE.findall(val)
+                # Find all flavints specified
+                allflavints_str = NuFlavIntGroup.K_RE.findall(val)
 
-                for kind_str in allkinds_str:
-                    match = NuKindGroup.F_RE.match(kind_str)
+                for flavint_str in allflavints_str:
+                    match = NuFlavIntGroup.F_RE.match(flavint_str)
                     flav = match.groupdict()['fullflav']
 
-                    # A kind found above can include 'all' which is actually
+                    # A flavint found above can include 'all' which is actually
                     # three different flavors
                     if 'all' in flav:
                         flavs = [flav.replace('all', x)
@@ -671,15 +672,15 @@ class NuKindGroup(collections.MutableSequence):
                     else:
                         flavs = [flav]
 
-                    ints = sorted(set(IntType.IT_RE.findall(kind_str)))
+                    ints = sorted(set(IntType.IT_RE.findall(flavint_str)))
 
-                    # If kind_str does not include 'cc' or 'nc', include both
+                    # If flavint_str does not include 'cc' or 'nc', include both
                     if len(ints) == 0:
                         ints = ['cc', 'nc']
 
                     # Add all combinations of (flav, int) found in this
-                    # kind_str
-                    kinds.extend([''.join(fi) for fi in product(flavs, ints)])
+                    # flavint_str
+                    flavints.extend([''.join(fi) for fi in product(flavs,ints)])
 
             except (ValueError, AttributeError):
                 exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -690,90 +691,90 @@ class NuKindGroup(collections.MutableSequence):
                                                                 exc_traceback)
                                  ))
         elif isinstance(val, NuFlav):
-            kinds = [NuKind((val,'cc')), NuKind((val,'nc'))]
-        elif isinstance(val, NuKind):
-            kinds = [val]
-        elif isinstance(val, NuKindGroup):
-            kinds = list(val.kinds())
+            flavints = [NuFlavInt((val,'cc')), NuFlavInt((val,'nc'))]
+        elif isinstance(val, NuFlavInt):
+            flavints = [val]
+        elif isinstance(val, NuFlavIntGroup):
+            flavints = list(val.flavints())
         elif np.isscalar(val):
-            kinds = [val]
+            flavints = [val]
         elif val is None:
-            kinds = []
+            flavints = []
         elif hasattr(val, '__len__'):
-            kinds = []
+            flavints = []
             # Treat length-2 iterables as special case, in case the two
-            # elements can form a single NuKind.            if len(val) == 2:
+            # elements can form a single NuFlavInt.
             if len(val) == 2:
                 try_again = True
                 try:
                     # Start with counter-hypothesis: that the two elements of
-                    # `val` can form two valid, independent NuKinds...
-                    k1 = NuKindGroup.interpret(val[0])
-                    k2 = NuKindGroup.interpret(val[1])
+                    # `val` can form two valid, independent NuFlavInts...
+                    k1 = NuFlavIntGroup.interpret(val[0])
+                    k2 = NuFlavIntGroup.interpret(val[1])
                     if k1 and k2:
-                        # Success: Two independent NuKinds were created
+                        # Success: Two independent NuFlavInts were created
                         try_again = False
-                        kinds.extend(k1)
-                        kinds.extend(k2)
+                        flavints.extend(k1)
+                        flavints.extend(k2)
                 except (UnboundLocalError, ValueError, AssertionError,
                         TypeError):
                     pass
                 if try_again:
                     # If the two elements of the iterable did not form two
-                    # NuKinds, try forming a single NuKind with `val`
-                    kinds = [NuKind(val)]
+                    # NuFlavInts, try forming a single NuFlavInt with `val`
+                    flavints = [NuFlavInt(val)]
             else: 
-                # If 1 or >2 elements in `val`, make a kind out of each
-                [kinds.extend(NuKindGroup.interpret(x)) for x in val]
+                # If 1 or >2 elements in `val`, make a flavint out of each
+                [flavints.extend(NuFlavIntGroup.interpret(x)) for x in val]
         else:
             raise Exception('Unhandled val: ' + str(val) + ', class '
                             + str(val.__class__) + ' type ' + str(val))
 
-        kind_list = []
-        for k in kinds:
+        flavint_list = []
+        for k in flavints:
             try:
-                nk = NuKind(k)
-                kind_list.append(nk)
+                nk = NuFlavInt(k)
+                flavint_list.append(nk)
             except TypeError:
-                # If NuKind failed, try NuFlav; if this fails, give up.
+                # If NuFlavInt failed, try NuFlav; if this fails, give up.
                 flav = NuFlav(k)
-                kind_list.append(NuKind((flav, 'cc')))
-                kind_list.append(NuKind((flav, 'nc')))
-        return kind_list
+                flavint_list.append(NuFlavInt((flav, 'cc')))
+                flavint_list.append(NuFlavInt((flav, 'nc')))
+        return flavint_list
 
-    def kinds(self):
-        return tuple(self.__kinds)
+    def flavints(self):
+        return tuple(self.__flavints)
 
     def flavs(self):
-        return tuple([k.flav() for k in self.__kinds])
+        return tuple([k.flav() for k in self.__flavints])
 
-    def ccKinds(self):
-        return tuple([k for k in self.__kinds if k.intType() == IntType('cc')])
+    def ccFlavInts(self):
+        return tuple([k for k in self.__flavints if k.intType()==IntType('cc')])
     
-    def ncKinds(self):
-        return tuple([k for k in self.__kinds if k.intType() == IntType('nc')])
+    def ncFlavInts(self):
+        return tuple([k for k in self.__flavints if k.intType()==IntType('nc')])
 
     def particles(self):
-        return tuple([k for k in self.__kinds if k.isParticle()])
+        return tuple([k for k in self.__flavints if k.isParticle()])
     
     def antiParticles(self):
-        return tuple([k for k in self.__kinds if k.isAntiParticle()])
+        return tuple([k for k in self.__flavints if k.isAntiParticle()])
 
     def ccFlavs(self):
-        return tuple([k.flav() for k in self.__kinds
+        return tuple([k.flav() for k in self.__flavints
                       if k.intType() == IntType('cc')])
     
     def ncFlavs(self):
-        return tuple([k.flav() for k in self.__kinds
+        return tuple([k.flav() for k in self.__flavints
                       if k.intType() == IntType('nc')])
 
     def uniqueFlavs(self):
-        return tuple(sorted(set([k.flav() for k in self.__kinds])))
+        return tuple(sorted(set([k.flav() for k in self.__flavints])))
 
     def groupFlavsByIntType(self):
         uniqueF = self.uniqueFlavs()
         fint_d = {f:set() for f in uniqueF}
-        {fint_d[k.flav()].add(k.intType()) for k in self.kinds()}
+        {fint_d[k.flav()].add(k.intType()) for k in self.flavints()}
         grouped = {
             'all_int_type_flavs': [],
             'cc_only_flavs' : [],
@@ -788,7 +789,7 @@ class NuKindGroup(collections.MutableSequence):
                 grouped['nc_only_flavs'].append(f)
         return grouped
 
-    def __simpleStr(self, flavsep, flavintsep, kindsep, addsep, func):
+    def __simpleStr(self, flavsep, intsep, flavintsep, addsep, func):
         grouped = self.groupFlavsByIntType()
         all_nu = AllNu()
         all_nubar = AllNuBar()
@@ -804,26 +805,27 @@ class NuKindGroup(collections.MutableSequence):
         nc_only_s = flavsep.join([func(f) for f in grouped['nc_only_flavs']])
         strs = []
         if len(all_s) > 0:
-            strs.append(all_s + flavintsep + func(IntType('cc')) + addsep +
+            strs.append(all_s + intsep + func(IntType('cc')) + addsep +
                         func(IntType('nc')))
         if len(cc_only_s) > 0:
-            strs.append(cc_only_s + flavintsep + func(IntType('cc')))
+            strs.append(cc_only_s + intsep + func(IntType('cc')))
         if len(nc_only_s) > 0:
-            strs.append(nc_only_s + flavintsep + func(IntType('nc')))
-        return kindsep.join(strs)
+            strs.append(nc_only_s + intsep + func(IntType('nc')))
+        return flavintsep.join(strs)
 
-    def simpleStr(self, flavsep='+', flavintsep=' ', kindsep=', ', addsep='+'):
-        return self.__simpleStr(flavsep=flavsep, flavintsep=flavintsep,
-                                kindsep=kindsep, addsep=addsep, func=str)
+    def simpleStr(self, flavsep='+', intsep=' ', flavintsep=', ',
+                  addsep='+'):
+        return self.__simpleStr(flavsep=flavsep, intsep=intsep,
+                                flavintsep=flavintsep, addsep=addsep, func=str)
 
-    def fileStr(self, flavsep='_', flavintsep='_', kindsep='__', addsep=''):
-        return self.__simpleStr(flavsep=flavsep, flavintsep=flavintsep,
-                                kindsep=kindsep, addsep=addsep, func=str)
+    def fileStr(self, flavsep='_', intsep='_', flavintsep='__', addsep=''):
+        return self.__simpleStr(flavsep=flavsep, intsep=intsep,
+                                flavintsep=flavintsep, addsep=addsep, func=str)
 
-    def simpleTex(self, flavsep=r', \, ', flavintsep=r' \, ', kindsep=r'; \; ',
-                  addsep=r'+'):
-        return self.__simpleStr(flavsep=flavsep, flavintsep=flavintsep,
-                                kindsep=kindsep, addsep=addsep, func=tex)
+    def simpleTex(self, flavsep=r', \, ', intsep=r' \, ',
+                  flavintsep=r'; \; ', addsep=r'+'):
+        return self.__simpleStr(flavsep=flavsep, intsep=intsep,
+                                flavintsep=flavintsep, addsep=addsep, func=tex)
 
     def tex(self, *args, **kwargs):
         return self.simpleTex(*args, **kwargs)
@@ -832,42 +834,51 @@ class NuKindGroup(collections.MutableSequence):
         return flavsep.join([f.tex() for f in self.uniqueFlavs()])
 
 
-ALL_KINDS = NuKindGroup('nuall,nuallbar')
+ALL_NUFLAVINTS = NuFlavIntGroup('nuall,nuallbar')
 
 
-class FIData(dict):
+class FlavIntData(dict):
     def __init__(self, val=None):
         if isinstance(val, basestring):
             d = self.__load(val)
         elif isinstance(val, dict):
             d = val
         elif val is None:
-            # Instantiate empty FIData
+            # Instantiate empty FlavIntData
             with BarSep('_'):
-                d = {str(f): {str(it):None for it in ALL_INT_TYPES}
-                     for f in ALL_FLAVS}
+                d = {str(f): {str(it):None for it in ALL_NUINT_TYPES}
+                     for f in ALL_NUFLAVS}
         else:
             raise TypeError('Unrecognized `val` type %s' % type(val))
         self.validate(d)
         self.update(d)
 
     def __eq__(self, other):
-        return utils.recEq(self, other)
+        return utils.recursiveEquality(self, other)
 
     def allclose(self, other, rtol=1e-05, atol=1e-08):
-        return utils.recAllclose(self, other, rtol=rtol, atol=atol)
+        return utils.recursiveAllclose(self, other, rtol=rtol, atol=atol)
 
     def set(self, *args):
+        """Store data for the specified flavints.
+
+        Parameters
+        ----------
+        arg[0], arg[1], ... arg[N-2]
+            Flavint(s) for which to store the data object
+        arg[N-1]
+            Data object to be stored
+        """
         all_keys = list(args[:-1])
         top_lvl_key = all_keys[0]
         subkeys = all_keys[1:]
         new_val = deepcopy(args[-1])
 
         try:
-            kind = NuKind(all_keys[0])
+            flavint = NuFlavInt(all_keys[0])
             with BarSep('_'):
-                f = str(kind.flav())
-                it = str(kind.intType())
+                f = str(flavint.flav())
+                it = str(flavint.intType())
             all_keys[0] = f
             all_keys.insert(1, it)
 
@@ -905,10 +916,10 @@ class FIData(dict):
         subkeys = all_keys[1:]
 
         try:
-            kind = NuKind(all_keys[0])
+            flavint = NuFlavInt(all_keys[0])
             with BarSep('_'):
-                f = str(kind.flav())
-                it = str(kind.intType())
+                f = str(flavint.flav())
+                it = str(flavint.intType())
             all_keys[0] = f
             all_keys.insert(1, it)
 
@@ -934,10 +945,10 @@ class FIData(dict):
         return deepcopy(lvl[node_key])
 
     def __basic_validate(self, fi_container):
-         for kind in ALL_KINDS:
+         for flavint in ALL_NUFLAVINTS:
             with BarSep('_'):
-                f = str(kind.flav())
-                it = str(kind.intType())
+                f = str(flavint.flav())
+                it = str(flavint.intType())
             assert isinstance(fi_container, dict), "container must be of" \
                     " type 'dict'; instead got %s" % type(fi_container)
             assert fi_container.has_key(f), "container missing flavor '%s'" % f
@@ -960,81 +971,84 @@ class FIData(dict):
         return d
 
     def idDupes(self, close_rtol=0):
-        '''Group kinds according to those that have duplicated data.
+        """Group flavints according to those that have duplicated data.
 
         close_rtol
             Set to a positive value to use np.allclose(a, b, rtol=close_rtol)
-        '''
-        cmpfunc = utils.recEq
+        """
+        cmpfunc = utils.recursiveEquality
         if close_rtol != 0:
-            def cmpfunc(x, y):
-                return utils.recAllclose(x, y, rtol=close_rtol)
-        dupe_kindgroups = []
-        dupe_kindgroups_data = []
-        for knum, kind in enumerate(ALL_KINDS):
-            this_datum = self.get(kind)
+            cmpfunc = lambda x,y: utils.recursiveAllclose(x, y, rtol=close_rtol)
+        dupe_flavintgroups = []
+        dupe_flavintgroups_data = []
+        for knum, flavint in enumerate(ALL_NUFLAVINTS):
+            this_datum = self.get(flavint)
             match = False
-            for n, group_datum in enumerate(dupe_kindgroups_data):
+            for n, group_datum in enumerate(dupe_flavintgroups_data):
                 if len(this_datum) != len(group_datum):
                     continue
                 if cmpfunc(this_datum, group_datum):
-                    dupe_kindgroups[n] += kind
+                    dupe_flavintgroups[n] += flavint
                     match = True
                     break
             if not match:
-                dupe_kindgroups.append(NuKindGroup(kind))
-                dupe_kindgroups_data.append(this_datum)
-        #indices = np.argsort(dupe_kindgroups)[0]
-        #dupe_kindgroups = [dupe_kindgroups[idx] for idx in indices]
-        #dupe_kindgroups_data = [dupe_kindgroups_data[idx] for idx in indices]
-        return dupe_kindgroups, dupe_kindgroups_data
+                dupe_flavintgroups.append(NuFlavIntGroup(flavint))
+                dupe_flavintgroups_data.append(this_datum)
+        #indices = np.argsort(dupe_flavintgroups)[0]
+        #dupe_flavintgroups = [dupe_flavintgroups[idx] for idx in indices]
+        #dupe_flavintgroups_data = [dupe_flavintgroups_data[idx] for idx in indices]
+        return dupe_flavintgroups, dupe_flavintgroups_data
 
 
-class CombinedFIData(FIData):
-    '''Container class for storing data that is combined for some
-    NuKinds (as opposed to FIData, which stores one datum for each kind
-    separately).
+class CombinedFlavIntData(FlavIntData):
+    """Container class for storing data redundant for some set(s) of NuFlavInts
+    (Cf. FlavIntData, which stores one datum for each NuFlavInt separately)
 
     val
-        Data with which to populate the hierarchy.
-    kind_groupings
-        User-defined groupings of kinds. One set of data is shared among all
-        kinds in a kind grouping, and therefore a change to one kind in the
-        group also affects all others.
+        Data with which to populate the hierarchy
+    flavint_groupings
+        User-defined groupings of NuFlavInts. One set of data is shared among
+        all NuFlavInts in a NuFlavInt grouping. These can be specified in
+        several ways, and note the `dedup` parameter which deduces groupings
+        from the data.
 
         None
-            if val == None, no kinds are grouped together
-            if val != None, kind_groupings are deduced from the data
+            If val == None, no NuFlavInts are grouped together
+            If val != None, flavint_groupings are deduced from the data; note
+              that deduplication, if specified, will occur *after* this step
         string
-            is a string, it is expected to be ";"-delimited whose
-            fields describe kind_groups
+            If val is a string, it is expected to be a semicolon-delimited
+            list, each field of which describes a NuFlavIntGroup
         iterable
-            the members are converted to strings and interpreted as in the case
-            that kind_groupings is a string
-    dedup : bool (default: False)
-        If True, after populating all data according to any `val` and
-        `kind_groupings` arguments, re-groups the data according to those kinds
-        whose data is considered equal (see `dedup_close_rtol`).
+            If val is an iterable, each member of the iterable is converted to
+            a string and interpreted as a NuFlavIntGroup
+    dedup : bool
+        If True, after populating all data according to the `val` and
+        `flavint_groupings` arguments, regroups the data according to those
+        flavints whose data is considered equal (with tolerance set by the
+        `dedup_close_rtol` argument), removing duplicated data in the process.
         (Default: False)
-    dedup_close_rtol : numeric (default: 0)
-        If set to 0, dedup requires exact equality among kinds' datasets to
+    dedup_close_rtol : numeric
+        If set to 0, dedup requires exact equality among flavints' datasets to
         group them together. If non-zero, this gives the relative tol (rtol)
         parameter passed to numpy.allclose for determining close-enough
         equality. This parameter has no effect if `dedup` is False.
-    '''
-    def __init__(self, val=None, kind_groupings=None, dedup=False, dedup_close_rtol=False):
-        # Interpret the kind_groupings arg
-        if kind_groupings is None:
+        (Default: 0)
+    """
+    def __init__(self, val=None, flavint_groupings=None, dedup=False,
+                 dedup_close_rtol=False):
+        # Interpret the flavint_groupings arg
+        if flavint_groupings is None:
             grouped = []
-            ungrouped = list(ALL_KINDS)
-        elif isinstance(kind_groupings, basestring):
-            grouped, ungrouped = self.xlateGroupsStr(kind_groupings)
-        elif hasattr(kind_groupings, '__iter__'):
-            strkgs = ';'.join([str(x) for x in kind_groupings])
+            ungrouped = list(ALL_NUFLAVINTS)
+        elif isinstance(flavint_groupings, basestring):
+            grouped, ungrouped = self.xlateGroupsStr(flavint_groupings)
+        elif hasattr(flavint_groupings, '__iter__'):
+            strkgs = ';'.join([str(x) for x in flavint_groupings])
             grouped, ungrouped = self.xlateGroupsStr(strkgs)
         else:
-            raise TypeError('Incomprehensible `kind_groupings`: "%s"' %
-                            str(kind_groupings))
+            raise TypeError('Incomprehensible `flavint_groupings`: "%s"' %
+                            str(flavint_groupings))
 
         # Interpret the val arg
         named_g = None
@@ -1049,13 +1063,12 @@ class CombinedFIData(FIData):
             # strict on output)
             for key in d.keys():
                 for g in named_g + named_ung:
-                    if (NuKindGroup(key) == g) and not (key == str(g)):
+                    if (NuFlavIntGroup(key) == g) and not (key == str(g)):
                         d[str(g)] = d.pop(key)
         elif val is None:
-            if kind_groupings is None:
-                logging.warn('CombinedFIData object instantiated without'
-                             ' kind groupings specified; might as well use'
-                             ' FIData')
+            if flavint_groupings is None:
+                logging.warn('CombinedFlavIntData object instantiated without'
+                             ' flavint groupings specified.')
             named_g = grouped
             named_ung = ungrouped
 
@@ -1064,31 +1077,31 @@ class CombinedFIData(FIData):
         else:
             raise TypeError('Unrecognized `val`: "%s", type %s' %
                             (str(val), type(val)))
-        if named_g and kind_groupings:
+        if named_g and flavint_groupings:
             assert named_g == grouped
             assert named_ung == ungrouped
       
         self.validate(d)
         self.grouped, self.ungrouped = named_g, named_ung
-        self.kinds_to_keys = [(ks, str(ks)) for ks in named_g+named_ung]
+        self.flavints_to_keys = [(ks, str(ks)) for ks in named_g+named_ung]
         self.update(d)
 
         if dedup:
             self.deduplicate(close_rtol=dedup_close_rtol)
 
     def deduplicate(self, close_rtol=False):
-        '''Identify duplicate datasets and combine the associated kinds
+        """Identify duplicate datasets and combine the associated flavints
         together, elinimating redundancy in the data.
 
-        This forces any kinds with identical data to be tied to one another
+        This forces any flavints with identical data to be tied to one another
         into the future
-        '''
+        """
         dupe_kgs, dupe_kgs_data = self.idDupes(close_rtol=close_rtol)
         d = {str(kg):dat for kg,dat in izip(dupe_kgs, dupe_kgs_data)}
         self.validate(d)
         self.grouped = [kg for kg in dupe_kgs if len(kg) > 1]
         self.ungrouped = [kg for kg in dupe_kgs if len(kg) == 1]
-        self.kinds_to_keys = [(kg, str(kg)) for kg in dupe_kgs]
+        self.flavints_to_keys = [(kg, str(kg)) for kg in dupe_kgs]
         self.clear()
         self.update(d)
 
@@ -1096,37 +1109,46 @@ class CombinedFIData(FIData):
         assert isinstance(cfid, dict), 'container must be of' \
                 ' type `dict`; instead got %s' % str(type(cfid))
         keys = cfid.keys()
-        key_grps = [NuKindGroup(k) for k in keys]
-        for kind in ALL_KINDS:
+        key_grps = [NuFlavIntGroup(k) for k in keys]
+        for flavint in ALL_NUFLAVINTS:
             found = 0
             for grp in key_grps:
-                if kind in grp:
+                if flavint in grp:
                     found += 1
-            assert found > 0, 'container missing kind %s' % str(kind)
+            assert found > 0, 'container missing flavint %s' % str(flavint)
 
     def validate(self, cfid):
         self.__basic_validate(cfid)
 
     def __eq__(self, other):
-        return utils.recEq(self, other)
+        return utils.recursiveEquality(self, other)
 
     def set(self, *args):
+        """Store data for the specified flavints.
+
+        Parameters
+        ----------
+        arg[0], arg[1], ... arg[N-2]
+            NuFlavInts for which to store data. The specified NuFlavInts must
+            match exactly an existing NuFlavIntGroup within the data structure.
+            (This avoids a user inadvertently setting data for an unintended
+            flavint.)
+        arg[N-1]
+            Data object to be stored
+        """
+        # TODO: do not set *anything* until it is verified that a valid
+        # NuFlavIntGroup is specified (i.e., the target NuFlavIntGroup doesn't
+        # span multiple NuFlavIntGroups).
         all_keys = list(args[:-1])
         new_val = deepcopy(args[-1])
-        tgt_grp = NuKindGroup(all_keys[0])
-        for (kinds, key) in self.kinds_to_keys:
+        tgt_grp = NuFlavIntGroup(all_keys)
+        for (flavints, key) in self.flavints_to_keys:
             match = False
-            # Identical
-            if tgt_grp == kinds:
+            # Identical match to existing NuFlavIntGroup
+            if tgt_grp == flavints:
                 all_keys[0] = key
                 match = True
-            # Requested kinds are strict subset
-            elif len(tgt_grp - kinds) == 0:
-                all_keys[0] = key
-                match = True
-                logging.warning('Setting data for subset (%s) of'
-                                ' grouping %s' % (str(tgt_grp), str(kinds)))
-            # Set it
+
             if match:
                 branch_keys = all_keys[:-1]
                 node_key = all_keys[-1]
@@ -1142,23 +1164,28 @@ class CombinedFIData(FIData):
                     raise
                 return
         # If you get this far, no match was found
-        raise ValueError('Could not set data for group %s' % str(tgt_grp))
+        raise ValueError(
+            'Could not set data for NuFlavInt(Group) %s; valid'
+            ' NuFlavInt(Group)s for this object are: %s' %
+            (str(tgt_grp), '; '.join([str(nfig) for nfig in
+                                      self.grouped]))
+        )
 
     def get(self, *args):
         all_keys = list(args)
-        tgt_grp = NuKindGroup(all_keys[0])
-        for (kinds, key) in self.kinds_to_keys:
+        tgt_grp = NuFlavIntGroup(all_keys[0])
+        for (flavints, key) in self.flavints_to_keys:
             match = False
             # Identical
-            if tgt_grp == kinds:
+            if tgt_grp == flavints:
                 all_keys[0] = key
                 match = True
-            # Requested kinds are strict subset
-            elif len(tgt_grp - kinds) == 0:
+            # Requested flavints are strict subset
+            elif len(tgt_grp - flavints) == 0:
                 all_keys[0] = key
                 match = True
-                logging.warning('Requesting data for subset (%s) of'
-                                ' grouping %s' % (str(tgt_grp), str(kinds)))
+                logging.debug('Requesting data for subset (%s) of'
+                              ' grouping %s' % (str(tgt_grp), str(flavints)))
             # Get it
             if match:
                 branch_keys = all_keys[:-1]
@@ -1180,37 +1207,37 @@ class CombinedFIData(FIData):
 
     @staticmethod
     def xlateGroupsStr(val):
-        '''Translate a ";"-separated string into separate `NuKindGroup`s.
+        """Translate a ";"-separated string into separate `NuFlavIntGroup`s.
     
         val
-            ";"-delimited list of valid NuKindGroup strings, e.g.:
+            ";"-delimited list of valid NuFlavIntGroup strings, e.g.:
                 "nuall_nc;nue;numu_cc+numubar_cc"
             Note that specifying NO interaction type results in both interaction
             types being selected, e.g. "nue" implies "nue_cc+nue_nc". For other
             details of how the substrings are interpreted, see docs for
-            NuKindGroup.
+            NuFlavIntGroup.
     
         returns:
             grouped, ungrouped
     
         grouped, ungrouped
-            lists of NuKindGroups; the first will have more than one kind in each
-            NuKindGroup whereas the second will have just one kind in each
-            NuKindGroup. Either list can be of 0-length.
+            lists of NuFlavIntGroups; the first will have more than one flavint
+            in each NuFlavIntGroup whereas the second will have just one
+            flavint in each NuFlavIntGroup. Either list can be of 0-length.
     
-        This function does not enforce mutual-exclusion on kinds in the various
-        kind groupings, but does list any kinds not grouped together in the
-        `ungrouped` return arg. Mutual exclusion can be enforced through set
-        operations upon return.
-        '''
-        # What kinds to group together
-        grouped = [NuKindGroup(s) for s in val.split(';')]
+        This function does not enforce mutual-exclusion on flavints in the
+        various flavint groupings, but does list any flavints not grouped
+        together in the `ungrouped` return arg. Mutual exclusion can be
+        enforced through set operations upon return.
+        """
+        # What flavints to group together
+        grouped = [NuFlavIntGroup(s) for s in val.split(';')]
     
-        # Find any kinds not included in the above groupings
-        all_kinds = set(ALL_KINDS)
-        all_grouped_kinds = set(NuKindGroup(grouped))
-        ungrouped = [NuKindGroup(k)
-                     for k in sorted(all_kinds.difference(all_grouped_kinds))]
+        # Find any flavints not included in the above groupings
+        all_flavints = set(ALL_NUFLAVINTS)
+        all_grouped_flavints = set(NuFlavIntGroup(grouped))
+        ungrouped = [NuFlavIntGroup(k) for k in
+                     sorted(all_flavints.difference(all_grouped_flavints))]
     
         return grouped, ungrouped
 
@@ -1229,7 +1256,7 @@ def test_IntType():
     assert IntType(1) == ref
     assert IntType(1.0) == ref
     assert IntType(IntType('cc')) == ref
-    assert IntType(NuKind('numubarcc')) == ref
+    assert IntType(NuFlavInt('numubarcc')) == ref
     for i in all_i_codes:
         IntType(i)
         IntType(float(i))
@@ -1259,8 +1286,8 @@ def test_NuFlav():
     assert NuFlav(14) == ref
     assert NuFlav(14.0) == ref
     assert NuFlav(NuFlav('numu')) == ref
-    assert NuFlav(NuKind('numucc')) == ref
-    assert NuFlav(NuKind('numunc')) == ref
+    assert NuFlav(NuFlavInt('numucc')) == ref
+    assert NuFlav(NuFlavInt('numunc')) == ref
 
     for f in all_f_codes:
         NuFlav(f)
@@ -1271,16 +1298,16 @@ def test_NuFlav():
     logging.info('<< PASS >> : NuFlav checks')
 
 
-def test_NuKind():
+def test_NuFlavInt():
     set_verbosity(2)
     all_f_codes = [12,-12,14,-14,16,-16]
     all_i_codes = [1,2]
 
     #==========================================================================
-    # Test NuKind
+    # Test NuFlavInt
     #==========================================================================
     try:
-        NuKind('numu')
+        NuFlavInt('numu')
     except ValueError:
         pass
 
@@ -1288,155 +1315,156 @@ def test_NuKind():
     fi_comb = [fic for fic in product(all_f_codes, all_i_codes)]
     for (fi0,fi1) in product(fi_comb, fi_comb):
         if fi0 == fi1:
-            assert NuKind(fi0) == NuKind(fi1)
+            assert NuFlavInt(fi0) == NuFlavInt(fi1)
         else:
-            assert NuKind(fi0) != NuKind(fi1)
-    assert NuKind((12,1)) != 'xyz'
+            assert NuFlavInt(fi0) != NuFlavInt(fi1)
+    assert NuFlavInt((12,1)) != 'xyz'
     # Sorting: this is my desired sort order
-    nfl0 = [NuKind(fic) for fic in fi_comb]
-    nfl1 = [NuKind(fic) for fic in fi_comb]
+    nfl0 = [NuFlavInt(fic) for fic in fi_comb]
+    nfl1 = [NuFlavInt(fic) for fic in fi_comb]
     np.random.shuffle(nfl1)
     nfl_sorted = sorted(nfl1)
     assert all([ v0 == nfl_sorted[n] for n,v0 in enumerate(nfl0) ])
     assert len(nfl0) == len(nfl_sorted)
     
-    # Test NuKind instantiation
+    # Test NuFlavInt instantiation
     nue = NuFlav('nue')
     cc = IntType('cc')
     nc = IntType('nc')
     nuebar = NuFlav('nuebar')
-    flavs = list(ALL_FLAVS)
-    flavs.extend(['nue', 'numu', 'nutau', 'nu_e', 'nu e', 'Nu E', 'nuebar', 'nu e bar'])
+    flavs = list(ALL_NUFLAVS)
+    flavs.extend(['nue', 'numu', 'nutau', 'nu_e', 'nu e', 'Nu E', 'nuebar',
+                  'nu e bar'])
     flavs.extend(all_f_codes)
     ints = [cc, nc, 'cc', 'nc', 'CC', 'NC', 1, 2]
-    nuecc = NuKind('nuecc')
-    nuebarnc = NuKind('nuebarnc')
+    nuecc = NuFlavInt('nuecc')
+    nuebarnc = NuFlavInt('nuebarnc')
 
     # Instantiate with combinations of flavs and int types
     for f,i in product(flavs, ints):
-        ref = NuKind(f, i)
-        assert NuKind((f, i)) == ref
-        assert NuKind(flav=f, int_type=i) == ref
+        ref = NuFlavInt(f, i)
+        assert NuFlavInt((f, i)) == ref
+        assert NuFlavInt(flav=f, int_type=i) == ref
         if isinstance(f, basestring) and isinstance(i, basestring):
-            assert NuKind(f+i) == ref
-            assert NuKind(f + '_' + i) == ref
-            assert NuKind(f + ' ' + i) == ref
+            assert NuFlavInt(f+i) == ref
+            assert NuFlavInt(f + '_' + i) == ref
+            assert NuFlavInt(f + ' ' + i) == ref
 
-    # Instantiate with already-instantiated `NuKind`s
-    assert NuKind(nuecc) == NuKind('nuecc')
-    assert NuKind(nuebarnc) == NuKind('nuebarnc')
+    # Instantiate with already-instantiated `NuFlavInt`s
+    assert NuFlavInt(nuecc) == NuFlavInt('nuecc')
+    assert NuFlavInt(nuebarnc) == NuFlavInt('nuebarnc')
 
-    # test negating kind
-    nk = NuKind('numucc')
-    assert -nk == NuKind('numubarcc')
+    # test negating flavint
+    nk = NuFlavInt('numucc')
+    assert -nk == NuFlavInt('numubarcc')
 
-    logging.info('<< PASS >> : NuKind checks')
+    logging.info('<< PASS >> : NuFlavInt checks')
 
 
-def test_NuKindGroup():
+def test_NuFlavIntGroup():
     set_verbosity(2)
     all_f_codes = [12,-12,14,-14,16,-16]
     all_i_codes = [1,2]
 
     #==========================================================================
-    # Test NuKindGroup
+    # Test NuFlavIntGroup
     #==========================================================================
     fi_comb = [fic for fic in product(all_f_codes, all_i_codes)]
-    nfl0 = [NuKind(fic) for fic in fi_comb]
-    nfl1 = [NuKind(fic) for fic in fi_comb]
+    nfl0 = [NuFlavInt(fic) for fic in fi_comb]
+    nfl1 = [NuFlavInt(fic) for fic in fi_comb]
     nfl_sorted = sorted(nfl1)
-    nkg0 = NuKindGroup(nfl0)
-    nkg1 = NuKindGroup(nfl_sorted)
+    nkg0 = NuFlavIntGroup(nfl0)
+    nkg1 = NuFlavIntGroup(nfl_sorted)
     assert nkg0 == nkg1
     assert nkg0 != 'xyz'
     assert nkg0 != 'xyz'
 
     # Test inputs
-    assert NuKindGroup('nuall,nuallbar').uniqueFlavs() == \
+    assert NuFlavIntGroup('nuall,nuallbar').uniqueFlavs() == \
             tuple([NuFlav(c) for c in all_f_codes])
 
     #
-    # Test NuKindGroup instantiation
+    # Test NuFlavIntGroup instantiation
     #
     nue = NuFlav('nue')
     numu = NuFlav('numu')
-    nue_cc = NuKind('nue_cc')
-    nue_nc = NuKind('nue_nc')
+    nue_cc = NuFlavInt('nue_cc')
+    nue_nc = NuFlavInt('nue_nc')
 
     # Empty args
-    NuKindGroup()
-    NuKindGroup([])
+    NuFlavIntGroup()
+    NuFlavIntGroup([])
 
     # String flavor promoted to CC+NC
-    assert set(NuKindGroup('nue').kinds()) == set((nue_cc, nue_nc))
+    assert set(NuFlavIntGroup('nue').flavints()) == set((nue_cc, nue_nc))
     # NuFlav promoted to CC+NC
-    assert set(NuKindGroup(nue).kinds()) == set((nue_cc, nue_nc))
+    assert set(NuFlavIntGroup(nue).flavints()) == set((nue_cc, nue_nc))
     # List of single flav str same as above
-    assert set(NuKindGroup(['nue']).kinds()) == set((nue_cc, nue_nc))
+    assert set(NuFlavIntGroup(['nue']).flavints()) == set((nue_cc, nue_nc))
     # List of single flav same as above
-    assert set(NuKindGroup([nue]).kinds()) == set((nue_cc, nue_nc))
+    assert set(NuFlavIntGroup([nue]).flavints()) == set((nue_cc, nue_nc))
 
-    # Single kind spec
-    assert set(NuKindGroup(nue_cc).kinds()) == set((nue_cc,))
-    # Str with single kind spec
-    assert set(NuKindGroup('nue_cc').kinds()) == set((nue_cc,))
-    # List of single str containing single kind spec
-    assert set(NuKindGroup(['nue_cc']).kinds()) == set((nue_cc,))
+    # Single flavint spec
+    assert set(NuFlavIntGroup(nue_cc).flavints()) == set((nue_cc,))
+    # Str with single flavint spec
+    assert set(NuFlavIntGroup('nue_cc').flavints()) == set((nue_cc,))
+    # List of single str containing single flavint spec
+    assert set(NuFlavIntGroup(['nue_cc']).flavints()) == set((nue_cc,))
 
-    # Multiple kinds as *args
-    assert set(NuKindGroup(nue_cc, nue_nc).kinds()) == set((nue_cc, nue_nc))
-    # List of kinds
-    assert set(NuKindGroup([nue_cc, nue_nc]).kinds()) == set((nue_cc, nue_nc))
-    # List of single str containing multiple kinds spec
-    assert set(NuKindGroup(['nue_cc,nue_nc']).kinds()) == set((nue_cc, nue_nc))
-    # List of str containing kinds spec
-    assert set(NuKindGroup(['nue_cc','nue_nc']).kinds()) == set((nue_cc, nue_nc))
+    # Multiple flavints as *args
+    assert set(NuFlavIntGroup(nue_cc, nue_nc).flavints()) == set((nue_cc, nue_nc))
+    # List of flavints
+    assert set(NuFlavIntGroup([nue_cc, nue_nc]).flavints()) == set((nue_cc, nue_nc))
+    # List of single str containing multiple flavints spec
+    assert set(NuFlavIntGroup(['nue_cc,nue_nc']).flavints()) == set((nue_cc, nue_nc))
+    # List of str containing flavints spec
+    assert set(NuFlavIntGroup(['nue_cc','nue_nc']).flavints()) == set((nue_cc, nue_nc))
 
-    # Another NuKindGroup
-    assert set(NuKindGroup(NuKindGroup(nue_cc, nue_nc)).kinds()) == set((nue_cc, nue_nc))
+    # Another NuFlavIntGroup
+    assert set(NuFlavIntGroup(NuFlavIntGroup(nue_cc, nue_nc)).flavints()) == set((nue_cc, nue_nc))
 
-    # Addition of kinds promoted to NuKindGroup
-    assert nue_cc + nue_nc == NuKindGroup(nue)
-    # Addition of flavs promoted to NuKindGroup including both CC & NC
-    assert nue + numu == NuKindGroup(nue, numu)
+    # Addition of flavints promoted to NuFlavIntGroup
+    assert nue_cc + nue_nc == NuFlavIntGroup(nue)
+    # Addition of flavs promoted to NuFlavIntGroup including both CC & NC
+    assert nue + numu == NuFlavIntGroup(nue, numu)
 
     # Test remove
-    nkg = NuKindGroup('nue_cc+numucc')
-    nkg.remove(NuKind((12,1)))
-    assert nkg == NuKindGroup('numucc')
+    nkg = NuFlavIntGroup('nue_cc+numucc')
+    nkg.remove(NuFlavInt((12,1)))
+    assert nkg == NuFlavIntGroup('numucc')
 
     # Test del
-    nkg = NuKindGroup('nue_cc+numucc')
+    nkg = NuFlavIntGroup('nue_cc+numucc')
     del nkg[0]
-    assert nkg == NuKindGroup('numucc')
+    assert nkg == NuFlavIntGroup('numucc')
 
-    # Equivalent object when converting to string and back to NuKindGroup from
+    # Equivalent object when converting to string and back to NuFlavIntGroup from
     # that string
-    for n in range(1, len(ALL_KINDS)+1):
-        logging.debug('NuKindGroup --> str --> NuKindGroup, n = %d' % n)
-        for comb in combinations(ALL_KINDS, n):
-            ref = NuKindGroup(comb)
-            assert ref == NuKindGroup(str(ref))
+    for n in range(1, len(ALL_NUFLAVINTS)+1):
+        logging.debug('NuFlavIntGroup --> str --> NuFlavIntGroup, n = %d' % n)
+        for comb in combinations(ALL_NUFLAVINTS, n):
+            ref = NuFlavIntGroup(comb)
+            assert ref == NuFlavIntGroup(str(ref))
 
     # test TeX strings
-    nkg = NuKindGroup('nuall,nuallbar')
+    nkg = NuFlavIntGroup('nuall,nuallbar')
     logging.info(str(nkg))
     logging.info(tex(nkg))
     logging.info(nkg.simpleStr())
     logging.info(nkg.simpleTex())
     logging.info(nkg.uniqueFlavsTex())
 
-    logging.info('<< ???? >> : NuKindGroup checks pass upon inspection of'
+    logging.info('<< ???? >> : NuFlavIntGroup checks pass upon inspection of'
                  ' above outputs and generated file(s).')
 
 
-def test_FIData():
+def test_FlavIntData():
     set_verbosity(2)
     all_f_codes = [12,-12,14,-14,16,-16]
     all_i_codes = [1,2]
 
     #==========================================================================
-    # Test FIData
+    # Test FlavIntData
     #==========================================================================
     # Excercise the "standard" PISA nested-python-dict features, where this
     # dict uses an '_' to separate 'bar' in key names, and the nested dict
@@ -1448,13 +1476,13 @@ def test_FIData():
     set_bar_ssep(oddball_sep)
     ref_pisa_dict = {f:{it:None for it in ['cc','nc']} for f in
                      ['nue','nue_bar','numu','numu_bar','nutau','nutau_bar']}
-    fi_cont = FIData()
+    fi_cont = FlavIntData()
     for f in ['nue','nue_bar','numu','numu_bar','nutau','nutau_bar']:
         for it in ['cc','nc']:
             assert fi_cont[f][it] == ref_pisa_dict[f][it]
-            kind = NuKind(f, it)
-            assert kind.pidx(ref_pisa_dict) == ref_pisa_dict[f][it]
-            assert fi_cont.get(kind) == fi_cont[f][it]
+            flavint = NuFlavInt(f, it)
+            assert flavint.pidx(ref_pisa_dict) == ref_pisa_dict[f][it]
+            assert fi_cont.get(flavint) == fi_cont[f][it]
             assert fi_cont.get(f)[it] == fi_cont[f][it]
     assert get_bar_ssep() == oddball_sep
     set_bar_ssep('')
@@ -1470,63 +1498,65 @@ def test_FIData():
     # revert to the original (valid) values rather than keep the invalid values
     fi_cont.validate(fi_cont)
 
-    # Test setting, getting, and JSON serialization of FIData
+    # Test setting, getting, and JSON serialization of FlavIntData
     fi_cont.set('nue_cc', 'this is a string blah blah blah')
-    fi_cont.get(NuKind('nue_cc'))
-    fi_cont.set(NuKind('nue_nc'), np.pi)
-    fi_cont.get(NuKind('nue_nc'))
-    fi_cont.set(NuKind('numu_cc'), [0,1,2,3])
-    fi_cont.get(NuKind('numu_cc'))
-    fi_cont.set(NuKind('numu_nc'), {'new':{'nested':{'dict':'xyz'}}})
-    fi_cont.get(NuKind('numu_nc'))
-    fi_cont.set(NuKind('nutau_cc'), 1)
-    fi_cont.get(NuKind('nutau_cc'))
-    fi_cont.set(NuKind('nutaubar_cc'), np.array([0,1,2,3]))
-    fi_cont.get(NuKind('nutaubar_cc'))
-    fileio.to_file(fi_cont, '/tmp/test_FIData.json')
+    fi_cont.get(NuFlavInt('nue_cc'))
+    fi_cont.set(NuFlavInt('nue_nc'), np.pi)
+    fi_cont.get(NuFlavInt('nue_nc'))
+    fi_cont.set(NuFlavInt('numu_cc'), [0,1,2,3])
+    fi_cont.get(NuFlavInt('numu_cc'))
+    fi_cont.set(NuFlavInt('numu_nc'), {'new':{'nested':{'dict':'xyz'}}})
+    fi_cont.get(NuFlavInt('numu_nc'))
+    fi_cont.set(NuFlavInt('nutau_cc'), 1)
+    fi_cont.get(NuFlavInt('nutau_cc'))
+    fi_cont.set(NuFlavInt('nutaubar_cc'), np.array([0,1,2,3]))
+    fi_cont.get(NuFlavInt('nutaubar_cc'))
+    fileio.to_file(fi_cont, '/tmp/test_FlavIntData.json')
 
-    logging.info('<< ???? >> : FIData checks pass upon inspection of'
+    logging.info('<< ???? >> : FlavIntData checks pass upon inspection of'
                  ' above outputs and generated file(s).')
 
 
 
-def test_CombinedFIData():
+def test_CombinedFlavIntData():
     set_verbosity(2)
     all_f_codes = [12,-12,14,-14,16,-16]
     all_i_codes = [1,2]
 
     #==========================================================================
-    # Test CombinedFIData.xlateGroupsStr function
+    # Test CombinedFlavIntData.xlateGroupsStr function
     #==========================================================================
     # Test string parsing for flavor groupings
-    gp1, ug1 = CombinedFIData.xlateGroupsStr('nuall_nc; nuallbar_nc; nue;'
+    gp1, ug1 = CombinedFlavIntData.xlateGroupsStr('nuall_nc; nuallbar_nc; nue;'
                               'numu_cc+numubar_cc; nutau_cc')
     logging.info(str(([kg.simpleStr() for kg in gp1], ug1)))
-    gp2, ug2 = CombinedFIData.xlateGroupsStr('nue,numu')
+    gp2, ug2 = CombinedFlavIntData.xlateGroupsStr('nue,numu')
     logging.info(str(([kg.simpleStr() for kg in gp2], ug2)))
-    gp3, ug3 = CombinedFIData.xlateGroupsStr('nuall_nc')
+    gp3, ug3 = CombinedFlavIntData.xlateGroupsStr('nuall_nc')
     logging.info(str(([kg.simpleStr() for kg in gp3], ug3)))
-    gp4, ug4 = CombinedFIData.xlateGroupsStr('nuall_nc+nuallbar_nc;nuall_cc+nuallbar_cc')
+    gp4, ug4 = CombinedFlavIntData.xlateGroupsStr(
+        'nuall_nc+nuallbar_nc;nuall_cc+nuallbar_cc'
+    )
     logging.info(str(([kg.simpleStr() for kg in gp4], ug4)))
 
-    logging.info('<< PASS >> : CombinedFIData.xlateGroupsStr')
+    logging.info('<< PASS >> : CombinedFlavIntData.xlateGroupsStr')
 
     #==========================================================================
-    # Test CombinedFIData class
+    # Test CombinedFlavIntData class
     #==========================================================================
     # Empty container with no groupings
-    CombinedFIData()
+    CombinedFlavIntData()
     # Empty container with groupings
-    CombinedFIData(kind_groupings='nuall;nuallbar')
+    CombinedFlavIntData(flavint_groupings='nuall;nuallbar')
     # Instantiate with non-standard key names
-    cfid = CombinedFIData(val={'nuall':np.arange(0,100),
+    cfid = CombinedFlavIntData(val={'nuall':np.arange(0,100),
                                'nu all bar CC':np.arange(100,200),
                                'nuallbarnc':np.arange(200,300)})
     assert set(cfid.keys()) == set(('nuall', 'nuallbar_cc', 'nuallbar_nc'))
-    cfid.save('/tmp/cfid.json')
-    cfid.save('/tmp/cfid.hdf5')
-    cfid2 = CombinedFIData('/tmp/cfid.json')
-    cfid3 = CombinedFIData('/tmp/cfid.hdf5')
+    cfid.save('/tmp/test_CombinedFlavIntData.json')
+    cfid.save('/tmp/test_CombinedFlavIntData.hdf5')
+    cfid2 = CombinedFlavIntData('/tmp/test_CombinedFlavIntData.json')
+    cfid3 = CombinedFlavIntData('/tmp/test_CombinedFlavIntData.hdf5')
     assert cfid2 == cfid
     assert cfid3 == cfid
 
@@ -1553,59 +1583,85 @@ def test_CombinedFIData():
     }
 
     # Require exact equality, fields are exactly equal
-    cfid1 = CombinedFIData(val=d1, dedup=True, dedup_close_rtol=0)
+    cfid1 = CombinedFlavIntData(val=d1, dedup=True, dedup_close_rtol=0)
 
     # Loose rtol spec, fields are not exactly equal but all within rtol (should
     # match 1)
     rtol = 1e-7
-    cfid2 = CombinedFIData(val=d2, dedup=True, dedup_close_rtol=rtol)
+    cfid2 = CombinedFlavIntData(val=d2, dedup=True, dedup_close_rtol=rtol)
     assert cfid2.allclose(cfid1, rtol=rtol)
 
     # Tight rtol spec, fields are not exactly equal and some CC groupings are
     # now outside rtol
     rtol = 1e-9
-    cfid3 = CombinedFIData(val=d2, dedup=True, dedup_close_rtol=rtol)
+    cfid3 = CombinedFlavIntData(val=d2, dedup=True, dedup_close_rtol=rtol)
     assert not cfid1.allclose(cfid3, rtol=rtol)
 
     # Tight rtol spec, fields are not exactly equal and all CC groupings are
     # outside rtol
     rtol = 1e-11
-    cfid4 = CombinedFIData(val=d2, dedup=True, dedup_close_rtol=rtol)
+    cfid4 = CombinedFlavIntData(val=d2, dedup=True, dedup_close_rtol=rtol)
     assert not cfid1.allclose(cfid4, rtol=rtol)
 
     # Loose rtol, fields are exactly equal
-    cfid5 = CombinedFIData(val=d1, dedup=True, dedup_close_rtol=1e-7)
+    cfid5 = CombinedFlavIntData(val=d1, dedup=True, dedup_close_rtol=1e-7)
     assert cfid1 == cfid5
 
     # Tighter rtol, fields are exactly equal
-    cfid6 = CombinedFIData(val=d1, dedup=True, dedup_close_rtol=1e-9)
+    cfid6 = CombinedFlavIntData(val=d1, dedup=True, dedup_close_rtol=1e-9)
     assert cfid1 == cfid6
 
     # Very tight rtol, fields are exactly equal
-    cfid7 = CombinedFIData(val=d1, dedup=True, dedup_close_rtol=1e-14)
+    cfid7 = CombinedFlavIntData(val=d1, dedup=True, dedup_close_rtol=1e-14)
     assert cfid1 == cfid7
 
-    cfidat = CombinedFIData(
-        kind_groupings='nuecc+nuebarcc;'
-                       'numucc+numubarcc;'
-                       'nutaucc+nutaubarcc;'
-                       'nuallnc;'
-                       'nuallbarnc'
+    cfidat = CombinedFlavIntData(
+        flavint_groupings='nuecc+nuebarcc;'
+                          'numucc+numubarcc;'
+                          'nutaucc+nutaubarcc;'
+                          'nuallnc;'
+                          'nuallbarnc'
     )
-    for k in ALL_KINDS:
-        cfidat.set(k, np.arange(10))
-    cfidat.deduplicate()
-    assert len(cfidat.kinds_to_keys) == 1
-    assert cfidat.kinds_to_keys[0][0] == NuKindGroup('nuall+nuallbar')
 
-    logging.info(str([NuKindGroup(k) for k in cfid1.keys()]))
-    logging.info('<< ???? >> : CombinedFIData')
+    # Try to set individual NuFlavInts (all should fail since any single
+    # NuFlavInt is a strict subset of the above-specified NuFlavInt groupings)
+    for k in ALL_NUFLAVINTS:
+        try:
+            cfidat.set(k, np.arange(10))
+        except ValueError:
+            pass
+        else:
+            raise Exception('Should not be able to set to a strict subset of'
+                            ' grouped NuFlavInts!')
+
+    # Try to set to a NuFlavInt group that *spans* two of the above groupings;
+    # this should fail
+    try:
+        cfidat.set(NuFlavIntGroup('nuecc+numucc'), np.arange(10))
+    except ValueError:
+        pass
+    else:
+        raise Exception('Should not be able to set to a set of NuFlavInts that'
+                        'spans specified NuFlavInt groupings')
+
+    for nfi in cfidat.grouped:
+        try:
+            cfidat.set(nfi, np.arange(10))
+        except ValueError:
+            raise Exception('Should be able to set to grouped NuFlavInts!')
+
+    cfidat.deduplicate()
+    assert len(cfidat.flavints_to_keys) == 1
+    assert cfidat.flavints_to_keys[0][0] == NuFlavIntGroup('nuall+nuallbar')
+
+    logging.info(str([NuFlavIntGroup(k) for k in cfid1.keys()]))
+    logging.info('<< ???? >> : CombinedFlavIntData')
 
 
 if __name__ == "__main__":
-    #test_IntType()
-    #test_NuFlav()
-    #test_NuKind()
-    #test_NuKindGroup()
-    #test_FIData()
-    test_CombinedFIData()
+    test_IntType()
+    test_NuFlav()
+    test_NuFlavInt()
+    test_NuFlavIntGroup()
+    test_FlavIntData()
+    test_CombinedFlavIntData()

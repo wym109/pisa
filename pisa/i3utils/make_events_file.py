@@ -13,13 +13,13 @@ import os
 import numpy as np
 
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils import hdf
+import pisa.utils.hdf as hdf
 import pisa.utils.utils as utils
-import pisa.utils.flavInt as FI
+import pisa.utils.flavInt as flavInt
 import pisa.utils.events as events
 import pisa.utils.mcSimRunSettings as MCSRS
 import pisa.utils.dataProcParams as DPP
-from pisa.resources import resources as RES
+import pisa.resources.resources as resources
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
@@ -32,6 +32,7 @@ keep_fields = (
     'reco_energy',
     'reco_coszen',
     'one_weight',
+    'pid',
 )
 
 output_fields = (
@@ -40,20 +41,31 @@ output_fields = (
     'reco_energy',
     'reco_coszen',
     'weighted_aeff',
+    'pid',
 )
 
 
-def makeEventsFile(data_files, outdir, run_settings, proc_settings, cut,
+def makeEventsFile(data_files, outdir, run_settings, data_proc_params, cut,
                    join=None, cust_cuts=None, compute_aeff=True):
-    '''
-        cust_cuts
-            dict with a single procSettings cutspec or list of same
-    '''
+    """
+
+    Parameters
+    ----------
+    data_files
+    outdir
+    run_settings
+    data_proc_params
+    cut
+    join
+    cust_cuts
+        dict with a single procSettings cutspec or list of same
+    compute_aeff
+    """
     # Create Events object to store data
     evts = events.Events()
     evts.metadata.update({
         'detector': run_settings.detector,
-        'proc_ver': proc_settings.proc_ver,
+        'proc_ver': data_proc_params.proc_ver,
     })
     cuts = []
     if isinstance(cust_cuts, dict):
@@ -73,47 +85,47 @@ def makeEventsFile(data_files, outdir, run_settings, proc_settings, cut,
         logging.info('Output dir expands to: %s', outdir)
     utils.mkdir(outdir)
 
-    detector_label = str(proc_settings.detector)
-    proc_label = 'proc_v' + str(proc_settings.proc_ver)
+    detector_label = str(data_proc_params.detector)
+    proc_label = 'proc_v' + str(data_proc_params.proc_ver)
 
-    # What kinds to group together
+    # What flavints to group together
     if join is None or join == '':
         grouped = []
-        ungrouped = [FI.NuKindGroup(k) for k in FI.ALL_KINDS]
+        ungrouped = [flavInt.NuFlavIntGroup(k) for k in flavInt.ALL_NUFLAVINTS]
         groups_label = 'unjoined'
         logging.info('Events in the following groups will be joined together:'
                      ' (none)')
     else:
-        grouped, ungrouped = FI.CombinedFIData.xlateGroupsStr(join)
-        evts.metadata['kinds_joined'] = [str(g) for g in grouped]
+        grouped, ungrouped = flavInt.CombinedFlavIntData.xlateGroupsStr(join)
+        evts.metadata['flavints_joined'] = [str(g) for g in grouped]
         groups_label = 'joined_G_' + '_G_'.join([str(g) for g in grouped])
         logging.info('Events in the following groups will be joined together: '
                      + '; '.join([str(g) for g in grouped]))
-    # Find any kinds not included in the above groupings
-    kind_groupings = grouped + ungrouped
+    # Find any flavints not included in the above groupings
+    flavint_groupings = grouped + ungrouped
     if len(ungrouped) == 0:
         ungrouped = ['(none)']
-    logging.info('Events of the following kinds will NOT be joined together: '
+    logging.info('Events of the following flavints will NOT be joined together: '
                  + '; '.join([str(k) for k in ungrouped]))
 
-    # Enforce that kinds composing groups are mutually exclusive
-    for n, kg0 in enumerate(kind_groupings[:-1]):
-        for m, kg1 in enumerate(kind_groupings[n+1:]):
+    # Enforce that flavints composing groups are mutually exclusive
+    for n, kg0 in enumerate(flavint_groupings[:-1]):
+        for m, kg1 in enumerate(flavint_groupings[n+1:]):
             assert len(set(kg0).intersection(set(kg1))) == 0
 
-    kg_names = [str(nkg) for nkg in kind_groupings]
+    kg_names = [str(nkg) for nkg in flavint_groupings]
 
     # Instantiate storage for all intermediate destination fields
     #   keep_data[group number][interaction type][keep field name] = list of data
     keep_data = [
-        {it: {f:[] for f in keep_fields} for it in FI.ALL_INT_TYPES}
+        {it: {f:[] for f in keep_fields} for it in flavInt.ALL_NUINT_TYPES}
         for name in kg_names
     ]
 
     # Instantiate generated-event counts for destination fields; count
     # nc separately from nc because aeff's for cc & nc add, whereas
     # aeffs intra-CC should be weighted-averaged (as for intra-NC)
-    ngen = [{it:{} for it in FI.ALL_INT_TYPES} for name in kg_names]
+    ngen = [{it:{} for it in flavInt.ALL_NUINT_TYPES} for name in kg_names]
 
     # Loop through all of the files, retrieving the events, filtering,
     # and recording the number of generated events pertinent to
@@ -122,11 +134,11 @@ def makeEventsFile(data_files, outdir, run_settings, proc_settings, cut,
     all_runs = set()
     detector_geom = None
     for userspec_baseflav, fnames in data_files.iteritems():
-        userspec_baseflav = FI.NuFlav(userspec_baseflav)
+        userspec_baseflav = flavInt.NuFlav(userspec_baseflav)
         for fname in fnames:
             # Retrieve data from all nodes specified in the processing
             # settings file
-            data = proc_settings.getData(fname, run_settings=run_settings)
+            data = data_proc_params.getData(fname, run_settings=run_settings)
 
             # Check to make sure only one run is present in the data
             runs_in_data = set(data['run'])
@@ -144,15 +156,15 @@ def makeEventsFile(data_files, outdir, run_settings, proc_settings, cut,
                 detector_geom = rs_run['geom']
             assert rs_run['geom'] == detector_geom, 'All runs\' geometries must match!'
 
-            # Loop through all kinds (flav/int-type comb) spec'd for run
-            for run_kind in rs_run['kinds']:
-                flav = run_kind.flav()
-                barnobar = run_kind.barNoBar()
-                int_type = run_kind.intType()
+            # Loop through all flavints (flav/int-type comb) spec'd for run
+            for run_flavint in rs_run['flavints']:
+                flav = run_flavint.flav()
+                barnobar = run_flavint.barNoBar()
+                int_type = run_flavint.intType()
 
                 # Retrieve this-interaction-type- & this-barnobar-only events
                 # that also pass cuts. (note that cut names are strings)
-                intonly_cut_data = proc_settings.applyCuts(
+                intonly_cut_data = data_proc_params.applyCuts(
                     data,
                     cuts=cuts+[str(int_type), str(barnobar)],
                     return_fields=keep_fields
@@ -160,22 +172,22 @@ def makeEventsFile(data_files, outdir, run_settings, proc_settings, cut,
                 
                 # Record the generated count and data for this run/flavor for
                 # each group to which it's applicable
-                for n, kind_group in enumerate(kind_groupings):
-                    if not run_kind in kind_group:
+                for n, flavint_group in enumerate(flavint_groupings):
+                    if not run_flavint in flavint_group:
                         continue
 
                     # Instantiate a field for particles and anti-particles,
                     # keyed by the output of the barNoBar() method for each
                     if not run in ngen[n][int_type]:
                         ngen[n][int_type][run] = {
-                            FI.NuFlav(12).barNoBar(): 0,
-                            FI.NuFlav(-12).barNoBar(): 0,
+                            flavInt.NuFlav(12).barNoBar(): 0,
+                            flavInt.NuFlav(-12).barNoBar(): 0,
                         }
 
                     # Record count only if it hasn't already been recorded
                     if ngen[n][int_type][run][barnobar] == 0:
                         # Note that one_weight includes cc/nc:total fraction, so DO
-                        # NOT specify the full kind here, only flav (since
+                        # NOT specify the full flavint here, only flav (since
                         # one_weight does NOT take bar/nobar fraction, it must
                         # be included here in the ngen computation)
                         flav_ngen = run_settings.totGen(run=run, barnobar=barnobar)
@@ -212,21 +224,21 @@ def makeEventsFile(data_files, outdir, run_settings, proc_settings, cut,
     # See Justin Lanfranchi's presentation on the PINGU Analysis call,
     # 2015-10-21, for more details.
 
-    fmtfields = (' '*12+'kind_group', 'int type', '     run', 'part/anti',
+    fmtfields = (' '*12+'flavint_group', 'int type', '     run', 'part/anti',
                  'part/anti count', 'aggregate count')
     fmt_n = [len(f) for f in fmtfields]
     fmt = '  '.join([r'%'+str(n)+r's' for n in fmt_n])
     lines = '  '.join(['-'*n for n in fmt_n])
     logging.info(fmt % fmtfields)
     logging.info(lines)
-    for n, kind_group in enumerate(kind_groupings):
-        for int_type in FI.ALL_INT_TYPES:
+    for n, flavint_group in enumerate(flavint_groupings):
+        for int_type in flavInt.ALL_NUINT_TYPES:
             ngen_it_tot = 0
             for run, run_counts in ngen[n][int_type].iteritems():
                 for barnobar, barnobar_counts in run_counts.iteritems():
                     ngen_it_tot += barnobar_counts
                     logging.info(fmt %
-                        (kind_group.simpleStr(), int_type, str(run), barnobar,
+                        (flavint_group.simpleStr(), int_type, str(run), barnobar,
                          int(barnobar_counts), int(ngen_it_tot)))
             # Convert data to numpy array
             for field in keep_fields:
@@ -246,18 +258,18 @@ def makeEventsFile(data_files, outdir, run_settings, proc_settings, cut,
                          (run, count, ref_num_i3_files))
 
     # Generate output data...
-    for kind in FI.ALL_KINDS:
-        flav = kind.flav()
-        int_type = kind.intType()
-        for n, kind_group in enumerate(kind_groupings):
-            if not kind in kind_group:
-                logging.trace('kind %s not in kind_group %s, passing.' %
-                              (kind, kind_group))
+    for flavint in flavInt.ALL_NUFLAVINTS:
+        flav = flavint.flav()
+        int_type = flavint.intType()
+        for n, flavint_group in enumerate(flavint_groupings):
+            if not flavint in flavint_group:
+                logging.trace('flavint %s not in flavint_group %s, passing.' %
+                              (flavint, flavint_group))
                 continue
             else:
-                logging.trace('kind %s **IS** in kind_group %s, storing.' %
-                              (kind, kind_group))
-            evts.set(kind, {f: keep_data[n][int_type][f] for f in output_fields})
+                logging.trace('flavint %s **IS** in flavint_group %s, storing.' %
+                              (flavint, flavint_group))
+            evts.set(flavint, {f: keep_data[n][int_type][f] for f in output_fields})
 
     # Update metadata
     evts.metadata['geom'] = detector_geom
@@ -282,6 +294,8 @@ def makeEventsFile(data_files, outdir, run_settings, proc_settings, cut,
 
 
 def main():
+    """Get command line arguments and call makeEventsFile() function."""
+
     parser = ArgumentParser(
         description= \
     '''Takes the simulated (and reconstructed) HDF5 file(s) (as converted from I3 by
@@ -296,16 +310,17 @@ def main():
         required=True,
         help='Detector, e.g. "PINGU" or "DeepCore". This'
              ' is used as the top-most key in run_settings.json and'
-             ' proc_settings.json files.'
+             ' data_proc_params.json files.'
     )
     parser.add_argument(
         '--proc',
         metavar='PROC_VER',
         type=str,
         required=True,
-        help='Processing version applied to simulation; processing versions are'
-        ' defined with respect to each geometry version. See proc_settings.json'
-        ' file for definitions (or edit that file to add more).'
+        help='''Processing version applied to simulation; processing versions
+        are defined with respect to each geometry version. See
+        data_proc_params.json file for definitions (or edit that file to add
+        more).'''
     )
     
     parser.add_argument(
@@ -350,7 +365,7 @@ def main():
     )
     
     parser.add_argument(
-        '--proc-settings',
+        '--data-proc-params',
         metavar='JSON_FILE',
         type=str,
         default='events/data_proc_params.json',
@@ -377,10 +392,10 @@ def main():
     #    and joins nuall NC & nuallbar NC events tegether. If a string
     #    argument is supplied, this specifies custom groups to join together
     #    instead. The string must be a semicolon-separated list each field of
-    #    which itself a comma-separated list of event "kinds" (flavor and
-    #    interaction type) to grup together. Any event kind not included in that
-    #    string will be found individually, i.e., not joined together with any
-    #    other flavors'''
+    #    which itself a comma-separated list of event "flavints" (flavor and
+    #    interaction type) to grup together. Any event flavint not included in
+    #    that string will be found individually, i.e., not joined together with
+    #    any other flavors'''
     #)
     
     parser.add_argument(
@@ -388,8 +403,8 @@ def main():
         metavar='CUT_NAME',
         type=str,
         default='analysis',
-        help='Name of cut to apply. See proc_settings.json for definitions (note'
-        ' that these vary by geometry and processing version)'
+        help='''Name of cut to apply. See data_proc_params.json for definitions
+        (note that these vary by geometry and processing version)'''
     )
     
     parser.add_argument(
@@ -410,14 +425,12 @@ def main():
         metavar='FIELDS',
         type=str,
         default='',
-        help= \
-        '''Custom cut: String of comma-separated fields, each containing
+        help='''Custom cut: String of comma-separated fields, each containing
         colon-separated (variable name : HDF5 address) tuples. For example,
         specifying:
         --ccut-fields="l5:IC86_Dunkman_L5/value,l6:IC86_Dunkman_L6/value"
         allows for a custom cut to be defined via --ccut-pass-if="(l5 == 1) &
-        (l6 == 1)"
-    '''
+        (l6 == 1)"'''
     )
   
     # NOTE:
@@ -449,11 +462,11 @@ def main():
     det = args.det.lower()
     proc = args.proc.lower()
     run_settings = MCSRS.DetMCSimRunsSettings(
-        RES.find_resource(args.run_settings),
+        resources.find_resource(args.run_settings),
         detector=det
     )
-    proc_settings = DPP.DataProcParams(
-        RES.find_resource(args.proc_settings),
+    data_proc_params = DPP.DataProcParams(
+        resources.find_resource(args.data_proc_params),
         detector=det,
         proc_ver=proc
     )
@@ -478,12 +491,13 @@ def main():
             data_files={'nue':args.nue, 'numu':args.numu, 'nutau':args.nutau},
             outdir=args.outdir,
             run_settings=run_settings,
-            proc_settings=proc_settings,
+            data_proc_params=data_proc_params,
             join=grouping,
             cut=args.cut,
             cust_cuts=ccut,
             compute_aeff=True,
         )
+
 
 if __name__ == "__main__":
     main()

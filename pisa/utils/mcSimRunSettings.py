@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 #
-# Handle flavors, interactions types, "kinds" (flav+int. type), and kind groups
-# in a consistent and convenient manner.
+# Handle Monte Carlo simulation run settings.
 #
 # author: Justin L. Lanfranchi
 #         jll1062+pisa@phys.psu.edu
@@ -10,11 +9,11 @@
 #
 
 
-import pisa.utils.fileio as FIO
-import pisa.utils.flavInt as FI
-from pisa.resources import resources as RES
+import pisa.utils.fileio as fileio
+import pisa.utils.flavInt as flavInt
+from pisa.resources import resources as resources
 
-# Following import * is intentionally done so that `eval` called in
+# Following "import *" is intentionally done so that `eval` called in
 # translateSourceDict will execute with direct access to numpy namespace
 from numpy import *
 
@@ -23,13 +22,23 @@ from numpy import *
 # DetMCSimRunsSettings objects back to JSON format from which they were
 # generated
 
+# TODO: Document the format of the mc_sim_run_settings.json file
+
 # TODO: make sure user is forced to choose run & detector here
 
 class MCSimRunSettings(dict):
+    """Handle Monte Carlo run settings
+
+    Parameters
+    ----------
+    run_settings : string or dict
+    run
+    detector : string or None
+    """
     def __init__(self, run_settings, run=None, detector=None):
         # TODO: clean up this constructor!
         #if isinstance(run_settings, basestring):
-        #    rsd = jsons.from_json(RES.find_resource(run_settings))
+        #    rsd = jsons.from_json(resources.find_resource(run_settings))
         if isinstance(run_settings, dict):
             rsd = run_settings
         else:
@@ -50,7 +59,7 @@ class MCSimRunSettings(dict):
     @staticmethod
     def translateSourceDict(d):
         d['tot_gen'] = d['num_events_per_file'] * d['num_i3_files']
-        d['kinds'] = FI.NuKindGroup(d['kinds'])
+        d['flavints'] = flavInt.NuFlavIntGroup(d['flavints'])
 
         # Numeric fields are allowed to be expressions that get evaluated
         numeric_fields = ['azimuth_max',
@@ -75,39 +84,54 @@ class MCSimRunSettings(dict):
         pass
 
     def barnobarfract(self, barnobar=None, is_particle=None,
-                      flav_or_kind=None):
+                      flav_or_flavint=None):
         nargs = sum([(not barnobar is None),
                      (not is_particle is None),
-                     (not flav_or_kind is None)])
+                     (not flav_or_flavint is None)])
         if nargs != 1:
             raise ValueError('One and only one of barnobar, is_particle, and'
-                             ' flav_or_kind must be specified. Got ' +
+                             ' flav_or_flavint must be specified. Got ' +
                              str(nargs) + ' args instead.')
 
-        if not flav_or_kind is None:
-            is_particle = FI.NuKind(flav_or_kind).isParticle()
+        if not flav_or_flavint is None:
+            is_particle = flavInt.NuFlavInt(flav_or_flavint).isParticle()
         if is_particle:
             return self['nu_to_total_fract']
         return 1 - self['nu_to_total_fract']
 
-    def totGen(self, barnobar=None, is_particle=None, flav_or_kind=None):
+    def totGen(self, barnobar=None, is_particle=None, flav_or_flavint=None):
         nargs = sum([(not barnobar is None),
                      (not is_particle is None),
-                     (not flav_or_kind is None)])
+                     (not flav_or_flavint is None)])
         if nargs == 0:
             fract = 1.0
         else:
             fract = self.barnobarfract(barnobar=barnobar,
                                        is_particle=is_particle,
-                                       flav_or_kind=flav_or_kind)
+                                       flav_or_flavint=flav_or_flavint)
 
         return fract * self['tot_gen']
 
 
 class DetMCSimRunsSettings(dict):
+    """Handle Monte Carlo run settings for a detector (i.e., without specifying
+    which run as is required for the MCSimRunSettings object)
+
+    Since run is not specified at instantiation, method calls require the user
+    to specify a run ID.
+
+    Parameters
+    ----------
+    run_settings : string or dict
+    detector : string or None
+
+    See Also
+    --------
+    MCSimRunSettings
+    """
     def __init__(self, run_settings, detector=None):
         if isinstance(run_settings, basestring):
-            rsd = FIO.from_file(RES.find_resource(run_settings))
+            rsd = fileio.from_file(resources.find_resource(run_settings))
         elif isinstance(run_settings, dict):
             rsd = run_settings
         else:
@@ -121,9 +145,9 @@ class DetMCSimRunsSettings(dict):
         # Determine how deeply nested runs are in the dict to allow for
         # user to specify a dict that has multiple detectors in it OR
         # a dict with just a single detector in it
-        if rsd.values()[0].has_key('kinds'):
+        if rsd.values()[0].has_key('flavints'):
             runs_d = rsd
-        elif rsd.values()[0].values()[0].has_key('kinds'):
+        elif rsd.values()[0].values()[0].has_key('flavints'):
             if self.detector is None:
                 if len(rsd) == 1:
                     runs_d = rsd.values()[0]
