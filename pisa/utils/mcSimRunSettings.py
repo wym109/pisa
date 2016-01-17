@@ -1,12 +1,10 @@
 #!/usr/bin/env python
 #
-# Handle Monte Carlo simulation run settings.
-#
 # author: Justin L. Lanfranchi
 #         jll1062+pisa@phys.psu.edu
 #
 # date:   October 24, 2015
-#
+"""Handle Monte Carlo simulation run settings"""
 
 
 import pisa.utils.fileio as fileio
@@ -23,6 +21,8 @@ from numpy import *
 # generated
 
 # TODO: Document the format of the mc_sim_run_settings.json file
+
+# TODO: put more thought into the MCSimRunSettings class
 
 # TODO: make sure user is forced to choose run & detector here
 
@@ -81,6 +81,7 @@ class MCSimRunSettings(dict):
         return d
 
     def consistencyChecks(self, data, flav=None):
+        # TODO: implement!
         pass
 
     def barnobarfract(self, barnobar=None, is_particle=None,
@@ -174,5 +175,5 @@ class DetMCSimRunsSettings(dict):
     def barnobarfract(self, run, *args, **kwargs):
         return self[run].barnobarfract(*args, **kwargs)
 
-    def totGen(self, run, *args, **kwargs): 
+    def totGen(self, run, *args, **kwargs):
         return self[run].totGen(*args, **kwargs)

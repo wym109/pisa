@@ -1,19 +1,19 @@
 #! /usr/bin/env python
 #
-# Generate a PISA-standard events file from HDF5 file(s) which in turn were
-# generated from I3 files by the icecube.hdfwriter.I3HDFTableService
-#
 # author: Justin L. Lanfranchi
 #         jll1062+pisa@phys.psu.edu
 #
 # date:   October 24, 2015
-#
+"""
+Generate a PISA-standard-format events HDF5 file from HDF5 file(s) generated
+from I3 files by the icecube.hdfwriter.I3HDFTableService
+"""
 
 import os
 import numpy as np
+from copy import deepcopy
 
 from pisa.utils.log import logging, set_verbosity
-import pisa.utils.hdf as hdf
 import pisa.utils.utils as utils
 import pisa.utils.flavInt as flavInt
 import pisa.utils.events as events
@@ -26,7 +26,9 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 CMSQ_TO_MSQ = 1.0e-4
 
-keep_fields = (
+# Default fields to extract from source HDF5 files during processing
+# Note that *_coszen is generated from *_zenith
+EXTRACT_FIELDS = (
     'true_energy',
     'true_coszen',
     'reco_energy',
@@ -35,7 +37,8 @@ keep_fields = (
     'pid',
 )
 
-output_fields = (
+# Default fields to output to destination PISA events HDF5 file
+OUTPUT_FIELDS = (
     'true_energy',
     'true_coszen',
     'reco_energy',
@@ -46,20 +49,51 @@ output_fields = (
 
 
 def makeEventsFile(data_files, outdir, run_settings, data_proc_params, cut,
-                   join=None, cust_cuts=None, compute_aeff=True):
+                   join=None, cust_cuts=None,
+                   extract_fields=EXTRACT_FIELDS, output_fields=OUTPUT_FIELDS):
     """
+    Takes the simulated and reconstructed HDF5 file(s) (as converted from I3
+    by icecube.hdfwriter.I3HDFTableService) as input and writes out a
+    simplified PISA-standard-format HDF5 file for use in aeff, reco, and/or PID
+    stages of the template maker.
 
     Parameters
     ----------
-    data_files
+    data_files : dict
+        File paths for finding data files for each flavor of neutrino,
+        formatted as:
+          {
+            'nue':   [<list of nue+nuebar file paths>],
+            'numu':  [<list of numu+numubar file paths>],
+            'nutau': [<list of nutau+nutaubar file paths>]
+          }
     outdir
+        Directory path in which to store resulting files; will be generated if
+        it does not already exist (including any parent directories that do not
+        exist)
     run_settings
+        An instantiated MCSimRunSettings object, instantiated e.g. from the
+        PISA-standard resources/events/mc_sim_run_settings.json file
     data_proc_params
+        An instantiated DataProcParams object, instantiated e.g. from the
+        PISA-standard resources/events/data_proc_params.json file
     cut
+        Name of a standard cut to use; must be specified in the relevant
+        detector/processing version node of the data processing parameters
+        (file from which the data_proc_params object was instantiated)
     join
+        String specifying any flavor/interaction types (flavInts) to join
+        together. Separate flavInts with commas (',') and separate groups
+        with semicolons (';')
     cust_cuts
-        dict with a single procSettings cutspec or list of same
-    compute_aeff
+        dict with a single DataProcParams cut specification or list of same
+        (see help for DataProcParams for detailed description of cut spec)
+    extract_fields : iterable of strings
+        Field names to extract from source HDF5 file
+    output_fields : iterable of strings
+        Fields to include in the generated PISA-standard-format events HDF5
+        file; note that if 'weighted_aeff' is not preent, effective area will
+        not be computed
     """
     # Create Events object to store data
     evts = events.Events()
@@ -101,31 +135,39 @@ def makeEventsFile(data_files, outdir, run_settings, data_proc_params, cut,
         groups_label = 'joined_G_' + '_G_'.join([str(g) for g in grouped])
         logging.info('Events in the following groups will be joined together: '
                      + '; '.join([str(g) for g in grouped]))
+
     # Find any flavints not included in the above groupings
     flavint_groupings = grouped + ungrouped
     if len(ungrouped) == 0:
         ungrouped = ['(none)']
-    logging.info('Events of the following flavints will NOT be joined together: '
-                 + '; '.join([str(k) for k in ungrouped]))
+    logging.info('Events of the following flavints will NOT be joined'
+                 'together: ' + '; '.join([str(k) for k in ungrouped]))
 
     # Enforce that flavints composing groups are mutually exclusive
-    for n, kg0 in enumerate(flavint_groupings[:-1]):
-        for m, kg1 in enumerate(flavint_groupings[n+1:]):
-            assert len(set(kg0).intersection(set(kg1))) == 0
+    for grp_n, flavintgrp0 in enumerate(flavint_groupings[:-1]):
+        for flavintgrp1 in flavint_groupings[grp_n+1:]:
+            assert len(set(flavintgrp0).intersection(set(flavintgrp1))) == 0
 
-    kg_names = [str(nkg) for nkg in flavint_groupings]
+    flavintgrp_names = [str(flavintgrp) for flavintgrp in flavint_groupings]
 
-    # Instantiate storage for all intermediate destination fields
-    #   keep_data[group number][interaction type][keep field name] = list of data
-    keep_data = [
-        {it: {f:[] for f in keep_fields} for it in flavInt.ALL_NUINT_TYPES}
-        for name in kg_names
+    # Instantiate storage for all intermediate destination fields;
+    # The data structure looks like:
+    #   extracted_data[group #][interaction type][field name] = list of data
+    extracted_data = [
+        {
+            inttype: {field:[] for field in extract_fields}
+            for inttype in flavInt.ALL_NUINT_TYPES
+        }
+        for _ in flavintgrp_names
     ]
 
     # Instantiate generated-event counts for destination fields; count
     # nc separately from nc because aeff's for cc & nc add, whereas
     # aeffs intra-CC should be weighted-averaged (as for intra-NC)
-    ngen = [{it:{} for it in flavInt.ALL_NUINT_TYPES} for name in kg_names]
+    ngen = [
+        {inttype:{} for inttype in flavInt.ALL_NUINT_TYPES}
+        for _ in flavintgrp_names
+    ]
 
     # Loop through all of the files, retrieving the events, filtering,
     # and recording the number of generated events pertinent to
@@ -142,7 +184,8 @@ def makeEventsFile(data_files, outdir, run_settings, data_proc_params, cut,
 
             # Check to make sure only one run is present in the data
             runs_in_data = set(data['run'])
-            assert len(runs_in_data) == 1, 'Must be just one run present in data'
+            assert len(runs_in_data) == 1, \
+                    'Must be just one run present in data'
 
             run = int(data['run'][0])
             all_runs.add(run)
@@ -150,15 +193,15 @@ def makeEventsFile(data_files, outdir, run_settings, data_proc_params, cut,
                 filecount[run] = 0
             filecount[run] += 1
             rs_run = run_settings[run]
-          
+
             # Record geom; check that geom is consistent with other runs
             if detector_geom is None:
                 detector_geom = rs_run['geom']
-            assert rs_run['geom'] == detector_geom, 'All runs\' geometries must match!'
+            assert rs_run['geom'] == detector_geom, \
+                    'All runs\' geometries must match!'
 
-            # Loop through all flavints (flav/int-type comb) spec'd for run
+            # Loop through all flavints spec'd for run
             for run_flavint in rs_run['flavints']:
-                flav = run_flavint.flav()
                 barnobar = run_flavint.barNoBar()
                 int_type = run_flavint.intType()
 
@@ -167,36 +210,39 @@ def makeEventsFile(data_files, outdir, run_settings, data_proc_params, cut,
                 intonly_cut_data = data_proc_params.applyCuts(
                     data,
                     cuts=cuts+[str(int_type), str(barnobar)],
-                    return_fields=keep_fields
+                    return_fields=extract_fields
                 )
-                
+
                 # Record the generated count and data for this run/flavor for
                 # each group to which it's applicable
-                for n, flavint_group in enumerate(flavint_groupings):
+                for grp_n, flavint_group in enumerate(flavint_groupings):
                     if not run_flavint in flavint_group:
                         continue
 
                     # Instantiate a field for particles and anti-particles,
                     # keyed by the output of the barNoBar() method for each
-                    if not run in ngen[n][int_type]:
-                        ngen[n][int_type][run] = {
+                    if not run in ngen[grp_n][int_type]:
+                        ngen[grp_n][int_type][run] = {
                             flavInt.NuFlav(12).barNoBar(): 0,
                             flavInt.NuFlav(-12).barNoBar(): 0,
                         }
 
                     # Record count only if it hasn't already been recorded
-                    if ngen[n][int_type][run][barnobar] == 0:
-                        # Note that one_weight includes cc/nc:total fraction, so DO
-                        # NOT specify the full flavint here, only flav (since
-                        # one_weight does NOT take bar/nobar fraction, it must
-                        # be included here in the ngen computation)
-                        flav_ngen = run_settings.totGen(run=run, barnobar=barnobar)
-                        ngen[n][int_type][run][barnobar] = flav_ngen
+                    if ngen[grp_n][int_type][run][barnobar] == 0:
+                        # Note that one_weight includes cc/nc:total fraction,
+                        # so DO NOT specify the full flavint here, only flav
+                        # (since one_weight does NOT take bar/nobar fraction,
+                        # it must be included here in the ngen computation)
+                        flav_ngen = run_settings.totGen(run=run,
+                                                        barnobar=barnobar)
+                        ngen[grp_n][int_type][run][barnobar] = flav_ngen
 
-                    # Append the data. Note that keep_data is:
-                    # keep_data[group n][int_type][keep field name] = list
-                    [keep_data[n][int_type][f].extend(intonly_cut_data[f])
-                     for f in keep_fields]
+                    # Append the data. Note that extracted_data is:
+                    # extracted_data[group n][int_type][extract field name] =
+                    #   list
+                    [extracted_data[grp_n][int_type][f].extend(
+                        intonly_cut_data[f])
+                     for f in extract_fields]
 
     # Compute "weighted_aeff" field:
     #
@@ -215,39 +261,47 @@ def makeEventsFile(data_files, outdir, run_settings, data_proc_params, cut,
     #
     #   ... and then across interaction types, the results of the above for
     #   each int type need to be summed together, i.e.:
-    # 
+    #
     #       Aeff_total = Aeff_CC + Aeff_NC
     #
-    # Note that each grouping of flavors is calculated with the above math completely
-    # independently from other flavor groupings specified.
+    # Note that each grouping of flavors is calculated with the above math
+    # completely # independently from other flavor groupings specified.
     #
     # See Justin Lanfranchi's presentation on the PINGU Analysis call,
     # 2015-10-21, for more details.
+    if 'weighted_aeff' in output_fields:
+        fmtfields = (' '*12+'flavint_group',
+                     'int type',
+                     '     run',
+                     'part/anti',
+                     'part/anti count',
+                     'aggregate count')
+        fmt_n = [len(f) for f in fmtfields]
+        fmt = '  '.join([r'%'+str(n)+r's' for n in fmt_n])
+        lines = '  '.join(['-'*n for n in fmt_n])
+        logging.info(fmt % fmtfields)
+        logging.info(lines)
+        for grp_n, flavint_group in enumerate(flavint_groupings):
+            for int_type in flavInt.ALL_NUINT_TYPES:
+                ngen_it_tot = 0
+                for run, run_counts in ngen[grp_n][int_type].iteritems():
+                    for barnobar, barnobar_counts in run_counts.iteritems():
+                        ngen_it_tot += barnobar_counts
+                        logging.info(
+                            fmt %
+                            (flavint_group.simpleStr(), int_type, str(run),
+                             barnobar, int(barnobar_counts), int(ngen_it_tot))
+                        )
+                # Convert data to numpy array
+                for field in extract_fields:
+                    extracted_data[grp_n][int_type][field] = \
+                            np.array(extracted_data[grp_n][int_type][field])
 
-    fmtfields = (' '*12+'flavint_group', 'int type', '     run', 'part/anti',
-                 'part/anti count', 'aggregate count')
-    fmt_n = [len(f) for f in fmtfields]
-    fmt = '  '.join([r'%'+str(n)+r's' for n in fmt_n])
-    lines = '  '.join(['-'*n for n in fmt_n])
-    logging.info(fmt % fmtfields)
-    logging.info(lines)
-    for n, flavint_group in enumerate(flavint_groupings):
-        for int_type in flavInt.ALL_NUINT_TYPES:
-            ngen_it_tot = 0
-            for run, run_counts in ngen[n][int_type].iteritems():
-                for barnobar, barnobar_counts in run_counts.iteritems():
-                    ngen_it_tot += barnobar_counts
-                    logging.info(fmt %
-                        (flavint_group.simpleStr(), int_type, str(run), barnobar,
-                         int(barnobar_counts), int(ngen_it_tot)))
-            # Convert data to numpy array
-            for field in keep_fields:
-                keep_data[n][int_type][field] = np.array(keep_data[n][int_type][field])
-            
-            # Generate weighted_aeff field for this group / int type's data
-            keep_data[n][int_type]['weighted_aeff'] = \
-                    keep_data[n][int_type]['one_weight'] / ngen_it_tot * CMSQ_TO_MSQ
-  
+                # Generate weighted_aeff field for this group / int type's data
+                extracted_data[grp_n][int_type]['weighted_aeff'] = \
+                        extracted_data[grp_n][int_type]['one_weight'] \
+                        / ngen_it_tot * CMSQ_TO_MSQ
+
     # Report file count per run
     for run, count in filecount.items():
         logging.info('Files read, run %s: %d' % (run, count))
@@ -257,19 +311,23 @@ def makeEventsFile(data_files, outdir, run_settings, data_proc_params, cut,
                          'source I3 files (%d), which may indicate an error.' %
                          (run, count, ref_num_i3_files))
 
-    # Generate output data...
+    # Generate output data
     for flavint in flavInt.ALL_NUFLAVINTS:
-        flav = flavint.flav()
         int_type = flavint.intType()
-        for n, flavint_group in enumerate(flavint_groupings):
+        for grp_n, flavint_group in enumerate(flavint_groupings):
             if not flavint in flavint_group:
                 logging.trace('flavint %s not in flavint_group %s, passing.' %
                               (flavint, flavint_group))
                 continue
             else:
-                logging.trace('flavint %s **IS** in flavint_group %s, storing.' %
-                              (flavint, flavint_group))
-            evts.set(flavint, {f: keep_data[n][int_type][f] for f in output_fields})
+                logging.trace(
+                    'flavint %s **IS** in flavint_group %s, storing.' %
+                    (flavint, flavint_group)
+                )
+            evts.set(
+                flavint,
+                {f: extracted_data[grp_n][int_type][f] for f in output_fields}
+            )
 
     # Update metadata
     evts.metadata['geom'] = detector_geom
@@ -297,10 +355,20 @@ def main():
     """Get command line arguments and call makeEventsFile() function."""
 
     parser = ArgumentParser(
-        description= \
-    '''Takes the simulated (and reconstructed) HDF5 file(s) (as converted from I3 by
-    icecube.hdfwriter.I3HDFTableService) as input and writes out a simplified HDF5
-    file for use in the aeff and reco stages of the template maker.''',
+        description='''Takes the simulated (and reconstructed) HDF5 file(s) (as
+        converted from I3 by icecube.hdfwriter.I3HDFTableService) as input and
+        writes out a simplified HDF5 file for use in the aeff and reco stages
+        of the template maker.
+
+        Example:
+            $PISA/pisa/i3utils/make_events_file.py \
+                --det "pingu" \
+                --proc "5" \
+                --nue ~/data/390/source_hdf5/*.hdf5 \
+                --numu ~/data/389/source_hdf5/*.hdf5 \
+                --nutau ~/data/388/source_hdf5/*.hdf5 \
+                -vv \
+                --outdir /tmp/events/''',
         formatter_class=ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
@@ -322,7 +390,7 @@ def main():
         data_proc_params.json file for definitions (or edit that file to add
         more).'''
     )
-    
+
     parser.add_argument(
         '--nue',
         metavar='H5_FILE',
@@ -347,7 +415,7 @@ def main():
         required=True,
         help='nutau HDF5 file(s)'
     )
-    
+
     parser.add_argument(
         '--outdir',
         metavar='DIR',
@@ -355,7 +423,7 @@ def main():
         default='$PISA/pisa/resources/events',
         help='directory into which to store resulting HDF5 file'
     )
-    
+
     parser.add_argument(
         '--run-settings',
         metavar='JSON_FILE',
@@ -363,7 +431,7 @@ def main():
         default='events/mc_sim_run_settings.json',
         help='JSON file with reference run settings'
     )
-    
+
     parser.add_argument(
         '--data-proc-params',
         metavar='JSON_FILE',
@@ -371,15 +439,20 @@ def main():
         default='events/data_proc_params.json',
         help='JSON file with reference processing settings'
     )
-   
-    # Removed this in favor of forcing standard events groupings to be output
+
+    # NOTE:
+    # Removed --join in favor of forcing standard events groupings to be output
     # all at once, to ensure all files get generated all the time. Also
-    # implementing validation for consistent events file usage in PISA for
-    # template settings file
-    
+    # need to implement validation for consistent events file usage in PISA for
+    # template settings file (i.e., if different files are specified for
+    # different PISA stages, ensure they all come from the same detector,
+    # geometry, and processing versions and have events groupings that do not
+    # lead to erroneous conclusions for the stages they're specified for)
+
     #parser.add_argument(
     #    '--join',
-    #    const='nuecc,nuebarcc;numucc,numubarcc;nutaucc,nutaubarcc;nuallnc,nuallbarnc',
+    #    const='nuecc,nuebarcc;numucc,numubarcc;nutaucc,nutaubarcc;'
+    #          'nuallnc,nuallbarnc',
     #    default='',
     #    action='store',
     #    nargs='?',
@@ -397,16 +470,18 @@ def main():
     #    that string will be found individually, i.e., not joined together with
     #    any other flavors'''
     #)
-    
+
     parser.add_argument(
         '--cut',
         metavar='CUT_NAME',
         type=str,
         default='analysis',
-        help='''Name of cut to apply. See data_proc_params.json for definitions
-        (note that these vary by geometry and processing version)'''
+        help='''Name of pre-defined cut to apply. See
+        resources/events/data_proc_params.json for definitions for the detector
+        and processing version you're working with (note that the names of cuts
+        and what these entail varies by detector and processing version)'''
     )
-    
+
     parser.add_argument(
         '--ccut-pass-if',
         metavar='CRITERIA',
@@ -432,22 +507,23 @@ def main():
         allows for a custom cut to be defined via --ccut-pass-if="(l5 == 1) &
         (l6 == 1)"'''
     )
-  
-    # NOTE:
-    # For now I'm removing the aeff option so that all generated events files
-    # will be of consistent format. The danger is that people will then use
-    # weird joined-events combinations to produce Aeff plots. But since the
-    # output HDF5 file is clearly and consistently labeled, I'll leave the
-    # responsibility of how to work with the contents of the file up to the
-    # user.
-    
-    #parser.add_argument(
-    #    '--aeff',
-    #    action='store_true',
-    #    help='Add weighted_aeff field, which allows for performing effective area'
-    #         ' computations using the resulting file'
-    #)
-    
+
+    parser.add_argument(
+        '--no-aeff',
+        action='store_true',
+        help='''Do not compute or include the 'weighted_aeff' field in the
+        generated PISA events HDF5 file, disallowing use of the file for
+        effective area parameterizations or the Monte Carlo aeff stage'''
+    )
+
+    parser.add_argument(
+        '--no-pid',
+        action='store_true',
+        help='''Do not include the 'pid' field in the generated PISA events
+        HDF5 file, disallowing use of the file for PID parameterizations or the
+        Monte Carlo PID stage'''
+    )
+
     parser.add_argument(
         '-v', '--verbose',
         action='count',
@@ -458,7 +534,7 @@ def main():
     args = parser.parse_args()
 
     set_verbosity(args.verbose)
-    
+
     det = args.det.lower()
     proc = args.proc.lower()
     run_settings = MCSRS.DetMCSimRunsSettings(
@@ -470,9 +546,29 @@ def main():
         detector=det,
         proc_ver=proc
     )
-   
+
     logging.info('Using detector %s, processing version %s.' % (det, proc))
 
+    extract_fields = deepcopy(EXTRACT_FIELDS)
+    output_fields = deepcopy(OUTPUT_FIELDS)
+
+    if args.no_pid:
+        extract_fields = [f for f in extract_fields if f != 'pid']
+        output_fields = [f for f in output_fields if f != 'pid']
+
+    if args.no_aeff:
+        output_fields = [f for f in output_fields if f != 'weighted_aeff']
+
+    # Add any custom cuts specified on command line
+    ccut = None
+    if args.ccut_pass_if:
+        ccut = {
+            'pass_if': args.ccut_pass_if,
+            'fields': args.ccut_fields.split(',')
+        }
+
+    # One events file will be produced for each of The following flavint
+    # groupings
     groupings = [
         # No events joined together
         None,
@@ -483,9 +579,8 @@ def main():
         # together; used for reco services (MC and vbwkde)
         'nuecc+nuebarcc;numucc+numubarcc;nutaucc+nutaubarcc;nuallnc+nuallbarnc',
     ]
-    ccut = None
-    if args.ccut_pass_if:
-        ccut = {'pass_if':args.ccut_pass_if, 'fields':args.ccut_fields.split(',')}
+
+    # Create the events files
     for grouping in groupings:
         makeEventsFile(
             data_files={'nue':args.nue, 'numu':args.numu, 'nutau':args.nutau},
@@ -495,7 +590,8 @@ def main():
             join=grouping,
             cut=args.cut,
             cust_cuts=ccut,
-            compute_aeff=True,
+            extract_fields=extract_fields,
+            output_fields=output_fields,
         )
 
 

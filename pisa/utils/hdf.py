@@ -1,13 +1,8 @@
-#
-# hdf.py
-#
-# A set of utilities for dealing with HDF5 files.
-#
 # author: Sebastian Boeser
 #         sboeser@uni-mainz.de
 #
 # date:   2015-03-05
-#
+"""Set of utilities for handling HDF5 file I/O"""
 
 import os
 import numpy as np
@@ -15,7 +10,6 @@ import h5py
 from pisa.utils.log import logging, set_verbosity
 import pisa.utils.utils as utils
 
-# TODO: retrieve attributes from an HDF5 file
 
 def from_hdf(val, return_attrs=False):
     """Return the contents of an HDF5 file or node as a nested dict; optionally
@@ -53,11 +47,9 @@ def from_hdf(val, return_attrs=False):
     # Function for iteratively parsing the file to create the dictionary
     def visit_group(obj, sdict):
         name = obj.name.split('/')[-1]
-        #indent = len(obj.name.split('/'))-1
-        #print "  "*indent,name, obj.value if (type(obj) == h5py.Dataset) else ":"
-        if type(obj) in [ h5py.Dataset ]:
+        if type(obj) in [h5py.Dataset]:
             sdict[name] = obj.value
-        if type(obj) in [ h5py.Group, h5py.File ]:
+        if type(obj) in [h5py.Group, h5py.File]:
             sdict[name] = {}
             for sobj in obj.values():
                 visit_group(sobj, sdict[name])
@@ -81,7 +73,7 @@ def from_hdf(val, return_attrs=False):
     finally:
         if myfile:
             root.close()
-    
+
     if return_attrs:
         return data, attrs
 
@@ -89,18 +81,17 @@ def from_hdf(val, return_attrs=False):
 
 
 def to_hdf(data_dict, tgt, attrs=None, overwrite=True):
-    """
-    Store a (possibly nested) dictionary to an HDF5 file or branch node within
-    an HDF5 file (an h5py Group).
-    
+    """Store a (possibly nested) dictionary to an HDF5 file or branch node
+    within an HDF5 file (an h5py Group).
+
     This creates hardlinks for duplicate non-trivial leaf nodes (h5py Datasets)
     to minimize storage space required for redundant datasets. Duplication is
     detected via object hashing.
-    
-    NOTE: Branch nodes are sorted before storing for consistency in the
-    generated file despite Python dictionaries having no defined ordering among
-    keys.
-    
+
+    NOTE: Branch nodes are sorted before storing (by name) for consistency in
+    the generated file despite Python dictionaries having no defined ordering
+    among keys.
+
     Parameters
     ----------
     data_dict : dict
@@ -128,7 +119,7 @@ def to_hdf(data_dict, tgt, attrs=None, overwrite=True):
         if isinstance(node, dict):
             logging.trace("  creating Group '%s'" % full_path)
             try:
-                grp = fhandle.create_group(full_path)
+                dset = fhandle.create_group(full_path)
                 if attrs is not None:
                     for key in sorted(attrs.keys()):
                         dset.attrs[key] = attrs[key]
@@ -152,7 +143,8 @@ def to_hdf(data_dict, tgt, attrs=None, overwrite=True):
                 # Hardlink the matching existing dataset
                 fhandle[full_path] = fhandle[node_hashes[node_hash]]
                 return
-            # For now, convert None to np.nan since h5py appears to not handle None
+            # For now, convert None to np.nan since h5py appears to not handle
+            # None
             if node is None:
                 node = np.nan
                 logging.warn("  encountered `None` at node '%s'; converting to"
@@ -169,7 +161,7 @@ def to_hdf(data_dict, tgt, attrs=None, overwrite=True):
                 shuffle = True
                 chunks = True
                 # Store the node_hash for linking to later if this is more than
-                # a scalar datatype. Assumed that "None" has 
+                # a scalar datatype. Assumed that "None" has
                 node_hashes[node_hash] = full_path
             if isinstance(node, basestring):
                 # TODO: Treat strings as follows? Would this break
@@ -231,7 +223,7 @@ def to_hdf(data_dict, tgt, attrs=None, overwrite=True):
     elif isinstance(tgt, h5py.Group):
         store_recursively(fhandle=tgt, node=data_dict, attrs=attrs)
     else:
-        errmsg = "to_hdf: Invalid `tgt` type: " + type(target_entity)
+        errmsg = "to_hdf: Invalid `tgt` type: " + type(tgt)
         logging.error(errmsg)
         raise TypeError(errmsg)
 
@@ -241,27 +233,27 @@ def test_hdf():
     data = {
         'top': {
             'secondlvl1':{
-                'thirdlvl11': np.linspace(1,100,10000),
+                'thirdlvl11': np.linspace(1, 100, 10000),
                 'thirdlvl12': "this is a string"
             },
             'secondlvl2':{
-                'thirdlvl21': np.linspace(1,100,10000),
+                'thirdlvl21': np.linspace(1, 100, 10000),
                 'thirdlvl22': "this is a string"
             },
             'secondlvl3':{
-                'thirdlvl31': np.linspace(1,100,10000),
+                'thirdlvl31': np.linspace(1, 100, 10000),
                 'thirdlvl32': "this is a string"
             },
             'secondlvl4':{
-                'thirdlvl41': np.linspace(1,100,10000),
+                'thirdlvl41': np.linspace(1, 100, 10000),
                 'thirdlvl42': "this is a string"
             },
             'secondlvl5':{
-                'thirdlvl51': np.linspace(1,100,10000),
+                'thirdlvl51': np.linspace(1, 100, 10000),
                 'thirdlvl52': "this is a string"
             },
             'secondlvl6':{
-                'thirdlvl61': np.linspace(100,1000,10000),
+                'thirdlvl61': np.linspace(100, 1000, 10000),
                 'thirdlvl62': "this is a string"
             },
         }
@@ -269,7 +261,7 @@ def test_hdf():
     to_hdf(data, '/tmp/to_hdf_noattrs.hdf5', overwrite=True)
     loaded_data1 = from_hdf('/tmp/to_hdf_noattrs.hdf5')
     assert utils.recursiveEquality(data, loaded_data1)
-    
+
     attrs = {
         'float1': 9.98237,
         'float2': 1.,
@@ -278,11 +270,12 @@ def test_hdf():
         'int': 1
     }
     to_hdf(data, '/tmp/to_hdf_withattrs.hdf5', attrs=attrs, overwrite=True)
-    loaded_data2, loaded_attrs = from_hdf('/tmp/to_hdf_withattrs.hdf5', return_attrs=True)
+    loaded_data2, loaded_attrs = from_hdf('/tmp/to_hdf_withattrs.hdf5',
+                                          return_attrs=True)
     assert utils.recursiveEquality(data, loaded_data2)
     assert utils.recursiveEquality(attrs, loaded_attrs)
 
-    for k,v in attrs.iteritems():
+    for k, v in attrs.iteritems():
         tgt_type = type(attrs[k])
         assert isinstance(loaded_attrs[k], tgt_type), \
                 "key %s: val '%s' is type '%s' but should be '%s'" % \

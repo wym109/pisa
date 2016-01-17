@@ -1,26 +1,25 @@
 #! /usr/bin/env python
 #
-# Classes for working with neutrino flavors (NuFlav), interactions types
-# (IntType), "flavints" (a flavor and an interaction type) (NuFlavInt), and
-# flavint groups (NuFlavIntGroup) in a consistent and convenient manner.
-#
-# FlavIntData class for working with data stored by flavint (flavor &
-# interaction type). This should replace the PISA convention of using raw
-# doubly-nested dictionaries indexed as [<flavor>][<interaction type>]. For
-# now, FlavIntData objects can be drop-in replacements for such dictionaries
-# (they can be accessed and written to in the same way since FlavIntData
-# subclasses dict) but this should be deprecated; eventually, all direct access
-# of the data structure should be eliminated and disallowed by the FlavIntData
-# object.
-#
-# Define convenience tuples ALL_{x} for easy iteration
-#
-#
 # author: Justin L. Lanfranchi
 #         jll1062+pisa@phys.psu.edu
 #
 # date:   October 24, 2015
-#
+"""
+Classes for working with neutrino flavors (NuFlav), interactions types
+(IntType), "flavints" (a flavor and an interaction type) (NuFlavInt), and
+flavint groups (NuFlavIntGroup) in a consistent and convenient manner.
+
+FlavIntData class for working with data stored by flavint (flavor &
+interaction type). This should replace the PISA convention of using raw
+doubly-nested dictionaries indexed as [<flavor>][<interaction type>]. For
+now, FlavIntData objects can be drop-in replacements for such dictionaries
+(they can be accessed and written to in the same way since FlavIntData
+subclasses dict) but this should be deprecated; eventually, all direct access
+of the data structure should be eliminated and disallowed by the FlavIntData
+object.
+
+Define convenience tuples ALL_{x} for easy iteration
+"""
 
 # TODO: make simpleStr() method convertible back to NuFlavIntGroup, either by
 # increasing the intelligence of interpret(), by modifying what simpleStr()
@@ -57,7 +56,7 @@ class BarSep():
     def __exit__(self, type, value, traceback):
         global __BAR_SSEP__
         __BAR_SSEP__ = self.old_val
-        
+
 def set_bar_ssep(val):
     global __BAR_SSEP__
     assert isinstance(val, basestring)
@@ -75,6 +74,7 @@ def tex(x, d=False):
 
 
 class NuFlav(object):
+    """Class for handling neutrino flavors (and anti-flavors)"""
     PART_CODE = 1
     ANTIPART_CODE = -1
     NUE_CODE = 12
@@ -181,21 +181,34 @@ class NuFlav(object):
         return NuFlavIntGroup(self, other)
 
     def tex(self):
+        """TeX string"""
         return self.f2tex[self.__flav]
 
     def flavCode(self):
+        """Integer PDG code"""
         return self.__flav
 
     def barNoBar(self):
+        """Return +/-1 for particle/antiparticle"""
         return self.__barnobar
 
     def isParticle(self):
+        """Is this a particle (vs. antiparticle) flavor?"""
         return self.__barnobar == self.PART_CODE
 
     def isAntiParticle(self):
+        """Is this an antiparticle flavor?"""
         return self.__barnobar == self.ANTIPART_CODE
 
     def pidx(self, d, *args):
+        """Extract data from a nested dictionary `d` whose format is commonly
+        found in PISA
+
+        The dictionary must have the format
+            d = {"<flavor>": <data object>}
+            <flavor> is one of "nue", "nue_bar", "numu", "numu_bar", "nutau",
+                "nutau_bar"
+        """
         with BarSep('_'):
             field = d[str(self)]
         for idx in args:
@@ -217,7 +230,7 @@ class AllNu(object):
 
     def __str__(self):
         return 'nuall'
-    
+
     def tex(self):
         return r'{\nu_{\rm all}}'
 
@@ -231,7 +244,7 @@ class AllNuBar(object):
 
     def __str__(self):
         return 'nuallbar'
-    
+
     def tex(self):
         return r'{\bar\nu_{\rm all}}'
 
@@ -270,7 +283,7 @@ class IntType(object):
             self.CC_CODE: r'{\rm CC}',
             self.NC_CODE: r'{\rm NC}'
         }
-        
+
         # Interpret `val`
         try:
             orig_val = val
@@ -318,15 +331,19 @@ class IntType(object):
         return self.intTypeCode() - other.intTypeCode()
 
     def isCC(self):
+        """Is this interaction type charged current (CC)?"""
         return self.__int_type == self.CC_CODE
 
     def isNC(self):
+        """Is this interaction type neutral current (NC)?"""
         return self.__int_type == self.NC_CODE
 
     def intTypeCode(self):
+        """Integer code for this interaction type"""
         return self.__int_type
 
     def tex(self):
+        """TeX representation of this interaction type"""
         return self.i2tex[self.__int_type]
 
 
@@ -336,7 +353,7 @@ ALL_NUINT_TYPES = (IntType('cc'), IntType('nc'))
 class NuFlavInt(object):
     """A neutrino "flavint" encompasses both the neutrino flavor and its
     interaction type.
-    
+
     Instantiate via
       * String containing a single flavor and a single interaction type
         e.g.: 'numucc', 'nu_mu_cc', 'nu mu CC', 'numu_bar CC', etc.
@@ -412,7 +429,7 @@ class NuFlavInt(object):
         return self.__str__()
 
     def __hash__(self):
-        return hash( (self.flavCode(), self.intTypeCode()) )
+        return hash((self.flavCode(), self.intTypeCode()))
 
     def __cmp__(self, other):
         if not isinstance(other, NuFlavInt):
@@ -428,6 +445,16 @@ class NuFlavInt(object):
         return NuFlavIntGroup(self, other)
 
     def pidx(self, d, *args):
+        """Extract data from a nested dictionary `d` whose format is commonly
+        found in PISA
+
+        The dictionary must have the format
+            d = {"<flavor>": {"<interaction type>": <data object>}}
+            <flavor> is one of "nue", "nue_bar", "numu", "numu_bar", "nutau",
+                "nutau_bar"
+            <interaction type> is one of "cc", "nc"
+        """
+
         with BarSep('_'):
             field = d[str(self.flav())][str(self.intType())]
         for idx in args:
@@ -435,53 +462,71 @@ class NuFlavInt(object):
         return field
 
     def flav(self):
+        """Return just the NuFlav part of this NuFlavInt"""
         return self.__flav
 
     def flavCode(self):
+        """Return the integer PDG code for this flavor"""
         return self.__flav.flavCode()
 
     def barNoBar(self):
+        """Return +/-1 depending on if the flavor is a particle/antiparticle"""
         return self.__flav.barNoBar()
 
     def isParticle(self):
+        """Is this a particle (vs. antiparticle) flavor?"""
         return self.__flav.isParticle()
 
     def isAntiParticle(self):
+        """Is this an antiparticle flavor?"""
         return self.__flav.isAntiParticle()
 
     def isCC(self):
+        """Is this interaction type charged current (CC)?"""
         return self.__int_type.isCC()
 
     def isNC(self):
+        """Is this interaction type neutral current (NC)?"""
         return self.__int_type.isNC()
 
     def intType(self):
+        """Return IntType object that composes this NuFlavInt"""
         return self.__int_type
 
     def intTypeCode(self):
+        """Return integer code for IntType that composes this NuFlavInt"""
         return self.__int_type.intTypeCode()
 
     def flavStr(self):
+        """String representation of flavor that comprises this NuFlavInt"""
         return str(self.__flav)
 
     def intTypeStr(self):
+        """String representation of interaction type that comprises this
+        NuFlavInt"""
         return str(self.__int_type)
 
     def flavTex(self):
+        """TeX string representation of the flavor that comprises this
+        NuFlavInt"""
         return self.__flav.tex()
 
     def intTypeTex(self):
+        """TeX string representation of interaction type that comprises this
+        NuFlavInt"""
         return self.__int_type.tex()
 
     def tex(self):
+        """TeX string representation of this NuFlavInt"""
         return '{%s%s%s}' % (self.flavTex(),
                              self.FINT_TEXSEP,
                              self.intTypeTex())
 
 
 class NuFlavIntGroup(collections.MutableSequence):
-    """
-    Grouping of neutrino flavints. Specification can be via
+    """Grouping of neutrino flavors+interaction types (flavInts)
+
+    Grouping of neutrino flavInts. Specification can be via
       * A single `NuFlav` object; this gets promoted to include both
         interaction types
       * A single `NuFlavInt` object
@@ -494,8 +539,8 @@ class NuFlavIntGroup(collections.MutableSequence):
         * Interprets "nuall" as nue+numu+nutau and "nuallbar" as
           nuebar+numubar+nutaubar
       * Iterable containing any of the above (i.e., objects convertible to
-        `NuFlavInt` objects). Note that a valid iterable is another `NuFlavIntGroup`
-        object.
+        `NuFlavInt` objects). Note that a valid iterable is another
+        `NuFlavIntGroup` object.
     """
     TOKENS = re.compile('(nu|e|mu|tau|all|bar|nc|cc)')
     K_RE = re.compile(r'((?:nue|numu|nutau|nuall)(?:bar){0,1}(?:cc|nc){0,2})')
@@ -556,7 +601,7 @@ class NuFlavIntGroup(collections.MutableSequence):
         if len(other) != len(self):
             return len(self) - len(other)
         cmps = [cmp(mine, other[n]) for n,mine in enumerate(self.__flavints)]
-        if all([c==0 for c in cmps]):
+        if all([c == 0 for c in cmps]):
             return 0
         return [c for c in cmps if c != 0][0]
 
@@ -644,9 +689,7 @@ class NuFlavIntGroup(collections.MutableSequence):
 
     @staticmethod
     def interpret(val):
-        """
-        Interpret a NuFlavIntGroup arg
-        """
+        """Interpret a NuFlavIntGroup arg"""
         if isinstance(val, basestring):
             orig_val = val
             try:
@@ -668,7 +711,7 @@ class NuFlavIntGroup(collections.MutableSequence):
                     # three different flavors
                     if 'all' in flav:
                         flavs = [flav.replace('all', x)
-                                 for x in ('e','mu','tau')]
+                                 for x in ('e', 'mu', 'tau')]
                     else:
                         flavs = [flav]
 
@@ -680,7 +723,8 @@ class NuFlavIntGroup(collections.MutableSequence):
 
                     # Add all combinations of (flav, int) found in this
                     # flavint_str
-                    flavints.extend([''.join(fi) for fi in product(flavs,ints)])
+                    flavints.extend([''.join(fi)
+                                     for fi in product(flavs, ints)])
 
             except (ValueError, AttributeError):
                 exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -691,7 +735,7 @@ class NuFlavIntGroup(collections.MutableSequence):
                                                                 exc_traceback)
                                  ))
         elif isinstance(val, NuFlav):
-            flavints = [NuFlavInt((val,'cc')), NuFlavInt((val,'nc'))]
+            flavints = [NuFlavInt((val, 'cc')), NuFlavInt((val, 'nc'))]
         elif isinstance(val, NuFlavInt):
             flavints = [val]
         elif isinstance(val, NuFlavIntGroup):
@@ -723,7 +767,7 @@ class NuFlavIntGroup(collections.MutableSequence):
                     # If the two elements of the iterable did not form two
                     # NuFlavInts, try forming a single NuFlavInt with `val`
                     flavints = [NuFlavInt(val)]
-            else: 
+            else:
                 # If 1 or >2 elements in `val`, make a flavint out of each
                 [flavints.extend(NuFlavIntGroup.interpret(x)) for x in val]
         else:
@@ -743,38 +787,66 @@ class NuFlavIntGroup(collections.MutableSequence):
         return flavint_list
 
     def flavints(self):
+        """Return tuple of all flavInts that make up this group"""
         return tuple(self.__flavints)
 
     def flavs(self):
+        """Return tuple of unique flavors that make up this group"""
         return tuple([k.flav() for k in self.__flavints])
 
     def ccFlavInts(self):
+        """Return tuple of unique charged-current-interaction flavInts that
+        make up this group"""
         return tuple([k for k in self.__flavints if k.intType()==IntType('cc')])
-    
+
     def ncFlavInts(self):
+        """Return tuple of unique neutral-current-interaction flavInts that
+        make up this group"""
         return tuple([k for k in self.__flavints if k.intType()==IntType('nc')])
 
     def particles(self):
+        """Return tuple of unique particle (vs antiparticle) flavInts that
+        make up this group"""
         return tuple([k for k in self.__flavints if k.isParticle()])
-    
+
     def antiParticles(self):
+        """Return tuple of unique antiparticle flavInts that make up this
+        group"""
         return tuple([k for k in self.__flavints if k.isAntiParticle()])
 
     def ccFlavs(self):
+        """Return tuple of unique charged-current-interaction flavors that
+        make up this group. Note that only the flavors, and not flavInts, are
+        returned (cf. method `ccFlavInts`"""
         return tuple([k.flav() for k in self.__flavints
                       if k.intType() == IntType('cc')])
-    
+
     def ncFlavs(self):
+        """Return tuple of unique neutral-current-interaction flavors that
+        make up this group. Note that only the flavors, and not flavInts, are
+        returned (cf. method `ncFlavInts`"""
         return tuple([k.flav() for k in self.__flavints
                       if k.intType() == IntType('nc')])
 
     def uniqueFlavs(self):
+        """Return tuple of unique flavors that make up this group"""
         return tuple(sorted(set([k.flav() for k in self.__flavints])))
 
     def groupFlavsByIntType(self):
+        """Return a dictionary with flavors grouped by the interaction types
+        represented in this group.
+
+        The returned dictionary has format
+        {
+            'all_int_type_flavs': [<NuFlav object>, <NuFlav object>, ...],
+            'cc_only_flavs':      [<NuFlav object>, <NuFlav object>, ...],
+            'nc_only_flavs':      [<NuFlav object>, <NuFlav object>, ...],
+        }
+        where the lists of NuFlav objects are mutually exclusive
+        """
         uniqueF = self.uniqueFlavs()
         fint_d = {f:set() for f in uniqueF}
-        {fint_d[k.flav()].add(k.intType()) for k in self.flavints()}
+        [fint_d[k.flav()].add(k.intType()) for k in self.flavints()]
         grouped = {
             'all_int_type_flavs': [],
             'cc_only_flavs' : [],
@@ -815,22 +887,28 @@ class NuFlavIntGroup(collections.MutableSequence):
 
     def simpleStr(self, flavsep='+', intsep=' ', flavintsep=', ',
                   addsep='+'):
+        """Simple string representation of this group"""
         return self.__simpleStr(flavsep=flavsep, intsep=intsep,
                                 flavintsep=flavintsep, addsep=addsep, func=str)
 
     def fileStr(self, flavsep='_', intsep='_', flavintsep='__', addsep=''):
+        """String representation for this group useful for file names"""
         return self.__simpleStr(flavsep=flavsep, intsep=intsep,
                                 flavintsep=flavintsep, addsep=addsep, func=str)
 
     def simpleTex(self, flavsep=r', \, ', intsep=r' \, ',
                   flavintsep=r'; \; ', addsep=r'+'):
+        """Simplified TeX string reperesentation of this group"""
         return self.__simpleStr(flavsep=flavsep, intsep=intsep,
                                 flavintsep=flavintsep, addsep=addsep, func=tex)
 
     def tex(self, *args, **kwargs):
+        """TeX string representation for this group"""
         return self.simpleTex(*args, **kwargs)
 
     def uniqueFlavsTex(self, flavsep=r', \, '):
+        """TeX string representation of the unique flavors present in this
+        group"""
         return flavsep.join([f.tex() for f in self.uniqueFlavs()])
 
 
@@ -838,6 +916,15 @@ ALL_NUFLAVINTS = NuFlavIntGroup('nuall,nuallbar')
 
 
 class FlavIntData(dict):
+    """Container class for storing data for each NuFlavInt.
+
+    val : string, dict, or None
+        Data with which to populate the hierarchy.
+
+        If string, interpret as PISA resource and load data from it
+        If dict, populate data from the dictionary
+        If None, instantiate with None for all data
+    """
     def __init__(self, val=None):
         if isinstance(val, basestring):
             d = self.__load(val)
@@ -854,9 +941,34 @@ class FlavIntData(dict):
         self.update(d)
 
     def __eq__(self, other):
+        """Recursive, exact equality"""
         return utils.recursiveEquality(self, other)
 
+    def __basic_validate(self, fi_container):
+        for flavint in ALL_NUFLAVINTS:
+            with BarSep('_'):
+                f = str(flavint.flav())
+                it = str(flavint.intType())
+            assert isinstance(fi_container, dict), "container must be of" \
+                    " type 'dict'; instead got %s" % type(fi_container)
+            assert fi_container.has_key(f), "container missing flavor '%s'" % f
+            assert isinstance(fi_container[f], dict), \
+                    "Child of flavor '%s': must be type 'dict' but" \
+                    " got %s instead" % (f, type(fi_container[f]))
+            assert fi_container[f].has_key(it), \
+                    "Flavor '%s' sub-dict must contain a both interaction" \
+                    " types, but missing (at least) intType '%s'" % (f, it)
+
+    def __load(self, fname, **kwargs):
+        d = fileio.from_file(fname, **kwargs)
+        self.validate(d)
+        return d
+
     def allclose(self, other, rtol=1e-05, atol=1e-08):
+        """Returns True if all data structures are equal and all numerical
+        values contained are within relative (rtol) and/or absolute (atol)
+        tolerance of one another.
+        """
         return utils.recursiveAllclose(self, other, rtol=rtol, atol=atol)
 
     def set(self, *args):
@@ -870,8 +982,6 @@ class FlavIntData(dict):
             Data object to be stored
         """
         all_keys = list(args[:-1])
-        top_lvl_key = all_keys[0]
-        subkeys = all_keys[1:]
         new_val = deepcopy(args[-1])
 
         try:
@@ -894,7 +1004,7 @@ class FlavIntData(dict):
                     all_keys[1] = it
 
         skstr = '[' + ']['.join([str(k) for k in all_keys]) + ']'
-        logging.trace('setting self%s = "%s" (%s)' % 
+        logging.trace('setting self%s = "%s" (%s)' %
                       (skstr, new_val, type(new_val)))
 
         branch_keys = all_keys[:-1]
@@ -911,9 +1021,24 @@ class FlavIntData(dict):
             raise
 
     def get(self, *args):
+        """Get a flavor node, a flavInt node, or data contained in a
+        sub-dictionary within a flavInt node.
+
+        This tries to make data access ass simple and generic as possible,
+        being as liberal as possible with how the user can specify what he/she
+        wants.
+
+        * If `arg` is a NuFlav object (or string convertible to a one), the
+            branch at that flavor is returned
+        * If `arg` is a NuFlavInt object, a string convertible to one, or a
+            two-object sequence convertible to one, the branch at that
+            flavor+interaction type is returned
+        * If the first one or two `arg`s convert to a NuFlavInt (see above
+            point), then any subsequent `arg`s will be treated as integer or
+            string indices to sub-structures within that flavor+interaction
+            type branch.
+        """
         all_keys = list(args)
-        top_lvl_key = all_keys[0]
-        subkeys = all_keys[1:]
 
         try:
             flavint = NuFlavInt(all_keys[0])
@@ -944,44 +1069,54 @@ class FlavIntData(dict):
             lvl = lvl[key]
         return deepcopy(lvl[node_key])
 
-    def __basic_validate(self, fi_container):
-         for flavint in ALL_NUFLAVINTS:
-            with BarSep('_'):
-                f = str(flavint.flav())
-                it = str(flavint.intType())
-            assert isinstance(fi_container, dict), "container must be of" \
-                    " type 'dict'; instead got %s" % type(fi_container)
-            assert fi_container.has_key(f), "container missing flavor '%s'" % f
-            assert isinstance(fi_container[f], dict), \
-                    "Child of flavor '%s': must be type 'dict' but" \
-                    " got %s instead" % (f,type(fi_container[f]))
-            assert fi_container[f].has_key(it), \
-                    "Flavor '%s' sub-dict must contain a both interaction" \
-                    " types, but missing (at least) intType '%s'" % (f, it)
-
     def validate(self, fi_container):
+        """Perform basic validation on the data structure"""
         self.__basic_validate(fi_container)
 
-    def save(self, fname):
-        fileio.to_file(self, fname)
+    def save(self, fname, **kwargs):
+        """Save data structure to a file; see fileio.to_file for details"""
+        fileio.to_file(self, fname, **kwargs)
 
-    def __load(self, fname):
-        d = fileio.from_file(fname)
-        self.validate(d)
-        return d
+    def idDupes(self, rtol=None, atol=None):
+        """Identify flavints with duplicated data (exactly or within a
+        specified tolerance), convert these NuFlavInt's into NuFlavIntGroup's
+        and returning these along with the data associated with each.
 
-    def idDupes(self, close_rtol=0):
-        """Group flavints according to those that have duplicated data.
+        Parameters
+        ----------
+        rtol
+            Set to positive value to use as rtol argument for numpy allclose
+        atol
+            Set to positive value to use as atol argument for numpy allclose
 
-        close_rtol
-            Set to a positive value to use np.allclose(a, b, rtol=close_rtol)
+        If either `rtol` or `atol` is 0, exact equality is enforced.
+
+        Returns
+        -------
+        dupe_flavintgroups : list of NuFlavIntGroup
+            A NuFlavIntGroup object is returned for each group of NuFlavInt's
+            found with duplicate data
+        dupe_flavintgroups_data : list of objects
+            Data associated with each NuFlavIntGroup in dupe_flavintgroups.
+            Each object in `dupe_flavintgroups_data` corresponds to, and in the
+            same order as, the objects in `dupe_flavintgroups`.
         """
-        cmpfunc = utils.recursiveEquality
-        if close_rtol != 0:
-            cmpfunc = lambda x,y: utils.recursiveAllclose(x, y, rtol=close_rtol)
+        exact_equality = True
+        kwargs = {}
+        if rtol is not None and rtol > 0 and atol != 0:
+            exact_equality = False
+            kwargs['rtol'] = rtol
+        if atol is not None and atol > 0 and rtol != 0:
+            exact_equality = False
+            kwargs['atol'] = atol
+        if exact_equality:
+            cmpfunc = utils.recursiveEquality
+        else:
+            cmpfunc = lambda x,y: utils.recursiveAllclose(x, y, **kwargs)
+
         dupe_flavintgroups = []
         dupe_flavintgroups_data = []
-        for knum, flavint in enumerate(ALL_NUFLAVINTS):
+        for flavint in ALL_NUFLAVINTS:
             this_datum = self.get(flavint)
             match = False
             for n, group_datum in enumerate(dupe_flavintgroups_data):
@@ -994,15 +1129,13 @@ class FlavIntData(dict):
             if not match:
                 dupe_flavintgroups.append(NuFlavIntGroup(flavint))
                 dupe_flavintgroups_data.append(this_datum)
-        #indices = np.argsort(dupe_flavintgroups)[0]
-        #dupe_flavintgroups = [dupe_flavintgroups[idx] for idx in indices]
-        #dupe_flavintgroups_data = [dupe_flavintgroups_data[idx] for idx in indices]
+
         return dupe_flavintgroups, dupe_flavintgroups_data
 
 
 class CombinedFlavIntData(FlavIntData):
     """Container class for storing data redundant for some set(s) of NuFlavInts
-    (Cf. FlavIntData, which stores one datum for each NuFlavInt separately)
+    (cf. FlavIntData, which stores one datum for each NuFlavInt separately)
 
     val
         Data with which to populate the hierarchy
@@ -1026,17 +1159,19 @@ class CombinedFlavIntData(FlavIntData):
         If True, after populating all data according to the `val` and
         `flavint_groupings` arguments, regroups the data according to those
         flavints whose data is considered equal (with tolerance set by the
-        `dedup_close_rtol` argument), removing duplicated data in the process.
+        `dedup_rtol` argument), removing duplicated data in the process.
         (Default: False)
-    dedup_close_rtol : numeric
-        If set to 0, dedup requires exact equality among flavints' datasets to
-        group them together. If non-zero, this gives the relative tol (rtol)
-        parameter passed to numpy.allclose for determining close-enough
-        equality. This parameter has no effect if `dedup` is False.
-        (Default: 0)
+    dedup_rtol : numeric or None
+        Set relative tolerance for identifying flavints with duplicated data.
+        See docstring for `idDupes` method for details on how this is handled.
+        (Default: None)
+    dedup_atol : numeric or None
+        Set absolute tolerance for identifying flavints with duplicated data.
+        See docstring for `idDupes` method for details on how this is handled.
+        (Default: None)
     """
     def __init__(self, val=None, flavint_groupings=None, dedup=False,
-                 dedup_close_rtol=False):
+                 dedup_rtol=None, dedup_atol=None):
         # Interpret the flavint_groupings arg
         if flavint_groupings is None:
             grouped = []
@@ -1080,23 +1215,24 @@ class CombinedFlavIntData(FlavIntData):
         if named_g and flavint_groupings:
             assert named_g == grouped
             assert named_ung == ungrouped
-      
+
         self.validate(d)
         self.grouped, self.ungrouped = named_g, named_ung
         self.flavints_to_keys = [(ks, str(ks)) for ks in named_g+named_ung]
         self.update(d)
 
         if dedup:
-            self.deduplicate(close_rtol=dedup_close_rtol)
+            self.deduplicate(rtol=dedup_rtol, atol=dedup_atol)
 
-    def deduplicate(self, close_rtol=False):
+    def deduplicate(self, rtol=None, atol=None):
         """Identify duplicate datasets and combine the associated flavints
         together, elinimating redundancy in the data.
 
         This forces any flavints with identical data to be tied to one another
-        into the future
+        on into the future (hence calling the `set` method will throw an
+        exception if obsolete groupings are specified).
         """
-        dupe_kgs, dupe_kgs_data = self.idDupes(close_rtol=close_rtol)
+        dupe_kgs, dupe_kgs_data = self.idDupes(rtol=rtol, atol=atol)
         d = {str(kg):dat for kg,dat in izip(dupe_kgs, dupe_kgs_data)}
         self.validate(d)
         self.grouped = [kg for kg in dupe_kgs if len(kg) > 1]
@@ -1118,6 +1254,7 @@ class CombinedFlavIntData(FlavIntData):
             assert found > 0, 'container missing flavint %s' % str(flavint)
 
     def validate(self, cfid):
+        """Validation on the data structure"""
         self.__basic_validate(cfid)
 
     def __eq__(self, other):
@@ -1172,6 +1309,21 @@ class CombinedFlavIntData(FlavIntData):
         )
 
     def get(self, *args):
+        """Get data corresponding to a NuFlavInt or NuFlavIntGroup that
+        comprises a subset of a NuFlavIntGroup represented in this container.
+
+        * If `arg` is a NuFlavInt object or a string convertible to one, the
+            branch whose NuFlavIntGroup contains this NuFlavInt is returned
+        * If `arg` is a NuFlavIntGroup object or a string convertible to one
+            and if it is a subset of a NuFlavIntGroup within this object, the
+            corresponding node is returned
+        * Subsequent `arg`s are treated as integer or string indices in
+            sub-structures within the NuFlavIntGroup branch
+
+        * If the NuFlavInt or NuFlavIntGroup corresponding to `arg` is not
+            a subset of a single NuFlavIntGroups in this object, an exception
+            is raised
+        """
         all_keys = list(args)
         tgt_grp = NuFlavIntGroup(all_keys[0])
         for (flavints, key) in self.flavints_to_keys:
@@ -1197,18 +1349,19 @@ class CombinedFlavIntData(FlavIntData):
         # If you get this far, no match was found
         raise ValueError('Could not locate data for group %s' % str(tgt_grp))
 
-    def __load(self, fname):
-        d = fileio.from_file(fname)
+    def __load(self, fname, **kwargs):
+        d = fileio.from_file(fname, **kwargs)
         self.validate(d)
         return d
 
-    def save(self, fname):
-        fileio.to_file(self, fname)
+    def save(self, fname, **kwargs):
+        """Save data structure to a file; see fileio.to_file for details"""
+        fileio.to_file(self, fname, **kwargs)
 
     @staticmethod
     def xlateGroupsStr(val):
         """Translate a ";"-separated string into separate `NuFlavIntGroup`s.
-    
+
         val
             ";"-delimited list of valid NuFlavIntGroup strings, e.g.:
                 "nuall_nc;nue;numu_cc+numubar_cc"
@@ -1216,15 +1369,15 @@ class CombinedFlavIntData(FlavIntData):
             types being selected, e.g. "nue" implies "nue_cc+nue_nc". For other
             details of how the substrings are interpreted, see docs for
             NuFlavIntGroup.
-    
+
         returns:
             grouped, ungrouped
-    
+
         grouped, ungrouped
             lists of NuFlavIntGroups; the first will have more than one flavint
             in each NuFlavIntGroup whereas the second will have just one
             flavint in each NuFlavIntGroup. Either list can be of 0-length.
-    
+
         This function does not enforce mutual-exclusion on flavints in the
         various flavint groupings, but does list any flavints not grouped
         together in the `ungrouped` return arg. Mutual exclusion can be
@@ -1232,20 +1385,20 @@ class CombinedFlavIntData(FlavIntData):
         """
         # What flavints to group together
         grouped = [NuFlavIntGroup(s) for s in val.split(';')]
-    
+
         # Find any flavints not included in the above groupings
         all_flavints = set(ALL_NUFLAVINTS)
         all_grouped_flavints = set(NuFlavIntGroup(grouped))
         ungrouped = [NuFlavIntGroup(k) for k in
                      sorted(all_flavints.difference(all_grouped_flavints))]
-    
+
         return grouped, ungrouped
 
 
 def test_IntType():
     set_verbosity(2)
-    all_f_codes = [12,-12,14,-14,16,-16]
-    all_i_codes = [1,2]
+    all_f_codes = [12, -12, 14, -14, 16, -16]
+    all_i_codes = [1, 2]
 
     #==========================================================================
     # Test IntType
@@ -1265,8 +1418,8 @@ def test_IntType():
 
 def test_NuFlav():
     set_verbosity(2)
-    all_f_codes = [12,-12,14,-14,16,-16]
-    all_i_codes = [1,2]
+    all_f_codes = [12, -12, 14, -14, 16, -16]
+    all_i_codes = [1, 2]
 
     #==========================================================================
     # Test NuFlav
@@ -1292,7 +1445,7 @@ def test_NuFlav():
     for f in all_f_codes:
         NuFlav(f)
         NuFlav(float(f))
-    for (f,bnb) in product(['e','mu','tau'], ['', 'bar']):
+    for (f, bnb) in product(['e', 'mu', 'tau'], ['', 'bar']):
         NuFlav('nu_' + f + '_' + bnb)
 
     logging.info('<< PASS >> : NuFlav checks')
@@ -1300,8 +1453,8 @@ def test_NuFlav():
 
 def test_NuFlavInt():
     set_verbosity(2)
-    all_f_codes = [12,-12,14,-14,16,-16]
-    all_i_codes = [1,2]
+    all_f_codes = [12, -12, 14, -14, 16, -16]
+    all_i_codes = [1, 2]
 
     #==========================================================================
     # Test NuFlavInt
@@ -1313,20 +1466,20 @@ def test_NuFlavInt():
 
     # Equality
     fi_comb = [fic for fic in product(all_f_codes, all_i_codes)]
-    for (fi0,fi1) in product(fi_comb, fi_comb):
+    for (fi0, fi1) in product(fi_comb, fi_comb):
         if fi0 == fi1:
             assert NuFlavInt(fi0) == NuFlavInt(fi1)
         else:
             assert NuFlavInt(fi0) != NuFlavInt(fi1)
-    assert NuFlavInt((12,1)) != 'xyz'
+    assert NuFlavInt((12, 1)) != 'xyz'
     # Sorting: this is my desired sort order
     nfl0 = [NuFlavInt(fic) for fic in fi_comb]
     nfl1 = [NuFlavInt(fic) for fic in fi_comb]
     np.random.shuffle(nfl1)
     nfl_sorted = sorted(nfl1)
-    assert all([ v0 == nfl_sorted[n] for n,v0 in enumerate(nfl0) ])
+    assert all([v0 == nfl_sorted[n] for n,v0 in enumerate(nfl0)])
     assert len(nfl0) == len(nfl_sorted)
-    
+
     # Test NuFlavInt instantiation
     nue = NuFlav('nue')
     cc = IntType('cc')
@@ -1341,7 +1494,7 @@ def test_NuFlavInt():
     nuebarnc = NuFlavInt('nuebarnc')
 
     # Instantiate with combinations of flavs and int types
-    for f,i in product(flavs, ints):
+    for f, i in product(flavs, ints):
         ref = NuFlavInt(f, i)
         assert NuFlavInt((f, i)) == ref
         assert NuFlavInt(flav=f, int_type=i) == ref
@@ -1363,8 +1516,8 @@ def test_NuFlavInt():
 
 def test_NuFlavIntGroup():
     set_verbosity(2)
-    all_f_codes = [12,-12,14,-14,16,-16]
-    all_i_codes = [1,2]
+    all_f_codes = [12, -12, 14, -14, 16, -16]
+    all_i_codes = [1, 2]
 
     #==========================================================================
     # Test NuFlavIntGroup
@@ -1418,7 +1571,7 @@ def test_NuFlavIntGroup():
     # List of single str containing multiple flavints spec
     assert set(NuFlavIntGroup(['nue_cc,nue_nc']).flavints()) == set((nue_cc, nue_nc))
     # List of str containing flavints spec
-    assert set(NuFlavIntGroup(['nue_cc','nue_nc']).flavints()) == set((nue_cc, nue_nc))
+    assert set(NuFlavIntGroup(['nue_cc', 'nue_nc']).flavints()) == set((nue_cc, nue_nc))
 
     # Another NuFlavIntGroup
     assert set(NuFlavIntGroup(NuFlavIntGroup(nue_cc, nue_nc)).flavints()) == set((nue_cc, nue_nc))
@@ -1430,7 +1583,7 @@ def test_NuFlavIntGroup():
 
     # Test remove
     nkg = NuFlavIntGroup('nue_cc+numucc')
-    nkg.remove(NuFlavInt((12,1)))
+    nkg.remove(NuFlavInt((12, 1)))
     assert nkg == NuFlavIntGroup('numucc')
 
     # Test del
@@ -1460,8 +1613,8 @@ def test_NuFlavIntGroup():
 
 def test_FlavIntData():
     set_verbosity(2)
-    all_f_codes = [12,-12,14,-14,16,-16]
-    all_i_codes = [1,2]
+    all_f_codes = [12, -12, 14, -14, 16, -16]
+    all_i_codes = [1, 2]
 
     #==========================================================================
     # Test FlavIntData
@@ -1469,16 +1622,16 @@ def test_FlavIntData():
     # Excercise the "standard" PISA nested-python-dict features, where this
     # dict uses an '_' to separate 'bar' in key names, and the nested dict
     # levels are [flavor][interaction type].
-    
+
     # Force separator to something weird before starting, to ensure everything
     # still works and this separator is still set when we're done
     oddball_sep = 'xyz'
     set_bar_ssep(oddball_sep)
-    ref_pisa_dict = {f:{it:None for it in ['cc','nc']} for f in
-                     ['nue','nue_bar','numu','numu_bar','nutau','nutau_bar']}
+    ref_pisa_dict = {f:{it:None for it in ['cc', 'nc']} for f in
+                     ['nue', 'nue_bar', 'numu','numu_bar', 'nutau', 'nutau_bar']}
     fi_cont = FlavIntData()
-    for f in ['nue','nue_bar','numu','numu_bar','nutau','nutau_bar']:
-        for it in ['cc','nc']:
+    for f in ['nue', 'nue_bar', 'numu', 'numu_bar', 'nutau', 'nutau_bar']:
+        for it in ['cc', 'nc']:
             assert fi_cont[f][it] == ref_pisa_dict[f][it]
             flavint = NuFlavInt(f, it)
             assert flavint.pidx(ref_pisa_dict) == ref_pisa_dict[f][it]
@@ -1520,15 +1673,16 @@ def test_FlavIntData():
 
 def test_CombinedFlavIntData():
     set_verbosity(2)
-    all_f_codes = [12,-12,14,-14,16,-16]
-    all_i_codes = [1,2]
+    all_f_codes = [12, -12, 14, -14, 16, -16]
+    all_i_codes = [1, 2]
 
     #==========================================================================
     # Test CombinedFlavIntData.xlateGroupsStr function
     #==========================================================================
     # Test string parsing for flavor groupings
-    gp1, ug1 = CombinedFlavIntData.xlateGroupsStr('nuall_nc; nuallbar_nc; nue;'
-                              'numu_cc+numubar_cc; nutau_cc')
+    gp1, ug1 = CombinedFlavIntData.xlateGroupsStr(
+        'nuall_nc; nuallbar_nc; nue;numu_cc+numubar_cc; nutau_cc'
+    )
     logging.info(str(([kg.simpleStr() for kg in gp1], ug1)))
     gp2, ug2 = CombinedFlavIntData.xlateGroupsStr('nue,numu')
     logging.info(str(([kg.simpleStr() for kg in gp2], ug2)))
@@ -1550,8 +1704,8 @@ def test_CombinedFlavIntData():
     CombinedFlavIntData(flavint_groupings='nuall;nuallbar')
     # Instantiate with non-standard key names
     cfid = CombinedFlavIntData(val={'nuall':np.arange(0,100),
-                               'nu all bar CC':np.arange(100,200),
-                               'nuallbarnc':np.arange(200,300)})
+                                    'nu all bar CC':np.arange(100,200),
+                                    'nuallbarnc':np.arange(200,300)})
     assert set(cfid.keys()) == set(('nuall', 'nuallbar_cc', 'nuallbar_nc'))
     cfid.save('/tmp/test_CombinedFlavIntData.json')
     cfid.save('/tmp/test_CombinedFlavIntData.hdf5')
@@ -1583,36 +1737,36 @@ def test_CombinedFlavIntData():
     }
 
     # Require exact equality, fields are exactly equal
-    cfid1 = CombinedFlavIntData(val=d1, dedup=True, dedup_close_rtol=0)
+    cfid1 = CombinedFlavIntData(val=d1, dedup=True, dedup_rtol=0)
 
     # Loose rtol spec, fields are not exactly equal but all within rtol (should
     # match 1)
     rtol = 1e-7
-    cfid2 = CombinedFlavIntData(val=d2, dedup=True, dedup_close_rtol=rtol)
+    cfid2 = CombinedFlavIntData(val=d2, dedup=True, dedup_rtol=rtol)
     assert cfid2.allclose(cfid1, rtol=rtol)
 
     # Tight rtol spec, fields are not exactly equal and some CC groupings are
     # now outside rtol
     rtol = 1e-9
-    cfid3 = CombinedFlavIntData(val=d2, dedup=True, dedup_close_rtol=rtol)
+    cfid3 = CombinedFlavIntData(val=d2, dedup=True, dedup_rtol=rtol)
     assert not cfid1.allclose(cfid3, rtol=rtol)
 
     # Tight rtol spec, fields are not exactly equal and all CC groupings are
     # outside rtol
     rtol = 1e-11
-    cfid4 = CombinedFlavIntData(val=d2, dedup=True, dedup_close_rtol=rtol)
+    cfid4 = CombinedFlavIntData(val=d2, dedup=True, dedup_rtol=rtol)
     assert not cfid1.allclose(cfid4, rtol=rtol)
 
     # Loose rtol, fields are exactly equal
-    cfid5 = CombinedFlavIntData(val=d1, dedup=True, dedup_close_rtol=1e-7)
+    cfid5 = CombinedFlavIntData(val=d1, dedup=True, dedup_rtol=1e-7)
     assert cfid1 == cfid5
 
     # Tighter rtol, fields are exactly equal
-    cfid6 = CombinedFlavIntData(val=d1, dedup=True, dedup_close_rtol=1e-9)
+    cfid6 = CombinedFlavIntData(val=d1, dedup=True, dedup_rtol=1e-9)
     assert cfid1 == cfid6
 
     # Very tight rtol, fields are exactly equal
-    cfid7 = CombinedFlavIntData(val=d1, dedup=True, dedup_close_rtol=1e-14)
+    cfid7 = CombinedFlavIntData(val=d1, dedup=True, dedup_rtol=1e-14)
     assert cfid1 == cfid7
 
     cfidat = CombinedFlavIntData(
