@@ -20,8 +20,6 @@ from numpy import *
 # DetMCSimRunsSettings objects back to JSON format from which they were
 # generated
 
-# TODO: Document the format of the mc_sim_run_settings.json file
-
 # TODO: put more thought into the MCSimRunSettings class
 
 # TODO: make sure user is forced to choose run & detector here
@@ -34,6 +32,78 @@ class MCSimRunSettings(dict):
     run_settings : string or dict
     run
     detector : string or None
+
+    Notes
+    -----
+    run_settings dictionary format (and same for corresponding JSON file, e.g.
+    resources/events/mc_sim_run_settings.json); example is for PINGU but should
+    generalize to DeepCore, etc. Note that a JSON file will use null and not
+    None.
+
+    (Also note that expressions for numerical values utilizing the Python/numpy
+    namespace are valid, e.g. "2*pi" will be evaluated within the code to its
+    decimal value.)
+
+    {
+
+      # Specify the detector name, lower case
+      "pingu": {
+
+        # Monte Carlo run number for this detector
+        "388": {
+
+          # Version of geometry, lower-case. E.g., ic86 for IceCube/DeepCore
+          "geom": "v36",
+
+          # A straightforward way of computing aeff/veff/meff is to keep all
+          # simulated events and compare the #analysis/#simulated. If all
+          # simulated events are kept, then the filename containing these is
+          # recorded here.
+          "all_gen_events_file": None,
+
+          # Max and min azimuth angle simulated (rad)
+          "azimuth_max": "2*pi",
+          "azimuth_min": 0,
+
+          # Max and min energy simulated (GeV)
+          "energy_max": 80,
+          "energy_min": 1,
+
+          # GENIE simulates some un-physica events (interactions that will not
+          # occur in nature). The number below was arrived at by Ken Clark, so
+          # ask him for more info.
+          "genie_physical_factor": 0.8095,
+
+          # GENIE has a prescale factor (TODO: generalize or eliminate for
+          # other xsec?)
+          "genie_prescale_factor": 1.2,
+
+          # Neutrino flavors simulated
+          "flavints": "nutau,nutaubar",
+
+          # #nu / (#nu + #nubar) simulated
+          "nu_to_total_fract": 0.5,
+
+          # Number of events simulated per I3 file
+          "num_events_per_file": 250000,
+
+          # Number of I3 files used
+          "num_i3_files": 195,
+
+          # Simulated spectral inde gamma; value of 1 => E*{-1}
+          "sim_spectral_index": 1,
+
+          # Version of neutrion/ice cross sections used for the simulation
+          "xsec": "genie_2.6.4",
+
+          # Max and min zenith angle simulated (rad)
+          "zenith_max": "pi",
+          "zenith_min": 0
+        }
+      }
+    }
+
+
     """
     def __init__(self, run_settings, run=None, detector=None):
         # TODO: clean up this constructor!
@@ -128,7 +198,9 @@ class DetMCSimRunsSettings(dict):
 
     See Also
     --------
-    MCSimRunSettings
+    MCSimRunSettings : Same, but specifies a specific run at instantiation; see
+                       class docstring for specification of run_settings dict /
+                       JSON file
     """
     def __init__(self, run_settings, detector=None):
         if isinstance(run_settings, basestring):
