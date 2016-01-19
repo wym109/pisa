@@ -1,67 +1,54 @@
 #
-# Creates the effective areas from a simfile, then returns them
-# re-scaled as desired.
-#
 # author: Timothy C. Arlen
 #
 # date:   April 8, 2014
-#
+"""
+Effective areas from a PISA events HDF5 file.
+"""
 
-import h5py
 import numpy as np
 from pisa.utils.log import logging
-from pisa.utils.utils import get_bin_centers, get_bin_sizes
-from pisa.resources.resources import find_resource
+from pisa.utils.utils import get_bin_sizes
+import pisa.utils.flavInt as flavInt
+import pisa.utils.events as events
+
 
 class AeffServiceMC:
-    '''
-    Takes the weighted effective area files, and creates a dictionary
-    of the 2D effective area in terms of energy and coszen, for each
-    flavor (nue,nue_bar,numu,...) and interaction type (CC, NC)
-    '''
+    """
+    Takes a PISA events HDF5 file (which includes the 'weighted_aeff' field)
+    and creates 2D-histogrammed effective areas in terms of energy and coszen,
+    for each flavor (nue, nue_bar, numu, ...) and interaction type (CC, NC)
+    """
 
-    def __init__(self,ebins,czbins,aeff_weight_file=None,**kwargs):
+    def __init__(self, ebins, czbins, aeff_weight_file, **kwargs):
         self.ebins = ebins
         self.czbins = czbins
         logging.info('Initializing AeffServiceMC...')
 
-        logging.info('Opening file: %s'%(aeff_weight_file))
-        try:
-            fh = h5py.File(find_resource(aeff_weight_file),'r')
-        except IOError,e:
-            logging.error("Unable to open aeff_weight_file %s"%aeff_weight_file)
-            logging.error(e)
-            raise
+        logging.info('Extracting events from file: %s' % (aeff_weight_file))
+        evts = events.Events(aeff_weight_file)
 
-        self.aeff_dict = {}
+        self.aeff = flavInt.FlavIntData()
         logging.info("Creating effective area dict...")
-        for flavor in ['nue','nue_bar','numu','numu_bar','nutau','nutau_bar']:
-            flavor_dict = {}
-            logging.debug("Working on %s effective areas"%flavor)
-            for int_type in ['cc','nc']:
-                weighted_aeff = np.array(fh[flavor+'/'+int_type+'/weighted_aeff'])
-                true_energy = np.array(fh[flavor+'/'+int_type+'/true_energy'])
-                true_coszen = np.array(fh[flavor+'/'+int_type+'/true_coszen'])
+        for flavint in flavInt.ALL_NUFLAVINTS:
+            logging.debug("Working on %s effective areas" % flavint)
+            bins = (self.ebins, self.czbins)
+            aeff_hist, _, _ = np.histogram2d(
+                evts.get(flavint, 'true_energy'),
+                evts.get(flavint, 'true_coszen'),
+                weights=evts.get(flavint, 'weighted_aeff'),
+                bins=bins
+            )
 
-                bins = (self.ebins,self.czbins)
-                aeff_hist,_,_ = np.histogram2d(true_energy,true_coszen,
-                                               weights=weighted_aeff,bins=bins)
-                # Divide by bin widths to convert to aeff:
-                ebin_sizes = get_bin_sizes(ebins)
-                czbin_sizes = 2.0*np.pi*get_bin_sizes(czbins)
-                bin_sizes = np.meshgrid(czbin_sizes,ebin_sizes)
-                aeff_hist /= np.abs(bin_sizes[0]*bin_sizes[1])
+            # Divide histogram by bin ExCZ "widths" to convert to aeff
+            ebin_sizes = get_bin_sizes(ebins)
+            czbin_sizes = 2.0*np.pi*get_bin_sizes(czbins)
+            bin_sizes = np.meshgrid(czbin_sizes, ebin_sizes)
+            aeff_hist /= np.abs(bin_sizes[0]*bin_sizes[1])
 
-                flavor_dict[int_type] = aeff_hist
+            # Save the result to the FlavIntData object
+            self.aeff.set(flavint, aeff_hist)
 
-            self.aeff_dict[flavor] = flavor_dict
-
-        return
-
-    def get_aeff(self,*kwargs):
-        '''
-        Returns the effective area dictionary
-        '''
-
-        return self.aeff_dict
-
+    def get_aeff(self, **kwargs):
+        """Returns the effective areas FlavIntData object"""
+        return self.aeff

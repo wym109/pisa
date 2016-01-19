@@ -11,7 +11,6 @@
 # date:   2014-01-27
 
 import os
-import sys
 import numpy as np
 from pisa.utils.log import logging
 
@@ -45,14 +44,20 @@ def from_json(filename):
         raise e
 
 
-def to_json(content, filename, indent=2):
+def to_json(content, filename, indent=2, overwrite=True):
     """Write content to a JSON file using a custom parser that automatically
     converts numpy arrays to lists."""
+    fpath = os.path.expandvars(os.path.expanduser(filename))
+    if os.path.exists(fpath):
+        if overwrite:
+            logging.warn('Overwriting file at ' + fpath)
+        else:
+            raise Exception('Refusing to overwrite path ' + fpath)
+
     with open(filename, 'w') as outfile:
         json.dump(content, outfile, cls=NumpyEncoder,
                   indent=indent, sort_keys=True)
-        logging.debug('Wrote %.2f kBytes to %s'%
-                      (outfile.tell()/1024., os.path.basename(filename)))
+        logging.debug('Wrote %.2f kB to %s' % (outfile.tell()/1024., filename))
 
 
 class NumpyEncoder(json.JSONEncoder):
@@ -71,8 +76,8 @@ class NumpyDecoder(json.JSONDecoder):
                  object_pairs_hook=None):
 
         super(NumpyDecoder, self).__init__(encoding, object_hook, parse_float,
-                                          parse_int, parse_constant, strict,
-                                          object_pairs_hook)
+                                           parse_int, parse_constant, strict,
+                                           object_pairs_hook)
         #only need to override the default array handler
         self.parse_array = self.json_array_numpy
         self.parse_string = self.json_python_string
