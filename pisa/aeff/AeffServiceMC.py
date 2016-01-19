@@ -3,8 +3,7 @@
 #
 # date:   April 8, 2014
 """
-Creates the effective areas from a simfile, then returns them
-re-scaled as desired.
+Effective areas from a PISA events HDF5 file.
 """
 
 import numpy as np
@@ -16,9 +15,9 @@ import pisa.utils.events as events
 
 class AeffServiceMC:
     """
-    Takes the weighted effective area files, and creates a dictionary
-    of the 2D effective area in terms of energy and coszen, for each
-    flavor (nue,nue_bar,numu,...) and interaction type (CC, NC)
+    Takes a PISA events HDF5 file (which includes the 'weighted_aeff' field)
+    and creates 2D-histogrammed effective areas in terms of energy and coszen,
+    for each flavor (nue, nue_bar, numu, ...) and interaction type (CC, NC)
     """
 
     def __init__(self, ebins, czbins, aeff_weight_file, **kwargs):
@@ -40,14 +39,16 @@ class AeffServiceMC:
                 weights=evts.get(flavint, 'weighted_aeff'),
                 bins=bins
             )
+
             # Divide histogram by bin ExCZ "widths" to convert to aeff
             ebin_sizes = get_bin_sizes(ebins)
             czbin_sizes = 2.0*np.pi*get_bin_sizes(czbins)
             bin_sizes = np.meshgrid(czbin_sizes, ebin_sizes)
             aeff_hist /= np.abs(bin_sizes[0]*bin_sizes[1])
+
             # Save the result to the FlavIntData object
             self.aeff.set(flavint, aeff_hist)
 
     def get_aeff(self, **kwargs):
-        """Returns the effective area dictionary"""
+        """Returns the effective areas FlavIntData object"""
         return self.aeff
