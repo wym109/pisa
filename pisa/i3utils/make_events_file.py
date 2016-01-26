@@ -475,7 +475,6 @@ def main():
         '--cut',
         metavar='CUT_NAME',
         type=str,
-        default='analysis',
         help='''Name of pre-defined cut to apply. See
         resources/events/data_proc_params.json for definitions for the detector
         and processing version you're working with (note that the names of cuts
