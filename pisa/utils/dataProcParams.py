@@ -387,6 +387,14 @@ class DataProcParams(dict):
         if isinstance(cuts, basestring) or isinstance(cuts, dict):
             cuts = [cuts]
 
+        # Default is to return all fields
+        if return_fields is None:
+            return_fields = self['field_map'].keys()
+
+        # If no cuts specified, return all data from specified fields
+        if len(cuts) == 0:
+            return {f:np.array(data[f]) for f in return_fields}
+
         cut_strings = set()
         cut_fields = set()
         for cut in cuts:
@@ -408,10 +416,6 @@ class DataProcParams(dict):
 
         # Evaluate cuts, returning a boolean array
         bool_idx = eval(cut_string)
-
-        # Default is to return all fields
-        if return_fields is None:
-            return_fields = self['field_map'].keys()
 
         # Return specified (or all) fields, indexed by boolean array
         return {f:np.array(data[f])[bool_idx] for f in return_fields}
