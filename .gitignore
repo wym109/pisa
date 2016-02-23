@@ -10,6 +10,7 @@ GridPropagator.py
 *.o
 gaussians.c
 gaussians.so
+MANIFEST
 
 # Ignore test files in src dir
 pisa/flux/*.json
@@ -24,3 +25,6 @@ pisa.egg-info
 # Common editor remnants
 *~
 *.swp
+
+# Unison backups
+.backup
