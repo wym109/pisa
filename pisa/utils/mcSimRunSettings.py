@@ -164,8 +164,10 @@ class MCSimRunSettings(dict):
                              ' flav_or_flavint must be specified. Got ' +
                              str(nargs) + ' args instead.')
 
-        if not flav_or_flavint is None:
+        if flav_or_flavint is not None:
             is_particle = flavInt.NuFlavInt(flav_or_flavint).isParticle()
+        if barnobar is not None:
+            is_particle = barnobar > 0
         if is_particle:
             return self['nu_to_total_fract']
         return 1 - self['nu_to_total_fract']
