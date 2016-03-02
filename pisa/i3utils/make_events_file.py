@@ -10,15 +10,17 @@ from I3 files by the icecube.hdfwriter.I3HDFTableService
 """
 
 import os
-import numpy as np
 from copy import deepcopy
+
+import numpy as np
+import sympy as sym
 
 from pisa.utils.log import logging, set_verbosity
 import pisa.utils.utils as utils
 import pisa.utils.flavInt as flavInt
 import pisa.utils.events as events
-import pisa.utils.mcSimRunSettings as MCSRS
-import pisa.utils.dataProcParams as DPP
+import pisa.utils.mcSimRunSettings as mcSimRunSettings
+import pisa.utils.dataProcParams as dataProcParams
 import pisa.resources.resources as resources
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
@@ -34,6 +36,7 @@ EXTRACT_FIELDS = (
     'reco_energy',
     'reco_coszen',
     'one_weight',
+    'interacction_prob',
     'pid',
 )
 
@@ -43,14 +46,23 @@ OUTPUT_FIELDS = (
     'true_coszen',
     'reco_energy',
     'reco_coszen',
+    'mc_weight',
+    'mc_weight_per_gev_per_sr',
     'weighted_aeff',
     'pid',
 )
 
 
-def makeEventsFile(data_files, outdir, run_settings, data_proc_params, cut,
-                   join=None, cust_cuts=None,
-                   extract_fields=EXTRACT_FIELDS, output_fields=OUTPUT_FIELDS):
+def powerLawIntegral(E0, E1, gamma):
+    E = sym.Symbol('E')
+    I = sym.integrate(E**(-gamma), E)
+    return I.evalf(subs={E:E1}) - I.evalf(subs={E:E0})
+
+
+def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
+                   run_settings=None, data_proc_params=None, join=None,
+                   cust_cuts=None, extract_fields=EXTRACT_FIELDS,
+                   output_fields=OUTPUT_FIELDS):
     """
     Takes the simulated and reconstructed HDF5 file(s) (as converted from I3
     by icecube.hdfwriter.I3HDFTableService) as input and writes out a
@@ -60,27 +72,29 @@ def makeEventsFile(data_files, outdir, run_settings, data_proc_params, cut,
     Parameters
     ----------
     data_files : dict
-        File paths for finding data files for each flavor of neutrino,
-        formatted as:
-          {
-            'nue':   [<list of nue+nuebar file paths>],
-            'numu':  [<list of numu+numubar file paths>],
-            'nutau': [<list of nutau+nutaubar file paths>]
-          }
-    outdir
-        Directory path in which to store resulting files; will be generated if
-        it does not already exist (including any parent directories that do not
-        exist)
-    run_settings
-        An instantiated MCSimRunSettings object, instantiated e.g. from the
-        PISA-standard resources/events/mc_sim_run_settings.json file
-    data_proc_params
-        An instantiated DataProcParams object, instantiated e.g. from the
-        PISA-standard resources/events/data_proc_params.json file
+        File paths for finding data files for each run, formatted as:
+            {
+                '<run#>': [<list of dir or file paths>],
+                '<run#>': [<list of dir or file paths>],
+                ...
+                '<run#>': [<list of dir or file paths>],
+            }
+    detector : string
+    proc_ver
     cut
         Name of a standard cut to use; must be specified in the relevant
         detector/processing version node of the data processing parameters
         (file from which the data_proc_params object was instantiated)
+    outdir
+        Directory path in which to store resulting files; will be generated if
+        it does not already exist (including any parent directories that do not
+        exist)
+    run_settings : MCSimRunSettings or string
+        An instantiated MCSimRunSettings object, instantiated e.g. from the
+        PISA-standard resources/events/mc_sim_run_settings.json file
+    data_proc_params : DataProcParams or string
+        An instantiated DataProcParams object, instantiated e.g. from the
+        PISA-standard resources/events/data_proc_params.json file
     join
         String specifying any flavor/interaction types (flavInts) to join
         together. Separate flavInts with commas (',') and separate groups
@@ -95,12 +109,80 @@ def makeEventsFile(data_files, outdir, run_settings, data_proc_params, cut,
         file; note that if 'weighted_aeff' is not preent, effective area will
         not be computed
     """
+    if isinstance(run_settings, basestring):
+        run_settings = mcSimRunSettings.DetMCSimRunsSettings(
+            resources.find_resource(args.run_settings),
+            detector=detector
+        )
+    assert isinstance(run_settings, mcSimRunSettings.DetMCSimRunsSettings)
+    assert run_settings.detector == detector
+
+    if isinstance(data_proc_params, basestring):
+        data_proc_params = dataProcParams.DataProcParams(
+            resources.find_resource(data_proc_params),
+            detector=detector,
+            proc_ver=proc_ver
+        )
+    assert data_proc_params.detector == detector
+    assert data_proc_params.proc_ver == proc_ver
+
+    runs = sorted(data_files.keys())
+
+    all_flavs = []
+    flavs_by_run = {}
+    run_norm_factors = {}
+    bin_edges = set()
+
+    runs_by_flavint = flavInt.FlavIntData()
+    for flavint in runs_by_flavint.flavints():
+        runs_by_flavint[flavint] = []
+
+    xsec_fract_en_wtd_avg = {run:flavInt.FlavIntData() for run in runs}
+    ngen_per_flav = {run:flavInt.FlavIntData() for run in runs}
+    for run in runs:
+        flavints_in_run = run_settings.get_flavints()
+        e_range = run_settings.get_energy_range(run)
+        gamma = run_settings.get_spectral_index(run)
+        for flavint in flavints_in_run:
+            ngen_flav = run_settings.get_num_gen(flav_or_flavint=flavint,
+                                                 include_physical_fract=True)
+            runs_by_flavint[flavint].append(run)
+            this_flav = flavint.
+            xsec_fract_en_wtd_avg[run][flavint] = \
+                    xsec.get_xs_ratio_integral(flavintgrp0=flavint,
+                                               flavintgrp1=flavint.flav(),
+                                               e_range=e_range,
+                                               gamma=gamma,
+                                               average=True)
+        xsec_ver = run_settings.get_xsec_version(run)
+        if xsec_ver_ref is None:
+            xsec_ver_ref = xsec_ver
+        # An assumption of below logic is that all MC is generated using the
+        # same cross sections version.
+        #
+        # TODO / NOTE:
+        # It would be possible to combine runs with different cross sections so
+        # long as each (flavor, interaction type) cross sections are
+        # weighted-averaged together using weights
+        #   N_gen_{n,flav+inttype} * E_x^{-gamma_n} / 
+        #       ( \int_{E_min_n}^{E_max_n} E^{-\gamma_n} dE )
+        # where E_x are the energy sample points specified in the cross
+        # sections (and hence these must also be identical across all cross
+        # sections that get combined, unless interpolation is performed).
+        assert xsec_ver == xsec_ver_ref
+        ngen_weighted_energy_integral[str(run)] = powerLawIntegral(
+        #flavs_by_run[run] = run_settings.flavs(run)
+    flavs_present = 
+
     # Create Events object to store data
     evts = events.Events()
     evts.metadata.update({
         'detector': run_settings.detector,
         'proc_ver': data_proc_params.proc_ver,
+        'geom': detector_geom,
+        'runs': runs,
     })
+
     cuts = []
     if isinstance(cust_cuts, dict):
         cust_cuts = [cust_cuts]
@@ -173,7 +255,6 @@ def makeEventsFile(data_files, outdir, run_settings, data_proc_params, cut,
     # and recording the number of generated events pertinent to
     # calculating aeff
     filecount = {}
-    all_runs = set()
     detector_geom = None
     for userspec_baseflav, fnames in data_files.iteritems():
         userspec_baseflav = flavInt.NuFlav(userspec_baseflav)
@@ -188,7 +269,6 @@ def makeEventsFile(data_files, outdir, run_settings, data_proc_params, cut,
                     'Must be just one run present in data'
 
             run = int(data['run'][0])
-            all_runs.add(run)
             if not run in filecount:
                 filecount[run] = 0
             filecount[run] += 1
@@ -329,12 +409,8 @@ def makeEventsFile(data_files, outdir, run_settings, data_proc_params, cut,
                 {f: extracted_data[grp_n][int_type][f] for f in output_fields}
             )
 
-    # Update metadata
-    evts.metadata['geom'] = detector_geom
-    evts.metadata['runs'] = sorted(all_runs)
-
     # Generate file name
-    run_label = 'runs_' + utils.list2hrlist(all_runs)
+    run_label = 'runs_' + utils.list2hrlist(runs)
     geom_label = '' + detector_geom
     fname = 'events__' + '__'.join([
         detector_label,
@@ -536,11 +612,11 @@ def main():
 
     det = args.det.lower()
     proc = args.proc.lower()
-    run_settings = MCSRS.DetMCSimRunsSettings(
+    run_settings = mcSimRunSettings.DetMCSimRunsSettings(
         resources.find_resource(args.run_settings),
         detector=det
     )
-    data_proc_params = DPP.DataProcParams(
+    data_proc_params = dataProcParams.DataProcParams(
         resources.find_resource(args.data_proc_params),
         detector=det,
         proc_ver=proc

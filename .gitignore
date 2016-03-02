@@ -28,3 +28,7 @@ pisa.egg-info
 
 # Unison backups
 .backup
+
+# Plots
+*.pdf
+*.png

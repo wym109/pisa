@@ -7,7 +7,7 @@
 # date:   March 31, 2015
 #
 
-import os
+import os, sys
 import copy
 import itertools
 import numpy as np
@@ -16,7 +16,7 @@ from scipy import interpolate
 from pisa.reco.RecoServiceBase import RecoServiceBase
 from pisa.resources.resources import find_resource
 from pisa.utils import kde, hdf, utils, confInterval
-from pisa.utils.log import logging
+from pisa.utils.log import logging, set_verbosity
 
 
 def reflect1d(x, refl):
@@ -283,6 +283,12 @@ class RecoServiceVBWKDE(RecoServiceBase):
         """
         OVERFIT_FACTOR = 1.0
 
+        if store_plot_data:
+            kept_data = FI.FlavIntData()
+            for fi in plt_data.flavInts():
+                kept_data[fi] = {'ebins': ebins, 'czbins':czbins,
+                                 'eres':[], 'czres':[]}
+
         if make_plots:
             import matplotlib as mpl
             import matplotlib.pyplot as plt
@@ -302,11 +308,11 @@ class RecoServiceVBWKDE(RecoServiceBase):
             LEFT = 0.07
             HSPACE = 0.12
             LABELPAD = 0.058
-            AXISBG = (0.5, 0.5, 0.5)
+            AXISBG = (1,1,1) #(0.5, 0.5, 0.5)
             DARK_RED =  (0.7, 0.0, 0.0)
             HIST_PP = dict(
                 facecolor=(1,0.5,0.5), edgecolor=DARK_RED,
-                histtype='stepfilled', alpha=0.7, linewidth=2.0,
+                histtype='stepfilled', alpha=0.7, linewidth=1.0,
                 label=r'$\mathrm{Histogram}$'
             )
             N_HBINS = 25
@@ -314,10 +320,11 @@ class RecoServiceVBWKDE(RecoServiceBase):
                 color=(0.0, 0.0, 0.0), linestyle='-', marker=None, alpha=0.6,
                 linewidth=2.0, label=r'$\mathrm{VBWKDE}$'
             )
-            RUG_PP = dict(color=(1.0, 1.0, 1.0), linewidth=0.4, alpha=0.5)
+            #RUG_PP = dict(color=(1.0, 1.0, 1.0), linewidth=0.4, alpha=0.5)
+            RUG_PP = dict(color=(0.5, 0.5, 0.5), linewidth=0.4, alpha=0.5)
             RUG_LAB =r'$\mathrm{Rug\,plot}$'
-            LEGFNTCOL = (1,1,1)
-            LEGFACECOL = (0.2,0.2,0.2)
+            LEGFNTCOL = (0,0,0) #(1,1,1)
+            LEGFACECOL = (0.9,0.9,0.9)
             GRIDCOL = (0.4, 0.4, 0.4)
             pdfpgs = PdfPages(plot_fname)
 
@@ -552,25 +559,23 @@ class RecoServiceVBWKDE(RecoServiceBase):
                 fig1.clf()
                 ax1 = fig1.add_subplot(211, axisbg=AXISBG)
 
-                # Retrieve region where VBWKDE lives
-                ml_ci = confInterval.MLConfInterval(x=enu_mesh, y=enu_pdf)
-                #for conf in np.logspace(np.log10(0.999), np.log10(0.95), 50):
-                #    try:
-                #        lb, ub, yopt, r = ml_ci.findCI_lin(conf=conf)
-                #    except:
-                #        pass
-                #    else:
-                #        break
-                #xlims = (min(-ebin_mid*1.5, lb),
-                #         max(min(ub, 6*ebin_mid),2*ebin_mid))
-                lb, ub, yopt, r = ml_ci.findCI_lin(conf=0.98)
-                xlims = (lb, #min(-ebin_mid*1.5, lb),
-                         max(min(ub, 6*ebin_mid),2*ebin_wid))
+                ## Retrieve region where VBWKDE lives
+                #ml_ci = confInterval.MLConfInterval(x=enu_mesh, y=enu_pdf)
+                ##for conf in np.logspace(np.log10(0.999), np.log10(0.95), 50):
+                ##    try:
+                ##        lb, ub, yopt, r = ml_ci.findCI_lin(conf=conf)
+                ##    except:
+                ##        pass
+                ##    else:
+                ##        break
+                ##xlims = (min(-ebin_mid*1.5, lb),
+                ##         max(min(ub, 6*ebin_mid),2*ebin_mid))
+                #lb, ub, yopt, r = ml_ci.findCI_lin(conf=0.98)
+                #xlims = (lb, #min(-ebin_mid*1.5, lb),
+                #         max(min(ub, 6*ebin_mid),2*ebin_wid))
 
-                #xlims = (
-                #    -ebin_wid*1.5,
-                #    ebin_wid*1.5
-                #)
+                xlims = np.clip([ebin_mid-ebin_wid*15, ebin_mid+ebin_wid*15],
+                                a_min=min(ebin_edges), a_max=max(ebin_edges)) - ebin_mid
                 #    min(ebin_mid*2, ebin_edges[-1]+(ebin_edges[-1]-ebin_edges[0])*0.1)
                 #)
 
@@ -586,29 +591,29 @@ class RecoServiceVBWKDE(RecoServiceBase):
                 ax1.plot(enu_mesh, enu_pdf, **DIFFUS_PP)
                 axlims = ax1.axis('tight')
                 ax1.set_xlim(xlims)
-                ymax = axlims[3]*1.05
+                ymax = axlims[3]*1.15
                 ax1.set_ylim(0, ymax)
 
-                # Grey-out regions outside binned region, so it's clear what
-                # part of tail(s) will be thrown away
-                width = -ebin_mid+ebin_edges[0]-xlims[0]
-                unbinned_region_tex = r'$\mathrm{Unbinned}$'
-                if width > 0:
-                    ax1.add_patch(Rectangle((xlims[0],0), width, ymax, #zorder=-1,
-                                            alpha=0.30, facecolor=(0.0 ,0.0, 0.0), fill=True,
-                                            ec='none'))
-                    ax1.text(xlims[0]+(xlims[1]-xlims[0])/40., ymax/10.,
-                             unbinned_region_tex, fontsize=14, ha='left',
-                             va='bottom', rotation=90, color='k')
-                
-                width = xlims[1] - (ebin_edges[-1]-ebin_mid)
-                if width > 0:
-                    ax1.add_patch(Rectangle((xlims[1]-width,0), width, ymax,
-                                            alpha=0.30, facecolor=(0, 0, 0),
-                                            fill=True, ec='none'))
-                    ax1.text(xlims[1]-(xlims[1]-xlims[0])/40., ymax/10.,
-                             unbinned_region_tex, fontsize=14, ha='right',
-                             va='bottom', rotation=90, color='k')
+                ## Grey-out regions outside binned region, so it's clear what
+                ## part of tail(s) will be thrown away
+                #width = -ebin_mid+ebin_edges[0]-xlims[0]
+                #unbinned_region_tex = r'$\mathrm{Unbinned}$'
+                #if width > 0:
+                #    ax1.add_patch(Rectangle((xlims[0],0), width, ymax, #zorder=-1,
+                #                            alpha=0.30, facecolor=(0.0 ,0.0, 0.0), fill=True,
+                #                            ec='none'))
+                #    ax1.text(xlims[0]+(xlims[1]-xlims[0])/40., ymax/10.,
+                #             unbinned_region_tex, fontsize=14, ha='left',
+                #             va='bottom', rotation=90, color='k')
+                #
+                #width = xlims[1] - (ebin_edges[-1]-ebin_mid)
+                #if width > 0:
+                #    ax1.add_patch(Rectangle((xlims[1]-width,0), width, ymax,
+                #                            alpha=0.30, facecolor=(0, 0, 0),
+                #                            fill=True, ec='none'))
+                #    ax1.text(xlims[1]-(xlims[1]-xlims[0])/40., ymax/10.,
+                #             unbinned_region_tex, fontsize=14, ha='right',
+                #             va='bottom', rotation=90, color='k')
 
                 # Rug plot of events' reco energy errors
                 ylim = ax1.get_ylim()
@@ -624,8 +629,9 @@ class RecoServiceVBWKDE(RecoServiceBase):
                     r'(\mathrm{GeV})$', labelpad=LABELPAD
                 )
                 leg = ax1.legend(loc='upper right', title=leg_title_tex,
-                                 frameon=True, framealpha=0.8,
-                                 fancybox=True, bbox_to_anchor=[1,0.975])
+                                 frameon=True, framealpha=0.3,
+                                 fancybox=True, bbox_to_anchor=[1,0.975],
+                                 markerfirst=False,)
 
                 # Other plot details
                 ax1.xaxis.set_label_coords(0.9, -LABELPAD)
@@ -854,18 +860,29 @@ class RecoServiceVBWKDE(RecoServiceBase):
                 assert (np.sum(kernel4d[ebin_n, czbin_n]) -
                         tot_ebin_area*tot_czbin_area) < self.EPSILON
 
+            if store_debug_data:
+                kept_data[flav][int_type]['energy_resolutions'].append(dict(
+                    enu_err=enu_err, enu_bw=enu_bw, enu_mesh=enu_mesh,
+                    enu_pdf=enu_pdf, ebin_areas=ebin_areas
+                ))
+                kept_data[flav][int_type]['coszen_resolutions'].append(dict(
+                    cz_err=cz_err,   cz_bw=cz_bw,   cz_mesh=cz_mesh,
+                    cz_pdf=cz_pdf,   czbin_areas=czbin_areas
+                ))
+
             if make_plots:
                 ax2 = fig1.add_subplot(212, axisbg=AXISBG)
                 hbins = np.linspace(dmin-0.02*drange, dmax+0.02*drange, N_HBINS*3)
                 hvals, hbins, hpatches = ax2.hist(cz_err, bins=hbins,
                                                   normed=True, **HIST_PP)
                 ax2.plot(cz_mesh, cz_pdf, **DIFFUS_PP)
-                fci = confInterval.MLConfInterval(x=cz_mesh,
-                                                  y=cz_pdf)
-                lb, ub, yopt, r = fci.findCI_lin(conf=0.995)
                 axlims = ax2.axis('tight')
-                ax2.set_xlim(lb, ub)
-                ax2.set_ylim(0, axlims[3]*1.05)
+                #fci = confInterval.MLConfInterval(x=cz_mesh,
+                #                                  y=cz_pdf)
+                #lb, ub, yopt, r = fci.findCI_lin(conf=0.995)
+                #ax2.set_xlim(lb, ub)
+                ax2.set_xlim(-0.75, 1.5)
+                ax2.set_ylim(0, axlims[3]*1.15)
 
                 ylim = ax2.get_ylim()
                 dy = ylim[1] - ylim[0]
@@ -881,8 +898,8 @@ class RecoServiceVBWKDE(RecoServiceBase):
                 ax2.yaxis.grid(color=GRIDCOL)
                 leg_title_tex = r'$\mathrm{Normalized}\,\cos\vartheta\mathrm{-err.\,distr.}$'
                 leg = ax2.legend(loc='upper right', title=leg_title_tex,
-                                 frameon=True, framealpha=0.8, fancybox=True,
-                                 bbox_to_anchor=[1,0.975])
+                                 frameon=True, framealpha=0.3, fancybox=True,
+                                 bbox_to_anchor=[1,0.975], markerfirst=False,)
                 leg.get_title().set_fontsize(16)
                 leg.get_title().set_color(LEGFNTCOL)
                 [t.set_color(LEGFNTCOL) for t in leg.get_texts()]

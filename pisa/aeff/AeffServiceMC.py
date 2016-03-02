@@ -19,36 +19,76 @@ class AeffServiceMC:
     and creates 2D-histogrammed effective areas in terms of energy and coszen,
     for each flavor (nue, nue_bar, numu, ...) and interaction type (CC, NC)
     """
+    def __init__(self, ebins, czbins, aeff_weight_file, compute_error=False,
+                 **kwargs):
+        self.__error_computed = False
+        self.__ebins = None
+        self.__czbins = None
+        self.__aeff_weight_file = None
+        self.__compute_error = False
+        self.__evts = None
+        self.update(ebins=ebins, czbins=czbins,
+                    aeff_weight_file=aeff_weight_file,
+                    compute_error=compute_error)
 
-    def __init__(self, ebins, czbins, aeff_weight_file, **kwargs):
-        self.ebins = ebins
-        self.czbins = czbins
-        logging.info('Initializing AeffServiceMC...')
+    def update(self, ebins, czbins, aeff_weight_file, compute_error):
+        if ebins == self.__ebins and czbins == self.__czbins and \
+                aeff_weight_file == self.__aeff_weight_file and \
+                (not compute_error or (compute_error == self.__compute_error)):
+            return
+        self.__ebins = ebins
+        self.__czbins = czbins
+        self.__compute_error = compute_error
+        logging.info('Updating AeffServiceMC aeffs...')
 
-        logging.info('Extracting events from file: %s' % (aeff_weight_file))
-        evts = events.Events(aeff_weight_file)
+        if self.__evts is None or aeff_weight_file != self.__aeff_weight_file:
+            logging.info('Extracting events from file: %s' %
+                         (aeff_weight_file))
+            self.__evts = events.Events(aeff_weight_file)
+            self.__aeff_weight_file = aeff_weight_file
 
-        self.aeff = flavInt.FlavIntData()
-        logging.info("Creating effective area dict...")
+        self.__aeff = flavInt.FlavIntData()
+        self.__aeff_err = flavInt.FlavIntData()
+        logging.info("Populating effective areas...")
         for flavint in flavInt.ALL_NUFLAVINTS:
-            logging.debug("Working on %s effective areas" % flavint)
-            bins = (self.ebins, self.czbins)
+            logging.debug("Computing %s effective areas" % flavint)
+            bins = (self.__ebins, self.__czbins)
+            true_e = self.__evts[flavint]['true_energy']
+            true_cz = self.__evts[flavint]['true_coszen']
+            weights = self.__evts[flavint]['weighted_aeff']
             aeff_hist, _, _ = np.histogram2d(
-                evts.get(flavint, 'true_energy'),
-                evts.get(flavint, 'true_coszen'),
-                weights=evts.get(flavint, 'weighted_aeff'),
+                true_e,
+                true_cz,
+                weights=weights,
                 bins=bins
             )
+            if self.__compute_error:
+                bin_counts, _, _ = np.histogram2d(
+                    true_e,
+                    true_cz,
+                    weights=None,
+                    bins=bins
+                )
 
-            # Divide histogram by bin ExCZ "widths" to convert to aeff
-            ebin_sizes = get_bin_sizes(ebins)
-            czbin_sizes = 2.0*np.pi*get_bin_sizes(czbins)
-            bin_sizes = np.meshgrid(czbin_sizes, ebin_sizes)
-            aeff_hist /= np.abs(bin_sizes[0]*bin_sizes[1])
+            # Divide histogram by bin ExCZxAZ "widths" to convert to aeff
+            ebin_sizes = get_bin_sizes(self.__ebins)
+            # Note that the following includes the azimuth angle bin size (the
+            # 2pi factor since we use a single azimuth "bin")
+            solidangle_bin_sizes = 2.0*np.pi*get_bin_sizes(self.__czbins)
+            binsize_normfact = 1./np.outer(ebin_sizes, solidangle_bin_sizes)
+            aeff_hist *= binsize_normfact
+            self.__aeff[flavint] = aeff_hist
 
-            # Save the result to the FlavIntData object
-            self.aeff.set(flavint, aeff_hist)
+            if self.__compute_error:
+                aeff_err = aeff_hist / np.sqrt(bin_counts)
+                self.__aeff_err[flavint] = aeff_err
+                self.__error_computed = True
 
     def get_aeff(self, **kwargs):
         """Returns the effective areas FlavIntData object"""
-        return self.aeff
+        return self.__aeff
+    
+    def get_aeff_with_error(self, **kwargs):
+        """Returns the effective areas FlavIntData object"""
+        assert self.__error_computed
+        return self.__aeff, self.__aeff_err

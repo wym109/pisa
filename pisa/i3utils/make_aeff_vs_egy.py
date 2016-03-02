@@ -1,243 +1,438 @@
 #! /usr/bin/env python
 #
-# author: Timothy C. Arlen
+# author: J.L. Lanfranchi
+# date:   2016-03-01
 #
-# This scripts gets the 1D parameterized effective area as a function
-# of Energy directly from the simulations using the simulation weight
-# (OneWeight), and creates effective area .dat files needed by PISA.
-#
-# To complete the effective area parameterization, one must
-# parameterize the zenith dependence separately.
-#
+"""
+One-dimensional effective areas are "parameerized" (meant to be linearly
+interpolated) as functions of energy.
+
+Events of a given flavor/interaction type (or all events from grouped
+flavor/interaction types) from a PISA have their effective areas computed. This
+is smoothed with a spline, and the spline fit is sampled at the specified
+energy bins' midpoints (on a linear scale) to arrive at the "parameterization".
+
+To complete the effective area parameterization, one must parameterize the
+zenith dependence separately.
+"""
+
+# TODO: make energy-dependent and coszen-dependent parameterizations separate
+# TODO: store metadata about how parameterizations were created to the produced
+#       data files
+# TODO: use CombinedFlavIntData for storage of the results
 
 import os,sys
-import numpy as np
-from glob import glob
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from itertools import izip
 
+import numpy as np
 from scipy.interpolate import splrep, splev
-import tables
 
-from pisa.i3utils.hdfchain import HDFChain
-from pisa.i3utils.sim_utils import get_arb_cuts,get_aeff1D
-from pisa.utils.utils import get_bin_centers
 from pisa.utils.log import logging, set_verbosity
+from pisa.aeff.AeffServiceMC import AeffServiceMC
+from pisa.utils.events import Events
+from pisa.utils import flavInt
+from pisa.utils import jsons
+import pisa.utils.utils as utils
 
-def LoadData(directory,geometry,flavor):
-    '''
-    Expects path to files to be "<directory/<geometry>_<flavor>.hd5"
-    returns a PyTables filehandle either to the specific flavor file
-    or to the chain of files for flavor == 'NC'.
+from histogramTools import stepHist
 
-    NOTE: that flavor takes values of ['nue','nue_bar','numu',...]
-    but filenames are only one of 'nue', 'numu', or 'nutau'
-    '''
-
-    ext = '.hd5'
-    nue_file = os.path.join(directory,geometry+"_nue"+ext)
-    numu_file = os.path.join(directory,geometry+"_numu"+ext)
-    nutau_file = os.path.join(directory,geometry+"_nutau"+ext)
-    if flavor == 'NC':
-        # First open the filehandles:
-        data_nue = tables.openFile(nue_file,'r')
-        data_numu = tables.openFile(numu_file,'r')
-        data_nutau = tables.openFile(nutau_file,'r')
-
-        return HDFChain([nue_file,numu_file,nutau_file])
-
-    else:
-        if 'nue' in flavor: return tables.openFile(nue_file,'r')
-        elif 'numu' in flavor: return tables.openFile(numu_file,'r')
-        elif 'nutau' in flavor: return tables.openFile(nutau_file,'r')
-        else: raise ValueError("flavor: %s is unknown!"%s)
-
-
-def SaveAeff(aeff,aeff_err,egy_bin_edges,flavor,out_dir):
-
-    # Correct for nutau/nutaubar:
-    for i in range(len(egy_bin_edges)-1):
-        if(aeff_err[i] < 1.0e-12): aeff_err[i] = 1.0e-12
-
-    ecen = get_bin_centers(egy_bin_edges)
-    splinefit = splrep(ecen,aeff,w=1./np.array(aeff_err), k=3, s=100)
-    fit_aeff = splev(ecen,splinefit)
-
-    outfile = os.path.join(out_dir,"a_eff_"+flavor+".dat")
-    print "Saving spline fit to file: "+outfile
-    fh = open(outfile,'w')
-    for i,energy in enumerate(ecen):
-        fh.write(str(energy)+' '+str(fit_aeff[i])+'\n')
-    fh.close()
-
-    outfile_data = os.path.join(out_dir,"a_eff_"+flavor+"_data.dat")
-    print "Saving data to file: "+outfile_data
-    fh = open(outfile_data,'w')
-    for i,energy in enumerate(ecen):
-        fh.write(str(energy)+' '+str(aeff[i])+' '+str(aeff_err[i])+'\n')
-    fh.close()
-
-    return
-
-#########################################################
-
-
-set_verbosity(0)
-parser = ArgumentParser('''Creates the aeff_<flavor>.dat files for use in the PISA code. This
-script expects to be handed a directory to <geom_str>_<flav>.hd5
-files, where <geom_str> (i.e. 'V36' or 'V15') is a cmd line argument,
-and <flav> is in ['nue',numu','nutau'].''',
-                        formatter_class=ArgumentDefaultsHelpFormatter)
-parser.add_argument('data_dir',metavar='DIR',type=str,
-                    help='Directory to the I3 hdf5 simulation files.')
-parser.add_argument('geom_str',type=str,help='Geometry tag for hdf5 file labeling.')
-parser.add_argument('--old_pid',action='store_true',default=False,
-                    help='Use old style particle id numbers.')
-parser.add_argument('-o','--outdir',type=str,default='',
-                    help='Output file directory [default: cwd]')
-
-parser.add_argument('--ne',metavar='INT',type=float,required=True,
-                    help='Number of i3 sim files combined into the nue hdf5 file.')
-parser.add_argument('--nmu',metavar='INT',type=float,required=True,
-                    help='Number of i3 sim files combined into the numu hdf5 file.')
-parser.add_argument('--ntau',metavar='INT',type=float,required=True,
-                    help='Number of i3 sim files combined into the nutau hdf5 file.')
-parser.add_argument('--all_cz',action='store_true', default=False,
-                    help='Use all downgoing events (i.e. Do NOT cut cz < 0 events).')
-parser.add_argument('--mcnu',metavar='STR',type=str,default='MCNeutrino',
-                    help='Key in hdf5 file from which to extract MC True information')
-# egy binning options:
-parser.add_argument('--emin',type=float,default=1.0,
-                    help='Energy in GeV for lowest egy bin edge')
-parser.add_argument('--emax',type=float,default=80.0,
-                    help='Energy in GeV for highest egy bin edge')
-parser.add_argument('--nebins',type=int,default=41,
-                    help='Number of energy bin edges to use in Aeff.')
-parser.add_argument('--elin',action='store_true', default=False,
-                    help='Use linear binning for energy axis (rather than log10).')
-# Step1/Step2 cuts options (or NONE - for most DeepCore analyses):
-hcut = parser.add_mutually_exclusive_group(required=False)
-hcut.add_argument('--v3cuts',action='store_true',default=False,
-                  help='Use V3 version of the cuts')
-hcut.add_argument('--v4cuts',action='store_true',default=False,
-                  help='Use V4 version of the cuts')
-hcut.add_argument('--v5truth',action='store_true',default=False,
-                  help='Use step2 V5 truth information')
-hcut.add_argument('--nocuts',action='store_true',default=False,
-                  help='Do not use any stage of the selection cuts on the files.')
-parser.add_argument('-v', '--verbose', action='count', default=0,
-                    help='set verbosity level')
-
+parser = ArgumentParser(
+    '''Generate smoothed effective areas at energy bin centers. NOTE: at
+    present, uses *ONLY* the MC-true-upgoing events.''',
+    formatter_class=ArgumentDefaultsHelpFormatter,
+)
+parser.add_argument(
+    '--events-for-edep', metavar='RESOURCE_LOC', type=str,
+    required=True,
+    help='''PISA events file used for computing energy dependence. It is
+    expected that nuall_nc and nuallbar_nc are joined in this file, while other
+    flavor/interaction types are unjoined.'''
+)
+parser.add_argument(
+    '--events-for-czdep', metavar='RESOURCE_LOC', type=str,
+    required=True,
+    help='''PISA events file used for computing coszen dependence. It is
+    expected that nue_cc+nuebar_cc, numu_cc+numubar_cc, nutau_cc+nutaubar_cc,
+    and nuall_nc+nuallbar_nc are joined in this file.'''
+)
+parser.add_argument(
+    '--outdir', metavar='DIR', type=str,
+    required=True,
+    help='Directory into which to place the produced files.'
+)
+parser.add_argument(
+    '--emin', metavar='EMIN_GeV', type=float,
+    required=True,
+    help='Energy bins\' left-most edge, in GeV'
+)
+parser.add_argument(
+    '--emax', metavar='EMAX_GeV', type=float,
+    required=True,
+    help='Energy bins\' righ-most edge, in GeV'
+)
+parser.add_argument(
+    '--n-ebins', type=int,
+    required=True,
+    help='Number of energy bins (logarithmically-spaced)'
+)
+#parser.add_argument(
+#    '--czmin', metavar='COSZEN', type=float,
+#    required=True,
+#    help='Cosine-zenith bins\' lowest edge'
+#)
+#parser.add_argument(
+#    '--czmax', metavar='COSZEN', type=float,
+#    required=True,
+#    help='Cosine-zenithy bins\' highest edge'
+#)
+parser.add_argument(
+    '--n-czbins', type=int,
+    required=True,
+    help='Number of cosine-zenith bins (linearly-spaced)'
+)
+parser.add_argument(
+    '--no-plots', action='store_true',
+    help='Do not make debug plots (which are made by default)'
+)
+parser.add_argument(
+    '-v', '--verbose',
+    action='count', default=0,
+    help='Set verbosity level'
+)
 args = parser.parse_args()
-set_verbosity(args.verbose)
 
-print "FILE NORMALIZATION: "
-print "  >> nue: ",args.ne
-print "  >> numu: ",args.nmu
-print "  >> nutau: ",args.ntau
+edep_events_fpath = args.events_for_edep
+czdep_events_fpath = args.events_for_czdep
+outdir = os.path.expandvars(os.path.expanduser(args.outdir))
+make_plots = not args.no_plots
 
-ebins = np.linspace(args.emin,args.emax,args.nebins) if args.elin else np.logspace(np.log10(args.emin), np.log10(args.emax), args.nebins)
+# Load the events
+edep_events = Events(edep_events_fpath)
+czdep_events = Events(czdep_events_fpath)
 
-# Cut definitions:
-s1_s2_cuts = []
-if args.v4cuts:
-    logging.warn("Using cuts V4!")
-    s1_s2_cuts = [("Cuts_V4_Step1",'value',True),("Cuts_V4_Step2",'value',True)]
-elif args.v3cuts:
-    logging.warn("Using cuts V3!")
-    s1_s2_cuts = [('NewestBgRejCutsStep1','value',True), ('NewestBgRejCutsStep2','value',True)]
-elif args.v5truth:
-    logging.warn("USING V5 TRUTH information")
-    s1_s2_cuts = [('Cuts_V5_Step2_upgoing_Truth','value',True)]
-elif args.nocuts:
-    logging.warn("Using no selection cuts!")
-    s1_s2_cuts = []
-else:
-    logging.warn("Using cuts V5!")
-    s1_s2_cuts= [("Cuts_V5_Step1",'value',True),("Cuts_V5_Step2",'value',True)]
+# Verify user-specified files are compatible with one another
+assert czdep_events.metadata['detector'] == edep_events.metadata['detector']
+assert czdep_events.metadata['geom'] == edep_events.metadata['geom']
+assert np.alltrue(czdep_events.metadata['runs'] == edep_events.metadata['runs'])
+assert czdep_events.metadata['proc_ver'] == edep_events.metadata['proc_ver']
+assert np.alltrue(czdep_events.metadata['cuts'] == edep_events.metadata['cuts'])
+
+# Define binning for 1D A_eff parameterizations. Note that a single CZ bin is
+# employed to collapse that dimension of the histogram for characterizing
+# energy dependence, and likewise a single E bin is employed to collapse that
+# dimension for characterizing CZ dependence.
+emin, emax, n_ebins = args.emin, args.emax, args.n_ebins
+czmin, czmax, n_czbins = -1, +1, args.n_czbins
+
+ebins = np.logspace(np.log10(emin), np.log10(emax), n_ebins+1)
+czbins = np.linspace(czmin, czmax, n_czbins+1)
+
+ebin_midpoints = (ebins[:-1] + ebins[1:])/2.0
+czbin_midpoints = (czbins[:-1] + czbins[1:])/2.0
+
+#===============================================================================
+# Energy
+#===============================================================================
+# NOTE forcing only upgoing to be included for computing energy-dependence
+single_czbin = [-1, 0]
+assert len(single_czbin)-1 == 1
+
+# Verify flavints joined in the file are those expected
+grouped = sorted([flavInt.NuFlavIntGroup(fi)
+                  for fi in edep_events.metadata['flavints_joined']])
+should_be_grouped = sorted([flavInt.NuFlavIntGroup('nuall_nc'),
+                            flavInt.NuFlavIntGroup('nuallbar_nc')])
+if set(grouped) != set(should_be_grouped):
+    if len(grouped) == 0:
+        grouped = None
+    raise ValueError('Only works with groupings (%s) but instead got'
+                     ' groupings (%s).' % (should_be_grouped,
+                                           grouped))
+
+# Get *un*joined flavints
+individual_flavints = flavInt.NuFlavIntGroup(flavInt.ALL_NUFLAVINTS)
+for group in grouped:
+    individual_flavints -= group
+ungrouped = sorted([flavInt.NuFlavIntGroup(fi) for fi in individual_flavints])
+
+logging.debug("Groupings: %s" % grouped)
+logging.debug("Ungrouped: %s" % ungrouped)
+
+if make_plots:
+    import matplotlib as mpl
+    import matplotlib.pyplot as plt
+    FIGSIZE = (11,7)
+    #plt.close(1)
+    #plt.close(2)
+    plt.figure(1).clf()
+    plt.figure(2).clf()
+    fig_part, ax_part = plt.subplots(2, 2, sharex=True, num=1, figsize=FIGSIZE)
+    fig_anti, ax_anti = plt.subplots(2, 2, sharex=True, num=2, figsize=FIGSIZE)
+    ax_part = ax_part.flatten()
+    ax_anti = ax_anti.flatten()
+    basetitle = (
+        'effective areas [m$^2$], %s geometry %s, MC runs %s with'
+        ' v%s processing' % (edep_events.metadata['detector'],
+                            edep_events.metadata['geom'],
+                            utils.list2hrlist(edep_events.metadata['runs']),
+                            edep_events.metadata['proc_ver'])
+    )
+    fig_part.suptitle('Particle ' + basetitle, fontsize=12)
+    fig_anti.suptitle('Antiparticle ' + basetitle, fontsize=12)
+
+aeff_svc = AeffServiceMC(ebins, single_czbin, edep_events_fpath,
+                         compute_error=True)
+aeff_data, aeff_err = aeff_svc.get_aeff_with_error()
+
+spline_fit = flavInt.FlavIntData()
+smoothed_aeff = flavInt.FlavIntData()
+edep_store = {'ebin_midpoints': ebin_midpoints}
+for group in ungrouped + grouped:
+    # Only need to do computations for a single flavint from the group, since
+    # all data in other flavints is just duplicated
+    rep_flavint = group.flavints()[0]
+
+    s_aeff = np.squeeze(aeff_data[rep_flavint])
+    s_aeff_err = np.squeeze(aeff_err[rep_flavint])
+
+    # Eliminate ~0 and nan in errors to avoid infinite weights
+    # Smallest non-zero error
+    zero_and_nan_indices = np.squeeze(
+        (s_aeff == 0) | (s_aeff != s_aeff) | 
+        (s_aeff_err == 0) | (s_aeff_err != s_aeff_err)
+    )
+    min_err = np.min(s_aeff_err[s_aeff_err > 0])
+    s_aeff_err[zero_and_nan_indices] = min_err
+
+    # Smooth histogrammed A_eff(E) using a spline
+    spline_fit[rep_flavint] = splrep(ebin_midpoints, s_aeff,
+                                     w=1./np.array(s_aeff_err),
+                                     k=3, s=100)
+
+    # Sample the spline at the bin midpoints
+    smoothed_aeff[rep_flavint] = splev(ebin_midpoints, spline_fit[rep_flavint])
+
+    # Force bins that were previously NaN or 0 back to 0
+    smoothed_aeff[rep_flavint][zero_and_nan_indices] = 0
+
+    # Populate datastructure to be written to disk
+    edep_store[repr(group)] = {
+        'histo': s_aeff,
+        'histo_err': s_aeff_err,
+        'smooth': smoothed_aeff[rep_flavint],
+    }
+
+    if make_plots:
+        # Figure out whether particle or anti-particle axis group
+        if rep_flavint.isParticle():
+            axgrp = ax_part
+        else:
+            axgrp = ax_anti
+
+        # Determine axis by flavor
+        axnum = 3
+        if rep_flavint in flavInt.NuFlavIntGroup('nuecc+nuebarcc'):
+            axnum = 0
+        elif rep_flavint in flavInt.NuFlavIntGroup('numucc+numubarcc'):
+            axnum = 1
+        elif rep_flavint in flavInt.NuFlavIntGroup('nutaucc+nutaubarcc'):
+            axnum = 2
+        ax = axgrp[axnum]
+
+        # Plot the histogram with errors
+        stepHist(ebins, y=s_aeff, yerr=s_aeff_err,
+                 ax=ax, label='Histogramed', color='r')
+        # Plot the smoothed curve
+        ax.plot(ebin_midpoints, smoothed_aeff[rep_flavint], 'k-o',
+                lw=0.25, ms=2,
+                label='Spline-smoothed',)
+
+        ax.set_yscale('log')
+        if axnum in [2,3]:
+            ax.set_xlabel('Energy (GeV)')
+
+        if axnum in [0, 1]:
+            ax.set_ylim(1e-7, 2e-4)
+        else:
+            ax.set_ylim(1e-8, 2e-4)
+
+        ax.grid(b=True, which='both', ls='-', alpha=0.5, color=[0.7]*3, lw=0.5)
+
+        leg = ax.legend(loc='lower right', title=flavInt.tex(group, d=True),
+                        frameon=False)
+        leg.get_title().set_fontsize(18)
+
+# Derive output filename
+outfname = (
+    'aeff_energy_dependence__%s_%s__runs_%s__proc_v%s.json' % (
+        edep_events.metadata['detector'],
+        edep_events.metadata['geom'],
+        utils.list2hrlist(edep_events.metadata['runs']),
+        edep_events.metadata['proc_ver']
+    )
+)
+outfpath = os.path.join(outdir, outfname)
+logging.info('Saving Aeff energy dependence info to file "%s"' % outfpath)
+jsons.to_json(edep_store, outfpath)
+
+if make_plots:
+    fig_part.tight_layout(rect=(0,0,1,0.96))
+    fig_anti.tight_layout(rect=(0,0,1,0.96))
+    basefname = (
+        'aeff_energy_dependence__%s_%s__runs_%s__proc_v%s__'
+        % (edep_events.metadata['detector'], edep_events.metadata['geom'],
+           utils.list2hrlist(edep_events.metadata['runs']),
+           edep_events.metadata['proc_ver'])
+    )
+    fig_part.savefig(os.path.join(outdir, basefname + 'particles.pdf'))
+    fig_part.savefig(os.path.join(outdir, basefname + 'particles.png'))
+    fig_anti.savefig(os.path.join(outdir, basefname + 'antiparticles.pdf'))
+    fig_anti.savefig(os.path.join(outdir, basefname + 'antiparticles.png'))
 
 
-nuDict = {}
-if args.old_pid:
-    nuDict = {'nue':66,'numu':68,'nutau':133,'nuebar':67,'numubar':69,'nutaubar':134}
-else:
-    nuDict = {'nue':12,'numu':14,'nutau':16,'nuebar':-12,'numubar':-14,'nutaubar':-16}
+#===============================================================================
+# COSZEN
+#===============================================================================
+# Verify flavints joined in the file are those expected
+grouped = sorted([flavInt.NuFlavIntGroup(fi)
+                  for fi in czdep_events.metadata['flavints_joined']])
+should_be_grouped = sorted([
+    flavInt.NuFlavIntGroup('nue_cc+nuebar_cc'),
+    flavInt.NuFlavIntGroup('numu_cc+numubar_cc'),
+    flavInt.NuFlavIntGroup('nutau_cc+nutaubar_cc'),
+    flavInt.NuFlavIntGroup('nuall_nc+nuallbar_nc'),
+])
+if set(grouped) != set(should_be_grouped):
+    if len(grouped) == 0:
+        grouped = None
+    raise ValueError('Only works with groupings (%s) but instead got'
+                     ' groupings (%s).' % (should_be_grouped,
+                                           grouped))
 
+# Get *un*joined flavints
+individual_flavints = flavInt.NuFlavIntGroup(flavInt.ALL_NUFLAVINTS)
+for group in grouped:
+    individual_flavints -= group
+ungrouped = sorted([flavInt.NuFlavIntGroup(fi) for fi in individual_flavints])
 
-aeff_list = []
-aeff_err_list = []
-flavor_list = []
+logging.debug("Groupings: %s" % grouped)
+logging.debug("Ungrouped: %s" % ungrouped)
 
-cut_sim_down = True
-solid_angle = 2.0*np.pi
-if args.all_cz:
-    # Then use all sky, don't remove simulated downgoing events:
-    cut_sim_down = False
-    solid_angle = 4.0*np.pi
+# Look at coszen dependence for all energies included in the specified binning,
+# lumped together into a single bin
+single_ebin = [emin, emax]
+assert len(single_ebin)-1 == 1
 
-# Loop over all neutrino flavours, and get cc Aeff:
-for flav,val in nuDict.items():
+if make_plots:
+    import matplotlib as mpl
+    import matplotlib.pyplot as plt
+    FIGSIZE = (11,7)
+    #plt.close(3)
+    plt.figure(3).clf()
+    fig, axgrp = plt.subplots(2, 2, sharex=True, num=3, figsize=FIGSIZE)
+    axgrp = axgrp.flatten()
+    fig.suptitle('Particle+antiparticle ' + basetitle, fontsize=12)
 
-    logging.info("Loading data for %s..."%flav)
-    data = LoadData(args.data_dir,args.geom_str,flav)
+aeff_svc = AeffServiceMC(single_ebin, czbins, czdep_events_fpath,
+                         compute_error=True)
+aeff_data, aeff_err = aeff_svc.get_aeff_with_error()
 
-    cc_cuts = list(s1_s2_cuts)
-    cc_cuts.append(("I3MCWeightDict","InteractionType",1))
-    cc_cuts.append((args.mcnu,"type",val))
+spline_fit = flavInt.FlavIntData()
+smoothed_aeff = flavInt.FlavIntData()
+czdep_store = {'czbin_midpoints': czbin_midpoints}
+for group in ungrouped + grouped:
+    rep_flavint = group.flavints()[0]
+    s_aeff = np.squeeze(aeff_data[rep_flavint])
+    s_aeff_err = np.squeeze(aeff_err[rep_flavint])
+    zero_and_nan_indices = np.squeeze(
+        (s_aeff == 0) | (s_aeff != s_aeff) | 
+        (s_aeff_err == 0) | (s_aeff_err != s_aeff_err)
+    )
+    min_err = np.min(s_aeff_err[s_aeff_err > 0])
+    s_aeff_err[zero_and_nan_indices] = min_err
+    spline_fit[rep_flavint] = splrep(czbin_midpoints, s_aeff,
+                                     w=1./np.squeeze(s_aeff_err),
+                                     k=5, s=200)
 
-    cut_list = get_arb_cuts(data,cc_cuts,mcnu=args.mcnu,cut_sim_down=cut_sim_down)
+    # Sample the spline at the bin midpoints
+    smoothed_aeff[rep_flavint] = splev(czbin_midpoints,
+                                       spline_fit[rep_flavint])
 
-    logging.info("  NEvents: %d"%np.sum(cut_list))
+    # Force bins that were previously NaN or 0 back to 0
+    smoothed_aeff[rep_flavint][zero_and_nan_indices] = 0
 
-    if 'nue' in flav: nfiles = args.ne
-    elif 'numu' in flav: nfiles = args.nmu
-    elif 'nutau' in flav: nfiles = args.ntau
-    else: raise ValueError("Unrecognized flav: %s"%flav)
+    # Populate datastructure to be written to disk
+    czdep_store[repr(group)] = {
+        'histo': s_aeff,
+        'histo_err': s_aeff_err,
+        'smooth': smoothed_aeff[rep_flavint],
+    }
 
-    aeff_cc,aeff_cc_err,xedges = get_aeff1D(data,cut_list,ebins,nfiles,
-                                            mcnu=args.mcnu,solid_angle=solid_angle)
+    if make_plots:
+        # Determine axis by flavor
+        axnum = 3
+        if rep_flavint in flavInt.NuFlavIntGroup('nuecc+nuebarcc'):
+            axnum = 0
+        elif rep_flavint in flavInt.NuFlavIntGroup('numucc+numubarcc'):
+            axnum = 1
+        elif rep_flavint in flavInt.NuFlavIntGroup('nutaucc+nutaubarcc'):
+            axnum = 2
+        ax = axgrp[axnum]
 
-    aeff_list.append(aeff_cc)
-    aeff_err_list.append(aeff_cc_err)
-    flavor_list.append(flav)
+        # Plot the histogram with errors
+        stepHist(czbins, y=s_aeff, yerr=s_aeff_err,
+                 ax=ax, label='Histogramed', color='r')
+        # Plot the smoothed curve
+        ax.plot(czbin_midpoints, smoothed_aeff[rep_flavint], 'k-o',
+                lw=0.25, ms=2,
+                label='Spline-smoothed',)
 
+        ax.set_yscale('linear')
+        if axnum in [2,3]:
+            ax.set_xlabel(r'$\cos\,\theta_z$')
 
+        legparams = dict(title=flavInt.tex(group, d=True), frameon=False)
+        if axnum in [0,1]:
+            ax.set_ylim(4.0e-5, 8.5e-5)
+            leg = ax.legend(loc='lower center', **legparams)
+        elif axnum in [2]:
+            ax.set_ylim(3.5e-5, 5.5e-5)
+            leg = ax.legend(loc='best', **legparams)
+        else:
+            ax.set_ylim(1.6e-5, 2.6e-5)
+            leg = ax.legend(loc='best', **legparams)
 
-logging.info("Processing NC all...")
+        ax.get_yaxis().get_major_formatter().set_powerlimits((-3,4))
 
-data_nc = LoadData(args.data_dir,args.geom_str,'NC')
+        ax.grid(b=True, which='both', ls='-', alpha=0.5, color=[0.7]*3, lw=0.5)
 
-nc_cut_list = list(s1_s2_cuts)
-nc_cut_list.append(("I3MCWeightDict","InteractionType",2))
+        leg.get_title().set_fontsize(18)
 
-nc_list = [66,68,133] if args.old_pid else [12,14,16]
-cuts_nc = get_arb_cuts(data_nc,nc_cut_list,mcnu=args.mcnu,nuIDList=nc_list,
-                       cut_sim_down=cut_sim_down)
+# Derive output filename
+outfname = (
+    'aeff_coszen_dependence__%s_%s__runs_%s__proc_v%s.json' % (
+        czdep_events.metadata['detector'],
+        czdep_events.metadata['geom'],
+        utils.list2hrlist(czdep_events.metadata['runs']),
+        czdep_events.metadata['proc_ver']
+    )
+)
+outfpath = os.path.join(outdir, outfname)
+logging.info('Saving Aeff coszen dependence info to file "%s"' % outfpath)
+jsons.to_json(czdep_store, outfpath)
 
-nc_bar_list = [67,69,134] if args.old_pid else [-12,-14,-16]
-cuts_nc_bar = get_arb_cuts(data_nc,nc_cut_list,mcnu=args.mcnu,nuIDList=nc_bar_list,
-                           cut_sim_down=cut_sim_down)
+if make_plots:
+    fig.tight_layout(rect=(0,0,1,0.96))
+    basefname = (
+        'aeff_coszen_dependence__%s_%s__runs_%s__proc_v%s'
+        % (czdep_events.metadata['detector'], czdep_events.metadata['geom'],
+           utils.list2hrlist(czdep_events.metadata['runs']),
+           czdep_events.metadata['proc_ver'])
+    )
+    fig.savefig(os.path.join(outdir, basefname + '.pdf'))
+    fig.savefig(os.path.join(outdir, basefname + '.png'))
 
-logging.info("  NC NEvents: %d"%np.sum(cuts_nc))
-logging.info("  NCBar NEvents: %d"%np.sum(cuts_nc_bar))
-
-nfiles_per_run = (args.ne + args.nmu + args.ntau)/3.0
-aeff_nc_nu,aeff_nc_nu_err,xedges = get_aeff1D(
-    data_nc,cuts_nc,ebins,nfiles_per_run,mcnu=args.mcnu,nc=True,
-    solid_angle=solid_angle)
-aeff_nc_nubar,aeff_nc_nubar_err,xedges = get_aeff1D(
-    data_nc,cuts_nc_bar,ebins,nfiles_per_run,mcnu=args.mcnu,nc=True,
-    solid_angle=solid_angle)
-
-aeff_list.append(aeff_nc_nu)
-aeff_err_list.append(aeff_nc_nu_err)
-flavor_list.append('nuall_nc')
-
-aeff_list.append(aeff_nc_nubar)
-aeff_err_list.append(aeff_nc_nubar_err)
-flavor_list.append('nuallbar_nc')
-
-for i,flavor in enumerate(flavor_list):
-    logging.info("Saving: %s to %s"%(flavor,args.outdir))
-    SaveAeff(aeff_list[i],aeff_err_list[i],ebins,flavor,args.outdir)
-
-print "\nFINISHED...\n"
+if make_plots:
+    plt.draw()
+    plt.show()

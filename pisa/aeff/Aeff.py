@@ -33,8 +33,8 @@ from pisa.aeff.AeffServiceMC import AeffServiceMC
 from pisa.aeff.AeffServicePar import AeffServicePar
 
 
-def get_event_rates(osc_flux_maps,aeff_service,livetime=None,
-                    aeff_scale=None,**kwargs):
+def get_event_rates(osc_flux_maps, aeff_service, livetime=None,
+                    aeff_scale=None, **kwargs):
     '''
     Main function for this module, which returns the event rate maps
     for each flavor and interaction type, using true energy and zenith

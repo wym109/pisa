@@ -16,7 +16,7 @@
 
 import numpy as np
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-from copy import deepcopy as copy
+from copy import deepcopy
 
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.utils import check_binning
@@ -37,24 +37,27 @@ def get_pid_maps(reco_events, pid_service=None, recalculate=False,
     if recalculate:
         pid_service.recalculate_kernels(**kwargs)
 
-    #Be verbose on input
+    # Be verbose on input
     params = get_params()
     report_params(params, units = [])
 
-    #Initialize return dict
-    empty_map = {'map': np.zeros_like(reco_events['nue_cc']['map']),
-                 'czbins': pid_service.czbins, 'ebins': pid_service.ebins}
-    reco_events_pid = {'trck': copy(empty_map),
-                       'cscd': copy(empty_map),
-                       'params': add_params(params,reco_events['params']),
-                      }
+    # Initialize return dict
+    empty_map = {
+        'map': np.zeros_like(reco_events['nue_cc']['map']),
+        'czbins': pid_service.czbins,
+        'ebins': pid_service.ebins
+    }
+    reco_events_pid = {
+        'trck': deepcopy(empty_map),
+        'cscd': deepcopy(empty_map),
+        'params': add_params(params,reco_events['params']),
+    }
     if return_unknown:
-        reco_events_pid['unkn'] = copy(empty_map)
+        reco_events_pid['unkn'] = deepcopy(empty_map)
 
-    #Classify events
+    # Classify events
     for flav in reco_events:
-
-        if flav=='params':
+        if flav == 'params':
             continue
         event_map = reco_events[flav]['map']
 
@@ -71,18 +74,17 @@ def get_pid_maps(reco_events, pid_service=None, recalculate=False,
 
 
 if __name__ == '__main__':
-
     parser = ArgumentParser(description='Takes a reco event rate file '
                             'as input and produces a set of reconstructed \n'
                             'templates of tracks and cascades.',
                             formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument('reco_event_maps', metavar='JSON', type=from_json,
-                        help='''JSON reco event rate file with following '''
-                        '''parameters:\n'''
-                        '''{"nue_cc": {'czbins':[...], 'ebins':[...], 'map':[...]}, \n'''
-                        ''' "numu_cc": {...}, \n'''
-                        ''' "nutau_cc": {...}, \n'''
-                        ''' "nuall_nc": {...} }''')
+                        help='''JSON reco event rate file with following
+                        parameters:\n
+                        {"nue_cc": {'czbins':[...], 'ebins':[...], 'map':[...]}, \n
+                         "numu_cc": {...}, \n
+                         "nutau_cc": {...}, \n
+                         "nuall_nc": {...} }''')
     parser.add_argument('-m', '--mode', type=str, choices=['param', 'stored'],
                         default='param', help='PID service to use')
     parser.add_argument('--param_file', metavar='JSON', type=str,
@@ -98,22 +100,25 @@ if __name__ == '__main__':
                         help='''set verbosity level''')
     args = parser.parse_args()
 
-    #Set verbosity level
+    # Set verbosity level
     set_verbosity(args.verbose)
 
-    #Check binning
+    # Check binning
     ebins, czbins = check_binning(args.reco_event_maps)
 
-    #Initialize the PID service
-    if args.mode=='param':
-        pid_service = PIDServiceParam(ebins, czbins, 
-                            pid_paramfile=args.param_file, **vars(args))
-    elif args.mode=='stored':
-        pid_service = PIDServiceKernelFile(ebins, czbins, 
-                            pid_kernelfile=args.kernel_file, **vars(args))
+    # Initialize the PID service
+    if args.mode == 'param':
+        pid_service = PIDServiceParam(ebins, czbins,
+                                      pid_paramfile=args.param_file,
+                                      **vars(args))
+    elif args.mode == 'stored':
+        pid_service = PIDServiceKernelFile(ebins, czbins,
+                                           pid_kernelfile=args.kernel_file,
+                                           **vars(args))
 
-    #Calculate event rates after PID
-    event_rate_pid = get_pid_maps(args.reco_event_maps, pid_service=pid_service)
+    # Calculate event rates after PID
+    event_rate_pid = get_pid_maps(args.reco_event_maps,
+                                  pid_service=pid_service)
 
-    logging.info("Saving output to: %s"%args.outfile)
+    logging.info("Saving output to: %s" % args.outfile)
     to_json(event_rate_pid,args.outfile)

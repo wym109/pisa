@@ -10,6 +10,7 @@
 import pisa.utils.fileio as fileio
 import pisa.utils.flavInt as flavInt
 from pisa.resources import resources as resources
+import pisa.utils.crossSections as crossSections
 
 # Following "import *" is intentionally done so that `eval` called in
 # translateSourceDict will execute with direct access to numpy namespace
@@ -72,7 +73,7 @@ class MCSimRunSettings(dict):
           # GENIE simulates some un-physica events (interactions that will not
           # occur in nature). The number below was arrived at by Ken Clark, so
           # ask him for more info.
-          "genie_physical_factor": 0.8095,
+          "physical_events_fract": 0.8095,
 
           # GENIE has a prescale factor (TODO: generalize or eliminate for
           # other xsec?)
@@ -94,7 +95,7 @@ class MCSimRunSettings(dict):
           "sim_spectral_index": 1,
 
           # Version of neutrion/ice cross sections used for the simulation
-          "xsec": "genie_2.6.4",
+          "xsec_version": "genie_2.6.4",
 
           # Max and min zenith angle simulated (rad)
           "zenith_max": "pi",
@@ -136,7 +137,7 @@ class MCSimRunSettings(dict):
                           'azimuth_min',
                           'energy_max',
                           'energy_min',
-                          'genie_physical_factor',
+                          'physical_events_fract',
                           'genie_prescale_factor',
                           'nu_to_total_fract',
                           'num_events_per_file',
@@ -156,6 +157,17 @@ class MCSimRunSettings(dict):
 
     def barnobarfract(self, barnobar=None, is_particle=None,
                       flav_or_flavint=None):
+        """Fraction of events generated (either particles or antiparticles).
+        
+        Specifying whether you want the fraction for particle or
+        antiparticle can be done in one (and only one) of three ways:
+
+        barnobar : None, -1 (antiparticle), or +1 (particle)
+        is_particle : None or bool
+        flav_or_flavint : None or convertible to NuFlav or NuFlavInt
+            Particle or antiparticles is determined from the flavor / flavint
+            passed
+        """
         nargs = sum([(not barnobar is None),
                      (not is_particle is None),
                      (not flav_or_flavint is None)])
@@ -164,24 +176,68 @@ class MCSimRunSettings(dict):
                              ' flav_or_flavint must be specified. Got ' +
                              str(nargs) + ' args instead.')
 
-        if not flav_or_flavint is None:
+        if flav_or_flavint is not None:
             is_particle = flavInt.NuFlavInt(flav_or_flavint).isParticle()
+        if barnobar is not None:
+            is_particle = barnobar > 0
         if is_particle:
             return self['nu_to_total_fract']
         return 1 - self['nu_to_total_fract']
 
-    def totGen(self, barnobar=None, is_particle=None, flav_or_flavint=None):
+    def get_num_gen(self, barnobar=None, is_particle=None,
+                    flav_or_flavint=None, include_physical_fract=True):
+        """Return the number of events generated.
+       
+        barnobar : None, -1 (antiparticle), or +1 (particle)
+        is_particle : None or bool
+        flav_or_flavint : None or convertible to NuFlav or NuFlavInt
+            If one of `barnobar`, `is_particle`, or `flav_or_flavint` is
+            specified, returns only the number of particles or antiparticles
+            generated. Otherwise (if none of those is specified), return the
+            total number of generated events.
+        include_physical_fract : bool
+            Whether to include the "GENIE physical fraction", which accounts
+            for events that are generated but are un-physical and therefore
+            will never be detectable. These are removed to not penalize
+            detection efficiency.
+        """
         nargs = sum([(not barnobar is None),
                      (not is_particle is None),
                      (not flav_or_flavint is None)])
-        if nargs == 0:
-            fract = 1.0
-        else:
-            fract = self.barnobarfract(barnobar=barnobar,
-                                       is_particle=is_particle,
-                                       flav_or_flavint=flav_or_flavint)
+        barnobarfract = 1
+        if nargs > 0:
+            barnobarfract = self.barnobarfract(
+                barnobar=barnobar, is_particle=is_particle,
+                flav_or_flavint=flav_or_flavint
+            )
+        physical_fract = 1
+        if include_physical_fract:
+            physical_fract = self['physical_events_fract']
+        return self['tot_gen'] * barnobarfract * physical_fract
 
-        return fract * self['tot_gen']
+    def get_flavints(self):
+        return self['flavints'].get_flavints()
+
+    def get_flavs(self):
+        return self['flavints'].get_flavs()
+
+    def get_energy_range(self):
+        """(min, max) energy in GeV"""
+        return self['energy_min'], self['energy_max']
+
+    def get_spectral_index(self):
+        """Spectral index (positive number for negative powers of energy)"""
+        return self['sim_spectral_index']
+
+    def get_xsec_version(self):
+        """Cross sectons version name used in generating the MC"""
+        return self['xsec_version']
+
+    def get_xsec(self, xsec=None):
+        """Instantiated crossSections.CrossSections object"""
+        if xsec is None:
+            return crossSections.CrossSections(ver=self['xsec_version'])
+        return crossSections.CrossSections(ver=self['xsec_version'], xsec=xsec)
 
 
 class DetMCSimRunsSettings(dict):
@@ -233,10 +289,11 @@ class DetMCSimRunsSettings(dict):
             raise Exception('dict must either be 3 levels: '
                             '{DET:{RUN:{...}}}; or 2 levels: {RUN:{...}}')
 
-        # Convert the run numbers to integers (JSON files cannot have an int as
-        # a key, so it is a string upon import) and convert actual run settings
-        # dict to MCSimRunSettings instances
-        runs_d = {int(k): MCSimRunSettings(v) for k,v in runs_d.iteritems()}
+        # Force run numbers to be strings (JSON files cannot have an int as
+        # a key, so it is a string upon import, and it's safest to keep it as
+        # a string considering how non-standardized naming is in IceCube) and
+        # convert actual run settings dict to MCSimRunSettings instances
+        runs_d = {str(k): MCSimRunSettings(v) for k,v in runs_d.iteritems()}
 
         # Save the runs_d to this object instance, which behaves like a dict
         self.update(runs_d)
@@ -244,8 +301,39 @@ class DetMCSimRunsSettings(dict):
     def consistencyChecks(self, data, run, flav=None):
         pass
 
-    def barnobarfract(self, run, *args, **kwargs):
-        return self[run].barnobarfract(*args, **kwargs)
+    def barnobarfract(self, run, barnobar=None, is_particle=None,
+                      flav_or_flavint=None):
+        return self[str(run)].barnobarfract(barnobar=barnobar,
+                                            is_particle=is_particle,
+                                            flav_or_flavint=flav_or_flavint)
 
-    def totGen(self, run, *args, **kwargs):
-        return self[run].totGen(*args, **kwargs)
+    def get_num_gen(self, run, barnobar=None, is_particle=None,
+                    flav_or_flavint=None, include_physical_fract=True):
+        """Return the total number of events generated"""
+        return self[str(run)].get_num_gen(
+            barnobar=barnobar, is_particle=is_particle,
+            flav_or_flavint=flav_or_flavint,
+            include_physical_fract=include_physical_fract
+        )
+
+    def get_flavints(self, run):
+        return self[str(run)].get_flavints()
+
+    def get_flavs(self, run):
+        return self[str(run)].get_flavs()
+
+    def get_energy_range(self, run):
+        """(min, max) energy in GeV"""
+        return self[str(run)].get_energy_range()
+
+    def get_spectral_index(self, run):
+        """Spectral index (positive number for negative powers of energy)"""
+        return self[str(run)].get_spectral_index()
+
+    def get_xsec_version(self, run):
+        """Cross sectons version name used in generating the MC"""
+        return self[str(run)].get_xsec_version()
+
+    def get_xsec(self, run, xsec=None):
+        """Instantiated crossSections.CrossSections object"""
+        return self[str(run)].get_xsec(xsec)

@@ -50,57 +50,64 @@ def get_arb_cuts(data, cut_list, mcnu='MCNeutrino', nuIDList=None,
 
     return np.alltrue(np.array(conditions),axis=0)
 
-def get_aeff1D(data,cuts_list,ebins,files_per_run,mcnu='MCNeutrino',
-               nc=False,solid_angle=None):
-    '''
-    Return 1D Aeff directly from simulations (using OneWeight) as a
-    histogram, including the error bars.
+# NOTE: Commenting out the following as it is now redundant; remove when
+# verified that it is no longer called anywhere.
+#
+# Use
+#   pisa/aeff/AeffServiceMC.AeffServiceMC.get_aeff_with_error()
+# method instead.
 
-    \params:
-      * data - data table from a hdf5 PyTables file.
-      * cuts_list - np array of indices for events passing selection cuts
-      * ebins - energy bin edges in GeV that the Aeff histogram
-        will be formed from
-      * files_per_run - file number normalization to correctly calculate
-        simulation weight for Aeff. Should be number of simulation files
-        per run for flavour.
-      * mcnu - Monte Carlo neutrino field/key in hdf5 file to use for MC
-        true information.
-      * solid_angle - total solid angle to integrate over. Most of the
-        time, we only calculate Aeff for upgoing events, so we do half
-        the 4pi solid angle of the whole sky, which would be 2.0*np.pi
-      * nc - set this flag to true if we are using NC files.
-    '''
-
-    #if not nc:
-    nfiles = len(set(data.root.I3EventHeader.col('Run')))*files_per_run
-    logging.info("runs: %s"%str(set(data.root.I3EventHeader.col('Run'))))
-    logging.info("num runs: %d"%len(set(data.root.I3EventHeader.col('Run'))))
-    total_events = data.root.I3MCWeightDict.col('NEvents')[cuts_list]*nfiles/2.0
-
-    # NOTE: solid_angle should be coordinated with get_arb_cuts(cut_sim_down=bool)
-    sim_wt_array = (data.root.I3MCWeightDict.col('OneWeight')[cuts_list]/
-                    total_events/solid_angle)
-    # Not sure why nu_<> cc needs __getattr__ and only NC combined
-    # file needs __getattribute__??
-    try:
-        egy_array = data.root.__getattr__(mcnu).col('energy')[cuts_list]
-    except:
-        egy_array = data.root.__getattribute__(mcnu).col('energy')[cuts_list]
-    aeff,xedges = np.histogram(egy_array,weights=sim_wt_array,bins=ebins)
-
-    egy_bin_widths = get_bin_sizes(ebins)
-
-    aeff /= egy_bin_widths
-    aeff*=1.0e-4 # [cm^2] -> [m^2]
-
-    unweighted_events,xedges = np.histogram(egy_array,bins=ebins)
-
-    # So that the error calculation comes out right without divide by zeros...
-    unweighted_events = [1. if val < 1.0 else val for val in unweighted_events]
-
-    aeff_error = np.divide(aeff,np.sqrt(unweighted_events))
-
-    logging.debug("percent error on aeff: %s"%str(np.nan_to_num(aeff/aeff_error)))
-
-    return aeff,aeff_error,xedges
+#def get_aeff1D(data,cuts_list,ebins,files_per_run,mcnu='MCNeutrino',
+#               nc=False,solid_angle=None):
+#    '''
+#    Return 1D Aeff directly from simulations (using OneWeight) as a
+#    histogram, including the error bars.
+#
+#    \params:
+#      * data - data table from a hdf5 PyTables file.
+#      * cuts_list - np array of indices for events passing selection cuts
+#      * ebins - energy bin edges in GeV that the Aeff histogram
+#        will be formed from
+#      * files_per_run - file number normalization to correctly calculate
+#        simulation weight for Aeff. Should be number of simulation files
+#        per run for flavour.
+#      * mcnu - Monte Carlo neutrino field/key in hdf5 file to use for MC
+#        true information.
+#      * solid_angle - total solid angle to integrate over. Most of the
+#        time, we only calculate Aeff for upgoing events, so we do half
+#        the 4pi solid angle of the whole sky, which would be 2.0*np.pi
+#      * nc - set this flag to true if we are using NC files.
+#    '''
+#
+#    #if not nc:
+#    nfiles = len(set(data.root.I3EventHeader.col('Run')))*files_per_run
+#    logging.info("runs: %s"%str(set(data.root.I3EventHeader.col('Run'))))
+#    logging.info("num runs: %d"%len(set(data.root.I3EventHeader.col('Run'))))
+#    total_events = data.root.I3MCWeightDict.col('NEvents')[cuts_list]*nfiles/2.0
+#
+#    # NOTE: solid_angle should be coordinated with get_arb_cuts(cut_sim_down=bool)
+#    sim_wt_array = (data.root.I3MCWeightDict.col('OneWeight')[cuts_list]/
+#                    total_events/solid_angle)
+#    # Not sure why nu_<> cc needs __getattr__ and only NC combined
+#    # file needs __getattribute__??
+#    try:
+#        egy_array = data.root.__getattr__(mcnu).col('energy')[cuts_list]
+#    except:
+#        egy_array = data.root.__getattribute__(mcnu).col('energy')[cuts_list]
+#    aeff,xedges = np.histogram(egy_array,weights=sim_wt_array,bins=ebins)
+#
+#    egy_bin_widths = get_bin_sizes(ebins)
+#
+#    aeff /= egy_bin_widths
+#    aeff*=1.0e-4 # [cm^2] -> [m^2]
+#
+#    unweighted_events,xedges = np.histogram(egy_array,bins=ebins)
+#
+#    # So that the error calculation comes out right without divide by zeros...
+#    unweighted_events = [1. if val < 1.0 else val for val in unweighted_events]
+#
+#    aeff_error = np.divide(aeff,np.sqrt(unweighted_events))
+#
+#    logging.debug("percent error on aeff: %s"%str(np.nan_to_num(aeff/aeff_error)))
+#
+#    return aeff,aeff_error,xedges
