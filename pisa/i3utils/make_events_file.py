@@ -19,8 +19,8 @@ from pisa.utils.log import logging, set_verbosity
 import pisa.utils.utils as utils
 import pisa.utils.flavInt as flavInt
 import pisa.utils.events as events
-import pisa.utils.mcSimRunSettings as mcSimRunSettings
-import pisa.utils.dataProcParams as dataProcParams
+from pisa.utils.mcSimRunSettings import MCSimRunSettings
+from pisa.utils.dataProcParams import DataProcParams
 import pisa.resources.resources as resources
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
@@ -36,7 +36,7 @@ EXTRACT_FIELDS = (
     'reco_energy',
     'reco_coszen',
     'one_weight',
-    'interacction_prob',
+    'interaction_prob',
     'pid',
 )
 
@@ -95,10 +95,14 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
     data_proc_params : DataProcParams or string
         An instantiated DataProcParams object, instantiated e.g. from the
         PISA-standard resources/events/data_proc_params.json file
+    pid_specs : PIDObj or string
+        An instantiated PIDObj, instantiated e.g. from the PISA-standard
+        resources/pid/pid_specifications.json file
     join
         String specifying any flavor/interaction types (flavInts) to join
         together. Separate flavInts with commas (',') and separate groups
-        with semicolons (';')
+        with semicolons (';'). E.g. an acceptable string is:
+            'numucc+numubarcc; nuall bar NC, nuall NC'
     cust_cuts
         dict with a single DataProcParams cut specification or list of same
         (see help for DataProcParams for detailed description of cut spec)
@@ -118,7 +122,7 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
     assert run_settings.detector == detector
 
     if isinstance(data_proc_params, basestring):
-        data_proc_params = dataProcParams.DataProcParams(
+        data_proc_params = DataProcParams(
             resources.find_resource(data_proc_params),
             detector=detector,
             proc_ver=proc_ver
@@ -137,18 +141,21 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
     for flavint in runs_by_flavint.flavints():
         runs_by_flavint[flavint] = []
 
-    xsec_fract_en_wtd_avg = {run:flavInt.FlavIntData() for run in runs}
-    ngen_per_flav = {run:flavInt.FlavIntData() for run in runs}
+    ngen_flavint_by_run = {run:flavInt.FlavIntData() for run in runs}
+    #ngen_per_flav_by_run = {run:flavInt.FlavIntData() for run in runs}
+    eint_per_flav_by_run = {run:flavInt.FlavIntData() for run in runs}
     for run in runs:
         flavints_in_run = run_settings.get_flavints()
         e_range = run_settings.get_energy_range(run)
         gamma = run_settings.get_spectral_index(run)
         for flavint in flavints_in_run:
+            runs_by_flavint[flavint].append(run)
             ngen_flav = run_settings.get_num_gen(flav_or_flavint=flavint,
                                                  include_physical_fract=True)
-            runs_by_flavint[flavint].append(run)
-            this_flav = flavint.
-            xsec_fract_en_wtd_avg[run][flavint] = \
+            #runs_by_flavint[flavint].append(run)
+            #this_flav = flavint.
+            #xsec_fract_en_wtd_avg[run][flavint] = \
+            ngen_flavint_by_run[run][flavint] = \
                     xsec.get_xs_ratio_integral(flavintgrp0=flavint,
                                                flavintgrp1=flavint.flav(),
                                                e_range=e_range,
@@ -612,11 +619,11 @@ def main():
 
     det = args.det.lower()
     proc = args.proc.lower()
-    run_settings = mcSimRunSettings.DetMCSimRunsSettings(
+    run_settings = DetMCSimRunsSettings(
         resources.find_resource(args.run_settings),
         detector=det
     )
-    data_proc_params = dataProcParams.DataProcParams(
+    data_proc_params = DataProcParams(
         resources.find_resource(args.data_proc_params),
         detector=det,
         proc_ver=proc

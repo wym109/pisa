@@ -420,36 +420,37 @@ class DataProcParams(dict):
         # Return specified (or all) fields, indexed by boolean array
         return {f:np.array(data[f])[bool_idx] for f in return_fields}
 
-    def applyPID(self, data, particle_name, return_fields=None):
-        """Select those events in `data` that pass PID criteria named by
-        `particle_name`, returning `return_fields` from these events
-        """
-        assert isinstance(particle_name, basestring)
+    # MOVED TO PIDSpec.py
+    #def applyPID(self, data, particle_name, return_fields=None):
+    #    """Select those events in `data` that pass PID criteria named by
+    #    `particle_name`, returning `return_fields` from these events
+    #    """
+    #    assert isinstance(particle_name, basestring)
 
-        pid = None
-        for extant_pname, pid_dict in self['pid'].items():
-            if not particle_name.lower().strip() == extant_pname:
-                continue
-            pid = pid_dict
-            break
+    #    pid = None
+    #    for extant_pname, pid_dict in self['pid'].items():
+    #        if not particle_name.lower().strip() == extant_pname:
+    #            continue
+    #        pid = pid_dict
+    #        break
 
-        if pid is None:
-            valid_names = ', '.join(["'"+s+"'" for s in self['pid'].keys()])
-            raise ValueError(
-                "particle_name '%s' not specified in data_proc_params['pid'];"
-                " valid particle names are: %s" % (particle_name, valid_names)
-            )
+    #    if pid is None:
+    #        valid_names = ', '.join(["'"+s+"'" for s in self['pid'].keys()])
+    #        raise ValueError(
+    #            "particle_name '%s' not specified in data_proc_params['pid'];"
+    #            " valid particle names are: %s" % (particle_name, valid_names)
+    #        )
 
-        # Load the fields necessary for the cut into the global namespace
-        for field in set(pid['fields']):
-            globals()[field] = data[field]
+    #    # Load the fields necessary for the cut into the global namespace
+    #    for field in set(pid['fields']):
+    #        globals()[field] = data[field]
 
-        # Evaluate cuts, returning a boolean array
-        bool_idx = eval(pid['criteria'])
+    #    # Evaluate cuts, returning a boolean array
+    #    bool_idx = eval(pid['criteria'])
 
-        # Default is to return all fields
-        if return_fields is None:
-            return_fields = self['field_map'].keys()
+    #    # Default is to return all fields
+    #    if return_fields is None:
+    #        return_fields = self['field_map'].keys()
 
-        # Return specified (or all) fields, indexed by boolean array
-        return {f:np.array(data[f])[bool_idx] for f in return_fields}
+    #    # Return specified (or all) fields, indexed by boolean array
+    #    return {f:np.array(data[f])[bool_idx] for f in return_fields}

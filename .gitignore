@@ -1,4 +1,4 @@
-# Ignore precompile packages
+# Ignore precompiled packages
 *.py[cod]
 
 # Ignore auto-generated libraries and files
@@ -32,3 +32,6 @@ pisa.egg-info
 # Plots
 *.pdf
 *.png
+
+# IPython notebook backups
+.ipynb_checkpoints
