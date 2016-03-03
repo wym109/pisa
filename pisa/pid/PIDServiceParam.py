@@ -40,11 +40,6 @@ class PIDServiceParam(PIDServiceBase):
         self.update(ebins=ebins, czbins=czbins, pid_paramfile=pid_paramfile,
                     PID_offset=PID_offset)
 
-    def get_pid_kernels(self, pid_paramfile=None, PID_offset=None):
-        return self.update(ebins=self.ebins, czbins=self.czbins,
-                           pid_paramfile=pid_paramfile, PID_offset=PID_offset)
-
-
     def update(self, ebins=None, czbins=None, pid_paramfile=None,
                PID_offset=None):
         if pid_paramfile is None:
@@ -65,14 +60,23 @@ class PIDServiceParam(PIDServiceBase):
         if self.__param_data is None or pid_paramfile != self.__pid_paramfile:
             logging.info('Loading PID parametrization file %s' % pid_paramfile)
             self.__param_data = from_file(find_resource(pid_paramfile))
+            self.__interpolant = interp1d(
+                x=
+                y=
+                kind='linear',
+                copy=True,
+                bounds_error=False,
+                fill_value=np.nan,
+                assume_sorted=True,
+            )
 
-        ecen = self.ebins[
+        ebin_midpoints = (ebins[:-1] + ebins[1:]) / 2.0
         n_czbins = len(self.czbins) - 1
 
         # Assume no variation in PID across coszen
         czvals = np.ones(n_czbins)
 
-        pid_kernels = {'binning': {'ebins': self.ebins, 'czbins': self.czbins}}
+        pid_kernels = {'binning': {'ebins': ebins, 'czbins': self.czbins}}
         for signature in param_str.keys():
             # Generate the functions
             to_trck_func = eval(param_str[signature]['trck'])
@@ -81,8 +85,8 @@ class PIDServiceParam(PIDServiceBase):
             # Make maps from the functions evaluated at the bin centers
 
             # NOTE: np.clip() is to force unitarity on individual PID curves
-            to_trck = np.clip(to_trck_func(ecen-PID_offset), 0, 1)
-            to_cscd = np.clip(to_cscd_func(ecen-PID_offset), 0, 1)
+            to_trck = np.clip(to_trck_func(ebin_midpoints-PID_offset), 0, 1)
+            to_cscd = np.clip(to_cscd_func(ebin_midpoints-PID_offset), 0, 1)
 
         # Assume PID behaves same for all coszen
         to_trck_map = np.outer(to_trck, czvals)
@@ -92,3 +96,7 @@ class PIDServiceParam(PIDServiceBase):
                                       'cscd':to_cscd_map}
 
         return self.pid_kernels
+
+    def get_pid_kernels(self, pid_paramfile=None, PID_offset=None):
+        return self.update(ebins=self.ebins, czbins=self.czbins,
+                           pid_paramfile=pid_paramfile, PID_offset=PID_offset)

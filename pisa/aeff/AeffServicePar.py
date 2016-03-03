@@ -156,7 +156,7 @@ class AeffServicePar:
                 x=interpolant_ebin_midpoints,
                 y=interpolant_edep_aeff,
                 kind='linear',
-                copy=False,
+                copy=True,
                 bounds_error=False,
                 fill_value=np.nan,
                 assume_sorted=True
@@ -165,7 +165,7 @@ class AeffServicePar:
                 x=interpolant_czbin_midpoints,
                 y=interpolant_czdep_aeff,
                 kind='linear',
-                copy=False,
+                copy=True,
                 bounds_error=False,
                 fill_value=np.nan,
                 assume_sorted=True

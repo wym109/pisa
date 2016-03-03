@@ -63,7 +63,14 @@ class PIDSpec(object):
           }
         }
     """
-    def __init__(self, pid_specs, detector, geom, proc_ver, pid_spec_ver=1):
+    def __init__(self, detector, geom, proc_ver, pid_spec_ver=1,
+                 pid_specs=None):
+        geom = str(geom)
+        proc_ver = str(proc_ver)
+        pid_spec_ver = str(pid_spec_ver)
+
+        if pid_specs is None:
+            pid_specs = 'pid/pid_specifications.json'
         if isinstance(pid_specs, basestring):
             pid_specs = jsons.from_json(resources.find_resource(pid_specs))
         elif isinstance(pid_specs, collections.Mapping):
@@ -74,7 +81,17 @@ class PIDSpec(object):
         self.detector = detector
         self.proc_ver = proc_ver
         self.pid_spec_ver = str(pid_spec_ver)
-        self.pid_spec = ps[detector][geom][proc_ver][pid_spec_ver]
+        d = pid_specs
+        all_k = []
+        for orig_k in [detector, geom, proc_ver, pid_spec_ver]:
+            lok = orig_k.lower()
+            ks = d.keys()
+            for k in ks:
+                lk = k.lower()
+                if (lk == lok) or ('v'+lk == lok) or (lk == 'v'+lok):
+                    d = d[k]
+                    all_k.append(k)
+        self.pid_spec = pid_specs[all_k[0]][all_k[1]][all_k[2]][all_k[3]]
 
         # Enforce rules on PID spec:
         self.validatePIDSpec(self.pid_spec)
@@ -101,7 +118,23 @@ class PIDSpec(object):
         #    assert isinstance(pidspec['criteria'], basestring)
         return
 
-    def applyPID(self, events, signatures=None, return_fields=None):
+    def get_signatures(self):
+        return sorted(self.pid_spec['criteria'].keys())
+
+    def validate_signatures(self, signatures):
+        if isinstance(signatures, basestring):
+            signatures = [signatures]
+        for signature in signatures:
+            assert isinstance(signature, basestring), \
+                    'Signature "%s" is not string.' % signature
+            if signature not in self.pid_spec['criteria']:
+                raise ValueError(
+                    'Invalid signature "%s": Not avilable in PID specification;'
+                    ' valid signatures are: %s' %
+                    (signature, ', '.join(['"%s"'%vn for vn in valid_names]))
+                )
+
+    def applyPID(self, events, signatures=None, return_fields=None, cuts=None):
         """Divide events in `events` that fall into specified PID signature(s).
 
         Parameters
@@ -130,26 +163,17 @@ class PIDSpec(object):
         if isinstance(signatures, basestring):
             signatures = [signatures]
         elif signatures is None:
-            signatures = self.pid_spec['criteria'].keys()
+            signatures = self.get_signatures()
 
-        # Validate signatures
-        for signature in signatures:
-            assert isinstance(signature, basestring), \
-                    'Signature "%s" is not string.' % signature
-            if signature not in self.pid_spec['criteria']:
-                raise ValueError(
-                    'Invalid signature "%s": Not avilable in PID specification;'
-                    ' valid signatures are: %s' %
-                    (signature, ', '.join(['"%s"'%vn for vn in valid_names]))
-                )
+        self.validate_signatures(signatures)
 
         if isinstance(return_fields, basestring):
             return_fields = [return_fields]
 
         separated_events = flavInt.FlavIntData()
         # Outer loop is over flavint, so that same data is processed multiply
-        # for different PID specs, rather than new data loaded for each PID
-        # spec. (Theoretically faster.)
+        # for different PID signatures, rather than new data loaded for each
+        # PID spec. (Theoretically faster.)
         for flavint in events.flavints():
             src = events[flavint]
             dest = separated_events[flavint] = {}
@@ -167,14 +191,29 @@ class PIDSpec(object):
 
                 # Load the fields into global namespace that are necessary to
                 # apply PID criteria
-                for field in sorted(pid['field_map'].keys()):
-                    globals()[field] = events[field]
+                for field in sorted(self.pid_spec['field_map'].keys()):
+                    globals()[field] = src[field]
 
                 # Evaluate PID criteria, returning a boolean array
                 bool_idx = eval(pid_criteria)
 
                 # Store all requested fields that meet the criteria
-                for field in return_fields:
+                for field in fields_to_get:
                     dest[signature][field] = src[field][bool_idx]
 
         return separated_events
+
+    @staticmethod
+    def aggregate(separated_events):
+        agg_events = {}
+        for flavint in separated_events.flavints():
+            for sig, datadict in separated_events[flavint].iteritems():
+                if sig not in agg_events:
+                    agg_events[sig] = {}
+                for field, data in datadict.iteritems():
+                    if field not in agg_events[sig]:
+                        agg_events[sig][field] = []
+                    agg_events[sig][field].append(data)
+        # Concatenate the collected data arrays for final output
+        return {sig: {k:np.concatenate(v) for k,v in dat.iteritems()}
+                for sig,dat in  agg_events.iteritems()}

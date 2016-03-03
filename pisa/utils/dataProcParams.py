@@ -14,7 +14,7 @@ import os
 import h5py
 
 import pisa.utils.jsons as jsons
-import pisa.utils.flavInt as flavInt
+from pisa.utils.flavInt import NuFlav, IntType, FlavIntData
 import pisa.resources.resources as resources
 
 # Note that the form of the numpy import is intentional, so that cuts -- which
@@ -201,7 +201,9 @@ class DataProcParams(dict):
     then the following is a valid "pass_if" expression:
         "(reco_zenith > pi/2) & (cuts_step_1 == 1) & (cuts_step_2 == 1)"
     """
-    def __init__(self, data_proc_params, detector, proc_ver):
+    def __init__(self, detector, proc_ver, data_proc_params=None):
+        if data_proc_params is None:
+            data_proc_params = 'events/data_proc_params.json'
         if isinstance(data_proc_params, basestring):
             ps = jsons.from_json(resources.find_resource(data_proc_params))
         elif isinstance(data_proc_params, dict):
@@ -209,9 +211,16 @@ class DataProcParams(dict):
         else:
             raise TypeError('Unhandled data_proc_params type passed in arg: ' +
                             type(data_proc_params))
-        self.detector = detector.lower()
-        self.proc_ver = str(proc_ver).lower()
-        ps = ps[self.detector][self.proc_ver]
+        self.detector = detector
+        self.proc_ver = str(proc_ver)
+        self.det_key = [k for k in ps.keys()
+                        if k.lower() == self.detector.lower()][0]
+        for key in ps[self.det_key].keys():
+            lk = key.lower()
+            lpv = self.proc_ver.lower()
+            if lk == lpv or ('v'+lk == lpv) or (lk == 'v'+lpv):
+                self.procver_key = key
+        ps = ps[self.det_key][self.procver_key]
         self.update(ps)
 
         self.trans_nu_code = False
@@ -231,17 +240,17 @@ class DataProcParams(dict):
         # Add generic cuts
         self['cuts'].update({
             # Cut for particles only (no anti-particles)
-            str(flavInt.NuFlav(12).barNoBar()).lower():
+            str(NuFlav(12).barNoBar()).lower():
                 {'fields': ['nu_code'], 'pass_if': 'nu_code > 0'},
             # Cut for anti-particles only (no particles)
-            str(flavInt.NuFlav(-12).barNoBar()).lower():
+            str(NuFlav(-12).barNoBar()).lower():
                 {'fields': ['nu_code'], 'pass_if': 'nu_code < 0'},
             # Cut for charged-current interactions only
-            str(flavInt.IntType('cc')).lower():
+            str(IntType('cc')).lower():
                 {'fields': ['interaction_type'],
                  'pass_if': 'interaction_type == 1'},
             # Cut for neutral-current interactions only
-            str(flavInt.IntType('nc')).lower():
+            str(IntType('nc')).lower():
                 {'fields': ['interaction_type'],
                  'pass_if': 'interaction_type == 2'},
             # True-upgoing cut usinng the zenith field
@@ -249,7 +258,7 @@ class DataProcParams(dict):
                 {'fields': ['true_zenith'], 'pass_if': 'true_zenith > pi/2'},
             # True-upgoing cut usinng the cosine-zenith field
             'true_upgoing_coszen':
-                {'fields': ['true_zenith'], 'pass_if': 'true_coszen < 0'},
+                {'fields': ['true_coszen'], 'pass_if': 'true_coszen < 0'},
         })
 
         # Enforce rules on cuts:
@@ -380,20 +389,50 @@ class DataProcParams(dict):
         data['reco_coszen'] = np.cos(data['reco_zenith'])
         return data
 
+    @staticmethod
+    def subselect(data, fields, indices=None):
+        if isinstance(data, FlavIntData):
+            outdata = FlavIntData()
+            for flavint in data.flavints():
+                outdata[flavint] = DataProcParams.subselect(data[flavint],
+                                                            fields=fields,
+                                                            indices=indices)
+        elif isinstance(data, collections.Mapping):
+            if indices is None:
+                return {k:v for k,v in data.iteritems() if k in fields}
+            else:
+                return {k:v[indices] for k,v in data.iteritems() if k in fields}
+
     def applyCuts(self, data, cuts, boolean_op='&', return_fields=None):
         """Perform `cuts` on `data` and return a dict containing
         `return_fields` from events that pass the cuts.
+
+        Parameters
+        ----------
+        data : single-level dict or FlavIntData object
+        cuts : string, dict, or sequence thereof
+        boolean_op : string
+        return_fields : string or sequence thereof
         """
+        if isinstance(data, FlavIntData):
+            outdata = FlavIntData()
+            for flavint in data.flavints():
+                outdata[flavint] = self.applyCuts(
+                    data[flavint], cuts=cuts, boolean_op=boolean_op,
+                    return_fields=return_fields
+                )
+            return outdata
+
         if isinstance(cuts, basestring) or isinstance(cuts, dict):
             cuts = [cuts]
 
         # Default is to return all fields
         if return_fields is None:
-            return_fields = self['field_map'].keys()
+            return_fields = data.keys() #self['field_map'].keys()
 
         # If no cuts specified, return all data from specified fields
         if len(cuts) == 0:
-            return {f:np.array(data[f]) for f in return_fields}
+            return self.subselect(data, return_fields)
 
         cut_strings = set()
         cut_fields = set()
@@ -419,38 +458,3 @@ class DataProcParams(dict):
 
         # Return specified (or all) fields, indexed by boolean array
         return {f:np.array(data[f])[bool_idx] for f in return_fields}
-
-    # MOVED TO PIDSpec.py
-    #def applyPID(self, data, particle_name, return_fields=None):
-    #    """Select those events in `data` that pass PID criteria named by
-    #    `particle_name`, returning `return_fields` from these events
-    #    """
-    #    assert isinstance(particle_name, basestring)
-
-    #    pid = None
-    #    for extant_pname, pid_dict in self['pid'].items():
-    #        if not particle_name.lower().strip() == extant_pname:
-    #            continue
-    #        pid = pid_dict
-    #        break
-
-    #    if pid is None:
-    #        valid_names = ', '.join(["'"+s+"'" for s in self['pid'].keys()])
-    #        raise ValueError(
-    #            "particle_name '%s' not specified in data_proc_params['pid'];"
-    #            " valid particle names are: %s" % (particle_name, valid_names)
-    #        )
-
-    #    # Load the fields necessary for the cut into the global namespace
-    #    for field in set(pid['fields']):
-    #        globals()[field] = data[field]
-
-    #    # Evaluate cuts, returning a boolean array
-    #    bool_idx = eval(pid['criteria'])
-
-    #    # Default is to return all fields
-    #    if return_fields is None:
-    #        return_fields = self['field_map'].keys()
-
-    #    # Return specified (or all) fields, indexed by boolean array
-    #    return {f:np.array(data[f])[bool_idx] for f in return_fields}
