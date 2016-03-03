@@ -116,6 +116,7 @@ class PIDServiceMC(object):
                 proc_ver=self.events.metadata['proc_ver'],
                 pid_specs=self.pid_spec_source
             )
+        signatures = self.pid_spec.get_signatures()
 
         # TODO: add importance weights, error computation
 
@@ -125,46 +126,51 @@ class PIDServiceMC(object):
             return_fields=['reco_energy', 'reco_coszen'],
         )
 
-        # PID maps are the fractional version of the above
         self.pid_maps = {'binning': {'ebins': self.ebins,
                                      'czbins': self.czbins}}
-        self.agg_events = self.pid_spec.aggregate(self.separated_events)
-
-        self.raw_histo = {}
-        self.raw_histo_err = {}
-        self.total_count = np.zeros([n_ebins, n_czbins])
-        self.total_err2 = np.zeros([n_ebins, n_czbins])
-        for sig in self.pid_spec.get_signatures():
-            reco_e = self.agg_events[sig]['reco_energy']
-            reco_cz = self.agg_events[sig]['reco_coszen']
-            try:
-                weights = self.agg_events[sig]['importance_weight']
-                weights2 = weights * weights
-            except:
-                logging.warn('No importance weights found in events!')
-                weights = None
-                weights2 = None
-            self.raw_histo[sig], _, _ = np.histogram2d(
-                reco_e,
-                reco_cz,
-                weights=weights,
-                bins=histo_binspec,
-            )
-            self.total_count += self.raw_histo[sig]
+        for label in ['nue_cc', 'numu_cc', 'nutau_cc', 'nuall_nc']:
+            rep_flavint = flavInt.NuFlavIntGroup(label)[0]
+            this_pid_map = self.pid_maps[label] = {}
+            raw_histo = {}
+            raw_histo_err = {}
+            total_histo = np.zeros([n_ebins, n_czbins])
             if self.compute_error:
-                self.raw_histo_err[sig], _, _ = np.histogram2d(
+                total_err2 = np.zeros([n_ebins, n_czbins])
+
+            for sig in signatures:
+                flav_sigdata = self.separated_events[rep_flavint][sig]
+                reco_e = flav_sigdata['reco_energy']
+                reco_cz = flav_sigdata['reco_coszen']
+                try:
+                    weights = flav_sigdata['importance_weight']
+                    weights2 = weights * weights
+                except:
+                    logging.warn('No importance weights found in events!')
+                    weights = None
+                    weights2 = None
+                raw_histo[sig], _, _ = np.histogram2d(
                     reco_e,
                     reco_cz,
-                    weights=weights2,
+                    weights=weights,
                     bins=histo_binspec,
                 )
-                self.total_err2 += self.raw_histo_err[sig]
-                self.error_computed = True
+                total_histo += raw_histo[sig]
+                if self.compute_error:
+                    raw_histo_err[sig], _, _ = np.histogram2d(
+                        reco_e,
+                        reco_cz,
+                        weights=weights2,
+                        bins=histo_binspec,
+                    )
+                    total_err2 += raw_histo_err[sig]
+                    self.error_computed = True
 
-        self.pid_err = {}
-        for sig in self.pid_spec.get_signatures():
-            self.pid_maps[sig] = self.raw_histo[sig] / self.total_count
-            #self.pid_err[sig] = 
+            ## Check that all events have been accounted for
+            #total_histo_check, _, _ = np.histogram2d(
+            #    reco_e, reco_cz, weights=
+            #)
+            for sig in signatures:
+                this_pid_map[sig] = raw_histo[sig] / total_histo
 
     def get_pid(self, **kwargs):
         """Returns the PID maps"""
