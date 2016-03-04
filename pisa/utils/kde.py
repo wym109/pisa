@@ -1,4 +1,4 @@
-#!/usr/bin/env python, gaussians
+#!/usr/bin/env python
 #
 # Based on the implementation in Matlab by Zdravko Botev.
 # Z. I. Botev, J. F. Grotowski, and D. P. Kroese. Kernel density

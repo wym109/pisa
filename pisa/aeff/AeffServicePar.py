@@ -193,7 +193,7 @@ class AeffServicePar(object):
         for flavint in self.aeff_fidata.flavints():
             # Find where this flavint is included in aeff2d
             keys = [k for k in aeff2d.keys() if flavint in k]
-            assert len(keys) == 1, flavint, keys
+            assert len(keys) == 1, str(flavint) + str(keys)
             self.aeff_fidata[flavint] = aeff2d[keys[0]]
 
     def get_aeff(self):

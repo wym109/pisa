@@ -19,7 +19,7 @@ from scipy.constants import Julian_year
 from pisa.utils.log import logging, tprofile, set_verbosity
 from pisa.resources.resources import find_resource
 from pisa.utils.params import get_fixed_params, get_free_params, get_values, select_hierarchy
-from pisa.utils.jsons import from_json, to_json, json_string
+from pisa.utils.fileio import from_file, to_file
 from pisa.utils.utils import Timer
 
 from pisa.flux.HondaFluxService import HondaFluxService
@@ -223,8 +223,9 @@ class TemplateMaker:
 
         logging.info("STAGE 5: Getting pid maps...")
         with Timer(verbose=False) as t:
-            final_event_rate = get_pid_maps(event_rate_reco_maps,
-                                            self.pid_service)
+            final_event_rate = self.pid_service.get_pid_maps(
+                event_rate_reco_maps
+            )
         tprofile.debug("==> elapsed time for pid stage: %s sec"%t.secs)
 
         return final_event_rate
@@ -259,7 +260,7 @@ if __name__ == '__main__':
 
     with Timer() as t:
         #Load all the settings
-        model_settings = from_json(args.template_settings)
+        model_settings = from_file(args.template_settings)
 
         #Select a hierarchy
         logging.info('Selected %s hierarchy'%
@@ -279,4 +280,4 @@ if __name__ == '__main__':
     tprofile.info("==> elapsed time to get template: %s sec"%t.secs)
 
     logging.info("Saving file to %s"%args.outfile)
-    to_json(template_maps, args.outfile)
+    to_file(template_maps, args.outfile)
