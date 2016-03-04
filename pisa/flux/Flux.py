@@ -57,6 +57,7 @@ def apply_nue_numu_ratio(flux_maps, nue_numu_ratio):
 
     return flux_maps
 
+
 def apply_nu_nubar_ratio(event_rate_maps, nu_nubar_ratio):
     """
     Applies the nu_nubar_ratio systematic to the event rate
@@ -104,6 +105,7 @@ def apply_delta_index(flux_maps, delta_index, egy_med):
 
     return flux_maps
 
+
 def get_median_energy(flux_map):
     """Returns the median energy of the flux_map-expected to be a dict
     with keys 'map', 'ebins', 'czbins'
@@ -113,6 +115,7 @@ def get_median_energy(flux_map):
     energy = ecen[len(ecen)/2]
 
     return energy
+
 
 def get_flux_maps(flux_service, ebins, czbins, nue_numu_ratio, nu_nubar_ratio,
                   energy_scale, atm_delta_index,**kwargs):

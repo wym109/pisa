@@ -32,7 +32,7 @@ try:
     from pisa.oscillations.Prob3GPUOscillationService import Prob3GPUOscillationService
 except:
     logging.warn('CAN NOT import Prob3GPUOscillationService!')
-from pisa.oscillations.Oscillation import get_osc_flux
+from pisa.oscillations import Oscillation
 
 from pisa.aeff.AeffServiceMC import AeffServiceMC
 from pisa.aeff.AeffServicePar import AeffServicePar
@@ -152,10 +152,6 @@ class TemplateMaker:
             error_msg+=" Please choose among: ['MC', 'param', 'stored']"
             raise NotImplementedError(error_msg)
 
-        print template_params_values
-        print template_params_values.keys()
-        print 'pid_constructor_params:', template_params_values['pid_constructor_params']
-        print 'type(pid_constructor_params):', type(template_params_values['pid_constructor_params'])
         # Instantiate a PID service
         self.pid_service = PID.pid_service_factory(
             ebins=self.ebins, czbins=self.czbins,
@@ -173,18 +169,21 @@ class TemplateMaker:
         logging.info("STAGE 1: Getting Atm Flux maps...")
         with Timer() as t:
             flux_maps = Flux.get_flux_maps(
-                self.flux_service, ebins=self.ebins, czbins=self.czbins,
+                flux_service=self.flux_service,
+                ebins=self.ebins, czbins=self.czbins,
                 **template_params_values
             )
         tprofile.debug("==> elapsed time for flux stage: %s sec" % t.secs)
 
         logging.info("STAGE 2: Getting osc prob maps...")
         with Timer() as t:
-            osc_flux_maps = get_osc_flux(flux_maps=flux_maps,
-                                         osc_service=self.osc_service,
-                                         oversample_e=self.oversample_e,
-                                         oversample_cz=self.oversample_cz,
-                                         **template_params_values)
+            osc_flux_maps = Oscillation.get_osc_flux(
+                flux_maps=flux_maps,
+                osc_service=self.osc_service,
+                oversample_e=self.oversample_e,
+                oversample_cz=self.oversample_cz,
+                **template_params_values
+            )
         tprofile.debug("==> elapsed time for oscillations stage: %s sec"
                        % t.secs)
 
@@ -199,7 +198,7 @@ class TemplateMaker:
         logging.info("STAGE 4: Getting event rate reco maps...")
         with Timer() as t:
             event_rate_reco_maps = Reco.get_reco_maps(
-                event_rate_maps=event_rate_maps,
+                true_event_maps=event_rate_maps,
                 reco_service=self.reco_service,
                 **template_params_values
             )
@@ -224,7 +223,8 @@ class TemplateMaker:
         logging.info("STAGE 1: Getting Atm Flux maps...")
         with Timer() as t:
             flux_maps = Flux.get_flux_maps(
-                self.flux_service, ebins=self.ebins, czbins=self.czbins,
+                flux_service=self.flux_service,
+                ebins=self.ebins, czbins=self.czbins,
                 **template_params_values
             )
         tprofile.debug("==> elapsed time for flux stage: %s sec" % t.secs)
@@ -242,7 +242,7 @@ class TemplateMaker:
         logging.info("STAGE 3: Getting event rate true maps...")
         with Timer() as t:
             event_rate_maps = Aeff.get_event_rates(
-                flux_maps=flux_maps, aeff_service=self.aeff_service,
+                osc_flux_maps=flux_maps, aeff_service=self.aeff_service,
                 **template_params_values
             )
         tprofile.debug("==> elapsed time for aeff stage: %s sec" % t.secs)
@@ -250,7 +250,8 @@ class TemplateMaker:
         logging.info("STAGE 4: Getting event rate reco maps...")
         with Timer() as t:
             event_rate_reco_maps = Reco.get_reco_maps(
-                event_rate_maps, self.reco_service,
+                true_event_maps=event_rate_maps,
+                reco_service=self.reco_service,
                 **template_params_values
             )
         tprofile.debug("==> elapsed time for reco stage: %s sec" % t.secs)

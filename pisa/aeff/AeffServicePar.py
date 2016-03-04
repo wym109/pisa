@@ -91,8 +91,8 @@ class AeffServicePar(object):
         #  NOTE: this is simplistic; there might be reason to compare e.g. the
         #  data contained within a file referenced rather than just looking at
         #  string equivalency. That's a TODO if it's ever an issue...
-        if ebins == self.__ebins and czbins == self.__czbins and \
-                aeff_egy_par == self.__aeff_egy_par and \
+        if np.all(ebins == self.__ebins) and np.all(czbins == self.__czbins) \
+                and aeff_egy_par == self.__aeff_egy_par and \
                 aeff_coszen_par == self.__aeff_coszen_par:
             return
         self.__ebins = ebins
