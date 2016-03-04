@@ -37,8 +37,6 @@ from pisa.utils import flavInt
 from pisa.utils import jsons
 import pisa.utils.utils as utils
 
-from histogramTools import stepHist
-
 
 parser = ArgumentParser(
     '''Generate smoothed PID parameterization curves at energy bin centers.
@@ -156,7 +154,10 @@ sigs_to_spline.remove(args.dependent_sig)
 
 if make_plots:
     import matplotlib as mpl
+    mpl.use('pdf')
     import matplotlib.pyplot as plt
+    from histogramTools import stepHist
+
     FIGSIZE = (11,7)
     #plt.close(1)
     plt.figure(1, figsize=FIGSIZE).clf()
@@ -462,9 +463,10 @@ for label, label_data in pidmc.pid_maps.iteritems():
         ax.set_xlim(-1, 1)
         #ylim = np.clip(ax.get_ylim(), 0, 1)
         #ax.set_ylim(ylim)
-        #if axnum in [0,2,3]:
-        #    ax.set_ylim(0, 0.5)
-        ax.set_ylim(0, 1)
+        if axnum in [0,2,3]:
+            ax.set_ylim(0, 0.5)
+        if axnum in [1]:
+            ax.set_ylim(0, 1)
         if axnum in [2,3]:
             ax.set_xlabel(r'Reconstructed $\cos\,\theta_{\rm zen}$')
         ax.grid(b=True, which='both', ls='-', alpha=0.7, color=[0.5]*3, lw=0.5)
@@ -500,6 +502,3 @@ if make_plots:
     )
     fig.savefig(os.path.join(outdir, basefname + '.pdf'))
     fig.savefig(os.path.join(outdir, basefname + '.png'))
-
-    plt.draw()
-    plt.show()

@@ -159,6 +159,7 @@ logging.debug("Ungrouped: %s" % ungrouped)
 
 if make_plots:
     import matplotlib as mpl
+    mpl.use('pdf')
     import matplotlib.pyplot as plt
     FIGSIZE = (11,7)
     #plt.close(1)
@@ -430,7 +431,3 @@ if make_plots:
     )
     fig.savefig(os.path.join(outdir, basefname + '.pdf'))
     fig.savefig(os.path.join(outdir, basefname + '.png'))
-
-if make_plots:
-    plt.draw()
-    plt.show()
