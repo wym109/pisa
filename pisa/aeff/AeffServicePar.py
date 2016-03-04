@@ -146,7 +146,7 @@ class AeffServicePar(object):
 
             # Grab source data
             interpolant_edep_aeff = self.edep_store[e_key]['smooth']
-            interpolant_czdep_aeff = self.edep_store[cz_key]['smooth']
+            interpolant_czdep_aeff = self.czdep_store[cz_key]['smooth']
 
             # Interpolate 
             edep_interpolant = interp1d(
@@ -171,14 +171,14 @@ class AeffServicePar(object):
             interpolated_czdep_aeff = czdep_interpolant(czbin_midpoints)
 
             # Fill values outside interpolants' ranges with nearest neighbor
-            idx = ebin_midpoints < self.edep_store['ebin_midpoints']
+            idx = ebin_midpoints < self.edep_store['ebin_midpoints'][0]
             interpolated_edep_aeff[idx] = interpolant_edep_aeff[0]
-            idx = ebin_midpoints > self.edep_store['ebin_midpoints']
+            idx = ebin_midpoints > self.edep_store['ebin_midpoints'][-1]
             interpolated_edep_aeff[idx] = interpolant_edep_aeff[-1]
 
-            idx = czbin_midpoints < self.czdep_store['czbin_midpoints']
+            idx = czbin_midpoints < self.czdep_store['czbin_midpoints'][0]
             interpolated_czdep_aeff[idx] = interpolant_czdep_aeff[0]
-            idx = czbin_midpoints > self.czdep_store['czbin_midpoints']
+            idx = czbin_midpoints > self.czdep_store['czbin_midpoints'][-1]
             interpolated_czdep_aeff[idx] = interpolant_czdep_aeff[-1]
 
             # Form 2D map via outer product

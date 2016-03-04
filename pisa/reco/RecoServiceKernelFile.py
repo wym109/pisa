@@ -33,6 +33,7 @@ class RecoServiceKernelFile(RecoServiceBase):
         * reco_kernel_file: file containing the kernel dict
         """
         self.kernels = None
+        self.kernelfile = None
         RecoServiceBase.__init__(self, ebins, czbins,
                                  kernelfile=reco_kernel_file, **kwargs)
 
