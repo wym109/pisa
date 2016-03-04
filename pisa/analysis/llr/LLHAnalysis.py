@@ -21,9 +21,12 @@ from pisa.utils.utils import Timer
 from pisa.analysis.stats.LLHStatistics import get_binwise_llh, get_binwise_chisquare
 from pisa.analysis.stats.Maps import flatten_map
 
+
 #@profile
-def find_alt_hierarchy_fit(asimov_data_set, template_maker,hypo_params,hypo_normal,
-                           minimizer_settings,only_atm_params=True,check_octant=False):
+def find_alt_hierarchy_fit(asimov_data_set,
+                           template_maker, hypo_params, hypo_normal,
+                           minimizer_settings, only_atm_params=True,
+                           check_octant=False):
     """
     For the hypothesis of the mass hierarchy being NMH
     ('normal_hierarchy'=True) or IMH ('normal_hierarchy'=False), finds the
@@ -55,30 +58,32 @@ def find_alt_hierarchy_fit(asimov_data_set, template_maker,hypo_params,hypo_norm
             minim_settings=minimizer_settings,
             normal_hierarchy=hypo_normal,
             check_octant=check_octant)
-    tprofile.info("==> elapsed time for optimizer: %s sec"%t.secs)
+    tprofile.info("==> elapsed time for optimizer: %s sec" % t.secs)
 
     return llh_data
+
 
 def display_optimizer_settings(free_params, names, init_vals, bounds, priors,
                                minim_settings):
     """
     Displays parameters and optimization settings that minimizer will run.
     """
-    physics.info('%d parameters to be optimized'%len(free_params))
+    physics.info('%d parameters to be optimized' % len(free_params))
+    print minim_settings
     for name, init_val, bound, prior in zip(names, init_vals, bounds, priors):
-        physics.info(('%20s : init = %6.4f, bounds = [%6.4f,%6.4f], prior = %s')
-                     %(name, init_val, bound[0], bound[1], prior))
+        physics.info(
+            '%20s : init = %6.4f, bounds = [%6.4f,%6.4f], prior = %s'
+            % (name, init_val, bound[0], bound[1], prior)
+        )
 
     physics.debug("Optimizer settings:")
-    physics.debug("  %s -> '%s' = %s"%(minim_settings['method']['desc'],
+    physics.debug("  %s -> '%s' = %s" % (minim_settings['method']['desc'],
                                        'method',
                                        minim_settings['method']['value']))
     for key,item in minim_settings['options']['value'].items():
-        physics.debug("  %s -> `%s` = %.02f"%(minim_settings['options']['desc'][key],
-                                           key,
-                                           item))
+        physics.debug("  %s -> `%s` = %.02f"
+                      % (minim_settings['options']['desc'][key], key, item))
 
-    return
 
 def find_opt_scipy(fmap, template_maker, params, minim_settings,
                    save_steps=False, normal_hierarchy=None,
@@ -106,7 +111,7 @@ def find_opt_scipy(fmap, template_maker, params, minim_settings,
     free_params = get_free_params(select_hierarchy(params, normal_hierarchy))
 
     if len(free_params) == 0:
-	logging.warn("NO FREE PARAMS, returning %s"%metric_name)
+	logging.warn("NO FREE PARAMS, returning %s" % metric_name)
 	true_template = template_maker.get_template(get_values(fixed_params))
 	channel = params['channel']['value']
 	true_fmap = flatten_map(template=true_template, channel=channel)
@@ -202,14 +207,14 @@ def find_opt_scipy(fmap, template_maker, params, minim_settings,
 
     # Report best fit
     physics.info('Found best %s = %.2f in %d calls at:'
-        %(metric_name, metric_val, dict_flags['funcalls']))
+        % (metric_name, metric_val, dict_flags['funcalls']))
     for name, val in best_fit_params.items():
-        physics.info('  %20s = %6.4f'%(name,val))
+        physics.info('  %20s = %6.4f' % (name,val))
 
     # Report any warnings if there are
     lvl = logging.WARN if (dict_flags['warnflag'] != 0) else logging.DEBUG
     for name, val in dict_flags.items():
-        physics.log(lvl," %s : %s"%(name,val))
+        physics.log(lvl," %s : %s" % (name,val))
 
     if not save_steps:
         # Do not store the extra history of opt steps:
@@ -280,7 +285,7 @@ def minim_metric(opt_vals, names, scales, fmap, fixed_params, template_maker,
         else:
             true_template = template_maker.get_template(template_params)
 
-    tprofile.info("==> elapsed time for template maker: %s sec"%t.secs)
+    tprofile.info("==> elapsed time for template maker: %s sec" % t.secs)
     true_fmap = flatten_map(template=true_template,
                             channel=template_params['channel'])
 
@@ -307,8 +312,8 @@ def minim_metric(opt_vals, names, scales, fmap, fixed_params, template_maker,
         opt_steps_dict[key].append(template_params[key])
     opt_steps_dict[metric_name].append(metric_val)
 
-    physics.debug("%s is %.2f at: "%(metric_name, metric_val))
+    physics.debug("%s is %.2f at: " % (metric_name, metric_val))
     for name, val in zip(names, opt_vals):
-        physics.debug(" %20s = %6.4f" %(name,val))
+        physics.debug(" %20s = %6.4f" % (name,val))
 
     return metric_val
