@@ -233,7 +233,8 @@ class RecoServiceVBWKDE(RecoServiceBase):
         return kernels
 
     def single_kernel_set(self, e_true, cz_true, e_reco, cz_reco,
-                          flav, int_type, make_plots=False, out_dir=None):
+                          flav, int_type, make_plots=False,
+                          store_debug_data=False, out_dir=None):
         """Construct a 4D kernel set from MC events using VBWKDE.
 
         Given a set of MC events and each of their {energy{true, reco},
@@ -283,7 +284,7 @@ class RecoServiceVBWKDE(RecoServiceBase):
         """
         OVERFIT_FACTOR = 1.0
 
-        if store_plot_data:
+        if store_debug_data:
             kept_data = FI.FlavIntData()
             for fi in plt_data.flavInts():
                 kept_data[fi] = {'ebins': ebins, 'czbins':czbins,

@@ -4,7 +4,10 @@
 # author: J.L. Lanfranchi
 #
 # date:   March 1, 2016
-"""Apply 1D-parameterized effective areas to 2D map"""
+"""
+Generate a 2D effective area map using 1D-parameterized effective areas
+(i.e., separately marginalized and then parameterized in coszen and energy).
+"""
 
 import os
 
@@ -12,13 +15,11 @@ import numpy as np
 from scipy.interpolate import interp1d
 
 from pisa.utils.log import logging
-from pisa.utils.utils import get_bin_centers, get_bin_sizes
+from pisa.utils import fileio
 from pisa.utils import flavInt
-from pisa.utils.jsons import from_json
-from pisa.resources.resources import find_resource, open_resource
 
 
-class AeffServicePar:
+class AeffServicePar(object):
     """Takes samples from (independent) energy and coszen parameterizations,
     interpolates to a user-specified E and CZ binning, and forms a normalized
     outer product to obtain 2D effective areas
@@ -84,7 +85,8 @@ class AeffServicePar:
         self.update(ebins=ebins, czbins=czbins, aeff_egy_par=aeff_egy_par,
                     aeff_coszen_par=aeff_coszen_par)
 
-    def update(self, ebins, czbins, aeff_egy_par, aeff_coszen_par):
+    def update(self, ebins, czbins, aeff_egy_par, aeff_coszen_par,
+               interp_kind='cubic'):
         # Return if state needn't change
         #  NOTE: this is simplistic; there might be reason to compare e.g. the
         #  data contained within a file referenced rather than just looking at
@@ -102,7 +104,7 @@ class AeffServicePar:
         if aeff_egy_par != self.__aeff_egy_par:
             # TODO: validation on all inputs!
             if isinstance(aeff_egy_par, basestring):
-                self.edep_store = fileio.from_file(find_resource(aeff_egy_par))
+                self.edep_store = fileio.from_file(aeff_egy_par)
             elif isinstance(aeff_egy_par, collections.Mapping):
                 self.edep_store = aeff_egy_par
             else:
@@ -112,9 +114,7 @@ class AeffServicePar:
 
         if aeff_coszen_par != self.__aeff_coszen_par:
             if isinstance(aeff_coszen_par, basestring):
-                self.czdep_store = fileio.from_file(
-                    find_resource(aeff_coszen_par)
-                )
+                self.czdep_store = fileio.from_file(aeff_coszen_par)
             elif isinstance(aeff_coszen_par, collections.Mapping):
                 self.czdep_store = aeff_coszen_par
             else:
@@ -128,44 +128,41 @@ class AeffServicePar:
         ]
         ungrouped = [flavInt.NuFlavIntGroup(fi) for fi in flavInt.ALL_NUCC]
 
-        interpolant_ebin_midpoints = edep_store['ebin_midpoints']
-        interpolant_czbin_midpoints = czdep_store['czbin_midpoints']
-
         aeff2d = {}
         for group in ungrouped + grouped:
             # Only need one representative flavint from this group
             rep_flavint = group[0]
 
             # Find where this flavint is represented in the stores
-            e_keys = [k for k in edep_store.keys()
+            e_keys = [k for k in self.edep_store.keys()
                       if rep_flavint in flavInt.NuFlavIntGroup(k)]
             assert len(e_keys) == 1, len(e_keys)
             e_key = e_keys[0]
 
-            cz_keys = [k for k in czdep_store.keys()
+            cz_keys = [k for k in self.czdep_store.keys()
                       if rep_flavint in flavInt.NuFlavIntGroup(k)]
             assert len(cz_keys) == 1, len(cz_keys)
             cz_key = cz_keys[0]
 
             # Grab source data
-            interpolant_edep_aeff = edep_store[e_key]['smooth']
-            interpolant_czdep_aeff = edep_store[cz_key]['smooth']
+            interpolant_edep_aeff = self.edep_store[e_key]['smooth']
+            interpolant_czdep_aeff = self.edep_store[cz_key]['smooth']
 
             # Interpolate 
             edep_interpolant = interp1d(
-                x=interpolant_ebin_midpoints,
+                x=self.edep_store['ebin_midpoints'],
                 y=interpolant_edep_aeff,
-                kind='linear',
-                copy=True,
+                kind=interp_kind,
+                copy=False,
                 bounds_error=False,
                 fill_value=np.nan,
                 assume_sorted=True
             )
             czdep_interpolant = interp1d(
-                x=interpolant_czbin_midpoints,
+                x=self.czdep_store['czbin_midpoints'],
                 y=interpolant_czdep_aeff,
-                kind='linear',
-                copy=True,
+                kind=interp_kind,
+                copy=False,
                 bounds_error=False,
                 fill_value=np.nan,
                 assume_sorted=True
@@ -174,14 +171,14 @@ class AeffServicePar:
             interpolated_czdep_aeff = czdep_interpolant(czbin_midpoints)
 
             # Fill values outside interpolants' ranges with nearest neighbor
-            idx = ebin_midpoints < interpolant_ebin_midpoints
+            idx = ebin_midpoints < self.edep_store['ebin_midpoints']
             interpolated_edep_aeff[idx] = interpolant_edep_aeff[0]
-            idx = ebin_midpoints > interpolant_ebin_midpoints
+            idx = ebin_midpoints > self.edep_store['ebin_midpoints']
             interpolated_edep_aeff[idx] = interpolant_edep_aeff[-1]
 
-            idx = czbin_midpoints < interpolant_czbin_midpoints
+            idx = czbin_midpoints < self.czdep_store['czbin_midpoints']
             interpolated_czdep_aeff[idx] = interpolant_czdep_aeff[0]
-            idx = czbin_midpoints > interpolant_czbin_midpoints
+            idx = czbin_midpoints > self.czdep_store['czbin_midpoints']
             interpolated_czdep_aeff[idx] = interpolant_czdep_aeff[-1]
 
             # Form 2D map via outer product

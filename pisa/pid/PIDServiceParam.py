@@ -4,99 +4,125 @@
 # date:   March 2, 2016
 #
 """
-PID service for parametrized PID functions.
+Generate a 2D PID map using samples from 1D-parameterized PID's (for now, only
+dependence is assumed to be in energy).
 """
 
 import numpy as np
-from scipy.iterpolate import interp1d
+from scipy.interpolate import interp1d
 
-from pisa.utils import logging, set_verbosity
+from pisa.utils.log import logging, set_verbosity
+from pisa.utils import fileio
 from pisa.pid.PIDServiceBase import PIDServiceBase
-from pisa.resources.resources import find_resource
-from pisa.utils.jsons import from_json
-from pisa.utils.utils import get_bin_centers
 
 
 class PIDServiceParam(PIDServiceBase):
-    """
-    Creates PID kernels by linear interpolation of sample points stored
-    in a JSON file.
+    """Creates PID maps by interpolation of stored sample points.
 
-    Systematic parameter 'PID_offset' is supported, but 'PID_scale' has been
-    temporarily removed until its implementation is corrected.
+    Systematic 'PID_offset' is supported but 'PID_scale' has been
+    removed until its implementation is corrected.
 
     Parameters
     ----------
     ebins, czbins
-    pid_paramfile
+    pid_energy_dep
+    PID_offset
     """
-    def __init__(self, ebins, czbins, pid_paramfile, PID_offset=0, **kwargs):
+    def __init__(self, ebins, czbins, pid_energy_dep, PID_offset=0, **kwargs):
+        super(PIDServiceParam, self).__init__()
         self.ebins = None
         self.czbins = None
-        self.__pid_paramfile = None
-        self.__param_data = None
-        self.__PID_offset = None
+        self.pid_energy_dep = None
+        self.edep_pid_data = None
+        self.edep_ebin_midpoints = None
+        self.edep_interpolants = None
+        self.PID_offset = None
         self.pid_kernels = None
-        self.update(ebins=ebins, czbins=czbins, pid_paramfile=pid_paramfile,
+        logging.trace(str(self.ebins))
+        self.update(ebins=ebins, czbins=czbins, pid_energy_dep=pid_energy_dep,
                     PID_offset=PID_offset)
 
-    def update(self, ebins=None, czbins=None, pid_paramfile=None,
-               PID_offset=None):
-        if pid_paramfile is None:
-            pid_paramfile = self.__pid_paramfile
+    def update(self, ebins=None, czbins=None, pid_energy_dep=None,
+               PID_offset=None, interp_kind='cubic'):
+        if pid_energy_dep is None:
+            pid_energy_dep = self.pid_energy_dep
         if ebins is None:
             ebins = self.ebins
         if czbins is None:
             czbins = self.czbins
 
-        if ebins == self.ebins and czbins == self.czbins and \
-                pid_paramfile == self.__pid_paramfile and \
-                PID_offset == self.__PID_offset:
+        # Don't do anything if not necessary
+        if self.pid_kernels is not None and np.all(ebins == self.ebins) and \
+                np.all(czbins == self.czbins) and \
+                np.all(pid_energy_dep == self.pid_energy_dep) and \
+                PID_offset == self.PID_offset:
             return self.pid_kernels
 
         self.ebins = ebins
         self.czbins = czbins
-
-        if self.__param_data is None or pid_paramfile != self.__pid_paramfile:
-            logging.info('Loading PID parametrization file %s' % pid_paramfile)
-            self.__param_data = from_file(find_resource(pid_paramfile))
-            self.__interpolant = interp1d(
-                x=
-                y=
-                kind='linear',
-                copy=True,
-                bounds_error=False,
-                fill_value=np.nan,
-                assume_sorted=True,
-            )
-
+        self.PID_offset = PID_offset
         ebin_midpoints = (ebins[:-1] + ebins[1:]) / 2.0
         n_czbins = len(self.czbins) - 1
 
+        # Load energy-dependent parameterization if necessary
+        new_file = False
+        if self.edep_pid_data is None or \
+                pid_energy_dep != self.pid_energy_dep:
+            new_file = True
+            logging.info('Loading PID-energy-dependence parametrization file'
+                         ' %s' % pid_energy_dep)
+            self.edep_pid_data = fileio.from_file(pid_energy_dep)
+            self.edep_ebin_midpoints = \
+                    self.edep_pid_data.pop('ebin_midpoints')
+            self.labels = sorted(self.edep_pid_data.keys())
+            self.signatures = self.edep_pid_data[self.labels[0]].keys()
+
+        # (Re)create interpolants if necessary
+        if self.edep_interpolants is None or new_file:
+            self.edep_interpolants = {}
+            for label in self.labels:
+                pid_allocations = self.edep_pid_data[label]
+                self.edep_interpolants[label] = {}
+                for sig, allocation in pid_allocations.iteritems():
+                    self.edep_interpolants[label][sig] = interp1d(
+                        x=self.edep_ebin_midpoints,
+                        y=self.edep_pid_data[label][sig]['smooth'],
+                        kind=interp_kind,
+                        copy=False,
+                        bounds_error=True,
+                        fill_value=np.nan,
+                        assume_sorted=True,
+                    )
+
         # Assume no variation in PID across coszen
-        czvals = np.ones(n_czbins)
+        coszen_dep = np.ones(n_czbins)
 
-        pid_kernels = {'binning': {'ebins': ebins, 'czbins': self.czbins}}
-        for signature in param_str.keys():
-            # Generate the functions
-            to_trck_func = eval(param_str[signature]['trck'])
-            to_cscd_func = eval(param_str[signature]['cscd'])
-
-            # Make maps from the functions evaluated at the bin centers
-
-            # NOTE: np.clip() is to force unitarity on individual PID curves
-            to_trck = np.clip(to_trck_func(ebin_midpoints-PID_offset), 0, 1)
-            to_cscd = np.clip(to_cscd_func(ebin_midpoints-PID_offset), 0, 1)
-
-        # Assume PID behaves same for all coszen
-        to_trck_map = np.outer(to_trck, czvals)
-        to_cscd_map = np.outer(to_cscd, czvals)
-
-            pid_kernels[signature] = {'trck':to_trck_map,
-                                      'cscd':to_cscd_map}
+        self.pid_kernels = {
+            'binning': {'ebins': self.ebins, 'czbins': self.czbins}
+        }
+        for label in self.labels:
+            self.pid_kernels[label] = {}
+            for sig in self.signatures:
+                energy_dep = np.clip(
+                    self.edep_interpolants[label][sig](ebin_midpoints)
+                    - PID_offset, a_min=0, a_max=1
+                )
+                kernel = np.outer(energy_dep, coszen_dep)
+                self.pid_kernels[label][sig] = kernel
 
         return self.pid_kernels
 
-    def get_pid_kernels(self, pid_paramfile=None, PID_offset=None):
+    def __get_pid_kernels(self, pid_energy_dep=None, PID_offset=None):
         return self.update(ebins=self.ebins, czbins=self.czbins,
-                           pid_paramfile=pid_paramfile, PID_offset=PID_offset)
+                           pid_energy_dep=pid_energy_dep,
+                           PID_offset=PID_offset)
+
+    @staticmethod
+    def add_argparser_args(parser):
+        parser.add_argument(
+            '--pid-energy-dep', metavar='RESOURCE_NAME', type=str,
+            default='pid/pingu_v36/pid_energy_dependence__pingu_v36__runs_388-390__proc_5__pid_1.json',
+            help='''[ PID-Param ] JSON file containing PID parameterizations' energy
+            dependence for each particle signature'''
+        )
+        return parser

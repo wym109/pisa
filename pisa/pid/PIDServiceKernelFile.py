@@ -3,21 +3,20 @@
 #
 # author: Lukas Schulte
 #         schulte@physik.uni-bonn.de
+# author: J.L. Lanfranchi
+#         jll1062+pisa@phys.psu.edu
 #
 # date:   Oct 21, 2014
 #
 
-import sys
-import logging
+from pisa.utils.log import logging
 
 from pisa.pid.PIDServiceBase import PIDServiceBase
-from pisa.resources.resources import find_resource
-from pisa.utils.jsons import from_json
+from pisa.utils import fileio
 
 
 class PIDServiceKernelFile(PIDServiceBase):
-    """
-    Loads a pre-calculated PID kernel (that has been saved via
+    """Loads a pre-calculated PID kernel (that has been saved via
     pid_service.store_kernels) from disk and uses that for classification.
     """
     def __init__(self, ebins, czbins, **kwargs):
@@ -28,15 +27,22 @@ class PIDServiceKernelFile(PIDServiceBase):
         * czbins: cos(zenith) bin edges
         * pid_kernelfile: JSON containing the kernel dict
         """
-        PIDServiceBase.__init__(self, ebins, czbins, **kwargs)
+        super(PIDServiceKernelFile, self).__init__()
+        self.__pid_kernelfile = None
+        if 'pid_kernelfile' in kwargs:
+            self.get_pid_kernels(**kwargs)
 
+    def get_pid_kernels(self, pid_kernelfile, force_reload=False, **kwargs):
+        if not force_reload and pid_kernelfile == self.__pid_kernelfile:
+            return self.__pid_kernels
+        self.__pid_kernels = fileio.from_file(pid_kernelfile)
+        self.__pid_kernelfile = pid_kernelfile
+        return self.__pid_kernels
 
-    def get_pid_kernels(self, pid_kernelfile=None, **kwargs):
-        logging.info('Opening file: %s'%(pid_kernelfile))
-        try:
-            self.pid_kernels = from_json(find_resource(pid_kernelfile))
-        except IOError, e:
-            logging.error("Unable to open kernel file %s"%pid_kernelfile)
-            logging.error(e)
-            sys.exit(1)
-        return self.pid_kernels
+    @staticmethod
+    def add_argparser_args(parser):
+        parser.add_argument(
+            '--kernel_file', metavar='JSON', type=str, default=None,
+            help='[ PID-Kernel ] JSON file containing pre-calculated PID kernels'
+        )
+        return parser

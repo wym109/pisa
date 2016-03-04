@@ -28,8 +28,7 @@ class PIDServiceMC(object):
     def __init__(self, ebins, czbins, events, pid_ver, remove_true_downgoing,
                  pid_spec=None, pid_spec_source=None, compute_error=False,
                  replace_invalid=False, **kwargs):
-        self.ebins = None
-        self.czbins = None
+        super(PIDServiceParam, self).__init__()
 
         self.events_source = None
         self.events = None
@@ -64,19 +63,19 @@ class PIDServiceMC(object):
             compute_error = self.compute_error
 
         # TODO: add stateful return-early logic
-        #if ebins == self.ebins and \
-        #        czbins == self.czbins and \
+        #if ebins == self.__ebins and \
+        #        czbins == self.__czbins and \
         #        events == self.events_source and \
         #        pid_ver == self.pid_ver and \
         #        pid_spec == self.pid_spec and \
         #        (not compute_error or (compute_error == self.compute_error)):
         #    return
-        self.ebins = ebins
-        self.czbins = czbins
+        self.__ebins = ebins
+        self.__czbins = czbins
 
-        histo_binspec = (self.ebins, self.czbins)
-        n_ebins = len(self.ebins) - 1
-        n_czbins = len(self.czbins) - 1
+        histo_binspec = (self.__ebins, self.__czbins)
+        n_ebins = len(self.__ebins) - 1
+        n_czbins = len(self.__czbins) - 1
         self.compute_error = compute_error
         logging.info('Updating PIDServiceMC PID histograms...')
 
@@ -140,10 +139,10 @@ class PIDServiceMC(object):
             return_fields=['reco_energy', 'reco_coszen'],
         )
 
-        self.pid_maps = {'binning': {'ebins': self.ebins,
-                                     'czbins': self.czbins}}
-        self.pid_maps_rel_error = {'binning': {'ebins': self.ebins,
-                                               'czbins': self.czbins}}
+        self.pid_maps = {'binning': {'ebins': self.__ebins,
+                                     'czbins': self.__czbins}}
+        self.pid_maps_rel_error = {'binning': {'ebins': self.__ebins,
+                                               'czbins': self.__czbins}}
         for label in ['nue_cc', 'numu_cc', 'nutau_cc', 'nuall_nc']:
             rep_flavint = flavInt.NuFlavIntGroup(label)[0]
             self.pid_maps[label] = {}
@@ -232,3 +231,35 @@ class PIDServiceMC(object):
         """Returns the PID maps' relative error"""
         assert self.error_computed
         return self.pid_maps_rel_error
+
+    @staticmethod
+    def add_argparser_args(parser):
+        parser.add_argument(
+            '--events', metavar='RESOURCE_NAME', type=str,
+            default='events/pingu_v36/events__pingu__v36__runs_388-390__proc_v5__joined_G_nue_cc+nuebar_cc_G_numu_cc+numubar_cc_G_nutau_cc+nutaubar_cc_G_nuall_nc+nuallbar_nc.hdf5',
+            help='''[ PID-MC ] events file'''
+        )
+        parser.add_argument(
+            '--pid-ver', type=str,
+            default='1',
+            help='''[ PID-MC ] Version of PID to use (as defined for this
+            detector/geometry/processing)'''
+        )
+        parser.add_argument(
+            '--remove-true-downgoing', action='store_true',
+            help='''[ PID-MC ] Remove MC-true-downgoing events'''
+        )
+        parser.add_argument(
+            '--pid-spec-source', default='pid/pid_specifications.json',
+            help='''[ PID-MC ] Resource for loading PID specifications'''
+        )
+        parser.add_argument(
+            '--compute-error', action='store_true',
+            help='''[ PID-MC ] Compute histogram errors'''
+        )
+        parser.add_argument(
+            '--replace-invalid', action='store_true',
+            help='''[ PID-MC ] Replace invalid histogram entries with nearest
+            neighbor's value'''
+        )
+        return parser

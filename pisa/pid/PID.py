@@ -1,124 +1,129 @@
 #! /usr/bin/env python
-#
-# PID.py
-#
-# Performs the particle ID step of sorting the event map templates
-# of the previous stage into tracks vs. cascades. Some fraction of
-# CC events is identified as tracks, all others are cascades.
-#
+
 # author: Timothy C. Arlen
 #         tca3@psu.edu
 # author: Sebastian Boeser
 #         sboeser@physik.uni-bonn.de
+# author: J.L. Lanfranchi
+#         jll1062+pisa@phys.psu.edu
 #
 # date:   April 10, 2014
-#
 
-import numpy as np
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from copy import deepcopy
+
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.utils import check_binning
-from pisa.utils.proc import get_params, report_params, add_params
-from pisa.utils.jsons import from_json, to_json
-from pisa.resources.resources import find_resource
-from pisa.pid.PIDServiceParam import PIDServiceParam
-from pisa.pid.PIDServiceKernelFile import PIDServiceKernelFile
+from pisa.utils.fileio import from_file, to_file
 
 
-def get_pid_maps(reco_events, pid_service=None, recalculate=False,
-                 return_unknown=False, **kwargs):
+def pid_service_factory(pid_mode, **kwargs):
+    """Construct and return a PIDService class based on `mode`
+    
+    Parameters
+    ----------
+    pid_mode : str
+        Identifier for which PIDService class to instantiate
+    **kwargs
+        All subsequent kwargs are passed (as **kwargs), to the class being
+        instantiated.
     """
-    Primary function for this service, which returns the classified
-    event rate maps (sorted after tracks and cascades) from the
-    reconstructed ones (sorted after nu[e,mu,tau]_cc and nuall_nc).
-    """
-    if recalculate:
-        pid_service.recalculate_kernels(**kwargs)
+    pid_mode = pid_mode.lower()
+    if pid_mode == 'param':
+        from pisa.pid.PIDServiceParam import PIDServiceParam
+        return PIDServiceParam(**kwargs)
 
-    # Be verbose on input
-    params = get_params()
-    report_params(params, units = [])
+    if pid_mode == 'mc':
+        from pisa.pid.PIDServiceMC import PIDServiceMC
+        return PIDServiceParam(**kwargs)
 
-    # Initialize return dict
-    empty_map = {
-        'map': np.zeros_like(reco_events['nue_cc']['map']),
-        'czbins': pid_service.czbins,
-        'ebins': pid_service.ebins
-    }
-    reco_events_pid = {
-        'trck': deepcopy(empty_map),
-        'cscd': deepcopy(empty_map),
-        'params': add_params(params,reco_events['params']),
-    }
-    if return_unknown:
-        reco_events_pid['unkn'] = deepcopy(empty_map)
+    if pid_mode == 'kernel':
+        from pisa.pid.PIDServiceKernelFile import PIDServiceKernelFile
+        return PIDServiceKernelFile(**kwargs)
 
-    # Classify events
-    for flav in reco_events:
-        if flav == 'params':
-            continue
-        event_map = reco_events[flav]['map']
-
-        to_trck_map = event_map*pid_service.pid_kernels[flav]['trck']
-        to_cscd_map = event_map*pid_service.pid_kernels[flav]['cscd']
-
-        reco_events_pid['trck']['map'] += to_trck_map
-        reco_events_pid['cscd']['map'] += to_cscd_map
-        if return_unknown:
-            reco_events_pid['unkn']['map'] += (event_map - to_trck_map - to_cscd_map)
-
-    return reco_events_pid
+    raise ValueError('Unrecognized PID `pid_mode`: "%s"' % pid_mode)
 
 
+def add_argparser_args(parser):
+    from pisa.pid.PIDServiceParam import PIDServiceParam
+    from pisa.pid.PIDServiceMC import PIDServiceMC
+    from pisa.pid.PIDServiceKernelFile import PIDServiceKernelFile
+    parser.add_argument(
+        '--reco_event_maps', metavar='JSON', type=from_file,
+        required=False,
+        help='''JSON reco event rate file resource location; must have
+        following structure:\n
+        {"nue_cc": {'czbins':[...], 'ebins':[...], 'map':[...]}, \n
+        "numu_cc": {...}, \n
+        "nutau_cc": {...}, \n
+        "nuall_nc": {...} }'''
+    )
 
-if __name__ == '__main__':
-    parser = ArgumentParser(description='Takes a reco event rate file '
-                            'as input and produces a set of reconstructed \n'
-                            'templates of tracks and cascades.',
-                            formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument('reco_event_maps', metavar='JSON', type=from_json,
-                        help='''JSON reco event rate file with following
-                        parameters:\n
-                        {"nue_cc": {'czbins':[...], 'ebins':[...], 'map':[...]}, \n
-                         "numu_cc": {...}, \n
-                         "nutau_cc": {...}, \n
-                         "nuall_nc": {...} }''')
-    parser.add_argument('-m', '--mode', type=str, choices=['param', 'stored'],
-                        default='param', help='PID service to use')
-    parser.add_argument('--param_file', metavar='JSON', type=str,
-                        default='pid/V36_pid.json',
-                        help='JSON file containing parameterizations '
-                        'of the particle ID \nfor each event type.')
-    parser.add_argument('--kernel_file', metavar='JSON', type=str, default=None,
-                        help='JSON file containing pre-calculated PID kernels')
-    parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE', type=str,
-                        action='store',default="pid.json",
-                        help='''file to store the output''')
-    parser.add_argument('-v', '--verbose', action='count', default=None,
-                        help='''set verbosity level''')
-    args = parser.parse_args()
+    parser.add_argument(
+        '--pid-mode', type=str, choices=['param', 'mc', 'kernel'],
+        default='param', help='PID service to use'
+    )
+
+    # Add args specific to the known classes
+    PIDServiceParam.add_argparser_args(parser)
+    PIDServiceMC.add_argparser_args(parser)
+    PIDServiceKernelFile.add_argparser_args(parser)
+
+
+if __name__ == "__main__":
+    import numpy as np
+    parser = ArgumentParser(
+        description='''Takes a reco event rate file as input and produces a set
+        of reconstructed templates of tracks and cascades.''',
+        formatter_class=ArgumentDefaultsHelpFormatter
+    )
+
+    # Add PIDService-specific args
+    add_argparser_args(parser)
+
+    # Back to generic args
+    parser.add_argument(
+        '--outfile', dest='outfile', metavar='FILE', type=str,
+        default="pid.json",
+        help='''file to store the output'''
+    )
+    parser.add_argument(
+        '-v', '--verbose', action='count', default=None,
+        help='set verbosity level'
+    )
+
+    # Parse args & convert them to a dict
+    args = vars(parser.parse_args())
 
     # Set verbosity level
-    set_verbosity(args.verbose)
+    set_verbosity(args.pop('verbose'))
 
-    # Check binning
-    ebins, czbins = check_binning(args.reco_event_maps)
+    # Output file
+    outfile = args.pop('outfile')
+
+    # Load event maps (as if they were from a reco file)
+    reco_event_maps = args.pop('reco_event_maps')
+    if reco_event_maps is not None:
+        reco_event_maps = fileio.from_file(args.pop('reco_event_maps'))
+    else:
+        n_ebins = 39
+        n_czbins = 20
+        ebins = np.logspace(0, np.log10(80), n_ebins+1)
+        czbins = np.linspace(-1, 0, n_czbins+1)
+        ones = {'ebins':ebins, 'czbins':czbins,
+                'map': np.ones((n_ebins, n_czbins))}
+        reco_event_maps = {f:deepcopy(ones) for f in ['nue_cc', 'numu_cc',
+                                                      'nutau_cc', 'nuall_nc']} 
+        reco_event_maps['params'] = {}
+
+    # Check, return binning
+    args['ebins'], args['czbins'] = check_binning(reco_event_maps)
 
     # Initialize the PID service
-    if args.mode == 'param':
-        pid_service = PIDServiceParam(ebins, czbins,
-                                      pid_paramfile=args.param_file,
-                                      **vars(args))
-    elif args.mode == 'stored':
-        pid_service = PIDServiceKernelFile(ebins, czbins,
-                                           pid_kernelfile=args.kernel_file,
-                                           **vars(args))
+    pid_service = pid_service_factory(pid_mode=args.pop('pid_mode'), **args)
 
     # Calculate event rates after PID
-    event_rate_pid = get_pid_maps(args.reco_event_maps,
-                                  pid_service=pid_service)
+    event_rate_pid = pid_service.get_pid_maps(reco_event_maps)
 
-    logging.info("Saving output to: %s" % args.outfile)
-    to_json(event_rate_pid,args.outfile)
+    to_file(event_rate_pid, outfile)

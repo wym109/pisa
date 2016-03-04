@@ -45,9 +45,7 @@ from pisa.reco.RecoServiceKernelFile import RecoServiceKernelFile
 from pisa.reco.RecoServiceVBWKDE import RecoServiceVBWKDE
 from pisa.reco.Reco import get_reco_maps
 
-from pisa.pid.PIDServiceParam import PIDServiceParam
-from pisa.pid.PIDServiceKernelFile import PIDServiceKernelFile
-from pisa.pid.PID import get_pid_maps
+from pisa.pid.PID import pid_service_factory
 
 class TemplateMaker:
     '''
@@ -136,20 +134,10 @@ class TemplateMaker:
             error_msg+=" Please choose among: ['MC', 'param', 'stored']"
             raise NotImplementedError(error_msg)
 
-        # PID Service:
-        pid_mode = template_settings['pid_mode']
-        if pid_mode == 'param':
-            self.pid_service = PIDServiceParam(self.ebins, self.czbins,
-                                               **template_settings)
-        elif pid_mode == 'stored':
-            self.pid_service = PIDServiceKernelFile(self.ebins, self.czbins,
-                                                    **template_settings)
-        else:
-            error_msg = "pid_mode: %s is not implemented! "%pid_mode
-            error_msg+=" Please choose among: ['stored', 'param']"
-            raise NotImplementedError(error_msg)
-
-        return
+        # Instantiate a PID service
+        self.pid_service = pid_service_factory(
+            **template_settings['pid_constructor_params']
+        )
 
 
     def get_template(self, params, return_stages=False):
@@ -188,8 +176,9 @@ class TemplateMaker:
 
         logging.info("STAGE 5: Getting pid maps...")
         with Timer(verbose=False) as t:
-            final_event_rate = get_pid_maps(event_rate_reco_maps,
-                                            self.pid_service)
+            final_event_rate = self.pid_service.get_pid_maps(
+                event_rate_reco_maps
+            )
         tprofile.debug("==> elapsed time for pid stage: %s sec"%t.secs)
 
         if not return_stages:
