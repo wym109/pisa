@@ -8,10 +8,11 @@
 # date:   Oct 21, 2014
 #
 
-import logging
+from copy import deepcopy
 
 import numpy as np
 
+from pisa.utils.logging import logging, set_verbosity
 from pisa.utils.jsons import to_json
 from pisa.utils.utils import is_equal_binning
 
@@ -98,7 +99,7 @@ class PIDServiceBase:
         corrupted, stick with the old ones.
         """
         logging.info('Re-calculating PID maps')
-        old_kernels = copy(self.pid_kernels)
+        old_kernels = deepcopy(self.pid_kernels)
         self.get_pid_kernels(**kwargs)
         try:
             self.check_pid_kernels()

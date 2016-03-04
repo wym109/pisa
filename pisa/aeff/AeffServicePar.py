@@ -38,7 +38,7 @@ class AeffServicePar:
 
     All neutral current effective areas are treated identically.
 
-    The fundamental datastructures used here requires the following forms:
+    The fundamental datastructures used here are:
         * Energy-dependence parameterization:
         {
             'ebin_midpoints': <length-N_ebins array>,
@@ -73,7 +73,7 @@ class AeffServicePar:
 
     See Also
     --------
-    pisa/pisa/utils/make_aeff_parameterizations.py
+    pisa/pisa/utils/parameterize_aeff.py
     """
     def __init__(self, ebins, czbins, aeff_egy_par, aeff_coszen_par, **params):
         logging.info('Initializing AeffServicePar...')

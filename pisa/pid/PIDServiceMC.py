@@ -3,13 +3,13 @@
 #
 # date:   March 2, 2016
 """
-PID histograms from a PISA events HDF5 file.
+PID service using info directly from events.
 """
 
 import collections
+from itertools import izip
 
 import numpy as np
-from scipy.interpolate import interp1d
 
 from pisa.utils.log import logging
 from pisa.utils.utils import get_bin_sizes
@@ -25,31 +25,45 @@ class PIDServiceMC(object):
     Takes a PISA events HDF5 file and creates 2D-histogrammed PID in terms of
     energy and coszen, for each specified particle "signature" (aka ID).
     """
-    def __init__(self, ebins, czbins, events, pid_ver, remove_downgoing,
+    def __init__(self, ebins, czbins, events, pid_ver, remove_true_downgoing,
                  pid_spec=None, pid_spec_source=None, compute_error=False,
-                 **kwargs):
+                 replace_invalid=False, **kwargs):
         self.ebins = None
         self.czbins = None
 
         self.events_source = None
         self.events = None
         self.cut_events = None
+        self.data_proc_params = None
+        self.remove_true_downgoing = None
 
         self.pid_ver = None
-        self.remove_downgoing = None
-        self.pid_spec_source = pid_spec_source
-        self.data_proc_params = None
         self.pid_spec = None
-        self.compute_error = False
+        self.pid_spec_source = pid_spec_source
+
+        self.compute_error = compute_error
         self.error_computed = False
+        self.replace_invalid = replace_invalid
 
-        self.update(ebins=ebins, czbins=czbins, events=events, pid_ver=pid_ver,
-                    remove_downgoing=remove_downgoing, pid_spec=pid_spec,
-                    compute_error=compute_error)
+        self.get_pid_kernels(
+            ebins=ebins, czbins=czbins, events=events, pid_ver=pid_ver,
+            remove_true_downgoing=remove_true_downgoing, pid_spec=pid_spec,
+            compute_error=compute_error, replace_invalid=replace_invalid,
+        )
 
-    def update(self, ebins, czbins, events, pid_ver, remove_downgoing,
-               pid_spec=None, compute_error=False):
-        # TODO: stateful return-early
+    def get_pid_kernels(self, ebins, czbins, events, pid_ver,
+                        remove_true_downgoing=None, pid_spec=None,
+                        compute_error=None, replace_invalid=None):
+        """Compute and return PID maps"""
+        # Default to values passed when class was instantiated
+        if remove_true_downgoing is None:
+            remove_true_downgoing = self.remove_true_downgoing
+        if replace_invalid is None:
+            replace_invalid = self.replace_invalid
+        if compute_error is None:
+            compute_error = self.compute_error
+
+        # TODO: add stateful return-early logic
         #if ebins == self.ebins and \
         #        czbins == self.czbins and \
         #        events == self.events_source and \
@@ -66,7 +80,7 @@ class PIDServiceMC(object):
         self.compute_error = compute_error
         logging.info('Updating PIDServiceMC PID histograms...')
 
-        self.remove_downgoing = remove_downgoing
+        self.remove_true_downgoing = remove_true_downgoing
 
         new_events = False
         if self.events is None or events != self.events_source:
@@ -100,14 +114,14 @@ class PIDServiceMC(object):
             )
 
         if new_events or (self.cut_events is None) or \
-                (remove_downgoing != self.remove_downgoing):
-            if remove_downgoing:
+                (remove_true_downgoing != self.remove_true_downgoing):
+            if remove_true_downgoing:
                 self.cut_events = self.data_proc_params.applyCuts(
                     self.events, cuts='true_upgoing_coszen'
                 )
             else:
                 self.cut_events = self.events
-            self.remove_downgoing = remove_downgoing
+            self.remove_true_downgoing = remove_true_downgoing
 
         if new_events or (self.pid_spec is None) or (pid_ver != self.pid_ver):
             self.pid_spec = PIDSpec(
@@ -128,12 +142,15 @@ class PIDServiceMC(object):
 
         self.pid_maps = {'binning': {'ebins': self.ebins,
                                      'czbins': self.czbins}}
+        self.pid_maps_rel_error = {'binning': {'ebins': self.ebins,
+                                               'czbins': self.czbins}}
         for label in ['nue_cc', 'numu_cc', 'nutau_cc', 'nuall_nc']:
             rep_flavint = flavInt.NuFlavIntGroup(label)[0]
-            this_pid_map = self.pid_maps[label] = {}
+            self.pid_maps[label] = {}
             raw_histo = {}
             raw_histo_err = {}
             total_histo = np.zeros([n_ebins, n_czbins])
+            total_histo_check = None
             if self.compute_error:
                 total_err2 = np.zeros([n_ebins, n_czbins])
 
@@ -144,10 +161,12 @@ class PIDServiceMC(object):
                 try:
                     weights = flav_sigdata['importance_weight']
                     weights2 = weights * weights
+                    weights_check = self.cut_events[rep_flavint]['importance_weight']
                 except:
                     logging.warn('No importance weights found in events!')
                     weights = None
                     weights2 = None
+                    weights_check = None
                 raw_histo[sig], _, _ = np.histogram2d(
                     reco_e,
                     reco_cz,
@@ -155,6 +174,7 @@ class PIDServiceMC(object):
                     bins=histo_binspec,
                 )
                 total_histo += raw_histo[sig]
+
                 if self.compute_error:
                     raw_histo_err[sig], _, _ = np.histogram2d(
                         reco_e,
@@ -162,21 +182,53 @@ class PIDServiceMC(object):
                         weights=weights2,
                         bins=histo_binspec,
                     )
-                    total_err2 += raw_histo_err[sig]
+                    total_err2 += raw_histo_err[sig] / \
+                            (np.clip(raw_histo[sig], 1, np.inf)**2)
                     self.error_computed = True
 
-            ## Check that all events have been accounted for
-            #total_histo_check, _, _ = np.histogram2d(
-            #    reco_e, reco_cz, weights=
-            #)
             for sig in signatures:
-                this_pid_map[sig] = raw_histo[sig] / total_histo
+                self.pid_maps[label][sig] = raw_histo[sig] / total_histo
+
+                invalid_idx = total_histo == 0
+                valid_idx = 1-invalid_idx
+                invalid_idx = np.where(invalid_idx)[0]
+                num_invalid = len(invalid_idx)
+
+                message = 'Group "%s", PID signature "%s" has %d invalid' \
+                        ' entry(ies)!' % (label, sig, num_invalid)
+
+                if num_invalid > 0 and not replace_invalid:
+                    raise ValueError(message)
+
+                replace_idx = []
+                if num_invalid > 0 and replace_invalid:
+                    logging.warn(message)
+                    valid_idx = np.where(valid_idx)[0]
+                    for idx in invalid_idx:
+                        dist = np.abs(valid_idx-idx)
+                        nearest_valid_idx = valid_idx[np.where(dist==np.min(dist))[0][0]]
+                        replace_idx.append(nearest_valid_idx)
+                        self.pid_maps[label][sig][idx] = \
+                                self.pid_maps[label][sig][nearest_valid_idx]
+
+            # Relative error is same for all signatures, since equations
+            # implemented are
+            #   pidhist_x / (pidhist_x + pidhist_y + ...)
+            #   pidhist_y / (pidhist_x + pidhist_y + ...)
+            #   ...
+            if self.compute_error:
+                if replace_invalid:
+                    for orig_idx, repl_idx in izip(invalid_idx, replace_idx):
+                        total_err2[orig_idx] = total_err2[repl_idx]
+                #total_err2[total_err2 == 0] = \
+                #        np.min(total_err2[total_err2 != 0])
+                self.pid_maps_rel_error[label] = np.sqrt(total_err2)
 
     def get_pid(self, **kwargs):
         """Returns the PID maps"""
         return self.pid_maps
     
-    #def get_pid_error(self, **kwargs):
-    #    """Returns the effective areas FlavIntData object"""
-    #    assert self.error_computed
-    #    return self.pid_err
+    def get_rel_error(self):
+        """Returns the PID maps' relative error"""
+        assert self.error_computed
+        return self.pid_maps_rel_error

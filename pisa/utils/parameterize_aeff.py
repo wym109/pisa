@@ -102,6 +102,8 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
+set_verbosity(args.verbose)
+
 edep_events_fpath = args.events_for_edep
 czdep_events_fpath = args.events_for_czdep
 outdir = os.path.expandvars(os.path.expanduser(args.outdir))
@@ -143,12 +145,11 @@ grouped = sorted([flavInt.NuFlavIntGroup(fi)
                   for fi in edep_events.metadata['flavints_joined']])
 should_be_grouped = sorted([flavInt.NuFlavIntGroup('nuall_nc'),
                             flavInt.NuFlavIntGroup('nuallbar_nc')])
-if set(grouped) != set(should_be_grouped):
+if grouped != should_be_grouped:
     if len(grouped) == 0:
         grouped = None
     raise ValueError('Only works with groupings (%s) but instead got'
-                     ' groupings (%s).' % (should_be_grouped,
-                                           grouped))
+                     ' groupings (%s).' % (should_be_grouped, grouped))
 
 # Get *un*joined flavints
 individual_flavints = flavInt.NuFlavIntGroup(flavInt.ALL_NUFLAVINTS)
@@ -172,8 +173,8 @@ if make_plots:
     ax_part = ax_part.flatten()
     ax_anti = ax_anti.flatten()
     basetitle = (
-        'effective areas [m$^2$], %s geometry %s, MC runs %s with'
-        ' v%s processing' % (edep_events.metadata['detector'],
+        'effective areas [m$^2$], %s geometry %s, MC runs %s with ver'
+        ' %s processing' % (edep_events.metadata['detector'],
                             edep_events.metadata['geom'],
                             utils.list2hrlist(edep_events.metadata['runs']),
                             edep_events.metadata['proc_ver'])
@@ -206,12 +207,12 @@ for group in ungrouped + grouped:
     s_aeff_err[zero_and_nan_indices] = min_err
 
     # Smooth histogrammed A_eff(E) using a spline
-    spline_fit[rep_flavint] = splrep(ebin_midpoints, s_aeff,
-                                     w=1./np.array(s_aeff_err),
-                                     k=3, s=100)
+    spline = spline_fit[rep_flavint] = splrep(
+        ebin_midpoints, s_aeff, w=1./np.array(s_aeff_err), k=3, s=100
+    )
 
     # Sample the spline at the bin midpoints
-    smoothed_aeff[rep_flavint] = splev(ebin_midpoints, spline_fit[rep_flavint])
+    smoothed_aeff[rep_flavint] = splev(ebin_midpoints, spline)
 
     # Force bins that were previously NaN or 0 back to 0
     smoothed_aeff[rep_flavint][zero_and_nan_indices] = 0
@@ -265,7 +266,7 @@ for group in ungrouped + grouped:
 
 # Derive output filename
 outfname = (
-    'aeff_energy_dependence__%s_%s__runs_%s__proc_v%s.json' % (
+    'aeff_energy_dependence__%s_%s__runs_%s__proc_%s.json' % (
         edep_events.metadata['detector'],
         edep_events.metadata['geom'],
         utils.list2hrlist(edep_events.metadata['runs']),
@@ -280,7 +281,7 @@ if make_plots:
     fig_part.tight_layout(rect=(0,0,1,0.96))
     fig_anti.tight_layout(rect=(0,0,1,0.96))
     basefname = (
-        'aeff_energy_dependence__%s_%s__runs_%s__proc_v%s__'
+        'aeff_energy_dependence__%s_%s__runs_%s__proc_%s__'
         % (edep_events.metadata['detector'], edep_events.metadata['geom'],
            utils.list2hrlist(edep_events.metadata['runs']),
            edep_events.metadata['proc_ver'])
@@ -411,7 +412,7 @@ for group in ungrouped + grouped:
 
 # Derive output filename
 outfname = (
-    'aeff_coszen_dependence__%s_%s__runs_%s__proc_v%s.json' % (
+    'aeff_coszen_dependence__%s_%s__runs_%s__proc_%s.json' % (
         czdep_events.metadata['detector'],
         czdep_events.metadata['geom'],
         utils.list2hrlist(czdep_events.metadata['runs']),
@@ -425,7 +426,7 @@ jsons.to_json(czdep_store, outfpath)
 if make_plots:
     fig.tight_layout(rect=(0,0,1,0.96))
     basefname = (
-        'aeff_coszen_dependence__%s_%s__runs_%s__proc_v%s'
+        'aeff_coszen_dependence__%s_%s__runs_%s__proc_%s'
         % (czdep_events.metadata['detector'], czdep_events.metadata['geom'],
            utils.list2hrlist(czdep_events.metadata['runs']),
            czdep_events.metadata['proc_ver'])
