@@ -30,27 +30,29 @@ class RecoServiceKernelFile(RecoServiceBase):
         pre-calculated kernels:
         * ebins: Energy bin edges
         * czbins: cos(zenith) bin edges
-        * reco_kernel_file: JSON containing the kernel dict
+        * reco_kernel_file: file containing the kernel dict
         """
-        self.kernelfile = reco_kernel_file
+        self.kernels = None
         RecoServiceBase.__init__(self, ebins, czbins,
                                  kernelfile=reco_kernel_file, **kwargs)
 
 
-    def _get_reco_kernels(self, kernelfile=None, **kwargs):
-
-        for reco_scale in ['e_reco_scale', 'cz_reco_scale']:
-            if reco_scale in kwargs:
-                if not kwargs[reco_scale]==1:
-                    raise ValueError('%s = %.2f not valid for RecoServiceKernelFile!'
-                                     %(reco_scale, kwargs[reco_scale]))
+    def _get_reco_kernels(self, kernelfile=None, e_reco_scale=1,
+                          cz_reco_scale=1, **kwargs):
+        assert e_reco_scale == 1, \
+                'Only e_reco_scale == 1 allowd for RecoServiceKernelFile'
+        assert cz_reco_scale == 1, \
+                'Only cz_reco_scale == 1 allowd for RecoServiceKernelFile'
 
         if not kernelfile in [self.kernelfile, None]:
-            logging.info('Reconstruction from non-default kernel file %s!'%kernelfile)
-            return fileio.from_file(find_resource(kernelfile))
+            logging.info('Reconstruction from non-default kernel file %s!' %
+                         kernelfile)
+            return fileio.from_file(kernelfile)
 
-        if not hasattr(self, 'kernels'):
-            logging.info('Using file %s for default reconstruction'%(kernelfile))
-            self.kernels = fileio.from_file(find_resource(kernelfile))
+        if self.kernels is None:
+            logging.info('Using file %s for default reconstruction' %
+                         kernelfile)
+            self.kernels = fileio.from_file(kernelfile)
+            self.kernelfile = kernelfile
 
         return self.kernels

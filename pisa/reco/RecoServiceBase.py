@@ -33,15 +33,14 @@ class RecoServiceBase:
         If further member variables are needed, override this method.
         """
         logging.debug('Instantiating %s' % self.__class__.__name__)
-        self.ebins = ebins
-        self.czbins = czbins
+        self.ebins = np.squeeze(ebins)
+        self.czbins = np.squeeze(czbins)
         for ax in [self.ebins, self.czbins]:
             if len(np.shape(ax)) != 1:
                 raise IndexError('Axes must be 1d! '+str(np.shape(ax)))
 
-        # Get kernels already now. Can be recalculated later, if needed.
+        # Construct/get kernels. Can be recalculated later if needed.
         self.kernels = self.get_reco_kernels(**kwargs)
-
 
     def get_reco_kernels(self, **kwargs):
         """
@@ -50,12 +49,9 @@ class RecoServiceBase:
         """
         kernels = self._get_reco_kernels(**kwargs)
         if kernels is None:
-            logging.warn("No kernels defined yet...")
-            return kernels
-
-        if self.check_kernels(kernels):
-            return kernels
-
+            raise ValueError('No kernels defined to get')
+        assert self.check_kernels(kernels)
+        return kernels
 
     def _get_reco_kernels(self, **kwargs):
         """
@@ -69,7 +65,6 @@ class RecoServiceBase:
         """
         raise NotImplementedError('Method not implemented for %s'
                                   % self.__class__.__name__)
-
 
     def check_kernels(self, kernels):
         """Test whether the reco kernels have the correct shape."""
