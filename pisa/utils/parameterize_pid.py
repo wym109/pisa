@@ -4,22 +4,23 @@
 # date:   2016-03-01
 #
 """
-One-dimensional effective areas are "parameerized" (meant to be linearly
-interpolated) as functions of energy.
+One-dimensional PID's are "parameerized" (into datapoints meant to be
+interpolated between) as functions of energy and cosine-zenith. Due to not much
+coszen dependence (this must be verified though by examining produced plots!),
+this dependence is not currently used by PISA. Nonetheless, the output is there
+if ever it's deemed worthwhile to use.
 
-Events of a given flavor/interaction type (or all events from grouped
-flavor/interaction types) from a PISA have their effective areas computed. This
-is smoothed with a spline, and the spline fit is sampled at the specified
-energy bins' midpoints (on a linear scale) to arrive at the "parameterization".
-
-To complete the effective area parameterization, one must parameterize the
-zenith dependence separately.
+Note that the default settings seem to work well, at least for PINGU geometries
+V36, V38, and V39.
 """
 
-# TODO: make energy-dependent and coszen-dependent parameterizations separate
+# TODO: make parameterizations a function that's called once for E-dep and once
+#       for CZ-dep
 # TODO: store metadata about how parameterizations were created to the produced
 #       data files
 # TODO: use CombinedFlavIntData for storage of the results
+# TODO: use weights in Blackman-window smoothing algo
+
 
 import os,sys
 from copy import deepcopy
@@ -66,7 +67,7 @@ parser.add_argument(
     help='Energy bins\' left-most edge, in GeV'
 )
 parser.add_argument(
-    '--emax', metavar='EMAX_GeV', type=float, default=80,
+    '--emax', metavar='EMAX_GeV', type=float, default=90,
     help='Energy bins\' righ-most edge, in GeV'
 )
 parser.add_argument(

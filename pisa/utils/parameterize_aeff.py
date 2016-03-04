@@ -4,16 +4,13 @@
 # date:   2016-03-01
 #
 """
-One-dimensional effective areas are "parameerized" (meant to be linearly
-interpolated) as functions of energy.
+One-dimensional effective areas are "parameerized" (meant to be interpolated
+between) as functions of energy and cosine-zenith.
 
 Events of a given flavor/interaction type (or all events from grouped
 flavor/interaction types) from a PISA have their effective areas computed. This
 is smoothed with a spline, and the spline fit is sampled at the specified
 energy bins' midpoints (on a linear scale) to arrive at the "parameterization".
-
-To complete the effective area parameterization, one must parameterize the
-zenith dependence separately.
 """
 
 # TODO: make energy-dependent and coszen-dependent parameterizations separate
