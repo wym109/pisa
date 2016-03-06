@@ -34,8 +34,6 @@ except:
     logging.warn('CAN NOT import Prob3GPUOscillationService!')
 from pisa.oscillations import Oscillation
 
-from pisa.aeff.AeffServiceMC import AeffServiceMC
-from pisa.aeff.AeffServicePar import AeffServicePar
 from pisa.aeff import Aeff
 
 from pisa.reco.RecoServiceMC import RecoServiceMC
@@ -106,24 +104,12 @@ class TemplateMaker:
                     'osc_code = %s' % osc_code
             raise NotImplementedError(error_msg)
 
-        # Aeff/True Event Rate Service:
-        aeff_mode = template_params_values['aeff_mode']
-        if aeff_mode == 'param':
-            logging.info(' Using effective area from PARAMETRIZATION...')
-            self.aeff_service = AeffServicePar(
-                ebins=self.ebins, czbins=self.czbins,
-                **template_params_values
-            )
-        elif aeff_mode == 'MC':
-            logging.info(' Using effective area from MC EVENT DATA...')
-            self.aeff_service = AeffServiceMC(
-                ebins=self.ebins, czbins=self.czbins,
-                **template_params_values
-            )
-        else:
-            error_msg = "aeff_mode: '%s' is not implemented! " % aeff_mode
-            error_msg += " Please choose among: ['MC', 'param']"
-            raise NotImplementedError(error_msg)
+        # Instantiate an Aeff service
+        self.aeff_service = Aeff.aeff_service_factory(
+            ebins=self.ebins, czbins=self.czbins,
+            aeff_mode=template_params_values['aeff_mode'],
+            **template_params_values
+        )
 
         # Reco Event Rate Service:
         reco_mode = template_params_values['reco_mode']

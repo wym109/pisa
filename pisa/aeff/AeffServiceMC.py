@@ -92,3 +92,13 @@ class AeffServiceMC:
         """Returns the effective areas FlavIntData object"""
         assert self.__error_computed
         return self.__aeff, self.__aeff_err
+
+    @staticmethod
+    def add_argparser_args(parser):
+        parser.add_argument(
+            '--aeff-weight-file', metavar='RESOURCE', type=str,
+            default='events/pingu_v36/'
+            'events__pingu__v36__runs_388-390__proc_v5__joined_G_nuall_nc_G_nuallbar_nc.hdf5'
+            help='''PISA-standard events file, the events of which will be used
+            to compute effective areas.'''
+        )
