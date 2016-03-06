@@ -121,8 +121,9 @@ class PIDServiceParam(PIDServiceBase):
     def add_argparser_args(parser):
         parser.add_argument(
             '--pid-energy-dep', metavar='RESOURCE_NAME', type=str,
-            default='pid/pingu_v36/pid_energy_dependence__pingu_v36__runs_388-390__proc_5__pid_1.json',
-            help='''[ PID-Param ] JSON file containing PID parameterizations' energy
-            dependence for each particle signature'''
+            default='pid/pingu_v36/'
+            'pid_energy_dependence__pingu_v36__runs_388-390__proc_5__pid_1.json',
+            help='''[ PID-Param ] JSON file containing PID parameterizations'
+            energy dependence for each particle signature'''
         )
         return parser
