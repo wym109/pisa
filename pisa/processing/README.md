@@ -12,3 +12,10 @@ The `llr/` directory contains the scripts for aggretating llr analysis
 and log files after an LLR run on an HPCC, as well as the plotting
 scripts to display standard information, and modules to easily extend
 the type of data to be displayed.
+
+### Additionally required dependencies:
+* `seaborn` (Python visualization library)
+* `pandas` (mandatory dependency of seaborn, should be pulled in
+automatically if installed via `pip install seaborn`)
+* `tabulate` (Python pretty-printing of tabular data,
+e.g. `pip install tabulate`)

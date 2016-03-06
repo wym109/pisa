@@ -21,7 +21,6 @@ def processTrial(combined, partial_run):
     """
 
     good_keys = ['seed','hypo_NMH','hypo_IMH']
-
     for key,value in partial_run.items():
 
         if key not in good_keys:
@@ -31,6 +30,8 @@ def processTrial(combined, partial_run):
         if key == 'seed':
             combined[key].append(value)
         else:
+            if key not in combined.keys():
+                combined[key] = {}
             for key1 in partial_run[key].keys():
                 if key1 not in combined[key].keys(): combined[key][key1] = []
                 combined[key][key1].append(partial_run[key][key1][-1])
@@ -59,20 +60,28 @@ def appendTrials(combined, partial_run):
     """
 
     for key in partial_run.keys():
-
+		#true_h_fiducial or false_h_best_fit
         # Check if combined has been defined this far:
         if key not in combined.keys():
-            combined[key] = {nkey: {} for nkey in partial_run[key][0].keys()}
+            combined[key] = {nkey: [] for nkey in partial_run[key].keys() if nkey!='trials'}
             # Seed needs to be an array:
             combined[key]['seed'] = []
+            # Store false h settings and corresponding llh just once (first time they are found)
+            if 'false' in key:
+                try:
+                    if len(combined[key]['false_h_settings'])==0:
+                        combined[key]['false_h_settings'] = partial_run[key]['false_h_settings']
+                    if len(combined[key]['llh_null'])==0:
+                        combined[key]['llh_null'] = partial_run[key]['llh_null']
+                except: pass
 
-        ntrials =  len(partial_run[key])
-        new_keys = partial_run[key][0].keys()
+        ntrials =  len(partial_run[key]['trials'])
+        new_keys = partial_run[key].keys()
 
         # Loop over each trial, adding seed and data in
         # true_NMH/true_IMH to
         for ii in xrange(ntrials):
-            processTrial(combined[key], partial_run[key][ii])
+            processTrial(combined[key], partial_run[key]['trials'][ii])
 
 
     return

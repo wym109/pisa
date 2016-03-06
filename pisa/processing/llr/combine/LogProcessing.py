@@ -57,7 +57,7 @@ def getTimeStamp(iline, logfile_lines):
 def getTrialStart(iline, all_lines, llr_type):
     """
     Finds the current values of data_h, hypo_h, itrial at this line.
-    Also increments iline by one, and returns it.
+    Also increments iline by two, and returns it.
 
     Assumes the lines will be like the following format:
     -----------------------------------------
@@ -148,10 +148,11 @@ def processLogFile(iline, logfile_lines, output_data):
 
     #print("total number of lines to process: ",len(logfile_lines))
     while iline < len(logfile_lines):
-        
+
         # Until we get nonzero itrial, keep advancing in the file
         if itrial == 0:
             if "[    INFO] start trial" in logfile_lines[iline]:
+
                 data_h, hypo_h, itrial, iline = getTrialStart(
                     iline, logfile_lines, llr_type)
             else:
@@ -169,7 +170,6 @@ def processLogFile(iline, logfile_lines, output_data):
                 iline+=1
 
             if ("]  warnflag :" in logfile_lines[iline]):
-
                 # optimizer run has ended! Collect all info now:
                 iline = collectRunInfo(output_data[data_h][llr_type][hypo_h],
                                        logfile_lines, iline,
@@ -194,8 +194,8 @@ def processLogFile(iline, logfile_lines, output_data):
                     iline+=1
 
                     # First check if end of file:
-                    if iline >= len(logfile_lines):
-                        #print("Exiting...")
+                    if iline >= len(logfile_lines)-1:
+                        print("Exiting...")
                         break
 
                     # If next line is the start of a new trial, then
@@ -209,6 +209,8 @@ def processLogFile(iline, logfile_lines, output_data):
                         # Skip over the lines until you get to the
                         # starting trial
                         while True:
+			    if iline>=len(logfile_lines)-1:
+			        break
                             if ("[    INFO] start trial 1" in
                                 logfile_lines[iline]):
 

@@ -74,9 +74,17 @@ parser = ArgumentParser(
 
 parser.add_argument('-d','--data_dir', metavar='DIR', type=str, required=True,
                     help='Directory where the llh analysis run data is stored.')
+parser.add_argument('--llh_basename', metavar='STR', type=str, required=False,
+                    default='llh_data', help='''Common basename of llh files.'''
+                    ''' Assumes they begin with llh_basename and end with '''
+                    ''' _<#>.json''')
 parser.add_argument('-l','--log_dir', metavar='DIR', type=str, required=False,
                     default=None,
                     help='Directory where the llh analysis run log info is.')
+parser.add_argument('--log_basename', metavar='STR', type=str, required=False,
+                    default='log', help='''Common basename of log files.'''
+                    ''' Assumes they begin with log_basename and end with:'''
+                    ''' _<#>.log''')
 parser.add_argument('-o', '--outfile', metavar='STR', type=str, required=True,
                     help="Output file to store processed, combined llh file.")
 parser.add_argument('--fix_keys', action='store_true', default=False,
@@ -88,10 +96,10 @@ parser.add_argument('-v', '--verbose', action='count', default=None,
 args = parser.parse_args()
 set_verbosity(args.verbose)
 
-llhfiles = glob(os.path.join(args.data_dir,'llh_data*'))
+llhfiles = glob(os.path.join(args.data_dir, args.llh_basename+'*'))
 
 if args.log_dir is not None:
-    logfiles = glob(os.path.join(args.log_dir,'log*'))
+    logfiles = glob(os.path.join(args.log_dir, args.log_basename+'*'))
     # These MUST have the same number initialized if we are using the logging
     # information. Otherwise, perhaps one of the directories are incorrect.
     # Sometimes there are fewere llh files, since they crash before writing out.
@@ -131,11 +139,12 @@ for i,filename in enumerate(llhfiles):
 
     if args.log_dir is not None:
         # Now process corresponding log file:
-        # ASSUMES that llh, log files are written to directory as:
-        #   llh_data_<#>, log_<#>
+        # ASSUMES that llh, log files begin with:
+        # args.llh_basename, args.log_basename
+        # and end with _<#>(.json/.log)
         # where '#' in range(1, nfiles)
         logfilename = os.path.join(args.log_dir,
-                                   ('log_'+filename.split('_')[-1]))
+                                   (args.log_basename+filename.split('.')[0].split('_')[-1]+".log"))
         
         #print("File: ",logfilename)
         fh = open(logfilename, 'r')
@@ -148,7 +157,9 @@ for i,filename in enumerate(llhfiles):
 
             # First write timestamp if not yet recorded:
             try:
-                timestamp, iline = getTimeStamp(iline, all_lines)
+	        # not quite sure why we would need to increment iline here
+	        # remove for now
+		timestamp, _ = getTimeStamp(iline, all_lines)
             except:
                 print("File failed: \n    ",logfilename)
                 raise
@@ -165,7 +176,6 @@ for i,filename in enumerate(llhfiles):
                         output_data[k1][k2][k3]['task'] = []
                         output_data[k1][k2][k3]['nit'] = []
                         output_data[k1][k2][k3]['funcalls'] = []
-        
         # Now gather all log file information for this partial run:
         try:
             processLogFile(iline, all_lines, output_data)

@@ -7,6 +7,7 @@
 #
 #
 
+from copy import deepcopy
 from argparse import ArgumentParser,ArgumentDefaultsHelpFormatter
 from matplotlib import pyplot as plt
 import numpy as np
@@ -15,17 +16,30 @@ from tabulate import tabulate
 
 from pisa.utils.hdf import from_hdf
 from pisa.utils.log import logging, set_verbosity
+from pisa.utils.params import get_values, select_hierarchy
 
 from dfUtils import get_llr_data_frames, get_llh_ratios, show_frame
 from plotUtils import plot_llr_distribution, plot_asimov_line, plot_fill
 from plotUtils import make_scatter_plot, plot_posterior_params
 
+def get_false_h_best_params(llh_data):
+    params = {}
+    for tkey, ttag in [('true_NH', True), ('true_IH', False)]:
+        try:
+            params[tkey] = \
+            deepcopy(llh_data[tkey]['false_h_best_fit']['false_h_settings'])
+        except:
+            params[tkey] = \
+            deepcopy(get_values(select_hierarchy(
+			llh_data['template_settings']['params'], ttag)))
+    return params
 
 def displayStats(mc_table):
     print ""
     print tabulate(
-        mc_table,headers=['mcTrue','TH Mean','AH Mean','N pval',
-                          'gauss pval','gauss sigma','gauss 1 side sigma'],
+        mc_table,headers=['mcTrue','TH Mean','AH Mean','Count pval',
+                          'Count sigma', 'Count sigma 2-sided',
+                          'Gauss pval','Gauss sigma','Gauss sigma 2-sided'],
         tablefmt='grid')
     return
 
@@ -96,7 +110,7 @@ def make_llr_with_false_h(llr_true_h, llr_false_h, nbins, xlim=15):
     colors = ['r','b']
     for ii,tkey in enumerate(['true_NH','true_IH']):
 
-        plt.subplot(1,2,ii+1)
+        ax = plt.subplot(1,2,ii+1)
         label=r'H$_0$: Other Hierarchy'
         hvals, bincen, gfit = plot_llr_distribution(
             llr_false_h[tkey], tkey, nbins, color=colors[ii], label=label)
@@ -111,6 +125,9 @@ def make_llr_with_false_h(llr_true_h, llr_false_h, nbins, xlim=15):
         mcrow = plot_fill(
             llr_false_h[tkey], tkey, asimov_llr, hvals, bincen, gfit,
             alpha=0.5, hatch='xx', facecolor='black')
+        ax.text(0.02, 0.98, r"$n_{\sigma,\,\mathrm{2-sided}}=%.2f$" %
+        mcrow[-1], ha='left', va='top', transform=ax.transAxes,
+        bbox={'facecolor':'slategrey', 'alpha':0.5, 'pad':2})
         plt.legend(framealpha=0.5,loc='best')
 
         ax = set_xlim(llr_true_h[tkey],llr_false_h[tkey])
@@ -143,9 +160,9 @@ parser.add_argument('--scatter',metavar='PARAM_NAMES',type=str,nargs='+',
                     help='''Makes scatter plot for first two names listed here''')
 parser.add_argument('--plot_llh',action='store_true', default=False,
                     help='''Plot llh distribution with other parameters.''')
-parser.add_argument('--true_h',action='store_true',default=False,
-                    help='''Plot the true_h_fiducial posteriors rather than the
-                    false_h_best_fit by default.''')
+parser.add_argument('--false_h',action='store_true',default=False,
+                    help='''Plot the false_h_best_fit posteriors rather than the
+                    true_h_fiducial ones by default.''')
 
 parser.add_argument('-s','--save_fig',action='store_true',default=False,
                     help='Save all figures')
@@ -162,6 +179,10 @@ sns.set_style("white")
 llh_data = from_hdf(args.llh_file)
 df_true_h, df_false_h = get_llr_data_frames(llh_data)
 template_params = llh_data['template_settings']['params']
+# If the best Asimov WH params have been fit for, need the best
+# fit vals for posterior plotting
+false_h_best_params = get_false_h_best_params(llh_data)
+
 
 if args.verbose > 1: show_frame(df_true_h)
 
@@ -186,26 +207,27 @@ else:
 ### 2) Plot Posterior Distributions
 ################################################################
 
-if args.params:
-
-    df = df_true_h if args.true_h else df_false_h
-
-    # Plot true_h_fiducial:
-    figs, fignames = plot_posterior_params(
-        df, template_params, plot_param_info=True,
-        save_fig=args.save_fig, pbins=args.pbins,
-        plot_llh=args.plot_llh, mctrue=args.true_h)
-
-    if args.save_fig:
-        for i,name in enumerate(fignames):
-            figs[i].savefig(name,dpi=160)
-
-
 if args.save_fig:
 
     filestem=args.llh_file.split('/')[-1]
     filename=(filestem.split('.')[0]+'_LLR.png')
     logging.warn('Saving to file: %s'%filename)
     plt.savefig(filename,dpi=150)
+
+if args.params:
+
+    df = df_false_h if args.false_h else df_true_h
+
+    # Plot true_h_fiducial:
+    figs, fignames = plot_posterior_params(
+        df, template_params, plot_param_info=True,
+        save_fig=args.save_fig, pbins=args.pbins,
+        plot_llh=args.plot_llh, mctrue=not args.false_h,
+        false_h_inj=false_h_best_params)
+
+    if args.save_fig:
+        for i,name in enumerate(fignames):
+            figs[i].savefig(name,dpi=160)
+
 
 else: plt.show()

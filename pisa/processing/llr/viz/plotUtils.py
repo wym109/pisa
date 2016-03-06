@@ -15,8 +15,22 @@ from scipy.stats import norm
 
 from pisa.analysis.stats.LLHStatistics import get_binwise_llh
 from pisa.utils.log import logging
-from pisa.utils.params import select_hierarchy, get_free_params, get_param_values
+from pisa.utils.params import select_hierarchy, get_free_params,\
+get_prior_bounds, get_values
 from pisa.utils.utils import get_bin_centers
+
+def get_param_label_string(param_name):
+    param_label_dict = {'aeff_scale': r'$s_\mathrm{Aeff}$',
+			'energy_scale': r'$s_E$',
+			'nue_numu_ratio': r'$r_{\nu_e/\nu_\mu}$',
+			'nu_nubar_ratio': r'$r_{\nu/\bar{\nu}}$',
+			'theta13': r'$\theta_{13}\,[\mathrm{deg}]$',
+			'theta23': r'$\theta_{23}\,[\mathrm{deg}]$',
+			'deltam21': r'$\Delta m^2_{21}\,[\mathrm{eV}^2]$',
+			'deltam31': r'$\Delta m^2_{31}[\mathrm{eV}^2]$',
+			'deltacp': r'$\delta_\mathrm{CP}\,[\mathrm{deg}]$'}
+    try: return param_label_dict[param_name]
+    except: return param_name
 
 
 def validate_key(key):
@@ -33,7 +47,9 @@ def do_gauss(xvals, yvals, **kwargs):
     f, c = curve_fit(gauss, xvals, yvals, **kwargs)
     return f, np.sqrt(np.diag(c))
 
-def plot_gauss(xvals, fit, **kwargs):
+def plot_gauss(fit, **kwargs):
+    # plot smooth gauss function, over +- 8 std. dev.
+    xvals = np.linspace(fit[1]-8*fit[2], fit[1]+8*fit[2], 1000)
     plt.plot(xvals, gauss(xvals, *fit), **kwargs)
     return
 
@@ -61,11 +77,13 @@ def plot_llr_distribution(llr_cur, tkey, bins, color='b', **kwargs):
     return hist_vals, bincen, fit_gauss
 
 
-def plot_posterior_params(frames, template_settings, plot_llh=True,
-                          plot_param_info=True, pbins=20, mctrue=False,
-                          **kwargs):
+def plot_posterior_params(frames, template_settings, false_h_inj=None,
+                          plot_llh=True, plot_param_info=True, pbins=20,
+                          mctrue=True, **kwargs):
     """Plot posterior parameter distributions, and related data"""
-
+    if not mctrue and false_h_inj is None:
+        logging.warn("Not plotting WH hypo injected values since no WH settings "
+                     "provided...")
     good_columns = get_free_params(
         select_hierarchy(template_settings, normal_hierarchy=True)).keys()
 
@@ -92,10 +110,16 @@ def plot_posterior_params(frames, template_settings, plot_llh=True,
             if (icol%max_plots_per_fig) == 0:
                 ifig += 1
                 fig = plt.figure(figsize=(10,10))
-                fig_names.append(true_key+"_"+hypo_key+"_"+str(ifig)+".png")
                 figs.append(fig)
-                fig.suptitle('Posteriors for %s, %s'%(true_key,hypo_key))
+                if mctrue:
+                    fig_names.append(true_key+"_"+hypo_key+"_"+str(ifig)+".png")
+                    fig.suptitle('Posteriors for %s, %s'%(true_key,hypo_key))
                              #fontsize='large')
+                else:
+                    fig_names.append("WH_best_to_"+true_key+"_"+hypo_key
+				     +"_"+str(ifig)+".png")
+                    fig.suptitle('Posteriors for true WH best to %s, %s'%
+                                 (true_key,hypo_key))
 
             # Why is this not adding subplot?...
             subplot = (icol%max_plots_per_fig + 1)
@@ -104,7 +128,7 @@ def plot_posterior_params(frames, template_settings, plot_llh=True,
             plot_column(
                 true_key, hypo_key, subplot, column, template_settings,
                 color,plot_param_info=plot_param_info,pbins=pbins,
-                mctrue=mctrue)
+                mctrue=mctrue,false_h_inj=false_h_inj)
 
     return figs,fig_names
 
@@ -153,7 +177,7 @@ def plot_gauss_fit(llr,hist_vals,bincen,**kwargs):
 
     guess = [np.max(hist_vals), np.mean(llr), np.std(llr)]
     fit, cov = do_gauss(bincen,hist_vals, p0=guess)
-    plot_gauss(bincen,fit,**kwargs)
+    plot_gauss(fit,**kwargs)
 
     return fit
 
@@ -198,19 +222,20 @@ def plot_fill(llr_cur, tkey, asimov_llr, hist_vals, bincen, fit_gauss, **kwargs)
     plt.fill_betweenx(
         hist_vals, bincen, x2=asimov_llr, where=eval(expr), **kwargs)
 
-    pvalue = (1.0 - float(np.sum(llr_cur > asimov_llr))/len(llr_cur)
+    pval_count = (1.0 - float(np.sum(llr_cur > asimov_llr))/len(llr_cur)
               if 'true_N' in tkey else
               (1.0 - float(np.sum(llr_cur < asimov_llr))/len(llr_cur)))
-
-    sigma_fit = np.fabs(asimov_llr - fit_gauss[1])/fit_gauss[2]
+    sigma_count = norm.isf(pval_count)
+    sigma_count_2sided = norm.isf(pval_count/2.)
+    sigma_gauss = np.fabs(asimov_llr - fit_gauss[1])/fit_gauss[2]
     #logging.info(
     #    "  For tkey: %s, gaussian computed mean (of alt MH): %.3f and sigma: %.3f"
     #    %(tkey,fit_gauss[1],fit_gauss[2]))
-    pval_gauss = 1.0 - norm.cdf(sigma_fit)
-    sigma_1side = np.sqrt(2.0)*erfinv(1.0 - pval_gauss)
+    pval_gauss = 1.0 - norm.cdf(sigma_gauss)
+    sigma_gauss_2sided = norm.isf(pval_gauss/2.)#np.sqrt(2.0)*erfinv(1.0 - pval_gauss)
 
-    mctrue_row = [tkey,asimov_llr,llr_cur.mean(),pvalue,pval_gauss,sigma_fit,
-                  sigma_1side]
+    mctrue_row = [tkey,asimov_llr,llr_cur.mean(),pval_count,sigma_count,
+		  sigma_count_2sided,pval_gauss,sigma_gauss,sigma_gauss_2sided]
 
     return mctrue_row
 
@@ -225,11 +250,12 @@ def plot_mean_std(mean_val, std_val, ymax,ax):
     ax.fill_between(xfill,0.0,ymax*0.15,alpha=0.5,hatch='x',
                     facecolor='g')
     plt.plot(xfill,np.zeros_like(xfill),lw=3,color='g',alpha=0.8,label="st dev")
-
+    ax.text(0.02, 0.98, r"$%.3f\pm %.3f$" %(mean_val, std_val),
+        ha='left', va='top', transform=ax.transAxes, fontsize=12,
+        bbox={'facecolor':'g', 'alpha':0.5, 'pad':2})
     return
 
 def plot_injected_val(injected_val,ymax):
-
     vline = plt.vlines(injected_val,1,ymax,colors='r',linewidth=2,
                        alpha=1.0,label="injected")
     return
@@ -237,6 +263,16 @@ def plot_injected_val(injected_val,ymax):
 def plot_prior(prior,value,ymax,ax):
 
     if prior is None: return
+    if isinstance(prior, np.ndarray) or isinstance(prior, list):
+        if len(prior)%2!=0:
+            # something unexpected has happened, don't plot
+            return
+        n = len(prior) / 2
+        for i in xrange(0, n):
+            xfill = np.linspace(prior[i*n], prior[i*n+1], 10)
+            ax.fill_between(xfill, 0.0, ymax*0.1, alpha=0.4, facecolor='k')
+            plt.plot(xfill,np.zeros_like(xfill),lw=3,color='k',alpha=0.4,
+					 label='prior' if i==0 else '')
     else:
         xfill = np.linspace(value-prior,value+prior,10)
         ax.fill_between(xfill,0.0,ymax*0.1,alpha=0.4,facecolor='k')
@@ -252,7 +288,8 @@ def plot_bound(range_bound,ymax,ax):
 
     return
 
-def get_col_info(col_name, tkey, hkey, template_settings, mctrue=False):
+def get_col_info(col_name, tkey, hkey, template_settings, false_h_inj=None,
+                 mctrue=True):
 
     # REMEMBER: Since the "true_NH" corresponds to "pseudo data IH",
     # the normal hierarchy input is opposite!
@@ -260,38 +297,38 @@ def get_col_info(col_name, tkey, hkey, template_settings, mctrue=False):
     #   rather than the AH, null hypothesis.
 
     #print "mctrue: ",mctrue
-
-    if 'true_N' in tkey:
-        mh = True if mctrue else False
-        injected_vals = select_hierarchy(template_settings,
-                                         normal_hierarchy=mh)
+    if mctrue:
+        injected_vals = get_values(select_hierarchy(template_settings,
+                                   normal_hierarchy=True if 'true_N' in tkey
+                                   else False))
     else:
-        mh = False if mctrue else True
-        injected_vals = select_hierarchy(template_settings,
-                                         normal_hierarchy=mh)
-    if 'hypo_N' in hkey:
-        mh = True if mctrue else False
-        fit_vals = select_hierarchy(template_settings,
-                                    normal_hierarchy=mh)
-    else:
-        mh = False if mctrue else True
-        fit_vals = select_hierarchy(template_settings,
-                                    normal_hierarchy=mh)
+        # don't raise if false_h_inj values not there, since we can still plot
+        # posteriors even without this information
+        try: injected_vals = false_h_inj[tkey]
+        except: pass
 
-    value = injected_vals[col_name]['value']
-    scale = injected_vals[col_name]['scale']
+    fit_vals = select_hierarchy(template_settings,
+                                normal_hierarchy=True if 'hypo_N' in hkey
+                                else False)
+
+    try: value = injected_vals[col_name]
+    except: value = None
+    # needed for correct plotting of prior
+    init_value = fit_vals[col_name]['value']
+    scale = fit_vals[col_name]['scale']
     prange = fit_vals[col_name]['range']
-
-    #prior = fit_vals[col_name]['prior']
-    if injected_vals[col_name]['prior']['kind'] == "gaussian":
-        prior_val = injected_vals[col_name]['prior']["sigma"]
+    # for prior, fit vals necessary
+    if fit_vals[col_name]['prior']['kind'] == "gaussian":
+        prior_val = fit_vals[col_name]['prior']["sigma"]
+    elif fit_vals[col_name]['prior']['kind'] == "spline":
+        prior_val = get_prior_bounds(fit_vals[col_name]['prior'], sigma=[1.0])[1.0]
     else:
         prior_val = None
 
-    return prior_val, value, prange, scale
+    return prior_val, value, prange, scale, init_value
 
 def plot_column(tkey,hkey, subplot, column, template_settings, color,
-                plot_param_info=True,pbins=20,mctrue=False):
+                plot_param_info=True,pbins=20,mctrue=True,false_h_inj=None):
     """Plot column information"""
 
 
@@ -304,14 +341,15 @@ def plot_column(tkey,hkey, subplot, column, template_settings, color,
 
     col_name = column.name
     if 'llh' not in col_name:
-        prior, inj_value, prange, scale = get_col_info(
-            col_name, tkey, hkey, template_settings,mctrue=mctrue)
+        prior, inj_value, prange, scale, init_value = get_col_info(
+            col_name, tkey, hkey, template_settings, false_h_inj=false_h_inj,
+            mctrue=mctrue)
         column = scale*column
-
     if bool(re.match('^theta',col_name)):
         column = np.rad2deg(column)
         if prior is not None: prior = np.rad2deg(prior)
-        inj_value = np.rad2deg(inj_value)
+        if inj_value is not None: inj_value = np.rad2deg(inj_value)
+        init_value = np.rad2deg(init_value)
         prange = np.rad2deg(prange)
 
     std = column.std()
@@ -322,7 +360,6 @@ def plot_column(tkey,hkey, subplot, column, template_settings, color,
 
     hist,xbins,patches = plt.hist(column,histtype='step',lw=2,color=color,
                                   bins=pbins)
-    plt.title(col_name)#,fontsize='large')
     plt.grid(True)
 
     # Plot extra info about priors, injected val, mean, range, etc.
@@ -335,9 +372,10 @@ def plot_column(tkey,hkey, subplot, column, template_settings, color,
 
         # Next: plot injected_val, prior, and bound
         if col_name != 'llh':
-            plot_injected_val(scale*inj_value,ymax)
+            if inj_value is not None:
+                plot_injected_val(scale*inj_value,ymax)
             if prior is not None:
-                plot_prior(scale*prior,scale*inj_value, ymax,ax)
+                plot_prior(scale*prior,scale*init_value, ymax,ax)
 
             # Finally, plot bound:
             plot_bound(scale*prange,ymax,ax)
@@ -347,6 +385,8 @@ def plot_column(tkey,hkey, subplot, column, template_settings, color,
         else:
             ax.set_xlim([mean-5.0*std,mean+5.0*std])
         ax.set_ylim([ylim[0],ymax*1.2])
+        scale_label = r' $\times\,%s$'%scale if scale!=1. else ''
+        ax.set_xlabel(get_param_label_string(col_name)+scale_label)
 
         plt.legend(loc='best',framealpha=0.5)#,fontsize='large')
 
