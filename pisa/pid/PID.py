@@ -49,15 +49,6 @@ def add_argparser_args(parser):
     from pisa.pid.PIDServiceParam import PIDServiceParam
     from pisa.pid.PIDServiceMC import PIDServiceMC
     from pisa.pid.PIDServiceKernelFile import PIDServiceKernelFile
-    parser.add_argument(
-        '--reco_event_maps', metavar='JSON', type=from_file, required=False,
-        help='''JSON reco event rate file resource location; must have
-        following structure:
-        {"nue_cc": {'czbins':[...], 'ebins':[...], 'map':[...]},
-        "numu_cc": {...},
-        "nutau_cc": {...},
-        "nuall_nc": {...} }'''
-    )
 
     parser.add_argument(
         '--pid-mode', type=str, required=True,
@@ -70,6 +61,8 @@ def add_argparser_args(parser):
     PIDServiceMC.add_argparser_args(parser)
     PIDServiceKernelFile.add_argparser_args(parser)
 
+    return parser
+
 
 if __name__ == "__main__":
     import numpy as np
@@ -78,6 +71,15 @@ if __name__ == "__main__":
         of reconstructed templates of tracks and cascades.''',
         formatter_class=ArgumentDefaultsHelpFormatter
     )
+    parser.add_argument(
+        '--reco-event-maps', metavar='JSON', type=from_file, required=False,
+        help='''JSON reco event rate file resource location; must have
+        following structure:
+        {"nue_cc": {'czbins':[...], 'ebins':[...], 'map':[...]},
+        "numu_cc": {...},
+        "nutau_cc": {...},
+        "nuall_nc": {...} }'''
+    )
 
     # Add PIDService-specific args
     add_argparser_args(parser)
@@ -85,7 +87,7 @@ if __name__ == "__main__":
     # Back to generic args
     parser.add_argument(
         '--outfile', dest='outfile', metavar='FILE', type=str,
-        default="pid.json",
+        default="pid_output.json",
         help='''file to store the output'''
     )
     parser.add_argument(
@@ -106,12 +108,18 @@ if __name__ == "__main__":
     # Output file
     outfile = args.pop('outfile')
 
+    # Handy to have (TODO: move to central location)
+    nil = {'ebins':ebins, 'czbins':czbins,
+           'map': np.zeros((n_ebins, n_czbins))}
+    unity = {'ebins':ebins, 'czbins':czbins,
+             'map': np.ones((n_ebins, n_czbins))}
+
     reco_event_maps = args.pop('reco_event_maps')
     if reco_event_maps is not None:
         # Load event maps (expected to be something like the output from a reco
         # stage)
         reco_event_maps = fileio.from_file(args.pop('reco_event_maps'))
-        flavgrps = [fg for fg in reco_event_maps
+        flavgrps = [fg for fg in sorted(reco_event_maps)
                     if fg not in ['params', 'ebins', 'czbins']]
     else:
         # Otherwise, generate maps with all 1's to send through the PID stage
@@ -120,10 +128,6 @@ if __name__ == "__main__":
         n_czbins = 20
         ebins = np.logspace(0, np.log10(80), n_ebins+1)
         czbins = np.linspace(-1, 0, n_czbins+1)
-        nil = {'ebins':ebins, 'czbins':czbins,
-               'map': np.zeros((n_ebins, n_czbins))}
-        unity = {'ebins':ebins, 'czbins':czbins,
-                 'map': np.ones((n_ebins, n_czbins))}
         reco_event_maps = {f:deepcopy(unity) for f in flavgrps} 
         reco_event_maps['params'] = {}
 
