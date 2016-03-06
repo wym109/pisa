@@ -271,7 +271,7 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--save_all', action='store_true', default=False,
                         help="Save all stages.")
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE',
-                        type=str, action='store',default="template.json",
+                        type=str, action='store', default="template.json",
                         help='file to store the output')
     args = parser.parse_args()
 
