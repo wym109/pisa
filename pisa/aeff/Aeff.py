@@ -28,8 +28,8 @@ from pisa.utils.proc import report_params, get_params, add_params
 from pisa.utils.utils import check_binning, get_binning, prefilled_map
 
 
-def get_event_rates(osc_flux_maps, aeff_service, livetime=None,
-                    aeff_scale=None, **kwargs):
+def get_event_rates(osc_flux_maps, aeff_service, livetime, aeff_scale,
+                    **kwargs):
     '''
     Main function for this module, which returns the event rate maps
     for each flavor and interaction type, using true energy and zenith
@@ -171,21 +171,24 @@ if __name__ == '__main__':
     # Output file
     outfile = args.pop('outfile')
 
+    livetime = args.pop('livetime')
+    aeff_scale = args.pop('aeff_scale')
+
     osc_flux_maps = args.pop('osc_flux_maps')
     if osc_flux_maps is not None:
         # Load event maps (expected to be something like the output from a reco
         # stage)
         osc_flux_maps = fileio.from_file(args.pop('osc_flux_maps'))
-        flavgrps = [fg for fg in sorted(osc_flux_maps)
+        flavs = [fg for fg in sorted(osc_flux_maps)
                     if fg not in ['params', 'ebins', 'czbins']]
     else:
         # Otherwise, generate maps with all 1's to send through the PID stage
-        flavgrps = ['nue', 'nue_bar', 'numu', 'numu_bar', 'nutau', 'nutau_bar']
+        flavs = ['nue', 'nue_bar', 'numu', 'numu_bar', 'nutau', 'nutau_bar']
         n_ebins = 39
         n_czbins = 20
         ebins = np.logspace(0, np.log10(80), n_ebins+1)
         czbins = np.linspace(-1, 0, n_czbins+1)
-        osc_flux_maps = {f:prefilled_map(ebins, czbins, 1) for f in flavgrps} 
+        osc_flux_maps = {f: prefilled_map(ebins, czbins, 1) for f in flavs} 
         osc_flux_maps['params'] = {}
 
     # Check, return binning
@@ -198,7 +201,7 @@ if __name__ == '__main__':
     # Calculate event rates after Aeff
     event_rate_aeff = get_event_rates(
         osc_flux_maps=osc_flux_maps, aeff_service=aeff_service,
-        livetime=args.pop('livetime'), aeff_scale=args.pop('aeff_scale')
+        livetime=livetime, aeff_scale=aeff_scale
     )
 
     # Save the results to disk
@@ -211,41 +214,52 @@ if __name__ == '__main__':
         import matplotlib.pyplot as plt
         from pisa.utils import flavInt
         from pisa.utils import plot
-        n_flavgrps = len(flavgrps)
-        flavgrps = event_rate_aeff.keys()
-        flavgrps.remove('params')
-        n_flavgrps = len(flavgrps)
+        n_flavs = len(flavs)
+        flavintgrp = flavInt.NuFlavIntGroup(flavs)
 
-        fig, axes = plt.subplots(n_sigs+1, n_flavgrps, figsize=(20,14),
-                                 dpi=70, sharex=True, sharey=True)
-        for flavgrp_num, flavgrp in enumerate(flavgrps):
-            # Effect of applying PID to *just one* flavgrp
-            osc_flux_maps = {f: prefilled_map(ebins, czbins, 0)
-                             for f in flavgrps}
-            osc_flux_maps[flavgrp] =  prefilled_map(ebins, czbins, 1)y)
-            osc_flux_maps['params'] = {}
-            fract_pid = pid_service.get_pid_maps(osc_flux_maps)
-            agg_map = prefilled_map(ebins, czbins, 0)
+        n_rows = 2
+        n_cols = n_flavs #int(np.ceil(n_flavs/2.0))*2
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(26,14),
+                                 dpi=50, sharex=True, sharey=True)
 
-            flav = flavInt.NuFlav(flavgrp)
-            [flavintgroup.__iadd__(-f) for f in flavintgroup]
-            fltex = '$' + flavintgroup.simpleTex(flavsep=r'+') + '$'
+        # Plot fractional effect of effective areas
+        osc_flux_maps = {f: prefilled_map(ebins, czbins, 1) for f in flavs}
+        osc_flux_maps['params'] = {}
+        fract_aeff = get_event_rates(
+            osc_flux_maps=osc_flux_maps,
+            aeff_service=aeff_service,
+            livetime=livetime, aeff_scale=aeff_scale
+        )
 
-            for sig_num, sig in enumerate(signatures):
-                agg_map['map'] += fract_pid[sig]['map']
-                ax = axes[sig_num, flavgrp_num]
+        # TODO: Make aggregate maps: flav+antiflav CC, nuall NC, nuallbar NC,
+        # nuall+nuallbar NC
+        #cc_agg_maps = {prefilled_map(ebins, czbins, 0)}
+        for flav_num, flav in enumerate(flavintgrp.flavs()):
+            with flavInt.BarSep('_'):
+                flav_key = str(flav)
+            flav_tex = flavInt.tex(flav, d=1)
+
+            for int_num, int_type in enumerate(['cc', 'nc']):
+                flavint = flavInt.NuFlavInt(flav_key+int_type)
+                flavint_tex = flavInt.tex(flavint, d=1)
+                with flavInt.BarSep('_'):
+                    flavint_key = str(flavint)
+
+                #agg_map['map'] += fract_aeff[flav_key][int_type]['map']
+
+                ax = axes[flav_num % 2, flav_num//2 + int_num*n_flavs//2]
                 plt.sca(ax)
-                plot.show_map(fract_pid[sig], cmap=mpl.cm.GnBu_r)
-                ax.get_children()[0].autoscale()
-                ax.set_title('Fract. of ' + fltex + ' ID\'d as ' + sig,
+                plot.show_map(fract_aeff[flav_key][int_type], log=True,
+                              cmap=mpl.cm.Accent_r)
+                #ax.get_children()[0].autoscale()
+                ax.set_title('Fract. of ' + flavint_tex + ' in bin',
                              fontsize=14)
 
-            ax = axes[n_sigs, flavgrp_num]
-            plt.sca(ax)
-            plot.show_map(agg_map, cmap=mpl.cm.GnBu_r)
-            ax.get_children()[0].autoscale()
-            ax.set_title('Fract. of ' + fltex + ' ID\'d, total',
-                         fontsize=14)
+            #ax = axes[2, flav_num]
+            #plt.sca(ax)
+            #plot.show_map(agg_map, log=True, cmap=mpl.cm.Accent_r)
+            ##ax.get_children()[0].autoscale()
+            #ax.set_title('Total, CC+NC ' + flav_tex, fontsize=14)
 
         fig.tight_layout()
         base, ext = os.path.splitext(outfile)
