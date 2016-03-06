@@ -45,14 +45,13 @@ from pisa.reco import Reco
 from pisa.pid import PID
 
 class TemplateMaker:
-    '''
-    This class handles all steps needed to produce a template with a
+    """This class handles all steps needed to produce a template with a
     constant binning.
 
     The strategy employed will be to define all 'services' in the
     initialization process, make them members of the class, then use
     them later when needed.
-    '''
+    """
     def __init__(self, template_params_values, ebins, czbins,
                  oversample_e, oversample_cz, **kwargs):
         """TemplateMaker class handles all of the setup and calculation of the
@@ -107,7 +106,6 @@ class TemplateMaker:
         # Instantiate an Aeff service
         self.aeff_service = Aeff.aeff_service_factory(
             ebins=self.ebins, czbins=self.czbins,
-            aeff_mode=template_params_values['aeff_mode'],
             **template_params_values
         )
 
@@ -146,12 +144,10 @@ class TemplateMaker:
 
 
     def get_template(self, template_params_values, return_stages=False):
-        '''
-        Runs entire template-making chain, using parameters found in
+        """Runs entire template-making chain, using parameters found in
         'template_params_values' dict. If 'return_stages' is set to True,
         returns output from each stage as a simple tuple.
-        '''
-
+        """
         logging.info("STAGE 1: Getting Atm Flux maps...")
         with Timer() as t:
             flux_maps = Flux.get_flux_maps(
