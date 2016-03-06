@@ -14,7 +14,7 @@ from copy import deepcopy
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils.utils import check_binning
+from pisa.utils.utils import check_binning, prefilled_map
 from pisa.utils.fileio import from_file, to_file
 
 
@@ -108,12 +108,6 @@ if __name__ == "__main__":
     # Output file
     outfile = args.pop('outfile')
 
-    # Handy to have (TODO: move to central location)
-    nil = {'ebins':ebins, 'czbins':czbins,
-           'map': np.zeros((n_ebins, n_czbins))}
-    unity = {'ebins':ebins, 'czbins':czbins,
-             'map': np.ones((n_ebins, n_czbins))}
-
     reco_event_maps = args.pop('reco_event_maps')
     if reco_event_maps is not None:
         # Load event maps (expected to be something like the output from a reco
@@ -128,7 +122,7 @@ if __name__ == "__main__":
         n_czbins = 20
         ebins = np.logspace(0, np.log10(80), n_ebins+1)
         czbins = np.linspace(-1, 0, n_czbins+1)
-        reco_event_maps = {f:deepcopy(unity) for f in flavgrps} 
+        reco_event_maps = {f:prefilled_map(ebins, czbins, 1) for f in flavgrps} 
         reco_event_maps['params'] = {}
 
     # Check, return binning
@@ -165,11 +159,12 @@ if __name__ == "__main__":
                                  dpi=70, sharex=True, sharey=True)
         for flavgrp_num, flavgrp in enumerate(flavgrps):
             # Effect of applying PID to *just one* flavgrp
-            reco_event_maps = {f:deepcopy(nil) for f in flavgrps}
-            reco_event_maps[flavgrp] = deepcopy(unity)
+            reco_event_maps = {f:prefilled_map(ebins, czbins, 0)
+                               for f in flavgrps}
+            reco_event_maps[flavgrp] = prefilled_map(ebins, czbins, 1)
             reco_event_maps['params'] = {}
             fract_pid = pid_service.get_pid_maps(reco_event_maps)
-            agg_map = deepcopy(nil)
+            agg_map = prefilled_map(ebins, czbins, 0)
 
             # Actual groupings (as they stand now) include antiparticles
             # even though these do not appear in the labels given.

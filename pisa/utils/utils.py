@@ -759,6 +759,17 @@ def inspect_cur_frame():
     return "%s:%s at %s" % (filename, line_num, fn_name)
 
 
+def prefilled_map(ebins, czbins, val, dtype=float):
+    n_ebins = len(ebins) - 1
+    n_czbins = len(czbins) - 1
+    newmap = {
+        'ebins': ebins,
+        'czbins': czbins,
+        'map': np.full(shape=(n_ebins, n_czbins), fill_value=val, dtype=dtype)
+    }
+    return newmap
+
+
 def hash_obj(obj):
     """Return hash for an object by serializing the object to a JSON string"""
     if isinstance(obj, np.ndarray) or isinstance(obj, np.matrix):

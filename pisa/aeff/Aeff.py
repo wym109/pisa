@@ -25,7 +25,7 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.fileio import from_file, to_file
 from pisa.utils.proc import report_params, get_params, add_params
-from pisa.utils.utils import check_binning, get_binning
+from pisa.utils.utils import check_binning, get_binning, prefilled_map
 
 
 def get_event_rates(osc_flux_maps, aeff_service, livetime=None,
@@ -140,7 +140,7 @@ if __name__ == '__main__':
         help='''livetime in years to re-scale by.'''
     )
     parser.add_argument(
-        '--aeff_scale', type=float, default=1.0,
+        '--aeff-scale', type=float, default=1.0,
         help='''Overall scale on aeff'''
     )
 
@@ -166,16 +166,10 @@ if __name__ == '__main__':
     args = vars(parser.parse_args())
 
     # Set verbosity level
-    set_verbosity(args.verbose)
+    set_verbosity(args.pop('verbose'))
 
     # Output file
     outfile = args.pop('outfile')
-
-    # Handy to have (TODO: move to central location)
-    nil = {'ebins':ebins, 'czbins':czbins,
-           'map': np.zeros((n_ebins, n_czbins))}
-    unity = {'ebins':ebins, 'czbins':czbins,
-             'map': np.ones((n_ebins, n_czbins))}
 
     osc_flux_maps = args.pop('osc_flux_maps')
     if osc_flux_maps is not None:
@@ -186,20 +180,16 @@ if __name__ == '__main__':
                     if fg not in ['params', 'ebins', 'czbins']]
     else:
         # Otherwise, generate maps with all 1's to send through the PID stage
-        flavgrps = ['nue_cc', 'numu_cc', 'nutau_cc', 'nuall_nc']
+        flavgrps = ['nue', 'nue_bar', 'numu', 'numu_bar', 'nutau', 'nutau_bar']
         n_ebins = 39
         n_czbins = 20
         ebins = np.logspace(0, np.log10(80), n_ebins+1)
         czbins = np.linspace(-1, 0, n_czbins+1)
-        nil = {'ebins':ebins, 'czbins':czbins,
-               'map': np.zeros((n_ebins, n_czbins))}
-        unity = {'ebins':ebins, 'czbins':czbins,
-                 'map': np.ones((n_ebins, n_czbins))}
-        osc_flux_maps = {f:deepcopy(unity) for f in flavgrps} 
+        osc_flux_maps = {f:prefilled_map(ebins, czbins, 1) for f in flavgrps} 
         osc_flux_maps['params'] = {}
 
     # Check, return binning
-    args['ebins'], args['czbins'] = check_binning(reco_event_maps)
+    args['ebins'], args['czbins'] = check_binning(osc_flux_maps)
 
     # Initialize the PID service
     aeff_service = aeff_service_factory(aeff_mode=args.pop('aeff_mode'),
@@ -226,38 +216,36 @@ if __name__ == '__main__':
         flavgrps.remove('params')
         n_flavgrps = len(flavgrps)
 
-        #fig, axes = plt.subplots(n_sigs+1, n_flavgrps, figsize=(20,14),
-        #                         dpi=70, sharex=True, sharey=True)
-        #for flavgrp_num, flavgrp in enumerate(flavgrps):
-        #    # Effect of applying PID to *just one* flavgrp
-        #    reco_event_maps = {f:deepcopy(nil) for f in flavgrps}
-        #    reco_event_maps[flavgrp] = deepcopy(unity)
-        #    reco_event_maps['params'] = {}
-        #    fract_pid = pid_service.get_pid_maps(reco_event_maps)
-        #    agg_map = deepcopy(nil)
+        fig, axes = plt.subplots(n_sigs+1, n_flavgrps, figsize=(20,14),
+                                 dpi=70, sharex=True, sharey=True)
+        for flavgrp_num, flavgrp in enumerate(flavgrps):
+            # Effect of applying PID to *just one* flavgrp
+            osc_flux_maps = {f: prefilled_map(ebins, czbins, 0)
+                             for f in flavgrps}
+            osc_flux_maps[flavgrp] =  prefilled_map(ebins, czbins, 1)y)
+            osc_flux_maps['params'] = {}
+            fract_pid = pid_service.get_pid_maps(osc_flux_maps)
+            agg_map = prefilled_map(ebins, czbins, 0)
 
-        #    # Actual groupings (as they stand now) include antiparticles
-        #    # even though these do not appear in the labels given.
-        #    # (E.g. "nue_cc" actually means "nue_cc + nuebar_cc".)
-        #    flavintgroup = flavInt.NuFlavIntGroup(flavgrp)
-        #    [flavintgroup.__iadd__(-f) for f in flavintgroup]
-        #    fltex = '$' + flavintgroup.simpleTex(flavsep=r'+') + '$'
+            flav = flavInt.NuFlav(flavgrp)
+            [flavintgroup.__iadd__(-f) for f in flavintgroup]
+            fltex = '$' + flavintgroup.simpleTex(flavsep=r'+') + '$'
 
-        #    for sig_num, sig in enumerate(signatures):
-        #        agg_map['map'] += fract_pid[sig]['map']
-        #        ax = axes[sig_num, flavgrp_num]
-        #        plt.sca(ax)
-        #        plot.show_map(fract_pid[sig], cmap=mpl.cm.GnBu_r)
-        #        ax.get_children()[0].autoscale()
-        #        ax.set_title('Fract. of ' + fltex + ' ID\'d as ' + sig,
-        #                     fontsize=14)
+            for sig_num, sig in enumerate(signatures):
+                agg_map['map'] += fract_pid[sig]['map']
+                ax = axes[sig_num, flavgrp_num]
+                plt.sca(ax)
+                plot.show_map(fract_pid[sig], cmap=mpl.cm.GnBu_r)
+                ax.get_children()[0].autoscale()
+                ax.set_title('Fract. of ' + fltex + ' ID\'d as ' + sig,
+                             fontsize=14)
 
-        #    ax = axes[n_sigs, flavgrp_num]
-        #    plt.sca(ax)
-        #    plot.show_map(agg_map, cmap=mpl.cm.GnBu_r)
-        #    ax.get_children()[0].autoscale()
-        #    ax.set_title('Fract. of ' + fltex + ' ID\'d, total',
-        #                 fontsize=14)
+            ax = axes[n_sigs, flavgrp_num]
+            plt.sca(ax)
+            plot.show_map(agg_map, cmap=mpl.cm.GnBu_r)
+            ax.get_children()[0].autoscale()
+            ax.set_title('Fract. of ' + fltex + ' ID\'d, total',
+                         fontsize=14)
 
         fig.tight_layout()
         base, ext = os.path.splitext(outfile)
