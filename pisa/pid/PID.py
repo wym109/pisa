@@ -50,19 +50,19 @@ def add_argparser_args(parser):
     from pisa.pid.PIDServiceMC import PIDServiceMC
     from pisa.pid.PIDServiceKernelFile import PIDServiceKernelFile
     parser.add_argument(
-        '--reco_event_maps', metavar='JSON', type=from_file,
-        required=False,
+        '--reco_event_maps', metavar='JSON', type=from_file, required=False,
         help='''JSON reco event rate file resource location; must have
-        following structure:\n
-        {"nue_cc": {'czbins':[...], 'ebins':[...], 'map':[...]}, \n
-        "numu_cc": {...}, \n
-        "nutau_cc": {...}, \n
+        following structure:
+        {"nue_cc": {'czbins':[...], 'ebins':[...], 'map':[...]},
+        "numu_cc": {...},
+        "nutau_cc": {...},
         "nuall_nc": {...} }'''
     )
 
     parser.add_argument(
-        '--pid-mode', type=str, choices=['param', 'mc', 'kernel'],
-        default='param', help='PID service to use'
+        '--pid-mode', type=str, required=True,
+        choices=['param', 'mc', 'kernel'], default='param',
+        help='PID service to use'
     )
 
     # Add args specific to the known classes
@@ -89,6 +89,10 @@ if __name__ == "__main__":
         help='''file to store the output'''
     )
     parser.add_argument(
+        '--plot', action='store_true',
+        help='plot resulting maps'
+    )
+    parser.add_argument(
         '-v', '--verbose', action='count', default=None,
         help='set verbosity level'
     )
@@ -102,19 +106,25 @@ if __name__ == "__main__":
     # Output file
     outfile = args.pop('outfile')
 
-    # Load event maps (as if they were from a reco file)
     reco_event_maps = args.pop('reco_event_maps')
     if reco_event_maps is not None:
+        # Load event maps (expected to be something like the output from a reco
+        # stage)
         reco_event_maps = fileio.from_file(args.pop('reco_event_maps'))
+        flavgrps = [fg for fg in reco_event_maps
+                    if fg not in ['params', 'ebins', 'czbins']]
     else:
+        # Otherwise, generate maps with all 1's to send through the PID stage
+        flavgrps = ['nue_cc', 'numu_cc', 'nutau_cc', 'nuall_nc']
         n_ebins = 39
         n_czbins = 20
         ebins = np.logspace(0, np.log10(80), n_ebins+1)
         czbins = np.linspace(-1, 0, n_czbins+1)
-        ones = {'ebins':ebins, 'czbins':czbins,
-                'map': np.ones((n_ebins, n_czbins))}
-        reco_event_maps = {f:deepcopy(ones) for f in ['nue_cc', 'numu_cc',
-                                                      'nutau_cc', 'nuall_nc']} 
+        nil = {'ebins':ebins, 'czbins':czbins,
+               'map': np.zeros((n_ebins, n_czbins))}
+        unity = {'ebins':ebins, 'czbins':czbins,
+                 'map': np.ones((n_ebins, n_czbins))}
+        reco_event_maps = {f:deepcopy(unity) for f in flavgrps} 
         reco_event_maps['params'] = {}
 
     # Check, return binning
@@ -126,4 +136,63 @@ if __name__ == "__main__":
     # Calculate event rates after PID
     event_rate_pid = pid_service.get_pid_maps(reco_event_maps)
 
+    # Save the results to disk
     to_file(event_rate_pid, outfile)
+
+    # Produce plots useful for debugging
+
+    # TODO:
+    # * Make similar plots but for counts (if user supplied a reco_events_map)
+    # * Include row totals as another column at right, to show aggregate
+    #   numbers per signature. (This probably is only useful if the user
+    #   supplies reco_events_map; show this on the above-proposed "counts"
+    #   figure.)
+    if args['plot']:
+        import os
+        import matplotlib as mpl
+        import matplotlib.pyplot as plt
+        from pisa.utils import flavInt
+        from pisa.utils import plot
+        n_flavgrps = len(flavgrps)
+        signatures = event_rate_pid.keys()
+        signatures.remove('params')
+        n_sigs = len(signatures)
+        fig, axes = plt.subplots(n_sigs+1, n_flavgrps, figsize=(20,14),
+                                 dpi=70, sharex=True, sharey=True)
+        for flavgrp_num, flavgrp in enumerate(flavgrps):
+            # Effect of applying PID to *just one* flavgrp
+            reco_event_maps = {f:deepcopy(nil) for f in flavgrps}
+            reco_event_maps[flavgrp] = deepcopy(unity)
+            reco_event_maps['params'] = {}
+            fract_pid = pid_service.get_pid_maps(reco_event_maps)
+            agg_map = deepcopy(nil)
+
+            # Actual groupings (as they stand now) include antiparticles
+            # even though these do not appear in the labels given.
+            # (E.g. "nue_cc" actually means "nue_cc + nuebar_cc".)
+            flavintgroup = flavInt.NuFlavIntGroup(flavgrp)
+            [flavintgroup.__iadd__(-f) for f in flavintgroup]
+            fltex = '$' + flavintgroup.simpleTex(flavsep=r'+') + '$'
+
+            for sig_num, sig in enumerate(signatures):
+                agg_map['map'] += fract_pid[sig]['map']
+                ax = axes[sig_num, flavgrp_num]
+                plt.sca(ax)
+                plot.show_map(fract_pid[sig], cmap=mpl.cm.GnBu_r)
+                ax.get_children()[0].autoscale()
+                ax.set_title('Fract. of ' + fltex + ' ID\'d as ' + sig,
+                             fontsize=14)
+
+            ax = axes[n_sigs, flavgrp_num]
+            plt.sca(ax)
+            plot.show_map(agg_map, cmap=mpl.cm.GnBu_r)
+            ax.get_children()[0].autoscale()
+            ax.set_title('Fract. of ' + fltex + ' ID\'d, total',
+                         fontsize=14)
+
+        fig.tight_layout()
+        base, ext = os.path.splitext(outfile)
+        fig.savefig(base + '.pdf')
+        fig.savefig(base + '.png')
+        plt.draw()
+        plt.show()
