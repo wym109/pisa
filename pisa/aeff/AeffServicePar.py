@@ -205,11 +205,14 @@ class AeffServicePar(object):
         parser.add_argument(
             '--aeff-egy-par', metavar='RESOURCE', type=str,
             default='aeff/pingu_v36/'
-            'aeff_energy_dependence__pingu_v36__runs_388-390__proc_v5.json'
+            'aeff_energy_dependence__pingu_v36__runs_388-390__proc_v5.json',
+            help='''Resource containing energy-dependent parameterization of
+            effective areas.'''
         )
         parser.add_argument(
             '--aeff-coszen-par', metavar='RESOURCE', type=str,
             default='aeff/pingu_v36/'
-            'aeff_coszen_dependence__pingu_v36__runs_388-390__proc_v5.json'
+            'aeff_coszen_dependence__pingu_v36__runs_388-390__proc_v5.json',
+            help='''Resource containing coszen-dependent parameterizations of
+            effective areas.'''
         )
-
