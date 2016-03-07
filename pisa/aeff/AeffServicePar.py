@@ -184,8 +184,8 @@ class AeffServicePar(object):
             # CZ applies shape (len(cz)-times), not absolute value;
             # also, we use values with units [m^2 / GeV / sr] (?), so
             # normalize by multiplying by # of points and dividing by sum (?)
-            interpolated_czdep_aeff *= len(interpolant_czdep_aeff) \
-                    / np.sum(interpolant_czdep_aeff)
+            interpolated_czdep_aeff *= len(interpolated_czdep_aeff) \
+                    / np.sum(interpolated_czdep_aeff)
 
             # Form 2D map via outer product
             aeff2d[group] = np.outer(interpolated_edep_aeff,
