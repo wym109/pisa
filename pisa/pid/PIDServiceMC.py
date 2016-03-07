@@ -26,8 +26,9 @@ class PIDServiceMC(PIDServiceBase):
     Takes a PISA events HDF5 file and creates 2D-histogrammed PID in terms of
     energy and coszen, for each specified particle "signature" (aka ID).
     """
-    def __init__(self, ebins, czbins, events, pid_ver, remove_true_downgoing,
-                 pid_spec=None, pid_spec_source=None, compute_error=False,
+    def __init__(self, ebins, czbins, pid_events, pid_ver,
+                 pid_remove_true_downgoing, pid_spec=None,
+                 pid_spec_source=None, compute_error=False,
                  replace_invalid=False, **kwargs):
         super(PIDServiceBase, self).__init__(ebins, czbins)
 
@@ -35,7 +36,7 @@ class PIDServiceMC(PIDServiceBase):
         self.events = None
         self.cut_events = None
         self.data_proc_params = None
-        self.remove_true_downgoing = None
+        self.pid_remove_true_downgoing = None
 
         self.pid_ver = None
         self.pid_spec = None
@@ -46,18 +47,19 @@ class PIDServiceMC(PIDServiceBase):
         self.replace_invalid = replace_invalid
 
         self.get_pid_kernels(
-            ebins=ebins, czbins=czbins, events=events, pid_ver=pid_ver,
-            remove_true_downgoing=remove_true_downgoing, pid_spec=pid_spec,
-            compute_error=compute_error, replace_invalid=replace_invalid,
+            ebins=ebins, czbins=czbins, pid_events=pid_events, pid_ver=pid_ver,
+            pid_remove_true_downgoing=pid_remove_true_downgoing,
+            pid_spec=pid_spec, compute_error=compute_error,
+            replace_invalid=replace_invalid,
         )
 
-    def get_pid_kernels(self, ebins, czbins, events, pid_ver,
-                        remove_true_downgoing=None, pid_spec=None,
+    def get_pid_kernels(self, ebins, czbins, pid_events, pid_ver,
+                        pid_remove_true_downgoing=None, pid_spec=None,
                         compute_error=None, replace_invalid=None):
         """Compute and return PID maps"""
         # Default to values passed when class was instantiated
-        if remove_true_downgoing is None:
-            remove_true_downgoing = self.remove_true_downgoing
+        if pid_remove_true_downgoing is None:
+            pid_remove_true_downgoing = self.pid_remove_true_downgoing
         if replace_invalid is None:
             replace_invalid = self.replace_invalid
         if compute_error is None:
@@ -66,7 +68,7 @@ class PIDServiceMC(PIDServiceBase):
         # TODO: add stateful return-early logic
         #if ebins == self.ebins and \
         #        czbins == self.czbins and \
-        #        events == self.events_source and \
+        #        pid_events == self.events_source and \
         #        pid_ver == self.pid_ver and \
         #        pid_spec == self.pid_spec and \
         #        (not compute_error or (compute_error == self.compute_error)):
@@ -80,19 +82,20 @@ class PIDServiceMC(PIDServiceBase):
         self.compute_error = compute_error
         logging.info('Updating PIDServiceMC PID histograms...')
 
-        self.remove_true_downgoing = remove_true_downgoing
+        self.pid_remove_true_downgoing = pid_remove_true_downgoing
 
         new_events = False
-        if self.events is None or events != self.events_source:
+        if self.events is None or pid_events != self.events_source:
             new_events = True
-            if isinstance(events, basestring):
-                logging.info('Extracting events from file: %s' % (events))
-                self.events = Events(events)
-            elif isinstance(events, Events):
+            if isinstance(pid_events, basestring):
+                logging.info('Extracting events from file: %s' % (pid_events))
+                self.events = Events(pid_events)
+            elif isinstance(pid_events, Events):
                 # Validate by (re)instantiating as an Events object
-                self.events = events
+                self.events = pid_events
             else:
-                raise TypeError('Unhandled `events` type: "%s"' % type(events))
+                raise TypeError('Unhandled `pid_events` type: "%s"' %
+                                type(pid_events))
             should_be_joined = sorted([
                 flavInt.NuFlavIntGroup('nuecc+nuebarcc'),
                 flavInt.NuFlavIntGroup('numucc+numubarcc'),
@@ -107,21 +110,21 @@ class PIDServiceMC(PIDServiceBase):
                 raise ValueError('Events passed have %s joined groupings but'
                                  ' it is required to have %s joined groupings.'
                                  % (are_joined, should_be_joined))
-            self.events_source = events
+            self.events_source = pid_events
             self.data_proc_params = DataProcParams(
                 detector=self.events.metadata['detector'],
                 proc_ver=self.events.metadata['proc_ver']
             )
 
         if new_events or (self.cut_events is None) or \
-                (remove_true_downgoing != self.remove_true_downgoing):
-            if remove_true_downgoing:
+                (pid_remove_true_downgoing != self.pid_remove_true_downgoing):
+            if pid_remove_true_downgoing:
                 self.cut_events = self.data_proc_params.applyCuts(
                     self.events, cuts='true_upgoing_coszen'
                 )
             else:
                 self.cut_events = self.events
-            self.remove_true_downgoing = remove_true_downgoing
+            self.pid_remove_true_downgoing = pid_remove_true_downgoing
 
         if new_events or (self.pid_spec is None) or (pid_ver != self.pid_ver):
             self.pid_spec = PIDSpec(
@@ -239,9 +242,9 @@ class PIDServiceMC(PIDServiceBase):
     @staticmethod
     def add_argparser_args(parser):
         parser.add_argument(
-            '--events', metavar='RESOURCE_NAME', type=str,
+            '--pid-events', metavar='RESOURCE_NAME', type=str,
             default='events/pingu_v36/events__pingu__v36__runs_388-390__proc_v5__joined_G_nue_cc+nuebar_cc_G_numu_cc+numubar_cc_G_nutau_cc+nutaubar_cc_G_nuall_nc+nuallbar_nc.hdf5',
-            help='''[ PID-MC ] events file'''
+            help='''[ PID-MC ] PISA-standard events file'''
         )
         parser.add_argument(
             '--pid-ver', type=str,
@@ -250,7 +253,7 @@ class PIDServiceMC(PIDServiceBase):
             detector/geometry/processing)'''
         )
         parser.add_argument(
-            '--remove-true-downgoing', action='store_true',
+            '--pid-remove-true-downgoing', action='store_true',
             help='''[ PID-MC ] Remove MC-true-downgoing events'''
         )
         parser.add_argument(

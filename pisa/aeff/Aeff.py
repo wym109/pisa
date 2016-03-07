@@ -91,30 +91,36 @@ def aeff_service_factory(aeff_mode, **kwargs):
         instantiated.
     """
     aeff_mode = aeff_mode.lower()
+    if aeff_mode == 'mc':
+        from pisa.aeff.AeffServiceMC import AeffServiceMC
+        return AeffServiceMC(**kwargs)
+
     if aeff_mode == 'param':
         from pisa.aeff.AeffServicePar import AeffServicePar
         return AeffServicePar(**kwargs)
 
-    if aeff_mode == 'mc':
-        from pisa.aeff.AeffServiceMC import AeffServiceMC
-        return AeffServiceMC(**kwargs)
+    if aeff_mode == 'smooth':
+        from pisa.aeff.AeffServiceSmooth import AeffServiceSmooth
+        return AeffServiceSmooth(**kwargs)
 
     raise ValueError('Unrecognized Aeff `aeff_mode`: "%s"' % aeff_mode)
 
 
 def add_argparser_args(parser):
-    from pisa.aeff.AeffServicePar import AeffServicePar
     from pisa.aeff.AeffServiceMC import AeffServiceMC
+    from pisa.aeff.AeffServicePar import AeffServicePar
+    from pisa.aeff.AeffServiceSmooth import AeffServiceSmooth
 
     parser.add_argument(
         '--aeff-mode', type=str, required=True,
-        choices=['param', 'mc'], default='param',
+        choices=['mc', 'param', 'smooth'], default='param',
         help='Aeff service to use'
     )
 
     # Add args specific to the known classes
-    AeffServicePar.add_argparser_args(parser)
     AeffServiceMC.add_argparser_args(parser)
+    AeffServicePar.add_argparser_args(parser)
+    AeffServiceSmooth.add_argparser_args(parser)
 
     return parser
 

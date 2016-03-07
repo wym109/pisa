@@ -29,18 +29,22 @@ def pid_service_factory(pid_mode, **kwargs):
         All subsequent kwargs are passed (as **kwargs), to the class being
         instantiated.
     """
+    if pid_mode == 'mc':
+        from pisa.pid.PIDServiceMC import PIDServiceMC
+        return PIDServiceMC(**kwargs)
+
     pid_mode = pid_mode.lower()
     if pid_mode == 'param':
         from pisa.pid.PIDServiceParam import PIDServiceParam
         return PIDServiceParam(**kwargs)
 
-    if pid_mode == 'mc':
-        from pisa.pid.PIDServiceMC import PIDServiceMC
-        return PIDServiceMC(**kwargs)
-
     if pid_mode == 'kernel':
         from pisa.pid.PIDServiceKernelFile import PIDServiceKernelFile
         return PIDServiceKernelFile(**kwargs)
+
+    if pid_mode == 'smooth':
+        from pisa.pid.PIDServiceSmooth import PIDServiceSmooth
+        return PIDServiceSmooth(**kwargs)
 
     raise ValueError('Unrecognized PID `pid_mode`: "%s"' % pid_mode)
 
@@ -52,7 +56,7 @@ def add_argparser_args(parser):
 
     parser.add_argument(
         '--pid-mode', type=str, required=True,
-        choices=['param', 'mc', 'kernel'], default='param',
+        choices=['mc', 'param', 'kernel', 'smooth'], default='param',
         help='PID service to use'
     )
 

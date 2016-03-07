@@ -1,125 +1,96 @@
-# author: J.L. Lanfranchi
-#         jll1062+pisa@phys.psu.edu
 #
-# date:   March 2, 2016
+# PID service for parametrized PID functions.
 #
-"""
-Generate a 2D PID map using samples from 1D-parameterized PID's (for now, only
-dependence is assumed to be in energy).
-"""
+# author: Lukas Schulte
+#         schulte@physik.uni-bonn.de
+#
+#         Timothy C. Arlen
+#         tca3@psu.edu
+#
+# date:   Oct 21, 2014
+#
+
+import logging
 
 import numpy as np
-from scipy.interpolate import interp1d
+import scipy.stats
 
-from pisa.utils.log import logging, set_verbosity
-from pisa.utils import fileio
 from pisa.pid.PIDServiceBase import PIDServiceBase
+from pisa.resources.resources import find_resource
+from pisa.utils.jsons import from_json
+from pisa.utils.utils import get_bin_centers
 
 
 class PIDServiceParam(PIDServiceBase):
-    """Creates PID maps by interpolation of stored sample points.
-
-    Systematic 'PID_offset' is supported but 'PID_scale' has been
-    removed until its implementation is corrected.
-
-    Parameters
-    ----------
-    ebins, czbins
-    pid_energy_dep
-    PID_offset
     """
-    def __init__(self, ebins, czbins, pid_energy_dep, PID_offset=0, **kwargs):
-        super(PIDServiceParam, self).__init__(ebins, czbins)
-        self.pid_energy_dep = None
-        self.edep_pid_data = None
-        self.edep_ebin_midpoints = None
-        self.edep_interpolants = None
-        self.PID_offset = None
-        self.pid_kernels = None
-        self.update(ebins=ebins, czbins=czbins, pid_energy_dep=pid_energy_dep,
-                    PID_offset=PID_offset)
+    Creates PID kernels from parametrization functions that are stored
+    in a JSON dict. numpy is accessible as np, and scipy.stats.
+    Systematic parameters 'PID_offset' and 'PID_scale' are supported.
+    """
 
-    def update(self, ebins=None, czbins=None, pid_energy_dep=None,
-               PID_offset=None, interp_kind='cubic'):
-        if pid_energy_dep is None:
-            pid_energy_dep = self.pid_energy_dep
-        if ebins is None:
-            ebins = self.ebins
-        if czbins is None:
-            czbins = self.czbins
-
-        # Don't do anything if not necessary
-        if self.pid_kernels is not None and np.all(ebins == self.ebins) and \
-                np.all(czbins == self.czbins) and \
-                np.all(pid_energy_dep == self.pid_energy_dep) and \
-                PID_offset == self.PID_offset:
-            return self.pid_kernels
-
+    def __init__(self, ebins, czbins, pid_paramfile, **kwargs):
+        """
+        Parameters needed to initialize a PID service with parametrizations:
+        * ebins: Energy bin edges
+        * czbins: cos(zenith) bin edges
+        * pid_paramfile: JSON containing the parametrizations
+        """
+        PIDServiceBase.__init__(self)
         self.ebins = ebins
         self.czbins = czbins
-        self.PID_offset = PID_offset
-        ebin_midpoints = (ebins[:-1] + ebins[1:]) / 2.0
-        n_czbins = len(self.czbins) - 1
+        self.get_pid_kernels(pid_paramfile, **kwargs)
 
-        # Load energy-dependent parameterization if necessary
-        new_file = False
-        if self.edep_pid_data is None or \
-                pid_energy_dep != self.pid_energy_dep:
-            new_file = True
-            logging.info('Loading PID-energy-dependence parametrization file'
-                         ' %s' % pid_energy_dep)
-            self.edep_pid_data = fileio.from_file(pid_energy_dep)
-            self.edep_ebin_midpoints = \
-                    self.edep_pid_data.pop('ebin_midpoints')
-            self.labels = sorted(self.edep_pid_data.keys())
-            self.signatures = self.edep_pid_data[self.labels[0]].keys()
 
-        # (Re)create interpolants if necessary
-        if self.edep_interpolants is None or new_file:
-            self.edep_interpolants = {}
-            for label in self.labels:
-                pid_allocations = self.edep_pid_data[label]
-                self.edep_interpolants[label] = {}
-                for sig, allocation in pid_allocations.iteritems():
-                    self.edep_interpolants[label][sig] = interp1d(
-                        x=self.edep_ebin_midpoints,
-                        y=self.edep_pid_data[label][sig]['smooth'],
-                        kind=interp_kind,
-                        copy=False,
-                        bounds_error=True,
-                        fill_value=np.nan,
-                        assume_sorted=True,
-                    )
+    def get_pid_kernels(self, pid_paramfile,
+                        PID_offset=0., PID_scale=1., **kwargs):
 
-        # Assume no variation in PID across coszen
-        coszen_dep = np.ones(n_czbins)
+        # load parametrization file
+        logging.info('Opening PID parametrization file %s'%pid_paramfile)
+        try:
+            param_str = from_json(find_resource(pid_paramfile))
+        except IOError, e:
+            logging.error("Unable to open PID parametrization file %s"
+                          %pid_paramfile)
+            logging.error(e)
+            raise
 
-        self.pid_kernels = {
-            'binning': {'ebins': self.ebins, 'czbins': self.czbins}
-        }
-        for label in self.labels:
-            self.pid_kernels[label] = {}
-            for sig in self.signatures:
-                energy_dep = np.clip(
-                    self.edep_interpolants[label][sig](ebin_midpoints)
-                    - PID_offset, a_min=0, a_max=1
-                )
-                kernel = np.outer(energy_dep, coszen_dep)
-                self.pid_kernels[label][sig] = kernel
+        ecen = get_bin_centers(self.ebins)
+        czcen = get_bin_centers(self.czbins)
+
+        self.pid_kernels = {'binning': {'ebins': self.ebins,
+                                        'czbins': self.czbins}}
+        for signature in param_str.keys():
+            #Generate the functions
+            to_trck_func = eval(param_str[signature]['trck'])
+            to_cscd_func = eval(param_str[signature]['cscd'])
+
+            # Make maps from the functions evaluated at the bin centers
+            #
+            # NOTE: np.where() is to catch the low energy nutau events
+            # that are undefined. Often what happens is that the nutau
+            # parameterization for trck events will drop below 0.0 at
+            # low energies, but there are no nutau events at these
+            # energies anyway, so we just set them to zero (and cscd =
+            # 1.0) if the condition arises.
+            to_trck = to_trck_func(ecen-PID_offset)
+            to_cscd = to_cscd_func(ecen-PID_offset)
+            to_trck = np.where(to_trck < 0.0,0.0,
+                               np.where(to_trck > 1.0,1.0,to_trck))
+            to_cscd = np.where(to_cscd < 0.0,0.0,
+                               np.where(to_cscd > 1.0,1.0,to_cscd))
+            _,to_trck_map = np.meshgrid(czcen, PID_scale*to_trck)
+            _,to_cscd_map = np.meshgrid(czcen, PID_scale*to_cscd)
+
+            self.pid_kernels[signature] = {'trck':to_trck_map,
+                                           'cscd':to_cscd_map}
 
         return self.pid_kernels
-
-    def __get_pid_kernels(self, pid_energy_dep=None, PID_offset=None):
-        return self.update(ebins=self.ebins, czbins=self.czbins,
-                           pid_energy_dep=pid_energy_dep,
-                           PID_offset=PID_offset)
 
     @staticmethod
     def add_argparser_args(parser):
         parser.add_argument(
-            '--pid-energy-dep', metavar='RESOURCE_NAME', type=str,
-            default='pid/pingu_v36/'
-            'pid_energy_dependence__pingu_v36__runs_388-390__proc_5__pid_1.json',
+            '--pid-paramfile', metavar='RESOURCE_NAME', type=str,
+            default='pid/V36_pid_recoEgy.json',
             help='''[ PID-Param ] JSON file containing PID parameterizations'
             energy dependence for each particle signature'''
         )

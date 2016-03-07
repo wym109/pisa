@@ -139,7 +139,7 @@ class TemplateMaker:
         # Instantiate a PID service
         self.pid_service = PID.pid_service_factory(
             ebins=self.ebins, czbins=self.czbins,
-            **template_params_values['pid_constructor_params']
+            **template_params_values
         )
 
 
