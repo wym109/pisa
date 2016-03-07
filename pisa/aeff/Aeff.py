@@ -113,7 +113,7 @@ def add_argparser_args(parser):
 
     parser.add_argument(
         '--aeff-mode', type=str, required=True,
-        choices=['mc', 'param', 'smooth'], default='param',
+        choices=['mc', 'param', 'smooth'],
         help='Aeff service to use'
     )
 

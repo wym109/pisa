@@ -76,11 +76,12 @@ class AeffServiceSmooth(object):
     def __init__(self, ebins, czbins, aeff_energy_smooth, aeff_coszen_smooth,
                  **kwargs):
         logging.info('Initializing AeffServicePar...')
-        self.__ebins = None
-        self.__czbins = None
+        self.ebins = None
+        self.czbins = None
         self.__aeff_energy_smooth = None
         self.__aeff_coszen_smooth = None
-        self.update(ebins=ebins, czbins=czbins, aeff_energy_smooth=aeff_energy_smooth,
+        self.update(ebins=ebins, czbins=czbins,
+                    aeff_energy_smooth=aeff_energy_smooth,
                     aeff_coszen_smooth=aeff_coszen_smooth)
 
     def update(self, ebins, czbins, aeff_energy_smooth, aeff_coszen_smooth,
@@ -89,12 +90,12 @@ class AeffServiceSmooth(object):
         #  NOTE: this is simplistic; there might be reason to compare e.g. the
         #  data contained within a file referenced rather than just looking at
         #  string equivalency. That's a TODO if it's ever an issue...
-        if np.all(ebins == self.__ebins) and np.all(czbins == self.__czbins) \
+        if np.all(ebins == self.ebins) and np.all(czbins == self.czbins) \
                 and aeff_energy_smooth == self.__aeff_energy_smooth and \
                 aeff_coszen_smooth == self.__aeff_coszen_smooth:
             return
-        self.__ebins = ebins
-        self.__czbins = czbins
+        self.ebins = ebins
+        self.czbins = czbins
 
         ebin_midpoints = (ebins[:-1] + ebins[1:])/2.0
         czbin_midpoints = (czbins[:-1] + czbins[1:])/2.0
@@ -211,14 +212,14 @@ class AeffServiceSmooth(object):
         parser.add_argument(
             '--aeff-energy-smooth', metavar='RESOURCE', type=str,
             default='aeff/pingu_v36/'
-            'aeff_energy_dependence__pingu_v36__runs_388-390__proc_v5.json',
-            help='''Resource containing energy-dependent parameterization of
-            effective areas.'''
+            'aeff_energy_smooth__pingu_v36__runs_388-390__proc_v5.json',
+            help='''Resource containing smoothed energy dependence of effective
+            areas.'''
         )
         parser.add_argument(
             '--aeff-coszen-smooth', metavar='RESOURCE', type=str,
             default='aeff/pingu_v36/'
-            'aeff_coszen_dependence__pingu_v36__runs_388-390__proc_v5.json',
-            help='''Resource containing coszen-dependent parameterizations of
-            effective areas.'''
+            'aeff_coszen_smooth__pingu_v36__runs_388-390__proc_v5.json',
+            help='''Resource containing smmothed coszen dependence of effective
+            areas.'''
         )
