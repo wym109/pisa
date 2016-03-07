@@ -27,17 +27,17 @@ class PIDServiceKernelFile(PIDServiceBase):
         * czbins: cos(zenith) bin edges
         * pid_kernelfile: JSON containing the kernel dict
         """
-        super(PIDServiceKernelFile, self).__init__()
+        super(PIDServiceKernelFile, self).__init__(ebins, czbins)
         self.__pid_kernelfile = None
         if 'pid_kernelfile' in kwargs:
             self.get_pid_kernels(**kwargs)
 
     def get_pid_kernels(self, pid_kernelfile, force_reload=False, **kwargs):
         if not force_reload and pid_kernelfile == self.__pid_kernelfile:
-            return self.__pid_kernels
-        self.__pid_kernels = fileio.from_file(pid_kernelfile)
+            return self.pid_kernels
+        self.pid_kernels = fileio.from_file(pid_kernelfile)
         self.__pid_kernelfile = pid_kernelfile
-        return self.__pid_kernels
+        return self.pid_kernels
 
     @staticmethod
     def add_argparser_args(parser):

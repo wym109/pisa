@@ -36,7 +36,7 @@ def pid_service_factory(pid_mode, **kwargs):
 
     if pid_mode == 'mc':
         from pisa.pid.PIDServiceMC import PIDServiceMC
-        return PIDServiceParam(**kwargs)
+        return PIDServiceMC(**kwargs)
 
     if pid_mode == 'kernel':
         from pisa.pid.PIDServiceKernelFile import PIDServiceKernelFile

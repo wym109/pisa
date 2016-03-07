@@ -343,7 +343,7 @@ if __name__ == '__main__':
             if k == 'params':
                 continue
             evtrt_nh = final_event_rate_nh[k]
-            evtrt_ih = final_event_rate_no_osc[k]
+            evtrt_ih = final_event_rate_ih[k]
             dist_map = plot.distinguishability_map(evtrt_ih,
                                                    evtrt_nh)
             if k == 'trck':
@@ -353,16 +353,16 @@ if __name__ == '__main__':
 
             f = plt.figure(figsize=(24,5), dpi=50)
             ax = f.add_subplot(131)
-            plot.show_map(evtrt_nh, title=k,
+            plot.show_map(evtrt_nh, title=k, log=True,
                           cmap=mpl.cm.hot)
 
             ax = f.add_subplot(132)
-            plot.show_map(evtrt_ih, #title=k + ' ih',
+            plot.show_map(evtrt_ih, log=True, #title=k + ' ih',
                           cmap=mpl.cm.hot)
 
             ax = f.add_subplot(133)
             plot.show_map(dist_map, #title=k + ' delta',
-                          cmap=mpl.cm.seismic)
+                         cmap=mpl.cm.seismic)
             ax.get_children()[0].set_clim(clim)
 
         plt.draw()

@@ -29,16 +29,13 @@ class PIDServiceParam(PIDServiceBase):
     PID_offset
     """
     def __init__(self, ebins, czbins, pid_energy_dep, PID_offset=0, **kwargs):
-        super(PIDServiceParam, self).__init__()
-        self.ebins = None
-        self.czbins = None
+        super(PIDServiceParam, self).__init__(ebins, czbins)
         self.pid_energy_dep = None
         self.edep_pid_data = None
         self.edep_ebin_midpoints = None
         self.edep_interpolants = None
         self.PID_offset = None
         self.pid_kernels = None
-        logging.trace(str(self.ebins))
         self.update(ebins=ebins, czbins=czbins, pid_energy_dep=pid_energy_dep,
                     PID_offset=PID_offset)
 

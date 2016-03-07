@@ -12,6 +12,7 @@ from itertools import izip
 import numpy as np
 
 from pisa.utils.log import logging
+from pisa.pid.PIDServiceBase import PIDServiceBase
 from pisa.utils.utils import get_bin_sizes
 import pisa.utils.flavInt as flavInt
 from pisa.utils.events import Events
@@ -20,7 +21,7 @@ from pisa.utils.dataProcParams import DataProcParams
 
 # TODO: implement cuts via pertinent DataProcParams
 
-class PIDServiceMC(object):
+class PIDServiceMC(PIDServiceBase):
     """
     Takes a PISA events HDF5 file and creates 2D-histogrammed PID in terms of
     energy and coszen, for each specified particle "signature" (aka ID).
@@ -28,7 +29,7 @@ class PIDServiceMC(object):
     def __init__(self, ebins, czbins, events, pid_ver, remove_true_downgoing,
                  pid_spec=None, pid_spec_source=None, compute_error=False,
                  replace_invalid=False, **kwargs):
-        super(PIDServiceParam, self).__init__()
+        super(PIDServiceBase, self).__init__(ebins, czbins)
 
         self.events_source = None
         self.events = None
@@ -63,19 +64,19 @@ class PIDServiceMC(object):
             compute_error = self.compute_error
 
         # TODO: add stateful return-early logic
-        #if ebins == self.__ebins and \
-        #        czbins == self.__czbins and \
+        #if ebins == self.ebins and \
+        #        czbins == self.czbins and \
         #        events == self.events_source and \
         #        pid_ver == self.pid_ver and \
         #        pid_spec == self.pid_spec and \
         #        (not compute_error or (compute_error == self.compute_error)):
         #    return
-        self.__ebins = ebins
-        self.__czbins = czbins
+        self.ebins = ebins
+        self.czbins = czbins
 
-        histo_binspec = (self.__ebins, self.__czbins)
-        n_ebins = len(self.__ebins) - 1
-        n_czbins = len(self.__czbins) - 1
+        histo_binspec = (self.ebins, self.czbins)
+        n_ebins = len(self.ebins) - 1
+        n_czbins = len(self.czbins) - 1
         self.compute_error = compute_error
         logging.info('Updating PIDServiceMC PID histograms...')
 
@@ -129,7 +130,7 @@ class PIDServiceMC(object):
                 proc_ver=self.events.metadata['proc_ver'],
                 pid_specs=self.pid_spec_source
             )
-        signatures = self.pid_spec.get_signatures()
+        self.signatures = self.pid_spec.get_signatures()
 
         # TODO: add importance weights, error computation
 
@@ -139,13 +140,13 @@ class PIDServiceMC(object):
             return_fields=['reco_energy', 'reco_coszen'],
         )
 
-        self.pid_maps = {'binning': {'ebins': self.__ebins,
-                                     'czbins': self.__czbins}}
-        self.pid_maps_rel_error = {'binning': {'ebins': self.__ebins,
-                                               'czbins': self.__czbins}}
+        self.pid_kernels = {'binning': {'ebins': self.ebins,
+                                     'czbins': self.czbins}}
+        self.pid_kernels_rel_error = {'binning': {'ebins': self.ebins,
+                                               'czbins': self.czbins}}
         for label in ['nue_cc', 'numu_cc', 'nutau_cc', 'nuall_nc']:
             rep_flavint = flavInt.NuFlavIntGroup(label)[0]
-            self.pid_maps[label] = {}
+            self.pid_kernels[label] = {}
             raw_histo = {}
             raw_histo_err = {}
             total_histo = np.zeros([n_ebins, n_czbins])
@@ -153,7 +154,7 @@ class PIDServiceMC(object):
             if self.compute_error:
                 total_err2 = np.zeros([n_ebins, n_czbins])
 
-            for sig in signatures:
+            for sig in self.signatures:
                 flav_sigdata = self.separated_events[rep_flavint][sig]
                 reco_e = flav_sigdata['reco_energy']
                 reco_cz = flav_sigdata['reco_coszen']
@@ -185,8 +186,8 @@ class PIDServiceMC(object):
                             (np.clip(raw_histo[sig], 1, np.inf)**2)
                     self.error_computed = True
 
-            for sig in signatures:
-                self.pid_maps[label][sig] = raw_histo[sig] / total_histo
+            for sig in self.signatures:
+                self.pid_kernels[label][sig] = raw_histo[sig] / total_histo
 
                 invalid_idx = total_histo == 0
                 valid_idx = 1-invalid_idx
@@ -197,7 +198,8 @@ class PIDServiceMC(object):
                         ' entry(ies)!' % (label, sig, num_invalid)
 
                 if num_invalid > 0 and not replace_invalid:
-                    raise ValueError(message)
+                    pass
+                    #raise ValueError(message)
 
                 replace_idx = []
                 if num_invalid > 0 and replace_invalid:
@@ -207,8 +209,8 @@ class PIDServiceMC(object):
                         dist = np.abs(valid_idx-idx)
                         nearest_valid_idx = valid_idx[np.where(dist==np.min(dist))[0][0]]
                         replace_idx.append(nearest_valid_idx)
-                        self.pid_maps[label][sig][idx] = \
-                                self.pid_maps[label][sig][nearest_valid_idx]
+                        self.pid_kernels[label][sig][idx] = \
+                                self.pid_kernels[label][sig][nearest_valid_idx]
 
             # Relative error is same for all signatures, since equations
             # implemented are
@@ -221,16 +223,18 @@ class PIDServiceMC(object):
                         total_err2[orig_idx] = total_err2[repl_idx]
                 #total_err2[total_err2 == 0] = \
                 #        np.min(total_err2[total_err2 != 0])
-                self.pid_maps_rel_error[label] = np.sqrt(total_err2)
+                self.pid_kernels_rel_error[label] = np.sqrt(total_err2)
+
+        return self.pid_kernels
 
     def get_pid(self, **kwargs):
         """Returns the PID maps"""
-        return self.pid_maps
+        return self.pid_kernels
     
     def get_rel_error(self):
         """Returns the PID maps' relative error"""
         assert self.error_computed
-        return self.pid_maps_rel_error
+        return self.pid_kernels_rel_error
 
     @staticmethod
     def add_argparser_args(parser):

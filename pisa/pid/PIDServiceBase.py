@@ -24,12 +24,12 @@ class PIDServiceBase(object):
     functions, MC or whatever) has to be implemented in the derived PID 
     services.
     """
-    def __init__(self):
+    def __init__(self, ebins, czbins):
         """Store state"""
         logging.debug('Instantiating %s' % self.__class__.__name__)
         self.signatures = ['trck', 'cscd']
-        self.ebins = None
-        self.czbins = None
+        self.ebins = ebins
+        self.czbins = czbins
         self.input_event_rate_hash = None
         self.F_recompute_output = True
         self.pid_kernels = None
