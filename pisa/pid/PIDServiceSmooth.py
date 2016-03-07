@@ -90,7 +90,7 @@ class PIDServiceSmooth(PIDServiceBase):
                         copy=False,
                         bounds_error=True,
                         fill_value=np.nan,
-                        assume_sorted=True,
+                        #assume_sorted=True,
                     )
 
         # Assume no variation in PID across coszen

@@ -311,8 +311,7 @@ class CrossSections(flavInt.FlavIntData):
             combined_xs = self.__combineXS(flavintgroup)
             self.__interpolants[flavintgroup] = \
                     interp1d(x=self.energy, y=combined_xs, kind='linear',
-                             copy=False, bounds_error=True, fill_value=0,
-                             assume_sorted=True)
+                             copy=False, bounds_error=True, fill_value=0)
 
     def __combineXS(self, flavintgroup):
         """Combine all cross sections specified by the flavints in
