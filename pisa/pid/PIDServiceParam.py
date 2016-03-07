@@ -35,9 +35,7 @@ class PIDServiceParam(PIDServiceBase):
         * czbins: cos(zenith) bin edges
         * pid_paramfile: JSON containing the parametrizations
         """
-        PIDServiceBase.__init__(self)
-        self.ebins = ebins
-        self.czbins = czbins
+        PIDServiceBase.__init__(self, ebins, czbins)
         self.get_pid_kernels(pid_paramfile, **kwargs)
 
 

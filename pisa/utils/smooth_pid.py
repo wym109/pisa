@@ -4,20 +4,19 @@
 # date:   2016-03-01
 #
 """
-One-dimensional PID's are "parameerized" (into datapoints meant to be
-interpolated between) as functions of energy and cosine-zenith. Due to not much
-coszen dependence (this must be verified though by examining produced plots!),
-this dependence is not currently used by PISA. Nonetheless, the output is there
-if ever it's deemed worthwhile to use.
+One-dimensional PID's are smoothed and sampled, yielding data points meant to
+be interpolated between) as functions of energy and cosine-zenith. Due to not
+much coszen dependence (this must be verified though by examining produced
+plots!), this dependence is not currently used by PISA. Nonetheless, the output
+is there if ever it's deemed worthwhile to use.
 
 Note that the default settings seem to work well, at least for PINGU geometries
 V36, V38, and V39.
 """
 
-# TODO: make parameterizations a function that's called once for E-dep and once
-#       for CZ-dep
-# TODO: store metadata about how parameterizations were created to the produced
-#       data files
+# TODO: make smoothing a function that's called once for E-dep and once for
+#       CZ-dep
+# TODO: store metadata about how smoothing is done in produced files
 # TODO: use CombinedFlavIntData for storage of the results
 # TODO: use weights in Blackman-window smoothing algo
 
@@ -39,9 +38,9 @@ import pisa.utils.utils as utils
 
 
 parser = ArgumentParser(
-    '''Generate smoothed PID parameterization curves at energy bin centers.
-    NOTE: at present, uses *ONLY* the MC-true-upgoing events, but parameterizes
-    in reconstructed energy and coszen.''',
+    '''Smooth PID at energy bin centers. NOTE: at present, uses *ONLY* the
+    MC-true-upgoing events, but smoothes in reconstructed energy and
+    coszen.''',
     formatter_class=ArgumentDefaultsHelpFormatter,
 )
 parser.add_argument(
@@ -177,7 +176,7 @@ rel_errors = pidmc.get_rel_error()
 param_pid_maps = {'binning': {'ebins':ebins, 'czbins':czbins}}
 histdata = {}
 smooth_energy_dep = {}
-edep_store = {'ebin_midpoints': ebin_midpoints}
+esmooth_store = {'ebin_midpoints': ebin_midpoints}
 for label, label_data in pidmc.pid_maps.iteritems():
     if label == 'binning':
         continue
@@ -185,7 +184,7 @@ for label, label_data in pidmc.pid_maps.iteritems():
 
     histdata[label] = {}
     smooth_energy_dep[label] = {}
-    edep_store[label] = {}
+    esmooth_store[label] = {}
     for sig in sigs_to_spline:
         histdata[label][sig] = np.squeeze(label_data[sig])
 
@@ -240,7 +239,7 @@ for label, label_data in pidmc.pid_maps.iteritems():
     for sig in all_sigs:
         smooth_energy_dep[label][sig] *= scale_factor
         # Populate datastructure to be written to disk
-        edep_store[label][sig] = {
+        esmooth_store[label][sig] = {
             'histo': histdata[label][sig],
             'histo_err': np.squeeze(rel_errors[label])*np.squeeze(histdata[label][sig]),
             'smooth': smooth_energy_dep[label][sig],
@@ -269,7 +268,7 @@ for label, label_data in pidmc.pid_maps.iteritems():
                 lab_sfx = r'; id$\Rightarrow$' + sig
                 leg_sfx = ''
 
-            store = edep_store[label][sig]
+            store = esmooth_store[label][sig]
             stepHist(
                 ebins, y=store['histo'], yerr=store['histo_err'],
                 ax=ax, color=(0.8,0.2,0.6),
@@ -312,7 +311,7 @@ outfname = (
 )
 outfpath = os.path.join(outdir, outfname)
 logging.info('Saving PID energy dependence info to file "%s"' % outfpath)
-jsons.to_json(edep_store, outfpath)
+jsons.to_json(esmooth_store, outfpath)
 
 
 if make_plots:
@@ -479,7 +478,7 @@ for label, label_data in pidmc.pid_maps.iteritems():
 
 # Derive output filename
 outfname = (
-    'pid_coszen_dependence__%s_%s__runs_%s__proc_%s__pid_%s.json' % (
+    'pid_coszen_smooth__%s_%s__runs_%s__proc_%s__pid_%s.json' % (
         events.metadata['detector'],
         events.metadata['geom'],
         utils.list2hrlist(events.metadata['runs']),
@@ -488,14 +487,14 @@ outfname = (
     )
 )
 outfpath = os.path.join(outdir, outfname)
-logging.info('Saving PID coszen dependence info to file "%s"' % outfpath)
+logging.info('Saving PID coszen smooth info to file "%s"' % outfpath)
 jsons.to_json(czdep_store, outfpath)
 
 
 if make_plots:
     fig.tight_layout(rect=(0,0,1,0.96))
     basefname = (
-        'pid_coszen_dependence__%s_%s__runs_%s__proc_%s__pid_%s'
+        'pid_coszen_smooth__%s_%s__runs_%s__proc_%s__pid_%s'
         % (events.metadata['detector'], events.metadata['geom'],
            utils.list2hrlist(events.metadata['runs']),
            events.metadata['proc_ver'], args.pid_ver)

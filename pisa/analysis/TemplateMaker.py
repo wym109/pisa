@@ -307,12 +307,13 @@ if __name__ == '__main__':
 
     # Now get the actual template
     with Timer(verbose=False) as t:
-        flux_maps_nh, osc_flux_maps_nh, event_rate_maps_nh, \
-        event_rate_reco_maps_nh, final_event_rate_nh = \
+        stage_outputs = \
                 template_maker.get_template(
                     template_params_values_nh,
                     return_stages=True
                 )
+        flux_maps_nh, osc_flux_maps_nh, event_rate_maps_nh, \
+        event_rate_reco_maps_nh, final_event_rate_nh = stage_outputs
     tprofile.info('==> elapsed time to get template: %s sec' % t.secs)
     
     with Timer(verbose=False) as t:
@@ -330,8 +331,8 @@ if __name__ == '__main__':
         )
     tprofile.info('==> elapsed time to get template: %s sec' % t.secs)
 
-    #logging.info('Saving file to %s' % args.outfile)
-    #to_file(final_event_rate, args.outfile)
+    logging.info('Saving file to %s' % args.outfile)
+    to_file(stage_outputs, args.outfile)
 
     if args.plot:
         import os

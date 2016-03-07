@@ -4,18 +4,17 @@
 # date:   2016-03-01
 #
 """
-One-dimensional effective areas are "parameerized" (meant to be interpolated
-between) as functions of energy and cosine-zenith.
+One-dimensional effective areas are smoothed and sampled (meant to be
+interpolated between) as functions of energy and cosine-zenith, independently.
 
 Events of a given flavor/interaction type (or all events from grouped
 flavor/interaction types) from a PISA have their effective areas computed. This
 is smoothed with a spline, and the spline fit is sampled at the specified
-energy bins' midpoints (on a linear scale) to arrive at the "parameterization".
+energy bins' midpoints (on a linear scale).
 """
 
-# TODO: make energy-dependent and coszen-dependent parameterizations separate
-# TODO: store metadata about how parameterizations were created to the produced
-#       data files
+# TODO: make energy-dependent and coszen-dependent smoothing a function
+# TODO: store metadata about how smoothing was done
 # TODO: use CombinedFlavIntData for storage of the results
 
 import os,sys
@@ -40,16 +39,16 @@ parser = ArgumentParser(
     formatter_class=ArgumentDefaultsHelpFormatter,
 )
 parser.add_argument(
-    '--events-for-edep', metavar='RESOURCE_LOC', type=str,
+    '--events-for-esmooth', metavar='RESOURCE_LOC', type=str,
     required=True,
-    help='''PISA events file used for computing energy dependence. It is
+    help='''PISA events file used for computing energy smooth. It is
     expected that nuall_nc and nuallbar_nc are joined in this file, while other
     flavor/interaction types are unjoined.'''
 )
 parser.add_argument(
-    '--events-for-czdep', metavar='RESOURCE_LOC', type=str,
+    '--events-for-czsmooth', metavar='RESOURCE_LOC', type=str,
     required=True,
-    help='''PISA events file used for computing coszen dependence. It is
+    help='''PISA events file used for computing coszen smooth. It is
     expected that nue_cc+nuebar_cc, numu_cc+numubar_cc, nutau_cc+nutaubar_cc,
     and nuall_nc+nuallbar_nc are joined in this file.'''
 )
@@ -101,26 +100,26 @@ args = parser.parse_args()
 
 set_verbosity(args.verbose)
 
-edep_events_fpath = args.events_for_edep
-czdep_events_fpath = args.events_for_czdep
+esmooth_events_fpath = args.events_for_esmooth
+czsmooth_events_fpath = args.events_for_czsmooth
 outdir = os.path.expandvars(os.path.expanduser(args.outdir))
 make_plots = not args.no_plots
 
 # Load the events
-edep_events = Events(edep_events_fpath)
-czdep_events = Events(czdep_events_fpath)
+esmooth_events = Events(esmooth_events_fpath)
+czsmooth_events = Events(czsmooth_events_fpath)
 
 # Verify user-specified files are compatible with one another
-assert czdep_events.metadata['detector'] == edep_events.metadata['detector']
-assert czdep_events.metadata['geom'] == edep_events.metadata['geom']
-assert np.alltrue(czdep_events.metadata['runs'] == edep_events.metadata['runs'])
-assert czdep_events.metadata['proc_ver'] == edep_events.metadata['proc_ver']
-assert np.alltrue(czdep_events.metadata['cuts'] == edep_events.metadata['cuts'])
+assert czsmooth_events.metadata['detector'] == esmooth_events.metadata['detector']
+assert czsmooth_events.metadata['geom'] == esmooth_events.metadata['geom']
+assert np.alltrue(czsmooth_events.metadata['runs'] == esmooth_events.metadata['runs'])
+assert czsmooth_events.metadata['proc_ver'] == esmooth_events.metadata['proc_ver']
+assert np.alltrue(czsmooth_events.metadata['cuts'] == esmooth_events.metadata['cuts'])
 
-# Define binning for 1D A_eff parameterizations. Note that a single CZ bin is
+# Define binning for 1D A_eff smooth data. Note that a single CZ bin is
 # employed to collapse that dimension of the histogram for characterizing
-# energy dependence, and likewise a single E bin is employed to collapse that
-# dimension for characterizing CZ dependence.
+# energy smooth, and likewise a single E bin is employed to collapse that
+# dimension for characterizing CZ smooth.
 emin, emax, n_ebins = args.emin, args.emax, args.n_ebins
 czmin, czmax, n_czbins = -1, +1, args.n_czbins
 
@@ -133,13 +132,13 @@ czbin_midpoints = (czbins[:-1] + czbins[1:])/2.0
 #===============================================================================
 # Energy
 #===============================================================================
-# NOTE forcing only upgoing to be included for computing energy-dependence
+# NOTE forcing only upgoing to be included for computing energy-smooth
 single_czbin = [-1, 0]
 assert len(single_czbin)-1 == 1
 
 # Verify flavints joined in the file are those expected
 grouped = sorted([flavInt.NuFlavIntGroup(fi)
-                  for fi in edep_events.metadata['flavints_joined']])
+                  for fi in esmooth_events.metadata['flavints_joined']])
 should_be_grouped = sorted([flavInt.NuFlavIntGroup('nuall_nc'),
                             flavInt.NuFlavIntGroup('nuallbar_nc')])
 if grouped != should_be_grouped:
@@ -172,21 +171,21 @@ if make_plots:
     ax_anti = ax_anti.flatten()
     basetitle = (
         'effective areas [m$^2$], %s geometry %s, MC runs %s with ver'
-        ' %s processing' % (edep_events.metadata['detector'],
-                            edep_events.metadata['geom'],
-                            utils.list2hrlist(edep_events.metadata['runs']),
-                            edep_events.metadata['proc_ver'])
+        ' %s processing' % (esmooth_events.metadata['detector'],
+                            esmooth_events.metadata['geom'],
+                            utils.list2hrlist(esmooth_events.metadata['runs']),
+                            esmooth_events.metadata['proc_ver'])
     )
     fig_part.suptitle('Particle ' + basetitle, fontsize=12)
     fig_anti.suptitle('Antiparticle ' + basetitle, fontsize=12)
 
-aeff_svc = AeffServiceMC(ebins, single_czbin, edep_events_fpath,
+aeff_svc = AeffServiceMC(ebins, single_czbin, esmooth_events_fpath,
                          compute_error=True)
 aeff_data, aeff_err = aeff_svc.get_aeff_with_error()
 
 spline_fit = flavInt.FlavIntData()
 smoothed_aeff = flavInt.FlavIntData()
-edep_store = {'ebin_midpoints': ebin_midpoints}
+esmooth_store = {'ebin_midpoints': ebin_midpoints}
 for group in ungrouped + grouped:
     # Only need to do computations for a single flavint from the group, since
     # all data in other flavints is just duplicated
@@ -216,7 +215,7 @@ for group in ungrouped + grouped:
     smoothed_aeff[rep_flavint][zero_and_nan_indices] = 0
 
     # Populate datastructure to be written to disk
-    edep_store[repr(group)] = {
+    esmooth_store[repr(group)] = {
         'histo': s_aeff,
         'histo_err': s_aeff_err,
         'smooth': smoothed_aeff[rep_flavint],
@@ -264,25 +263,25 @@ for group in ungrouped + grouped:
 
 # Derive output filename
 outfname = (
-    'aeff_energy_dependence__%s_%s__runs_%s__proc_%s.json' % (
-        edep_events.metadata['detector'],
-        edep_events.metadata['geom'],
-        utils.list2hrlist(edep_events.metadata['runs']),
-        edep_events.metadata['proc_ver']
+    'aeff_energy_smooth__%s_%s__runs_%s__proc_%s.json' % (
+        esmooth_events.metadata['detector'],
+        esmooth_events.metadata['geom'],
+        utils.list2hrlist(esmooth_events.metadata['runs']),
+        esmooth_events.metadata['proc_ver']
     )
 )
 outfpath = os.path.join(outdir, outfname)
-logging.info('Saving Aeff energy dependence info to file "%s"' % outfpath)
-jsons.to_json(edep_store, outfpath)
+logging.info('Saving Aeff energy smooth info to file "%s"' % outfpath)
+jsons.to_json(esmooth_store, outfpath)
 
 if make_plots:
     fig_part.tight_layout(rect=(0,0,1,0.96))
     fig_anti.tight_layout(rect=(0,0,1,0.96))
     basefname = (
-        'aeff_energy_dependence__%s_%s__runs_%s__proc_%s__'
-        % (edep_events.metadata['detector'], edep_events.metadata['geom'],
-           utils.list2hrlist(edep_events.metadata['runs']),
-           edep_events.metadata['proc_ver'])
+        'aeff_energy_smooth__%s_%s__runs_%s__proc_%s__'
+        % (esmooth_events.metadata['detector'], esmooth_events.metadata['geom'],
+           utils.list2hrlist(esmooth_events.metadata['runs']),
+           esmooth_events.metadata['proc_ver'])
     )
     fig_part.savefig(os.path.join(outdir, basefname + 'particles.pdf'))
     fig_part.savefig(os.path.join(outdir, basefname + 'particles.png'))
@@ -295,7 +294,7 @@ if make_plots:
 #===============================================================================
 # Verify flavints joined in the file are those expected
 grouped = sorted([flavInt.NuFlavIntGroup(fi)
-                  for fi in czdep_events.metadata['flavints_joined']])
+                  for fi in czsmooth_events.metadata['flavints_joined']])
 should_be_grouped = sorted([
     flavInt.NuFlavIntGroup('nue_cc+nuebar_cc'),
     flavInt.NuFlavIntGroup('numu_cc+numubar_cc'),
@@ -318,7 +317,7 @@ ungrouped = sorted([flavInt.NuFlavIntGroup(fi) for fi in individual_flavints])
 logging.debug("Groupings: %s" % grouped)
 logging.debug("Ungrouped: %s" % ungrouped)
 
-# Look at coszen dependence for all energies included in the specified binning,
+# Look at coszen smooth for all energies included in the specified binning,
 # lumped together into a single bin
 single_ebin = [emin, emax]
 assert len(single_ebin)-1 == 1
@@ -333,13 +332,13 @@ if make_plots:
     axgrp = axgrp.flatten()
     fig.suptitle('Particle+antiparticle ' + basetitle, fontsize=12)
 
-aeff_svc = AeffServiceMC(single_ebin, czbins, czdep_events_fpath,
+aeff_svc = AeffServiceMC(single_ebin, czbins, czsmooth_events_fpath,
                          compute_error=True)
 aeff_data, aeff_err = aeff_svc.get_aeff_with_error()
 
 spline_fit = flavInt.FlavIntData()
 smoothed_aeff = flavInt.FlavIntData()
-czdep_store = {'czbin_midpoints': czbin_midpoints}
+czsmooth_store = {'czbin_midpoints': czbin_midpoints}
 for group in ungrouped + grouped:
     rep_flavint = group.flavints()[0]
     s_aeff = np.squeeze(aeff_data[rep_flavint])
@@ -362,7 +361,7 @@ for group in ungrouped + grouped:
     smoothed_aeff[rep_flavint][zero_and_nan_indices] = 0
 
     # Populate datastructure to be written to disk
-    czdep_store[repr(group)] = {
+    czsmooth_store[repr(group)] = {
         'histo': s_aeff,
         'histo_err': s_aeff_err,
         'smooth': smoothed_aeff[rep_flavint],
@@ -410,24 +409,24 @@ for group in ungrouped + grouped:
 
 # Derive output filename
 outfname = (
-    'aeff_coszen_dependence__%s_%s__runs_%s__proc_%s.json' % (
-        czdep_events.metadata['detector'],
-        czdep_events.metadata['geom'],
-        utils.list2hrlist(czdep_events.metadata['runs']),
-        czdep_events.metadata['proc_ver']
+    'aeff_coszen_smooth__%s_%s__runs_%s__proc_%s.json' % (
+        czsmooth_events.metadata['detector'],
+        czsmooth_events.metadata['geom'],
+        utils.list2hrlist(czsmooth_events.metadata['runs']),
+        czsmooth_events.metadata['proc_ver']
     )
 )
 outfpath = os.path.join(outdir, outfname)
-logging.info('Saving Aeff coszen dependence info to file "%s"' % outfpath)
-jsons.to_json(czdep_store, outfpath)
+logging.info('Saving Aeff coszen smooth info to file "%s"' % outfpath)
+jsons.to_json(czsmooth_store, outfpath)
 
 if make_plots:
     fig.tight_layout(rect=(0,0,1,0.96))
     basefname = (
-        'aeff_coszen_dependence__%s_%s__runs_%s__proc_%s'
-        % (czdep_events.metadata['detector'], czdep_events.metadata['geom'],
-           utils.list2hrlist(czdep_events.metadata['runs']),
-           czdep_events.metadata['proc_ver'])
+        'aeff_coszen_smooth__%s_%s__runs_%s__proc_%s'
+        % (czsmooth_events.metadata['detector'], czsmooth_events.metadata['geom'],
+           utils.list2hrlist(czsmooth_events.metadata['runs']),
+           czsmooth_events.metadata['proc_ver'])
     )
     fig.savefig(os.path.join(outdir, basefname + '.pdf'))
     fig.savefig(os.path.join(outdir, basefname + '.png'))
