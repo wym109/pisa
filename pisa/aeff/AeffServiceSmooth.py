@@ -155,7 +155,7 @@ class AeffServiceSmooth(object):
                 copy=False,
                 bounds_error=False,
                 fill_value=np.nan,
-                assume_sorted=True
+                #assume_sorted=True
             )
             czdep_interpolant = interp1d(
                 x=self.czdep_store['czbin_midpoints'],
@@ -164,7 +164,7 @@ class AeffServiceSmooth(object):
                 copy=False,
                 bounds_error=False,
                 fill_value=np.nan,
-                assume_sorted=True
+                #assume_sorted=True
             )
             interpolated_edep_aeff = edep_interpolant(ebin_midpoints)
             interpolated_czdep_aeff = czdep_interpolant(czbin_midpoints)
