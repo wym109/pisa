@@ -266,6 +266,8 @@ if __name__ == '__main__':
                          action='store_false',
                          help="select the inverted hierarchy")
 
+    parser.add_argument('--plot', action='store_true',
+                        help='plot resulting maps')
     parser.add_argument('-v', '--verbose', action='count', default=None,
                         help='set verbosity level.')
     parser.add_argument('-s', '--save_all', action='store_true', default=False,
@@ -284,27 +286,84 @@ if __name__ == '__main__':
         #Select a hierarchy
         logging.info('Selected %s hierarchy' %
                      ('normal' if args.normal else 'inverted'))
-        template_params = select_hierarchy(model_settings['params'],
-                                           normal_hierarchy=args.normal)
+        template_params_nh = select_hierarchy(
+            model_settings['params'], normal_hierarchy=True
+        )
+        template_params_ih = select_hierarchy(
+            model_settings['params'], normal_hierarchy=False
+        )
 
         # Intialize template maker
-        template_params_values = get_values(template_params)
-        #ebins = model_settings['binning']['ebins']
-        #czbins = model_settings['binning']['czbins']
-        #oversample_e = model_settings['binning']['oversample_e']
-        #oversample_cz = model_settings['binning']['oversample_cz']
-        template_maker = TemplateMaker(template_params_values,
+        template_params_values_nh = get_values(template_params_nh)
+        template_params_values_ih = get_values(template_params_ih)
+        ebins = model_settings['binning']['ebins']
+        czbins = model_settings['binning']['czbins']
+        oversample_e = model_settings['binning']['oversample_e']
+        oversample_cz = model_settings['binning']['oversample_cz']
+        template_maker = TemplateMaker(template_params_values_nh,
                                        **model_settings['binning'])
     tprofile.info('  ==> elapsed time to initialize templates: %s sec'
                   % t.secs)
 
     # Now get the actual template
     with Timer(verbose=False) as t:
-        template_maps = template_maker.get_template(
-            get_values(template_params),
-            return_stages=args.save_all
+        flux_maps_nh, osc_flux_maps_nh, event_rate_maps_nh, \
+        event_rate_reco_maps_nh, final_event_rate_nh = \
+                template_maker.get_template(
+                    template_params_values_nh,
+                    return_stages=True
+                )
+    tprofile.info('==> elapsed time to get template: %s sec' % t.secs)
+    
+    with Timer(verbose=False) as t:
+        flux_maps_ih, osc_flux_maps_ih, event_rate_maps_ih, \
+        event_rate_reco_maps_ih, final_event_rate_ih = \
+                template_maker.get_template(
+                    template_params_values_ih,
+                    return_stages=True
+                )
+    tprofile.info('==> elapsed time to get template: %s sec' % t.secs)
+
+    with Timer(verbose=False) as t:
+        final_event_rate_no_osc = template_maker.get_template_no_osc(
+            template_params_values_nh
         )
     tprofile.info('==> elapsed time to get template: %s sec' % t.secs)
 
-    logging.info('Saving file to %s' % args.outfile)
-    to_file(template_maps, args.outfile)
+    #logging.info('Saving file to %s' % args.outfile)
+    #to_file(final_event_rate, args.outfile)
+
+    if args.plot:
+        import os
+        import matplotlib as mpl
+        import matplotlib.pyplot as plt
+        from pisa.utils import flavInt
+        from pisa.utils import plot
+        for k in sorted(final_event_rate_nh.keys()):
+            if k == 'params':
+                continue
+            evtrt_nh = final_event_rate_nh[k]
+            evtrt_ih = final_event_rate_no_osc[k]
+            dist_map = plot.distinguishability_map(evtrt_ih,
+                                                   evtrt_nh)
+            if k == 'trck':
+                clim = (-0.21, 0.21)
+            else:
+                clim = (-0.27, 0.27)
+
+            f = plt.figure(figsize=(24,5), dpi=50)
+            ax = f.add_subplot(131)
+            plot.show_map(evtrt_nh, title=k,
+                          cmap=mpl.cm.hot)
+
+            ax = f.add_subplot(132)
+            plot.show_map(evtrt_ih, #title=k + ' ih',
+                          cmap=mpl.cm.hot)
+
+            ax = f.add_subplot(133)
+            plot.show_map(dist_map, #title=k + ' delta',
+                          cmap=mpl.cm.seismic)
+            ax.get_children()[0].set_clim(clim)
+
+        plt.draw()
+        plt.show()
