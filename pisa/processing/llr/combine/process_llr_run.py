@@ -17,13 +17,16 @@
 from __future__ import division, print_function
 
 import time
-import os
-import h5py
+import os, sys
+import re
+#import h5py
 from glob import glob
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 from pisa.utils.log import set_verbosity, logging
 from pisa.utils.jsons import from_json
+from pisa.utils.hdf import to_hdf
+from pisa.utils.utils import findFiles
 from LogProcessing import getTimeStamp, processLogFile
 from LlrProcessing import processTrial, appendTrials, saveDict, saveNonDict
 
@@ -36,58 +39,55 @@ def modifyHierarchyKeys(output_data):
     This function visits all keys in the output_data dict of the form
     "true_*" or "hypo_*" and changes NMH/IMH to NH/IH.
     """
-
     for key1 in output_data.keys():
         if 'true' not in key1: continue
-        key1_new = key1.replace('MH','H')
+        key1_new = key1.replace('MH', 'H')
         output_data[key1_new] = output_data.pop(key1)
         for key2 in output_data[key1_new].keys():
             for key3 in output_data[key1_new][key2].keys():
                 if 'hypo' not in key3: continue
-                key3_new = key3.replace('MH','H')
+                key3_new = key3.replace('MH', 'H')
                 output_data[key1_new][key2][key3_new] = output_data[key1_new][key2].pop(key3)
 
-    return
 
-def saveOutput(data, outfile):
-    """
-    Saves the output_data dictionary into the provided outfile.
-    Nothing is modified or returned in this function.
-    """
-
-    fh = h5py.File(args.outfile,'w')
-
-    for key in sorted(data.keys()):
-        if type(data[key]) is dict:
-            group = fh.create_group(key)
-            saveDict(data[key],group)
-        else:
-            saveNonDict(key, data[key], fh)
-
-    fh.close()
-    return
+#def saveOutput(data, outfile):
+#    """
+#    Saves the output_data dictionary into the provided outfile.
+#    Nothing is modified or returned in this function.
+#    """
+#
+#    fh = h5py.File(args.outfile, 'w')
+#
+#    for key in sorted(data.keys()):
+#        if type(data[key]) is dict:
+#            group = fh.create_group(key)
+#            saveDict(data[key], group)
+#        else:
+#            saveNonDict(key, data[key], fh)
+#
+#    fh.close()
 
 
 parser = ArgumentParser(
     description="""Processes the llr analysis runs that have been generated on
-    a HPCC on multiple files.""",formatter_class=ArgumentDefaultsHelpFormatter)
+    a HPCC on multiple files.""", formatter_class=ArgumentDefaultsHelpFormatter)
 
-parser.add_argument('-d','--data_dir', metavar='DIR', type=str, required=True,
+parser.add_argument('-d', '--data-dir', metavar='DIR', type=str, required=True,
                     help='Directory where the llh analysis run data is stored.')
 parser.add_argument('--llh_basename', metavar='STR', type=str, required=False,
                     default='llh_data', help='''Common basename of llh files.'''
                     ''' Assumes they begin with llh_basename and end with '''
                     ''' _<#>.json''')
-parser.add_argument('-l','--log_dir', metavar='DIR', type=str, required=False,
+parser.add_argument('-l', '--log-dir', metavar='DIR', type=str, required=False,
                     default=None,
                     help='Directory where the llh analysis run log info is.')
-parser.add_argument('--log_basename', metavar='STR', type=str, required=False,
+parser.add_argument('--log-basename', metavar='STR', type=str, required=False,
                     default='log', help='''Common basename of log files.'''
                     ''' Assumes they begin with log_basename and end with:'''
                     ''' _<#>.log''')
 parser.add_argument('-o', '--outfile', metavar='STR', type=str, required=True,
                     help="Output file to store processed, combined llh file.")
-parser.add_argument('--fix_keys', action='store_true', default=False,
+parser.add_argument('--fix-keys', action='store_true', default=False,
                     help='If keys are named "NMH"/"IMH", change to "NH"/"IH"')
 parser.add_argument('-v', '--verbose', action='count', default=None,
                     help='''set verbosity level''')
@@ -96,7 +96,16 @@ parser.add_argument('-v', '--verbose', action='count', default=None,
 args = parser.parse_args()
 set_verbosity(args.verbose)
 
-llhfiles = glob(os.path.join(args.data_dir, args.llh_basename+'*'))
+#llhfiles = glob(os.path.join(args.data_dir, args.llh_basename+'*'))
+llhfiles_found = findFiles(
+    root=args.data_dir,
+    regex=re.compile(r'.*v39.*lt4.*\.json', flags=re.IGNORECASE),
+)
+
+llhfiles = [x[0] for x in llhfiles_found]
+#for ffpath, basename, match in llhfiles_found:
+#    print(basename)
+#sys.exit()
 
 if args.log_dir is not None:
     logfiles = glob(os.path.join(args.log_dir, args.log_basename+'*'))
@@ -115,16 +124,15 @@ logging.warn("Processing {0:d} files".format(len(llhfiles)))
 
 mod = len(llhfiles)//20
 start = time.time()
-for i,filename in enumerate(llhfiles):
-
-    if (mod > 0) and (i%mod == 0):
+for i, filename in enumerate(llhfiles):
+    if (mod > 0) and (i % mod == 0):
         logging.info("  >> {0:d} files done...".format(i))
 
     try:
         data = from_json(filename)
     except Exception as inst:
         #print(inst)
-        print("Skipping file: ",filename)
+        print("Skipping file: ", filename)
         continue
 
     if not output_data['minimizer_settings']:
@@ -133,9 +141,8 @@ for i,filename in enumerate(llhfiles):
     if not output_data['template_settings']:
         output_data['template_settings'] = data['template_settings']
 
-    for key in ['true_NMH','true_IMH']:
-        appendTrials(output_data[key],data[key])
-
+    for key in ['true_NMH', 'true_IMH']:
+        appendTrials(output_data[key], data[key])
 
     if args.log_dir is not None:
         # Now process corresponding log file:
@@ -143,10 +150,12 @@ for i,filename in enumerate(llhfiles):
         # args.llh_basename, args.log_basename
         # and end with _<#>(.json/.log)
         # where '#' in range(1, nfiles)
-        logfilename = os.path.join(args.log_dir,
-                                   (args.log_basename+filename.split('.')[0].split('_')[-1]+".log"))
+        logfilename = os.path.join(
+            args.log_dir,
+            (args.log_basename+filename.split('.')[0].split('_')[-1]+".log")
+        )
         
-        #print("File: ",logfilename)
+        #print("File: ", logfilename)
         fh = open(logfilename, 'r')
         all_lines = fh.readlines()
         iline = 0
@@ -154,21 +163,20 @@ for i,filename in enumerate(llhfiles):
 
         # If this is the first pass through, write logging containers:
         if 'timestamp' not in output_data.keys():
-
             # First write timestamp if not yet recorded:
             try:
-	        # not quite sure why we would need to increment iline here
-	        # remove for now
-		timestamp, _ = getTimeStamp(iline, all_lines)
+                # not quite sure why we would need to increment iline here
+                # remove for now
+                timestamp, _ = getTimeStamp(iline, all_lines)
             except:
-                print("File failed: \n    ",logfilename)
+                print("File failed: \n    ", logfilename)
                 raise
                 
             output_data['timestamp'] = timestamp
 
             # Second write the logging portion of the dictionary container
             for k1 in ['true_NMH', 'true_IMH']:
-                for k2 in ['true_h_fiducial','false_h_best_fit']:
+                for k2 in ['true_h_fiducial', 'false_h_best_fit']:
                     for k3 in ['hypo_NMH', 'hypo_IMH']:
                         output_data[k1][k2][k3]['optimizer_time'] = []
                         output_data[k1][k2][k3]['mean_template_time'] = []
@@ -180,7 +188,7 @@ for i,filename in enumerate(llhfiles):
         try:
             processLogFile(iline, all_lines, output_data)
         except:
-            print("File failed: \n    ",logfilename)
+            print("File failed: \n    ", logfilename)
             raise
 
 
@@ -188,18 +196,21 @@ delta_sec = (time.time() - start)
 logging.warn("Time to process the LLR Run: {0:.4f} sec".format(delta_sec))
 
 # Fixing the keys from NMH/IMH --> NH/IH
-if args.fix_keys: modifyHierarchyKeys(output_data)
+if args.fix_keys:
+    modifyHierarchyKeys(output_data)
 
 base_key = 'true_NH' if args.fix_keys else 'true_NMH'
 logging.info("num trials for NH: ")
 # In general, this level will have keys: 'true_h_fiducial' and 'false_h_best_fit'
 # But when run with flag '--no_alt_fit', the 'false_h_best_fit' is missing
-for key1 in ['true_h_fiducial','false_h_best_fit']:
+for key1 in ['true_h_fiducial', 'false_h_best_fit']:
     if key1 not in output_data[base_key].keys(): continue
     for key2 in output_data[base_key][key1].keys():
         if 'hypo' not in key2: continue
         logging.info(
             "key1: {0:s}, key2: {1:s}, ntrials: {2:d}".format(
-                key1, key2,len(output_data[base_key][key1][key2]['llh'])))
+                key1, key2, len(output_data[base_key][key1][key2]['llh'])
+            )
+        )
 
-saveOutput(output_data, args.outfile)
+to_hdf(output_data, args.outfile)
