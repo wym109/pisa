@@ -64,9 +64,9 @@ def get_event_rates(osc_flux_maps, aeff_service, livetime, aeff_scale,
         osc_flux_map = osc_flux_maps[flavour]['map']
         int_type_dict = {}
         for int_type in ['cc', 'nc']:
-            event_rate = osc_flux_map*aeff_dict[flavour][int_type]*aeff_scale
+            event_rate = osc_flux_map * aeff_dict[flavour][int_type] \
+                    * (livetime * Julian_year * aeff_scale)
 
-            event_rate *= (livetime*Julian_year)
             int_type_dict[int_type] = {'map':event_rate,
                                        'ebins':ebins,
                                        'czbins':czbins}
@@ -97,7 +97,7 @@ def aeff_service_factory(aeff_mode, **kwargs):
 
     if aeff_mode == 'mc':
         from pisa.aeff.AeffServiceMC import AeffServiceMC
-        return AeffServicePar(**kwargs)
+        return AeffServiceMC(**kwargs)
 
     raise ValueError('Unrecognized Aeff `aeff_mode`: "%s"' % aeff_mode)
 
