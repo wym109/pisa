@@ -367,7 +367,7 @@ if make_plots:
     X, Y = np.meshgrid(smooth_store['czbins'],
                        np.log10(smooth_store['ebins']))
     for group in ungrouped + grouped:
-        fig, axgrp = plt.subplots(1, 4, figsize=(20,5))
+        fig, axgrp = plt.subplots(1, 4, figsize=(15,5))
         fig.suptitle('$'+group.tex()+'$', fontsize=12)
         axiter = iter(axgrp.flatten())
 
@@ -402,16 +402,25 @@ if make_plots:
         plt.sca(axiter.next())
         plt.pcolormesh(X, Y, log_h,
                        vmin=vmin, vmax=vmax, cmap=mpl.cm.Paired) #, **kwargs)
+        plt.xlabel(r'$\cos\,\theta_{z}$')
+        plt.ylabel(r'$\log_{10}(E/{\rm GeV})$')
+        plt.title('Histogrammed MC')
         plt.colorbar()
 
         plt.sca(axiter.next())
         plt.pcolormesh(X, Y, log_s0,
                        vmin=vmin, vmax=vmax, cmap=mpl.cm.Paired) #, **kwargs)
+        plt.xlabel(r'$\cos\,\theta_{z}$')
+        plt.ylabel(r'$\log_{10}(E/{\rm GeV})$')
+        plt.title('CZ slices, spline-smooth in E')
         plt.colorbar()
 
         plt.sca(axiter.next())
         plt.pcolormesh(X, Y, np.log10(smooth),
                        vmin=vmin, vmax=vmax, cmap=mpl.cm.Paired) #, **kwargs)
+        plt.xlabel(r'$\cos\,\theta_{z}$')
+        plt.ylabel(r'$\log_{10}(E/{\rm GeV})$')
+        plt.title('E slices, spline-smooth in CZ')
         plt.colorbar()
 
         #plt.sca(axiter.next())
@@ -425,6 +434,9 @@ if make_plots:
         vmin, vmax = -1.0, 1.0
         plt.pcolormesh(X, Y, fract_err,
                        vmin=vmin, vmax=vmax, cmap=mpl.cm.coolwarm) #, **kwargs)
+        plt.xlabel(r'$\cos\,\theta_{z}$')
+        plt.ylabel(r'$\log_{10}(E/{\rm GeV})$')
+        plt.title('Fractional difference with MC')
         plt.colorbar()
 
         print group, 'fractional error compared with histogram'
@@ -433,6 +445,9 @@ if make_plots:
         print '   max:', np.max(fract_err)
         print '   min:', np.min(fract_err)
 
+        plt.tight_layout(rect=(0, 0, 1, 0.96))
+        basename = os.path.join(outdir, 'aeff_slice_process_%s' % str(group))
+        plt.savefig(basename + '.png')
 
 #    if make_plots:
 #        fig_part.tight_layout(rect=(0,0,1,0.96))

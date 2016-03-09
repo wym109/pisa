@@ -210,7 +210,7 @@ def plot_2d_comparisons(ebins=np.logspace(0, np.log10(80), 40),
     aeff_oversamp['slice'] = slice_service.get_aeff()
 
     n_services = len(aeff)
-    services = ['slice', 'param']
+    services = ['param', 'slice']
 
     grouped = sorted([flavInt.NuFlavIntGroup(fi)
                       for fi in mc_service.events.metadata['flavints_joined']])
@@ -251,17 +251,21 @@ def plot_2d_comparisons(ebins=np.logspace(0, np.log10(80), 40),
         all_fractdiff_qm = []
 
         fig, axgrp = plt.subplots(3, len(services)+1, figsize=(15, 10))
-        fig.suptitle('$' + group.tex() + '$', fontsize=12)
+        fig.suptitle('$' + group.tex() + '$', fontsize=18)
         axiter = iter(axgrp.flatten())
 
         # Turn off unused axes
-        axgrp[0,0].axis('off')
+        axgrp[2,0].axis('off')
 
         # Plot MC as reference
         ax = axgrp[1, 0]
         qm = ax.pcolormesh(x, y, log_mc, **abs_plt_kwargs)
         all_abs_qm.append(qm)
         vmin_abs, vmax_abs = updateExtrema(vmin_abs, vmax_abs, log_mc)
+        ax.set_xlabel(r'$\cos\,\theta_{\rm z}$')
+        ax.set_ylabel(r'$\log_{10}(E/{\rm GeV})$')
+        ax.set_title(r'$\log_{10}({\rm MC-hist})$, "standard" binning', fontsize=14)
+        cbar = plt.colorbar(qm, ax=ax)
 
         other_svc_os = None
         for svc_num, svc_key in enumerate(services):
@@ -275,32 +279,52 @@ def plot_2d_comparisons(ebins=np.logspace(0, np.log10(80), 40),
 
             # Plot the oversampled map
             ax = axgrp[0, svc_num + 1]
-            qm = ax.pcolormesh(x_oversamp, y_oversamp, log_this_oversamp, **abs_plt_kwargs)
+            qm = ax.pcolormesh(x_oversamp, y_oversamp, log_this_oversamp,
+                               **abs_plt_kwargs)
+            ax.set_xlabel(r'$\cos\,\theta_{\rm z}$')
+            ax.set_ylabel(r'$\log_{10}(E/{\rm GeV})$')
+            ax.set_title(r'$\log_{10}({\rm aeff_' + svc_key + '})$, dense binning',
+                         fontsize=14)
             all_abs_qm.append(qm)
             vmin_abs, vmax_abs = updateExtrema(vmin_abs, vmax_abs, log_this_oversamp)
+            cbar = plt.colorbar(qm, ax=ax)
 
             # Plot the standard-binning map
             ax = axgrp[1, svc_num + 1]
             qm = ax.pcolormesh(x, y, log_this, **abs_plt_kwargs)
             all_abs_qm.append(qm)
             vmin_abs, vmax_abs = updateExtrema(vmin_abs, vmax_abs, log_this)
+            ax.set_xlabel(r'$\cos\,\theta_{\rm z}$')
+            ax.set_ylabel(r'$\log_{10}(E/{\rm GeV})$')
+            ax.set_title(r'$\log_{10}({\rm aeff_' + svc_key + '})$, "standard" binning',
+                         fontsize=14)
+            cbar = plt.colorbar(qm, ax=ax)
 
             # Plot the fractional-difference map
             ax = axgrp[2, svc_num + 1]
             qm = ax.pcolormesh(x, y, fractdiff, **fractdiff_plt_kwargs)
             all_fractdiff_qm.append(qm)
             vmin_abs, vmax_abs = updateExtrema(vmin_abs, vmax_abs, fractdiff)
+            ax.set_xlabel(r'$\cos\,\theta_{\rm z}$')
+            ax.set_ylabel(r'$\log_{10}(E/{\rm GeV})$')
+            ax.set_title(svc_key + '/MC - 1; $\mu=%0.3f,\;\sigma=%0.03f$' %
+                         (np.mean(fractdiff), np.std(fractdiff)), fontsize=14)
+            cbar = plt.colorbar(qm, ax=ax)
 
             if other_svc_os is None:
                 other_svc_os = this_oversamp
             else:
                 # Plot fractional difference between maps
-                ax = axgrp[2,0] #fig2.add_subplot(1, 1, svc_num+1)
-                fd = np.ma.masked_invalid((this_oversamp-other_svc_os)/other_svc_os)
+                ax = axgrp[0,0] #fig2.add_subplot(1, 1, svc_num+1)
+                fd = np.ma.masked_invalid((other_svc_os - this_oversamp)/this_oversamp)
                 qm = ax.pcolormesh(x_oversamp, y_oversamp, fd,
                                    **fractdiff_plt_kwargs)
                 #all_fractdiff_qm.append(qm)
-                qm.set_clim(-1.0, 1.0)
+                qm.set_clim(-.25, 0.25)
+                ax.set_xlabel(r'$\cos\,\theta_{\rm z}$')
+                ax.set_ylabel(r'$\log_{10}(E/{\rm GeV})$')
+                ax.set_title(r'%s/%s - 1' % (services[0], services[1]), fontsize=14)
+                cbar = plt.colorbar(qm, ax=ax)
 
             print svc_key, group, 'fractional difference with histogram'
             print '  mean:', np.mean(fractdiff)
@@ -313,11 +337,10 @@ def plot_2d_comparisons(ebins=np.logspace(0, np.log10(80), 40),
 
         print ''
 
-        fig.tight_layout(rect=(0, 0, 1, 0.96))
-
         [qm.set_clim((-7,-3.8)) for qm in all_abs_qm]
         [qm.set_clim((-1,1)) for qm in all_fractdiff_qm]
-
+        fig.tight_layout(rect=(0, 0, 1, 0.96))
+        fig.savefig('/tmp/aeff_slice_vs_param_vs_mc_' + str(group) + '.png')
 
 def plot_1d_comparisons(ebins=np.logspace(0, np.log10(80), 21),
                      czbins=np.linspace(-1, 1, 21)):
