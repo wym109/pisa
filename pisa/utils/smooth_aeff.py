@@ -17,6 +17,7 @@ energy bins' midpoints (on a linear scale).
 # TODO: store metadata about how smoothing was done
 # TODO: use CombinedFlavIntData for storage of the results
 
+
 import os,sys
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from itertools import izip
@@ -25,13 +26,12 @@ import numpy as np
 from scipy.interpolate import splrep, splev
 
 from pisa.utils.log import logging, set_verbosity
-from pisa.aeff.AeffServiceMC import AeffServiceMC
 from pisa.utils.events import Events
 from pisa.utils import flavInt
 from pisa.utils import jsons
-import pisa.utils.utils as utils
+from pisa.utils import utils
+from pisa.aeff.AeffServiceMC import AeffServiceMC
 
-from histogramTools import stepHist
 
 parser = ArgumentParser(
     '''Generate smoothed effective areas at energy bin centers. NOTE: at
@@ -160,6 +160,8 @@ if make_plots:
     import matplotlib as mpl
     mpl.use('pdf')
     import matplotlib.pyplot as plt
+    from pisa.utils.plot import stepHist
+
     FIGSIZE = (11,7)
     #plt.close(1)
     #plt.close(2)
@@ -240,7 +242,7 @@ for group in ungrouped + grouped:
 
         # Plot the histogram with errors
         stepHist(ebins, y=s_aeff, yerr=s_aeff_err,
-                 ax=ax, label='Histogramed', color='r')
+                 ax=ax, label='Histogramed', color=(0.8,0.2,0.6))
         # Plot the smoothed curve
         ax.plot(ebin_midpoints, smoothed_aeff[rep_flavint], 'k-o',
                 lw=0.25, ms=2,
@@ -319,12 +321,20 @@ logging.debug("Ungrouped: %s" % ungrouped)
 
 # Look at coszen smooth for all energies included in the specified binning,
 # lumped together into a single bin
-single_ebin = [emin, emax]
+
+# NOTE: using 1-80 GeV biases low energies with high-energy behavior. We should
+# really just parameterize in energy, using slices of CZ, since marginalizing
+# energy seems like a bad (too unphysical) thing to do.
+#single_ebin = [emin, emax]
+single_ebin = [1, 20]
 assert len(single_ebin)-1 == 1
 
 if make_plots:
     import matplotlib as mpl
+    mpl.use('pdf')
     import matplotlib.pyplot as plt
+    from pisa.utils.plot import stepHist
+
     FIGSIZE = (11,7)
     #plt.close(3)
     plt.figure(3).clf()
@@ -380,7 +390,7 @@ for group in ungrouped + grouped:
 
         # Plot the histogram with errors
         stepHist(czbins, y=s_aeff, yerr=s_aeff_err,
-                 ax=ax, label='Histogramed', color='r')
+                 ax=ax, label='Histogramed', color=(0.2,0.6,0))
         # Plot the smoothed curve
         ax.plot(czbin_midpoints, smoothed_aeff[rep_flavint], 'k-o',
                 lw=0.25, ms=2,

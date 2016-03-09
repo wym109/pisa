@@ -18,10 +18,14 @@
 # date:   April 8, 2014
 #
 
+
+import sys
+
 import numpy as np
 from scipy.constants import Julian_year
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
+from pisa.utils import flavInt
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.fileio import from_file, to_file
 from pisa.utils.proc import report_params, get_params, add_params
@@ -74,7 +78,6 @@ def get_event_rates(osc_flux_maps, aeff_service, livetime, aeff_scale,
                           % (flavour, int_type, np.sum(event_rate)))
         event_rate_maps[flavour] = int_type_dict
 
-    # else: no scaling to be applied
     return event_rate_maps
 
 
@@ -103,6 +106,10 @@ def aeff_service_factory(aeff_mode, **kwargs):
         from pisa.aeff.AeffServiceSmooth import AeffServiceSmooth
         return AeffServiceSmooth(**kwargs)
 
+    if aeff_mode == 'slice_smooth':
+        from pisa.aeff.AeffServiceSliceSmooth import AeffServiceSliceSmooth
+        return AeffServiceSliceSmooth(**kwargs)
+
     raise ValueError('Unrecognized Aeff `aeff_mode`: "%s"' % aeff_mode)
 
 
@@ -113,7 +120,7 @@ def add_argparser_args(parser):
 
     parser.add_argument(
         '--aeff-mode', type=str, required=True,
-        choices=['mc', 'param', 'smooth'],
+        choices=['mc', 'param', 'smooth', 'slice_smooth'],
         help='Aeff service to use'
     )
 
@@ -121,8 +128,387 @@ def add_argparser_args(parser):
     AeffServiceMC.add_argparser_args(parser)
     AeffServicePar.add_argparser_args(parser)
     AeffServiceSmooth.add_argparser_args(parser)
+    AeffServiceSliceSmooth.add_argparser_args(parser)
 
     return parser
+
+
+def plot_2d_comparisons(ebins=np.logspace(0, np.log10(80), 40),
+                        czbins=np.linspace(-1, 0, 21)):
+    import matplotlib as mpl
+    import matplotlib.pyplot as plt
+
+    def updateExtrema(_min, _max, a):
+        return np.min([_min, np.min(a)]), np.max([_max, np.max(a)])
+
+    c1 = (0.0, 0.6, 0.8)
+    c2 = (0.7, 0.2, 0.5)
+    c3 = (0.4, 0.3, 0.0)
+    diff_cmap = mpl.cm.coolwarm
+    abs_cmap = mpl.cm.Paired
+    diff_cmap.set_bad((1,1,1), 1)
+    abs_cmap.set_bad((1,1,1), 1)
+
+    ebin_midpoints = (ebins[:-1] + ebins[1:])/2.
+    czbin_midpoints = (czbins[:-1] + czbins[1:])/2.
+    e_oversamp = np.logspace(np.log10(ebins[0]), np.log10(ebins[-1]), 1001)
+    cz_oversamp = np.linspace(czbins[0], czbins[-1], 1001)
+
+    mc_service = aeff_service_factory(
+        aeff_mode='mc', ebins=ebins, czbins=czbins, compute_error=True,
+        aeff_weight_file='events/pingu_v36/'
+        'events__pingu__v36__runs_388-390__proc_v5__joined_G_nuall_nc_G_nuallbar_nc.hdf5'
+    )
+    aeff_mc, aeff_mc_err = mc_service.get_aeff_with_error()
+
+    # The rest of the aeffs will be stored in dicts to allow iterating
+    aeff = {}
+    aeff_oversamp = {}
+
+    aeff_egy_par = {
+        'NC': 'aeff/V36/cuts_V5/a_eff_nuall_nc.dat',
+        'NC_bar': 'aeff/V36/cuts_V5/a_eff_nuallbar_nc.dat',
+        'nue': 'aeff/V36/cuts_V5/a_eff_nue.dat',
+        'nue_bar': 'aeff/V36/cuts_V5/a_eff_nuebar.dat',
+        'numu': 'aeff/V36/cuts_V5/a_eff_numu.dat',
+        'numu_bar': 'aeff/V36/cuts_V5/a_eff_numubar.dat',
+        'nutau': 'aeff/V36/cuts_V5/a_eff_nutau.dat',
+        'nutau_bar': 'aeff/V36/cuts_V5/a_eff_nutaubar.dat'
+    }
+    param_service = aeff_service_factory(
+        aeff_mode='param', ebins=ebins, czbins=czbins,
+        aeff_egy_par=aeff_egy_par,
+        aeff_coszen_par='aeff/V36/V36_aeff_cz.json'
+    )
+    aeff['param'] = param_service.get_aeff()
+
+    param_service = aeff_service_factory(
+        aeff_mode='param', ebins=e_oversamp, czbins=cz_oversamp,
+        aeff_egy_par=aeff_egy_par,
+        aeff_coszen_par='aeff/V36/V36_aeff_cz.json'
+    )
+    aeff_oversamp['param'] = param_service.get_aeff()
+
+    smooth_service = aeff_service_factory(
+        aeff_mode='smooth', ebins=ebins, czbins=czbins,
+        aeff_energy_smooth='aeff/pingu_v36/'
+            'aeff_energy_smooth__pingu_v36__runs_388-390__proc_5.json',
+        aeff_coszen_smooth='aeff/pingu_v36/'
+            'aeff_coszen_smooth__pingu_v36__runs_388-390__proc_5.json'
+    )
+    aeff['smooth'] = smooth_service.get_aeff()
+    smooth_service.update(ebins=e_oversamp, czbins=cz_oversamp)
+    aeff_oversamp['smooth'] = smooth_service.get_aeff()
+
+    slice_service = aeff_service_factory(
+        aeff_mode='slice_smooth', ebins=ebins, czbins=czbins,
+        aeff_slice_smooth='aeff/pingu_v36/'
+        'aeff_slice_smooth__pingu_v36__runs_388-390__proc_5.hdf5',
+    )
+    aeff['slice'] = slice_service.get_aeff()
+    slice_service.update(ebins=e_oversamp, czbins=cz_oversamp)
+    aeff_oversamp['slice'] = slice_service.get_aeff()
+
+    n_services = len(aeff)
+    services = ['slice', 'param']
+
+    grouped = sorted([flavInt.NuFlavIntGroup(fi)
+                      for fi in mc_service.events.metadata['flavints_joined']])
+    should_be_grouped = sorted([flavInt.NuFlavIntGroup('nuall_nc'),
+                                flavInt.NuFlavIntGroup('nuallbar_nc')])
+    if grouped != should_be_grouped:
+        if len(grouped) == 0:
+            grouped = None
+        raise ValueError('Only works with groupings (%s) but instead got'
+                         ' groupings (%s).' % (should_be_grouped, grouped))
+
+    # Get *un*joined flavints
+    individual_flavints = flavInt.NuFlavIntGroup(flavInt.ALL_NUFLAVINTS)
+    for group in grouped:
+        individual_flavints -= group
+    ungrouped = sorted([flavInt.NuFlavIntGroup(fi) for fi in individual_flavints])
+
+    # Sample points for plotting (cz comes first, as it's on the x-axis for
+    # plotting purposes)
+    x, y = np.meshgrid(czbin_midpoints, np.log10(ebin_midpoints))
+    x, y = np.meshgrid(czbins, np.log10(ebins))
+    x_oversamp, y_oversamp = np.meshgrid(cz_oversamp,
+                                         np.log10(e_oversamp), indexing='xy')
+
+    abs_plt_kwargs = dict(cmap=abs_cmap)
+    fractdiff_plt_kwargs = dict(cmap=diff_cmap)
+    for group in ungrouped + grouped:
+        rep_flavint = group.flavints()[0]
+
+        mc = np.ma.masked_invalid(aeff_mc[rep_flavint])
+        mc_err = np.ma.masked_invalid(aeff_mc_err[rep_flavint])
+        log_mc = np.ma.masked_invalid(np.log10(mc))
+
+        vmin_abs, vmax_abs = np.inf, -np.inf
+        vmin_fractdiff, vmax_fractdiff = np.inf, -np.inf
+
+        all_abs_qm = []
+        all_fractdiff_qm = []
+
+        fig, axgrp = plt.subplots(3, len(services)+1, figsize=(15, 10))
+        fig.suptitle('$' + group.tex() + '$', fontsize=12)
+        axiter = iter(axgrp.flatten())
+
+        # Turn off unused axes
+        axgrp[0,0].axis('off')
+
+        # Plot MC as reference
+        ax = axgrp[1, 0]
+        qm = ax.pcolormesh(x, y, log_mc, **abs_plt_kwargs)
+        all_abs_qm.append(qm)
+        vmin_abs, vmax_abs = updateExtrema(vmin_abs, vmax_abs, log_mc)
+
+        other_svc_os = None
+        for svc_num, svc_key in enumerate(services):
+            this = aeff[svc_key][rep_flavint]
+            this_oversamp = aeff_oversamp[svc_key][rep_flavint]
+
+            log_this = np.ma.masked_invalid(np.log10(this))
+            log_this_oversamp = np.ma.masked_invalid(np.log10(this_oversamp))
+            fractdiff = np.ma.masked_invalid((this - mc)/mc)
+            fractdiff_normed = np.ma.masked_invalid((this - mc)/ mc_err)
+
+            # Plot the oversampled map
+            ax = axgrp[0, svc_num + 1]
+            qm = ax.pcolormesh(x_oversamp, y_oversamp, log_this_oversamp, **abs_plt_kwargs)
+            all_abs_qm.append(qm)
+            vmin_abs, vmax_abs = updateExtrema(vmin_abs, vmax_abs, log_this_oversamp)
+
+            # Plot the standard-binning map
+            ax = axgrp[1, svc_num + 1]
+            qm = ax.pcolormesh(x, y, log_this, **abs_plt_kwargs)
+            all_abs_qm.append(qm)
+            vmin_abs, vmax_abs = updateExtrema(vmin_abs, vmax_abs, log_this)
+
+            # Plot the fractional-difference map
+            ax = axgrp[2, svc_num + 1]
+            qm = ax.pcolormesh(x, y, fractdiff, **fractdiff_plt_kwargs)
+            all_fractdiff_qm.append(qm)
+            vmin_abs, vmax_abs = updateExtrema(vmin_abs, vmax_abs, fractdiff)
+
+            if other_svc_os is None:
+                other_svc_os = this_oversamp
+            else:
+                # Plot fractional difference between maps
+                ax = axgrp[2,0] #fig2.add_subplot(1, 1, svc_num+1)
+                fd = np.ma.masked_invalid((this_oversamp-other_svc_os)/other_svc_os)
+                qm = ax.pcolormesh(x_oversamp, y_oversamp, fd,
+                                   **fractdiff_plt_kwargs)
+                #all_fractdiff_qm.append(qm)
+                qm.set_clim(-1.0, 1.0)
+
+            print svc_key, group, 'fractional difference with histogram'
+            print '  mean:', np.mean(fractdiff)
+            print '   RMS:', np.sqrt(np.mean(fractdiff*fractdiff))
+            print '   std:', np.std(fractdiff)
+            print '   MAD:', np.median(np.abs(fractdiff))
+            print 'nrmstd:', np.std(fractdiff_normed)
+            print '   max:', np.max(fractdiff)
+            print '   min:', np.min(fractdiff)
+
+        print ''
+
+        fig.tight_layout(rect=(0, 0, 1, 0.96))
+
+        [qm.set_clim((-7,-3.8)) for qm in all_abs_qm]
+        [qm.set_clim((-1,1)) for qm in all_fractdiff_qm]
+
+
+def plot_1d_comparisons(ebins=np.logspace(0, np.log10(80), 21),
+                     czbins=np.linspace(-1, 1, 21)):
+    import matplotlib as mpl
+    import matplotlib.pyplot as plt
+    from pisa.utils.plot import stepHist
+
+    c1 = (0.0, 0.6, 0.8)
+    c2 = (0.7, 0.2, 0.5)
+    c3 = (0.4, 0.3, 0.0)
+    single_ebin = (np.min(ebins), np.max(ebins))
+    single_czbin = (np.min(czbins), np.max(czbins))
+    ebin_midpoints = (ebins[:-1] + ebins[1:])/2.
+    czbin_midpoints = (czbins[:-1] + czbins[1:])/2.
+    e_oversamp = np.logspace(np.log10(ebins[0]), np.log10(ebins[-1]), 1001)
+    cz_oversamp = np.linspace(czbins[0], czbins[-1], 1001)
+
+    mc_service = aeff_service_factory(
+        aeff_mode='mc', ebins=ebins, czbins=single_czbin, compute_error=True,
+        aeff_weight_file='events/pingu_v36/'
+        'events__pingu__v36__runs_388-390__proc_v5__joined_G_nuall_nc_G_nuallbar_nc.hdf5'
+    )
+    aeff_e_mc, aeff_e_mc_err = mc_service.get_aeff_with_error()
+    #aeff_e_mc = mc_service.get_aeff()
+    mc_service.update(ebins=single_ebin, czbins=czbins)
+    aeff_cz_mc, aeff_cz_mc_err = mc_service.get_aeff_with_error()
+
+    param_service = aeff_service_factory(
+        aeff_mode='param', ebins=ebins, czbins=czbins,
+        aeff_egy_par={
+            'NC': 'aeff/V36/cuts_V5/a_eff_nuall_nc.dat',
+            'NC_bar': 'aeff/V36/cuts_V5/a_eff_nuallbar_nc.dat',
+            'nue': 'aeff/V36/cuts_V5/a_eff_nue.dat',
+            'nue_bar': 'aeff/V36/cuts_V5/a_eff_nuebar.dat',
+            'numu': 'aeff/V36/cuts_V5/a_eff_numu.dat',
+            'numu_bar': 'aeff/V36/cuts_V5/a_eff_numubar.dat',
+            'nutau': 'aeff/V36/cuts_V5/a_eff_nutau.dat',
+            'nutau_bar': 'aeff/V36/cuts_V5/a_eff_nutaubar.dat'
+        },
+        aeff_coszen_par='aeff/V36/V36_aeff_cz.json'
+    )
+
+    smooth_service = aeff_service_factory(
+        aeff_mode='smooth', ebins=ebins, czbins=czbins,
+        aeff_energy_smooth='aeff/pingu_v36/'
+            'aeff_energy_smooth__pingu_v36__runs_388-390__proc_5.json',
+        aeff_coszen_smooth='aeff/pingu_v36/'
+            'aeff_coszen_smooth__pingu_v36__runs_388-390__proc_5.json'
+    )
+
+    # Plot aeff vs energy
+    #plt.close(1); plt.close(2); plt.close(3); plt.close(4)
+    [plt.figure(n).clf() for n in range(1,9)]
+    cc_fig, cc_axgrp = plt.subplots(2, 3, num=1, figsize=(12, 7))
+    nc_fig, nc_axgrp = plt.subplots(2, 3, num=2, figsize=(12, 7))
+    cc_axiter = iter((cc_axgrp.T).flatten())
+    nc_axiter = iter((nc_axgrp.T).flatten())
+    cc_fig2, cc_axgrp2 = plt.subplots(2, 3, num=3, figsize=(12, 7))
+    nc_fig2, nc_axgrp2 = plt.subplots(2, 3, num=4, figsize=(12, 7))
+    cc_axiter2 = iter((cc_axgrp2.T).flatten())
+    nc_axiter2 = iter((nc_axgrp2.T).flatten())
+    for flavint in (list(flavInt.ALL_NUCC.flavints()) +
+                    list(flavInt.ALL_NUNC.flavints())):
+        if flavint.isCC():
+            ax = cc_axiter.next()
+            ax2 = cc_axiter2.next()
+            clip_to = dict(a_min=1e-7, a_max=2e-4)
+        else:
+            ax = nc_axiter.next()
+            ax2 = nc_axiter2.next()
+            clip_to = dict(a_min=1e-9, a_max=1e-4)
+
+        e_mc = np.squeeze(aeff_e_mc[flavint])
+        e_mc_err = np.squeeze(aeff_e_mc_err[flavint])
+        e_param_bin = param_service.sample_egy_curve(flavint, ebin_midpoints)
+        e_smooth_bin = smooth_service.sample_egy_curve(flavint, ebin_midpoints)
+        e_param_oversamp = param_service.sample_egy_curve(flavint, e_oversamp)
+        e_smooth_oversamp = smooth_service.sample_egy_curve(flavint,
+                                                            e_oversamp)
+        stepHist(ebins, y=e_mc, yerr=e_mc_err, ax=ax, color='k',
+                 label='MC')
+        ax.plot(e_oversamp, e_param_oversamp, '-', color=c1, label='param')
+        ax.plot(e_oversamp, e_smooth_oversamp, '-', color=c2, label='smooth')
+
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+        ax.set_ylim(np.clip(ax.get_ylim(), **clip_to))
+        leg = ax.legend(loc='lower right', frameon=False,
+                        title='$' + flavint.tex() + '$')
+        leg.get_title().set_fontsize(18)
+
+        ax2.plot([1,100], [0,0], 'k-')
+        ax2.plot([1,100], np.ones(2) * np.mean((e_param_bin-e_mc)/e_mc),
+                 '--', color=c1)
+        ax2.plot([1,100], np.ones(2) * np.mean((e_smooth_bin-e_mc)/e_mc),
+                 '--', color=c2)
+        stepHist(ebins, y=(e_param_bin-e_mc)/e_mc, yerr=e_mc_err,
+                 ax=ax2, color=c1, lw=1.5,
+                 label='(param-mc)/mc')
+        stepHist(ebins, y=(e_smooth_bin-e_mc)/e_mc, yerr=e_mc_err,
+                 ax=ax2, color=c2, lw=1.5,
+                 label='(smooth-mc)/mc')
+        ax2.plot(e_oversamp,
+                 (e_smooth_oversamp-e_param_oversamp)/e_param_oversamp,
+                 '-', color=c3,
+                 label='(smooth-param)/param')
+
+        ax2.set_xscale('log')
+        ax2.set_ylim((-0.4,0.4))
+        ax2.grid(b=False, which='both')
+        leg = ax2.legend(loc='lower right', frameon=False,
+                         title='$' + flavint.tex() + '$')
+        leg.get_title().set_fontsize(18)
+
+    [f.tight_layout() for f in [cc_fig, cc_fig2, nc_fig, nc_fig2]]
+
+    #plt.close(5); plt.close(6); plt.close(7); plt.close(8)
+    cc_fig, cc_axgrp = plt.subplots(2, 3, num=5, figsize=(12, 7))
+    nc_fig, nc_axgrp = plt.subplots(2, 3, num=6, figsize=(12, 7))
+    cc_fig2, cc_axgrp2 = plt.subplots(2, 3, num=7, figsize=(12, 7))
+    nc_fig2, nc_axgrp2 = plt.subplots(2, 3, num=8, figsize=(12, 7))
+    cc_axiter = iter((cc_axgrp.T).flatten())
+    nc_axiter = iter((nc_axgrp.T).flatten())
+    cc_axiter2 = iter((cc_axgrp2.T).flatten())
+    nc_axiter2 = iter((nc_axgrp2.T).flatten())
+    for flavint in (list(flavInt.ALL_NUCC.flavints()) +
+                    list(flavInt.ALL_NUNC.flavints())):
+        if flavint.isCC():
+            ax = cc_axiter.next()
+            ax2 = cc_axiter2.next()
+            clip_to = dict(a_min=1e-7, a_max=2e-4)
+        else:
+            ax = nc_axiter.next()
+            ax2 = nc_axiter2.next()
+            clip_to = dict(a_min=1e-9, a_max=1e-4)
+
+        cz_mc = np.squeeze(aeff_cz_mc[flavint])
+        cz_mc_normfactor = 1/(np.sum(cz_mc)/len(cz_mc))
+        cz_mc *= cz_mc_normfactor
+        cz_mc_err = np.squeeze(aeff_cz_mc_err[flavint]) * cz_mc_normfactor
+        cz_param_bin = param_service.sample_cz_curve(
+            flavint, czbin_midpoints, normalize=True
+        )
+        cz_smooth_bin = smooth_service.sample_cz_curve(
+            flavint, czbin_midpoints, normalize=True
+        )
+        cz_param_oversamp = param_service.sample_cz_curve(
+            flavint, cz_oversamp, normalize=True
+        )
+        cz_smooth_oversamp = smooth_service.sample_cz_curve(
+            flavint, cz_oversamp, normalize=True
+        )
+
+        stepHist(czbins, y=cz_mc, yerr=cz_mc_err, ax=ax, color='k',
+                 label='MC')
+        ax.plot(cz_oversamp, cz_param_oversamp, '-', color=c1, label='param')
+        ax.plot(cz_oversamp, cz_smooth_oversamp, '-', color=c2, label='smooth')
+
+        #ax.set_xscale('log')
+        #ax.set_yscale('log')
+        #ax.set_ylim(np.clip(ax.get_ylim(), **clip_to))
+        leg = ax.legend(loc='best', frameon=False,
+                        title='$' + flavint.tex() + '$')
+        leg.get_title().set_fontsize(18)
+
+        ax2.plot([-1,1], [0,0], 'k-')
+        ax2.plot([-1,1], np.ones(2) * np.mean((cz_param_bin-cz_mc)/cz_mc),
+                 '--', color=c1)
+        ax2.plot([-1,1], np.ones(2) * np.mean((cz_smooth_bin-cz_mc)/cz_mc),
+                 '--', color=c2)
+        stepHist(czbins, y=(cz_param_bin-cz_mc)/cz_mc, yerr=cz_mc_err,
+                 ax=ax2, color=c1, lw=1.5,
+                 label='(param-mc)/mc')
+        stepHist(czbins, y=(cz_smooth_bin-cz_mc)/cz_mc, yerr=cz_mc_err,
+                 ax=ax2, color=c2, lw=1.5,
+                 label='(smooth-mc)/mc')
+        ax2.plot(cz_oversamp,
+                 (cz_smooth_oversamp-cz_param_oversamp)/cz_param_oversamp,
+                 '-', color=c3,
+                 label='(smooth-param)/param')
+
+        #ax2.set_xscale('log')
+        #ax2.set_ylim((-0.4,0.4))
+        ax2.grid(b=False, which='both')
+        leg = ax2.legend(loc='best', frameon=False,
+                         title='$' + flavint.tex() + '$')
+        leg.get_title().set_fontsize(18)
+
+    [f.tight_layout() for f in [cc_fig, cc_fig2, nc_fig, nc_fig2]]
+
+    return mc_service, param_service, smooth_service
 
 
 if __name__ == '__main__':
@@ -191,10 +577,12 @@ if __name__ == '__main__':
         # Otherwise, generate maps with all 1's to send through the PID stage
         flavs = ['nue', 'nue_bar', 'numu', 'numu_bar', 'nutau', 'nutau_bar']
         n_ebins = 39
-        n_czbins = 20
+        n_czbins = 40
         ebins = np.logspace(0, np.log10(80), n_ebins+1)
-        czbins = np.linspace(-1, 0, n_czbins+1)
-        osc_flux_maps = {f: prefilled_map(ebins, czbins, 1) for f in flavs} 
+        czbins = np.linspace(-1, 1, n_czbins+1)
+        osc_flux_maps = {f: prefilled_map(ebins, czbins,
+                                          1/(livetime*Julian_year*aeff_scale))
+                         for f in flavs} 
         osc_flux_maps['params'] = {}
 
     # Check, return binning
@@ -234,7 +622,7 @@ if __name__ == '__main__':
         fract_aeff = get_event_rates(
             osc_flux_maps=osc_flux_maps,
             aeff_service=aeff_service,
-            livetime=livetime, aeff_scale=aeff_scale
+            livetime=1./Julian_year, aeff_scale=1, #aeff_scale
         )
 
         # TODO: Make aggregate maps: flav+antiflav CC, nuall NC, nuallbar NC,
@@ -256,7 +644,8 @@ if __name__ == '__main__':
                 ax = axes[flav_num % 2, flav_num//2 + int_num*n_flavs//2]
                 plt.sca(ax)
                 plot.show_map(fract_aeff[flav_key][int_type], log=True,
-                              cmap=mpl.cm.Accent_r)
+                              cmap=mpl.cm.Paired)
+                              #cmap=mpl.cm.Accent_r)
                 #ax.get_children()[0].autoscale()
                 ax.set_title('Fract. of ' + flavint_tex + ' in bin',
                              fontsize=14)
@@ -268,6 +657,7 @@ if __name__ == '__main__':
             #ax.set_title('Total, CC+NC ' + flav_tex, fontsize=14)
 
         fig.tight_layout()
+        fig2.tight_layout()
         base, ext = os.path.splitext(outfile)
         fig.savefig(base + '.pdf')
         fig.savefig(base + '.png')

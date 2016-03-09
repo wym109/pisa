@@ -80,12 +80,21 @@ class AeffServiceSmooth(object):
         self.czbins = None
         self.__aeff_energy_smooth = None
         self.__aeff_coszen_smooth = None
+        self.interpolants = {}
         self.update(ebins=ebins, czbins=czbins,
                     aeff_energy_smooth=aeff_energy_smooth,
                     aeff_coszen_smooth=aeff_coszen_smooth)
 
-    def update(self, ebins, czbins, aeff_energy_smooth, aeff_coszen_smooth,
-               interp_kind='cubic'):
+    def update(self, ebins=None, czbins=None, aeff_energy_smooth=None,
+               aeff_coszen_smooth=None, interp_kind='linear'):
+        if ebins is None:
+            ebins = self.ebins
+        if czbins is None:
+            czbins = self.czbins
+        if aeff_energy_smooth is None:
+            aeff_energy_smooth = self.__aeff_energy_smooth
+        if aeff_coszen_smooth is None:
+            aeff_coszen_smooth = self.__aeff_coszen_smooth
         # Return if state needn't change
         #  NOTE: this is simplistic; there might be reason to compare e.g. the
         #  data contained within a file referenced rather than just looking at
@@ -148,24 +157,42 @@ class AeffServiceSmooth(object):
             interpolant_czdep_aeff = self.czdep_store[cz_key]['smooth']
 
             # Interpolate 
+            x = self.edep_store['ebin_midpoints']
+            y = interpolant_edep_aeff
+            if min(ebins) < min(x):
+                x = np.concatenate([[min(ebins)], x])
+                y = np.concatenate([[y[0]], y])
+            if max(ebins) > max(x):
+                x = np.concatenate([x, [max(ebins)]])
+                y = np.concatenate([y, [y[-1]]])
             edep_interpolant = interp1d(
-                x=self.edep_store['ebin_midpoints'],
-                y=interpolant_edep_aeff,
+                x=x,
+                y=y,
                 kind=interp_kind,
-                copy=False,
-                bounds_error=False,
+                copy=True,
+                bounds_error=True,
                 fill_value=np.nan,
                 #assume_sorted=True
             )
+            x = self.czdep_store['czbin_midpoints']
+            y = interpolant_czdep_aeff
+            if min(czbins) < min(x):
+                x = np.concatenate([[min(czbins)], x])
+                y = np.concatenate([[y[0]], y])
+            if max(czbins) > max(x):
+                x = np.concatenate([x, [max(czbins)]])
+                y = np.concatenate([y, [y[-1]]])
             czdep_interpolant = interp1d(
-                x=self.czdep_store['czbin_midpoints'],
-                y=interpolant_czdep_aeff,
+                x=x,
+                y=y,
                 kind=interp_kind,
-                copy=False,
-                bounds_error=False,
+                copy=True,
+                bounds_error=True,
                 fill_value=np.nan,
                 #assume_sorted=True
             )
+            self.interpolants[group] = {'energy': edep_interpolant,
+                                        'coszen': czdep_interpolant}
             interpolated_edep_aeff = edep_interpolant(ebin_midpoints)
             interpolated_czdep_aeff = czdep_interpolant(czbin_midpoints)
 
@@ -180,13 +207,15 @@ class AeffServiceSmooth(object):
             idx = czbin_midpoints > self.czdep_store['czbin_midpoints'][-1]
             interpolated_czdep_aeff[idx] = interpolant_czdep_aeff[-1]
 
-            # CZ applies shape (len(cz)-times), not absolute value;
-            # also, we use values with units [m^2 / GeV / sr] (?), so
-            # normalize by multiplying by # of points and dividing by sum (?)
-            interpolated_czdep_aeff *= \
-                    (np.max(self.czbins) - np.min(self.czbins)) * \
-                    len(interpolated_czdep_aeff) \
-                    / np.sum(interpolated_czdep_aeff)
+            # NB: All absolute value info about Aeff is carried in the energy
+            # parameterization. Combining bins' Aeffs requires a flux-weighted
+            # average of each bin's Aeff; assuming the same flux in each bin
+            # (as we do when we marginalize to 1D for parameterization), this
+            # is a simple average. Therefore, the *average* of the coszen
+            # parameterization must be 1 (*not* the sum).
+            interpolated_czdep_aeff /= \
+                    (np.sum(interpolated_czdep_aeff)
+                     / len(interpolated_czdep_aeff))
 
             # Form 2D map via outer product
             aeff2d[group] = np.outer(interpolated_edep_aeff,
@@ -206,6 +235,17 @@ class AeffServiceSmooth(object):
     def get_aeff(self):
         """Returns the effective areas FlavIntData object"""
         return self.aeff_fidata
+
+    def sample_cz_curve(self, flavint, czbin_midpoints, normalize=False):
+        group = [g for g in self.interpolants.keys() if flavint in g][0] 
+        samples = self.interpolants[group]['coszen'](czbin_midpoints)
+        if normalize:
+            samples /= (np.sum(samples)/len(samples))
+        return samples
+
+    def sample_egy_curve(self, flavint, ebin_midpoints):
+        group = [g for g in self.interpolants.keys() if flavint in g][0] 
+        return self.interpolants[group]['energy'](ebin_midpoints)
 
     @staticmethod
     def add_argparser_args(parser):

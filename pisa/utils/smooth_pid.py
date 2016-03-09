@@ -30,11 +30,11 @@ import numpy as np
 from scipy.interpolate import splrep, splev, interp1d
 
 from pisa.utils.log import logging, set_verbosity
-from pisa.pid.PIDServiceMC import PIDServiceMC
 from pisa.utils.events import Events
 from pisa.utils import flavInt
 from pisa.utils import jsons
-import pisa.utils.utils as utils
+from pisa.utils import utils
+from pisa.pid.PIDServiceMC import PIDServiceMC
 
 
 parser = ArgumentParser(
@@ -155,7 +155,7 @@ if make_plots:
     import matplotlib as mpl
     mpl.use('pdf')
     import matplotlib.pyplot as plt
-    from histogramTools import stepHist
+    from pisa.utils.plot import stepHist
 
     FIGSIZE = (11,7)
     #plt.close(1)

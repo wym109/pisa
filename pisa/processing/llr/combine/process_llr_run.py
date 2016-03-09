@@ -99,7 +99,7 @@ set_verbosity(args.verbose)
 #llhfiles = glob(os.path.join(args.data_dir, args.llh_basename+'*'))
 llhfiles_found = findFiles(
     root=args.data_dir,
-    regex=re.compile(r'.*v39.*lt4.*\.json', flags=re.IGNORECASE),
+    regex=re.compile(r'.*V36.*lt4.*\.json', flags=re.IGNORECASE),
 )
 
 llhfiles = [x[0] for x in llhfiles_found]
@@ -124,6 +124,7 @@ logging.warn("Processing {0:d} files".format(len(llhfiles)))
 
 mod = len(llhfiles)//20
 start = time.time()
+i = 0
 for i, filename in enumerate(llhfiles):
     if (mod > 0) and (i % mod == 0):
         logging.info("  >> {0:d} files done...".format(i))
@@ -191,6 +192,8 @@ for i, filename in enumerate(llhfiles):
             print("File failed: \n    ", logfilename)
             raise
 
+if i == 0:
+    raise Exception('No files found')
 
 delta_sec = (time.time() - start)
 logging.warn("Time to process the LLR Run: {0:.4f} sec".format(delta_sec))
