@@ -10,9 +10,14 @@
 #
 # date:   2014-01-27
 
+
 import os
+
 import numpy as np
+
 from pisa.utils.log import logging
+from pisa.resources.resources import open_resource
+
 
 # Try and get the much faster simplejson if we can
 try:
@@ -35,7 +40,7 @@ def json_string(string):
 def from_json(filename):
     """Open a file in JSON format an parse the content"""
     try:
-        content = json.load(open(os.path.expandvars(filename)),
+        content = json.load(open_resource(filename),
                             cls=NumpyDecoder)
         return content
     except (IOError, JSONDecodeError), e:
