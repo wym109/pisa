@@ -342,8 +342,9 @@ def plot_2d_comparisons(ebins=np.logspace(0, np.log10(80), 40),
         fig.tight_layout(rect=(0, 0, 1, 0.96))
         fig.savefig('/tmp/aeff_slice_vs_param_vs_mc_' + str(group) + '.png')
 
+
 def plot_1d_comparisons(ebins=np.logspace(0, np.log10(80), 21),
-                     czbins=np.linspace(-1, 1, 21)):
+                        czbins=np.linspace(-1, 1, 21)):
     import matplotlib as mpl
     import matplotlib.pyplot as plt
     from pisa.utils.plot import stepHist

@@ -5,10 +5,13 @@
 """Set of utilities for handling HDF5 file I/O"""
 
 import os
+
 import numpy as np
 import h5py
+
 from pisa.utils.log import logging, set_verbosity
 import pisa.utils.utils as utils
+from pisa.resources.resources import find_resource
 
 
 def from_hdf(val, return_attrs=False):
@@ -58,7 +61,7 @@ def from_hdf(val, return_attrs=False):
     attrs = {}
     myfile = False
     if isinstance(val, basestring):
-        root = h5py.File(os.path.expandvars(os.path.expanduser(val)), 'r')
+        root = h5py.File(find_resource(val), 'r')
         myfile = True
     else:
         root = val

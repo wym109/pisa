@@ -15,12 +15,9 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-import sys, os, re, traceback, time, warnings, itertools
 import copy
-#from pisa.utils import utils as putils
 from pisa.utils.fileio import from_file, to_file
 from pisa.utils import params as ppars
-from pisa.utils import utils as putils
 
 ts0 = from_file(args.infile)
 ts1 = copy.deepcopy(ts0)

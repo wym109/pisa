@@ -8,12 +8,13 @@ and then in energy.
 """
 
 import os
+import collections
 
 import numpy as np
 from scipy.interpolate import interp1d, interp2d, RectBivariateSpline
 
 from pisa.utils.log import logging
-from pisa.utils import fileio
+from pisa.utils import hdf
 from pisa.utils import flavInt
 
 
@@ -106,9 +107,12 @@ class AeffServiceSliceSmooth(object):
         if aeff_slice_smooth != self.__aeff_slice_smooth:
             # TODO: validation on all inputs!
             if isinstance(aeff_slice_smooth, basestring):
-                self.store = fileio.from_file(aeff_slice_smooth)
+                self.smooth_store, self.metadata = \
+                        hdf.from_hdf(aeff_slice_smooth, return_attrs=True)
             elif isinstance(aeff_slice_smooth, collections.Mapping):
-                self.store = aeff_slice_smooth
+                self.smooth_store = aeff_slice_smooth
+            elif isinstance(aeff_slice_smooth, tuple):
+                self.smooth_store, self.metadata = aeff_slice_smooth
             else:
                 raise TypeError('Unhandled `aeff_slice_smooth` type: %s' %
                                 type(aeff_slice_smooth))
@@ -126,30 +130,34 @@ class AeffServiceSliceSmooth(object):
             rep_flavint = group[0]
 
             # Find where this flavint is represented in the stores
-            keys = [k for k in self.store.keys()
+            keys = [k for k in self.smooth_store.keys()
                     if rep_flavint in flavInt.NuFlavIntGroup(k)]
             assert len(keys) == 1, len(keys)
             key = keys[0]
 
             # Grab source data
-            interpolant_aeff = self.store[key]['smooth']
+            interpolant_aeff = self.smooth_store[key]['smooth']
 
             # Interpolate
-            store_ebin_midpoints = (self.store['ebins'][:-1] +
-                                    self.store['ebins'][1:])/2.0
-            store_czbin_midpoints = (self.store['czbins'][:-1] +
-                                     self.store['czbins'][1:])/2.0
+            store_ebin_midpoints = (self.smooth_store['ebins'][:-1] +
+                                    self.smooth_store['ebins'][1:])/2.0
+            store_czbin_midpoints = (self.smooth_store['czbins'][:-1] +
+                                     self.smooth_store['czbins'][1:])/2.0
             x = store_ebin_midpoints
             y = store_czbin_midpoints
-            xmesh, ymesh = np.meshgrid(store_ebin_midpoints, store_czbin_midpoints, indexing='ij')
+            xmesh, ymesh = np.meshgrid(store_ebin_midpoints,
+                                       store_czbin_midpoints, indexing='ij')
             interpolant = interp2d(
-                x=store_czbin_midpoints, y=store_ebin_midpoints, z=interpolant_aeff,
+                x=store_czbin_midpoints, y=store_ebin_midpoints,
+                z=interpolant_aeff,
                 kind=interp_kind,
                 copy=True,
                 fill_value=None,
             )
             self.interpolants[group] = interpolant
-            ebin_mp_mesh, czbin_mp_mesh = np.meshgrid(ebin_midpoints, czbin_midpoints, indexing='ij')
+            ebin_mp_mesh, czbin_mp_mesh = np.meshgrid(ebin_midpoints,
+                                                      czbin_midpoints,
+                                                      indexing='ij')
             aeff2d[group] = interpolant(czbin_midpoints, ebin_midpoints)
 
         # Store info for *all* flavints, even if they were combined
@@ -167,7 +175,7 @@ class AeffServiceSliceSmooth(object):
         """Returns the effective areas FlavIntData object"""
         return self.aeff_fidata
 
-    def sample_aeff_surface(self, ebin_midpoints, czbin_midpoints):
+    def sample_aeff_surface(self, flavint, ebin_midpoints, czbin_midpoints):
         group = [g for g in self.interpolants.keys() if flavint in g][0] 
         return self.interpolants[group](ebin_midpoints, czbin_midpoints)
 

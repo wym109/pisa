@@ -34,6 +34,9 @@ class Events(flavInt.FlavIntData):
         data = flavInt.FlavIntData()
         if isinstance(val, basestring) or isinstance(val, h5py.Group):
             data, meta = self.__load(val)
+        elif isinstance(val, Events):
+            self.metadata = val.metadata
+            data = val
         elif isinstance(val, dict):
             data = val
         self.metadata.update(meta)

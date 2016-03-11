@@ -433,7 +433,7 @@ def mkdir(d, mode=0750):
         os.makedirs(d, mode=mode)
     except OSError as err:
         if err[0] == 17:
-            logging.info('Directory "' + str(d) + '" already exists')
+            logging.warn('Directory "' + str(d) + '" already exists')
         else:
             raise err
     else:
