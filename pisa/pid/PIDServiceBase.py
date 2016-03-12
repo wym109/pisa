@@ -20,8 +20,8 @@ from pisa.utils.utils import is_equal_binning
 class PIDServiceBase(object):
     """
     Base class for all PID services, provides initialization and tools 
-    for the actual classification. The method 'get_pid_kernels' (from 
-    functions, MC or whatever) has to be implemented in the derived PID 
+    for the actual classification. The method 'get_pid_kernels' (from
+    functions, MC or whatever) has to be implemented in the derived PID
     services.
     """
     def __init__(self, ebins, czbins):
@@ -85,7 +85,7 @@ class PIDServiceBase(object):
         return sane
 
     def store_pid_kernels(self, filename):
-        """Store PID maps in JSON format"""
+        """Store PID maps to disk"""
         fileio.to_file(self.pid_kernels, filename)
 
     def get_pid_maps(self, reco_events, return_unknown=False, **kwargs):

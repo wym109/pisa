@@ -20,40 +20,39 @@ from pisa.utils import fileio
 
 
 class RecoServiceKernelFile(RecoServiceBase):
-    """
-    Loads a pre-calculated reconstruction kernel (that has been saved via
+    """Loads a pre-calculated reconstruction kernel (that has been saved via
     reco_service.store_kernels) from disk and uses that for reconstruction.
+
+    Parameters
+    ----------
+    ebins, czbins : array_like
+        Energy and coszen bin edges
+    reco_kernel_file : string
+        file containing the kernel dict
     """
     def __init__(self, ebins, czbins, reco_kernel_file=None, **kwargs):
-        """
-        Parameters needed to instantiate a reconstruction service with
-        pre-calculated kernels:
-        * ebins: Energy bin edges
-        * czbins: cos(zenith) bin edges
-        * reco_kernel_file: file containing the kernel dict
-        """
+        super(RecoServiceKernelFile, self).__init__(ebins, czbins)
         self.kernels = None
-        self.kernelfile = None
-        RecoServiceBase.__init__(self, ebins, czbins,
-                                 kernelfile=reco_kernel_file, **kwargs)
+        self.reco_kernel_file = None
+        self.kernels = self.get_reco_kernels(reco_kernel_file=reco_kernel_file,
+                                             **kwargs)
 
-
-    def _get_reco_kernels(self, kernelfile=None, e_reco_scale=1,
+    def _get_reco_kernels(self, reco_kernel_file=None, e_reco_scale=1,
                           cz_reco_scale=1, **kwargs):
         assert e_reco_scale == 1, \
                 'Only e_reco_scale == 1 allowd for RecoServiceKernelFile'
         assert cz_reco_scale == 1, \
                 'Only cz_reco_scale == 1 allowd for RecoServiceKernelFile'
 
-        if not kernelfile in [self.kernelfile, None]:
+        if not reco_kernel_file in [self.reco_kernel_file, None]:
             logging.info('Reconstruction from non-default kernel file %s!' %
-                         kernelfile)
-            return fileio.from_file(kernelfile)
+                         reco_kernel_file)
+            return fileio.from_file(reco_kernel_file)
 
         if self.kernels is None:
             logging.info('Using file %s for default reconstruction' %
-                         kernelfile)
-            self.kernels = fileio.from_file(kernelfile)
-            self.kernelfile = kernelfile
+                         reco_kernel_file)
+            self.kernels = fileio.from_file(reco_kernel_file)
+            self.reco_kernel_file = reco_kernel_file
 
         return self.kernels

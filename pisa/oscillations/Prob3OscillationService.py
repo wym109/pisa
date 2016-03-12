@@ -24,8 +24,8 @@ class Prob3OscillationService(OscillationServiceBase):
     This class handles all tasks related to the oscillation
     probability calculations using the prob3 oscillation code
     """
-    def __init__(self, ebins, czbins, detector_depth=None, earth_model=None,
-                 prop_height=None, **kwargs):
+    def __init__(self, ebins, czbins, detector_depth, earth_model, prop_height,
+                 **kwargs):
         """
         Parameters needed to instantiate a Prob3OscillationService:
         * ebins: Energy bin edges
@@ -34,32 +34,29 @@ class Prob3OscillationService(OscillationServiceBase):
         * detector_depth: Detector depth in km.
         * prop_height: Height in the atmosphere to begin in km.
         """
-        OscillationServiceBase.__init__(self, ebins, czbins)
-        logging.info('Initializing %s...'%self.__class__.__name__)
+        super(Prob3OscillationService, self).__init__(ebins, czbins)
+        logging.info('Initializing %s...' % self.__class__.__name__)
 
-        report_params(get_params(),['km','','km'])
+        report_params(get_params(), ['km', '', 'km'])
 
         self.prop_height = prop_height
         earth_model = find_resource(earth_model)
         self.barger_prop = BargerPropagator(earth_model, detector_depth)
         self.barger_prop.UseMassEigenstates(False)
 
-    def fill_osc_prob(self, osc_prob_dict, ecen, czcen,
-                      theta12=None, theta13=None, theta23=None,
-                      deltam21=None, deltam31=None, deltacp=None,
-                      energy_scale=None, YeI = None, YeO = None,
-                      YeM = None,**kwargs):
-        '''
-        Loops over ecen,czcen and fills the osc_prob_dict maps, with
-        probabilities calculated according to prob3
-        '''
+    def fill_osc_prob(self, osc_prob_dict, ecen, czcen, theta12, theta13,
+                      theta23, deltam21, deltam31, deltacp, energy_scale, YeI,
+                      YeO, YeM, **kwargs):
+        """Loops over ecen, czcen and fills the osc_prob_dict maps with
+        probabilities calculated according to prob3.
+        """
 
-        neutrinos = ['nue','numu','nutau']
-        anti_neutrinos = ['nue_bar','numu_bar','nutau_bar']
-        mID = ['','_bar']
+        neutrinos = ['nue', 'numu', 'nutau']
+        anti_neutrinos = ['nue_bar', 'numu_bar', 'nutau_bar']
+        mID = ['', '_bar']
 
-        nu_barger = {'nue':1,'numu':2,'nutau':3,
-                     'nue_bar':1,'numu_bar':2,'nutau_bar':3}
+        nu_barger = {'nue':1, 'numu':2, 'nutau':3,
+                     'nue_bar':1, 'numu_bar':2, 'nutau_bar':3}
 
         logging.info("Defining osc_prob_dict from BargerPropagator...")
         tprofile.info("start oscillation calculation")
@@ -73,14 +70,14 @@ class Prob3OscillationService(OscillationServiceBase):
         total_bins = int(len(ecen)*len(czcen))
         mod = total_bins/20
         loglevel = logging.root.getEffectiveLevel()
-        for ie,energy in enumerate(ecen):
+        for ie, energy in enumerate(ecen):
             for icz, coszen in enumerate(czcen):
                 evals.append(energy)
                 czvals.append(coszen)
                 scaled_energy = energy*energy_scale
 
                 if loglevel <= logging.INFO:
-                    if( (ie+1)*(icz+1) % mod == 0):
+                    if ((ie+1)*(icz+1) % mod == 0):
                         sys.stdout.write(".")
                         sys.stdout.flush()
 
@@ -92,38 +89,40 @@ class Prob3OscillationService(OscillationServiceBase):
 
                 ########### FIRST FOR NEUTRINOS ##########
                 kNuBar = 1 # +1 for nu -1 for nubar
-                self.barger_prop.SetMNS(sin2th12Sq,sin2th13Sq,sin2th23Sq,deltam21,mAtm,
-                                        deltacp,scaled_energy,kSquared,kNuBar)
+                self.barger_prop.SetMNS(sin2th12Sq, sin2th13Sq, sin2th23Sq,
+                                        deltam21, mAtm, deltacp, scaled_energy,
+                                        kSquared, kNuBar)
 
                 self.barger_prop.DefinePath(coszen, self.prop_height, YeI, YeO, YeM)
                 self.barger_prop.propagate(kNuBar)
 
-                for nu in ['nue','numu']:
+                for nu in ['nue', 'numu']:
                     nu_i = nu_barger[nu]
                     nu = nu+'_maps'
                     for to_nu in neutrinos:
                         nu_f = nu_barger[to_nu]
                         osc_prob_dict[nu][to_nu].append(
-                            self.barger_prop.GetProb(nu_i,nu_f))
-
+                            self.barger_prop.GetProb(nu_i, nu_f))
 
                 ########### SECOND FOR ANTINEUTRINOS ##########
                 kNuBar = -1
-                self.barger_prop.SetMNS(sin2th12Sq,sin2th13Sq,sin2th23Sq,deltam21,
-                                        mAtm,deltacp,scaled_energy,kSquared,kNuBar)
+                self.barger_prop.SetMNS(sin2th12Sq, sin2th13Sq, sin2th23Sq,
+                                        deltam21, mAtm, deltacp, scaled_energy,
+                                        kSquared, kNuBar)
                 self.barger_prop.DefinePath(coszen, self.prop_height, YeI, YeO, YeM)
                 self.barger_prop.propagate(kNuBar)
 
-                for nu in ['nue_bar','numu_bar']:
+                for nu in ['nue_bar', 'numu_bar']:
                     nu_i = nu_barger[nu]
                     nu+='_maps'
                     for to_nu in anti_neutrinos:
                         nu_f = nu_barger[to_nu]
                         osc_prob_dict[nu][to_nu].append(
-                            self.barger_prop.GetProb(nu_i,nu_f))
+                            self.barger_prop.GetProb(nu_i, nu_f))
 
-        if loglevel <= logging.INFO: sys.stdout.write("\n")
+        if loglevel <= logging.INFO:
+            sys.stdout.write("\n")
 
         tprofile.info("stop oscillation calculation")
 
-        return evals,czvals
+        return evals, czvals

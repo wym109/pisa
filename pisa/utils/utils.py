@@ -352,7 +352,12 @@ def recursiveAllclose(x, y, *args, **kwargs):
     elif np.isscalar(x):
         if not np.isscalar(y):
             return False
-        if not np.allclose(x, y, *args, **kwargs):
+        # np.allclose doesn't handle some dtypes
+        try:
+            eq = np.allclose(x, y, *args, **kwargs)
+        except TypeError:
+            eq = x == y
+        if not eq:
             return False
     # Dict
     elif isinstance(x, dict):
@@ -369,15 +374,25 @@ def recursiveAllclose(x, y, *args, **kwargs):
         if not len(x) == len(y):
             return False
         if isinstance(x, list) or isinstance(x, tuple):
+            # NOTE: A list is allowed to be allclose to a tuple so long
+            # as the contents are allclose
             if not isinstance(y, list) or isinstance(y, tuple):
                 return False
             for xs, ys in itertools.izip(x, y):
                 if not recursiveAllclose(xs, ys, *args, **kwargs):
                     return False
         elif isinstance(x, np.ndarray):
+            # NOTE: A numpy array only evalutes to allclose if compared to
+            # another numpy array
             if not isinstance(y, np.ndarray):
                 return False
-            if not np.allclose(x, y, *args, **kwargs):
+            # np.allclose doesn't handle arrays of some dtypes
+            # TODO: this can be rolled into the above clause, I think
+            try:
+                eq = np.allclose(x, y, *args, **kwargs)
+            except TypeError:
+                eq = np.all(x == y)
+            if not eq:
                 return False
         else:
             raise TypeError('Unhandled type(s): %s, x=%s, y=%s' %
@@ -686,17 +701,21 @@ def check_fine_binning(fine_bins, coarse_bins):
 
 def oversample_binning(coarse_bins, factor):
     """Oversample bin edges (coarse_bins) by the given factor"""
+    if factor == 1:
+        return coarse_bins
 
     if is_linear(coarse_bins):
         logging.info('Oversampling linear output binning by factor %i.'%factor)
         fine_bins = np.linspace(coarse_bins[0], coarse_bins[-1],
                                 factor*(len(coarse_bins)-1)+1)
+
     elif is_logarithmic(coarse_bins):
         logging.info('Oversampling logarithmic output binning by factor %i.'
                      % factor)
         fine_bins = np.logspace(np.log10(coarse_bins[0]),
                                 np.log10(coarse_bins[-1]),
                                 factor*(len(coarse_bins)-1)+1)
+
     else:
         logging.warn('Irregular binning detected! Evenly oversampling '
                      'by factor %i' % factor)
@@ -760,6 +779,22 @@ def inspect_cur_frame():
 
 
 def prefilled_map(ebins, czbins, val, dtype=float):
+    """Generate a PISA "map" pre-filled with `val` and use datatype `dtype` for
+    the data storage part of the map (and *not* for the ebins/czbins storage in
+    the map).
+
+    Note that a "map" here is acutally dictionary with structure
+        {'ebins': (n_ebins-len array of float),
+         'czbins': (n_czbins-len array of float),
+         'map': (n_ebins x n_czbins array of dtype)}
+
+    Note also that, elsewhere in PISA, "map" refers to a dictionary that has
+    one of the above for each of several neutrino flavors, or
+    {'<flavor>': {'<interaction type>': <map> ... }-structured dictionaries, or
+    {'<flavor>': {'<interaction type>': {'<signature>': <map> ...}-
+    structured dictionaries. Someday maybe the language will be cleaned up so
+    as to not be so confusing to mere mortals.
+    """
     n_ebins = len(ebins) - 1
     n_czbins = len(czbins) - 1
     newmap = {

@@ -12,37 +12,22 @@
 #
 
 import sys
+
 import numpy as np
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-from scipy.constants import Julian_year
 
-from pisa.utils.log import logging, tprofile, set_verbosity
-from pisa.resources.resources import find_resource
-from pisa.utils.params import get_fixed_params, get_free_params, get_values, select_hierarchy
+from pisa.utils.log import logging, set_verbosity
+from pisa.utils.params import get_values, select_hierarchy
 from pisa.utils.fileio import from_file, to_file
 from pisa.utils.utils import Timer
 
-from pisa.flux.HondaFluxService import HondaFluxService
-from pisa.flux import Flux
 
-from pisa.oscillations.Prob3OscillationService import Prob3OscillationService
-from pisa.oscillations.NucraftOscillationService import NucraftOscillationService
-try:
-    logging.info('Trying to import Prob3GPUOscillationService...')
-    from pisa.oscillations.Prob3GPUOscillationService import Prob3GPUOscillationService
-except:
-    logging.warn('CAN NOT import Prob3GPUOscillationService!')
 from pisa.oscillations import Oscillation
-
+from pisa.flux import Flux
 from pisa.aeff import Aeff
-
-from pisa.reco.RecoServiceMC import RecoServiceMC
-from pisa.reco.RecoServiceParam import RecoServiceParam
-from pisa.reco.RecoServiceKernelFile import RecoServiceKernelFile
-from pisa.reco.RecoServiceVBWKDE import RecoServiceVBWKDE
 from pisa.reco import Reco
-
 from pisa.pid import PID
+
 
 class TemplateMaker:
     """This class handles all steps needed to produce a template with a
@@ -65,83 +50,37 @@ class TemplateMaker:
         oversample_e
         oversample_cz
         """
-
-
         self.ebins = ebins
         self.czbins = czbins
+
+        # TODO why do these not have a proper home?
         self.oversample_e = oversample_e
         self.oversample_cz = oversample_cz
+
         logging.debug('Using %u bins in energy from %.2f to %.2f GeV' %
                       (len(self.ebins)-1, self.ebins[0], self.ebins[-1]))
         logging.debug('Using %u bins in cos(zenith) from %.2f to %.2f' %
                       (len(self.czbins)-1, self.czbins[0], self.czbins[-1]))
 
-        # Instantiate a flux model service
-        self.flux_service = HondaFluxService(**template_params_values)
-
-        # Oscillated Flux Service:
-        osc_code = template_params_values['osc_code']
-        if osc_code == 'prob3':
-            self.osc_service = Prob3OscillationService(
-                ebins=self.ebins, czbins=self.czbins,
-                **template_params_values
-            )
-        elif osc_code == 'gpu':
-            self.osc_service = Prob3GPUOscillationService(
-                ebins=self.ebins, czbins=self.czbins,
-                oversample_e=self.oversample_e,
-                oversample_cz=self.oversample_cz,
-                **template_params_values
-            )
-        elif osc_code == 'nucraft':
-            self.osc_service = NucraftOscillationService(
-                ebins=self.ebins, czbins=self.czbins,
-                **template_params_values
-            )
-        else:
-            error_msg = 'OscillationService NOT implemented for ' + \
-                    'osc_code = %s' % osc_code
-            raise NotImplementedError(error_msg)
-
-        # Instantiate an Aeff service
-        self.aeff_service = Aeff.aeff_service_factory(
+        # Instantiate the stages
+        self.flux_service = Flux.service_factory(**template_params_values)
+        self.osc_service = Oscillation.service_factory(
+            ebins=self.ebins, czbins=self.czbins,
+            oversample_e=self.oversample_e, oversample_cz=self.oversample_cz,
+            **template_params_values
+        )
+        self.aeff_service = Aeff.service_factory(
             ebins=self.ebins, czbins=self.czbins,
             **template_params_values
         )
-
-        # Reco Event Rate Service:
-        reco_mode = template_params_values['reco_mode']
-        if reco_mode == 'MC':
-            self.reco_service = RecoServiceMC(
-                ebins=self.ebins, czbins=self.czbins,
-                **template_params_values
-            )
-        elif reco_mode == 'param':
-            self.reco_service = RecoServiceParam(
-                ebins=self.ebins, czbins=self.czbins,
-                **template_params_values
-            )
-        elif reco_mode == 'stored':
-            self.reco_service = RecoServiceKernelFile(
-                ebins=self.ebins, czbins=self.czbins,
-                **template_params_values
-            )
-        elif reco_mode == 'vbwkde':
-            self.reco_service = RecoServiceVBWKDE(
-                ebins=self.ebins, czbins=self.czbins,
-                **template_params_values
-            )
-        else:
-            error_msg = "reco_mode: %s is not implemented! " % reco_mode
-            error_msg+=" Please choose among: ['MC', 'param', 'stored']"
-            raise NotImplementedError(error_msg)
-
-        # Instantiate a PID service
-        self.pid_service = PID.pid_service_factory(
+        self.reco_service = Reco.service_factory(
             ebins=self.ebins, czbins=self.czbins,
             **template_params_values
         )
-
+        self.pid_service = PID.service_factory(
+            ebins=self.ebins, czbins=self.czbins,
+            **template_params_values
+        )
 
     def get_template(self, template_params_values, return_stages=False):
         """Runs entire template-making chain, using parameters found in
@@ -150,23 +89,21 @@ class TemplateMaker:
         """
         logging.info("STAGE 1: Getting Atm Flux maps...")
         with Timer() as t:
-            flux_maps = Flux.get_flux_maps(
-                flux_service=self.flux_service,
+            flux_maps = self.flux_service.get_flux_maps(
                 ebins=self.ebins, czbins=self.czbins,
                 **template_params_values
             )
-        tprofile.debug("==> elapsed time for flux stage: %s sec" % t.secs)
+        logging.debug("==> elapsed time for flux stage: %s sec" % t.secs)
 
         logging.info("STAGE 2: Getting osc prob maps...")
         with Timer() as t:
-            osc_flux_maps = Oscillation.get_osc_flux(
+            osc_flux_maps = self.osc_service.get_osc_flux(
                 flux_maps=flux_maps,
-                osc_service=self.osc_service,
                 oversample_e=self.oversample_e,
                 oversample_cz=self.oversample_cz,
                 **template_params_values
             )
-        tprofile.debug("==> elapsed time for oscillations stage: %s sec"
+        logging.debug("==> elapsed time for oscillations stage: %s sec"
                        % t.secs)
 
         logging.info("STAGE 3: Getting event rate true maps...")
@@ -175,23 +112,22 @@ class TemplateMaker:
                 osc_flux_maps=osc_flux_maps, aeff_service=self.aeff_service,
                 **template_params_values
             )
-        tprofile.debug("==> elapsed time for aeff stage: %s sec" % t.secs)
+        logging.debug("==> elapsed time for aeff stage: %s sec" % t.secs)
 
         logging.info("STAGE 4: Getting event rate reco maps...")
         with Timer() as t:
-            event_rate_reco_maps = Reco.get_reco_maps(
+            event_rate_reco_maps = self.reco_service.get_reco_maps(
                 true_event_maps=event_rate_maps,
-                reco_service=self.reco_service,
                 **template_params_values
             )
-        tprofile.debug("==> elapsed time for reco stage: %s sec" % t.secs)
+        logging.debug("==> elapsed time for reco stage: %s sec" % t.secs)
 
         logging.info("STAGE 5: Getting pid maps...")
         with Timer(verbose=False) as t:
             final_event_rate = self.pid_service.get_pid_maps(
                 event_rate_reco_maps
             )
-        tprofile.debug("==> elapsed time for pid stage: %s sec" % t.secs)
+        logging.debug("==> elapsed time for pid stage: %s sec" % t.secs)
 
         if not return_stages:
             return final_event_rate
@@ -204,12 +140,11 @@ class TemplateMaker:
         """Runs template making chain, but without oscillations"""
         logging.info("STAGE 1: Getting Atm Flux maps...")
         with Timer() as t:
-            flux_maps = Flux.get_flux_maps(
-                flux_service=self.flux_service,
+            flux_maps = self.flux_service.get_flux_maps(
                 ebins=self.ebins, czbins=self.czbins,
                 **template_params_values
             )
-        tprofile.debug("==> elapsed time for flux stage: %s sec" % t.secs)
+        logging.debug("==> elapsed time for flux stage: %s sec" % t.secs)
 
         # Skipping oscillation stage...
         logging.info("  >>Skipping Stage 2 in no oscillations case...")
@@ -227,23 +162,22 @@ class TemplateMaker:
                 osc_flux_maps=flux_maps, aeff_service=self.aeff_service,
                 **template_params_values
             )
-        tprofile.debug("==> elapsed time for aeff stage: %s sec" % t.secs)
+        logging.debug("==> elapsed time for aeff stage: %s sec" % t.secs)
 
         logging.info("STAGE 4: Getting event rate reco maps...")
         with Timer() as t:
-            event_rate_reco_maps = Reco.get_reco_maps(
+            event_rate_reco_maps = self.reco_service.get_reco_maps(
                 true_event_maps=event_rate_maps,
-                reco_service=self.reco_service,
                 **template_params_values
             )
-        tprofile.debug("==> elapsed time for reco stage: %s sec" % t.secs)
+        logging.debug("==> elapsed time for reco stage: %s sec" % t.secs)
 
         logging.info("STAGE 5: Getting pid maps...")
         with Timer(verbose=False) as t:
             final_event_rate = self.pid_service.get_pid_maps(
                 event_rate_reco_maps
             )
-        tprofile.debug("==> elapsed time for pid stage: %s sec" % t.secs)
+        logging.debug("==> elapsed time for pid stage: %s sec" % t.secs)
 
         return final_event_rate
 
@@ -283,7 +217,7 @@ if __name__ == '__main__':
         # Load all the settings
         model_settings = from_file(args.template_settings)
 
-        #Select a hierarchy
+        # Select a hierarchy
         logging.info('Selected %s hierarchy' %
                      ('normal' if args.normal else 'inverted'))
         template_params_nh = select_hierarchy(
@@ -302,34 +236,30 @@ if __name__ == '__main__':
         oversample_cz = model_settings['binning']['oversample_cz']
         template_maker = TemplateMaker(template_params_values_nh,
                                        **model_settings['binning'])
-    tprofile.info('  ==> elapsed time to initialize templates: %s sec'
+    logging.info('  ==> elapsed time to initialize templates: %s sec'
                   % t.secs)
 
     # Now get the actual template
     with Timer(verbose=False) as t:
-        stage_outputs = \
-                template_maker.get_template(
-                    template_params_values_nh,
-                    return_stages=True
-                )
+        stage_outputs = template_maker.get_template(template_params_values_nh,
+                                                    return_stages=True)
         flux_maps_nh, osc_flux_maps_nh, event_rate_maps_nh, \
         event_rate_reco_maps_nh, final_event_rate_nh = stage_outputs
-    tprofile.info('==> elapsed time to get template: %s sec' % t.secs)
-    
+    logging.info('==> elapsed time to get template: %s sec' % t.secs)
+
     with Timer(verbose=False) as t:
+        stage_outputs_ih = template_maker.get_template(
+            template_params_values_ih, return_stages=True
+        )
         flux_maps_ih, osc_flux_maps_ih, event_rate_maps_ih, \
-        event_rate_reco_maps_ih, final_event_rate_ih = \
-                template_maker.get_template(
-                    template_params_values_ih,
-                    return_stages=True
-                )
-    tprofile.info('==> elapsed time to get template: %s sec' % t.secs)
+        event_rate_reco_maps_ih, final_event_rate_ih = stage_outputs_ih
+    logging.info('==> elapsed time to get template: %s sec' % t.secs)
 
     with Timer(verbose=False) as t:
         final_event_rate_no_osc = template_maker.get_template_no_osc(
             template_params_values_nh
         )
-    tprofile.info('==> elapsed time to get template: %s sec' % t.secs)
+    logging.info('==> elapsed time to get template: %s sec' % t.secs)
 
     logging.info('Saving file to %s' % args.outfile)
     to_file(stage_outputs, args.outfile)
@@ -352,17 +282,17 @@ if __name__ == '__main__':
             else:
                 clim = (-0.27, 0.27)
 
-            f = plt.figure(figsize=(24,5), dpi=50)
+            f = plt.figure(figsize=(24, 5), dpi=50)
             ax = f.add_subplot(131)
             plot.show_map(evtrt_nh, title=k, log=True,
                           cmap=mpl.cm.hot)
 
             ax = f.add_subplot(132)
-            plot.show_map(evtrt_ih, log=True, #title=k + ' ih',
+            plot.show_map(evtrt_ih, log=True,
                           cmap=mpl.cm.hot)
 
             ax = f.add_subplot(133)
-            plot.show_map(dist_map, #title=k + ' delta',
+            plot.show_map(dist_map,
                          cmap=mpl.cm.seismic)
             ax.get_children()[0].set_clim(clim)
 
