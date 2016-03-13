@@ -90,9 +90,9 @@ def getAltHierarchyBestFit(asimov_data, template_maker, params, minimizer_settin
     return alt_params, llh_data
 
 
-def get_llh_hypothesis(
-        data_tag, asimov_data, ntrials, template_maker, template_params,
-        minimizer_settings, save_steps, check_octant):
+def get_llh_hypothesis(data_tag, asimov_data, ntrials, template_maker,
+                       template_params, minimizer_settings, save_steps,
+                       check_octant):
     """
     Runs the llh fitter ntrials number of times, pulling pseudo data sets from
     asimov_data.

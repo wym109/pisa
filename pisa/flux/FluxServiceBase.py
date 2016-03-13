@@ -5,6 +5,7 @@ Base class for all flux services
 
 import numpy as np
 
+from pisa.utils.log import logging
 from pisa.analysis.stats.Maps import apply_ratio_scale
 from pisa.utils.proc import report_params, get_params
 from pisa.utils.utils import get_bin_centers, get_bin_sizes, hash_obj, LRUCache, DictWithHash

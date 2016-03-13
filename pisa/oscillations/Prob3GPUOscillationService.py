@@ -29,8 +29,7 @@ from pisa.oscillations.grid_propagator.GridPropagator import GridPropagator
 from pisa.resources.resources import find_resource
 from pisa.utils.log import logging
 from pisa.utils.proc import get_params, report_params
-from pisa.utils.utils import get_bin_centers
-from pisa.utils.utils import oversample_binning
+from pisa.utils.utils import get_bin_centers, oversample_binning, hash_obj, DictWithHash
 
 
 class Prob3GPUOscillationService(OscillationServiceBase):
@@ -82,6 +81,8 @@ class Prob3GPUOscillationService(OscillationServiceBase):
         self.earth_model = earth_model
         self.FTYPE = np.float64
 
+        self.oversample_e = oversample_e
+        self.oversample_cz = oversample_cz
         self.ebins_fine = oversample_binning(self.ebins, oversample_e)
         self.czbins_fine = oversample_binning(self.czbins, oversample_cz)
         self.ecen_fine = get_bin_centers(self.ebins_fine)
@@ -283,8 +284,10 @@ class Prob3GPUOscillationService(OscillationServiceBase):
         deltam21, deltam31 - in [eV^2]
         energy_scale - factor to scale energy bin centers
         """
-        cache_key = hash_obj((ecen, czcen, theta12, theta13, theta23, deltam21,
-                              deltam31, deltacp, energy_scale, YeI, YeO, YeM))
+        cache_key = hash_obj((self.ebins, self.czbins, self.oversample_e,
+                              self.oversample_cz, theta12, theta13, theta23,
+                              deltam21, deltam31, deltacp, energy_scale, YeI,
+                              YeO, YeM))
         try:
             return self.transform_cache.get(cache_key)
         except KeyError:

@@ -60,7 +60,7 @@ def service_factory(osc_code, **kwargs):
 
     if osc_code == 'gpu':
         from pisa.oscillations.Prob3GPUOscillationService import Prob3GPUOscillationService
-        return Prob3OscillationService(**kwargs)
+        return Prob3GPUOscillationService(**kwargs)
 
     if osc_code == 'table':
         from pisa.oscillations.TableOscillationService import TableOscillationService
