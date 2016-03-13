@@ -12,9 +12,10 @@ from pisa.utils.log import logging
 from pisa.utils.utils import get_bin_sizes
 import pisa.utils.flavInt as flavInt
 import pisa.utils.events as events
+from pisa.aeff.AeffServiceBase import AeffServiceBase
 
 
-class AeffServiceMC:
+class AeffServiceMC(AeffServiceBase):
     """
     Takes a PISA events HDF5 file (which includes the 'weighted_aeff' field)
     and creates 2D-histogrammed effective areas in terms of energy and coszen,
@@ -22,8 +23,7 @@ class AeffServiceMC:
     """
     def __init__(self, ebins, czbins, aeff_weight_file, compute_error=False,
                  **kwargs):
-        self.ebins = None
-        self.czbins = None
+        super(AeffServiceMC, self).__init__(ebins, czbins)
         self.__error_computed = False
         self.__aeff_weight_file = None
         self.__compute_error = compute_error
@@ -33,14 +33,18 @@ class AeffServiceMC:
                     compute_error=compute_error)
 
     def update(self, ebins, czbins, aeff_weight_file=None, compute_error=None):
+        # Set defaults according to already-set class attributes
         if aeff_weight_file is None:
             aeff_weight_file = self.__aeff_weight_file
         if compute_error is None:
             compute_error = self.__compute_error
+
+        # Check if nothing needs to be updated
         if np.all(ebins == self.ebins) and np.all(czbins == self.czbins) and \
                 aeff_weight_file == self.__aeff_weight_file and \
                 (not compute_error or (compute_error == self.__compute_error)):
             return
+
         self.ebins = ebins
         self.czbins = czbins
         self.__compute_error = compute_error
@@ -87,6 +91,8 @@ class AeffServiceMC:
                 aeff_err = aeff_hist / np.sqrt(bin_counts)
                 self.__aeff_err[flavint] = aeff_err
                 self.__error_computed = True
+
+        self.__aeff.update_hash()
 
     def get_aeff(self, **kwargs):
         """Returns the effective areas FlavIntData object"""

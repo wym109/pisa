@@ -19,7 +19,7 @@ import numpy as np
 from scipy.interpolate import bisplrep, bisplev
 
 from pisa.utils.log import logging
-from pisa.utils.utils import get_bin_centers, get_bin_sizes
+from pisa.utils.utils import get_bin_centers, get_bin_sizes, hash_obj
 from pisa.resources.resources import open_resource
 from pisa.flux.FluxServiceBase import FluxServiceBase
 
@@ -57,7 +57,8 @@ class FluxServiceHonda(FluxServiceBase):
         # Now get a spline representation of the flux table.
         logging.debug('Make spline representation of flux')
         # do this in log of energy and log of flux (more stable)
-        logE, C = np.meshgrid(np.log10(flux_dict['energy']), flux_dict['coszen'])
+        logE, C = np.meshgrid(np.log10(flux_dict['energy']),
+                              flux_dict['coszen'])
 
         self.spline_dict = {}
         for nutype in self.primaries:
@@ -71,6 +72,11 @@ class FluxServiceHonda(FluxServiceBase):
     def get_flux(self, ebins, czbins, prim):
         """Get the flux in units [m^-2 s^-1] for the given
         bin edges in energy and cos(zenith) and the primary."""
+        cache_key = hash_obj((ebins, czbins, prim))
+        try:
+            return self.raw_flux_cache.get(cache_key)
+        except KeyError:
+            pass
 
         # Evaluate the flux at the bin centers
         evals = get_bin_centers(ebins)
@@ -89,5 +95,8 @@ class FluxServiceHonda(FluxServiceBase):
         bin_sizes = np.meshgrid(ebin_sizes, czbin_sizes)
 
         return_table *= np.abs(bin_sizes[0]*bin_sizes[1])
+        return_table = return_table.T
 
-        return return_table.T
+        self.raw_flux_cache.set(cache_key, return_table)
+
+        return return_table

@@ -20,11 +20,8 @@
 #
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-import itertools as itertools
 
-import numpy as np
-
-from pisa.utils.log import logging, physics, set_verbosity
+from pisa.utils.log import logging, set_verbosity
 from pisa.utils.utils import check_binning
 from pisa.utils.jsons import from_json,to_json
 

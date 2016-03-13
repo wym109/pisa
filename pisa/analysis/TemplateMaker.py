@@ -82,6 +82,7 @@ class TemplateMaker:
             **template_params_values
         )
 
+    #@profile
     def get_template(self, template_params_values, return_stages=False):
         """Runs entire template-making chain, using parameters found in
         'template_params_values' dict. If 'return_stages' is set to True,
@@ -108,9 +109,8 @@ class TemplateMaker:
 
         logging.info("STAGE 3: Getting event rate true maps...")
         with Timer() as t:
-            event_rate_maps = Aeff.get_event_rates(
-                osc_flux_maps=osc_flux_maps, aeff_service=self.aeff_service,
-                **template_params_values
+            event_rate_maps = self.aeff_service.get_event_rates(
+                osc_flux_maps=osc_flux_maps, **template_params_values
             )
         logging.debug("==> elapsed time for aeff stage: %s sec" % t.secs)
 
@@ -158,9 +158,8 @@ class TemplateMaker:
 
         logging.info("STAGE 3: Getting event rate true maps...")
         with Timer() as t:
-            event_rate_maps = Aeff.get_event_rates(
-                osc_flux_maps=flux_maps, aeff_service=self.aeff_service,
-                **template_params_values
+            event_rate_maps = self.aeff_service.get_event_rates(
+                osc_flux_maps=flux_maps, **template_params_values
             )
         logging.debug("==> elapsed time for aeff stage: %s sec" % t.secs)
 
@@ -230,6 +229,7 @@ if __name__ == '__main__':
         # Intialize template maker
         template_params_values_nh = get_values(template_params_nh)
         template_params_values_ih = get_values(template_params_ih)
+
         ebins = model_settings['binning']['ebins']
         czbins = model_settings['binning']['czbins']
         oversample_e = model_settings['binning']['oversample_e']
@@ -240,13 +240,23 @@ if __name__ == '__main__':
                   % t.secs)
 
     # Now get the actual template
+    logging.info('normal...')
     with Timer(verbose=False) as t:
         stage_outputs = template_maker.get_template(template_params_values_nh,
                                                     return_stages=True)
-        flux_maps_nh, osc_flux_maps_nh, event_rate_maps_nh, \
-        event_rate_reco_maps_nh, final_event_rate_nh = stage_outputs
     logging.info('==> elapsed time to get template: %s sec' % t.secs)
+    with Timer(verbose=False) as t:
+        stage_outputs = template_maker.get_template(template_params_values_nh,
+                                                    return_stages=True)
+    logging.info('==> elapsed time to get template: %s sec' % t.secs)
+    with Timer(verbose=False) as t:
+        stage_outputs = template_maker.get_template(template_params_values_nh,
+                                                    return_stages=True)
+    logging.info('==> elapsed time to get template: %s sec' % t.secs)
+    flux_maps_nh, osc_flux_maps_nh, event_rate_maps_nh, \
+            event_rate_reco_maps_nh, final_event_rate_nh = stage_outputs
 
+    logging.info('inverted...')
     with Timer(verbose=False) as t:
         stage_outputs_ih = template_maker.get_template(
             template_params_values_ih, return_stages=True
@@ -255,6 +265,7 @@ if __name__ == '__main__':
         event_rate_reco_maps_ih, final_event_rate_ih = stage_outputs_ih
     logging.info('==> elapsed time to get template: %s sec' % t.secs)
 
+    logging.info('no osc...')
     with Timer(verbose=False) as t:
         final_event_rate_no_osc = template_maker.get_template_no_osc(
             template_params_values_nh
@@ -275,8 +286,7 @@ if __name__ == '__main__':
                 continue
             evtrt_nh = final_event_rate_nh[k]
             evtrt_ih = final_event_rate_ih[k]
-            dist_map = plot.distinguishability_map(evtrt_ih,
-                                                   evtrt_nh)
+            dist_map = plot.distinguishability_map(evtrt_ih, evtrt_nh)
             if k == 'trck':
                 clim = (-0.21, 0.21)
             else:
@@ -292,8 +302,7 @@ if __name__ == '__main__':
                           cmap=mpl.cm.hot)
 
             ax = f.add_subplot(133)
-            plot.show_map(dist_map,
-                         cmap=mpl.cm.seismic)
+            plot.show_map(dist_map, cmap=mpl.cm.seismic)
             ax.get_children()[0].set_clim(clim)
 
         plt.draw()

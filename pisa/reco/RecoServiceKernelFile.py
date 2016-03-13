@@ -17,6 +17,7 @@ import logging
 from pisa.reco.RecoServiceBase import RecoServiceBase
 from pisa.resources.resources import find_resource
 from pisa.utils import fileio
+from pisa.utils.utils import DictWithHash
 
 
 class RecoServiceKernelFile(RecoServiceBase):
@@ -44,15 +45,14 @@ class RecoServiceKernelFile(RecoServiceBase):
         assert cz_reco_scale == 1, \
                 'Only cz_reco_scale == 1 allowd for RecoServiceKernelFile'
 
-        if not reco_kernel_file in [self.reco_kernel_file, None]:
-            logging.info('Reconstruction from non-default kernel file %s!' %
-                         reco_kernel_file)
-            return fileio.from_file(reco_kernel_file)
-
-        if self.kernels is None:
-            logging.info('Using file %s for default reconstruction' %
-                         reco_kernel_file)
-            self.kernels = fileio.from_file(reco_kernel_file)
+        if self.kernels is None or \
+                not reco_kernel_file in [self.reco_kernel_file, None]:
+            #logging.info('Using file %s for default reconstruction' %
+            #             reco_kernel_file)
+            self.kernels = DictWithHash(fileio.from_file(reco_kernel_file))
+            #self.kernels.update_hash()
             self.reco_kernel_file = reco_kernel_file
+        else:
+            self.kernels.is_new = False
 
         return self.kernels

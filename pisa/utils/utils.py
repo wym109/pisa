@@ -19,12 +19,75 @@ import inspect
 import time
 import numbers
 import hashlib
+import collections
 
 import numpy as np
 from scipy.stats import binned_statistic_2d
 
 from pisa.utils import jsons
 from pisa.utils.log import logging
+
+
+class DictWithHash(dict):
+    """A dictionary that can carry properties and hashes (and stores) the hash
+    of its items
+
+    Notes
+    -----
+    The contents are not automatically hashed, as it is beyond the scope of
+    this object to figure out if a sub- or sub-sub (etc.) item has changed,
+    and therefore the hash has been invalidated.
+    """
+    def __init__(self, *args, **kwargs):
+        super(DictWithHash, self).__init__(*args, **kwargs)
+        # Initialize with np.nan, a value that by default returns False when
+        # compared against other objects (including another np.nan)
+        self.hash = np.nan
+        self.is_new = True
+
+    def update_hash(self, item_to_hash=None):
+        if item_to_hash is None:
+            self.hash = hash_obj(self.items())
+        elif isinstance(item_to_hash, basestring) or \
+                np.isscalar(item_to_hash):
+            self.hash = item_to_hash
+        else:
+            self.hash = hash_obj(item_to_hash)
+        #self.hash = np.nan
+        self.is_new = True
+        return self.hash
+
+    def get_hash(self):
+        return self.hash
+
+
+class LRUCache:
+    """Simple implementation of a least-recently-used (LRU) memory cache.
+    Specify `depth` to set a limit on the number of entries.
+
+    From: https://www.kunxi.org/blog/2014/05/lru-cache-in-python/"""
+    GLOBAL_CACHE_DEPTH_OVERRIDE = None
+    def __init__(self, capacity):
+        self.capacity = capacity
+        if self.GLOBAL_CACHE_DEPTH_OVERRIDE is not None:
+            self.capacity = self.GLOBAL_CACHE_DEPTH_OVERRIDE
+        self.cache = collections.OrderedDict()
+
+    def get(self, key):
+        value = self.cache.pop(key)
+        self.cache[key] = value
+        if hasattr(value, 'is_new'):
+            value.is_new = False
+        return value
+
+    def set(self, key, value):
+        if self.capacity > 0:
+            try:
+                self.cache.pop(key)
+            except KeyError:
+                if len(self.cache) >= self.capacity:
+                    self.cache.popitem(last=False)
+            self.cache[key] = value
 
 
 class Timer(object):
@@ -592,8 +655,9 @@ def is_logarithmic(edges, maxdev=1e-5):
 
 def is_equal_binning(edges1, edges2, maxdev=1e-8):
     """Check whether the bin edges are equal."""
-    return np.shape(edges1) == np.shape(edges2) and np.allclose(edges1, edges2,
-                                                                rtol=maxdev)
+    return (np.shape(edges1) == np.shape(edges2)) and np.allclose(edges1,
+                                                                  edges2,
+                                                                  rtol=maxdev)
 
 
 def is_coarser_binning(coarse_bins, fine_bins):
@@ -804,14 +868,16 @@ def prefilled_map(ebins, czbins, val, dtype=float):
     }
     return newmap
 
-
+#import xxhash, dill
 def hash_obj(obj):
     """Return hash for an object by serializing the object to a JSON string"""
+    #return xxhash.xxh32(dill.dumps(obj)).intdigest()
     if isinstance(obj, np.ndarray) or isinstance(obj, np.matrix):
         return hash(obj.tostring())
-    return hash(jsons.json.dumps(obj, sort_keys=True, cls=None, indent=None,
-                                 ensure_ascii=False, check_circular=True,
-                                 allow_nan=True, separators=(',', ':')))
+    return hash(jsons.json.dumps(obj, sort_keys=True, cls=jsons.NumpyEncoder,
+                                 indent=None, ensure_ascii=False,
+                                 check_circular=True, allow_nan=True,
+                                 separators=(',', ':')))
 
 
 def hash_file(fname):

@@ -931,7 +931,7 @@ ALL_NUCC = NuFlavIntGroup('nuall_cc,nuallbar_cc')
 ALL_NUNC = NuFlavIntGroup('nuall_nc,nuallbar_nc')
 
 
-class FlavIntData(dict):
+class FlavIntData(utils.DictWithHash):
     """Container class for storing data for each NuFlavInt.
 
     val : string, dict, or None
@@ -942,6 +942,7 @@ class FlavIntData(dict):
         If None, instantiate with None for all data
     """
     def __init__(self, val=None):
+        super(FlavIntData, self).__init__()
         if isinstance(val, basestring):
             d = self.__load(val)
         elif isinstance(val, dict):

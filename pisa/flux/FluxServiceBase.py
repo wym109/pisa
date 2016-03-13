@@ -7,12 +7,15 @@ import numpy as np
 
 from pisa.analysis.stats.Maps import apply_ratio_scale
 from pisa.utils.proc import report_params, get_params
-from pisa.utils.utils import get_bin_centers, get_bin_sizes
+from pisa.utils.utils import get_bin_centers, get_bin_sizes, hash_obj, LRUCache, DictWithHash
 
 
 class FluxServiceBase(object):
-    def __init__(self):
+    def __init__(self, cache_depth=1000):
         self.primaries = ['numu', 'numu_bar', 'nue', 'nue_bar']
+        self.cache_depth = cache_depth
+        self.result_cache = LRUCache(self.cache_depth)
+        self.raw_flux_cache = LRUCache(self.cache_depth*len(self.primaries))
 
     def get_flux_maps(self, ebins, czbins, nue_numu_ratio, nu_nubar_ratio,
                       energy_scale, atm_delta_index, **kwargs):
@@ -39,12 +42,21 @@ class FluxServiceBase(object):
         atm_delta_index
             change in spectral index from fiducial
         """
-        # Be verbose on input
-        params = get_params()
-        report_params(params, units = [''])
+        cache_key = hash_obj((ebins, czbins, nue_numu_ratio, nu_nubar_ratio,
+                              energy_scale, atm_delta_index))
+        try:
+            return self.result_cache.get(cache_key)
+        except KeyError:
+            pass
+
+        ## Be verbose on input
+        #params = get_params()
+        #report_params(params, units = [''])
 
         # Initialize return dict
-        maps = {'params': params}
+        maps = DictWithHash()
+        maps['params'] = {}
+        #maps['params'] = params
 
         for prim in self.primaries:
             # Get the flux for this primary
@@ -53,7 +65,7 @@ class FluxServiceBase(object):
                 'czbins': czbins,
                 'map': self.get_flux(ebins*energy_scale, czbins, prim)
             }
-            # Be less verbose to save time
+            # Be less verbose
             ## be a bit verbose
             #logging.trace("Total flux of %s is %u [s^-1 m^-2]"%
             #              (prim, maps[prim]['map'].sum()))
@@ -69,12 +81,16 @@ class FluxServiceBase(object):
         # now scale the nu(e/mu) / nu(e/mu)bar event count ratios, keeping the
         # total (nue + nuebar etc.) constant
         if nu_nubar_ratio != 1.0:
-            scaled_maps = self.apply_nu_nubar_ratio(scaled_maps, nu_nubar_ratio)
+            scaled_maps = self.apply_nu_nubar_ratio(scaled_maps,
+                                                    nu_nubar_ratio)
 
         median_energy = self.get_median_energy(maps['numu'])
         if atm_delta_index != 0.0:
             scaled_maps = self.apply_delta_index(scaled_maps, atm_delta_index,
                                                  median_energy)
+
+        scaled_maps.update_hash(cache_key)
+        self.result_cache.set(cache_key, scaled_maps)
 
         return scaled_maps
 

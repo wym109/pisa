@@ -8,13 +8,18 @@
 # date:   April 9, 2014
 #
 
+
 import sys
+from itertools import product
+
 import h5py
 import numpy as np
-from itertools import product
+
 from pisa.reco.RecoServiceBase import RecoServiceBase
 from pisa.utils.log import logging
 from pisa.resources.resources import find_resource
+from pisa.utils.utils import DictWithHash
+
 
 class RecoServiceMC(RecoServiceBase):
     """
@@ -44,7 +49,7 @@ class RecoServiceMC(RecoServiceBase):
         except IOError,e:
             logging.error("Unable to open event data file %s"%simfile)
             logging.error(e)
-            sys.exit(1)
+            raise
 
         # Create the 4D distribution kernels...
         kernels = {}

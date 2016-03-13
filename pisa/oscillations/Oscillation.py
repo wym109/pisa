@@ -17,9 +17,24 @@
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
+import numpy as np
+
 from pisa.utils.log import logging, tprofile, set_verbosity
 from pisa.utils.utils import Timer
 from pisa.utils.fileio import from_file, to_file
+from pisa.utils.utils import DictWithHash
+
+
+def newOscProbDict(ecen, czcen):
+    n_ecen = len(ecen)
+    n_czcen = len(czcen)
+    osc_prob_dict = DictWithHash()
+    for nu in ['nue_maps', 'numu_maps', 'nue_bar_maps', 'numu_bar_maps']:
+        isbar = '_bar' if 'bar' in nu else ''
+        osc_prob_dict[nu] = {'nue'+isbar: np.zeros(n_ecen*n_czcen),
+                             'numu'+isbar: np.zeros(n_ecen*n_czcen),
+                             'nutau'+isbar: np.zeros(n_ecen*n_czcen)}
+    return osc_prob_dict
 
 
 # TODO: so... convention is *_mode everywhere else besides here?

@@ -21,65 +21,12 @@
 #
 
 
-import sys
-
-import numpy as np
-from scipy.constants import Julian_year
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
-from pisa.utils import flavInt
+import numpy as np
+
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.fileio import from_file, to_file
-from pisa.utils.proc import report_params, get_params, add_params
-from pisa.utils.utils import check_binning, get_binning, prefilled_map
-
-
-def get_event_rates(osc_flux_maps, aeff_service, livetime, aeff_scale,
-                    **kwargs):
-    """Main function for this module, which returns the event rate maps
-    for each flavor and interaction type, using true energy and zenith
-    information. The content of each bin will be the weighted aeff
-    multiplied by the oscillated flux, so that the returned dictionary
-    will be of the form:
-    {'nue': {'cc':map, 'nc':map},
-     'nue_bar': {'cc':map, 'nc':map}, ...
-     'nutau_bar': {'cc':map, 'nc':map} }
-    \params:
-      * osc_flux_maps - maps containing oscillated fluxes
-      * aeff_service - the effective area service to use
-      * livetime - detector livetime for which to calculate event counts
-      * aeff_scale - systematic to be a proxy for the realistic effective area
-    """
-
-    # Get parameters used here
-    params = get_params()
-    report_params(params, units=['', 'yrs', ''])
-
-    # Initialize return dict
-    event_rate_maps = {'params': add_params(params, osc_flux_maps['params'])}
-
-    # Get effective area
-    aeff_dict = aeff_service.get_aeff()
-
-    ebins, czbins = get_binning(osc_flux_maps)
-
-    # apply the scaling for nu_xsec_scale and nubar_xsec_scale...
-    flavours = ['nue', 'numu', 'nutau', 'nue_bar', 'numu_bar', 'nutau_bar']
-    for flavour in flavours:
-        osc_flux_map = osc_flux_maps[flavour]['map']
-        int_type_dict = {}
-        for int_type in ['cc', 'nc']:
-            event_rate = osc_flux_map * aeff_dict[flavour][int_type] \
-                    * (livetime * Julian_year * aeff_scale)
-
-            int_type_dict[int_type] = {'map':event_rate,
-                                       'ebins':ebins,
-                                       'czbins':czbins}
-            logging.debug("  Event Rate before reco for %s/%s: %.2f"
-                          % (flavour, int_type, np.sum(event_rate)))
-        event_rate_maps[flavour] = int_type_dict
-
-    return event_rate_maps
 
 
 def service_factory(aeff_mode, **kwargs):
