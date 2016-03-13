@@ -185,11 +185,13 @@ if __name__ == "__main__":
     parser.add_argument('-o', '--outfile', type=str, default='llh_data.json',
                         metavar='FILE',
                         help="Output filename.")
-    parser.add_argument('-v', '--verbose', action='count', default=None,
+    parser.add_argument('-v', '--verbose', action='count', default=0,
                         help='set verbosity level')
     args = parser.parse_args()
     
     set_verbosity(args.verbose)
+    physics.setLevel(args.verbose)
+    tprofile.setLevel(args.verbose)
     
     # Read in the settings
     template_settings = from_file(args.template_settings)
