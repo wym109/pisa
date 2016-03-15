@@ -26,7 +26,7 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from pisa.utils.log import set_verbosity, logging
 from pisa.utils.jsons import from_json
 from pisa.utils.hdf import to_hdf
-from pisa.utils.utils import findFiles
+from pisa.utils.utils import findFiles, mkdir
 from LogProcessing import getTimeStamp, processLogFile
 from LlrProcessing import processTrial, appendTrials, saveDict, saveNonDict
 
@@ -72,47 +72,50 @@ parser = ArgumentParser(
     description="""Processes the llr analysis runs that have been generated on
     a HPCC on multiple files.""", formatter_class=ArgumentDefaultsHelpFormatter)
 
-parser.add_argument('-d', '--data-dir', metavar='DIR', type=str, required=True,
+parser.add_argument('--data-dir', metavar='DIR', type=str, required=True,
                     help='Directory where the llh analysis run data is stored.')
-parser.add_argument('--llh_basename', metavar='STR', type=str, required=False,
-                    default='llh_data', help='''Common basename of llh files.'''
-                    ''' Assumes they begin with llh_basename and end with '''
-                    ''' _<#>.json''')
-parser.add_argument('-l', '--log-dir', metavar='DIR', type=str, required=False,
-                    default=None,
-                    help='Directory where the llh analysis run log info is.')
-parser.add_argument('--log-basename', metavar='STR', type=str, required=False,
-                    default='log', help='''Common basename of log files.'''
-                    ''' Assumes they begin with log_basename and end with:'''
-                    ''' _<#>.log''')
-parser.add_argument('-o', '--outfile', metavar='STR', type=str, required=True,
-                    help="Output file to store processed, combined llh file.")
-parser.add_argument('--fix-keys', action='store_true', default=False,
-                    help='If keys are named "NMH"/"IMH", change to "NH"/"IH"')
+#parser.add_argument('--log-dir', metavar='DIR', type=str, required=False,
+#                    default=None,
+#                    help='''Directory where the llh analysis run log info is;
+#                    if not specified, defaults to data-dir''')
+parser.add_argument('--basename-regex', metavar='REGEX', type=str,
+                    required=True,
+                    help='''Regex for finding log & data files within
+                    their respective directories.''')
+
+parser.add_argument('--outfile', metavar='STR', type=str, required=True,
+                    help='Output file to store processed, combined llh file.')
+#parser.add_argument('--fix-keys', action='store_true', default=True,
+#                    help='If keys are named "NMH"/"IMH", change to "NH"/"IH"')
 parser.add_argument('-v', '--verbose', action='count', default=None,
                     help='''set verbosity level''')
-# Do we need a flag for no_alt_fit?
+
+# NOTE: Do we need a flag for no_alt_fit?
 
 args = parser.parse_args()
 set_verbosity(args.verbose)
+regex = re.compile(args.basename_regex, flags=re.IGNORECASE)
+#regex = re.compile(r'V39.*json', flags=re.IGNORECASE)
+print('data dir:', args.data_dir, 'file name regex:', regex.pattern)
 
-#llhfiles = glob(os.path.join(args.data_dir, args.llh_basename+'*'))
 llhfiles_found = findFiles(
-    root=args.data_dir,
-    regex=re.compile(r'.*V36.*lt4.*\.json', flags=re.IGNORECASE),
+    root=os.path.expandvars(os.path.expanduser(args.data_dir)),
+    regex=regex,
+    recurse=False,
 )
-
 llhfiles = [x[0] for x in llhfiles_found]
-#for ffpath, basename, match in llhfiles_found:
-#    print(basename)
+
+#for f in llhfiles: #ffpath, basename, match in llhfiles_found:
+#    print (f)
+#    #print(ffpath, basename, match)
 #sys.exit()
 
-if args.log_dir is not None:
-    logfiles = glob(os.path.join(args.log_dir, args.log_basename+'*'))
-    # These MUST have the same number initialized if we are using the logging
-    # information. Otherwise, perhaps one of the directories are incorrect.
-    # Sometimes there are fewere llh files, since they crash before writing out.
-    assert(len(llhfiles) <= len(logfiles)),"Data and log directories don't match?"
+#if args.log_dir is not None:
+#    logfiles = glob(os.path.join(args.log_dir, args.log_basename+'*'))
+#    # These MUST have the same number initialized if we are using the logging
+#    # information. Otherwise, perhaps one of the directories are incorrect.
+#    # Sometimes there are fewere llh files, since they crash before writing out.
+#    assert(len(llhfiles) <= len(logfiles)),"Data and log directories don't match?"
 
 # Output to save to hdf5 file:
 output_data = {'minimizer_settings': {},
@@ -145,52 +148,52 @@ for i, filename in enumerate(llhfiles):
     for key in ['true_NMH', 'true_IMH']:
         appendTrials(output_data[key], data[key])
 
-    if args.log_dir is not None:
-        # Now process corresponding log file:
-        # ASSUMES that llh, log files begin with:
-        # args.llh_basename, args.log_basename
-        # and end with _<#>(.json/.log)
-        # where '#' in range(1, nfiles)
-        logfilename = os.path.join(
-            args.log_dir,
-            (args.log_basename+filename.split('.')[0].split('_')[-1]+".log")
-        )
-        
-        #print("File: ", logfilename)
-        fh = open(logfilename, 'r')
-        all_lines = fh.readlines()
-        iline = 0
-        fh.close()
+    #if args.log_dir is not None:
+    #    # Now process corresponding log file:
+    #    # ASSUMES that llh, log files begin with:
+    #    # args.llh_basename, args.log_basename
+    #    # and end with _<#>(.json/.log)
+    #    # where '#' in range(1, nfiles)
+    #    logfilename = os.path.join(
+    #        args.log_dir,
+    #        (args.log_basename+filename.split('.')[0].split('_')[-1]+".log")
+    #    )
+    #
+    #    #print("File: ", logfilename)
+    #    fh = open(logfilename, 'r')
+    #    all_lines = fh.readlines()
+    #    iline = 0
+    #    fh.close()
 
-        # If this is the first pass through, write logging containers:
-        if 'timestamp' not in output_data.keys():
-            # First write timestamp if not yet recorded:
-            try:
-                # not quite sure why we would need to increment iline here
-                # remove for now
-                timestamp, _ = getTimeStamp(iline, all_lines)
-            except:
-                print("File failed: \n    ", logfilename)
-                raise
-                
-            output_data['timestamp'] = timestamp
+    #    # If this is the first pass through, write logging containers:
+    #    if 'timestamp' not in output_data.keys():
+    #        # First write timestamp if not yet recorded:
+    #        try:
+    #            # not quite sure why we would need to increment iline here
+    #            # remove for now
+    #            timestamp, _ = getTimeStamp(iline, all_lines)
+    #        except:
+    #            print("File failed: \n    ", logfilename)
+    #            raise
+    #
+    #        output_data['timestamp'] = timestamp
 
-            # Second write the logging portion of the dictionary container
-            for k1 in ['true_NMH', 'true_IMH']:
-                for k2 in ['true_h_fiducial', 'false_h_best_fit']:
-                    for k3 in ['hypo_NMH', 'hypo_IMH']:
-                        output_data[k1][k2][k3]['optimizer_time'] = []
-                        output_data[k1][k2][k3]['mean_template_time'] = []
-                        output_data[k1][k2][k3]['warnflag'] = []
-                        output_data[k1][k2][k3]['task'] = []
-                        output_data[k1][k2][k3]['nit'] = []
-                        output_data[k1][k2][k3]['funcalls'] = []
-        # Now gather all log file information for this partial run:
-        try:
-            processLogFile(iline, all_lines, output_data)
-        except:
-            print("File failed: \n    ", logfilename)
-            raise
+    #        # Second write the logging portion of the dictionary container
+    #        for k1 in ['true_NMH', 'true_IMH']:
+    #            for k2 in ['true_h_fiducial', 'false_h_best_fit']:
+    #                for k3 in ['hypo_NMH', 'hypo_IMH']:
+    #                    output_data[k1][k2][k3]['optimizer_time'] = []
+    #                    output_data[k1][k2][k3]['mean_template_time'] = []
+    #                    output_data[k1][k2][k3]['warnflag'] = []
+    #                    output_data[k1][k2][k3]['task'] = []
+    #                    output_data[k1][k2][k3]['nit'] = []
+    #                    output_data[k1][k2][k3]['funcalls'] = []
+    #    # Now gather all log file information for this partial run:
+    #    try:
+    #        processLogFile(iline, all_lines, output_data)
+    #    except:
+    #        print("File failed: \n    ", logfilename)
+    #        raise
 
 if i == 0:
     raise Exception('No files found')
@@ -199,8 +202,10 @@ delta_sec = (time.time() - start)
 logging.warn("Time to process the LLR Run: {0:.4f} sec".format(delta_sec))
 
 # Fixing the keys from NMH/IMH --> NH/IH
-if args.fix_keys:
+if True: #args.fix_keys:
     modifyHierarchyKeys(output_data)
+
+args.fix_keys = True
 
 base_key = 'true_NH' if args.fix_keys else 'true_NMH'
 logging.info("num trials for NH: ")
@@ -215,5 +220,8 @@ for key1 in ['true_h_fiducial', 'false_h_best_fit']:
                 key1, key2, len(output_data[base_key][key1][key2]['llh'])
             )
         )
-
-to_hdf(output_data, args.outfile)
+outfile = os.path.expandvars(os.path.expanduser(args.outfile))
+outdir = os.path.split(outfile)[0]
+if outdir:
+    mkdir(outdir)
+to_hdf(output_data, outfile)
