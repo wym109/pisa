@@ -16,9 +16,20 @@
 # find the best fit null hypothesis to be changed.
 #
 
-import numpy as np
+
+# Try to stop PISA's loose ways with memory
+import resource
+print 'ORIGINAL RLIMIT_DATA:', resource.getrlimit(resource.RLIMIT_DATA)
+print 'ORIGINAL RLIMIT_AS:', resource.getrlimit(resource.RLIMIT_AS)
+resource.setrlimit(resource.RLIMIT_DATA, (4L*1024L*1024L*1024L, -1L))
+resource.setrlimit(resource.RLIMIT_AS, (8L*1024L*1024L*1024L, 16L*1024L*1024L*1024L))
+print 'NEW RLIMIT_DATA:', resource.getrlimit(resource.RLIMIT_DATA)
+print 'NEW RLIMIT_AS:', resource.getrlimit(resource.RLIMIT_AS)
+
 from copy import deepcopy
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+
+import numpy as np
 
 from pisa.analysis.llr.LLHAnalysis import find_opt_scipy, find_alt_hierarchy_fit
 from pisa.analysis.stats.LLHStatistics import get_random_map
