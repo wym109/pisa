@@ -212,15 +212,11 @@ def to_hdf(data_dict, tgt, attrs=None, overwrite=True):
                 logging.warn('Overwriting file at ' + fpath)
             else:
                 raise Exception('Refusing to overwrite path ' + fpath)
+        h5file = h5py.File(fpath, 'w')
         try:
-            h5file = h5py.File(fpath, 'w')
             if attrs is not None:
                 h5file.attrs.update(attrs)
             store_recursively(fhandle=h5file, node=data_dict)
-        except IOError, e:
-            logging.error(e)
-            logging.error("to_hdf: Unable to open `%s` for writing" % tgt)
-            raise
         finally:
             h5file.close()
     elif isinstance(tgt, h5py.Group):
