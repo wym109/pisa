@@ -12,6 +12,7 @@
 #
 
 import sys
+from copy import deepcopy
 
 import numpy as np
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
@@ -83,10 +84,17 @@ class TemplateMaker:
         )
 
     #@profile
-    def get_template(self, template_params_values, return_stages=False):
-        """Runs entire template-making chain, using parameters found in
-        'template_params_values' dict. If 'return_stages' is set to True,
-        returns output from each stage as a simple tuple.
+    def get_template(self, template_params_values, no_osc=False,
+                     return_stages=False):
+        """Runs entire template-making chain.
+
+        Parameters
+        ----------
+        template_params_values : dict
+        no_osc : bool
+            If set to true, skips the oscillation stage.
+        return_stages : bool
+            If set to True, returns output from each stage as a simple tuple.
         """
         logging.info("STAGE 1: Getting Atm Flux maps...")
         with Timer() as t:
@@ -96,16 +104,29 @@ class TemplateMaker:
             )
         logging.debug("==> elapsed time for flux stage: %s sec" % t.secs)
 
-        logging.info("STAGE 2: Getting osc prob maps...")
-        with Timer() as t:
-            osc_flux_maps = self.osc_service.get_osc_flux(
-                flux_maps=flux_maps,
-                oversample_e=self.oversample_e,
-                oversample_cz=self.oversample_cz,
-                **template_params_values
-            )
-        logging.debug("==> elapsed time for oscillations stage: %s sec"
-                       % t.secs)
+        if no_osc:
+            logging.info("STAGE 2: Skipping (no oscillations case)")
+            # Nothing changes for nue, numu; need to create empty nutau maps
+            osc_flux_maps = deepcopy(flux_maps)
+            flavours = ['nutau', 'nutau_bar']
+            example_map = flux_maps['nue']
+            for flav in flavours:
+                osc_flux_maps[flav] = {
+                    'map': np.zeros_like(example_map['map']),
+                    'ebins': np.zeros_like(example_map['ebins']),
+                    'czbins': np.zeros_like(example_map['czbins'])
+                }
+        else:
+            logging.info("STAGE 2: Getting osc prob maps...")
+            with Timer() as t:
+                osc_flux_maps = self.osc_service.get_osc_flux(
+                    flux_maps=flux_maps,
+                    oversample_e=self.oversample_e,
+                    oversample_cz=self.oversample_cz,
+                    **template_params_values
+                )
+            logging.debug("==> elapsed time for oscillations stage: %s sec"
+                           % t.secs)
 
         logging.info("STAGE 3: Getting event rate true maps...")
         with Timer() as t:
@@ -129,56 +150,20 @@ class TemplateMaker:
             )
         logging.debug("==> elapsed time for pid stage: %s sec" % t.secs)
 
+        # TODO: make this return a keyed dict as well, so all users can have a
+        # uniform interface (i.e., if you want the final event rate however
+        # get_template() was called, just access the returned object's
+        # ['final_event_rate'] element). This will need checking everywhere
+        # get_template() is called throughout PISA.
         if not return_stages:
             return final_event_rate
 
-        # Otherwise, return all stages as a simple tuple
-        return (flux_maps, osc_flux_maps, event_rate_maps,
-                event_rate_reco_maps, final_event_rate)
-
-    def get_template_no_osc(self, template_params_values):
-        """Runs template making chain, but without oscillations"""
-        logging.info("STAGE 1: Getting Atm Flux maps...")
-        with Timer() as t:
-            flux_maps = self.flux_service.get_flux_maps(
-                ebins=self.ebins, czbins=self.czbins,
-                **template_params_values
-            )
-        logging.debug("==> elapsed time for flux stage: %s sec" % t.secs)
-
-        # Skipping oscillation stage...
-        logging.info("  >>Skipping Stage 2 in no oscillations case...")
-        flavours = ['nutau', 'nutau_bar']
-        # Create the empty nutau maps:
-        test_map = flux_maps['nue']
-        for flav in flavours:
-            flux_maps[flav] = {'map': np.zeros_like(test_map['map']),
-                               'ebins': np.zeros_like(test_map['ebins']),
-                               'czbins': np.zeros_like(test_map['czbins'])}
-
-        logging.info("STAGE 3: Getting event rate true maps...")
-        with Timer() as t:
-            event_rate_maps = self.aeff_service.get_event_rates(
-                osc_flux_maps=flux_maps, **template_params_values
-            )
-        logging.debug("==> elapsed time for aeff stage: %s sec" % t.secs)
-
-        logging.info("STAGE 4: Getting event rate reco maps...")
-        with Timer() as t:
-            event_rate_reco_maps = self.reco_service.get_reco_maps(
-                true_event_maps=event_rate_maps,
-                **template_params_values
-            )
-        logging.debug("==> elapsed time for reco stage: %s sec" % t.secs)
-
-        logging.info("STAGE 5: Getting pid maps...")
-        with Timer(verbose=False) as t:
-            final_event_rate = self.pid_service.get_pid_maps(
-                event_rate_reco_maps
-            )
-        logging.debug("==> elapsed time for pid stage: %s sec" % t.secs)
-
-        return final_event_rate
+        # Otherwise, return all stages as a dict
+        return dict(flux_maps=flux_maps,
+                    osc_flux_maps=osc_flux_maps,
+                    event_rate_maps=event_rate_maps,
+                    event_rate_reco_maps=event_rate_reco_maps,
+                    final_event_rate=final_event_rate)
 
 
 if __name__ == '__main__':
@@ -239,30 +224,29 @@ if __name__ == '__main__':
     logging.info('  ==> elapsed time to initialize templates: %s sec'
                   % t.secs)
 
-    # Now get the actual template
+    # Now get the actual template (and multiple times to test caching)
     logging.info('normal...')
     with Timer(verbose=False) as t:
-        stage_outputs = template_maker.get_template(template_params_values_nh,
-                                                    return_stages=True)
+        stage_outputs_nh = template_maker.get_template(
+            template_params_values_nh, return_stages=True
+        )
     logging.info('==> elapsed time to get template: %s sec' % t.secs)
     with Timer(verbose=False) as t:
-        stage_outputs = template_maker.get_template(template_params_values_nh,
-                                                    return_stages=True)
+        stage_outputs_nh = template_maker.get_template(
+            template_params_values_nh, return_stages=True
+        )
     logging.info('==> elapsed time to get template: %s sec' % t.secs)
     with Timer(verbose=False) as t:
-        stage_outputs = template_maker.get_template(template_params_values_nh,
-                                                    return_stages=True)
+        stage_outputs_nh = template_maker.get_template(
+            template_params_values_nh, return_stages=True
+        )
     logging.info('==> elapsed time to get template: %s sec' % t.secs)
-    flux_maps_nh, osc_flux_maps_nh, event_rate_maps_nh, \
-            event_rate_reco_maps_nh, final_event_rate_nh = stage_outputs
 
     logging.info('inverted...')
     with Timer(verbose=False) as t:
         stage_outputs_ih = template_maker.get_template(
             template_params_values_ih, return_stages=True
         )
-        flux_maps_ih, osc_flux_maps_ih, event_rate_maps_ih, \
-        event_rate_reco_maps_ih, final_event_rate_ih = stage_outputs_ih
     logging.info('==> elapsed time to get template: %s sec' % t.secs)
 
     logging.info('no osc...')
@@ -281,11 +265,11 @@ if __name__ == '__main__':
         import matplotlib.pyplot as plt
         from pisa.utils import flavInt
         from pisa.utils import plot
-        for k in sorted(final_event_rate_nh.keys()):
+        for k in sorted(stage_outputs_nh['final_event_rate'].keys()):
             if k == 'params':
                 continue
-            evtrt_nh = final_event_rate_nh[k]
-            evtrt_ih = final_event_rate_ih[k]
+            evtrt_nh = stage_outputs_nh['final_event_rate'][k]
+            evtrt_ih = stage_outputs_ih['final_event_rate'][k]
             dist_map = plot.distinguishability_map(evtrt_ih, evtrt_nh)
             if k == 'trck':
                 clim = (-0.21, 0.21)

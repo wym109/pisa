@@ -281,7 +281,8 @@ def minim_metric(opt_vals, names, scales, fmap, fixed_params, template_maker,
     with Timer() as t:
         if template_params['theta23'] == 0.0:
             logging.info("Zero theta23, so generating no oscillations template...")
-            true_template = template_maker.get_template_no_osc(template_params)
+            true_template = template_maker.get_template(template_params,
+                                                        no_osc=True)
         else:
             true_template = template_maker.get_template(template_params)
 
