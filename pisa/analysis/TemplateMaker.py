@@ -251,13 +251,13 @@ if __name__ == '__main__':
 
     logging.info('no osc...')
     with Timer(verbose=False) as t:
-        final_event_rate_no_osc = template_maker.get_template_no_osc(
-            template_params_values_nh
+        final_event_rate_no_osc = template_maker.get_template(
+            template_params_values_nh, no_osc=True,
         )
     logging.info('==> elapsed time to get template: %s sec' % t.secs)
 
     logging.info('Saving file to %s' % args.outfile)
-    to_file(stage_outputs, args.outfile)
+    to_file(stage_outputs_nh, args.outfile)
 
     if args.plot:
         import os
