@@ -30,30 +30,62 @@ from pisa.utils.log import logging
 
 class DictWithHash(dict):
     """A dictionary that can carry properties and hashes (and stores) the hash
-    of its items
+    of its items.
+
+    Attributes
+    ----------
+    hash : immutable object
+        Value of the hash.
+    is_new : bool
+        Simple flag that can be polled to see if the object's hash has been
+        updated. Resetting this flag after handling must be done by the user.
 
     Notes
     -----
     The contents are not automatically hashed, as it is beyond the scope of
     this object to figure out if a sub- or sub-sub (etc.) item has changed,
     and therefore the hash has been invalidated.
+
+    Due to `hash` and `is_new` being attributes, these are transparent to
+    PISA's to/from_json/hdf methods and will neither be written to nor read
+    from files.
     """
     def __init__(self, *args, **kwargs):
         super(DictWithHash, self).__init__(*args, **kwargs)
         # Initialize with np.nan, a value that by default returns False when
-        # compared against other objects (including another np.nan)
+        # compared against other objects -- including another np.nan
         self.hash = np.nan
+
+        # The is_new flag is a simple mechanism for keeping track if the data
+        # has been updated and, e.g., so a subsequent process must be triggered.
+        # I.e., this is a passive polling-based system, vs. e.g. callbacks.
         self.is_new = True
 
-    def update_hash(self, item_to_hash=None):
-        if item_to_hash is None:
+    def update_hash(self, obj_or_hash=None):
+        """Update the object's hash.
+
+        obj_or_hash : None, object, or hash value
+            Used to update the hash value.
+            - If an immutable object (i.e., it implements a `__hash__` method),
+              then the hash is derived from the object via hash(obj_or_hash).
+              In the case a valid hash value is passed in via `obj_or_hash`,
+              hash(obj_or_hash) will simply return the hash value.
+            - If a mutable object, the hash_obj() function is called on the object.
+            - If None, hash_obj() is called on self, so hashing the entire
+              contents of the instantiated object.
+
+        Notes
+        -----
+        The hash_obj() function can be slow for large objects, so it is
+        recommended that a simple object be used to update the hash (i.e.,
+        avoid `obj_or_hash=None`).
+        """
+        if obj_or_hash is None and hash_val is None:
             self.hash = hash_obj(self.items())
-        elif isinstance(item_to_hash, basestring) or \
-                np.isscalar(item_to_hash):
-            self.hash = item_to_hash
+        elif (hasattr(obj_or_hash, '__hash__') and obj_or_hash.__hash__ is not None):
+            self.hash = hash(obj_or_hash)
         else:
-            self.hash = hash_obj(item_to_hash)
-        #self.hash = np.nan
+            self.hash = hash_obj(obj_or_hash)
         self.is_new = True
         return self.hash
 

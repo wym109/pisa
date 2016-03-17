@@ -9,23 +9,23 @@ The common PINGU simulation and analysis code for the neutrino mass hierarchy.
 
 The original drawing is [here](https://docs.google.com/drawings/edit?id=1RxQj8rPndwFygxw3BUf4bx5B35GAMk0Gsos_BiJIN34).
 
-## Software Implementation Overview
+## Implementation Details
 
 ![Stage architecture](doc/stage_architecture.png "Stage architecture")
 
 ### `pisa.analysis.TemplateMaker`
-* Can load parameters en masse from a file or dictionary for instantiating
-* Instantiates all stages with these settings
+* Can load parameters en masse from a file or dictionary for instantiating the various stages
 * Includes `match_to_data()` method which invokes a minimizer to adjust its stages' free parameters in order to best match (either via LLH or chi2 criteria) a reference template 
 * Includes a `scan` routine for scanning over parameters
 * `set_params`, `get_params`, `get_free_params` methods for working with parameters
 * `generate_template` method to produce a template based upon the parameters that have been set
 
 ### Stages
+Each "stage" is a major step  simulates the process by which we detect neutrinos.
+
 * There is one base class for all stages: `pisa.stage.Stage` which implements the most basic functionality of a stage, including instantiaton of the two caches pictured above
   * `set_params`, `get_params`, `get_free_params` methods for working with parameters
-* Each stage has its own base class, e.g. FluXServiceBase, RecoServiceBase, etc.
-  * *TODO: we should rename "service" to "stage" or vice versa!*
+* Each stage has its own base class, e.g. FluxServiceBase, RecoServiceBase, etc.
   * `apply()` must be aware of all possible systematics. Their implementations might logically be via other methods within the base class to keep `apply` succinct, but in order to produce a meaningful hash for a transform, `apply` needs to account for *all* the ways that the transform might be modified.
     * Each of which should be called from within the `apply()` method (see below).
   * Implements a method called `apply(<input map>, **kwargs)` (except FluxServiceBase.apply() does *not* take `<input map>`)
@@ -40,7 +40,12 @@ The original drawing is [here](https://docs.google.com/drawings/edit?id=1RxQj8rP
 
 ### Caching data
 * Transform and result caches are memory-based, least-recently-used caches
-* Disk storage for the nominal-systematics (aka no-systematics) transform defaults to `pingu/resources/<stage type>/.cache/<service name>.nominal_transform.hdf5`, unless a stage implements a different naming convention
+* Disk storage for the nominal-systematics (aka no-systematics) transform defaults to `pingu/resources/<stage_type>/.cache/<service_name>.nominal_transform.hdf5`, unless a stage implements a different naming convention
+
+#### Hashes
+* Transform hashes: As mentioned above, each service is respoinsible for generating a unique hash for its transform (e.g., based upon parameters used to produce the transform)
+* Sets-of-maps hashes: The service that produces a set of maps is responsible for producing the set's hash. This should be consistent across all stages & services, though, and so it is implementated in the generic pisa.stage.Stage base class. The hash is derived from the combination of the input maps' hash and the transform hash.
+* The class `pisa.utils.utils.DictWithHash` is provided for conveniently passing transforms and map sets around with hashes attached. Note that it is the user's responsibility to ensure that the `hash` attribute of those objects is not out of sync with respect to the data contained within them `DictWithHash`. This is done, after updating the data contents, by calling the `update_hash()` method with a simple object or hash as its argument (see help for that method for more details). To ensure such consistency between data and hash, it is recommended to modify the data contents in the `try` clause and update the hash in the `else` clause of a try-except-else block.
 
 ## Installation
 ### Requirements
