@@ -62,21 +62,36 @@ def service_factory(aeff_mode, **kwargs):
 
 
 def add_argparser_args(parser):
-    from pisa.aeff.AeffServiceMC import AeffServiceMC
-    from pisa.aeff.AeffServicePar import AeffServicePar
-    from pisa.aeff.AeffServiceSmooth import AeffServiceSmooth
+    services = {}
+    try:
+        from pisa.aeff.AeffServiceMC import AeffServiceMC
+        services['mc'] = AeffServiceMC
+    except ImportError:
+        pass
+    try:
+        from pisa.aeff.AeffServicePar import AeffServicePar
+        services['param'] = AeffServicePar
+    except ImportError:
+        pass
+    try:
+        from pisa.aeff.AeffServiceSmooth import AeffServiceSmooth
+        services['smooth'] = AeffServiceSmooth
+    except ImportError:
+        pass
+    try:
+        from pisa.aeff.AeffServiceSliceSmooth import AeffServiceSliceSmooth
+        services['slice_smooth'] = AeffServiceSliceSmooth
+    except ImportError:
+        pass
 
     parser.add_argument(
         '--aeff-mode', type=str, required=True,
-        choices=['mc', 'param', 'smooth', 'slice_smooth'],
+        choices=sorted(services.keys()),
         help='Aeff service to use'
     )
-
-    # Add args specific to the known classes
-    AeffServiceMC.add_argparser_args(parser)
-    AeffServicePar.add_argparser_args(parser)
-    AeffServiceSmooth.add_argparser_args(parser)
-    AeffServiceSliceSmooth.add_argparser_args(parser)
+    # Add args specific to the known/import-able classes
+    for k, svc in services:
+        svc.add_argparser_args(parser)
 
     return parser
 

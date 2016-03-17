@@ -12,11 +12,13 @@ The original drawing is [here](https://docs.google.com/drawings/edit?id=1RxQj8rP
 ## PISA Terminology
 * **Map**: Dictionary-like object with key `'map'` containing a 2D histogram in energy and the cosine of the zenith angle (coszen); other keys in the map contain metadata about the histogram (e.g. `'ebins'`, `'czbins'`, etc.). This can be in terms of *true* or *reconstructed* neutrino energy & coszen, depending upon the situation. Sometimes a collection of maps is casually (but misleadingly) called a "map". Note that the histogram is a 2D numpy array with first dimension energy (increasing index 
 
-* **Map set**: Dictionary-like object whose items are the maps used as inputs to or produced as outputs from the stages. Each map is stored in the collection by a key, where the key names vary by service and the dict can be nested and painful to access. Smarter objects than vanilla dicts should be used to handle sets of maps to make users/developers lives less painful.
+* **Map set**: Dictionary-like object whose items are maps; a map set is the input "data" to or produced as output "data" from each stage. Each map within the set is stored via a key, where the key names vary by service and the dict can be nested and painful to access. Smarter objects than vanilla dicts should be used to handle sets of maps to make users/developers lives less painful. If dictionaries continue to be used, they at least shouldn't be nested. E.g., `map_set['numu_cc']` points to a map, rather than `map_set['numu']['cc']` pointing to a map. With a single-level in the dict (well, excluding the fact that the actual data is stored at `map_set['numu_cc']['map']`), already there can be greater consistency in access and no need for multiply-nested loops.
 
-* **Stage**: Each stage is a critical part of the process by which we detect neutrinos. For example, atmospheric neutrinos that pass through the earth will oscillate partially into different flavors prior to reaching the IceCube/PINGU detector. This part of the process is called the **oscillations** stage.
+* **Stage**: Each stage represents a critical part of the process by which we can eventually detect neutrinos. For example, atmospheric neutrinos that pass through the earth will oscillate partially into different flavors prior to reaching the IceCube/PINGU detector. This part of the process is called the **oscillations** stage.
 
-* **Service**: A particular *implementation* of a stage is termed a **service**. Using the oscillations stage as an example, a service that implements that stage is `pisa.oscillcations.Prob3GPUOscillationService.Prob3GPUOscillationService` (WeAreMastersOfConcision is our middle name).
+* **Service**: A particular *implementation* of a stage is called a **service** (I think that's how it's used, unless the two terms are redundant, in which case we should eliminate one). Oh, this might also be called a **mode**, because that's how services are specified in the template settings file (e.g.: `"aeff_mode": "MC"`). Using the oscillations stage as an example, a service that implements that stage is `pisa.oscillations.Prob3GPUOscillationService.Prob3GPUOscillationService`. (WeAreMastersOfConcision is our middle name.)
+  * There is apparently a 3/4-followed convention that services should be named `<AbbreviatedStageName>Service<ModeName>` (UpperCamelCase).
+  * This convention should be followed everywhere to reduce confusion. I.e., the Prob3GPU service should be renamed to `pisa.osc.OscServiceProb3GPU.OscServiceProb3GPU`, etc.
 
 * **Resource**: A file with settings, simulated events, parameterizations, metadata, or etc. that is used by one of the services, the template maker, the minimizer, .... Resources are found in the `$PISA/pisa/resources` directory, where a subdirectory exists for each stage (and several directories exist for resources used for other purposes).
 
@@ -52,6 +54,12 @@ The functionality of the template maker is best described through its key method
 * Variations
   * The flux stage does not take an input map
   * The oscillation stage does not first produce a "nominal-systematics" transform that then gets computed and then transformed by systematics; this is all one step.
+
+#### Instantiating a stage
+Within the `pisa/<stage_shortname>` directory there lives a script file named `<StageShortname>.py`, with first letter capitalized. This script can be called from the command line to invoke one of the services that implements that stage, as well as stage-wide procedural functions. There are three important functionalities common to all such scripts:
+  * **`service_factory`**: This function is the one place that needs to know about all of the services, as it translates a `<stage_shortname>_mode` string (and the required parameters) into an instantiated service. Only the single service being instantiated is imported, so incompatibilities that might exist with different services that can't be imported won't keep the user from using the supported service(s).
+  * **`add_argparser_args`**: This takes an argparser object, imports all services implementing the stage, and calls the staticmethod `add_argparser_args` from each service to append arguments particular to that service to the command line parser. (This means that only the individual services need to know about what arguments they use.)
+  * **`if __name__ == "__main__"`**: Not necessarily implemented as a function, what follows is the logic to invoke a service from the command line with or without input map sets, plot something useful, and/or write the output map set to a file.
 
 ### Caching
 Caching all services' transforms and results can speed up the template-making process by a factor of 2-3.
