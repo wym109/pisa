@@ -1,13 +1,24 @@
 pisa
 ====
 
-The common PINGU simulation and analysis code for the neutrino mass hierarchy.
+PINGU Simulation and Analysis (PISA) is software written for performing predictive analyses with the proposed PINGU upgrade to the IceCube neutrino observatory. PISA is more broadly applicable, however, and can be used for analyses employing the existing IceCube detector as well as other similar detectors.
 
-### Simulation chain
+## Simulation chain
 
 ![Simulation chain](doc/PINGUSimulationChain.png "Simulation chain")
 
 The original drawing is [here](https://docs.google.com/drawings/edit?id=1RxQj8rPndwFygxw3BUf4bx5B35GAMk0Gsos_BiJIN34).
+
+## PISA Buzzwords
+* **Map**: a dictionary containing a 2D histogram in energy and the cosine of the zenith angle (coszen). This can be in terms of *true* or *reconstructed* neutrino energy & coszen, depending upon the situation. Sometimes a collection of maps is called a "map".
+
+* "**Set-of-maps**": collection (dict) of maps used as input to or produced as output from a stage. Each map is stored in the collection by a key. As of now, these are nested and painful to access the data. Smarter objects should be created to handle sets of maps.
+
+* **Stage**: Each stage is a key part of the process by which we detect atmospheric neutrinos with the IceCube detector. For example, atmospheric neutrinos that pass through the earth will oscillate partially into different flavors prior to reaching the detector. This part of the process is called the **oscillations** stage.
+
+* **Service**: A particular *implementation* of a stage is termed a **service**. Using the oscillations stage as an example, a service that implements that stage is `pisa.oscillcations.Prob3GPUOscillationService.Prob3GPUOscillationService` (concision is our middle name).
+
+* **Resource**: A file with settings, data, parameterizations, metadata, etc. that is used by one of the services, the template maker, the minimizer, .... Resources are found in the `pisa/resources` directory.
 
 ## Implementation Details
 
@@ -21,7 +32,6 @@ The original drawing is [here](https://docs.google.com/drawings/edit?id=1RxQj8rP
 * `generate_template` method to produce a template based upon the parameters that have been set
 
 ### Stages
-Each "stage" is a major step  simulates the process by which we detect neutrinos.
 
 * There is one base class for all stages: `pisa.stage.Stage` which implements the most basic functionality of a stage, including instantiaton of the two caches pictured above
   * `set_params`, `get_params`, `get_free_params` methods for working with parameters
@@ -45,7 +55,7 @@ Each "stage" is a major step  simulates the process by which we detect neutrinos
 #### Hashes
 * Transform hashes: As mentioned above, each service is respoinsible for generating a unique hash for its transform (e.g., based upon parameters used to produce the transform)
 * Sets-of-maps hashes: The service that produces a set of maps is responsible for producing the set's hash. This should be consistent across all stages & services, though, and so it is implementated in the generic pisa.stage.Stage base class. The hash is derived from the combination of the input maps' hash and the transform hash.
-* The class `pisa.utils.utils.DictWithHash` is provided for conveniently passing transforms and map sets around with hashes attached. Note that it is the user's responsibility to ensure that the `hash` attribute of those objects is not out of sync with respect to the data contained within them `DictWithHash`. This is done, after updating the data contents, by calling the `update_hash()` method with a simple object or hash as its argument (see help for that method for more details). To ensure such consistency between data and hash, it is recommended to modify the data contents in the `try` clause and update the hash in the `else` clause of a try-except-else block.
+* The class `pisa.utils.utils.DictWithHash` is provided for conveniently passing transforms and map sets around with hashes attached. Note that it is the user's responsibility to ensure that the `hash` attribute of those objects is not out of sync with respect to the data contained within them. This can done manually after updating the data by calling the `DictWithHash` method `update_hash` with a simple object or hash as its argument (see help for that method for more details). To ensure such consistency between data and hash, it is recommended to modify the data contents in the `try` clause and update the hash in the `else` clause of a `try-except-else` code block.
 
 ## Installation
 ### Requirements
