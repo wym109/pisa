@@ -17,90 +17,87 @@
 #
 
 
-import sys,os
+import os
 import numpy as np
 
-from pisa.oscillations.grid_propagator.GridPropagator import GridPropagator
-from pisa.resources.resources import find_resource
-from pisa.utils.log import logging, tprofile
-from pisa.utils.proc import get_params, report_params
-from pisa.utils.utils import get_bin_centers, is_coarser_binning, is_linear
-from pisa.utils.utils import is_logarithmic, check_fine_binning, oversample_binning, Timer
-
-# Put CUDA imports in the constructor
 import pycuda.driver as cuda
 import pycuda.compiler
 from pycuda.compiler import SourceModule
 
-#
-# NOTE: Unlike the other oscillation services, this GPU version does NOT inherit from
-# OscillationServiceBase, because get_osc_prob_maps() is different.
-#
-class Prob3GPUOscillationService():
-    """
-    This class handles all tasks related to the oscillation
-    probability calculations using the prob3_GPU oscillation code,
-    which is identical to the prob3 code, but adapted for use on
-    the GPU.
-    """
-    def __init__(self, ebins, czbins, detector_depth=None, earth_model=None,
-                 prop_height=None, oversample_e=None,oversample_cz=None,gpu_id=None,
-                 **kwargs):
-        """
-        \params:
-          * ebins: Energy bin edges
-          * czbins: cos(zenith) bin edges
-          * earth_model: Earth density model used for matter oscillations.
-          * detector_depth: Detector depth in km.
-          * prop_height: Height in the atmosphere to begin in km.
-          * gpu_id: If running on a system with multiple GPUs, it will choose
-            the one with gpu_id. Otherwise, defaults to default context
-        """
+from pisa.oscillations.OscillationServiceBase import OscillationServiceBase
+from pisa.oscillations.grid_propagator.GridPropagator import GridPropagator
+from pisa.resources.resources import find_resource
+from pisa.utils.log import logging
+from pisa.utils.proc import get_params, report_params
+from pisa.utils.utils import get_bin_centers, oversample_binning, hash_obj, DictWithHash
 
+
+class Prob3GPUOscillationService(OscillationServiceBase):
+    """All tasks related to the oscillation probability calculations using the
+    prob3_GPU oscillation code, which is identical to the prob3 code, but
+    adapted for use on the GPU.
+
+    Parameters
+    -----------
+    ebins, czbins : array_like
+        Energy and coszen bin edges
+    detector_depth
+        Detector depth in km.
+    earth_model : string
+        Resource location for Earth density model used for matter
+        oscillations.
+    prop_height
+        Height in the atmosphere to begin in km.
+    oversample_e, oversample_cz
+        Resample each bin by this factor
+    gpu_id
+        If running on a system with multiple GPUs, it will choose the one
+        with gpu_id. Otherwise, defaults to default context
+    """
+    def __init__(self, ebins, czbins, oversample_e, oversample_cz,
+                 detector_depth, earth_model, prop_height, gpu_id=None,
+                 **kwargs):
+        super(Prob3GPUOscillationService, self).__init__(ebins, czbins)
         self.gpu_id = gpu_id
         try:
             import pycuda.autoinit
             self.context = cuda.Device(self.gpu_id).make_context()
-            print "Initializing PyCUDA using gpu id: %d"%self.gpu_id
-        except:
+            logging.info("Initialized PyCUDA using gpu id: %d" % self.gpu_id)
+        except: # TODO: what error is expected here?
             import pycuda.autoinit
-            print "Auto initializing PyCUDA..."
+            logging.info("Auto initialized PyCUDA.")
 
-        #mfree,mtot = cuda.mem_get_info()
-        #print "free memory: %s mb",mfree/1.0e6
-        #print "tot memory:  %s mb",mtot/1.0e6
+        #mfree, mtot = cuda.mem_get_info()
+        #print "free memory: %s mb", mfree/1.0e6
+        #print "tot memory:  %s mb", mtot/1.0e6
         #raw_input("PAUSED...")
 
-        logging.info('Instantiating %s'%self.__class__.__name__)
-        self.ebins = np.array(ebins)
-        self.czbins = np.array(czbins)
+        logging.info('Instantiating %s' % self.__class__.__name__)
         self.prop_height = prop_height
-        for ax in [self.ebins, self.czbins]:
-            if (len(np.shape(ax)) != 1):
-                raise IndexError('Axes must be 1d! '+str(np.shape(ax)))
 
-        report_params(get_params(),['km','','','',''])
+        #report_params(get_params(), ['km', '', '', '', ''])
 
         earth_model = find_resource(earth_model)
         self.earth_model = earth_model
         self.FTYPE = np.float64
 
+        self.oversample_e = oversample_e
+        self.oversample_cz = oversample_cz
         self.ebins_fine = oversample_binning(self.ebins, oversample_e)
         self.czbins_fine = oversample_binning(self.czbins, oversample_cz)
         self.ecen_fine = get_bin_centers(self.ebins_fine)
         self.czcen_fine = get_bin_centers(self.czbins_fine)
 
-        self.initialize_kernel(detector_depth,**kwargs)
+        # TODO: why is kwargs being passed around like a j? removed here, see
+        # if there are bugs; if note, remove this comment.
+        self.initialize_kernel(detector_depth)
 
-        return
-
-    def initialize_kernel(self,detector_depth,**kwargs):
+    def initialize_kernel(self, detector_depth):
+        """Initializes:
+            1) grid_propagator class
+            2) device arrays that will be passed to the propagateGrid() kernel
+            3) kernel module
         """
-        Initializes: 1) the grid_propagator class, 2) the device arrays
-        that will be passed to the propagateGrid() kernel and 3) the
-        kernel module.
-        """
-
         self.grid_prop  = GridPropagator(
             self.earth_model, self.FTYPE(self.czcen_fine),
             detector_depth)
@@ -190,7 +187,7 @@ class Prob3GPUOscillationService():
                 RawInputPsi[j][1] = 0.0;
               }
 
-              if( kUseMassEstates ) convert_from_mass_eigenstate(i+1,kNuBar,RawInputPsi,d_mix);
+              if( kUseMassEstates ) convert_from_mass_eigenstate(i+1, kNuBar,RawInputPsi,d_mix);
               else RawInputPsi[i][0] = 1.0;
 
               multiply_complex_matvec( TransitionProduct, RawInputPsi, OutputPsi );
@@ -221,11 +218,13 @@ class Prob3GPUOscillationService():
           }
         """
 
-        include_path = os.path.expandvars('$PISA/pisa/oscillations/grid_propagator/')
+        include_path = os.path.expandvars(
+            '$PISA/pisa/oscillations/grid_propagator/'
+        )
         #cache_dir=os.path.expandvars('$PISA/pisa/oscillations/'+'.cache_dir')
-        logging.info("  pycuda INC PATH: %s"%include_path)
-        #logging.trace("  pycuda cache_dir: %s"%cache_dir)
-        logging.info("  pycuda FLAGS: %s"%pycuda.compiler.DEFAULT_NVCC_FLAGS)
+        logging.info("  pycuda INC PATH: %s" % include_path)
+        #logging.trace("  pycuda cache_dir: %s" % cache_dir)
+        logging.info("  pycuda FLAGS: %s" % pycuda.compiler.DEFAULT_NVCC_FLAGS)
         self.module = SourceModule(kernel_template,
                                    include_dirs=[include_path],
                                    #cache_dir=cache_dir,
@@ -233,15 +232,14 @@ class Prob3GPUOscillationService():
         self.propGrid = self.module.get_function("propagateGrid")
         #self.propGrid.set_shared_config(49152)
 
-        return
-
     def prepare_device_arrays(self):
-
         self.maxLayers  = self.grid_prop.GetMaxLayers()
         nczbins_fine    = len(self.czcen_fine)
-        numLayers       = np.zeros(nczbins_fine,dtype=np.int32)
-        densityInLayer  = np.zeros((nczbins_fine*self.maxLayers),dtype=self.FTYPE)
-        distanceInLayer = np.zeros((nczbins_fine*self.maxLayers),dtype=self.FTYPE)
+        numLayers       = np.zeros(nczbins_fine, dtype=np.int32)
+        densityInLayer  = np.zeros((nczbins_fine*self.maxLayers),
+                                   dtype=self.FTYPE)
+        distanceInLayer = np.zeros((nczbins_fine*self.maxLayers),
+                                   dtype=self.FTYPE)
 
         self.grid_prop.GetNumberOfLayers(numLayers)
         self.grid_prop.GetDensityInLayer(densityInLayer)
@@ -251,16 +249,14 @@ class Prob3GPUOscillationService():
         self.d_numLayers       = cuda.mem_alloc(numLayers.nbytes)
         self.d_densityInLayer  = cuda.mem_alloc(densityInLayer.nbytes)
         self.d_distanceInLayer = cuda.mem_alloc(distanceInLayer.nbytes)
-        cuda.memcpy_htod(self.d_numLayers,numLayers)
-        cuda.memcpy_htod(self.d_densityInLayer,densityInLayer)
-        cuda.memcpy_htod(self.d_distanceInLayer,distanceInLayer)
+        cuda.memcpy_htod(self.d_numLayers, numLayers)
+        cuda.memcpy_htod(self.d_densityInLayer, densityInLayer)
+        cuda.memcpy_htod(self.d_distanceInLayer, distanceInLayer)
 
         self.d_ecen_fine = cuda.mem_alloc(self.ecen_fine.nbytes)
         self.d_czcen_fine = cuda.mem_alloc(self.czcen_fine.nbytes)
-        cuda.memcpy_htod(self.d_ecen_fine,self.ecen_fine)
-        cuda.memcpy_htod(self.d_czcen_fine,self.czcen_fine)
-
-        return
+        cuda.memcpy_htod(self.d_ecen_fine, self.ecen_fine)
+        cuda.memcpy_htod(self.d_czcen_fine, self.czcen_fine)
 
     def free_device_memory(self):
         self.d_numLayers.free()
@@ -270,25 +266,32 @@ class Prob3GPUOscillationService():
         self.d_ecen_fine.free()
         self.d_czcen_fine.free()
 
-
     def get_osc_prob_maps(self, theta12, theta13, theta23, deltam21, deltam31,
                           deltacp, energy_scale, YeI, YeO, YeM, **kwargs):
-        """
-        Returns an oscillation probability map dictionary calculated
-        at the values of the input parameters:
-          deltam21,deltam31,theta12,theta13,theta23,deltacp
-        for flavor_from to flavor_to, with the binning defined in the constructor.
-        The dictionary is formatted as:
-          'nue_maps': {'nue':map,'numu':map,'nutau':map},
+        """Returns an oscillation probability map dictionary calculated at the
+        values of the input parameters:
+          deltam21, deltam31, theta12, theta13, theta23, deltacp
+        for flavor_from to flavor_to, with the binning defined in the
+        constructor. The dictionary is formatted as:
+          'nue_maps': {'nue':map, 'numu':map, 'nutau':map},
           'numu_maps': {...}
           'nue_bar_maps': {...}
           'numu_bar_maps': {...}
 
-        \params:
-          * theta12,theta13,theta23 - in [rad]
-          * deltam21, deltam31 - in [eV^2]
-          * energy_scale - factor to scale energy bin centers
+        Parameters
+        ----------
+        theta12, theta13, theta23 - in [rad]
+        deltam21, deltam31 - in [eV^2]
+        energy_scale - factor to scale energy bin centers
         """
+        cache_key = hash_obj((self.ebins, self.czbins, self.oversample_e,
+                              self.oversample_cz, theta12, theta13, theta23,
+                              deltam21, deltam31, deltacp, energy_scale, YeI,
+                              YeO, YeM))
+        try:
+            return self.transform_cache.get(cache_key)
+        except KeyError:
+            pass
 
         sin2th12Sq = np.sin(theta12)**2
         sin2th13Sq = np.sin(theta13)**2
@@ -302,28 +305,28 @@ class Prob3GPUOscillationService():
         # to feed the core libraries the correct value of m32."
         #if mAtm < 0.0: mAtm -= deltam21;
 
-        self.grid_prop.SetMNS(deltam21,mAtm,sin2th12Sq,sin2th13Sq,sin2th23Sq,deltacp)
-        self.grid_prop.SetEarthDensityParams(self.prop_height,YeI,YeO,YeM)
+        self.grid_prop.SetMNS(deltam21, mAtm, sin2th12Sq, sin2th13Sq,
+                              sin2th23Sq, deltacp)
+        self.grid_prop.SetEarthDensityParams(self.prop_height, YeI, YeO, YeM)
         self.prepare_device_arrays()
 
-        dm_mat = np.zeros((3,3),dtype=self.FTYPE)
+        dm_mat = np.zeros((3, 3), dtype=self.FTYPE)
         self.grid_prop.Get_dm_mat(dm_mat)
-        mix_mat = np.zeros((3,3,2),dtype=self.FTYPE)
+        mix_mat = np.zeros((3, 3, 2), dtype=self.FTYPE)
         self.grid_prop.Get_mix_mat(mix_mat)
 
-        logging.debug("dm_mat: \n %s"%str(dm_mat))
-        logging.debug("mix[re]: \n %s"%str(mix_mat[:,:,0]))
+        logging.debug("dm_mat: \n %s" % str(dm_mat))
+        logging.debug("mix[re]: \n %s" % str(mix_mat[:, :, 0]))
 
         d_dm_mat = cuda.mem_alloc(dm_mat.nbytes)
         d_mix_mat = cuda.mem_alloc(mix_mat.nbytes)
-        cuda.memcpy_htod(d_dm_mat,dm_mat)
-        cuda.memcpy_htod(d_mix_mat,mix_mat)
-
+        cuda.memcpy_htod(d_dm_mat, dm_mat)
+        cuda.memcpy_htod(d_mix_mat, mix_mat)
 
         # NEXT: set up smooth maps to give to kernel, and then use
         # PyCUDA to launch kernel...
         logging.info("Initialize smooth maps...")
-        smoothed_maps = {}
+        smoothed_maps = DictWithHash()
         smoothed_maps['ebins'] = self.ebins
         smoothed_maps['czbins'] = self.czbins
 
@@ -333,14 +336,16 @@ class Prob3GPUOscillationService():
         nczbins = np.uint32(len(self.czbins)-1)
 
         # This goes here, so it can use the energy_scale systematic:
-        cuda.memcpy_htod(self.d_ecen_fine,self.ecen_fine*energy_scale)
+        cuda.memcpy_htod(self.d_ecen_fine, self.ecen_fine*energy_scale)
 
-        smooth_maps = np.zeros((nczbins*nebins*12),dtype=self.FTYPE)
+        smooth_maps = np.zeros((nczbins*nebins*12), dtype=self.FTYPE)
         d_smooth_maps = cuda.mem_alloc(smooth_maps.nbytes)
-        cuda.memcpy_htod(d_smooth_maps,smooth_maps)
+        cuda.memcpy_htod(d_smooth_maps, smooth_maps)
 
-        block_size = (16,16,1)
-        grid_size = (nczbins_fine/block_size[0] + 1, nebins_fine/block_size[1] + 1,2)
+        block_size = (16, 16, 1)
+        grid_size = (nczbins_fine/block_size[0] + 1,
+                     nebins_fine/block_size[1] + 1,
+                     2)
         self.propGrid(d_smooth_maps,
                       d_dm_mat, d_mix_mat,
                       self.d_ecen_fine, self.d_czcen_fine,
@@ -351,7 +356,7 @@ class Prob3GPUOscillationService():
                       self.d_distanceInLayer,
                       block=block_size, grid=grid_size)
                       #shared=16384)
-        cuda.memcpy_dtoh(smooth_maps,d_smooth_maps)
+        cuda.memcpy_dtoh(smooth_maps, d_smooth_maps)
 
         self.free_device_memory()
         d_smooth_maps.free()
@@ -361,16 +366,24 @@ class Prob3GPUOscillationService():
         # Now put these into smoothed_maps in the correct format as
         # the other oscillation services, to interface properly with
         # the rest of the code:
-        smooth_maps = np.reshape(smooth_maps,(12,nebins,nczbins))
-        flavs = ['nue','numu','nutau']
+        smooth_maps = np.reshape(smooth_maps, (12, nebins, nczbins))
+        flavs = ['nue', 'numu', 'nutau']
         iMap = 0
-        for from_nu in ['nue','numu','nue_bar','numu_bar']:
+        for from_nu in ['nue', 'numu', 'nue_bar', 'numu_bar']:
             from_nu += '_maps'
             smoothed_maps[from_nu] = {}
             for to_nu in flavs:
-                if '_bar' in from_nu: to_nu+='_bar'
+                if '_bar' in from_nu:
+                    to_nu += '_bar'
                 smoothed_maps[from_nu][to_nu] = smooth_maps[iMap]
-                iMap+=1
+                iMap += 1
+
+        smoothed_maps.update_hash(cache_key)
+        self.transform_cache.set(cache_key, smoothed_maps)
 
         return smoothed_maps
 
+    # Override OscillationServiceBase methods invalid for this service
+    def fill_osc_prob(self, *args, **kwargs):
+        raise NotImplementedError('`fill_osc_prob` is invalid for'
+                                  ' Prob3GPUOscillationService')

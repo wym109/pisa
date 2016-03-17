@@ -12,19 +12,24 @@
 
 
 import re
-from scipy import interpolate, optimize
+from copy import deepcopy
+
+from scipy.interpolate import splev
+from scipy.optimize import fminbound
 from scipy.stats import chi2, norm
 import numpy as np
-from copy import deepcopy
+
 from pisa.utils.log import logging
 import pisa.utils.fileio as fileio
 import pisa.resources.resources as resources
+
 
 class Prior(object):
     def __init__(self, **kwargs):
         self.constructor_args = deepcopy(kwargs)
         if not kwargs.has_key('kind'):
-            raise TypeError(str(self.__class__) + ' __init__ requires `kind` kwarg to be specified')
+            raise TypeError(str(self.__class__)
+                            + ' __init__ requires `kind` kwarg to be specified')
         kind = kwargs.pop('kind')
         # Dispatch the correct initialization method
         if kind.lower() in ['none', 'uniform'] or kind is None:
@@ -43,7 +48,8 @@ class Prior(object):
         """Factory method for generating a Prior object from a param dict."""
 
         if not isinstance(param, dict):
-            raise TypeError("`from_param` factory method can only instantiate a Prior object from a param dict")
+            raise TypeError('`from_param` factory method can only instantiate'
+                            ' a Prior object from a param dict')
 
         # If param has no 'prior', do not create a Prior object
         # NOTE: This is probably a poor design decision, but maintains a more
@@ -54,7 +60,8 @@ class Prior(object):
         prior = param['prior']
 
         # Old-style prior specs that translate to a uniform prior
-        if prior is None or (isinstance(prior, str) and prior.lower() == 'none'):
+        if prior is None or (isinstance(prior, str) \
+                             and prior.lower() == 'none'):
             return cls(kind='uniform')
 
         # Old-style prior spec that translates to a gaussian prior
@@ -106,7 +113,7 @@ class Prior(object):
         self.kind = 'linterp'
         self.x = np.array(x)
         self.y = np.array(y)
-        self.interp = interpolate.interp1d(self.x, self.y, kind='linear',
+        self.interp = interp1d(self.x, self.y, kind='linear',
                                            copy=True, bounds_error=True)
         self.llh = lambda x_new: self.interp(x_new)
         self.chi2 = lambda x_new: -2 * self.llh(x_new)
@@ -116,20 +123,20 @@ class Prior(object):
         self._str = lambda s: "linearly-interpolated prior: valid in [%0.4e, %0.4e], max at %s" % (self.valid_range[0], self.valid_range[1], self.max_at_str)
 
     def __init_spline(self, knots, coeffs, deg):
-        '''Spline is expected to define the log likelihood (so LLH = spline and
+        """Spline is expected to define the log likelihood (so LLH = spline and
         chi^2 = -2*spline)
         
         knots, coeffs, and deg are given by e.g. scipy.interpolate.splrep, and
         evaluation of splines is carried out by scipy.interpolate.splev
-        '''
+        """
         self.kind = 'spline'
         self.knots = knots
         self.coeffs = coeffs
         self.deg = deg
-        self.llh = lambda x: interpolate.splev(x, tck=(knots, coeffs, deg), ext=2)
+        self.llh = lambda x: splev(x, tck=(knots, coeffs, deg), ext=2)
         self.chi2 = lambda x: -2 * self.llh(x)
         self.valid_range = [np.min(knots), np.max(knots)]
-        self.max_at = optimize.fminbound(
+        self.max_at = fminbound(
             func=self.chi2,
             x1=self.valid_range[0],
             x2=self.valid_range[1],
@@ -142,7 +149,8 @@ class Prior(object):
 
 
 def plot_prior(obj, param=None, x_xform=None, ax1=None, ax2=None, **plt_kwargs):
-    '''Plot prior for param from template settings, params, or prior filename or dict.
+    """Plot prior for param from template settings, params, or prior filename
+    or dict.
    
     Arguments
     ---------
@@ -153,7 +161,8 @@ def plot_prior(obj, param=None, x_xform=None, ax1=None, ax2=None, **plt_kwargs):
             params dict; must supply `param` to choose which to plot
             prior dict
     param
-        Param name to plot; necessary if obj is either template settings or params
+        Param name to plot; necessary if obj is either template settings or
+        params
     x_xform
         Transform to apply to x-values. E.g., to plot against sin^2 theta, use
         x_xform = lambda x: np.sin(x)**2
@@ -167,7 +176,7 @@ def plot_prior(obj, param=None, x_xform=None, ax1=None, ax2=None, **plt_kwargs):
     -------
     ax1, ax2
         The axes onto which plots were drawn (ax1 = LLH, ax2 = chi^2)
-    '''
+    """
     import matplotlib.pyplot as plt
     if isinstance(obj, basestring):
         obj = fileio.from_file(obj)
@@ -215,76 +224,76 @@ def plot_prior(obj, param=None, x_xform=None, ax1=None, ax2=None, **plt_kwargs):
 
     return ax1, ax2
 
-def get_prior_bounds(obj, param=None, sigma=[1.0]):
-	"""Obtain confidence regions for CL corresponding to given number of sigmas
-	from parameter prior.
 
-	Arguments
-	---------
-	obj : str or dict
-		if str, interpret as path from which to load a dict
-		if dict, can be:
+def get_prior_bounds(obj, param=None, sigma=[1.0]):
+    """Obtain confidence regions for CL corresponding to given number of sigmas
+    from parameter prior.
+
+    Parameters
+    ----------
+    obj : str or dict
+        if str, interpret as path from which to load a dict
+        if dict, can be:
             template settings dict; must supply `param` to choose which to plot
             params dict; must supply `param` to choose which to plot
             prior dict
-	param
-		Name of param for which to get bounds;
-		necessary if obj is either template settings or params
-	sigma
-		List of number of sigmas
+    param
+        Name of param for which to get bounds;
+        necessary if obj is either template settings or params
+    sigma
+        List of number of sigmas
 
-	Returns
-	-------
-	bounds
-		A dictionary mapping sigma to the corresponding bounds
-	"""
-	bounds = {s: [] for s in sigma}
-	if isinstance(obj, basestring):
-		obj = fileio.from_file(obj)
-	if 'params' in obj:
-		obj = obj['params']
-	if param is not None and param in obj:
-		obj = obj[param]
-	if 'prior' in obj:
-		obj = obj['prior']
-	prior = Prior(**obj)
-	logging.info('Getting confidence region from prior: %s' % prior)
-	x0 = prior.valid_range[0]
-	x1 = prior.valid_range[1]
-	x = np.linspace(x0, x1, 10000)
-	chisquare = prior.chi2(x)
-	for (i, xval) in enumerate(x[:-1]):
-		for s in sigma:
-			chi2_level = s**2
-			if chisquare[i]>chi2_level and chisquare[i+1]<chi2_level:
-				bounds[s].append(xval)
-			elif chisquare[i]<chi2_level and chisquare[i+1]>chi2_level:
-				bounds[s].append(x[i+1])
-	return bounds
+    Returns
+    -------
+    bounds
+        A dictionary mapping sigma to the corresponding bounds
+    """
+    bounds = {s: [] for s in sigma}
+    if isinstance(obj, basestring):
+        obj = fileio.from_file(obj)
+    if 'params' in obj:
+        obj = obj['params']
+    if param is not None and param in obj:
+        obj = obj[param]
+    if 'prior' in obj:
+        obj = obj['prior']
+    prior = Prior(**obj)
+    logging.info('Getting confidence region from prior: %s' % prior)
+    x0 = prior.valid_range[0]
+    x1 = prior.valid_range[1]
+    x = np.linspace(x0, x1, 10000)
+    chisquare = prior.chi2(x)
+    for (i, xval) in enumerate(x[:-1]):
+        for s in sigma:
+            chi2_level = s**2
+            if chisquare[i]>chi2_level and chisquare[i+1]<chi2_level:
+                bounds[s].append(xval)
+            elif chisquare[i]<chi2_level and chisquare[i+1]>chi2_level:
+                bounds[s].append(x[i+1])
+    return bounds
+
 
 def get_values(params):
-    """
-    Takes the params dict which is of the form:
+    """Take the params dict which is of the form:
       {'param1': {
         'value': val,
         'fixed': bool
        },
        'param2': {...},...
       }
-    and returns a dictionary of names/values as:
+    and return a dictionary of names/values as:
       {'param1': val,
        'param2': val,...
       }
     """
-    return deepcopy({ key: param['value'] for key, param in sorted(params.items()) })
+    return deepcopy({ key: param['value'] for key, param in
+                     sorted(params.items()) })
 
 
 def select_hierarchy(params, normal_hierarchy):
+    """Correct for a key in params being defined for both 'nh' and 'ih', and
+    return a modified dict with one value for the given hierarchy.
     """
-    Corrects for a key in params being defined for both 'nh' and 'ih',
-    and returns a modified dict with one value for the given hierarchy.
-    """
-
     if not isinstance(normal_hierarchy, bool):
         raise ValueError('Hierarchy selection must be boolean value')
 
@@ -305,47 +314,40 @@ def select_hierarchy(params, normal_hierarchy):
 
 
 def get_fixed_params(params):
-    """
-    Finds all fixed parameters in params dict and returns them in a
-    new dictionary.
-    """
-
-    return deepcopy({ key: value for key, value in params.items() if value['fixed']})
-
-
-def get_free_params(params):
-    """
-    Finds all free parameters in params dict and returns them in a new
+    """Find all fixed parameters in params dict and returns them in a new
     dictionary.
     """
 
-    return deepcopy({ key: value for key, value in params.items() if not value['fixed']})
+    return deepcopy({key: value for key, value in params.items() if
+                     value['fixed']})
+
+
+def get_free_params(params):
+    """Find all free parameters in params dict and returns them in a new
+    dictionary.
+    """
+
+    return deepcopy({key: value for key, value in params.items() if not
+                     value['fixed']})
+
 
 def get_param_values(params):
-    """
-    Returns a list of parameter values
-    """
-    return [ deepcopy(val['value']) for key,val in sorted(params.items()) ]
+    """Return a list of parameter values."""
+    return [deepcopy(val['value']) for key,val in sorted(params.items())]
 
 
 def get_param_scales(params):
-    """
-    Returns a list of parameter scales
-    """
-    return [ deepcopy(val['scale']) for key,val in sorted(params.items()) ]
+    """Return a list of parameter scales."""
+    return [deepcopy(val['scale']) for key,val in sorted(params.items())]
 
 
 def get_param_bounds(params):
-    """
-    Returns a list of parameter bounds where elements are (min,max) pairs
-    """
-    return [ deepcopy(val['range']) for key,val in sorted(params.items()) ]
+    """Return a list of parameter bounds where elements are (min,max) pairs."""
+    return [deepcopy(val['range']) for key,val in sorted(params.items())]
 
 
 def get_param_priors(params):
-    """
-    Returns a list of Prior objects, one for each param.
-    """
+    """Return a list of Prior objects, one for each param."""
     priors = []
     for pname,param in sorted(params.items()):
         try:
@@ -359,18 +361,15 @@ def get_param_priors(params):
 
 
 def get_atm_params(params):
-    """
-    Returns dictionary of just the atmospheric parameters
-    """
+    """Return dictionary of just the atmospheric parameters"""
     atm_params = ['deltam31','theta23']
     return deepcopy({ key: value for key, value in params.items()
              for p in atm_params if p in key })
 
 
 def fix_osc_params(params):
-    """
-    Returns dict identical to params dict but with all oscillation
-    parameters set to "fixed"=True
+    """Return dict identical to params dict but with all oscillation parameters
+    set to "fixed"=True
     """
     new_params = {}
     # or initialize with new copy by dict(params)
@@ -396,35 +395,33 @@ def fix_atm_params(params):
     for key,value in params.items():
         new_params[key] = deepcopy(value)
         #for akey in atm_params:
-        if (bool(re.match('^theta23', key)) or bool(re.match('^deltam31', key))):
+        if (bool(re.match('^theta23', key))
+                or bool(re.match('^deltam31', key))):
             new_params[key]['fixed'] = True
 
     return new_params
 
-def fix_non_atm_params(params):
-    """
-    Returns dict identical to params dict, except that it fixes all
-    parameters besides that atmospheric mixing params:
-    theta23/deltam31. Does not modify atm mix params, leaving them
-    fixed or not, as they were..
-    """
 
+def fix_non_atm_params(params):
+    """Return dict identical to params dict, except that it fixes all
+    parameters besides that atmospheric mixing params: theta23/deltam31. Does
+    not modify atm mix params, leaving them fixed or not, as they were..
+    """
     new_params = {}
     # or initialize with new copy by dict(params)
     for key,value in params.items():
         new_params[key] = deepcopy(value)
-        if (bool(re.match('^theta23', key)) or bool(re.match('^deltam31', key))):
+        if (bool(re.match('^theta23', key)) \
+                or bool(re.match('^deltam31', key))):
             continue
         else:
             new_params[key]['fixed'] = True
 
     return new_params
 
+
 def fix_all_params(params):
-    """
-    Returns dictionary identical to params, but with all
-    parameters fixed.
-    """
+    """Return dictionary identical to params, but with all parameters fixed."""
     new_params = {}
     for k,v in params.items():
         new_params[k] = deepcopy(v)
@@ -432,8 +429,9 @@ def fix_all_params(params):
 
     return new_params
 
+
 def test_Prior(ts_fname, param_name='theta23'):
-    '''Produce plots roughly like NuFIT's 1D chi-squared projections'''
+    """Produce plots roughly like NuFIT's 1D chi-squared projections"""
     import matplotlib as mpl
     import matplotlib.pyplot as plt
     sigma = [1, 2, 3, 4, 5]

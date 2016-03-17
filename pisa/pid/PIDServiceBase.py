@@ -14,17 +14,17 @@ import numpy as np
 
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils import fileio, proc
-from pisa.utils.utils import is_equal_binning
+from pisa.utils.utils import is_equal_binning, DictWithHash, hash_obj, LRUCache
 
 
 class PIDServiceBase(object):
     """
     Base class for all PID services, provides initialization and tools 
-    for the actual classification. The method 'get_pid_kernels' (from 
-    functions, MC or whatever) has to be implemented in the derived PID 
+    for the actual classification. The method 'get_pid_kernels' (from
+    functions, MC or whatever) has to be implemented in the derived PID
     services.
     """
-    def __init__(self, ebins, czbins):
+    def __init__(self, ebins, czbins, cache_depth=1000):
         """Store state"""
         logging.debug('Instantiating %s' % self.__class__.__name__)
         self.signatures = ['trck', 'cscd']
@@ -33,6 +33,10 @@ class PIDServiceBase(object):
         self.input_event_rate_hash = None
         self.F_recompute_output = True
         self.pid_kernels = None
+        # TODO: make use of the caches here
+        self.cache_depth = cache_depth
+        self.transform_cache = LRUCache(self.cache_depth)
+        self.result_cache = LRUCache(self.cache_depth)
 
     def get_binning(self):
         return self.ebins, self.czbins
@@ -85,7 +89,7 @@ class PIDServiceBase(object):
         return sane
 
     def store_pid_kernels(self, filename):
-        """Store PID maps in JSON format"""
+        """Store PID maps to disk"""
         fileio.to_file(self.pid_kernels, filename)
 
     def get_pid_maps(self, reco_events, return_unknown=False, **kwargs):
@@ -93,9 +97,9 @@ class PIDServiceBase(object):
         event rate maps (sorted after tracks and cascades) from the
         reconstructed ones (sorted after nu[e,mu,tau]_cc and nuall_nc).
         """
-        # Be verbose on input
-        params = proc.get_params()
-        proc.report_params(params, units = [])
+        ## Be verbose on input
+        #params = proc.get_params()
+        #proc.report_params(params, units = [])
 
         # Initialize return dict
         empty_map = {
@@ -104,8 +108,9 @@ class PIDServiceBase(object):
             'map': np.zeros_like(reco_events['nue_cc']['map']),
         }
 
-        reco_events_pid = {'params': proc.add_params(params,
-                                                     reco_events['params'])}
+        #reco_events_pid = {'params': proc.add_params(params,
+        #                                             reco_events['params'])}
+        reco_events_pid = {'params': {}}
         for sig in self.signatures:
             reco_events_pid[sig] = deepcopy(empty_map)
         if return_unknown:

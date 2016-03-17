@@ -18,22 +18,22 @@ from pisa.utils.utils import check_binning, prefilled_map
 from pisa.utils.fileio import from_file, to_file
 
 
-def pid_service_factory(pid_mode, **kwargs):
-    """Construct and return a PIDService class based on `mode`
+def service_factory(pid_mode, **kwargs):
+    """Construct and return a PIDService class based on `pid_mode`
     
     Parameters
     ----------
     pid_mode : str
         Identifier for which PIDService class to instantiate
     **kwargs
-        All subsequent kwargs are passed (as **kwargs), to the class being
+        All subsequent kwargs are passed (as **kwargs) to the class being
         instantiated.
     """
+    pid_mode = pid_mode.lower()
     if pid_mode == 'mc':
         from pisa.pid.PIDServiceMC import PIDServiceMC
         return PIDServiceMC(**kwargs)
 
-    pid_mode = pid_mode.lower()
     if pid_mode == 'param':
         from pisa.pid.PIDServiceParam import PIDServiceParam
         return PIDServiceParam(**kwargs)
@@ -134,7 +134,7 @@ if __name__ == "__main__":
     args['ebins'], args['czbins'] = check_binning(reco_event_maps)
 
     # Initialize the PID service
-    pid_service = pid_service_factory(pid_mode=args.pop('pid_mode'), **args)
+    pid_service = service_factory(pid_mode=args.pop('pid_mode'), **args)
 
     # Calculate event rates after PID
     event_rate_pid = pid_service.get_pid_maps(reco_event_maps)

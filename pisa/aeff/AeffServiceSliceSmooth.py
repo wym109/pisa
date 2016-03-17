@@ -16,9 +16,11 @@ from scipy.interpolate import interp1d, interp2d, RectBivariateSpline
 from pisa.utils.log import logging
 from pisa.utils import hdf
 from pisa.utils import flavInt
+from pisa.utils.utils import DictWithHash, hash_obj
+from pisa.aeff.AeffServiceBase import AeffServiceBase
 
 
-class AeffServiceSliceSmooth(object):
+class AeffServiceSliceSmooth(AeffServiceBase):
     """Takes smoothed samples from 2D energy / coszen plane effective
     areas, and interpolates to a user-specified E and CZ binning
 
@@ -59,13 +61,12 @@ class AeffServiceSliceSmooth(object):
     pisa.utils.slice_smooth_aeff.py : script for performing the smoothing on
     Monte Carlo samples
     """
-    def __init__(self, ebins, czbins, aeff_slice_smooth,
-                 **kwargs):
+    def __init__(self, ebins, czbins, aeff_slice_smooth, **kwargs):
+        super(AeffServiceSliceSmooth, self).__init__(ebins=None, czbins=None)
         logging.info('Initializing AeffServicePar...')
-        self.ebins = None
-        self.czbins = None
         self.__aeff_slice_smooth = None
         self.__interp_kind = 'linear'
+        self.__cache_key = np.nan
         self.interpolants = {}
         self.update(ebins=ebins, czbins=czbins,
                     aeff_slice_smooth=aeff_slice_smooth)
@@ -80,14 +81,19 @@ class AeffServiceSliceSmooth(object):
             aeff_slice_smooth = self.__aeff_slice_smooth
         if interp_kind is None:
             interp_kind = self.__interp_kind
+
         # Return if state needn't change
-        #  NOTE: this is simplistic; there might be reason to compare e.g. the
-        #  data contained within a file referenced rather than just looking at
-        #  string equivalency. That's a TODO if it's ever an issue...
-        if np.all(ebins == self.ebins) and np.all(czbins == self.czbins) \
-                and aeff_slice_smooth == self.__aeff_slice_smooth \
-                and interp_kind == self.__interp_kind:
+        cache_key = hash_obj((ebins, czbins, aeff_slice_smooth, interp_kind))
+        if cache_key == self.__cache_key:
             return
+
+        ##  NOTE: this is simplistic; there might be reason to compare e.g. the
+        ##  data contained within a file referenced rather than just looking at
+        ##  string equivalency. That's a TODO if it's ever an issue...
+        #if np.all(ebins == self.ebins) and np.all(czbins == self.czbins) \
+        #        and aeff_slice_smooth == self.__aeff_slice_smooth \
+        #        and interp_kind == self.__interp_kind:
+        #    return
 
         if interp_kind == 'linear':
             spline_degree = 1
@@ -170,6 +176,8 @@ class AeffServiceSliceSmooth(object):
             keys = [k for k in aeff2d.keys() if flavint in k]
             assert len(keys) == 1, str(flavint) + str(keys)
             self.aeff_fidata[flavint] = aeff2d[keys[0]]
+        self.aeff_fidata.update_hash(cache_key)
+        self.transform_cache.set(cache_key, self.aeff_fidata)
 
     def get_aeff(self):
         """Returns the effective areas FlavIntData object"""

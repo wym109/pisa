@@ -192,7 +192,7 @@ class RecoServiceVBWKDE(RecoServiceBase):
         all_ints = ['cc', 'nc']
         flav_ints = itertools.product(all_flavs, all_ints)
 
-        kernels = {f:{} for f in all_flavs}
+        kernels = utils.DictWithHash({f:{} for f in all_flavs})
         kernels['ebins'] = self.ebins
         kernels['czbins'] = self.czbins
         computed_datahashes = {}
@@ -231,6 +231,7 @@ class RecoServiceVBWKDE(RecoServiceBase):
                 out_dir=None
             )
             computed_datahashes[datahash] = (flav, int_type)
+        kernels.update_hash()
 
         return kernels
 

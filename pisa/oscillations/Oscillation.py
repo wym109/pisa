@@ -15,77 +15,61 @@
 #
 
 
-import os,sys
-import numpy as np
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+
+import numpy as np
+
 from pisa.utils.log import logging, tprofile, set_verbosity
-from pisa.utils.utils import check_binning, get_binning, Timer
+from pisa.utils.utils import Timer
 from pisa.utils.fileio import from_file, to_file
-from pisa.utils.proc import report_params, get_params, add_params
-from pisa.oscillations.Prob3OscillationService import Prob3OscillationService
-from pisa.oscillations.NucraftOscillationService import NucraftOscillationService
-from pisa.oscillations.TableOscillationService import TableOscillationService
-try:
-    from pisa.oscillations.Prob3GPUOscillationService import Prob3GPUOscillationService
-except:
-    logging.info("NOT loading Prob3GPUOscillationService in Oscillation.py")
+from pisa.utils.utils import DictWithHash
 
 
-def get_osc_flux(flux_maps, osc_service, deltam21=None, deltam31=None,
-                 energy_scale=None, theta12=None, theta13=None, theta23=None,
-                 deltacp=None, YeI=None, YeO=None, YeM=None, **kwargs):
-    """Obtain a map in energy and cos(zenith) of the oscillation probabilities
-    from the OscillationService and compute the oscillated flux.
-    
+def newOscProbDict(ecen, czcen):
+    n_ecen = len(ecen)
+    n_czcen = len(czcen)
+    osc_prob_dict = DictWithHash()
+    for nu in ['nue_maps', 'numu_maps', 'nue_bar_maps', 'numu_bar_maps']:
+        isbar = '_bar' if 'bar' in nu else ''
+        osc_prob_dict[nu] = {'nue'+isbar: np.zeros(n_ecen*n_czcen),
+                             'numu'+isbar: np.zeros(n_ecen*n_czcen),
+                             'nutau'+isbar: np.zeros(n_ecen*n_czcen)}
+    return osc_prob_dict
+
+
+# TODO: so... convention is *_mode everywhere else besides here?
+def service_factory(osc_code, **kwargs):
+    """Construct and return an OscillationService class based on `osc_code`
+
     Parameters
     ----------
-    flux_maps
-        Dictionary of atmospheric flux ['nue', 'numu', 'nue_bar', 'numu_bar']
-    osc_service
-        Handle to an OscillationService
+    osc_code : str
+        Identifier for which OscillationService class to instantiate
     **kwargs
-        Oscillation parameters to compute oscillation probability maps from.
+        All subsequent kwargs are passed (as **kwargs) to the class being
+        instantiated.
     """
+    osc_code = osc_code.lower()
+    if osc_code == 'prob3':
+        from pisa.oscillations.Prob3OscillationService import Prob3OscillationService
+        return Prob3OscillationService(**kwargs)
 
-    # Be verbose on input
-    params = get_params()
+    if osc_code == 'nucraft':
+        from pisa.oscillations.NucraftOscillationService import NucraftOscillationService
+        return NucraftOscillationService(**kwargs)
 
-    report_params(
-        params, units=['','','','rad','eV^2','eV^2','','rad','rad','rad']
-    )
+    if osc_code == 'gpu':
+        from pisa.oscillations.Prob3GPUOscillationService import Prob3GPUOscillationService
+        return Prob3GPUOscillationService(**kwargs)
 
-    # Initialize return dict
-    osc_flux_maps = {'params': add_params(params,flux_maps['params'])}
+    if osc_code == 'table':
+        from pisa.oscillations.TableOscillationService import TableOscillationService
+        return TableOscillationService(**kwargs)
 
-    # Get oscillation probability map from service
-    osc_prob_maps = osc_service.get_osc_prob_maps(
-        deltam21=deltam21, deltam31=deltam31,
-        theta12=theta12, theta13=theta13, theta23=theta23,
-        deltacp=deltacp,
-        energy_scale=energy_scale,
-        YeI=YeI, YeO=YeO, YeM=YeM,
-        **kwargs
-    )
-
-    ebins, czbins = get_binning(flux_maps)
-
-    for to_flav in ['nue','numu','nutau']:
-        for mID in ['','_bar']: # 'matter' ID
-            nue_flux = flux_maps['nue'+mID]['map']
-            numu_flux = flux_maps['numu'+mID]['map']
-            oscflux = {
-                'ebins':ebins, 'czbins':czbins,
-                'map':(nue_flux
-                       * osc_prob_maps['nue'+mID+'_maps'][to_flav+mID]
-                       + numu_flux*osc_prob_maps['numu'+mID+'_maps'][to_flav+mID])
-            }
-            osc_flux_maps[to_flav+mID] = oscflux
-
-    return osc_flux_maps
+    raise ValueError('Unrecognized Oscillation `osc_code`: "%s"' % osc_code)
 
 
 if __name__ == '__main__':
-
     # parser
     parser = ArgumentParser(
         description='''Takes the oscillation parameters as input and writes
@@ -113,11 +97,9 @@ if __name__ == '__main__':
                         help='''deltaCP value to use [rad]''')
     parser.add_argument('--earth-model', type=str,
                         default='oscillations/PREM_12layer.dat',
-                        dest='earth_model',
                         help='''Earth model data (density as function of
                         radius)''')
     parser.add_argument('--energy-scale', type=float, default=1.0,
-                        dest='energy_scale',
                         help='''Energy off scaling due to mis-calibration.''')
     parser.add_argument('--YeI', type=float, default=0.5,
                         help='''Ye (elec frac) in inner core.''')
@@ -125,7 +107,7 @@ if __name__ == '__main__':
                         help='''Ye (elec frac) in outer core.''')
     parser.add_argument('--YeM', type=float, default=0.5,
                         help='''Ye (elec frac) in mantle.''')
-    parser.add_argument('--code', type=str,
+    parser.add_argument('--osc-code', type=str,
                         choices = ['prob3','table','nucraft','gpu'],
                         default='prob3',
                         help='''Oscillation code to use''')
@@ -138,15 +120,12 @@ if __name__ == '__main__':
                         i.e. every 2D bin will be oversampled by this factor
                         in each dimension ''')
     parser.add_argument('--detector-depth', type=float, default=2.0,
-                        dest='detector_depth',
                         help='''Detector depth in km''')
-    parser.add_argument('--propagation-height', type=float, default=20.0,
-                        dest='prop_height',
+    parser.add_argument('--prop-height', type=float, default=20.0,
                         help='''Height in the atmosphere to begin propagation
                         in km. Prob3 default: 20.0 km NuCraft default:
                         'sample' from a distribution''')
-    parser.add_argument('--precision', type=float, default=5e-4,
-                        dest='osc_precision',
+    parser.add_argument('--osc-precision', type=float, default=5e-4,
                         help='''Requested precision for unitarity (NuCraft
                         only)''')
     parser.add_argument('--tabledir', type=str, default='oscillations',
@@ -158,32 +137,17 @@ if __name__ == '__main__':
                         help='file to store the output')
     parser.add_argument('-v', '--verbose', action='count', default=None,
                         help='set verbosity level')
-    args = parser.parse_args()
+    args = vars(parser.parse_args())
 
-    #Set verbosity level
-    set_verbosity(args.verbose)
+    # Set verbosity level
+    set_verbosity(args.pop('verbose'))
 
-    #Get binning
-    ebins, czbins = check_binning(args.flux_maps)
+    # Get binning
+    flux_maps = args.pop('flux_maps')
+    ebins, czbins = check_binning(flux_maps)
 
-    #Initialize an oscillation service
-    iniargs = {'earth_model': args.earth_model,
-               'detector_depth': args.detector_depth,
-               'prop_height': args.prop_height,
-               'osc_precision': args.osc_precision,
-               'datadir': args.datadir}
-
-    if args.code=='prob3':
-      if iniargs['prop_height'] is None: iniargs['prop_height'] = 20.0
-      osc_service = Prob3OscillationService(ebins, czbins, **iniargs)
-    elif args.code=='nucraft':
-      if iniargs['prop_height'] is None: iniargs['prop_height'] = 'sample'
-      osc_service = NucraftOscillationService(ebins, czbins, **iniargs)
-    elif args.code=='gpu':
-        settings = vars(args)
-        osc_service = Prob3GPUOscillationService(ebins, czbins, **settings)
-    else:
-      osc_service = TableOscillationService(ebins, czbins, **iniargs)
+    # Initialize an oscillation service
+    osc_service = service_factory(ebins=ebins, czbins=czbins, **args)
 
     logging.info("Getting osc prob maps")
     with Timer(verbose=False) as t:
@@ -201,6 +165,6 @@ if __name__ == '__main__':
     logging.info("       ==> elapsed time to get osc flux maps: %s sec"
                  % t.secs)
 
-    #Write out
+    # Write out
     logging.info("Saving output to: %s" % args.outfile)
     to_file(osc_flux_maps, args.outfile)

@@ -19,12 +19,107 @@ import inspect
 import time
 import numbers
 import hashlib
+import collections
 
 import numpy as np
 from scipy.stats import binned_statistic_2d
 
 from pisa.utils import jsons
 from pisa.utils.log import logging
+
+
+class DictWithHash(dict):
+    """A dictionary that can carry properties and hashes (and stores) the hash
+    of its items.
+
+    Attributes
+    ----------
+    hash : immutable object
+        Value of the hash.
+    is_new : bool
+        Simple flag that can be polled to see if the object's hash has been
+        updated. Resetting this flag after handling must be done by the user.
+
+    Notes
+    -----
+    The contents are not automatically hashed, as it is beyond the scope of
+    this object to figure out if a sub- or sub-sub (etc.) item has changed,
+    and therefore the hash has been invalidated.
+
+    Due to `hash` and `is_new` being attributes, these are transparent to
+    PISA's to/from_json/hdf methods and will neither be written to nor read
+    from files.
+    """
+    def __init__(self, *args, **kwargs):
+        super(DictWithHash, self).__init__(*args, **kwargs)
+        # Initialize with np.nan, a value that by default returns False when
+        # compared against other objects -- including another np.nan
+        self.hash = np.nan
+
+        # The is_new flag is a simple mechanism for keeping track if the data
+        # has been updated and, e.g., so a subsequent process must be triggered.
+        # I.e., this is a passive polling-based system, vs. e.g. callbacks.
+        self.is_new = True
+
+    def update_hash(self, obj_or_hash=None):
+        """Update the object's hash.
+
+        obj_or_hash : None, object, or hash value
+            Used to update the hash value.
+            - If an immutable object (i.e., it implements a `__hash__` method),
+              then the hash is derived from the object via hash(obj_or_hash).
+              In the case a valid hash value is passed in via `obj_or_hash`,
+              hash(obj_or_hash) will simply return the hash value.
+            - If a mutable object, the hash_obj() function is called on the object.
+            - If None, hash_obj() is called on self, so hashing the entire
+              contents of the instantiated object.
+
+        Notes
+        -----
+        The hash_obj() function can be slow for large objects, so it is
+        recommended that a simple object be used to update the hash (i.e.,
+        avoid `obj_or_hash=None`).
+        """
+        if obj_or_hash is None and hash_val is None:
+            self.hash = hash_obj(self.items())
+        elif (hasattr(obj_or_hash, '__hash__') and obj_or_hash.__hash__ is not None):
+            self.hash = hash(obj_or_hash)
+        else:
+            self.hash = hash_obj(obj_or_hash)
+        self.is_new = True
+        return self.hash
+
+    def get_hash(self):
+        return self.hash
+
+
+class LRUCache:
+    """Simple implementation of a least-recently-used (LRU) memory cache.
+    Specify `depth` to set a limit on the number of entries.
+
+    From: https://www.kunxi.org/blog/2014/05/lru-cache-in-python/"""
+    GLOBAL_CACHE_DEPTH_OVERRIDE = None
+    def __init__(self, capacity):
+        self.capacity = capacity
+        if self.GLOBAL_CACHE_DEPTH_OVERRIDE is not None:
+            self.capacity = self.GLOBAL_CACHE_DEPTH_OVERRIDE
+        self.cache = collections.OrderedDict()
+
+    def get(self, key):
+        value = self.cache.pop(key)
+        self.cache[key] = value
+        if hasattr(value, 'is_new'):
+            value.is_new = False
+        return value
+
+    def set(self, key, value):
+        if self.capacity > 0:
+            try:
+                self.cache.pop(key)
+            except KeyError:
+                if len(self.cache) >= self.capacity:
+                    self.cache.popitem(last=False)
+            self.cache[key] = value
 
 
 class Timer(object):
@@ -352,7 +447,12 @@ def recursiveAllclose(x, y, *args, **kwargs):
     elif np.isscalar(x):
         if not np.isscalar(y):
             return False
-        if not np.allclose(x, y, *args, **kwargs):
+        # np.allclose doesn't handle some dtypes
+        try:
+            eq = np.allclose(x, y, *args, **kwargs)
+        except TypeError:
+            eq = x == y
+        if not eq:
             return False
     # Dict
     elif isinstance(x, dict):
@@ -369,15 +469,25 @@ def recursiveAllclose(x, y, *args, **kwargs):
         if not len(x) == len(y):
             return False
         if isinstance(x, list) or isinstance(x, tuple):
+            # NOTE: A list is allowed to be allclose to a tuple so long
+            # as the contents are allclose
             if not isinstance(y, list) or isinstance(y, tuple):
                 return False
             for xs, ys in itertools.izip(x, y):
                 if not recursiveAllclose(xs, ys, *args, **kwargs):
                     return False
         elif isinstance(x, np.ndarray):
+            # NOTE: A numpy array only evalutes to allclose if compared to
+            # another numpy array
             if not isinstance(y, np.ndarray):
                 return False
-            if not np.allclose(x, y, *args, **kwargs):
+            # np.allclose doesn't handle arrays of some dtypes
+            # TODO: this can be rolled into the above clause, I think
+            try:
+                eq = np.allclose(x, y, *args, **kwargs)
+            except TypeError:
+                eq = np.all(x == y)
+            if not eq:
                 return False
         else:
             raise TypeError('Unhandled type(s): %s, x=%s, y=%s' %
@@ -577,8 +687,9 @@ def is_logarithmic(edges, maxdev=1e-5):
 
 def is_equal_binning(edges1, edges2, maxdev=1e-8):
     """Check whether the bin edges are equal."""
-    return np.shape(edges1) == np.shape(edges2) and np.allclose(edges1, edges2,
-                                                                rtol=maxdev)
+    return (np.shape(edges1) == np.shape(edges2)) and np.allclose(edges1,
+                                                                  edges2,
+                                                                  rtol=maxdev)
 
 
 def is_coarser_binning(coarse_bins, fine_bins):
@@ -686,17 +797,21 @@ def check_fine_binning(fine_bins, coarse_bins):
 
 def oversample_binning(coarse_bins, factor):
     """Oversample bin edges (coarse_bins) by the given factor"""
+    if factor == 1:
+        return coarse_bins
 
     if is_linear(coarse_bins):
         logging.info('Oversampling linear output binning by factor %i.'%factor)
         fine_bins = np.linspace(coarse_bins[0], coarse_bins[-1],
                                 factor*(len(coarse_bins)-1)+1)
+
     elif is_logarithmic(coarse_bins):
         logging.info('Oversampling logarithmic output binning by factor %i.'
                      % factor)
         fine_bins = np.logspace(np.log10(coarse_bins[0]),
                                 np.log10(coarse_bins[-1]),
                                 factor*(len(coarse_bins)-1)+1)
+
     else:
         logging.warn('Irregular binning detected! Evenly oversampling '
                      'by factor %i' % factor)
@@ -760,6 +875,22 @@ def inspect_cur_frame():
 
 
 def prefilled_map(ebins, czbins, val, dtype=float):
+    """Generate a PISA "map" pre-filled with `val` and use datatype `dtype` for
+    the data storage part of the map (and *not* for the ebins/czbins storage in
+    the map).
+
+    Note that a "map" here is acutally dictionary with structure
+        {'ebins': (n_ebins-len array of float),
+         'czbins': (n_czbins-len array of float),
+         'map': (n_ebins x n_czbins array of dtype)}
+
+    Note also that, elsewhere in PISA, "map" refers to a dictionary that has
+    one of the above for each of several neutrino flavors, or
+    {'<flavor>': {'<interaction type>': <map> ... }-structured dictionaries, or
+    {'<flavor>': {'<interaction type>': {'<signature>': <map> ...}-
+    structured dictionaries. Someday maybe the language will be cleaned up so
+    as to not be so confusing to mere mortals.
+    """
     n_ebins = len(ebins) - 1
     n_czbins = len(czbins) - 1
     newmap = {
@@ -769,14 +900,16 @@ def prefilled_map(ebins, czbins, val, dtype=float):
     }
     return newmap
 
-
+#import xxhash, dill
 def hash_obj(obj):
     """Return hash for an object by serializing the object to a JSON string"""
+    #return xxhash.xxh32(dill.dumps(obj)).intdigest()
     if isinstance(obj, np.ndarray) or isinstance(obj, np.matrix):
         return hash(obj.tostring())
-    return hash(jsons.json.dumps(obj, sort_keys=True, cls=None, indent=None,
-                                 ensure_ascii=False, check_circular=True,
-                                 allow_nan=True, separators=(',', ':')))
+    return hash(jsons.json.dumps(obj, sort_keys=True, cls=jsons.NumpyEncoder,
+                                 indent=None, ensure_ascii=False,
+                                 check_circular=True, allow_nan=True,
+                                 separators=(',', ':')))
 
 
 def hash_file(fname):

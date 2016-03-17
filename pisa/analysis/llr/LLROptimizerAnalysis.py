@@ -16,7 +16,6 @@
 # find the best fit null hypothesis to be changed.
 #
 
-
 # Try to stop PISA's loose ways with memory
 import resource
 cur_lims_data = resource.getrlimit(resource.RLIMIT_DATA)
@@ -81,8 +80,8 @@ def getAsimovData(template_maker, params, data_normal):
         channel=fiducial_param_vals['channel'])
 
 
-def getAltHierarchyBestFit(asimov_data, template_maker, params, minimizer_settings,
-                           hypo_normal, check_octant):
+def getAltHierarchyBestFit(asimov_data, template_maker, params,
+                           minimizer_settings, hypo_normal, check_octant):
     """
     Finds the best fit value of alternative hierarchy to that which
     was used to produce the asimov data set.
@@ -110,9 +109,9 @@ def getAltHierarchyBestFit(asimov_data, template_maker, params, minimizer_settin
     return alt_params, llh_data
 
 
-def get_llh_hypothesis(
-        data_tag, asimov_data, ntrials, template_maker, template_params,
-        minimizer_settings, save_steps, check_octant):
+def get_llh_hypothesis(data_tag, asimov_data, ntrials, template_maker,
+                       template_params, minimizer_settings, save_steps,
+                       check_octant):
     """
     Runs the llh fitter ntrials number of times, pulling pseudo data sets from
     asimov_data.
@@ -205,11 +204,13 @@ if __name__ == "__main__":
     parser.add_argument('-o', '--outfile', type=str, default='llh_data.json',
                         metavar='FILE',
                         help="Output filename.")
-    parser.add_argument('-v', '--verbose', action='count', default=None,
+    parser.add_argument('-v', '--verbose', action='count', default=0,
                         help='set verbosity level')
     args = parser.parse_args()
     
     set_verbosity(args.verbose)
+    physics.setLevel(args.verbose)
+    tprofile.setLevel(args.verbose)
     
     # Read in the settings
     template_settings = from_file(args.template_settings)

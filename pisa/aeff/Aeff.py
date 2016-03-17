@@ -14,74 +14,22 @@
 #
 # author: Timothy C. Arlen
 #         tca3@psu.edu
+#         J.L. Lanfranchi
+#         jll1062+pisa@phys.psu.edu
 #
 # date:   April 8, 2014
 #
 
 
-import sys
-
-import numpy as np
-from scipy.constants import Julian_year
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
-from pisa.utils import flavInt
+import numpy as np
+
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.fileio import from_file, to_file
-from pisa.utils.proc import report_params, get_params, add_params
-from pisa.utils.utils import check_binning, get_binning, prefilled_map
 
 
-def get_event_rates(osc_flux_maps, aeff_service, livetime, aeff_scale,
-                    **kwargs):
-    '''
-    Main function for this module, which returns the event rate maps
-    for each flavor and interaction type, using true energy and zenith
-    information. The content of each bin will be the weighted aeff
-    multiplied by the oscillated flux, so that the returned dictionary
-    will be of the form:
-    {'nue': {'cc':map, 'nc':map},
-     'nue_bar': {'cc':map, 'nc':map}, ...
-     'nutau_bar': {'cc':map, 'nc':map} }
-    \params:
-      * osc_flux_maps - maps containing oscillated fluxes
-      * aeff_service - the effective area service to use
-      * livetime - detector livetime for which to calculate event counts
-      * aeff_scale - systematic to be a proxy for the realistic effective area
-    '''
-
-    # Get parameters used here
-    params = get_params()
-    report_params(params, units=['', 'yrs', ''])
-
-    # Initialize return dict
-    event_rate_maps = {'params': add_params(params, osc_flux_maps['params'])}
-
-    # Get effective area
-    aeff_dict = aeff_service.get_aeff()
-
-    ebins, czbins = get_binning(osc_flux_maps)
-
-    # apply the scaling for nu_xsec_scale and nubar_xsec_scale...
-    flavours = ['nue', 'numu', 'nutau', 'nue_bar', 'numu_bar', 'nutau_bar']
-    for flavour in flavours:
-        osc_flux_map = osc_flux_maps[flavour]['map']
-        int_type_dict = {}
-        for int_type in ['cc', 'nc']:
-            event_rate = osc_flux_map * aeff_dict[flavour][int_type] \
-                    * (livetime * Julian_year * aeff_scale)
-
-            int_type_dict[int_type] = {'map':event_rate,
-                                       'ebins':ebins,
-                                       'czbins':czbins}
-            logging.debug("  Event Rate before reco for %s/%s: %.2f"
-                          % (flavour, int_type, np.sum(event_rate)))
-        event_rate_maps[flavour] = int_type_dict
-
-    return event_rate_maps
-
-
-def aeff_service_factory(aeff_mode, **kwargs):
+def service_factory(aeff_mode, **kwargs):
     """Construct and return a AeffService class based on `mode`
     
     Parameters
@@ -90,7 +38,7 @@ def aeff_service_factory(aeff_mode, **kwargs):
         Identifier for which AeffService class to instantiate. Currently
         understood are 'param' and 'mc'.
     **kwargs
-        All subsequent kwargs are passed (as **kwargs), to the class being
+        All subsequent kwargs are passed (as **kwargs) to the class being
         instantiated.
     """
     aeff_mode = aeff_mode.lower()
@@ -133,28 +81,32 @@ def add_argparser_args(parser):
     return parser
 
 
+# TODO: make plotting callable by command line, just need to be able to parse
+# strings like
+#   --aeff-mode param,slice_smooth
+# and then construct each of these modes. Also would need to add, e.g.,
+#   --plot-2d-comparisons
+# and
+#   --plot-1d-comparisons options.
+
 def plot_2d_comparisons(ebins=np.logspace(0, np.log10(80), 40),
                         czbins=np.linspace(-1, 0, 21)):
     import matplotlib as mpl
     import matplotlib.pyplot as plt
+    DIFF_CMAP = mpl.cm.coolwarm
+    ABS_CMAP = mpl.cm.Paired
+    DIFF_CMAP.set_bad((1,1,1), 1)
+    ABS_CMAP.set_bad((1,1,1), 1)
 
     def updateExtrema(_min, _max, a):
         return np.min([_min, np.min(a)]), np.max([_max, np.max(a)])
-
-    c1 = (0.0, 0.6, 0.8)
-    c2 = (0.7, 0.2, 0.5)
-    c3 = (0.4, 0.3, 0.0)
-    diff_cmap = mpl.cm.coolwarm
-    abs_cmap = mpl.cm.Paired
-    diff_cmap.set_bad((1,1,1), 1)
-    abs_cmap.set_bad((1,1,1), 1)
 
     ebin_midpoints = (ebins[:-1] + ebins[1:])/2.
     czbin_midpoints = (czbins[:-1] + czbins[1:])/2.
     e_oversamp = np.logspace(np.log10(ebins[0]), np.log10(ebins[-1]), 1001)
     cz_oversamp = np.linspace(czbins[0], czbins[-1], 1001)
 
-    mc_service = aeff_service_factory(
+    mc_service = service_factory(
         aeff_mode='mc', ebins=ebins, czbins=czbins, compute_error=True,
         aeff_weight_file='events/pingu_v36/'
         'events__pingu__v36__runs_388-390__proc_v5__joined_G_nuall_nc_G_nuallbar_nc.hdf5'
@@ -175,21 +127,21 @@ def plot_2d_comparisons(ebins=np.logspace(0, np.log10(80), 40),
         'nutau': 'aeff/V36/cuts_V5/a_eff_nutau.dat',
         'nutau_bar': 'aeff/V36/cuts_V5/a_eff_nutaubar.dat'
     }
-    param_service = aeff_service_factory(
+    param_service = service_factory(
         aeff_mode='param', ebins=ebins, czbins=czbins,
         aeff_egy_par=aeff_egy_par,
         aeff_coszen_par='aeff/V36/V36_aeff_cz.json'
     )
     aeff['param'] = param_service.get_aeff()
 
-    param_service = aeff_service_factory(
+    param_service = service_factory(
         aeff_mode='param', ebins=e_oversamp, czbins=cz_oversamp,
         aeff_egy_par=aeff_egy_par,
         aeff_coszen_par='aeff/V36/V36_aeff_cz.json'
     )
     aeff_oversamp['param'] = param_service.get_aeff()
 
-    smooth_service = aeff_service_factory(
+    smooth_service = service_factory(
         aeff_mode='smooth', ebins=ebins, czbins=czbins,
         aeff_energy_smooth='aeff/pingu_v36/'
             'aeff_energy_smooth__pingu_v36__runs_388-390__proc_5.json',
@@ -200,7 +152,7 @@ def plot_2d_comparisons(ebins=np.logspace(0, np.log10(80), 40),
     smooth_service.update(ebins=e_oversamp, czbins=cz_oversamp)
     aeff_oversamp['smooth'] = smooth_service.get_aeff()
 
-    slice_service = aeff_service_factory(
+    slice_service = service_factory(
         aeff_mode='slice_smooth', ebins=ebins, czbins=czbins,
         aeff_slice_smooth='aeff/pingu_v36/'
         'aeff_slice_smooth__pingu_v36__runs_388-390__proc_5.hdf5',
@@ -226,7 +178,8 @@ def plot_2d_comparisons(ebins=np.logspace(0, np.log10(80), 40),
     individual_flavints = flavInt.NuFlavIntGroup(flavInt.ALL_NUFLAVINTS)
     for group in grouped:
         individual_flavints -= group
-    ungrouped = sorted([flavInt.NuFlavIntGroup(fi) for fi in individual_flavints])
+    ungrouped = sorted([flavInt.NuFlavIntGroup(fi)
+                        for fi in individual_flavints])
 
     # Sample points for plotting (cz comes first, as it's on the x-axis for
     # plotting purposes)
@@ -235,8 +188,8 @@ def plot_2d_comparisons(ebins=np.logspace(0, np.log10(80), 40),
     x_oversamp, y_oversamp = np.meshgrid(cz_oversamp,
                                          np.log10(e_oversamp), indexing='xy')
 
-    abs_plt_kwargs = dict(cmap=abs_cmap)
-    fractdiff_plt_kwargs = dict(cmap=diff_cmap)
+    abs_plt_kwargs = dict(cmap=ABS_CMAP)
+    fractdiff_plt_kwargs = dict(cmap=DIFF_CMAP)
     for group in ungrouped + grouped:
         rep_flavint = group.flavints()[0]
 
@@ -264,7 +217,8 @@ def plot_2d_comparisons(ebins=np.logspace(0, np.log10(80), 40),
         vmin_abs, vmax_abs = updateExtrema(vmin_abs, vmax_abs, log_mc)
         ax.set_xlabel(r'$\cos\,\theta_{\rm z}$')
         ax.set_ylabel(r'$\log_{10}(E/{\rm GeV})$')
-        ax.set_title(r'$\log_{10}({\rm MC-hist})$, "standard" binning', fontsize=14)
+        ax.set_title(r'$\log_{10}({\rm MC-hist})$, "standard" binning',
+                     fontsize=14)
         cbar = plt.colorbar(qm, ax=ax)
 
         other_svc_os = None
@@ -283,10 +237,12 @@ def plot_2d_comparisons(ebins=np.logspace(0, np.log10(80), 40),
                                **abs_plt_kwargs)
             ax.set_xlabel(r'$\cos\,\theta_{\rm z}$')
             ax.set_ylabel(r'$\log_{10}(E/{\rm GeV})$')
-            ax.set_title(r'$\log_{10}({\rm aeff_' + svc_key + '})$, dense binning',
+            ax.set_title(r'$\log_{10}({\rm aeff_' + svc_key
+                         + '})$, dense binning',
                          fontsize=14)
             all_abs_qm.append(qm)
-            vmin_abs, vmax_abs = updateExtrema(vmin_abs, vmax_abs, log_this_oversamp)
+            vmin_abs, vmax_abs = updateExtrema(vmin_abs, vmax_abs,
+                                               log_this_oversamp)
             cbar = plt.colorbar(qm, ax=ax)
 
             # Plot the standard-binning map
@@ -296,8 +252,8 @@ def plot_2d_comparisons(ebins=np.logspace(0, np.log10(80), 40),
             vmin_abs, vmax_abs = updateExtrema(vmin_abs, vmax_abs, log_this)
             ax.set_xlabel(r'$\cos\,\theta_{\rm z}$')
             ax.set_ylabel(r'$\log_{10}(E/{\rm GeV})$')
-            ax.set_title(r'$\log_{10}({\rm aeff_' + svc_key + '})$, "standard" binning',
-                         fontsize=14)
+            ax.set_title(r'$\log_{10}({\rm aeff_' + svc_key
+                         + '})$, "standard" binning', fontsize=14)
             cbar = plt.colorbar(qm, ax=ax)
 
             # Plot the fractional-difference map
@@ -316,26 +272,29 @@ def plot_2d_comparisons(ebins=np.logspace(0, np.log10(80), 40),
             else:
                 # Plot fractional difference between maps
                 ax = axgrp[0,0] #fig2.add_subplot(1, 1, svc_num+1)
-                fd = np.ma.masked_invalid((other_svc_os - this_oversamp)/this_oversamp)
+                fd = np.ma.masked_invalid(
+                    (other_svc_os - this_oversamp) / this_oversamp
+                )
                 qm = ax.pcolormesh(x_oversamp, y_oversamp, fd,
                                    **fractdiff_plt_kwargs)
                 #all_fractdiff_qm.append(qm)
                 qm.set_clim(-.25, 0.25)
                 ax.set_xlabel(r'$\cos\,\theta_{\rm z}$')
                 ax.set_ylabel(r'$\log_{10}(E/{\rm GeV})$')
-                ax.set_title(r'%s/%s - 1' % (services[0], services[1]), fontsize=14)
+                ax.set_title(r'%s/%s - 1' % (services[0], services[1]),
+                             fontsize=14)
                 cbar = plt.colorbar(qm, ax=ax)
 
-            print svc_key, group, 'fractional difference with histogram'
-            print '  mean:', np.mean(fractdiff)
-            print '   RMS:', np.sqrt(np.mean(fractdiff*fractdiff))
-            print '   std:', np.std(fractdiff)
-            print '   MAD:', np.median(np.abs(fractdiff))
-            print 'nrmstd:', np.std(fractdiff_normed)
-            print '   max:', np.max(fractdiff)
-            print '   min:', np.min(fractdiff)
-
-        print ''
+            logging.info(str(svc_key) + str(group) +
+                         ' fractional difference with histogram')
+            logging.info('  mean: %0.5f' % np.mean(fractdiff))
+            logging.info('   RMS: %0.5f' %
+                         np.sqrt(np.mean(fractdiff*fractdiff)))
+            logging.info('   std: %0.5f' % np.std(fractdiff))
+            logging.info('   MAD: %0.5f' % np.median(np.abs(fractdiff)))
+            logging.info('nrmstd: %0.5f' % np.std(fractdiff_normed))
+            logging.info('   max: %0.5f' % np.max(fractdiff))
+            logging.info('   min: %0.5f' % np.min(fractdiff))
 
         [qm.set_clim((-7,-3.8)) for qm in all_abs_qm]
         [qm.set_clim((-1,1)) for qm in all_fractdiff_qm]
@@ -349,9 +308,10 @@ def plot_1d_comparisons(ebins=np.logspace(0, np.log10(80), 21),
     import matplotlib.pyplot as plt
     from pisa.utils.plot import stepHist
 
-    c1 = (0.0, 0.6, 0.8)
-    c2 = (0.7, 0.2, 0.5)
-    c3 = (0.4, 0.3, 0.0)
+    COLOR1 = (0.0, 0.6, 0.8)
+    COLOR2 = (0.7, 0.2, 0.5)
+    COLOR3 = (0.4, 0.3, 0.0)
+
     single_ebin = (np.min(ebins), np.max(ebins))
     single_czbin = (np.min(czbins), np.max(czbins))
     ebin_midpoints = (ebins[:-1] + ebins[1:])/2.
@@ -359,7 +319,7 @@ def plot_1d_comparisons(ebins=np.logspace(0, np.log10(80), 21),
     e_oversamp = np.logspace(np.log10(ebins[0]), np.log10(ebins[-1]), 1001)
     cz_oversamp = np.linspace(czbins[0], czbins[-1], 1001)
 
-    mc_service = aeff_service_factory(
+    mc_service = service_factory(
         aeff_mode='mc', ebins=ebins, czbins=single_czbin, compute_error=True,
         aeff_weight_file='events/pingu_v36/'
         'events__pingu__v36__runs_388-390__proc_v5__joined_G_nuall_nc_G_nuallbar_nc.hdf5'
@@ -369,7 +329,7 @@ def plot_1d_comparisons(ebins=np.logspace(0, np.log10(80), 21),
     mc_service.update(ebins=single_ebin, czbins=czbins)
     aeff_cz_mc, aeff_cz_mc_err = mc_service.get_aeff_with_error()
 
-    param_service = aeff_service_factory(
+    param_service = service_factory(
         aeff_mode='param', ebins=ebins, czbins=czbins,
         aeff_egy_par={
             'NC': 'aeff/V36/cuts_V5/a_eff_nuall_nc.dat',
@@ -384,7 +344,7 @@ def plot_1d_comparisons(ebins=np.logspace(0, np.log10(80), 21),
         aeff_coszen_par='aeff/V36/V36_aeff_cz.json'
     )
 
-    smooth_service = aeff_service_factory(
+    smooth_service = service_factory(
         aeff_mode='smooth', ebins=ebins, czbins=czbins,
         aeff_energy_smooth='aeff/pingu_v36/'
             'aeff_energy_smooth__pingu_v36__runs_388-390__proc_5.json',
@@ -423,8 +383,10 @@ def plot_1d_comparisons(ebins=np.logspace(0, np.log10(80), 21),
                                                             e_oversamp)
         stepHist(ebins, y=e_mc, yerr=e_mc_err, ax=ax, color='k',
                  label='MC')
-        ax.plot(e_oversamp, e_param_oversamp, '-', color=c1, label='param')
-        ax.plot(e_oversamp, e_smooth_oversamp, '-', color=c2, label='smooth')
+        ax.plot(e_oversamp, e_param_oversamp, '-', color=COLOR1,
+                label='param')
+        ax.plot(e_oversamp, e_smooth_oversamp, '-', color=COLOR2,
+                label='smooth')
 
         ax.set_xscale('log')
         ax.set_yscale('log')
@@ -435,18 +397,18 @@ def plot_1d_comparisons(ebins=np.logspace(0, np.log10(80), 21),
 
         ax2.plot([1,100], [0,0], 'k-')
         ax2.plot([1,100], np.ones(2) * np.mean((e_param_bin-e_mc)/e_mc),
-                 '--', color=c1)
+                 '--', color=COLOR1)
         ax2.plot([1,100], np.ones(2) * np.mean((e_smooth_bin-e_mc)/e_mc),
-                 '--', color=c2)
+                 '--', color=COLOR2)
         stepHist(ebins, y=(e_param_bin-e_mc)/e_mc, yerr=e_mc_err,
-                 ax=ax2, color=c1, lw=1.5,
+                 ax=ax2, color=COLOR1, lw=1.5,
                  label='(param-mc)/mc')
         stepHist(ebins, y=(e_smooth_bin-e_mc)/e_mc, yerr=e_mc_err,
-                 ax=ax2, color=c2, lw=1.5,
+                 ax=ax2, color=COLOR2, lw=1.5,
                  label='(smooth-mc)/mc')
         ax2.plot(e_oversamp,
                  (e_smooth_oversamp-e_param_oversamp)/e_param_oversamp,
-                 '-', color=c3,
+                 '-', color=COLOR3,
                  label='(smooth-param)/param')
 
         ax2.set_xscale('log')
@@ -497,8 +459,10 @@ def plot_1d_comparisons(ebins=np.logspace(0, np.log10(80), 21),
 
         stepHist(czbins, y=cz_mc, yerr=cz_mc_err, ax=ax, color='k',
                  label='MC')
-        ax.plot(cz_oversamp, cz_param_oversamp, '-', color=c1, label='param')
-        ax.plot(cz_oversamp, cz_smooth_oversamp, '-', color=c2, label='smooth')
+        ax.plot(cz_oversamp, cz_param_oversamp, '-', color=COLOR1,
+                label='param')
+        ax.plot(cz_oversamp, cz_smooth_oversamp, '-', color=COLOR2,
+                label='smooth')
 
         #ax.set_xscale('log')
         #ax.set_yscale('log')
@@ -509,18 +473,18 @@ def plot_1d_comparisons(ebins=np.logspace(0, np.log10(80), 21),
 
         ax2.plot([-1,1], [0,0], 'k-')
         ax2.plot([-1,1], np.ones(2) * np.mean((cz_param_bin-cz_mc)/cz_mc),
-                 '--', color=c1)
+                 '--', color=COLOR1)
         ax2.plot([-1,1], np.ones(2) * np.mean((cz_smooth_bin-cz_mc)/cz_mc),
-                 '--', color=c2)
+                 '--', color=COLOR2)
         stepHist(czbins, y=(cz_param_bin-cz_mc)/cz_mc, yerr=cz_mc_err,
-                 ax=ax2, color=c1, lw=1.5,
+                 ax=ax2, color=COLOR1, lw=1.5,
                  label='(param-mc)/mc')
         stepHist(czbins, y=(cz_smooth_bin-cz_mc)/cz_mc, yerr=cz_mc_err,
-                 ax=ax2, color=c2, lw=1.5,
+                 ax=ax2, color=COLOR2, lw=1.5,
                  label='(smooth-mc)/mc')
         ax2.plot(cz_oversamp,
                  (cz_smooth_oversamp-cz_param_oversamp)/cz_param_oversamp,
-                 '-', color=c3,
+                 '-', color=COLOR3,
                  label='(smooth-param)/param')
 
         #ax2.set_xscale('log')
@@ -613,7 +577,7 @@ if __name__ == '__main__':
     args['ebins'], args['czbins'] = check_binning(osc_flux_maps)
 
     # Initialize the PID service
-    aeff_service = aeff_service_factory(aeff_mode=args.pop('aeff_mode'),
+    aeff_service = service_factory(aeff_mode=args.pop('aeff_mode'),
                                         **args)
 
     # Calculate event rates after Aeff
@@ -624,6 +588,11 @@ if __name__ == '__main__':
 
     # Save the results to disk
     to_file(event_rate_aeff, outfile)
+
+    # TODO: make following a plot_single_mode(...) function like the above
+    # plot_1d_comparisons and plot_2d_comparisons functions, and make
+    # command-line flag/option to select among the three of these (or multiples
+    # thereof?)
 
     # Produce plots useful for debugging
     if args['plot']:
