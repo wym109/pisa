@@ -16,6 +16,24 @@
 # find the best fit null hypothesis to be changed.
 #
 
+# Try to stop PISA's loose ways with memory
+import resource
+cur_lims_data = resource.getrlimit(resource.RLIMIT_DATA)
+cur_lims_as = resource.getrlimit(resource.RLIMIT_AS)
+print 'ORIGINAL RLIMIT_DATA:', cur_lims_data
+print 'ORIGINAL RLIMIT_AS:', cur_lims_as
+resource.setrlimit(
+    resource.RLIMIT_DATA,
+    (min(cur_lims_data[0], 4L*1024L*1024L*1024L), cur_lims_data[1])
+)
+resource.setrlimit(
+    resource.RLIMIT_AS,
+    (min(cur_lims_as[0], 8L*1024L*1024L*1024L),
+     min(cur_lims_as[1], 16L*1024L*1024L*1024L))
+)
+print 'NEW RLIMIT_DATA:', resource.getrlimit(resource.RLIMIT_DATA)
+print 'NEW RLIMIT_AS:', resource.getrlimit(resource.RLIMIT_AS)
+
 from copy import deepcopy
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
