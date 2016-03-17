@@ -9,16 +9,16 @@ PINGU Simulation and Analysis (PISA) is software written for performing predicti
 
 The original drawing is [here](https://docs.google.com/drawings/edit?id=1RxQj8rPndwFygxw3BUf4bx5B35GAMk0Gsos_BiJIN34).
 
-## PISA Buzzwords
-* **Map**: a dictionary containing a 2D histogram in energy and the cosine of the zenith angle (coszen). This can be in terms of *true* or *reconstructed* neutrino energy & coszen, depending upon the situation. Sometimes a collection of maps is called a "map".
+## PISA Terminology
+* **Map**: a dictionary with key `'map'` containing a 2D histogram in energy and the cosine of the zenith angle (coszen); other keys in the map contain metadata about the histogram (e.g. `'ebins'`, `'czbins'`, etc.). This can be in terms of *true* or *reconstructed* neutrino energy & coszen, depending upon the situation. Sometimes a collection of maps is casually (but misleadingly) called a "map".
 
-* "**Set-of-maps**": collection (dict) of maps used as input to or produced as output from a stage. Each map is stored in the collection by a key. As of now, these are nested and painful to access the data. Smarter objects should be created to handle sets of maps.
+* **Set-of-maps**: collection (dict) of maps used as input to or produced as output from a stage. Each map is stored in the collection by a key, where the keys have various names and the dict can be nested and painful to access. Smarter objects than vanilla dicts should be used to handle sets of maps to make users/developers lives less painful.
 
 * **Stage**: Each stage is a key part of the process by which we detect atmospheric neutrinos with the IceCube detector. For example, atmospheric neutrinos that pass through the earth will oscillate partially into different flavors prior to reaching the detector. This part of the process is called the **oscillations** stage.
 
 * **Service**: A particular *implementation* of a stage is termed a **service**. Using the oscillations stage as an example, a service that implements that stage is `pisa.oscillcations.Prob3GPUOscillationService.Prob3GPUOscillationService` (concision is our middle name).
 
-* **Resource**: A file with settings, data, parameterizations, metadata, etc. that is used by one of the services, the template maker, the minimizer, .... Resources are found in the `pisa/resources` directory.
+* **Resource**: A file with settings, data, parameterizations, metadata, etc. that is used by one of the services, the template maker, the minimizer, .... Resources are found in the `$PISA/pisa/resources` directory, where a subdirectory exists for each stage and several other major types of resources.
 
 ## Implementation Details
 
