@@ -11,10 +11,10 @@ The original drawing is [here](https://docs.google.com/drawings/edit?id=1RxQj8rP
 
 ## Software Implementation Overview
 
-![Stage architecture](doc/stage_architecture.svg "Stage architecture")
+![Stage architecture](doc/stage_architecture.png "Stage architecture")
 
 ### `pisa.analysis.TemplateMaker`
-* Loads parameter settings from a file or dictionary
+* Can load parameters en masse from a file or dictionary for instantiating
 * Instantiates all stages with these settings
 * Includes `match_to_data()` method which invokes a minimizer to adjust its stages' free parameters in order to best match (either via LLH or chi2 criteria) a reference template 
 * Includes a `scan` routine for scanning over parameters
