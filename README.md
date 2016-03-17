@@ -3,11 +3,44 @@ pisa
 
 The common PINGU simulation and analysis code for the neutrino mass hierarchy.
 
-## Simulation chain
+### Simulation chain
 
 ![Simulation chain](doc/PINGUSimulationChain.png "Simulation chain")
 
 The original drawing is [here](https://docs.google.com/drawings/edit?id=1RxQj8rPndwFygxw3BUf4bx5B35GAMk0Gsos_BiJIN34).
+
+## Software Implementation Overview
+
+![Stage architecture](doc/stage_architecture.svg "Stage architecture")
+
+### `pisa.analysis.TemplateMaker`
+* Loads parameter settings from a file or dictionary
+* Instantiates all stages with these settings
+* Includes `match_to_data()` method which invokes a minimizer to adjust its stages' free parameters in order to best match (either via LLH or chi2 criteria) a reference template 
+* Includes a `scan` routine for scanning over parameters
+* `set_params`, `get_params`, `get_free_params` methods for working with parameters
+* `generate_template` method to produce a template based upon the parameters that have been set
+
+### Stages
+* There is one base class for all stages: `pisa.stage.Stage` which implements the most basic functionality of a stage, including instantiaton of the two caches pictured above
+  * `set_params`, `get_params`, `get_free_params` methods for working with parameters
+* Each stage has its own base class, e.g. FluXServiceBase, RecoServiceBase, etc.
+  * *TODO: we should rename "service" to "stage" or vice versa!*
+  * `apply()` must be aware of all possible systematics. Their implementations might logically be via other methods within the base class to keep `apply` succinct, but in order to produce a meaningful hash for a transform, `apply` needs to account for *all* the ways that the transform might be modified.
+    * Each of which should be called from within the `apply()` method (see below).
+  * Implements a method called `apply(<input map>, **kwargs)` (except FluxServiceBase.apply() does *not* take `<input map>`)
+
+* Each particular implementation ("mode") for a stage derives from the stage's base class
+  * Each mode must determine how to (efficiently) compute a unique transform hash for its produced data
+    * E.g., all of the parameters used for generating the transform should uniquely describe the transform
+
+* Variations
+  * The flux stage does not take an input map
+  * The oscillation stage does not first produce a "nominal-systematics" transform that then gets computed and then transformed by systematics; this is all one step.
+
+### Caching data
+* Transform and result caches are memory-based, least-recently-used caches
+* Disk storage for the nominal-systematics (aka no-systematics) transform defaults to `pingu/resources/<stage type>/.cache/<service name>.nominal_transform.hdf5`, unless a stage implements a different naming convention
 
 ## Installation
 ### Requirements

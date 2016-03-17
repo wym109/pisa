@@ -16,9 +16,10 @@
 # find the best fit null hypothesis to be changed.
 #
 
-import numpy as np
 from copy import deepcopy
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+
+import numpy as np
 
 from pisa.analysis.llr.LLHAnalysis import find_opt_scipy, find_alt_hierarchy_fit
 from pisa.analysis.stats.LLHStatistics import get_random_map
@@ -61,8 +62,8 @@ def getAsimovData(template_maker, params, data_normal):
         channel=fiducial_param_vals['channel'])
 
 
-def getAltHierarchyBestFit(asimov_data, template_maker, params, minimizer_settings,
-                           hypo_normal, check_octant):
+def getAltHierarchyBestFit(asimov_data, template_maker, params,
+                           minimizer_settings, hypo_normal, check_octant):
     """
     Finds the best fit value of alternative hierarchy to that which
     was used to produce the asimov data set.

@@ -9,10 +9,10 @@
 # date:   2 July 2014
 #
 
-import sys
 from copy import deepcopy
+
 import numpy as np
-import scipy.optimize as opt
+from scipy.optimize as opt
 
 from pisa.utils.jsons import to_json
 from pisa.utils.log import logging, physics, tprofile
@@ -22,16 +22,14 @@ from pisa.analysis.stats.LLHStatistics import get_binwise_llh, get_binwise_chisq
 from pisa.analysis.stats.Maps import flatten_map
 
 
-#@profile
 def find_alt_hierarchy_fit(asimov_data_set,
                            template_maker, hypo_params, hypo_normal,
                            minimizer_settings, only_atm_params=True,
                            check_octant=False):
-    """
-    For the hypothesis of the mass hierarchy being NMH
-    ('normal_hierarchy'=True) or IMH ('normal_hierarchy'=False), finds the
-    best fit for the free params in 'param_values' for the alternative
-    (opposite) hierarchy that maximizes the LLH of the Asimov data set.
+    """For the hypothesis of the mass hierarchy being NMH
+    ('normal_hierarchy'=True) or IMH ('normal_hierarchy'=False), finds the best
+    fit for the free params in 'param_values' for the alternative (opposite)
+    hierarchy that maximizes the LLH of the Asimov data set.
 
     \params:
       * asimov_data_set - asimov data set to find best fit llh
@@ -57,7 +55,8 @@ def find_alt_hierarchy_fit(asimov_data_set,
             params=hypo_params,
             minim_settings=minimizer_settings,
             normal_hierarchy=hypo_normal,
-            check_octant=check_octant)
+            check_octant=check_octant
+        )
     tprofile.info("==> elapsed time for optimizer: %s sec" % t.secs)
 
     return llh_data
@@ -88,21 +87,20 @@ def display_optimizer_settings(free_params, names, init_vals, bounds, priors,
 def find_opt_scipy(fmap, template_maker, params, minim_settings,
                    save_steps=False, normal_hierarchy=None,
                    check_octant=False, metric_name='llh'):
-    """
-    Finds the template (and free systematic params) that maximize
-    likelihood that the data came from the chosen template of
-    true params (or minimize chisquare), using several methods 
-    available through scipy.optimize.
+    """Find the template (and free systematic params) that maximize likelihood
+    that the data came from the chosen template of true params (or minimize
+    chisquare), using several methods available through scipy.optimize.
 
-    returns a dictionary of llh/chisquare data and best fit params, in the format:
-      {'llh/chisquare': [...],
+    Returns a dictionary of llh/chisquare data and best fit params, in the
+    format:
+      {<'llh' or 'chisquare'>: [...],
        'param1': [...],
        'param2': [...],
        ...}
-    where 'param1', 'param2', ... are the free params varied by
-    optimizer, and they hold a list of all the values tested in
-    optimizer algorithm, unless save_steps is False, in which case
-    they are one element in length-the best fit params and best fit llh/chi2.
+    where 'param1', 'param2', ... are the free params varied by optimizer, and
+    they hold a list of all the values tested in optimizer algorithm, unless
+    save_steps is False, in which case they are one element in length-the best
+    fit params and best fit llh/chi2.
     """
 
     # Get params dict which will be optimized (free_params) and which
@@ -111,13 +109,13 @@ def find_opt_scipy(fmap, template_maker, params, minim_settings,
     free_params = get_free_params(select_hierarchy(params, normal_hierarchy))
 
     if len(free_params) == 0:
-	logging.warn("NO FREE PARAMS, returning %s" % metric_name)
-	true_template = template_maker.get_template(get_values(fixed_params))
-	channel = params['channel']['value']
-	true_fmap = flatten_map(template=true_template, channel=channel)
-	if metric_name=='chisquare':
+        logging.warn("NO FREE PARAMS, returning %s" % metric_name)
+        true_template = template_maker.get_template(get_values(fixed_params))
+        channel = params['channel']['value']
+        true_fmap = flatten_map(template=true_template, channel=channel)
+        if metric_name == 'chisquare':
             return {'chisquare': [get_binwise_chisquare(fmap, true_fmap)]}
-	elif metric_name=='llh':
+        elif metric_name == 'llh':
             return {'llh': [-get_binwise_llh(fmap, true_fmap)]}
 
     init_vals = get_param_values(free_params)
@@ -139,9 +137,9 @@ def find_opt_scipy(fmap, template_maker, params, minim_settings,
     display_optimizer_settings(free_params, names, init_vals, bounds, priors,
                                minim_settings)
 
-    minim_result = opt.minimize(fun=minim_metric, 
-                                x0=init_vals, 
-                                args=const_args, 
+    minim_result = opt.minimize(fun=minim_metric,
+                                x0=init_vals,
+                                args=const_args,
                                 bounds=bounds,
                                 **get_values(minim_settings))
 
@@ -180,10 +178,10 @@ def find_opt_scipy(fmap, template_maker, params, minim_settings,
                                    priors=priors,
                                    minim_settings=minim_settings)
 
-        alt_minim_result = opt.minimize(fun=minim_metric, 
-                                        x0=init_vals, 
+        alt_minim_result = opt.minimize(fun=minim_metric,
+                                        x0=init_vals,
                                         args=const_args,
-                                        bounds=bounds, 
+                                        bounds=bounds,
                                         **get_values(minim_settings))
 
         alt_fit_vals = alt_minim_result.x
@@ -203,7 +201,7 @@ def find_opt_scipy(fmap, template_maker, params, minim_settings,
             dict_flags = alt_dict_flags
             opt_steps_dict = alt_opt_steps_dict
 
-    best_fit_params = { name: value for name, value in zip(names, best_fit_vals) }
+    best_fit_params = {name: val for name, val in zip(names, best_fit_vals)}
 
     # Report best fit
     physics.info('Found best %s = %.2f in %d calls at:'
@@ -226,10 +224,10 @@ def find_opt_scipy(fmap, template_maker, params, minim_settings,
 
 def minim_metric(opt_vals, names, scales, fmap, fixed_params, template_maker,
                  opt_steps_dict, priors, metric_name='llh'):
-    """
-    Function that the scipy.optimize.minimize tries to minimize: 
-    wraps get_template() and get_binwise_llh() (or 
-    get_binwise_chisquare()), and returns the negative log likelihood (the chisquare).
+    """Function that scipy.optimize.minimize minimizes.
+
+    Wraps get_template() and get_binwise_llh() (or get_binwise_chisquare()),
+    and returns the negative log likelihood (the chisquare).
 
     This function is set up this way because the fmin_l_bfgs_b algorithm must
     take a function with two inputs: params & *args, where 'params' are the
@@ -260,8 +258,9 @@ def minim_metric(opt_vals, names, scales, fmap, fixed_params, template_maker,
     priors : sequence of pisa.utils.params.Prior objects
         Priors corresponding to opt_vals list.
     metric_name : string
-	Returns chisquare instead of negative llh if metric_name is 'chisquare'.
-	Note: this string has to be present as a key in opt_steps_dict
+        If 'chisquare': Returns chisquare
+        If 'llh' : return negative llh
+        Note: this string has to be present as a key in opt_steps_dict
 
     Returns
     -------
@@ -273,39 +272,36 @@ def minim_metric(opt_vals, names, scales, fmap, fixed_params, template_maker,
     # values.
     unscaled_opt_vals = [opt_vals[i]/scales[i] for i in xrange(len(opt_vals))]
 
-    unscaled_free_params = { names[i]: val for i,val in enumerate(unscaled_opt_vals) }
+    unscaled_free_params = {names[i]: val
+                            for i,val in enumerate(unscaled_opt_vals)}
     template_params = dict(unscaled_free_params.items() +
                            get_values(fixed_params).items())
 
     # Now get true template, and compute metric
     with Timer() as t:
         if template_params['theta23'] == 0.0:
-            logging.info("Zero theta23, so generating no oscillations template...")
+            logging.info('Zero theta23, so generating no oscillations'
+                         ' template...')
             true_template = template_maker.get_template(template_params,
                                                         no_osc=True)
         else:
             true_template = template_maker.get_template(template_params)
 
-    tprofile.info("==> elapsed time for template maker: %s sec" % t.secs)
+    tprofile.info('==> elapsed time for template maker: %s sec' % t.secs)
     true_fmap = flatten_map(template=true_template,
                             channel=template_params['channel'])
 
     # NOTE: The minus sign is present on both of these next two lines
     # because the optimizer finds a minimum rather than maximum, so we
     # have to minimize the negative of the log likelhood.
-    if metric_name=='chisquare':
-	metric_val = get_binwise_chisquare(fmap, true_fmap)
-	metric_val += sum([prior.chi2(opt_val)
-                           for (opt_val, prior) in zip(unscaled_opt_vals, priors)])
-    elif metric_name=='llh':
-	metric_val = -get_binwise_llh(fmap, true_fmap)
-	metric_val -= sum([prior.llh(opt_val)
-                           for (opt_val, prior) in zip(unscaled_opt_vals, priors)])
-
-    #prior_list = [prior.llh(opt_val)
-    #         for (opt_val, prior) in zip(unscaled_opt_vals, priors)]
-    #print("  prior sum: ",sum(prior_list))
-    #neg_llh -= sum(prior_list)
+    if metric_name == 'chisquare':
+        metric_val = get_binwise_chisquare(fmap, true_fmap)
+        metric_val += sum([prior.chi2(opt_val) for (opt_val, prior)
+                           in zip(unscaled_opt_vals, priors)])
+    elif metric_name == 'llh':
+        metric_val = -get_binwise_llh(fmap, true_fmap)
+        metric_val -= sum([prior.llh(opt_val) for (opt_val, prior)
+                           in zip(unscaled_opt_vals, priors)])
 
     # Save all optimizer-tested values to opt_steps_dict, to see
     # optimizer history later
@@ -313,8 +309,8 @@ def minim_metric(opt_vals, names, scales, fmap, fixed_params, template_maker,
         opt_steps_dict[key].append(template_params[key])
     opt_steps_dict[metric_name].append(metric_val)
 
-    physics.debug("%s is %.2f at: " % (metric_name, metric_val))
+    physics.debug('%s is %.2f at: ' % (metric_name, metric_val))
     for name, val in zip(names, opt_vals):
-        physics.debug(" %20s = %6.4f" % (name,val))
+        physics.debug(' %20s = %6.4f' % (name,val))
 
     return metric_val
