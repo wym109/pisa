@@ -1,111 +1,40 @@
+
+import collections
+
 from pisa.utils import utils
 import pisa.utils.utils.hash_obj as hash_obj
 
 
-class Transform(DictWithHash):
-    def __init__(self):
-        super(Transform, self).__init()
-
-    def apply(self, input_maps=None):
-        """Apply linear transforms to input maps to derive output maps.
-
-        Parameters
-        ----------
-        xform : utils.Transform
-            Transform to be applied.
-        input_maps : None or utils.DictWithHash
-            Maps to be transformed. If `input_maps` is None, simply returns
-            `xform`, to accomodate Flux stage, which has no input.
-
-        Returns
-        -------
-        output_maps : utils.DictWithHash
-
-        Notes
-        -----
-        For an input map that is M_ebins x N_czbins, the transform must either
-        be 2-dimensional of shape (M x N) or 4-dimensional of shape
-        (M x N x M x N). The latter case can be thought of as a 2-dimensional
-        (M x N) array, each element of which is a 2-dimensional (M x N) array,
-        and is currently used for the reconstruction stage's convolution
-        kernels where there is one (M_ebins x N_czbins)-size kernel for each
-        (energy, coszen) bin.
-
-        One special case is if transform is None
-
-        Re-binning before, during, and/or after applying the transform is not
-        implemented, but should be!
-        """
-        output_maps = utils.DictWithHash()
-        for output_key, input_xforms in xform.iteritems():
-            for input_key, sub_xform in xforms.iteritems():
-                input_map = input_maps[input_key]
-                if sub_xform is None:
-                    output_map = input_map
-                elif len(sub_xform.shape) == 2:
-                    output_map = input_map * sub_xform
-                elif len(sub_xform.shape) == 4:
-                    output_map = np.tensordot(input_map, sub_xform,
-                                              axes=([0,1],[0,1]))
-
-                # TODO: do rebinning here? (aggregate, truncate, and/or
-                # concatenate 0's?)
-
-                if output_key in output_maps:
-                    output_maps[output_key] += output_map
-                else:
-                    output_maps[output_key] = output_map
-
-
 class Stage(object):
-    def __init__(self, cache_class=utils.LRUCache, xfrom_cache_depth=10,
+    def __init__(self, params=None, no_input_stage=False,
+                 cache_class=utils.LRUCache, xfrom_cache_depth=10,
                  result_cache_depth=10, disk_cache_dir=None):
+        self.__no_input_stage = no_input_stage
+        self.__params = dict()
+        self.__free_param_names = set()
+
         self.cache_depth = cache_depth
         self.transform_cache = cache_class(self.cache_depth)
         self.result_cache = cache_class(self.cache_depth)
         self.disk_cache_dir = disk_cache_dir
 
-        self.params = {}
-        self.systematic_params = set()
-        self.free_params = set()
-        self.all_params = set()
-
-    def set_params(self, params):
-        """
-        Parameters
-        ----------
-        params : str, dict
-
-        """
-        if isinstance(params, basestring):
-            self.load_params(params)
-        assert self.validate_params(params)
-        self.params.update(params)
-
-    def get_params(self, free_only=False, values_only=False):
-        return self.params
-
-    def get_free_params(self):
-        return {fp: self.params[fp] for fp in self.free_params}
-
-    def unfix_params(self, params):
-        [self.free_params.remove(p) for p in params if p in self.free_params]
-
-    def fix_params(self, params):
-        [self.free_params.remove(p) for p in params if p in self.free_params]
+        if params is not None:
+            self.params = params
 
     def compute_output_maps(self, input_maps=None):
-        """Given input maps and (possibly) systematic parameters, compute the
-        output maps.
+        """Compute the output maps by applying the stage's transform to the
+        input -- except in the case of a no-input stage, simply return the
+        transform.
 
         Parameters
         ----------
         input_maps : None or utils.DictWithHash
             For flux stages, `input_maps` = None.
         """
-        xform = self.get_transform(params)
+        xform = self.get_transform()
 
-        if input_maps is None:
+        if self.__no_input_stage:
+            assert input_maps is None:
             return xform
 
         result_hash = hash_obj(input_maps.hash, xform.hash)
@@ -119,43 +48,99 @@ class Stage(object):
 
         return output_maps
 
-    def get_transform(self, **kwargs):
-        """"""
-        systematic_params = self.get_systematic_params(**kwargs)
-        systematics_hash = hash_obj(systematic_params)
-        xform_hash = hash_obj(nominal_xform.hash, systematics_hash)
+    def get_transform(self):
+        """Load a cached transform (keyed on hash of free parameters) if it is
+        in the cache, or else derive a new transform from currently-set
+        parameter values and store this to the transform cache.
+        """
+        xform_hash = hash_obj(self.free_params)
         try:
             return self.transform_cache.get(xform_hash)
         except KeyError:
             pass
-        full_xform = self.apply_systematics(nominal_xform, **kwargs)
-        full_xform.update_hash(full_xform_hash)
-        self.transform_cache.set(cache_key, full_xform)
-        return full_xform
+        xform = self._derive_transform()
+        xform.update_hash(xform_hash)
+        self.transform_cache.set(cache_key, xform)
+        return xform
 
-    def get_systematic_params(self, **kwargs):
-        """Each stage's base class must override this method"""
+    @property
+    def params(self):
+        ordered = collections.OrederedDict()
+        [ordered[k].__setitem__(self.__params[k])
+         for k in sorted(self.__params)]
+        return ordered
+
+    @params.setter
+    def params(self, p):
+        if isinstance(p, basestring):
+            self.load_params(p)
+            return
+        elif isinstance(p, collections.Mapping):
+            pass
+        else:
+            raise TypeError('Unhandled `params` type "%s"' % type(p))
+        self.validate_params(p)
+        self.__params.update(p)
+
+    def load_params(self, resource):
+        if isinstance(resource, basestring):
+            params_dict = fileio.from_file(resource)
+        elif isinstance(collections.Mapping):
+            params_dict = resource
+        else:
+            raise TypeError('Unhandled `rsource` type "%s"' % type(resource))
+        self.params = params_dict
+
+    @property
+    def free_params(self):
+        ordered = collections.OrederedDict()
+        [ordered[k].__setitem__(self.__params[k])
+         for k in sorted(self.__free_param_names)]
+        return ordered
+
+    @free_params.setter
+    def free_params(self, p):
+        if isinstance(p, (collections.Iterable, collections.Sequence)):
+            p = {pname: p[n]
+                 for n, pname in enumerate(sorted(self.__free_param_names))}
+            assert len(p) == len(self.__free_param_names)
+        if isinstance(p, collections.Mapping):
+            assert set(p.keys()).issubset(self.__free_param_names)
+            self.validate(p)
+            self.__params.update(p)
+        else:
+            raise TypeError('Unhandled `params` type "%s"' % type(p))
+
+    def unfix_params(self, params, ignore_missing=False):
+        if ignore_missing:
+            self.__free_param_names.difference_update(params)
+        else:
+            [self.__free_param_names.remove(p) for p in params]
+
+    def fix_params(self, params, ignore_missing=False):
+        if np.isscalar(params):
+            params = [params]
+        if ignore_missing:
+            [self.free_params.add(p) for p in params if p in self.__params]
+        else:
+            assert
+            self.__free_param_names.difference_update(params)
+
+    def _derive_transform(self, **kwargs):
+        """Each stage implementation (aka service) must override this method"""
         raise NotImplementedError()
-
-    def apply_systematics(self, nominal_xform, **kwargs):
-        """Each stage's base class must override this method"""
-        raise NotImplementedError()
-
-    def get_nominal_transform(self, **kwargs):
-        """Each stage implementation (aka "mode") must override this method"""
-        raise NotImplementedError()
-
-    @staticmethod
-    def load_params(resource):
 
     @staticmethod
     def add_stage_cmdline_args(parser):
-        """Each stage's base class should add generic stage args as well as
-        args for systematics to a passed argparse parser"""
+        """Each stage's base class should override this. Here, add generic
+        stage args -- as well as args for systematics applicable across all
+        implementations of the stage -- to `parser`.
+        """
         raise NotImplementedError()
 
     @staticmethod
-    def add_mode_cmdline_args(parser):
-        """Each stage implementation (aka "mode") should add generic stage args
-        as well as args for systematic"""
+    def add_service_cmdline_args(parser):
+        """Each stage implementation (aka service) should add generic stage
+        args as well as args for systematics specific to it here"""
         raise NotImplementedError()
+

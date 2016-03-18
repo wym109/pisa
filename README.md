@@ -34,7 +34,7 @@ The `TemplateMaker` instantiates and contains services implementing the simulati
 * **`generate_template`** method produces a template based upon all services contained in the template maker (and the state of their parameters at the time of the method call).
 * **`match_to_data`** method invokes a minimizer to adjust contained stages' free parameters to best match (either via LLH or chi-squared criteria) a reference template 
 * **`scan`** method for scanning over a parameter or parameters, either on a grid or via Latin hypercube sampling of the N-diemnsional parameter space.
-* **`set_params`**, **`get_params`**, **`get_free_params`** are all methods for working with parameters on a lower level / more individually that the *en masse* characteristic of loading an entire template settings file or dictionary.
+* **`set_params`**, **`get_params`**, **`get_free_params`** are all methods for working with parameters on a lower level / more individually than the *en masse* characteristic of loading an entire template settings file or dictionary.
 
 ### Stages
 
