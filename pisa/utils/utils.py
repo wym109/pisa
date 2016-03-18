@@ -57,8 +57,9 @@ class DictWithHash(dict):
         self.hash = np.nan
 
         # The is_new flag is a simple mechanism for keeping track if the data
-        # has been updated and, e.g., so a subsequent process must be triggered.
-        # I.e., this is a passive polling-based system, vs. e.g. callbacks.
+        # has been updated and, e.g., so a subsequent process must be
+        # triggered. I.e., this is a passive polling-based system, vs. e.g.
+        # callbacks.
         self.is_new = True
 
     def update_hash(self, obj_or_hash=None):
@@ -70,7 +71,8 @@ class DictWithHash(dict):
               then the hash is derived from the object via hash(obj_or_hash).
               In the case a valid hash value is passed in via `obj_or_hash`,
               hash(obj_or_hash) will simply return the hash value.
-            - If a mutable object, the hash_obj() function is called on the object.
+            - If a mutable object, the hash_obj() function is called on the
+              object.
             - If None, hash_obj() is called on self, so hashing the entire
               contents of the instantiated object.
 
@@ -82,7 +84,8 @@ class DictWithHash(dict):
         """
         if obj_or_hash is None and hash_val is None:
             self.hash = hash_obj(self.items())
-        elif (hasattr(obj_or_hash, '__hash__') and obj_or_hash.__hash__ is not None):
+        elif (hasattr(obj_or_hash, '__hash__') and
+              obj_or_hash.__hash__ is not None):
             self.hash = hash(obj_or_hash)
         else:
             self.hash = hash_obj(obj_or_hash)
@@ -590,6 +593,7 @@ def findFiles(root, regex=None, fname=None, recurse=True, dir_sorter=nsort,
     basename : str
     match : re.SRE_Match or None
     """
+    root = os.path.expandvars(os.path.expanduser(root))
     if isinstance(regex, basestring):
         regex = re.compile(regex)
 
