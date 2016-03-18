@@ -21,9 +21,10 @@ class GenericStage(object):
         If dict, set contained params. Format expected is
             {'<param_name>': <param_val>}.
 
-    disk_cache_dir : None or str
-        Path to a disk cache directory. If None, no disk cache will be
-        available.
+    disk_cache : None, str, or utils.DiskCache
+        If None, no disk cache is available.
+        If str, represents a path with which to instantiate a utils.DiskCache
+        object.
 
     Properties
     ----------
@@ -68,12 +69,19 @@ class GenericStage(object):
         Free param(s) with specified name(s) to be varied by minimizer or
         auto-scanner methods.
 
-    Override following methods in derived class(es):
+    Override
+    --------
+    The following methods should be overriden in derived classes
         compute_output_maps
+            Do the actual work to produce the stage's output.
         validate_params
-        add_stage_cmdline_args
-        add_service_cmdline_args
-
+            Perform validation on any parameters.
+        add_stage_cmdline_args : override in stage baseclass
+            The stage base class should override this to add generic
+            stage args applicable across all implementations of the stage.
+        add_service_cmdline_args : override in service class
+            Each service (implementation of a stage) should add args specific
+            to it here.
     """
     def __init__(self, params=None, disk_cache_dir=None):
         self.__params = dict()
@@ -88,29 +96,17 @@ class GenericStage(object):
             self.params = params
 
     def compute_output_maps(self):
-        """Override to produce the stage output."""
         raise NotImplementedError()
 
     def validate_params(self, params):
-        """Override to perform validation on any parameters."""
-        raise NotImplementedError()
-
-    def _derive_transform(self, **kwargs):
-        """Each stage implementation ("service") must override this method"""
         raise NotImplementedError()
 
     @staticmethod
     def add_service_cmdline_args(parser):
-        """Each stage implementation (aka service) should add generic stage
-        args as well as args for systematics specific to it here"""
         raise NotImplementedError()
 
     @staticmethod
     def add_stage_cmdline_args(parser):
-        """Each stage's base class should override this. Here, add generic
-        stage args -- as well as args for systematics applicable across all
-        implementations of the stage -- to `parser`.
-        """
         raise NotImplementedError()
 
     @property
@@ -215,6 +211,61 @@ class GenericStage(object):
             [self.__free_param_names.remove(p) for p in params]
 
 
+class StageWithNoInput(GenericStage):
+    def __init__(self, params=None, disk_cache_dir=None,
+                 cache_class=utils.LRUCache, result_cache_depth=10):
+        super(StageWithNoInput, self).__init__(params=params,
+                                             disk_cache_dir=disk_cache_dir)
+        self.result_cache_depth = result_cache_depth
+        self.result_cache = cache_class(self.result_cache_depth)
+
+    def compute_output_maps(self):
+        """Compute output maps by applying the transform to input maps.
+
+        Parameters
+        ----------
+        input_maps : utils.DictWithHash
+        """
+        xform = self.get_transform()
+
+        result_hash = hash_obj(input_maps.hash, xform.hash)
+        try:
+            return self.result_cache.get(result_hash)
+        except KeyError:
+            pass
+
+        output_maps = xform.apply(input_maps)
+        output_maps.update_hash(output_maps)
+
+        return output_maps
+
+    def get_transform(self):
+        """Load a cached transform (keyed on hash of free parameters) if it is
+        in the cache, or else derive a new transform from currently-set
+        parameter values and store this new transform to the cache.
+
+        Notes
+        -----
+        The hash used here is only meant to be valid within the scope of a
+        session; a hash on the full parameter set used to generate the
+        transform, as well as the version of the generating software, is
+        required for non-volatile storage.
+        """
+        xform_hash = hash_obj(self.free_params)
+        try:
+            return self.transform_cache.get(xform_hash)
+        except KeyError:
+            pass
+        xform = self._derive_transform()
+        xform.update_hash(xform_hash)
+        self.transform_cache.set(cache_key, xform)
+        return xform
+
+    def _derive_transform(self, **kwargs):
+        """Each stage implementation (aka service) must override this method"""
+        raise NotImplementedError()
+
+
 class StageWithInput(GenericStage):
     def __init__(self, params=None, disk_cache_dir=None,
                  cache_class=utils.LRUCache, transform_cache_depth=10,
@@ -272,18 +323,3 @@ class StageWithInput(GenericStage):
     def _derive_transform(self, **kwargs):
         """Each stage implementation (aka service) must override this method"""
         raise NotImplementedError()
-
-    @staticmethod
-    def add_stage_cmdline_args(parser):
-        """Each stage's base class should override this. Here, add generic
-        stage args -- as well as args for systematics applicable across all
-        implementations of the stage -- to `parser`.
-        """
-        raise NotImplementedError()
-
-    @staticmethod
-    def add_service_cmdline_args(parser):
-        """Each stage implementation (aka service) should add generic stage
-        args as well as args for systematics specific to it here"""
-        raise NotImplementedError()
-
