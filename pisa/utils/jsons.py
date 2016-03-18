@@ -37,6 +37,15 @@ def json_string(string):
     return json.loads(string)
 
 
+def dumps(content, indent=2):
+     return json.dumps(content, cls=NumpyEncoder, indent=indent,
+                       sort_keys=True)
+
+
+def loads(s):
+     return json.loads(s, cls=NumpyDecoder)
+
+
 def from_json(filename):
     """Open a file in JSON format an parse the content"""
     try:
