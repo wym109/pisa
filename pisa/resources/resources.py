@@ -13,21 +13,49 @@ from pisa.utils.log import logging
 from pkg_resources import resource_filename
 
 
-def find_resource(filename, fail=True):
-    '''
-    Try to find the resource given by directory/filename. Will first check if
-    filename is an absolute path, then relative to the $PISA
-    environment variable if set. Otherwise will look in the resources directory
-    of the pisa installation. Will return the file handle or throw an Exception
-    if the file is not found.
-    '''
+def find_resource(resourcename, is_dir=False, fail=True):
+    """Try to find a resource or directory.
+
+    First check if resourcename is an absolute path, then relative to the $PISA
+    environment variable if it is set. Otherwise, look in the resources
+    directory of the pisa installation.
+
+    Parameters
+    ----------
+    resourcename : str
+        File or directory name to locate. The `resourcename` can include an
+        absolute or relative (to $PWD or within the $PISA/resources directory)
+        path. E.g., 'directory/resourcename'.
+
+    is_dir : bool
+        Whether to return a directory or file
+
+    fail : bool
+        If True, raise IOError if resourcename not found
+        If False, return None if resourcename not found
+
+    Returns
+    -------
+    If found, File or directory path; if not found and `fail` is False, returns None.
+
+    Raises
+    ------
+    Exception if the file is not found and `fail=True`.
+    """
+
+    if is_dir:
+        isentity = os.path.isdir
+        entity_type = 'dir'
+    else:
+        isentity = os.path.isfile
+        entity_type = 'file'
 
     # First check for absolute path
-    fpath = os.path.expandvars(os.path.expanduser(filename))
-    logging.trace("Checking if %s is a file..." % fpath)
-    if os.path.isfile(fpath):
-        logging.debug('Found %s' % (fpath))
-        return fpath
+    rsrc_path = os.path.expandvars(os.path.expanduser(resourcename))
+    logging.trace("Checking if %s is a %s..." % (rsrc_path, entity_type))
+    if isentity(rsrc_path):
+        logging.debug('Found %s' % (rsrc_path))
+        return rsrc_path
 
     # Next check if $PISA is set in environment
     logging.trace("Checking environment for $PISA...")
@@ -35,34 +63,30 @@ def find_resource(filename, fail=True):
         rpath = os.path.expandvars(os.path.expanduser(os.environ['PISA']))
         logging.debug('Searching resource path PISA=%s' % rpath)
 
-        fpath = os.path.join(rpath, filename)
-        if os.path.isfile(fpath):
-            logging.debug('Found %s at %s' % (filename, fpath))
-            return fpath
+        rsrc_path = os.path.join(rpath, resourcename)
+        if isentity(rsrc_path):
+            logging.debug('Found %s at %s' % (resourcename, rsrc_path))
+            return rsrc_path
 
     # Not in the resource path, so look inside the package
     logging.trace('Searching package resources...')
-    fpath = resource_filename(__name__, filename)
-    if os.path.isfile(fpath):
-        logging.debug('Found %s at %s' % (filename, fpath))
-        return fpath
+    rsrc_path = resource_filename(__name__, resourcename)
+    if isentity(rsrc_path):
+        logging.debug('Found %s at %s' % (resourcename, rsrc_path))
+        return rsrc_path
 
     # Nowhere to be found
     if fail:
-        raise IOError('Could not find resource "%s"' % filename)
-    else:
-        logging.debug('Could not find resource "%s"' % filename)
-        return None
+        raise IOError('Could not find %s resource "%s"' % (entity_type,
+                                                           resourcename))
+    logging.debug('Could not find %s resource "%s"' % (entity_type,
+                                                       resourcename))
+    return None
 
 
-def open_resource(filename):
-    '''
-    Find the resource file (see find_resource), open it and return a file
+def open_resource(filename, mode='r'):
+    """Find the resource file (see find_resource), open it and return a file
     handle.
-    '''
-    try:
-        return open(find_resource(filename))
-    except (IOError, OSError), e:
-        logging.error('Unable to open resource "%s"' % filename)
-        logging.error(e)
-        sys.exit(1)
+    """
+    return open(find_resource(filename, fail=True), mode=mode)
+
