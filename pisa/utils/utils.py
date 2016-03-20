@@ -19,7 +19,6 @@ import inspect
 import time
 import numbers
 import hashlib
-import collections
 
 import numpy as np
 from scipy.stats import binned_statistic_2d
@@ -94,35 +93,6 @@ class DictWithHash(dict):
 
     def get_hash(self):
         return self.hash
-
-
-class LRUCache:
-    """Simple implementation of a least-recently-used (LRU) memory cache.
-    Specify `depth` to set a limit on the number of entries.
-
-    From: https://www.kunxi.org/blog/2014/05/lru-cache-in-python/"""
-    GLOBAL_CACHE_DEPTH_OVERRIDE = None
-    def __init__(self, capacity):
-        self.capacity = capacity
-        if self.GLOBAL_CACHE_DEPTH_OVERRIDE is not None:
-            self.capacity = self.GLOBAL_CACHE_DEPTH_OVERRIDE
-        self.cache = collections.OrderedDict()
-
-    def get(self, key):
-        value = self.cache.pop(key)
-        self.cache[key] = value
-        if hasattr(value, 'is_new'):
-            value.is_new = False
-        return value
-
-    def set(self, key, value):
-        if self.capacity > 0:
-            try:
-                self.cache.pop(key)
-            except KeyError:
-                if len(self.cache) >= self.capacity:
-                    self.cache.popitem(last=False)
-            self.cache[key] = value
 
 
 class Timer(object):
@@ -904,10 +874,9 @@ def prefilled_map(ebins, czbins, val, dtype=float):
     }
     return newmap
 
-#import xxhash, dill
+
 def hash_obj(obj):
     """Return hash for an object by serializing the object to a JSON string"""
-    #return xxhash.xxh32(dill.dumps(obj)).intdigest()
     if isinstance(obj, np.ndarray) or isinstance(obj, np.matrix):
         return hash(obj.tostring())
     return hash(jsons.json.dumps(obj, sort_keys=True, cls=jsons.NumpyEncoder,

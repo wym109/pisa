@@ -2,17 +2,76 @@
 import os
 import time
 import re
+from collections import OrderedDict
 import sqlite3
 
-from utils import jsons
 import cPickle as pickle
 
 from pisa.utils.log import logging, set_verbosity
+from pisa.utils import jsons
+
+
+class MemoryCache(OrderedDict):
+    """Simple implementation of a first-in-first-out (FIFO) or least-recently-
+    used (LRU) in-memory cache, derived from OrderedDict (i.e., sharing the
+    interface of an OrderedDict).
+
+    Parameters
+    ----------
+    max_depth : int >= 0
+        Maximum number of entries in the cache, pruned either by FIFO or LRU
+        logic. A `max_depth` of 0 effectively disables caching altogether
+        (useful for testing).
+
+    is_lru : bool
+        Whether to implement LRU logic (True) or FIFO logic (False). LRU logic
+        adds a small computational cost.
+
+    Class attributes
+    ----------------
+    GLOBAL_CACHE_DEPTH_OVERRIDE : None or int >= 0
+        Set to an integer to override the cache depth for *all* memory caches.
+        E.g., set this to 0 to disable caching everywhere.
+
+    Based off of code at www.kunxi.org/blog/2014/05/lru-cache-in-python
+    """
+    GLOBAL_CACHE_DEPTH_OVERRIDE = None
+    def __init__(self, max_depth, is_lru=True):
+        self.max_depth = max_depth
+        self.is_lru = is_lru
+        if self.GLOBAL_CACHE_DEPTH_OVERRIDE is not None:
+            self.max_depth = self.GLOBAL_CACHE_DEPTH_OVERRIDE
+        assert self.max_depth >= 0
+        super(MemoryCache, self).__init__()
+
+    def __getitem__(self, key):
+        if self.is_lru:
+            value = OrderedDict.__getitem__(self, key)
+            del self[key]
+            OrderedDict.__setitem__(self, key, value)
+        else:
+            value = OrderedDict.__getitem__(self, key)
+        if hasattr(value, 'is_new'):
+            value.is_new = False
+        return value
+
+    def __setitem__(self, key, value):
+        if self.max_depth > 0:
+            try:
+                self.pop(key)
+            except KeyError:
+                if len(self) >= self.max_depth:
+                    self.popitem(last=False)
+            OrderedDict.__setitem__(self, key, value)
+
+    def __delitem__(self, key):
+        OrderedDict.__delitem__(self, key)
 
 
 class DiskCache(object):
     """
-    Implements a subset of dict methods with persistent storage in a sqlite db.
+    Implements a subset of dict methods but with persistent storage to an on-
+    disk sqlite database.
 
     Parameters
     ----------
@@ -33,6 +92,7 @@ class DiskCache(object):
     -------
     __getitem__
     __setitem__
+    __delitem__
     __len__
     get
     clear
@@ -191,6 +251,19 @@ class DiskCache(object):
             logging.trace('close: % 0.4f' % (time.time() - t))
             logging.trace('')
 
+    def __delitem__(self, hash_val):
+        conn = self.__connect()
+        try:
+            sql = "DELETE FROM cache WHERE hash = ?"
+            cursor = conn.execute(sql, (hash_val,))
+        except:
+            conn.rollback()
+            raise
+        else:
+            conn.commit()
+        finally:
+            conn.close()
+
     def __len__(self):
         conn = self.__connect()
         try:
@@ -233,8 +306,7 @@ class DiskCache(object):
     def __connect(self):
         conn = sqlite3.connect(
             self.__db_fpath,
-            isolation_level=None, check_same_thread=False,
-            timeout=10,
+            isolation_level=None, check_same_thread=False, timeout=10,
         )
 
         # Trust journaling to memory
@@ -249,7 +321,7 @@ class DiskCache(object):
         sql = "PRAGMA auto_vacuum=FULL"
         conn.execute(sql)
 
-        return conn #, cursor
+        return conn
 
     @property
     def now(self):

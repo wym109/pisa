@@ -213,10 +213,10 @@ class GenericStage(object):
             [self.__free_param_names.remove(p) for p in params]
 
 
-class StageWithNoInput(GenericStage):
+class NoInputStage(GenericStage):
     def __init__(self, params=None, disk_cache=None,
                  cache_class=utils.LRUCache, result_cache_depth=10):
-        super(StageWithNoInput, self).__init__(params=params,
+        super(NoInputStage, self).__init__(params=params,
                                                disk_cache=disk_cache)
         self.result_cache_depth = result_cache_depth
         self.result_cache = cache_class(self.result_cache_depth)
@@ -268,11 +268,11 @@ class StageWithNoInput(GenericStage):
         raise NotImplementedError()
 
 
-class StageWithInput(GenericStage):
+class InputStage(GenericStage):
     def __init__(self, params=None, disk_cache=None,
                  cache_class=utils.LRUCache, transform_cache_depth=10,
                  result_cache_depth=10):
-        super(StageWithInput, self).__init__(params=params,
+        super(InputStage, self).__init__(params=params,
                                              disk_cache=disk_cache)
         self.transform_cache_depth = cache_depth
         self.transform_cache = cache_class(self.transform_cache_depth)

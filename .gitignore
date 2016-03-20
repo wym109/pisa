@@ -38,3 +38,7 @@ pisa.egg-info
 
 # sqlite databases
 *.db
+
+# Serialized objects
+*.pkl
+*.dill
