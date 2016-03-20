@@ -219,8 +219,10 @@ def to_hdf(data_dict, tgt, attrs=None, overwrite=True):
             store_recursively(fhandle=h5file, node=data_dict)
         finally:
             h5file.close()
+
     elif isinstance(tgt, h5py.Group):
         store_recursively(fhandle=tgt, node=data_dict, attrs=attrs)
+
     else:
         errmsg = "to_hdf: Invalid `tgt` type: " + type(tgt)
         logging.error(errmsg)
