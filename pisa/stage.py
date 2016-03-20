@@ -83,7 +83,7 @@ class GenericStage(object):
             Each service (implementation of a stage) should add args specific
             to it here.
     """
-    def __init__(self, params=None, disk_cache_dir=None):
+    def __init__(self, params=None, disk_cache=None):
         self.__params = dict()
         self.__free_param_names = set()
 
@@ -91,7 +91,7 @@ class GenericStage(object):
         self.__free_params_hash = None
         self.__source_code_hash = None
 
-        self.disk_cache_dir = disk_cache_dir
+        self.disk_cache = disk_cache
         if params is not None:
             self.params = params
 
@@ -157,11 +157,13 @@ class GenericStage(object):
             raise TypeError('Unhandled `params` type "%s"' % type(p))
         self.validate_params(p)
         self.__params.update(p)
+
         # Invalidate hashes so they get recomputed next time they're requested
         self.__params_hash = None
         self.__free_params_hash = None
 
     def load_params(self, resource):
+        # TODO: load from ini file format
         if isinstance(resource, basestring):
             params_dict = fileio.from_file(resource)
         elif isinstance(collections.Mapping):
@@ -212,10 +214,10 @@ class GenericStage(object):
 
 
 class StageWithNoInput(GenericStage):
-    def __init__(self, params=None, disk_cache_dir=None,
+    def __init__(self, params=None, disk_cache=None,
                  cache_class=utils.LRUCache, result_cache_depth=10):
         super(StageWithNoInput, self).__init__(params=params,
-                                             disk_cache_dir=disk_cache_dir)
+                                               disk_cache=disk_cache)
         self.result_cache_depth = result_cache_depth
         self.result_cache = cache_class(self.result_cache_depth)
 
@@ -267,11 +269,11 @@ class StageWithNoInput(GenericStage):
 
 
 class StageWithInput(GenericStage):
-    def __init__(self, params=None, disk_cache_dir=None,
+    def __init__(self, params=None, disk_cache=None,
                  cache_class=utils.LRUCache, transform_cache_depth=10,
                  result_cache_depth=10):
         super(StageWithInput, self).__init__(params=params,
-                                             disk_cache_dir=disk_cache_dir)
+                                             disk_cache=disk_cache)
         self.transform_cache_depth = cache_depth
         self.transform_cache = cache_class(self.transform_cache_depth)
 
