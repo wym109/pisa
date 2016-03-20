@@ -35,3 +35,6 @@ pisa.egg-info
 
 # IPython notebook backups
 .ipynb_checkpoints
+
+# sqlite databases
+*.db
