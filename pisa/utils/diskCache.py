@@ -58,10 +58,15 @@ class DiskCache(object):
     >>>> x.clear()
     >>>> len(x)
     0
+    >>>> # Demonstrating the row-limit:
+    >>>> x = [disk_cache.__setitem__(i, 'foo') for i in xrange(10)]
+    >>>> len(disk_cache)
+    5
 
     Large databases are slower to work with than small. Therefore it is
     recommended to use separate databases for each stage's cache rather than
     one centralized database acting as the cache for all stages.
+
     """
     TABLE_SCHEMA = \
         '''CREATE TABLE cache (hash INTEGER PRIMARY KEY,
@@ -248,5 +253,6 @@ class DiskCache(object):
 
     @property
     def now(self):
+        """Microseconds since the epoch"""
         return int(time.time() * 1e6)
 
