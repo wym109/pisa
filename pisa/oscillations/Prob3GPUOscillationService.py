@@ -289,7 +289,7 @@ class Prob3GPUOscillationService(OscillationServiceBase):
                               deltam21, deltam31, deltacp, energy_scale, YeI,
                               YeO, YeM))
         try:
-            return self.transform_cache.get(cache_key)
+            return self.transform_cache[cache_key]
         except KeyError:
             pass
 
@@ -379,7 +379,7 @@ class Prob3GPUOscillationService(OscillationServiceBase):
                 iMap += 1
 
         smoothed_maps.update_hash(cache_key)
-        self.transform_cache.set(cache_key, smoothed_maps)
+        self.transform_cache[cache_key] = smoothed_maps
 
         return smoothed_maps
 

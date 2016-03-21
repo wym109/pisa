@@ -14,7 +14,8 @@ import numpy as np
 
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils import fileio, proc
-from pisa.utils.utils import is_equal_binning, DictWithHash, hash_obj, LRUCache
+from pisa.utils.utils import is_equal_binning, DictWithHash, hash_obj
+from pisa.utils.cache import MemoryCache
 
 
 class PIDServiceBase(object):
@@ -35,8 +36,8 @@ class PIDServiceBase(object):
         self.pid_kernels = None
         # TODO: make use of the caches here
         self.cache_depth = cache_depth
-        self.transform_cache = LRUCache(self.cache_depth)
-        self.result_cache = LRUCache(self.cache_depth)
+        self.transform_cache = MemoryCache(self.cache_depth, is_lru=True)
+        self.result_cache = MemoryCache(self.cache_depth, is_lru=True)
 
     def get_binning(self):
         return self.ebins, self.czbins

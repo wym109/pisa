@@ -13,7 +13,8 @@ import numpy as np
 from pisa.utils.log import logging, tprofile
 from pisa.utils.utils import get_smoothed_map, get_bin_centers, check_fine_binning, oversample_binning, Timer, get_binning
 from pisa.utils.proc import report_params, get_params, add_params
-from pisa.utils.utils import DictWithHash, hash_obj, LRUCache
+from pisa.utils.utils import DictWithHash, hash_obj
+from pisa.utils.cache import MemoryCache
 
 
 class OscillationServiceBase(object):
@@ -34,9 +35,9 @@ class OscillationServiceBase(object):
 
         # Instantiate caches
         self.cache_depth = cache_depth
-        self.transform_cache = LRUCache(cache_depth)
-        self.osc_prob_map_cache = LRUCache(cache_depth)
-        self.result_cache = LRUCache(cache_depth)
+        self.transform_cache = MemoryCache(cache_depth, is_lru=True)
+        self.osc_prob_map_cache = MemoryCache(cache_depth, is_lru=True)
+        self.result_cache = MemoryCache(cache_depth, is_lru=True)
         self.__smoothed_maps = DictWithHash()
 
     def get_osc_prob_maps(self, ebins=None, czbins=None, oversample_e=None,
@@ -80,7 +81,7 @@ class OscillationServiceBase(object):
         # to be
         cache_key = hash_obj((fine_maps.hash, self.ebins, self.czbins))
         try:
-            self.__smoothed_maps = self.osc_prob_map_cache.get(cache_key)
+            self.__smoothed_maps = self.osc_prob_map_cache[cache_key]
             return self.__smoothed_maps
         except KeyError:
             pass
@@ -88,7 +89,7 @@ class OscillationServiceBase(object):
 
         #if not fine_maps.is_new:
         #    self.__smoothed_maps.is_new = False
-        #    return self.__smoothed_maps #osc_prob_map_cache.get(cache_key)
+        #    return self.__smoothed_maps #osc_prob_map_cache[cache_key]
 
         logging.info("Smoothing fine maps...")
 
@@ -112,7 +113,7 @@ class OscillationServiceBase(object):
                     )
                 self.__smoothed_maps[from_nu] = new_tomaps
             self.__smoothed_maps.update_hash(cache_key)
-            self.osc_prob_map_cache.set(cache_key, self.__smoothed_maps)
+            self.osc_prob_map_cache[cache_key] = self.__smoothed_maps
         tprofile.debug("       ==> elapsed time to smooth maps: %s sec" %
                        t.secs)
 
@@ -162,12 +163,12 @@ class OscillationServiceBase(object):
 
         cache_key = hash_obj((flux_maps.hash, osc_prob_maps.hash))
         try:
-            return self.result_cache.get(cache_key)
+            return self.result_cache[cache_key]
         except KeyError:
             pass
         #cache_key = 0
         #if not flux_maps.is_new and not osc_prob_maps.is_new:
-        #    retval = self.result_cache.get(cache_key)
+        #    retval = self.result_cache[cache_key]
         #    retval.is_new = False
         #    return retval
 
@@ -194,7 +195,7 @@ class OscillationServiceBase(object):
                 osc_flux_maps[to_flav+mID] = oscflux
         osc_flux_maps.update_hash(cache_key)
 
-        self.result_cache.set(cache_key, osc_flux_maps)
+        self.result_cache[cache_key] = osc_flux_maps
 
         return osc_flux_maps
 

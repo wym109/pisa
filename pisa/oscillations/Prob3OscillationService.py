@@ -60,7 +60,7 @@ class Prob3OscillationService(OscillationServiceBase):
                               deltam31, deltacp, energy_scale, YeI, YeO,
                               YeM))
         try:
-            return self.transform_cache.get(cache_key)
+            return self.transform_cache[cache_key]
         except KeyError:
             pass
 
@@ -144,7 +144,7 @@ class Prob3OscillationService(OscillationServiceBase):
         self.__osc_prob_dict['czvals'] = czvals
         self.__osc_prob_dict.update_hash(cache_key)
 
-        self.transform_cache.set(cache_key, self.__osc_prob_dict)
+        self.transform_cache[cache_key] = self.__osc_prob_dict
 
         tprofile.info("stop oscillation calculation")
 

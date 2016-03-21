@@ -4,11 +4,9 @@ import time
 import re
 from collections import OrderedDict
 import sqlite3
-
 import cPickle as pickle
 
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils import jsons
 
 
 class MemoryCache(OrderedDict):

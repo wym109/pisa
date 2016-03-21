@@ -19,7 +19,8 @@ from pisa.utils.log import logging
 from pisa.utils import utils
 from pisa.utils import fileio
 from pisa.utils.proc import get_params, add_params, report_params
-from pisa.utils.utils import get_binning, hash_obj, LRUCache, DictWithHash
+from pisa.utils.utils import get_binning, hash_obj, DictWithHash
+from pisa.utils.cache import MemoryCache
 
 
 class RecoServiceBase(object):
@@ -44,8 +45,8 @@ class RecoServiceBase(object):
         self.reco_kernel_dict = None
 
         self.cache_depth = cache_depth
-        self.transform_cache = LRUCache(self.cache_depth)
-        self.result_cache = LRUCache(self.cache_depth)
+        self.transform_cache = MemoryCache(self.cache_depth, is_lru=True)
+        self.result_cache = MemoryCache(self.cache_depth, is_lru=True)
 
     def get_reco_maps(self, true_event_maps, e_reco_scale=None,
                       cz_reco_scale=None, **kwargs):
@@ -73,12 +74,12 @@ class RecoServiceBase(object):
 
         cache_key = hash_obj((true_event_maps.hash, reco_kernel_dict.hash))
         try:
-            return self.result_cache.get(cache_key)
+            return self.result_cache[cache_key]
         except KeyError:
             pass
         #cache_key = 0
         #if not true_event_maps.is_new and not reco_kernel_dict.is_new:
-        #    return self.result_cache.get(cache_key)
+        #    return self.result_cache[cache_key]
 
         # Initialize return dict
         reco_maps = DictWithHash()
@@ -124,7 +125,7 @@ class RecoServiceBase(object):
                       np.sum(reco_event_rate))
         reco_maps.update_hash(cache_key)
 
-        self.result_cache.set(cache_key, reco_maps)
+        self.result_cache[cache_key] = reco_maps
 
         return reco_maps
 

@@ -215,11 +215,11 @@ class GenericStage(object):
 
 class NoInputStage(GenericStage):
     def __init__(self, params=None, disk_cache=None,
-                 cache_class=utils.LRUCache, result_cache_depth=10):
+                 cache_class=utils.MemoryCache, result_cache_depth=10):
         super(NoInputStage, self).__init__(params=params,
                                                disk_cache=disk_cache)
         self.result_cache_depth = result_cache_depth
-        self.result_cache = cache_class(self.result_cache_depth)
+        self.result_cache = cache_class(self.result_cache_depth, is_lru=True)
 
     def compute_output_maps(self):
         """Compute output maps by applying the transform to input maps.
@@ -228,57 +228,33 @@ class NoInputStage(GenericStage):
         ----------
         input_maps : utils.DictWithHash
         """
-        xform = self.get_transform()
-
-        result_hash = hash_obj(input_maps.hash, xform.hash)
+        result_hash = self.free_params_hash
         try:
-            return self.result_cache.get(result_hash)
+            return self.result_cache[result_hash]
         except KeyError:
             pass
-
-        output_maps = xform.apply(input_maps)
-        output_maps.update_hash(output_maps)
-
+        output_maps = self._derive_output()
+        output_maps.update_hash(result_hash)
+        self.result_cache[result_hash] = output_maps
         return output_maps
 
-    def get_transform(self):
-        """Load a cached transform (keyed on hash of free parameters) if it is
-        in the cache, or else derive a new transform from currently-set
-        parameter values and store this new transform to the cache.
-
-        Notes
-        -----
-        The hash used here is only meant to be valid within the scope of a
-        session; a hash on the full parameter set used to generate the
-        transform, as well as the version of the generating software, is
-        required for non-volatile storage.
-        """
-        xform_hash = hash_obj(self.free_params)
-        try:
-            return self.transform_cache.get(xform_hash)
-        except KeyError:
-            pass
-        xform = self._derive_transform()
-        xform.update_hash(xform_hash)
-        self.transform_cache.set(cache_key, xform)
-        return xform
-
-    def _derive_transform(self, **kwargs):
+    def _derive_output(self, **kwargs):
         """Each stage implementation (aka service) must override this method"""
         raise NotImplementedError()
 
 
 class InputStage(GenericStage):
     def __init__(self, params=None, disk_cache=None,
-                 cache_class=utils.LRUCache, transform_cache_depth=10,
+                 cache_class=utils.MemoryCache, transform_cache_depth=10,
                  result_cache_depth=10):
         super(InputStage, self).__init__(params=params,
-                                             disk_cache=disk_cache)
+                                         disk_cache=disk_cache)
         self.transform_cache_depth = cache_depth
-        self.transform_cache = cache_class(self.transform_cache_depth)
+        self.transform_cache = cache_class(self.transform_cache_depth,
+                                           is_lru=True)
 
         self.result_cache_depth = result_cache_depth
-        self.result_cache = cache_class(self.result_cache_depth)
+        self.result_cache = cache_class(self.result_cache_depth, is_lru=True)
 
     def compute_output_maps(self, input_maps):
         """Compute output maps by applying the transform to input maps.
@@ -286,18 +262,17 @@ class InputStage(GenericStage):
         Parameters
         ----------
         input_maps : utils.DictWithHash
+
         """
         xform = self.get_transform()
-
         result_hash = hash_obj(input_maps.hash, xform.hash)
         try:
-            return self.result_cache.get(result_hash)
+            return self.result_cache[result_hash]
         except KeyError:
             pass
-
         output_maps = xform.apply(input_maps)
-        output_maps.update_hash(output_maps)
-
+        output_maps.update_hash(result_hash)
+        self.result_cache[result_hash] = output_maps
         return output_maps
 
     def get_transform(self):
@@ -312,14 +287,14 @@ class InputStage(GenericStage):
         transform, as well as the version of the generating software, is
         required for non-volatile storage.
         """
-        xform_hash = hash_obj(self.free_params)
+        xform_hash = self.free_params_hash
         try:
-            return self.transform_cache.get(xform_hash)
+            return self.transform_cache[xform_hash]
         except KeyError:
             pass
         xform = self._derive_transform()
         xform.update_hash(xform_hash)
-        self.transform_cache.set(cache_key, xform)
+        self.transform_cache[cache_key] = xform
         return xform
 
     def _derive_transform(self, **kwargs):

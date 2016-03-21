@@ -74,7 +74,7 @@ class FluxServiceHonda(FluxServiceBase):
         bin edges in energy and cos(zenith) and the primary."""
         cache_key = hash_obj((ebins, czbins, prim))
         try:
-            return self.raw_flux_cache.get(cache_key)
+            return self.raw_flux_cache[cache_key]
         except KeyError:
             pass
 
@@ -97,6 +97,6 @@ class FluxServiceHonda(FluxServiceBase):
         return_table *= np.abs(bin_sizes[0]*bin_sizes[1])
         return_table = return_table.T
 
-        self.raw_flux_cache.set(cache_key, return_table)
+        self.raw_flux_cache[cache_key] = return_table
 
         return return_table

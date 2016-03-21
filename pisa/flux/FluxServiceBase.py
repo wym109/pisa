@@ -8,15 +8,17 @@ import numpy as np
 from pisa.utils.log import logging
 from pisa.analysis.stats.Maps import apply_ratio_scale
 from pisa.utils.proc import report_params, get_params
-from pisa.utils.utils import get_bin_centers, get_bin_sizes, hash_obj, LRUCache, DictWithHash
+from pisa.utils.utils import get_bin_centers, get_bin_sizes, hash_obj, DictWithHash
+from pisa.cache import MemoryCache
 
 
 class FluxServiceBase(object):
-    def __init__(self, cache_depth=1000):
+    def __init__(self, cache_depth=100):
         self.primaries = ['numu', 'numu_bar', 'nue', 'nue_bar']
         self.cache_depth = cache_depth
-        self.result_cache = LRUCache(self.cache_depth)
-        self.raw_flux_cache = LRUCache(self.cache_depth*len(self.primaries))
+        self.result_cache = MemoryCache(self.cache_depth, is_lru=True)
+        self.raw_flux_cache = MemoryCache(self.cache_depth*len(self.primaries),
+                                          is_lru=True)
 
     def get_flux_maps(self, ebins, czbins, nue_numu_ratio, nu_nubar_ratio,
                       energy_scale, atm_delta_index, **kwargs):
@@ -46,7 +48,7 @@ class FluxServiceBase(object):
         cache_key = hash_obj((ebins, czbins, nue_numu_ratio, nu_nubar_ratio,
                               energy_scale, atm_delta_index))
         try:
-            return self.result_cache.get(cache_key)
+            return self.result_cache[cache_key]
         except KeyError:
             pass
 
@@ -91,7 +93,7 @@ class FluxServiceBase(object):
                                                  median_energy)
 
         scaled_maps.update_hash(cache_key)
-        self.result_cache.set(cache_key, scaled_maps)
+        self.result_cache[cache_key] = scaled_maps
 
         return scaled_maps
 

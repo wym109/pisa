@@ -4,7 +4,8 @@ from scipy.constants import Julian_year
 from pisa.utils import flavInt
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.proc import report_params, get_params, add_params
-from pisa.utils.utils import check_binning, get_binning, prefilled_map, DictWithHash, LRUCache, hash_obj
+from pisa.utils.utils import check_binning, get_binning, prefilled_map, DictWithHash, hash_obj
+from pisa.utils.cache import MemoryCache
 
 
 class AeffServiceBase(object):
@@ -12,8 +13,8 @@ class AeffServiceBase(object):
         self.ebins = ebins
         self.czbins = czbins
         self.cache_depth = cache_depth
-        self.transform_cache = LRUCache(1000)
-        self.result_cache = LRUCache(1000)
+        self.transform_cache = MemoryCache(100, is_lru=True)
+        self.result_cache = MemoryCache(100, is_lru=True)
 
     def get_event_rates(self, osc_flux_maps, livetime, aeff_scale, **kwargs):
         """Main function for this module, which returns the event rate maps
@@ -40,7 +41,7 @@ class AeffServiceBase(object):
 
         cache_key = hash_obj((osc_flux_maps.hash, aeff_fidata.hash))
         try:
-            return self.result_cache.get(cache_key)
+            return self.result_cache[cache_key]
         except KeyError:
             pass
     
@@ -67,7 +68,7 @@ class AeffServiceBase(object):
                               % (flavour, int_type, np.sum(event_rate)))
             event_rate_maps[flavour] = int_type_dict
         event_rate_maps.update_hash(cache_key)
-        self.result_cache.set(cache_key, event_rate_maps)
+        self.result_cache[cache_key] = event_rate_maps
     
         return event_rate_maps
 

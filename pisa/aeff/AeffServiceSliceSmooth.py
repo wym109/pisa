@@ -177,7 +177,7 @@ class AeffServiceSliceSmooth(AeffServiceBase):
             assert len(keys) == 1, str(flavint) + str(keys)
             self.aeff_fidata[flavint] = aeff2d[keys[0]]
         self.aeff_fidata.update_hash(cache_key)
-        self.transform_cache.set(cache_key, self.aeff_fidata)
+        self.transform_cache[cache_key] = self.aeff_fidata
 
     def get_aeff(self):
         """Returns the effective areas FlavIntData object"""
