@@ -9,10 +9,9 @@ import cPickle as pickle
 from pisa.utils.log import logging, set_verbosity
 
 
-class MemoryCache(OrderedDict):
+class MemoryCache(object):
     """Simple implementation of a first-in-first-out (FIFO) or least-recently-
-    used (LRU) in-memory cache, derived from OrderedDict (i.e., sharing the
-    interface of an OrderedDict).
+    used (LRU) in-memory cache, with a subset of the dict interface.
 
     Parameters
     ----------
@@ -27,43 +26,105 @@ class MemoryCache(OrderedDict):
 
     Class attributes
     ----------------
-    GLOBAL_CACHE_DEPTH_OVERRIDE : None or int >= 0
+    GLOBAL_MEMCACHE_DEPTH_OVERRIDE : None or int >= 0
         Set to an integer to override the cache depth for *all* memory caches.
         E.g., set this to 0 to disable caching everywhere.
 
+    Useful Methods
+    --------------
+    __getitem__
+    __setitem__
+    __delitem__
+    clear
+    get
+    has_key
+    keys
+    pop
+    popitem
+    setdefault
+    values
+
+    Notes
+    -----
     Based off of code at www.kunxi.org/blog/2014/05/lru-cache-in-python
     """
-    GLOBAL_CACHE_DEPTH_OVERRIDE = None
+    GLOBAL_MEMCACHE_DEPTH_OVERRIDE = None
     def __init__(self, max_depth, is_lru=True):
-        self.max_depth = max_depth
-        self.is_lru = is_lru
-        if self.GLOBAL_CACHE_DEPTH_OVERRIDE is not None:
-            self.max_depth = self.GLOBAL_CACHE_DEPTH_OVERRIDE
-        assert self.max_depth >= 0
-        super(MemoryCache, self).__init__()
+        self.__cache = OrderedDict()
+        self.__max_depth = max_depth
+        self.__is_lru = is_lru
+        if self.GLOBAL_MEMCACHE_DEPTH_OVERRIDE is not None:
+            self.__max_depth = self.GLOBAL_MEMCACHE_DEPTH_OVERRIDE
+        assert isinstance(self.__max_depth, int), \
+                '`max_depth` must be int; got %s' % type(self.__max_depth)
+        assert self.__max_depth >= 0, \
+                '`max_depth` must be >= 0; got %s' % self.__max_depth
+
+    def __str__(self):
+        return 'MemoryCache(max_depth=%d, is_lru=%s)' % (self.__max_depth,
+                                                         self.__is_lru)
+
+    def __repr__(self):
+        return str(self) + '; %d keys:\n%s' % (len(self.__cache),
+                                               self.__cache.keys())
 
     def __getitem__(self, key):
-        if self.is_lru:
-            value = OrderedDict.__getitem__(self, key)
-            del self[key]
-            OrderedDict.__setitem__(self, key, value)
-        else:
-            value = OrderedDict.__getitem__(self, key)
-        if hasattr(value, 'is_new'):
-            value.is_new = False
+        value = self.__cache[key]
+        if self.__is_lru:
+            del self.__cache[key]
+            self.__cache[key] = value
         return value
 
     def __setitem__(self, key, value):
-        if self.max_depth > 0:
-            try:
-                self.pop(key)
-            except KeyError:
-                if len(self) >= self.max_depth:
-                    self.popitem(last=False)
-            OrderedDict.__setitem__(self, key, value)
+        if self.__max_depth == 0:
+            return
+        # Same logic here for LRU and FIFO
+        try:
+            del self.__cache[key]
+        except KeyError:
+            if len(self) >= self.__max_depth:
+                self.__cache.popitem(last=False)
+        self.__cache[key] = value
 
     def __delitem__(self, key):
-        OrderedDict.__delitem__(self, key)
+        return self.__cache.__delitem__(self, key)
+
+    def __iter__(self):
+        return iter(self.__cache)
+
+    def __len__(self):
+        return len(self.__cache)
+
+    def __reversed__(self):
+        return reversed(self.__cache)
+
+    def clear(self):
+        return clear(self.__cache)
+
+    def get(self, key, dflt=None):
+        if key in self.__cache:
+            return self[key]
+        return dflt
+
+    def has_key(self, k):
+        return self.__cache.has_key(k)
+
+    def keys(self):
+        return self.__cache.keys()
+
+    def pop(self, k):
+        return self.__cache.pop(k)
+
+    def popitem(self, last=True):
+        return self.__cache.pop(last)
+
+    def setdefault(self, key, default=None):
+        if not key in self:
+            self[key] = default
+        return self[key]
+
+    def values(self):
+        return self.__cache.values()
 
 
 class DiskCache(object):
@@ -77,17 +138,19 @@ class DiskCache(object):
         Path to database file; if existing file is specified, schema must match
         that specified by DiskCache.TABLE_SCHEMA.
 
-    row_limit : int
+    max_depth : int
         Limit on the number of rows in the database's table. Pruning is either
         via first-in-first-out (FIFO) or least-recently-used (LRU) logic.
 
     is_lru : bool
         If True, implement least-recently-used (LRU) logic for removing items
-        beyond `row_limit`. This adds an additional ~400 ms to item retrieval
+        beyond `max_depth`. This adds an additional ~400 ms to item retrieval
         time.
 
     Methods
     -------
+    __str__
+    __repr__
     __getitem__
     __setitem__
     __delitem__
@@ -106,17 +169,28 @@ class DiskCache(object):
 
     Access to the database via dict-like syntax:
     >>>> x = {'xyz': [0,1,2,3], 'abc': {'first': (4,5,6)}}
-    >>>> disk_cache = DiskCache('/tmp/diskcache.db', row_limit=5, is_lru=False)
+    >>>> disk_cache = DiskCache('/tmp/diskcache.db', max_depth=5, is_lru=False)
     >>>> disk_cache[12] = x
+    >>>> disk_cache[13] = x
+    >>>> disk_cache[14] = x
     >>>> y = disk_cache[12]
     >>>> print y == x
     True
-    >>>> len(x)
-    1
-    >>>> x.clear()
-    >>>> len(x)
+    >>>> len(disk_cache)
+    3
+    >>>> disk_cache.keys()
+    [12, 13, 14]
+    >>>> del disk_cache[12]
+    >>>> len(disk_cache)
+    2
+    >>>> disk_cache.keys()
+    [13, 14]
+    >>>> disk_cache.clear()
+    >>>> len(disk_cache)
     0
-    >>>> # Demonstrating the row-limit:
+    >>>> disk_cache.keys()
+    []
+    >>>> # Demonstrate max_depth (limit on # of rows):
     >>>> x = [disk_cache.__setitem__(i, 'foo') for i in xrange(10)]
     >>>> len(disk_cache)
     5
@@ -130,12 +204,12 @@ class DiskCache(object):
         '''CREATE TABLE cache (hash INTEGER PRIMARY KEY,
                                accesstime INTEGER,
                                data BLOB)'''
-    def __init__(self, db_fpath, row_limit=100, is_lru=False):
+    def __init__(self, db_fpath, max_depth=100, is_lru=False):
         self.__db_fpath = os.path.expandvars(os.path.expanduser(db_fpath))
         self.__instantiate_db()
-        assert 0 < row_limit < 1e6, 'Invalid row_limit:' + str(row_limit)
-        self.__row_limit = row_limit
-        self.is_lru = is_lru
+        assert 0 < max_depth < 1e6, 'Invalid `max_depth`:' + str(max_depth)
+        self.__max_depth = max_depth
+        self.__is_lru = is_lru
 
     def __instantiate_db(self):
         exists = True if os.path.isfile(self.__db_fpath) else False
@@ -158,7 +232,7 @@ class DiskCache(object):
                 # Create the table for storing (hash, data, timestamp) tuples
                 conn.execute(self.TABLE_SCHEMA)
                 sql = "CREATE INDEX idx0 ON cache(hash)"
-                cursor.execute(sql)
+                conn.execute(sql)
                 sql = "CREATE INDEX idx1 ON cache(accesstime)"
                 conn.execute(sql)
                 conn.commit()
@@ -168,6 +242,14 @@ class DiskCache(object):
         finally:
             conn.close()
 
+    def __str__(self):
+        s = 'DiskCache(db_fpath=%s, max_depth=%d, is_lru=%s)' % \
+                (self.__db_fpath, self.__max_depth, self.__is_lru)
+        return s 
+
+    def __repr__(self):
+        return str(self) + '; %d keys:\n%s' % (len(self), self.keys())
+
     def __getitem__(self, hash_val):
         t0 = time.time()
         if not isinstance(hash_val, int):
@@ -175,7 +257,7 @@ class DiskCache(object):
         conn = self.__connect()
         t1 = time.time();logging.trace('conn: %0.4f' % (t1 - t0))
         try:
-            if self.is_lru:
+            if self.__is_lru:
                 # Update accesstime
                 sql = "UPDATE cache SET accesstime = ? WHERE hash = ?"
                 conn.execute(sql, (self.now, hash_val))
@@ -216,7 +298,7 @@ class DiskCache(object):
             t2 = time.time();logging.trace('commit: % 0.4f' % (t2 - t1))
 
             # Remove oldest-accessed rows in excess of limit
-            n_to_remove = len(self) - self.__row_limit
+            n_to_remove = len(self) - self.__max_depth
             t3 = time.time();logging.trace('len: % 0.4f' % (t3 - t2))
             if n_to_remove <= 0:
                 return
