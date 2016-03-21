@@ -28,6 +28,12 @@ class GenericStage(object):
 
     Properties
     ----------
+    stage_name : str
+        Name of the stage ('flux', 'osc', 'aeff', 'reco', or 'pid')
+
+    service_name : str
+        Name of the service, e.g. 'AeffServiceMC'
+
     params : OrderedDict
         All stage parameters, returned in alphabetical order by param name.
         The format of the returned dict is
@@ -37,6 +43,12 @@ class GenericStage(object):
     free_params : OrderedDict
         Those `params` that are not fixed, returned in same format as `params`
         and in alphabetical order by param name.
+
+    priors_llh : float
+        Summed log likelihoods of all parameters' priors
+
+    priors_chisquare : float
+        Summed chi-squared values of all parameters' priors
 
     params_hash, free_params_hash
         Hashes for all params (`params_hash`) or just free params
@@ -72,18 +84,20 @@ class GenericStage(object):
     Override
     --------
     The following methods should be overriden in derived classes
-        compute_output_maps
+        get_output_map_set
             Do the actual work to produce the stage's output.
         validate_params
             Perform validation on any parameters.
-        add_stage_cmdline_args : override in stage baseclass
+        add_cmdline_args
             The stage base class should override this to add generic
-            stage args applicable across all implementations of the stage.
-        add_service_cmdline_args : override in service class
-            Each service (implementation of a stage) should add args specific
-            to it here.
+            stage args applicable across all implementations of the stage;
+            further, each service (implementation of a stage) should add args
+            specific to it here as well (after calling the stage base class).
     """
-    def __init__(self, params=None, disk_cache=None):
+    def __init__(self, stage_name='', service_name='', params=None,
+                 disk_cache=None):
+        self.stage_name = stage_name
+        self.service_name = service_name
         self.__params = dict()
         self.__free_param_names = set()
 
@@ -95,18 +109,14 @@ class GenericStage(object):
         if params is not None:
             self.params = params
 
-    def compute_output_maps(self):
+    def get_output_map_set(self):
         raise NotImplementedError()
 
     def validate_params(self, params):
         raise NotImplementedError()
 
     @staticmethod
-    def add_service_cmdline_args(parser):
-        raise NotImplementedError()
-
-    @staticmethod
-    def add_stage_cmdline_args(parser):
+    def add_cmdline_args(parser):
         raise NotImplementedError()
 
     @property
@@ -179,6 +189,14 @@ class GenericStage(object):
          for k in sorted(self.__free_param_names)]
         return ordered
 
+    @property
+    def num_params(self):
+        return len(self.__params)
+
+    @property
+    def num_free_params(self):
+        return len(self.__free_param_names)
+
     @free_params.setter
     def free_params(self, p):
         if isinstance(p, (collections.Iterable, collections.Sequence)):
@@ -221,22 +239,17 @@ class NoInputStage(GenericStage):
         self.result_cache_depth = result_cache_depth
         self.result_cache = cache_class(self.result_cache_depth, is_lru=True)
 
-    def compute_output_maps(self):
-        """Compute output maps by applying the transform to input maps.
-
-        Parameters
-        ----------
-        input_maps : utils.DictWithHash
-        """
+    def get_output_map_set(self):
+        """Compute output maps."""
         result_hash = self.free_params_hash
         try:
             return self.result_cache[result_hash]
         except KeyError:
             pass
-        output_maps = self._derive_output()
-        output_maps.update_hash(result_hash)
-        self.result_cache[result_hash] = output_maps
-        return output_maps
+        output_map_set = self._derive_output()
+        output_map_set.update_hash(result_hash)
+        self.result_cache[result_hash] = output_map_set
+        return output_map_set
 
     def _derive_output(self, **kwargs):
         """Each stage implementation (aka service) must override this method"""
@@ -256,24 +269,24 @@ class InputStage(GenericStage):
         self.result_cache_depth = result_cache_depth
         self.result_cache = cache_class(self.result_cache_depth, is_lru=True)
 
-    def compute_output_maps(self, input_maps):
+    def get_output_map_set(self, input_map_set):
         """Compute output maps by applying the transform to input maps.
 
         Parameters
         ----------
-        input_maps : utils.DictWithHash
+        input_map_set : utils.DictWithHash
 
         """
         xform = self.get_transform()
-        result_hash = hash_obj(input_maps.hash, xform.hash)
+        result_hash = hash_obj(input_map_set.hash, xform.hash)
         try:
             return self.result_cache[result_hash]
         except KeyError:
             pass
-        output_maps = xform.apply(input_maps)
-        output_maps.update_hash(result_hash)
-        self.result_cache[result_hash] = output_maps
-        return output_maps
+        output_map_set = xform.apply(input_map_set)
+        output_map_set.update_hash(result_hash)
+        self.result_cache[result_hash] = output_map_set
+        return output_map_set
 
     def get_transform(self):
         """Load a cached transform (keyed on hash of free parameters) if it is

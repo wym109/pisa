@@ -1,15 +1,10 @@
 #! /usr/bin/env python
-#
-# TemplateMaker.py
-#
-# Class to implement template-making procedure and to store as much data
-# as possible to avoid re-running stages when not needed.
-#
-# author: Timothy C. Arlen - tca3@psu.edu
-#         Sebastian Boeser - sboeser@uni-mainz.de
-#
-# date:   7 Oct 2014
-#
+# author: J.L. Lanfranchi
+# date:   March 20, 2016
+
+"""
+Class to implement template-making procedure.
+"""
 
 import sys
 from copy import deepcopy
@@ -18,152 +13,161 @@ import numpy as np
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils.params import get_values, select_hierarchy
 from pisa.utils.fileio import from_file, to_file
 from pisa.utils.utils import Timer
 
-
-from pisa.oscillations import Oscillation
 from pisa.flux import Flux
+from pisa.osc import Osc
 from pisa.aeff import Aeff
 from pisa.reco import Reco
 from pisa.pid import PID
 
 
 class TemplateMaker:
-    """This class handles all steps needed to produce a template with a
-    constant binning.
+    """Template-making data chain and methods with generated templates.
 
-    The strategy employed will be to define all 'services' in the
-    initialization process, make them members of the class, then use
-    them later when needed.
+    Parameters
+    ----------
+    template_settings : str or utils.TemplateSettings object
+
+    Useful Methods
+    --------------
+    get_template
+    update_params
+    
     """
-    def __init__(self, template_params_values, ebins, czbins,
-                 oversample_e, oversample_cz, **kwargs):
-        """TemplateMaker class handles all of the setup and calculation of the
-        templates for a given binning.
+    def __init__(self, template_settings,
+                 cache_dir='$PISA/pisa/resources/.cache'):
+        self.cache_dir = resources.find_resource(self.cache_dir, is_dir=True)
+        self.stages = OrderedDict()
+        self.instantiate_chain(template_settings)
+
+    @property
+    def params(self):
+        p = OrderedDict()
+        for stage in self.stages.values():
+            p[stage.stage_name] = stage.params
+        return p
+
+    @property
+    def free_params(self):
+        p = OrderedDict()
+        for stage in self.stages.values():
+            p[stage.stage_name] = stage.free_params
+        return p
+
+    @property
+    def params_hash(self):
+        hashes = [stage.params_hash for stage in self.stages.values()]
+        return hash_obj(tuple(hashes))
+
+    @property
+    def free_params_hash(self):
+        hashes = [stage.free_params_hash for stage in self.stages.values()]
+        return hash_obj(tuple(hashes))
+
+    @property
+    def source_code_hash(self):
+        hashes = [stage.source_code_hash for stage in self.stages.values()]
+        return hash_obj(tuple(hashes))
+
+    @property
+    def complete_state_hash(self):
+        hashes = [stage.complete_state_hash for stage in self.stages.values()]
+        return hash_obj(tuple(hashes))
+
+    @property
+    def num_params(self):
+        return np.sum([stage.num_params for stage in self.stages.values()])
+
+    @property
+    def num_free_params(self):
+        return np.sum([stage.num_free_params for stage in self.stages.values()])
+
+    def match_to_data(self, data_map_set, minimizer_settings):
+        """Use minimizer to adjust free parameters to best fit produced map set
+        to `data_map_set`"""
+        scales = []
+        [scales.extend(stage.free_params_scales)
+         for state in self.stages.values()]
+
+    def instantiate_chain(self, template_settings):
+        if isinstance(template_settings, basestring):
+            template_settings = TemplateSettings(template_settings)
+        [self.stage_factory(ts_stage) for ts_stage in template_settings.stages]
+
+    def service_factory(self, ts_stage):
+        # TODO: correct terminology for following?
+        # Stage "main" files have capitalized first letter; this gets the
+        # stage main as an object
+        service_factory = eval('%s.service_factory' %
+                               stage.stage_name.capitalize())
+
+        # One cache *per service* for smaller, faster disk caches
+        cache_fname = '%s__%s.db' % (stage.stage_name, stage.service_name)
+        cache_fpath = os.path.join(self.cache_dir, cache_fname)
+
+        self.stages[stage.stage_name] = service_factory(params=stage.params,
+                                                        disk_cache=cache_fpath)
+
+    def get_free_params_list(self):
+        """Output all stages' free params in an ordered list"""
+        p = []
+        [p.extend(stage.free_params) for state in self.stages.values()]
+
+    def update_free_params_by_list(self, vals):
+        """Update all stages' free params with values in list"""
+        assert len(vals) == self.num_free_params
+        start_ind = 0
+        for stage in self.stages.values():
+            stop_ind = start_ind + stage.num_free_params + 1
+            stage.free_params = vals[start_ind:stop_ind]
+            start_ind = stop_ind
+
+    def get_template(self, skip_stages=None, return_intermediate=False):
+        """Run template-making chain.
 
         Parameters
         ----------
-        template_params_values
-        ebins, czbins
-            energy and coszen bin edges
-        oversample_e
-        oversample_cz
+        skip_stages : str, sequence, or None
+            Stage name(s) to skip (e.g. 'osc' to compute no-oscillations
+            template).
+
+        return_intermediate : bool
+            Whether to return all intermediate map sets.
+
+        Returns
+        -------
+        output_map_sets : OrderedDict
+            Final map sets or map sets emitted from all stages (depending on
+            settings of `return_intermediate`), keyed by stage names.
         """
-        self.ebins = ebins
-        self.czbins = czbins
+        if skip_stages is None:
+            skip_stages = []
+        if isinstance(skip_stages, basestring):
+            skip_stages = [skip_stages]
 
-        # TODO why do these not have a proper home?
-        self.oversample_e = oversample_e
-        self.oversample_cz = oversample_cz
-
-        logging.debug('Using %u bins in energy from %.2f to %.2f GeV' %
-                      (len(self.ebins)-1, self.ebins[0], self.ebins[-1]))
-        logging.debug('Using %u bins in cos(zenith) from %.2f to %.2f' %
-                      (len(self.czbins)-1, self.czbins[0], self.czbins[-1]))
-
-        # Instantiate the stages
-        self.flux_service = Flux.service_factory(**template_params_values)
-        self.osc_service = Oscillation.service_factory(
-            ebins=self.ebins, czbins=self.czbins,
-            oversample_e=self.oversample_e, oversample_cz=self.oversample_cz,
-            **template_params_values
-        )
-        self.aeff_service = Aeff.service_factory(
-            ebins=self.ebins, czbins=self.czbins,
-            **template_params_values
-        )
-        self.reco_service = Reco.service_factory(
-            ebins=self.ebins, czbins=self.czbins,
-            **template_params_values
-        )
-        self.pid_service = PID.service_factory(
-            ebins=self.ebins, czbins=self.czbins,
-            **template_params_values
-        )
-
-    #@profile
-    def get_template(self, template_params_values, no_osc=False,
-                     return_stages=False):
-        """Runs entire template-making chain.
-
-        Parameters
-        ----------
-        template_params_values : dict
-        no_osc : bool
-            If set to true, skips the oscillation stage.
-        return_stages : bool
-            If set to True, returns output from each stage as a simple tuple.
-        """
-        logging.info("STAGE 1: Getting Atm Flux maps...")
-        with Timer() as t:
-            flux_maps = self.flux_service.get_flux_maps(
-                ebins=self.ebins, czbins=self.czbins,
-                **template_params_values
-            )
-        logging.debug("==> elapsed time for flux stage: %s sec" % t.secs)
-
-        if no_osc:
-            logging.info("STAGE 2: Skipping (no oscillations case)")
-            # Nothing changes for nue, numu; need to create empty nutau maps
-            osc_flux_maps = deepcopy(flux_maps)
-            flavours = ['nutau', 'nutau_bar']
-            example_map = flux_maps['nue']
-            for flav in flavours:
-                osc_flux_maps[flav] = {
-                    'map': np.zeros_like(example_map['map']),
-                    'ebins': np.zeros_like(example_map['ebins']),
-                    'czbins': np.zeros_like(example_map['czbins'])
-                }
-        else:
-            logging.info("STAGE 2: Getting osc prob maps...")
+        input_map_set = None
+        output_map_sets = OrderedDict()
+        for stage in self.stages.values():
+            if stage.stage_name in skip_stages:
+                logging.info('Skipping stage %s' % stage.stage_name)
+                continue
             with Timer() as t:
-                osc_flux_maps = self.osc_service.get_osc_flux(
-                    flux_maps=flux_maps,
-                    oversample_e=self.oversample_e,
-                    oversample_cz=self.oversample_cz,
-                    **template_params_values
-                )
-            logging.debug("==> elapsed time for oscillations stage: %s sec"
-                           % t.secs)
+                logging.info('Computing stage %s' % stage.stage_name)
+                output_map_set = stage.get_output_map_set(input_map_set)
+                output_map_sets[stage.stage_name] = output_map_set
+                input_map_set = output_map_set
+                logging.debug('Stage %s took %s sec' % (stage.stage_name,
+                                                        t.secs))
 
-        logging.info("STAGE 3: Getting event rate true maps...")
-        with Timer() as t:
-            event_rate_maps = self.aeff_service.get_event_rates(
-                osc_flux_maps=osc_flux_maps, **template_params_values
-            )
-        logging.debug("==> elapsed time for aeff stage: %s sec" % t.secs)
-
-        logging.info("STAGE 4: Getting event rate reco maps...")
-        with Timer() as t:
-            event_rate_reco_maps = self.reco_service.get_reco_maps(
-                true_event_maps=event_rate_maps,
-                **template_params_values
-            )
-        logging.debug("==> elapsed time for reco stage: %s sec" % t.secs)
-
-        logging.info("STAGE 5: Getting pid maps...")
-        with Timer(verbose=False) as t:
-            final_event_rate = self.pid_service.get_pid_maps(
-                event_rate_reco_maps
-            )
-        logging.debug("==> elapsed time for pid stage: %s sec" % t.secs)
-
-        # TODO: make this return a keyed dict as well, so all users can have a
-        # uniform interface (i.e., if you want the final event rate however
-        # get_template() was called, just access the returned object's
-        # ['final_event_rate'] element). This will need checking everywhere
-        # get_template() is called throughout PISA.
-        if not return_stages:
-            return final_event_rate
+        if not return_intermediate:
+            # Final stage name is set in loop above
+            return OrderedDict({stage.stage_name:
+                                output_map_sets[stage.stage_name]})
 
         # Otherwise, return all stages as a dict
-        return dict(flux_maps=flux_maps,
-                    osc_flux_maps=osc_flux_maps,
-                    event_rate_maps=event_rate_maps,
-                    event_rate_reco_maps=event_rate_reco_maps,
-                    final_event_rate=final_event_rate)
+        return map_sets
 
 
 if __name__ == '__main__':
@@ -228,24 +232,24 @@ if __name__ == '__main__':
     logging.info('normal...')
     with Timer(verbose=False) as t:
         stage_outputs_nh = template_maker.get_template(
-            template_params_values_nh, return_stages=True
+            template_params_values_nh, return_intermediate=True
         )
     logging.info('==> elapsed time to get template: %s sec' % t.secs)
     with Timer(verbose=False) as t:
         stage_outputs_nh = template_maker.get_template(
-            template_params_values_nh, return_stages=True
+            template_params_values_nh, return_intermediate=True
         )
     logging.info('==> elapsed time to get template: %s sec' % t.secs)
     with Timer(verbose=False) as t:
         stage_outputs_nh = template_maker.get_template(
-            template_params_values_nh, return_stages=True
+            template_params_values_nh, return_intermediate=True
         )
     logging.info('==> elapsed time to get template: %s sec' % t.secs)
 
     logging.info('inverted...')
     with Timer(verbose=False) as t:
         stage_outputs_ih = template_maker.get_template(
-            template_params_values_ih, return_stages=True
+            template_params_values_ih, return_intermediate=True
         )
     logging.info('==> elapsed time to get template: %s sec' % t.secs)
 
