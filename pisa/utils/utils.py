@@ -20,6 +20,7 @@ import inspect
 import time
 import numbers
 import hashlib
+import struct
 try:
     import cPickle as pickle
 except ImportError:
@@ -476,32 +477,6 @@ def recursiveAllclose(x, y, *args, **kwargs):
     return True
 
 
-def test_recursiveEquality():
-    d1 = {'one':1, 'two':2, 'three': None}
-    d2 = {'one':1.0, 'two':2.0, 'three': None}
-    d3 = {'one':np.arange(0, 100),
-          'two':[{'three':{'four':np.arange(1, 2)}},
-                 np.arange(3, 4)]}
-    d4 = {'one':np.arange(0, 100),
-          'two':[{'three':{'four':np.arange(1, 2)}},
-                 np.arange(3, 4)]}
-    d5 = {'one':np.arange(0, 100),
-          'two':[{'three':{'four':np.arange(1, 3)}},
-                 np.arange(3, 4)]}
-    d6 = {'one':np.arange(0, 100),
-          'two':[{'three':{'four':np.arange(1.1, 2.1)}},
-                 np.arange(3, 4)]}
-    assert recursiveEquality(d1, d2)
-    assert not recursiveEquality(d1, d3)
-    assert recursiveEquality(d3, d4)
-    assert not recursiveEquality(d3, d5)
-    assert not recursiveEquality(d4, d5)
-    assert not recursiveEquality(d3, d6)
-    assert not recursiveEquality(d4, d6)
-
-    logging.info('<< PASSED >> recursiveEquality')
-
-
 def expandPath(path, exp_user=True, exp_vars=True, absolute=False):
     """Convenience function for expanding a path"""
     if exp_user:
@@ -887,8 +862,13 @@ def hash_obj(obj, hash_to='int'):
     """
     if hash_to is None:
         hash_to = 'int'
+    # Handle numpy arrays and matrices specially
+    # TODO: is this still needed now that we use pickle?
     if isinstance(obj, np.ndarray) or isinstance(obj, np.matrix):
         return hash_obj(obj.tostring())
+    # Handle e.g. an open file specially
+    if hasattr(obj, 'read'):
+        return hash_obj(obj.read())
     hash = hashlib.md5(pickle.dumps(obj, pickle.HIGHEST_PROTOCOL))
     if hash_to.lower() in ['i', 'int', 'integer']:
         hash_val, = struct.unpack('<q', hash.digest()[:8])
@@ -896,20 +876,50 @@ def hash_obj(obj, hash_to='int'):
         hash_val = hash.digest()
     elif hash_to.lower() in ['h', 'x', 'hex', 'hexadecimal']:
         hash_val = hash.hexdigest()
+    else:
+        raise ValueError('Unrecognized `hash_to`: "%s"' % (hash_to,))
     return hash_val
-
-def test_hash_obj():
-    print hash_obj('x')
-    print hash_obj('x')
-    print hash_obj('x', hash_to='bin')
-    print hash_obj('x', hash_to='hex')
-    print hash_obj(object)
-    print hash_obj(object())
 
 
 def hash_file(fname, hash_to=None):
     """Return a hash for a file, passing contents through hash_obj function."""
     return hash_obj(file(fname, 'rb').read(), hash_to=hash_to)
+
+
+def test_recursiveEquality():
+    d1 = {'one':1, 'two':2, 'three': None}
+    d2 = {'one':1.0, 'two':2.0, 'three': None}
+    d3 = {'one':np.arange(0, 100),
+          'two':[{'three':{'four':np.arange(1, 2)}},
+                 np.arange(3, 4)]}
+    d4 = {'one':np.arange(0, 100),
+          'two':[{'three':{'four':np.arange(1, 2)}},
+                 np.arange(3, 4)]}
+    d5 = {'one':np.arange(0, 100),
+          'two':[{'three':{'four':np.arange(1, 3)}},
+                 np.arange(3, 4)]}
+    d6 = {'one':np.arange(0, 100),
+          'two':[{'three':{'four':np.arange(1.1, 2.1)}},
+                 np.arange(3, 4)]}
+    assert recursiveEquality(d1, d2)
+    assert not recursiveEquality(d1, d3)
+    assert recursiveEquality(d3, d4)
+    assert not recursiveEquality(d3, d5)
+    assert not recursiveEquality(d4, d5)
+    assert not recursiveEquality(d3, d6)
+    assert not recursiveEquality(d4, d6)
+
+    logging.info('<< PASSED >> recursiveEquality')
+
+
+def test_hash_obj():
+    assert hash_obj('x') == -8438379708274508437
+    assert hash_obj('x') == -8438379708274508437
+    #assert hash_obj('x', hash_to='bin') == '\xfdn ]\xda\xe4\x8a\xde&\x80xNg+f'.encode,\
+    #        (hash_obj('x', hash_to='bin')).decode('ascii')
+    assert hash_obj('x', hash_to='hex') == '6bfd6e205ddae48ade2680784e672b66'
+    assert hash_obj(object) == -591373952375362512
+    assert hash_obj(object()) == -5704184814176152584
 
 
 if __name__ == "__main__":
