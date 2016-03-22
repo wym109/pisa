@@ -1,16 +1,17 @@
 #
-# utils.py
-#
-# A set of utility function to deal with maps, etc...
-#
 # author: Sebastian Boeser
 #         sboeser@physik.uni-bonn.de
 #
 # author: Tim Arlen
 #         tca3@psu.edu
 #
+# author: J.L. Lanfranchi
+#         jll1062+pisa@phys.psu.edu
+#
 # date:   2014-01-27
+
 """General utility functions"""
+
 
 import os
 import re
@@ -19,11 +20,14 @@ import inspect
 import time
 import numbers
 import hashlib
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 
 import numpy as np
 from scipy.stats import binned_statistic_2d
 
-from pisa.utils import jsons
 from pisa.utils.log import logging
 
 
@@ -875,25 +879,39 @@ def prefilled_map(ebins, czbins, val, dtype=float):
     return newmap
 
 
-def hash_obj(obj):
-    """Return hash for an object by serializing the object to a JSON string"""
-    if isinstance(obj, np.ndarray) or isinstance(obj, np.matrix):
-        return hash(obj.tostring())
-    return hash(jsons.json.dumps(obj, sort_keys=True, cls=jsons.NumpyEncoder,
-                                 indent=None, ensure_ascii=False,
-                                 check_circular=True, allow_nan=True,
-                                 separators=(',', ':')))
+def hash_obj(obj, hash_to='int'):
+    """Return hash for an object `obj` by serializing the object to a pickle
+    string.
 
-
-def hash_file(fname):
-    """Return a hash for a file
-
-    Currently, uses md5 sum as hash algorithm.
+    Hash is derived from the first 8 bytes of the MD5 sum, taken as an integer.
     """
-    md5 = hashlib.md5()
-    md5.update(file(fname, 'rb').read())
-    return md5.hexdigest()
+    if hash_to is None:
+        hash_to = 'int'
+    if isinstance(obj, np.ndarray) or isinstance(obj, np.matrix):
+        return hash_obj(obj.tostring())
+    hash = hashlib.md5(pickle.dumps(obj, pickle.HIGHEST_PROTOCOL))
+    if hash_to.lower() in ['i', 'int', 'integer']:
+        hash_val, = struct.unpack('<q', hash.digest()[:8])
+    elif hash_to.lower() in ['b', 'bin', 'binary']:
+        hash_val = hash.digest()
+    elif hash_to.lower() in ['h', 'x', 'hex', 'hexadecimal']:
+        hash_val = hash.hexdigest()
+    return hash_val
+
+def test_hash_obj():
+    print hash_obj('x')
+    print hash_obj('x')
+    print hash_obj('x', hash_to='bin')
+    print hash_obj('x', hash_to='hex')
+    print hash_obj(object)
+    print hash_obj(object())
+
+
+def hash_file(fname, hash_to=None):
+    """Return a hash for a file, passing contents through hash_obj function."""
+    return hash_obj(file(fname, 'rb').read(), hash_to=hash_to)
 
 
 if __name__ == "__main__":
     test_recursiveEquality()
+    test_hash_obj()

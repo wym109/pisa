@@ -13,6 +13,7 @@ import numpy as np
 
 from pisa.utils.log import logging
 import pisa.resources.resources as resources
+from pisa.utils import utils
 
 
 @total_ordering
@@ -30,7 +31,7 @@ class Param(object):
         self.is_discrete = False
 
     def __eq__(self, other):
-        return self.state == other.state
+        return utils.recursiveEquality(self.state, other.state)
 
     def __lt__(self, other):
         return self.name < other.name
@@ -43,7 +44,7 @@ class Param(object):
     @property
     def state(self):
         state = OrderedDict()
-        [state.__setitem__(k, self.__getattr__(k)) for k in self.__slots]
+        [state.__setitem__(k, self.__getattribute__(k)) for k in self.__slots]
         return state
 
     @property
@@ -56,7 +57,7 @@ class Param(object):
 
     @property
     def state_hash(self):
-        return hash_obj(self.state)
+        return utils.hash_obj(self.state)
 
 
 class ParamSet(object):
@@ -185,11 +186,11 @@ class ParamSet(object):
 
     @property
     def values_hash(self):
-        return hash_obj(self.values)
+        return utils.hash_obj(self.values)
 
     @property
     def state_hash(self):
-        return hash_obj(self.state)
+        return utils.hash_obj(self.state)
 
 
 #def select_hierarchy(params, normal_hierarchy):
@@ -275,7 +276,7 @@ class ParamSet(object):
 #    return new_params
 
 
-def test_params():
+def test_ParamSet():
     c = ParamSet([Param('first'), Param('second'), Param('third')])
     print c.values
     print c[0]
@@ -335,3 +336,7 @@ def test_params():
 
     print c[0].prior_chisquare
     print c.priors_chisquare
+
+
+if __name__ == "__main__":
+    test_ParamSet()
