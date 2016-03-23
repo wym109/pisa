@@ -30,61 +30,68 @@ class TemplateMaker:
     ----------
     template_settings : str or utils.TemplateSettings object
 
-    Useful Methods
-    --------------
+    Methods
+    -------
     get_template
     update_params
+
+    Properties
+    ----------
+    cache_dir
+    params : PramSet
+    stages
+    injected_hierarchy
+    injected_octant
+    hierarchy_params
     
     """
     def __init__(self, template_settings,
                  cache_dir='$PISA/pisa/resources/.cache'):
         self.cache_dir = resources.find_resource(self.cache_dir, is_dir=True)
         self.stages = OrderedDict()
-        self.injected_params = None
+        self.params = ParamSet()
+        self.__injected_params = None
         self.instantiate_chain(template_settings)
 
-    @property
-    def params(self):
-        p = OrderedDict()
-        for stage in self.stages.values():
-            p[stage.stage_name] = stage.params
-        return p
-
-    @property
-    def free_params(self):
-        p = OrderedDict()
-        for stage in self.stages.values():
-            p[stage.stage_name] = stage.free_params
-        return p
-
-    @property
-    def params_hash(self):
-        hashes = [stage.params_hash for stage in self.stages.values()]
-        return hash_obj(tuple(hashes))
-
-    @property
-    def free_params_hash(self):
-        hashes = [stage.free_params_hash for stage in self.stages.values()]
-        return hash_obj(tuple(hashes))
-
+    # TODO: Move to ParamSet object
     #@property
-    #def source_code_hash(self):
-    #    hashes = [stage.source_code_hash for stage in self.stages.values()]
+    #def params(self):
+    #    p = OrderedDict()
+    #    for stage in self.stages.values():
+    #        p[stage.stage_name] = stage.params
+    #    return p
+
+    # TODO: Move to ParamSet object
+    #@property
+    #def free_params(self):
+    #    p = OrderedDict()
+    #    for stage in self.stages.values():
+    #        p[stage.stage_name] = stage.free_params
+    #    return p
+
+    # TODO: Move to ParamSet object
+    #@property
+    #def params_hash(self):
+    #    hashes = [stage.params_hash for stage in self.stages.values()]
     #    return hash_obj(tuple(hashes))
 
-    @property
-    def complete_state_hash(self):
-        hashes = [stage.complete_state_hash for stage in self.stages.values()]
-        return hash_obj(tuple(hashes))
+    # TODO: Move to ParamSet object
+    #@property
+    #def free_params_hash(self):
+    #    hashes = [stage.free_params_hash for stage in self.stages.values()]
+    #    return hash_obj(tuple(hashes))
 
+    # TODO: Move to ParamSet object
     #@property
     #def num_params(self):
     #    return np.sum([stage.num_params for stage in self.stages.values()])
 
+    # TODO: Move to ParamSet object
     #@property
     #def num_free_params(self):
     #    return np.sum([stage.num_free_params for stage in self.stages.values()])
 
+    # TODO: Move to Analysis object
     #def match_to_data(self, data_map_set, minimizer_settings):
     #    """Use minimizer to adjust free parameters to best fit produced map set
     #    to `data_map_set`"""
@@ -92,12 +99,28 @@ class TemplateMaker:
     #    [scales.extend(stage.free_params_scales)
     #     for state in self.stages.values()]
 
+    # TODO: Move to ParamSet object
+    #def get_free_params_list(self):
+    #    """Output all stages' free params in an ordered list"""
+    #    p = []
+    #    [p.extend(stage.free_params) for state in self.stages.values()]
+
+    # TODO: Move to ParamSet object
+    #def update_free_params_by_list(self, vals):
+    #    """Update all stages' free params with values in list"""
+    #    assert len(vals) == self.num_free_params
+    #    start_ind = 0
+    #    for stage in self.stages.values():
+    #        stop_ind = start_ind + stage.num_free_params + 1
+    #        stage.free_params = vals[start_ind:stop_ind]
+    #        start_ind = stop_ind
+
     def instantiate_chain(self, template_settings):
         #if isinstance(template_settings, basestring):
         template_settings = loadTemplateSettings(template_settings)
         for ts_stage in template_settings.stages:
             self.stage_factory(ts_stage)
-        self.injected_params = deepcopy(self.params)
+        self.injected_params = self.params
 
     def service_factory(self, ts_stage):
         # TODO: correct terminology for following?
@@ -112,20 +135,6 @@ class TemplateMaker:
 
         self.stages[stage.stage_name] = service_factory(params=stage.params,
                                                         disk_cache=cache_fpath)
-
-    #def get_free_params_list(self):
-    #    """Output all stages' free params in an ordered list"""
-    #    p = []
-    #    [p.extend(stage.free_params) for state in self.stages.values()]
-
-    #def update_free_params_by_list(self, vals):
-    #    """Update all stages' free params with values in list"""
-    #    assert len(vals) == self.num_free_params
-    #    start_ind = 0
-    #    for stage in self.stages.values():
-    #        stop_ind = start_ind + stage.num_free_params + 1
-    #        stage.free_params = vals[start_ind:stop_ind]
-    #        start_ind = stop_ind
 
     def get_template(self, skip_stages=None, return_intermediate=False):
         """Run template-making chain.
@@ -171,6 +180,16 @@ class TemplateMaker:
 
         # Otherwise, return all stages as a dict
         return map_sets
+
+    @property
+    def source_code_hash(self):
+        hashes = [stage.source_code_hash for stage in self.stages.values()]
+        return hash_obj(tuple(hashes))
+
+    @property
+    def state_hash(self):
+        hashes = [stage.state_hash for stage in self.stages.values()]
+        return hash_obj(tuple(hashes))
 
 
 if __name__ == '__main__':

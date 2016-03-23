@@ -15,7 +15,7 @@ class GenericStage(object):
 
     Parameters
     ----------
-    params : None, dict, str
+    params : ParamSet or sequence with which to instantiate a ParamSet
         Parameters with which to instantiate the class.
         If str, interpret as resource location and load params from resource.
         If dict, set contained params. Format expected is
@@ -34,7 +34,7 @@ class GenericStage(object):
     service_name : str
         Name of the service, e.g. 'AeffServiceMC'
 
-    params : OrderedDict
+    params : ParamSet or sequence with which to instantiate a ParamSet
         All stage parameters, returned in alphabetical order by param name.
         The format of the returned dict is
             {'<param_name_0>': <param_val_0>, ...,
@@ -59,7 +59,7 @@ class GenericStage(object):
     source_code_hash
         Hash for the class's source code.
 
-    complete_state_hash
+    state_hash
         Combines source_code_hash and params_hash for checking/tagging
         provenance of persisted (on-disk) objects.
 
@@ -120,36 +120,6 @@ class GenericStage(object):
         raise NotImplementedError()
 
     @property
-    def params_hash(self):
-        """Returns a hash for *all* parameters. Note that This can be slow!"""
-        if self.__params_hash is None:
-            self.__params_hash = utils.hash_obj(self.__params)
-        return self.__params_hash
-
-    @property
-    def free_params_hash(self):
-        """Returns a hash for just free parameters; should be faster than
-        params_hash."""
-        if self.__params_hash is None:
-            self.__params_hash = utils.hash_obj(self.__params)
-        return self.__params_hash
-
-    @property
-    def source_code_hash(self):
-        """Returns a hash for the source code of this object's class.
-
-        Not meant to be perfect, but should suffice for tracking provenance of
-        an object stored to disk that were produced by a Stage.
-        """
-        if self.__source_code_hash is None:
-            self.__source_code_hash = hash(inspect.getsource(self))
-        return self.__source_code_hash
-
-    @property
-    def complete_state_hash(self):
-        return hash((self.source_code_hash, self.params_hash))
-
-    @property
     def params(self):
         ordered = collections.OrederedDict()
         [ordered[k].__setitem__(self.__params[k])
@@ -172,63 +142,93 @@ class GenericStage(object):
         self.__params_hash = None
         self.__free_params_hash = None
 
-    def load_params(self, resource):
-        # TODO: load from ini file format
-        if isinstance(resource, basestring):
-            params_dict = fileio.from_file(resource)
-        elif isinstance(collections.Mapping):
-            params_dict = resource
-        else:
-            raise TypeError('Unhandled `rsource` type "%s"' % type(resource))
-        self.params = params_dict
+    #def load_params(self, resource):
+    #    # TODO: load from ini file format
+    #    if isinstance(resource, basestring):
+    #        params_dict = fileio.from_file(resource)
+    #    elif isinstance(collections.Mapping):
+    #        params_dict = resource
+    #    else:
+    #        raise TypeError('Unhandled `rsource` type "%s"' % type(resource))
+    #    self.params = params_dict
+
+    #@property
+    #def free_params(self):
+    #    ordered = collections.OrederedDict()
+    #    [ordered[k].__setitem__(self.__params[k])
+    #     for k in sorted(self.__free_param_names)]
+    #    return ordered
+
+    #@property
+    #def num_params(self):
+    #    return len(self.__params)
+
+    #@property
+    #def num_free_params(self):
+    #    return len(self.__free_param_names)
+
+    #@free_params.setter
+    #def free_params(self, p):
+    #    if isinstance(p, (collections.Iterable, collections.Sequence)):
+    #        p = {pname: p[n]
+    #             for n, pname in enumerate(sorted(self.__free_param_names))}
+    #        assert len(p) == len(self.__free_param_names)
+
+    #    if not isinstance(p, collections.Mapping):
+    #        raise TypeError('Unhandled `params` type "%s"' % type(p))
+
+    #    assert set(p.keys()).issubset(self.__free_param_names)
+    #    self.validate(p)
+    #    self.__params.update(p)
+
+    #    # Invalidate hashes so they get recomputed next time they're requested
+    #    self.__params_hash = None
+    #    self.__free_params_hash = None
+
+    #def fix_params(self, params, ignore_missing=False):
+    #    if np.isscalar(params):
+    #        params = [params]
+    #    if ignore_missing:
+    #        [self.free_params.add(p) for p in params if p in self.__params]
+    #    else:
+    #        assert
+    #        self.__free_param_names.difference_update(params)
+
+    #def unfix_params(self, params, ignore_missing=False):
+    #    if ignore_missing:
+    #        self.__free_param_names.difference_update(params)
+    #    else:
+    #        [self.__free_param_names.remove(p) for p in params]
+    #@property
+    #def params_hash(self):
+    #    """Returns a hash for *all* parameters. Note that This can be slow!"""
+    #    if self.__params_hash is None:
+    #        self.__params_hash = utils.hash_obj(self.__params)
+    #    return self.__params_hash
+
+    #@property
+    #def free_params_hash(self):
+    #    """Returns a hash for just free parameters; should be faster than
+    #    params_hash."""
+    #    if self.__params_hash is None:
+    #        self.__params_hash = utils.hash_obj(self.__params)
+    #    return self.__params_hash
 
     @property
-    def free_params(self):
-        ordered = collections.OrederedDict()
-        [ordered[k].__setitem__(self.__params[k])
-         for k in sorted(self.__free_param_names)]
-        return ordered
+    def source_code_hash(self):
+        """Returns a hash for the source code of this object's class.
+
+        Not meant to be perfect, but should suffice for tracking provenance of
+        an object stored to disk that were produced by a Stage.
+        """
+        if self.__source_code_hash is None:
+            self.__source_code_hash = hash(inspect.getsource(self))
+        return self.__source_code_hash
 
     @property
-    def num_params(self):
-        return len(self.__params)
+    def state_hash(self):
+        return hash((self.source_code_hash, self.params.state_hash))
 
-    @property
-    def num_free_params(self):
-        return len(self.__free_param_names)
-
-    @free_params.setter
-    def free_params(self, p):
-        if isinstance(p, (collections.Iterable, collections.Sequence)):
-            p = {pname: p[n]
-                 for n, pname in enumerate(sorted(self.__free_param_names))}
-            assert len(p) == len(self.__free_param_names)
-
-        if not isinstance(p, collections.Mapping):
-            raise TypeError('Unhandled `params` type "%s"' % type(p))
-
-        assert set(p.keys()).issubset(self.__free_param_names)
-        self.validate(p)
-        self.__params.update(p)
-
-        # Invalidate hashes so they get recomputed next time they're requested
-        self.__params_hash = None
-        self.__free_params_hash = None
-
-    def fix_params(self, params, ignore_missing=False):
-        if np.isscalar(params):
-            params = [params]
-        if ignore_missing:
-            [self.free_params.add(p) for p in params if p in self.__params]
-        else:
-            assert
-            self.__free_param_names.difference_update(params)
-
-    def unfix_params(self, params, ignore_missing=False):
-        if ignore_missing:
-            self.__free_param_names.difference_update(params)
-        else:
-            [self.__free_param_names.remove(p) for p in params]
 
 
 class NoInputStage(GenericStage):
