@@ -4,11 +4,12 @@
 # date   : March 25, 2016
 
 """
-Class to contain 2D histogram, error, and metadata about the contents. Also provides basic mathematical operations for the contained data.
+Class to contain 2D histogram, error, and metadata about the contents. Also
+provides basic mathematical operations for the contained data.
 """
 
 
-from collections import OrderedDict
+from collections import OrderedDict, Mapping
 
 import numpy as np
 
@@ -64,6 +65,51 @@ def strip_outer_parens(value):
 
 
 class Map(object):
+    """Class to contain 2D histogram, error, and metadata about the contents.
+    Also provides basic mathematical operations for the contained data, and
+    attempts to automatically propagate errors via the `variance` property
+    (which -- as of now -- is assumed to represent Gaussian errors).
+
+    Parameters
+    ----------
+    name
+    hist
+    binning
+    hash
+    variance
+    tex
+    full_comparison
+
+    Properties
+    ----------
+    full_comparison
+    hash
+    hist
+    name
+    state
+    tex
+    variance
+
+    Methods
+    -------
+    assert_compat
+    __abs__
+    __add__
+    __div__
+    __eq__
+    __hash__
+    __mul__
+    __ne__
+    __neg__
+    __pow__
+    __radd__
+    __rdiv__
+    __rmul__
+    __rsub__
+    __str__
+    __sub__
+
+    """
     __slots = ('name', 'hist', 'binning', 'hash', 'variance', 'tex',
                'full_comparison')
     def __init__(self, name, hist, binning, hash=None, variance=None, tex=None,
@@ -75,11 +121,14 @@ class Map(object):
         self.full_comparison = full_comparison
 
         # Do the work here to set read-only attributes
-        object.__setattr__(self, '__binning', Binning(binning))
-        binning.check_compatibility(hist)
+        if not isinstance(binning, Binning):
+            assert isinstance(binning, Mapping)
+            binning = Binning(**binning)
+        object.__setattr__(self, '__binning', binning)
+        binning.assert_array_compat(hist)
         object.__setattr__(self, '__hist', hist)
         if variance is not None:
-            binning.check_compatibility(variance)
+            binning.assert_array_compat(variance)
         object.__setattr__(self, '__variance', variance)
 
     @property
@@ -89,8 +138,8 @@ class Map(object):
             state[slot] = self.__getattr__(slot)
         return state
 
-    def check_compatibility(self, other):
-        assert self.binning.check_compatibility(other.hist)
+    def assert_compat(self, other):
+        assert self.binning.assert_array_compat(other.hist)
 
     def __str__(self):
         return strip_outer_parens(self.name)
@@ -173,22 +222,19 @@ class Map(object):
                 name="%s + %s" % (self.name, other),
                 tex=r"{(%s + %s)}" % (self.tex, other),
                 hist=self.hist + other,
-                variance=variance,
             ))
         elif isinstance(other, np.ndarray):
             state.update(dict(
                 name="(%s + array)" % self.name,
                 tex=r"{(%s + X)}" % self.tex,
                 hist=self.hist + other,
-                variance=variance,
             ))
         elif isinstance(other, Map):
-            self.check_compatibility(other)
+            self.assert_compat(other)
             state.update(dict(
                 name="(%s + %s)" % (self.name, other.name),
                 tex=r"{(%s + %s)}" % (self.tex, other.tex),
                 hist=self.hist + other.hist,
-                variance=variance,
                 full_comparison=self.full_comparison or other.full_comparison,
             ))
         else:
@@ -197,7 +243,7 @@ class Map(object):
         return Map(**state)
 
     #def __cmp__(self, other):
-    #    self.check_compatibility(other)
+    #    self.assert_compat(other)
 
     def __div__(self, other):
         state = self.state
@@ -206,22 +252,19 @@ class Map(object):
                 name="(%s / %s)" % (self.name, other),
                 tex=r"{(%s / %s)}" % (self.tex, other),
                 hist=self.hist / other,
-                variance=variance,
             ))
         elif isinstance(other, np.ndarray):
             state.update(dict(
                 name="(%s / array)" % self.name,
                 tex=r"{(%s / X)}" % self.tex,
                 hist=self.hist / other,
-                variance=variance,
             ))
         elif isinstance(other, Map):
-            self.check_compatibility(other)
+            self.assert_compat(other)
             state.update(dict(
                 name="(%s / %s)" % (self.name, other.name),
                 tex=r"{(%s / %s)}" % (self.tex, other.tex),
                 hist=self.hist / other.hist,
-                variance=variance,
                 full_comparison=self.full_comparison or other.full_comparison,
             ))
         else:
@@ -245,31 +288,31 @@ class Map(object):
         return self.hash == other.hash
             
     #def __ge__(self, other):
-    #    self.check_compatibility(other)
+    #    self.assert_compat(other)
 
     #def __gt__(self, other):
-    #    self.check_compatibility(other)
+    #    self.assert_compat(other)
 
     #def __iadd__(self, other):
-    #    self.check_compatibility(other)
+    #    self.assert_compat(other)
 
     #def __idiv__(self, other):
-    #    self.check_compatibility(other)
+    #    self.assert_compat(other)
 
     #def __imul__(self, other):
-    #    self.check_compatibility(other)
+    #    self.assert_compat(other)
 
     #def __ipow__(self, other):
-    #    self.check_compatibility(other)
+    #    self.assert_compat(other)
 
     #def __isub__(self, other):
-    #    self.check_compatibility(other)
+    #    self.assert_compat(other)
 
     #def __le__(self, other):
-    #    self.check_compatibility(other)
+    #    self.assert_compat(other)
 
     #def __lt__(self, other):
-    #    self.check_compatibility(other)
+    #    self.assert_compat(other)
 
     def __mul__(self, other):
         state = self.state
@@ -280,14 +323,13 @@ class Map(object):
                 hist=self.hist * other,
             ))
         elif isinstance(other, np.ndarray):
-            self.check_compatibility(other)
             state.update(dict(
                 name="%s * array" % self.name,
                 tex=r"%s \times X" % self.tex,
                 hist=self.hist * other,
             ))
         elif isinstance(other, Map):
-            self.check_compatibility(other)
+            self.assert_compat(other)
             state.update(dict(
                 name="%s * %s" % (self.name, other.name),
                 tex=r"%s \times %s" % (self.tex, other.tex),
@@ -330,14 +372,13 @@ class Map(object):
                 hist=val,
             ))
         elif isinstance(other, np.ndarray):
-            self.check_compatibility(other)
             state.update(dict(
                 name="%s^(array)" % self.name,
                 tex=r"%s^{X}" % self.tex,
                 hist=np.power(self.hist, other),
             ))
         elif np.isinstance(other, Map):
-            self.check_compatibility(other)
+            self.assert_compat(other)
             state.update(dict(
                 name="%s^(%s)" % (self.name, strip_outer_parens(other.name)),
                 tex=r"%s^{%s}" % (self.tex, strip_outer_parens(other.tex)),
@@ -361,7 +402,7 @@ class Map(object):
                 name="(%s / %s)" % (other, self.name),
                 tex="{(%s / %s)}" % (other, self.tex),
                 hist=other / self.hist,
-            )
+            ))
         elif isinstance(other, np.ndarray):
             state.update(dict(
                 name="array / %s" % self.name,
@@ -413,7 +454,7 @@ class Map(object):
                 hist=self.hist - other,
             ))
         elif np.isinstance(other, Map):
-            self.check_compatibility(other)
+            self.assert_compat(other)
             state.update(dict(
                 name="%s - %s" % (self.name, other.name),
                 tex="{(%s - %s)}" % (self.tex, other.tex),
