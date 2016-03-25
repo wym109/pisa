@@ -10,6 +10,7 @@ provides basic mathematical operations for the contained data.
 
 
 from collections import OrderedDict, Mapping
+import re
 
 import numpy as np
 
@@ -19,12 +20,16 @@ from pisa.utils.binning import Binning
 def type_error(value):
     raise TypeError('Type of argument not supported: "%s"' % type(value))
 
-def add_variance_var(variance_a, variance_b):
-    if var_a is None:
-        return var_b
-    if var_b is None:
-        return var_a
-    return var_a + var_b
+def abs_var(obj):
+    return None
+
+def add_var(obj1, obj2):
+    return None
+    #if var_a is None:
+    #    return var_b
+    #if var_b is None:
+    #    return var_a
+    #return var_a + var_b
 
 def add_var_stdev(var_a, var_b):
     if var_a is None:
@@ -34,7 +39,8 @@ def add_var_stdev(var_a, var_b):
     val = np.sqrt(var_a) + np.sqrt(var_b)
     return val * val
 
-def divide_var(hist_a, var_a, hist_b, var_b):
+def divide_var(obj1, obj2): #hist_a, var_a, hist_b, var_b):
+    return None
     if var_a is not None:
         val_a = var_a / (hist_b*hist_b)
     if var_b is not None:
@@ -52,13 +58,19 @@ def divide_var(hist_a, var_a, hist_b, var_b):
     # neither var_a nor var_b is None
     return val_a + val_b
 
+def multiply_var(obj1, obj2):
+    return None
+
+def power_var(obj1, obj2):
+    return None
+
 
 def strip_outer_parens(value):
     value = value.strip()
-    m = re.match(r'\{\((.*)\)\}$', value)
+    m = re.match(r'^\{\((.*)\)\}$', value)
     if m is not None:
         value = m.groups()[0]
-    m = re.match(r'\((.*)\)$', value)
+    m = re.match(r'^\((.*)\)$', value)
     if m is not None:
         value = m.groups()[0]
     return value
@@ -110,98 +122,118 @@ class Map(object):
     __sub__
 
     """
-    __slots = ('name', 'hist', 'binning', 'hash', 'variance', 'tex',
-               'full_comparison')
+    slots = ('name', 'hist', 'binning', 'hash', 'variance', 'tex',
+             'full_comparison')
     def __init__(self, name, hist, binning, hash=None, variance=None, tex=None,
                  full_comparison=True):
+        super(Map, self).__init__()
         # Set Read/write attributes via their defined setters
-        self.name = name
-        self.tex = r'{\rm %s}' % name if tex is None else tex
-        self.hash = hash
-        self.full_comparison = full_comparison
+        super(Map, self).__setattr__('_name', name)
+        tex = r'{\rm %s}' % name if tex is None else tex
+        super(Map, self).__setattr__('_tex', tex)
+        super(Map, self).__setattr__('_hash', hash)
+        super(Map, self).__setattr__('_full_comparison', full_comparison)
 
         # Do the work here to set read-only attributes
         if not isinstance(binning, Binning):
             assert isinstance(binning, Mapping)
             binning = Binning(**binning)
-        object.__setattr__(self, '__binning', binning)
+        super(Map, self).__setattr__('_binning', binning)
         binning.assert_array_compat(hist)
-        object.__setattr__(self, '__hist', hist)
+        super(Map, self).__setattr__('_hist', hist)
         if variance is not None:
             binning.assert_array_compat(variance)
-        object.__setattr__(self, '__variance', variance)
+        super(Map, self).__setattr__('_variance', variance)
 
     @property
     def state(self):
         state = OrderedDict()
-        for slot in self.__slots:
+        for slot in self.slots:
             state[slot] = self.__getattr__(slot)
         return state
 
     def assert_compat(self, other):
-        assert self.binning.assert_array_compat(other.hist)
+        if np.isscalar(other):
+            return
+        elif isinstance(other, np.ndarray):
+            self.binning.assert_array_compat(other.hist)
+        elif isinstance(other, Map):
+            assert self.binning == other.binning, \
+                    "(%s) incompat. with (%s)" % (other.binning, self.binning)
+        else:
+            assert False, 'Unrecognized type %s' % type(other)
 
     def __str__(self):
         return strip_outer_parens(self.name)
-
-    def __setattr__(self, attr, value):
-        """Only allow setting attributes defined in __slots"""
-        if attr not in self.__slots:
-            raise ValueError()
-        object.__setattr__(self, attr, value)
 
     def __hash__(self):
         if self.hash is not None:
             return self.hash
         raise ValueError('No hash defined.')
 
+    def __setattr__(self, attr, value):
+        """Only allow setting attributes defined in slots"""
+        if attr not in self.slots:
+            raise ValueError('Attribute "%s" not allowed to be set.' % attr)
+        super(Map, self).__setattr__(attr, value)
+
+    def __getattr__(self, attr):
+        return super(Map, self).__getattribute__(attr)
+
+    def __getitem__(self, idx): 
+        return self.hist.__getitem__(idx) 
+                     
+    def __setitem__(self, idx, val):
+        return self.hist.__setitem__(idx, val) 
+
     @property
     def name(self):
-        return self.__name
+        return self._name
 
     @name.setter
     def name(self, value):
         assert isinstance(value, basestring)
-        return object.__setattr__(self, '__name', value)
+        return super(Map, self).__setattr__('_name', value)
 
     @property
     def tex(self):
-        return self.__tex
+        return self._tex
 
     @tex.setter
     def tex(self, value):
         assert isinstance(value, basestring)
-        return object.__setattr__(self, '__tex', tex)
+        return super(Map, self).__setattr__('_tex', value)
 
     @property
     def hash(self):
-        return self.__hash
+        return self._hash
 
     @hash.setter
     def hash(self, value):
         """Hash must be an immutable type (i.e., have a __hash__ method)"""
-        assert value.__hash__ is not None
-        self.__hash = value
+        #assert value.__hash__ is not None
+        super(Map, self).__setattr__('_hash', value)
 
     @property
     def hist(self):
-        return self.__hist
+        return self._hist
 
     @property
     def binning(self):
-        return self.__binning
+        return self._binning
 
     @property
     def variance(self):
-        return self.__variance
+        return self._variance
 
     @property
     def full_comparison(self):
-        return self.__full_comparison
+        return self._full_comparison
 
     @full_comparison.setter
     def full_comparison(self, value):
-        self.__full_comparison = bool(value)
+        assert isinstance(value, bool)
+        super(Map, self).__setattr__('_full_comparison', value)
 
     # Common mathematical operators
 
@@ -219,7 +251,7 @@ class Map(object):
         state = self.state
         if np.isscalar(other):
             state.update(dict(
-                name="%s + %s" % (self.name, other),
+                name="(%s + %s)" % (self.name, other),
                 tex=r"{(%s + %s)}" % (self.tex, other),
                 hist=self.hist + other,
             ))
@@ -282,10 +314,15 @@ class Map(object):
         
         Otherwise, simply checks that the hashes are equal.
         """
-        if (self.full_comparison or other.full_comparison or self.hash is None
-            or other.hash is None):
-            return utils.recursiveEquality(self.state, other.state)
-        return self.hash == other.hash
+        if np.isscalar(other) or isinstance(other, np.ndarray):
+            return np.all(self.hist == other)
+        elif isinstance(other, Map):
+            if (self.full_comparison or other.full_comparison
+                or self.hash is None or other.hash is None):
+                return utils.recursiveEquality(self.state, other.state)
+            return self.hash == other.hash
+        else:
+            type_error(other)
             
     #def __ge__(self, other):
     #    self.assert_compat(other)
@@ -468,7 +505,30 @@ class Map(object):
 
 
 def test_Map():
-    pass
+    m1 = Map(name='x', hist=np.ones((40,20)),
+             binning=dict(n_ebins=40, e_range=(1,80), e_is_log=True,
+                          n_czbins=20, cz_range=(-1,0)))
+    m2 = Map(name='y', hist=2*np.ones((40,20)),
+             binning=dict(n_ebins=40, e_range=(1,80), e_is_log=True,
+                          n_czbins=20, cz_range=(-1,0)))
+    print m1, m1.binning
+    print m2, m2.binning
+    r = m1 + m2
+    assert r == 3
+    print 'm1+m2=3:', r, r[0,0]
+    r = m2 + m1
+    assert r == 3
+    print 'm2+m1=3:', r, r[0,0]
+    r = 2*m1
+    assert r == 2
+    print '2*m1=2:', r, r[0,0]
+    r = (2*m1 + 8) / m2
+    assert r == 5
+    print '(2*m1 + 8) / m2=5:', r, r.hist[0,0]
+    r[:,1] = 1
+    r[2,:] = 2
+    print r[0:5,0:5]
+
 
 if __name__ == "__main__":
     test_Map()

@@ -44,13 +44,15 @@ class Param(object):
     -------
     validate_value
     """
-    __slots = ('name', '__tex', 'help', 'value', 'prior', 'range', 'scale',
-               'is_fixed', 'is_discrete', '__nominal_value')
+    slots = ('name', 'value', 'prior', 'range', 'is_fixed', 'is_discrete',
+             'scale', '_nominal_value', '_tex', 'help')
+    state_attrs = ('name', 'value', 'prior', 'range', 'is_fixed',
+                   'is_discrete', 'scale', 'nominal_value', 'tex', 'help')
 
     def __init__(self, name, value, prior, range, is_fixed, is_discrete=False,
-                 scale=1, tex=None, help=''):
+                 scale=1, nominal_value=None, tex=None, help=''):
         self.name = name
-        self.__tex = tex if tex is not None else name
+        self._tex = tex if tex is not None else name
         self.help = help
         self.range = range
         self.is_fixed = is_fixed
@@ -59,7 +61,7 @@ class Param(object):
         self.value = value
         self.prior = prior
         self.scale = scale
-        self.nominal_value = value
+        self._nominal_value = value if nominal_value is None else nominal_value
 
     def __eq__(self, other):
         return utils.recursiveEquality(self.state, other.state)
@@ -68,7 +70,7 @@ class Param(object):
         return self.name < other.name
 
     def __setattr__(self, attr, val):
-        if attr not in self.__slots:
+        if attr not in self.slots:
             raise AttributeError('Invalid attribute: %s' % (attr,))
         object.__setattr__(self, attr, val)
 
@@ -86,21 +88,22 @@ class Param(object):
 
     @property
     def tex(self):
-        return '%s=%s' % (self.__tex, self.value)
+        return '%s=%s' % (self._tex, self.value)
 
     @property
     def nominal_value(self):
-        return self.__nominal_value
+        return self._nominal_value
 
     @nominal_value.setter
     def nominal_value(self, value):
         self.validate_value(value)
-        self.__nominal_value = value
+        self._nominal_value = value
 
     @property
     def state(self):
         state = OrderedDict()
-        [state.__setitem__(k, self.__getattribute__(k)) for k in self.__slots]
+        [state.__setitem__(a, self.__getattribute__(a))
+         for a in self.state_attrs]
         return state
 
     @property
@@ -438,65 +441,72 @@ class ParamSet(object):
 
 
 def test_ParamSet():
-    c = ParamSet([Param('first'), Param('second'), Param('third')])
-    print c.values
-    print c[0]
-    c[0].value = 1
-    print c.values
+    p0 = Param(name='c', value=1.5, prior=None, range=[1,2],
+                          is_fixed=False, is_discrete=False, tex=r'\int{\rm c}')
+    p1 = Param(name='a', value=2.5, prior=None, range=[1,5],
+                          is_fixed=False, is_discrete=False, tex=r'{\rm a}')
+    p2 = Param(name='b', value=1.5, prior=None, range=[1,2],
+                          is_fixed=False, is_discrete=False, tex=r'{\rm b}')
+    param_set = ParamSet(p0, p1, p2)
+    print param_set.values
+    print param_set[0]
+    param_set[0].value = 1
+    print param_set.values
 
-    c.values = [3, 2, 1]
-    print c.values
-    print c.values[0]
-    print c[0].value
+    param_set.values = [3, 2, 1]
+    print param_set.values
+    print param_set.values[0]
+    print param_set[0].value
 
-    print 'priors:', c.priors
-    print 'names:', c.names
+    print 'priors:', param_set.priors
+    print 'names:', param_set.names
 
-    print c['first']
-    print c['first'].value
-    c['first'].value = 33
-    print c['first'].value
+    print param_set['a']
+    print param_set['a'].value
+    param_set['a'].value = 33
+    print param_set['a'].value
 
-    print c['third'].is_fixed
-    c['third'].is_fixed = True
-    print c['third'].is_fixed
-    print c.are_fixed
-    c.fix('first')
-    print c.are_fixed
-    c.unfix('first')
-    print c.are_fixed
-    c.unfix([0,1,2])
-    print c.are_fixed
+    print param_set['c'].is_fixed
+    param_set['c'].is_fixed = True
+    print param_set['c'].is_fixed
+    print param_set.are_fixed
+    param_set.fix('a')
+    print param_set.are_fixed
+    param_set.unfix('a')
+    print param_set.are_fixed
+    param_set.unfix([0,1,2])
+    print param_set.are_fixed
 
-    fixed_params = c.fixed
+    fixed_params = param_set.fixed
     print fixed_params.are_fixed
-    free_params = c.free
+    free_params = param_set.free
     print free_params.are_fixed
-    print c.free.values
+    print param_set.free.values
 
-    print c.values_hash
-    print c.fixed.values_hash
-    print c.free.values_hash
+    print param_set.values_hash
+    print param_set.fixed.values_hash
+    print param_set.free.values_hash
 
-    print c.state_hash
-    print c.fixed.state_hash
-    print c.free.state_hash
+    print param_set[0].state
+    print param_set.state_hash
+    print param_set.fixed.state_hash
+    print param_set.free.state_hash
 
-    print 'fixed:', c.fixed.names
-    print 'fixed, discrete:', c.fixed.discrete.names
-    print 'fixed, continuous:', c.fixed.continuous.names
-    print 'free:', c.free.names
-    print 'free, discrete:', c.free.discrete.names
-    print 'free, continuous:', c.free.continuous.names
-    print 'continuous, free:', c.continuous.free.names
-    print 'free, continuous hash:', c.free.continuous.values_hash
-    print 'continuous, free hash:', c.continuous.free.values_hash
+    print 'fixed:', param_set.fixed.names
+    print 'fixed, discrete:', param_set.fixed.discrete.names
+    print 'fixed, continuous:', param_set.fixed.continuous.names
+    print 'free:', param_set.free.names
+    print 'free, discrete:', param_set.free.discrete.names
+    print 'free, continuous:', param_set.free.continuous.names
+    print 'continuous, free:', param_set.continuous.free.names
+    print 'free, continuous hash:', param_set.free.continuous.values_hash
+    print 'continuous, free hash:', param_set.continuous.free.values_hash
 
-    print c['second'].prior_llh
-    print c.priors_llh
+    print param_set['b'].prior_llh
+    print param_set.priors_llh
 
-    print c[0].prior_chi2
-    print c.priors_chi2
+    print param_set[0].prior_chi2
+    print param_set.priors_chi2
 
 
 if __name__ == "__main__":
