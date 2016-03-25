@@ -409,9 +409,9 @@ def plot_column(tkey, hkey, subplot, column, template_settings, color,
             plot_bound(scale*prange, ymax, ax)
 
         if bool(re.match('^theta23', col_name)):
-            ax.set_xlim([prange[0], prange[1]])
+            ax.set_xlim([prange[0]-3, prange[1]+3])
         else:
-            ax.set_xlim([mean-5.0*std, mean+5.0*std])
+            ax.set_xlim([mean-6.0*std, mean+6.0*std])
         ax.set_ylim([ylim[0], ymax*1.2])
         scale_label = r' $\times\,%s$' % scale if scale != 1 else ''
         ax.set_xlabel(get_param_label_string(col_name)+scale_label)
