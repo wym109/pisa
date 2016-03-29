@@ -171,6 +171,52 @@ class Map(object):
         else:
             assert False, 'Unrecognized type %s' % type(other)
 
+    def index(self, idx):
+        state = deepcopy(self.state)
+        binning_state = deepcopy(self.binning.state)
+        e_idx = idx[0]
+        cz_idx = idx[1]
+        ebins = self.binning.ebins[e_idx]
+        czbins = self.binning.czbins[cz_idx]
+        if np.isscalar(ebins):
+            ebins = [ebins]
+        if np.isscalar(czbins):
+            czbins = [czbins]
+        ebins = list(ebins)
+        czbins = list(czbins)
+        if isinstance(e_idx, slice):
+            ebins += [self.binning.ebins[e_idx.stop]]
+        elif isinstance(e_idx, int):
+            ebins += [self.binning.ebins[e_idx+1]]
+        elif isinstance(e_idx, Sequence):
+            assert len(e_idx) == 1
+            ebins += [self.binning.ebins[e_idx[0]+1]]
+        else:
+            raise TypeError('Unhandled e_idx type %s' % type(e_idx))
+
+        if isinstance(cz_idx, slice):
+            czbins += [self.binning.czbins[cz_idx.stop]]
+        elif isinstance(cz_idx, int):
+            czbins += [self.binning.czbins[cz_idx+1]]
+        elif isinstance(cz_idx, Sequence):
+            assert len(cz_idx) == 1
+            czbins += [self.binning.czbins[cz_idx[0]+1]]
+        else:
+            raise TypeError('Unhandled cz_idx type %s' % type(cz_idx))
+
+        binning_state.update(dict(
+            ebins=ebins, czbins=czbins
+        ))
+        binning = Binning(**binning_state)
+        hist = state['hist'][idx].reshape(binning.n_ebins, binning.n_czbins)
+        state['hist'] = hist
+        state['binning'] = binning
+        if state['variance'] is not None:
+            variance = state['variance'][idx].reshape(binning.n_ebins,
+                                                      binning.n_czbins)
+            state['variance'] = variance
+        return Map(**state)
+
     def __str__(self):
         return strip_outer_parens(self.name)
 
@@ -192,7 +238,18 @@ class Map(object):
         return super(Map, self).__getattribute__(attr)
 
     def __getitem__(self, idx):
-        return self.hist.__getitem__(idx)
+        if isinstance(idx, int):
+            raise TypeError('Map is 2D; integer indexing is ambiguous'
+                            ' and therefore disallowed.')
+        elif isinstance(idx, Sequence):
+            if len(idx) == 2:
+                return self.index(idx)
+            else:
+                raise ValueError('Map is 2D; %d-D indexing is disallowed' %
+                                 len(idx))
+        else:
+            raise TypeError('Map is 2D; integer indexing is ambiguous'
+                            ' and therefore disallowed.')
 
     def __setitem__(self, idx, val):
         return setitem(self.hist, idx, val)
@@ -554,13 +611,59 @@ class Map(object):
 
 
 class MapSet(object):
-    __slots = ('name', 'hash')
+    __slots = ('_name', '_hash')
     __state_attrs = ('name', 'hash', 'maps')
-    def __init__(self, maps, name=None, tex=None, hash=None):
+    def __init__(self, maps, name=None, tex=None, hash=None,
+                 collate_by_name=False):
         super(MapSet, self).__setattr__('maps', tuple(maps))
         super(MapSet, self).__setattr__('name', name)
         super(MapSet, self).__setattr__('tex', name)
         super(MapSet, self).__setattr__('hash', hash)
+        super(MapSet, self).__setattr__('collate_by_name', collate_by_name)
+        super(MapSet, self).__setattr__('collate_by_num', not collate_by_name)
+
+    @property
+    def name(self):
+        return super(MapSet, self).__getattribute__('_name')
+
+    @name.setter
+    def name(self, name):
+        return super(MapSet, self).__setattr__('_name', name)
+
+    @property
+    def hash(self):
+        return super(MapSet, self).__getattribute__('_hash')
+
+    @hash.setter
+    def hash(self, hash):
+        return super(MapSet, self).__setattr__('_hash', hash)
+
+    @property
+    def names(self):
+        return tuple([mp.name for mp in self])
+
+    @property
+    def hashes(self):
+        return tuple([mp.hash for mp in self])
+
+    def collate_with_names(self, vals):
+        ret_dict = OrderedDict()
+        [setitem(ret_dict, name, val) for name, val in zip(self.names, vals)]
+        return ret_dict
+
+    def find_map(self, value):
+        idx = None
+        if isinstance(value, Map):
+            pass
+        elif isinstance(value, basestring):
+            try:
+                idx = self.names.index(value)
+            except ValueError:
+                pass
+        if idx is None:
+            raise ValueError('Could not find map name "%s" in %s' %
+                             (value, self))
+        return self[idx]
 
     def apply_to_maps(self, attr, *args, **kwargs):
         if len(kwargs) != 0:
@@ -572,6 +675,11 @@ class MapSet(object):
         # Retrieve the corresponding callables from contained maps
         val_per_map = [getattr(mp, attr) for mp in self]
         if not all([hasattr(meth, '__call__') for meth in val_per_map]):
+            # If all results are maps, populate a new map set & return that
+            if all([isinstance(r, Map) for r in val_per_map]):
+                return MapSet(val_per_map)
+            # Otherwise put in an ordered dict with <name>: <val> pairs ordered
+            # according to the map ordering in the set
             return self.collate_with_names(val_per_map)
 
         # Rename for clarity
@@ -580,16 +688,20 @@ class MapSet(object):
 
         # Create a set of args for *each* map in this map set: If an arg is a
         # MapSet, convert that arg into the map in that set corresponding to
-        # the same-named map in this set.
+        # the same map in this set.
         args_per_map = []
-        for map_name in self.names:
+        for map_num, mp in enumerate(self):
+            map_name = mp.name
             this_map_args = []
             for arg in args:
                 if np.isscalar(arg) or \
                         isinstance(arg, (basestring, np.ndarray)):
                     this_map_args.append(arg)
                 elif isinstance(arg, MapSet):
-                    this_map_args.append(arg[map_name])
+                    if self.collate_by_name:
+                        this_map_args.append(arg[map_name])
+                    elif self.collate_by_num:
+                        this_map_args.append(arg[map_num])
                 else:
                     raise TypeError('Unhandled arg %s / type %s' %
                                     (arg, type(arg)))
@@ -610,8 +722,20 @@ class MapSet(object):
         # Otherwise put into an ordered dict with name:val pairs
         return self.collate_with_names(returned_vals)
 
-    def __hasattr__(self, attr):
-        return object.__hasattr__(self, attr) #.__slots
+    def __str__(self):
+        if self.name is not None:
+            my_name = "'" + self.name + "'"
+        else:
+            my_name = super(MapSet, self).__repr__()
+        return "MapSet %s containing maps %s" % (my_name, self.names)
+
+    def __repr__(self):
+        return str(self)
+
+    def __hash__(self):
+        if self.hash is not None:
+            return self.hash
+        raise ValueError('No hash defined.')
 
     def __setattr__(self, attr, val):
         if attr in MapSet.__slots:
@@ -633,48 +757,32 @@ class MapSet(object):
         or slice.
 
         If `item` is a string, retrieve map by name.
-        If `item is an integer or slice, retrieve value(s) of all contained
-        maps indexed by `item`. The output is returned in an ordered dict with
-        format
-        {<map name>: <values>, ...}
+        If `item is an integer or one-dim slice, retrieve maps by sequence
+        If `item` is length-2 tuple or two-dim slice, retrieve value(s) of all
+            contained maps, each indexed by map[`item`]. The output is returned
+            in an ordered dict with format {<map name>: <values>, ...}
+
         """
         if isinstance(item, basestring):
             return self.find_map(item)
-        elif isinstance(item, (int, slice, Sequence)):
-            return self.collate_with_names([getitem(m, item) for m in self])
+        elif isinstance(item, (int, slice)):
+            rslt = self.maps[item]
+            if hasattr(rslt, '__len__') and len(rslt) > 1:
+                return MapSet(rslt)
+            return rslt
+        elif isinstance(item, Sequence):
+            if len(item) == 1:
+                return self.maps[item]
+            elif len(item) == 2:
+                return MapSet([getitem(m, item) for m in self])
+            else:
+                raise IndexError('too many indices for 2D hist') 
         #elif isinstance(item, Sequence):
         #    assert len(item) == 2, 'Maps are 2D, and so must be indexed as such'
         #    return self.collate_with_names([getitem(m, item) for m in self])
         else:
             raise TypeError('getitem does not support `item` of type %s'
                             % type(item))
-
-    def collate_with_names(self, vals):
-        ret_dict = OrderedDict()
-        [setitem(ret_dict, name, val) for name, val in zip(self.names, vals)]
-        return ret_dict
-
-    def find_map(self, value):
-        idx = None
-        if isinstance(value, Map):
-            pass
-        elif isinstance(value, basestring):
-            try:
-                idx = self.names.index(value)
-            except ValueError:
-                pass
-        if idx is None:
-            raise ValueError('Could not find map name "%s" in %s' %
-                             (value, self))
-        return self.maps[idx]
-
-    @property
-    def names(self):
-        return tuple([mp.name for mp in self])
-
-    @property
-    def hashes(self):
-        return tuple([mp.hash for mp in self])
 
     def __abs__(self):
         return self.apply_to_maps('__abs__')
@@ -769,7 +877,8 @@ def test_Map():
     print '(2*m1 + 8) / m2=5:', r, r.hist[0,0]
     r[:,1] = 1
     r[2,:] = 2
-    print r[0:5,0:5]
+    print 'r[0:5,0:5].hist:', r[0:5,0:5].hist
+    print 'r[0:5,0:5].binning:', r[0:5,0:5].binning
     r = m1 / m2
     assert r == 0.5
     print r, '=', r[0,0]
@@ -783,23 +892,32 @@ def test_MapSet():
     m2 = Map(name='twos', hist=2*np.ones((n_ebins,n_czbins)), binning=binning)
     ms1 = MapSet((m1, m2))
     ms1 = MapSet((m1, m2), name='map set 1')
-    ms1 = MapSet(maps=(m1, m2), name='map set 1')
+    ms1 = MapSet(maps=(m1, m2), name='map set 1', collate_by_name=True)
     m1 = Map(name='threes', hist=3*np.ones((n_ebins,n_czbins)), binning=binning)
     m2 = Map(name='fours', hist=4*np.ones((n_ebins,n_czbins)), binning=binning)
-    ms2 = MapSet(maps=(m1, m2), name='map set 2')
+    ms2 = MapSet(maps=(m1, m2), name='map set 2', collate_by_name=False)
+    m1 = Map(name='fives', hist=5*np.ones((n_ebins,n_czbins)), binning=binning)
+    m2 = Map(name='sixes', hist=6*np.ones((n_ebins,n_czbins)), binning=binning)
+    ms3 = MapSet(maps=(m1, m2), name='map set 3', collate_by_name=False)
+    ms4 = MapSet(maps=(m1, m2), collate_by_name=False)
     print 'ms1.name:', ms1.name
     print 'ms1.hash:', ms1.hash
     print 'ms1.maps:', ms1.maps
     print 'ms2.maps:', ms2.maps
     print 'ms1.names:', ms1.names
     print 'ms1.tex:', ms1.tex
-    print "ms1.apply_to_maps('__add__', 1)", ms1.apply_to_maps('__add__', 1)
+    print 'ms1[0].hist:', ms1[0].hist
+    print 'ms1[0:2].hist:', ms1[0:2].hist
+    print 'ms1[0:2,0:2].hist:', ms1[0:2,0:2].hist
+    print "ms1.apply_to_maps('__add__', 1).names", ms1.apply_to_maps('__add__', 1).names
     try:
         print ms1.__add__(ms2)
     except ValueError:
         pass
     else:
         raise Exception('Should have errored out!')
+    print "(ms2 + ms3).names", (ms2 + ms3).names
+    print "(ms2 + ms3)[0,0].hist", (ms2 + ms3)[0,0].hist
     print "ms1['ones'][0,0]:", ms1['ones'][0,0]
     print 'ms1.__mul__(2)[0,0]:', ms1.__mul__(2)[0,0]
     print '(ms1 * 2)[0,0]:', (ms1 * 2)[0,0]
@@ -812,10 +930,14 @@ def test_MapSet():
     print 'np.log10(ms1)[0,0]:', (np.log10(ms1))[0,0]
     print 'np.log(ms1 * np.e)[0,0]:', (np.log(ms1 * np.e))[0,0]
     print 'np.log(ms1 * np.e)[0,0]:', (np.log(ms1 * np.e))[0,0]
-    print 'np.sqrt(ms1)[0,0]:', np.sqrt(ms1)[0,0]
-
+    print 'np.sqrt(ms1)[0:4,0:2].hist:', np.sqrt(ms1)[0:4,0:2].hist
+    print 'str(ms1)', str(ms1)
+    print 'str(ms4)', str(ms4)
+    print 'ms3', ms3
+    print 'ms4', ms4
 
 if __name__ == "__main__":
+    test_Map()
     test_MapSet()
 
 
