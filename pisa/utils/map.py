@@ -4,12 +4,15 @@
 # date   : March 25, 2016
 
 """
-Class to contain 2D histogram, error, and metadata about the contents. Also
-provides basic mathematical operations for the contained data.
+Map class to contain 2D histogram, error, and metadata about the contents.
+MapSet class to contain a set of maps.
+
+Also provide basic mathematical operations that user applies directly to the
+containers but that get passed down to operate on the contained data.
 """
 
 from __future__ import division
-from types import MethodType
+#from types import MethodType
 from operator import getitem, setitem
 from collections import OrderedDict, Mapping, Sequence
 import re
