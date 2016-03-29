@@ -78,6 +78,7 @@ class Binning(object):
                 ebins = np.linspace(e_range[0], e_range[1], n_ebins + 1)
         elif isinstance(ebins, basestring):
             ebins = eval(ebins)
+        ebins = np.array(ebins)
         Binning.check_binning(bin_edges=ebins, is_log=e_is_log)
         super(Binning, self).__setattr__('ebins', ebins)
 
@@ -92,6 +93,7 @@ class Binning(object):
                 czbins = np.linspace(cz_range[0], cz_range[1], n_czbins + 1)
         elif isinstance(czbins, basestring):
             czbins = eval(czbins)
+        czbins = np.array(czbins)
         Binning.check_binning(bin_edges=czbins, is_log=cz_is_log)
         super(Binning, self).__setattr__('czbins', czbins)
 
@@ -126,8 +128,9 @@ class Binning(object):
         # Bin edges must be monotonic, strictly increasing
         lin_spacing = np.diff(bin_edges)
         assert np.all(lin_spacing > 0)
-        # Log binning must have equal widths in log-space
-        if is_log:
+        # Log binning must have equal widths in log-space (but a single bin
+        # has no "spacing" or stride, so no need to check)
+        if is_log and len(bin_edges) > 2:
             log_spacing = bin_edges[1:] / bin_edges[:-1]
             assert np.allclose(log_spacing, log_spacing[0])
 
