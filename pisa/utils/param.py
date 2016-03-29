@@ -44,10 +44,10 @@ class Param(object):
     -------
     validate_value
     """
-    slots = ('name', 'value', 'prior', 'range', 'is_fixed', 'is_discrete',
-             'scale', '_nominal_value', '_tex', 'help')
-    state_attrs = ('name', 'value', 'prior', 'range', 'is_fixed',
-                   'is_discrete', 'scale', 'nominal_value', 'tex', 'help')
+    __slots = ('name', 'value', 'prior', 'range', 'is_fixed', 'is_discrete',
+               'scale', '_nominal_value', '_tex', 'help')
+    __state_attrs = ('name', 'value', 'prior', 'range', 'is_fixed',
+                     'is_discrete', 'scale', 'nominal_value', 'tex', 'help')
 
     def __init__(self, name, value, prior, range, is_fixed, is_discrete=False,
                  scale=1, nominal_value=None, tex=None, help=''):
@@ -70,7 +70,7 @@ class Param(object):
         return self.name < other.name
 
     def __setattr__(self, attr, val):
-        if attr not in self.slots:
+        if attr not in self.__slots:
             raise AttributeError('Invalid attribute: %s' % (attr,))
         object.__setattr__(self, attr, val)
 
@@ -103,7 +103,7 @@ class Param(object):
     def state(self):
         state = OrderedDict()
         [state.__setitem__(a, self.__getattribute__(a))
-         for a in self.state_attrs]
+         for a in self.__state_attrs]
         return state
 
     @property
@@ -355,89 +355,6 @@ class ParamSet(object):
     @property
     def state_hash(self):
         return utils.hash_obj(self.state)
-
-
-#def select_hierarchy(params, normal_hierarchy):
-#    """Correct for a key in params being defined for both 'nh' and 'ih', and
-#    return a modified dict with one value for the given hierarchy.
-#    """
-#    if not isinstance(normal_hierarchy, bool):
-#        raise ValueError('Hierarchy selection must be boolean value')
-#
-#    newparams = {}
-#    for key, value in params.items():
-#        if key.endswith('_nh'):
-#            #Don't use if doesn't match request
-#            if not normal_hierarchy: continue
-#            #Use simplified key
-#            key = key.rsplit('_',1)[0]
-#        if key.endswith('_ih'):
-#            if normal_hierarchy: continue
-#            key = key.rsplit('_',1)[0]
-#
-#        newparams[key] = value
-#
-#    return deepcopy(newparams)
-#
-#
-#def get_atm_params(params):
-#    """Return dictionary of just the atmospheric parameters"""
-#    atm_params = ['deltam31','theta23']
-#    return deepcopy({ key: value for key, value in params.items()
-#             for p in atm_params if p in key })
-#
-#
-#def fix_osc_params(params):
-#    """Return dict identical to params dict but with all oscillation parameters
-#    set to "fixed"=True
-#    """
-#    new_params = {}
-#    # or initialize with new copy by dict(params)
-#    osc_params = ['deltam31', 'deltam21', 'theta23', 'theta13', 'theta12',
-#                  'deltacp']
-#    for key,value in params.items():
-#        new_params[key] = deepcopy(value)
-#        for okey in osc_params:
-#            if okey in key:
-#                new_params[key]['fixed'] = True
-#
-#    return new_params
-#
-#
-#def fix_atm_params(params):
-#    """
-#    Returns dict identical to params dict but with all atmospheric
-#    oscillation parameters fixed.
-#    """
-#    new_params = {}
-#    # or initialize with new copy by dict(params)
-#    atm_params = ['deltam31', 'theta23']
-#    for key,value in params.items():
-#        new_params[key] = deepcopy(value)
-#        #for akey in atm_params:
-#        if (bool(re.match('^theta23', key))
-#                or bool(re.match('^deltam31', key))):
-#            new_params[key]['fixed'] = True
-#
-#    return new_params
-#
-#
-#def fix_non_atm_params(params):
-#    """Return dict identical to params dict, except that it fixes all
-#    parameters besides that atmospheric mixing params: theta23/deltam31. Does
-#    not modify atm mix params, leaving them fixed or not, as they were..
-#    """
-#    new_params = {}
-#    # or initialize with new copy by dict(params)
-#    for key,value in params.items():
-#        new_params[key] = deepcopy(value)
-#        if (bool(re.match('^theta23', key)) \
-#                or bool(re.match('^deltam31', key))):
-#            continue
-#        else:
-#            new_params[key]['fixed'] = True
-#
-#    return new_params
 
 
 def test_ParamSet():

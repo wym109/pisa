@@ -8,9 +8,12 @@ Class to contain 2D histogram, error, and metadata about the contents. Also
 provides basic mathematical operations for the contained data.
 """
 
-
-from collections import OrderedDict, Mapping
+from __future__ import division
+from types import MethodType
+from operator import getitem, setitem
+from collections import OrderedDict, Mapping, Sequence
 import re
+from copy import deepcopy
 
 import numpy as np
 
@@ -64,6 +67,8 @@ def multiply_var(obj1, obj2):
 def power_var(obj1, obj2):
     return None
 
+def log_var(obj, base):
+    return None
 
 def strip_outer_parens(value):
     value = value.strip()
@@ -122,11 +127,11 @@ class Map(object):
     __sub__
 
     """
-    slots = ('name', 'hist', 'binning', 'hash', 'variance', 'tex',
-             'full_comparison')
+    __slots = ('name', 'hist', 'binning', 'hash', 'variance', 'tex',
+               'full_comparison')
+    __state_attrs = __slots
     def __init__(self, name, hist, binning, hash=None, variance=None, tex=None,
                  full_comparison=True):
-        super(Map, self).__init__()
         # Set Read/write attributes via their defined setters
         super(Map, self).__setattr__('_name', name)
         tex = r'{\rm %s}' % name if tex is None else tex
@@ -148,7 +153,7 @@ class Map(object):
     @property
     def state(self):
         state = OrderedDict()
-        for slot in self.slots:
+        for slot in self.__state_attrs:
             state[slot] = self.__getattr__(slot)
         return state
 
@@ -166,6 +171,9 @@ class Map(object):
     def __str__(self):
         return strip_outer_parens(self.name)
 
+    def __repr__(self):
+        return str(self)
+
     def __hash__(self):
         if self.hash is not None:
             return self.hash
@@ -173,18 +181,18 @@ class Map(object):
 
     def __setattr__(self, attr, value):
         """Only allow setting attributes defined in slots"""
-        if attr not in self.slots:
+        if attr not in self.__slots:
             raise ValueError('Attribute "%s" not allowed to be set.' % attr)
         super(Map, self).__setattr__(attr, value)
 
     def __getattr__(self, attr):
         return super(Map, self).__getattribute__(attr)
 
-    def __getitem__(self, idx): 
-        return self.hist.__getitem__(idx) 
-                     
+    def __getitem__(self, idx):
+        return self.hist.__getitem__(idx)
+
     def __setitem__(self, idx, val):
-        return self.hist.__setitem__(idx, val) 
+        return setitem(self.hist, idx, val)
 
     @property
     def name(self):
@@ -238,7 +246,7 @@ class Map(object):
     # Common mathematical operators
 
     def __abs__(self):
-        state = self.state
+        state = deepcopy(self.state)
         state.update(dict(
             name="|%s|" % (self.name,),
             tex=r"{\left| %s \right|}" % strip_outer_parens(self.tex),
@@ -248,7 +256,8 @@ class Map(object):
         return Map(**state)
 
     def __add__(self, other):
-        state = self.state
+        """Add `other` to self"""
+        state = deepcopy(self.state)
         if np.isscalar(other):
             state.update(dict(
                 name="(%s + %s)" % (self.name, other),
@@ -278,7 +287,7 @@ class Map(object):
     #    self.assert_compat(other)
 
     def __div__(self, other):
-        state = self.state
+        state = deepcopy(self.state)
         if np.isscalar(other):
             state.update(dict(
                 name="(%s / %s)" % (self.name, other),
@@ -304,14 +313,20 @@ class Map(object):
         state['variance'] = divide_var(self, other)
         return Map(**state)
 
+    def __truediv__(self, other):
+        return self.__div__(other)
+
+    def __floordiv__(self, other):
+        raise NotImplementedError('floordiv not implemented for type Map')
+
     def __eq__(self, other):
         """Check if full state of maps are equal. *Not* element-by-element
         equality as for a numpy array. Call this.hist == other.hist and
         this.variance == other.variance if the latter behavior is desired.
-        
+
         If `full_comparison` is true for *both* maps, or if either map lacks a
         hash, performs a full comparison of the contents of each map.
-        
+
         Otherwise, simply checks that the hashes are equal.
         """
         if np.isscalar(other) or isinstance(other, np.ndarray):
@@ -323,7 +338,7 @@ class Map(object):
             return self.hash == other.hash
         else:
             type_error(other)
-            
+
     #def __ge__(self, other):
     #    self.assert_compat(other)
 
@@ -351,25 +366,45 @@ class Map(object):
     #def __lt__(self, other):
     #    self.assert_compat(other)
 
+    def log(self):
+        state = deepcopy(self.state)
+        state.update(dict(
+            name="log(%s)" % self.name,
+            tex=r"\ln\left( %s \right)" % self.tex,
+            hist=np.log(self.hist),
+            variance=log_var(self, np.e),
+        ))
+        return Map(**state)
+
+    def log10(self):
+        state = deepcopy(self.state)
+        state.update(dict(
+            name="log10(%s)" % self.name,
+            tex=r"\log_{10}\left( %s \right)" % self.tex,
+            hist=np.log10(self.hist),
+            variance=log_var(self, 10),
+        ))
+        return Map(**state)
+
     def __mul__(self, other):
-        state = self.state
+        state = deepcopy(self.state)
         if np.isscalar(other):
             state.update(dict(
-                name="%s * %s" % (self.name, other),
-                tex=r"%s \times %s" % (self.tex, other),
+                name="%s * %s" % (other, self.name),
+                tex=r"%s \cdot %s" % (other, self.tex),
                 hist=self.hist * other,
             ))
         elif isinstance(other, np.ndarray):
             state.update(dict(
-                name="%s * array" % self.name,
-                tex=r"%s \times X" % self.tex,
+                name="array * %s" % self.name,
+                tex=r"X \cdot %s" % self.tex,
                 hist=self.hist * other,
             ))
         elif isinstance(other, Map):
             self.assert_compat(other)
             state.update(dict(
                 name="%s * %s" % (self.name, other.name),
-                tex=r"%s \times %s" % (self.tex, other.tex),
+                tex=r"%s \cdot %s" % (self.tex, other.tex),
                 hist=self.hist * other.hist,
                 full_comparison=self.full_comparison or other.full_comparison,
             ))
@@ -382,7 +417,7 @@ class Map(object):
         return not self == other
 
     def __neg__(self):
-        state = self.state
+        state = deepcopy(self.state)
         state.update(dict(
             name="-%s" % self.name,
             tex=r"-%s" % self.tex,
@@ -395,7 +430,7 @@ class Map(object):
     #def __pos__(self):
 
     def __pow__(self, other):
-        state = self.state
+        state = deepcopy(self.state)
         if np.isscalar(other):
             if other == 1:
                 val = self.hist
@@ -414,7 +449,7 @@ class Map(object):
                 tex=r"%s^{X}" % self.tex,
                 hist=np.power(self.hist, other),
             ))
-        elif np.isinstance(other, Map):
+        elif isinstance(other, Map):
             self.assert_compat(other)
             state.update(dict(
                 name="%s^(%s)" % (self.name, strip_outer_parens(other.name)),
@@ -428,12 +463,12 @@ class Map(object):
         return Map(**state)
 
     def __radd__(self, other):
-        return self.__add__(other)
+        return self + other
 
     def __rdiv__(self, other):
-        if np.isinstance(other, Map):
+        if isinstance(other, Map):
             return other / self
-        state = self.state
+        state = deepcopy(self.state)
         if np.isscalar(other):
             state.update(dict(
                 name="(%s / %s)" % (other, self.name),
@@ -452,14 +487,14 @@ class Map(object):
         return Map(**state)
 
     def __rmul__(self, other):
-        return self.__mul__(other)
+        return self * other
 
     #def __rpow__(self, other):
 
     def __rsub__(self, other):
-        if np.isinstance(other, Map):
+        if isinstance(other, Map):
             return other - self
-        state = self.state
+        state = deepcopy(self.state)
         if np.isscalar(other):
             state.update(dict(
                 name="(%s - %s)" % (other, self.name),
@@ -477,7 +512,18 @@ class Map(object):
         state['variance'] = add_var(other, self)
         return Map(**state)
 
+    def sqrt(self):
+        state = deepcopy(self.state)
+        state.update(dict(
+            name="sqrt(%s)" % self.name,
+            tex=r"\sqrt{%s}" % self.tex,
+            hist=np.sqrt(self.hist),
+            variance=power_var(self, 0.5),
+        ))
+        return Map(**state)
+
     def __sub__(self, other):
+        state = deepcopy(self.state)
         if np.isscalar(other):
             state.update(dict(
                 name="(%s - %s)" % (self.name, other),
@@ -490,7 +536,7 @@ class Map(object):
                 tex="{(%s - X)}" % self.tex,
                 hist=self.hist - other,
             ))
-        elif np.isinstance(other, Map):
+        elif isinstance(other, Map):
             self.assert_compat(other)
             state.update(dict(
                 name="%s - %s" % (self.name, other.name),
@@ -502,6 +548,199 @@ class Map(object):
             type_error(other)
         state['variance'] = add_var(self, other)
         return Map(**state)
+
+
+class MapSet(object):
+    __slots = ('name', 'hash')
+    __state_attrs = ('name', 'hash', 'maps')
+    def __init__(self, maps, name=None, tex=None, hash=None):
+        super(MapSet, self).__setattr__('maps', tuple(maps))
+        super(MapSet, self).__setattr__('name', name)
+        super(MapSet, self).__setattr__('tex', name)
+        super(MapSet, self).__setattr__('hash', hash)
+
+    def apply_to_maps(self, attr, *args, **kwargs):
+        if len(kwargs) != 0:
+            raise NotImplementedError('Keyword arguments are not handled')
+
+        if not all([hasattr(mp, attr) for mp in self]):
+            raise AttributeError('All maps do not have attribute "%s"' % attr)
+
+        # Retrieve the corresponding callables from contained maps
+        val_per_map = [getattr(mp, attr) for mp in self]
+        if not all([hasattr(meth, '__call__') for meth in val_per_map]):
+            return self.collate_with_names(val_per_map)
+
+        # Rename for clarity
+        method_name = attr
+        method_per_map = val_per_map
+
+        # Create a set of args for *each* map in this map set: If an arg is a
+        # MapSet, convert that arg into the map in that set corresponding to
+        # the same-named map in this set.
+        args_per_map = []
+        for map_name in self.names:
+            this_map_args = []
+            for arg in args:
+                if np.isscalar(arg) or \
+                        isinstance(arg, (basestring, np.ndarray)):
+                    this_map_args.append(arg)
+                elif isinstance(arg, MapSet):
+                    this_map_args.append(arg[map_name])
+                else:
+                    raise TypeError('Unhandled arg %s / type %s' %
+                                    (arg, type(arg)))
+            args_per_map.append(tuple(this_map_args))
+
+        # Make the method calls and collect returned values
+        returned_vals = [meth(*args)
+                         for meth, args in zip(method_per_map, args_per_map)]
+
+        # If all results are maps, put them into a new map set & return
+        if all([isinstance(r, Map) for r in returned_vals]):
+            return MapSet(tuple(returned_vals))
+
+        # If None returned by all, return a single None
+        if all([(r is None) for r in returned_vals]):
+            return
+
+        # Otherwise put into an ordered dict with name:val pairs
+        return self.collate_with_names(returned_vals)
+
+    def __hasattr__(self, attr):
+        return object.__hasattr__(self, attr) #.__slots
+
+    def __setattr__(self, attr, val):
+        if attr in MapSet.__slots:
+            object.__setattr__(attr, val)
+        else:
+            returned_vals = [setattr(mp, attr, val) for mp in self]
+            if all([(r is None) for r in returned_vals]):
+                return
+            return self.collate_with_names(returned_vals)
+
+    def __getattr__(self, attr):
+        return self.apply_to_maps(attr)
+
+    def __iter__(self):
+        return iter(self.maps)
+
+    def __getitem__(self, item):
+        """Retrieve a map by name or retrieve maps' histogram values by index
+        or slice.
+
+        If `item` is a string, retrieve map by name.
+        If `item is an integer or slice, retrieve value(s) of all contained
+        maps indexed by `item`. The output is returned in an ordered dict with
+        format
+        {<map name>: <values>, ...}
+        """
+        if isinstance(item, basestring):
+            return self.find_map(item)
+        elif isinstance(item, (int, slice, Sequence)):
+            return self.collate_with_names([getitem(m, item) for m in self])
+        #elif isinstance(item, Sequence):
+        #    assert len(item) == 2, 'Maps are 2D, and so must be indexed as such'
+        #    return self.collate_with_names([getitem(m, item) for m in self])
+        else:
+            raise TypeError('getitem does not support `item` of type %s'
+                            % type(item))
+
+    def collate_with_names(self, vals):
+        ret_dict = OrderedDict()
+        [setitem(ret_dict, name, val) for name, val in zip(self.names, vals)]
+        return ret_dict
+
+    def find_map(self, value):
+        idx = None
+        if isinstance(value, Map):
+            pass
+        elif isinstance(value, basestring):
+            try:
+                idx = self.names.index(value)
+            except ValueError:
+                pass
+        if idx is None:
+            raise ValueError('Could not find map name "%s" in %s' %
+                             (value, self))
+        return self.maps[idx]
+
+    @property
+    def names(self):
+        return tuple([mp.name for mp in self])
+
+    @property
+    def hashes(self):
+        return tuple([mp.hash for mp in self])
+
+    def __abs__(self):
+        return self.apply_to_maps('__abs__')
+
+    def __add__(self, val):
+        return self.apply_to_maps('__add__', val)
+
+    def __truediv__(self, val):
+        return self.apply_to_maps('__truediv__', val)
+
+    def __div__(self, val):
+        return self.apply_to_maps('__div__', val)
+
+    def log(self):
+        return self.apply_to_maps('log')
+
+    def log10(self):
+        return self.apply_to_maps('log10')
+
+    def __mul__(self, val):
+        return self.apply_to_maps('__mul__', val)
+
+    def __neg__(self):
+        return self.apply_to_maps('__neg__')
+
+    def __pow__(self, val):
+        return self.apply_to_maps('__pow__', val)
+
+    def __radd__(self, val):
+        return self.apply_to_maps('__radd__', val)
+
+    def __rdiv__(self, val):
+        return self.apply_to_maps('__rdiv__', val)
+
+    def __rmul__(self, val):
+        return self.apply_to_maps('__rmul__', val)
+
+    def __rsub__(self, val):
+        return self.apply_to_maps('__rsub__', val)
+
+    def sqrt(self):
+        return self.apply_to_maps('sqrt')
+
+    def __sub__(self, val):
+        return self.apply_to_maps('__sub__', val)
+
+
+## Now dynamically add all methods from Map to MapSet that don't already exist
+## in MapSet (and make these methods distribute to contained maps)
+##for method_name, method in sorted(Map.__dict__.items()):
+#add_methods = '''__abs__ __add__ __div__ __mul__ __neg__ __pow__ __radd__
+#__rdiv__ __rmul__ __rsub__ __sub__'''.split()
+#
+#for method_name in add_methods:
+#    #if not hasattr(method, '__call__') or method_name in MapSet.__dict__:
+#    #    continue
+#    disallowed = ('__getattr__', '__setattr__', '__getattribute__',
+#                  '__getitem__', '__eq__', '__ne__', '__str__', '__repr__')
+#    if method_name in disallowed:
+#        continue
+#    print 'adding method "%s" to MapSet as an apply func' % method_name
+#    arg_str = ', *args' # if len(args) > 0 else ''
+#    eval('def {method_name}(self{arg_str}):\n'
+#         '    return self.apply_to_maps({method_name}{arg_str})'.format(method_name=method_name, arg_str=arg_str))
+#    #f.__doc__ = 'Apply method %s to all contained maps' % method_name
+#    #method = getattr(Map, method_name)
+#    #if method.__doc__:
+#    #    f.__doc__ += '... ' + method.__doc__
+#    setattr(MapSet, method_name, MethodType(eval(method_name), None, MapSet))
 
 
 def test_Map():
@@ -528,7 +767,52 @@ def test_Map():
     r[:,1] = 1
     r[2,:] = 2
     print r[0:5,0:5]
+    r = m1 / m2
+    assert r == 0.5
+    print r, '=', r[0,0]
+
+def test_MapSet():
+    n_ebins = 5
+    n_czbins = 3
+    binning = Binning(n_ebins=n_ebins, e_range=(1,80), e_is_log=True,
+                      n_czbins=n_czbins, cz_range=(-1,0))
+    m1 = Map(name='ones', hist=np.ones((n_ebins,n_czbins)), binning=binning)
+    m2 = Map(name='twos', hist=2*np.ones((n_ebins,n_czbins)), binning=binning)
+    ms1 = MapSet((m1, m2))
+    ms1 = MapSet((m1, m2), name='map set 1')
+    ms1 = MapSet(maps=(m1, m2), name='map set 1')
+    m1 = Map(name='threes', hist=3*np.ones((n_ebins,n_czbins)), binning=binning)
+    m2 = Map(name='fours', hist=4*np.ones((n_ebins,n_czbins)), binning=binning)
+    ms2 = MapSet(maps=(m1, m2), name='map set 2')
+    print 'ms1.name:', ms1.name
+    print 'ms1.hash:', ms1.hash
+    print 'ms1.maps:', ms1.maps
+    print 'ms2.maps:', ms2.maps
+    print 'ms1.names:', ms1.names
+    print 'ms1.tex:', ms1.tex
+    print "ms1.apply_to_maps('__add__', 1)", ms1.apply_to_maps('__add__', 1)
+    try:
+        print ms1.__add__(ms2)
+    except ValueError:
+        pass
+    else:
+        raise Exception('Should have errored out!')
+    print "ms1['ones'][0,0]:", ms1['ones'][0,0]
+    print 'ms1.__mul__(2)[0,0]:', ms1.__mul__(2)[0,0]
+    print '(ms1 * 2)[0,0]:', (ms1 * 2)[0,0]
+    print 'ms1.__add__(ms1)[0,0]:', ms1.__add__(ms1)[0,0]
+    print '(ms1 + ms1)[0,0]:', (ms1 + ms1)[0,0]
+    print ms1.names
+    print '(ms1/ ms1)[0,0]:', (ms1 / ms1)[0,0]
+    print '(ms1/ms1 - 1)[0,0]:', (ms1/ms1 - 1)[0,0]
+    print '(ms1.log10())[0,0]:', (np.log10(ms1))[0,0]
+    print 'np.log10(ms1)[0,0]:', (np.log10(ms1))[0,0]
+    print 'np.log(ms1 * np.e)[0,0]:', (np.log(ms1 * np.e))[0,0]
+    print 'np.log(ms1 * np.e)[0,0]:', (np.log(ms1 * np.e))[0,0]
+    print 'np.sqrt(ms1)[0,0]:', np.sqrt(ms1)[0,0]
 
 
 if __name__ == "__main__":
-    test_Map()
+    test_MapSet()
+
+

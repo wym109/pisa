@@ -60,12 +60,11 @@ class Binning(object):
     __eq__
 
     """
-    slots = tuple()
-    state_attrs = ('ebins', 'czbins', 'e_is_log', 'cz_is_log')
+    __slots = tuple()
+    __state_attrs = ('ebins', 'czbins', 'e_is_log', 'cz_is_log')
 
     def __init__(self, e_is_log, cz_is_log=False, ebins=None, czbins=None,
                  n_ebins=None, e_range=None, n_czbins=None, cz_range=None):
-        super(Binning, self).__init__()
         assert isinstance(e_is_log, bool)
         assert isinstance(cz_is_log, bool)
         if n_ebins is not None:
@@ -136,7 +135,7 @@ class Binning(object):
     def state(self):
         state = OrderedDict()
         [state.__setitem__(a, self.__getattribute__(a))
-         for a in self.state_attrs]
+         for a in self.__state_attrs]
         return state
 
     def __str__(self):
@@ -147,9 +146,12 @@ class Binning(object):
                  self.cz_is_log)
         return ebin_info + '; ' + czbin_info
 
+    def __repr__(self):
+        return str(self)
+
     def __setattr__(self, attr, value):
         """Only allow setting attributes defined in slots"""
-        if attr not in self.slots:
+        if attr not in self.__slots:
             raise ValueError('No attribute "%s"' % attr)
         super(Binning, self).__setattr__(attr, value)
 
@@ -200,6 +202,7 @@ class Binning(object):
 
 def test_Binning():
     pass
+
 
 if __name__ == "__main__":
     test_Binning()
