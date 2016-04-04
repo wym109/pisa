@@ -8,7 +8,10 @@ Class to carry information about 2D binning in energy and cosine-zenity, and to
 provide basic operations with the binning.
 """
 
-from collections import OrderedDict
+from operator import setitem
+from copy import deepcopy
+from collections import OrderedDict, Sequence, Mapping
+from itertools import izip
 
 import numpy
 import numpy as np
@@ -19,192 +22,571 @@ from pisa.utils.log import logging
 from pisa.utils.utils import recursiveEquality
 
 
-class Binning(object):
+class OneDimBinning(object):
+    # `is_log` and `is_lin` are required so that a sub-sampling down to a
+    # single bin that is then resampled to > 1 bin will retain the log/linear
+    # property of the original OneDimBinning
+    __state_attrs = ('name', 'units', 'prefix', 'tex', 'bin_edges', 'is_log',
+                     'is_lin')
+    # Convenient means for user to access info (to be attached to a container
+    # such as a MultiDimBinning object)
+    __prefixed_attrs = (
+        ('bin_edges', '%sbin_edges'),
+        ('midpoints', '%s_midpoints'),
+        ('visual_centers', '%s_visual_centers'),
+        ('is_log', '%s_is_log'),
+        ('is_lin', '%s_is_lin'),
+        ('domain', '%s_domain'),
+        ('n_bins', 'n_%sbins'),
+    )
     """
+    Histogram-oriented binning specialized to a single dimension.
+
     Parameters
     ----------
-    e_is_log
-    cz_is_log
-    ebins
-    czbins
-    n_ebins
-    e_range
-    n_czbins
-    cz_range
-
-    Must specify `e_is_log`; optionally specify `cz_is_log` (default=False).
-
-    In addition, must specify either (`ebins`) or (`n_ebins` and `e_range`)
-    and either (`czbins`) or (`n_czbins` and `cz_range`).
+    name : str, of length > 0
+    units
+    prefix : str or None
+    tex : str or None
+    bin_edges : sequence
+    is_log : bool
+    is_lin : bool
+    n_bins : int
+    domain : length-2 sequence
 
     Properties
     ----------
-    ebins
-    czbins
-    e_is_log
-    cz_is_log
-    e_range
-    cz_range
-    n_ebins
-    n_czbins
-    ebin_midpoints
-    czbin_midpoints
-    ebin_visual_centers
-    czbin_visual_centers
+    bin_edges
+    domain
+    is_irregular
+    is_lin
+    is_log
+    midpoints
+    n_bins
+    visual_centers
 
     Methods
     -------
-    assert_array_compat
-    is_binning_compat
-    oversample
-    __eq__
+    is_bin_spacing_log
+    is_bin_spacing_lin
+    is_binning_ok
+    assert_compat
+
+
+    Notes
+    -----
+    Consistency is enforced for all redundant parameters passed to the
+    constructor.
 
     """
-    __slots = tuple()
-    __state_attrs = ('ebins', 'czbins', 'e_is_log', 'cz_is_log')
+    def __init__(self, name, units, prefix=None, tex=None, bin_edges=None,
+                 is_log=None, is_lin=None, n_bins=None, domain=None):
+        # Store metadata about naming and units
+        assert isinstance(name, basestring)
+        self.name = name
+        if units == '':
+            units = None
+        self.units = units
+        if prefix is None or prefix == '':
+            prefix = name
+        self.prefix = prefix
+        if tex is None:
+            tex = name
+        self.tex = tex
 
-    def __init__(self, e_is_log, cz_is_log=False, ebins=None, czbins=None,
-                 n_ebins=None, e_range=None, n_czbins=None, cz_range=None):
-        assert isinstance(e_is_log, bool)
-        assert isinstance(cz_is_log, bool)
-        if n_ebins is not None:
-            assert e_range is not None
-            assert ebins is None
-            assert len(e_range) == 2
-            if e_is_log:
-                ebins = np.logspace(np.log10(e_range[0]), np.log10(e_range[1]),
-                                    n_ebins + 1)
-            else:
-                ebins = np.linspace(e_range[0], e_range[1], n_ebins + 1)
-        elif isinstance(ebins, basestring):
-            ebins = eval(ebins)
-        ebins = np.array(ebins)
-        Binning.check_binning(bin_edges=ebins, is_log=e_is_log)
-        super(Binning, self).__setattr__('ebins', ebins)
+        # If both `is_log` and `is_lin` are specified, both cannot be true
+        # (but both can be False, in case of irregularly-spaced bins)
+        if is_log is not None and is_lin is not None \
+           and is_log and not np.logical_xor(is_log, is_lin):
+            raise ValueError('`is_log=%s` contradicts `is_lin=%s`' %
+                                 (is_log, is_lin))
 
-        if n_czbins is not None:
-            assert cz_range is not None
-            assert czbins is None
-            assert len(cz_range) == 2
-            if cz_is_log:
-                czbins = np.logspace(np.log10(cz_range[0]),
-                                     np.log10(cz_range[1]), n_czbins + 1)
-            else:
-                czbins = np.linspace(cz_range[0], cz_range[1], n_czbins + 1)
-        elif isinstance(czbins, basestring):
-            czbins = eval(czbins)
-        czbins = np.array(czbins)
-        Binning.check_binning(bin_edges=czbins, is_log=cz_is_log)
-        super(Binning, self).__setattr__('czbins', czbins)
+        # If no bin edges specified, the number of bins, domain, and either
+        # log or linear spacing are all required to generate bins
+        if bin_edges is None:
+            assert n_bins is not None and domain is not None \
+                    and (is_log or is_lin)
+            if is_log:
+                self.bin_edges = np.logspace(np.log10(np.min(domain)),
+                                             np.log10(np.max(domain)),
+                                             n_bins + 1)
+            elif is_lin:
+                self.bin_edges = np.linspace(np.min(domain),
+                                             np.max(domain),
+                                             n_bins + 1)
 
-        # Calculate meta-attributes of the specified binning
-        super(Binning, self).__setattr__('e_is_log', e_is_log)
-        super(Binning, self).__setattr__('cz_is_log', cz_is_log)
-        super(Binning, self).__setattr__('e_range',
-                                         (self.ebins[0], self.ebins[-1]))
-        super(Binning, self).__setattr__('cz_range',
-                                         (self.czbins[0], self.czbins[-1]))
-        super(Binning, self).__setattr__('n_ebins', len(self.ebins)-1)
-        super(Binning, self).__setattr__('n_czbins', len(self.czbins)-1)
-        super(Binning, self).__setattr__('ebin_midpoints',
-                           (self.ebins[:-1] + self.ebins[1:])/2.0)
-        super(Binning, self).__setattr__('czbin_midpoints',
-                           (self.czbins[:-1] + self.czbins[1:])/2.0)
-        if self.e_is_log:
-            ebin_visual_centers =  np.sqrt(self.ebins[:-1]*self.ebins[1:])
+        # Otherwise: use specified bin edges, if valid
         else:
-            ebin_visual_centers = self.ebin_midpoints
-        super(Binning, self).__setattr__('ebin_visual_centers',
-                                         ebin_visual_centers)
-        if self.cz_is_log:
-            czbin_visual_centers =  np.sqrt(self.czbins[:-1]*self.czbins[1:])
+            assert self.is_binning_ok(bin_edges, is_log=bool(is_log))
+            # TODO: use list or np.array to store bin edges? A list retains the
+            # same more-restrictive indexing that is used in __getitem__; an
+            # np.array provides for manipulation not possible for lists,
+            # though.
+            self.bin_edges = np.array(bin_edges)
+
+        # Determine rest of unspecified parameters from passed bin_edges or
+        # enforce them if specified
+
+        if is_log is None:
+            if len(self.bin_edges) == 2:
+                is_log = False
+            else:
+                is_log = self.is_bin_spacing_log(self.bin_edges)
+        elif len(self.bin_edges) != 2:
+            assert is_log == self.is_bin_spacing_log(self.bin_edges)
+
+        if is_lin is None:
+            if len(self.bin_edges) == 2:
+                is_lin = True
+            else:
+                is_lin = self.is_bin_spacing_lin(self.bin_edges)
+        elif len(self.bin_edges) != 2:
+            assert is_lin == self.is_bin_spacing_lin(self.bin_edges)
+
+        if n_bins is None:
+            n_bins = len(self.bin_edges) - 1
         else:
-            czbin_visual_centers = self.czbin_midpoints
-        super(Binning, self).__setattr__('czbin_visual_centers',
-                                         czbin_visual_centers)
+            assert n_bins == len(self.bin_edges) - 1
+
+        self.domain = (self.bin_edges[0], self.bin_edges[-1])
+        self.is_lin = is_lin
+        self.is_log = is_log
+        self.is_irregular = not (self.is_lin or self.is_log)
+        self.midpoints = (self.bin_edges[:-1] + self.bin_edges[1:])/2.0
+        self.n_bins = len(self.bin_edges) - 1
+        if self.is_log:
+            self.visual_centers = np.sqrt(self.bin_edges[:-1] *
+                                          self.bin_edges[1:])
+        else:
+            self.visual_centers = self.midpoints
+
+        # TODO: Set attributes with "nice" names according to prefix? Probably
+        # too much to deal with, so don't do this (at least not here). If still
+        # want this, can do it in the multi-dim binning object.
+        #for attr in
+        #self.n_bins =
 
     @staticmethod
-    def check_binning(bin_edges, is_log):
-        # Bin edges must be monotonic, strictly increasing
+    def is_bin_spacing_log(bin_edges):
+        """Check if `bin_edges` define a logarithmically-uniform bin spacing.
+
+        Parameters
+        ----------
+        bin_edges : sequence
+            Fewer than 2 `bin_edges` - raises ValueError
+            Two `bin_edges` - returns False as a reasonable guess (spacing is
+                assumed to be linear)
+            More than two `bin_edges` - whether spacing is linear is computed
+
+        Returns
+        -------
+        bool
+
+        """
+        bin_edges = np.array(bin_edges)
+        if len(bin_edges) == 1:
+            raise ValueError('Single bin edge passed; require at least 3 to'
+                             ' determine nature of bin spacing.')
+        if len(bin_edges) == 2:
+            raise ValueError('Need at least 3 bin edges to determine nature'
+                             ' of bin spacing.')
+        log_spacing = bin_edges[1:] / bin_edges[:-1]
+        if np.allclose(log_spacing, log_spacing[0]):
+            return True
+        return False
+
+    @staticmethod
+    def is_bin_spacing_lin(bin_edges):
+        """Check if `bin_edges` define a linearly-uniform bin spacing.
+
+        Parameters
+        ----------
+        bin_edges : sequence
+            Fewer than 2 `bin_edges` - raises ValueError
+            Two `bin_edges` - returns True as a reasonable guess
+            More than two `bin_edges` - whether spacing is linear is computed
+
+        Returns
+        -------
+        bool
+
+        Raises
+        ------
+        ValueError if fewer than 2 `bin_edges` are specified.
+
+        """
+        bin_edges = np.array(bin_edges)
+        if len(bin_edges) == 1:
+            raise ValueError('Single bin edge passed; require at least 3 to'
+                             ' determine nature of bin spacing.')
+        if len(bin_edges) == 2:
+            return True
         lin_spacing = np.diff(bin_edges)
-        assert np.all(lin_spacing > 0)
+        if np.allclose(lin_spacing, lin_spacing[0]):
+            return True
+        return False
+
+    @staticmethod
+    def is_binning_ok(bin_edges, is_log):
+        """Check monotonicity and that bin spacing is logarithmic (if
+        `is_log=True`)
+
+        Parameters
+        ----------
+        bin_edges : sequence
+            Bin edges to check the validity of
+
+        is_log : bool
+            Whether binning is expected to be logarithmically spaced.
+
+        Returns
+        -------
+        bool, True if binning is OK, False if not
+
+        """
+        # Must be at least two edges to define a single bin
+        if len(bin_edges) < 2:
+            return False
+        # Bin edges must be monotonic and strictly increasing
+        lin_spacing = np.diff(bin_edges)
+        if not np.all(lin_spacing > 0):
+            return False
         # Log binning must have equal widths in log-space (but a single bin
         # has no "spacing" or stride, so no need to check)
         if is_log and len(bin_edges) > 2:
-            log_spacing = bin_edges[1:] / bin_edges[:-1]
-            assert np.allclose(log_spacing, log_spacing[0])
+            return OneDimBinning.is_bin_spacing_log(bin_edges)
+        return True
+
+    def is_compat(self, other):
+        """Compatibility -- for now -- is defined by all of self's bin
+        edges a subset of other's bin edges, or vice versa. This might bear
+        revisiting, or redefining just for special circumstances.
+
+        Parameters
+        ----------
+        other : OneDimBinning
+
+        Returns
+        -------
+        bool
+
+        """
+        my_edges, other_edges = set(self.ebins), set(other.ebins)
+        if len(my_edges.difference(other_edges)) == 0:
+            return True
+        if len(other_edges.difference(my_edges)) == 0:
+            return True
+        return False
+
+    def oversample(self, factor):
+        """Return a OneDimBinning object oversampled relative to this object's
+        binning.
+
+        Parameters
+        ----------
+        factor : integer
+            Factor by which to oversample the binning, with `factor`-times
+            as many bins (*not* bin edges) as this object has.
+
+        Returns
+        -------
+        OneDimBinning object
+        """
+        assert factor >= 1 and factor == int(factor)
+        factor = int(factor)
+        new_state = deepcopy(self.state)
+        if self.is_log:
+            bin_edges = np.logspace(np.log10(self.domain[0]),
+                                    np.log10(self.domain[-1]),
+                                    self.n_bins * factor + 1)
+        elif self.is_lin:
+            bin_edges = np.linspace(self.domain[0], self.domain[-1],
+                                    self.n_bins * factor + 1)
+        else: # irregularly-spaced
+            bin_edges = []
+            for lower, upper in izip(self.bin_edges[:-1], self.bin_edges[1:]):
+                this_bin_new_edges = np.linspace(lower, upper, factor+1)
+                # Exclude the last edge, as this will be first edge for the
+                # next divided bin
+                bin_edges.extend(this_bin_new_edges[:-1])
+            # Final bin needs final edge
+            bin_edges.append(this_bin_new_edges[-1])
+        new_state['bin_edges'] = bin_edges
+        return OneDimBinning(**new_state)
 
     @property
     def state(self):
         state = OrderedDict()
-        [state.__setitem__(a, self.__getattribute__(a))
-         for a in self.__state_attrs]
+        for attr in self.__state_attrs:
+            setitem(state, attr, getattr(self, attr))
         return state
 
+    def set_prefixed_attrs(self, obj):
+        for attr, spec in self.__prefixed_attrs:
+            setattr(obj, spec % self.prefix, getattr(self, attr))
+
     def __str__(self):
-        ebin_info = "%d energy bins in [%s, %s]; is_log=%s" % \
-                (self.n_ebins, self.e_range[0], self.e_range[1], self.e_is_log)
-        czbin_info = "%d coszen bins in [%s, %s]; is_log=%s" % \
-                (self.n_czbins, self.cz_range[0], self.cz_range[1],
-                 self.cz_is_log)
-        return ebin_info + '; ' + czbin_info
+        if len(self.bin_edges) == 2:
+            bins_str = ' bin'
+        else:
+            bins_str = ' bins'
+
+        if self.n_bins == 1:
+            spacing_descr = ''
+        elif self.is_lin:
+            spacing_descr = ' linearly-spaced'
+        elif self.is_log:
+            spacing_descr = ' logarithmically-spaced'
+        else:
+            spacing_descr = ' irregularly-spaced'
+
+        if self.units is None:
+            units_str = ''
+        else:
+            units_str = ' %s' % self.units
+
+        domain_str = ' spanning [%s, %s]' % (self.bin_edges[0],
+                                             self.bin_edges[-1])
+
+        return '{name:s}: {n:d}{spaced:s}{bins:s}{domain:s}{units:s}'.format(
+            name=self.name, n=self.n_bins, spaced=spacing_descr, bins=bins_str,
+            domain=domain_str, units=units_str
+        )
 
     def __repr__(self):
         return str(self)
 
-    def __setattr__(self, attr, value):
-        """Only allow setting attributes defined in slots"""
-        if attr not in self.__slots:
-            raise ValueError('No attribute "%s"' % attr)
-        super(Binning, self).__setattr__(attr, value)
+    def __getitem__(self, index):
+        """Return a new OneDimBinning, sub-selected by `index`.
 
-    def oversample(self, e_factor, cz_factor):
-        if self.e_is_log:
-            ebins = np.logspace(np.log10(self.e_range[0]),
-                                np.log10(self.e_range[-1]),
-                                self.n_ebins * e_factor + 1)
-        else:
-            ebins = np.linspace(self.e_range[0], self.e_range[-1],
-                                self.n_ebins * e_factor + 1)
-        if self.e_is_log:
-            ebins = np.logspace(np.log10(self.e_range[0]),
-                                np.log10(self.e_range[-1]),
-                                self.n_ebins * e_factor + 1)
-        else:
-            ebins = np.linspace(self.e_range[0], self.e_range[-1],
-                                self.n_ebins * e_factor + 1)
-        return Binning(ebins=ebins, czbins=czbins,
-                       e_is_log=self.e_is_log, cz_is_log=self.cz_is_log)
+        Parameters
+        ----------
+        index : int, slice, or length-one Sequence
+            The *bin* indices (*not* bin-edge indices) to return.
 
-    def assert_array_compat(self, array):
-        """Check if a 2D array of values fits into the defined bins"""
-        required_shape = (self.n_ebins, self.n_czbins)
-        if array.shape != required_shape:
-            raise ValueError('Shape %s incompatible with required shape %s'
-                             % (array.shape, required_shape))
+        Returns
+        -------
+        A new OneDimBinning but only with bins selected by `index`.
 
-    def is_binning_compat(self, binning):
-        """Check if a (possibly different) binning can map onto the defined
-        binning. Allows for simple re-binning schemes (but no interplation).
         """
-        if binning == self:
+        # Simple to get all but final bin edge
+        bin_edges = self.bin_edges[index]
+
+        if np.isscalar(bin_edges):
+            bin_edges = [bin_edges]
+        else:
+            bin_edges = list(bin_edges)
+
+        # Append final bin edge, indexed by final-bin index + 1
+        if isinstance(index, slice):
+            final_bin_index = index.stop
+        elif isinstance(index, int):
+            final_bin_index = index + 1
+        elif isinstance(index, Sequence):
+            assert len(index) == 1
+            final_bin_index = index[0] + 1
+        else:
+            raise TypeError('Unhandled index type %s' % type(index))
+        bin_edges.append(self.bin_edges[final_bin_index])
+
+        # Retrieve current state; only bin_edges needs to be updated
+        new_state = deepcopy(self.state)
+        new_state['bin_edges'] = bin_edges
+        return OneDimBinning(**new_state)
+
+class MultiDimBinning(object):
+    """
+    Parameters
+    ----------
+    *args : each a OneDimBinning or Mapping that can construct one via
+        OneDimBinning Instantiated binning follows the order in which each
+        OneDimBinning See OneDimBinning keys required for a Mapping that can be
+        used to instantiate OneDimBinning.
+
+    Properties
+    ----------
+    dimensions
+    n_dimensions
+    shape
+
+    Methods
+    -------
+    assert_array_fits
+    assert_compat
+    meshgrid
+    oversample
+    __eq__
+    __getitem__
+    __repr__
+    __str__
+
+    """
+    def __init__(self, *args):
+        dimensions = []
+        shape = []
+        for arg_num, arg in enumerate(args):
+            if isinstance(arg, OneDimBinning):
+                one_dim_binning = arg
+            elif isinstance(arg, Mapping):
+                one_dim_binning = OneDimBinning(**arg)
+            else:
+                raise TypeError('Argument #%d unhandled type: %s'
+                                %(arg_num, type(arg)))
+            one_dim_binning.set_prefixed_attrs(self)
+            dimensions.append(one_dim_binning)
+            shape.append(one_dim_binning.n_bins)
+
+        self.dimensions = tuple(dimensions)
+        self.n_dims = len(self.dimensions)
+        self.shape = tuple(shape)
+
+    @property
+    def state(self):
+        """Everything necessary to fully describe this object's state. Note
+        that objects may be returned by reference, so to prevent external
+        modification, the user must call deepcopy() separately on the returned
+        tuple.
+
+        Returns
+        -------
+        state tuple; can be passed to instantiate a new MultiDimBinning via
+            MultiDimBinning(*state)
+
+        """
+        return tuple([d.state for d in self])
+
+    def oversample(self, *factors):
+        """Return a Binning object oversampled relative to this binning.
+
+        Parameters
+        ----------
+        *factors : each factor an int
+            Factors by which to oversample the binnings, with `e_factor` times
+            as many energy bins and `cz_factor` times as many cosine-zenith
+            bins
+
+        """
+        if len(factors) == 1:
+            factors = [factors[0]]*self.n_dims
+        else:
+            assert len(factors) == self.n_dims
+        return MultiDimBinning(*[dim.oversample(f)
+                                 for dim, f in zip(self, factors)])
+
+    def assert_array_fits(self, array):
+        """Check if a 2D array of values fits into the defined bins (i.e., has
+        the exact shape defined by this binning).
+
+        Parameters
+        ----------
+        array : 2D array (or sequence-of-sequences)
+
+        Returns
+        -------
+        bool : True if array fits, False otherwise
+
+        """
+        assert array.shape == self.shape, \
+                '%s does not match self shape %s' % (array.shape, self.shape)
+
+    def assert_compat(self, other):
+        """Check if a (possibly different) binning can map onto the defined
+        binning. Allows for simple re-binning schemes (but no interpolation).
+
+        Parameters
+        ----------
+        `other` : Binning or container with attribute "binning"
+
+        """
+        if not isinstance(other, MultiDimBinning):
+            for attr, val in other.__dict__.items():
+                if isinstance(val, MultiDimBinning):
+                    other = val
+                    break
+        assert isinstance(other, MultiDimBinning)
+        if other == self:
             return True
-        my_e, other_e = set(self.ebins), set(binning.ebins)
-        my_cz, other_cz = set(self.czbins), set(binning.czbins)
-        if not(my_e.difference(other_e)) and not(my_cz.difference(other_cz)):
-            return True
-        if not(other_e.difference(my_e)) and not(other_cz.difference(my_cz)):
-            return True
-        return False
+        for my_dim, other_dim in zip(self, other):
+            if not my_dim.assert_compat(other_dim):
+                return False
+        return True
+
+    def meshgrid(self, which='midpoints'):
+        which = which.lower().strip()
+        if which == 'midpoints':
+            return np.meshgrid(*tuple([d.midpoints for d in self]))
+        if which == 'visual_centers':
+            return np.meshgrid(*tuple([d.visual_centers for d in self]))
+        if which == 'bin_edges':
+            return np.meshgrid(*tuple([d.bin_edges for d in self]))
+        raise ValueError('Unrecognized `which` parameter: "%s"' % which)
 
     def __eq__(self, other):
         if not isinstance(other, Binning):
             return False
         return recursiveEquality(self.state, other.state)
 
+    def __str__(self):
+        return '\n'.join([str(dim) for dim in self])
+
+    def __repr__(self):
+        return str(self)
+
+    def __iter__(self):
+        return iter(self.dimensions)
+
+    #def __setattr__(self, attr, value):
+    #    """Only allow setting attributes defined in slots"""
+    #    if attr not in self.__slots:
+    #        raise ValueError('No attribute "%s"' % attr)
+    #    super(Binning, self).__setattr__(attr, value)
+
+    def __getitem__(self, index):
+        """Interpret indices as indexing bins and *not* bin edges.
+        Energy index comes first, coszen index second; both must be present.
+
+        Parameters
+        ----------
+        index : len-N-sequence of ints or len-N-sequence of slices
+
+        Returns
+        -------
+        A new Binning object but with the bins specified by `index`.
+        Whether or not spacing is logarithmic is unchanged.
+        """
+        if not isinstance(index, Sequence):
+            index = [index]
+        input_dim = len(index)
+        if input_dim != self.n_dims:
+            raise ValueError('Binning is %dD, but %dD indexing was passed'
+                             % (self.n_dims, input_dim))
+        new_binning = []
+        for dim, idx in zip(self.dimensions, index):
+            new_binning.append(dim[idx])
+        return MultiDimBinning(*new_binning)
+
+
+def e_binning(emin, emax, n_ebins, is_log=True):
+    return OneDimBinning(name='energy', units='GeV', prefix='e', tex=r'E_\nu',
+                         is_log=is_log, n_bins=n_ebins, domain=(emin, emax))
+
+
+def cz_binning(czmin, czmax, n_czbins, is_lin=True):
+    return OneDimBinning(name='coszen', units=None, prefix='cz',
+                         tex=r'\cos\,\theta', is_lin=is_lin,
+                         n_bins=n_czbins, domain=(czmin, czmax))
+
 
 def test_Binning():
-    pass
+    b1 = Binning(e_range=[1,80], cz_range=[-1,0], n_ebins=40, n_czbins=20,
+                 e_is_log=True)
+    b2 = Binning(ebins=np.logspace(0, np.log10(80), 41),
+                 czbins=np.linspace(-1, 0, 21), e_is_log=True)
+    print 'b1:', b1
+    print 'b2:', b2
+    assert b1 == b2
+    print 'b1[0:5, 0:5]:', b1[0:5, 0:5]
+    assert b1[0:40, 0:20] == b1
 
 
 if __name__ == "__main__":

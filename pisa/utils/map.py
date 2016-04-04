@@ -20,7 +20,7 @@ from copy import deepcopy
 
 import numpy as np
 
-from pisa.utils.binning import Binning
+from pisa.utils.binning import OneDimBinning, MultiDimBinning
 
 
 def type_error(value):
@@ -113,6 +113,9 @@ class Map(object):
     Methods
     -------
     assert_compat
+    fluctuate
+    chi2
+    llh
     __abs__
     __add__
     __div__
@@ -143,14 +146,14 @@ class Map(object):
         super(Map, self).__setattr__('_full_comparison', full_comparison)
 
         # Do the work here to set read-only attributes
-        if not isinstance(binning, Binning):
-            assert isinstance(binning, Mapping)
-            binning = Binning(**binning)
+        if not isinstance(binning, MultiDimBinning):
+            assert isinstance(binning, Sequence)
+            binning = MultiDimBinning(*tuple(binning))
         super(Map, self).__setattr__('_binning', binning)
-        binning.assert_array_compat(hist)
+        binning.assert_array_fits(hist)
         super(Map, self).__setattr__('_hist', hist)
         if variance is not None:
-            binning.assert_array_compat(variance)
+            assert binning.assert_array_fits(variance)
         super(Map, self).__setattr__('_variance', variance)
 
     @property
@@ -164,53 +167,23 @@ class Map(object):
         if np.isscalar(other):
             return
         elif isinstance(other, np.ndarray):
-            self.binning.assert_array_compat(other.hist)
+            self.binning.assert_array_fits(other)
         elif isinstance(other, Map):
-            assert self.binning == other.binning, \
-                    "(%s) incompat. with (%s)" % (other.binning, self.binning)
+            self.binning.assert_compat(other.binning)
         else:
-            assert False, 'Unrecognized type %s' % type(other)
+            assert False, 'Unrecognized type'
 
     def index(self, idx):
+        if not isinstance(idx, Sequence) and len(idx) == 2:
+            raise ValueError('Map is 2D; 2D indexing is required')
         state = deepcopy(self.state)
-        binning_state = deepcopy(self.binning.state)
-        e_idx = idx[0]
-        cz_idx = idx[1]
-        ebins = self.binning.ebins[e_idx]
-        czbins = self.binning.czbins[cz_idx]
-        if np.isscalar(ebins):
-            ebins = [ebins]
-        if np.isscalar(czbins):
-            czbins = [czbins]
-        ebins = list(ebins)
-        czbins = list(czbins)
-        if isinstance(e_idx, slice):
-            ebins += [self.binning.ebins[e_idx.stop]]
-        elif isinstance(e_idx, int):
-            ebins += [self.binning.ebins[e_idx+1]]
-        elif isinstance(e_idx, Sequence):
-            assert len(e_idx) == 1
-            ebins += [self.binning.ebins[e_idx[0]+1]]
-        else:
-            raise TypeError('Unhandled e_idx type %s' % type(e_idx))
-
-        if isinstance(cz_idx, slice):
-            czbins += [self.binning.czbins[cz_idx.stop]]
-        elif isinstance(cz_idx, int):
-            czbins += [self.binning.czbins[cz_idx+1]]
-        elif isinstance(cz_idx, Sequence):
-            assert len(cz_idx) == 1
-            czbins += [self.binning.czbins[cz_idx[0]+1]]
-        else:
-            raise TypeError('Unhandled cz_idx type %s' % type(cz_idx))
-
-        binning_state.update(dict(
-            ebins=ebins, czbins=czbins
-        ))
-        binning = Binning(**binning_state)
+        binning = self.binning[idx]
+        state['binning'] = binning
+        # Indexing a single element e.g. hist[1,3] returns a 0D array while
+        # e.g. hist[1,3:8] returns a 1D array; but we need 2D... so reshape
+        # after indexing.
         hist = state['hist'][idx].reshape(binning.n_ebins, binning.n_czbins)
         state['hist'] = hist
-        state['binning'] = binning
         if state['variance'] is not None:
             variance = state['variance'][idx].reshape(binning.n_ebins,
                                                       binning.n_czbins)
@@ -238,21 +211,19 @@ class Map(object):
         return super(Map, self).__getattribute__(attr)
 
     def __getitem__(self, idx):
-        if isinstance(idx, int):
-            raise TypeError('Map is 2D; integer indexing is ambiguous'
-                            ' and therefore disallowed.')
-        elif isinstance(idx, Sequence):
-            if len(idx) == 2:
-                return self.index(idx)
-            else:
-                raise ValueError('Map is 2D; %d-D indexing is disallowed' %
-                                 len(idx))
-        else:
-            raise TypeError('Map is 2D; integer indexing is ambiguous'
-                            ' and therefore disallowed.')
+        return self.index(idx)
 
-    def __setitem__(self, idx, val):
-        return setitem(self.hist, idx, val)
+    # TODO: is this a good behavior to have, setting the indexed value(s) of
+    # .hist but leaving everything else alone? Seems like this should be left
+    # to explicit setting on the contained hist, e.g. map.hist[2,8] = 4 is
+    # more explicit and might signal more clearly where things are left UNdone
+    # like setting the variance in that case wasn't done and so synchronization
+    # can fail. One advantage of intercepting a setitem here is that we can
+    # automatically invalidate the hash (set it to None or np.nan) when setitem
+    # is called.
+
+    #def __setitem__(self, idx, val):
+    #    return setitem(self.hist, idx, val)
 
     @property
     def name(self):
@@ -331,7 +302,6 @@ class Map(object):
                 hist=self.hist + other,
             ))
         elif isinstance(other, Map):
-            self.assert_compat(other)
             state.update(dict(
                 name="(%s + %s)" % (self.name, other.name),
                 tex=r"{(%s + %s)}" % (self.tex, other.tex),
@@ -344,7 +314,6 @@ class Map(object):
         return Map(**state)
 
     #def __cmp__(self, other):
-    #    self.assert_compat(other)
 
     def __div__(self, other):
         state = deepcopy(self.state)
@@ -361,7 +330,6 @@ class Map(object):
                 hist=self.hist / other,
             ))
         elif isinstance(other, Map):
-            self.assert_compat(other)
             state.update(dict(
                 name="(%s / %s)" % (self.name, other.name),
                 tex=r"{(%s / %s)}" % (self.tex, other.tex),
@@ -400,31 +368,22 @@ class Map(object):
             type_error(other)
 
     #def __ge__(self, other):
-    #    self.assert_compat(other)
 
     #def __gt__(self, other):
-    #    self.assert_compat(other)
 
     #def __iadd__(self, other):
-    #    self.assert_compat(other)
 
     #def __idiv__(self, other):
-    #    self.assert_compat(other)
 
     #def __imul__(self, other):
-    #    self.assert_compat(other)
 
     #def __ipow__(self, other):
-    #    self.assert_compat(other)
 
     #def __isub__(self, other):
-    #    self.assert_compat(other)
 
     #def __le__(self, other):
-    #    self.assert_compat(other)
 
     #def __lt__(self, other):
-    #    self.assert_compat(other)
 
     def log(self):
         state = deepcopy(self.state)
@@ -461,7 +420,6 @@ class Map(object):
                 hist=self.hist * other,
             ))
         elif isinstance(other, Map):
-            self.assert_compat(other)
             state.update(dict(
                 name="%s * %s" % (self.name, other.name),
                 tex=r"%s \cdot %s" % (self.tex, other.tex),
@@ -499,20 +457,19 @@ class Map(object):
             else:
                 val = self.hist * other
             state.update(dict(
-                name="%s^%s" % (self.name, other),
+                name="%s**%s" % (self.name, other),
                 tex="%s^{%s}" % (self.tex, other),
                 hist=val,
             ))
         elif isinstance(other, np.ndarray):
             state.update(dict(
-                name="%s^(array)" % self.name,
+                name="%s**(array)" % self.name,
                 tex=r"%s^{X}" % self.tex,
                 hist=np.power(self.hist, other),
             ))
         elif isinstance(other, Map):
-            self.assert_compat(other)
             state.update(dict(
-                name="%s^(%s)" % (self.name, strip_outer_parens(other.name)),
+                name="%s**(%s)" % (self.name, strip_outer_parens(other.name)),
                 tex=r"%s^{%s}" % (self.tex, strip_outer_parens(other.tex)),
                 hist=np.power(self.hist, other.hist),
                 full_comparison=self.full_comparison or other.full_comparison,
@@ -597,7 +554,6 @@ class Map(object):
                 hist=self.hist - other,
             ))
         elif isinstance(other, Map):
-            self.assert_compat(other)
             state.update(dict(
                 name="%s - %s" % (self.name, other.name),
                 tex="{(%s - %s)}" % (self.tex, other.tex),
@@ -776,7 +732,7 @@ class MapSet(object):
             elif len(item) == 2:
                 return MapSet([getitem(m, item) for m in self])
             else:
-                raise IndexError('too many indices for 2D hist') 
+                raise IndexError('too many indices for 2D hist')
         #elif isinstance(item, Sequence):
         #    assert len(item) == 2, 'Maps are 2D, and so must be indexed as such'
         #    return self.collate_with_names([getitem(m, item) for m in self])
@@ -855,12 +811,17 @@ class MapSet(object):
 
 
 def test_Map():
-    m1 = Map(name='x', hist=np.ones((40,20)),
-             binning=dict(n_ebins=40, e_range=(1,80), e_is_log=True,
-                          n_czbins=20, cz_range=(-1,0)))
-    m2 = Map(name='y', hist=2*np.ones((40,20)),
-             binning=dict(n_ebins=40, e_range=(1,80), e_is_log=True,
-                          n_czbins=20, cz_range=(-1,0)))
+    e_binning = OneDimBinning(
+        name='energy', units='GeV', prefix='e', tex=r'E_\nu', n_bins=40,
+        domain=(1,80), is_log=True
+    )
+    cz_binning = OneDimBinning(
+        name='coszen', units=None, prefix='cz', tex=r'\cos\,\theta', n_bins=20,
+        domain=(-1,0), is_lin=True
+    )
+    m1 = Map(name='x', hist=np.ones((40,20)), binning=(e_binning, cz_binning))
+    m2 = Map(name='y', hist=2*np.ones((40,20)), binning=(e_binning, cz_binning))
+
     print m1, m1.binning
     print m2, m2.binning
     r = m1 + m2
@@ -875,20 +836,30 @@ def test_Map():
     r = (2*m1 + 8) / m2
     assert r == 5
     print '(2*m1 + 8) / m2=5:', r, r.hist[0,0]
-    r[:,1] = 1
-    r[2,:] = 2
-    print 'r[0:5,0:5].hist:', r[0:5,0:5].hist
-    print 'r[0:5,0:5].binning:', r[0:5,0:5].binning
+    #r[:,1] = 1
+    #r[2,:] = 2
+    print 'r[0:2,0:5].hist:', r[0:2,0:5].hist
+    print 'r[0:2,0:5].binning:', r[0:2,0:5].binning
     r = m1 / m2
     assert r == 0.5
     print r, '=', r[0,0]
 
+
 def test_MapSet():
     n_ebins = 5
     n_czbins = 3
-    binning = Binning(n_ebins=n_ebins, e_range=(1,80), e_is_log=True,
-                      n_czbins=n_czbins, cz_range=(-1,0))
+    e_binning = OneDimBinning(
+        name='energy', units='GeV', prefix='e', tex=r'E_\nu', n_bins=n_ebins,
+        domain=(1,80), is_log=True
+    )
+    cz_binning = OneDimBinning(
+        name='coszen', units=None, prefix='cz', tex=r'\cos\,\theta',
+        n_bins=n_czbins, domain=(-1,0), is_lin=True
+    )
+    binning = MultiDimBinning(e_binning, cz_binning)
     m1 = Map(name='ones', hist=np.ones((n_ebins,n_czbins)), binning=binning)
+    m1 = Map(name='ones', hist=np.ones((n_ebins,n_czbins)),
+             binning=(e_binning, cz_binning))
     m2 = Map(name='twos', hist=2*np.ones((n_ebins,n_czbins)), binning=binning)
     ms1 = MapSet((m1, m2))
     ms1 = MapSet((m1, m2), name='map set 1')
@@ -936,8 +907,7 @@ def test_MapSet():
     print 'ms3', ms3
     print 'ms4', ms4
 
+
 if __name__ == "__main__":
     test_Map()
     test_MapSet()
-
-

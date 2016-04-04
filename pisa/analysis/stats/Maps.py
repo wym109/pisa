@@ -21,7 +21,7 @@ def apply_ratio_scale(orig_maps, key1, key2, ratio_scale, is_flux_scale, int_typ
     else: log_str = 'event rate (%s)'%int_type
 
     if not is_flux_scale:
-	# we have maps of event counts of a certain interaction type
+        # we have maps of event counts of a certain interaction type
         orig_sum = orig_maps[key1][int_type]['map'] + orig_maps[key2][int_type]['map']
         orig_total1 = orig_maps[key1][int_type]['map'].sum()
         orig_total2 = orig_maps[key2][int_type]['map'].sum()
