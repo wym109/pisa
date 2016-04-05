@@ -158,7 +158,10 @@ class AeffServiceSliceSmooth(object):
             ebin_mp_mesh, czbin_mp_mesh = np.meshgrid(ebin_midpoints,
                                                       czbin_midpoints,
                                                       indexing='ij')
-            aeff2d[group] = interpolant(czbin_midpoints, ebin_midpoints)
+            aeff2d[group] = np.clip(
+                interpolant(czbin_midpoints, ebin_midpoints),
+                a_min=0, a_max=np.inf
+            )
 
         # Store info for *all* flavints, even if they were combined
         # together for computational purposes. This is what is used by 

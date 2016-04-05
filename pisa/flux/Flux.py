@@ -151,8 +151,8 @@ def get_flux_maps(flux_service, ebins, czbins, nue_numu_ratio, nu_nubar_ratio,
                       'map': flux_service.get_flux(ebins*energy_scale,czbins,prim)}
 
         # be a bit verbose
-        logging.trace("Total flux of %s is %u [s^-1 m^-2]"%
-                      (prim,maps[prim]['map'].sum()))
+        logging.trace("Total flux of %s is %s [s^-1 m^-2]"%
+                      (prim, maps[prim]['map'].sum()))
 
     # now scale the nue(bar) / numu(bar) flux ratios, keeping the total
     # Flux (nue + numu, nue_bar + numu_bar) constant, or return unscaled maps:
@@ -203,9 +203,9 @@ if __name__ == '__main__':
     #Set verbosity level
     set_verbosity(args.verbose)
 
-    logging.debug("Using %u bins in energy from %.2f to %.2f GeV"%
+    logging.debug("Using %s bins in energy from %.2f to %.2f GeV"%
                                 (len(args.ebins)-1,args.ebins[0],args.ebins[-1]))
-    logging.debug("Using %u bins in cos(zenith) from %.2f to %.2f"%
+    logging.debug("Using %s bins in cos(zenith) from %.2f to %.2f"%
                                 (len(args.czbins)-1,args.czbins[0],args.czbins[-1]))
 
     #Instantiate a flux model
