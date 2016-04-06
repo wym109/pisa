@@ -31,24 +31,45 @@ def generalized_ln_poisson(data, expectation):
     'data' from expected counts 'expectation'.
     """
 
-    if not np.alltrue(data >= 0.0):
+    if not np.all(data >= 0.0):
+        print 'data error...'
+        print 'min val :', np.min(data)
+        print 'max val :', np.max(data)
+        print 'mean val:', np.mean(data)
+        print 'num < 0 :', np.sum(data < 0)
+        print 'num == 0:', np.sum(data == 0)
         raise ValueError(
-            "Template must have all bins >= 0.0! Template generation bug?")
+            "Data must have all bins >= 0.0! Template generation bug?"
+        )
 
-    if bool(re.match('^int',data.dtype.name)):
-        return np.log(poisson.pmf(data,expectation))
-    elif bool(re.match('^float',data.dtype.name)):
-        return (data*np.log(expectation) - expectation - multigammaln(data+1.0, 1))
+    if np.issubdtype(data.dtype, np.int):
+        return poisson.logpmf(data, expectation)
+    elif np.issubdtype(data.dtype, np.float):
+        vals = (data*np.log(expectation) - expectation - multigammaln(data+1.0, 1))
+        if not np.all(np.isfinite(vals)):
+            print 'data:', data
+            print 'expectation:', expectation
+            print 'log(expectation):', np.log(expectation)
+            print 'multigammaln(data+1.0, 1):', multigammaln(data+1.0, 1)
+            print 'vals:', vals
+            raise ValueError()
+        return vals
     else:
-        raise ValueError(
-            "Unknown data dtype: %s. Must be float or int!"%psuedo_data.dtype)
+        raise ValueError('Unhandled data dtype: %s. Must be float or'
+                         ' int.' % psuedo_data.dtype)
 
 def get_binwise_llh(pseudo_data, template):
     """
     Computes the log-likelihood (llh) of the pseudo_data from the
     template, where each input is expected to be a 2d numpy array
     """
-    if not np.alltrue(template >= 0.0):
+    if not np.all(template >= 0.0):
+        print 'template error...'
+        print 'min val :', np.min(template)
+        print 'max val :', np.max(template)
+        print 'mean val:', np.mean(template)
+        print 'num < 0 :', np.sum(template < 0)
+        print 'num == 0:', np.sum(template == 0)
         raise ValueError("Template must have all bins >= 0.0! Template generation bug?")
 
     totalLLH = np.sum(generalized_ln_poisson(pseudo_data,template))
@@ -60,7 +81,13 @@ def get_binwise_chisquare(pseudo_data, template):
     Computes the chisquare between the pseudo_data
     and the template, where each input is expected to be a 2d numpy array
     '''
-    if not np.alltrue(template >= 0.0):
+    if not np.all(template >= 0.0):
+        print 'template error...'
+        print 'min val :', np.min(data)
+        print 'max val :', np.max(data)
+        print 'mean val:', np.mean(data)
+        print 'num < 0 :', np.sum(data < 0)
+        print 'num == 0:', np.sum(data == 0)
         raise ValueError("Template must have all bins >= 0.0! Template generation bug?")
 
     total_chisquare = np.sum(np.divide(np.power((pseudo_data - template), 2), pseudo_data))

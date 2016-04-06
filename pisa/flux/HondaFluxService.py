@@ -34,10 +34,10 @@ class HondaFluxService():
     def __init__(self, flux_file=None, smooth=0.05, **params):
         logging.info("Loading atmospheric flux table %s" %flux_file)
 
-        #Load the data table
+        # Load the data table
         table = np.loadtxt(open_resource(flux_file)).T
 
-        #columns in Honda files are in the same order
+        # columns in Honda files are in the same order
         cols = ['energy']+primaries
 
         flux_dict = dict(zip(cols, table))
@@ -48,11 +48,11 @@ class HondaFluxService():
             if not key=='energy':
                 flux_dict[key] = flux_dict[key].T
 
-        #Set the zenith and energy range
+        # Set the zenith and energy range
         flux_dict['energy'] = flux_dict['energy'][0]
         flux_dict['coszen'] = np.linspace(0.95, -0.95, 20)
 
-        #Now get a spline representation of the flux table.
+        # Now get a spline representation of the flux table.
         logging.debug('Make spline representation of flux')
         # do this in log of energy and log of flux (more stable)
         logE, C = np.meshgrid(np.log10(flux_dict['energy']), flux_dict['coszen'])
@@ -70,18 +70,25 @@ class HondaFluxService():
         """Get the flux in units [m^-2 s^-1] for the given
            bin edges in energy and cos(zenith) and the primary."""
 
-        #Evaluate the flux at the bin centers
+        # Evaluate the flux at the bin centers
         evals = get_bin_centers(ebins)
         czvals = get_bin_centers(czbins)
 
         # Get the spline interpolation, which is in
         # log(flux) as function of log(E), cos(zenith)
         return_table = bisplev(np.log10(evals), czvals, self.spline_dict[prim])
+        if not np.all(np.isfinite(return_table)):
+            print 'evals:', evals
+            print 'log10(evals):', np.log10(evals)
+            print 'czvals:', czvals
+            print 'bisplrep:', self.spline_dict[prim]
+            print 'return_table:', return_table
+            raise ValueError()
         return_table = np.power(10., return_table).T
 
-        #Flux is given per sr and GeV, so we need to multiply
-        #by bin width in both dimensions
-        #Get the bin size in both dimensions
+        # Flux is given per sr and GeV, so we need to multiply
+        # by bin width in both dimensions
+        # Get the bin size in both dimensions
         ebin_sizes = get_bin_sizes(ebins)
         czbin_sizes = 2.*np.pi*get_bin_sizes(czbins)
         bin_sizes = np.meshgrid(ebin_sizes, czbin_sizes)

@@ -25,12 +25,12 @@ print 'ORIGINAL RLIMIT_DATA:', cur_lims_data
 print 'ORIGINAL RLIMIT_AS:', cur_lims_as
 resource.setrlimit(
     resource.RLIMIT_DATA,
-    (min(cur_lims_data[0], 4L*1024L*1024L*1024L), cur_lims_data[1])
+    (min(cur_lims_data[0], 30L*1000L*1000L*1024L), cur_lims_data[1])
 )
 resource.setrlimit(
     resource.RLIMIT_AS,
-    (min(cur_lims_as[0], 8L*1024L*1024L*1024L),
-     min(cur_lims_as[1], 16L*1024L*1024L*1024L))
+    (min(cur_lims_as[0], 60L*1000L*1000L*1024L),
+     min(cur_lims_as[1], 60L*1000L*1000L*1024L))
 )
 print 'NEW RLIMIT_DATA:', resource.getrlimit(resource.RLIMIT_DATA)
 print 'NEW RLIMIT_AS:', resource.getrlimit(resource.RLIMIT_AS)

@@ -144,11 +144,23 @@ def get_flux_maps(flux_service, ebins, czbins, nue_numu_ratio, nu_nubar_ratio,
     maps = {'params': params}
 
     for prim in primaries:
-
+        if not np.all(np.isfinite(energy_scale)):
+            print 'f >> ebins:', ebins
+            print 'f -- energy_scale:', energy_scale
+            raise ValueError()
+        if not np.isfinite(energy_scale):
+            print 'f -- escale ebins:', ebins
+            print 'f >> energy_scale:', energy_scale
+            raise ValueError()
+        flux = flux_service.get_flux(ebins*energy_scale, czbins, prim)
+        if not np.all(np.isfinite(flux)):
+            msg = 'nan values returned: %d; energy_scale=%s' % \
+                    (np.sum(np.isnan(flux)), energy_scale)
+            raise ValueError(msg)
         # Get the flux for this primary
         maps[prim] = {'ebins': ebins,
                       'czbins': czbins,
-                      'map': flux_service.get_flux(ebins*energy_scale,czbins,prim)}
+                      'map': flux}
 
         # be a bit verbose
         logging.trace("Total flux of %s is %s [s^-1 m^-2]"%

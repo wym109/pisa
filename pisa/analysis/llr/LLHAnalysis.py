@@ -81,7 +81,7 @@ def display_optimizer_settings(free_params, names, init_vals, bounds, priors,
                                        'method',
                                        minim_settings['method']['value']))
     for key,item in minim_settings['options']['value'].items():
-        physics.debug("  %s -> `%s` = %.02f"
+        physics.debug("  %s -> `%s` = %e"
                       % (minim_settings['options']['desc'][key], key, item))
 
 
@@ -111,13 +111,13 @@ def find_opt_scipy(fmap, template_maker, params, minim_settings,
     free_params = get_free_params(select_hierarchy(params, normal_hierarchy))
 
     if len(free_params) == 0:
-	logging.warn("NO FREE PARAMS, returning %s" % metric_name)
-	true_template = template_maker.get_template(get_values(fixed_params))
-	channel = params['channel']['value']
-	true_fmap = flatten_map(template=true_template, channel=channel)
-	if metric_name=='chisquare':
+        logging.warn("NO FREE PARAMS, returning %s" % metric_name)
+        true_template = template_maker.get_template(get_values(fixed_params))
+        channel = params['channel']['value']
+        true_fmap = flatten_map(template=true_template, channel=channel)
+        if metric_name == 'chisquare':
             return {'chisquare': [get_binwise_chisquare(fmap, true_fmap)]}
-	elif metric_name=='llh':
+        elif metric_name == 'llh':
             return {'llh': [-get_binwise_llh(fmap, true_fmap)]}
 
     init_vals = get_param_values(free_params)
@@ -292,19 +292,35 @@ def minim_metric(opt_vals, names, scales, fmap, fixed_params, template_maker,
     # NOTE: The minus sign is present on both of these next two lines
     # because the optimizer finds a minimum rather than maximum, so we
     # have to minimize the negative of the log likelhood.
-    if metric_name=='chisquare':
-	metric_val = get_binwise_chisquare(fmap, true_fmap)
-	metric_val += sum([prior.chi2(opt_val)
+    if metric_name == 'chisquare':
+        metric_val = get_binwise_chisquare(fmap, true_fmap)
+        metric_val += np.sum([prior.chi2(opt_val)
                            for (opt_val, prior) in zip(unscaled_opt_vals, priors)])
-    elif metric_name=='llh':
-	metric_val = -get_binwise_llh(fmap, true_fmap)
-	metric_val -= sum([prior.llh(opt_val)
+    elif metric_name == 'llh':
+        metric_val = -get_binwise_llh(fmap, true_fmap)
+        if not np.isfinite(metric_val):
+            print 'metric_val:', metric_val
+            print 'fmap:', fmap
+            print 'true_fmap:', true_fmap
+            print 'maxdiff:', np.max(np.abs(fmap - true_fmap))
+            raise ValueError()
+
+        metric_val -= np.sum([prior.llh(opt_val)
                            for (opt_val, prior) in zip(unscaled_opt_vals, priors)])
+        if not np.isfinite(metric_val):
+            print [(prior, prior.llh(opt_val))
+                   for (opt_val, prior) in zip(unscaled_opt_vals, priors)]
+            print 'metric_val:', metric_val
+            print 'fmap:', fmap
+            print 'true_fmap:', true_fmap
+            print 'maxdiff:', np.max(np.abs(fmap - true_fmap))
+            raise ValueError()
+
 
     #prior_list = [prior.llh(opt_val)
     #         for (opt_val, prior) in zip(unscaled_opt_vals, priors)]
-    #print("  prior sum: ",sum(prior_list))
-    #neg_llh -= sum(prior_list)
+    #print("  prior sum: ",np.sum(prior_list))
+    #neg_llh -= np.sum(prior_list)
 
     # Save all optimizer-tested values to opt_steps_dict, to see
     # optimizer history later
@@ -312,8 +328,8 @@ def minim_metric(opt_vals, names, scales, fmap, fixed_params, template_maker,
         opt_steps_dict[key].append(template_params[key])
     opt_steps_dict[metric_name].append(metric_val)
 
-    physics.debug("%s is %.2f at: " % (metric_name, metric_val))
+    physics.debug("%s is %s at: " % (metric_name, metric_val))
     for name, val in zip(names, opt_vals):
-        physics.debug(" %20s = %6.4f" % (name,val))
+        physics.debug(" %20s = %0.15e" % (name, val))
 
     return metric_val
