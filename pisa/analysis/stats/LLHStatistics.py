@@ -10,74 +10,36 @@
 # files in this module.
 #
 
+
 import re
 import numpy as np
-from scipy.special import multigammaln
 from scipy.stats import poisson
 
 from pisa.utils.jsons import from_json
 
 
-def generalized_ln_poisson(data, expectation):
-    """
-    When the data set is not integer based, we need a different way to
-    calculate the poisson likelihood, so we'll use this version, which
-    is appropriate for float data types (using the continuous version
-    of the poisson pmf) as well as the standard integer data type for
-    the discrete Poisson pmf.
-
-    Returns: the natural logarithm of the value of the continuous form
-    of the poisson probability mass function, given detected counts,
-    'data' from expected counts 'expectation'.
-    """
-
-    if not np.all(data >= 0.0):
-        logging.error('data error...')
-        logging.error('min val : %s' % np.min(data))
-        logging.error('max val : %s' % np.max(data))
-        logging.error('mean val: %s' % np.mean(data))
-        logging.error('num < 0 : %s' % np.sum(data < 0))
-        logging.error('num == 0: %s' % np.sum(data == 0))
-        raise ValueError(
-            "Data must have all bins >= 0.0! Template generation bug?"
-        )
-
-    if np.issubdtype(data.dtype, np.int):
-        return poisson.logpmf(data, expectation)
-    elif np.issubdtype(data.dtype, np.float):
-        vals = (data*np.log(expectation)
-                - expectation
-                - multigammaln(data+1.0, 1))
-        if not np.all(np.isfinite(vals)):
-            logging.error('data: %s' % data)
-            logging.error('expectation: %s' % expectation)
-            logging.error('log(expectation): %s' % np.log(expectation))
-            logging.error('multigammaln(data+1.0, 1): %s' %
-                          multigammaln(data+1.0, 1))
-            logging.error('vals: %s' % vals)
-            raise ValueError()
-        return vals
-    else:
-        raise ValueError('Unhandled data dtype: %s. Must be float or'
-                         ' int.' % psuedo_data.dtype)
-
 def get_binwise_llh(pseudo_data, template):
-    """
-    Computes the log-likelihood (llh) of the pseudo_data from the
-    template, where each input is expected to be a 2d numpy array
-    """
-    if not np.all(template >= 0.0):
-        logging.error('template error...')
-        logging.error('min val : %s' % np.min(template))
-        logging.error('max val : %s' % np.max(template))
-        logging.error('mean val: %s' % np.mean(template))
-        logging.error('num < 0 : %s' % np.sum(template < 0))
-        logging.error('num == 0: %s' % np.sum(template == 0))
-        raise ValueError("Template must have all bins >= 0.0! Template generation bug?")
+    """Return log-likelihood (llh) that `template` came from `pseudo_data`.
 
-    totalLLH = np.sum(generalized_ln_poisson(pseudo_data,template))
+    Parameters
+    ----------
+    pseudo_data, template : arrays of same shape
 
-    return totalLLH
+    Raises
+    ------
+    ValueError if llh
+
+    """
+    llh = np.sum(poisson.logpmf(pseudo_data, expectation))
+
+    if not np.isfinite(llh):
+        msg = '`llh` is not finite.'
+        msg += '\nllh = %s' % llh
+        msg += '\npseudo_data = %s' % pseudo_data
+        msg += '\nexpectation = %s' % expectation
+        raise ValueError(msg)
+
+    return llh
 
 def get_binwise_chisquare(pseudo_data, template):
     '''
@@ -91,7 +53,7 @@ def get_binwise_chisquare(pseudo_data, template):
         logging.error('mean val: %s' % np.mean(data))
         logging.error('num < 0 : %s' % np.sum(data < 0))
         logging.error('num == 0: %s' % np.sum(data == 0))
-        raise ValueError("Template must have all bins >= 0.0! Template generation bug?")
+        raise ValueError('Template must have all bins >= 0.0! Template generation bug?')
 
     total_chisquare = np.sum(np.divide(np.power((pseudo_data - template), 2), pseudo_data))
 
