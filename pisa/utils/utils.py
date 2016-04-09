@@ -499,7 +499,7 @@ def findFiles(root, regex=None, fname=None, recurse=True, dir_sorter=nsort,
                 return True, match
             return False, None
 
-    def deal_with_files(files):
+    def deal_with_files(root, files):
         if isinstance(files, basestring):
             files = [files]
         for basename in file_sorter(files):
@@ -509,10 +509,12 @@ def findFiles(root, regex=None, fname=None, recurse=True, dir_sorter=nsort,
                 yield fullfilepath, basename, match
 
     if recurse:
+        all_results = []
         for rootdir, dirs, files in os.walk(root):
-            deal_with_files(files)
+            all_results.extend(deal_with_files(rootdir, files))
+        return all_results
     else:
-        deal_with_files(os.listdir(root))
+        return [x for x in deal_with_files(root, os.listdir(root))]
 
 
 def get_bin_centers(edges):

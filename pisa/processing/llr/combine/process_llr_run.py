@@ -102,17 +102,17 @@ regex = re.compile(args.basename_regex, flags=re.IGNORECASE)
 #regex = re.compile(r'V39.*json', flags=re.IGNORECASE)
 print('data dir:', args.data_dir, 'file name regex:', regex.pattern)
 
-#llhfiles_found = findFiles(
-#    root=os.path.expandvars(os.path.expanduser(args.data_dir)),
-#    regex=regex,
-#    recurse=args.recurse,
-#)
-#llhfiles = [x[0] for x in llhfiles_found]
+llhfiles_found = findFiles(
+    root=os.path.expandvars(os.path.expanduser(args.data_dir)),
+    regex=regex,
+    recurse=args.recurse,
+)
+llhfiles = [x[0] for x in llhfiles_found]
 
-for f in llhfiles: #ffpath, basename, match in llhfiles_found:
-    print (f)
-    #print(ffpath, basename, match)
-sys.exit()
+#for f in llhfiles: #ffpath, basename, match in llhfiles_found:
+#    print (f)
+#    #print(ffpath, basename, match)
+#sys.exit()
 
 #if args.log_dir is not None:
 #    logfiles = glob(os.path.join(args.log_dir, args.log_basename+'*'))
