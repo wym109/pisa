@@ -483,7 +483,6 @@ def findFiles(root, regex=None, fname=None, recurse=True, dir_sorter=nsort,
     if isinstance(regex, basestring):
         regex = re.compile(regex)
 
-    # Define a function for accepting a filename as a match
     if regex is None:
         if fname is None:
             def validfilefunc(fn):
@@ -500,28 +499,20 @@ def findFiles(root, regex=None, fname=None, recurse=True, dir_sorter=nsort,
                 return True, match
             return False, None
 
-    if recurse:
-        for rootdir, dirs, files in os.walk(root):
-            for basename in file_sorter(files):
-                fullfilepath = os.path.join(root, basename)
-                is_valid, match = validfilefunc(basename)
-                if is_valid:
-                    yield fullfilepath, basename, match
-            for dirname in dir_sorter(dirs):
-                fulldirpath = os.path.join(rootdir, dirname)
-                for basename in file_sorter(os.listdir(fulldirpath)):
-                    fullfilepath = os.path.join(fulldirpath, basename)
-                    if os.path.isfile(fullfilepath):
-                        is_valid, match = validfilefunc(basename)
-                        if is_valid:
-                            yield fullfilepath, basename, match
-    else:
-        for basename in file_sorter(os.listdir(root)):
+    def deal_with_files(files):
+        if isinstance(files, basestring):
+            files = [files]
+        for basename in file_sorter(files):
             fullfilepath = os.path.join(root, basename)
-            #if os.path.isfile(fullfilepath):
             is_valid, match = validfilefunc(basename)
             if is_valid:
                 yield fullfilepath, basename, match
+
+    if recurse:
+        for rootdir, dirs, files in os.walk(root):
+            deal_with_files(files)
+    else:
+        deal_with_files(os.listdir(root))
 
 
 def get_bin_centers(edges):

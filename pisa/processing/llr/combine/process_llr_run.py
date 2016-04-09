@@ -70,7 +70,9 @@ def modifyHierarchyKeys(output_data):
 
 parser = ArgumentParser(
     description="""Processes the llr analysis runs that have been generated on
-    a HPCC on multiple files.""", formatter_class=ArgumentDefaultsHelpFormatter)
+    an HPCC on multiple files.""",
+    formatter_class=ArgumentDefaultsHelpFormatter
+)
 
 parser.add_argument('--data-dir', metavar='DIR', type=str, required=True,
                     help='Directory where the llh analysis run data is stored.')
@@ -82,13 +84,15 @@ parser.add_argument('--basename-regex', metavar='REGEX', type=str,
                     required=True,
                     help='''Regex for finding log & data files within
                     their respective directories.''')
+parser.add_argument('--recurse', action='store_true',
+                    help='Recurse into data dir to find files')
 
 parser.add_argument('--outfile', metavar='STR', type=str, required=True,
                     help='Output file to store processed, combined llh file.')
 #parser.add_argument('--fix-keys', action='store_true', default=True,
 #                    help='If keys are named "NMH"/"IMH", change to "NH"/"IH"')
 parser.add_argument('-v', '--verbose', action='count', default=None,
-                    help='''set verbosity level''')
+                    help='set verbosity level')
 
 # NOTE: Do we need a flag for no_alt_fit?
 
@@ -98,17 +102,17 @@ regex = re.compile(args.basename_regex, flags=re.IGNORECASE)
 #regex = re.compile(r'V39.*json', flags=re.IGNORECASE)
 print('data dir:', args.data_dir, 'file name regex:', regex.pattern)
 
-llhfiles_found = findFiles(
-    root=os.path.expandvars(os.path.expanduser(args.data_dir)),
-    regex=regex,
-    recurse=False,
-)
-llhfiles = [x[0] for x in llhfiles_found]
+#llhfiles_found = findFiles(
+#    root=os.path.expandvars(os.path.expanduser(args.data_dir)),
+#    regex=regex,
+#    recurse=args.recurse,
+#)
+#llhfiles = [x[0] for x in llhfiles_found]
 
-#for f in llhfiles: #ffpath, basename, match in llhfiles_found:
-#    print (f)
-#    #print(ffpath, basename, match)
-#sys.exit()
+for f in llhfiles: #ffpath, basename, match in llhfiles_found:
+    print (f)
+    #print(ffpath, basename, match)
+sys.exit()
 
 #if args.log_dir is not None:
 #    logfiles = glob(os.path.join(args.log_dir, args.log_basename+'*'))
@@ -202,10 +206,10 @@ delta_sec = (time.time() - start)
 logging.warn("Time to process the LLR Run: {0:.4f} sec".format(delta_sec))
 
 # Fixing the keys from NMH/IMH --> NH/IH
-if True: #args.fix_keys:
+args.fix_keys = True
+if args.fix_keys:
     modifyHierarchyKeys(output_data)
 
-args.fix_keys = True
 
 base_key = 'true_NH' if args.fix_keys else 'true_NMH'
 logging.info("num trials for NH: ")
