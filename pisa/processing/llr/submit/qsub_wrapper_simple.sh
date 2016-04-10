@@ -13,7 +13,7 @@ do
 	succeeded=""
 	while [ -z "$succeeded" -a -f $file ]
 	do
-		qsub $file && (mv $file submitted/;succeeded="true") || (echo "Failed to submit $file  waiting 2 min to try again"; sleep 120)
+		qsub $file && (mv $file submitted/;succeeded="true") || (echo "Failed to submit $file waiting 30 min to try again"; sleep 1800)
 	done
 done
 
