@@ -10,9 +10,11 @@ for file in $*
 do
     echo $file
     echo "  qsub $file"
-    qsub $file
-    echo "  mv $file submitted/"
-    `mv $file submitted/`
+	succeeded=""
+	while [ -z "$succeeded" -a -f $file ]
+	do
+		qsub $file && (mv $file submitted/;succeeded="true") || (echo "Failed to submit $file  waiting 2 min to try again"; sleep 120)
+	done
 done
 
-echo "DONE!"
+echo "Submitted all jobs (apparently) successfully."
