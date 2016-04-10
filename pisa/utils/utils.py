@@ -433,11 +433,11 @@ def mkdir(d, mode=0750):
         os.makedirs(d, mode=mode)
     except OSError as err:
         if err[0] == 17:
-            logging.warn('Directory "' + str(d) + '" already exists')
+            logging.warn('Directory "%s" already exists' %d)
         else:
             raise err
     else:
-        logging.info('Created directory "' + d + '"')
+        logging.info('Created directory "%s"' % d)
 
 
 NSORT_RE = re.compile("(\\d+)")
