@@ -8,7 +8,7 @@
 
 import os
 import sys
-from argparse import ArgumentParser,ArgumentDefaultsHelpFormatter
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 from pisa.utils import utils
 
@@ -102,7 +102,7 @@ if __name__ == "__main__":
 
     parser = ArgumentParser(
         'Generate PBS job files; submit with e.g. qsub_wrapper_simple.sh.',
-        formatter_class=ArgumentDefaultsHelpFormatter
+        #formatter_class=ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
         '--template-settings',
@@ -115,31 +115,6 @@ if __name__ == "__main__":
         help='minimizer settings file.'
     )
     parser.add_argument(
-        '--numtrials-per-job',
-        type=str, required=True,
-        help='Number of LLR trials per job.'
-    )
-    parser.add_argument(
-        '--numjobs',
-        type=int, required=True,
-        help='Number of job files to generate.'
-    )
-    parser.add_argument(
-        '--jobdir',
-        type=str,
-        help='Directory for generated job files.'
-    )
-    parser.add_argument(
-        '--outdir',
-        type=str, required=True,
-        help='Directory for LLR result files.'
-    )
-    parser.add_argument(
-        '--logdir',
-        type=str, required=True,
-        help='Directory to store PBS, stdout, and stderr log files'
-    )
-    parser.add_argument(
         '--no-alt-fit',
         action='store_true',
         help='No alt hierarchy fit.'
@@ -148,6 +123,16 @@ if __name__ == "__main__":
         '--single-octant',
         action='store_true',
         help='single octant in llh only.'
+    )
+    parser.add_argument(
+        '--numjobs',
+        type=int, required=True,
+        help='Number of job files to generate.'
+    )
+    parser.add_argument(
+        '--numtrials-per-job',
+        type=str, required=True,
+        help='Number of LLR trials per job.'
     )
     parser.add_argument(
         '--time',
@@ -160,6 +145,36 @@ if __name__ == "__main__":
         type=int,
         default=16,
         help='Amount of memory to request, in GB.')
+    parser.add_argument(
+        '--basedir',
+        type=str,
+        help='''Base directory. Follwing directory strcture is constructed:
+Job files are placed in
+    <basedir>/jobfiles
+Results (json files) are placed in
+    <basedir>/llr__<ts basename>__<ms base>/results_rawfiles
+Logfiles (*.err, *.out, and PBS *.log -- some or all of which may be
+combined) are placed in
+    <basedir>/llr__<ts basename>__<ms base>/logfiles
+Note that <ts basename>  and <ms basename> are the template and
+minimizer settings files' basenames (i.e., without extensions),
+respectively.'''
+    )
+    #parser.add_argument(
+    #    '--jobdir',
+    #    type=str,
+    #    help='Directory for generated job files.'
+    #)
+    #parser.add_argument(
+    #    '--outdir',
+    #    type=str, required=True,
+    #    help='Directory for llr result files.'
+    #)
+    #parser.add_argument(
+    #    '--logdir',
+    #    type=str, required=True,
+    #    help='Directory to store PBS, stdout, and stderr log files'
+    #)
     args = parser.parse_args()
 
     args.analysis_script = utils.expandPath(
@@ -175,25 +190,37 @@ if __name__ == "__main__":
 
     args.pythonexec_path = os.path.dirname(sys.executable)
 
+    analysis = 'llr'
+
     # Formulate file names from template and minimizer settings file names,
     # timestamp now, (and later, the file number in this sequence)
     ts_base, _ = os.path.splitext(os.path.basename(args.template_settings))
     ms_base, _ = os.path.splitext(os.path.basename(args.minimizer_settings))
-    batch_basename = 'llr__%s__%s__%s' % \
-            (ts_base, ms_base, job_generation_timestamp)
-    subdir = 'llr__%s__%s' % (ts_base, ms_base)
+    an_ts_ms_basename = '%s__%s__%s' % (analysis, ts_base, ms_base)
 
-    # Expand any variables and relative paths passed in by user
-    args.template_settings = utils.expandPath(args.template_settings, absolute=False)
-    args.minimizer_settings = utils.expandPath(args.minimizer_settings, absolute=False)
-    args.jobdir = utils.expandPath(args.jobdir, absolute=False)
-    # Add subdir to output and logdirs to more easily keep track of files
-    args.outdir = utils.expandPath(os.path.join(args.outdir, subdir), absolute=False)
-    args.logdir = utils.expandPath(os.path.join(args.logdir, subdir), absolute=False)
+    subdir = an_ts_ms_basename
+    batch_basename = '%s__%s' % (an_ts_ms_basename, job_generation_timestamp)
 
+    args.jobdir = utils.expandPath(
+        os.path.join(args.basedir, 'jobfiles'), absolute=False
+    )
+    args.outdir = utils.expandPath(
+        os.path.join(args.basedir, subdir, 'results_rawfiles'), absolute=False
+    )
+    args.logdir = utils.expandPath(
+        os.path.join(args.basedir, subdir, 'logfiles'), absolute=False
+    )
+
+    # Create the required dirs (recursively) if they do not already exist
     utils.mkdir(args.jobdir)
     utils.mkdir(args.outdir)
     utils.mkdir(args.logdir)
+
+    # Expand any variables in template/minimizer settings resource specs passed
+    # in by user (do *not* make absoulte, since resource specs in PISA allow
+    # for implicit referencing from the $PISA/pisa/resources dir)
+    args.template_settings = utils.expandPath(args.template_settings, absolute=False)
+    args.minimizer_settings = utils.expandPath(args.minimizer_settings, absolute=False)
 
     for file_num in xrange(args.numjobs):
         job_basename = '%s__%06d' % (batch_basename, file_num)
