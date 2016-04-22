@@ -3,23 +3,34 @@ PISA
 
 # Introduction
 
+## Overview
+
 PINGU Simulation and Analysis (PISA) is software written for performing analyses based upon Monte Carlo simulations of the proposed PINGU upgrade to the IceCube neutrino observatory. PISA is more broadly applicable, however, and can be used for analyses employing the existing IceCube/DeepCore detector as well as other similar detectors.
 
+## Extensible architecture
+
 PISA implements a modular architecture where a user can define custom analysis pipelines and within those pipelines the user can choose among several implementations of each stage of the analysis. Finally, multiple types of analyses can be run depending upon the user's desire for speed and/or accuracy (typically dictated by the detector's response to the various parameters in the analysis).
+
+## Analysis types
 
 PISA implements both what we call ***parameterized-Monte Carlo (MC) stages*** and ***MC-reweighting stages***. In the former, distributions (and not individual event weights) are modified to reflect the effects of each analysis stage. In the latter, the individual event weights are modified to reflect these effects. See the analysis guide for more explanaton of the difference between the two and for guidance on when each is appropriate for use.
 
 An analysis pipline is constructed using stages of one of these two kinds, and multiple pipelines (of either type) can be used within a single analysis.
 
+## How analysis works
+
 Any of the analyses possible to be run utilize a "data" distribution. The "data" distribution can come from an actual measurement or by *injecting* a set of assumed-true values for the various parameters and producing what is called ***Asimov data*** -- the expected (or mean) distribution given those parameter values -- or ***pseudo data***, which is Asimov data but with Poisson fluctuations added in). A minimizer attempts to match the "data" distribution as closely as possible given a fixed set of values for ***measurement parameters*** while being allowed to vary freely all of the ***systematic parameters***. The ability for an experiment to perform a measurement is determined by how closely the minimizer can match the data distribution with one set of measurement parameters as compared to different sets of measurement parameters.
 
-An excellent and far more detailed description of the process was written up by Elim Cheung with particular application to IceCube atmospheric neutrino measurements [here](http://umdgrb.umd.edu/~elims/Fitter/Basics). She wrote her own fitter to perform these tasks, and while we like the speed and generality of PISA, you can also evaluate her software for performing an analysis [here](http://code.icecube.wisc.edu/projects/icecube/browser/IceCube/sandbox/elims/ezfit).
-
-* An example parameterized-MC analysis pipeline
+## An example parameterized-MC analysis pipeline
 
 ![Parameterized-MC analysis pipeline](doc/PINGUSimulationChain.png "Parameterized-MC analysis pipeline")
 
 The original drawing is [here](https://docs.google.com/drawings/edit?id=1RxQj8rPndwFygxw3BUf4bx5B35GAMk0Gsos_BiJIN34).
+
+## More information
+
+An excellent and far more detailed description of the process was written up by Elim Cheung with particular application to IceCube atmospheric neutrino measurements [here](http://umdgrb.umd.edu/~elims/Fitter/Basics). She wrote her own fitter to perform these tasks, and while we like the speed and generality of PISA, you can also evaluate her software for performing an analysis [here](http://code.icecube.wisc.edu/projects/icecube/browser/IceCube/sandbox/elims/ezfit).
+
 
 # Installation
 ## Requirements
