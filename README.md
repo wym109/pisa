@@ -1,13 +1,22 @@
-pisa
+PISA
 ====
 
-PINGU Simulation and Analysis (PISA) is software written for performing predictive analyses with the proposed PINGU upgrade to the IceCube neutrino observatory. PISA is more broadly applicable, however, and can be used for analyses employing the existing IceCube detector as well as other similar detectors.
+PINGU Simulation and Analysis (PISA) is software written for performing predictive analyses based upon Monte Carlo simulation of the proposed PINGU upgrade to the IceCube neutrino observatory. PISA is more broadly applicable, however, and can be used for analyses employing the existing IceCube detector as well as other similar detectors.
 
-## Simulation chain
+PISA implements a highly modular architecture, where a user can define custom analysis pipelines and within those pipelines the user can choose among several implementations of each stage in the analysis. Finally, multiple types of analyses can be run depending upon the user's desire for speed and/or accuracy (depending upon the behaviors of systematic parameters).
+
+PISA originally only implemented what we call *parameterized* Monte Carlo (MC) analysis, but now also implements full MC analysis (which involves modifying MC event weights) and data analysis (no weights) -- or combinations thereof. See the analysis guide for more explanaton of the difference between the two and for guidance on when each is appropriate for use.
+
+Any of the analyses possible to be run involve utilize a "data" distribution (either through actual measurement data or by ***injecting*** a set of assumed-true values for the various parameters and producing what is called Asimov data -- expectation given those parameters -- or pseudo data which is Asimov data that has Poisson fluctuations added in). A minimizer attempts to match the "data" distribution as closely as possible given a fixed set of values for ***measurement parameters*** while being allowed to vary freely all of the ***systematic parameters*** freely. The ability for the experiment to perform a measurement is determined by how closely the minimizer can match the data distribution with one set of measurement parameters as compared to different sets of measurement parameters.
+
+Due to the above-described process, sometimes software like PISA is referred to as a "fitter" (though this is ultimately simplistic). An excellent description of the process was written up by Elim Cheung with particular application to IceCube atmospheric neutrino measurements [here](http://umdgrb.umd.edu/~elims/Fitter/Basics).
+
+## An example simulation chain
 
 ![Simulation chain](doc/PINGUSimulationChain.png "Simulation chain")
 
 The original drawing is [here](https://docs.google.com/drawings/edit?id=1RxQj8rPndwFygxw3BUf4bx5B35GAMk0Gsos_BiJIN34).
+
 
 ## Installation
 ### Requirements
@@ -24,13 +33,17 @@ installed
 * [h5py](http://www.h5py.org/) -- install via pip
 * [cython](http://cython.org/) -- install via pip
 
-If you are working on OSX, we suggest [homebrew](brew.sh/) as a package manager, which supports all of the non-python packages above. 
+Obtaining all of these packages is easiest if you use a Python distribution, such as [Anaconda](https://www.continuum.io/downloads), [Canopy])(https://www.enthought.com/products/canopy). We use and test with Anaconda running in Linux. For this case, you can do the following to set up your Python environment:
 
-### Obtaining `pisa`
+### Setup steps using Anaconda on Linux
+* Install Anaconda, following instructions [here](https://docs.continuum.io/anaconda/install)
+* Install PISA
+
+### Obtaining `PISA`
 
 **User mode:**
 
-Use this if you just want to run `pisa`, but don't want to edit it. First pick a revision from [this github page](https://github.com/tarlen5/pisa/releases). Then run this command in your shell, to directly install pisa from github.
+Use this if you just want to run `PISA`, but don't want to edit it. First pick a revision from [this github page](https://github.com/tarlen5/pisa/releases). Then run this command in your shell, to directly install PISA from github.
 ```
 pip install git+https://github.com/tarlen5/pisa@<release>#egg=pisa
 ```
@@ -41,11 +54,11 @@ where
 
 **Developer mode:**
 
-Also in developer mode, you can directly install via `pip` from github. In order to contribute, you'll first need your own fork of the `pisa` repository.
+Also in developer mode, you can directly install via `pip` from github. In order to contribute, you'll first need your own fork of the `PISA` repository.
 
 1. Create your own [github account](https://github.com/)
-1. Navigate to the [pisa github page](https://github.com/tarlen5/pisa) and fork the repository by clicking on the ![fork](doc/ForkButton.png) button
-1. Now go to your terminal and install `pisa` from your fork using the following commands
+1. Navigate to the [PISA github page](https://github.com/tarlen5/pisa) and fork the repository by clicking on the ![fork](doc/ForkButton.png) button
+1. Now go to your terminal and install `PISA` from your fork using the following commands
 ```
 pip install [ --src <your/source/dir> --editable ] git+https://github.com/<user>/pisa@<branch>#egg=pisa 
 cd <your/source/dir>/pisa && git checkout <branch>
@@ -73,7 +86,7 @@ push, etc.). Note however, that these won't rebuild any of the extension (i.e.
 _C/C++_) libraries. If you want to recompile these libraries, simply run
 <br>```cd <your/source/dir>/pisa && python setup.py build_ext --inplace```
 
-* If you did not install `pisa` in a virtual environment, then the package will
+* If you did not install `PISA` in a virtual environment, then the package will
   be installed alongside with your other python packages. This typically means
   that you'll need super-user priviledges to install, i.e.<br>
   ```sudo pip install ...```<br>
@@ -146,22 +159,22 @@ Caching requires the *fast* generation of unique identifiers for each item store
 * **Hashes for maps sets**: The service that produces a set of maps is also responsible for producing the map-set's hash. The hash is derived from a tuple of the input maps' hash and the transform hash. As this logic is consistent across all stages & services (so long as a flux input hash is used), it is implementated in the generic `pisa.stage.Stage` base class.
 * The class `pisa.utils.utils.DictWithHash` is provided for conveniently passing transforms and map sets around with hashes attached. Note that it is the user's responsibility to ensure that the `hash` attribute of those objects is not out of sync with respect to the data contained within them. This can done manually after updating the data by calling the `DictWithHash` object's method `update_hash` with a simple object (or an already-computed hash) as its argument (see help for that method for more details). To ensure such consistency between contents and hash, it is recommended to modify the data contents in the `try` clause and update the hash in the `else` clause of a `try-except-else` code block.
 
-### Updating `pisa`
+### Updating `PISA`
 
 **Developer mode:**
 
-To upgrade to new version of pisa, just run the install command again with a new version number and the `--upgrade` flag. 
+To upgrade to new version of PISA, just run the install command again with a new version number and the `--upgrade` flag. 
 
 **Developer mode:**
 
-The simplest way to update pisa is just to checkout the version you want in git. However, this will not update the version number for `pip`, and it also won't recompile the `prob3` oscillation package. In order to get those updated, the best way is to
+The simplest way to update PISA is just to checkout the version you want in git. However, this will not update the version number for `pip`, and it also won't recompile the `prob3` oscillation package. In order to get those updated, the best way is to
 
-1. Make sure your _fork_ of pisa on github has the right version
+1. Make sure your _fork_ of PISA on github has the right version
 2. Run the install command again
 ```
 pip install --src <your/source/dir> --editable git+https://github.com/<user>/pisa@<branch>#egg=pisa 
 ```
-Git will automatically realize that there is already a version of `pisa` in `<your/source/dir>`, so it will just update, but won't delete any of the files you have in there. 
+Git will automatically realize that there is already a version of `PISA` in `<your/source/dir>`, so it will just update, but won't delete any of the files you have in there. 
 
 ## Data formats
 
