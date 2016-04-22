@@ -41,9 +41,25 @@ Optional dependencies to enable non-required features are
 
 Obtaining all of these packages is easiest if you use a Python distribution, such as [Anaconda](https://www.continuum.io/downloads) or [Canopy])(https://www.enthought.com/products/canopy). We use and test with Anaconda running in Linux.
 
-## Anaconda on Linux installation steps
-* Install Anaconda following instructions [here](https://docs.continuum.io/anaconda/install)
+## Get the sourcecode
+* Change to the directory into which you wish for the sourcecode to live, and check out the project.
+```bash
+cd <parent directory>
+git 
+```
+## Set up your environment
+* Add a PISA variable to your environment that points to your PISA root directory. For the bash shell, you need to edit e.g. your `.bashrc` fle and add
+```bash
+export PISA=<root PISA directory locaton>
+```
+
+## Installation steps for Anaconda on Linux
+* Install Anaconda (if you don't already have it) following instructions [here](https://docs.continuum.io/anaconda/install)
 * Install PISA
+```bash
+
+conda install pisa
+```
 
 ## Non-Anaconda installation steps
 
