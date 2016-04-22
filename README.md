@@ -1,10 +1,10 @@
 # PISA
 
-PINGU Simulation and Analysis (PISA) is software written for performing analyses based upon Monte Carlo simulations of the [IceCube neutrino observatory](https://icecube.wisc.edu/), including the [DeepCore](https://arxiv.org/abs/1109.6096) low-energy in-fill array and the proposed [PINGU](https://arxiv.org/abs/1401.2046) addition (and similar detectors). PISA was originally developed to handle the low-statistics Monte Carlo (MC) for PINGU, but has grown into a generally-applicable analysis tool not restricted to a single detector and is now applicable to high-MC analyses.
+PINGU Simulation and Analysis (PISA) is software written for performing analyses based upon Monte Carlo simulations of the [IceCube neutrino observatory](https://icecube.wisc.edu/), including the [DeepCore](https://arxiv.org/abs/1109.6096) low-energy in-fill array and the proposed [PINGU](https://arxiv.org/abs/1401.2046) addition (as well as other similar detectors). PISA was originally developed to handle the low-statistics Monte Carlo (MC) for PINGU, but has grown into a generally-applicable analysis tool not restricted to a single detector that is also useful for both low- and high-MC analyses.
 
 ## Modular architecture
 
-PISA implements a modular architecture where a user can define custom analysis pipelines and within those pipelines the user can choose among several implementations of each stage of the analysis. Finally, multiple types of analyses can be run depending upon the user's desire for speed and/or accuracy.
+PISA implements a modular architecture where a user can define custom analysis pipelines, and within those pipelines the user can choose among several implementations of each stage of the analysis. Finally, multiple types of analyses can be run with the defined pipelines, where choice of analysis depends upon desire for speed vs. accuracy.
 
 ## Analysis types
 
@@ -33,6 +33,7 @@ An excellent (and far more detailed) description of the analysis process is main
 
 To install this package, you'll need to have the following
 
+* [git](https://git-scm.com/)
 * [python](http://www.python.org) — version 2.7.x
 * [pip](https://pip.pypa.io/) — version > 1.2 recommended
 * [swig](http://www.swig.org/) — install with `--universal` option
@@ -46,29 +47,53 @@ Optional dependencies to enable add-on features are
 * [openmp](http://www.openmp.org)
 * [PyCUDA](https://mathema.tician.de/software/pycuda)
 
-Obtaining all of these packages is easiest if you use a Python distribution, such as [Anaconda](https://www.continuum.io/downloads) or [Canopy])(https://www.enthought.com/products/canopy). We use and test with Anaconda running in Linux.
+Obtaining packages and handling interdependencies is easiest if you use a Python distribution, such as [Anaconda](https://www.continuum.io/downloads) or [Canopy])(https://www.enthought.com/products/canopy), although the selection of such maintained packages is smaller than if you use the `pip` command to obtain packages from the Python Package Index (PyPI). Note that you can stil use `pip` even if you use a Python distribution.
 
-## Get the sourcecode
-* Change to the directory into which you wish for the sourcecode to live, and check out the project.
+## Install Python
+There are many ways of obtaining Python and many ways of installing it. Here we'll present two options, but this is by no means a complete list.
+
+* Install Python 2.7.x from the Python website [hthttps://github.com/jllanfranchi/pisa.gittps://www.python.org/downloads](https://www.python.org/downloads/)
+* Install Python 2.7.x from the Anaconda distribution following instructions [here](https://docs.continuum.io/anaconda/install)
+
+## Get the PISA sourcecode
+### Forking
+If you wish to modify PISA and contribute to the effort, we recommend forking PISA from Github.
+
+Change to the directory into which you wish for the sourcecode to live and then fork the project.
 ```bash
 cd <parent directory>
-git 
-```
-## Set up your environment
-* Add a PISA variable to your environment that points to your PISA root directory. For the bash shell, you need to edit e.g. your `.bashrc` fle and add
-```bash
-export PISA=<root PISA directory locaton>
+git clone https://github.com/jllanfranchi/pisa.git
 ```
 
-## Installation steps for Anaconda on Linux
-* Install Anaconda (if you don't already have it) following instructions [here](https://docs.continuum.io/anaconda/install)
+### Cloning
+However, if you just wish to pull changes from github (and not submit your changes), you can just clone the sourcecode.
+
+* Change to the directory into which you wish for the sourcecode to live and then clone the project.
+```bash
+cd <parent directory>
+git clone https://github.com/jllanfranchi/pisa.git
+```
+
+This creates and populates the `<PISA root dir>`
+```bash
+<parent dir>/pisa
+```
+
+## Set up your environment
+* To make life easier into the future (and to make these instructons easier to follow), define the `PISA` variable in your shell environment that points to `<PISA root dir>`. E.g., for the bash shell, you need to edit your `.bashrc` fle and add the line
+```bash
+export PISA=<parent dir>/pisa
+```
+Load this variable into your current environment by sourcing your `.bashrc` file:
+```bash
+. ~/.bashrc
+```
+(it will be reloaded autmatically for all new shells).
+
 * Install PISA
 ```bash
-
 conda install pisa
 ```
-
-## Non-Anaconda installation steps
 
 **Developer mode:**
 
