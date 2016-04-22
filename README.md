@@ -1,11 +1,13 @@
 PISA
 ====
 
+# Introduction
+
 PINGU Simulation and Analysis (PISA) is software written for performing analyses based upon Monte Carlo simulations of the proposed PINGU upgrade to the IceCube neutrino observatory. PISA is more broadly applicable, however, and can be used for analyses employing the existing IceCube/DeepCore detector as well as other similar detectors.
 
 PISA implements a modular architecture where a user can define custom analysis pipelines and within those pipelines the user can choose among several implementations of each stage of the analysis. Finally, multiple types of analyses can be run depending upon the user's desire for speed and/or accuracy (typically dictated by the detector's response to the various parameters in the analysis).
 
-PISA implements both what we call ***parameterized-Monte Carlo (MC) stages*** and ***MC-reweighting stages***. In the former, distributions (and not individual event weights) are modified to reflect the effect of each analysis stage. In the latter, the individual event weights are modified to reflect these effects. See the analysis guide for more explanaton of the difference between the two and for guidance on when each is appropriate for use.
+PISA implements both what we call ***parameterized-Monte Carlo (MC) stages*** and ***MC-reweighting stages***. In the former, distributions (and not individual event weights) are modified to reflect the effects of each analysis stage. In the latter, the individual event weights are modified to reflect these effects. See the analysis guide for more explanaton of the difference between the two and for guidance on when each is appropriate for use.
 
 An analysis pipline is constructed using stages of one of these two kinds, and multiple pipelines (of either type) can be used within a single analysis.
 
@@ -13,18 +15,16 @@ Any of the analyses possible to be run utilize a "data" distribution. The "data"
 
 An excellent and far more detailed description of the process was written up by Elim Cheung with particular application to IceCube atmospheric neutrino measurements [here](http://umdgrb.umd.edu/~elims/Fitter/Basics). She wrote her own fitter to perform these tasks, and while we like the speed and generality of PISA, you can also evaluate her software for performing an analysis [here](http://code.icecube.wisc.edu/projects/icecube/browser/IceCube/sandbox/elims/ezfit).
 
-## An example simulation chain
+* An example parameterized-MC analysis pipeline
 
-![Simulation chain](doc/PINGUSimulationChain.png "Simulation chain")
+![Parameterized-MC analysis pipeline](doc/PINGUSimulationChain.png "Parameterized-MC analysis pipeline")
 
 The original drawing is [here](https://docs.google.com/drawings/edit?id=1RxQj8rPndwFygxw3BUf4bx5B35GAMk0Gsos_BiJIN34).
 
+# Installation
+## Requirements
 
-## Installation
-### Requirements
-
-To install this package, you'll need to have the following requirements
-installed
+To install this package, you'll need to have the following
 
 * [python](http://www.python.org) -- version 2.7.x
 * [pip](https://pip.pypa.io/) -- version > 1.2 recommended
@@ -35,24 +35,17 @@ installed
 * [h5py](http://www.h5py.org/) -- install via pip
 * [cython](http://cython.org/) -- install via pip
 
-Obtaining all of these packages is easiest if you use a Python distribution, such as [Anaconda](https://www.continuum.io/downloads), [Canopy])(https://www.enthought.com/products/canopy). We use and test with Anaconda running in Linux. For this case, you can do the following to set up your Python environment:
+Optional dependencies to enable non-required features are
+* [openmp](http://www.openmp.org)
+* [PyCUDA](https://mathema.tician.de/software/pycuda)
 
-### Setup steps using Anaconda on Linux
-* Install Anaconda, following instructions [here](https://docs.continuum.io/anaconda/install)
+Obtaining all of these packages is easiest if you use a Python distribution, such as [Anaconda](https://www.continuum.io/downloads) or [Canopy])(https://www.enthought.com/products/canopy). We use and test with Anaconda running in Linux.
+
+## Anaconda on Linux installation steps
+* Install Anaconda following instructions [here](https://docs.continuum.io/anaconda/install)
 * Install PISA
 
-### Obtaining `PISA`
-
-**User mode:**
-
-Use this if you just want to run `PISA`, but don't want to edit it. First pick a revision from [this github page](https://github.com/tarlen5/pisa/releases). Then run this command in your shell, to directly install PISA from github.
-```
-pip install git+https://github.com/tarlen5/pisa@<release>#egg=pisa
-```
-
-where
-
-* `<release>` is the release number, e.g. `2.0.0`
+## Non-Anaconda installation steps
 
 **Developer mode:**
 
@@ -98,10 +91,20 @@ _C/C++_) libraries. If you want to recompile these libraries, simply run
   ```cd <your/source/dir> && sudo chown -R <user> pisa```<br>
   where `<user>` obviously just is your user name.
 
-## PISA Terminology
-* **Map**: Dictionary-like object with key `'map'` containing a 2D histogram in energy and cosine of the zenith angle (coszen); other keys in the map contain metadata about the histogram (e.g. `'ebins'`, `'czbins'`, etc.). This can be in terms of *true* or *reconstructed* neutrino energy & coszen, depending upon the situation. Sometimes a collection of maps is casually (but misleadingly) called a "map". Note that the histogram is a 2D numpy array with first dimension energy (increasing index 
+**User mode:**
 
-* **Map set**: Dictionary-like object whose items are maps; a map set is the input "data" to or produced as output "data" from each stage. Each map within the set is stored via a key, where the key names vary by service and the dict can be nested and painful to access. Smarter objects than vanilla dicts should be used to handle map sets to make users/developers lives less painful. If dictionaries continue to be used, they at least shouldn't be nested. E.g., `map_set['numu_cc']` points to a map, rather than `map_set['numu']['cc']` pointing to a map. With a single-level in the dict (well, excluding the fact that the actual data is stored at `map_set['numu_cc']['map']`), already there can be greater consistency in access and no need for multiply-nested loops.
+Use this if you just want to run `PISA`, but don't want to edit it. First pick a revision from [this github page](https://github.com/tarlen5/pisa/releases). Then run this command in your shell, to directly install PISA from github.
+```
+pip install git+https://github.com/tarlen5/pisa@<release>#egg=pisa
+```
+
+where
+
+* `<release>` is the release number, e.g. `2.0.0`
+
+# Glossary
+
+* **Map**: An object that fundamentally contains a distribution (e.g., histogram) alongside the error and metadata about the distribution (e.g., binning, name, LaTeX representation, ...).
 
 * **Stage**: Each stage represents a critical part of the process by which we can eventually detect neutrinos. For example, atmospheric neutrinos that pass through the earth will oscillate partially into different flavors prior to reaching the IceCube/PINGU detector. This part of the process is called the **oscillations** stage.
 
