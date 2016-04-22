@@ -1,15 +1,10 @@
-PISA
-====
+# PISA
 
-# Introduction
+PINGU Simulation and Analysis (PISA) is software written for performing analyses based upon Monte Carlo simulations of the [IceCube neutrino observatory](https://icecube.wisc.edu/), including the [DeepCore](https://arxiv.org/abs/1109.6096) low-energy in-fill array and the proposed [PINGU](https://arxiv.org/abs/1401.2046) addition (and similar detectors). PISA was originally developed to handle the low-statistics Monte Carlo (MC) for PINGU, but has grown into a generally-applicable analysis tool not restricted to a single detector and is now applicable to high-MC analyses.
 
-## Overview
+## Modular architecture
 
-PINGU Simulation and Analysis (PISA) is software written for performing analyses based upon Monte Carlo simulations of the proposed PINGU upgrade to the IceCube neutrino observatory. PISA is more broadly applicable, however, and can be used for analyses employing the existing IceCube/DeepCore detector as well as other similar detectors.
-
-## Extensible architecture
-
-PISA implements a modular architecture where a user can define custom analysis pipelines and within those pipelines the user can choose among several implementations of each stage of the analysis. Finally, multiple types of analyses can be run depending upon the user's desire for speed and/or accuracy (typically dictated by the detector's response to the various parameters in the analysis).
+PISA implements a modular architecture where a user can define custom analysis pipelines and within those pipelines the user can choose among several implementations of each stage of the analysis. Finally, multiple types of analyses can be run depending upon the user's desire for speed and/or accuracy.
 
 ## Analysis types
 
@@ -17,9 +12,9 @@ PISA implements both what we call ***parameterized-Monte Carlo (MC) stages*** an
 
 An analysis pipline is constructed using stages of one of these two kinds, and multiple pipelines (of either type) can be used within a single analysis.
 
-## How analysis works
+## How an analysis is structured
 
-Any of the analyses possible to be run utilize a "data" distribution. The "data" distribution can come from an actual measurement or by *injecting* a set of assumed-true values for the various parameters and producing what is called ***Asimov data*** -- the expected (or mean) distribution given those parameter values -- or ***pseudo data***, which is Asimov data but with Poisson fluctuations added in). A minimizer attempts to match the "data" distribution as closely as possible given a fixed set of values for ***measurement parameters*** while being allowed to vary freely all of the ***systematic parameters***. The ability for an experiment to perform a measurement is determined by how closely the minimizer can match the data distribution with one set of measurement parameters as compared to different sets of measurement parameters.
+All of the analyses possible utilize a "data" distribution. This can come from an actual measurement or by *injecting* a set of assumed-true values for the various parameters into the analysis pipeline(s) and producing what is called ***Asimov data***—the expected distribution given those parameter values—or ***pseudo data***, which is Asimov data but with Poisson fluctuations added in. A minimizer attempts to match the "data" distribution as closely as possible given a fixed set of values for the ***measurement parameters*** while being allowed to vary freely all of the ***systematic parameters***. The ability for an experiment to perform a measurement is determined by how closely the minimizer can match the data distribution with one set of measurement parameters as compared to different sets of measurement parameters.
 
 ## An example parameterized-MC analysis pipeline
 
@@ -29,24 +24,25 @@ The original drawing is [here](https://docs.google.com/drawings/edit?id=1RxQj8rP
 
 ## More information
 
-An excellent and far more detailed description of the process was written up by Elim Cheung with particular application to IceCube atmospheric neutrino measurements [here](http://umdgrb.umd.edu/~elims/Fitter/Basics). She wrote her own fitter to perform these tasks, and while we like the speed and generality of PISA, you can also evaluate her software for performing an analysis [here](http://code.icecube.wisc.edu/projects/icecube/browser/IceCube/sandbox/elims/ezfit).
+An excellent (and far more detailed) description of the analysis process is maintained by Elim Cheung with particular application to IceCube/DeepCore atmospheric neutrino measurements [here](http://umdgrb.umd.edu/~elims/Fitter/Basics). She wrote her own fitter to perform these tasks, and while we like the speed and generality of PISA, you can evaluate her ezFit software for performing analysis [here](http://code.icecube.wisc.edu/projects/icecube/browser/IceCube/sandbox/elims/ezfit).
 
 
 # Installation
+
 ## Requirements
 
 To install this package, you'll need to have the following
 
-* [python](http://www.python.org) -- version 2.7.x
-* [pip](https://pip.pypa.io/) -- version > 1.2 recommended
-* [swig](http://www.swig.org/) -- install with `--universal` option
+* [python](http://www.python.org) — version 2.7.x
+* [pip](https://pip.pypa.io/) — version > 1.2 recommended
+* [swig](http://www.swig.org/) — install with `--universal` option
 * [numpy](http://www.numpy.org/)
-* [scipy](http://www.scipy.org/) -- version > 0.12 recommended
-* [hdf5](http://www.hdfgroup.org/HDF5/) -- install with `--enable-cxx` option
-* [h5py](http://www.h5py.org/) -- install via pip
-* [cython](http://cython.org/) -- install via pip
+* [scipy](http://www.scipy.org/) — version > 0.12 recommended
+* [hdf5](http://www.hdfgroup.org/HDF5/) — install with `--enable-cxx` option
+* [h5py](http://www.h5py.org/) — install via pip
+* [cython](http://cython.org/) — install via pip
 
-Optional dependencies to enable non-required features are
+Optional dependencies to enable add-on features are
 * [openmp](http://www.openmp.org)
 * [PyCUDA](https://mathema.tician.de/software/pycuda)
 
