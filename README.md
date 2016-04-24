@@ -34,11 +34,12 @@ An excellent (and far more detailed) description of the analysis process is main
 To install this package, you'll need to have the following non-python requirements
 * [git](https://git-scm.com/)
 * [hdf5](http://www.hdfgroup.org/HDF5/) — install with `--enable-cxx` option
+
 In Ubuntu Linux, you can install these via
 ```bash
 sudo apt-get install git hdf5
 ```
-although you can obtain `hdf5` from Anaconda (see below).
+although you can obtain `hdf5` using the Anaconda distribution of Python.
 
 The Python requirements are
 * [python](http://www.python.org) — version 2.7.x required
