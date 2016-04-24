@@ -24,54 +24,114 @@ The original drawing is [here](https://docs.google.com/drawings/edit?id=1RxQj8rP
 
 ## More information
 
-An excellent (and far more detailed) description of the analysis process is maintained by Elim Cheung with particular application to IceCube/DeepCore atmospheric neutrino measurements [here](http://umdgrb.umd.edu/~elims/Fitter/Basics). She wrote her own fitter to perform these tasks, and while we like the speed and generality of PISA, you can evaluate her ezFit software for performing analysis [here](http://code.icecube.wisc.edu/projects/icecube/browser/IceCube/sandbox/elims/ezfit).
+An excellent (and far more detailed) description of the analysis process is maintained by Elim Cheung with particular application to IceCube/DeepCore atmospheric neutrino measurements [here](http://umdgrb.umd.edu/~elims/Fitter/Basics). She wrote her own fitter to perform these tasks, and while we of course like PISA, you can evaluate her ezFit software for performing analysis [here](http://code.icecube.wisc.edu/projects/icecube/browser/IceCube/sandbox/elims/ezfit).
 
 
 # Installation
 
 ## Requirements
 
-To install this package, you'll need to have the following
-
+To install this package, you'll need to have the following non-python requirements
 * [git](https://git-scm.com/)
-* [python](http://www.python.org) — version 2.7.x
+* [hdf5](http://www.hdfgroup.org/HDF5/) — install with `--enable-cxx` option
+In Ubuntu Linux, you can install these via
+```bash
+sudo apt-get install git hdf5
+```
+although you can obtain `hdf5` from Anaconda (see below).
+
+The Python requirements are
+* [python](http://www.python.org) — version 2.7.x required
 * [pip](https://pip.pypa.io/) — version > 1.2 recommended
-* [swig](http://www.swig.org/) — install with `--universal` option
 * [numpy](http://www.numpy.org/)
 * [scipy](http://www.scipy.org/) — version > 0.12 recommended
-* [hdf5](http://www.hdfgroup.org/HDF5/) — install with `--enable-cxx` option
-* [h5py](http://www.h5py.org/) — install via pip
-* [cython](http://cython.org/) — install via pip
+* [h5py](http://www.h5py.org/)
+* [cython](http://cython.org/)
 
 Optional dependencies to enable add-on features are
-* [openmp](http://www.openmp.org)
 * [PyCUDA](https://mathema.tician.de/software/pycuda)
+* [openmp](http://www.openmp.org)
 
-Obtaining packages and handling interdependencies is easiest if you use a Python distribution, such as [Anaconda](https://www.continuum.io/downloads) or [Canopy])(https://www.enthought.com/products/canopy), although the selection of such maintained packages is smaller than if you use the `pip` command to obtain packages from the Python Package Index (PyPI). Note that you can stil use `pip` even if you use a Python distribution.
+Obtaining packages and handling interdependencies is easiest if you use a Python distribution, such as [Anaconda](https://www.continuum.io/downloads) or [Canopy](https://www.enthought.com/products/canopy). Although the selection of maintained packages is smaller than if you use the `pip` command to obtain packages from the Python Package Index (PyPI), you can stil use `pip` even if you use a Python distribution.
 
 ## Install Python
-There are many ways of obtaining Python and many ways of installing it. Here we'll present two options, but this is by no means a complete list.
+There are many ways of obtaining Python and many ways of installing it. Here we'll present two basic options, but this is by no means a complete list.
 
-* Install Python 2.7.x from the Python website [hthttps://github.com/jllanfranchi/pisa.gittps://www.python.org/downloads](https://www.python.org/downloads/)
+* Install Python 2.7.x from the Python website [https://www.python.org/downloads](https://www.python.org/downloads/)
 * Install Python 2.7.x from the Anaconda distribution following instructions [here](https://docs.continuum.io/anaconda/install)
 
-## Get the PISA sourcecode
-### Forking
-If you wish to modify PISA and contribute to the effort, we recommend forking PISA from Github.
-
-Change to the directory into which you wish for the sourcecode to live and then fork the project.
+## Set up your environment
+* Create a "parent" directory (the directory into which you wish for the PISA sourcecode to live). Note that subsequent steps will create a directory named `pisa` within the parent directory you've chosen, so you don't need to create the actual `pisa` directory yourself.
 ```bash
-cd <parent directory>
-git clone https://github.com/jllanfranchi/pisa.git
+mkdir -p <parent dir>
 ```
 
-### Cloning
-However, if you just wish to pull changes from github (and not submit your changes), you can just clone the sourcecode.
+* To make life easier in the future (and to make these instructons easier to follow), define the environment variable `PISA`. E.g., for the bash shell, edit your `.bashrc` file and add the line
+```bash
+export PISA=<parent dir>/pisa
+```
+Load this variable into your *current* environment by sourcing your `.bashrc` file:
+```bash
+. ~/.bashrc
+```
+(it will be reloaded autmatically for all new shells).
+
+## Github setup
+1. Create your own [github account](https://github.com/)
+1. Obtain access to the `WIPACrepo/pisa` repository by emailing Sebastian Böeser [sboeser@uni-mainz.de](mailto:sboeser@uni-mainz.de?subject=Access to WIPACrepo/pisa github repository)
+
+### SSH vs. HTTPS access to repository
+You can interact with Github repositories either via SSH or HTTPS (which gets through firewalls that don't allow for SSH). To choose one or the other just requires a different form of the repsitory's URL (the URL can be modified later if you change your mind).
+
+#### How to set up password-less access to the repository
+If you use SSH, you can avoid passwords altogether by uploading your public key to Github:
+
+1. [Check for an existing SSH key](https://help.github.com/articles/checking-for-existing-ssh-keys/)
+1. [Generate a new SSH key if none already exists](https://help.github.com/articles/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent/)
+1. [Add your SSH key to github account](https://help.github.com/articles/adding-a-new-ssh-key-to-your-github-account)
+1. [Test the ssh connection](https://help.github.com/articles/testing-your-ssh-connection)
+
+#### How to set up password caching (for SSH or HTTPS)
+Git 1.7.10 and later allows storing your password for some time in memory so you aren't asked every time. Follow instructions [here](https://help.github.com/articles/caching-your-github-password-in-git/)
+
+## Obtain PISA sourcecode
+
+### Developing PISA: Forking
+If you wish to modify PISA and contribute your code changes back to the PISA project (highly recommended!), fork [`WIPACrepo/pisa`](https://github.com/WIPACrepo/pisa) from Github. *(How to work with the `cake` branch of PISA will be detailed below.)*
+
+* Navigate to the [PISA github page](https://github.com/wipacrepo/pisa) and fork the repository by clicking on the ![fork](doc/ForkButton.png) button
+* From a terminal, change into the "parent" directory.
+```bash
+cd <parent dir>
+```
+This creates your own version of PISA within your Github account. You can freely create your own *branch*, modify the code, and then *add* and *commit* changes to that branch within your fork of PISA. When you want to share your changes with WIPACrepo/pisa, you can then submit a *pull request* to `WIPACrepo/pisa` which can be merged by the PISA administrator (after the code is reviewed and tested, of course).
+
+* Clone the repository (`<github username>` is your Github username)
+  * For an SSH interface to github: ```git clone git@github.com:<github username>/pisa.git```
+  * For an HTTPS interface to github: ```git clone https://github.com/<github username>/pisa.git```
+* Install PISA: ```pip install --src $PISA --requirement $PISA/requirements.txt --editable```
+  * `--src $PISA`: Installs PISA from the sourcecode you just cloned in the directory pointed at by the environment variable `$PISA`.
+  * `--requirement $PISA/requirements.txt`: Specifies a file containing dependencies for `pip` to install prior to installing PISA. This file lives at `$PISA/requirements.txt`.
+  * `--editable`: Allows for changes to the source code to be immediately propagated to your Python installation. Basically, within your Python source tree, PISA is just a series of links to your source directory, so changes within your source tree are seen directly by your Python installation.
+
+__Notes:__
+
+* You can work with your installation using the usual git commands (pull, push, etc.). Note however, that these won't rebuild any of the extension (i.e. _C/C++_) libraries. If you want to recompile these libraries, simply run
+<br>```cd $PISA && python setup.py build_ext --inplace```
+
+* If your Python installation was done by an administrator, if you have administrative access, preface the `pip install` command with `sudo`:<br>
+```sudo pip install ...```<br>
+If you do not have administrative access, you can install PISA as a user module via the `--user` flag:<br>
+```pip install --user ...```
+
+### Using but not developing PISA: Cloning
+If you just wish to pull changes from github (and not submit any changes back), you can just clone the sourcecode.
 
 * Change to the directory into which you wish for the sourcecode to live and then clone the project.
 ```bash
-cd <parent directory>
-git clone https://github.com/jllanfranchi/pisa.git
+mkdir -p <parent dir>
+cd <parent dir>
+git clone https://github.com/wipacrepo/pisa.git
 ```
 
 This creates and populates the `<PISA root dir>`
@@ -79,69 +139,9 @@ This creates and populates the `<PISA root dir>`
 <parent dir>/pisa
 ```
 
-## Set up your environment
-* To make life easier into the future (and to make these instructons easier to follow), define the `PISA` variable in your shell environment that points to `<PISA root dir>`. E.g., for the bash shell, you need to edit your `.bashrc` fle and add the line
-```bash
-export PISA=<parent dir>/pisa
-```
-Load this variable into your current environment by sourcing your `.bashrc` file:
-```bash
-. ~/.bashrc
-```
-(it will be reloaded autmatically for all new shells).
-
-* Install PISA
-```bash
-conda install pisa
-```
-
-**Developer mode:**
-
-Also in developer mode, you can directly install via `pip` from github. In order to contribute, you'll first need your own fork of the `PISA` repository.
-
-1. Create your own [github account](https://github.com/)
-1. Navigate to the [PISA github page](https://github.com/tarlen5/pisa) and fork the repository by clicking on the ![fork](doc/ForkButton.png) button
-1. Now go to your terminal and install `PISA` from your fork using the following commands
-```
-pip install [ --src <your/source/dir> --editable ] git+https://github.com/<user>/pisa@<branch>#egg=pisa 
-cd <your/source/dir>/pisa && git checkout <branch>
-```
-
-where
-
-* `<user>` is the user name you picked on github.
-* `<branch>` is the branch you'd like to install. This could be either one of
-  the releases, or `master`
-* `--editable` tells `pip` to make an editable installation, i.e instead of
-  installing directories in your `<site-packages>` directory, `pip` will install
-  the source in `<your/source/dir>` and link this from the `<site-packages>`.
-  This way, if you change the source the changes will be automatically reflected
-  when you run the code. __NOTE__: a subdirectory `pisa` that holds your files will be created within `<your/source/dir>`.
-* As for now (`pip <= 1.5.6`) the additional `git checkout <branch>` is required as `pip`
-  will checkout the specific latest commit in the branch you give, rather than
-  the `HEAD` of that branch. You are thus left with a _detached HEAD_, and can
-  not commit to the branch you check out.
-  
-__Notes:__
-
-* You can work with your installation using the usual git commands (pull,
-push, etc.). Note however, that these won't rebuild any of the extension (i.e.
-_C/C++_) libraries. If you want to recompile these libraries, simply run
-<br>```cd <your/source/dir>/pisa && python setup.py build_ext --inplace```
-
-* If you did not install `PISA` in a virtual environment, then the package will
-  be installed alongside with your other python packages. This typically means
-  that you'll need super-user priviledges to install, i.e.<br>
-  ```sudo pip install ...```<br>
-  If your are using above with the `--editable` option, the source files will
-  also be installed by the super-user, which means you might not be able to edit
-  them. In this case, just<br>
-  ```cd <your/source/dir> && sudo chown -R <user> pisa```<br>
-  where `<user>` obviously just is your user name.
-
 **User mode:**
 
-Use this if you just want to run `PISA`, but don't want to edit it. First pick a revision from [this github page](https://github.com/tarlen5/pisa/releases). Then run this command in your shell, to directly install PISA from github.
+Use this if you just want to run PISA, but don't want to edit it. First pick a revision from [this github page](https://github.com/tarlen5/pisa/releases). Then run this command in your shell, to directly install PISA from github.
 ```
 pip install git+https://github.com/tarlen5/pisa@<release>#egg=pisa
 ```
@@ -212,7 +212,7 @@ Caching requires the *fast* generation of unique identifiers for each item store
 * **Hashes for maps sets**: The service that produces a set of maps is also responsible for producing the map-set's hash. The hash is derived from a tuple of the input maps' hash and the transform hash. As this logic is consistent across all stages & services (so long as a flux input hash is used), it is implementated in the generic `pisa.stage.Stage` base class.
 * The class `pisa.utils.utils.DictWithHash` is provided for conveniently passing transforms and map sets around with hashes attached. Note that it is the user's responsibility to ensure that the `hash` attribute of those objects is not out of sync with respect to the data contained within them. This can done manually after updating the data by calling the `DictWithHash` object's method `update_hash` with a simple object (or an already-computed hash) as its argument (see help for that method for more details). To ensure such consistency between contents and hash, it is recommended to modify the data contents in the `try` clause and update the hash in the `else` clause of a `try-except-else` code block.
 
-### Updating `PISA`
+### Updating PISA
 
 **Developer mode:**
 
@@ -227,7 +227,7 @@ The simplest way to update PISA is just to checkout the version you want in git.
 ```
 pip install --src <your/source/dir> --editable git+https://github.com/<user>/pisa@<branch>#egg=pisa 
 ```
-Git will automatically realize that there is already a version of `PISA` in `<your/source/dir>`, so it will just update, but won't delete any of the files you have in there. 
+Git will automatically realize that there is already a version of PISA in `<your/source/dir>`, so it will just update, but won't delete any of the files you have in there. 
 
 ## Data formats
 
