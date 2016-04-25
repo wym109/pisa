@@ -232,21 +232,23 @@ if __name__ == '__main__':
         
         print model_settings['osc']['params'].names
         print model_settings['osc']['params'].values
-
+        print model_settings['osc']['params'].priors
+        
+        print model_settings['template_maker']['binning']
 
         # Select a hierarchy
-        logging.info('Selected %s hierarchy' %
-                     ('normal' if args.normal else 'inverted'))
-        template_params_nh = select_hierarchy(
-            model_settings['params'], normal_hierarchy=True
-        )
-        template_params_ih = select_hierarchy(
-            model_settings['params'], normal_hierarchy=False
-        )
+        #logging.info('Selected %s hierarchy' %
+        #             ('normal' if args.normal else 'inverted'))
+        #template_params_nh = select_hierarchy(
+        #    model_settings['params'], normal_hierarchy=True
+        #)
+        #template_params_ih = select_hierarchy(
+        #    model_settings['params'], normal_hierarchy=False
+        #)
 
         # Intialize template maker
-        template_params_values_nh = get_values(template_params_nh)
-        template_params_values_ih = get_values(template_params_ih)
+        #template_params_values_nh = get_values(template_params_nh)
+        #template_params_values_ih = get_values(template_params_ih)
 
         ebins = model_settings['binning']['ebins']
         czbins = model_settings['binning']['czbins']

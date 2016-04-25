@@ -19,6 +19,7 @@ from uncertainties import ufloat, ufloat_fromstr
 import numpy as np
 import pint
 units = pint.UnitRegistry()
+from pisa.utils.binning import OneDimBinning, MultiDimBinning
 
 def parse(string):
     value = string.replace(' ','')
@@ -67,7 +68,20 @@ def parse_cfg(config):
                     range = range.replace(']','])')
                     range = eval(range)
                 params.append(Param(name=pname, value=value.n * value.units, prior=prior, range=range, is_fixed=is_fixed))
+            elif name.startswith('binning.'):
+                # make binning object
+                assert(config.has_option(section, 'binning.order'))
+                if name != 'binning.order': continue
+                bin_names = config.get(section, 'binning.order')
+                bin_names = bin_names.split(',')
+                bins = []
+                for bin_name in bin_names:
+                    bin_name = bin_name.strip()
+                    args = eval(config.get(section, 'binning.'+bin_name))
+                    bins.append(OneDimBinning(bin_name, **args))
+                dict[section]['binning'] = MultiDimBinning(*bins)
             else:
                 dict[section][name] = value
-        dict[section]['params'] = ParamSet(*params)
+        if len(params) > 0:
+            dict[section]['params'] = ParamSet(*params)
     return dict
