@@ -15,12 +15,13 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.fileio import from_file, to_file
 from pisa.utils.utils import Timer
+from pisa.utils.parse_cfg import parse_cfg
 
 from pisa.flux import Flux
-from pisa.osc import Osc
-from pisa.aeff import Aeff
-from pisa.reco import Reco
-from pisa.pid import PID
+#from pisa.osc import Osc
+#from pisa.aeff import Aeff
+#from pisa.reco import Reco
+#from pisa.pid import PID
 
 
 class TemplateMaker:
@@ -223,9 +224,15 @@ if __name__ == '__main__':
 
     set_verbosity(args.verbose)
 
+
     with Timer() as t:
         # Load all the settings
         model_settings = from_file(args.template_settings)
+        model_settings = parse_cfg(model_settings)
+        
+        print model_settings['osc']['params'].names
+        print model_settings['osc']['params'].values
+
 
         # Select a hierarchy
         logging.info('Selected %s hierarchy' %

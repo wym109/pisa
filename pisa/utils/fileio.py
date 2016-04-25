@@ -9,23 +9,26 @@
 # date:   2015-06-13
 """Generic file I/O, dispatching specific file readers/writers as necessary"""
 
-
 import os
 import pisa.utils.jsons as jsons
 import pisa.utils.hdf as hdf
 import pisa.resources.resources as resources
 from pisa.utils.log import logging
 import cPickle
-
+import ConfigParser
 
 JSON_EXTS = ['json']
 HDF5_EXTS = ['hdf', 'h5', 'hdf5']
 PKL_EXTS = ['pickle', 'pkl', 'p']
+CFG_EXTS = ['ini', 'cfg']
 
+def from_cfg(fname):
+    config = ConfigParser.SafeConfigParser()
+    config.read(fname)
+    return config
 
 def from_pickle(fname):
     return cPickle.load(file(fname, 'rb'))
-
 
 def to_pickle(obj, fname, overwrite=True):
     fpath = os.path.expandvars(os.path.expanduser(fname))
@@ -36,7 +39,6 @@ def to_pickle(obj, fname, overwrite=True):
             raise Exception('Refusing to overwrite path ' + fpath)
     return cPickle.dump(obj, file(fname, 'wb'),
                         protocol=cPickle.HIGHEST_PROTOCOL)
-
 
 def from_file(fname, fmt=None, **kwargs):
     """Dispatch correct file reader based on fmt (if specified) or guess
@@ -53,6 +55,8 @@ def from_file(fname, fmt=None, **kwargs):
         return hdf.from_hdf(fname, **kwargs)
     elif ext in PKL_EXTS:
         return from_pickle(fname, **kwargs)
+    elif ext in CFG_EXTS:
+        return from_cfg(fname, **kwargs)
     else:
         errmsg = 'File "%s": unrecognized extension "%s"' % (fname, ext)
         logging.error(errmsg)

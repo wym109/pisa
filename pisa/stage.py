@@ -3,7 +3,8 @@ import collections
 import inspect
 
 from pisa.utils import utils
-import pisa.utils.utils.hash_obj as hash_obj
+from pisa.utils import cache
+from pisa.utils.utils import hash_obj
 
 
 class GenericStage(object):
@@ -233,7 +234,7 @@ class GenericStage(object):
 
 class NoInputStage(GenericStage):
     def __init__(self, params=None, disk_cache=None,
-                 cache_class=utils.MemoryCache, result_cache_depth=10):
+                 cache_class=cache.MemoryCache, result_cache_depth=10):
         super(NoInputStage, self).__init__(params=params,
                                                disk_cache=disk_cache)
         self.result_cache_depth = result_cache_depth
@@ -258,7 +259,7 @@ class NoInputStage(GenericStage):
 
 class InputStage(GenericStage):
     def __init__(self, params=None, disk_cache=None,
-                 cache_class=utils.MemoryCache, transform_cache_depth=10,
+                 cache_class=cache.MemoryCache, transform_cache_depth=10,
                  result_cache_depth=10):
         super(InputStage, self).__init__(params=params,
                                          disk_cache=disk_cache)

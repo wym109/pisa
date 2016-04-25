@@ -81,10 +81,11 @@ class Param(object):
                    self.is_fixed, self.is_discrete, self.help)
 
     def validate_value(self, value):
-        if self.is_discrete:
-            assert value in self.range
-        else:
-            assert value >= min(self.range) and value <= max(self.range)
+        if self.range is not None:
+            if self.is_discrete:
+                assert value in self.range
+            else:
+                assert value >= min(self.range) and value <= max(self.range)
 
     @property
     def tex(self):
