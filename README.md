@@ -135,25 +135,6 @@ When you want to share your changes with `WIPACrepo/pisa`, you can then submit a
 `git clone git@github.com:<github username>/pisa.git`
   * or HTTPS access to repo:<br>
 `git clone https://github.com/<github username>/pisa.git`
-* Install PISA:<br>
-`pip install --src $PISA --requirement $PISA/requirements.txt --editable`
-  * `--src $PISA`: Installs PISA from the sourcecode you just cloned in the directory pointed to by the environment variable `$PISA`.
-  * `--requirement $PISA/requirements.txt`: Specifies a file containing dependencies for `pip` to install prior to installing PISA.
-This file lives at `$PISA/requirements.txt`.
-  * `--editable`: Allows for changes to the source code to be immediately propagated to your Python installation.
-Basically, within your Python source tree, PISA is just a series of links to your source directory, so changes within your source tree are seen directly by your Python installation.
-
-__Notes:__
-
-* You can work with your installation using the usual git commands (pull, push, etc.).
-However, these won't recompile any of the extension (i.e. _C/C++_) libraries.
-If you want to do so, simply run<br>
-`cd $PISA && python setup.py build_ext --inplace`
-
-* If your Python installation was done by an administrator, if you have administrative access, preface the `pip install` command with `sudo`:<br>
-`sudo pip install ...`<br>
-If you do not have administrative access, you can install PISA as a user module via the `--user` flag:<br>
-`pip install --user ...`
 
 ### Using but not developing PISA: Cloning
 If you just wish to pull changes from github (and not submit any changes back), you can just clone the sourcecode without creating a fork of the project.
@@ -167,8 +148,29 @@ cd $PISA
 `git clone git@github.com:wipacrepo/pisa.git`
   * or HTTPS access to repo:<br>
 `git clone https://github.com/wipacrepo/pisa.git`
-* Install PISA:<br>
-`pip install --src $PISA --requirement $PISA/requirements.txt --editable`
+
+## Install PISA
+```bash
+pip install --src $PISA --requirement $PISA/requirements.txt --editable
+```
+Explanation of the above command:
+* `--src $PISA`: Installs PISA from the sourcecode you just cloned in the directory pointed to by the environment variable `$PISA`.
+* `--requirement $PISA/requirements.txt`: Specifies the file containing PISA's dependencies for `pip` to install prior to installing PISA.
+This file lives at `$PISA/requirements.txt`.
+* `--editable`: Allows for changes to the source code to be immediately propagated to your Python installation.
+Basically, within your Python source tree, PISA is just a series of links to your source directory, so changes within your source tree are seen directly by your Python installation.
+
+__Notes:__
+
+* You can work with your installation using the usual git commands (pull, push, etc.).
+However, these won't recompile any of the extension (i.e. _C/C++_) libraries.
+If you want to do so, simply run<br>
+`cd $PISA && python setup.py build_ext --inplace`
+
+* If your Python installation was done by an administrator, if you have administrative access, preface the `pip install` command with `sudo`:<br>
+`sudo pip install ...`<br>
+If you do not have administrative access, you can install PISA as a user module via the `--user` flag:<br>
+`pip install --user ...`
 
 # Glossary
 
