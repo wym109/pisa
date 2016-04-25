@@ -63,6 +63,7 @@ The Python requirements are
 * [h5py](http://www.h5py.org/)
 * [cython](http://cython.org/)
 * [uncertainties](https://pythonhosted.org/uncertainties/)
+* [pint](https://pint.readthedocs.org/en/0.7.2/)
 
 Optional dependencies to enable add-on features are
 * [PyCUDA](https://mathema.tician.de/software/pycuda)
