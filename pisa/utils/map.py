@@ -20,58 +20,15 @@ from copy import deepcopy
 
 import numpy as np
 
+import uncertainties
+from uncertainties import ufloat
+from uncertainties import unumpy as unp
+
 from pisa.utils.binning import OneDimBinning, MultiDimBinning
 
 
 def type_error(value):
     raise TypeError('Type of argument not supported: "%s"' % type(value))
-
-def abs_var(obj):
-    return None
-
-def add_var(obj1, obj2):
-    return None
-    #if var_a is None:
-    #    return var_b
-    #if var_b is None:
-    #    return var_a
-    #return var_a + var_b
-
-def add_var_stdev(var_a, var_b):
-    if var_a is None:
-        return var_b
-    if var_b is None:
-        return var_a
-    val = np.sqrt(var_a) + np.sqrt(var_b)
-    return val * val
-
-def divide_var(obj1, obj2): #hist_a, var_a, hist_b, var_b):
-    return None
-    if var_a is not None:
-        val_a = var_a / (hist_b*hist_b)
-    if var_b is not None:
-        val_b = var_b / (hist_a*hist_a)
-
-    if var_a is None:
-        if var_b is None:
-            return None
-        return val_b
-
-    # var_a is NOT None...
-    if var_b is None:
-        return val_a
-
-    # neither var_a nor var_b is None
-    return val_a + val_b
-
-def multiply_var(obj1, obj2):
-    return None
-
-def power_var(obj1, obj2):
-    return None
-
-def log_var(obj, base):
-    return None
 
 def strip_outer_parens(value):
     value = value.strip()
@@ -86,17 +43,13 @@ def strip_outer_parens(value):
 
 class Map(object):
     """Class to contain 2D histogram, error, and metadata about the contents.
-    Also provides basic mathematical operations for the contained data, and
-    attempts to automatically propagate errors via the `variance` property
-    (which -- as of now -- is assumed to represent Gaussian errors).
-
+    Also provides basic mathematical operations for the contained data.
     Parameters
     ----------
     name
     hist
     binning
     hash
-    variance
     tex
     full_comparison
 
@@ -105,10 +58,11 @@ class Map(object):
     full_comparison
     hash
     hist
+    nominal_values
+    std_devs
     name
     state
     tex
-    variance
 
     Methods
     -------
@@ -116,6 +70,8 @@ class Map(object):
     fluctuate
     chi2
     llh
+    set_poisson_errors
+    set_errors
     __abs__
     __add__
     __div__
@@ -133,10 +89,10 @@ class Map(object):
     __sub__
 
     """
-    __slots = ('name', 'hist', 'binning', 'hash', 'variance', 'tex',
+    __slots = ('name', 'hist', 'binning', 'hash', 'tex',
                'full_comparison')
     __state_attrs = __slots
-    def __init__(self, name, hist, binning, hash=None, variance=None, tex=None,
+    def __init__(self, name, hist, binning, hash=None, tex=None,
                  full_comparison=True):
         # Set Read/write attributes via their defined setters
         super(Map, self).__setattr__('_name', name)
@@ -152,9 +108,14 @@ class Map(object):
         super(Map, self).__setattr__('_binning', binning)
         binning.assert_array_fits(hist)
         super(Map, self).__setattr__('_hist', hist)
-        if variance is not None:
-            assert binning.assert_array_fits(variance)
-        super(Map, self).__setattr__('_variance', variance)
+
+    def set_poisson_errors(self):
+        # approximate poisson errors using sqrt(n)
+        super(Map, self).__setattr__('_hist', unp.uarray(self._hist, np.sqrt(self._hist)))
+    
+    def set_errors(self, error_hist):
+        self.assert_compat(error_hist)
+        super(Map, self).__setattr__('_hist', unp.uarray(self._hist, error_hist))
 
     @property
     def state(self):
@@ -164,7 +125,7 @@ class Map(object):
         return state
 
     def assert_compat(self, other):
-        if np.isscalar(other):
+        if np.isscalar(other) or type(other) is uncertainties.core.Variable:
             return
         elif isinstance(other, np.ndarray):
             self.binning.assert_array_fits(other)
@@ -182,19 +143,15 @@ class Map(object):
         # Indexing a single element e.g. hist[1,3] returns a 0D array while
         # e.g. hist[1,3:8] returns a 1D array; but we need 2D... so reshape
         # after indexing.
-        hist = state['hist'][idx].reshape(binning.n_ebins, binning.n_czbins)
+        hist = np.reshape(state['hist'][idx],(binning.n_ebins, binning.n_czbins))
         state['hist'] = hist
-        if state['variance'] is not None:
-            variance = state['variance'][idx].reshape(binning.n_ebins,
-                                                      binning.n_czbins)
-            state['variance'] = variance
         return Map(**state)
 
-    def __str__(self):
-        return strip_outer_parens(self.name)
+    #def __str__(self):
+    #    return strip_outer_parens(self.name)
 
     def __repr__(self):
-        return str(self)
+        return np.array_repr(self._hist)
 
     def __hash__(self):
         if self.hash is not None:
@@ -258,12 +215,16 @@ class Map(object):
         return self._hist
 
     @property
-    def binning(self):
-        return self._binning
+    def nominal_values(self):
+        return unp.nominal_values(self._hist)
 
     @property
-    def variance(self):
-        return self._variance
+    def std_devs(self):
+        return unp.std_devs(self._hist)
+
+    @property
+    def binning(self):
+        return self._binning
 
     @property
     def full_comparison(self):
@@ -282,14 +243,13 @@ class Map(object):
             name="|%s|" % (self.name,),
             tex=r"{\left| %s \right|}" % strip_outer_parens(self.tex),
             hist=np.abs(self.hist),
-            variance=abs_var(self),
         ))
         return Map(**state)
 
     def __add__(self, other):
         """Add `other` to self"""
         state = deepcopy(self.state)
-        if np.isscalar(other):
+        if np.isscalar(other) or type(other) is uncertainties.core.Variable:
             state.update(dict(
                 name="(%s + %s)" % (self.name, other),
                 tex=r"{(%s + %s)}" % (self.tex, other),
@@ -310,14 +270,13 @@ class Map(object):
             ))
         else:
             type_error(other)
-        state['variance'] = add_var(self, other)
         return Map(**state)
 
     #def __cmp__(self, other):
 
     def __div__(self, other):
         state = deepcopy(self.state)
-        if np.isscalar(other):
+        if np.isscalar(other) or type(other) is uncertainties.core.Variable:
             state.update(dict(
                 name="(%s / %s)" % (self.name, other),
                 tex=r"{(%s / %s)}" % (self.tex, other),
@@ -338,7 +297,6 @@ class Map(object):
             ))
         else:
             type_error(other)
-        state['variance'] = divide_var(self, other)
         return Map(**state)
 
     def __truediv__(self, other):
@@ -349,16 +307,18 @@ class Map(object):
 
     def __eq__(self, other):
         """Check if full state of maps are equal. *Not* element-by-element
-        equality as for a numpy array. Call this.hist == other.hist and
-        this.variance == other.variance if the latter behavior is desired.
+        equality as for a numpy array. Call this.hist == other.hist for the nominal value and the error
 
         If `full_comparison` is true for *both* maps, or if either map lacks a
         hash, performs a full comparison of the contents of each map.
 
         Otherwise, simply checks that the hashes are equal.
         """
-        if np.isscalar(other) or isinstance(other, np.ndarray):
-            return np.all(self.hist == other)
+        if np.isscalar(other):
+            # in case comparing with just with a scalar ignore the errors:
+            return np.all(unp.nominal_values(self.hist) == other)
+        if type(other) is uncertainties.core.Variable or isinstance(other, np.ndarray):
+            return np.all(unp.nominal_values(self.hist) == unp.nominal_values(other)) and np.all(unp.std_devs(self.hist) == unp.std_devs(other))
         elif isinstance(other, Map):
             if (self.full_comparison or other.full_comparison
                 or self.hash is None or other.hash is None):
@@ -391,7 +351,6 @@ class Map(object):
             name="log(%s)" % self.name,
             tex=r"\ln\left( %s \right)" % self.tex,
             hist=np.log(self.hist),
-            variance=log_var(self, np.e),
         ))
         return Map(**state)
 
@@ -401,13 +360,12 @@ class Map(object):
             name="log10(%s)" % self.name,
             tex=r"\log_{10}\left( %s \right)" % self.tex,
             hist=np.log10(self.hist),
-            variance=log_var(self, 10),
         ))
         return Map(**state)
 
     def __mul__(self, other):
         state = deepcopy(self.state)
-        if np.isscalar(other):
+        if np.isscalar(other) or type(other) is uncertainties.core.Variable:
             state.update(dict(
                 name="%s * %s" % (other, self.name),
                 tex=r"%s \cdot %s" % (other, self.tex),
@@ -428,7 +386,6 @@ class Map(object):
             ))
         else:
             type_error(other)
-        state['variance'] = multiply_var(self, other)
         return Map(**state)
 
     def __ne__(self, other):
@@ -449,7 +406,7 @@ class Map(object):
 
     def __pow__(self, other):
         state = deepcopy(self.state)
-        if np.isscalar(other):
+        if np.isscalar(other) or type(other) is uncertainties.core.Variable:
             if other == 1:
                 val = self.hist
             elif other == 2:
@@ -476,7 +433,6 @@ class Map(object):
             ))
         else:
             type_error(other)
-        state['variance'] = power_var(self, other)
         return Map(**state)
 
     def __radd__(self, other):
@@ -486,7 +442,7 @@ class Map(object):
         if isinstance(other, Map):
             return other / self
         state = deepcopy(self.state)
-        if np.isscalar(other):
+        if np.isscalar(other) or type(other) is uncertainties.core.Variable:
             state.update(dict(
                 name="(%s / %s)" % (other, self.name),
                 tex="{(%s / %s)}" % (other, self.tex),
@@ -500,7 +456,6 @@ class Map(object):
             ))
         else:
             type_error(other)
-        state['variance'] = divide_var(other, self)
         return Map(**state)
 
     def __rmul__(self, other):
@@ -512,7 +467,7 @@ class Map(object):
         if isinstance(other, Map):
             return other - self
         state = deepcopy(self.state)
-        if np.isscalar(other):
+        if np.isscalar(other) or type(other) is uncertainties.core.Variable:
             state.update(dict(
                 name="(%s - %s)" % (other, self.name),
                 tex="{(%s - %s)}" % (other, self.tex),
@@ -526,7 +481,6 @@ class Map(object):
             ))
         else:
             type_error(other)
-        state['variance'] = add_var(other, self)
         return Map(**state)
 
     def sqrt(self):
@@ -535,13 +489,12 @@ class Map(object):
             name="sqrt(%s)" % self.name,
             tex=r"\sqrt{%s}" % self.tex,
             hist=np.sqrt(self.hist),
-            variance=power_var(self, 0.5),
         ))
         return Map(**state)
 
     def __sub__(self, other):
         state = deepcopy(self.state)
-        if np.isscalar(other):
+        if np.isscalar(other) or type(other) is uncertainties.core.Variable:
             state.update(dict(
                 name="(%s - %s)" % (self.name, other),
                 tex="{(%s - %s)}" % (self.tex, other),
@@ -562,7 +515,6 @@ class Map(object):
             ))
         else:
             type_error(other)
-        state['variance'] = add_var(self, other)
         return Map(**state)
 
 
@@ -650,7 +602,7 @@ class MapSet(object):
             map_name = mp.name
             this_map_args = []
             for arg in args:
-                if np.isscalar(arg) or \
+                if np.isscalar(arg) or type(arg) is uncertainties.core.Variable or \
                         isinstance(arg, (basestring, np.ndarray)):
                     this_map_args.append(arg)
                 elif isinstance(arg, MapSet):
@@ -819,29 +771,38 @@ def test_Map():
         name='coszen', units=None, prefix='cz', tex=r'\cos\,\theta', n_bins=20,
         domain=(-1,0), is_lin=True
     )
+    # set directly unumpy array with errors
+    #m1 = Map(name='x', hist=unp.uarray(np.ones((40,20)),np.sqrt(np.ones((40,20)))), binning=(e_binning, cz_binning))
+    # or call init poisson error afterwards
     m1 = Map(name='x', hist=np.ones((40,20)), binning=(e_binning, cz_binning))
+    m1.set_poisson_errors()
+    # or no errors at all
     m2 = Map(name='y', hist=2*np.ones((40,20)), binning=(e_binning, cz_binning))
 
     print m1, m1.binning
     print m2, m2.binning
+    print m1.nominal_values
+    print m1.std_devs
     r = m1 + m2
+    # compare only nominal val
     assert r == 3
     print 'm1+m2=3:', r, r[0,0]
     r = m2 + m1
-    assert r == 3
+    # or compare including errors
+    assert r == ufloat(3,1)
     print 'm2+m1=3:', r, r[0,0]
     r = 2*m1
-    assert r == 2
+    assert r == ufloat(2,2)
     print '2*m1=2:', r, r[0,0]
     r = (2*m1 + 8) / m2
-    assert r == 5
+    assert r == ufloat(5,1)
     print '(2*m1 + 8) / m2=5:', r, r.hist[0,0]
     #r[:,1] = 1
     #r[2,:] = 2
     print 'r[0:2,0:5].hist:', r[0:2,0:5].hist
     print 'r[0:2,0:5].binning:', r[0:2,0:5].binning
     r = m1 / m2
-    assert r == 0.5
+    assert r == ufloat(0.5,0.5)
     print r, '=', r[0,0]
 
 
