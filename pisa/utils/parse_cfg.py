@@ -52,7 +52,7 @@ def parse_cfg(config):
                 range = None
                 if config.has_option(section, name + '.fixed'):
                     is_fixed = config.getboolean(section, name + '.fixed')
-                if type(value.magnitude) is uncertainties.core.AffineScalarFunc:
+                if value.s != 0:
                     prior = Prior(kind='gaussian',fiducial=value.n, sigma = value.s)
                 if config.has_option(section, name + '.prior'):
                     #ToDo
@@ -60,9 +60,7 @@ def parse_cfg(config):
                 if config.has_option(section, name + '.range'):
                     range = config.get(section, name + '.range')
                     if 'nominal' in range:
-                        if type(value.magnitude) is uncertainties.core.AffineScalarFunc:
-                            nominal = value.n * value.units
-                        else: nominal = value
+                        nominal = value.n * value.units
                     if 'sigma' in range:
                         sigma = value.s * value.units
                     range = range.replace('[','np.array([')
