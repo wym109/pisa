@@ -120,14 +120,14 @@ This is particularly useful for HTTPS or if you use SSH but do not wish to store
 ## Obtain PISA sourcecode
 
 ### Developing PISA: Forking
-If you wish to modify PISA and contribute your code changes back to the PISA project (*highly recommended!*), fork [`WIPACrepo/pisa`](https://github.com/WIPACrepo/pisa) from Github.
+If you wish to modify PISA and contribute your code changes back to the PISA project (*highly recommended!*), fork `WIPACrepo/pisa` from Github.
 *(How to work with the `cake` branch of PISA will be detailed below.)*
 
 Forking creates your own version of PISA within your Github account.
 You can freely create your own *branch*, modify the code, and then *add* and *commit* changes to that branch within your fork of PISA.
 When you want to share your changes with `WIPACrepo/pisa`, you can then submit a *pull request* to `WIPACrepo/pisa` which can be merged by the PISA administrator (after the code is reviewed and tested, of course).
 
-* Navigate to the [PISA github page](https://github.com/wipacrepo/pisa) and fork the repository by clicking on the ![fork](doc/ForkButton.png) button
+* Navigate to the [PISA github page](https://github.com/wipacrepo/pisa) and fork the repository by clicking on the ![fork](doc/ForkButton.png) button.
 * From a terminal, change into the "parent" directory.<br>
 `cd <parent dir>`
 * Clone the repository via one of the following commands (`<github username>` is your Github username):
@@ -139,10 +139,8 @@ When you want to share your changes with `WIPACrepo/pisa`, you can then submit a
 ### Using but not developing PISA: Cloning
 If you just wish to pull changes from github (and not submit any changes back), you can just clone the sourcecode without creating a fork of the project.
 
-* Change to the directory into which you wish for the sourcecode to live and then clone the project.
-```bash
-cd $PISA
-```
+* From a terminal, change into the "parent" directory.<br>
+`cd <parent dir>`
 * Clone the WIPACrepo/pisa repository via one of the following commands:
   * either SSH access to repo:<br>
 `git clone git@github.com:wipacrepo/pisa.git`
