@@ -30,32 +30,16 @@ class GenericStage(object):
     Properties
     ----------
     stage_name : str
-        Name of the stage ('flux', 'osc', 'aeff', 'reco', or 'pid')
+        Name of the stage (e.g., 'flux', 'osc', 'aeff', 'reco', 'pid', ...)
 
     service_name : str
-        Name of the service, e.g. 'AeffServiceMC'
+        Name of the service, e.g. 'AeffServiceSliceSmooth'
 
     params : ParamSet or sequence with which to instantiate a ParamSet
         All stage parameters, returned in alphabetical order by param name.
         The format of the returned dict is
             {'<param_name_0>': <param_val_0>, ...,
              '<param_name_N>': <param_val_N>}
-
-    free_params : OrderedDict
-        Those `params` that are not fixed, returned in same format as `params`
-        and in alphabetical order by param name.
-
-    priors_llh : float
-        Summed log likelihoods of all parameters' priors
-
-    priors_chisquare : float
-        Summed chi-squared values of all parameters' priors
-
-    params_hash, free_params_hash
-        Hashes for all params (`params_hash`) or just free params
-        (`free_params_hash`). The former is most thorough, while the latter is
-        provided for faster operation and suffices for identifying temporary
-        (in-memory) references to objects.
 
     source_code_hash
         Hash for the class's source code.
@@ -84,16 +68,11 @@ class GenericStage(object):
 
     Override
     --------
-    The following methods should be overriden in derived classes
+    The following methods should be overridden in derived classes
         get_output_map_set
             Do the actual work to produce the stage's output.
         validate_params
             Perform validation on any parameters.
-        add_cmdline_args
-            The stage base class should override this to add generic
-            stage args applicable across all implementations of the stage;
-            further, each service (implementation of a stage) should add args
-            specific to it here as well (after calling the stage base class).
     """
     def __init__(self, stage_name='', service_name='', params=None,
                  disk_cache=None):
@@ -101,9 +80,6 @@ class GenericStage(object):
         self.service_name = service_name
         self.__params = dict()
         self.__free_param_names = set()
-
-        self.__params_hash = None
-        self.__free_params_hash = None
         self.__source_code_hash = None
 
         self.disk_cache = disk_cache
@@ -116,104 +92,17 @@ class GenericStage(object):
     def validate_params(self, params):
         raise NotImplementedError()
 
-    @staticmethod
-    def add_cmdline_args(parser):
-        raise NotImplementedError()
-
     @property
     def params(self):
-        ordered = collections.OrederedDict()
-        [ordered[k].__setitem__(self.__params[k])
-         for k in sorted(self.__params)]
-        return ordered
+        return self.__params
 
     @params.setter
     def params(self, p):
-        if isinstance(p, basestring):
-            self.load_params(p)
-            return
-        elif isinstance(p, collections.Mapping):
-            pass
-        else:
-            raise TypeError('Unhandled `params` type "%s"' % type(p))
+        if not isinstance(p, utils.params.ParamSet):
+            raise TypeError('Unhandled `params` type "%s"; expected ParmSet' %
+                            type(p))
         self.validate_params(p)
         self.__params.update(p)
-
-        # Invalidate hashes so they get recomputed next time they're requested
-        self.__params_hash = None
-        self.__free_params_hash = None
-
-    #def load_params(self, resource):
-    #    # TODO: load from ini file format
-    #    if isinstance(resource, basestring):
-    #        params_dict = fileio.from_file(resource)
-    #    elif isinstance(collections.Mapping):
-    #        params_dict = resource
-    #    else:
-    #        raise TypeError('Unhandled `rsource` type "%s"' % type(resource))
-    #    self.params = params_dict
-
-    #@property
-    #def free_params(self):
-    #    ordered = collections.OrederedDict()
-    #    [ordered[k].__setitem__(self.__params[k])
-    #     for k in sorted(self.__free_param_names)]
-    #    return ordered
-
-    #@property
-    #def num_params(self):
-    #    return len(self.__params)
-
-    #@property
-    #def num_free_params(self):
-    #    return len(self.__free_param_names)
-
-    #@free_params.setter
-    #def free_params(self, p):
-    #    if isinstance(p, (collections.Iterable, collections.Sequence)):
-    #        p = {pname: p[n]
-    #             for n, pname in enumerate(sorted(self.__free_param_names))}
-    #        assert len(p) == len(self.__free_param_names)
-
-    #    if not isinstance(p, collections.Mapping):
-    #        raise TypeError('Unhandled `params` type "%s"' % type(p))
-
-    #    assert set(p.keys()).issubset(self.__free_param_names)
-    #    self.validate(p)
-    #    self.__params.update(p)
-
-    #    # Invalidate hashes so they get recomputed next time they're requested
-    #    self.__params_hash = None
-    #    self.__free_params_hash = None
-
-    #def fix_params(self, params, ignore_missing=False):
-    #    if np.isscalar(params):
-    #        params = [params]
-    #    if ignore_missing:
-    #        [self.free_params.add(p) for p in params if p in self.__params]
-    #    else:
-    #        assert
-    #        self.__free_param_names.difference_update(params)
-
-    #def unfix_params(self, params, ignore_missing=False):
-    #    if ignore_missing:
-    #        self.__free_param_names.difference_update(params)
-    #    else:
-    #        [self.__free_param_names.remove(p) for p in params]
-    #@property
-    #def params_hash(self):
-    #    """Returns a hash for *all* parameters. Note that This can be slow!"""
-    #    if self.__params_hash is None:
-    #        self.__params_hash = utils.hash_obj(self.__params)
-    #    return self.__params_hash
-
-    #@property
-    #def free_params_hash(self):
-    #    """Returns a hash for just free parameters; should be faster than
-    #    params_hash."""
-    #    if self.__params_hash is None:
-    #        self.__params_hash = utils.hash_obj(self.__params)
-    #    return self.__params_hash
 
     @property
     def source_code_hash(self):
@@ -228,8 +117,7 @@ class GenericStage(object):
 
     @property
     def state_hash(self):
-        return hash((self.source_code_hash, self.params.state_hash))
-
+        return hash_obj((self.source_code_hash, self.params.state_hash))
 
 
 class NoInputStage(GenericStage):
@@ -242,7 +130,7 @@ class NoInputStage(GenericStage):
 
     def get_output_map_set(self):
         """Compute output maps."""
-        result_hash = self.free_params_hash
+        result_hash = self.params.values_hash
         try:
             return self.result_cache[result_hash]
         except KeyError:
@@ -275,7 +163,7 @@ class InputStage(GenericStage):
 
         Parameters
         ----------
-        input_map_set : utils.DictWithHash
+        input_map_set : MapSet
 
         """
         xform = self.get_transform()
@@ -301,7 +189,7 @@ class InputStage(GenericStage):
         transform, as well as the version of the generating software, is
         required for non-volatile storage.
         """
-        xform_hash = self.free_params_hash
+        xform_hash = self.params.values_hash
         try:
             return self.transform_cache[xform_hash]
         except KeyError:
