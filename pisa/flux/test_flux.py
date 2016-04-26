@@ -13,8 +13,8 @@ class Flux(NoInputStage):
         self.filename = example_file
         self.output_binning = output_binning
 
-    def _derive_output(self, **kwargs):
-        # create two histograms with the utput shape
+    def _derive_output(self):
+        # create two histograms with the output shape
         hist1 = np.random.randint(self.params['test'].value, size=self.output_binning.shape)
         hist2 = np.ones(self.output_binning.shape)
         # pack them into Map object, assign poisson errors to the first one
@@ -27,8 +27,8 @@ class Flux(NoInputStage):
 
     def validate_params(self, params):
         # make sure we have a parameter called test, and that its value is greater or equal than zero
-        assert('test' in self.params.names)
-        assert(self.params['test'].value >= 0)
+        assert('test' in params.names)
+        assert(params['test'].value >= 0)
 
     @staticmethod
     def add_cmdline_args(parser):
