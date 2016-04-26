@@ -7,9 +7,11 @@ class Flux(NoInputStage):
     This is a Flux Service just for testing purposes, generating a random map m1 and a map containing ones as m2
     a parameter test is required
     """
-    def __init__(self, params, example_file, output_binning):
+    def __init__(self, params, example_file, output_binning, service,
+            oversample_e, oversample_cz):
+        assert(service == 'dummy')
         # call parent constructor
-        super(Flux, self).__init__('flux', 'test', params)
+        super(Flux, self).__init__('flux', service, params)
         self.filename = example_file
         self.output_binning = output_binning
 

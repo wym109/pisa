@@ -7,12 +7,13 @@
 #         jll1062@phys.psu.edu
 #
 # date:   2015-06-13
-'''  Parse a ConfigFile object into a dict, that contains values indicated by p. or param. as a param set, and all other values a s ordinary strings '''
+'''  Parse a ConfigFile object into a dict containing a an entry for every
+stages, that contains values indicated by param. as a param set, binning as
+binning objects and all other values as ordinary strings '''
 
 from pisa.utils.prior import Prior
 from pisa.utils.param import Param, ParamSet
 from pisa.utils.log import logging
-import ConfigParser
 import uncertainties
 from uncertainties import unumpy as unp
 from uncertainties import ufloat, ufloat_fromstr
@@ -21,7 +22,7 @@ import pint
 units = pint.UnitRegistry()
 from pisa.utils.binning import OneDimBinning, MultiDimBinning
 
-def parse(string):
+def parse_quantity(string):
     value = string.replace(' ','')
     if 'units.' in value:
         value, unit = value.split('units.')
@@ -40,40 +41,51 @@ def list_split(string):
     return [x.strip() for x in list]
 
 def parse_cfg(config):
-    dict = {}
     # create binning objects
-    binnings = {}
+    binningDict = {}
     order = list_split(config.get('binning','order'))
     binnings = list_split(config.get('binning','binnings'))
     for binning in binnings:
         bins = []
         for bin_name in order:
-            args = eval(config.get(section, binning + '.' + bin_name))
+            args = eval(config.get('binning', binning + '.' + bin_name))
             bins.append(OneDimBinning(bin_name, **args))
-        binnings[binning] = MultiDimBinning(*bins)
-
+        binningDict[binning] = MultiDimBinning(*bins)
+    
+    # get infos for stages
+    dict = {}
     for section in config.sections():
-        if section == 'bining': continue
-        dict[section] = {}
-        params = []
-        if section.startswith('stage:')
+        if section.startswith('stage:'):
+            dict[section] = {}
+            params = []
+            if config.has_option(section, 'param_selector'):
+                param_selector = config.get(section, 'param_selector')
+            else:
+                param_selector = ''
             for name, value in config.items(section):
-                if name.startswith('p.') or name.startswith('param.'):
-                    if name.count('.') > 1: continue
-                    # make param object
-                    _, pname = name.split('.')
-                    value = parse(value)
-                    is_fixed = True
-                    is_descrete = False
-                    prior = None
-                    range = None
+                if name.startswith('param.'):
+                    # find parameter root
+                    if name.startswith('param.'+ param_selector + '.') and name.count('.') == 2:
+                        _, _, pname = name.split('.')
+                    elif name.startswith('param.') and name.count('.') == 1:
+                        _, pname = name.split('.')
+                    else: continue
+                    value = parse_quantity(value)
+                    # default behaviour
+                    args = {'name':pname, 'value':value.n * value.units,
+                        'is_fixed':True, 'prior':None, 'range':None}
+                    # search for explicit specifications
                     if config.has_option(section, name + '.fixed'):
-                        is_fixed = config.getboolean(section, name + '.fixed')
-                    if value.s != 0:
-                        prior = Prior(kind='gaussian',fiducial=value.n, sigma = value.s)
+                        args['is_fixed'] = config.getboolean(section, name +
+                                '.fixed')
+                    if config.has_option(section, name + '.scale'):
+                        args['scale'] = config.getfloat(section, name + '.scale')
                     if config.has_option(section, name + '.prior'):
-                        #ToDo
-                        prior = config.get(section, name + '.prior')
+                        #ToDo other priors than gaussian
+                        args['prior'] = config.get(section, name + '.prior')
+                    elif value.s != 0:
+                        args['prior'] = Prior(kind='gaussian',fiducial=value.n,
+                                sigma = value.s)
                     if config.has_option(section, name + '.range'):
                         range = config.get(section, name + '.range')
                         if 'nominal' in range:
@@ -82,10 +94,10 @@ def parse_cfg(config):
                             sigma = value.s * value.units
                         range = range.replace('[','np.array([')
                         range = range.replace(']','])')
-                        range = eval(range)
-                    params.append(Param(name=pname, value=value.n * value.units, prior=prior, range=range, is_fixed=is_fixed))
+                        args['range'] = eval(range)
+                    params.append(Param(**args))
                 elif 'binning' in name:
-                    dict[section][name] = binning[value]
+                    dict[section][name] = binningDict[value]
                 else:
                     dict[section][name] = value
             if len(params) > 0:
