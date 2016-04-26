@@ -44,4 +44,3 @@ cls = getattr(module,args.stage)
 # instanciate object
 stage = cls(**config['stage:'+args.stage.lower()])
 
-

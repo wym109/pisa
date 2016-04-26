@@ -5,6 +5,7 @@ import inspect
 from pisa.utils import utils
 from pisa.utils import cache
 from pisa.utils.utils import hash_obj
+from pisa.utils.param import ParamSet
 
 
 class GenericStage(object):
@@ -78,7 +79,7 @@ class GenericStage(object):
                  disk_cache=None):
         self.stage_name = stage_name
         self.service_name = service_name
-        self.__params = dict()
+        self.__params = None
         self.__free_param_names = set()
         self.__source_code_hash = None
 
@@ -98,11 +99,11 @@ class GenericStage(object):
 
     @params.setter
     def params(self, p):
-        if not isinstance(p, utils.params.ParamSet):
+        if not isinstance(p, ParamSet):
             raise TypeError('Unhandled `params` type "%s"; expected ParmSet' %
                             type(p))
         self.validate_params(p)
-        self.__params.update(p)
+        self.__params = p
 
     @property
     def source_code_hash(self):
@@ -121,10 +122,11 @@ class GenericStage(object):
 
 
 class NoInputStage(GenericStage):
-    def __init__(self, params=None, disk_cache=None,
+    def __init__(self, stage_name='', service_name='', params=None, disk_cache=None,
                  cache_class=cache.MemoryCache, result_cache_depth=10):
-        super(NoInputStage, self).__init__(params=params,
-                                               disk_cache=disk_cache)
+        super(NoInputStage, self).__init__(stage_name=stage_name
+                , service_name=service_name
+                , params=params, disk_cache=disk_cache)
         self.result_cache_depth = result_cache_depth
         self.result_cache = cache_class(self.result_cache_depth, is_lru=True)
 
@@ -146,11 +148,12 @@ class NoInputStage(GenericStage):
 
 
 class InputStage(GenericStage):
-    def __init__(self, params=None, disk_cache=None,
+    def __init__(self, stage_name='', service_name='', params=None, disk_cache=None,
                  cache_class=cache.MemoryCache, transform_cache_depth=10,
                  result_cache_depth=10):
-        super(InputStage, self).__init__(params=params,
-                                         disk_cache=disk_cache)
+        super(InputStage, self).__init__(stage_name=stage_name
+                , service_name=service_name
+                , params=params, disk_cache=disk_cache)
         self.transform_cache_depth = cache_depth
         self.transform_cache = cache_class(self.transform_cache_depth,
                                            is_lru=True)

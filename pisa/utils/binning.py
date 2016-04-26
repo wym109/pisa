@@ -96,8 +96,7 @@ class OneDimBinning(object):
 
         # If both `is_log` and `is_lin` are specified, both cannot be true
         # (but both can be False, in case of irregularly-spaced bins)
-        if is_log is not None and is_lin is not None \
-           and is_log and not np.logical_xor(is_log, is_lin):
+        if is_log and is_lin:
             raise ValueError('`is_log=%s` contradicts `is_lin=%s`' %
                                  (is_log, is_lin))
 
@@ -107,41 +106,38 @@ class OneDimBinning(object):
             assert n_bins is not None and domain is not None \
                     and (is_log or is_lin)
             if is_log:
+                is_lin = False
                 self.bin_edges = np.logspace(np.log10(np.min(domain)),
                                              np.log10(np.max(domain)),
                                              n_bins + 1)
             elif is_lin:
+                is_log = False
                 self.bin_edges = np.linspace(np.min(domain),
                                              np.max(domain),
                                              n_bins + 1)
 
         # Otherwise: use specified bin edges, if valid
         else:
-            assert self.is_binning_ok(bin_edges, is_log=bool(is_log))
+            bin_edges = np.array(bin_edges)
+            if is_lin:
+                assert(self.is_bin_spacing_lin(bin_edges))
+                is_log = False
+            elif is_log:
+                assert(self.is_binning_ok(bin_edges, True))
+                is_lin = False
+            else:
+                is_lin = self.is_bin_spacing_lin(bin_edges)
+            if not is_lin and not is_log:
+                is_log = self.is_bin_spacing_log(bin_edges)
+            self.bin_edges = np.array(bin_edges)
+                 
             # TODO: use list or np.array to store bin edges? A list retains the
             # same more-restrictive indexing that is used in __getitem__; an
             # np.array provides for manipulation not possible for lists,
             # though.
-            self.bin_edges = np.array(bin_edges)
 
         # Determine rest of unspecified parameters from passed bin_edges or
         # enforce them if specified
-
-        if is_log is None:
-            if len(self.bin_edges) == 2:
-                is_log = False
-            else:
-                is_log = self.is_bin_spacing_log(self.bin_edges)
-        elif len(self.bin_edges) != 2:
-            assert is_log == self.is_bin_spacing_log(self.bin_edges)
-
-        if is_lin is None:
-            if len(self.bin_edges) == 2:
-                is_lin = True
-            else:
-                is_lin = self.is_bin_spacing_lin(self.bin_edges)
-        elif len(self.bin_edges) != 2:
-            assert is_lin == self.is_bin_spacing_lin(self.bin_edges)
 
         if n_bins is None:
             n_bins = len(self.bin_edges) - 1

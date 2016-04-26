@@ -11,7 +11,8 @@ class Flux(NoInputStage):
             oversample_e, oversample_cz):
         assert(service == 'dummy')
         # call parent constructor
-        super(Flux, self).__init__('flux', service, params)
+        super(Flux, self).__init__(stage_name='flux', service_name=service,
+                params=params)
         self.filename = example_file
         self.output_binning = output_binning
 
@@ -30,7 +31,7 @@ class Flux(NoInputStage):
     def validate_params(self, params):
         # make sure we have a parameter called test, and that its value is greater or equal than zero
         assert('test' in params.names)
-        assert(params['test'].value >= 0)
+        assert(params['test'].value.magnitude >= 0 )
 
     @staticmethod
     def add_cmdline_args(parser):
