@@ -230,11 +230,11 @@ if __name__ == '__main__':
         model_settings = from_file(args.template_settings)
         model_settings = parse_cfg(model_settings)
         
-        print model_settings['osc']['params'].names
-        print model_settings['osc']['params'].values
-        print model_settings['osc']['params'].priors
+        print model_settings['stage:osc']['params'].names
+        print model_settings['stage:osc']['params'].values
+        print model_settings['stage:osc']['params'].priors
+        print model_settings['stage:osc']['params'].ranges
         
-        print model_settings['template_maker']['binning']
 
         # Select a hierarchy
         #logging.info('Selected %s hierarchy' %
