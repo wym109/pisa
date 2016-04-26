@@ -15,7 +15,7 @@ import pisa.utils.hdf as hdf
 import pisa.resources.resources as resources
 from pisa.utils.log import logging
 import cPickle
-import ConfigParser
+from pisa.utils.BetterConfigParser import BetterConfigParser
 
 JSON_EXTS = ['json']
 HDF5_EXTS = ['hdf', 'h5', 'hdf5']
@@ -23,7 +23,7 @@ PKL_EXTS = ['pickle', 'pkl', 'p']
 CFG_EXTS = ['ini', 'cfg']
 
 def from_cfg(fname):
-    config = ConfigParser.SafeConfigParser()
+    config = BetterConfigParser()
     config.read(fname)
     return config
 
