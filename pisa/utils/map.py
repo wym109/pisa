@@ -111,11 +111,13 @@ class Map(object):
 
     def set_poisson_errors(self):
         # approximate poisson errors using sqrt(n)
-        super(Map, self).__setattr__('_hist', unp.uarray(self._hist, np.sqrt(self._hist)))
+        super(Map, self).__setattr__('_hist', unp.uarray(self._hist,
+                                                         np.sqrt(self._hist)))
     
     def set_errors(self, error_hist):
         self.assert_compat(error_hist)
-        super(Map, self).__setattr__('_hist', unp.uarray(self._hist, error_hist))
+        super(Map, self).__setattr__('_hist', unp.uarray(self._hist,
+                                                         error_hist))
 
     @property
     def state(self):
@@ -519,14 +521,12 @@ class Map(object):
 
 
 class MapSet(object):
-    __slots = ('_name', '_hash')
-    __state_attrs = ('name', 'hash', 'maps')
-    def __init__(self, maps, name=None, tex=None, hash=None,
-                 collate_by_name=False):
+    __slots = ('_name')
+    __state_attrs = ('name', 'maps')
+    def __init__(self, maps, name=None, tex=None, collate_by_name=False):
         super(MapSet, self).__setattr__('maps', tuple(maps))
         super(MapSet, self).__setattr__('name', name)
         super(MapSet, self).__setattr__('tex', name)
-        super(MapSet, self).__setattr__('hash', hash)
         super(MapSet, self).__setattr__('collate_by_name', collate_by_name)
         super(MapSet, self).__setattr__('collate_by_num', not collate_by_name)
 
@@ -540,11 +540,10 @@ class MapSet(object):
 
     @property
     def hash(self):
-        return super(MapSet, self).__getattribute__('_hash')
-
-    @hash.setter
-    def hash(self, hash):
-        return super(MapSet, self).__setattr__('_hash', hash)
+        hashes = self.hashes
+        if all([(h is not None) for h in hashes]):
+            return hash_obj(hashes)
+        return None
 
     @property
     def names(self):
@@ -553,6 +552,12 @@ class MapSet(object):
     @property
     def hashes(self):
         return tuple([mp.hash for mp in self])
+
+    def hash_maps(self, maps):
+        hashes = [m.hash for m in self]
+        if all([(h != None) for h in hashes]):
+            return hash_obj(hashes)
+        return None
 
     def collate_with_names(self, vals):
         ret_dict = OrderedDict()
@@ -640,10 +645,11 @@ class MapSet(object):
     def __repr__(self):
         return str(self)
 
-    def __hash__(self):
-        if self.hash is not None:
-            return self.hash
-        raise ValueError('No hash defined.')
+    # TODO: implement __hash__?
+    #def __hash__(self):
+    #    if self.hash is not None:
+    #        return self.hash
+    #    raise ValueError('No hash defined.')
 
     def __setattr__(self, attr, val):
         if attr in MapSet.__slots:
