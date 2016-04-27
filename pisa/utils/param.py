@@ -213,14 +213,20 @@ class ParamSet(object):
                 param_sequence.extend(arg)
             except TypeError:
                 param_sequence.append(arg)
+
         # Disallow duplicated params
-        assert len(set(param_sequence)) == len(param_sequence), \
-                'Duplicated params detected'
+        if len(set(param_sequence)) != len(param_sequence):
+            names = [obj.name for obj in param_sequence]
+            duplicates = set([x for x in names if names.count(x) > 1])
+            raise ValueError('Duplicate definitions found for prams ' +
+                             ' '.join(str(e) for e in duplicates))
+
         # Elements of list must be Param type
         assert all([isinstance(x, Param) for x in param_sequence]), \
                 'All params must be of type "Param"'
-        self._params = param_sequence
-        self._by_name = {param.name: param for param in self._params}
+
+        self._params = sorted(param_sequence)
+        self._by_name = {obj.name: obj for obj in self._params}
 
     def index(self, value):
         idx = -1

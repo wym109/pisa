@@ -39,6 +39,20 @@ class OneDimBinning(object):
         ('domain', '%s_domain'),
         ('n_bins', 'n_%sbins'),
     )
+    def new_obj(original_function):
+        """ decorator to deepcopy unaltered states into new object """
+        def new_function(self, *args, **kwargs):
+            state = OrderedDict()
+            dict = original_function(self, *args, **kwargs)
+            for slot in self.__state_attrs:
+                if dict.has_key(slot):
+                    state[slot] = dict[slot]
+                elif slot == 'units':
+                    state[slot] = copy(self.__getattr__(slot))
+                else:
+                    state[slot] = deepcopy(self.__getattr__(slot))
+            return OneDimBinning(**state)
+        return new_function
     """
     Histogram-oriented binning specialized to a single dimension.
 
@@ -96,8 +110,7 @@ class OneDimBinning(object):
 
         # If both `is_log` and `is_lin` are specified, both cannot be true
         # (but both can be False, in case of irregularly-spaced bins)
-        if is_log is not None and is_lin is not None \
-           and is_log and not np.logical_xor(is_log, is_lin):
+        if is_log and is_lin:
             raise ValueError('`is_log=%s` contradicts `is_lin=%s`' %
                                  (is_log, is_lin))
 
@@ -107,41 +120,37 @@ class OneDimBinning(object):
             assert n_bins is not None and domain is not None \
                     and (is_log or is_lin)
             if is_log:
+                is_lin = False
                 self.bin_edges = np.logspace(np.log10(np.min(domain)),
                                              np.log10(np.max(domain)),
                                              n_bins + 1)
             elif is_lin:
+                is_log = False
                 self.bin_edges = np.linspace(np.min(domain),
                                              np.max(domain),
                                              n_bins + 1)
-
         # Otherwise: use specified bin edges, if valid
         else:
-            assert self.is_binning_ok(bin_edges, is_log=bool(is_log))
+            bin_edges = np.array(bin_edges)
+            if is_lin:
+                assert(self.is_bin_spacing_lin(bin_edges))
+                is_log = False
+            elif is_log:
+                assert(self.is_binning_ok(bin_edges, True))
+                is_lin = False
+            else:
+                is_lin = self.is_bin_spacing_lin(bin_edges)
+            if not is_lin and not is_log:
+                is_log = self.is_bin_spacing_log(bin_edges)
+            self.bin_edges = np.array(bin_edges)
+                 
             # TODO: use list or np.array to store bin edges? A list retains the
             # same more-restrictive indexing that is used in __getitem__; an
             # np.array provides for manipulation not possible for lists,
             # though.
-            self.bin_edges = np.array(bin_edges)
 
         # Determine rest of unspecified parameters from passed bin_edges or
         # enforce them if specified
-
-        if is_log is None:
-            if len(self.bin_edges) == 2:
-                is_log = False
-            else:
-                is_log = self.is_bin_spacing_log(self.bin_edges)
-        elif len(self.bin_edges) != 2:
-            assert is_log == self.is_bin_spacing_log(self.bin_edges)
-
-        if is_lin is None:
-            if len(self.bin_edges) == 2:
-                is_lin = True
-            else:
-                is_lin = self.is_bin_spacing_lin(self.bin_edges)
-        elif len(self.bin_edges) != 2:
-            assert is_lin == self.is_bin_spacing_lin(self.bin_edges)
 
         if n_bins is None:
             n_bins = len(self.bin_edges) - 1
@@ -165,6 +174,11 @@ class OneDimBinning(object):
         # want this, can do it in the multi-dim binning object.
         #for attr in
         #self.n_bins =
+
+    @new_obj
+    def __deepcopy__(self, memo):
+        """ explicit deepcopy constructor """
+        return {}
 
     @staticmethod
     def is_bin_spacing_log(bin_edges):
@@ -278,6 +292,7 @@ class OneDimBinning(object):
             return True
         return False
 
+    @new_obj
     def oversample(self, factor):
         """Return a OneDimBinning object oversampled relative to this object's
         binning.
@@ -294,7 +309,6 @@ class OneDimBinning(object):
         """
         assert factor >= 1 and factor == int(factor)
         factor = int(factor)
-        new_state = deepcopy(self.state)
         if self.is_log:
             bin_edges = np.logspace(np.log10(self.domain[0]),
                                     np.log10(self.domain[-1]),
@@ -311,8 +325,10 @@ class OneDimBinning(object):
                 bin_edges.extend(this_bin_new_edges[:-1])
             # Final bin needs final edge
             bin_edges.append(this_bin_new_edges[-1])
-        new_state['bin_edges'] = bin_edges
-        return OneDimBinning(**new_state)
+        return{'bin_edges':bin_edges}
+
+    def __getattr__(self, attr):
+        return super(OneDimBinning, self).__getattribute__(attr)
 
     @property
     def state(self):
@@ -356,6 +372,7 @@ class OneDimBinning(object):
     def __repr__(self):
         return str(self)
 
+    @new_obj
     def __getitem__(self, index):
         """Return a new OneDimBinning, sub-selected by `index`.
 
@@ -390,9 +407,7 @@ class OneDimBinning(object):
         bin_edges.append(self.bin_edges[final_bin_index])
 
         # Retrieve current state; only bin_edges needs to be updated
-        new_state = deepcopy(self.state)
-        new_state['bin_edges'] = bin_edges
-        return OneDimBinning(**new_state)
+        return {'bin_edges':bin_edges}
 
 class MultiDimBinning(object):
     """
@@ -561,33 +576,24 @@ class MultiDimBinning(object):
             raise ValueError('Binning is %dD, but %dD indexing was passed'
                              % (self.n_dims, input_dim))
         new_binning = []
+        print index
+        print self.dimensions
         for dim, idx in zip(self.dimensions, index):
+            print dim.bin_edges
             new_binning.append(dim[idx])
         return MultiDimBinning(*new_binning)
 
-
-def e_binning(emin, emax, n_ebins, is_log=True):
-    return OneDimBinning(name='energy', units='GeV', prefix='e', tex=r'E_\nu',
-                         is_log=is_log, n_bins=n_ebins, domain=(emin, emax))
-
-
-def cz_binning(czmin, czmax, n_czbins, is_lin=True):
-    return OneDimBinning(name='coszen', units=None, prefix='cz',
-                         tex=r'\cos\,\theta', is_lin=is_lin,
-                         n_bins=n_czbins, domain=(czmin, czmax))
-
-
 def test_Binning():
-    b1 = Binning(e_range=[1,80], cz_range=[-1,0], n_ebins=40, n_czbins=20,
-                 e_is_log=True)
-    b2 = Binning(ebins=np.logspace(0, np.log10(80), 41),
-                 czbins=np.linspace(-1, 0, 21), e_is_log=True)
+    b1 = OneDimBinning(name='energy',units=units.GeV, prefix='e', n_bins=40, is_log=True, domain=[1,80])
+    b2 = OneDimBinning(name='coszen',units=units.dimensionless, prefix='cz',
+            n_bins=40, is_lin=True, domain=[-1,1])
     print 'b1:', b1
     print 'b2:', b2
-    assert b1 == b2
-    print 'b1[0:5, 0:5]:', b1[0:5, 0:5]
-    assert b1[0:40, 0:20] == b1
+    b1.oversample(10)
+    print 'b1[0:5, 0:5]:', b1[0:5]
 
 
 if __name__ == "__main__":
+    import pint
+    units = pint.UnitRegistry() 
     test_Binning()
