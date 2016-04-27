@@ -36,7 +36,7 @@ args = parser.parse_args()
 config = from_file(args.template_settings)
 config = parse_cfg(config) 
 
-service = config['stage:'+args.stage.lower()]['service']
+service = config[args.stage.lower()]['service']
 
 # factory
 # import stage service
@@ -44,10 +44,8 @@ module = importlib.import_module('pisa.%s.%s'%(args.stage.lower(), service))
 # get class
 cls = getattr(module,args.stage)
 # instanciate object
-stage = cls(**config['stage:'+args.stage.lower()])
+stage = cls(**config[args.stage.lower()])
 if isinstance(stage, pisa.stage.NoInputStage):
     output_map_set = stage.get_output_map_set()
 elif isinstance(stage, pisa.stage.InputStage):
     output_map_set = stage.get_output_map_set(input_map_set)
-for map in output_map_set:
-    print abs(map)

@@ -97,7 +97,6 @@ class GenericStage(object):
     def check_params(self, params):
         """ make sure that expected_params is defined and that exactly the params specifued in
         self.expected_params are present """
-        print self.expected_params
         assert self.expected_params is not None
         assert sorted(self.expected_params) == list(params.names) 
 
