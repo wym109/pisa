@@ -42,6 +42,9 @@ class GenericStage(object):
             {'<param_name_0>': <param_val_0>, ...,
              '<param_name_N>': <param_val_N>}
 
+    expected_params: list of strings
+        list containing param names used in that stage
+
     source_code_hash
         Hash for the class's source code.
 
@@ -76,9 +79,10 @@ class GenericStage(object):
             Perform validation on any parameters.
     """
     def __init__(self, stage_name='', service_name='', params=None,
-                 disk_cache=None):
+            expected_params=None, disk_cache=None):
         self.stage_name = stage_name
         self.service_name = service_name
+        self.expected_params = expected_params
         self.__params = None
         self.__free_param_names = set()
         self.__source_code_hash = None
@@ -90,8 +94,17 @@ class GenericStage(object):
     def get_output_map_set(self):
         raise NotImplementedError()
 
+    def check_params(self, params):
+        """ make sure that expected_params is defined and that exactly the params specifued in
+        self.expected_params are present """
+        print self.expected_params
+        assert self.expected_params is not None
+        assert sorted(self.expected_params) == list(params.names) 
+
     def validate_params(self, params):
-        raise NotImplementedError()
+        """ method to test if params are valid, e.g. check range and
+        dimenionality """
+        pass
 
     @property
     def params(self):
@@ -102,6 +115,7 @@ class GenericStage(object):
         if not isinstance(p, ParamSet):
             raise TypeError('Unhandled `params` type "%s"; expected ParmSet' %
                             type(p))
+        self.check_params(p)
         self.validate_params(p)
         self.__params = p
 
@@ -122,11 +136,13 @@ class GenericStage(object):
 
 
 class NoInputStage(GenericStage):
-    def __init__(self, stage_name='', service_name='', params=None, disk_cache=None,
-                 cache_class=cache.MemoryCache, result_cache_depth=10):
-        super(NoInputStage, self).__init__(stage_name=stage_name
-                , service_name=service_name
-                , params=params, disk_cache=disk_cache)
+    def __init__(self, stage_name='', service_name='', params=None,
+                expected_params=None, disk_cache=None,
+                cache_class=cache.MemoryCache, result_cache_depth=10):
+        super(NoInputStage, self).__init__(stage_name=stage_name,
+                service_name=service_name,
+                params=params, expected_params=expected_params,
+                disk_cache=disk_cache)
         self.result_cache_depth = result_cache_depth
         self.result_cache = cache_class(self.result_cache_depth, is_lru=True)
 
@@ -148,12 +164,14 @@ class NoInputStage(GenericStage):
 
 
 class InputStage(GenericStage):
-    def __init__(self, stage_name='', service_name='', params=None, disk_cache=None,
+    def __init__(self, stage_name='', service_name='', params=None,
+                 expected_params=None, disk_cache=None,
                  cache_class=cache.MemoryCache, transform_cache_depth=10,
                  result_cache_depth=10):
-        super(InputStage, self).__init__(stage_name=stage_name
-                , service_name=service_name
-                , params=params, disk_cache=disk_cache)
+        super(InputStage, self).__init__(stage_name=stage_name,
+                service_name=service_name,
+                params=params, expected_params=expected_params,
+                disk_cache=disk_cache)
         self.transform_cache_depth = cache_depth
         self.transform_cache = cache_class(self.transform_cache_depth,
                                            is_lru=True)

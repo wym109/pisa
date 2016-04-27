@@ -14,6 +14,7 @@ from pisa.utils.fileio import from_file, to_file
 from pisa.utils.parse_cfg import parse_cfg
 import pisa.stage
 import importlib
+from copy import deepcopy
 
 parser = ArgumentParser(
     description='''Test a single stage''',
@@ -49,4 +50,4 @@ if isinstance(stage, pisa.stage.NoInputStage):
 elif isinstance(stage, pisa.stage.InputStage):
     output_map_set = stage.get_output_map_set(input_map_set)
 for map in output_map_set:
-    print map
+    print abs(map)

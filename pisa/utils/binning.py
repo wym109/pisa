@@ -129,7 +129,6 @@ class OneDimBinning(object):
                 self.bin_edges = np.linspace(np.min(domain),
                                              np.max(domain),
                                              n_bins + 1)
-
         # Otherwise: use specified bin edges, if valid
         else:
             bin_edges = np.array(bin_edges)
@@ -176,7 +175,10 @@ class OneDimBinning(object):
         #for attr in
         #self.n_bins =
 
-    #def __deepcopy__(self,memo): return copy(self)
+    @new_obj
+    def __deepcopy__(self, memo):
+        """ explicit deepcopy constructor """
+        return {}
 
     @staticmethod
     def is_bin_spacing_log(bin_edges):
