@@ -9,8 +9,8 @@ class Flux(NoInputStage):
     This is a Flux Service just for testing purposes, generating a random map m1 and a map containing ones as m2
     a parameter test is required
     """
-    def __init__(self, params, example_file, output_binning, service,
-            oversample_e, oversample_cz):
+    def __init__(self, params, example_file, output_binning, 
+                service, oversample_e=1, oversample_cz=1):
         # list expected parameters for this stage implementation
         expected_params = ['atm_delta_index', 'energy_scale', 'nu_nubar_ratio',
                             'nue_numu_ratio', 'test']
@@ -24,20 +24,17 @@ class Flux(NoInputStage):
         self.oversample_cz = oversample_cz
 
     def _derive_output(self):
+        outputs = ['nue', 'numu', 'nuebar', 'numubar']
         # create two histograms with the output shape
         height = self.params['test'].value.to('meter').magnitude
-        hist1 = np.random.randint(height, size=self.output_binning.shape)
-        hist2 = np.ones(self.output_binning.shape)
-        # pack them into Map object, assign poisson errors to the first one and
-        # a flat 5% error to the second one
-        m1 = Map('m1', hist1, self.output_binning)
-        m1.set_poisson_errors()
-        m2 = Map('m2', hist2, self.output_binning)
-        m2.set_errors(hist2/20.)
-        # create a third map
-        m3 = m1*m2
-        # create a mapset
-        mapset = MapSet(maps=(m1,m2,m3), name = 'mapset')
+        output_maps = []
+        for output in outputs:
+            hist = np.random.randint(height, size=self.output_binning.shape)
+            # pack them into Map object, assign poisson errors
+            m = Map(output, hist, self.output_binning)
+            m.set_poisson_errors()
+            output_maps.append(m)
+        mapset = MapSet(maps=output_maps, name = 'flux maps')
         return mapset
 
     def validate_params(self, params):

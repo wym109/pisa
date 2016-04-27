@@ -44,6 +44,7 @@ module = importlib.import_module('pisa.%s.%s'%(args.stage.lower(), service))
 # get class
 cls = getattr(module,args.stage)
 # instanciate object
+print config[args.stage.lower()].keys()
 stage = cls(**config[args.stage.lower()])
 if isinstance(stage, pisa.stage.NoInputStage):
     output_map_set = stage.get_output_map_set()
