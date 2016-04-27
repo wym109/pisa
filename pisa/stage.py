@@ -138,7 +138,7 @@ class NoInputStage(GenericStage):
         except KeyError:
             pass
         output_map_set = self._derive_output()
-        output_map_set.update_hash(result_hash)
+        output_map_set.hash = result_hash
         self.result_cache[result_hash] = output_map_set
         return output_map_set
 
@@ -176,7 +176,7 @@ class InputStage(GenericStage):
         except KeyError:
             pass
         output_map_set = xform.apply(input_map_set)
-        output_map_set.update_hash(result_hash)
+        output_map_set.hash = result_hash
         self.result_cache[result_hash] = output_map_set
         return output_map_set
 
@@ -198,7 +198,7 @@ class InputStage(GenericStage):
         except KeyError:
             pass
         xform = self._derive_transform()
-        xform.update_hash(xform_hash)
+        xform.hash = xform_hash
         self.transform_cache[cache_key] = xform
         return xform
 

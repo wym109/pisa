@@ -207,7 +207,13 @@ class ParamSet(object):
             except TypeError:
                 object_sequence.append(arg)
         # Disallow duplicated params
-        assert sorted(set(object_sequence)) == sorted(object_sequence)
+        try:
+            assert sorted(set(object_sequence)) == sorted(object_sequence)
+        except AssertionError:
+            names = [obj.name for obj in object_sequence]
+            duplicates = set([x for x in names if names.count(x) > 1])
+            raise Exception('Duplicate definitions found for prams ' +
+                    ' '.join(str(e) for e in duplicates))
         self._objs = sorted(object_sequence)
         self._by_name = {obj.name: obj for obj in self._objs}
 

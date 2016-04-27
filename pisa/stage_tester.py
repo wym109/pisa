@@ -12,6 +12,7 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.fileio import from_file, to_file
 from pisa.utils.parse_cfg import parse_cfg
+import pisa.stage
 import importlib
 
 parser = ArgumentParser(
@@ -43,4 +44,9 @@ module = importlib.import_module('pisa.%s.%s'%(args.stage.lower(), service))
 cls = getattr(module,args.stage)
 # instanciate object
 stage = cls(**config['stage:'+args.stage.lower()])
-
+if isinstance(stage, pisa.stage.NoInputStage):
+    output_map_set = stage.get_output_map_set()
+elif isinstance(stage, pisa.stage.InputStage):
+    output_map_set = stage.get_output_map_set(input_map_set)
+for map in output_map_set:
+    print map

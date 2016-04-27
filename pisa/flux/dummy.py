@@ -18,12 +18,13 @@ class Flux(NoInputStage):
 
     def _derive_output(self):
         # create two histograms with the output shape
-        hist1 = np.random.randint(self.params['test'].value, size=self.output_binning.shape)
+        height = self.params['test'].value.to('meter').magnitude
+        hist1 = np.random.randint(height, size=self.output_binning.shape)
         hist2 = np.ones(self.output_binning.shape)
         # pack them into Map object, assign poisson errors to the first one
-        m1 = Map('m1', hist, self.output_binning)
+        m1 = Map('m1', hist1, self.output_binning)
         m1.set_poisson_errors()
-        m2 = Map('m2', hist, self.output_binning)
+        m2 = Map('m2', hist2, self.output_binning)
         # create a mapset
         mapset = MapSet(maps=(m1,m2), name = 'mapset')
         return mapset
