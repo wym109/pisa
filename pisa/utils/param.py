@@ -7,7 +7,7 @@
 
 
 from functools import total_ordering
-from collections import OrderedDict
+from collections import OrderedDict, Sequence
 
 import numpy as np
 
@@ -126,8 +126,7 @@ class ParamSet(object):
 
     Parameters
     ----------
-    *args : single or multiple Param objects or sequences thereof
-        All Param objects are sorted and then stored internally.
+    *args : one or more Param objects or sequences thereof
 
     Properties
     ----------
@@ -174,48 +173,60 @@ class ParamSet(object):
 
     priors_llh : <r>
         Aggregate log-likelihood for parameter values given their priors
-    priors_chi2 : <r
+    priors_chi2 : <r>
         Aggregate chi-squred for all parameter values given their priors
     values_hash : <r>
-        Hash on the values of all of the values; e.g. to get hash on all
-        params' values:
+        Hash on the values of all of the params; e.g.:
             param_set.values_hash
         but to just hash on free params' values:
             params_set.free_params.values_hash
     state_hash : <r>
         Hash on the complete state of the contained params, which includes
-        properties such as `prior`, `tex`, and *all* other param properties.
+        properties such as `name`, `prior`, `tex`, and *all* other param
+        properties.
 
     Methods
     -------
+    fix(vals)
+        Set param found at each `index(val)` to be fixed.
     index(val)
         Locate and return index given `val` which can be an int (index), str
         (name), or Param object (an actual item in the set).
     replace(old, new)
         Replace `old` with `new`. Returns `old`.
-    fix(vals)
-        Set param found at each `index(val)` to be fixed.
     unfix(vals)
         Set param at each `index(val)` to be free.
+    update(obj)
+        Update this param set using obj (if a Param, ParamSet, or sequence
+        thereof)
+    __getitem__
+    __iter__
+    __len__
+    __setitem__
 
     """
-    def __init__(self, *args): #object_sequence):
-        object_sequence = []
+    def __init__(self, *args):
+        param_sequence = []
+        # Unpack the input args into a flat list of params
         for arg in args:
             try:
-                object_sequence.extend(arg)
+                param_sequence.extend(arg)
             except TypeError:
-                object_sequence.append(arg)
+                param_sequence.append(arg)
+
         # Disallow duplicated params
-        try:
-            assert sorted(set(object_sequence)) == sorted(object_sequence)
-        except AssertionError:
-            names = [obj.name for obj in object_sequence]
+        if len(set(param_sequence)) != len(param_sequence):
+            names = [obj.name for obj in param_sequence]
             duplicates = set([x for x in names if names.count(x) > 1])
-            raise Exception('Duplicate definitions found for prams ' +
-                    ' '.join(str(e) for e in duplicates))
-        self._objs = sorted(object_sequence)
-        self._by_name = {obj.name: obj for obj in self._objs}
+            raise ValueError('Duplicate definitions found for prams ' +
+                             ' '.join(str(e) for e in duplicates))
+
+        # Elements of list must be Param type
+        assert all([isinstance(x, Param) for x in param_sequence]), \
+                'All params must be of type "Param"'
+
+        self._params = sorted(param_sequence)
+        self._by_name = {obj.name: obj for obj in self._params}
 
     def index(self, value):
         idx = -1
@@ -223,16 +234,16 @@ class ParamSet(object):
             idx = value
         elif value in self.names:
             idx = self.names.index(value)
-        elif value in self._objs:
-            idx = self._objs.index(value)
+        elif value in self._params:
+            idx = self._params.index(value)
         if idx < 0 or idx >= len(self):
             raise ValueError('%s not found in ParamSet' % (value,))
         return idx
 
     def replace(self, old, new):
         idx = self.index(old)
-        old = self._objs[idx]
-        self._objs[idx] = new
+        old = self._params[idx]
+        self._params[idx] = new
         return old
 
     def fix(self, x):
@@ -249,111 +260,136 @@ class ParamSet(object):
         for name in x:
             self[self.index(name)].is_fixed = False
 
+    def update(self, obj):
+        """Update this param set using `obj`.
+
+        Parameters
+        ----------
+        obj : Param, ParamSet, or sequence thereof
+
+        """
+        if isinstance(obj, Sequence):
+            [self.update(p) for p in obj]
+            return
+        if not isinstance(obj, Param):
+            raise ValueError('`obj`="%s" not a Param' % (obj,))
+        param = obj
+        try:
+            existing_idx = self.index(param.name)
+            self.replace(existing_idx, param)
+            return
+        except ValueError:
+            pass
+        self._params.append(param)
+
     def __len__(self):
-        return len(self._objs)
+        return len(self._params)
 
     def __setitem__(self, i, val):
-        self._objs[i].value = val
+        self._params[i].value = val
 
     def __getitem__(self, i):
         if isinstance(i, int):
-            return self._objs[i]
+            return self._params[i]
         elif isinstance(i, basestring):
             return self._by_name[i]
 
+    def __iter__(self):
+        iter(self._params)
+
     @property
     def tex(self):
-        return r',\,'.join([obj.tex for obj in self._objs])
+        return r',\,'.join([obj.tex for obj in self._params])
 
     @property
     def fixed(self):
-        return ParamSet([obj for obj in self._objs if obj.is_fixed])
+        return ParamSet([obj for obj in self._params if obj.is_fixed])
 
     @property
     def free(self):
-        return ParamSet([obj for obj in self._objs if not obj.is_fixed])
+        return ParamSet([obj for obj in self._params if not obj.is_fixed])
 
     @property
     def continuous(self):
-        return ParamSet([obj for obj in self._objs if not obj.is_discrete])
+        return ParamSet([obj for obj in self._params if not obj.is_discrete])
 
     @property
     def discrete(self):
-        return ParamSet([obj for obj in self._objs if obj.is_discrete])
+        return ParamSet([obj for obj in self._params if obj.is_discrete])
 
     @property
     def are_fixed(self):
-        return tuple([obj.is_fixed for obj in self._objs])
+        return tuple([obj.is_fixed for obj in self._params])
 
     @property
     def are_discrete(self):
-        return tuple([obj.is_discrete for obj in self._objs])
+        return tuple([obj.is_discrete for obj in self._params])
 
     @property
     def names(self):
-        return tuple([obj.name for obj in self._objs])
+        return tuple([obj.name for obj in self._params])
 
     @property
     def values(self):
-        return tuple([obj.value for obj in self._objs])
+        return tuple([obj.value for obj in self._params])
 
     @values.setter
     def values(self, values):
-        assert len(values) == len(self._objs)
-        [self._objs[i].__setattr__('value', val)
+        assert len(values) == len(self._params)
+        [self._params[i].__setattr__('value', val)
          for i,val in enumerate(values)]
 
     @property
     def nominal_values(self):
-        return tuple([obj.nominal_value for obj in self._objs])
+        return tuple([obj.nominal_value for obj in self._params])
 
     @nominal_values.setter
     def nominal_values(self, values):
-        assert len(values) == len(self._objs)
-        [self._objs[i].__setattr__('nominal_value', val)
+        assert len(values) == len(self._params)
+        [self._params[i].__setattr__('nominal_value', val)
          for i,val in enumerate(nominal_values)]
 
     @property
     def priors(self):
-        return tuple([obj.prior for obj in self._objs])
+        return tuple([obj.prior for obj in self._params])
 
     @priors.setter
     def priors(self, values):
-        assert len(values) == len(self._objs)
-        [self._objs[i].__setattr__('prior', val)
+        assert len(values) == len(self._params)
+        [self._params[i].__setattr__('prior', val)
          for i,val in enumerate(values)]
 
     @property
     def priors_llh(self):
-        return np.sum([obj.prior_llh for obj in self._objs])
+        return np.sum([obj.prior_llh for obj in self._params])
 
     @property
     def priors_chi2(self):
-        return np.sum([obj.prior_chi2 for obj in self._objs])
+        return np.sum([obj.prior_chi2 for obj in self._params])
 
     @property
     def ranges(self):
-        return tuple([obj.range for obj in self._objs])
+        return tuple([obj.range for obj in self._params])
 
     @ranges.setter
     def ranges(self, values):
-        assert len(values) == len(self._objs)
-        [self._objs[i].__setattr__('range', val)
+        assert len(values) == len(self._params)
+        [self._params[i].__setattr__('range', val)
          for i,val in enumerate(values)]
 
     @property
     def scales(self):
-        return tuple([obj.scales for obj in self._objs])
+        return tuple([obj.scales for obj in self._params])
 
     @scales.setter
     def scales(self, values):
-        assert len(values) == len(self._objs)
-        [self._objs[i].__setattr__('scale', val)
+        assert len(values) == len(self._params)
+        [self._params[i].__setattr__('scale', val)
          for i,val in enumerate(values)]
 
     @property
     def state(self):
-        return tuple([obj.state for obj in self._objs])
+        return tuple([obj.state for obj in self._params])
 
     @property
     def values_hash(self):
