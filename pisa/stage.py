@@ -98,7 +98,11 @@ class GenericStage(object):
         """ make sure that expected_params is defined and that exactly the params specifued in
         self.expected_params are present """
         assert self.expected_params is not None
-        assert sorted(self.expected_params) == list(params.names) 
+        try:
+            assert sorted(self.expected_params) == list(params.names) 
+        except AssertionError:
+            raise Exception('Expected parameters %s while getting\
+                    %s'%(self.expected_params, list(params.names)))
 
     def validate_params(self, params):
         """ method to test if params are valid, e.g. check range and
@@ -171,7 +175,7 @@ class InputStage(GenericStage):
                 service_name=service_name,
                 params=params, expected_params=expected_params,
                 disk_cache=disk_cache)
-        self.transform_cache_depth = cache_depth
+        self.transform_cache_depth = transform_cache_depth
         self.transform_cache = cache_class(self.transform_cache_depth,
                                            is_lru=True)
 

@@ -103,7 +103,7 @@ def parse_cfg(config):
                 params.append(Param(**args))
             elif 'binning' in name:
                 dict[stage][name] = binningDict[value]
-            else:
+            elif not name == 'param_selector':
                 dict[stage][name] = value
         if len(params) > 0:
             dict[stage]['params'] = ParamSet(*params)

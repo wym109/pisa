@@ -409,6 +409,15 @@ class OneDimBinning(object):
         # Retrieve current state; only bin_edges needs to be updated
         return {'bin_edges':bin_edges}
 
+    def __eq__(self, other):
+        if not isinstance(other, OneDimBinning):
+            return False
+        for slot in self.__state_attrs:
+            if not self.__getattr__(slot) == other.__getattr__(slot):
+                print slot
+                return False
+        return True
+
 class MultiDimBinning(object):
     """
     Parameters
@@ -537,9 +546,9 @@ class MultiDimBinning(object):
         raise ValueError('Unrecognized `which` parameter: "%s"' % which)
 
     def __eq__(self, other):
-        if not isinstance(other, Binning):
+        if not isinstance(other, MultiDimBinning):
             return False
-        return recursiveEquality(self.state, other.state)
+        return self.state == other.state
 
     def __str__(self):
         return '\n'.join([str(dim) for dim in self])
@@ -549,12 +558,6 @@ class MultiDimBinning(object):
 
     def __iter__(self):
         return iter(self.dimensions)
-
-    #def __setattr__(self, attr, value):
-    #    """Only allow setting attributes defined in slots"""
-    #    if attr not in self.__slots:
-    #        raise ValueError('No attribute "%s"' % attr)
-    #    super(Binning, self).__setattr__(attr, value)
 
     def __getitem__(self, index):
         """Interpret indices as indexing bins and *not* bin edges.
