@@ -16,7 +16,7 @@ from __future__ import division
 from operator import getitem, setitem
 from collections import OrderedDict, Mapping, Sequence
 import re
-from copy import deepcopy
+from copy import deepcopy, copy
 
 import numpy as np
 
@@ -92,6 +92,20 @@ class Map(object):
     __slots = ('name', 'hist', 'binning', 'hash', 'tex',
                'full_comparison')
     __state_attrs = __slots
+
+    def new_obj(original_function):
+        """ decorator to deepcopy unaltered states into new object """
+        def new_function(self, *args, **kwargs):
+            state = OrderedDict()
+            dict = original_function(self, *args, **kwargs)
+            for slot in self.__state_attrs:
+                if dict.has_key(slot):
+                    state[slot] = dict[slot]
+                else:
+                    state[slot] = deepcopy(self.__getattr__(slot))
+            return Map(**state)
+        return new_function
+
     def __init__(self, name, hist, binning, hash=None, tex=None,
                  full_comparison=True):
         # Set Read/write attributes via their defined setters
@@ -134,21 +148,17 @@ class Map(object):
         else:
             assert False, 'Unrecognized type'
 
+    @new_obj
     def index(self, idx):
         if not isinstance(idx, Sequence) and len(idx) == 2:
             raise ValueError('Map is 2D; 2D indexing is required')
-        state = deepcopy(self.state)
-        binning = self.binning[idx]
-        state['binning'] = binning
         # Indexing a single element e.g. hist[1,3] returns a 0D array while
         # e.g. hist[1,3:8] returns a 1D array; but we need 2D... so reshape
         # after indexing.
-        hist = np.reshape(state['hist'][idx],(binning.n_ebins, binning.n_czbins))
-        state['hist'] = hist
-        return Map(**state)
-
-    #def __str__(self):
-    #    return strip_outer_parens(self.name)
+        new_hist = deepcopy(self.hist)
+        new_binning = deepcopy(self.binning[idx])
+        return {'binning': self.binning[idx],
+                'hist': np.reshape(new_hist[idx],new_binning.shape)}
 
     def __repr__(self):
         return np.array_repr(self._hist)
@@ -237,67 +247,64 @@ class Map(object):
 
     # Common mathematical operators
 
+    @new_obj
     def __abs__(self):
-        state = deepcopy(self.state)
-        state.update(dict(
-            name="|%s|" % (self.name,),
-            tex=r"{\left| %s \right|}" % strip_outer_parens(self.tex),
-            hist=np.abs(self.hist),
-        ))
-        return Map(**state)
+        return {'name':"|%s|" % (self.name,),
+                'tex':r"{\left| %s \right|}" % strip_outer_parens(self.tex),
+                'hist':np.abs(self.hist)}
 
+    @new_obj
     def __add__(self, other):
         """Add `other` to self"""
-        state = deepcopy(self.state)
         if np.isscalar(other) or type(other) is uncertainties.core.Variable:
-            state.update(dict(
-                name="(%s + %s)" % (self.name, other),
-                tex=r"{(%s + %s)}" % (self.tex, other),
-                hist=self.hist + other,
-            ))
+            dict = {
+                'name':"(%s + %s)" % (self.name, other),
+                'tex':r"{(%s + %s)}" % (self.tex, other),
+                'hist':self.hist + other
+            }
         elif isinstance(other, np.ndarray):
-            state.update(dict(
-                name="(%s + array)" % self.name,
-                tex=r"{(%s + X)}" % self.tex,
-                hist=self.hist + other,
-            ))
+            dict = {
+                'name':"(%s + array)" % self.name,
+                'tex':r"{(%s + X)}" % self.tex,
+                'hist':self.hist + other
+            }
         elif isinstance(other, Map):
-            state.update(dict(
-                name="(%s + %s)" % (self.name, other.name),
-                tex=r"{(%s + %s)}" % (self.tex, other.tex),
-                hist=self.hist + other.hist,
-                full_comparison=self.full_comparison or other.full_comparison,
-            ))
+            dict = {
+                'name':"(%s + %s)" % (self.name, other.name),
+                'tex':r"{(%s + %s)}" % (self.tex, other.tex),
+                'hist':self.hist + other.hist,
+                'full_comparison':self.full_comparison or other.full_comparison
+            }
         else:
             type_error(other)
-        return Map(**state)
+        return dict
 
     #def __cmp__(self, other):
 
+    @new_obj
     def __div__(self, other):
-        state = deepcopy(self.state)
         if np.isscalar(other) or type(other) is uncertainties.core.Variable:
-            state.update(dict(
-                name="(%s / %s)" % (self.name, other),
-                tex=r"{(%s / %s)}" % (self.tex, other),
-                hist=self.hist / other,
-            ))
+            dict = {
+                'name':"(%s / %s)" % (self.name, other),
+                'tex':r"{(%s / %s)}" % (self.tex, other),
+                'hist':self.hist / other
+            }
         elif isinstance(other, np.ndarray):
-            state.update(dict(
-                name="(%s / array)" % self.name,
-                tex=r"{(%s / X)}" % self.tex,
-                hist=self.hist / other,
-            ))
+            dict = {
+                'name':"(%s / array)" % self.name,
+                'tex':r"{(%s / X)}" % self.tex,
+                'hist':self.hist / other
+            }
         elif isinstance(other, Map):
-            state.update(dict(
-                name="(%s / %s)" % (self.name, other.name),
-                tex=r"{(%s / %s)}" % (self.tex, other.tex),
-                hist=self.hist / other.hist,
-                full_comparison=self.full_comparison or other.full_comparison,
-            ))
+            dict = {
+                'name':"(%s / %s)" % (self.name, other.name),
+                'tex':r"{(%s / %s)}" % (self.tex, other.tex),
+                'hist':self.hist / other.hist,
+                'full_comparison':self.full_comparison or other.full_comparison
+            }
         else:
             type_error(other)
-        return Map(**state)
+        return dict
 
     def __truediv__(self, other):
         return self.__div__(other)
@@ -327,113 +334,82 @@ class Map(object):
         else:
             type_error(other)
 
-    #def __ge__(self, other):
-
-    #def __gt__(self, other):
-
-    #def __iadd__(self, other):
-
-    #def __idiv__(self, other):
-
-    #def __imul__(self, other):
-
-    #def __ipow__(self, other):
-
-    #def __isub__(self, other):
-
-    #def __le__(self, other):
-
-    #def __lt__(self, other):
-
+    @new_obj
     def log(self):
-        state = deepcopy(self.state)
-        state.update(dict(
-            name="log(%s)" % self.name,
-            tex=r"\ln\left( %s \right)" % self.tex,
-            hist=np.log(self.hist),
-        ))
-        return Map(**state)
+        return {
+            'name':"log(%s)" % self.name,
+            'tex':r"\ln\left( %s \right)" % self.tex,
+            'hist':np.log(self.hist)
+        }
 
+    @new_obj
     def log10(self):
-        state = deepcopy(self.state)
-        state.update(dict(
-            name="log10(%s)" % self.name,
-            tex=r"\log_{10}\left( %s \right)" % self.tex,
-            hist=np.log10(self.hist),
-        ))
-        return Map(**state)
+        return {
+            'name':"log10(%s)" % self.name,
+            'tex':r"\log_{10}\left( %s \right)" % self.tex,
+            'hist':np.log10(self.hist)
+        }
 
+    @new_obj
     def __mul__(self, other):
-        state = deepcopy(self.state)
         if np.isscalar(other) or type(other) is uncertainties.core.Variable:
-            state.update(dict(
-                name="%s * %s" % (other, self.name),
-                tex=r"%s \cdot %s" % (other, self.tex),
-                hist=self.hist * other,
-            ))
+            dict = {
+                'name':"%s * %s" % (other, self.name),
+                'tex':r"%s \cdot %s" % (other, self.tex),
+                'hist':self.hist * other
+            }
         elif isinstance(other, np.ndarray):
-            state.update(dict(
-                name="array * %s" % self.name,
-                tex=r"X \cdot %s" % self.tex,
-                hist=self.hist * other,
-            ))
+            dict = {
+                'name':"array * %s" % self.name,
+                'tex':r"X \cdot %s" % self.tex,
+                'hist':self.hist * other,
+            }
         elif isinstance(other, Map):
-            state.update(dict(
-                name="%s * %s" % (self.name, other.name),
-                tex=r"%s \cdot %s" % (self.tex, other.tex),
-                hist=self.hist * other.hist,
-                full_comparison=self.full_comparison or other.full_comparison,
-            ))
+            dict = {
+                'name':"%s * %s" % (self.name, other.name),
+                'tex':r"%s \cdot %s" % (self.tex, other.tex),
+                'hist':self.hist * other.hist,
+                'full_comparison':self.full_comparison or other.full_comparison,
+            }
         else:
             type_error(other)
-        return Map(**state)
+        return dict
 
     def __ne__(self, other):
         return not self == other
 
+    @new_obj
     def __neg__(self):
-        state = deepcopy(self.state)
-        state.update(dict(
-            name="-%s" % self.name,
-            tex=r"-%s" % self.tex,
-            hist=-self.hist,
-        ))
-        return Map(**state)
+        return {
+            'name':"-%s" % self.name,
+            'tex':r"-%s" % self.tex,
+            'hist':-self.hist,
+        }
 
-    #def __nonzero__(self):
-
-    #def __pos__(self):
-
+    @new_obj
     def __pow__(self, other):
-        state = deepcopy(self.state)
         if np.isscalar(other) or type(other) is uncertainties.core.Variable:
-            if other == 1:
-                val = self.hist
-            elif other == 2:
-                val = self.hist * self.hist
-            else:
-                val = self.hist * other
-            state.update(dict(
-                name="%s**%s" % (self.name, other),
-                tex="%s^{%s}" % (self.tex, other),
-                hist=val,
-            ))
+            dict = {
+                'name':"%s**%s" % (self.name, other),
+                'tex':"%s^{%s}" % (self.tex, other),
+                'hist':np.power(self.hist, other)
+            }
         elif isinstance(other, np.ndarray):
-            state.update(dict(
-                name="%s**(array)" % self.name,
-                tex=r"%s^{X}" % self.tex,
-                hist=np.power(self.hist, other),
-            ))
+            dict = {
+                'name':"%s**(array)" % self.name,
+                'tex':r"%s^{X}" % self.tex,
+                'hist':np.power(self.hist, other),
+            }
         elif isinstance(other, Map):
-            state.update(dict(
-                name="%s**(%s)" % (self.name, strip_outer_parens(other.name)),
-                tex=r"%s^{%s}" % (self.tex, strip_outer_parens(other.tex)),
-                hist=np.power(self.hist, other.hist),
-                full_comparison=self.full_comparison or other.full_comparison,
-            ))
+            dict = {
+                'name':"%s**(%s)" % (self.name, strip_outer_parens(other.name)),
+                'tex':r"%s^{%s}" % (self.tex, strip_outer_parens(other.tex)),
+                'hist':np.power(self.hist, other.hist),
+                'full_comparison':self.full_comparison or other.full_comparison,
+            }
         else:
             type_error(other)
-        return Map(**state)
+        return dict
 
     def __radd__(self, other):
         return self + other
@@ -441,81 +417,86 @@ class Map(object):
     def __rdiv__(self, other):
         if isinstance(other, Map):
             return other / self
-        state = deepcopy(self.state)
+        else:
+            return self.__rdiv(other)
+
+    @new_obj
+    def __rdiv(self,oher):
         if np.isscalar(other) or type(other) is uncertainties.core.Variable:
-            state.update(dict(
-                name="(%s / %s)" % (other, self.name),
-                tex="{(%s / %s)}" % (other, self.tex),
-                hist=other / self.hist,
-            ))
+            dict = {
+                'name':"(%s / %s)" % (other, self.name),
+                'tex':"{(%s / %s)}" % (other, self.tex),
+                'hist':other / self.hist,
+            }
         elif isinstance(other, np.ndarray):
-            state.update(dict(
-                name="array / %s" % self.name,
-                tex="{(X / %s)}" % self.tex,
-                hist=other / self.hist,
-            ))
+            dict = {
+                'name':"array / %s" % self.name,
+                'tex':"{(X / %s)}" % self.tex,
+                'hist':other / self.hist,
+            }
         else:
             type_error(other)
-        return Map(**state)
+        return dict
 
     def __rmul__(self, other):
         return self * other
 
-    #def __rpow__(self, other):
-
     def __rsub__(self, other):
         if isinstance(other, Map):
             return other - self
-        state = deepcopy(self.state)
+        else:
+            return self.__rsub(other)
+
+    @new_obj
+    def __rsub(self, other):
         if np.isscalar(other) or type(other) is uncertainties.core.Variable:
-            state.update(dict(
-                name="(%s - %s)" % (other, self.name),
-                tex="{(%s - %s)}" % (other, self.tex),
-                hist=other - self.hist,
-            ))
+            dict = {
+                'name':"(%s - %s)" % (other, self.name),
+                'tex':"{(%s - %s)}" % (other, self.tex),
+                'hist':other - self.hist,
+            }
         elif isinstance(other, np.ndarray):
-            state.update(dict(
-                name="(array - %s)" % self.name,
-                tex="{(X - %s)}" % self.tex,
-                hist=other - self.hist,
-            ))
+            dict = {
+                'name':"(array - %s)" % self.name,
+                'tex':"{(X - %s)}" % self.tex,
+                'hist':other - self.hist,
+            }
         else:
             type_error(other)
-        return Map(**state)
+        return dict
 
+    @new_obj
     def sqrt(self):
-        state = deepcopy(self.state)
-        state.update(dict(
-            name="sqrt(%s)" % self.name,
-            tex=r"\sqrt{%s}" % self.tex,
-            hist=np.sqrt(self.hist),
-        ))
-        return Map(**state)
+        return {
+            'name':"sqrt(%s)" % self.name,
+            'tex':r"\sqrt{%s}" % self.tex,
+            'hist':np.sqrt(self.hist),
+        }
 
+    @new_obj
     def __sub__(self, other):
-        state = deepcopy(self.state)
         if np.isscalar(other) or type(other) is uncertainties.core.Variable:
-            state.update(dict(
-                name="(%s - %s)" % (self.name, other),
-                tex="{(%s - %s)}" % (self.tex, other),
-                hist=self.hist - other,
-            ))
+            dict = {
+                'name':"(%s - %s)" % (self.name, other),
+                'tex:':"{(%s - %s)}" % (self.tex, other),
+                'hist':self.hist - other,
+            }
         elif isinstance(other, np.ndarray):
-            state.update(dict(
-                name="(%s - array)" % self.name,
-                tex="{(%s - X)}" % self.tex,
-                hist=self.hist - other,
-            ))
+            dict = {
+                'name':"(%s - array)" % self.name,
+                'tex':"{(%s - X)}" % self.tex,
+                'hist':self.hist - other,
+            }
         elif isinstance(other, Map):
-            state.update(dict(
-                name="%s - %s" % (self.name, other.name),
-                tex="{(%s - %s)}" % (self.tex, other.tex),
-                hist=self.hist - other.hist,
-                full_comparison=self.full_comparison or other.full_comparison,
-            ))
+            dict = {
+                'name':"%s - %s" % (self.name, other.name),
+                'tex':"{(%s - %s)}" % (self.tex, other.tex),
+                'hist':self.hist - other.hist,
+                'full_comparison':self.full_comparison or other.full_comparison,
+            }
         else:
             type_error(other)
-        return Map(**state)
+        return dict
 
 
 class MapSet(object):
@@ -786,6 +767,7 @@ def test_Map():
     r = m1 + m2
     # compare only nominal val
     assert r == 3
+    print r
     print 'm1+m2=3:', r, r[0,0]
     r = m2 + m1
     # or compare including errors
