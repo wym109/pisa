@@ -10,13 +10,10 @@ provide basic operations with the binning.
 
 from operator import setitem
 from copy import deepcopy
-from collections import OrderedDict, Sequence, Mapping
+import collections
 from itertools import izip
 
-import numpy
 import numpy as np
-# Import entire numpy namespace for `eval` called on a passed string
-from numpy import *
 
 from pisa.utils.log import logging
 from pisa.utils.utils import recursiveEquality
@@ -42,7 +39,7 @@ class OneDimBinning(object):
     def new_obj(original_function):
         """ decorator to deepcopy unaltered states into new object """
         def new_function(self, *args, **kwargs):
-            state = OrderedDict()
+            state = collections.OrderedDict()
             dict = original_function(self, *args, **kwargs)
             for slot in self.__state_attrs:
                 if dict.has_key(slot):
@@ -242,8 +239,8 @@ class OneDimBinning(object):
 
     @staticmethod
     def is_binning_ok(bin_edges, is_log):
-        """Check monotonicity and that bin spacing is logarithmic (if
-        `is_log=True`)
+        """Check monotonicity and that bin spacing is logarithmically uniform
+        (if `is_log=True`)
 
         Parameters
         ----------
@@ -251,7 +248,7 @@ class OneDimBinning(object):
             Bin edges to check the validity of
 
         is_log : bool
-            Whether binning is expected to be logarithmically spaced.
+            Whether binning is expected to be logarithmically uniform.
 
         Returns
         -------
@@ -332,7 +329,7 @@ class OneDimBinning(object):
 
     @property
     def state(self):
-        state = OrderedDict()
+        state = collections.OrderedDict()
         for attr in self.__state_attrs:
             setitem(state, attr, getattr(self, attr))
         return state
@@ -350,11 +347,11 @@ class OneDimBinning(object):
         if self.n_bins == 1:
             spacing_descr = ''
         elif self.is_lin:
-            spacing_descr = ' linearly-spaced'
+            spacing_descr = ' equally-sized'
         elif self.is_log:
-            spacing_descr = ' logarithmically-spaced'
+            spacing_descr = ' logarithmically-uniform'
         else:
-            spacing_descr = ' irregularly-spaced'
+            spacing_descr = ' irregularly-sized'
 
         if self.units is None:
             units_str = ''
@@ -399,7 +396,7 @@ class OneDimBinning(object):
             final_bin_index = index.stop
         elif isinstance(index, int):
             final_bin_index = index + 1
-        elif isinstance(index, Sequence):
+        elif isinstance(index, collections.Sequence):
             assert len(index) == 1
             final_bin_index = index[0] + 1
         else:
@@ -442,7 +439,7 @@ class MultiDimBinning(object):
         for arg_num, arg in enumerate(args):
             if isinstance(arg, OneDimBinning):
                 one_dim_binning = arg
-            elif isinstance(arg, Mapping):
+            elif isinstance(arg, collections.Mapping):
                 one_dim_binning = OneDimBinning(**arg)
             else:
                 raise TypeError('Argument #%d unhandled type: %s'
@@ -569,7 +566,7 @@ class MultiDimBinning(object):
         A new Binning object but with the bins specified by `index`.
         Whether or not spacing is logarithmic is unchanged.
         """
-        if not isinstance(index, Sequence):
+        if not isinstance(index, collections.Sequence):
             index = [index]
         input_dim = len(index)
         if input_dim != self.n_dims:
@@ -584,9 +581,10 @@ class MultiDimBinning(object):
         return MultiDimBinning(*new_binning)
 
 def test_Binning():
-    b1 = OneDimBinning(name='energy',units=units.GeV, prefix='e', n_bins=40, is_log=True, domain=[1,80])
-    b2 = OneDimBinning(name='coszen',units=units.dimensionless, prefix='cz',
-            n_bins=40, is_lin=True, domain=[-1,1])
+    b1 = OneDimBinning(name='energy', units=units.GeV, prefix='e', n_bins=40,
+                       is_log=True, domain=[1,80])
+    b2 = OneDimBinning(name='coszen', units=units.dimensionless, prefix='cz',
+                       n_bins=40, is_lin=True, domain=[-1,1])
     print 'b1:', b1
     print 'b2:', b2
     b1.oversample(10)
