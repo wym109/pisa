@@ -3,9 +3,10 @@
 # date:   March 20, 2016
 import pisa.stage
 import importlib
+from pisa.utils.param import ParamSet
 
 class TemplateMaker(object):
-
+    """ instantiate stages according to config; excecute stages """
     def __init__(self, config):
         self.config = config
         self.init_stages()
@@ -37,17 +38,31 @@ class TemplateMaker(object):
         if all_map_sets:
             outputs = []
         for i,stage in enumerate(self.stages[:idx]):
-            print stage.stage_name
+            print 'working on stage %s'%stage.stage_name
             if i == 0:
                 map_set = stage.get_output_map_set()
             else:
                 map_set = stage.get_output_map_set(map_set)
-            print map_set
             if all_map_sets:
                 outputs.append(map_set)
         if all_map_sets:
             return outputs
         return map_set
+
+    def pull_free_params(self):
+        free_params = ParamSet()
+        for stage in self.stages:
+            for param in stage.params.free:
+                if param.name in free_params.names:
+                    print free_params[param.name]
+                    print param
+                    assert param == free_params[param.name]
+                else:
+                    free_params.update(param)
+        return free_params
+
+    def push_params(self):
+        pass
 
 if __name__ == '__main__':
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
@@ -69,4 +84,5 @@ if __name__ == '__main__':
 
     template_maker = TemplateMaker(template_settings)
     print template_maker.stages
-    print template_maker.get_output_map_set()
+    print template_maker.get_output_map_set(all_map_sets=True)
+    print template_maker.pull_free_params()

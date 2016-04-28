@@ -21,6 +21,7 @@ import time
 import numbers
 import hashlib
 import struct
+import uncertainties
 try:
     import cPickle as pickle
 except ImportError:
@@ -367,49 +368,38 @@ def list2hrlist(lst):
 
 def recursiveEquality(x, y):
     """Recursively verify equality between two objects x and y."""
-    # None
-    if x is None:
-        if y is not None:
-            return False
-    # Scalar
-    elif np.isscalar(x):
-        if not np.isscalar(y):
-            return False
-        if x != y:
-            return False
-    # Dict
-    elif isinstance(x, dict):
-        if not isinstance(y, dict):
-            return False
-        xkeys = sorted(x.keys())
-        if not xkeys == sorted(y.keys()):
-            return False
-        for k in xkeys:
-            if not recursiveEquality(x[k], y[k]):
-                return False
-    # Sequence
-    elif hasattr(x, '__len__'):
-        if not len(x) == len(y):
-            return False
-        if isinstance(x, list) or isinstance(x, tuple):
-            if not isinstance(y, list) or isinstance(y, tuple):
-                return False
-            for xs, ys in itertools.izip(x, y):
-                if not recursiveEquality(xs, ys):
-                    return False
-        elif isinstance(x, np.ndarray):
-            if not isinstance(y, np.ndarray):
-                return False
-            if not np.alltrue(x == y):
-                return False
+    if not type(x) == type(y):
+        return False
+    equality = True
+    try:
+        # Quantities to directly compare
+        x == y
+    except ValueError:
+        # pint unit
+        if hasattr(x, 'units') and hasattr(x, 'magnitude'):
+            equality = recursiveEquality(x.m, y.m) and x.u == y.u
+        # Dict
+        elif isinstance(x, dict):
+            xkeys = sorted(x.keys())
+            if not xkeys == sorted(y.keys()):
+                equality = False
+            else:
+                for k in xkeys:
+                    if not recursiveEquality(x[k], y[k]):
+                        equality = False
+        # Sequence
+        elif hasattr(x, '__len__'):
+            if not len(x) == len(y):
+                equality = False
+            else:
+                for xs, ys in itertools.izip(x, y):
+                    if not recursiveEquality(xs, ys):
+                        equality = False
         else:
             raise TypeError('Unhandled type(s): %s, x=%s, y=%s' %
                             (type(x), str(x), str(y)))
-    else:
-        raise TypeError('Unhandled type(s): %s, x=%s, y=%s' %
-                        (type(x), str(x), str(y)))
     # If you make it to here, must be equal
-    return True
+    return equality
 
 
 def recursiveAllclose(x, y, *args, **kwargs):
