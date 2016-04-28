@@ -102,7 +102,6 @@ class OneDimBinning(object):
             raise ValueError('`is_log=%s` contradicts `is_lin=%s`' %
                                  (is_log, is_lin))
 
-        #print bin_edges
         # If no bin edges specified, the number of bins, domain, and either
         # log or linear spacing are all required to generate bins
         if bin_edges is None:
@@ -124,8 +123,6 @@ class OneDimBinning(object):
             assert bin_edges.dimensionality == units.dimensionality
             bin_edges = bin_edges.magnitude
 
-        #print repr(bin_edges)
-        print type(bin_edges)
         bin_edges = np.array(bin_edges)
         if is_lin:
             assert(self.is_bin_spacing_lin(bin_edges))
@@ -438,7 +435,6 @@ class OneDimBinning(object):
             return False
         for slot in self.__state_attrs:
             if not self.__getattr__(slot) == other.__getattr__(slot):
-                print slot
                 return False
         return True
 
@@ -603,10 +599,7 @@ class MultiDimBinning(object):
             raise ValueError('Binning is %dD, but %dD indexing was passed'
                              % (self.n_dims, input_dim))
         new_binning = []
-        print index
-        print self.dimensions
         for dim, idx in zip(self.dimensions, index):
-            print dim.bin_edges
             new_binning.append(dim[idx])
         return MultiDimBinning(*new_binning)
 
