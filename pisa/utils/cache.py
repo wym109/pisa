@@ -34,6 +34,7 @@ class MemoryCache(object):
     -------
     __getitem__
     __setitem__
+    __contains__
     __delitem__
     clear
     get
@@ -71,8 +72,9 @@ class MemoryCache(object):
 
     def __getitem__(self, key):
         if key is None:
-            raise ValueError('`None` is not a valid cache key, so nothing can'
-                             ' live there.')
+            raise KeyError(
+                '`None` is not a valid cache key, so nothing can live there.'
+            )
         value = self.__cache[key]
         if self.__is_lru:
             del self.__cache[key]
@@ -81,8 +83,9 @@ class MemoryCache(object):
 
     def __setitem__(self, key, value):
         if key is None:
-            raise ValueError('`None` is not a valid cache key, so nothing can'
-                             ' live there.')
+            raise KeyError(
+                '`None` is not a valid cache key, so nothing can live there.'
+            )
         if self.__max_depth == 0:
             return
         # Same logic here for LRU and FIFO
@@ -92,6 +95,9 @@ class MemoryCache(object):
             if len(self) >= self.__max_depth:
                 self.__cache.popitem(last=False)
         self.__cache[key] = value
+
+    def __contains__(self, key):
+        return self.has_key(key)
 
     def __delitem__(self, key):
         return self.__cache.__delitem__(self, key)
@@ -175,31 +181,31 @@ class DiskCache(object):
     mechanisms that resolve resource contention.
 
     Access to the database via dict-like syntax:
-    >>>> x = {'xyz': [0,1,2,3], 'abc': {'first': (4,5,6)}}
-    >>>> disk_cache = DiskCache('/tmp/diskcache.db', max_depth=5, is_lru=False)
-    >>>> disk_cache[12] = x
-    >>>> disk_cache[13] = x
-    >>>> disk_cache[14] = x
-    >>>> y = disk_cache[12]
-    >>>> print y == x
+    >>> x = {'xyz': [0,1,2,3], 'abc': {'first': (4,5,6)}}
+    >>> disk_cache = DiskCache('/tmp/diskcache.db', max_depth=5, is_lru=False)
+    >>> disk_cache[12] = x
+    >>> disk_cache[13] = x
+    >>> disk_cache[14] = x
+    >>> y = disk_cache[12]
+    >>> print y == x
     True
-    >>>> len(disk_cache)
+    >>> len(disk_cache)
     3
-    >>>> disk_cache.keys()
+    >>> disk_cache.keys()
     [12, 13, 14]
-    >>>> del disk_cache[12]
-    >>>> len(disk_cache)
+    >>> del disk_cache[12]
+    >>> len(disk_cache)
     2
-    >>>> disk_cache.keys()
+    >>> disk_cache.keys()
     [13, 14]
-    >>>> disk_cache.clear()
-    >>>> len(disk_cache)
+    >>> disk_cache.clear()
+    >>> len(disk_cache)
     0
-    >>>> disk_cache.keys()
+    >>> disk_cache.keys()
     []
-    >>>> # Demonstrate max_depth (limit on # of rows):
-    >>>> x = [disk_cache.__setitem__(i, 'foo') for i in xrange(10)]
-    >>>> len(disk_cache)
+    >>> # Demonstrate max_depth (limit on # of rows):
+    >>> x = [disk_cache.__setitem__(i, 'foo') for i in xrange(10)]
+    >>> len(disk_cache)
     5
 
     Large databases are slower to work with than small. Therefore it is
@@ -259,8 +265,9 @@ class DiskCache(object):
 
     def __getitem__(self, key):
         if key is None:
-            raise ValueError('`None` is not a valid cache key, so nothing can'
-                             ' live there.')
+            raise KeyError(
+                '`None` is not a valid cache key, so nothing can live there.'
+            )
         t0 = time.time()
         if not isinstance(key, int):
             raise KeyError('`key` must be int, got "%s"' % type(key))
@@ -293,8 +300,9 @@ class DiskCache(object):
 
     def __setitem__(self, key, obj):
         if key is None:
-            raise ValueError('`None` is not a valid cache key, so nothing can'
-                             ' live there.')
+            raise KeyError(
+                '`None` is not a valid cache key, so nothing can live there.'
+            )
         t0 = time.time()
         assert isinstance(key, int)
         data = sqlite3.Binary(pickle.dumps(obj, pickle.HIGHEST_PROTOCOL))
@@ -416,10 +424,21 @@ class DiskCache(object):
 
         return conn
 
+    def __contains__(self, key):
+        return self.has_key(key)
+
+    def has_key(self, key):
+        try:
+            self[key]
+        except KeyError:
+            return False
+        return True
+
     @property
     def now(self):
         """Microseconds since the epoch"""
         return int(time.time() * 1e6)
+
 
 def test_MemoryCache():
     mc = MemoryCache(max_depth=3, is_lru=True)
@@ -432,5 +451,28 @@ def test_MemoryCache():
     assert 0 not in mc
     assert mc[3] == 'three'
 
+
+def test_DiskCache():
+    tmp_fname = '/tmp/DiskCache.sqlite'
+    try:
+        os.path.remove(tmp_fname)
+    except:
+        pass
+    dc = DiskCache(db_fpath=tmp_fname, max_depth=3, is_lru=False)
+    assert 0 not in dc
+    dc[0] = 'zero'
+    assert dc[0] == 'zero'
+    dc[1] = 'one'
+    dc[2] = 'two'
+    dc[3] = 'three'
+    assert 0 not in dc
+    assert dc[3] == 'three'
+    try:
+        os.path.remove(tmp_fname)
+    except:
+        pass
+
+
 if __name__ == "__main__":
     test_MemoryCache()
+    test_DiskCache()
