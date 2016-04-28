@@ -2,6 +2,8 @@ from pisa.stage import InputStage
 from pisa.utils import utils
 from pisa.utils import cache
 from pisa.utils.utils import hash_obj
+from pisa.utils.transform import LinearTransform, TransformSet
+import numpy as np
 
 class Osc(InputStage):
     def __init__(self,
@@ -35,14 +37,18 @@ class Osc(InputStage):
 
     def _derive_transform(self):
         """Compute a new oscillation transform"""
-        utils.n_bad_seeds(self.params.values_hash % 2**32)
+        print 'deriving transforms...'
+        #utils.n_bad_seeds(self.params.values_hash % 2**32)
         inputs = ['nue', 'numu', 'nuebar', 'numubar']
+        outputs = None
         transforms = []
         for output in ['nue', 'numu', 'nutau', 'nuebar', 'numubar', 'nutaubar']:
+            print output
             xform_array = np.random.rand(*self.input_binning.shape)
             transforms.append(LinearTransform(
-                inputs=inputs, output=output, input_binning=self.binning,
-                output_binning=self.binning, xform_array=xform_array,
-                name='osc to ' + output
+                inputs=inputs, outputs=outputs, input_binning=self.input_binning,
+                output_binning=self.output_binning, xform_array=xform_array,
+                name='osc to %s'%output
             ))
+        print 'transforms derived'
         return TransformSet(transforms=transforms, name='osc')
