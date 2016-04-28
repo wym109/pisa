@@ -12,7 +12,7 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.fileio import from_file, to_file
 from pisa.utils.parse_cfg import parse_cfg
-import pisa.stage
+import pisa.core.stage
 import importlib
 from copy import deepcopy
 
@@ -46,7 +46,7 @@ cls = getattr(module,args.stage)
 # instanciate object
 print config[args.stage.lower()].keys()
 stage = cls(**config[args.stage.lower()])
-if isinstance(stage, pisa.stage.NoInputStage):
+if isinstance(stage, pisa.core.stage.NoInputStage):
     output_map_set = stage.get_output_map_set()
-elif isinstance(stage, pisa.stage.InputStage):
+elif isinstance(stage, pisa.core.stage.InputStage):
     output_map_set = stage.get_output_map_set(input_map_set)

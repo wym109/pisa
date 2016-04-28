@@ -23,9 +23,9 @@ class TemplateMaker(object):
             # instanciate object
             stage = cls(**self.config[stage_name.lower()])
             if i == 0:
-                assert isinstance(stage, pisa.stage.NoInputStage)
+                assert isinstance(stage, pisa.core.stage.NoInputStage)
             else:
-                assert isinstance(stage, pisa.stage.InputStage)
+                assert isinstance(stage, pisa.core.stage.InputStage)
                 # make sure the biinings match, if there are any
                 if hasattr(stage, 'input_binning'):
                     assert hasattr(self.stages[-1], 'output_binning')

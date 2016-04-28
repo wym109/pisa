@@ -4,6 +4,7 @@ try:
     import cPickle as pickle
 except ImportError:
     import pickle
+import numpy as np
 
 
 def hash_obj(obj, hash_to='int'):
