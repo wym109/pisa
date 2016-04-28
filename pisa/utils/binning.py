@@ -69,7 +69,7 @@ class OneDimBinning(object):
                      'is_lin')
     # Convenient means for user to access info (to be attached to a container
     # such as a MultiDimBinning object)
-    __prefixed_attrs = (
+    _prefixed_attrs = (
         ('bin_edges', '%sbin_edges'),
         ('midpoints', '%s_midpoints'),
         ('visual_centers', '%s_visual_centers'),
@@ -178,7 +178,7 @@ class OneDimBinning(object):
         def new_function(self, *args, **kwargs):
             new_state = collections.OrderedDict()
             state_updates = original_function(self, *args, **kwargs)
-            for slot in self.__state_attrs:
+            for slot in self._state_attrs:
                 if state_updates.has_key(slot):
                     new_state[slot] = state_updates[slot]
                 elif slot == 'units':
@@ -356,7 +356,7 @@ class OneDimBinning(object):
         return state
 
     def set_prefixed_attrs(self, obj):
-        for attr, spec in self.__prefixed_attrs:
+        for attr, spec in self._prefixed_attrs:
             setattr(obj, spec % self.prefix, getattr(self, attr))
 
     def __str__(self):

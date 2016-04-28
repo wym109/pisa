@@ -90,16 +90,16 @@ class Map(object):
     __sub__
 
     """
-    __slots = ('name', 'hist', 'binning', 'hash', 'tex',
+    _slots = ('name', 'hist', 'binning', 'hash', 'tex',
                'full_comparison')
-    __state_attrs = __slots
+    _state_attrs = _slots
 
     def new_obj(original_function):
         """ decorator to deepcopy unaltered states into new object """
         def new_function(self, *args, **kwargs):
             new_state = OrderedDict()
             state_updates = original_function(self, *args, **kwargs)
-            for slot in self.__state_attrs:
+            for slot in self._state_attrs:
                 if state_updates.has_key(slot):
                     new_state[slot] = state_updates[slot]
                 else:
@@ -137,8 +137,8 @@ class Map(object):
     @property
     def state(self):
         state = OrderedDict()
-        for slot in self.__state_attrs:
-            state[slot] = self.__getattr__(slot)
+        for attr in self._state_attrs:
+            state[attr] = self.__getattr__(attr)
         return state
 
     def assert_compat(self, other):
@@ -173,7 +173,7 @@ class Map(object):
 
     def __setattr__(self, attr, value):
         """Only allow setting attributes defined in slots"""
-        if attr not in self.__slots:
+        if attr not in self._slots:
             raise ValueError('Attribute "%s" not allowed to be set.' % attr)
         super(Map, self).__setattr__(attr, value)
 
@@ -317,7 +317,8 @@ class Map(object):
 
     def __eq__(self, other):
         """Check if full state of maps are equal. *Not* element-by-element
-        equality as for a numpy array. Call this.hist == other.hist for the nominal value and the error
+        equality as for a numpy array. Call this.hist == other.hist for the
+        nominal value and the error
 
         If `full_comparison` is true for *both* maps, or if either map lacks a
         hash, performs a full comparison of the contents of each map.
@@ -327,8 +328,12 @@ class Map(object):
         if np.isscalar(other):
             # in case comparing with just with a scalar ignore the errors:
             return np.all(unp.nominal_values(self.hist) == other)
-        if type(other) is uncertainties.core.Variable or isinstance(other, np.ndarray):
-            return np.all(unp.nominal_values(self.hist) == unp.nominal_values(other)) and np.all(unp.std_devs(self.hist) == unp.std_devs(other))
+        if type(other) is uncertainties.core.Variable \
+                or isinstance(other, np.ndarray):
+            return (np.all(unp.nominal_values(self.hist)
+                           == unp.nominal_values(other))
+                    and np.all(unp.std_devs(self.hist)
+                               == unp.std_devs(other)))
         elif isinstance(other, Map):
             if (self.full_comparison or other.full_comparison
                 or self.hash is None or other.hash is None):
@@ -589,8 +594,9 @@ class MapSet(object):
             map_name = mp.name
             this_map_args = []
             for arg in args:
-                if np.isscalar(arg) or type(arg) is uncertainties.core.Variable or \
-                        isinstance(arg, (basestring, np.ndarray)):
+                if (np.isscalar(arg) or
+                        type(arg) is uncertainties.core.Variable or
+                        isinstance(arg, (basestring, np.ndarray))):
                     this_map_args.append(arg)
                 elif isinstance(arg, MapSet):
                     if self.collate_by_name:
@@ -830,7 +836,8 @@ def test_MapSet():
     print 'ms1[0].hist:', ms1[0].hist
     print 'ms1[0:2].hist:', ms1[0:2].hist
     print 'ms1[0:2,0:2].hist:', ms1[0:2,0:2].hist
-    print "ms1.apply_to_maps('__add__', 1).names", ms1.apply_to_maps('__add__', 1).names
+    print "ms1.apply_to_maps('__add__', 1).names", \
+            ms1.apply_to_maps('__add__', 1).names
     try:
         print ms1.__add__(ms2)
     except ValueError:
