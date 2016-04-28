@@ -1,39 +1,48 @@
+
+import sys
+from collections import Mapping, Sequence
+import itertools
+
 import numpy as np
+
+
+SEQ_TYPES = (Sequence, Mapping, np.ndarray, np.matrix)
+
 
 def recursiveEquality(x, y):
     """Recursively verify equality between two objects x and y."""
-    if not type(x) == type(y):
-        return False
-    equality = True
-    try:
-        # Quantities to directly compare
-        x == y
-    except ValueError:
-        # pint unit
-        if hasattr(x, 'units') and hasattr(x, 'magnitude'):
-            equality = recursiveEquality(x.m, y.m) and x.u == y.u
-        # Dict
-        elif isinstance(x, dict):
-            xkeys = sorted(x.keys())
-            if not xkeys == sorted(y.keys()):
-                equality = False
-            else:
-                for k in xkeys:
-                    if not recursiveEquality(x[k], y[k]):
-                        equality = False
-        # Sequence
-        elif hasattr(x, '__len__'):
-            if not len(x) == len(y):
-                equality = False
-            else:
-                for xs, ys in itertools.izip(x, y):
-                    if not recursiveEquality(xs, ys):
-                        equality = False
+    if not (isinstance(x, SEQ_TYPES) or isinstance(y, SEQ_TYPES)):
+        return (x == y)
+
+    # pint unit
+    elif hasattr(x, 'units') and hasattr(x, 'magnitude'):
+        return (x.u == y.u) and recursiveEquality(x.m, y.m)
+
+    # Dict
+    elif isinstance(x, dict):
+        xkeys = sorted(x.keys())
+        if not xkeys == sorted(y.keys()):
+            return False
         else:
-            raise TypeError('Unhandled type(s): %s, x=%s, y=%s' %
-                            (type(x), str(x), str(y)))
-    # If you make it to here, must be equal
-    return equality
+            for k in xkeys:
+                if not recursiveEquality(x[k], y[k]):
+                    return False
+
+    # Sequence
+    elif hasattr(x, '__len__'):
+        if not len(x) == len(y):
+            return False
+        else:
+            for xs, ys in itertools.izip(x, y):
+                if not recursiveEquality(xs, ys):
+                    return False
+
+    # Unhandled
+    else:
+        raise TypeError('Unhandled type(s): %s, x=%s, y=%s' %
+                        (type(x), str(x), str(y)))
+
+    return True
 
 
 def recursiveAllclose(x, y, *args, **kwargs):
@@ -103,6 +112,7 @@ def recursiveAllclose(x, y, *args, **kwargs):
 
 
 def test_recursiveEquality():
+    from pisa.utils import logging
     d1 = {'one':1, 'two':2, 'three': None}
     d2 = {'one':1.0, 'two':2.0, 'three': None}
     d3 = {'one':np.arange(0, 100),
@@ -125,7 +135,7 @@ def test_recursiveEquality():
     assert not recursiveEquality(d3, d6)
     assert not recursiveEquality(d4, d6)
 
-    logging.info('<< PASSED >> recursiveEquality')
+    print '<< PASSED >> recursiveEquality'
 
 
 if __name__ == "__main__":
