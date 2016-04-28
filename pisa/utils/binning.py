@@ -14,42 +14,14 @@ import collections
 from itertools import izip
 
 import numpy as np
+import pint
+ureg = pint.UnitRegistry()
 
 from pisa.utils.log import logging
 from pisa.utils.utils import recursiveEquality
 
 
 class OneDimBinning(object):
-    # `is_log` and `is_lin` are required so that a sub-sampling down to a
-    # single bin that is then resampled to > 1 bin will retain the log/linear
-    # property of the original OneDimBinning
-    __state_attrs = ('name', 'units', 'prefix', 'tex', 'bin_edges', 'is_log',
-                     'is_lin')
-    # Convenient means for user to access info (to be attached to a container
-    # such as a MultiDimBinning object)
-    __prefixed_attrs = (
-        ('bin_edges', '%sbin_edges'),
-        ('midpoints', '%s_midpoints'),
-        ('visual_centers', '%s_visual_centers'),
-        ('is_log', '%s_is_log'),
-        ('is_lin', '%s_is_lin'),
-        ('domain', '%s_domain'),
-        ('n_bins', 'n_%sbins'),
-    )
-    def new_obj(original_function):
-        """ decorator to deepcopy unaltered states into new object """
-        def new_function(self, *args, **kwargs):
-            state = collections.OrderedDict()
-            dict = original_function(self, *args, **kwargs)
-            for slot in self.__state_attrs:
-                if dict.has_key(slot):
-                    state[slot] = dict[slot]
-                elif slot == 'units':
-                    state[slot] = copy(self.__getattr__(slot))
-                else:
-                    state[slot] = deepcopy(self.__getattr__(slot))
-            return OneDimBinning(**state)
-        return new_function
     """
     Histogram-oriented binning specialized to a single dimension.
 
@@ -90,14 +62,28 @@ class OneDimBinning(object):
     constructor.
 
     """
+    # `is_log` and `is_lin` are required so that a sub-sampling down to a
+    # single bin that is then resampled to > 1 bin will retain the log/linear
+    # property of the original OneDimBinning
+    __state_attrs = ('name', 'units', 'prefix', 'tex', 'bin_edges', 'is_log',
+                     'is_lin')
+    # Convenient means for user to access info (to be attached to a container
+    # such as a MultiDimBinning object)
+    __prefixed_attrs = (
+        ('bin_edges', '%sbin_edges'),
+        ('midpoints', '%s_midpoints'),
+        ('visual_centers', '%s_visual_centers'),
+        ('is_log', '%s_is_log'),
+        ('is_lin', '%s_is_lin'),
+        ('domain', '%s_domain'),
+        ('n_bins', 'n_%sbins'),
+    )
+
     def __init__(self, name, units, prefix=None, tex=None, bin_edges=None,
                  is_log=None, is_lin=None, n_bins=None, domain=None):
         # Store metadata about naming and units
         assert isinstance(name, basestring)
         self.name = name
-        if units == '':
-            units = None
-        self.units = units
         if prefix is None or prefix == '':
             prefix = name
         self.prefix = prefix
@@ -154,7 +140,14 @@ class OneDimBinning(object):
         else:
             assert n_bins == len(self.bin_edges) - 1
 
-        self.domain = (self.bin_edges[0], self.bin_edges[-1])
+        if units == '' or units is None:
+            units = ureg.dimensionless
+        else:
+            units = ureg(str(units))
+        self.bin_edges = self.bin_edges * units
+
+        self.domain = np.array([self.bin_edges[0].m,
+                                self.bin_edges[-1].m])*units
         self.is_lin = is_lin
         self.is_log = is_log
         self.is_irregular = not (self.is_lin or self.is_log)
@@ -171,6 +164,25 @@ class OneDimBinning(object):
         # want this, can do it in the multi-dim binning object.
         #for attr in
         #self.n_bins =
+
+    @property
+    def units(self):
+        return self.bin_edges.units
+
+    def new_obj(original_function):
+        """ decorator to deepcopy unaltered states into new object """
+        def new_function(self, *args, **kwargs):
+            state = collections.OrderedDict()
+            dict = original_function(self, *args, **kwargs)
+            for slot in self.__state_attrs:
+                if dict.has_key(slot):
+                    state[slot] = dict[slot]
+                elif slot == 'units':
+                    state[slot] = copy(self.__getattr__(slot))
+                else:
+                    state[slot] = deepcopy(self.__getattr__(slot))
+            return OneDimBinning(**state)
+        return new_function
 
     @new_obj
     def __deepcopy__(self, memo):
@@ -268,10 +280,12 @@ class OneDimBinning(object):
             return OneDimBinning.is_bin_spacing_log(bin_edges)
         return True
 
+    # TODO: refine compatibility test
     def is_compat(self, other):
         """Compatibility -- for now -- is defined by all of self's bin
-        edges a subset of other's bin edges, or vice versa. This might bear
-        revisiting, or redefining just for special circumstances.
+        edges form a subset of other's bin edges, or vice versa, and the units
+        match. This might bear revisiting, or redefining just for special
+        circumstances.
 
         Parameters
         ----------
@@ -282,6 +296,8 @@ class OneDimBinning(object):
         bool
 
         """
+        if self.units != other.units:
+            return False
         my_edges, other_edges = set(self.ebins), set(other.ebins)
         if len(my_edges.difference(other_edges)) == 0:
             return True
@@ -309,10 +325,10 @@ class OneDimBinning(object):
         if self.is_log:
             bin_edges = np.logspace(np.log10(self.domain[0]),
                                     np.log10(self.domain[-1]),
-                                    self.n_bins * factor + 1)
+                                    self.n_bins * factor + 1)*self.units
         elif self.is_lin:
             bin_edges = np.linspace(self.domain[0], self.domain[-1],
-                                    self.n_bins * factor + 1)
+                                    self.n_bins * factor + 1)*self.units
         else: # irregularly-spaced
             bin_edges = []
             for lower, upper in izip(self.bin_edges[:-1], self.bin_edges[1:]):
@@ -322,7 +338,7 @@ class OneDimBinning(object):
                 bin_edges.extend(this_bin_new_edges[:-1])
             # Final bin needs final edge
             bin_edges.append(this_bin_new_edges[-1])
-        return{'bin_edges':bin_edges}
+        return {'bin_edges': np.array(bin_edges)*self.units}
 
     def __getattr__(self, attr):
         return super(OneDimBinning, self).__getattribute__(attr)
@@ -339,33 +355,29 @@ class OneDimBinning(object):
             setattr(obj, spec % self.prefix, getattr(self, attr))
 
     def __str__(self):
-        if len(self.bin_edges) == 2:
-            bins_str = ' bin'
-        else:
-            bins_str = ' bins'
+        domain_str = 'spanning [%s, %s] %s' %(self.bin_edges[0].magnitude,
+                                              self.bin_edges[-1].magnitude,
+                                              format(self.units, '~'))
+        edge_str = 'with edges at ' + format(self.bin_edges, '~')
 
         if self.n_bins == 1:
-            spacing_descr = ''
+            descr = 'one bin %s' %edge_str
+            if self.is_lin:
+                descr += ' (behavior is linear)'
+            elif self.is_log:
+                descr += ' (behavior is logarithmic)'
         elif self.is_lin:
-            spacing_descr = ' equally-sized'
+            descr = '%d equally-sized bins %s' %(self.n_bins, domain_str)
         elif self.is_log:
-            spacing_descr = ' logarithmically-uniform'
+            descr = '%d logarithmically-uniform bins %s' %(self.n_bins,
+                                                           domain_str)
         else:
-            spacing_descr = ' irregularly-sized'
+            descr = '%d irregularly-sized bins %s' %(self.n_bins, edge_str)
 
-        if self.units is None:
-            units_str = ''
-        else:
-            units_str = ' %s' % self.units
+        return '{name:s}: {descr:s}'.format(name=self.name, descr=descr)
 
-        domain_str = ' spanning [%s, %s]' % (self.bin_edges[0],
-                                             self.bin_edges[-1])
-
-        return '{name:s}: {n:d}{spaced:s}{bins:s}{domain:s}{units:s}'.format(
-            name=self.name, n=self.n_bins, spaced=spacing_descr, bins=bins_str,
-            domain=domain_str, units=units_str
-        )
-
+    # TODO: make repr return representation that can recreate binning instead
+    # of str (which just looks nice for user)
     def __repr__(self):
         return str(self)
 
@@ -584,17 +596,15 @@ class MultiDimBinning(object):
         return MultiDimBinning(*new_binning)
 
 def test_Binning():
-    b1 = OneDimBinning(name='energy', units=units.GeV, prefix='e', n_bins=40,
+    b1 = OneDimBinning(name='energy', units='GeV', prefix='e', n_bins=40,
                        is_log=True, domain=[1,80])
-    b2 = OneDimBinning(name='coszen', units=units.dimensionless, prefix='cz',
+    b2 = OneDimBinning(name='coszen', units=None, prefix='cz',
                        n_bins=40, is_lin=True, domain=[-1,1])
     print 'b1:', b1
     print 'b2:', b2
-    b1.oversample(10)
+    print 'b1.oversample(10):', b1.oversample(10)
     print 'b1[0:5, 0:5]:', b1[0:5]
 
 
 if __name__ == "__main__":
-    import pint
-    units = pint.UnitRegistry() 
     test_Binning()
