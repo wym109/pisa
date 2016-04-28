@@ -3,7 +3,7 @@
 # date:   March 20, 2016
 import pisa.stage
 import importlib
-from pisa.utils.param import ParamSet
+from pisa.core.param import ParamSet
 
 class TemplateMaker(object):
     """ instantiate stages according to config; excecute stages """
@@ -17,7 +17,7 @@ class TemplateMaker(object):
             service = self.config[stage_name.lower()]['service']
             # factory
             # import stage service
-            module = importlib.import_module('pisa.%s.%s'%(stage_name.lower(), service))
+            module = importlib.import_module('pisa.stages.%s.%s'%(stage_name.lower(), service))
             # get class
             cls = getattr(module,stage_name.title())
             # instanciate object

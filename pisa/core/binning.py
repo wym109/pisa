@@ -18,7 +18,7 @@ import pint
 ureg = pint.UnitRegistry()
 
 from pisa.utils.log import logging
-from pisa.utils.utils import recursiveEquality
+from pisa.utils.comparisons import recursiveEquality
 
 
 class OneDimBinning(object):

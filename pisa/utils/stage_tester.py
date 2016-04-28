@@ -40,7 +40,7 @@ service = config[args.stage.lower()]['service']
 
 # factory
 # import stage service
-module = importlib.import_module('pisa.%s.%s'%(args.stage.lower(), service))
+module = importlib.import_module('pisa.stages.%s.%s'%(args.stage.lower(), service))
 # get class
 cls = getattr(module,args.stage)
 # instanciate object

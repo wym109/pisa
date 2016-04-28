@@ -16,7 +16,7 @@ import collections
 
 from pisa.utils.log import logging
 import pisa.utils.fileio as fileio
-from pisa.utils.utils import recursiveEquality
+from pisa.utils.comparisons import recursiveEquality
 
 
 class Prior(object):
