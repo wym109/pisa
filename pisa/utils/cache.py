@@ -30,8 +30,8 @@ class MemoryCache(object):
         Set to an integer to override the cache depth for *all* memory caches.
         E.g., set this to 0 to disable caching everywhere.
 
-    Useful Methods
-    --------------
+    Methods
+    -------
     __getitem__
     __setitem__
     __delitem__
@@ -47,6 +47,7 @@ class MemoryCache(object):
     Notes
     -----
     Based off of code at www.kunxi.org/blog/2014/05/lru-cache-in-python
+
     """
     GLOBAL_MEMCACHE_DEPTH_OVERRIDE = None
     def __init__(self, max_depth, is_lru=True):
@@ -69,6 +70,9 @@ class MemoryCache(object):
                                                self.__cache.keys())
 
     def __getitem__(self, key):
+        if key is None:
+            raise ValueError('`None` is not a valid cache key, so nothing can'
+                             ' live there.')
         value = self.__cache[key]
         if self.__is_lru:
             del self.__cache[key]
@@ -76,6 +80,9 @@ class MemoryCache(object):
         return value
 
     def __setitem__(self, key, value):
+        if hash_val is None:
+            raise ValueError('`None` is not a valid cache key, so nothing can'
+                             ' live there.')
         if self.__max_depth == 0:
             return
         # Same logic here for LRU and FIFO
@@ -251,6 +258,9 @@ class DiskCache(object):
         return str(self) + '; %d keys:\n%s' % (len(self), self.keys())
 
     def __getitem__(self, hash_val):
+        if hash_val is None:
+            raise ValueError('`None` is not a valid cache key, so nothing can'
+                             ' live there.')
         t0 = time.time()
         if not isinstance(hash_val, int):
             raise KeyError('`hash_val` must be int, got "%s"' % type(hash_val))
@@ -282,6 +292,9 @@ class DiskCache(object):
         return data
 
     def __setitem__(self, hash_val, obj):
+        if hash_val is None:
+            raise ValueError('`None` is not a valid cache key, so nothing can'
+                             ' live there.')
         t0 = time.time()
         assert isinstance(hash_val, int)
         data = sqlite3.Binary(pickle.dumps(obj, pickle.HIGHEST_PROTOCOL))
