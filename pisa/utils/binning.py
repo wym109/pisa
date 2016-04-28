@@ -9,7 +9,7 @@ provide basic operations with the binning.
 """
 
 from operator import setitem
-from copy import deepcopy
+from copy import copy, deepcopy
 import collections
 from itertools import izip
 
@@ -65,7 +65,7 @@ class OneDimBinning(object):
     # `is_log` and `is_lin` are required so that a sub-sampling down to a
     # single bin that is then resampled to > 1 bin will retain the log/linear
     # property of the original OneDimBinning
-    __state_attrs = ('name', 'units', 'prefix', 'tex', 'bin_edges', 'is_log',
+    _state_attrs = ('name', 'units', 'prefix', 'tex', 'bin_edges', 'is_log',
                      'is_lin')
     # Convenient means for user to access info (to be attached to a container
     # such as a MultiDimBinning object)
@@ -174,7 +174,7 @@ class OneDimBinning(object):
         def new_function(self, *args, **kwargs):
             state = collections.OrderedDict()
             dict = original_function(self, *args, **kwargs)
-            for slot in self.__state_attrs:
+            for slot in self._state_attrs:
                 if dict.has_key(slot):
                     state[slot] = dict[slot]
                 elif slot == 'units':
@@ -346,7 +346,7 @@ class OneDimBinning(object):
     @property
     def state(self):
         state = collections.OrderedDict()
-        for attr in self.__state_attrs:
+        for attr in self._state_attrs:
             setitem(state, attr, getattr(self, attr))
         return state
 
@@ -421,9 +421,8 @@ class OneDimBinning(object):
     def __eq__(self, other):
         if not isinstance(other, OneDimBinning):
             return False
-        for slot in self.__state_attrs:
+        for slot in self._state_attrs:
             if not self.__getattr__(slot) == other.__getattr__(slot):
-                print slot
                 return False
         return True
 

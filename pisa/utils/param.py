@@ -13,6 +13,7 @@ import numpy as np
 
 from pisa.utils.log import logging
 import pisa.resources.resources as resources
+from pisa.utils.utils import recursiveEquality
 from pisa.utils import utils
 
 
@@ -44,9 +45,9 @@ class Param(object):
     -------
     validate_value
     """
-    __slots = ('name', 'value', 'prior', 'range', 'is_fixed', 'is_discrete',
+    _slots = ('name', 'value', 'prior', 'range', 'is_fixed', 'is_discrete',
                'scale', '_nominal_value', '_tex', 'help')
-    __state_attrs = ('name', 'value', 'prior', 'range', 'is_fixed',
+    _state_attrs = ('name', 'value', 'prior', 'range', 'is_fixed',
                      'is_discrete', 'scale', 'nominal_value', 'tex', 'help')
 
     def __init__(self, name, value, prior, range, is_fixed, is_discrete=False,
@@ -64,15 +65,27 @@ class Param(object):
         self._nominal_value = value if nominal_value is None else nominal_value
 
     def __eq__(self, other):
-        return utils.recursiveEquality(self.state, other.state)
+        if not isinstance(other, self.__class__):
+            return False
+        return recursiveEquality(self.state,other.state)
+        #if not isinstance(other, self.__class__):
+        #    return False
+        #for slot in self._state_attrs:
+        #    print slot
+        #    if not self.__getattr__(slot) == other.__getattr__(slot):
+        #        return False
+        #return True
 
     def __lt__(self, other):
         return self.name < other.name
 
     def __setattr__(self, attr, val):
-        if attr not in self.__slots:
+        if attr not in self._slots:
             raise AttributeError('Invalid attribute: %s' % (attr,))
         object.__setattr__(self, attr, val)
+
+    def __getattr__(self, attr):
+        return super(self.__class__, self).__getattribute__(attr)
 
     def __str__(self):
         return '%s=%s; prior=%s, range=%s, scale=%s, is_fixed=%s,' \
@@ -104,7 +117,7 @@ class Param(object):
     def state(self):
         state = OrderedDict()
         [state.__setitem__(a, self.__getattribute__(a))
-         for a in self.__state_attrs]
+         for a in self._state_attrs]
         return state
 
     @property
@@ -226,7 +239,10 @@ class ParamSet(object):
                 'All params must be of type "Param"'
 
         self._params = sorted(param_sequence)
-        self._by_name = {obj.name: obj for obj in self._params}
+
+    @property
+    def _by_name(self):
+        return {obj.name: obj for obj in self._params}
 
     def index(self, value):
         idx = -1
@@ -234,7 +250,7 @@ class ParamSet(object):
             idx = value
         elif value in self.names:
             idx = self.names.index(value)
-        elif value in self._params:
+        elif isinstance(value, Param) and value in self._params:
             idx = self._params.index(value)
         if idx < 0 or idx >= len(self):
             raise ValueError('%s not found in ParamSet' % (value,))
@@ -295,7 +311,7 @@ class ParamSet(object):
             return self._by_name[i]
 
     def __iter__(self):
-        iter(self._params)
+        return iter(self._params)
 
     @property
     def tex(self):

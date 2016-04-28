@@ -11,12 +11,16 @@ from copy import deepcopy
 import numpy as np
 from scipy.interpolate import splev
 from scipy.optimize import fminbound
+from operator import setitem
+import collections
 
 from pisa.utils.log import logging
 import pisa.utils.fileio as fileio
+from pisa.utils.utils import recursiveEquality
 
 
 class Prior(object):
+    _state_attrs = ['kind','valid_range','max_at']
     def __init__(self, **kwargs):
         self.constructor_args = deepcopy(kwargs)
         if not kwargs.has_key('kind'):
@@ -75,6 +79,18 @@ class Prior(object):
     def __repr__(self):
         return '<' + str(self.__class__) + ' ' + self.__str__() + '>'
 
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        return recursiveEquality(self.state, other.state)
+
+    @property
+    def state(self):
+        state = collections.OrderedDict()
+        for attr in self._state_attrs:
+            setitem(state, attr, getattr(self, attr))
+        return state
+
     def build_dict(self, node_dict=None):
         if node_dict is None:
             node_dict = {}
@@ -91,6 +107,7 @@ class Prior(object):
         self._str = lambda s: "uniform prior"
 
     def __init_gaussian(self, fiducial, sigma):
+        self._state_attrs.extend(['fiducial','sigma'])
         self.kind = 'gaussian'
         self.fiducial = fiducial
         self.sigma = sigma
@@ -102,6 +119,7 @@ class Prior(object):
         self._str = lambda s: "gaussian prior: sigma=%.4e, max at %.4e" % (self.sigma, self.fiducial)
 
     def __init_linterp(self, x, y):
+        self._state_attrs.extend(['x','y','interp'])
         self.kind = 'linterp'
         self.x = np.array(x)
         self.y = np.array(y)
@@ -121,6 +139,7 @@ class Prior(object):
         knots, coeffs, and deg are given by e.g. scipy.interpolate.splrep, and
         evaluation of splines is carried out by scipy.interpolate.splev
         """
+        self._state_attrs.extend(['knots','coeffs','deg'])
         self.kind = 'spline'
         self.knots = knots
         self.coeffs = coeffs

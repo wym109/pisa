@@ -67,10 +67,10 @@ class Transform(object):
 
 
 class LinearTransform(Transform):
-    __slots = tuple(list(Transform._slots) +
+    _slots = tuple(list(Transform._slots) +
                     ['_input_binning', '_output_binning', '_xform_array'])
 
-    __state_attrs = tuple(list(Transform._state_attrs) +
+    _state_attrs = tuple(list(Transform._state_attrs) +
                           ['input_binning', 'output_binning', 'xform_array'])
 
     def __init__(self, inputs, outputs, input_binning, output_binning,
