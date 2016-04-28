@@ -6,7 +6,10 @@ import itertools
 import numpy as np
 
 
-SEQ_TYPES = (Sequence, Mapping, np.ndarray, np.matrix)
+NP_TYPES = (np.ndarray, np.matrix)
+SEQ_TYPES = (Sequence, np.ndarray, np.matrix)
+MAP_TYPES = (Mapping,)
+COMPLEX_TYPES = tuple(list(NP_TYPES) + list(SEQ_TYPES) + list(MAP_TYPES))
 
 
 def recursiveEquality(x, y):
@@ -19,11 +22,18 @@ def recursiveEquality(x, y):
     elif isinstance(x, str):
         return x == y
 
-    elif not (isinstance(x, SEQ_TYPES) or isinstance(y, SEQ_TYPES)):
-        return (x == y)
+    elif not (isinstance(x, COMPLEX_TYPES) or isinstance(y, COMPLEX_TYPES)):
+        return x == y
+
+    # Numpy types
+    elif isinstance(x, NP_TYPES) or isinstance(y, NP_TYPES):
+        if np.shape(x) != np.shape(y):
+            return False
+        if not np.all(np.equal(x, y)):
+            return False
 
     # Dict
-    elif isinstance(x, dict):
+    elif isinstance(x, Mapping):
         xkeys = sorted(x.keys())
         if not xkeys == sorted(y.keys()):
             return False
@@ -32,8 +42,8 @@ def recursiveEquality(x, y):
                 if not recursiveEquality(x[k], y[k]):
                     return False
 
-    # Sequence
-    elif hasattr(x, '__len__'):
+    # Non-numpy sequence
+    elif isinstance(x, Sequence):
         if not len(x) == len(y):
             return False
         else:
