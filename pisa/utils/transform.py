@@ -3,6 +3,7 @@ import numpy as np
 
 from pisa.utils.binning import MultiDimBinning
 
+
 class TransformSet(object):
     """
     Parameters
@@ -24,34 +25,60 @@ class TransformSet(object):
     -------
     check_predecessor_compat
     check_successor_compat
+    apply
 
     """
     def __init__(self, transforms, name=None, hash=None):
         self.transforms = transforms
         self.name = name
-        self.hash = hash
+
+    def __iter__(self):
+        return iter(self.transforms)
+
+    @property
+    def hash(self):
+        xform_hashes = [x.hash for x in transforms]
+        if all([(h != None) for h in xform_hashes]):
+            return hash_obj(xform_hashes)
+        return None
 
     @property
     def inputs(self):
-        pass
+        inputs = []
+        [inputs.extend(x.inputs) for x in self]
+        return tuple(inputs)
 
     @property
     def outputs(self):
-        pass
+        outputs = []
+        [outputs.extend(x.output) for x in self]
+        return tuple(outputs)
 
-    @property
-    def dependencies(self):
-        pass
+    def apply(self, input_maps, cache=None):
+        output_maps = [xform.apply(input_maps, cache=cache) for xform in self]
+        used_input_names = set()
+        for xform in self:
+            used_input_names = used_input_names.union(xform.inputs)
+
+        # Pass any unused maps through to the output
+        for input_map in input_maps:
+            if input_map.name not in used_input_names:
+                output_maps.append(input)
+
+        # TODO: what to set for name, tex, ... ?
+        return MapSet(maps=output_maps)
 
 
 class Transform(object):
     # Attributes that __setattr__ will allow setting
-    __slots = ('_inputs', '_outputs', '_name', '_hash')
+    __slots = ('_inputs', '_output', '_name', '_hash')
     # Attributes that should be retrieved to fully describe state
-    __state_attrs = ('inputs', 'outputs', 'name', 'hash')
-    def __init__(self, inputs, outputs, name=None, hash=None):
+    __state_attrs = ('inputs', 'output', 'name', 'hash')
+    def __init__(self, inputs, output, name=None, hash=None):
+        if isinstance(inputs, basestring):
+            inputs = [inputs]
         self._inputs = inputs
-        self._outputs = outputs
+        self._output = output
         self.name = name
         self.hash = hash
 
@@ -60,11 +87,42 @@ class Transform(object):
         return self._inputs
 
     @property
-    def outputs(self):
-        return self._outputs
+    def output(self):
+        return self._output
+
+    def apply(self, input_maps, cache=None):
+        hashes = [self.hash]
+        hashes.extend([input_maps[name].hash for name in self.inputs])
+
+        # All hashes must be present (transform and for each input map
+        # used) for a valid hash to be applied automatically to the output
+        # map
+        if all([(h != None) for h in hashes]):
+            outmap_hash = hash_obj(tuple(hashes))
+        else:
+            outmap_hash = None
+
+        # Try to load result from cache, or recompute
+        if cache is not None and outmap_hash in cache:
+            outmap = cache[outmap_hash]
+        else:
+            outmap = self._apply(input_maps)
+
+        # TODO: tex, etc.?
+        outmap.name = self.output
+        return outmap
+
+    def _apply(self, input_maps):
+        """Override this method in subclasses"""
+        raise NotImplementedError('Override this method in subclasses')
 
     def validate_transform(xform):
-        raise NotImplementedError()
+        """Override this method in subclasses"""
+        raise NotImplementedError('Override this method in subclasses')
+
+    def validate_input(self, input_maps):
+        """Override this method in subclasses"""
+        raise NotImplementedError('Override this method in subclasses')
 
 
 class LinearTransform(Transform):
@@ -72,18 +130,20 @@ class LinearTransform(Transform):
                     ['_input_binning', '_output_binning', '_xform_array'])
 
     __state_attrs = tuple(list(super(LinearTransform, self).__state_attrs) +
-                          ['input_binning', 'output_binning', 'xform_array']
+                          ['input_binning', 'output_binning', 'xform_array'])
 
-    def __init__(self, inputs, outputs, input_binning, output_binning,
-                 xform_array, name=None, hash=None):
-        super(LinearTransform, self).__init__(inputs=inputs, outputs=outputs,
-                                              name=name, hash=hash)
+    def __init__(self, inputs, output, input_binning, output_binning,
+                 xform_array, name=None, tex=None, hash=None):
+        super(LinearTransform, self).__init__(inputs=inputs, output=output,
+                                              name=name, tex=tex, hash=hash)
         self._input_binning = None
         self._output_binning = None
         self._xform_array = None
         self.input_binning = input_binning
         self.output_binning = output_binning
         self.xform_array = xform_array
+        self.num_inputs = len(inputs)
+        self.num_outputs = 1
 
     @property
     def input_binning(self):
@@ -98,11 +158,6 @@ class LinearTransform(Transform):
                                     output_binning=self.output_binning,
                                     xform_array=self.xform_array)
         self._input_binning = binning
-
-    @xform_array.setter
-    def xform_array(self, x):
-        self.validate_transform(x)
-        self._xform_array = x
 
     @property
     def xform_array(self):
@@ -125,9 +180,10 @@ class LinearTransform(Transform):
              <input binning n_czbins>,
              {if n_inputs > 1: <n_inputs>,}
              <output binning n_ebins>,
-             <output binning N_czbins>,
+             <output binning n_czbins>,
              {if n_outputs > 1: <n_outputs>}
             )
+
         """
         in_dim = [] if self.num_inputs == 1 else [self.num_inputs]
         out_dim = [] if self.num_outputs == 1 else [self.num_outputs]
@@ -139,18 +195,29 @@ class LinearTransform(Transform):
             assert i in map_set, 'Input "%s" not in input map set' % i
             assert map_set[i].binning == self.input_binning
 
-    def apply(self, input_maps):
+    # TODO: make the following work with multiple inputs (i.e., concatenate
+    # these into a higher-dimensional array) and make logic for applying
+    # element-by-element multiply and tensordot generalize to any dimension
+    # given the (concatenated) input dimension and the dimension of the linear
+    # transform kernel
+
+    def _apply(self, input_maps, cache=None):
         """Apply linear transforms to input maps to derive output maps.
 
         Parameters
         ----------
         input_maps : MapSet
-            Maps to be transformed.
-            (??)If `input_maps` is None, simply returns `xform`.(??)
+            Maps to be transformed. There can be extra maps in `input_maps`
+            that are not used by this transform. If multiple input maps are
+            used in the transformation, they are combined via
+              numpy.stack((map0, map1, ... ), axis=0)
+            I.e., the first dimension of the input sent to the transform has
+            length of number of maps being combined.
+
 
         Returns
         -------
-        output_maps : MapSet
+        output_map : map
 
         Notes
         -----
@@ -162,29 +229,21 @@ class LinearTransform(Transform):
         kernels where there is one (M_ebins x N_czbins)-size kernel for each
         (energy, coszen) bin.
 
-        One special case is if transform is None
-
-        Re-binning before, during, and/or after applying the transform is not
-        implemented, but should be!
         """
         self.validate_input(input_maps)
-        output_maps = utils.DictWithHash()
-        for output_key, input_xforms in xform.iteritems():
-            for input_key, sub_xform in xforms.iteritems():
-                input_map = input_maps[input_key]
-                if sub_xform is None:
-                    output_map = input_map
-                elif len(sub_xform.shape) == 2:
-                    output_map = input_map * sub_xform
-                elif len(sub_xform.shape) == 4:
-                    output_map = np.tensordot(input_map, sub_xform,
-                                              axes=([0,1],[0,1]))
+        if len(self.inputs) > 1:
+            input_map = np.stack([input_map[n]
+                                  for n in input_name in self.inputs])
+        else:
+            input_map = input_map[inputs[0]]
 
-                # TODO: do rebinning here? (aggregate, truncate, and/or
-                # concatenate 0's?)
+        if self.xform_array.shape == input_map.shape:
+            output_map = input_map * self.xform_array
+        elif len(sub_xform.shape) == 4:
+            output_map = np.tensordot(input_map, sub_xform,
+                                      axes=([0,1],[0,1]))
 
-                if output_key in output_maps:
-                    output_maps[output_key] += output_map
-                else:
-                    output_maps[output_key] = output_map
+        # TODO: do rebinning here? (aggregate, truncate, and/or
+        # concatenate 0's?)
 
+        return output_map
