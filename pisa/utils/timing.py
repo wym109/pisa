@@ -130,5 +130,8 @@ def timestamp(d=True, t=True, tz=True, utc=False, winsafe=False):
                 dts += offset
     return dts
 
-
-
+if __name__ == '__main__':
+    print timestamp()
+    print timediffstamp(1234)
+    with Timer() as t:
+        pass

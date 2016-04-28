@@ -1,50 +1,6 @@
-
-
-def engfmt(n, units, sigfigs=3, decimals=None, sign_always=False):
-    """Format number as string in engineering format (10^(multiples-of-three)),
-    including the most common metric prefixes (from atto to Exa).
-
-    Parameters
-    ----------
-    n : numeric
-        Number to be formatted
-    units : str
-        A string that suffixes the output (separated by a space)
-    sigfigs : int
-        Number of significant figures to limit the result to
-    decimals : int or None
-        Number of decimals to display (zeros filled out as necessary)
-    sign_always : bool
-        Prefix the number with "+" sign if number is positive; otherwise,
-        only negative numbers are prefixed with a sign ("-")
-    """
-    prefixes = {-18:'a', -15:'f', -12:'p', -9:'n', -6:'u', -3:'m', 0:'',
-                3:'k', 6:'M', 9:'G', 12:'T', 15:'P', 18:'E'}
-    # Logs don't like negative numbers...
-    sign = np.sign(n)
-    n *= sign
-
-    mag = int(np.floor(np.log10(n)))
-    pfx_mag = int(np.floor(np.log10(n)/3.0)*3)
-
-    if decimals is None:
-        decimals = sigfigs-1 - (mag-pfx_mag)
-
-    round_to = decimals
-    if sigfigs is not None:
-        round_to = sigfigs-1 - (mag-pfx_mag)
-
-    scaled_rounded = np.round(n/10.0**pfx_mag, round_to)
-
-    sign_str = ''
-    if sign_always and sign > 0:
-        sign_str = '+'
-    num_str = sign_str + format(sign*scaled_rounded, '.'+str(decimals)+'f')
-
-    if pfx_mag not in prefixes:
-        return num_str + 'e'+str(mag) + ' ' + units
-    return  num_str + ' ' + prefixes[pfx_mag] + units
-
+import numbers
+import numpy as np
+import itertools
 
 def hrlist_formatter(start, end, step):
     """Format a range (sequence) in a simple and human-readable format.
@@ -133,4 +89,11 @@ def list2hrlist(lst):
     return ','.join(result)
 
 
-
+if __name__ == '__main__':
+    print hrlist_formatter(start=0, end=10, step=1)
+    print hrlist_formatter(start=0, end=10, step=2)
+    print hrlist_formatter(start=0, end=3, step=8)
+    print hrlist_formatter(start=0.1, end=3.1, step=1.0)
+    print list2hrlist([0, 1])
+    print list2hrlist([0, 1, 2])
+    print list2hrlist([0.1, 1.1, 2.1, 3.1])

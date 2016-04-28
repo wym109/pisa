@@ -16,3 +16,7 @@ def n_bad_seeds(*args):
         # blow through some states to increase entropy
         np.random.randint(-1e9,1e9,1e5)
     return np.random.get_state()
+
+if __name__ == '__main__':
+    n_bad_seeds(*[1,2,3])
+    assert np.random.randint(7) == 3
