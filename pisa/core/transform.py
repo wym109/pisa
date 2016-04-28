@@ -1,7 +1,7 @@
 
 import numpy as np
 
-from pisa.utils.binning import MultiDimBinning
+from pisa.core.binning import MultiDimBinning
 
 
 class TransformSet(object):

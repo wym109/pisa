@@ -1,9 +1,9 @@
 #! /usr/bin/env python
 # authors: J.Lanfranchi/P.Eller
 # date:   March 20, 2016
-import pisa.stage
+import pisa.core.stage
 import importlib
-from pisa.utils.param import ParamSet
+from pisa.core.param import ParamSet
 
 class TemplateMaker(object):
     """ instantiate stages according to config; excecute stages """
@@ -17,15 +17,15 @@ class TemplateMaker(object):
             service = self.config[stage_name.lower()]['service']
             # factory
             # import stage service
-            module = importlib.import_module('pisa.%s.%s'%(stage_name.lower(), service))
+            module = importlib.import_module('pisa.stages.%s.%s'%(stage_name.lower(), service))
             # get class
             cls = getattr(module,stage_name.title())
             # instanciate object
             stage = cls(**self.config[stage_name.lower()])
             if i == 0:
-                assert isinstance(stage, pisa.stage.NoInputStage)
+                assert isinstance(stage, pisa.core.stage.NoInputStage)
             else:
-                assert isinstance(stage, pisa.stage.InputStage)
+                assert isinstance(stage, pisa.core.stage.InputStage)
                 # make sure the biinings match, if there are any
                 if hasattr(stage, 'input_binning'):
                     assert hasattr(self.stages[-1], 'output_binning')

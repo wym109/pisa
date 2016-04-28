@@ -1,5 +1,5 @@
-from pisa.stage import NoInputStage
-from pisa.utils.map import Map, MapSet
+from pisa.core.stage import NoInputStage
+from pisa.core.map import Map, MapSet
 import numpy as np
 import pint
 units = pint.UnitRegistry()

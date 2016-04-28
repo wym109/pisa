@@ -13,8 +13,8 @@ import numpy as np
 
 from pisa.utils.log import logging
 import pisa.resources.resources as resources
-from pisa.utils.utils import recursiveEquality
-from pisa.utils import utils
+from pisa.utils.comparisons import recursiveEquality
+from pisa.utils.hash import hash_obj
 
 
 @total_ordering
@@ -130,7 +130,7 @@ class Param(object):
 
     @property
     def state_hash(self):
-        return utils.hash_obj(self.state)
+        return hash_obj(self.state)
 
 
 class ParamSet(object):
@@ -409,11 +409,11 @@ class ParamSet(object):
 
     @property
     def values_hash(self):
-        return utils.hash_obj(self.values)
+        return hash_obj(self.values)
 
     @property
     def state_hash(self):
-        return utils.hash_obj(self.state)
+        return hash_obj(self.state)
 
 
 def test_ParamSet():

@@ -1,11 +1,9 @@
-
 import collections
 import inspect
 
-from pisa.utils import utils
 from pisa.utils import cache
-from pisa.utils.utils import hash_obj
-from pisa.utils.param import ParamSet
+from pisa.utils.hash import hash_obj
+from pisa.core.param import ParamSet
 
 
 class GenericStage(object):
