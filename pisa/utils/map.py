@@ -97,14 +97,14 @@ class Map(object):
     def new_obj(original_function):
         """ decorator to deepcopy unaltered states into new object """
         def new_function(self, *args, **kwargs):
-            state = OrderedDict()
-            dict = original_function(self, *args, **kwargs)
+            new_state = OrderedDict()
+            state_updates = original_function(self, *args, **kwargs)
             for slot in self.__state_attrs:
-                if dict.has_key(slot):
-                    state[slot] = dict[slot]
+                if state_updates.has_key(slot):
+                    new_state[slot] = state_updates[slot]
                 else:
-                    state[slot] = deepcopy(self.__getattr__(slot))
-            return Map(**state)
+                    new_state[slot] = deepcopy(self.__getattr__(slot))
+            return Map(**new_state)
         return new_function
 
     def __init__(self, name, hist, binning, hash=None, tex=None,
