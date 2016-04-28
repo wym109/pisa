@@ -33,6 +33,22 @@ class TemplateMaker(object):
                     assert stage.input_binning == self.stages[-1].output_binning
             self.stages.append(stage)
 
+    def get_output_map_set(self, idx=None, all_map_sets=False):
+        if all_map_sets:
+            outputs = []
+        for i,stage in enumerate(self.stages[:idx]):
+            print stage.stage_name
+            if i == 0:
+                map_set = stage.get_output_map_set()
+            else:
+                map_set = stage.get_output_map_set(map_set)
+            print map_set
+            if all_map_sets:
+                outputs.append(map_set)
+        if all_map_sets:
+            return outputs
+        return map_set
+
 if __name__ == '__main__':
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
     import numpy as np
@@ -53,3 +69,4 @@ if __name__ == '__main__':
 
     template_maker = TemplateMaker(template_settings)
     print template_maker.stages
+    print template_maker.get_output_map_set()

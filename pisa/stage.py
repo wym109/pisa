@@ -191,7 +191,7 @@ class InputStage(GenericStage):
 
         """
         xform = self.get_transform()
-        result_hash = hash_obj(input_map_set.hash, xform.hash)
+        result_hash = hash_obj(input_map_set.hash + xform.hash)
         try:
             return self.result_cache[result_hash]
         except KeyError:
@@ -220,7 +220,7 @@ class InputStage(GenericStage):
             pass
         xform = self._derive_transform()
         xform.hash = xform_hash
-        self.transform_cache[cache_key] = xform
+        #self.transform_cache[cache_key] = xform
         return xform
 
     def _derive_transform(self, **kwargs):

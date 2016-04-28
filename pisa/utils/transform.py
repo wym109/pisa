@@ -71,12 +71,11 @@ class TransformSet(object):
 
 class Transform(object):
     # Attributes that __setattr__ will allow setting
-    __slots = ('_inputs', '_output', '_name', '_hash')
+    _slots = ('_inputs', '_outputs', '_name', '_hash')
     # Attributes that should be retrieved to fully describe state
-    __state_attrs = ('inputs', 'output', 'name', 'hash')
-    def __init__(self, inputs, output, name=None, hash=None):
-        if isinstance(inputs, basestring):
-            inputs = [inputs]
+    _state_attrs = ('inputs', 'outputs', 'name', 'hash')
+
+    def __init__(self, inputs, outputs, name=None, hash=None):
         self._inputs = inputs
         self._output = output
         self.name = name
@@ -126,11 +125,11 @@ class Transform(object):
 
 
 class LinearTransform(Transform):
-    __slots = tuple(list(super(LinearTransform, self).__slots) +
-                    ['_input_binning', '_output_binning', '_xform_array'])
+    _slots = tuple(list(Transform._slots) +
+                   ['_input_binning', '_output_binning', '_xform_array'])
 
-    __state_attrs = tuple(list(super(LinearTransform, self).__state_attrs) +
-                          ['input_binning', 'output_binning', 'xform_array'])
+    _state_attrs = tuple(list(Transform._state_attrs) +
+                         ['input_binning', 'output_binning', 'xform_array'])
 
     def __init__(self, inputs, output, input_binning, output_binning,
                  xform_array, name=None, tex=None, hash=None):
@@ -165,11 +164,10 @@ class LinearTransform(Transform):
 
     @xform_array.setter
     def xform_array(self, x):
-        self.validate_transform(x)
+        self.validate_transform(self.input_binning, self.output_binning, x)
         self._xform_array = x
 
-    @staticmethod
-    def validate_transform(input_binning, output_binning, xform_array):
+    def validate_transform(self, input_binning, output_binning, xform_array):
         """Superficial validation that the transform being set is reasonable.
 
         As of now, only checks shape.
@@ -185,10 +183,10 @@ class LinearTransform(Transform):
             )
 
         """
-        in_dim = [] if self.num_inputs == 1 else [self.num_inputs]
-        out_dim = [] if self.num_outputs == 1 else [self.num_outputs]
-        assert xform_array.shape == tuple(list(input_binning.shape) + in_dim +
-                                          list(output_binning.shape) + out_dim)
+        #in_dim = [] if self.num_inputs == 1 else [self.num_inputs]
+        #out_dim = [] if self.num_outputs == 1 else [self.num_outputs]
+        #assert xform_array.shape == tuple(list(input_binning.shape) + in_dim +
+        #                                  list(output_binning.shape) + out_dim)
 
     def validate_input(map_set):
         for i in inputs:

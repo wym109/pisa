@@ -25,6 +25,7 @@ from uncertainties import ufloat
 from uncertainties import unumpy as unp
 
 from pisa.utils.binning import OneDimBinning, MultiDimBinning
+from pisa.utils.utils import hash_obj
 
 
 def type_error(value):
