@@ -237,11 +237,24 @@ class LinearTransform(Transform):
 
         if self.xform_array.shape == input_map.shape:
             output_map = input_map * self.xform_array
-        elif len(sub_xform.shape) == 4:
+        elif len(sub_xform.shape) == 4 and len(input_maps.shape) == 2:
             output_map = np.tensordot(input_map, sub_xform,
                                       axes=([0,1],[0,1]))
+        else:
+            raise NotImplementedError(
+                'Unhandled shapes for input (%s) and transform (%s).'
+                %(input_maps.shape, self.xform_array.shape)
+            )
 
         # TODO: do rebinning here? (aggregate, truncate, and/or
         # concatenate 0's?)
 
         return output_map
+
+
+def test_LinearTransform():
+    pass
+
+
+if __name__ == "__main__":
+    test_LinearTransform()
