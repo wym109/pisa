@@ -10,8 +10,9 @@ import numpy as np
 import h5py
 
 from pisa.utils.log import logging, set_verbosity
-import pisa.utils.utils as utils
+from pisa.utils.hash import hash_obj
 from pisa.resources.resources import find_resource
+from pisa.utils.comparisons import recursiveEquality
 
 
 def from_hdf(val, return_attrs=False):
@@ -139,7 +140,7 @@ def to_hdf(data_dict, tgt, attrs=None, overwrite=True):
                                   node_hashes=node_hashes)
         else:
             # Check for existing node
-            node_hash = utils.hash_obj(node)
+            node_hash = hash_obj(node)
             if node_hash in node_hashes:
                 logging.trace("  creating hardlink for Dataset: '%s' -> '%s'" %
                               (full_path, node_hashes[node_hash]))
@@ -261,7 +262,7 @@ def test_hdf():
     }
     to_hdf(data, '/tmp/to_hdf_noattrs.hdf5', overwrite=True)
     loaded_data1 = from_hdf('/tmp/to_hdf_noattrs.hdf5')
-    assert utils.recursiveEquality(data, loaded_data1)
+    assert recursiveEquality(data, loaded_data1)
 
     attrs = {
         'float1': 9.98237,
@@ -273,8 +274,8 @@ def test_hdf():
     to_hdf(data, '/tmp/to_hdf_withattrs.hdf5', attrs=attrs, overwrite=True)
     loaded_data2, loaded_attrs = from_hdf('/tmp/to_hdf_withattrs.hdf5',
                                           return_attrs=True)
-    assert utils.recursiveEquality(data, loaded_data2)
-    assert utils.recursiveEquality(attrs, loaded_attrs)
+    assert recursiveEquality(data, loaded_data2)
+    assert recursiveEquality(attrs, loaded_attrs)
 
     for k, v in attrs.iteritems():
         tgt_type = type(attrs[k])

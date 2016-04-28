@@ -10,6 +10,7 @@
 """Generic file I/O, dispatching specific file readers/writers as necessary"""
 
 import os
+import re
 import pisa.utils.jsons as jsons
 import pisa.utils.hdf as hdf
 import pisa.resources.resources as resources

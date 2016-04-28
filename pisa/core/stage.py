@@ -1,7 +1,6 @@
 import collections
 import inspect
 
-from pisa.utils import utils
 from pisa.utils import cache
 from pisa.utils.hash import hash_obj
 from pisa.core.param import ParamSet

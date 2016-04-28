@@ -11,8 +11,8 @@
 stages, that contains values indicated by param. as a param set, binning as
 binning objects and all other values as ordinary strings '''
 
-from pisa.utils.prior import Prior
-from pisa.utils.param import Param, ParamSet
+from pisa.core.prior import Prior
+from pisa.core.param import Param, ParamSet
 from pisa.utils.log import logging
 import uncertainties
 from uncertainties import unumpy as unp
@@ -21,7 +21,7 @@ import numpy as np
 import pint
 from collections import OrderedDict
 units = pint.UnitRegistry()
-from pisa.utils.binning import OneDimBinning, MultiDimBinning
+from pisa.core.binning import OneDimBinning, MultiDimBinning
 
 def parse_quantity(string):
     value = string.replace(' ','')

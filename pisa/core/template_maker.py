@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 # authors: J.Lanfranchi/P.Eller
 # date:   March 20, 2016
-import pisa.stage
+import pisa.core.stage
 import importlib
 from pisa.core.param import ParamSet
 
