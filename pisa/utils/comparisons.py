@@ -1,6 +1,6 @@
 
 import sys
-from collections import Mapping, Sequence
+from collections import Mapping, Sequence, OrderedDict
 import itertools
 
 import numpy as np
@@ -11,12 +11,16 @@ SEQ_TYPES = (Sequence, Mapping, np.ndarray, np.matrix)
 
 def recursiveEquality(x, y):
     """Recursively verify equality between two objects x and y."""
-    if not (isinstance(x, SEQ_TYPES) or isinstance(y, SEQ_TYPES)):
-        return (x == y)
-
     # pint unit
-    elif hasattr(x, 'units') and hasattr(x, 'magnitude'):
+    if hasattr(x, 'units') and hasattr(x, 'magnitude'):
         return (x.u == y.u) and recursiveEquality(x.m, y.m)
+
+    # string
+    elif isinstance(x, str):
+        return x == y
+
+    elif not (isinstance(x, SEQ_TYPES) or isinstance(y, SEQ_TYPES)):
+        return (x == y)
 
     # Dict
     elif isinstance(x, dict):
@@ -127,6 +131,12 @@ def test_recursiveEquality():
     d6 = {'one':np.arange(0, 100),
           'two':[{'three':{'four':np.arange(1.1, 2.1)}},
                  np.arange(3, 4)]}
+    d7 = OrderedDict()
+    d7['d1'] = d1
+    d7['f'] = 7.2
+    d8 = OrderedDict()
+    d8['d1'] = d1
+    d8['f'] = 7.2
     assert recursiveEquality(d1, d2)
     assert not recursiveEquality(d1, d3)
     assert recursiveEquality(d3, d4)
@@ -134,6 +144,7 @@ def test_recursiveEquality():
     assert not recursiveEquality(d4, d5)
     assert not recursiveEquality(d3, d6)
     assert not recursiveEquality(d4, d6)
+    assert recursiveEquality(d7, d8)
 
     print '<< PASSED >> recursiveEquality'
 
