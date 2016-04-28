@@ -80,7 +80,7 @@ class MemoryCache(object):
         return value
 
     def __setitem__(self, key, value):
-        if hash_val is None:
+        if key is None:
             raise ValueError('`None` is not a valid cache key, so nothing can'
                              ' live there.')
         if self.__max_depth == 0:
@@ -257,30 +257,30 @@ class DiskCache(object):
     def __repr__(self):
         return str(self) + '; %d keys:\n%s' % (len(self), self.keys())
 
-    def __getitem__(self, hash_val):
-        if hash_val is None:
+    def __getitem__(self, key):
+        if key is None:
             raise ValueError('`None` is not a valid cache key, so nothing can'
                              ' live there.')
         t0 = time.time()
-        if not isinstance(hash_val, int):
-            raise KeyError('`hash_val` must be int, got "%s"' % type(hash_val))
+        if not isinstance(key, int):
+            raise KeyError('`key` must be int, got "%s"' % type(key))
         conn = self.__connect()
         t1 = time.time();logging.trace('conn: %0.4f' % (t1 - t0))
         try:
             if self.__is_lru:
                 # Update accesstime
                 sql = "UPDATE cache SET accesstime = ? WHERE hash = ?"
-                conn.execute(sql, (self.now, hash_val))
+                conn.execute(sql, (self.now, key))
                 t2 = time.time();logging.trace('update: % 0.4f' % (t2 - t1))
             t2 = time.time()
 
             # Retrieve contents
             sql = "SELECT data FROM cache WHERE hash = ?"
-            cursor = conn.execute(sql, (hash_val,))
+            cursor = conn.execute(sql, (key,))
             t3 = time.time();logging.trace('select: % 0.4f' % (t3 - t2))
             tmp = cursor.fetchone()
             if tmp is None:
-                raise KeyError(str(hash_val))
+                raise KeyError(str(key))
             data = tmp[0]
             t4 = time.time();logging.trace('fetch: % 0.4f' % (t4 - t3))
             data = pickle.loads(bytes(data))
@@ -291,12 +291,12 @@ class DiskCache(object):
             logging.trace('')
         return data
 
-    def __setitem__(self, hash_val, obj):
-        if hash_val is None:
+    def __setitem__(self, key, obj):
+        if key is None:
             raise ValueError('`None` is not a valid cache key, so nothing can'
                              ' live there.')
         t0 = time.time()
-        assert isinstance(hash_val, int)
+        assert isinstance(key, int)
         data = sqlite3.Binary(pickle.dumps(obj, pickle.HIGHEST_PROTOCOL))
         t1 = time.time();logging.trace('dumps: % 0.4f' % (t1 - t0))
 
@@ -305,7 +305,7 @@ class DiskCache(object):
         try:
             t = time.time()
             sql = "INSERT INTO cache (hash, accesstime, data) VALUES (?, ?, ?)"
-            conn.execute(sql, (hash_val, self.now, data))
+            conn.execute(sql, (key, self.now, data))
             t1 = time.time();logging.trace('insert: % 0.4f' % (t1 - t))
             conn.commit()
             t2 = time.time();logging.trace('commit: % 0.4f' % (t2 - t1))
@@ -344,11 +344,11 @@ class DiskCache(object):
             logging.trace('close: % 0.4f' % (time.time() - t))
             logging.trace('')
 
-    def __delitem__(self, hash_val):
+    def __delitem__(self, key):
         conn = self.__connect()
         try:
             sql = "DELETE FROM cache WHERE hash = ?"
-            cursor = conn.execute(sql, (hash_val,))
+            cursor = conn.execute(sql, (key,))
         except:
             conn.rollback()
             raise
@@ -366,10 +366,10 @@ class DiskCache(object):
             conn.close()
         return count
 
-    def get(self, hash_val, dflt=None):
+    def get(self, key, dflt=None):
         rslt = dflt
         try:
-            rslt = self.__getitem__(hash_val)
+            rslt = self.__getitem__(key)
         except:
             pass
         return rslt
@@ -421,3 +421,16 @@ class DiskCache(object):
         """Microseconds since the epoch"""
         return int(time.time() * 1e6)
 
+def test_MemoryCache():
+    mc = MemoryCache(max_depth=3, is_lru=True)
+    assert 0 not in mc
+    mc[0] = 'zero'
+    assert mc[0] == 'zero'
+    mc[1] = 'one'
+    mc[2] = 'two'
+    mc[3] = 'three'
+    assert 0 not in mc
+    assert mc[3] == 'three'
+
+if __name__ == "__main__":
+    test_MemoryCache()
