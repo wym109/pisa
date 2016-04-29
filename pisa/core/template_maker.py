@@ -29,8 +29,6 @@ class TemplateMaker(object):
                 # make sure the biinings match, if there are any
                 if hasattr(stage, 'input_binning'):
                     assert hasattr(self.stages[-1], 'output_binning')
-                    print stage.input_binning
-                    print self.stages[-1].output_binning
                     assert stage.input_binning == self.stages[-1].output_binning
             self.stages.append(stage)
 
@@ -49,20 +47,17 @@ class TemplateMaker(object):
             return outputs
         return map_set
 
-    def pull_free_params(self):
+    @property
+    def free_params(self):
         free_params = ParamSet()
         for stage in self.stages:
-            for param in stage.params.free:
-                if param.name in free_params.names:
-                    print free_params[param.name]
-                    print param
-                    assert param == free_params[param.name]
-                else:
-                    free_params.update(param)
+            free_params.extend(stage.params.free)
         return free_params
 
-    def push_params(self):
-        pass
+    def update_params(self, params):
+        for stage in self.stages:
+            stage.params.update(params)
+            
 
 if __name__ == '__main__':
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
@@ -83,6 +78,9 @@ if __name__ == '__main__':
     template_settings = parse_cfg(template_settings) 
 
     template_maker = TemplateMaker(template_settings)
-    print template_maker.stages
-    print template_maker.get_output_map_set(all_map_sets=True)
-    print template_maker.pull_free_params()
+    m0 = template_maker.get_output_map_set()
+    fp = template_maker.free_params
+    fp['test'].value*=1.2
+    template_maker.update_params(fp)
+    m1 = template_maker.get_output_map_set()
+    print (m1/m0)['nue'][0,0]

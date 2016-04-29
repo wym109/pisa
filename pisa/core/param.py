@@ -205,8 +205,8 @@ class ParamSet(object):
     index(val)
         Locate and return index given `val` which can be an int (index), str
         (name), or Param object (an actual item in the set).
-    replace(old, new)
-        Replace `old` with `new`. Returns `old`.
+    replace(new)
+        Replace param
     unfix(vals)
         Set param at each `index(val)` to be free.
     update(obj)
@@ -256,11 +256,9 @@ class ParamSet(object):
             raise ValueError('%s not found in ParamSet' % (value,))
         return idx
 
-    def replace(self, old, new):
-        idx = self.index(old)
-        old = self._params[idx]
+    def replace(self, new):
+        idx = self.index(new.name)
         self._params[idx] = new
-        return old
 
     def fix(self, x):
         if isinstance(x, (Param, int, basestring)):
@@ -284,19 +282,30 @@ class ParamSet(object):
         obj : Param, ParamSet, or sequence thereof
 
         """
-        if isinstance(obj, Sequence):
+        if isinstance(obj, Sequence) or isinstance(obj, ParamSet):
             [self.update(p) for p in obj]
+            return
+        if not isinstance(obj, Param):
+            raise ValueError('`obj`="%s" is not a Param' % (obj))
+        param = obj
+        if param.name in self.names:
+            self.replace(param)
+        else:
+            self._params.append(param)
+
+    def extend(self, obj):
+        if isinstance(obj, Sequence) or isinstance(obj, ParamSet):
+            [self.extend(p) for p in obj]
             return
         if not isinstance(obj, Param):
             raise ValueError('`obj`="%s" not a Param' % (obj,))
         param = obj
-        try:
-            existing_idx = self.index(param.name)
-            self.replace(existing_idx, param)
-            return
-        except ValueError:
-            pass
-        self._params.append(param)
+        if param.name in self.names:
+            try:
+                assert param == self[param.name]
+            except AssertionError:
+                raise Exception('got parameter %s twice with different values!'%param.name)
+        self.update(param)
 
     def __len__(self):
         return len(self._params)
