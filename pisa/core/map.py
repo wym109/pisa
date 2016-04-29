@@ -64,6 +64,7 @@ class Map(object):
     nominal_values
     std_devs
     name
+    shape
     state
     tex
 
@@ -118,15 +119,12 @@ class Map(object):
         super(Map, self).__setattr__('_hash', hash)
         super(Map, self).__setattr__('_full_comparison', full_comparison)
 
-        # Do the work here to set read-only attributes
         if isinstance(binning, MultiDimBinning):
             pass
-        elif isinstance(binning, OneDimBinning):
-            binning = MultiDimBinning(binning)
-        elif isinstance(binning, Sequence):
-            binning = MultiDimBinning(*tuple(binning))
         else:
-            raise type_error('binning', binning)
+            binning = MultiDimBinning(binning)
+
+        # Do the work here to set read-only attributes
         super(Map, self).__setattr__('_binning', binning)
         binning.assert_array_fits(hist)
         super(Map, self).__setattr__('_hist', hist)
@@ -140,6 +138,10 @@ class Map(object):
         self.assert_compat(error_hist)
         super(Map, self).__setattr__('_hist', unp.uarray(self._hist,
                                                          error_hist))
+
+    @property
+    def shape(self):
+        return self.hist.shape
 
     @property
     def state(self):
@@ -512,8 +514,22 @@ class Map(object):
             type_error('other', other)
         return dict
 
-
+# TODO: instantiate individual maps from dicts if passed as such, so user
+# doesn't have to instantiate each map. Also, check for name collisions with
+# one another and with attrs (so that __getattr__ can retrieve the map by name)
+# TODO: add docstrings
 class MapSet(object):
+    """
+    Set of maps.
+
+    Methods
+    -------
+    __contains__
+
+    Properties
+    ----------
+
+    """
     __slots = ('_name')
     __state_attrs = ('name', 'maps')
     def __init__(self, maps, name=None, tex=None, collate_by_name=False):
@@ -546,8 +562,10 @@ class MapSet(object):
     def hashes(self):
         return tuple([mp.hash for mp in self])
 
-    def hash_maps(self, maps):
-        hashes = [m.hash for m in self]
+    def hash_maps(self, map_names=None):
+        if map_names is None:
+            map_names = [m.name for m in self]
+        hashes = [m.hash for m in self if m.name in map_names]
         if all([(h != None) for h in hashes]):
             return hash_obj(hashes)
         return None
@@ -639,6 +657,9 @@ class MapSet(object):
     def __repr__(self):
         return str(self)
 
+    def __contains__(self, name):
+        return name in [m.name for m in self]
+
     # TODO: implement __hash__?
     #def __hash__(self):
     #    if self.hash is not None:
@@ -655,6 +676,8 @@ class MapSet(object):
             return self.collate_with_names(returned_vals)
 
     def __getattr__(self, attr):
+        if attr in [m.name for m in self]:
+            return self[attr]
         return self.apply_to_maps(attr)
 
     def __iter__(self):
