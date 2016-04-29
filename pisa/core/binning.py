@@ -462,6 +462,10 @@ class OneDimBinning(object):
 
 class MultiDimBinning(object):
     """
+    Multi-dimensional binning object. This can contain one or more
+    OneDimBinning objects, and all subsequent operations (e.g. slicing) will
+    act on these in the order they are supplied.
+
     Parameters
     ----------
     *args : each a OneDimBinning or Mapping that can construct one via
@@ -490,14 +494,23 @@ class MultiDimBinning(object):
     def __init__(self, *args):
         dimensions = []
         shape = []
-        for arg_num, arg in enumerate(args):
-            if isinstance(arg, OneDimBinning):
-                one_dim_binning = arg
-            elif isinstance(arg, collections.Mapping):
-                one_dim_binning = OneDimBinning(**arg)
+        # Break out any sequences passed in
+        objects = []
+        for arg in args:
+            if isinstance(arg, (OneDimBinning, MultiDimBinning,
+                                collections.Mapping)):
+                objects.append(arg)
+            elif isinstance(arg, collections.Sequence):
+                objects.extend(arg)
+
+        for obj_num, obj in enumerate(objects):
+            if isinstance(obj, OneDimBinning):
+                one_dim_binning = obj
+            elif isinstance(obj, collections.Mapping):
+                one_dim_binning = OneDimBinning(**obj)
             else:
-                raise TypeError('Argument #%d unhandled type: %s'
-                                %(arg_num, type(arg)))
+                raise TypeError('Argument/object #%d unhandled type: %s'
+                                %(obj_num, type(obj)))
             one_dim_binning.set_prefixed_attrs(self)
             dimensions.append(one_dim_binning)
             shape.append(one_dim_binning.n_bins)
@@ -591,7 +604,7 @@ class MultiDimBinning(object):
     def __eq__(self, other):
         if not isinstance(other, MultiDimBinning):
             return False
-        return self.state == other.state
+        return recursiveEquality(self.state, other.state)
 
     def __str__(self):
         return '\n'.join([str(dim) for dim in self])
