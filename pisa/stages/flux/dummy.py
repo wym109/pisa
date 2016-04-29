@@ -29,7 +29,8 @@ class Flux(NoInputStage):
         height = self.params['test'].value.to('meter').magnitude
         output_maps = []
         for output in outputs:
-            hist = np.random.randint(height, size=self.output_binning.shape)
+            #hist = np.random.randint(height, size=self.output_binning.shape)
+            hist = np.ones(self.output_binning.shape) * height
             # pack them into Map object, assign poisson errors
             m = Map(output, hist, self.output_binning)
             m.set_poisson_errors()

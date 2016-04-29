@@ -17,6 +17,7 @@ from operator import getitem, setitem
 from collections import OrderedDict, Mapping, Sequence
 import re
 from copy import deepcopy, copy
+from pisa.utils.stats import llh
 
 import numpy as np
 
@@ -28,10 +29,8 @@ from pisa.core.binning import OneDimBinning, MultiDimBinning
 from pisa.utils.hash import hash_obj
 
 
-def type_error(name, value):
-    raise TypeError('Type of argument `%s` not supported: "%s"'
-                    %(name, type(value)))
-
+def type_error(value):
+    raise TypeError('Type of argument not supported: "%s"' % type(value))
 
 def strip_outer_parens(value):
     value = value.strip()
@@ -114,7 +113,7 @@ class Map(object):
                  full_comparison=True):
         # Set Read/write attributes via their defined setters
         super(Map, self).__setattr__('_name', name)
-        tex = r'{\rm %s}' %name if tex is None else tex
+        tex = r'{\rm %s}' % name if tex is None else tex
         super(Map, self).__setattr__('_tex', tex)
         super(Map, self).__setattr__('_hash', hash)
         super(Map, self).__setattr__('_full_comparison', full_comparison)
@@ -133,7 +132,7 @@ class Map(object):
         # approximate poisson errors using sqrt(n)
         super(Map, self).__setattr__('_hist', unp.uarray(self._hist,
                                                          np.sqrt(self._hist)))
-    
+
     def set_errors(self, error_hist):
         self.assert_compat(error_hist)
         super(Map, self).__setattr__('_hist', unp.uarray(self._hist,
@@ -183,7 +182,7 @@ class Map(object):
     def __setattr__(self, attr, value):
         """Only allow setting attributes defined in slots"""
         if attr not in self._slots:
-            raise ValueError('Attribute "%s" not allowed to be set.' %attr)
+            raise ValueError('Attribute "%s" not allowed to be set.' % attr)
         super(Map, self).__setattr__(attr, value)
 
     def __getattr__(self, attr):
@@ -191,6 +190,10 @@ class Map(object):
 
     def __getitem__(self, idx):
         return self.index(idx)
+
+    def llh(self, other):
+        return llh(self.hist, other.hist)
+
 
     # TODO: is this a good behavior to have, setting the indexed value(s) of
     # .hist but leaving everything else alone? Seems like this should be left
@@ -261,34 +264,35 @@ class Map(object):
 
     @new_obj
     def __abs__(self):
-        return {'name':"|%s|" %(self.name,),
-                'tex':r"{\left| %s \right|}" %strip_outer_parens(self.tex),
-                'hist':np.abs(self.hist)}
+        return {#'name': "|%s|" % (self.name,),
+                #'tex': r"{\left| %s \right|}" % strip_outer_parens(self.tex),
+                'hist': np.abs(self.hist)}
 
     @new_obj
     def __add__(self, other):
         """Add `other` to self"""
         if np.isscalar(other) or type(other) is uncertainties.core.Variable:
             dict = {
-                'name':"(%s + %s)" %(self.name, other),
-                'tex':r"{(%s + %s)}" %(self.tex, other),
-                'hist':self.hist + other
+                #'name': "(%s + %s)" % (self.name, other),
+                #'tex': r"{(%s + %s)}" % (self.tex, other),
+                'hist': self.hist + other
             }
         elif isinstance(other, np.ndarray):
             dict = {
-                'name':"(%s + array)" %self.name,
-                'tex':r"{(%s + X)}" %self.tex,
-                'hist':self.hist + other
+                #'name': "(%s + array)" % self.name,
+                #'tex': r"{(%s + X)}" % self.tex,
+                'hist': self.hist + other
             }
         elif isinstance(other, Map):
             dict = {
-                'name':"(%s + %s)" %(self.name, other.name),
-                'tex':r"{(%s + %s)}" %(self.tex, other.tex),
-                'hist':self.hist + other.hist,
-                'full_comparison':self.full_comparison or other.full_comparison
+                #'name': "(%s + %s)" % (self.name, other.name),
+                #'tex': r"{(%s + %s)}" % (self.tex, other.tex),
+                'hist': self.hist + other.hist,
+                'full_comparison': (self.full_comparison or
+                                    other.full_comparison),
             }
         else:
-            type_error('other', other)
+            type_error(other)
         return dict
 
     #def __cmp__(self, other):
@@ -297,25 +301,26 @@ class Map(object):
     def __div__(self, other):
         if np.isscalar(other) or type(other) is uncertainties.core.Variable:
             dict = {
-                'name':"(%s / %s)" %(self.name, other),
-                'tex':r"{(%s / %s)}" %(self.tex, other),
-                'hist':self.hist / other
+                #'name': "(%s / %s)" % (self.name, other),
+                #'tex': r"{(%s / %s)}" % (self.tex, other),
+                'hist': self.hist / other
             }
         elif isinstance(other, np.ndarray):
             dict = {
-                'name':"(%s / array)" %self.name,
-                'tex':r"{(%s / X)}" %self.tex,
-                'hist':self.hist / other
+                #'name': "(%s / array)" % self.name,
+                #'tex': r"{(%s / X)}" % self.tex,
+                'hist': self.hist / other
             }
         elif isinstance(other, Map):
             dict = {
-                'name':"(%s / %s)" %(self.name, other.name),
-                'tex':r"{(%s / %s)}" %(self.tex, other.tex),
-                'hist':self.hist / other.hist,
-                'full_comparison':self.full_comparison or other.full_comparison
+                #'name': "(%s / %s)" % (self.name, other.name),
+                #'tex': r"{(%s / %s)}" % (self.tex, other.tex),
+                'hist': self.hist / other.hist,
+                'full_comparison': (self.full_comparison or
+                                    other.full_comparison),
             }
         else:
-            type_error('other', other)
+            type_error(other)
         return dict
 
     def __truediv__(self, other):
@@ -341,54 +346,56 @@ class Map(object):
                 or isinstance(other, np.ndarray):
             return (np.all(unp.nominal_values(self.hist)
                            == unp.nominal_values(other))
-                    and np.all(unp.std_devs(self.hist) == unp.std_devs(other)))
+                    and np.all(unp.std_devs(self.hist)
+                               == unp.std_devs(other)))
         elif isinstance(other, Map):
             if (self.full_comparison or other.full_comparison
                 or self.hash is None or other.hash is None):
                 return utils.recursiveEquality(self.state, other.state)
             return self.hash == other.hash
         else:
-            type_error('other', other)
+            type_error(other)
 
     @new_obj
     def log(self):
         return {
-            'name':"log(%s)" %self.name,
-            'tex':r"\ln\left( %s \right)" %self.tex,
-            'hist':np.log(self.hist)
+            #'name': "log(%s)" % self.name,
+            #'tex': r"\ln\left( %s \right)" % self.tex,
+            'hist': np.log(self.hist)
         }
 
     @new_obj
     def log10(self):
         return {
-            'name':"log10(%s)" %self.name,
-            'tex':r"\log_{10}\left( %s \right)" %self.tex,
-            'hist':np.log10(self.hist)
+            #'name': "log10(%s)" % self.name,
+            #'tex': r"\log_{10}\left( %s \right)" % self.tex,
+            'hist': np.log10(self.hist)
         }
 
     @new_obj
     def __mul__(self, other):
         if np.isscalar(other) or type(other) is uncertainties.core.Variable:
             dict = {
-                'name':"%s * %s" %(other, self.name),
-                'tex':r"%s \cdot %s" %(other, self.tex),
-                'hist':self.hist * other
+                #'name': "%s * %s" % (other, self.name),
+                #'tex': r"%s \cdot %s" % (other, self.tex),
+                'hist': self.hist * other
             }
         elif isinstance(other, np.ndarray):
             dict = {
-                'name':"array * %s" %self.name,
-                'tex':r"X \cdot %s" %self.tex,
-                'hist':self.hist * other,
+                #'name': "array * %s" % self.name,
+                #'tex': r"X \cdot %s" % self.tex,
+                'hist': self.hist * other,
             }
         elif isinstance(other, Map):
             dict = {
-                'name':"%s * %s" %(self.name, other.name),
-                'tex':r"%s \cdot %s" %(self.tex, other.tex),
-                'hist':self.hist * other.hist,
-                'full_comparison':self.full_comparison or other.full_comparison,
+                #'name': "%s * %s" % (self.name, other.name),
+                #'tex': r"%s \cdot %s" % (self.tex, other.tex),
+                'hist': self.hist * other.hist,
+                'full_comparison': (self.full_comparison or
+                                    other.full_comparison),
             }
         else:
-            type_error('other', other)
+            type_error(other)
         return dict
 
     def __ne__(self, other):
@@ -397,34 +404,35 @@ class Map(object):
     @new_obj
     def __neg__(self):
         return {
-            'name':"-%s" %self.name,
-            'tex':r"-%s" %self.tex,
-            'hist':-self.hist,
+            #'name': "-%s" % self.name,
+            #'tex': r"-%s" % self.tex,
+            'hist': -self.hist,
         }
 
     @new_obj
     def __pow__(self, other):
         if np.isscalar(other) or type(other) is uncertainties.core.Variable:
             dict = {
-                'name':"%s**%s" %(self.name, other),
-                'tex':"%s^{%s}" %(self.tex, other),
-                'hist':np.power(self.hist, other)
+                #'name': "%s**%s" % (self.name, other),
+                #'tex': "%s^{%s}" % (self.tex, other),
+                'hist': np.power(self.hist, other)
             }
         elif isinstance(other, np.ndarray):
             dict = {
-                'name':"%s**(array)" %self.name,
-                'tex':r"%s^{X}" %self.tex,
-                'hist':np.power(self.hist, other),
+                #'name': "%s**(array)" % self.name,
+                #'tex': r"%s^{X}" % self.tex,
+                'hist': np.power(self.hist, other),
             }
         elif isinstance(other, Map):
             dict = {
-                'name':"%s**(%s)" %(self.name, strip_outer_parens(other.name)),
-                'tex':r"%s^{%s}" %(self.tex, strip_outer_parens(other.tex)),
-                'hist':np.power(self.hist, other.hist),
-                'full_comparison':self.full_comparison or other.full_comparison,
+                #'name': "%s**(%s)" % (self.name, strip_outer_parens(other.name)),
+                #'tex': r"%s^{%s}" % (self.tex, strip_outer_parens(other.tex)),
+                'hist': np.power(self.hist, other.hist),
+                'full_comparison': (self.full_comparison or
+                                    other.full_comparison),
             }
         else:
-            type_error('other', other)
+            type_error(other)
         return dict
 
     def __radd__(self, other):
@@ -440,18 +448,18 @@ class Map(object):
     def __rdiv(self,oher):
         if np.isscalar(other) or type(other) is uncertainties.core.Variable:
             dict = {
-                'name':"(%s / %s)" %(other, self.name),
-                'tex':"{(%s / %s)}" %(other, self.tex),
-                'hist':other / self.hist,
+                #'name': "(%s / %s)" % (other, self.name),
+                #'tex': "{(%s / %s)}" % (other, self.tex),
+                'hist': other / self.hist,
             }
         elif isinstance(other, np.ndarray):
             dict = {
-                'name':"array / %s" %self.name,
-                'tex':"{(X / %s)}" %self.tex,
-                'hist':other / self.hist,
+                #'name': "array / %s" % self.name,
+                #'tex': "{(X / %s)}" % self.tex,
+                'hist': other / self.hist,
             }
         else:
-            type_error('other', other)
+            type_error(other)
         return dict
 
     def __rmul__(self, other):
@@ -467,51 +475,52 @@ class Map(object):
     def __rsub(self, other):
         if np.isscalar(other) or type(other) is uncertainties.core.Variable:
             dict = {
-                'name':"(%s - %s)" %(other, self.name),
-                'tex':"{(%s - %s)}" %(other, self.tex),
-                'hist':other - self.hist,
+                #'name': "(%s - %s)" % (other, self.name),
+                #'tex': "{(%s - %s)}" % (other, self.tex),
+                'hist': other - self.hist,
             }
         elif isinstance(other, np.ndarray):
             dict = {
-                'name':"(array - %s)" %self.name,
-                'tex':"{(X - %s)}" %self.tex,
-                'hist':other - self.hist,
+                #'name': "(array - %s)" % self.name,
+                #'tex': "{(X - %s)}" % self.tex,
+                'hist': other - self.hist,
             }
         else:
-            type_error('other', other)
+            type_error(other)
         return dict
 
     @new_obj
     def sqrt(self):
         return {
-            'name':"sqrt(%s)" %self.name,
-            'tex':r"\sqrt{%s}" %self.tex,
-            'hist':np.sqrt(self.hist),
+            #'name': "sqrt(%s)" % self.name,
+            #'tex': r"\sqrt{%s}" % self.tex,
+            'hist': np.sqrt(self.hist),
         }
 
     @new_obj
     def __sub__(self, other):
         if np.isscalar(other) or type(other) is uncertainties.core.Variable:
             dict = {
-                'name':"(%s - %s)" %(self.name, other),
-                'tex:':"{(%s - %s)}" %(self.tex, other),
-                'hist':self.hist - other,
+                #'name': "(%s - %s)" % (self.name, other),
+                #'tex': "{(%s - %s)}" % (self.tex, other),
+                'hist': self.hist - other,
             }
         elif isinstance(other, np.ndarray):
             dict = {
-                'name':"(%s - array)" %self.name,
-                'tex':"{(%s - X)}" %self.tex,
-                'hist':self.hist - other,
+                #'name': "(%s - array)" % self.name,
+                #'tex': "{(%s - X)}" % self.tex,
+                'hist': self.hist - other,
             }
         elif isinstance(other, Map):
             dict = {
-                'name':"%s - %s" %(self.name, other.name),
-                'tex':"{(%s - %s)}" %(self.tex, other.tex),
-                'hist':self.hist - other.hist,
-                'full_comparison':self.full_comparison or other.full_comparison,
+                #'name': "%s - %s" % (self.name, other.name),
+                #'tex': "{(%s - %s)}" % (self.tex, other.tex),
+                'hist': self.hist - other.hist,
+                'full_comparison': (self.full_comparison or
+                                    other.full_comparison),
             }
         else:
-            type_error('other', other)
+            type_error(other)
         return dict
 
 # TODO: instantiate individual maps from dicts if passed as such, so user
@@ -594,7 +603,7 @@ class MapSet(object):
             raise NotImplementedError('Keyword arguments are not handled')
 
         if not all([hasattr(mp, attr) for mp in self]):
-            raise AttributeError('All maps do not have attribute "%s"' %attr)
+            raise AttributeError('All maps do not have attribute "%s"' % attr)
 
         # Retrieve the corresponding callables from contained maps
         val_per_map = [getattr(mp, attr) for mp in self]
@@ -628,8 +637,8 @@ class MapSet(object):
                     elif self.collate_by_num:
                         this_map_args.append(arg[map_num])
                 else:
-                    raise TypeError('Unhandled arg %s of type %s'
-                                    %(arg, type(arg)))
+                    raise TypeError('Unhandled arg %s / type %s' %
+                                    (arg, type(arg)))
             args_per_map.append(tuple(this_map_args))
 
         # Make the method calls and collect returned values
@@ -644,7 +653,7 @@ class MapSet(object):
         if all([(r is None) for r in returned_vals]):
             return
 
-        # Otherwise put into an ordered dict with name:val pairs
+        # Otherwise put into an ordered dict with name: val pairs
         return self.collate_with_names(returned_vals)
 
     def __str__(self):
@@ -652,7 +661,7 @@ class MapSet(object):
             my_name = "'" + self.name + "'"
         else:
             my_name = super(MapSet, self).__repr__()
-        return "MapSet %s containing maps %s" %(my_name, self.names)
+        return "MapSet %s containing maps %s" % (my_name, self.names)
 
     def __repr__(self):
         return str(self)
@@ -713,7 +722,7 @@ class MapSet(object):
         #    return self.collate_with_names([getitem(m, item) for m in self])
         else:
             raise TypeError('getitem does not support `item` of type %s'
-                            %type(item))
+                            % type(item))
 
     def __abs__(self):
         return self.apply_to_maps('__abs__')
@@ -760,6 +769,15 @@ class MapSet(object):
     def __sub__(self, val):
         return self.apply_to_maps('__sub__', val)
 
+    def llh(self, other):
+        return self.apply_to_maps('llh', other)
+
+    def total_llh(self, other):
+        llhs = self.llh(other)
+        total_llh = 0
+        for n,v in llhs.items():
+            total_llh += v
+        return total_llh
 
 ## Now dynamically add all methods from Map to MapSet that don't already exist
 ## in MapSet (and make these methods distribute to contained maps)
@@ -774,11 +792,11 @@ class MapSet(object):
 #                  '__getitem__', '__eq__', '__ne__', '__str__', '__repr__')
 #    if method_name in disallowed:
 #        continue
-#    print 'adding method "%s" to MapSet as an apply func' %method_name
+#    print 'adding method "%s" to MapSet as an apply func' % method_name
 #    arg_str = ', *args' # if len(args) > 0 else ''
 #    eval('def {method_name}(self{arg_str}):\n'
 #         '    return self.apply_to_maps({method_name}{arg_str})'.format(method_name=method_name, arg_str=arg_str))
-#    #f.__doc__ = 'Apply method %s to all contained maps' %method_name
+#    #f.__doc__ = 'Apply method %s to all contained maps' % method_name
 #    #method = getattr(Map, method_name)
 #    #if method.__doc__:
 #    #    f.__doc__ += '... ' + method.__doc__
@@ -786,22 +804,22 @@ class MapSet(object):
 
 
 def test_Map():
-    import pickle
     e_binning = OneDimBinning(
-        name='energy', units='GeV', prefix='e', tex=r'E_\nu', n_bins=4,
+        name='energy', units='GeV', prefix='e', tex=r'E_\nu', n_bins=40,
         domain=(1,80), is_log=True
     )
     cz_binning = OneDimBinning(
-        name='coszen', units=None, prefix='cz', tex=r'\cos\,\theta', n_bins=10,
+        name='coszen', units=None, prefix='cz', tex=r'\cos\,\theta', n_bins=20,
         domain=(-1,0), is_lin=True
     )
     # set directly unumpy array with errors
     #m1 = Map(name='x', hist=unp.uarray(np.ones((40,20)),np.sqrt(np.ones((40,20)))), binning=(e_binning, cz_binning))
     # or call init poisson error afterwards
-    m1 = Map(name='x', hist=np.ones((4,10)), binning=(e_binning, cz_binning))
+    m1 = Map(name='x', hist=np.ones((40,20)), binning=(e_binning, cz_binning))
     m1.set_poisson_errors()
     # or no errors at all
-    m2 = Map(name='y', hist=2*np.ones((4,10)), binning=(e_binning, cz_binning))
+    m2 = Map(name='y', hist=2*np.ones((40,20)), binning=(e_binning,
+                                                         cz_binning))
 
     print m1, m1.binning
     print m2, m2.binning
@@ -829,13 +847,9 @@ def test_Map():
     r = m1 / m2
     assert r == ufloat(0.5,0.5)
     print r, '=', r[0,0]
-    copy(m1)
-    deepcopy(m1)
-    pickle.dumps(m1, pickle.HIGHEST_PROTOCOL)
 
 
 def test_MapSet():
-    import pickle
     n_ebins = 5
     n_czbins = 3
     e_binning = OneDimBinning(
@@ -897,9 +911,6 @@ def test_MapSet():
     print 'str(ms4)', str(ms4)
     print 'ms3', ms3
     print 'ms4', ms4
-    copy(ms1)
-    deepcopy(ms1)
-    pickle.dumps(ms1, pickle.HIGHEST_PROTOCOL)
 
 
 if __name__ == "__main__":
