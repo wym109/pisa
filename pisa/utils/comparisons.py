@@ -14,6 +14,8 @@ COMPLEX_TYPES = tuple(list(NP_TYPES) + list(SEQ_TYPES) + list(MAP_TYPES))
 
 def recursiveEquality(x, y):
     """Recursively verify equality between two objects x and y."""
+    # NOTE: The order in which types are compared matters.
+
     # pint unit
     if hasattr(x, 'units') and hasattr(x, 'magnitude'):
         return (x.u == y.u) and recursiveEquality(x.m, y.m)
@@ -58,6 +60,8 @@ def recursiveEquality(x, y):
 
     return True
 
+
+# TODO: Get recursiveAllclose working as recursiveEquality does.
 
 def recursiveAllclose(x, y, *args, **kwargs):
     """Recursively verify close-equality between two objects x and y. If
@@ -126,9 +130,8 @@ def recursiveAllclose(x, y, *args, **kwargs):
 
 
 def test_recursiveEquality():
-    from pisa.utils import logging
-    d1 = {'one':1, 'two':2, 'three': None}
-    d2 = {'one':1.0, 'two':2.0, 'three': None}
+    d1 = {'one':1, 'two':2, 'three': None, 'four': 'four'}
+    d2 = {'one':1.0, 'two':2.0, 'three': None, 'four': 'four'}
     d3 = {'one':np.arange(0, 100),
           'two':[{'three':{'four':np.arange(1, 2)}},
                  np.arange(3, 4)]}
