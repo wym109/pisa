@@ -2,6 +2,7 @@
 import numpy as np
 
 from pisa.core.binning import MultiDimBinning
+from pisa.core.map import MapSet
 
 
 class TransformSet(object):
@@ -71,13 +72,16 @@ class TransformSet(object):
 
 class Transform(object):
     # Attributes that __setattr__ will allow setting
-    _slots = ('_inputs', '_outputs', '_name', '_hash')
+    _slots = ('_inputs', '_output', '_name', '_tex', '_hash')
     # Attributes that should be retrieved to fully describe state
-    _state_attrs = ('inputs', 'outputs', 'name', 'hash')
+    _state_attrs = ('inputs', 'output', 'name', 'tex', 'hash')
 
-    def __init__(self, inputs, outputs, name=None, hash=None):
+    def __init__(self, inputs, output, name=None, tex=None, hash=None):
+        if isinstance(inputs, basestring):
+            inputs = [inputs]
         self._inputs = inputs
         self._output = output
+        self._tex = tex
         self.name = name
         self.hash = hash
 
@@ -138,8 +142,8 @@ class LinearTransform(Transform):
         self._input_binning = None
         self._output_binning = None
         self._xform_array = None
-        self.input_binning = input_binning
-        self.output_binning = output_binning
+        self.input_binning = MultiDimBinning(input_binning)
+        self.output_binning = MultiDimBinning(output_binning)
         self.xform_array = xform_array
         self.num_inputs = len(inputs)
         self.num_outputs = 1
@@ -187,13 +191,14 @@ class LinearTransform(Transform):
         #out_dim = [] if self.num_outputs == 1 else [self.num_outputs]
         #assert xform_array.shape == tuple(list(input_binning.shape) + in_dim +
         #                                  list(output_binning.shape) + out_dim)
+        pass
 
-    def validate_input(map_set):
-        for i in inputs:
+    def validate_input(self, map_set):
+        for i in self.inputs:
             assert i in map_set, 'Input "%s" not in input map set' % i
             assert map_set[i].binning == self.input_binning
 
-    # TODO: make the following work with multiple inputs (i.e., concatenate
+    # TODO: make _apply work with multiple inputs (i.e., concatenate
     # these into a higher-dimensional array) and make logic for applying
     # element-by-element multiply and tensordot generalize to any dimension
     # given the (concatenated) input dimension and the dimension of the linear
@@ -212,7 +217,6 @@ class LinearTransform(Transform):
             I.e., the first dimension of the input sent to the transform has
             length of number of maps being combined.
 
-
         Returns
         -------
         output_map : map
@@ -230,13 +234,19 @@ class LinearTransform(Transform):
         """
         self.validate_input(input_maps)
         if len(self.inputs) > 1:
-            input_map = np.stack([input_map[n]
-                                  for n in input_name in self.inputs])
+            input_map = np.stack([input_maps[n]
+                                  for n in self.inputs])
         else:
-            input_map = input_map[inputs[0]]
+            input_map = input_maps[self.inputs[0]]
 
         if self.xform_array.shape == input_map.shape:
             output_map = input_map * self.xform_array
+
+        # TODO: Check that
+        #   len(xform.shape) == 2*len(input.shape)
+        # and then check that
+        #   xform.shape == (input.shape, input.shape) (essentially)
+        # and then apply tensordot appropriately for this generic case...
         elif len(sub_xform.shape) == 4 and len(input_maps.shape) == 2:
             output_map = np.tensordot(input_map, sub_xform,
                                       axes=([0,1],[0,1]))
@@ -253,7 +263,56 @@ class LinearTransform(Transform):
 
 
 def test_LinearTransform():
-    pass
+    from pisa.core.map import Map, MapSet
+
+    binning = [
+        dict(name='energy', units='GeV', is_log=True, domain=(1,80),
+             n_bins=10),
+        dict(name='coszen', units=None, is_lin=True, domain=(-1,0), n_bins=5)
+    ]
+    input_maps = MapSet(
+        name='input',
+        maps=[
+            Map(
+                name='nue',
+                binning=binning,
+                hist=np.random.random((10, 5))
+            ),
+            Map(
+                name='numu',
+                binning=binning,
+                hist=np.random.random((10, 5))
+            )
+        ],
+    )
+
+    xform0 = LinearTransform(
+        name='nue_scale',
+        inputs=['nue'],
+        output='nue',
+        input_binning=binning,
+        output_binning=binning,
+        xform_array=2*np.ones((10,5)),
+    )
+
+    xform1 = LinearTransform(
+        name='numu_scale',
+        inputs=['numu'],
+        output='numu',
+        input_binning=binning,
+        output_binning=binning,
+        xform_array=3*np.ones((10,5)),
+    )
+
+    xform_set = TransformSet(
+        name='scaling',
+        transforms=[xform0, xform1],
+    )
+
+    output_maps = xform_set.apply(input_maps)
+    print 'input_maps:', input_maps
+    print 'output_maps:', output_maps
+    print 'out/in:', (output_maps / input_maps)[:,:].hist
 
 
 if __name__ == "__main__":
