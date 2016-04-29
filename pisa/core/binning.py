@@ -83,7 +83,7 @@ class OneDimBinning(object):
     def __init__(self, name, units, prefix=None, tex=None, bin_edges=None,
                  is_log=None, is_lin=None, n_bins=None, domain=None):
         # Store metadata about naming and units
-        assert isinstance(name, basestring)
+        assert isinstance(name, basestring), str(type(name))
         self.name = name
         if prefix is None or prefix == '':
             prefix = name
@@ -107,7 +107,7 @@ class OneDimBinning(object):
         # log or linear spacing are all required to generate bins
         if bin_edges is None:
             assert n_bins is not None and domain is not None \
-                    and (is_log or is_lin)
+                    and (is_log or is_lin), '%s, %s' %(n_bins, domain)
             if is_log:
                 is_lin = False
                 bin_edges = np.logspace(np.log10(np.min(domain)),
@@ -121,15 +121,17 @@ class OneDimBinning(object):
 
         # If bin edges are pint Quantity (i.e., have units)
         if hasattr(bin_edges, 'units') and hasattr(bin_edges, 'magnitude'):
-            assert bin_edges.dimensionality == units.dimensionality
+            assert bin_edges.dimensionality == units.dimensionality, \
+                    '%s vs. %s' %(bin_edges.dimensionality,
+                                  units.dimensionality)
             bin_edges = bin_edges.magnitude
 
         bin_edges = np.array(bin_edges)
         if is_lin:
-            assert self.is_bin_spacing_lin(bin_edges)
+            assert self.is_bin_spacing_lin(bin_edges), str(bin_edges)
             is_log = False
         elif is_log:
-            assert self.is_binning_ok(bin_edges, is_log=True)
+            assert self.is_binning_ok(bin_edges, is_log=True), str(bin_edges)
             is_lin = False
         else:
             is_lin = self.is_bin_spacing_lin(bin_edges)
@@ -149,7 +151,8 @@ class OneDimBinning(object):
         if n_bins is None:
             n_bins = len(self.bin_edges) - 1
         else:
-            assert n_bins == len(self.bin_edges) - 1
+            assert n_bins == len(self.bin_edges) - 1, \
+                    '%s, %s' %(n_bins, self.bin_edges)
         self.n_bins = n_bins
 
         self.domain = np.array([self.bin_edges[0].m,
@@ -305,7 +308,7 @@ class OneDimBinning(object):
         """
         if self.units != other.units:
             return False
-        my_edges, other_edges = set(self.ebins), set(other.ebins)
+        my_edges, other_edges = set(self.bin_edges), set(other.bin_edges)
         if len(my_edges.difference(other_edges)) == 0:
             return True
         if len(other_edges.difference(my_edges)) == 0:
@@ -327,7 +330,7 @@ class OneDimBinning(object):
         -------
         OneDimBinning object
         """
-        assert factor >= 1 and factor == int(factor)
+        assert factor >= 1 and factor == int(factor), str(factor)
         factor = int(factor)
         if self.is_log:
             bin_edges = np.logspace(np.log10(self.domain[0].m),
@@ -413,6 +416,7 @@ class OneDimBinning(object):
 
         """
         magnitude = self.bin_edges.magnitude
+        orig_index = index
 
         # Simple to get all but final bin edge
         bin_edges = magnitude[index].tolist()
@@ -428,12 +432,16 @@ class OneDimBinning(object):
         if isinstance(index, int):
             index = [index]
         if isinstance(index, collections.Sequence):
+            if len(index) == 0:
+                raise ValueError('`index` "%s" results in no bins being'
+                                 ' specified.' %orig_index)
             if len(index) > 1 and not np.all(np.diff(index) == 1):
-                raise ValueError('Bins indices must be monotonically'
+                raise ValueError('Bin indices must be monotonically'
                                  ' increasing and adjacent.')
             new_edges = set()
             for bin_index in index:
-                assert(bin_index >= -len(self) and bin_index < len(self))
+                assert(bin_index >= -len(self) and bin_index < len(self)), \
+                        str(bin_index)
                 edge_ind0 = bin_index % len(self)
                 edge_ind1 = edge_ind0 + 1
                 new_edges = new_edges.union((self.bin_edges[edge_ind0].m,
@@ -513,21 +521,22 @@ class MultiDimBinning(object):
         """
         return tuple([d.state for d in self])
 
-    def oversample(self, *factors):
+    def oversample(self, *args):
         """Return a Binning object oversampled relative to this binning.
 
         Parameters
         ----------
-        *factors : each factor an int
-            Factors by which to oversample the binnings, with `e_factor` times
-            as many energy bins and `cz_factor` times as many cosine-zenith
-            bins
+        *args : each factor an int
+            Factors by which to oversample the binnings. There must either be
+            one factor (one arg)--which will be broadcast to all dimensions--or
+            there must be as many factors (args) as there are dimensions.
 
         """
         if len(factors) == 1:
             factors = [factors[0]]*self.n_dims
         else:
-            assert len(factors) == self.n_dims
+            assert len(factors) == self.n_dims, \
+                    '%s vs. %s' %(len(factors), self.n_dims)
         return MultiDimBinning(*tuple([dim.oversample(f)
                                        for dim, f in izip(self, factors)]))
 
@@ -561,7 +570,7 @@ class MultiDimBinning(object):
                 if isinstance(val, MultiDimBinning):
                     other = val
                     break
-        assert isinstance(other, MultiDimBinning)
+        assert isinstance(other, MultiDimBinning), str(type(other))
         if other == self:
             return True
         for my_dim, other_dim in zip(self, other):
@@ -644,6 +653,12 @@ def test_OneDimBinning():
     print 'copy(b1):', copy(b1)
     print 'deepcopy(b1):', deepcopy(b1)
     pickle.dumps(b1, pickle.HIGHEST_PROTOCOL)
+    try:
+        b1[-1:-3]
+    except ValueError:
+        pass
+    else:
+        assert False
 
 
 def test_MultiDimBinning():
