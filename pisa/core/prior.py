@@ -9,7 +9,7 @@
 from copy import deepcopy
 
 import numpy as np
-from scipy.interpolate import splev
+from scipy.interpolate import splev, interp1d
 from scipy.optimize import fminbound
 from operator import setitem
 import collections
