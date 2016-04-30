@@ -4,10 +4,10 @@ import numpy as np
 import pint
 units = pint.UnitRegistry()
 
-class Flux(NoInputStage):
+class dummy(NoInputStage):
     """
-    This is a Flux Service just for testing purposes, generating a random map m1 and a map containing ones as m2
-    a parameter test is required
+    This is a Flux Service just for testing purposes, generating a random map
+    m1 and a map containing ones as m2 a parameter test is required
     """
     def __init__(self, params, example_file, output_binning, 
                 service, oversample_e=1, oversample_cz=1):
@@ -15,7 +15,8 @@ class Flux(NoInputStage):
         expected_params = ['atm_delta_index', 'energy_scale', 'nu_nubar_ratio',
                             'nue_numu_ratio', 'test']
         # call parent constructor
-        super(Flux, self).__init__(stage_name='flux', service_name=service,
+        super(self.__class__, self).__init__(stage_name='flux',
+                                             service_name=service,
                 params=params, expected_params=expected_params)
         # asign other attributes
         self.filename = example_file
@@ -40,5 +41,6 @@ class Flux(NoInputStage):
 
     def validate_params(self, params):
         # do some checks on the parameters
-        assert params['test'].value.dimensionality == units.meter.dimensionality
+        assert (params['test'].value.dimensionality ==
+                units.meter.dimensionality)
         assert params['test'].value.magnitude >= 0
