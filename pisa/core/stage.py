@@ -71,7 +71,7 @@ class GenericStage(object):
     Override
     --------
     The following methods should be overridden in derived classes
-        get_output_map_set
+        get_outputs
             Do the actual work to produce the stage's output.
         validate_params
             Perform validation on any parameters.
@@ -89,18 +89,24 @@ class GenericStage(object):
         if params is not None:
             self.params = params
 
-    def get_output_map_set(self):
+    def get_outputs(self):
         raise NotImplementedError()
 
     def check_params(self, params):
-        """ make sure that expected_params is defined and that exactly the params specifued in
-        self.expected_params are present """
+        """ make sure that expected_params is defined and that exactly the
+        params specifued in self.expected_params are present """
         assert self.expected_params is not None
-        try:
-            assert sorted(self.expected_params) == list(params.names) 
-        except AssertionError:
-            raise Exception('Expected parameters %s while getting\
-                    %s'%(self.expected_params, list(params.names)))
+        exp_p, got_p = set(self.expected_params), set(params.names)
+        if exp_p == got_p:
+            return
+        excess = got_p.difference(exp_p)
+        missing = exp_p.difference(got_p)
+        err_strs = []
+        if len(excess) > 0:
+            err_strs.append('Excess params provided: %s' %sorted(excess))
+        if len(missing) > 0:
+            err_strs.append('Missing params: %s' %sorted(missing))
+        raise ValueError('Expected parameters: %s;\n' + ';\n'.join(err_strs))
 
     def validate_params(self, params):
         """ method to test if params are valid, e.g. check range and
@@ -147,17 +153,17 @@ class NoInputStage(GenericStage):
         self.result_cache_depth = result_cache_depth
         self.result_cache = cache_class(self.result_cache_depth, is_lru=True)
 
-    def get_output_map_set(self):
+    def get_outputs(self):
         """Compute output maps."""
         result_hash = self.params.values_hash
         try:
             return self.result_cache[result_hash]
         except KeyError:
             pass
-        output_map_set = self._derive_output()
-        output_map_set.hash = result_hash
-        self.result_cache[result_hash] = output_map_set
-        return output_map_set
+        outputs = self._derive_output()
+        outputs.hash = result_hash
+        self.result_cache[result_hash] = outputs
+        return outputs
 
     def _derive_output(self, **kwargs):
         """Each stage implementation (aka service) must override this method"""
@@ -180,47 +186,62 @@ class InputStage(GenericStage):
         self.result_cache_depth = result_cache_depth
         self.result_cache = cache_class(self.result_cache_depth, is_lru=True)
 
-    def get_output_map_set(self, input_map_set):
-        """Compute output maps by applying the transform to input maps.
+    def get_outputs(self, inputs):
+        """Compute output maps by applying the transforms to input maps.
 
         Parameters
         ----------
-        input_map_set : MapSet
+        inputs : MapSet
+
+        Notes
+        -----
+        Caching is handled within the TransformSet and each Transform, so as
+        to allow "sideband" objects to be passed through to the output; these
+        are objects upon which the parameters and transforms have no effect,
+        and so should not be cached alongside the computed outputs (but should
+        be passed along through the stage).
 
         """
-        xform = self.get_transform()
-        result_hash = hash_obj(input_map_set.hash + xform.hash)
-        try:
-            return self.result_cache[result_hash]
-        except KeyError:
-            pass
-        output_map_set = xform.apply(input_map_set)
-        output_map_set.hash = result_hash
-        self.result_cache[result_hash] = output_map_set
-        return output_map_set
+        xforms = self.get_transforms(cache=self.transform_cache)
+        outputs = xforms.apply(inputs, cache=self.result_cache)
+        return outputs
 
-    def get_transform(self):
-        """Load a cached transform (keyed on hash of free parameters) if it is
-        in the cache, or else derive a new transform from currently-set
+    def get_transforms(self, cache=None):
+        """Load a cached transform (keyed on hash of parameter values) if it
+        is in the cache, or else derive a new transform from currently-set
         parameter values and store this new transform to the cache.
+
+        This calls the private method _derive_transforms, which must be
+        implemented in subclasses, to generate a new transform if none is in
+        the cache already.
 
         Notes
         -----
         The hash used here is only meant to be valid within the scope of a
         session; a hash on the full parameter set used to generate the
-        transform, as well as the version of the generating software, is
-        required for non-volatile storage.
-        """
-        xform_hash = self.params.values_hash
-        try:
-            return self.transform_cache[xform_hash]
-        except KeyError:
-            pass
-        xform = self._derive_transform()
-        xform.hash = xform_hash
-        #self.transform_cache[cache_key] = xform
-        return xform
+        transform *and* the version of the generating software is required for
+        non-volatile storage.
 
-    def _derive_transform(self, **kwargs):
+        """
+        # Generate hash from param values
+        pval_hash = self.params.values_hash
+        print 'pnames:', self.params.names
+        print 'pvals:', [v.m for v in self.params.values]
+        print 'pval_hash:', pval_hash
+
+        # Load and return existing transforms if in the cache
+        if cache is not None and pval_hash in cache:
+            return self.transform_cache[pval_hash]
+
+        # Otherwise: compute transforms anew, set hash value, and store to
+        # cache
+        xforms = self._derive_transforms()
+        xforms.hash = pval_hash
+        if cache is not None:
+            cache[pval_hash] = xforms
+
+        return xforms
+
+    def _derive_transforms(self, **kwargs):
         """Each stage implementation (aka service) must override this method"""
         raise NotImplementedError()
