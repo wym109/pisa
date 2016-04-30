@@ -103,10 +103,13 @@ class GenericStage(object):
         missing = exp_p.difference(got_p)
         err_strs = []
         if len(excess) > 0:
-            err_strs.append('Excess params provided: %s' %sorted(excess))
+            err_strs.append('Excess params provided: %s'
+                            %', '.join(sorted(excess)))
         if len(missing) > 0:
-            err_strs.append('Missing params: %s' %sorted(missing))
-        raise ValueError('Expected parameters: %s;\n' + ';\n'.join(err_strs))
+            err_strs.append('Missing params: %s'
+                            %', '.join(sorted(missing)))
+        raise ValueError('Expected parameters: %s;\n' %', '.join(sorted(exp_p))
+                         + ';\n'.join(err_strs))
 
     def validate_params(self, params):
         """ method to test if params are valid, e.g. check range and
