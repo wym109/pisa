@@ -8,6 +8,7 @@
 
 from functools import total_ordering
 from collections import OrderedDict, Sequence
+from operator import setitem
 
 import numpy as np
 
@@ -67,7 +68,7 @@ class Param(object):
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
-        return recursiveEquality(self.state,other.state)
+        return recursiveEquality(self.state, other.state)
         #if not isinstance(other, self.__class__):
         #    return False
         #for slot in self._state_attrs:
@@ -116,8 +117,7 @@ class Param(object):
     @property
     def state(self):
         state = OrderedDict()
-        [state.__setitem__(a, self.__getattribute__(a))
-         for a in self._state_attrs]
+        [setitem(state, a, getattr(self, a)) for a in self._state_attrs]
         return state
 
     @property
@@ -200,18 +200,24 @@ class ParamSet(object):
 
     Methods
     -------
+    extend(obj)
+        Call `update` with existing_must_match=True and extend=True
     fix(vals)
         Set param found at each `index(val)` to be fixed.
     index(val)
         Locate and return index given `val` which can be an int (index), str
         (name), or Param object (an actual item in the set).
     replace(new)
-        Replace param
+        Replace param (by name)
     unfix(vals)
         Set param at each `index(val)` to be free.
-    update(obj)
-        Update this param set using obj (if a Param, ParamSet, or sequence
-        thereof)
+    update(obj, existing_must_match=False, extend=True)
+        Update this param set using obj (a Param, ParamSet, or sequence
+        thereof), optionally enforcing existing param values to match
+        those in both `obj` and self, and optionally extending the
+        current param set with any new params in `obj`
+    update_existing(obj)
+        Call `update` with existing_must_match=False and extend=False
     __getitem__
     __iter__
     __len__
@@ -274,38 +280,63 @@ class ParamSet(object):
         for name in x:
             self[self.index(name)].is_fixed = False
 
-    def update(self, obj):
+    def update(self, obj, existing_must_match=False, extend=True):
         """Update this param set using `obj`.
+
+        Default behavior is similar to Python's dict.update, but this can be
+        modified via `existing_must_match` and `extend`.
 
         Parameters
         ----------
         obj : Param, ParamSet, or sequence thereof
+            Param or container with params to update and/or extend this param
+            set
+        existing_must_match : bool
+            If True, raises ValueError if param values passed in that already
+            exist in this param set have differing values.
+        extend : bool
+            If True, params not in this param set are appended.
 
         """
         if isinstance(obj, Sequence) or isinstance(obj, ParamSet):
-            [self.update(p) for p in obj]
+            for param in obj:
+                self.update(param,
+                            existing_must_match=existing_must_match,
+                            extend=extend)
             return
         if not isinstance(obj, Param):
             raise ValueError('`obj`="%s" is not a Param' % (obj))
         param = obj
         if param.name in self.names:
+            if existing_must_match and param != self[param.name]:
+                raise ValueError(
+                    'param "%s" has value (%s), which contradicts'
+                    ' internally-stored value (%s).'
+                    %(param.name, param.value, self[param.name].value)
+                )
             self.replace(param)
-        else:
+        elif extend:
             self._params.append(param)
 
     def extend(self, obj):
-        if isinstance(obj, Sequence) or isinstance(obj, ParamSet):
-            [self.extend(p) for p in obj]
-            return
-        if not isinstance(obj, Param):
-            raise ValueError('`obj`="%s" not a Param' % (obj,))
-        param = obj
-        if param.name in self.names:
-            try:
-                assert param == self[param.name]
-            except AssertionError:
-                raise Exception('got parameter %s twice with different values!'%param.name)
-        self.update(param)
+        """Append param(s) in `obj` to this param set, but ensure params in
+        `obj` that are already in this param set match.
+
+        Convenience method or calling `update` with existing_must_match=True
+        and extend=True.
+
+        """
+        self.update(obj, existing_must_match=True, extend=True)
+
+    def update_existing(self, obj):
+        """Only existing params in this set are updated by that(those) param(s)
+        in obj.
+
+        Convenience method for calling `update` with
+        existing_must_match=False and extend=False.
+
+        """
+        self.update(obj, existing_must_match=False, extend=False)
 
     def __len__(self):
         return len(self._params)
@@ -361,8 +392,7 @@ class ParamSet(object):
     @values.setter
     def values(self, values):
         assert len(values) == len(self._params)
-        [self._params[i].__setattr__('value', val)
-         for i,val in enumerate(values)]
+        [setattr(self._params[i], 'value', val) for i,val in enumerate(values)]
 
     @property
     def nominal_values(self):
@@ -371,7 +401,7 @@ class ParamSet(object):
     @nominal_values.setter
     def nominal_values(self, values):
         assert len(values) == len(self._params)
-        [self._params[i].__setattr__('nominal_value', val)
+        [setattr(self._params[i], 'nominal_value', val)
          for i,val in enumerate(nominal_values)]
 
     @property
@@ -381,8 +411,7 @@ class ParamSet(object):
     @priors.setter
     def priors(self, values):
         assert len(values) == len(self._params)
-        [self._params[i].__setattr__('prior', val)
-         for i,val in enumerate(values)]
+        [setattr(self._params[i], 'prior', val) for i,val in enumerate(values)]
 
     @property
     def priors_llh(self):
@@ -399,8 +428,7 @@ class ParamSet(object):
     @ranges.setter
     def ranges(self, values):
         assert len(values) == len(self._params)
-        [self._params[i].__setattr__('range', val)
-         for i,val in enumerate(values)]
+        [setattr(self._params[i], 'range', val) for i,val in enumerate(values)]
 
     @property
     def scales(self):
@@ -409,8 +437,7 @@ class ParamSet(object):
     @scales.setter
     def scales(self, values):
         assert len(values) == len(self._params)
-        [self._params[i].__setattr__('scale', val)
-         for i,val in enumerate(values)]
+        [setattr(self._params[i], 'scale', val) for i,val in enumerate(values)]
 
     @property
     def state(self):

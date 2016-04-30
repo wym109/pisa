@@ -37,18 +37,21 @@ class TemplateMaker(object):
                             self.stages[-1].output_binning
             self.stages.append(stage)
 
-    def get_outputs(self, idx=None, return_intermediate=False):
+    # TODO: should we have an input_objs arg here?
+    def get_outputs(self, input_objs=None, idx=None, return_intermediate=False):
         intermediate = []
         for stage in self.stages[:idx]:
             print 'working on stage %s' %stage.stage_name
             if isinstance(stage, NoInputStage):
                 output_objs = stage.get_outputs()
             else:
-                input_objs = output_objs
                 output_objs = stage.get_outputs(input_objs)
 
             if return_intermediate:
                 intermediate.append(output_objs)
+
+            # Outputs from this stage become next stage's inputs
+            input_objs = output_objs
 
         if return_intermediate:
             return intermediate
@@ -64,8 +67,8 @@ class TemplateMaker(object):
 
     def update_params(self, params):
         for stage in self.stages:
-            stage.params.update(params)
-            
+            stage.params.update_existing(params)
+
 
 if __name__ == '__main__':
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
@@ -83,7 +86,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     template_settings = from_file(args.template_settings)
-    template_settings = parse_cfg(template_settings) 
+    template_settings = parse_cfg(template_settings)
 
     template_maker = TemplateMaker(template_settings)
     m0 = template_maker.get_outputs()
