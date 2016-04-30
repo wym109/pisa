@@ -10,7 +10,8 @@ from pisa.utils.hash import hash_obj
 # so we can trnsparently handle e.g. events alongside maps where one is a
 # sideband object for the other in a given stage)
 
-# TODO: Add Sequence capabilities to TransformSet (e.g. it'd be nice to have at least append, extend, ...)
+# TODO: Add Sequence capabilities to TransformSet (e.g. it'd be nice to have at
+# least append, extend, ...)
 class TransformSet(object):
     """
     Parameters

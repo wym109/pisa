@@ -1,15 +1,28 @@
 #! /usr/bin/env python
 # authors: J.Lanfranchi/P.Eller
-# date:   March 20, 2016
+# date:    March 20, 2016
+
+from collections import Sequence
 
 from pisa.core.template_maker import TemplateMaker
 
 class Analysis(object):
-    def __init__(self, configs):
+    def __init__(self, pipeline_configs):
+        if isinstance(pipeline_configs, basestring) \
+                or not hasattr(pipeline_configs, '__iter__'):
+            pipeline_configs = [pipeline_configs]
         self.pipelines = []
-        for config in configs:
-            template_settings = parse_cfg(config)
-            self.pipelines.append(TemplateMaker(template_settings))
+        for pipeline_config in pipeline_configs:
+            pipeline_settings = parse_config(pipeline_config)
+            self.pipelines.append(TemplateMaker(pipeline_settings))
+
+    def __iter__(self):
+        return iter(self.pipelines)
+
+    def __getattr__(self, attr):
+        for pipeline in self:
+            if pipeline.name == attr:
+                return pipeline
 
     def scan(self, pname, values, metric='llh'):
         metric_vals = []
@@ -29,22 +42,25 @@ if __name__ == '__main__':
     import pint
     ureg = pint.UnitRegistry()
     from pisa.utils.fileio import from_file, to_file
-    from pisa.utils.parse_cfg import parse_cfg
+    from pisa.utils.parse_config import parse_config
 
     parser = ArgumentParser()
+    parser.add_argument('--data-settings', type=str,
+                        metavar='configfile', required=True,
+                        help='settings for the generation of "data"')
     parser.add_argument('--template-settings', type=str,
                         metavar='configfile', required=True,
-                        help='''settings for the template generation''')
+                        help='settings for the generation of templates')
     parser.add_argument('--outfile', metavar='FILE',
                         type=str, action='store', default="out.json",
                         help='file to store the output')
     args = parser.parse_args()
 
-    template_settings0 = from_file(args.template_settings)
-    template_settings0.set('stage:flux', 'param.test.fixed', 'True')
-    template_settings1 = from_file(args.template_settings)
+    data_settings = from_file(args.data_settings)
+    data_settings.set('stage:flux', 'param.test.fixed', 'True')
+    template_settings = from_file(args.template_settings)
 
-    ana = Analysis([template_settings0, template_settings1])
+    ana = Analysis([data_settings, template_settings])
     print ana.scan('test', np.arange(0,10,1)*ureg.foot, metric='llh')
     print ana.scan('atm_delta_index', np.arange(0,10,1)*ureg.dimensionless,
                    metric='llh')

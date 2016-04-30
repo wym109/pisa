@@ -526,7 +526,13 @@ class Map(object):
 # TODO: instantiate individual maps from dicts if passed as such, so user
 # doesn't have to instantiate each map. Also, check for name collisions with
 # one another and with attrs (so that __getattr__ can retrieve the map by name)
+
 # TODO: add docstrings
+
+# TODO: add "closeness_metric" or something, to accommodate llh, chi2,
+# barlow_llh, conv_llh, (etc.) via metric='...' arg (interface to both Map and
+# MapSet)
+
 class MapSet(object):
     """
     Set of maps.
@@ -773,10 +779,8 @@ class MapSet(object):
         return self.apply_to_maps('llh', other)
 
     def total_llh(self, other):
-        llhs = self.llh(other)
-        total_llh = 0
-        for n,v in llhs.items():
-            total_llh += v
+        log_likelihoods = self.llh(other)
+        total_llh = np.sum(log_likelihoods.values())
         return total_llh
 
 ## Now dynamically add all methods from Map to MapSet that don't already exist

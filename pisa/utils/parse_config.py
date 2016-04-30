@@ -1,30 +1,33 @@
+# author: P.Eller
+#         pde3+pisa@psu.edu
 #
-# fileio.py
-#
-# A set of utility function for generic file IO
-#
-# author: Justin Lanfranchi
-#         jll1062@phys.psu.edu
-#
-# date:   2015-06-13
-'''  Parse a ConfigFile object into a dict containing a an entry for every
+# date:   2016-04-28
+"""
+Parse a ConfigFile object into a dict containing a an entry for every
 stages, that contains values indicated by param. as a param set, binning as
-binning objects and all other values as ordinary strings '''
+binning objects and all other values as ordinary strings
+"""
+
+from collections import OrderedDict
+
+import numpy as np
+import uncertainties
+from uncertainties import unumpy as unp
+from uncertainties import ufloat, ufloat_fromstr
+import pint
+ureg = pint.UnitRegistry()
+# Config files use "uinits." to describe units, so ureg is also referred to as
+# "units"
+units = ureg
 
 from pisa.core.prior import Prior
 from pisa.core.param import Param, ParamSet
 from pisa.utils.log import logging
-import uncertainties
-from uncertainties import unumpy as unp
-from uncertainties import ufloat, ufloat_fromstr
-import numpy as np
-import pint
-from collections import OrderedDict
-units = pint.UnitRegistry()
 from pisa.core.binning import OneDimBinning, MultiDimBinning
 
+
 def parse_quantity(string):
-    value = string.replace(' ','')
+    value = string.replace(' ', '')
     if 'units.' in value:
         value, unit = value.split('units.')
     else:
@@ -33,19 +36,23 @@ def parse_quantity(string):
     if '+/-' in value:
         value = ufloat_fromstr(value)
     else:
-        value = ufloat(float(value),0)
-    value *= units(unit)
+        value = ufloat(float(value), 0)
+    value *= ureg(unit)
     return value 
+
 
 def list_split(string):
     list = string.split(',')
     return [x.strip() for x in list]
 
-def parse_cfg(config):
+
+def parse_config(config):
+    if isinstance(config, basestring):
+        config = from_file(config)
     # create binning objects
     binningDict = {}
-    order = list_split(config.get('binning','order'))
-    binnings = list_split(config.get('binning','binnings'))
+    order = list_split(config.get('binning', 'order'))
+    binnings = list_split(config.get('binning', 'binnings'))
     for binning in binnings:
         bins = []
         for bin_name in order:
@@ -55,7 +62,7 @@ def parse_cfg(config):
 
     dict = OrderedDict()
     # find pipline setting
-    pipeline_order = list_split(config.get('pipeline','order'))
+    pipeline_order = list_split(config.get('pipeline', 'order'))
     for item in pipeline_order:
         stage, service = item.split(':')    
         section = 'stage:' + stage
@@ -67,44 +74,56 @@ def parse_cfg(config):
             param_selector = config.get(section, 'param_selector')
         else:
             param_selector = ''
+
         for name, value in config.items(section):
             if name.startswith('param.'):
                 # find parameter root
-                if name.startswith('param.'+ param_selector + '.') and name.count('.') == 2:
+                if name.startswith('param.'+ param_selector + '.') and \
+                        name.count('.') == 2:
                     _, _, pname = name.split('.')
                 elif name.startswith('param.') and name.count('.') == 1:
                     _, pname = name.split('.')
-                else: continue
+                else:
+                    continue
+
                 value = parse_quantity(value)
                 # default behaviour
                 args = {'name':pname, 'value':value.n * value.units,
-                    'is_fixed':True, 'prior':None, 'range':None}
+                        'is_fixed':True, 'prior':None, 'range':None}
                 # search for explicit specifications
                 if config.has_option(section, name + '.fixed'):
                     args['is_fixed'] = config.getboolean(section, name +
-                            '.fixed')
+                                                         '.fixed')
                 if config.has_option(section, name + '.scale'):
                     args['scale'] = config.getfloat(section, name + '.scale')
+
                 if config.has_option(section, name + '.prior'):
                     #ToDo other priors than gaussian
                     args['prior'] = config.get(section, name + '.prior')
+
                 elif value.s != 0:
-                    args['prior'] = Prior(kind='gaussian',fiducial=value.n,
-                            sigma = value.s)
+                    args['prior'] = Prior(kind='gaussian', fiducial=value.n,
+                                          sigma = value.s)
+
                 if config.has_option(section, name + '.range'):
                     range = config.get(section, name + '.range')
                     if 'nominal' in range:
                         nominal = value.n * value.units
                     if 'sigma' in range:
                         sigma = value.s * value.units
-                    range = range.replace('[','np.array([')
-                    range = range.replace(']','])')
+                    range = range.replace('[', 'np.array([')
+                    range = range.replace(']', '])')
                     args['range'] = eval(range)
+
                 params.append(Param(**args))
+
             elif 'binning' in name:
                 dict[stage][name] = binningDict[value]
+
             elif not name == 'param_selector':
                 dict[stage][name] = value
+
         if len(params) > 0:
             dict[stage]['params'] = ParamSet(*params)
+
     return dict

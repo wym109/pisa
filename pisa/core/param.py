@@ -17,6 +17,10 @@ import pisa.resources.resources as resources
 from pisa.utils.comparisons import recursiveEquality
 from pisa.utils.hash import hash_obj
 
+# TODO: eliminate "scale" parameter, as this should be dynamically computed
+# from the range for the sake of the minimizer (ranges published to minimizer
+# should be in hypercube in [0,1]). Possibly introduce a "display_scale"
+# parameter instead if this is desired for plots and whatnot.
 
 @total_ordering
 class Param(object):
@@ -310,9 +314,9 @@ class ParamSet(object):
         if param.name in self.names:
             if existing_must_match and param != self[param.name]:
                 raise ValueError(
-                    'param "%s" has value (%s), which contradicts'
-                    ' internally-stored value (%s).'
-                    %(param.name, param.value, self[param.name].value)
+                    'Param "%s" specified as\n\n%s\n\ncontradicts'
+                    ' internally-stored version\n\n%s'
+                    %(param.name, param, self[param.name])
                 )
             self.replace(param)
         elif extend:
