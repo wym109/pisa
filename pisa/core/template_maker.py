@@ -1,9 +1,12 @@
 #! /usr/bin/env python
 # authors: J.Lanfranchi/P.Eller
 # date:   March 20, 2016
-import pisa.core.stage
+
 import importlib
+
+from pisa.core.stage import NoInputStage, InputStage
 from pisa.core.param import ParamSet
+
 
 class TemplateMaker(object):
     """ instantiate stages according to config; excecute stages """
@@ -13,39 +16,44 @@ class TemplateMaker(object):
 
     def init_stages(self):
         self.stages = []
-        for i,stage_name in enumerate(self.config.keys()):
-            service = self.config[stage_name.lower()]['service']
+        for stage_num, stage_name in enumerate(self.config.keys()):
+            service = self.config[stage_name.lower()]['service'].lower()
             # factory
             # import stage service
-            module = importlib.import_module('pisa.stages.%s.%s'%(stage_name.lower(), service))
+            module = importlib.import_module('pisa.stages.%s.%s'
+                                             %(stage_name.lower(), service))
             # get class
-            cls = getattr(module,stage_name.title())
+            cls = getattr(module, service)
             # instanciate object
             stage = cls(**self.config[stage_name.lower()])
-            if i == 0:
-                assert isinstance(stage, pisa.core.stage.NoInputStage)
+            if stage_num == 0:
+                assert isinstance(stage, NoInputStage)
             else:
-                assert isinstance(stage, pisa.core.stage.InputStage)
+                assert isinstance(stage, InputStage)
                 # make sure the biinings match, if there are any
                 if hasattr(stage, 'input_binning'):
                     assert hasattr(self.stages[-1], 'output_binning')
-                    assert stage.input_binning == self.stages[-1].output_binning
+                    assert stage.input_binning == \
+                            self.stages[-1].output_binning
             self.stages.append(stage)
 
-    def get_output_map_set(self, idx=None, all_map_sets=False):
-        if all_map_sets:
-            outputs = []
-        for i,stage in enumerate(self.stages[:idx]):
-            print 'working on stage %s'%stage.stage_name
-            if i == 0:
-                map_set = stage.get_output_map_set()
+    def get_outputs(self, idx=None, return_intermediate=False):
+        intermediate = []
+        for stage in self.stages[:idx]:
+            print 'working on stage %s' %stage.stage_name
+            if isinstance(stage, NoInputStage):
+                output_objs = stage.get_outputs()
             else:
-                map_set = stage.get_output_map_set(map_set)
-            if all_map_sets:
-                outputs.append(map_set)
-        if all_map_sets:
-            return outputs
-        return map_set
+                input_objs = output_objs
+                output_objs = stage.get_outputs(input_objs)
+
+            if return_intermediate:
+                intermediate.append(output_objs)
+
+        if return_intermediate:
+            return intermediate
+
+        return output_objs
 
     @property
     def free_params(self):
@@ -66,7 +74,7 @@ if __name__ == '__main__':
     from pisa.utils.parse_cfg import parse_cfg
 
     parser = ArgumentParser()
-    parser.add_argument('-t', '--template_settings', type=str,
+    parser.add_argument('-t', '--template-settings', type=str,
                         metavar='configfile', required=True,
                         help='''settings for the template generation''')
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE',
@@ -78,9 +86,9 @@ if __name__ == '__main__':
     template_settings = parse_cfg(template_settings) 
 
     template_maker = TemplateMaker(template_settings)
-    m0 = template_maker.get_output_map_set()
+    m0 = template_maker.get_outputs()
     fp = template_maker.free_params
     fp['test'].value*=1.2
     template_maker.update_params(fp)
-    m1 = template_maker.get_output_map_set()
+    m1 = template_maker.get_outputs()
     print (m1/m0)['nue'][0,0]
