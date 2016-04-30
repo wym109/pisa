@@ -497,9 +497,10 @@ class MultiDimBinning(object):
         # Break out any sequences passed in
         objects = []
         for arg in args:
-            if isinstance(arg, (OneDimBinning, MultiDimBinning,
-                                collections.Mapping)):
+            if isinstance(arg, (OneDimBinning, collections.Mapping)):
                 objects.append(arg)
+            elif isinstance(arg, MultiDimBinning):
+                objects.extend(arg.dimensions)
             elif isinstance(arg, collections.Sequence):
                 objects.extend(arg)
 
