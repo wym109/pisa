@@ -38,6 +38,7 @@ class Pipeline(object):
                 assert stage.input_binning == self._stages[-1].output_binning
             # add stage to pipeline
             self._stages.append(stage)
+        print self.params
 
     def compute_outputs(self, inputs=None, idx=None, return_intermediate=False):
         intermediate = []

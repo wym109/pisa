@@ -4,38 +4,29 @@
 
 from collections import Sequence
 
-from pisa.core.pipeline import Pipeline
+from pisa.core.template_maker import TemplateMaker
 from pisa.utils.log import logging, set_verbosity
 
 
 class Analysis(object):
-    def __init__(self, pipeline_configs):
-        if isinstance(pipeline_configs, basestring) \
-                or not hasattr(pipeline_configs, '__iter__'):
-            pipeline_configs = [pipeline_configs]
-        self.pipelines = []
-        for pipeline_config in pipeline_configs:
-            pipeline_settings = parse_config(pipeline_config)
-            self.pipelines.append(Pipeline(pipeline_settings))
-
-    def __iter__(self):
-        return iter(self.pipelines)
-
-    def __getattr__(self, attr):
-        for pipeline in self:
-            if pipeline.name == attr:
-                return pipeline
+    def __init__(self, data_maker, template_maker):
+        self.data_maker = data_maker
+        self.template_maker = template_maker
 
     def scan(self, pname, values, metric='llh'):
         metric_vals = []
-        m0 = self.pipelines[0].compute_outputs()
+        data = self.data_maker.compute_outputs()
         for val in values:
-            fp = self.pipelines[1].params.free
+            fp = self.template_maker.params.free
             fp[pname].value = val
-            self.pipelines[1].update_params(fp)
-            m1 = self.pipelines[1].compute_outputs()
-            metric_vals.append(m0.total_llh(m1))
+            self.template_maker.update_params(fp)
+            template = self.template_maker.compute_outputs()
+            metric_vals.append(data.total_llh(template))
         return metric_vals
+
+    def publish(self):
+        print self.template_maker.free_params_names
+        print self.template_maker.free_params_values
 
 
 if __name__ == '__main__':
@@ -63,10 +54,14 @@ if __name__ == '__main__':
     set_verbosity(args.v)
 
     data_settings = from_file(args.data_settings)
-    data_settings.set('stage:flux', 'param.test.fixed', 'True')
-    template_settings = from_file(args.template_settings)
+    data_cfg = parse_config(data_settings)
+    data_maker = TemplateMaker([data_cfg])
 
-    ana = Analysis([data_settings, template_settings])
+    template_settings = from_file(args.template_settings)
+    template_cfg = parse_config(template_settings)
+    template_maker = TemplateMaker([template_cfg])
+
+    ana = Analysis(data_maker, template_maker)
     logging.info('sweeping over 5 values of `test` (should affect both flux'
                  ' and osc)')
     ana.scan('test', np.arange(0,5,1)*ureg.foot, metric='llh')
@@ -74,3 +69,4 @@ if __name__ == '__main__':
                  ' osc)')
     ana.scan('atm_delta_index', np.arange(-0.2,0.2,1)*ureg.dimensionless,
              metric='llh')
+    ana.publish()

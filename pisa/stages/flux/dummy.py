@@ -45,7 +45,7 @@ class dummy(Stage):
             hist = np.ones(self.output_binning.shape) * height
             # pack them into Map object, assign poisson errors
             m = Map(name=output, hist=hist, binning=self.output_binning)
-            #m.set_poisson_errors()
+            m.set_poisson_errors()
             output_maps.append(m)
         mapset = MapSet(maps=output_maps, name='flux maps')
         return mapset
