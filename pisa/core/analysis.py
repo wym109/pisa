@@ -24,9 +24,11 @@ class Analysis(object):
             metric_vals.append(data.total_llh(template))
         return metric_vals
 
-    def publish(self):
-        print self.template_maker.free_params_names
-        print self.template_maker.free_params_values
+    def publish_to_minimizer(self):
+        return self.template_maker.free_params_rescaled_values
+
+    def update_from_minimizer(self, valuelist):
+        self.template_maker.set_rescaled_free_params(valuelist)
 
 
 if __name__ == '__main__':
@@ -67,6 +69,8 @@ if __name__ == '__main__':
     ana.scan('test', np.arange(0,5,1)*ureg.foot, metric='llh')
     logging.info('sweeping over 5 values of `atm_delta_index` (should affect'
                  ' osc)')
-    ana.scan('atm_delta_index', np.arange(-0.2,0.2,1)*ureg.dimensionless,
+    ana.scan('atm_delta_index', np.linspace(-0.2,0.2,5)*ureg.dimensionless,
              metric='llh')
-    ana.publish()
+    vals = ana.publish_to_minimizer()
+    vals[1]*=0.9
+    ana.update_from_minimizer(vals)

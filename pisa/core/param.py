@@ -18,11 +18,6 @@ import pisa.resources.resources as resources
 from pisa.utils.comparisons import recursiveEquality
 from pisa.utils.hash import hash_obj
 
-# TODO: eliminate "scale" parameter, as this should be dynamically computed
-# from the range for the sake of the minimizer (ranges published to minimizer
-# should be in hypercube in [0,1]). Possibly introduce a "display_scale"
-# parameter instead if this is desired for plots and whatnot.
-
 # TODO: units: pass in attached to values, or
 @total_ordering
 class Param(object):
@@ -36,7 +31,6 @@ class Param(object):
     range
     is_fixed
     is_discrete
-    scale
     tex
     help
 
@@ -52,12 +46,12 @@ class Param(object):
     validate_value
     """
     _slots = ('name', 'value', 'prior', 'range', 'is_fixed', 'is_discrete',
-              'scale', '_nominal_value', '_tex', 'help','_value')
+              '_nominal_value', '_tex', 'help','_value')
     _state_attrs = ('name', '_value', 'prior', 'range', 'is_fixed',
-                     'is_discrete', 'scale', 'nominal_value', 'tex', 'help')
+                     'is_discrete', 'nominal_value', 'tex', 'help')
 
     def __init__(self, name, value, prior, range, is_fixed, is_discrete=False,
-                 scale=1, nominal_value=None, tex=None, help=''):
+                 nominal_value=None, tex=None, help=''):
         self._value = None
         self.name = name
         self._tex = tex if tex is not None else name
@@ -67,7 +61,6 @@ class Param(object):
         self.is_fixed = is_fixed
         self.is_discrete = is_discrete
         self.value = value
-        self.scale = scale
         self._nominal_value = value if nominal_value is None else nominal_value
 
     def __eq__(self, other):
@@ -87,9 +80,9 @@ class Param(object):
         object.__setattr__(self, attr, val)
 
     def __str__(self):
-        return '%s=%s; prior=%s, range=%s, scale=%s, is_fixed=%s,' \
+        return '%s=%s; prior=%s, range=%s, is_fixed=%s,' \
                 ' is_discrete=%s; help="%s"' \
-                % (self.name, self.value, self.prior, self.range, self.scale,
+                % (self.name, self.value, self.prior, self.range,
                    self.is_fixed, self.is_discrete, self.help)
 
     def validate_value(self, value):
@@ -113,6 +106,15 @@ class Param(object):
                 val = val.to(self._value.units)
            self.validate_value(val)
         self._value = val
+
+    @property
+    def rescaled_value(self):
+        return (self.value.m - self.range[0]) / (self.range[1]-self.range[0])
+
+    @rescaled_value.setter
+    def rescaled_value(self, rval):
+        self.value = (self.range[1]-self.range[0]) * rval + self.range[0] *\
+            self.value.unit
 
     @property
     def tex(self):
@@ -194,9 +196,6 @@ class ParamSet(object):
         Get or set priors for all parameters.
     ranges : <r/w>
         Get or set the ranges for all parameters.
-    scales : <r/w>
-        Get or set the scale factors used to normalize parameter values for
-        minimizers, for all parameters
     tex : <r>
         LaTeX representation of the contained parameter names & values
     are_fixed : <r>
@@ -474,15 +473,6 @@ class ParamSet(object):
     def ranges(self, values):
         assert len(values) == len(self._params)
         [setattr(self._params[i], 'range', val) for i,val in enumerate(values)]
-
-    @property
-    def scales(self):
-        return tuple([obj.scales for obj in self._params])
-
-    @scales.setter
-    def scales(self, values):
-        assert len(values) == len(self._params)
-        [setattr(self._params[i], 'scale', val) for i,val in enumerate(values)]
 
     @property
     def state(self):
