@@ -18,7 +18,7 @@ class MemoryCache(object):
     max_depth : int >= 0
         Maximum number of entries in the cache, pruned either by FIFO or LRU
         logic. A `max_depth` of 0 effectively disables caching altogether
-        (useful for testing).
+        (e.g., useful for testing without removing the caches).
 
     is_lru : bool
         Whether to implement LRU logic (True) or FIFO logic (False). LRU logic
@@ -440,6 +440,7 @@ class DiskCache(object):
         return int(time.time() * 1e6)
 
 
+# TODO: augment test
 def test_MemoryCache():
     mc = MemoryCache(max_depth=3, is_lru=True)
     assert 0 not in mc
@@ -452,6 +453,7 @@ def test_MemoryCache():
     assert mc[3] == 'three'
 
 
+# TODO: augment test
 def test_DiskCache():
     tmp_fname = '/tmp/DiskCache.sqlite'
     try:
