@@ -65,15 +65,15 @@ def parse_config(config):
             bins.append(OneDimBinning(bin_name, **args))
         binning_dict[binning] = MultiDimBinning(*bins)
 
-    args_dict = OrderedDict()
+    stage_dicts = OrderedDict()
     # find pipline setting
     pipeline_order = list_split(config.get('pipeline', 'order'))
     for item in pipeline_order:
         stage, service = item.split(':')
         section = 'stage:' + stage
         # get infos for stages
-        args_dict[stage] = {}
-        args_dict[stage]['service'] = service
+        stage_dicts[stage] = {}
+        stage_dicts[stage]['service'] = service
         params = []
         if config.has_option(section, 'param_selector'):
             param_selector = config.get(section, 'param_selector')
@@ -91,63 +91,79 @@ def parse_config(config):
                 else:
                     continue
 
-                # defaults
-                args = {'name': pname, 'is_fixed': True, 'prior': None,
-                        'range': None}
-                try:
-                    value = parse_quantity(value)
-                    args['value'] = value.n * value.units
-                except ValueError:
-                    value = parse_string_literal(value)
-                    args['value'] = value
-                # search for explicit specifications
-                if config.has_option(section, name + '.fixed'):
-                    args['is_fixed'] = config.getboolean(section, name +
-                                                         '.fixed')
-                if config.has_option(section, name + '.prior'):
-                    if config.get(section, name + '.prior') == 'uniform':
-                        args['prior'] = Prior(kind='uniform')
-                    elif config.get(section, name + '.prior') == 'spline':
-                        priorname = pname
-                        if param_selector:
-                            priorname += '_' + param_selector
-                        data = config.get(section, name + '.prior.data')
-                        data = from_file(data)
-                        data = data[priorname]
-                        knots = ureg.Quantity(np.asarray(data['knots']), data['units'])
-                        knots = knots.to(value.units)
-                        coeffs = np.asarray(data['coeffs'])
-                        deg = data['deg']
-                        args['prior'] = Prior(kind='spline', knots=knots.m,
-                                coeffs=coeffs,
-                                deg=deg)
-                    elif 'gauss' in config.get(section, name + '.prior'):
-                        raise Exception('''Please use new style +/- notation for
-                            gaussian priors in config''')
-                    else:
-                        raise Exception('Prior type unknown')
-                elif hasattr(value, 's') and value.s != 0:
-                    args['prior'] = Prior(kind='gaussian', fiducial=value.n,
-                                          sigma = value.s)
-                if config.has_option(section, name + '.range'):
-                    range = config.get(section, name + '.range')
-                    if 'nominal' in range:
-                        nominal = value.n * value.units
-                    if 'sigma' in range:
-                        sigma = value.s * value.units
-                    range = range.replace('[', 'np.array([')
-                    range = range.replace(']', '])')
-                    args['range'] = eval(range).to(value.units).m
+                # check if that param already exists from a stage before, and if
+                # yes, make sure there are no specs, and just link to previous
+                # param object that already is instantiated
+                for _,stage_dict in stage_dicts.items():
+                    if stage_dict.has_key('params') and pname in stage_dict['params'].names:
+                        # make sure there are no other specs
+                        assert config.has_option(section, name + '.range') == \
+                        False
+                        assert config.has_option(section, name + '.prior') == \
+                        False
+                        assert config.has_option(section, name + '.fixed') == \
+                        False
+                        params.append(stage_dict['params'][pname])
+                        break
+                else:
+                       
+                    # defaults
+                    args = {'name': pname, 'is_fixed': True, 'prior': None,
+                            'range': None}
+                    try:
+                        value = parse_quantity(value)
+                        args['value'] = value.n * value.units
+                    except ValueError:
+                        value = parse_string_literal(value)
+                        args['value'] = value
+                    # search for explicit specifications
+                    if config.has_option(section, name + '.fixed'):
+                        args['is_fixed'] = config.getboolean(section, name +
+                                                             '.fixed')
+                    if config.has_option(section, name + '.prior'):
+                        if config.get(section, name + '.prior') == 'uniform':
+                            args['prior'] = Prior(kind='uniform')
+                        elif config.get(section, name + '.prior') == 'spline':
+                            priorname = pname
+                            if param_selector:
+                                priorname += '_' + param_selector
+                            data = config.get(section, name + '.prior.data')
+                            data = from_file(data)
+                            data = data[priorname]
+                            knots = ureg.Quantity(np.asarray(data['knots']), data['units'])
+                            knots = knots.to(value.units)
+                            coeffs = np.asarray(data['coeffs'])
+                            deg = data['deg']
+                            args['prior'] = Prior(kind='spline', knots=knots.m,
+                                    coeffs=coeffs,
+                                    deg=deg)
+                        elif 'gauss' in config.get(section, name + '.prior'):
+                            raise Exception('''Please use new style +/- notation for
+                                gaussian priors in config''')
+                        else:
+                            raise Exception('Prior type unknown')
+                    elif hasattr(value, 's') and value.s != 0:
+                        args['prior'] = Prior(kind='gaussian', fiducial=value.n,
+                                              sigma = value.s)
+                    if config.has_option(section, name + '.range'):
+                        range = config.get(section, name + '.range')
+                        if 'nominal' in range:
+                            nominal = value.n * value.units
+                        if 'sigma' in range:
+                            sigma = value.s * value.units
+                        range = range.replace('[', 'np.array([')
+                        range = range.replace(']', '])')
+                        args['range'] = eval(range).to(value.units).m
 
-                params.append(Param(**args))
+                    params.append(Param(**args))
 
             elif 'binning' in name:
-                args_dict[stage][name] = binning_dict[value]
+                stage_dicts[stage][name] = binning_dict[value]
 
             elif not name == 'param_selector':
-                args_dict[stage][name] = value
+                stage_dicts[stage][name] = value
 
         if len(params) > 0:
-            args_dict[stage]['params'] = ParamSet(*params)
+            stage_dicts[stage]['params'] = ParamSet(*params)
 
-    return args_dict
+    return stage_dicts

@@ -66,7 +66,6 @@ class Param(object):
         self.prior = prior
         self.is_fixed = is_fixed
         self.is_discrete = is_discrete
-        #self.validate_value(value)
         self.value = value
         self.scale = scale
         self._nominal_value = value if nominal_value is None else nominal_value
@@ -86,9 +85,6 @@ class Param(object):
         if attr not in self._slots:
             raise AttributeError('Invalid attribute: %s' % (attr,))
         object.__setattr__(self, attr, val)
-
-    #def __getattr__(self, attr):
-    #    return super(Param, self).__getattribute__(attr)
 
     def __str__(self):
         return '%s=%s; prior=%s, range=%s, scale=%s, is_fixed=%s,' \
