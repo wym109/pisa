@@ -1,9 +1,11 @@
 import collections
 import inspect
 
-from pisa.utils import cache
-from pisa.utils.hash import hash_obj
+from pisa.core.transform import TransformSet
 from pisa.core.param import ParamSet
+from pisa.core.map import MapSet
+from pisa.utils.cache import MemoryCache
+from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 
 # TODO: mode for not propagating errors. Probably needs hooks here, but meat of
@@ -18,7 +20,7 @@ class Stage(object):
 
     Parameters
     ----------
-    input_stage : bool (required)
+    use_transforms : bool (required)
         Whether or not this stage takes inputs to be transformed (and hence
         implements transforms).
     stage_name : string
@@ -45,7 +47,7 @@ class Stage(object):
     disk_cache
     expected_params : list of strings
         List containing required param names.
-    input_stage : bool
+    use_transforms : bool
         Whether or not this stage takes inputs to be transformed (and hence
         implements transforms).
     memcaching_enabled
@@ -95,15 +97,18 @@ class Stage(object):
         validate_params
             Perform validation on any parameters.
     """
-    def __init__(self, input_stage, stage_name='', service_name='',
+    def __init__(self, use_transforms, stage_name='', service_name='',
                  params=None, expected_params=None, disk_cache=None,
                  memcaching_enabled=True, propagate_errors=True,
                  transforms_cache_depth=10,
                  results_cache_depth=10, input_binning=None,
                  output_binning=None):
+        self.use_transforms = use_transforms
         self.stage_name = stage_name
         self.service_name = service_name
         self.expected_params = expected_params
+        self.input_binning = input_binning
+        self.output_binning = output_binning
         self._source_code_hash = None
 
         # Storage of latest transforms and results; default to empty
@@ -114,10 +119,10 @@ class Stage(object):
         self.memcaching_enabled = memcaching_enabled
 
         self.transforms_cache_depth = transforms_cache_depth
-        self.transforms_cache = cache_class(self.transforms_cache_depth,
-                                           is_lru=True)
+        self.transforms_cache = MemoryCache(self.transforms_cache_depth,
+                                            is_lru=True)
         self.results_cache_depth = results_cache_depth
-        self.results_cache = cache_class(self.results_cache_depth, is_lru=True)
+        self.results_cache = MemoryCache(self.results_cache_depth, is_lru=True)
         self.disk_cache = disk_cache
         self.params = params
 
@@ -152,10 +157,10 @@ class Stage(object):
         # Otherwise: compute transforms anew, set hash value, and store to
         # cache
         xforms = self._compute_transforms()
-        xforms.hash = xform_hash
+        xforms.hash = xforms_hash
         self.transforms = xforms
         if self.memcaching_enabled and self.transforms_cache is not None:
-            self.transforms_cache[xform_hash] = self.transforms
+            self.transforms_cache[xforms_hash] = self.transforms
         return self.transforms
 
     def compute_outputs(self, inputs=None):
@@ -168,7 +173,7 @@ class Stage(object):
             be passed on (untransformed) to subsequent stages.
 
         """
-        if self.input_stage:
+        if self.use_transforms:
             self.compute_transforms()
 
         id_objects = []
