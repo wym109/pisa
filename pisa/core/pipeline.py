@@ -4,18 +4,23 @@
 
 import importlib
 
-from pisa.core.stage import NoInputStage, InputStage
+from pisa.core.stage import Stage
 from pisa.core.param import ParamSet
+from pisa.utils.log import logging, set_verbosity
 
 
-class TemplateMaker(object):
-    """ instantiate stages according to config; excecute stages """
+class Pipeline(object):
+    """Instantiate stages according to config; excecute stages."""
     def __init__(self, config):
+        self._stages = []
         self.config = config
-        self.init_stages()
+        self._init_stages()
 
-    def init_stages(self):
-        self.stages = []
+    def __iter__(self):
+        return iter(self.stages)
+
+    def _init_stages(self):
+        self._stages = []
         for stage_num, stage_name in enumerate(self.config.keys()):
             service = self.config[stage_name.lower()]['service'].lower()
             # factory
@@ -24,57 +29,53 @@ class TemplateMaker(object):
                                              %(stage_name.lower(), service))
             # get class
             cls = getattr(module, service)
-            # instanciate object
+            # instantiate object
             stage = cls(**self.config[stage_name.lower()])
-            if stage_num == 0:
-                assert isinstance(stage, NoInputStage)
-            else:
-                assert isinstance(stage, InputStage)
-                # make sure the biinings match, if there are any
-                if hasattr(stage, 'input_binning'):
-                    assert hasattr(self.stages[-1], 'output_binning')
-                    assert stage.input_binning == \
-                            self.stages[-1].output_binning
-            self.stages.append(stage)
+            assert isinstance(stage, Stage)
+            # make sure the binnings match (including if both are specified to
+            # be None)
+            if len(self._stages) > 0:
+                assert stage.input_binning == self._stages[-1].output_binning
+            # add stage to pipeline
+            self._stages.append(stage)
 
-    # TODO: should we have an input_objs arg here?
-    def get_outputs(self, input_objs=None, idx=None, return_intermediate=False):
+    def compute_outputs(self, inputs=None, idx=None, return_intermediate=False):
         intermediate = []
         for stage in self.stages[:idx]:
-            print 'working on stage %s' %stage.stage_name
-            if isinstance(stage, NoInputStage):
-                output_objs = stage.get_outputs()
-            else:
-                output_objs = stage.get_outputs(input_objs)
+            logging.debug('Working on stage %s (%s)' %(stage.stage_name,
+                                                       stage.service_name))
+            outputs = stage.compute_outputs(inputs)
 
             if return_intermediate:
-                intermediate.append(output_objs)
+                intermediate.append(outputs)
 
             # Outputs from this stage become next stage's inputs
-            input_objs = output_objs
+            inputs = outputs
 
         if return_intermediate:
             return intermediate
 
-        return output_objs
-
-    @property
-    def free_params(self):
-        free_params = ParamSet()
-        for stage in self.stages:
-            free_params.extend(stage.params.free)
-        return free_params
+        return outputs
 
     def update_params(self, params):
-        for stage in self.stages:
-            stage.params.update_existing(params)
+        [stage.params.update_existing(params) for stage in self]
+
+    @property
+    def params(self):
+        params = ParamSet()
+        [params.extend(stage.params) for stage in self]
+        return params
+
+    @property
+    def stages(self):
+        return [s for s in self]
 
 
 if __name__ == '__main__':
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
     import numpy as np
     from pisa.utils.fileio import from_file, to_file
-    from pisa.utils.parse_cfg import parse_cfg
+    from pisa.utils.parse_config import parse_config
 
     parser = ArgumentParser()
     parser.add_argument('-t', '--template-settings', type=str,
@@ -85,13 +86,12 @@ if __name__ == '__main__':
                         help='file to store the output')
     args = parser.parse_args()
 
-    template_settings = from_file(args.template_settings)
-    template_settings = parse_cfg(template_settings)
+    template_config = parse_config(from_file(args.template_settings))
 
-    template_maker = TemplateMaker(template_settings)
-    m0 = template_maker.get_outputs()
-    fp = template_maker.free_params
+    template_nu_pipeline = Pipeline(template_config)
+    m0 = template_nu_pipeline.compute_outputs()
+    fp = template_nu_pipeline.params.free #free_params
     fp['test'].value*=1.2
-    template_maker.update_params(fp)
-    m1 = template_maker.get_outputs()
+    pipeline.update_params(fp)
+    m1 = pipeline.compute_outputs()
     print (m1/m0)['nue'][0,0]
