@@ -4,96 +4,220 @@ import inspect
 from pisa.utils import cache
 from pisa.utils.hash import hash_obj
 from pisa.core.param import ParamSet
+from pisa.utils.log import logging, set_verbosity
 
+# TODO: mode for not propagating errors. Probably needs hooks here, but meat of
+# implementation would live inside map.py and/or transform.py.
 
-class GenericStage(object):
+class Stage(object):
     """
-    PISA stage generic class. Should encompass all behaviors common to all
-    stages.
+    PISA stage base class. Should encompass all behaviors common to (almost)
+    all stages.
 
     Specialization should be done via subclasses.
 
     Parameters
     ----------
+    input_stage : bool (required)
+        Whether or not this stage takes inputs to be transformed (and hence
+        implements transforms).
+    stage_name : string
+    service_name : string
     params : ParamSet or sequence with which to instantiate a ParamSet
         Parameters with which to instantiate the class.
         If str, interpret as resource location and load params from resource.
         If dict, set contained params. Format expected is
-            {'<param_name>': <param_val>}.
-
-    disk_cache : None, str, or utils.DiskCache
+            {'<param_name>': <Param object or passable to Param()>}.
+    expected_params : list of strings
+        List containing required `params` names.
+    disk_cache : None, str, or DiskCache
         If None, no disk cache is available.
         If str, represents a path with which to instantiate a utils.DiskCache
-        object.
+        object. Must be concurrent-access-safe (across threads and processes).
+    memcaching_enabled
+    results_cache_depth
+    transforms_cache_depth
+    input_binning : None or interpretable as MultiDimBinning
+    output_binning : None or interpretable as MultiDimBinning
 
     Properties
     ----------
-    stage_name : str
-        Name of the stage (e.g., 'flux', 'osc', 'aeff', 'reco', 'pid', ...)
-
+    disk_cache
+    expected_params : list of strings
+        List containing required param names.
+    input_stage : bool
+        Whether or not this stage takes inputs to be transformed (and hence
+        implements transforms).
+    memcaching_enabled
+    params : ParamSet
+        All stage parameters, returned in alphabetical order by param name.
+    results : None or Mapping
+        Last-computed results, and None if no results have been computed yet.
+    results_cache : None or MemoryCache
+        Cache for storing the results of the stage, but *without* sideband
+        objects.
     service_name : str
         Name of the service, e.g. 'AeffServiceSliceSmooth'
-
-    params : ParamSet or sequence with which to instantiate a ParamSet
-        All stage parameters, returned in alphabetical order by param name.
-        The format of the returned dict is
-            {'<param_name_0>': <param_val_0>, ...,
-             '<param_name_N>': <param_val_N>}
-
-    expected_params: list of strings
-        list containing param names used in that stage
-
     source_code_hash
         Hash for the class's source code.
-
+    stage_name : str
+        Name of the stage (e.g., 'flux', 'osc', 'aeff', 'reco', 'pid', ...)
     state_hash
         Combines source_code_hash and params_hash for checking/tagging
         provenance of persisted (on-disk) objects.
-
-    disk_cache
-       Concurrent-access-safe disk-caching object instantiated if a valid
-       `disk_cache` resource is specified by user. This implements get() and
-       set() methods for loading/storing an object from/to the disk cache.
+    transforms : TransformSet
+        A stage that takes to-be-transformed inputs and has had these
+        transforms computed stores these here. Before computation, `transforms`
+        is an empty TransformSet. A stage that does not make use of these (such
+        as a no-input stage) has an empty TransformSet.
+    transforms_cache : None or MemoryCache
 
     Methods
     -------
     load_params
         Load parameter values from a template settings ini file.
-
     fix_params
         Remove param(s) with specified name(s) from those able to be varied by
-        minimizer or auto-scanner methods.
-
+        minimizer or auto-scanner methods. Values can still be modified
+        manually by setting the param.value attribute.
     unfix_params
         Free param(s) with specified name(s) to be varied by minimizer or
         auto-scanner methods.
 
     Override
     --------
-    The following methods should be overridden in derived classes
-        get_outputs
-            Do the actual work to produce the stage's output.
+    The following methods should be overridden in derived classes, if
+    applicable:
+        compute_transforms
+            Do the actual work to produce the stage's transforms.
+        compute_outputs
+            Do the actual work to apply the stage's output.
         validate_params
             Perform validation on any parameters.
     """
-    def __init__(self, stage_name='', service_name='', params=None,
-            expected_params=None, disk_cache=None):
+    def __init__(self, input_stage, stage_name='', service_name='',
+                 params=None, expected_params=None, disk_cache=None,
+                 memcaching_enabled=True, propagate_errors=True,
+                 transforms_cache_depth=10,
+                 results_cache_depth=10, input_binning=None,
+                 output_binning=None):
         self.stage_name = stage_name
         self.service_name = service_name
         self.expected_params = expected_params
-        self.__params = None
-        self.__free_param_names = set()
-        self.__source_code_hash = None
+        self._source_code_hash = None
 
+        # Storage of latest transforms and results; default to empty
+        # TransformSet and None, respectively.
+        self.transforms = TransformSet([])
+        self.results = None
+
+        self.memcaching_enabled = memcaching_enabled
+
+        self.transforms_cache_depth = transforms_cache_depth
+        self.transforms_cache = cache_class(self.transforms_cache_depth,
+                                           is_lru=True)
+        self.results_cache_depth = results_cache_depth
+        self.results_cache = cache_class(self.results_cache_depth, is_lru=True)
         self.disk_cache = disk_cache
-        if params is not None:
-            self.params = params
+        self.params = params
 
-    def get_outputs(self):
-        raise NotImplementedError()
+    def compute_transforms(self):
+        """Load a cached transform (keyed on hash of parameter values) if it
+        is in the cache, or else compute a new transform from currently-set
+        parameter values and store this new transform to the cache.
+
+        This calls the private method _compute_transforms, which must be
+        implemented in subclasses, to generate a new transform if none is in
+        the cache already.
+
+        Notes
+        -----
+        The hash used here is only meant to be valid within the scope of a
+        session; a hash on the full parameter set used to generate the
+        transform *and* the version of the generating software is required for
+        non-volatile storage.
+
+        """
+        # Generate hash from param values
+        xforms_hash = self.params.values_hash
+        logging.trace('xforms_hash: %s' %xforms_hash)
+
+        # Load and return existing transforms if in the cache
+        if self.memcaching_enabled and self.transforms_cache is not None \
+                and xforms_hash in self.transforms_cache:
+            logging.trace('loading xforms from cache.')
+            self.transforms = self.transforms_cache[xforms_hash]
+            return self.transforms
+
+        # Otherwise: compute transforms anew, set hash value, and store to
+        # cache
+        xforms = self._compute_transforms()
+        xforms.hash = xform_hash
+        self.transforms = xforms
+        if self.memcaching_enabled and self.transforms_cache is not None:
+            self.transforms_cache[xform_hash] = self.transforms
+        return self.transforms
+
+    def compute_outputs(self, inputs=None):
+        """Compute and return outputs.
+
+        Parameters
+        ----------
+        inputs : None or Mapping
+            Any inputs to be transformed, plus any sideband objects that are to
+            be passed on (untransformed) to subsequent stages.
+
+        """
+        if self.input_stage:
+            self.compute_transforms()
+
+        id_objects = []
+        if self.input_names is not None:
+            [id_objects.append(inputs[name].hash) for name in self.input_names]
+        # TODO: include binning hash(es) in id_objects
+        id_objects.append(self.params.values_hash)
+        results_hash = hash_obj(id_objects)
+        logging.trace('results_hash: %s' %results_hash)
+
+        if self.memcaching_enabled and results_hash in self.results_cache:
+            logging.trace('loading results from cache')
+            results = self.results_cache[results_hash]
+        else:
+            logging.trace('deriving results')
+            results = self._compute_outputs(inputs)
+            if self.memcaching_enabled:
+                results.hash = results_hash
+                self.results_cache[results_hash] = results
+
+        # Keep results also as property of object for later inspection
+        self.results = results
+
+        # TODO: make generic container object that can be operated on
+        # similar to MapSet (but that doesn't require Map as children)
+
+        # Create a new output container different from `results` but copying
+        # the contents, for purposes of attaching sideband objects. (These
+        # should not be stored in the cache.)
+        outputs = MapSet(results)
+
+        if inputs is None:
+            inputs = []
+
+        # Attach sideband objects (unused inputs) to output...
+        # 1. Start with all names in inputs.
+        unused_input_names = set([i.name for i in inputs])
+        # 2. Remove names that were used by a transform.
+        if self.transforms is not None:
+            [unused_input_names.difference_update(xform.input_names)
+             for xform in self.transforms]
+        # 3. Append these unused objects to the output.
+        for name in unused_input_names:
+            outputs.append(inputs[name])
+
+        return outputs
 
     def check_params(self, params):
-        """ make sure that expected_params is defined and that exactly the
+        """ make sure that `expected_params` is defined and that exactly the
         params specifued in self.expected_params are present """
         assert self.expected_params is not None
         exp_p, got_p = set(self.expected_params), set(params.names)
@@ -108,7 +232,8 @@ class GenericStage(object):
         if len(missing) > 0:
             err_strs.append('Missing params: %s'
                             %', '.join(sorted(missing)))
-        raise ValueError('Expected parameters: %s;\n' %', '.join(sorted(exp_p))
+        raise ValueError('Expected parameters: %s;\n'
+                         %', '.join(sorted(exp_p))
                          + ';\n'.join(err_strs))
 
     def validate_params(self, params):
@@ -118,7 +243,7 @@ class GenericStage(object):
 
     @property
     def params(self):
-        return self.__params
+        return self._params
 
     @params.setter
     def params(self, p):
@@ -127,7 +252,7 @@ class GenericStage(object):
                             type(p))
         self.check_params(p)
         self.validate_params(p)
-        self.__params = p
+        self._params = p
 
     @property
     def source_code_hash(self):
@@ -136,115 +261,26 @@ class GenericStage(object):
         Not meant to be perfect, but should suffice for tracking provenance of
         an object stored to disk that were produced by a Stage.
         """
-        if self.__source_code_hash is None:
-            self.__source_code_hash = hash(inspect.getsource(self))
-        return self.__source_code_hash
+        if self._source_code_hash is None:
+            self._source_code_hash = hash_obj(inspect.getsource(self))
+        return self._source_code_hash
 
     @property
     def state_hash(self):
         return hash_obj((self.source_code_hash, self.params.state_hash))
 
+    @property
+    def input_names(self):
+        return self.transforms.input_names
 
-class NoInputStage(GenericStage):
-    def __init__(self, stage_name='', service_name='', params=None,
-                expected_params=None, disk_cache=None,
-                cache_class=cache.MemoryCache, result_cache_depth=10):
-        super(NoInputStage, self).__init__(stage_name=stage_name,
-                service_name=service_name,
-                params=params, expected_params=expected_params,
-                disk_cache=disk_cache)
-        self.result_cache_depth = result_cache_depth
-        self.result_cache = cache_class(self.result_cache_depth, is_lru=True)
+    def _compute_transforms(self):
+        """Stages that apply transforms to inputs should override this method
+        for deriving the transform. No-input stages should leave this as-is,
+        simply returning None."""
+        return TransformSet([])
 
-    def get_outputs(self):
-        """Compute output maps."""
-        result_hash = self.params.values_hash
-        try:
-            return self.result_cache[result_hash]
-        except KeyError:
-            pass
-        outputs = self._derive_output()
-        outputs.hash = result_hash
-        self.result_cache[result_hash] = outputs
-        return outputs
-
-    def _derive_output(self, **kwargs):
-        """Each stage implementation (aka service) must override this method"""
-        raise NotImplementedError()
-
-
-class InputStage(GenericStage):
-    def __init__(self, stage_name='', service_name='', params=None,
-                 expected_params=None, disk_cache=None,
-                 cache_class=cache.MemoryCache, transform_cache_depth=10,
-                 result_cache_depth=10):
-        super(InputStage, self).__init__(stage_name=stage_name,
-                service_name=service_name,
-                params=params, expected_params=expected_params,
-                disk_cache=disk_cache)
-        self.transform_cache_depth = transform_cache_depth
-        self.transform_cache = cache_class(self.transform_cache_depth,
-                                           is_lru=True)
-
-        self.result_cache_depth = result_cache_depth
-        self.result_cache = cache_class(self.result_cache_depth, is_lru=True)
-
-    def get_outputs(self, inputs):
-        """Compute output maps by applying the transforms to input maps.
-
-        Parameters
-        ----------
-        inputs : MapSet
-
-        Notes
-        -----
-        Caching is handled within the TransformSet and each Transform, so as
-        to allow "sideband" objects to be passed through to the output; these
-        are objects upon which the parameters and transforms have no effect,
-        and so should not be cached alongside the computed outputs (but should
-        be passed along through the stage).
-
-        """
-        xforms = self.get_transforms(cache=self.transform_cache)
-        outputs = xforms.apply(inputs, cache=self.result_cache)
-        return outputs
-
-    def get_transforms(self, cache=None):
-        """Load a cached transform (keyed on hash of parameter values) if it
-        is in the cache, or else derive a new transform from currently-set
-        parameter values and store this new transform to the cache.
-
-        This calls the private method _derive_transforms, which must be
-        implemented in subclasses, to generate a new transform if none is in
-        the cache already.
-
-        Notes
-        -----
-        The hash used here is only meant to be valid within the scope of a
-        session; a hash on the full parameter set used to generate the
-        transform *and* the version of the generating software is required for
-        non-volatile storage.
-
-        """
-        # Generate hash from param values
-        pval_hash = self.params.values_hash
-        print 'pnames:', self.params.names
-        print 'pvals:', [v.m for v in self.params.values]
-        print 'pval_hash:', pval_hash
-
-        # Load and return existing transforms if in the cache
-        if cache is not None and pval_hash in cache:
-            return self.transform_cache[pval_hash]
-
-        # Otherwise: compute transforms anew, set hash value, and store to
-        # cache
-        xforms = self._derive_transforms()
-        xforms.hash = pval_hash
-        if cache is not None:
-            cache[pval_hash] = xforms
-
-        return xforms
-
-    def _derive_transforms(self, **kwargs):
-        """Each stage implementation (aka service) must override this method"""
-        raise NotImplementedError()
+    def _compute_outputs(self, inputs):
+        """Override this method for no-input stages which do not use transforms.
+        Input stages that compute a TransformSet needn't override this, as the
+        work for computing outputs is done by the TransfromSet below."""
+        return self.transforms.apply(inputs)
