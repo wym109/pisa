@@ -17,12 +17,12 @@ class Pipeline(object):
         self._init_stages()
 
     def __iter__(self):
-        return iter(self.stages)
+        return iter(self._stages)
 
     def _init_stages(self):
         self._stages = []
         for stage_num, stage_name in enumerate(self.config.keys()):
-            service = self.config[stage_name.lower()]['service'].lower()
+            service = self.config[stage_name.lower()].pop('service').lower()
             # factory
             # import stage service
             module = importlib.import_module('pisa.stages.%s.%s'
@@ -44,7 +44,15 @@ class Pipeline(object):
         for stage in self.stages[:idx]:
             logging.debug('Working on stage %s (%s)' %(stage.stage_name,
                                                        stage.service_name))
-            outputs = stage.compute_outputs(inputs)
+            try:
+                outputs = stage.compute_outputs(inputs)
+            except:
+                logging.error('Error occurred computing outputs in stage %s /'
+                              ' service %s ...' %(stage.stage_name,
+                                                  stage.service_name))
+                raise
+
+            logging.trace('outputs: %s' %(outputs,))
 
             if return_intermediate:
                 intermediate.append(outputs)
