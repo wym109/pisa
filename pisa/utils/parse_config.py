@@ -16,8 +16,8 @@ from uncertainties import unumpy as unp
 from uncertainties import ufloat, ufloat_fromstr
 import pint
 ureg = pint.UnitRegistry()
-# Config files use "uinits." to describe units, so ureg is also referred to as
-# "units"
+# Config files use "uinits.xyz" to denote that "xyz" is a unit; therefore,
+# ureg is also referred to as "units" in this context.
 units = ureg
 
 from pisa.core.prior import Prior
@@ -38,7 +38,7 @@ def parse_quantity(string):
     else:
         value = ufloat(float(value), 0)
     value *= ureg(unit)
-    return value 
+    return value
 
 
 def list_split(string):
@@ -64,7 +64,7 @@ def parse_config(config):
     # find pipline setting
     pipeline_order = list_split(config.get('pipeline', 'order'))
     for item in pipeline_order:
-        stage, service = item.split(':')    
+        stage, service = item.split(':')
         section = 'stage:' + stage
         # get infos for stages
         dict[stage] = {}
