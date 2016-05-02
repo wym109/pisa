@@ -20,7 +20,7 @@ ureg = pint.UnitRegistry()
 from pisa.utils.log import logging
 from pisa.utils.comparisons import recursiveEquality
 
-
+# TODO: implement hash
 class OneDimBinning(object):
     """
     Histogram-oriented binning specialized to a single dimension.
@@ -41,6 +41,7 @@ class OneDimBinning(object):
     ----------
     bin_edges
     domain
+    hash
     is_irregular
     is_lin
     is_log
@@ -173,9 +174,15 @@ class OneDimBinning(object):
         #for attr in
         #self.n_bins =
 
+        # TODO: define hash based upon conversion of things to base units (such
+        # that a valid comparison can be made between indentical binnings but
+        # that use different units). Be careful to round to just less than
+        # double-precision limits after conversion so that hashes will work out
+        # to be the same after conversion to the base units.
+
     @property
     def units(self):
-        return self.bin_edges.units
+        return format(self.bin_edges.units, '~')
 
     def new_obj(original_function):
         """ decorator to deepcopy unaltered states into new object """
@@ -290,7 +297,9 @@ class OneDimBinning(object):
             return OneDimBinning.is_bin_spacing_log(bin_edges)
         return True
 
-    # TODO: refine compatibility test
+    # TODO: refine compatibility test to handle compatible units; as of now,
+    # both upsampling and downsampling are allowed. Is this reasonable
+    # behavior?
     def is_compat(self, other):
         """Compatibility -- for now -- is defined by all of self's bin
         edges form a subset of other's bin edges, or vice versa, and the units
@@ -349,7 +358,7 @@ class OneDimBinning(object):
                 bin_edges.extend(this_bin_new_edges[:-1])
             # Final bin needs final edge
             bin_edges.append(this_bin_new_edges[-1])
-        return {'bin_edges': np.array(bin_edges)*self.units}
+        return {'bin_edges': np.array(bin_edges)*ureg(self.units)}
 
     def __getattr__(self, attr):
         return super(OneDimBinning, self).__getattribute__(attr)
@@ -368,7 +377,7 @@ class OneDimBinning(object):
     def __str__(self):
         domain_str = 'spanning [%s, %s] %s' %(self.bin_edges[0].magnitude,
                                               self.bin_edges[-1].magnitude,
-                                              format(self.units, '~'))
+                                              self.units)
         edge_str = 'with edges at [' + \
                 ', '.join([str(e) for e in self.bin_edges.m]) + \
                 '] ' + format(self.bin_edges.u, '~')
