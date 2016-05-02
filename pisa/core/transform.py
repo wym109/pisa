@@ -9,7 +9,7 @@ from pisa.utils.log import logging, set_verbosity
 # TODO: Include option for propagating/not propagating errors, so that while
 # e.g. a minimizer runs to match templates to "data," the overhead is not
 # incurred. But this then requires -- if the user does want errors -- for a
-# final iteration after a match has been found where all results are
+# final iteration after a match has been found where all outputs are
 # re-computed but with the propagate_errors option set to True. The output
 # caches must all then "miss" so that actual output including error is
 # computed.
@@ -91,8 +91,7 @@ class TransformSet(object):
         return tuple(output_names)
 
     def apply(self, inputs):
-        """Apply each transform to `inputs`; pass results and sideband objects
-        through to the output.
+        """Apply each transform to `inputs`; return computed outputs.
 
         Parameters
         -----------
@@ -101,7 +100,7 @@ class TransformSet(object):
 
         Returns
         -------
-        outputs : container with results of transforms and sideband objects
+        outputs : container with computed outputs (no sideband objects)
 
         """
         outputs = [xform.apply(inputs) for xform in self]
@@ -174,9 +173,7 @@ class Transform(object):
         return self._output_binning
 
     def apply(self, inputs):
-        logging.trace('applying transform to inputs.')
         output = self._apply(inputs)
-
         # TODO: tex, etc.?
         output.name = self.output_name
         return output

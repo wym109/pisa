@@ -14,7 +14,7 @@ class dummy(Stage):
 
     """
     def __init__(self, params, input_binning, output_binning, disk_cache=None,
-                 transforms_cache_depth=20, results_cache_depth=20):
+                 transforms_cache_depth=20, outputs_cache_depth=20):
         # All of the following params (and no more) must be passed via the
         # `params` argument.
         expected_params = (
@@ -30,7 +30,7 @@ class dummy(Stage):
             params=params,
             expected_params=expected_params,
             disk_cache=disk_cache,
-            results_cache_depth=results_cache_depth,
+            outputs_cache_depth=outputs_cache_depth,
             transforms_cache_depth=transforms_cache_depth,
             input_binning=input_binning,
             output_binning=output_binning
