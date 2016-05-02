@@ -50,18 +50,19 @@ class TransformSet(object):
     def __init__(self, transforms, name=None):
         self.transforms = transforms
         self.name = name
+        self.hash = None
 
     def __iter__(self):
         return iter(self.transforms)
 
-    @property
-    def hash(self):
-        xform_hashes = [x.hash for x in transforms]
-        if all([(h != None) for h in xform_hashes]):
-            if all([(h == xform_hashes[0]) for h in xform_hashes]):
-                return xform_hashes[0]
-            return hash_obj(tuple(xform_hashes))
-        return None
+    #@property
+    #def hash(self):
+    #    xform_hashes = [x.hash for x in transforms]
+    #    if all([(h != None) for h in xform_hashes]):
+    #        if all([(h == xform_hashes[0]) for h in xform_hashes]):
+    #            return xform_hashes[0]
+    #        return hash_obj(tuple(xform_hashes))
+    #    return None
 
     # TODO: implement a non-volatile hash that includes source code hash in
     # addition to self.hash from the contained transforms
