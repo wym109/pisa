@@ -55,7 +55,7 @@ class dummy(Stage):
 
             # Optionally turn on errors here, that will be propagated through
             # rest of pipeline (slows things down, but essential in some cases)
-            #m.set_poisson_errors()
+            m.set_poisson_errors()
             output_maps.append(m)
         map_set = MapSet(maps=output_maps, name='flux maps')
         return map_set
