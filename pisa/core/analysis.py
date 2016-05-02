@@ -4,7 +4,9 @@
 
 from collections import Sequence
 
-from pisa.core.template_maker import TemplateMaker
+from pisa.core.pipeline import Pipeline
+from pisa.utils.log import logging, set_verbosity
+
 
 class Analysis(object):
     def __init__(self, pipeline_configs):
@@ -14,7 +16,7 @@ class Analysis(object):
         self.pipelines = []
         for pipeline_config in pipeline_configs:
             pipeline_settings = parse_config(pipeline_config)
-            self.pipelines.append(TemplateMaker(pipeline_settings))
+            self.pipelines.append(Pipeline(pipeline_settings))
 
     def __iter__(self):
         return iter(self.pipelines)
@@ -54,13 +56,19 @@ if __name__ == '__main__':
     parser.add_argument('--outfile', metavar='FILE',
                         type=str, action='store', default="out.json",
                         help='file to store the output')
+    parser.add_argument('-v', action='count', default=None,
+                        help='set verbosity level')
     args = parser.parse_args()
+
+    set_verbosity(args.v)
 
     data_settings = from_file(args.data_settings)
     data_settings.set('stage:flux', 'param.test.fixed', 'True')
     template_settings = from_file(args.template_settings)
 
     ana = Analysis([data_settings, template_settings])
-    print ana.scan('test', np.arange(0,10,1)*ureg.foot, metric='llh')
-    print ana.scan('atm_delta_index', np.arange(0,10,1)*ureg.dimensionless,
-                   metric='llh')
+    print 'sweeping over 5 values of `test` (should affect both flux and osc)'
+    ana.scan('test', np.arange(0,5,1)*ureg.foot, metric='llh')
+    print 'sweeping over 5 values of `atm_delta_index` (should affect osc)'
+    ana.scan('atm_delta_index', np.arange(0,5,1)*ureg.dimensionless,
+             metric='llh')
