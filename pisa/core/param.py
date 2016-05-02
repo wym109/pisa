@@ -7,11 +7,12 @@
 
 
 from functools import total_ordering
-from collections import OrderedDict, Sequence
+from collections import OrderedDict, Sequence, Mapping
 from operator import setitem
 
 import numpy as np
 
+from pisa.core.prior import Prior
 from pisa.utils.log import logging
 import pisa.resources.resources as resources
 from pisa.utils.comparisons import recursiveEquality
@@ -22,6 +23,7 @@ from pisa.utils.hash import hash_obj
 # should be in hypercube in [0,1]). Possibly introduce a "display_scale"
 # parameter instead if this is desired for plots and whatnot.
 
+# TODO: units: pass in attached to values, or
 @total_ordering
 class Param(object):
     """Parameter.
@@ -43,15 +45,14 @@ class Param(object):
     tex : <r>
     nominal_value : <r/w>
     state : <r>
-    prior_llh : <r>
-    prior_chi2 : <r>
+    prior_penalty : <r>
 
     Methods
     -------
     validate_value
     """
     _slots = ('name', 'value', 'prior', 'range', 'is_fixed', 'is_discrete',
-               'scale', '_nominal_value', '_tex', 'help')
+              'scale', '_nominal_value', '_tex', 'help', '_prior')
     _state_attrs = ('name', 'value', 'prior', 'range', 'is_fixed',
                      'is_discrete', 'scale', 'nominal_value', 'tex', 'help')
 
@@ -73,13 +74,9 @@ class Param(object):
         if not isinstance(other, self.__class__):
             return False
         return recursiveEquality(self.state, other.state)
-        #if not isinstance(other, self.__class__):
-        #    return False
-        #for slot in self._state_attrs:
-        #    print slot
-        #    if not self.__getattr__(slot) == other.__getattr__(slot):
-        #        return False
-        #return True
+
+    def __ne__(self, other):
+        return not self == other
 
     def __lt__(self, other):
         return self.name < other.name
@@ -89,8 +86,8 @@ class Param(object):
             raise AttributeError('Invalid attribute: %s' % (attr,))
         object.__setattr__(self, attr, val)
 
-    def __getattr__(self, attr):
-        return super(self.__class__, self).__getattribute__(attr)
+    #def __getattr__(self, attr):
+    #    return super(Param, self).__getattribute__(attr)
 
     def __str__(self):
         return '%s=%s; prior=%s, range=%s, scale=%s, is_fixed=%s,' \
@@ -106,8 +103,29 @@ class Param(object):
                 assert value >= min(self.range) and value <= max(self.range)
 
     @property
+    def prior(self):
+        return self._prior
+
+    @prior.setter
+    def prior(self, prior_spec):
+        if prior_spec is None or (isinstance(prior_spec, basestring) and \
+                prior_spec.lower() in ['', 'none', 'uniform']):
+            self._prior = Prior(kind=None)
+        elif isinstance(prior_spec, Mapping):
+            self._prior = Prior(**prior_spec)
+        elif isinstance(prior_spec, Prior):
+            self._prior = prior_spec
+        else:
+            raise ValueError('Unhandled `prior_spec` type "%s"'
+                             %type(prior_spec))
+
+    @property
     def tex(self):
         return '%s=%s' % (self._tex, self.value)
+
+    @tex.setter
+    def tex(self, t):
+        self._tex = t if t is not None else self.name
 
     @property
     def nominal_value(self):
@@ -121,16 +139,29 @@ class Param(object):
     @property
     def state(self):
         state = OrderedDict()
-        [setitem(state, a, getattr(self, a)) for a in self._state_attrs]
+        for attr in self._state_attrs:
+            val = getattr(self, attr)
+            if hasattr(val, 'state'):
+                val = val.state
+            setitem(state, attr, val)
         return state
+
+    def prior_penalty(self, metric):
+        metric = metric.lower()
+        if metric in ['llh', 'barlow_llh', 'conv_llh']:
+            return self.prior.llh(self.value)
+        elif metric in ['chi2']:
+            return self.prior.chi2(self.value)
+        else:
+            raise ValueError('Unrecognized `metric` "%s"' %metric)
 
     @property
     def prior_llh(self):
-        return -100.34
+        return self.prior_penalty(metric='llh')
 
     @property
     def prior_chi2(self):
-        return 0.297
+        return self.prior_penalty(metric='chi2')
 
     @property
     def state_hash(self):
@@ -228,6 +259,7 @@ class ParamSet(object):
     __setitem__
 
     """
+
     def __init__(self, *args):
         param_sequence = []
         # Unpack the input args into a flat list of params
@@ -238,11 +270,12 @@ class ParamSet(object):
                 param_sequence.append(arg)
 
         # Disallow duplicated params
-        if len(set(param_sequence)) != len(param_sequence):
-            names = [obj.name for obj in param_sequence]
-            duplicates = set([x for x in names if names.count(x) > 1])
-            raise ValueError('Duplicate definitions found for prams ' +
-                             ' '.join(str(e) for e in duplicates))
+        all_names = [p.name for p in param_sequence]
+        unique_names = set(all_names)
+        if len(unique_names) != len(all_names):
+            duplicates = set([x for x in all_names if all_names.count(x) > 1])
+            raise ValueError('Duplicate definitions found for param(s): ' +
+                             ', '.join(str(e) for e in duplicates))
 
         # Elements of list must be Param type
         assert all([isinstance(x, Param) for x in param_sequence]), \
@@ -304,19 +337,18 @@ class ParamSet(object):
         """
         if isinstance(obj, Sequence) or isinstance(obj, ParamSet):
             for param in obj:
-                self.update(param,
-                            existing_must_match=existing_must_match,
+                self.update(param, existing_must_match=existing_must_match,
                             extend=extend)
             return
         if not isinstance(obj, Param):
             raise ValueError('`obj`="%s" is not a Param' % (obj))
         param = obj
         if param.name in self.names:
-            if existing_must_match and param != self[param.name]:
+            if existing_must_match and (param != self[param.name]):
                 raise ValueError(
                     'Param "%s" specified as\n\n%s\n\ncontradicts'
-                    ' internally-stored version\n\n%s'
-                    %(param.name, param, self[param.name])
+                    ' internally-stored version:\n\n%s'
+                    %(param.name, param.state, self[param.name].state)
                 )
             self.replace(param)
         elif extend:
@@ -353,6 +385,18 @@ class ParamSet(object):
             return self._params[i]
         elif isinstance(i, basestring):
             return self._by_name[i]
+
+    def __getattr__(self, attr):
+        try:
+            return super(ParamSet, self).__getattr__(attr)
+        except AttributeError:
+            return self[attr]
+
+    def __setattr__(self, attr, val):
+        try:
+            super(ParamSet, self).__setattr__(attr, val)
+        except AttributeError:
+            self._params[attr].value = val
 
     def __iter__(self):
         return iter(self._params)
@@ -458,11 +502,11 @@ class ParamSet(object):
 
 def test_ParamSet():
     p0 = Param(name='c', value=1.5, prior=None, range=[1,2],
-                          is_fixed=False, is_discrete=False, tex=r'\int{\rm c}')
+               is_fixed=False, is_discrete=False, tex=r'\int{\rm c}')
     p1 = Param(name='a', value=2.5, prior=None, range=[1,5],
-                          is_fixed=False, is_discrete=False, tex=r'{\rm a}')
+               is_fixed=False, is_discrete=False, tex=r'{\rm a}')
     p2 = Param(name='b', value=1.5, prior=None, range=[1,2],
-                          is_fixed=False, is_discrete=False, tex=r'{\rm b}')
+               is_fixed=False, is_discrete=False, tex=r'{\rm b}')
     param_set = ParamSet(p0, p1, p2)
     print param_set.values
     print param_set[0]
