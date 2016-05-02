@@ -38,8 +38,15 @@ class dummy(Stage):
 
     def _compute_transforms(self):
         """Compute new oscillation transforms"""
+        # This is done just to produce different set of transforms for
+        # different set of parameters
         seed = hash_obj(self.params.values, hash_to='int') % (2**32-1)
         np.random.seed(seed)
+
+        # Read parameters in in the units used for computation
+        theta23 = self.params.theta23.value.to('rad').magnitude
+        logging.trace('theta23 = %s --> %s rad'
+                      %(self.params.theta23.value, theta23))
 
         transforms = []
         for flav in ['nue', 'numu', 'nutau', 'nuebar', 'numubar',

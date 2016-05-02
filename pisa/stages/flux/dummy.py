@@ -5,6 +5,7 @@ ureg = pint.UnitRegistry()
 
 from pisa.core.stage import Stage
 from pisa.core.map import Map, MapSet
+from pisa.utils.hash import hash_obj
 
 
 class dummy(Stage):
@@ -36,19 +37,28 @@ class dummy(Stage):
         )
 
     def _compute_outputs(self, inputs=None):
+        # Following is just so that we only produce new maps when params
+        # change, but produce the same maps with the same param values
+        # (for a more realistic test of caching)
+        seed = hash_obj(self.params.values, hash_to='int') % (2**32-1)
+        np.random.seed(seed)
+
         outputs = ['nue', 'numu', 'nuebar', 'numubar']
         # create two histograms with the output shape
         height = self.params['test'].value.to('meter').magnitude
         output_maps = []
         for output in outputs:
             #hist = np.random.randint(height, size=self.output_binning.shape)
-            hist = np.ones(self.output_binning.shape) * height
+            hist = np.random.rand(*self.output_binning.shape) * height
             # pack them into Map object, assign poisson errors
             m = Map(name=output, hist=hist, binning=self.output_binning)
+
+            # Optionally turn on errors here, that will be propagated through
+            # rest of pipeline (slows things down, but essential in some cases)
             m.set_poisson_errors()
             output_maps.append(m)
-        mapset = MapSet(maps=output_maps, name='flux maps')
-        return mapset
+        map_set = MapSet(maps=output_maps, name='flux maps')
+        return map_set
 
     def validate_params(self, params):
         # do some checks on the parameters
