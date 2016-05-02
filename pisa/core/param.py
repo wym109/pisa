@@ -52,7 +52,7 @@ class Param(object):
     validate_value
     """
     _slots = ('name', 'value', 'prior', 'range', 'is_fixed', 'is_discrete',
-              'scale', '_nominal_value', '_tex', 'help', '_prior')
+              'scale', '_nominal_value', '_tex', 'help')
     _state_attrs = ('name', 'value', 'prior', 'range', 'is_fixed',
                      'is_discrete', 'scale', 'nominal_value', 'tex', 'help')
 
@@ -62,11 +62,11 @@ class Param(object):
         self._tex = tex if tex is not None else name
         self.help = help
         self.range = range
+        self.prior = prior
         self.is_fixed = is_fixed
         self.is_discrete = is_discrete
         self.validate_value(value)
         self.value = value
-        self.prior = prior
         self.scale = scale
         self._nominal_value = value if nominal_value is None else nominal_value
 
@@ -101,23 +101,9 @@ class Param(object):
                 assert value in self.range
             else:
                 assert value >= min(self.range) and value <= max(self.range)
-
-    @property
-    def prior(self):
-        return self._prior
-
-    @prior.setter
-    def prior(self, prior_spec):
-        if prior_spec is None or (isinstance(prior_spec, basestring) and \
-                prior_spec.lower() in ['', 'none', 'uniform']):
-            self._prior = Prior(kind=None)
-        elif isinstance(prior_spec, Mapping):
-            self._prior = Prior(**prior_spec)
-        elif isinstance(prior_spec, Prior):
-            self._prior = prior_spec
-        else:
-            raise ValueError('Unhandled `prior_spec` type "%s"'
-                             %type(prior_spec))
+        if self.prior is not None:
+            assert value.m >= min(self.prior.valid_range) and value.m <= \
+                max(self.prior.valid_range)
 
     @property
     def tex(self):
@@ -147,6 +133,8 @@ class Param(object):
         return state
 
     def prior_penalty(self, metric):
+        if self.prior is None:
+            return 0
         metric = metric.lower()
         if metric in ['llh', 'barlow_llh', 'conv_llh']:
             return self.prior.llh(self.value)

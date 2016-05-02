@@ -23,6 +23,7 @@ units = ureg
 from pisa.core.prior import Prior
 from pisa.core.param import Param, ParamSet
 from pisa.utils.log import logging
+from pisa.utils.fileio import from_file
 from pisa.core.binning import OneDimBinning, MultiDimBinning
 
 
@@ -103,16 +104,31 @@ def parse_config(config):
                 if config.has_option(section, name + '.fixed'):
                     args['is_fixed'] = config.getboolean(section, name +
                                                          '.fixed')
-                if config.has_option(section, name + '.scale'):
-                    args['scale'] = config.getfloat(section, name + '.scale')
-
                 if config.has_option(section, name + '.prior'):
-                    #ToDo other priors than gaussian
-                    args['prior'] = config.get(section, name + '.prior')
+                    if config.get(section, name + '.prior') == 'uniform':
+                        args['prior'] = Prior(kind='uniform')
+                    elif config.get(section, name + '.prior') == 'spline':
+                        priorname = pname
+                        if param_selector:
+                            priorname += '_' + param_selector
+                        data = config.get(section, name + '.prior.data')
+                        data = from_file(data)
+                        data = data[priorname]
+                        knots = ureg.Quantity(np.asarray(data['knots']), data['units'])
+                        knots = knots.to(value.units)
+                        coeffs = np.asarray(data['coeffs'])
+                        deg = data['deg']
+                        args['prior'] = Prior(kind='spline', knots=knots.m,
+                                coeffs=coeffs,
+                                deg=deg)
+                    elif 'gauss' in config.get(section, name + '.prior'):
+                        raise Exception('''Please use new style +/- notation for
+                            gaussian priors in config''')
+                    else:
+                        raise Exception('Prior type unknown')
                 elif hasattr(value, 's') and value.s != 0:
                     args['prior'] = Prior(kind='gaussian', fiducial=value.n,
                                           sigma = value.s)
-
                 if config.has_option(section, name + '.range'):
                     range = config.get(section, name + '.range')
                     if 'nominal' in range:
@@ -121,7 +137,7 @@ def parse_config(config):
                         sigma = value.s * value.units
                     range = range.replace('[', 'np.array([')
                     range = range.replace(']', '])')
-                    args['range'] = eval(range)
+                    args['range'] = eval(range).to(value.units)
 
                 params.append(Param(**args))
 

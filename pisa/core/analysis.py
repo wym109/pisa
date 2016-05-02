@@ -47,10 +47,10 @@ if __name__ == '__main__':
     from pisa.utils.parse_config import parse_config
 
     parser = ArgumentParser()
-    parser.add_argument('--data-settings', type=str,
+    parser.add_argument('-d','--data-settings', type=str,
                         metavar='configfile', required=True,
                         help='settings for the generation of "data"')
-    parser.add_argument('--template-settings', type=str,
+    parser.add_argument('-t','--template-settings', type=str,
                         metavar='configfile', required=True,
                         help='settings for the generation of templates')
     parser.add_argument('--outfile', metavar='FILE',
