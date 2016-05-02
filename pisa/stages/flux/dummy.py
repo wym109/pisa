@@ -10,7 +10,8 @@ class dummy(Stage):
     m1 and a map containing ones as m2 a parameter test is required
     """
     def __init__(self, params, output_binning, disk_cache=None,
-                 memcaching_enabled=True, propagate_errors=True):
+                 memcaching_enabled=True, propagate_errors=True,
+                 results_cache_depth=20):
         # list expected parameters for this stage implementation
         expected_params = (
             'atm_delta_index', 'energy_scale', 'nu_nubar_ratio',
@@ -19,7 +20,7 @@ class dummy(Stage):
         )
         # call parent constructor
         super(self.__class__, self).__init__(
-            input_stage=False, stage_name='flux', service_name='dummy',
+            use_transforms=False, stage_name='flux', service_name='dummy',
             params=params, expected_params=expected_params,
             disk_cache=disk_cache, memcaching_enabled=memcaching_enabled,
             propagate_errors=propagate_errors,
@@ -32,7 +33,7 @@ class dummy(Stage):
         #self.oversample_e = oversample_e
         #self.oversample_cz = oversample_cz
 
-    def _derive_output(self):
+    def _compute_outputs(self, inputs=None):
         outputs = ['nue', 'numu', 'nuebar', 'numubar']
         # create two histograms with the output shape
         height = self.params['test'].value.to('meter').magnitude
@@ -41,7 +42,7 @@ class dummy(Stage):
             #hist = np.random.randint(height, size=self.output_binning.shape)
             hist = np.ones(self.output_binning.shape) * height
             # pack them into Map object, assign poisson errors
-            m = Map(output, hist, self.output_binning)
+            m = Map(name=output, hist=hist, binning=self.output_binning)
             m.set_poisson_errors()
             output_maps.append(m)
         mapset = MapSet(maps=output_maps, name='flux maps')
