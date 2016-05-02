@@ -3,32 +3,34 @@
 
 import numpy as np
 
-from pisa.core.stage import InputStage
+from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
+from pisa.utils.log import logging, set_verbosity
 
-class dummy(InputStage):
-    """Example input stage, functionally close to osc"""
+class dummy(Stage):
+    """Example stage with maps as inputs and outputs, and no disk cache. E.g.,
+    histogrammed oscillations stages will work like this.
 
-    def __init__(self, params, input_binning, output_binning, service,
-                 disk_cache=None, transform_cache_depth=20,
-                 result_cache_depth=20,
-                 oversample_cz=1, oversample_e=1,
-                 earth_model=None):
-        # All of the following params (and no more) must be passed to the
+    """
+    def __init__(self, params, input_binning, output_binning, disk_cache=None,
+                 transforms_cache_depth=20, results_cache_depth=20):
+        # All of the following params (and no more) must be passed via the
         # `params` argument.
         expected_params = (
+            'oversample_e', 'oversample_cz', 'earth_model',
             'YeI', 'YeM', 'YeO', 'deltacp', 'deltam21', 'deltam31',
             'detector_depth', 'prop_height', 'test', 'theta12', 'theta13',
             'theta23'
         )
         super(self.__class__, self).__init__(
+            input_stage=True,
             stage_name='osc',
-            service_name=service,
-            expected_params=expected_params,
+            service_name='dummy',
             params=params,
+            expected_params=expected_params,
             disk_cache=disk_cache,
-            transform_cache_depth=transform_cache_depth,
-            result_cache_depth=result_cache_depth
+            results_cache_depth=results_cache_depth,
+            transforms_cache_depth=transforms_cache_depth
         )
         self.input_binning = input_binning
         self.output_binning = output_binning
@@ -36,9 +38,11 @@ class dummy(InputStage):
         self.oversample_cz = oversample_cz
         self.earth_model = earth_model
 
-    def _derive_transforms(self):
+    def _compute_transforms(self):
         """Compute new oscillation transforms"""
-        print 'deriving transform'
+        seed = hash_obj(self.params.values, hash_to='int')
+        np.random.seed(seed)
+
         transforms = []
         for flav in ['nue', 'numu', 'nutau', 'nuebar', 'numubar',
                      'nutaubar']:
@@ -65,11 +69,12 @@ class dummy(InputStage):
                 input_binning=self.input_binning,
                 output_binning=self.output_binning,
                 xform_array=xform_array,
-                name='osc from %s to %s' %(', '.join(input_names), flav)
+                #name='osc from %s to %s' %(', '.join(input_names), flav),
+                params_hash=hash_obj((seed,)),
             )
             transforms.append(xform)
 
         # TODO: make TransformSet a mutable sequence (list-like), and so do
         # the append directly rather than create a list first and then pass
         # this to instantiation of a trnasform set
-        return TransformSet(transforms=transforms, name='dummy osc')
+        return TransformSet(transforms=transforms)
