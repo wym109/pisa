@@ -31,7 +31,7 @@ def recursiveEquality(x, y):
             return False
 
     # pint quantities
-    if is_pint_quantity(x) and is_pint_quantity(y):
+    elif is_pint_quantity(x) and is_pint_quantity(y):
         xunit = str(x.units)
         try:
             converted_y = y.to(xunit)
@@ -50,7 +50,7 @@ def recursiveEquality(x, y):
     elif isinstance(x, basestring) or isinstance(y, basestring) or \
             (not (isinstance(x, COMPLEX_TYPES) or
                   isinstance(y, COMPLEX_TYPES))):
-        if x != y:
+        if x != y and not (np.isnan(x) and np.isnan(y)):
             logging.trace('Simple types (type(x)=%s, type(y)=%s) not equal.'
                           %(type(x), type(y)))
             logging.trace('x: %s' %x)
