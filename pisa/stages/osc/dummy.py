@@ -5,6 +5,7 @@ import numpy as np
 
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
+from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 
 class dummy(Stage):
@@ -23,24 +24,21 @@ class dummy(Stage):
             'theta23'
         )
         super(self.__class__, self).__init__(
-            input_stage=True,
+            use_transforms=True,
             stage_name='osc',
             service_name='dummy',
             params=params,
             expected_params=expected_params,
             disk_cache=disk_cache,
             results_cache_depth=results_cache_depth,
-            transforms_cache_depth=transforms_cache_depth
+            transforms_cache_depth=transforms_cache_depth,
+            input_binning=input_binning,
+            output_binning=output_binning
         )
-        self.input_binning = input_binning
-        self.output_binning = output_binning
-        self.oversample_e = oversample_e
-        self.oversample_cz = oversample_cz
-        self.earth_model = earth_model
 
     def _compute_transforms(self):
         """Compute new oscillation transforms"""
-        seed = hash_obj(self.params.values, hash_to='int')
+        seed = hash_obj(self.params.values, hash_to='int') % (2**32-1)
         np.random.seed(seed)
 
         transforms = []
