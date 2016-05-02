@@ -180,9 +180,6 @@ class Stage(object):
             be passed on (untransformed) to subsequent stages.
 
         """
-        if self.use_transforms:
-            self.compute_transforms()
-
         id_objects = []
         if self.input_names is not None:
             [id_objects.append(inputs[name].hash) for name in self.input_names]
@@ -192,14 +189,18 @@ class Stage(object):
         logging.trace('outputs_hash: %s' %outputs_hash)
 
         if self.memcaching_enabled and outputs_hash in self.outputs_cache:
-            logging.trace('loading outputs from cache')
+            logging.trace('Loading outputs from cache.')
             outputs = self.outputs_cache[outputs_hash]
         else:
-            logging.trace('deriving outputs')
+            logging.trace('Need to compute outputs...')
+            if self.use_transforms:
+                self.compute_transforms()
+            logging.trace('... now computing outputs.')
             outputs = self._compute_outputs(inputs)
             if self.memcaching_enabled:
                 outputs.hash = outputs_hash
                 self.outputs_cache[outputs_hash] = outputs
+
 
         # Keep outputs also as property of object for later inspection
         self.outputs = outputs

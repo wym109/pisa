@@ -67,10 +67,26 @@ if __name__ == '__main__':
     template_settings = from_file(args.template_settings)
 
     ana = Analysis([data_settings, template_settings])
-    logging.info('sweeping over 5 values of `test` (should affect both flux'
-                 ' and osc)')
-    ana.scan('test', np.arange(0,5,1)*ureg.foot, metric='llh')
-    logging.info('sweeping over 5 values of `atm_delta_index` (should affect'
-                 ' osc)')
-    ana.scan('atm_delta_index', np.arange(-0.2,0.2,1)*ureg.dimensionless,
+
+    print ''
+    logging.info(
+        'Sweeping over 3 values of `test` (should affect both flux and osc)'
+    )
+    print ''
+    ana.scan('test', np.linspace(0, 5, 3)*ureg.foot, metric='llh')
+
+    print ''
+    logging.info(
+        'Sweeping over 3 values of `atm_delta_index` (should only affect flux)'
+    )
+    print ''
+    ana.scan('atm_delta_index', np.linspace(-0.2, 0.2, 3)*ureg.dimensionless,
+             metric='llh')
+
+    print ''
+    logging.info(
+        'Sweeping over 3 values of `theta23` (should only affect osc)'
+    )
+    print ''
+    ana.scan('theta23', np.linspace(40, 45, 3)*ureg.degrees,
              metric='llh')
