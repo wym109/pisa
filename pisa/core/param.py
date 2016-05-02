@@ -21,7 +21,14 @@ from pisa.utils.hash import hash_obj
 # TODO: units: pass in attached to values, or
 @total_ordering
 class Param(object):
-    """Parameter.
+    """Parameter class to store any kind of parameters
+
+    args:
+    - name str
+    - value str or quantity with units
+
+    in the case of a free (not fixed)  parameter, a valid range for the parameter should be
+    spicfied, and prior must be assigned to compute llh and chi2 values
 
     Parameters
     ----------
@@ -38,12 +45,15 @@ class Param(object):
     ----------
     tex : <r>
     nominal_value : <r/w>
+    rescaled_value: <r/w>, the value as a normalized, dimensionless
+    quantity between 0 and 1 (used for minimizer interfacing)
     state : <r>
     prior_penalty : <r>
 
     Methods
     -------
     validate_value
+
     """
     _slots = ('name', 'value', 'prior', 'range', 'is_fixed', 'is_discrete',
               '_nominal_value', '_tex', 'help','_value')

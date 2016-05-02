@@ -4,8 +4,11 @@
 # date:   2016-04-28
 """
 Parse a ConfigFile object into a dict containing a an entry for every
-stages, that contains values indicated by param. as a param set, binning as
-binning objects and all other values as ordinary strings
+stage, that contains values indicated by param. each as a Param object in one
+ParamSet, and the binning as binning objects
+
+params that have the same name in multiple stages are treated as one single
+param
 """
 
 from collections import OrderedDict

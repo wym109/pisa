@@ -9,6 +9,18 @@ from pisa.utils.log import logging, set_verbosity
 
 
 class Analysis(object):
+    '''provide scan methods, or methods to interact with a minimizer,
+       
+    args:
+        - data_maker TemplateMaker object
+        - template_maker TemplateMaker object
+
+    data_maker is used to derive a data-like template, that is not modified
+    during the analysis
+
+    template_maker provides output templates, and e.g. free parameters, that can
+    be minimized using a given metric, or scanned through, etc...
+    '''
     def __init__(self, data_maker, template_maker):
         self.data_maker = data_maker
         self.template_maker = template_maker

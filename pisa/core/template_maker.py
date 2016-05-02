@@ -11,7 +11,15 @@ from pisa.utils.log import logging, set_verbosity
 
 class TemplateMaker(object):
     """Creates a TemplateMaker object that has several pipelines inside
-    the outputs from all pipelines are added together    
+    the outputs from all pipelines are added together  
+
+    args: list of parsed pipline configs (=dicts)
+
+    N.B: free params with the same name in two pipelines are updated at the same time,
+    using the the update_params method, or the
+    set_free_params/set_rescaled_free_params methods
+
+    rescaled_values mehods are for interfacing with a minimizer
     """
     def __init__(self, pipeline_settings):
         self.pipelines = [Pipeline(setting) for setting in pipeline_settings]
