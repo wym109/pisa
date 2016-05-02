@@ -18,18 +18,29 @@ from pisa.utils.log import logging
 import pisa.utils.fileio as fileio
 from pisa.utils.comparisons import recursiveEquality
 
-
+# TODO: docstrings!!!
 class Prior(object):
-    _state_attrs = ['kind','valid_range','max_at']
+    """Priors.
+
+    Parameters
+    ----------
+
+    Properties
+    ----------
+
+    Methods
+    -------
+    """
     def __init__(self, **kwargs):
-        self.constructor_args = deepcopy(kwargs)
+        self._state_attrs = ['kind', 'valid_range', 'max_at']
         if not kwargs.has_key('kind'):
             raise TypeError(str(self.__class__)
                             + ' __init__ requires `kind` kwarg to be specified')
         kind = kwargs.pop('kind')
         # Dispatch the correct initialization method
-        if kind.lower() in ['none', 'uniform'] or kind is None:
-            self.__init_uniform(**kwargs)
+        if kind is None or isinstance(kind, basestring) and \
+                kind.lower() in ['none', 'uniform']:
+            self.__init_uniform()
         elif kind.lower() == 'gaussian':
             self.__init_gaussian(**kwargs)
         elif kind.lower() == 'linterp':
@@ -48,16 +59,19 @@ class Prior(object):
                             ' a Prior object from a param dict')
 
         # If param has no 'prior', do not create a Prior object
-        # NOTE: This is probably a poor design decision, but maintains a more
-        # "sparse" config file; probably should change in future.
+        # TODO / NOTE: This is probably a poor design decision, but maintains a
+        # more "sparse" config file; probably should change in future.
         if 'prior' not in param:
             return None
 
         prior = param['prior']
 
+        # TODO: eliminate one or both old-style specs?
+        # TODO: require units for prior specs if param has units
+
         # Old-style prior specs that translate to a uniform prior
         if prior is None or (isinstance(prior, str) \
-                             and prior.lower() == 'none'):
+                             and prior.lower() in ['', 'none']):
             return cls(kind='uniform')
 
         # Old-style prior spec that translates to a gaussian prior
@@ -91,15 +105,9 @@ class Prior(object):
             setitem(state, attr, getattr(self, attr))
         return state
 
-    def build_dict(self, node_dict=None):
-        if node_dict is None:
-            node_dict = {}
-        node_dict['prior'] = self.constructor_args
-        return node_dict
-
     def __init_uniform(self):
         self.kind = 'uniform'
-        self.llh = lambda x: 0.*x
+        self.llh = lambda x: 0.*x # ensures output shape same as input
         self.chi2 = lambda x: 0.*x
         self.valid_range = [-np.inf, np.inf]
         self.max_at = np.nan
@@ -107,7 +115,7 @@ class Prior(object):
         self._str = lambda s: "uniform prior"
 
     def __init_gaussian(self, fiducial, sigma):
-        self._state_attrs.extend(['fiducial','sigma'])
+        self._state_attrs.extend(['fiducial', 'sigma'])
         self.kind = 'gaussian'
         self.fiducial = fiducial
         self.sigma = sigma
@@ -119,12 +127,12 @@ class Prior(object):
         self._str = lambda s: "gaussian prior: sigma=%.4e, max at %.4e" % (self.sigma, self.fiducial)
 
     def __init_linterp(self, x, y):
-        self._state_attrs.extend(['x','y','interp'])
+        self._state_attrs.extend(['x', 'y'])
         self.kind = 'linterp'
         self.x = np.array(x)
         self.y = np.array(y)
         self.interp = interp1d(self.x, self.y, kind='linear',
-                                           copy=True, bounds_error=True)
+                               copy=True, bounds_error=True)
         self.llh = lambda x_new: self.interp(x_new)
         self.chi2 = lambda x_new: -2 * self.llh(x_new)
         self.valid_range = [min(self.x), max(self.x)]
@@ -139,7 +147,7 @@ class Prior(object):
         knots, coeffs, and deg are given by e.g. scipy.interpolate.splrep, and
         evaluation of splines is carried out by scipy.interpolate.splev
         """
-        self._state_attrs.extend(['knots','coeffs','deg'])
+        self._state_attrs.extend(['knots', 'coeffs', 'deg'])
         self.kind = 'spline'
         self.knots = knots
         self.coeffs = coeffs
@@ -156,7 +164,8 @@ class Prior(object):
         self._str = lambda s: "spline prior: deg=%d, valid in [%0.4e, %0.4e], max at %s" % (self.deg, self.valid_range[0], self.valid_range[1], self.max_at_str)
 
     def check_range(self, x_range):
-        return min(x_range) >= self.valid_range[0] and max(x_range) <= self.valid_range[1]
+        return min(x_range) >= self.valid_range[0] \
+                and max(x_range) <= self.valid_range[1]
 
 
 def plot_prior(obj, param=None, x_xform=None, ax1=None, ax2=None, **plt_kwargs):
@@ -211,7 +220,7 @@ def plot_prior(obj, param=None, x_xform=None, ax1=None, ax2=None, **plt_kwargs):
         x1 = +1
     x = np.linspace(x0, x1, 5000)
     llh = prior.llh(x)
-    chisquare = prior.chi2(x)
+    chi2 = prior.chi2(x)
 
     if x_xform is not None:
         x = x_xform(x)
@@ -224,7 +233,7 @@ def plot_prior(obj, param=None, x_xform=None, ax1=None, ax2=None, **plt_kwargs):
         ax2 = f.add_subplot(111)
 
     ax1.plot(x, llh, **plt_kwargs)
-    ax2.plot(x, chisquare, **plt_kwargs)
+    ax2.plot(x, chi2, **plt_kwargs)
 
     ax1.set_title(str(prior))
     ax2.set_title(str(prior))
@@ -273,13 +282,13 @@ def get_prior_bounds(obj, param=None, sigma=[1.0]):
     x0 = prior.valid_range[0]
     x1 = prior.valid_range[1]
     x = np.linspace(x0, x1, 10000)
-    chisquare = prior.chi2(x)
+    chi2 = prior.chi2(x)
     for (i, xval) in enumerate(x[:-1]):
         for s in sigma:
             chi2_level = s**2
-            if chisquare[i] > chi2_level and chisquare[i+1] < chi2_level:
+            if chi2[i] > chi2_level and chi2[i+1] < chi2_level:
                 bounds[s].append(xval)
-            elif chisquare[i] < chi2_level and chisquare[i+1] > chi2_level:
+            elif chi2[i] < chi2_level and chi2[i+1] > chi2_level:
                 bounds[s].append(x[i+1])
     return bounds
 
@@ -289,7 +298,7 @@ def test_Prior(ts_fname, param_name='theta23'):
     import matplotlib as mpl
     import matplotlib.pyplot as plt
     sigma = [1, 2, 3, 4, 5]
-    chisquare =  [s**2 for s in sigma]
+    chi2 =  [s**2 for s in sigma]
 
     ts = fileio.from_file(resources.find_resource(ts_fname))
     f1 = plt.figure(1) #,figsize=(8,14),dpi=60)
@@ -341,15 +350,17 @@ def test_Prior(ts_fname, param_name='theta23'):
     plt.tight_layout()
 
     for ax in [ax1, ax2]:
-        ax.legend(loc='best',frameon=False)
+        ax.legend(loc='best', frameon=False)
         ax.set_xlim(xlim)
         ax.set_xlabel(xlabel)
         ax.grid(which='both', b=True)
         ax.set_title('')
 
-    for c2 in chisquare:
-        ax2.plot(xlim, [c2,c2], 'k-', lw=1.0, alpha=0.4)
+    for c2 in chi2:
+        ax2.plot(xlim, [c2, c2], 'k-', lw=1.0, alpha=0.4)
 
     plt.draw();plt.show()
 
 
+if __name__ == '__main__':
+    test_Prior()
