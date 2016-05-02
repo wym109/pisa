@@ -28,12 +28,12 @@ class Analysis(object):
 
     def scan(self, pname, values, metric='llh'):
         metric_vals = []
-        m0 = self.pipelines[0].get_outputs()
+        m0 = self.pipelines[0].compute_outputs()
         for val in values:
-            fp = self.pipelines[1].free_params
+            fp = self.pipelines[1].params.free
             fp[pname].value = val
             self.pipelines[1].update_params(fp)
-            m1 = self.pipelines[1].get_outputs()
+            m1 = self.pipelines[1].compute_outputs()
             metric_vals.append(m0.total_llh(m1))
         return metric_vals
 
@@ -67,8 +67,10 @@ if __name__ == '__main__':
     template_settings = from_file(args.template_settings)
 
     ana = Analysis([data_settings, template_settings])
-    print 'sweeping over 5 values of `test` (should affect both flux and osc)'
+    logging.info('sweeping over 5 values of `test` (should affect both flux'
+                 ' and osc)')
     ana.scan('test', np.arange(0,5,1)*ureg.foot, metric='llh')
-    print 'sweeping over 5 values of `atm_delta_index` (should affect osc)'
+    logging.info('sweeping over 5 values of `atm_delta_index` (should affect'
+                 ' osc)')
     ana.scan('atm_delta_index', np.arange(0,5,1)*ureg.dimensionless,
              metric='llh')
