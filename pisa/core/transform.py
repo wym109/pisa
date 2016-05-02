@@ -4,11 +4,21 @@ import numpy as np
 from pisa.core.binning import MultiDimBinning
 from pisa.core.map import Map, MapSet
 from pisa.utils.hash import hash_obj
+from pisa.utils.log import logging, set_verbosity
+
+# TODO: Include option for propagating/not propagating errors, so that while
+# e.g. a minimizer runs to match templates to "data," the overhead is not
+# incurred. But this then requires -- if the user does want errors -- for a
+# final iteration after a match has been found where all results are
+# re-computed but with the propagate_errors option set to True. The output
+# caches must all then "miss" so that actual output including error is
+# computed.
 
 # TODO: use a generic container, *not* a MapSet to store sets of maps for
 # inputs and outputs (in fact I think there should be no MapSet object at all,
 # so we can trnsparently handle e.g. events alongside maps where one is a
-# sideband object for the other in a given stage)
+# sideband object for the other in a given stage, but which is which should be
+# irrelevant).
 
 # TODO: Add Sequence capabilities to TransformSet (e.g. it'd be nice to have at
 # least append, extend, ...)
@@ -24,6 +34,7 @@ class TransformSet(object):
     hash
     input_names
     name
+    nonvolatile_hash
     num_inputs
     num_outputs
     output_names
@@ -52,10 +63,11 @@ class TransformSet(object):
             return hash_obj(tuple(xform_hashes))
         return None
 
-    @hash.setter
-    def hash(self, val):
-        for xform in self:
-            xform.hash = val
+    # TODO: implement a non-volatile hash that includes source code hash in
+    # addition to self.hash from the contained transforms
+    @property
+    def nonvolatile_hash(self):
+        return None
 
     @property
     def input_names(self):
@@ -77,7 +89,7 @@ class TransformSet(object):
         [output_names.extend(x.output_name) for x in self]
         return tuple(output_names)
 
-    def apply(self, inputs, cache=None):
+    def apply(self, inputs):
         """Apply each transform to `inputs`; pass results and sideband objects
         through to the output.
 
@@ -91,18 +103,7 @@ class TransformSet(object):
         outputs : container with results of transforms and sideband objects
 
         """
-        outputs = [xform.apply(inputs, cache=cache) for xform in self]
-
-        # Start with all names in inputs
-        unused_input_names = set([i.name for i in inputs])
-        # Remove names that were used for a transform
-        [unused_input_names.difference_update(x.input_names) for x in self]
-
-        # Pass any unused objects through to the output; these are considered
-        # to be "sideband" objects, which can be passed through to a later
-        # stage without having an effect on the stages leading up to that one
-        for name in unused_input_names:
-            outputs.append(inputs[name])
+        outputs = [xform.apply(inputs) for xform in self]
 
         # TODO: what to set for name, tex, ... ?
         return MapSet(maps=outputs)
@@ -112,26 +113,44 @@ class Transform(object):
     """
     Transform.
 
+    Parameters
+    ----------
+
     Properties
     ----------
+    hash
     input_names
     num_inputs
     output_name
+    tex
+
     """
     # Attributes that __setattr__ will allow setting
-    _slots = ('_input_names', '_output_name', '_name', '_tex', '_hash')
+    _slots = ('_input_names', '_output_name', '_tex', '_params_hash', '_hash')
     # Attributes that should be retrieved to fully describe state
-    _state_attrs = ('input_names', 'output_name', 'name', 'tex', 'hash')
+    _state_attrs = ('input_names', 'output_name', 'tex', 'hash')
 
-    def __init__(self, input_names, output_name, name=None, tex=None,
-                 hash=None):
+    def __init__(self, input_names, output_name, input_binning=None,
+                 output_binning=None, tex=None, params_hash=None):
         if isinstance(input_names, basestring):
             input_names = [input_names]
+        assert isinstance(output_name, basestring)
         self._input_names = input_names
         self._output_name = output_name
-        self._tex = tex
-        self.name = name
-        self.hash = hash
+        if input_binning is not None:
+            self._input_binning = MultiDimBinning(input_binning)
+        else:
+            self._input_binning = None
+        if output_binning is not None:
+            self._output_binning = MultiDimBinning(output_binning)
+        else:
+            self._output_binning = None
+        self._tex = tex if tex is not None else output_name
+        self._params_hash = params_hash
+
+    @property
+    def hash(self):
+        return self._hash
 
     @property
     def input_names(self):
@@ -145,23 +164,17 @@ class Transform(object):
     def output_name(self):
         return self._output_name
 
-    def apply(self, inputs, cache=None):
-        hashes = [self.hash]
-        hashes.extend([inputs[name].hash for name in self.input_names])
+    @property
+    def input_binning(self):
+        return self._input_binning
 
-        # All hashes must be present (for the transform and for each input
-        # used by a transform) for a valid hash to be applied automatically to
-        # the output
-        if all([(h != None) for h in hashes]):
-            output_hash = hash_obj(tuple(hashes))
-        else:
-            output_hash = None
+    @property
+    def output_binning(self):
+        return self._output_binning
 
-        # Try to load result from cache, or recompute
-        if cache is not None and output_hash in cache:
-            output = cache[output_hash]
-        else:
-            output = self._apply(inputs)
+    def apply(self, inputs):
+        logging.trace('applying transform to inputs.')
+        output = self._apply(inputs)
 
         # TODO: tex, etc.?
         output.name = self.output_name
@@ -182,6 +195,19 @@ class Transform(object):
 
 class BinnedTensorTransform(Transform):
     """
+    Parameters
+    ----------
+    input_names
+    output_name
+    input_binning
+    output_binning
+    params_hash
+
+    Properties
+    ----------
+    hash
+    params_hash
+    source_hash
     """
     _slots = tuple(list(Transform._slots) +
                    ['_input_binning', '_output_binning', '_xform_array'])
@@ -190,30 +216,14 @@ class BinnedTensorTransform(Transform):
                          ['input_binning', 'output_binning', 'xform_array'])
 
     def __init__(self, input_names, output_name, input_binning, output_binning,
-                 xform_array, name=None, tex=None, hash=None):
+                 xform_array, tex=None, params_hash=None):
         super(self.__class__, self).__init__(input_names=input_names,
                                              output_name=output_name,
-                                             name=name, tex=tex, hash=hash)
-        self._input_binning = None
-        self._output_binning = None
-        self._xform_array = None
-        self.input_binning = input_binning
-        self.output_binning = output_binning
+                                             input_binning=input_binning,
+                                             output_binning=output_binning,
+                                             tex=tex,
+                                             params_hash=params_hash)
         self.xform_array = xform_array
-
-    @property
-    def input_binning(self):
-        return self._input_binning
-
-    @input_binning.setter
-    def input_binning(self, binning):
-        if not isinstance(binning, MultiDimBinning):
-            binning = MultiDimBinning(binning)
-        if self.xform_array is not None and self.output_binning is not None:
-            self.validate_transform(input_binning=binning,
-                                    output_binning=self.output_binning,
-                                    xform_array=self.xform_array)
-        self._input_binning = binning
 
     @property
     def xform_array(self):
@@ -260,19 +270,13 @@ class BinnedTensorTransform(Transform):
     # transform kernel
 
     def _apply(self, inputs, cache=None):
-        """Apply transforms to input maps to derive output maps.
+        """Apply transforms to input maps to compute output maps.
 
         Parameters
         ----------
         inputs : Mapping
-            Container class that must contain the maps to be transformed.
-            There can be extra objects in `inputs` that are not used by this
-            transform ("sideband" objects, which are simply ignored here).
-            If multiple input maps are used by the transform, they are
-            combined via
-              numpy.stack((map0, map1, ... ), axis=0)
-            I.e., the first dimension of the input sent to the transform has
-            a length the same number of input maps requested by the transform.
+            Container class that must contain (at least) the maps to be
+            transformed.
 
         Returns
         -------
@@ -288,6 +292,13 @@ class BinnedTensorTransform(Transform):
         and is currently used for the reconstruction stage's convolution
         kernels where there is one (M_ebins x N_czbins)-size kernel for each
         (energy, coszen) bin.
+
+        There can be extra objects in `inputs` that are not used by this
+        transform ("sideband" objects, which are simply ignored here). If
+        multiple input maps are used by the transform, they are combined via
+          numpy.stack((map0, map1, ... ), axis=0)
+        I.e., the first dimension of the input sent to the transform has a
+        length the same number of input maps requested by the transform.
 
         """
         self.validate_input(inputs)
@@ -354,7 +365,6 @@ def test_BinnedTensorTransform():
     )
 
     xform0 = BinnedTensorTransform(
-        name='nue_scale',
         input_names='nue',
         output_name='nue',
         input_binning=binning,
@@ -363,7 +373,6 @@ def test_BinnedTensorTransform():
     )
 
     xform1 = BinnedTensorTransform(
-        name='numu_scale',
         input_names=['numu'],
         output_name='numu',
         input_binning=binning,
@@ -372,7 +381,6 @@ def test_BinnedTensorTransform():
     )
 
     xform2 = BinnedTensorTransform(
-        name='nue_scale+numu_scale',
         input_names=['nue', 'numu'],
         output_name='nue_numu',
         input_binning=binning,
