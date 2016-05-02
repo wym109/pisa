@@ -41,6 +41,10 @@ def parse_quantity(string):
     return value
 
 
+def parse_string_literal(string):
+    return string
+
+
 def list_split(string):
     list = string.split(',')
     return [x.strip() for x in list]
@@ -50,7 +54,7 @@ def parse_config(config):
     if isinstance(config, basestring):
         config = from_file(config)
     # create binning objects
-    binningDict = {}
+    binning_dict = {}
     order = list_split(config.get('binning', 'order'))
     binnings = list_split(config.get('binning', 'binnings'))
     for binning in binnings:
@@ -58,17 +62,17 @@ def parse_config(config):
         for bin_name in order:
             args = eval(config.get('binning', binning + '.' + bin_name))
             bins.append(OneDimBinning(bin_name, **args))
-        binningDict[binning] = MultiDimBinning(*bins)
+        binning_dict[binning] = MultiDimBinning(*bins)
 
-    dict = OrderedDict()
+    args_dict = OrderedDict()
     # find pipline setting
     pipeline_order = list_split(config.get('pipeline', 'order'))
     for item in pipeline_order:
         stage, service = item.split(':')
         section = 'stage:' + stage
         # get infos for stages
-        dict[stage] = {}
-        dict[stage]['service'] = service
+        args_dict[stage] = {}
+        args_dict[stage]['service'] = service
         params = []
         if config.has_option(section, 'param_selector'):
             param_selector = config.get(section, 'param_selector')
@@ -86,10 +90,15 @@ def parse_config(config):
                 else:
                     continue
 
-                value = parse_quantity(value)
-                # default behaviour
-                args = {'name':pname, 'value':value.n * value.units,
-                        'is_fixed':True, 'prior':None, 'range':None}
+                # defaults
+                args = {'name': pname, 'is_fixed': True, 'prior': None,
+                        'range': None}
+                try:
+                    value = parse_quantity(value)
+                    args['value'] = value.n * value.units
+                except ValueError:
+                    value = parse_string_literal(value)
+                    args['value'] = value
                 # search for explicit specifications
                 if config.has_option(section, name + '.fixed'):
                     args['is_fixed'] = config.getboolean(section, name +
@@ -100,8 +109,7 @@ def parse_config(config):
                 if config.has_option(section, name + '.prior'):
                     #ToDo other priors than gaussian
                     args['prior'] = config.get(section, name + '.prior')
-
-                elif value.s != 0:
+                elif hasattr(value, 's') and value.s != 0:
                     args['prior'] = Prior(kind='gaussian', fiducial=value.n,
                                           sigma = value.s)
 
@@ -118,12 +126,12 @@ def parse_config(config):
                 params.append(Param(**args))
 
             elif 'binning' in name:
-                dict[stage][name] = binningDict[value]
+                args_dict[stage][name] = binning_dict[value]
 
             elif not name == 'param_selector':
-                dict[stage][name] = value
+                args_dict[stage][name] = value
 
         if len(params) > 0:
-            dict[stage]['params'] = ParamSet(*params)
+            args_dict[stage]['params'] = ParamSet(*params)
 
-    return dict
+    return args_dict
