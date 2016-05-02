@@ -137,7 +137,7 @@ def parse_config(config):
                         sigma = value.s * value.units
                     range = range.replace('[', 'np.array([')
                     range = range.replace(']', '])')
-                    args['range'] = eval(range).to(value.units)
+                    args['range'] = eval(range).to(value.units).m
 
                 params.append(Param(**args))
 

@@ -52,12 +52,13 @@ class Param(object):
     validate_value
     """
     _slots = ('name', 'value', 'prior', 'range', 'is_fixed', 'is_discrete',
-              'scale', '_nominal_value', '_tex', 'help')
-    _state_attrs = ('name', 'value', 'prior', 'range', 'is_fixed',
+              'scale', '_nominal_value', '_tex', 'help','_value')
+    _state_attrs = ('name', '_value', 'prior', 'range', 'is_fixed',
                      'is_discrete', 'scale', 'nominal_value', 'tex', 'help')
 
     def __init__(self, name, value, prior, range, is_fixed, is_discrete=False,
                  scale=1, nominal_value=None, tex=None, help=''):
+        self._value = None
         self.name = name
         self._tex = tex if tex is not None else name
         self.help = help
@@ -65,7 +66,7 @@ class Param(object):
         self.prior = prior
         self.is_fixed = is_fixed
         self.is_discrete = is_discrete
-        self.validate_value(value)
+        #self.validate_value(value)
         self.value = value
         self.scale = scale
         self._nominal_value = value if nominal_value is None else nominal_value
@@ -100,10 +101,22 @@ class Param(object):
             if self.is_discrete:
                 assert value in self.range
             else:
-                assert value >= min(self.range) and value <= max(self.range)
+                assert value.m >= min(self.range) and value.m <= max(self.range)
         if self.prior is not None:
             assert value.m >= min(self.prior.valid_range) and value.m <= \
                 max(self.prior.valid_range)
+
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, val):
+        if self._value is not None:
+           if hasattr(self._value, 'units'):
+                val = val.to(self._value.units)
+           self.validate_value(val)
+        self._value = val
 
     @property
     def tex(self):

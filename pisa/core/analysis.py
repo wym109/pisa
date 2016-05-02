@@ -72,5 +72,5 @@ if __name__ == '__main__':
     ana.scan('test', np.arange(0,5,1)*ureg.foot, metric='llh')
     logging.info('sweeping over 5 values of `atm_delta_index` (should affect'
                  ' osc)')
-    ana.scan('atm_delta_index', np.arange(0,5,1)*ureg.dimensionless,
+    ana.scan('atm_delta_index', np.arange(-0.2,0.2,1)*ureg.dimensionless,
              metric='llh')
