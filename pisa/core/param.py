@@ -5,7 +5,6 @@
 # date:   March 22, 2016
 #
 
-
 from functools import total_ordering
 from collections import OrderedDict, Sequence, Mapping
 from operator import setitem
@@ -191,9 +190,9 @@ class Param(object):
             return 0
         metric = metric.lower()
         if metric in ['llh', 'barlow_llh', 'conv_llh']:
-            return self.prior.llh(self.value)
+            return self.prior.llh(self.value.m)
         elif metric in ['chi2']:
-            return self.prior.chi2(self.value)
+            return self.prior.chi2(self.value.m)
         else:
             raise ValueError('Unrecognized `metric` "%s"' %metric)
 
@@ -445,13 +444,14 @@ class ParamSet(object):
         string = ''
         for p in self:
             if hasattr(p.value,'units'):
-                string += ' %s: %.2f '%(p.name, p.value.m)
-                unit = '%s '%p.value.u
-                if not unit == 'dimensionless ':
+                string += '%s = %.2f'%(p.name, p.value.m)
+                unit = ' %s'%p.value.u
+                if not unit == ' dimensionless':
                     string += unit
             else:
-                string += '%s: %s\t'%(p.name, p.value)
-        return string
+                string += '%s: %s'%(p.name, p.value)
+            string += ', '
+        return string.rstrip(', ')
 
     @property
     def tex(self):

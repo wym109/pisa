@@ -25,9 +25,6 @@ class Analysis(object):
     '''
     def __init__(self, data_maker, template_maker):
         self.data_maker = data_maker
-        fp = self.data_maker.params.free
-        fp['test'].value *= 1.2
-        self.data_maker.update_params(fp)
         self.template_maker = template_maker
 
     def scan(self, pname, values, metric='llh'):
@@ -49,11 +46,14 @@ class Analysis(object):
         self.template_maker.set_rescaled_free_params(valuelist)
         template = self.template_maker.compute_outputs()
         llh = -data.total_llh(template)
+        # ToDo: llh from priors
+        llh -= template_maker.params.free.priors_llh
         print 'llh at %s'%llh
         return llh
 
     def run_l_bfgs(self, minimizer_settings):
         x0 = self.publish_to_minimizer()
+        # bfgs steps outside of given bounds by 1 epsilon to evaluate gradients
         epsilon = minimizer_settings['options']['value']['epsilon']
         bounds = [(0+epsilon,1-epsilon)]*len(x0)
         a = opt.fmin_l_bfgs_b(func=self.optimize_llh,
@@ -95,6 +95,10 @@ if __name__ == '__main__':
     data_settings = from_file(args.data_settings)
     data_cfg = parse_config(data_settings)
     data_maker = TemplateMaker([data_cfg])
+    test = data_maker.params['test']
+    #test.value /=2.
+    test.value *= 1.2
+    data_maker.update_params(test)
 
     template_settings = from_file(args.template_settings)
     template_cfg = parse_config(template_settings)

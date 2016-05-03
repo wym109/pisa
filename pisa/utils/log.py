@@ -61,4 +61,4 @@ def set_verbosity(verbosity):
               3:logging.TRACE}
 
     # Overwrite the root logger with the verbosity level
-    logging.root.setLevel(levels[min(3,verbosity)])
+    logging.root.setLevel(levels[min(1,verbosity)])
