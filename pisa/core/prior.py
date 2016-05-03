@@ -20,7 +20,13 @@ from pisa.utils.comparisons import recursiveEquality
 
 # TODO: docstrings!!!
 class Prior(object):
-    """Priors.
+    """Prior, providing prior information for a parameter, implemented kinds
+        are:
+        - uniform
+        - gaussian
+        - linterp
+        - spline
+
 
     Parameters
     ----------

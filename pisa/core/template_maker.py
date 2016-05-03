@@ -10,7 +10,17 @@ from pisa.utils.log import logging, set_verbosity
 
 
 class TemplateMaker(object):
-    """Creates a TemplateMaker object that has several pipelines inside"""
+    """Creates a TemplateMaker object that has several pipelines inside
+    the outputs from all pipelines are added together  
+
+    args: list of parsed pipline configs (=dicts)
+
+    N.B: free params with the same name in two pipelines are updated at the same time,
+    using the the update_params method, or the
+    set_free_params/set_rescaled_free_params methods
+
+    rescaled_values mehods are for interfacing with a minimizer
+    """
     def __init__(self, pipeline_settings):
         self.pipelines = [Pipeline(setting) for setting in pipeline_settings]
 
@@ -43,18 +53,33 @@ class TemplateMaker(object):
 
     @property
     def free_params_values(self):
+        # a simple list of param values
         return [p.value for p in self.params.free]
 
     @property
+    def free_params_rescaled_values(self):
+        # a simple list of idimensionless param values rescaled to (0,1)
+        return [p.rescaled_value for p in self.params.free]
+
+    @property
     def free_params_names(self):
+        # a simple list of names of the free params
         return [p.name for p in self.params.free]
 
     def set_free_params(self, values):
+        # set free param values given a simple list
         for name, value in zip(self.free_params_names, values):
             for pipeline in self.pipeline:
                 if name in pipeline.params.free:
                     pipeline.params.free.value = value
 
+    def set_rescaled_free_params(self, rvalues):
+        # set free param values given a simple list of (0,1) rescaled,
+        # dimensionless values
+        for name, rvalue in zip(self.free_params_names, rvalues):
+            for pipeline in self.pipelines:
+                if name in pipeline.params.free:
+                    pipeline.params.free.rescaled_value = rvalue
 
 if __name__ == '__main__':
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter

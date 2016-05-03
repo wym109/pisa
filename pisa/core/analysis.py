@@ -9,6 +9,18 @@ from pisa.utils.log import logging, set_verbosity
 
 
 class Analysis(object):
+    '''provide scan methods, or methods to interact with a minimizer,
+       
+    args:
+        - data_maker TemplateMaker object
+        - template_maker TemplateMaker object
+
+    data_maker is used to derive a data-like template, that is not modified
+    during the analysis
+
+    template_maker provides output templates, and e.g. free parameters, that can
+    be minimized using a given metric, or scanned through, etc...
+    '''
     def __init__(self, data_maker, template_maker):
         self.data_maker = data_maker
         self.template_maker = template_maker
@@ -24,9 +36,11 @@ class Analysis(object):
             metric_vals.append(data.total_llh(template))
         return metric_vals
 
-    def publish(self):
-        print self.template_maker.free_params_names
-        print self.template_maker.free_params_values
+    def publish_to_minimizer(self):
+        return self.template_maker.free_params_rescaled_values
+
+    def update_from_minimizer(self, valuelist):
+        self.template_maker.set_rescaled_free_params(valuelist)
 
 
 if __name__ == '__main__':
@@ -61,7 +75,7 @@ if __name__ == '__main__':
     template_cfg = parse_config(template_settings)
     template_maker = TemplateMaker([template_cfg])
 
-    ana = Analysis([data_settings, template_settings])
+    ana = Analysis(data_maker, template_maker)
 
     print ''
     logging.info(
@@ -85,4 +99,6 @@ if __name__ == '__main__':
     print ''
     ana.scan('theta23', np.linspace(40, 45, 3)*ureg.degrees,
              metric='llh')
-    ana.publish()
+    vals = ana.publish_to_minimizer()
+    vals[1]*=0.9
+    ana.update_from_minimizer(vals)

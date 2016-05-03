@@ -10,7 +10,20 @@ from pisa.utils.log import logging, set_verbosity
 
 
 class Pipeline(object):
-    """Instantiate stages according to config; excecute stages."""
+    """Instantiate stages according to a parsed config object; excecute stages.
+    
+    args:
+    - config dict
+
+    methods:
+    - compute_outputs: returning output MapSet from the (final) pipeline
+    stage(s)
+    - update_params: update params of all stages
+
+    attributes:
+    - params: ParamSet containing all params from all stages
+    """
+
     def __init__(self, config):
         self._stages = []
         self.config = config
