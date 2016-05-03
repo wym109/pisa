@@ -17,6 +17,8 @@ class Analysis(object):
     args:
         - data_maker TemplateMaker object
         - template_maker TemplateMaker object
+        - data_method : str
+            method for how to obtain (pseudo)data
 
     data_maker is used to derive a data-like template, that is not modified
     during the analysis
@@ -27,15 +29,14 @@ class Analysis(object):
     def __init__(self, data_maker, template_maker, data_method='Asimov'):
         self.data_maker = data_maker
         self.template_maker = template_maker
-        self.data_method = data_method
+        self.data = self.make_data(data_method)
 
-    @property
-    def data(self):
-        if self.data_method.lower() == 'asimov':
+    def make_data(self, data_method):
+        if data_method.lower() == 'asimov':
             return self.data_maker.compute_outputs()
         else:
             maps = self.data_maker.compute_outputs()
-            return maps.fluctuate(self.data_method)
+            return maps.fluctuate(data_method)
 
     def scan(self, pname, values, metric='llh'):
         metric_vals = []
