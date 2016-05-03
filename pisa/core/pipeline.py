@@ -20,29 +20,35 @@ class Pipeline(object):
         return iter(self._stages)
 
     def _init_stages(self):
+        """Stage factory: Instantiate stages specified by self.config."""
         self._stages = []
         for stage_num, stage_name in enumerate(self.config.keys()):
             service = self.config[stage_name.lower()].pop('service').lower()
-            # factory
-            # import stage service
+            # Import stage service
             module = importlib.import_module('pisa.stages.%s.%s'
                                              %(stage_name.lower(), service))
-            # get class
+            # Get class
             cls = getattr(module, service)
-            # instantiate object
+
+            # Instantiate object, do basic type check
             stage = cls(**self.config[stage_name.lower()])
             assert isinstance(stage, Stage)
-            # make sure the binnings match (including if both are specified to
-            # be None)
+
+            # Make sure the input binning of this stage is compatible with the
+            # output binning of the previous stage ("compatible binning"
+            # includes if both are specified to be None)
             if len(self._stages) > 0:
                 assert stage.input_binning == self._stages[-1].output_binning
-            # add stage to pipeline
+
+            # Append stage to pipeline
             self._stages.append(stage)
-        print self.params
+
+        logging.debug(str(self.params))
 
     def compute_outputs(self, inputs=None, idx=None, return_intermediate=False):
+        idx = slice(None) if idx is None else idx
         intermediate = []
-        for stage in self.stages[:idx]:
+        for stage in self.stages[idx]:
             logging.debug('Working on stage %s (%s)' %(stage.stage_name,
                                                        stage.service_name))
             try:
@@ -87,20 +93,49 @@ if __name__ == '__main__':
     from pisa.utils.parse_config import parse_config
 
     parser = ArgumentParser()
-    parser.add_argument('-t', '--template-settings', type=str,
-                        metavar='configfile', required=True,
-                        help='''settings for the template generation''')
-    parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE',
-                        type=str, action='store', default="out.json",
-                        help='file to store the output')
+    parser.add_argument(
+        '-t', '--pipeline-settings', metavar='CONFIGFILE', type=str,
+        help='File containing settings for the pipeline.'
+    )
+    parser.add_argument(
+        '-s', '--test-stage', metavar='STAGE', type=str,
+        help='''Test stage: Instantiate a single stage in the pipeline
+        specification and run it in isolation (as the sole stage in a
+        pipeline). If it is a stage that requires inputs, these can be
+        specified with the --infile argument, or else dummy stage input maps
+        (numpy.ones(...), matching the input binning specification) are
+        generated for testing purposes. See also --infile and --transformfile
+        arguments.'''
+    )
+    parser.add_argument(
+        '-o', '--outfile', metavar='FILE', type=str,
+        default='out.json',
+        help='''File for storing outputs. See also --intermediate-outputs
+        argument.'''
+    )
+    parser.add_argument(
+        '-i', '--infile', metavar='FILE', type=str,
+        required=False,
+        help='''File from which to read inputs to be fed to the pipeline.'''
+    )
+    parser.add_argument(
+        '-T', '--transform-file', metavar='FILE', type=str,
+        required=False,
+        help='''File into which to store transform(s) from the pipeline.'''
+    )
+    parser.add_argument(
+        '-I', '--intermediate', action='store_true',
+        help='''Store all intermediate outputs, not just the final stage's
+        outputs.'''
+    )
     args = parser.parse_args()
 
-    template_config = parse_config(from_file(args.template_settings))
+    pipeline_config = parse_config(from_file(args.pipeline_settings))
 
-    template_nu_pipeline = Pipeline(template_config)
-    m0 = template_nu_pipeline.compute_outputs()
-    fp = template_nu_pipeline.params.free #free_params
-    fp['test'].value*=1.2
+    pipeline = Pipeline(pipeline_config)
+    m0 = pipeline.compute_outputs()
+    fp = pipeline.params.free
+    fp['test'].value *= 1.2
     pipeline.update_params(fp)
     m1 = pipeline.compute_outputs()
     print (m1/m0)['nue'][0,0]
