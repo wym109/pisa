@@ -3,12 +3,18 @@
 #
 # date:   2016-04-28
 """
-Parse a ConfigFile object into a dict containing a an entry for every
-stage, that contains values indicated by param. each as a Param object in one
-ParamSet, and the binning as binning objects
+Parse a ConfigFile object into a dict containing a an entry for every stage,
+that contains values indicated by param. each as a Param object in one
+ParamSet, and the binning as binning objects.
 
-params that have the same name in multiple stages are treated as one single
-param
+Params that have the same name in multiple stages of the pipeline are
+instantiated as references to a single param in memory, so updating one updates
+all of them.
+
+Note that this mechanism of synchronizing parameters holds only within the
+scope of a single pipeline; synchronization of parameters across pipelines
+is done by adding the pipelines to a single TemplateMaker object and updating
+params through the TemplateMaker's update_params method.
 """
 
 from collections import OrderedDict
@@ -98,18 +104,19 @@ def parse_config(config):
                 # yes, make sure there are no specs, and just link to previous
                 # param object that already is instantiated
                 for _,stage_dict in stage_dicts.items():
-                    if stage_dict.has_key('params') and pname in stage_dict['params'].names:
+                    if stage_dict.has_key('params') and \
+                            pname in stage_dict['params'].names:
                         # make sure there are no other specs
                         assert config.has_option(section, name + '.range') == \
-                        False
+                                False
                         assert config.has_option(section, name + '.prior') == \
-                        False
+                                False
                         assert config.has_option(section, name + '.fixed') == \
-                        False
+                                False
                         params.append(stage_dict['params'][pname])
                         break
                 else:
-                       
+
                     # defaults
                     args = {'name': pname, 'is_fixed': True, 'prior': None,
                             'range': None}
@@ -133,7 +140,8 @@ def parse_config(config):
                             data = config.get(section, name + '.prior.data')
                             data = from_file(data)
                             data = data[priorname]
-                            knots = ureg.Quantity(np.asarray(data['knots']), data['units'])
+                            knots = ureg.Quantity(np.asarray(data['knots']),
+                                                  data['units'])
                             knots = knots.to(value.units)
                             coeffs = np.asarray(data['coeffs'])
                             deg = data['deg']
@@ -141,8 +149,10 @@ def parse_config(config):
                                     coeffs=coeffs,
                                     deg=deg)
                         elif 'gauss' in config.get(section, name + '.prior'):
-                            raise Exception('''Please use new style +/- notation for
-                                gaussian priors in config''')
+                            raise Exception(
+                                'Please use new style +/- notation for'
+                                ' gaussian priors in config'
+                            )
                         else:
                             raise Exception('Prior type unknown')
                     elif hasattr(value, 's') and value.s != 0:
