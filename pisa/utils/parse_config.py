@@ -145,9 +145,10 @@ def parse_config(config):
                             knots = knots.to(value.units)
                             coeffs = np.asarray(data['coeffs'])
                             deg = data['deg']
-                            args['prior'] = Prior(kind='spline', knots=knots.m,
-                                    coeffs=coeffs,
-                                    deg=deg)
+                            args['prior'] = Prior(kind='spline',
+                                                  knots=knots.m,
+                                                  coeffs=coeffs,
+                                                  deg=deg)
                         elif 'gauss' in config.get(section, name + '.prior'):
                             raise Exception(
                                 'Please use new style +/- notation for'
@@ -166,7 +167,7 @@ def parse_config(config):
                             sigma = value.s * value.units
                         range = range.replace('[', 'np.array([')
                         range = range.replace(']', '])')
-                        args['range'] = eval(range).to(value.units).m
+                        args['range'] = eval(range).to(value.units)
 
                     params.append(Param(**args))
 
