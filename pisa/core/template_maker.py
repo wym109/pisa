@@ -97,7 +97,7 @@ class TemplateMaker(object):
         """
         for name, value in zip(self.free_params_names, values):
             for pipeline in self.pipeline:
-                if name in pipeline.params.free:
+                if name in [p.name for p in pipeline.params.free]:
                     pipeline.params.free.value = value
 
     def set_rescaled_free_params(self, rvalues):
@@ -105,10 +105,13 @@ class TemplateMaker(object):
         dimensionless values
 
         """
-        for name, rvalue in zip(self.free_params_names, rvalues):
-            for pipeline in self.pipelines:
-                if name in pipeline.params.free:
-                    pipeline.params.free.rescaled_value = rvalue
+        for pipeline in self.pipelines:
+            fp = pipeline.params.free
+            for name, rvalue in zip(self.free_params_names, rvalues):
+                if name in [p.name for p in fp]:
+                    fp[name].rescaled_value = rvalue
+            pipeline.update_params(fp)
+                    
 
 if __name__ == '__main__':
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter

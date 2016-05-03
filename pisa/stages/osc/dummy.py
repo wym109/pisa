@@ -89,7 +89,8 @@ class dummy(Stage):
                     [len(xform_input_names)]
 
             # Produce a random transform for demonstration only
-            xform_array = np.random.rand(*dimensionality)
+            #xform_array = np.random.rand(*dimensionality)
+            xform_array = np.ones(dimensionality)*1.1
 
             # Construct the BinnedTensorTransform
             xform = BinnedTensorTransform(

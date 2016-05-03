@@ -69,14 +69,14 @@ class dummy(Stage):
         output_maps = []
         for output_name in self.output_names:
             # Generate the fake per-bin "fluxes", modified by the parameter
-            hist = np.random.rand(*self.output_binning.shape) * height
+            hist = np.ones(self.output_binning.shape) * height
 
             # Put the "fluxes" into a Map object, give it the output_name
             m = Map(name=output_name, hist=hist, binning=self.output_binning)
 
             # Optionally turn on errors here, that will be propagated through
             # rest of pipeline (slows things down, but essential in some cases)
-            m.set_poisson_errors()
+            #m.set_poisson_errors()
             output_maps.append(m)
 
         # Combine the output maps into a single MapSet object to return.

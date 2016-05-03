@@ -62,7 +62,8 @@ class Param(object):
 
     """
     _slots = ('name', 'value', 'prior', 'range', 'is_fixed', 'is_discrete',
-              '_nominal_value', '_tex', 'help','_value', '_range')
+              '_nominal_value', '_tex', 'help','_value', '_range',
+              'rescaled_value')
     _state_attrs = ('name', '_value', 'prior', 'range', 'is_fixed',
                      'is_discrete', 'nominal_value', 'tex', 'help')
 
@@ -106,7 +107,8 @@ class Param(object):
             if self.is_discrete:
                 assert value in self.range, str(value) + ' ' + str(self.range)
             else:
-                assert value >= min(self.range) and value <= max(self.range), \
+                assert value.m >= min(self.range).to(value.u).m and value.m <=\
+                max(self.range).to(value.u).m, \
                         'value=' + str(value) + '; range=' + str(self.range)
 
         # TODO: Implement units for prior (or at least for simple things, like
@@ -146,15 +148,16 @@ class Param(object):
         if self.is_discrete:
             val = self.value
         else:
-            val = (self.value - self.range[0]) / (self.range[1]-self.range[0])
+            val = (self.value.m - self.range[0].m)\
+                  / (self.range[1].m-self.range[0].m)
         if hasattr(val, 'magnitude'):
             val = val.magnitude
         return val
 
     @rescaled_value.setter
     def rescaled_value(self, rval):
-        self.value = (self.range[1]-self.range[0]) * rval + self.range[0] \
-                * self.value.unit
+        self.value = ((self.range[1].m-self.range[0].m) * rval +
+                self.range[0].m) * self.value.units
 
     @property
     def tex(self):
@@ -437,6 +440,18 @@ class ParamSet(object):
 
     def __iter__(self):
         return iter(self._params)
+
+    def __str__(self):
+        string = ''
+        for p in self:
+            if hasattr(p.value,'units'):
+                string += ' %s: %.2f '%(p.name, p.value.m)
+                unit = '%s '%p.value.u
+                if not unit == 'dimensionless ':
+                    string += unit
+            else:
+                string += '%s: %s\t'%(p.name, p.value)
+        return string
 
     @property
     def tex(self):
