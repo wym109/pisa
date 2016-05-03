@@ -13,8 +13,6 @@ from pisa.utils.log import logging, set_verbosity
 
 # TODO: make service_name dynamically found from class name, rather than as arg
 
-def compare_sets(expected, actual):
-
 class Stage(object):
     """
     PISA stage base class. Should encompass all behaviors common to (almost)
@@ -194,14 +192,19 @@ class Stage(object):
 
         # TODO: include binning hash(es) in id_objects
         id_objects = []
-        id_objects.append(self.params.values_hash)
-        [id_objects.append(inputs[name]) for name in self.input_names]
 
-        # If any hashes are missing (None), invalidate the entire hash
+        # Hash on all parameter values
+        id_objects.append(self.params.values_hash)
+
+        # If stage uses inputs, grab hash from the inputs container object
+        if len(self.input_names) > 0:
+            id_objects.append(inputs.hash)
+
+        # If any hashes are missing (i.e, None), invalidate the entire hash
         if any([(h == None) for h in id_objects]):
-            outputs_hash = hash_obj(id_objects)
-        else:
             outputs_hash = None
+        else:
+            outputs_hash = hash_obj(id_objects)
 
         logging.trace('outputs_hash: %s' %outputs_hash)
 
@@ -236,7 +239,7 @@ class Stage(object):
 
         # Attach sideband objects (i.e., unused inputs) to the "augmented"
         # output object
-        for name in set([i.name for i in inputs]).difference(self.names):
+        for name in set([i.name for i in inputs]).difference(self.input_names):
             augmented_outputs.append(inputs[name])
 
         return augmented_outputs
