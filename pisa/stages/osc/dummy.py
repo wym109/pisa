@@ -98,7 +98,6 @@ class dummy(Stage):
                 input_binning=self.input_binning,
                 output_binning=self.output_binning,
                 xform_array=xform_array,
-                name='osc from %s to %s' %(', '.join(xform_input_names), flav),
                 params_hash=hash_obj((seed,)),
             )
             transforms.append(xform)
