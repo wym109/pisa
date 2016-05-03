@@ -18,22 +18,19 @@ import pisa.resources.resources as resources
 from pisa.utils.comparisons import recursiveEquality
 from pisa.utils.hash import hash_obj
 
+# TODO: Make property "frozen" or "read_only" so params in param set e.g.
+# returned by a template maker -- which updating the values of will NOT have
+# the effect the user might expect -- will be explicitly forbidden?
+
 # TODO: units: pass in attached to values, or
 @total_ordering
 class Param(object):
     """Parameter class to store any kind of parameters
 
-    args:
-    - name str
-    - value str or quantity with units
-
-    in the case of a free (not fixed)  parameter, a valid range for the parameter should be
-    spicfied, and prior must be assigned to compute llh and chi2 values
-
     Parameters
     ----------
-    name
-    value
+    name : string
+    value : string or pint Quantity with units
     prior
     range
     is_fixed
@@ -53,6 +50,12 @@ class Param(object):
     Methods
     -------
     validate_value
+
+    Notes
+    -----
+    In the case of a free (not fixed)  parameter, a valid range for the
+    parameter should be spicfied, and prior must be assigned to compute llh and
+    chi2 values.
 
     """
     _slots = ('name', 'value', 'prior', 'range', 'is_fixed', 'is_discrete',
@@ -362,10 +365,11 @@ class ParamSet(object):
 
     def extend(self, obj):
         """Append param(s) in `obj` to this param set, but ensure params in
-        `obj` that are already in this param set match.
+        `obj` that are already in this param set match. Params with same name
+        attribute are not duplicated.
 
-        Convenience method or calling `update` with existing_must_match=True
-        and extend=True.
+        (Convenience method or calling `update` method with
+        existing_must_match=True and extend=True.)
 
         """
         self.update(obj, existing_must_match=True, extend=True)
