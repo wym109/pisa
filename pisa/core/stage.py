@@ -13,6 +13,8 @@ from pisa.utils.log import logging, set_verbosity
 
 # TODO: make service_name dynamically found from class name, rather than as arg
 
+def compare_sets(expected, actual):
+
 class Stage(object):
     """
     PISA stage base class. Should encompass all behaviors common to (almost)
@@ -34,6 +36,8 @@ class Stage(object):
             {'<param_name>': <Param object or passable to Param()>}.
     expected_params : list of strings
         List containing required `params` names.
+    input_names
+    output_names
     disk_cache : None, str, or DiskCache
         If None, no disk cache is available.
         If str, represents a path with which to instantiate a utils.DiskCache
@@ -49,6 +53,8 @@ class Stage(object):
     disk_cache
     expected_params : list of strings
         List containing required param names.
+    input_names : list of strings
+    output_names : list of strings
     use_transforms : bool
         Whether or not this stage takes inputs to be transformed (and hence
         implements transforms).
@@ -104,7 +110,8 @@ class Stage(object):
             Perform validation on any parameters.
     """
     def __init__(self, use_transforms, stage_name='', service_name='',
-                 params=None, expected_params=None, disk_cache=None,
+                 params=None, expected_params=None, input_names=None,
+                 output_names=None, disk_cache=None,
                  memcaching_enabled=True, propagate_errors=True,
                  transforms_cache_depth=10,
                  outputs_cache_depth=10, input_binning=None,
@@ -113,6 +120,8 @@ class Stage(object):
         self.stage_name = stage_name
         self.service_name = service_name
         self.expected_params = expected_params
+        self._input_names = [] if input_names is None else input_names
+        self._output_names = [] if output_names is None else output_names
         self.input_binning = input_binning
         self.output_binning = output_binning
         self._source_code_hash = None
@@ -157,18 +166,19 @@ class Stage(object):
         if self.memcaching_enabled and self.transforms_cache is not None \
                 and xforms_hash in self.transforms_cache:
             logging.trace('loading xforms from cache.')
-            self.transforms = self.transforms_cache[xforms_hash]
-            return self.transforms
+            transforms = self.transforms_cache[xforms_hash]
 
-        # Otherwise: compute transforms anew, set hash value, and store to
-        # cache
-        logging.trace('computing transforms.')
-        xforms = self._compute_transforms()
-        xforms.hash = xforms_hash
-        self.transforms = xforms
-        if self.memcaching_enabled and self.transforms_cache is not None:
-            self.transforms_cache[xforms_hash] = self.transforms
-        return self.transforms
+        # Otherwise: compute transforms, set hash, and store to cache
+        else:
+            logging.trace('computing transforms.')
+            transforms = self._compute_transforms()
+            transforms.hash = xforms_hash
+            if self.memcaching_enabled and self.transforms_cache is not None:
+                self.transforms_cache[xforms_hash] = transforms
+
+        self.check_transforms(transforms)
+        self.transforms = transforms
+        return transforms
 
     def compute_outputs(self, inputs=None):
         """Compute and return outputs.
@@ -180,57 +190,59 @@ class Stage(object):
             be passed on (untransformed) to subsequent stages.
 
         """
-        id_objects = []
-        if self.input_names is not None:
-            [id_objects.append(inputs[name].hash) for name in self.input_names]
+        inputs = {} if inputs is None else inputs
+
         # TODO: include binning hash(es) in id_objects
+        id_objects = []
         id_objects.append(self.params.values_hash)
-        outputs_hash = hash_obj(id_objects)
+        [id_objects.append(inputs[name]) for name in self.input_names]
+
+        # If any hashes are missing (None), invalidate the entire hash
+        if any([(h == None) for h in id_objects]):
+            outputs_hash = hash_obj(id_objects)
+        else:
+            outputs_hash = None
+
         logging.trace('outputs_hash: %s' %outputs_hash)
 
-        if self.memcaching_enabled and outputs_hash in self.outputs_cache:
+        if self.memcaching_enabled and outputs_hash is not None and \
+                outputs_hash in self.outputs_cache:
             logging.trace('Loading outputs from cache.')
             outputs = self.outputs_cache[outputs_hash]
         else:
             logging.trace('Need to compute outputs...')
+
             if self.use_transforms:
                 self.compute_transforms()
+
             logging.trace('... now computing outputs.')
             outputs = self._compute_outputs(inputs)
-            if self.memcaching_enabled:
+            self.check_outputs(outputs)
+
+            # Store output to cache
+            if self.memcaching_enabled and outputs_hash is not None:
                 outputs.hash = outputs_hash
                 self.outputs_cache[outputs_hash] = outputs
 
-
-        # Keep outputs also as property of object for later inspection
+        # Keep outputs for inspection later
         self.outputs = outputs
 
         # TODO: make generic container object that can be operated on
         # similar to MapSet (but that doesn't require Map as children)
 
         # Create a new output container different from `outputs` but copying
-        # the contents, for purposes of attaching sideband objects. (These
-        # should not be stored in the cache.)
+        # the contents, for purposes of attaching any sideband objects.
         augmented_outputs = MapSet(outputs)
 
-        if inputs is None:
-            inputs = []
-
-        # Attach sideband objects (unused inputs) to output...
-        # 1. Start with all names in inputs.
-        unused_input_names = set([i.name for i in inputs])
-        # 2. Remove names that were used by a transform.
-        if self.transforms is not None:
-            [unused_input_names.difference_update(xform.input_names)
-             for xform in self.transforms]
-        # 3. Append these unused objects to the output.
-        for name in unused_input_names:
+        # Attach sideband objects (i.e., unused inputs) to the "augmented"
+        # output object
+        for name in set([i.name for i in inputs]).difference(self.names):
             augmented_outputs.append(inputs[name])
 
         return augmented_outputs
 
     def check_params(self, params):
-        """ make sure that `expected_params` is defined and that exactly the
+        """ Make sure that `expected_params` is defined and that exactly the
         params specifued in self.expected_params are present """
         assert self.expected_params is not None
         exp_p, got_p = set(self.expected_params), set(params.names)
@@ -249,10 +261,32 @@ class Stage(object):
                          %', '.join(sorted(exp_p))
                          + ';\n'.join(err_strs))
 
-    def validate_params(self, params):
-        """ method to test if params are valid, e.g. check range and
-        dimenionality """
-        pass
+    def check_transforms(self, transforms):
+        """Check that transforms' inputs and outputs match those specified
+        for this service.
+        
+        Parameters
+        ----------
+        transforms
+
+        Raises
+        ------
+        ValueError if transforms' inputs/outputs don't match stage spec
+
+        """
+        assert set(transforms.input_names) == set(self.input_names), \
+                "Transforms' inputs: " + str(transforms.input_names) + \
+                "\nStage inputs: " + str(self.input_names)
+
+        assert set(transforms.output_names) == set(self.output_names), \
+                "Transforms' outputs: " + str(transforms.output_names) + \
+                "\nStage outputs: " + str(self.output_names)
+
+    def check_outputs(self, outputs):
+        assert set(outputs.names) == set(self.output_names), \
+                "Transforms' outputs: " + str(transforms.output_names) + \
+                "\nStage outputs: " + str(self.output_names)
+
 
     @property
     def params(self):
@@ -266,6 +300,14 @@ class Stage(object):
         self.check_params(p)
         self.validate_params(p)
         self._params = p
+
+    @property
+    def input_names(self):
+        return tuple(self._input_names)
+
+    @property
+    def output_names(self):
+        return tuple(self._output_names)
 
     @property
     def source_code_hash(self):
@@ -282,10 +324,6 @@ class Stage(object):
     def state_hash(self):
         return hash_obj((self.source_code_hash, self.params.state_hash))
 
-    @property
-    def input_names(self):
-        return self.transforms.input_names
-
     def _compute_transforms(self):
         """Stages that apply transforms to inputs should override this method
         for deriving the transform. No-input stages should leave this as-is,
@@ -297,3 +335,10 @@ class Stage(object):
         Input stages that compute a TransformSet needn't override this, as the
         work for computing outputs is done by the TransfromSet below."""
         return self.transforms.apply(inputs)
+
+    def validate_params(self, params):
+        """ Method to test if params are valid, e.g. check range and
+        dimenionality """
+        pass
+
+
