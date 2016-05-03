@@ -87,7 +87,7 @@ class TransformSet(object):
     @property
     def output_names(self):
         output_names = []
-        [output_names.extend(x.output_name) for x in self]
+        [output_names.append(x.output_name) for x in self]
         return tuple(output_names)
 
     def apply(self, inputs):
