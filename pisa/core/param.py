@@ -447,6 +447,8 @@ class ParamSet(object):
                 string += '%s = %.2f'%(p.name, p.value.m)
                 unit = ' %s'%p.value.u
                 if not unit == ' dimensionless':
+                    if unit == ' electron_volt ** 2':
+                        unit = ' eV2'
                     string += unit
             else:
                 string += '%s: %s'%(p.name, p.value)

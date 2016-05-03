@@ -2,6 +2,7 @@
 # authors: J.Lanfranchi/P.Eller
 # date:    March 20, 2016
 
+import sys
 from collections import Sequence
 
 from pisa.core.template_maker import TemplateMaker
@@ -23,46 +24,60 @@ class Analysis(object):
     template_maker provides output templates, and e.g. free parameters, that can
     be minimized using a given metric, or scanned through, etc...
     '''
-    def __init__(self, data_maker, template_maker):
+    def __init__(self, data_maker, template_maker, data_method='Asimov'):
         self.data_maker = data_maker
         self.template_maker = template_maker
+        self.data_method = data_method
+
+    @property
+    def data(self):
+        if self.data_method.lower() == 'asimov':
+            return self.data_maker.compute_outputs()
+        else:
+            maps = self.data_maker.compute_outputs()
+            return maps.fluctuate(self.data_method)
 
     def scan(self, pname, values, metric='llh'):
         metric_vals = []
-        data = self.data_maker.compute_outputs()
         for val in values:
             fp = self.template_maker.params.free
             fp[pname].value = val
             self.template_maker.update_params(fp)
             template = self.template_maker.compute_outputs()
-            metric_vals.append(data.total_llh(template))
+            metric_vals.append(self.data.total_llh(template))
         return metric_vals
 
-    def publish_to_minimizer(self):
-        return self.template_maker.free_params_rescaled_values
-
-    def optimize_llh(self, valuelist):
-        data = self.data_maker.compute_outputs()
+    def optimize_llh(self, valuelist, pretty_output):
         self.template_maker.set_rescaled_free_params(valuelist)
         template = self.template_maker.compute_outputs()
-        llh = -data.total_llh(template)
+        llh = -self.data.total_llh(template)
         # ToDo: llh from priors
         llh -= template_maker.params.free.priors_llh
-        print 'llh at %s'%llh
+        msg = 'LLH at %.4f | %s'%(llh,self.template_maker.params.free)
+        if pretty_output:
+            sys.stdout.write(msg)
+            sys.stdout.flush()
+            sys.stdout.write("\b" * len(msg))
+        else:
+            logging.debug(msg)
         return llh
 
-    def run_l_bfgs(self, minimizer_settings):
-        x0 = self.publish_to_minimizer()
+    def run_l_bfgs(self, minimizer_settings, pretty_output=True):
+        x0 = self.template_maker.free_params_rescaled_values
         # bfgs steps outside of given bounds by 1 epsilon to evaluate gradients
         epsilon = minimizer_settings['options']['value']['epsilon']
         bounds = [(0+epsilon,1-epsilon)]*len(x0)
+        logging.info('running the L-BFGS-B optimizer')
         a = opt.fmin_l_bfgs_b(func=self.optimize_llh,
                               x0=x0,
+                              args=(pretty_output,),
                               bounds=bounds,
                               **minimizer_settings['options']['value'])
-
-        print 'found best fit parameters:'
-        print self.template_maker.params.free
+        if pretty_output:
+            # to clear the line
+            print ''
+        logging.info('found best fit parameters: %s'
+                        %self.template_maker.params.free)
         return a
 
 if __name__ == '__main__':
@@ -104,7 +119,7 @@ if __name__ == '__main__':
     template_cfg = parse_config(template_settings)
     template_maker = TemplateMaker([template_cfg])
 
-    ana = Analysis(data_maker, template_maker)
+    ana = Analysis(data_maker, template_maker, 'poisson')
 
     #print ''
     #logging.info(
@@ -137,5 +152,4 @@ if __name__ == '__main__':
     #         metric='llh')
  
     minimizer_settings  = from_file(args.minimizer_settings)
-
     ana.run_l_bfgs(minimizer_settings)

@@ -20,6 +20,7 @@ from copy import deepcopy, copy
 from pisa.utils.stats import llh
 
 import numpy as np
+from scipy.stats import poisson
 
 import uncertainties
 from uncertainties import ufloat
@@ -137,6 +138,14 @@ class Map(object):
         self.assert_compat(error_hist)
         super(Map, self).__setattr__('_hist', unp.uarray(self._hist,
                                                          error_hist))
+
+    @new_obj
+    def fluctuate(self, method):
+        if method.lower() == 'poisson':
+            np.random.seed()
+            return {'hist': poisson.rvs(self.hist)}
+        else:
+            raise Exception('fluctuation method %s not implemented'%method)
 
     @property
     def shape(self):
@@ -782,6 +791,9 @@ class MapSet(object):
 
     def llh(self, other):
         return self.apply_to_maps('llh', other)
+
+    def fluctuate(self, method):
+        return self.apply_to_maps('fluctuate', method)
 
     def total_llh(self, other):
         log_likelihoods = self.llh(other)
