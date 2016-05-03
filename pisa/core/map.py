@@ -540,6 +540,8 @@ class MapSet(object):
     Methods
     -------
     __contains__
+    __len__
+    __iter__
 
     Properties
     ----------
@@ -697,6 +699,9 @@ class MapSet(object):
 
     def __iter__(self):
         return iter(self.maps)
+
+    def __len__(self):
+        return len(self.maps)
 
     def __getitem__(self, item):
         """Retrieve a map by name or retrieve maps' histogram values by index
