@@ -40,6 +40,7 @@ class dummy(Stage):
             service_name='dummy',
             params=params,
             expected_params=expected_params,
+            output_names=output_names,
             disk_cache=disk_cache,
             memcaching_enabled=memcaching_enabled,
             propagate_errors=propagate_errors,
@@ -68,7 +69,7 @@ class dummy(Stage):
         output_maps = []
         for output_name in self.output_names:
             # Generate the fake per-bin "fluxes", modified by the parameter
-            hist = np.random.randint(*self.output_binning.shape) * height
+            hist = np.random.rand(*self.output_binning.shape) * height
 
             # Put the "fluxes" into a Map object, give it the output_name
             m = Map(name=output_name, hist=hist, binning=self.output_binning)
