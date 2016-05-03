@@ -3,6 +3,7 @@
 # date:   March 20, 2016
 
 import importlib
+from collections import Sequence
 
 from pisa.core.pipeline import Pipeline
 from pisa.core.param import ParamSet
@@ -15,10 +16,11 @@ class TemplateMaker(object):
 
     Parameters
     ----------
-    pipeline_settings : sequence of strings or sequence of OrderedDicts
+    *args : Pipelines, strings, OrderedDicts, or sequences thereof
         A new pipline is instantiated with each object passed. Legal objects
-        are strings (which specify a resource location) and OrderedDicts, as
-        returned by parse_config.
+        are already-instantiated Pipelines, strings (which specify a resource
+        location for a pipeline config file) and OrderedDicts (as returned by
+        parse_config).
 
     Notes
     -----
@@ -31,8 +33,18 @@ class TemplateMaker(object):
     the parameter's allowed range.
 
     """
-    def __init__(self, pipeline_settings):
-        self._pipelines = [Pipeline(setting) for setting in pipeline_settings]
+    def __init__(self, *args):
+        self._pipelines = []
+        extended_args = []
+        for arg in args:
+            if isinstance(arg, basestring):
+                extended_args.append(arg)
+            elif isinstance(arg, Sequence):
+                extended_args.extend(arg)
+        for arg in extended_args:
+            if not isinstance(arg, Pipeline):
+                arg = Pipeline(arg)
+            self._pipelines.append(arg)
 
     def __iter__(self):
         return iter(self._pipelines)
@@ -113,12 +125,7 @@ if __name__ == '__main__':
                         help='file to store the output')
     args = parser.parse_args()
 
-    template_config = parse_config(from_file(args.template_settings))
-
-    template_nu_pipeline = Pipeline(template_config)
-    m0 = template_nu_pipeline.compute_outputs()
-    fp = template_nu_pipeline.params.free #free_params
-    fp['test'].value*=1.2
-    pipeline.update_params(fp)
-    m1 = pipeline.compute_outputs()
-    print (m1/m0)['nue'][0,0]
+    template_maker = TemplateMaker([args.template_settings,
+                                    args.template_settings])
+    print template_maker.compute_outputs()
+    print template_maker.compute_outputs()
