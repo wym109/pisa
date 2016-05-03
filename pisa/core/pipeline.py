@@ -3,29 +3,60 @@
 # date:   March 20, 2016
 
 import importlib
+from collections import OrderedDict
 
 from pisa.core.stage import Stage
 from pisa.core.param import ParamSet
 from pisa.utils.log import logging, set_verbosity
 
+# TODO: should we check that the output binning of a previous stage produces
+# the inputs required by the current stage, or that the aggregate outputs that
+# got produced by previous stages (less those that got consumed in other
+# previous stages) hold what the current stage requires for inputs... or
+# should we not assume either will check out, since it's possible that the
+# stage requires sideband objects that are to be introduced at the top of the
+# pipeline by the user (and so there's no way to verify that all inputs are
+# present until we see what the user hands the pipeline as its top-level
+# input)? Alternatively, the lack of apparent inputs for a stage could show
+# a warning message. Or we just wait to see if it fails when the user runs the
+# code.
+
+# TODO: return an OrderedDict instead of a list if the user requests
+# intermediate results? Or simply use the `outputs` attribute of each stage to
+# dynamically access this?
 
 class Pipeline(object):
-    """Instantiate stages according to a parsed config object; excecute stages.
-    
-    args:
-    - config dict
+    """Instantiate stages according to a parsed config object; excecute
+    stages.
 
-    methods:
-    - compute_outputs: returning output MapSet from the (final) pipeline
-    stage(s)
-    - update_params: update params of all stages
+    Parameters
+    ----------
+    config : string or OrderedDict
+        If string, interpret as resource location; send to the
+          parse_config.parse_config() function to get a config OrderedDict.
+        If OrderedDict, use directly as pipeline configuration.
 
-    attributes:
-    - params: ParamSet containing all params from all stages
+    Methods
+    -------
+    compute_outputs
+        Returns output MapSet from the (final) pipeline, or all intermediate
+        outputs if `return_intermediate` is specified as True.
+    update_params
+        Update params of all stages using values from a passed ParamSet
+
+    Attributes
+    ----------
+    params : ParamSet
+        All params from all stages in the pipeline
+    stages : list
+        All stages in the pipeline
+
     """
-
     def __init__(self, config):
         self._stages = []
+        if isinstance(config, basestring):
+            config = parse_config(config=config)
+        assert isinstance(config, OrderedDict)
         self.config = config
         self._init_stages()
 
@@ -34,6 +65,7 @@ class Pipeline(object):
 
     def _init_stages(self):
         """Stage factory: Instantiate stages specified by self.config."""
+
         self._stages = []
         for stage_num, stage_name in enumerate(self.config.keys()):
             service = self.config[stage_name.lower()].pop('service').lower()
@@ -58,7 +90,28 @@ class Pipeline(object):
 
         logging.debug(str(self.params))
 
-    def compute_outputs(self, inputs=None, idx=None, return_intermediate=False):
+    def compute_outputs(self, inputs=None, idx=None,
+                        return_intermediate=False):
+        """Run the pipeline to compute its outputs.
+
+        Parameters
+        ----------
+        inputs : None or MapSet # TODO: other container(s)
+            Optional inputs to send to the first stage of the pipeline.
+        idx : None, int, or slice
+            Specification of which stage(s) to run. If None is passed, all
+            stages will be run.
+        return_intermediate : bool
+            If True,
+
+        Returns
+        -------
+        outputs : list or MapSet
+            MapSet output by final stage if `return_intermediate` is False, or
+            list of MapSets output by each stage if `return_intermediate` is
+            True.
+
+        """
         idx = slice(None) if idx is None else idx
         intermediate = []
         for stage in self.stages[idx]:
@@ -77,7 +130,7 @@ class Pipeline(object):
             if return_intermediate:
                 intermediate.append(outputs)
 
-            # Outputs from this stage become next stage's inputs
+            # Outputs from this stage become inputs for next stage
             inputs = outputs
 
         if return_intermediate:
@@ -143,9 +196,7 @@ if __name__ == '__main__':
     )
     args = parser.parse_args()
 
-    pipeline_config = parse_config(from_file(args.pipeline_settings))
-
-    pipeline = Pipeline(pipeline_config)
+    pipeline = Pipeline(args.pipeline_settings)
     m0 = pipeline.compute_outputs()
     fp = pipeline.params.free
     fp['test'].value *= 1.2
