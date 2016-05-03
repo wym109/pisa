@@ -13,16 +13,29 @@ class TemplateMaker(object):
     """Creates a TemplateMaker object that has several pipelines inside
     the outputs from all pipelines are added together  
 
-    args: list of parsed pipline configs (=dicts)
+    Parameters
+    ----------
+    pipeline_settings : sequence of strings or sequence of OrderedDicts
+        A new pipline is instantiated with each object passed. Legal objects
+        are strings (which specify a resource location) and OrderedDicts, as
+        returned by parse_config.
 
-    N.B: free params with the same name in two pipelines are updated at the same time,
-    using the the update_params method, or the
-    set_free_params/set_rescaled_free_params methods
+    Notes
+    -----
+    Free params with the same name in two pipelines are updated at the same
+    time using the `update_params`, `set_free_params`, or
+    `set_rescaled_free_params` methods.
 
-    rescaled_values mehods are for interfacing with a minimizer
+    `*_rescaled_*` properties and methods are for interfacing with a minimizer,
+    where values are linearly mapped onto the interval [0, 1] according to
+    the parameter's allowed range.
+
     """
     def __init__(self, pipeline_settings):
-        self.pipelines = [Pipeline(setting) for setting in pipeline_settings]
+        self._pipelines = [Pipeline(setting) for setting in pipeline_settings]
+
+    def __iter__(self):
+        return iter(self._pipelines)
 
     def compute_outputs(self, **kwargs):
         output = None
@@ -39,7 +52,11 @@ class TemplateMaker(object):
         return output
 
     def update_params(self, params):
-        [stage.params.update_existing(params) for stage in self]
+        [pipeline.params.update_existing(params) for pipeline in self]
+
+    @property
+    def pipelines(self):
+        return tuple(self._pipelines)
 
     @property
     def params(self):
@@ -47,14 +64,10 @@ class TemplateMaker(object):
         [params.extend(pipeline.params) for pipeline in self.pipelines]
         return params
 
-    def update_params(self, paramset):
-        for pipeline in self.pipelines:
-            pipeline.params.update_existing(paramset)
-
     @property
     def free_params_values(self):
         # a simple list of param values
-        return [p.value for p in self.params.free]
+        return self.params.free.values
 
     @property
     def free_params_rescaled_values(self):
@@ -67,15 +80,19 @@ class TemplateMaker(object):
         return [p.name for p in self.params.free]
 
     def set_free_params(self, values):
-        # set free param values given a simple list
+        """Set free param values given a simple list
+
+        """
         for name, value in zip(self.free_params_names, values):
             for pipeline in self.pipeline:
                 if name in pipeline.params.free:
                     pipeline.params.free.value = value
 
     def set_rescaled_free_params(self, rvalues):
-        # set free param values given a simple list of (0,1) rescaled,
-        # dimensionless values
+        """Set free param values given a simple list of (0,1) rescaled,
+        dimensionless values
+
+        """
         for name, rvalue in zip(self.free_params_names, rvalues):
             for pipeline in self.pipelines:
                 if name in pipeline.params.free:
