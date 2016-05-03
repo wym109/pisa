@@ -22,7 +22,10 @@ from pisa.utils.hash import hash_obj
 # returned by a template maker -- which updating the values of will NOT have
 # the effect the user might expect -- will be explicitly forbidden?
 
-# TODO: units: pass in attached to values, or
+# TODO: units: pass in attached to values, or as separate kwarg? If e.g.
+# value hasn't been set yet, then there's no implicit units to reference
+# when setting the prior, range, and possibly other things (which all need to
+# at least have compatible units)
 @total_ordering
 class Param(object):
     """Parameter class to store any kind of parameters
@@ -43,7 +46,7 @@ class Param(object):
     tex : <r>
     nominal_value : <r/w>
     rescaled_value: <r/w>, the value as a normalized, dimensionless
-    quantity between 0 and 1 (used for minimizer interfacing)
+        quantity between 0 and 1 (used for minimizer interfacing)
     state : <r>
     prior_penalty : <r>
 
@@ -59,7 +62,7 @@ class Param(object):
 
     """
     _slots = ('name', 'value', 'prior', 'range', 'is_fixed', 'is_discrete',
-              '_nominal_value', '_tex', 'help','_value')
+              '_nominal_value', '_tex', 'help','_value', '_range')
     _state_attrs = ('name', '_value', 'prior', 'range', 'is_fixed',
                      'is_discrete', 'nominal_value', 'tex', 'help')
 
@@ -101,12 +104,20 @@ class Param(object):
     def validate_value(self, value):
         if self.range is not None:
             if self.is_discrete:
-                assert value in self.range
+                assert value in self.range, str(value) + ' ' + str(self.range)
             else:
-                assert value.m >= min(self.range) and value.m <= max(self.range)
-        if self.prior is not None:
-            assert value.m >= min(self.prior.valid_range) and value.m <= \
-                max(self.prior.valid_range)
+                assert value >= min(self.range) and value <= max(self.range), \
+                        'value=' + str(value) + '; range=' + str(self.range)
+
+        # TODO: Implement units for prior (or at least for simple things, like
+        # valid_range?)
+        #if self.prior is not None:
+        #    if hasattr(value, 'units'):
+        #        value = value.to(
+        #    assert value >= min(self.prior.valid_range) and \
+        #            value <= max(self.prior.valid_range), \
+        #            ('value=' + str(value) + '; prior.valid_range=' +
+        #             str(self.prior.valid_range))
 
     @property
     def value(self):
@@ -121,13 +132,29 @@ class Param(object):
         self._value = val
 
     @property
+    def range(self):
+        if self._range is None:
+            return None
+        return tuple(self._range)
+
+    @range.setter
+    def range(self, values):
+        self._range = values
+
+    @property
     def rescaled_value(self):
-        return (self.value.m - self.range[0]) / (self.range[1]-self.range[0])
+        if self.is_discrete:
+            val = self.value
+        else:
+            val = (self.value - self.range[0]) / (self.range[1]-self.range[0])
+        if hasattr(val, 'magnitude'):
+            val = val.magnitude
+        return val
 
     @rescaled_value.setter
     def rescaled_value(self, rval):
-        self.value = (self.range[1]-self.range[0]) * rval + self.range[0] *\
-            self.value.unit
+        self.value = (self.range[1]-self.range[0]) * rval + self.range[0] \
+                * self.value.unit
 
     @property
     def tex(self):
@@ -524,7 +551,12 @@ def test_ParamSet():
 
     print param_set['a']
     print param_set['a'].value
-    param_set['a'].value = 33
+    try:
+        param_set['a'].value = 33
+    except:
+        pass
+    else:
+        assert False
     print param_set['a'].value
 
     print param_set['c'].is_fixed
