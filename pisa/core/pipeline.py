@@ -7,6 +7,7 @@ from collections import OrderedDict
 
 from pisa.core.stage import Stage
 from pisa.core.param import ParamSet
+from pisa.utils.parse_config import parse_config
 from pisa.utils.log import logging, set_verbosity
 
 # TODO: should we check that the output binning of a previous stage produces
