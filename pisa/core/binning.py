@@ -47,15 +47,32 @@ class OneDimBinning(object):
     is_log
     midpoints
     n_bins
+    units
     visual_centers
+
+    Attributes
+    ----------
+    bin_edges
+    name
+    prefix
+    tex
 
     Methods
     -------
+    assert_compat
     is_bin_spacing_log
     is_bin_spacing_lin
     is_binning_ok
-    assert_compat
+    is_compat
+    oversample
+    set_prefixed_attrs
+    __eq__
+    __getattr__
+    __getitem__
     __len__
+    __ne__
+    __repr__
+    __str__
 
 
     Notes
@@ -181,6 +198,13 @@ class OneDimBinning(object):
         # to be the same after conversion to the base units.
 
     @property
+    def state(self):
+        state = collections.OrderedDict()
+        for attr in self._state_attrs:
+            setitem(state, attr, getattr(self, attr))
+        return state
+
+    @property
     def units(self):
         return format(self.bin_edges.units, '~')
 
@@ -193,9 +217,9 @@ class OneDimBinning(object):
                 if state_updates.has_key(slot):
                     new_state[slot] = state_updates[slot]
                 elif slot == 'units':
-                    new_state[slot] = copy(self.__getattr__(slot))
+                    new_state[slot] = copy(getattr(self, slot))
                 else:
-                    new_state[slot] = deepcopy(self.__getattr__(slot))
+                    new_state[slot] = deepcopy(getattr(self, slot))
             return OneDimBinning(**new_state)
         return new_function
 
@@ -360,19 +384,12 @@ class OneDimBinning(object):
             bin_edges.append(this_bin_new_edges[-1])
         return {'bin_edges': np.array(bin_edges)*ureg(self.units)}
 
-    def __getattr__(self, attr):
-        return super(OneDimBinning, self).__getattribute__(attr)
-
-    @property
-    def state(self):
-        state = collections.OrderedDict()
-        for attr in self._state_attrs:
-            setitem(state, attr, getattr(self, attr))
-        return state
-
     def set_prefixed_attrs(self, obj):
         for attr, spec in self._prefixed_attrs:
             setattr(obj, spec %self.prefix, getattr(self, attr))
+
+    def __getattr__(self, attr):
+        return super(OneDimBinning, self).__getattribute__(attr)
 
     def __str__(self):
         domain_str = 'spanning [%s, %s] %s' %(self.bin_edges[0].magnitude,
@@ -469,6 +486,10 @@ class OneDimBinning(object):
                 return False
         return True
 
+    def __ne__(self, other):
+        return not self == other
+
+
 class MultiDimBinning(object):
     """
     Multi-dimensional binning object. This can contain one or more
@@ -486,6 +507,7 @@ class MultiDimBinning(object):
     ----------
     dimensions
     n_dimensions
+    names
     shape
 
     Methods
@@ -528,6 +550,10 @@ class MultiDimBinning(object):
         self.dimensions = tuple(dimensions)
         self.n_dims = len(self.dimensions)
         self.shape = tuple(shape)
+
+    @property
+    def names(self):
+        return [dim.name for dim in self]
 
     @property
     def state(self):
@@ -638,7 +664,11 @@ class MultiDimBinning(object):
         -------
         A new Binning object but with the bins specified by `index`.
         Whether or not spacing is logarithmic is unchanged.
+
         """
+        if isinstance(index, basestring):
+            return getattr(self, index)
+
         if not isinstance(index, collections.Sequence):
             index = [index]
         input_dim = len(index)
@@ -655,6 +685,7 @@ class MultiDimBinning(object):
             if d.name == attr:
                 return d
         return super(MultiDimBinning, self).__getattribute__(attr)
+
 
 
 def test_OneDimBinning():
