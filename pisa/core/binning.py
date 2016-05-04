@@ -208,6 +208,10 @@ class OneDimBinning(object):
     def units(self):
         return format(self.bin_edges.units, '~')
 
+    @property
+    def bin_sizes(self):
+        return np.diff(self.bin_edges)
+
     def new_obj(original_function):
         """ decorator to deepcopy unaltered states into new object """
         def new_function(self, *args, **kwargs):
