@@ -106,15 +106,13 @@ class Param(object):
             if self.is_discrete:
                 assert value in self.range, str(value) + ' ' + str(self.range)
             else:
-                assert value.m >= min(self.range).to(value.u).m and \
-                        value.m <= max(self.range).to(value.u).m, \
+                assert value >= min(self.range) and \
+                        value <= max(self.range), \
                         'value=' + str(value) + '; range=' + str(self.range)
 
         # TODO: Implement units for prior (or at least for simple things, like
         # valid_range?)
         #if self.prior is not None:
-        #    if hasattr(value, 'units'):
-        #        value = value.to(
         #    assert value >= min(self.prior.valid_range) and \
         #            value <= max(self.prior.valid_range), \
         #            ('value=' + str(value) + '; prior.valid_range=' +
@@ -127,9 +125,10 @@ class Param(object):
     @value.setter
     def value(self, val):
         if self._value is not None:
-           if hasattr(self._value, 'units'):
+            if hasattr(self._value, 'units'):
+                assert hasattr(val, 'units'), 'Passed values must have units if the param has units'
                 val = val.to(self._value.units)
-           self.validate_value(val)
+            self.validate_value(val)
         self._value = val
 
     @property
