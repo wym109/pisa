@@ -126,7 +126,13 @@ if __name__ == '__main__':
     parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE',
                         type=str, action='store', default="out.json",
                         help='file to store the output')
+    parser.add_argument(
+        '-v', action='count', default=None,
+        help='set verbosity level'
+    )
     args = parser.parse_args()
+
+    set_verbosity(args.v)
 
     template_maker = TemplateMaker([args.template_settings,
                                     args.template_settings])

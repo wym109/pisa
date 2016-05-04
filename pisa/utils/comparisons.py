@@ -8,8 +8,6 @@ import pint
 
 from pisa.utils.log import logging, set_verbosity
 
-set_verbosity(10)
-
 NP_TYPES = (np.ndarray, np.matrix)
 SEQ_TYPES = (Sequence, np.ndarray, np.matrix)
 MAP_TYPES = (Mapping,)

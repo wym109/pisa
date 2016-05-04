@@ -5,10 +5,11 @@
 import sys
 from collections import Sequence
 
+import scipy.optimize as opt
+
 from pisa.core.template_maker import TemplateMaker
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.fileio import from_file
-import scipy.optimize as opt
 
 
 class Analysis(object):
@@ -54,7 +55,7 @@ class Analysis(object):
         llh = -self.data.total_llh(template)
         # ToDo: llh from priors
         llh -= template_maker.params.free.priors_llh
-        msg = 'LLH at %.4f | %s'%(llh,self.template_maker.params.free)
+        msg = 'LLH at %.4f | %s' %(llh, self.template_maker.params.free)
         if pretty_output:
             sys.stdout.write(msg)
             sys.stdout.flush()
@@ -101,7 +102,7 @@ if __name__ == '__main__':
                         help='file to store the output')
     parser.add_argument('-v', action='count', default=None,
                         help='set verbosity level')
-    parser.add_argument('-m','--minimizer_settings',type=str,
+    parser.add_argument('-m','--minimizer-settings',type=str,
                         metavar='JSONFILE', required = True,
                         help='''Settings related to the optimizer used in the LLR analysis.''')
     args = parser.parse_args()
