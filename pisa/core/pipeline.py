@@ -10,6 +10,11 @@ from pisa.core.param import ParamSet
 from pisa.utils.parse_config import parse_config
 from pisa.utils.log import logging, set_verbosity
 
+"""
+Implementation of the Pipeline object, and a __main__ script to instantiate and
+run a pipeline.
+"""
+
 # TODO: should we check that the output binning of a previous stage produces
 # the inputs required by the current stage, or that the aggregate outputs that
 # got produced by previous stages (less those that got consumed in other
@@ -165,7 +170,7 @@ if __name__ == '__main__':
         help='File containing settings for the pipeline.'
     )
     parser.add_argument(
-        '-s', '--test-stage', metavar='STAGE', type=str,
+        '--only-stage', metavar='STAGE', type=str,
         help='''Test stage: Instantiate a single stage in the pipeline
         specification and run it in isolation (as the sole stage in a
         pipeline). If it is a stage that requires inputs, these can be
@@ -175,13 +180,18 @@ if __name__ == '__main__':
         arguments.'''
     )
     parser.add_argument(
-        '-o', '--outfile', metavar='FILE', type=str,
+        '--stop-after-stage', metavar='STAGE', type=str,
+        help='''Test stage: Instantiate a pipeline up to and including
+        STAGE, but stop there.'''
+    )
+    parser.add_argument(
+        '-o', '--outputs-file', metavar='FILE', type=str,
         default='out.json',
         help='''File for storing outputs. See also --intermediate-outputs
         argument.'''
     )
     parser.add_argument(
-        '-i', '--infile', metavar='FILE', type=str,
+        '-i', '--inputs-file', metavar='FILE', type=str,
         required=False,
         help='''File from which to read inputs to be fed to the pipeline.'''
     )
@@ -195,7 +205,14 @@ if __name__ == '__main__':
         help='''Store all intermediate outputs, not just the final stage's
         outputs.'''
     )
+    parser.add_argument(
+        '-v', action='count', default=None,
+        help='set verbosity level'
+    )
+
     args = parser.parse_args()
+
+    set_verbosity(args.v)
 
     pipeline = Pipeline(args.pipeline_settings)
     m0 = pipeline.compute_outputs()

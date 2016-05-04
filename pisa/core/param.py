@@ -106,8 +106,8 @@ class Param(object):
             if self.is_discrete:
                 assert value in self.range, str(value) + ' ' + str(self.range)
             else:
-                assert value.m >= min(self.range).to(value.u).m and value.m <=\
-                max(self.range).to(value.u).m, \
+                assert value.m >= min(self.range).to(value.u).m and \
+                        value.m <= max(self.range).to(value.u).m, \
                         'value=' + str(value) + '; range=' + str(self.range)
 
         # TODO: Implement units for prior (or at least for simple things, like
