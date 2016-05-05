@@ -13,10 +13,10 @@ Events class for working with PISA events files
 
 import h5py
 
-import pisa.utils.flavInt as flavInt
-import pisa.utils.hdf as hdf
 import pisa.resources.resources as resources
-import pisa.utils.utils as utils
+from pisa.utils.comparisons import recursiveEquality
+from pisa.utils import flavInt
+from pisa.utils import hdf
 
 
 class Events(flavInt.FlavIntData):
@@ -45,11 +45,11 @@ class Events(flavInt.FlavIntData):
 
     def meta_eq(self, other):
         """Test whether the metadata for this object matches that of `other`"""
-        return utils.recursiveEquality(self.metadata, other.metadata)
+        return recursiveEquality(self.metadata, other.metadata)
 
     def data_eq(self, other):
         """Test whether the data for this object matche that of `other`"""
-        return utils.recursiveEquality(self, other)
+        return recursiveEquality(self, other)
 
     def __eq__(self, other):
         return self.meta_eq(other) and self.data_eq(other)
