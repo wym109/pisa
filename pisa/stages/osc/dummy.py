@@ -98,8 +98,7 @@ class dummy(Stage):
                 output_name=flav,
                 input_binning=self.input_binning,
                 output_binning=self.output_binning,
-                xform_array=xform_array,
-                params_hash=hash_obj((seed,)),
+                xform_array=xform_array
             )
             transforms.append(xform)
 
