@@ -46,8 +46,7 @@ import numpy as np
 
 from pisa.utils import fileio
 from pisa.utils.log import logging, set_verbosity
-import pisa.utils.fileio as fileio
-import pisa.utils.comparisons
+from pisa.utils.comparisons import recursiveAllclose, recursiveEquality
 
 
 global __BAR_SSEP__
@@ -999,7 +998,7 @@ class FlavIntData(dict):
 
     def __eq__(self, other):
         """Recursive, exact equality"""
-        return comparsions.recursiveEquality(self, other)
+        return recursiveEquality(self, other)
 
     def __basic_validate(self, fi_container):
         for flavint in ALL_NUFLAVINTS:
@@ -1052,7 +1051,7 @@ class FlavIntData(dict):
         values contained are within relative (rtol) and/or absolute (atol)
         tolerance of one another.
         """
-        return comparsions.recursiveAllclose(self, other, rtol=rtol, atol=atol)
+        return recursiveAllclose(self, other, rtol=rtol, atol=atol)
 
     def set(self, *args):
         """Store data for the specified flavints.
@@ -1132,9 +1131,9 @@ class FlavIntData(dict):
             exact_equality = False
             kwargs['atol'] = atol
         if exact_equality:
-            cmpfunc = comparsions.recursiveEquality
+            cmpfunc = recursiveEquality
         else:
-            cmpfunc = lambda x,y: comparsions.recursiveAllclose(x, y, **kwargs)
+            cmpfunc = lambda x,y: recursiveAllclose(x, y, **kwargs)
 
         dupe_flavintgroups = []
         dupe_flavintgroups_data = []
@@ -1302,10 +1301,7 @@ class CombinedFlavIntData(FlavIntData):
             assert found > 0, 'container missing flavint %s' % str(flavint)
 
     def __eq__(self, other):
-        # TODO: go flavor by flavor in case `other` is NOT a combined flavint;
-        # i.e., we want "effective" equality, such that the flavors come back
-        # the same
-        return comparsions.recursiveEquality(self, other)
+        return recursiveEquality(self, other)
 
     def __getitem__(self, y):
         return self.get(y)
