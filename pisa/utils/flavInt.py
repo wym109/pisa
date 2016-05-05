@@ -22,8 +22,8 @@ Define convenience tuples ALL_{x} for easy iteration
 """
 
 # TODO: Make strings convertible to various types less liberal. E.g., I already
-# converted NuFlav to NOT accept 'numucc' such that things like 'numu nue' or '
-# nu xyz mutation' would also be rejected; this should be true also for
+# converted NuFlav to NOT accept 'numucc' such that things like 'numu nue' or
+# 'nu xyz mutation' would also be rejected; this should be true also for
 # interaction type and possibly others I haven't thought about yet. Note that I
 # achieved this using the IGNORE regex that ignores all non-alpha characters
 # but asserts one and only one match to the regex (consult NuFlav for details).
@@ -35,20 +35,23 @@ Define convenience tuples ALL_{x} for easy iteration
 # make the first interpret both a simplestr AND nue as nuecc+nuenc, and I
 # don't think there's a way to know "this is a simple str" vs not easily.)
 
-import sys, traceback
-from itertools import product, combinations, izip
-import numpy as np
-from copy import deepcopy
-import re
 from collections import MutableSequence, MutableMapping, Mapping
+from copy import deepcopy
+from itertools import product, combinations, izip
+import re
+import sys
+import traceback
 
+import numpy as np
+
+from pisa.utils import fileio
 from pisa.utils.log import logging, set_verbosity
-import pisa.utils.fileio as fileio
-import pisa.utils.utils as utils
+from pisa.utils.comparisons import recursiveAllclose, recursiveEquality
 
 
 global __BAR_SSEP__
 __BAR_SSEP__ = ''
+
 
 class BarSep():
     def __init__(self, val):
@@ -64,10 +67,12 @@ class BarSep():
         global __BAR_SSEP__
         __BAR_SSEP__ = self.old_val
 
+
 def set_bar_ssep(val):
     global __BAR_SSEP__
     assert isinstance(val, basestring)
     __BAR_SSEP__ = val
+
 
 def get_bar_ssep():
     global __BAR_SSEP__
@@ -373,6 +378,7 @@ class NuFlavInt(object):
 
     String specifications simply ignore all characters not recognized as a
     valid token.
+
     """
     TOKENS = re.compile('(nu|e|mu|tau|bar|nc|cc)')
     FINT_RE = re.compile(
@@ -382,7 +388,7 @@ class NuFlavInt(object):
     )
     FINT_SSEP = '_'
     FINT_TEXSEP = r' \, '
-    # TODO: use multiple inheritance to clean up the below
+    # TODO: use multiple inheritance to clean up the below?
     def __init__(self, *args, **kwargs):
         if kwargs:
             if args:
@@ -403,7 +409,10 @@ class NuFlavInt(object):
             elif len(args) > 2:
                 raise TypeError('More than two args')
 
-        # Initialize with string
+        if not isinstance(flav_int, basestring) \
+                and hasattr(flav_int, '__len__') and len(flav_int) == 1:
+            flav_int = flav_int[0]
+
         if isinstance(flav_int, basestring):
             orig_flav_int = flav_int
             try:
@@ -420,6 +429,8 @@ class NuFlavInt(object):
                                                           exc_traceback)))
                 )
         elif hasattr(flav_int, '__len__'):
+            assert len(flav_int) == 2, \
+                    'Need 2 components to define flavor and interaction type'
             self.__flav = NuFlav(flav_int[0])
             self.__int_type = IntType(flav_int[1])
         elif isinstance(flav_int, NuFlavInt):
@@ -962,11 +973,11 @@ class FlavIntData(dict):
             try:
                 nfi = NuFlavInt(i)
                 return [str(nfi.flav()), str(nfi.intType())]
-            except (ValueError, TypeError):
+            except (AssertionError, ValueError, TypeError):
                 try:
                     return [str(NuFlav(i))]
                 except:
-                    raise ValueError('Invalid index: `%s`' % (i,))
+                    raise ValueError('Invalid index: %s' %str(i))
 
     def __getitem__(self, y):
         key_list = self.__interpret_index(y)
@@ -987,7 +998,7 @@ class FlavIntData(dict):
 
     def __eq__(self, other):
         """Recursive, exact equality"""
-        return utils.recursiveEquality(self, other)
+        return recursiveEquality(self, other)
 
     def __basic_validate(self, fi_container):
         for flavint in ALL_NUFLAVINTS:
@@ -1040,7 +1051,7 @@ class FlavIntData(dict):
         values contained are within relative (rtol) and/or absolute (atol)
         tolerance of one another.
         """
-        return utils.recursiveAllclose(self, other, rtol=rtol, atol=atol)
+        return recursiveAllclose(self, other, rtol=rtol, atol=atol)
 
     def set(self, *args):
         """Store data for the specified flavints.
@@ -1053,13 +1064,10 @@ class FlavIntData(dict):
             Data object to be stored
         """
         assert len(args) > 1
+        if len(args) == 2:
+            return self.__setitem__(args[0], args[1])
         self.__setitem__(args[:-1], args[-1])
 
-    # TODO: why is the logic below commented out, when it is necessary to
-    # handle *args (and probably provides at least somewhat useful behavior)?
-    # (Same for the above set() method, too...)
-    # TEMPORARY fix is to remove * from *args, but ultimately we might want to
-    # put this back in.
     def get(self, *args):
         """Get a flavor node, a flavInt node, or data contained in a
         sub-dictionary within a flavInt node.
@@ -1078,6 +1086,8 @@ class FlavIntData(dict):
             string indices to sub-structures within that flavor+interaction
             type branch.
         """
+        if len(args) == 1:
+            return self.__getitem__(args[0])
         return self.__getitem__(args)
 
     def validate(self, fi_container):
@@ -1121,9 +1131,9 @@ class FlavIntData(dict):
             exact_equality = False
             kwargs['atol'] = atol
         if exact_equality:
-            cmpfunc = utils.recursiveEquality
+            cmpfunc = recursiveEquality
         else:
-            cmpfunc = lambda x,y: utils.recursiveAllclose(x, y, **kwargs)
+            cmpfunc = lambda x,y: recursiveAllclose(x, y, **kwargs)
 
         dupe_flavintgroups = []
         dupe_flavintgroups_data = []
@@ -1243,8 +1253,8 @@ class CombinedFlavIntData(FlavIntData):
                 groupings_found.append(nfig)
 
             named_g, named_ung = self.xlateGroupsStr(';'.join(val.keys()))
-            print 'named_g:', named_g
-            print 'named_ung:', named_ung
+            #print 'named_g:', named_g
+            #print 'named_ung:', named_ung
             # Force keys to standard naming convention (be liberal on input,
             # strict on output)
             for key in val.keys():
@@ -1291,10 +1301,7 @@ class CombinedFlavIntData(FlavIntData):
             assert found > 0, 'container missing flavint %s' % str(flavint)
 
     def __eq__(self, other):
-        # TODO: go flavor by flavor in case `other` is NOT a combined flavint;
-        # i.e., we want "effective" equality, such that the flavors come back
-        # the same
-        return utils.recursiveEquality(self, other)
+        return recursiveEquality(self, other)
 
     def __getitem__(self, y):
         return self.get(y)
@@ -1456,7 +1463,6 @@ class CombinedFlavIntData(FlavIntData):
 
 
 def test_IntType():
-    set_verbosity(2)
     all_f_codes = [12, -12, 14, -14, 16, -16]
     all_i_codes = [1, 2]
 
@@ -1482,7 +1488,6 @@ def test_IntType():
 
 
 def test_NuFlav():
-    set_verbosity(2)
     all_f_codes = [12, -12, 14, -14, 16, -16]
     all_i_codes = [1, 2]
 
@@ -1517,7 +1522,6 @@ def test_NuFlav():
 
 
 def test_NuFlavInt():
-    set_verbosity(2)
     all_f_codes = [12, -12, 14, -14, 16, -16]
     all_i_codes = [1, 2]
 
@@ -1580,7 +1584,6 @@ def test_NuFlavInt():
 
 
 def test_NuFlavIntGroup():
-    set_verbosity(2)
     all_f_codes = [12, -12, 14, -14, 16, -16]
     all_i_codes = [1, 2]
 
@@ -1677,7 +1680,6 @@ def test_NuFlavIntGroup():
 
 
 def test_FlavIntData():
-    set_verbosity(2)
     all_f_codes = [12, -12, 14, -14, 16, -16]
     all_i_codes = [1, 2]
 
@@ -1693,31 +1695,55 @@ def test_FlavIntData():
     oddball_sep = 'xyz'
     set_bar_ssep(oddball_sep)
     ref_pisa_dict = {f:{it:None for it in ['cc', 'nc']} for f in
-                     ['nue', 'nue_bar', 'numu','numu_bar', 'nutau', 'nutau_bar']}
+                     ['nue', 'nue_bar', 'numu','numu_bar', 'nutau',
+                      'nutau_bar']}
     fi_cont = FlavIntData()
     for f in ['nue', 'nue_bar', 'numu', 'numu_bar', 'nutau', 'nutau_bar']:
         for it in ['cc', 'nc']:
             assert fi_cont[f][it] == ref_pisa_dict[f][it]
             flavint = NuFlavInt(f, it)
             assert flavint.pidx(ref_pisa_dict) == ref_pisa_dict[f][it]
+            logging.trace('%s: %s' %('flavint', flavint))
+            logging.trace('%s: %s' %('f', f))
+            logging.trace('%s: %s' %('it', it))
+            logging.trace('%s: %s' %('fi_cont', fi_cont))
+            logging.trace('%s: %s' %('fi_cont[f]', fi_cont[f]))
+            logging.trace('%s: %s' %('fi_cont[f][it]', fi_cont[f][it]))
+            logging.trace('%s: %s' %('fi_cont[flavint]', fi_cont[flavint]))
+            logging.trace('%s: %s' %('fi_cont.get(flavint)',
+                                     fi_cont.get(flavint)))
             assert fi_cont.get(flavint) == fi_cont[f][it]
             assert fi_cont.get(f)[it] == fi_cont[f][it]
     assert get_bar_ssep() == oddball_sep
     set_bar_ssep('')
 
-    # These should fail because they invalidate the data
+    # These should fail because setting flavor-only as a string would
+    # invalidate the data structure (not a nested dict)
     try:
         fi_cont.set(NuFlav('numu'), 'xyz')
     except AssertionError:
         pass
     else:
         raise Exception('Test failed, exception should have been raised')
+
+    try:
+        fi_cont.set(NuFlav('numu'), {'cc': 'cc_xyz'})
+    except AssertionError:
+        pass
+    else:
+        raise Exception('Test failed, exception should have been raised')
+
     # The previously-valid fi_cont should *still* be valid, as `set` should
     # revert to the original (valid) values rather than keep the invalid values
+    # that were attempted to be set above
     fi_cont.validate(fi_cont)
 
+    # This should be okay because datastructure is still valid if the item
+    # being set on the flavor (only) is a valid int-type dict
+    fi_cont.set(NuFlav('numu'), {'cc': 'cc_xyz', 'nc': 'nc_xyz'})
+
     # Test setting, getting, and JSON serialization of FlavIntData
-    fi_cont.set('nue_cc', 'this is a string blah blah blah')
+    fi_cont.set('nue', 'cc', 'this is a string blah blah blah')
     fi_cont.get(NuFlavInt('nue_cc'))
     fi_cont.set(NuFlavInt('nue_nc'), np.pi)
     fi_cont.get(NuFlavInt('nue_nc'))
@@ -1729,7 +1755,12 @@ def test_FlavIntData():
     fi_cont.get(NuFlavInt('nutau_cc'))
     fi_cont.set(NuFlavInt('nutaubar_cc'), np.array([0,1,2,3]))
     fi_cont.get(NuFlavInt('nutaubar_cc'))
-    fileio.to_file(fi_cont, '/tmp/test_FlavIntData.json')
+    fname = '/tmp/test_FlavIntData.json'
+    logging.info('Writing FlavIntData to file %s; inspect.' %fname)
+    fileio.to_file(fi_cont, fname)
+    fi_cont2 = fileio.from_file(fname)
+    assert recursiveEquality(fi_cont2, fi_cont), \
+            'fi_cont=%s\nfi_cont2=%s' %(fi_cont, fi_cont2)
 
     logging.info('<< ???? >> : FlavIntData checks pass upon inspection of'
                  ' above outputs and generated file(s).')
@@ -1737,7 +1768,6 @@ def test_FlavIntData():
 
 
 def test_CombinedFlavIntData():
-    set_verbosity(2)
     all_f_codes = [12, -12, 14, -14, 16, -16]
     all_i_codes = [1, 2]
 
@@ -1878,9 +1908,11 @@ def test_CombinedFlavIntData():
 
 
 if __name__ == "__main__":
+    set_verbosity(3)
     test_IntType()
     test_NuFlav()
     test_NuFlavInt()
     test_NuFlavIntGroup()
     test_FlavIntData()
-    test_CombinedFlavIntData()
+    # Not implemented yet:
+    #test_CombinedFlavIntData()
