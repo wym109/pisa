@@ -13,10 +13,10 @@ Events class for working with PISA events files
 
 import h5py
 
-import pisa.utils.flavInt as flavInt
-import pisa.utils.hdf as hdf
 import pisa.resources.resources as resources
 import pisa.utils.comparisons
+from pisa.utils import flavInt
+from pisa.utils import hdf
 
 
 class Events(flavInt.FlavIntData):
