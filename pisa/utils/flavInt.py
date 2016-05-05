@@ -945,12 +945,49 @@ ALL_NUNC = NuFlavIntGroup('nuall_nc,nuallbar_nc')
 class FlavIntData(dict):
     """Container class for storing data for each NuFlavInt.
 
+    Paramters
+    ---------
     val : string, dict, or None
         Data with which to populate the hierarchy.
 
         If string, interpret as PISA resource and load data from it
         If dict, populate data from the dictionary
         If None, instantiate with None for all data
+
+        The interpreted version of `val` must be a valid data structure: A
+        dict with keys 'nue', 'numu', 'nutau', 'nue_bar', 'numu_bar', and
+        'nutau_bar'; and each item corresponding to these keys must itself be a
+        dict with keys 'cc' and 'nc'.
+
+    Notes
+    -----
+    Accessing data (both for getting and setting) is fairly flexible. It uses
+    dict-like square-brackets syntax, but can accept any object (or two
+    objects) that are convertible to a NuFlav or NuFlavInt object. In the
+    former case, the entire flavor dictionary (which includes both 'cc' and
+    'nc') is returned, while in the latter case whatever lives at the node is
+    returned.
+
+    Initializing, setting and getting data in various ways:
+    >>> fi_dat = FlavIntData()
+    >>> fi_dat['nue', 'cc'] = 1
+    >>> fi_dat['nuenc'] = 2
+    >>> fi_dat['numu'] = {'cc': 'cc data...', 'nc': 'nc data...'}
+    >>> fi_dat[NuFlav(16), IntType(1)] == 4
+
+    >>> fi_dat['nuecc'] == 1
+    True
+    >>> fi_dat['NUE_NC'] == 2
+    True
+    >>> fi_dat['nu_e'] == {'cc': 1, 'nc': 2}
+    True
+    >>> fi_dat['nu mu cc'] == 'cc data...'
+    True
+    >>> fi_dat['nu mu'] == {'cc': 'cc data...', 'nc': 'nc data...'}
+    True
+    >>> fi_dat['nutau cc'] == 4
+    True
+
     """
     def __init__(self, val=None):
         super(FlavIntData, self).__init__()
@@ -968,25 +1005,31 @@ class FlavIntData(dict):
         self.validate(d)
         self.update(d)
 
-    def __interpret_index(self, i):
+    def __interpret_index(self, idx):
+        if not isinstance(idx, basestring) and hasattr(idx, '__len__') \
+                and len(idx) == 1:
+            idx = idx[0]
         with BarSep('_'):
             try:
-                nfi = NuFlavInt(i)
+                nfi = NuFlavInt(idx)
                 return [str(nfi.flav()), str(nfi.intType())]
             except (AssertionError, ValueError, TypeError):
                 try:
-                    return [str(NuFlav(i))]
+                    return [str(NuFlav(idx))]
                 except:
-                    raise ValueError('Invalid index: %s' %str(i))
+                    raise ValueError('Invalid index: %s' %str(idx))
 
-    def __getitem__(self, item):
-        key_list = self.__interpret_index(item)
-        tgt_obj = self
-        for k in key_list[:-1]:
-            tgt_obj = dict.__getitem__(tgt_obj, k)
-        return dict.__getitem__(tgt_obj, key_list[-1])
+    def __getitem__(self, *args):
+        assert len(args) <= 2
+        key_list = self.__interpret_index(args)
+        tgt_obj = super(FlavIntData, self).__getitem__(key_list[0])
+        if len(key_list) == 2:
+            tgt_obj = tgt_obj[key_list[1]]
+        return tgt_obj
 
-    def __setitem__(self, item, value):
+    def __setitem__(self, *args):
+        assert len(args) > 1
+        item, value = args[:-1], args[-1]
         key_list = self.__interpret_index(item)
         if len(key_list) == 1:
             self.__validate_inttype_dict(value)
@@ -1030,7 +1073,7 @@ class FlavIntData(dict):
                 val = d.pop(key)
                 d[str(key).lower()] = val
         return d
-            
+
     def __load(self, fname, **kwargs):
         d = fileio.from_file(fname, **kwargs)
         self.validate(d)
@@ -1052,43 +1095,6 @@ class FlavIntData(dict):
         tolerance of one another.
         """
         return recursiveAllclose(self, other, rtol=rtol, atol=atol)
-
-    def set(self, *args):
-        """Store data for the specified flavints.
-
-        Parameters
-        ----------
-        arg[0], arg[1], ... arg[N-2]
-            Flavint(s) for which to store the data object
-        arg[N-1]
-            Data object to be stored
-        """
-        assert len(args) > 1
-        if len(args) == 2:
-            return self.__setitem__(args[0], args[1])
-        self.__setitem__(args[:-1], args[-1])
-
-    def get(self, *args):
-        """Get a flavor node, a flavInt node, or data contained in a
-        sub-dictionary within a flavInt node.
-
-        This tries to make data access ass simple and generic as possible,
-        being as liberal as possible with how the user can specify what he/she
-        wants.
-
-        * If `arg` is a NuFlav object (or string convertible to a one), the
-            branch at that flavor is returned
-        * If `arg` is a NuFlavInt object, a string convertible to one, or a
-            two-object sequence convertible to one, the branch at that
-            flavor+interaction type is returned
-        * If the first one or two `arg`s convert to a NuFlavInt (see above
-            point), then any subsequent `arg`s will be treated as integer or
-            string indices to sub-structures within that flavor+interaction
-            type branch.
-        """
-        if len(args) == 1:
-            return self.__getitem__(args[0])
-        return self.__getitem__(args)
 
     def validate(self, fi_container):
         """Perform basic validation on the data structure"""
@@ -1138,7 +1144,7 @@ class FlavIntData(dict):
         dupe_flavintgroups = []
         dupe_flavintgroups_data = []
         for flavint in self.flavints():
-            this_datum = self.get(flavint)
+            this_datum = self[flavint]
             match = False
             for n, group_datum in enumerate(dupe_flavintgroups_data):
                 if len(this_datum) != len(group_datum):
@@ -1303,11 +1309,11 @@ class CombinedFlavIntData(FlavIntData):
     def __eq__(self, other):
         return recursiveEquality(self, other)
 
-    def __getitem__(self, y):
-        return self.get(y)
+    def __getitem__(self, item):
+        return super(CombinedFlavIntData, self).__getitem__(item)
 
-    def __setitem__(self, i, y):
-        return self.set(i, y)
+    def __setitem__(self, item, value):
+        return super(CombinedFlavIntData, self).__setitem__(item, value)
 
     def deduplicate(self, rtol=None, atol=None):
         """Identify duplicate datasets and combine the associated flavints
@@ -1710,26 +1716,25 @@ def test_FlavIntData():
             logging.trace('%s: %s' %('fi_cont[f]', fi_cont[f]))
             logging.trace('%s: %s' %('fi_cont[f][it]', fi_cont[f][it]))
             logging.trace('%s: %s' %('fi_cont[flavint]', fi_cont[flavint]))
-            logging.trace('%s: %s' %('fi_cont.get(flavint)',
-                                     fi_cont.get(flavint)))
-            assert fi_cont.get(flavint) == fi_cont[f][it]
-            assert fi_cont.get(f)[it] == fi_cont[f][it]
+            logging.trace('%s: %s' %('fi_cont[flavint]', fi_cont[flavint]))
+            assert fi_cont[flavint] == fi_cont[f][it]
+            assert fi_cont[flavint] == fi_cont[flavint]
     assert get_bar_ssep() == oddball_sep
     set_bar_ssep('')
 
     # These should fail because you're only allowed to access the flav or
     # flavint part of the data structure, no longer any sub-items (use
     # subsequent [k1][k2]... to do this instead)
-    fi_cont.set('numu', 'cc', {'sub-key':{'sub-sub-key': None}})
+    fi_cont['numu', 'cc'] = {'sub-key':{'sub-sub-key': None}}
     try:
-        fi_cont.get('numu', 'cc', 'sub-key')
+        fi_cont['numu', 'cc', 'sub-key']
     except ValueError:
         pass
     else:
         raise Exception('Test failed, exception should have been raised')
 
     try:
-        fi_cont.set('numu', 'cc', 'sub-key', 'new sub-val')
+        fi_cont['numu', 'cc', 'sub-key'] = 'new sub-val'
     except ValueError:
         pass
     else:
@@ -1738,14 +1743,14 @@ def test_FlavIntData():
     # These should fail because setting flavor-only as a string would
     # invalidate the data structure (not a nested dict)
     try:
-        fi_cont.set(NuFlav('numu'), 'xyz')
+        fi_cont[NuFlav('numu')] = 'xyz'
     except AssertionError:
         pass
     else:
         raise Exception('Test failed, exception should have been raised')
 
     try:
-        fi_cont.set(NuFlav('numu'), {'cc': 'cc_xyz'})
+        fi_cont[NuFlav('numu')] = {'cc': 'cc_xyz'}
     except AssertionError:
         pass
     else:
@@ -1758,21 +1763,21 @@ def test_FlavIntData():
 
     # This should be okay because datastructure is still valid if the item
     # being set on the flavor (only) is a valid int-type dict
-    fi_cont.set(NuFlav('numu'), {'cc': 'cc_xyz', 'nc': 'nc_xyz'})
+    fi_cont[NuFlav('numu')] = {'cc': 'cc_xyz', 'nc': 'nc_xyz'}
 
     # Test setting, getting, and JSON serialization of FlavIntData
-    fi_cont.set('nue', 'cc', 'this is a string blah blah blah')
-    fi_cont.get(NuFlavInt('nue_cc'))
-    fi_cont.set(NuFlavInt('nue_nc'), np.pi)
-    fi_cont.get(NuFlavInt('nue_nc'))
-    fi_cont.set(NuFlavInt('numu_cc'), [0,1,2,3])
-    fi_cont.get(NuFlavInt('numu_cc'))
-    fi_cont.set(NuFlavInt('numu_nc'), {'new':{'nested':{'dict':'xyz'}}})
-    fi_cont.get(NuFlavInt('numu_nc'))
-    fi_cont.set(NuFlavInt('nutau_cc'), 1)
-    fi_cont.get(NuFlavInt('nutau_cc'))
-    fi_cont.set(NuFlavInt('nutaubar_cc'), np.array([0,1,2,3]))
-    fi_cont.get(NuFlavInt('nutaubar_cc'))
+    fi_cont['nue', 'cc'] = 'this is a string blah blah blah'
+    fi_cont[NuFlavInt('nue_cc')]
+    fi_cont[NuFlavInt('nue_nc')] = np.pi
+    fi_cont[NuFlavInt('nue_nc')]
+    fi_cont[NuFlavInt('numu_cc')] = [0,1,2,3]
+    fi_cont[NuFlavInt('numu_cc')]
+    fi_cont[NuFlavInt('numu_nc')] = {'new':{'nested':{'dict':'xyz'}}}
+    fi_cont[NuFlavInt('numu_nc')]
+    fi_cont[NuFlavInt('nutau_cc')] = 1
+    fi_cont[NuFlavInt('nutau_cc')]
+    fi_cont[NuFlavInt('nutaubar_cc')] = np.array([0,1,2,3])
+    fi_cont[NuFlavInt('nutaubar_cc')]
     fname = '/tmp/test_FlavIntData.json'
     logging.info('Writing FlavIntData to file %s; inspect.' %fname)
     fileio.to_file(fi_cont, fname)
@@ -1894,7 +1899,7 @@ def test_CombinedFlavIntData():
     # NuFlavInt is a strict subset of the above-specified NuFlavInt groupings)
     for k in ALL_NUFLAVINTS:
         try:
-            cfidat.set(k, np.arange(10))
+            cfidat[k, np.arange(10)]
         except ValueError:
             pass
         else:
@@ -1904,7 +1909,7 @@ def test_CombinedFlavIntData():
     # Try to set to a NuFlavInt group that *spans* two of the above groupings;
     # this should fail
     try:
-        cfidat.set(NuFlavIntGroup('nuecc+numucc'), np.arange(10))
+        cfidat[NuFlavIntGroup('nuecc+numucc')] = np.arange(10)
     except ValueError:
         pass
     else:
@@ -1913,7 +1918,7 @@ def test_CombinedFlavIntData():
 
     for nfi in cfidat.grouped:
         try:
-            cfidat.set(nfi, np.arange(10))
+            cfidat[nfi] = np.arange(10)
         except ValueError:
             raise Exception('Should be able to set to grouped NuFlavInts!')
 
