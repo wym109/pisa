@@ -3,6 +3,7 @@
 # date:   March 20, 2016
 
 import importlib
+import sys
 from collections import OrderedDict
 
 from pisa.core.stage import Stage
@@ -74,6 +75,7 @@ class Pipeline(object):
 
         self._stages = []
         for stage_num, stage_name in enumerate(self.config.keys()):
+            logging.debug('instatiating stage %s'%stage_name)
             service = self.config[stage_name.lower()].pop('service').lower()
             # Import stage service
             module = importlib.import_module('pisa.stages.%s.%s'
@@ -118,9 +120,8 @@ class Pipeline(object):
             True.
 
         """
-        idx = slice(None) if idx is None else idx
         intermediate = []
-        for stage in self.stages[idx]:
+        for stage in self.stages[:idx]:
             logging.debug('Working on stage %s (%s)' %(stage.stage_name,
                                                        stage.service_name))
             try:
@@ -161,6 +162,7 @@ class Pipeline(object):
 if __name__ == '__main__':
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
     import numpy as np
+    from pisa.core.map import Map, MapSet
     from pisa.utils.fileio import from_file, to_file
     from pisa.utils.parse_config import parse_config
 
@@ -170,7 +172,7 @@ if __name__ == '__main__':
         help='File containing settings for the pipeline.'
     )
     parser.add_argument(
-        '--only-stage', metavar='STAGE', type=str,
+        '--only-stage', metavar='STAGE', type=int,
         help='''Test stage: Instantiate a single stage in the pipeline
         specification and run it in isolation (as the sole stage in a
         pipeline). If it is a stage that requires inputs, these can be
@@ -180,7 +182,7 @@ if __name__ == '__main__':
         arguments.'''
     )
     parser.add_argument(
-        '--stop-after-stage', metavar='STAGE', type=str,
+        '--stop-after-stage', metavar='STAGE', type=int,
         help='''Test stage: Instantiate a pipeline up to and including
         STAGE, but stop there.'''
     )
@@ -211,13 +213,32 @@ if __name__ == '__main__':
     )
 
     args = parser.parse_args()
-
     set_verbosity(args.v)
-
     pipeline = Pipeline(args.pipeline_settings)
-    m0 = pipeline.compute_outputs()
-    fp = pipeline.params.free
-    fp['test'].value *= 1.2
-    pipeline.update_params(fp)
-    m1 = pipeline.compute_outputs()
-    print (m1/m0)['nue'][0,0]
+
+    if args.only_stage is not None:
+        stage = pipeline.stages[args.only_stage]
+        # create dummy inputs
+        if hasattr(stage, 'input_binning'):
+            logging.info('building dummy input')
+            input_maps = []
+            for name in stage.input_names:
+                hist = np.ones(stage.input_binning.shape)
+                input_maps.append(Map(name=name, hist=hist,
+                            binning=stage.input_binning))
+            inputs = MapSet(maps=input_maps, name='ones')
+        else:
+            inputs = None
+        m0 = stage.compute_outputs(inputs)
+    else:
+        if args.stop_after_stage is not None:
+            m0 = pipeline.compute_outputs(idx=args.stop_after_stage)
+        else:
+            m0 = pipeline.compute_outputs()
+    #fp = pipeline.params.free
+    #fp['test'].value *= 1.2
+    #pipeline.update_params(fp)
+    #m1 = pipeline.compute_outputs()
+    #print (m1/m0)['nue'][0,0]
+    #print m0['nue']
+    print m0[m0.names[0]]
