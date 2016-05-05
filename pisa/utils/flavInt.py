@@ -980,22 +980,22 @@ class FlavIntData(dict):
                 except:
                     raise ValueError('Invalid index: %s' %str(i))
 
-    def __getitem__(self, y):
-        key_list = self.__interpret_index(y)
+    def __getitem__(self, item):
+        key_list = self.__interpret_index(item)
         tgt_obj = self
         for k in key_list[:-1]:
             tgt_obj = dict.__getitem__(tgt_obj, k)
         return dict.__getitem__(tgt_obj, key_list[-1])
 
-    def __setitem__(self, i, y):
-        key_list = self.__interpret_index(i)
+    def __setitem__(self, item, value):
+        key_list = self.__interpret_index(item)
         if len(key_list) == 1:
-            self.__validate_inttype_dict(y)
-            y = self.__translate_inttype_dict(y)
+            self.__validate_inttype_dict(value)
+            value = self.__translate_inttype_dict(value)
         tgt_obj = self
-        for k in key_list[:-1]:
-            tgt_obj = dict.__getitem__(tgt_obj, k)
-        dict.__setitem__(tgt_obj, key_list[-1], y)
+        for key in key_list[:-1]:
+            tgt_obj = dict.__getitem__(tgt_obj, key)
+        dict.__setitem__(tgt_obj, key_list[-1], value)
 
     def __eq__(self, other):
         """Recursive, exact equality"""
@@ -1720,6 +1720,24 @@ def test_FlavIntData():
             assert fi_cont.get(f)[it] == fi_cont[f][it]
     assert get_bar_ssep() == oddball_sep
     set_bar_ssep('')
+
+    # These should fail because you're only allowed to access the flav or
+    # flavint part of the data structure, no longer any sub-items (use
+    # subsequent [k1][k2]... to do this instead)
+    fi_cont.set('numu', 'cc', {'sub-key':{'sub-sub-key': None}})
+    try:
+        fi_cont.get('numu', 'cc', 'sub-key')
+    except ValueError:
+        pass
+    else:
+        raise Exception('Test failed, exception should have been raised')
+
+    try:
+        fi_cont.set('numu', 'cc', 'sub-key', 'new sub-val')
+    except ValueError:
+        pass
+    else:
+        raise Exception('Test failed, exception should have been raised')
 
     # These should fail because setting flavor-only as a string would
     # invalidate the data structure (not a nested dict)
