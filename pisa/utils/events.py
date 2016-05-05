@@ -16,7 +16,7 @@ import h5py
 import pisa.utils.flavInt as flavInt
 import pisa.utils.hdf as hdf
 import pisa.resources.resources as resources
-import pisa.utils.utils as utils
+import pisa.utils.comparisons
 
 
 class Events(flavInt.FlavIntData):
@@ -45,11 +45,11 @@ class Events(flavInt.FlavIntData):
 
     def meta_eq(self, other):
         """Test whether the metadata for this object matches that of `other`"""
-        return utils.recursiveEquality(self.metadata, other.metadata)
+        return comparsions.recursiveEquality(self.metadata, other.metadata)
 
     def data_eq(self, other):
         """Test whether the data for this object matche that of `other`"""
-        return utils.recursiveEquality(self, other)
+        return comparsions.recursiveEquality(self, other)
 
     def __eq__(self, other):
         return self.meta_eq(other) and self.data_eq(other)

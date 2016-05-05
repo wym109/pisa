@@ -44,7 +44,7 @@ from collections import MutableSequence, MutableMapping, Mapping
 
 from pisa.utils.log import logging, set_verbosity
 import pisa.utils.fileio as fileio
-import pisa.utils.utils as utils
+import pisa.utils.comparisons
 
 
 global __BAR_SSEP__
@@ -931,7 +931,7 @@ ALL_NUCC = NuFlavIntGroup('nuall_cc,nuallbar_cc')
 ALL_NUNC = NuFlavIntGroup('nuall_nc,nuallbar_nc')
 
 
-class FlavIntData(utils.DictWithHash):
+class FlavIntData(dict):
     """Container class for storing data for each NuFlavInt.
 
     val : string, dict, or None
@@ -989,7 +989,7 @@ class FlavIntData(utils.DictWithHash):
 
     def __eq__(self, other):
         """Recursive, exact equality"""
-        return utils.recursiveEquality(self, other)
+        return comparsions.recursiveEquality(self, other)
 
     def __basic_validate(self, fi_container):
         for flavint in ALL_NUFLAVINTS:
@@ -1042,7 +1042,7 @@ class FlavIntData(utils.DictWithHash):
         values contained are within relative (rtol) and/or absolute (atol)
         tolerance of one another.
         """
-        return utils.recursiveAllclose(self, other, rtol=rtol, atol=atol)
+        return comparsions.recursiveAllclose(self, other, rtol=rtol, atol=atol)
 
     def set(self, *args):
         """Store data for the specified flavints.
@@ -1185,9 +1185,9 @@ class FlavIntData(utils.DictWithHash):
             exact_equality = False
             kwargs['atol'] = atol
         if exact_equality:
-            cmpfunc = utils.recursiveEquality
+            cmpfunc = comparsions.recursiveEquality
         else:
-            cmpfunc = lambda x,y: utils.recursiveAllclose(x, y, **kwargs)
+            cmpfunc = lambda x,y: comparsions.recursiveAllclose(x, y, **kwargs)
 
         dupe_flavintgroups = []
         dupe_flavintgroups_data = []
@@ -1358,7 +1358,7 @@ class CombinedFlavIntData(FlavIntData):
         # TODO: go flavor by flavor in case `other` is NOT a combined flavint;
         # i.e., we want "effective" equality, such that the flavors come back
         # the same
-        return utils.recursiveEquality(self, other)
+        return comparsions.recursiveEquality(self, other)
 
     def __getitem__(self, y):
         return self.get(y)
