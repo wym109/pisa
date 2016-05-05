@@ -931,7 +931,7 @@ ALL_NUCC = NuFlavIntGroup('nuall_cc,nuallbar_cc')
 ALL_NUNC = NuFlavIntGroup('nuall_nc,nuallbar_nc')
 
 
-class FlavIntData(utils.DictWithHash):
+class FlavIntData(dict):
     """Container class for storing data for each NuFlavInt.
 
     val : string, dict, or None
@@ -969,12 +969,10 @@ class FlavIntData(utils.DictWithHash):
                     raise ValueError('Invalid index: `%s`' % (i,))
 
     def __getitem__(self, y):
-        #print y
         key_list = self.__interpret_index(y)
         tgt_obj = self
         for k in key_list[:-1]:
             tgt_obj = dict.__getitem__(tgt_obj, k)
-        #print 'tgt_obj', tgt_obj, 'key_list', key_list
         return dict.__getitem__(tgt_obj, key_list[-1])
 
     def __setitem__(self, i, y):
@@ -1054,46 +1052,14 @@ class FlavIntData(utils.DictWithHash):
         arg[N-1]
             Data object to be stored
         """
-        self.__setitem__(*args)
-        #all_keys = list(args[:-1])
-        #new_val = deepcopy(args[-1])
+        assert len(args) > 1
+        self.__setitem__(args[:-1], args[-1])
 
-        #try:
-        #    flavint = NuFlavInt(all_keys[0])
-        #    with BarSep('_'):
-        #        f = str(flavint.flav())
-        #        it = str(flavint.intType())
-        #    all_keys[0] = f
-        #    all_keys.insert(1, it)
-
-        #except (ValueError, TypeError):
-        #    flav = NuFlav(all_keys[0])
-        #    with BarSep('_'):
-        #        all_keys[0] = str(flav)
-        #        try:
-        #            it = str(IntType(all_keys[1]))
-        #        except (IndexError, AssertionError, ValueError, TypeError):
-        #            pass
-        #        else:
-        #            all_keys[1] = it
-
-        #skstr = '[' + ']['.join([str(k) for k in all_keys]) + ']'
-        #logging.trace('setting self%s = "%s" (%s)' %
-        #              (skstr, new_val, type(new_val)))
-
-        #branch_keys = all_keys[:-1]
-        #node_key = all_keys[-1]
-        #lvl = self
-        #for key in branch_keys:
-        #    lvl = lvl[key]
-        #old_val = lvl[node_key]
-        #lvl[node_key] = new_val
-        #try:
-        #    self.validate(self)
-        #except:
-        #    lvl[node_key] = old_val
-        #    raise
-
+    # TODO: why is the logic below commented out, when it is necessary to
+    # handle *args (and probably provides at least somewhat useful behavior)?
+    # (Same for the above set() method, too...)
+    # TEMPORARY fix is to remove * from *args, but ultimately we might want to
+    # put this back in.
     def get(self, *args):
         """Get a flavor node, a flavInt node, or data contained in a
         sub-dictionary within a flavInt node.
@@ -1112,37 +1078,7 @@ class FlavIntData(utils.DictWithHash):
             string indices to sub-structures within that flavor+interaction
             type branch.
         """
-        return self.__getitem__(*args)
-        #all_keys = list(args)
-
-        #try:
-        #    flavint = NuFlavInt(all_keys[0])
-        #    with BarSep('_'):
-        #        flav = str(flavint.flav())
-        #        int_type = str(flavint.intType())
-        #    all_keys[0] = flav
-        #    all_keys.insert(1, int_type)
-
-        #except (ValueError, TypeError):
-        #    flav = NuFlav(all_keys[0])
-        #    with BarSep('_'):
-        #        all_keys[0] = str(flav)
-        #        try:
-        #            it = str(IntType(all_keys[1]))
-        #        except (IndexError, AssertionError, ValueError, TypeError):
-        #            pass
-        #        else:
-        #            all_keys[1] = it
-
-        #skstr = '[' + ']['.join([str(k) for k in all_keys]) + ']'
-        #logging.trace('getting self%s' % (skstr,))
-
-        #branch_keys = all_keys[:-1]
-        #node_key = all_keys[-1]
-        #lvl = self
-        #for key in branch_keys:
-        #    lvl = lvl[key]
-        #return deepcopy(lvl[node_key])
+        return self.__getitem__(args)
 
     def validate(self, fi_container):
         """Perform basic validation on the data structure"""
