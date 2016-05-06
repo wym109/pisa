@@ -172,24 +172,7 @@ If you do not have administrative access, you can install PISA as a user module 
 `pip install --user ...`
 
 # Glossary
-
-* **Map**: An object that fundamentally contains a distribution (e.g., histogram) alongside the error and metadata about the distribution (e.g., binning, name, LaTeX representation, ...).
-
-* **Stage**: Each stage represents a critical part of the process by which we can eventually detect neutrinos.
-For example, atmospheric neutrinos that pass through the earth will oscillate partially into different flavors prior to reaching the IceCube/PINGU detector.
-This part of the process is called the **oscillations** stage.
-
-* **Service**: A particular *implementation* of a stage is called a **service**.
-Using the oscillations stage as an example, a service that implements that stage is `pisa.oscillations.Prob3GPUOscillationService.Prob3GPUOscillationService`.
-(WeAreMastersOfConcision is our middle name.)
-  * Services should be named `<AbbreviatedStageName>Service<ModeName>` (UpperCamelCase).
-  * This convention should be followed everywhere to reduce confusion.
-
-* **Resource**: A file with settings, simulated events, parameterizations, metadata, or etc. that is used by one of the services, the template maker, the minimizer, ....
-Resources are found in the `$PISA/pisa/resources` directory, where a subdirectory exists for each stage (and several directories exist for resources used for other purposes).
-
-* **Template settings**: The collection of all parameters required to instantiate all services in a simulation chain.
-Can be a PISA `template_settings.ini` file or a nested dictionary; formats for these are defined below.
+https://github.com/jllanfranchi/pisa/wiki/glossary
 
 ## Implementation Details
 
