@@ -2,6 +2,7 @@
 # date:   March 20, 2016
 
 import numpy as np
+import copy
 
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
@@ -75,9 +76,9 @@ class mc(Stage):
                 var_names = ['true_%s'%bin_name for bin_name in bin_names]
                 logging.debug("Working on %s effective areas" %flav_int)
                 aeff_hist, _, _ = np.histogram2d(
-                    evts.get(flav_int)[var_names[0]],
-                    evts.get(flav_int)[var_names[1]],
-                    weights=evts.get(flav_int)['weighted_aeff'],
+                    evts[flav_int][var_names[0]],
+                    evts[flav_int][var_names[1]],
+                    weights=evts[flav_int]['weighted_aeff'],
                     bins=(self.output_binning[bin_names[0]].bin_edges.m,
                         self.output_binning[bin_names[1]].bin_edges.m)
                 )
@@ -111,4 +112,9 @@ class mc(Stage):
         logging.trace('livetime = %s --> %s sec'
                       %(self.params.livetime.value, livetime_s))
 
-        return self.nominal_transforms #* aeff_scale * livetime_s
+        new_transforms = []
+        for xform in self.nominal_transforms.transforms:
+            new_xform = copy.deepcopy(xform)
+            new_xform.xform_array *= aeff_scale * livetime_s
+            new_transforms.append(new_xform)
+        return TransformSet(new_transforms)
