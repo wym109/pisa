@@ -19,7 +19,7 @@ Some examples are given to facilitate understanding.
       * [Stage](pisa/core/stage.py) ...
         * [ParamSet](pisa/core/param.py)
           * [Param](pisa/core/param.py) foo (e.g. energy_scale)
-            * Prior (e.g. a gaussian prior with given mu and sigma) 
+            * [Prior](pisa/core/prior.py) (e.g. a gaussian prior with given mu and sigma) 
           * [Param](pisa/core/param.py) bar (e.g. honda_flux_file)
           * [Param](pisa/core/param.py) ...
         * [TransformSet](pisa/core/transform.py) (if applicable)
