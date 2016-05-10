@@ -285,10 +285,10 @@ if __name__ == '__main__':
     data_maker_configurator = parse_config(data_maker_settings)
     data_maker = DistributionMaker(data_maker_configurator)
 
-    #test = data_maker.params['test']
+    test = data_maker.params['test']
     #test.value /=2.
-    #test.value *= 1.2
-    #data_maker.update_params(test)
+    test.value *= 1.2
+    data_maker.update_params(test)
 
     template_maker_settings = from_file(args.template_settings)
     template_maker_configurator = parse_config(template_maker_settings)
