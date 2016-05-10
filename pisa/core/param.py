@@ -227,7 +227,7 @@ class Param(object):
     def state_hash(self):
         return hash_obj(self.state)
 
-# TODO: reset method, temporary modification of parameters using etc.
+# TODO: temporary modification of parameters using etc.
 class ParamSet(object):
     """Container class for a set of parameters. Most methods are passed through
     to contained params.
@@ -272,8 +272,8 @@ class ParamSet(object):
     nominal_values : tuple of quantities <r/w>
         Get or set "nominal" values for all parameters. These can be considered
         to be the "initial" or "injected" values, depending upon the context. A
-        call to the `reset()` method sets all `values` (including fixed params)
-        to these `nominal_values`.
+        call to the `reset` (`reset_all`) methods resets `values` of free (all)
+        params to these `nominal_values`.
 
     nominal_values_hash : int <r>
         Hash value for the parameters' nominal values
@@ -529,8 +529,11 @@ class ParamSet(object):
         return np.sum([obj.prior_penalty(metric=metric)
                        for obj in self._params])
 
-    def reset(self):
+    def reset_all(self):
         self.values = self.nominal_values
+
+    def reset(self):
+        self.free.reset_all()
 
     @property
     def rescaled_values(self):
@@ -688,7 +691,7 @@ def test_Param():
     else:
         assert False
 
-
+# TODO: add tests for reset() and reset_all() methods
 def test_ParamSet():
     p0 = Param(name='c', value=1.5, prior=None, range=[1,2],
                is_fixed=False, is_discrete=False, tex=r'\int{\rm c}')
