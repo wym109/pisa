@@ -65,14 +65,15 @@ def parse_config(config):
         config = from_file(config)
     # create binning objects
     binning_dict = {}
-    order = list_split(config.get('binning', 'order'))
-    binnings = list_split(config.get('binning', 'binnings'))
-    for binning in binnings:
-        bins = []
-        for bin_name in order:
-            args = eval(config.get('binning', binning + '.' + bin_name))
-            bins.append(OneDimBinning(bin_name, **args))
-        binning_dict[binning] = MultiDimBinning(*bins)
+    for name, value in config.items('binning'):
+        if name.endswith('.order'):
+            order = list_split(config.get('binning', name)) 
+            binning, _ = name.split('.')
+            bins = []
+            for bin_name in order:
+                args = eval(config.get('binning', binning + '.' + bin_name))
+                bins.append(OneDimBinning(bin_name, **args))
+            binning_dict[binning] = MultiDimBinning(*bins)
 
     stage_dicts = OrderedDict()
     # find pipline setting
