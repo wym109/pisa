@@ -12,16 +12,15 @@ containers but that get passed down to operate on the contained data.
 """
 
 from __future__ import division
-#from types import MethodType
-from operator import getitem, setitem
+
 from collections import OrderedDict, Mapping, Sequence
-import re
 from copy import deepcopy, copy
-from pisa.utils.stats import llh
+from operator import getitem, setitem
+from pisa.utils.stats import chi2, llh
+import re
 
 import numpy as np
 from scipy.stats import poisson
-
 import uncertainties
 from uncertainties import ufloat
 from uncertainties import unumpy as unp
@@ -32,6 +31,7 @@ from pisa.utils.hash import hash_obj
 
 def type_error(value):
     raise TypeError('Type of argument not supported: "%s"' % type(value))
+
 
 def strip_outer_parens(value):
     value = value.strip()
@@ -140,12 +140,17 @@ class Map(object):
                                                          error_hist))
 
     @new_obj
-    def fluctuate(self, method):
-        if method.lower() == 'poisson':
-            np.random.seed()
+    def fluctuate(self, method, seed=None):
+        orig = method
+        method = str(method).lower()
+        if method in ['poisson']:
+            if seed is not None:
+                np.random.seed(seed)
             return {'hist': poisson.rvs(self.hist)}
+        elif method in ['', 'none', 'false']:
+            return
         else:
-            raise Exception('fluctuation method %s not implemented'%method)
+            raise Exception('fluctuation method %s not implemented' %orig)
 
     @property
     def shape(self):
@@ -200,9 +205,45 @@ class Map(object):
     def __getitem__(self, idx):
         return self.index(idx)
 
-    def llh(self, other):
-        return llh(self.hist, other.hist)
+    def llh(self, expected_values):
+        """Calculate the total log-likelihood value between this map and the map
+        described by `expected_values`; self is taken to be the "actual values"
+        (or (pseudo)data), and `expected_values` are the expectation values for
+        each bin.
 
+        Parameters
+        ----------
+        expected_values : numpy.ndarray or Map of same dimension as this
+
+        Returns
+        -------
+        total_llh : float
+
+        """
+        if isinstance(expected_values, Map):
+            expected_values = expected_values.hist
+        return np.sum(llh(actual_values=self.hist,
+                          expected_values=expected_values))
+
+    def chi2(self, expected_values):
+        """Calculate the total chi-squared value between this map and the map
+        described by `expected_values`; self is taken to be the "actual values"
+        (or (pseudo)data), and `expected_values` are the expectation values for
+        each bin.
+
+        Parameters
+        ----------
+        expected_values : numpy.ndarray or Map of same dimension as this
+
+        Returns
+        -------
+        total_chi2 : float
+
+        """
+        if isinstance(expected_values, Map):
+            expected_values = expected_values.hist
+        return np.sum(chi2(actual_values=self.hist,
+                           expected_values=expected_values))
 
     # TODO: is this a good behavior to have, setting the indexed value(s) of
     # .hist but leaving everything else alone? Seems like this should be left
@@ -538,10 +579,6 @@ class Map(object):
 
 # TODO: add docstrings
 
-# TODO: add "closeness_metric" or something, to accommodate llh, chi2,
-# barlow_llh, conv_llh, (etc.) via metric='...' arg (interface to both Map and
-# MapSet)
-
 class MapSet(object):
     """
     Set of maps.
@@ -789,16 +826,32 @@ class MapSet(object):
     def __sub__(self, val):
         return self.apply_to_maps('__sub__', val)
 
-    def llh(self, other):
-        return self.apply_to_maps('llh', other)
+    def metric_per_map(self, expected_values, metric):
+        assert isinstance(metric, basestring)
+        metric = metric.lower()
+        if metric in ['chi2', 'llh']:
+            return self.apply_to_maps(metric, expected_values)
+        else:
+            raise ValueError('`metric` "%s" not recognized; use either'
+                             ' "chi2" or "llh".' %metric)
+
+    def metric_total(self, expected_values, metric):
+        return np.sum(self.metric_per_map(expected_values, metric).values)
+
+    def chi2_per_map(self, expected_values):
+        return self.apply_to_maps('chi2', expected_values)
+
+    def chi2_total(self, expected_values):
+        return np.sum(self.chi2_per_map(expected_values))
 
     def fluctuate(self, method):
         return self.apply_to_maps('fluctuate', method)
 
-    def total_llh(self, other):
-        log_likelihoods = self.llh(other)
-        total_llh = np.sum(log_likelihoods.values())
-        return total_llh
+    def llh_per_map(self, expected_values):
+        return self.apply_to_maps('llh', expected_values)
+
+    def llh_total(self, expected_values):
+        return np.sum(self.llh(expected_values))
 
 ## Now dynamically add all methods from Map to MapSet that don't already exist
 ## in MapSet (and make these methods distribute to contained maps)
@@ -824,15 +877,13 @@ class MapSet(object):
 #    setattr(MapSet, method_name, MethodType(eval(method_name), None, MapSet))
 
 
+# TODO: add tests for llh, chi2 methods
 def test_Map():
-    e_binning = OneDimBinning(
-        name='energy', units='GeV', prefix='e', tex=r'E_\nu', n_bins=40,
-        domain=(1,80), is_log=True
-    )
-    cz_binning = OneDimBinning(
-        name='coszen', units=None, prefix='cz', tex=r'\cos\,\theta', n_bins=20,
-        domain=(-1,0), is_lin=True
-    )
+    import pint; ureg = pint.UnitRegistry()
+    e_binning = OneDimBinning(name='energy', tex=r'E_\nu', num_bins=40,
+                              domain=(1,80)*ureg.GeV, is_log=True)
+    cz_binning = OneDimBinning(name='coszen', tex=r'\cos\,\theta', num_bins=20,
+                               domain=(-1,0), is_lin=True)
     # set directly unumpy array with errors
     #m1 = Map(name='x', hist=unp.uarray(np.ones((40,20)),np.sqrt(np.ones((40,20)))), binning=(e_binning, cz_binning))
     # or call init poisson error afterwards
@@ -869,18 +920,15 @@ def test_Map():
     assert r == ufloat(0.5,0.5)
     print r, '=', r[0,0]
 
-
+# TODO: add tests for llh, chi2 methods
 def test_MapSet():
+    import pint; ureg = pint.UnitRegistry()
     n_ebins = 5
     n_czbins = 3
-    e_binning = OneDimBinning(
-        name='energy', units='GeV', prefix='e', tex=r'E_\nu', n_bins=n_ebins,
-        domain=(1,80), is_log=True
-    )
-    cz_binning = OneDimBinning(
-        name='coszen', units=None, prefix='cz', tex=r'\cos\,\theta',
-        n_bins=n_czbins, domain=(-1,0), is_lin=True
-    )
+    e_binning = OneDimBinning(name='energy', tex=r'E_\nu', num_bins=n_ebins,
+                              domain=(1,80)*ureg.GeV, is_log=True)
+    cz_binning = OneDimBinning(name='coszen', tex=r'\cos\,\theta',
+                               num_bins=n_czbins, domain=(-1,0), is_lin=True)
     binning = MultiDimBinning(e_binning, cz_binning)
     m1 = Map(name='ones', hist=np.ones((n_ebins,n_czbins)), binning=binning)
     m1 = Map(name='ones', hist=np.ones((n_ebins,n_czbins)),
@@ -923,10 +971,11 @@ def test_MapSet():
     print ms1.names
     print '(ms1/ ms1)[0,0]:', (ms1 / ms1)[0,0]
     print '(ms1/ms1 - 1)[0,0]:', (ms1/ms1 - 1)[0,0]
-    print '(ms1.log10())[0,0]:', (np.log10(ms1))[0,0]
-    print 'np.log10(ms1)[0,0]:', (np.log10(ms1))[0,0]
-    print 'np.log(ms1 * np.e)[0,0]:', (np.log(ms1 * np.e))[0,0]
-    print 'np.log(ms1 * np.e)[0,0]:', (np.log(ms1 * np.e))[0,0]
+    print "ms1.log10()['ones']:", ms1.log10()['ones']
+    print "ms1.log10()[0,0]['ones']:", ms1.log10()[0,0]['ones']
+    print 'np.log10(ms1):', np.log10(ms1)
+    print '(ms1 * np.e).binning:', (ms1 * np.e).binning
+    print 'np.log(ms1 * np.e)[0][0,0]:', (np.log(ms1 * np.e))[0][0,0]
     print 'np.sqrt(ms1)[0:4,0:2].hist:', np.sqrt(ms1)[0:4,0:2].hist
     print 'str(ms1)', str(ms1)
     print 'str(ms4)', str(ms4)
