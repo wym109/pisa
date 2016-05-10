@@ -191,6 +191,9 @@ class Transform(object):
         raise NotImplementedError('Override this method in subclasses')
 
 
+# TODO: integrate uncertainties module in with this so that a transform can
+#       introduce (augment) error of an input Map for producing a more accurate
+#       estimate of the error in the output map.
 class BinnedTensorTransform(Transform):
     """
     Parameters
@@ -339,14 +342,14 @@ class BinnedTensorTransform(Transform):
 
 
 def test_BinnedTensorTransform():
-#if __name__ == "__main__":
+    import pint; ureg = pint.UnitRegistry()
+
     from pisa.core.map import Map, MapSet
     from pisa.core.binning import MultiDimBinning
 
     binning = MultiDimBinning([
-        dict(name='energy', units='GeV', is_log=True, domain=(1,80),
-             n_bins=10),
-        dict(name='coszen', units=None, is_lin=True, domain=(-1,0), n_bins=5)
+        dict(name='energy', is_log=True, domain=(1,80)*ureg.GeV, num_bins=10),
+        dict(name='coszen', is_lin=True, domain=(-1,0), num_bins=5)
     ])
 
     nue_map = Map(name='nue',
