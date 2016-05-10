@@ -128,8 +128,9 @@ def parse_config(config):
                         args['value'] = value
                     # search for explicit specifications
                     if config.has_option(section, name + '.fixed'):
-                        args['is_fixed'] = config.getboolean(section, name +
-                                                             '.fixed')
+                        args['is_fixed'] = config.getboolean(section,
+                                                             name + '.fixed')
+
                     if config.has_option(section, name + '.prior'):
                         if config.get(section, name + '.prior') == 'uniform':
                             args['prior'] = Prior(kind='uniform')
@@ -157,8 +158,10 @@ def parse_config(config):
                         else:
                             raise Exception('Prior type unknown')
                     elif hasattr(value, 's') and value.s != 0:
-                        args['prior'] = Prior(kind='gaussian', fiducial=value.n,
-                                              sigma = value.s)
+                        args['prior'] = Prior(kind='gaussian',
+                                              mean=value.n * value.units,
+                                              stddev=value.s * value.units)
+
                     if config.has_option(section, name + '.range'):
                         range = config.get(section, name + '.range')
                         if 'nominal' in range:
