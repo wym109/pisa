@@ -94,8 +94,19 @@ class Stage(object):
 
     Override
     --------
-    The following methods should be overridden in derived classes, if
+    The following methods can be overridden in derived classes where
     applicable:
+        _derive_nominal_transforms_hash
+        _compute_nominal_transforms
+            This is called during initialization to compute what are termed
+            "nominal" transforms -- i.e, transforms with all systematic
+            parameters set to their nominal values, such that they have no
+            effect on the transform. It is optional to use this stage, but if
+            it *is* used, then the result will be cached to memory (and
+            optionally to disk cache, if one is provided) for future use. A
+            nominal transform is useful when systematic parameters merely have
+            the effect of modifying the nominal transform, rather than
+            requiring a complete recomputation of the transform.
         _compute_transforms
             Do the actual work to produce the stage's transforms. For stages
             that specify use_transforms=False, this method is never called.
@@ -106,6 +117,7 @@ class Stage(object):
             compute outputs than this.
         validate_params
             Perform validation on any parameters.
+
     """
     def __init__(self, use_transforms, stage_name='', service_name='',
                  params=None, expected_params=None, input_names=None,
@@ -134,19 +146,68 @@ class Stage(object):
         self.transforms_cache_depth = transforms_cache_depth
         self.transforms_cache = MemoryCache(self.transforms_cache_depth,
                                             is_lru=True)
+        self.nominal_transforms_cache = MemoryCache(10, is_lru=True)
+
         self.outputs_cache_depth = outputs_cache_depth
         self.outputs_cache = MemoryCache(self.outputs_cache_depth, is_lru=True)
         self.disk_cache = disk_cache
         self.params = params
+
+    def compute_nominal_transforms(self):
+        """Load a cached transform from the nominal transform memory cache
+        (which is backed by a disk cache, if one is specified) if the nominal
+        transform is in the cache, or else recompute it and store to the
+        cache(s).
+
+        This method calls the `_compute_nominal_transforms` method, which by
+        default does nothing.
+
+        However, if you want to use the nominal transforms feature, override
+        the `_compute_nominal_transforms` method and fill in the logic there.
+
+        Deciding whether to invoke the `_compute_nominal_transforms` method or
+        to load the nominal transforms from cache is done here, so you needn't
+        think about any of this within the `_compute_nominal_transforms`
+        method.
+
+        """
+        nom_hash = self._derive_nominal_transforms_hash()
+        recompute = True
+        if nom_hash is not None:
+            if nom_hash in self.nominal_transforms_cache:
+                self.nominal_transforms = \
+                        self.nominal_transforms_cache[nom_hash]
+                recompute = False
+            elif self.disk_cache is not None:
+                try:
+                    self.nominal_transforms = self.disk_cache[nom_hash]
+                except KeyError:
+                    pass
+                else:
+                    recompute = False
+                    self.nominal_transforms_cache[nom_hash] = \
+                            self.nominal_transforms
+
+        if not recompute:
+            return self.nominal_transforms
+
+        self.nominal_transforms = self._compute_nominal_transforms()
+        if nom_hash is not None:
+            self.nominal_transforms_cache[nom_hash] = self.nominal_transforms
+            if self.disk_cache is not None:
+                self.disk_cache[nom_hash] = self.nominal_transforms
+
+        return self.nominal_transforms
 
     def compute_transforms(self):
         """Load a cached transform (keyed on hash of parameter values) if it
         is in the cache, or else compute a new transform from currently-set
         parameter values and store this new transform to the cache.
 
-        This calls the private method _compute_transforms, which must be
-        implemented in subclasses, to generate a new transform if none is in
-        the cache already.
+        This calls the private method _compute_transforms (which must be
+        implemented in subclasses if the nominal transform feature is desired)
+        to generate a new transform if the nominal transform is not found in
+        the nominal transform cache.
 
         Notes
         -----
@@ -156,8 +217,13 @@ class Stage(object):
         non-volatile storage.
 
         """
+        # Compute nominal transforms; if feature is not used, this doesn't
+        # actually do much of anything. To do more than this, override the
+        # `_compute_nominal_transforms` method.
+        self.compute_nominal_transforms()
+
         # Generate hash from param values
-        xforms_hash = self.params.values_hash
+        xforms_hash = self._derive_transforms_hash()
         logging.trace('xforms_hash: %s' %xforms_hash)
 
         # Load and return existing transforms if in the cache
@@ -188,23 +254,10 @@ class Stage(object):
             be passed on (untransformed) to subsequent stages.
 
         """
-        inputs = {} if inputs is None else inputs
+        # Keep inputs for internal use and for inspection later
+        self.inputs = {} if inputs is None else inputs
 
-        # TODO: include binning hash(es) in id_objects
-        id_objects = []
-
-        # Hash on all parameter values
-        id_objects.append(self.params.values_hash)
-
-        # If stage uses inputs, grab hash from the inputs container object
-        if len(self.input_names) > 0:
-            id_objects.append(inputs.hash)
-
-        # If any hashes are missing (i.e, None), invalidate the entire hash
-        if any([(h == None) for h in id_objects]):
-            outputs_hash = None
-        else:
-            outputs_hash = hash_obj(id_objects)
+        outputs_hash = self._derive_outputs_hash()
 
         logging.trace('outputs_hash: %s' %outputs_hash)
 
@@ -219,7 +272,7 @@ class Stage(object):
                 self.compute_transforms()
 
             logging.trace('... now computing outputs.')
-            outputs = self._compute_outputs(inputs)
+            outputs = self._compute_outputs(self.inputs)
             self.check_outputs(outputs)
 
             # Store output to cache
@@ -239,14 +292,15 @@ class Stage(object):
 
         # Attach sideband objects (i.e., unused inputs) to the "augmented"
         # output object
-        for name in set([i.name for i in inputs]).difference(self.input_names):
-            augmented_outputs.append(inputs[name])
+        unused_input_names = set([i.name for i in self.inputs]).difference(
+            self.input_names)
+        [augmented_outputs.append(inputs[name]) for name in unused_input_names]
 
         return augmented_outputs
 
     def check_params(self, params):
         """ Make sure that `expected_params` is defined and that exactly the
-        params specifued in self.expected_params are present """
+        params specified in self.expected_params are present """
         assert self.expected_params is not None
         exp_p, got_p = set(self.expected_params), set(params.names)
         if exp_p == got_p:
@@ -267,7 +321,7 @@ class Stage(object):
     def check_transforms(self, transforms):
         """Check that transforms' inputs and outputs match those specified
         for this service.
-        
+
         Parameters
         ----------
         transforms
@@ -289,7 +343,6 @@ class Stage(object):
         assert set(outputs.names) == set(self.output_names), \
                 "Transforms' outputs: " + str(transforms.output_names) + \
                 "\nStage outputs: " + str(self.output_names)
-
 
     @property
     def params(self):
@@ -320,12 +373,100 @@ class Stage(object):
         an object stored to disk that were produced by a Stage.
         """
         if self._source_code_hash is None:
-            self._source_code_hash = hash_obj(inspect.getsource(self))
+            self._source_code_hash = hash_obj(inspect.getsource(self.__class__))
         return self._source_code_hash
 
     @property
     def state_hash(self):
         return hash_obj((self.source_code_hash, self.params.state_hash))
+
+    def _derive_nominal_transforms_hash(self):
+        """Derive a hash to uniquely identify the nominal transform. This
+        should be unique across processes and invocations since the nominal
+        transform can be cached to disk.
+
+        The default implementation uses the nominal parameter values' hash
+        combined with the source code hash to generate a new hash. This should
+        be sufficiently unique for most cases.
+
+        Notes
+        -----
+        * Stages that use a nominal transform should override this method if
+          the hash is more accurately computed differently from here.
+
+        * Stages that use transforms but do not use nominal transforms can
+          override this method with a simpler version that simply returns None
+          to save computation time (if this method is found to be a significant
+          performance hit). (This method is called each time an output
+          is computed if `self.use_transforms == True`.)
+
+        * Stages that use no transforms (i.e., `self.use_transforms == False`)
+          will not call any built-in methods related to transforms, so
+          overriding this method is irrelevant to such stages.
+
+        If this method *is* overridden (and not just to return None), since the
+        nominal transform may be stored to a disk cache, make sure that
+        `self.source_code_hash` is included in the objects used to compute the
+        final hash value. Even if all parameters are the same, a nominal
+        transform stored to disk is ***invalid if the source code changes***,
+        and `_derive_nominal_transforms_hash` must reflect this.
+
+        """
+        return hash_obj((self.params.nominal_values, self.source_code_hash))
+
+    def _derive_transforms_hash(self):
+        """Compute a hash that uniquely identifies the transforms that will be
+        produced from the current configuration. Note that this hash needs only
+        to be valid for this run (i.e., it is a volatile hash).
+
+        This implementation returns a hash from the current parameters' values.
+
+        """
+        return self.params.values_hash
+
+    def _derive_outputs_hash(self):
+        """Derive a hash value that unique identifies the outputs that will be
+        generated based upon the current state of the stage.
+
+        This implementation hashes together:
+        * Input and output binning objects' hash values (if either input or
+          output binning is not None)
+        * Current params' values hash
+        * Hashes from any input objects with names in `self.input_names`
+
+        If any of the above objects is specified but returns None for its hash
+        value, the entire output hash is invalidated, and None is returned.
+
+        """
+        id_objects = []
+
+        # Hash on input and/or output binning, if it is specified
+        if self.input_binning is not None:
+            id_objects.append(self.input_binning.hash)
+        if self.output_binning is not None:
+            id_objects.append(self.output_binning.hash)
+
+        # Hash on all parameter values
+        id_objects.append(self.params.values_hash)
+
+        # If stage uses inputs, grab hash from the inputs container object
+        if len(self.input_names) > 0:
+            id_objects.append(self.inputs.hash)
+
+        # If any hashes are missing (i.e, None), invalidate the entire hash
+        if any([(h == None) for h in id_objects]):
+            outputs_hash = None
+        else:
+            outputs_hash = hash_obj(id_objects)
+
+        return outputs_hash
+
+    def _compute_nominal_transforms(self):
+        """Stages that start with a nominal transform and use systematic
+        parameters to modify the nominal transform in order to obtain the final
+        transforms should override this method for deriving the nominal
+        transform."""
+        return None
 
     def _compute_transforms(self):
         """Stages that apply transforms to inputs should override this method
@@ -340,8 +481,6 @@ class Stage(object):
         return self.transforms.apply(inputs)
 
     def validate_params(self, params):
-        """ Method to test if params are valid, e.g. check range and
-        dimenionality """
+        """Override this method to test if params are valid; e.g., check range
+        and dimensionality."""
         pass
-
-
