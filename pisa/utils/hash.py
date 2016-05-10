@@ -7,6 +7,12 @@ except ImportError:
 import numpy as np
 
 
+# TODO: add sigfigs arg:
+# sigfigs : None or integer
+#     If specified, round all numerical quantities being hashed prior to
+#     serializing them, such that values that would evaluate to be equal
+#     within that number of significant figures will hash to the same value.
+
 def hash_obj(obj, hash_to='int'):
     """Return hash for an object. Object can be a numpy ndarray or matrix
     (which is serialized to a string), an open file (which has its contents
@@ -17,6 +23,7 @@ def hash_obj(obj, hash_to='int'):
     obj : object
         Object to hash. Note that the larger the object, the longer it takes to
         hash.
+
     hash_to : string
         'i', 'int', or 'integer': Hash is derived from the first 8 bytes of the
             MD5 sum, interpreted as an integer.
