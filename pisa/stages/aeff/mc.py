@@ -63,28 +63,28 @@ class mc(Stage):
         )
 
         # TODO: replace by method invoked in baseclass + disk caching
-        self._compute_nominal_transforms()
+        #self._compute_nominal_transforms()
 
     def _compute_nominal_transforms(self):
-        logging.info('Extracting events from file: %s' %
-                (self.params.aeff_weight_file.value))
-        evts = Events(self.params.aeff_weight_file.value)
+        logging.info('Extracting events from file: %s'
+                     %(self.params.aeff_weight_file.value))
+        events = Events(self.params.aeff_weight_file.value)
 
         # TODO: convert energy, coszen, and/or azimuth bin edges (if present)
         # to the expected units (GeV, None/dimensionless, and rad,
         # respectively) so that bin area computation is correct for converting
-        # OneWeight to effective area.
+        # sum-of-OneWeights-in-bin to average effective area across bin.
 
         # TODO: More flexible handling of E, CZ, and/or azimuth (+ other
         # dimensions that don't enter directly into OneWeight normalization):
         # Start with defaults for each (energy, coszen, and azimuth default
         # "widths" are the full simulated ranges for each, given the events
-        # file); then, loop through the binning. If it is found that binning is
-        # done in one of these three, then the bin sizes are modified from the
-        # full range to the new widths. Finally, allow binning to be done in
-        # variables *other* than these (which does not change a bin width for
-        # computing aeff from OneWeight, but does add some complexity for
-        # handling).
+        # file and MC sim run info for each); then, loop through the binning.
+        # If it is found that binning is done in one of these three, then the
+        # bin sizes are modified from the full range to the new widths.
+        # Finally, allow binning to be done in variables *other* than these
+        # (which does not change a bin width for computing aeff from OneWeight,
+        # but does add some complexity for handling).
 
         # TODO: take events object as an input instead of as a param that
         # specifies a file? Or handle both cases?
@@ -108,14 +108,16 @@ class mc(Stage):
 
                 logging.debug("Working on %s effective areas" %flav_int)
                 aeff_hist, _, _ = np.histogram2d(
-                    evts[flav_int][var_names[0]],
-                    evts[flav_int][var_names[1]],
-                    weights=evts[flav_int]['weighted_aeff'],
+                    events[flav_int][var_names[0]],
+                    events[flav_int][var_names[1]],
+                    weights=events[flav_int]['weighted_aeff'],
                     bins=(self.output_binning[bin_names[0]].bin_edges.m,
                           self.output_binning[bin_names[1]].bin_edges.m)
                 )
-                # Divide histogram by (energy x coszen x azimuth) to convert
-                # from sum-of-OneWeights-in-bin to effective area
+
+                # Divide histogram by
+                #   (energy bin width x coszen bin width x azimuth bin width)
+                # to convert from sum-of-OneWeights-in-bin to effective area
                 delta0 = self.output_binning[bin_names[0]].bin_sizes
                 delta1 = self.output_binning[bin_names[1]].bin_sizes
                 bin_areas = np.abs(delta0[:, None] * delta1 * 2. * np.pi)
@@ -133,7 +135,7 @@ class mc(Stage):
                 )
                 nominal_transforms.append(xform)
 
-        self.nominal_transforms = TransformSet(transforms=nominal_transforms)
+        return TransformSet(transforms=nominal_transforms)
 
     def _compute_transforms(self):
         """Compute new oscillation transforms"""
@@ -143,8 +145,13 @@ class mc(Stage):
         logging.trace('livetime = %s --> %s sec'
                       %(self.params.livetime.value, livetime_s))
 
+        # TODO: make the following syntax work by implementing the guts in
+        #       TransformSet/Transform objects, as is done for MapSet/Map
+        #       objects:
+        #return self.nominal_transforms * (aeff_scale * livetime_s)
+
         new_transforms = []
-        for xform in self.nominal_transforms.transforms:
+        for xform in self.nominal_transforms:
             new_xform = copy.deepcopy(xform)
             new_xform.xform_array *= aeff_scale * livetime_s
             new_transforms.append(new_xform)
