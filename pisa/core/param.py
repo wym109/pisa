@@ -5,17 +5,17 @@
 # date:   March 22, 2016
 #
 
+from collections import Mapping, OrderedDict, Sequence
 from functools import total_ordering
-from collections import OrderedDict, Sequence, Mapping
+from itertools import izip
 from operator import setitem
 
 import numpy as np
+import pint; ureg = pint.UnitRegistry()
 
-from pisa.core.prior import Prior
-from pisa.utils.log import logging
-import pisa.resources.resources as resources
 from pisa.utils.comparisons import recursiveEquality
 from pisa.utils.hash import hash_obj
+from pisa.utils.log import logging, set_verbosity
 
 # TODO: Make property "frozen" or "read_only" so params in param set e.g.
 # returned by a template maker -- which updating the values of will NOT have
@@ -32,26 +32,43 @@ class Param(object):
     Parameters
     ----------
     name : string
+
     value : string or pint Quantity with units
+
     prior
+
     range
+
     is_fixed
+
     is_discrete
+
     tex
+
     help
 
-    Properties
+
+    Attributes
     ----------
     tex : <r>
+
     nominal_value : <r/w>
-    rescaled_value: <r/w>, the value as a normalized, dimensionless
-        quantity between 0 and 1 (used for minimizer interfacing)
+
+    rescaled_value: <r/w>
+        `value` as a normalized, dimensionless quantity between 0 and 1 (used
+        for interfacing with a minimizer)
+
     state : <r>
+
     prior_penalty : <r>
+
+    units : <r>
+
 
     Methods
     -------
     validate_value
+
 
     Notes
     -----
@@ -61,7 +78,7 @@ class Param(object):
 
     """
     _slots = ('name', 'value', 'prior', 'range', 'is_fixed', 'is_discrete',
-              '_nominal_value', '_tex', 'help','_value', '_range',
+              '_nominal_value', '_tex', 'help','_value', '_range', '_units',
               'rescaled_value')
     _state_attrs = ('name', '_value', 'prior', 'range', 'is_fixed',
                      'is_discrete', 'nominal_value', 'tex', 'help')
@@ -110,14 +127,6 @@ class Param(object):
                         value <= max(self.range), \
                         'value=' + str(value) + '; range=' + str(self.range)
 
-        # TODO: Implement units for prior (or at least for simple things, like
-        # valid_range?)
-        #if self.prior is not None:
-        #    assert value >= min(self.prior.valid_range) and \
-        #            value <= max(self.prior.valid_range), \
-        #            ('value=' + str(value) + '; prior.valid_range=' +
-        #             str(self.prior.valid_range))
-
     @property
     def value(self):
         return self._value
@@ -126,10 +135,19 @@ class Param(object):
     def value(self, val):
         if self._value is not None:
             if hasattr(self._value, 'units'):
-                assert hasattr(val, 'units'), 'Passed values must have units if the param has units'
+                assert hasattr(val, 'units'), \
+                        'Passed values must have units if the param has units'
                 val = val.to(self._value.units)
             self.validate_value(val)
         self._value = val
+        if hasattr(self._value, 'units'):
+            self._units = str(self._value.units)
+        else:
+            self._units = None
+
+    @property
+    def units(self):
+        return self._units
 
     @property
     def range(self):
@@ -146,8 +164,8 @@ class Param(object):
         if self.is_discrete:
             val = self.value
         else:
-            val = (self.value.m - self.range[0].m)\
-                  / (self.range[1].m-self.range[0].m)
+            val = (self.value.m - self.range[0].m) \
+                    / (self.range[1].m-self.range[0].m)
         if hasattr(val, 'magnitude'):
             val = val.magnitude
         return val
@@ -187,13 +205,15 @@ class Param(object):
     def prior_penalty(self, metric):
         if self.prior is None:
             return 0
-        metric = metric.lower()
+        metric = metric.lower() if isinstance(metric, basestring) else metric
         if metric in ['llh', 'barlow_llh', 'conv_llh']:
-            return self.prior.llh(self.value.m)
+            logging.trace('self.value: %s' %self.value)
+            logging.trace('self.prior: %s' %self.prior)
+            return self.prior.llh(self.value)
         elif metric in ['chi2']:
-            return self.prior.chi2(self.value.m)
+            return self.prior.chi2(self.value)
         else:
-            raise ValueError('Unrecognized `metric` "%s"' %metric)
+            raise ValueError('Unrecognized `metric` "%s"' %str(metric))
 
     @property
     def prior_llh(self):
@@ -207,7 +227,7 @@ class Param(object):
     def state_hash(self):
         return hash_obj(self.state)
 
-
+# TODO: reset method, temporary modification of parameters using etc.
 class ParamSet(object):
     """Container class for a set of parameters. Most methods are passed through
     to contained params.
@@ -216,84 +236,125 @@ class ParamSet(object):
     ----------
     *args : one or more Param objects or sequences thereof
 
-    Properties
+    Attributes
     ----------
-    Note that all sequences returned are returned in the order the parameters
-    are stored internally. Properties that are readable are indicated by 'r'
-    and properties that are set-able are indicated by 'w'.
+    Note that all sequences returned as properties are returned in the order
+    in which the parameters are stored internally (and this same order is
+    maintained for setting parameters using sequences). Properties that are
+    readable are indicated by 'r' and properties that are set-able are
+    indicated by 'w'.
 
-    Following are simple properties that describe and/or set corresponding
-    properties for the contained params:
+    are_discrete : tuple of bool <r>
+        Is each param discrete?
 
-    names : <r>
+    are_fixed : tuple of bool <r>
+        Is each param fixed?
+
+    continuous : ParamSet <r>
+        ParamSet with only the continuous params from this one
+
+    discrete : ParamSet <r>
+        Only the discrete params from this one
+
+    fixed : ParamSet <r>
+        Only the fixed params from this one
+
+    free : ParamSet <r>
+        Only the free params from this one
+
+    is_nominal : bool <r>
+        Whether all parameters (both free and fixed) have their `value` set to
+        `nominal_value`
+
+    names : tuple of str <r>
         Names of all parameters
-    values : <r/w>
-        Get or set values of all parameters
-    nominal_values : <r/w>
-        Get or set "nominal" values for all parameters. These are variously
-        referred to as "injected" or "asimov"; a call to `reset()` method sets
-        all `values` to these `nominal_values`.
-    priors : <r/w>
+
+    nominal_values : tuple of quantities <r/w>
+        Get or set "nominal" values for all parameters. These can be considered
+        to be the "initial" or "injected" values, depending upon the context. A
+        call to the `reset()` method sets all `values` (including fixed params)
+        to these `nominal_values`.
+
+    nominal_values_hash : int <r>
+        Hash value for the parameters' nominal values
+
+    priors : sequence of Prior <r/w>
         Get or set priors for all parameters.
-    ranges : <r/w>
+
+    ranges : sequence of (?) <r/w>
         Get or set the ranges for all parameters.
-    tex : <r>
-        LaTeX representation of the contained parameter names & values
-    are_fixed : <r>
-        Returns tuple of bool's; corresponding params are fixed
-    are_discrete : <r>
-        Tuple of bool's; corresponding params are discrete
-    state : <r>
+
+    rescaled_values : sequence of float <r/w>
+        Continuous parameters rescaled to the range [0, 1] and without units;
+        designed for interfacing with a minimizer
+
+    state : tuple <r>
         Tuple containing the `state` OrderedDict of each contained param
-    fixed : <r>
-        Returns another ParamSet but with only the fixed params
-    free : <r>
-        Returns another ParamSet but with only the free params
-    continuous : <r>
-        Returns another ParamSet but with only the continuous params
-    discrete : <r>
-        Returns another ParamSet but with only the discrete params
 
-    Following are properties that require computation when requested
+    tex : str <r>
+        LaTeX representation of the contained parameter names & values
 
-    priors_llh : <r>
+    priors_llh : float <r>
         Aggregate log-likelihood for parameter values given their priors
-    priors_chi2 : <r>
+
+    priors_chi2 : float <r>
         Aggregate chi-squred for all parameter values given their priors
-    values_hash : <r>
-        Hash on the values of all of the params; e.g.:
-            param_set.values_hash
-        but to just hash on free params' values:
-            params_set.free_params.values_hash
-    state_hash : <r>
+
+    state_hash : int <r>
         Hash on the complete state of the contained params, which includes
         properties such as `name`, `prior`, `tex`, and *all* other param
         properties.
+
+    values : sequence of quantities <r/w>
+        Get or set values of all parameters
+
+    values_hash : <r>
+        Hash on all parameters' current `value` attributes
 
     Methods
     -------
     extend(obj)
         Call `update` with existing_must_match=True and extend=True
+
     fix(vals)
         Set param found at each `index(val)` to be fixed.
+
     index(val)
         Locate and return index given `val` which can be an int (index), str
         (name), or Param object (an actual item in the set).
+
+    priors_penalty(metric)
+        Aggregate penalty for the specified metric, given current parameter
+        values.
+
     replace(new)
         Replace param (by name)
+
     unfix(vals)
         Set param at each `index(val)` to be free.
+
     update(obj, existing_must_match=False, extend=True)
         Update this param set using obj (a Param, ParamSet, or sequence
         thereof), optionally enforcing existing param values to match
         those in both `obj` and self, and optionally extending the
         current param set with any new params in `obj`
+
     update_existing(obj)
         Call `update` with existing_must_match=False and extend=False
+
     __getitem__
     __iter__
     __len__
     __setitem__
+
+
+    Examples
+    --------
+    Hash on the values of all of the params:
+    >>> all_p_hash = param_set.values_hash
+
+    but to just hash on free params' values:
+    >>> free_p_hash = params_set.free_params.values_hash
 
     """
 
@@ -440,19 +501,46 @@ class ParamSet(object):
         return iter(self._params)
 
     def __str__(self):
-        string = ''
+        numfmt = '%+.6e'
+        strings = []
         for p in self:
-            if hasattr(p.value,'units'):
-                string += '%s = %.2f'%(p.name, p.value.m)
-                unit = ' %s'%p.value.u
-                if not unit == ' dimensionless':
-                    if unit == ' electron_volt ** 2':
-                        unit = ' eV2'
-                    string += unit
+            string = p.name + '='
+            if isinstance(p.value, pint.quantity._Quantity):
+                string += numfmt %p.value.m
+                full_unit_str = str(p.value.u)
+                if full_unit_str in [str(ureg('electron_volt ** 2').u)]:
+                    unit = ' eV2'
+                elif full_unit_str in [str(ureg.deg)]:
+                    unit = ' deg'
+                elif full_unit_str in [str(ureg.rad)]:
+                    unit = ' rad'
+                else:
+                    unit = ' ' + format(p.value.u, '~')
+                string += unit
             else:
-                string += '%s: %s'%(p.name, p.value)
-            string += ', '
-        return string.rstrip(', ')
+                try:
+                    string += numfmt %p.value
+                except:
+                    string += '%s' %p.value
+            strings.append(string.strip())
+        return ' '.join(strings)
+
+    def priors_penalty(self, metric):
+        return np.sum([obj.prior_penalty(metric=metric)
+                       for obj in self._params])
+
+    def reset(self):
+        self.values = self.nominal_values
+
+    @property
+    def rescaled_values(self):
+        return tuple([param.rescaled_value for param in self._params])
+
+    @rescaled_values.setter
+    def rescaled_values(self, vals):
+        assert len(vals) == len(self)
+        for param, val in zip(self._params, vals):
+            param.rescaled_value = val
 
     @property
     def tex(self):
@@ -494,6 +582,11 @@ class ParamSet(object):
     def values(self, values):
         assert len(values) == len(self._params)
         [setattr(self._params[i], 'value', val) for i,val in enumerate(values)]
+
+    @property
+    def is_nominal(self):
+        return np.all([(v0==v1)
+                       for v0, v1 in izip(self.values, self.nominal_values)])
 
     @property
     def nominal_values(self):
@@ -540,8 +633,60 @@ class ParamSet(object):
         return hash_obj(self.values)
 
     @property
+    def nominal_values_hash(self):
+        return hash_obj(self.nominal_values)
+
+    @property
     def state_hash(self):
         return hash_obj(self.state)
+
+
+def test_Param():
+    from scipy.interpolate import splrep, splev
+    from pisa.core.prior import Prior
+
+    uniform = Prior(kind='uniform', llh_offset=1.5)
+    gaussian = Prior(kind='gaussian', mean=10*ureg.meter, stddev=1*ureg.meter)
+    param_vals = np.linspace(-10, 10, 100) * ureg.meter
+    llh_vals = (param_vals.magnitude)**2
+    linterp = Prior(kind='linterp', param_vals=param_vals, llh_vals=llh_vals)
+
+    param_vals = np.linspace(-10, 10, 100)
+    llh_vals = param_vals**2
+    knots, coeffs, deg = splrep(x=param_vals, y=llh_vals)
+
+    spline = Prior(kind='spline', knots=knots, coeffs=coeffs, deg=deg)
+
+    # Param with units, prior with compatible units
+    p0 = Param(name='c', value=1.5*ureg.foot, prior=gaussian, range=[1,2],
+               is_fixed=False, is_discrete=False, tex=r'\int{\rm c}')
+    # Param with no units, prior with no units
+    p1 = Param(name='c', value=1.5, prior=spline, range=[1,2],
+               is_fixed=False, is_discrete=False, tex=r'\int{\rm c}')
+
+    # Param with no units, prior with units
+    try:
+        p2 = Param(name='c', value=1.5, prior=linterp, range=[1,2],
+                   is_fixed=False, is_discrete=False, tex=r'\int{\rm c}')
+        p2.prior_llh
+        logging.debug(str(p2))
+        logging.debug(str(linterp))
+        logging.debug('p2.units: %s' %p2.units)
+        logging.debug('p2.prior.units: %s' %p2.prior.units)
+    except TypeError:
+        pass
+    else:
+        assert False
+
+    # Param with units, prior with no units
+    try:
+        p2 = Param(name='c', value=1.5*ureg.meter, prior=spline, range=[1,2],
+                   is_fixed=False, is_discrete=False, tex=r'\int{\rm c}')
+        p2.prior_llh
+    except TypeError:
+        pass
+    else:
+        assert False
 
 
 def test_ParamSet():
@@ -613,10 +758,13 @@ def test_ParamSet():
 
     print param_set['b'].prior_llh
     print param_set.priors_llh
+    print param_set.free.priors_llh
+    print param_set.fixed.priors_llh
 
     print param_set[0].prior_chi2
     print param_set.priors_chi2
 
 
 if __name__ == "__main__":
+    test_Param()
     test_ParamSet()
