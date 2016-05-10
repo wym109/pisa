@@ -3,7 +3,7 @@
 # date:   March 20, 2016
 
 import importlib
-from collections import Sequence
+from collections import OrderedDict, Sequence
 
 from pisa.core.pipeline import Pipeline
 from pisa.core.param import ParamSet
@@ -34,13 +34,17 @@ class TemplateMaker(object):
 
     """
     def __init__(self, *args):
+        # TODO: make this a property so that input can be validated
+        self.fluctuate = None
+
         self._pipelines = []
         extended_args = []
         for arg in args:
-            if isinstance(arg, basestring):
+            if isinstance(arg, (basestring, OrderedDict)):
                 extended_args.append(arg)
             elif isinstance(arg, Sequence):
                 extended_args.extend(arg)
+
         for arg in extended_args:
             if not isinstance(arg, Pipeline):
                 arg = Pipeline(arg)
@@ -49,19 +53,14 @@ class TemplateMaker(object):
     def __iter__(self):
         return iter(self._pipelines)
 
-    def compute_outputs(self, **kwargs):
-        output = None
-        for pipeline in self.pipelines:
-            pipeline_output = pipeline.compute_outputs(**kwargs)
-            if output is None:
-                output = pipeline_output
-            else:
-                # add together
-                if isinstance(pipeline_output, list):
-                    output = [sum(x) for x in zip(output, pipeline_output)]
-                else: 
-                    output += pipeline_output
-        return output
+    def compute_outputs(self, seed=None, **kwargs):
+        total_outputs = None
+        outputs = [pipeline.compute_outputs(**kwargs) for pipeline in self]
+        total_outputs = reduce(lambda x,y: x+y, outputs)
+        if self.fluctuate is not None:
+            total_outputs = total_outputs.fluctuate(method=self.fluctuate,
+                                                    seed=seed)
+        return total_outputs
 
     def update_params(self, params):
         [pipeline.params.update_existing(params) for pipeline in self]
