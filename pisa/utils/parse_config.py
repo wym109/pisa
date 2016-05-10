@@ -13,27 +13,28 @@ all of them.
 
 Note that this mechanism of synchronizing parameters holds only within the
 scope of a single pipeline; synchronization of parameters across pipelines
-is done by adding the pipelines to a single TemplateMaker object and updating
-params through the TemplateMaker's update_params method.
+is done by adding the pipelines to a single DistributionMaker object and
+updating params through the DistributionMaker's update_params method.
 """
+
 
 from collections import OrderedDict
 
 import numpy as np
 import uncertainties
-from uncertainties import unumpy as unp
+import pint; ureg = pint.UnitRegistry()
 from uncertainties import ufloat, ufloat_fromstr
-import pint
-ureg = pint.UnitRegistry()
+from uncertainties import unumpy as unp
+
+from pisa.core.binning import MultiDimBinning, OneDimBinning
+from pisa.core.param import Param, ParamSet
+from pisa.core.prior import Prior
+from pisa.utils.fileio import from_file
+from pisa.utils.log import logging
+
 # Config files use "uinits.xyz" to denote that "xyz" is a unit; therefore,
 # ureg is also referred to as "units" in this context.
 units = ureg
-
-from pisa.core.prior import Prior
-from pisa.core.param import Param, ParamSet
-from pisa.utils.log import logging
-from pisa.utils.fileio import from_file
-from pisa.core.binning import OneDimBinning, MultiDimBinning
 
 
 def parse_quantity(string):

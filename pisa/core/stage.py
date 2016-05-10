@@ -1,3 +1,5 @@
+# Authors
+
 import collections
 import inspect
 
@@ -82,6 +84,8 @@ class Stage(object):
 
     Methods
     -------
+    get_outputs
+    get_transforms
     load_params
         Load parameter values from a template settings ini file.
     fix_params
@@ -153,7 +157,7 @@ class Stage(object):
         self.disk_cache = disk_cache
         self.params = params
 
-    def compute_nominal_transforms(self):
+    def get_nominal_transforms(self):
         """Load a cached transform from the nominal transform memory cache
         (which is backed by a disk cache, if one is specified) if the nominal
         transform is in the cache, or else recompute it and store to the
@@ -199,7 +203,7 @@ class Stage(object):
 
         return self.nominal_transforms
 
-    def compute_transforms(self):
+    def get_transforms(self):
         """Load a cached transform (keyed on hash of parameter values) if it
         is in the cache, or else compute a new transform from currently-set
         parameter values and store this new transform to the cache.
@@ -220,7 +224,7 @@ class Stage(object):
         # Compute nominal transforms; if feature is not used, this doesn't
         # actually do much of anything. To do more than this, override the
         # `_compute_nominal_transforms` method.
-        self.compute_nominal_transforms()
+        self.get_nominal_transforms()
 
         # Generate hash from param values
         xforms_hash = self._derive_transforms_hash()
@@ -244,14 +248,26 @@ class Stage(object):
         self.transforms = transforms
         return transforms
 
-    def compute_outputs(self, inputs=None):
-        """Compute and return outputs.
+    def get_outputs(self, inputs=None):
+        """Top-level function for computing outputs. Use this method to get
+        outputs if you live outside this stage/service.
+
+        Caching is handled here, so if the output hash returned by
+        `_derive_outputs_hash` is in `outputs_cache`, it is simply returned.
+        Otherwise, the `_compute_outputs` private method is invoked to do the
+        actual work of computing outputs.
 
         Parameters
         ----------
         inputs : None or Mapping
             Any inputs to be transformed, plus any sideband objects that are to
             be passed on (untransformed) to subsequent stages.
+
+        See also
+        --------
+        Overloadable methods called directly from this:
+            _derive_outputs_hash
+            _compute_outputs
 
         """
         # Keep inputs for internal use and for inspection later
@@ -269,10 +285,10 @@ class Stage(object):
             logging.trace('Need to compute outputs...')
 
             if self.use_transforms:
-                self.compute_transforms()
+                self.get_transforms()
 
             logging.trace('... now computing outputs.')
-            outputs = self._compute_outputs(self.inputs)
+            outputs = self._compute_outputs(inputs=self.inputs)
             self.check_outputs(outputs)
 
             # Store output to cache
@@ -290,8 +306,8 @@ class Stage(object):
         # the contents, for purposes of attaching any sideband objects.
         augmented_outputs = MapSet(outputs)
 
-        # Attach sideband objects (i.e., unused inputs) to the "augmented"
-        # output object
+        # Attach sideband objects (i.e., inputs not specified in
+        # `self.input_names`) to the "augmented" output object
         unused_input_names = set([i.name for i in self.inputs]).difference(
             self.input_names)
         [augmented_outputs.append(inputs[name]) for name in unused_input_names]
@@ -382,15 +398,20 @@ class Stage(object):
 
     def _derive_nominal_transforms_hash(self):
         """Derive a hash to uniquely identify the nominal transform. This
-        should be unique across processes and invocations since the nominal
-        transform can be cached to disk.
+        should be unique across processes and invocations bacuase the nominal
+        transforms can be non-volatile (cached to disk) and must still be
+        valid given their hash value upon loading from disk in the future.
 
-        The default implementation uses the nominal parameter values' hash
-        combined with the source code hash to generate a new hash. This should
-        be sufficiently unique for most cases.
+        This implementation uses the nominal parameter values' hash
+        combined with the source code hash to generate the final nominal
+        transforms hash.
 
         Notes
         -----
+        The hashing scheme implemented here might be sufficiently unique for
+        many cases, but override this method in services according to the
+        following guidelines:
+
         * Stages that use a nominal transform should override this method if
           the hash is more accurately computed differently from here.
 

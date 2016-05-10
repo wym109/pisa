@@ -1,24 +1,24 @@
 # authors: J.Lanfranchi/P.Eller
 # date:   March 20, 2016
 
-import numpy as np
+
 import copy
+
+import numpy as np
 
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
+from pisa.utils.events import Events
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils.events import Events
 
-
-# TODO: rename this, since it's misleading to call this an "mc" service.
 
 # TODO: the below logic does not generalize to muons, but probably should
 # (rather than requiring an almost-identical version just for muons). For
 # example, an input arg can dictate neutrino or muon, which then sets the
 # input_names and output_names.
 
-class mc(Stage):
+class hist(Stage):
     """Example stage with maps as inputs and outputs, and no disk cache. E.g.,
     histogrammed oscillations stages will work like this.
 
@@ -50,7 +50,7 @@ class mc(Stage):
         super(self.__class__, self).__init__(
             use_transforms=True,
             stage_name='aeff',
-            service_name='mc',
+            service_name='hist',
             params=params,
             expected_params=expected_params,
             input_names=input_names,
@@ -61,9 +61,6 @@ class mc(Stage):
             input_binning=input_binning,
             output_binning=output_binning
         )
-
-        # TODO: replace by method invoked in baseclass + disk caching
-        #self._compute_nominal_transforms()
 
     def _compute_nominal_transforms(self):
         logging.info('Extracting events from file: %s'

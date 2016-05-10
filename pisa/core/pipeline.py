@@ -36,6 +36,7 @@ class Pipeline(object):
     """Instantiate stages according to a parsed config object; excecute
     stages.
 
+
     Parameters
     ----------
     config : string or OrderedDict
@@ -43,18 +44,22 @@ class Pipeline(object):
           parse_config.parse_config() function to get a config OrderedDict.
         If OrderedDict, use directly as pipeline configuration.
 
+
     Methods
     -------
-    compute_outputs
+    get_outputs
         Returns output MapSet from the (final) pipeline, or all intermediate
         outputs if `return_intermediate` is specified as True.
+
     update_params
         Update params of all stages using values from a passed ParamSet
+
 
     Attributes
     ----------
     params : ParamSet
         All params from all stages in the pipeline
+
     stages : list
         All stages in the pipeline
 
@@ -98,8 +103,8 @@ class Pipeline(object):
 
         logging.debug(str(self.params))
 
-    def compute_outputs(self, inputs=None, idx=None,
-                        return_intermediate=False):
+    def get_outputs(self, inputs=None, idx=None,
+                    return_intermediate=False):
         """Run the pipeline to compute its outputs.
 
         Parameters
@@ -125,7 +130,7 @@ class Pipeline(object):
             logging.debug('Working on stage %s (%s)' %(stage.stage_name,
                                                        stage.service_name))
             try:
-                outputs = stage.compute_outputs(inputs)
+                outputs = stage.get_outputs(inputs=inputs)
             except:
                 logging.error('Error occurred computing outputs in stage %s /'
                               ' service %s ...' %(stage.stage_name,
@@ -229,16 +234,16 @@ if __name__ == '__main__':
             inputs = MapSet(maps=input_maps, name='ones')
         else:
             inputs = None
-        m0 = stage.compute_outputs(inputs)
+        m0 = stage.get_outputs(inputs=inputs)
     else:
         if args.stop_after_stage is not None:
-            m0 = pipeline.compute_outputs(idx=args.stop_after_stage)
+            m0 = pipeline.get_outputs(idx=args.stop_after_stage)
         else:
-            m0 = pipeline.compute_outputs()
+            m0 = pipeline.get_outputs()
     #fp = pipeline.params.free
     #fp['test'].value *= 1.2
     #pipeline.update_params(fp)
-    #m1 = pipeline.compute_outputs()
+    #m1 = pipeline.get_outputs()
     #print (m1/m0)['nue'][0,0]
     #print m0['nue']
     #print m0[m0.names[0]]

@@ -8,7 +8,7 @@ import sys
 
 import scipy.optimize as opt
 
-from pisa.core.template_maker import TemplateMaker
+from pisa.core.distribution_maker import DistributionMaker
 from pisa.utils.fileio import from_file
 from pisa.utils.log import logging, set_verbosity
 
@@ -17,24 +17,24 @@ class Analysis(object):
     """Major tools for performing "canonical" IceCube/DeepCore/PINGU analyses.
 
     * "Data" distribution creation (via passed `data_maker` object)
-    * Template distribution creation (via passed `template_maker` object)
+    * Template distribution creation (via passed `distribution_maker` object)
     * Fluctuations applied (or not) to either produced distributions.
 
     * Minimizer Interface (via method `_minimizer_callable`)
         Interfaces to a minimizer for modifying the free parameters of the
-        `template_maker` to fit its output (as closely as possible) to the data
-        distribution is provided. See [minimizer_settings] for
+        `distribution_maker` to fit its output (as closely as possible) to the
+        data distribution is provided. See [minimizer_settings] for
 
     Parameters
     ----------
-    data_maker : TemplateMaker
+    data_maker : DistributionMaker
         Generates a (pseudo)data distribution. Parameters used for generating
         this distribution are not modified from their injected values during
         the analysis, although added fluctuations may be regenerated if
         `data_fluctuations='fluctuated'` is specified (see below for more
         explanation).
 
-    template_maker : TemplateMaker
+    template_maker : DistributionMaker
         Provides output templates to compare against the data-like template.
         The `template_maker` provides the interface to those parameters
         that can be modifed or studied for their effects during the analysis
@@ -61,8 +61,8 @@ class Analysis(object):
     """
     def __init__(self, data_maker, template_maker, data_fluctuations=None,
                  template_fluctuations=None):
-        assert isinstance(data_maker, TemplateMaker)
-        assert isinstance(template_maker, TemplateMaker)
+        assert isinstance(data_maker, DistributionMaker)
+        assert isinstance(template_maker, DistributionMaker)
         self.data_maker = data_maker
         self.template_maker = template_maker
 
@@ -70,7 +70,7 @@ class Analysis(object):
         self.template_maker.fluctuations = template_fluctuations
 
         # Generate (at least the initial) data distribution
-        self.data = self.data_maker.compute_outputs()
+        self.data = self.data_maker.get_outputs()
 
     # TODO: move the complexity of defining a scan into a class with various
     # factory methods, and just pass that class to the scan method; we will
@@ -160,7 +160,7 @@ class Analysis(object):
             fp = self.template_maker.params.free
             fp[param_names].value = val
             self.template_maker.update_params(fp)
-            template = self.template_maker.compute_outputs()
+            template = self.template_maker.get_outputs()
             metric_vals.append(self.data.metric_total(expected_values=template,
                                                       metric=metric))
         return metric_vals
@@ -201,7 +201,7 @@ class Analysis(object):
 
         self.template_maker.params.free.rescaled_values = scaled_param_vals
 
-        template = self.template_maker.compute_outputs()
+        template = self.template_maker.get_outputs()
 
         # Assess the fit of the template to the data distribution, and negate
         # if necessary
@@ -283,7 +283,7 @@ if __name__ == '__main__':
 
     data_maker_settings = from_file(args.data_settings)
     data_maker_configurator = parse_config(data_maker_settings)
-    data_maker = TemplateMaker(data_maker_configurator)
+    data_maker = DistributionMaker(data_maker_configurator)
 
     #test = data_maker.params['test']
     #test.value /=2.
@@ -292,7 +292,7 @@ if __name__ == '__main__':
 
     template_maker_settings = from_file(args.template_settings)
     template_maker_configurator = parse_config(template_maker_settings)
-    template_maker = TemplateMaker(template_maker_configurator)
+    template_maker = DistributionMaker(template_maker_configurator)
 
     analysis = Analysis(data_maker=data_maker,
                         template_maker=template_maker,

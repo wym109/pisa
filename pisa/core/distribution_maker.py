@@ -10,8 +10,8 @@ from pisa.core.param import ParamSet
 from pisa.utils.log import logging, set_verbosity
 
 
-class TemplateMaker(object):
-    """Creates a TemplateMaker object that has several pipelines inside
+class DistributionMaker(object):
+    """Creates a DistributionMaker object that has several pipelines inside
     the outputs from all pipelines are added together  
 
     Parameters
@@ -53,9 +53,9 @@ class TemplateMaker(object):
     def __iter__(self):
         return iter(self._pipelines)
 
-    def compute_outputs(self, seed=None, **kwargs):
+    def get_outputs(self, seed=None, **kwargs):
         total_outputs = None
-        outputs = [pipeline.compute_outputs(**kwargs) for pipeline in self]
+        outputs = [pipeline.get_outputs(**kwargs) for pipeline in self]
         total_outputs = reduce(lambda x,y: x+y, outputs)
         if self.fluctuate is not None:
             total_outputs = total_outputs.fluctuate(method=self.fluctuate,
@@ -133,7 +133,7 @@ if __name__ == '__main__':
 
     set_verbosity(args.v)
 
-    template_maker = TemplateMaker([args.template_settings,
-                                    args.template_settings])
-    print template_maker.compute_outputs()
-    print template_maker.compute_outputs()
+    template_maker = DistributionMaker([args.template_settings,
+                                       args.template_settings])
+    print template_maker.get_outputs()
+    print template_maker.get_outputs()
