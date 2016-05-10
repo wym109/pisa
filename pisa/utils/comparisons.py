@@ -5,6 +5,7 @@ from collections import Mapping, Sequence, OrderedDict
 
 import numpy as np
 import pint
+ureg = pint.UnitRegistry() # necessary to do this to see "pint.quantity" attr
 
 from pisa.utils.log import logging, set_verbosity
 
@@ -13,23 +14,61 @@ SEQ_TYPES = (Sequence, np.ndarray, np.matrix)
 MAP_TYPES = (Mapping,)
 COMPLEX_TYPES = tuple(list(NP_TYPES) + list(SEQ_TYPES) + list(MAP_TYPES))
 
-def is_pint_quantity(x):
-    #return isinstance(x, pint.quantity._Quantity)
-    return hasattr(x, 'units') and hasattr(x, 'magnitude')
 
 def recursiveEquality(x, y):
-    """Recursively verify equality between two objects x and y."""
-    # NOTE: The order in which types are compared matters.
+    """Recursively verify equality between two objects `x` and `y`.
+
+    Parameters
+    ----------
+    x, y
+        Objects to be compared
+
+    Notes
+    -----
+    Possibly unintuitive behaviors:
+      * Sequences of any type evaluate equal if their contents are the same.
+        E.g., a list can equal a tuple.
+
+      * Mappings of any type evaluate equal if their contents are the same.
+        E.g. a dict can equal an OrderedDict.
+
+      * nan equals nan, +inf equals +inf, and -inf equals -inf
+
+      * Two pint units with same __repr__ but that were derived from different
+        unit registries evaluate to be equal. (This is contrary to pint's
+        implementation of equality comparisons, which is careful in case a
+        unit is defined differently in different regestries. We'll assume this
+        isn't done here in PISA, until a use case arises where this is no
+        longer a good assumption.)
+
+      * Two pint units that are compatible but different (even just in
+        magnitude prefix) evaluate to be unequal.
+
+        This behavior is chosen for the case where numbers are given
+        independently of their units, and hence the automatic conversion
+        facility available for comparing pint quantities is not available.
+        The only reliable way to test equality for these "less intelligent"
+        objects is to ensure that both the numerical values are exactly equal
+        and that the units are exactly equal; the latter includes order of
+        magnitude prefixes (micro, milli, ..., giga, etc.).
+
+    """
+    # NOTE: The order in which types are compared below matters, so change
+    # order carefully.
 
     # pint units
-    if isinstance(x, pint.unit._Unit) and isinstance(y, pint.unit._Unit):
-        if x.dimensionality != y.dimensionality:
-            logging.trace('x.dimensionality: %s' %x.dimensionality)
-            logging.trace('y.dimensionality: %s' %y.dimensionality)
+    if isinstance(x, pint.unit._Unit):
+        if not isinstance(y, pint.unit._Unit):
+            logging.trace('type(x)=%s but type(y)=%s' %(type(x), type(y)))
+        if repr(x) != repr(y):
+            logging.trace('x: %s' %x)
+            logging.trace('y: %s' %y)
             return False
 
     # pint quantities
-    elif is_pint_quantity(x) and is_pint_quantity(y):
+    elif isinstance(x, pint.quantity._Quantity):
+        if not isinstance(y, pint.quantity._Quantity):
+            logging.trace('type(x)=%s but type(y)=%s' %(type(x), type(y)))
         xunit = str(x.units)
         try:
             converted_y = y.to(xunit)
@@ -48,12 +87,19 @@ def recursiveEquality(x, y):
     elif isinstance(x, basestring) or isinstance(y, basestring) or \
             (not (isinstance(x, COMPLEX_TYPES) or
                   isinstance(y, COMPLEX_TYPES))):
-        if x != y and not (np.isnan(x) and np.isnan(y)):
-            logging.trace('Simple types (type(x)=%s, type(y)=%s) not equal.'
-                          %(type(x), type(y)))
-            logging.trace('x: %s' %x)
-            logging.trace('y: %s' %y)
-            return False
+        if x != y:
+            iseq = False
+            try:
+                if np.isnan(x) and np.isnan(y):
+                    iseq = True
+            except TypeError:
+                pass
+            if not iseq:
+                logging.trace('Simple types (type(x)=%s, type(y)=%s) not equal.'
+                              %(type(x), type(y)))
+                logging.trace('x: %s' %x)
+                logging.trace('y: %s' %y)
+                return False
 
     # Numpy types
     elif isinstance(x, NP_TYPES) or isinstance(y, NP_TYPES):
@@ -200,18 +246,37 @@ def test_recursiveEquality():
     assert not recursiveEquality(d4, d6)
     assert recursiveEquality(d7, d8)
 
+    # Units and quantities (numbers with units)
     ureg0 = pint.UnitRegistry()
     ureg1 = pint.UnitRegistry()
     u0 = ureg0.GeV
     u1 = ureg1.MeV
+    u2 = ureg1.GeV
+    u3 = ureg1.gigaelectron_volt
+    u4 = ureg1.foot
+    assert not recursiveEquality(u0, u1), 'noneq. of diff. unit, diff. reg'
+    assert not recursiveEquality(u1, u2), 'noneq. of diff. unit same reg'
+    assert recursiveEquality(u0, u2), 'eq. of same unit across registries'
+    assert recursiveEquality(u2, u3), 'eq. of same unit in same registry'
     q0 = np.ones(100) * u0
     q1 = np.ones(100) * 1000.0 * u1
     assert recursiveEquality(q0, q1)
-    assert not recursiveEquality(u0, u1)
+    q2 = 1e5*np.ones(100) * ureg0.um
+    q3 = 0.1 * np.ones(100) * ureg0.m
+    assert recursiveEquality(q2, q3)
+    q4, q5 = np.ones(10) * 1000. * ureg0.MeV, np.ones(10) * ureg0.GeV
+    assert recursiveEquality(q4, q5)
+
+    # Special numerical values
+    assert recursiveEquality(np.nan, np.nan)
+    assert recursiveEquality(np.inf, np.inf)
+    assert recursiveEquality(-np.inf, -np.inf)
+    assert not recursiveEquality(np.inf, -np.inf)
+    assert not recursiveEquality(np.inf, np.nan)
 
     print '<< PASSED >> recursiveEquality'
 
 
-if __name__ == "__main__":
-    set_verbosity(10)
+if __name__ == '__main__':
+    set_verbosity(3)
     test_recursiveEquality()
