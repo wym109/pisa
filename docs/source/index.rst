@@ -9,29 +9,21 @@ Welcome to PISA's documentation!
 Contents
 --------
 
-This is basically the old github documentation, followed by the docstrings collected from the new code
+Documentation is being collected here...
 
 .. toctree::
    :maxdepth: 2
 
-   readmes/readme
+   readmes/pisa_index
    readmes/install
-   readmes/pisa
-   readmes/core
-   readmes/flux
-   readmes/osc
-   readmes/aeff
-   readmes/reco
-   readmes/pid
+   readmes/stages_index
+   readmes/devel_guide
    readmes/scripts
-   readmes/cross_sections
-   readmes/flavor_interaction_types
+   readmes/utils_index
    Docstrings <modules>
 
-Indices and tables
-------------------
+Index
+-----
 
-* :ref:`genindex`
 * :ref:`modindex`
-* :ref:`search`
-
+* :ref:`genindex`

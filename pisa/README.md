@@ -1,4 +1,4 @@
-## about PISA
+## About PISA
 
 PISA implements a modular architecture wherein users can combine one or more analysis pipelines into distribution makers to make "data" and—separately—template distributions.
 Within each pipeline, users can choose among several implementations for each of the stages they choose to include.
@@ -27,7 +27,7 @@ Put another way: The more the closeness creiterion varies with a change in the m
 
 ### An example parameterized-MC analysis pipeline
 
-![Parameterized-MC analysis pipeline](images/PINGUSimulationChain.png "Parameterized-MC analysis pipeline")
+![Parameterized-MC analysis pipeline](images/PINGUSimulationChain.png)
 
 The original drawing is [here](https://docs.google.com/drawings/edit?id=1RxQj8rPndwFygxw3BUf4bx5B35GAMk0Gsos_BiJIN34).
 
