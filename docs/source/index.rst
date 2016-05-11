@@ -14,6 +14,9 @@ This is basically the old github documentation, followed by the docstrings colle
 .. toctree::
    :maxdepth: 2
 
+   readmes/readme
+   readmes/install
+   readmes/pisa
    readmes/core
    readmes/flux
    readmes/osc
