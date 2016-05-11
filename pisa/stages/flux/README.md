@@ -48,7 +48,7 @@ This function returns splined maps of flux (`map`) in bins of energy (`ebins`) a
 
 ## Services
 
-###HondaFluxService
+### HondaFluxService
 
 ```
 class HondaFluxService():

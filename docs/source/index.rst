@@ -6,16 +6,26 @@
 Welcome to PISA's documentation!
 ================================
 
-Contents:
+Contents
+--------
+
+This is basically the old github documentation, followed by the docstrings collected from the new code
 
 .. toctree::
    :maxdepth: 2
-   
-.. include:: /Aeff.md
-   modules
+
+   readmes/core
+   readmes/flux
+   readmes/osc
+   readmes/aeff
+   readmes/reco
+   readmes/pid
+   readmes/cross_sections
+   readmes/flavor_interaction_types
+   Docstrings <modules>
 
 Indices and tables
-==================
+------------------
 
 * :ref:`genindex`
 * :ref:`modindex`

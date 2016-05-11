@@ -11,7 +11,7 @@ def get_event_rates(osc_flux_maps,aeff_service,livetime=None,nu_xsec_scale=None,
 ```
 The total event __counts__ in each bin is simply calculated as the product of 
 
-![Events](events.png)
+![Events](images/events.png)
 
 ### Parameters
 * `osc_flux_maps`: A set of oscillated flux maps in the format, with one map for each neutrino flavour and parity (i.e `nue, nue_bar, numu, numu_bar, nutau, nutau_bar`).
@@ -59,7 +59,7 @@ where
 
 **NOTE:** the `weighted_aeff` is directly obtained from the `OneWeight` in `IceTray`; specifically it is calculated as
  
-![Weights](weight.png)
+![Weights](images/weight.png)
 
 where 
   * `OneWeight` is the `OneWeight` stored per event in `.i3` data files
@@ -69,7 +69,7 @@ where
 
 To obtain the effective area, these weights are histrogrammed in the given binning as a function of cos(zenith) and energy. To obtain the effective area in each bin _i_, the sum of weights in this bin is divided with the solid angle and energy range covered by the bin. 
 
-![AeffMC](aeffmc.png)
+![AeffMC](images/aeffmc.png)
 
 ### AeffServicePar
 ```
@@ -93,6 +93,6 @@ This service uses pre-made datatables to describe the energy dependence of the e
 
 The total effective area is calculated for each bin _i_ by evaluating the both parametrization functions at the bin centers in energy and cos(zenith) and multiplying them, where the cos(zenith) functions are also normalized to unity over the energy range. 
 
-![AeffPar](aeffpar.png)
+![AeffPar](images/aeffpar.png)
 
 

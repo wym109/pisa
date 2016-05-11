@@ -58,7 +58,7 @@ Put another way: The more the closeness creiterion varies with a change in the m
 
 ### An example parameterized-MC analysis pipeline
 
-![Parameterized-MC analysis pipeline](doc/PINGUSimulationChain.png "Parameterized-MC analysis pipeline")
+![Parameterized-MC analysis pipeline](images/PINGUSimulationChain.png "Parameterized-MC analysis pipeline")
 
 The original drawing is [here](https://docs.google.com/drawings/edit?id=1RxQj8rPndwFygxw3BUf4bx5B35GAMk0Gsos_BiJIN34).
 
@@ -156,7 +156,7 @@ Forking creates your own version of PISA within your Github account.
 You can freely create your own *branch*, modify the code, and then *add* and *commit* changes to that branch within your fork of PISA.
 When you want to share your changes with `WIPACrepo/pisa`, you can then submit a *pull request* to `WIPACrepo/pisa` which can be merged by the PISA administrator (after the code is reviewed and tested, of course).
 
-* Navigate to the [PISA github page](https://github.com/wipacrepo/pisa) and fork the repository by clicking on the ![fork](doc/ForkButton.png) button.
+* Navigate to the [PISA github page](https://github.com/wipacrepo/pisa) and fork the repository by clicking on the ![fork](images/ForkButton.png) button.
 * From a terminal, change into the "parent" directory.<br>
 `cd <parent dir>`
 * Clone the repository via one of the following commands (`<github username>` is your Github username):
@@ -200,4 +200,3 @@ If you do not have administrative access, you can install PISA as a user module 
 `pip install --user ...`
 
 ## Memetic description of PISA
-![Wow](doge.png?raw=true "Wow")

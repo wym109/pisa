@@ -1,6 +1,9 @@
 # Ignore precompiled packages
 *.py[cod]
 
+# OSX finder files
+.DS_Store
+
 # Ignore auto-generated libraries and files
 _*.so
 *_wrap.cxx
