@@ -2,7 +2,7 @@
 
 PINGU Simulation and Analysis (PISA) is software written for performing analyses based upon Monte Carlo simulations of the [IceCube neutrino observatory](https://icecube.wisc.edu/), including the [DeepCore](https://arxiv.org/abs/1109.6096) and proposed [PINGU](https://arxiv.org/abs/1401.2046) low-energy in-fill arrays (as well as other similar neutrino detectors).
 
-PISA was originally developed to cope with low-statistics Monte Carlo (MC) for PINGU using parameterizations of the MC, but its methods should apply equally as well to high-MC situations, and the PISA architecture is general enough to easily accomoodate traditional reweighting-MC-style analyses.
+PISA was originally developed to cope with low-statistics Monte Carlo (MC) for PINGU using parameterizations of the MC, but its methods should apply equally as well to high-MC situations, and the PISA architecture is general enough to easily accomoodate traditional reweighted-MC-style analyses.
 
 ## Index
 
@@ -38,7 +38,7 @@ Finally, multiple types of analysis can be performed using the generated distrib
 
 ### Analysis types
 
-PISA implements both what we call ***parameterized-Monte Carlo (MC) stages*** and ***MC-reweighting stages***.
+PISA implements both what we call ***parameterized-Monte Carlo (MC) stages*** and ***reweighted-MC stages***.
 In the former, distributions (and not individual event weights) are modified to reflect the effects of each analysis stage.
 In the latter, the individual events' weights and properties (such as reconstructed energy) are modified directly to reflect the effects of the detector, and only in the end are the events histogrammed to characterize their distribution.
 
