@@ -7,7 +7,7 @@ happens.
 
 Some examples are given to facilitate understanding.
 
-* [Analysis](analysis.py)
+* [Analysis](/pisa/core/analysis.py)
   * [TemplateMaker](template_maker.py) A (e.g. to produce pseudo data)
   * [TemplateMaker](template_maker.py) B (that may be fitted to a template from TemplateMaker A, for example)
     * [Pipeline](pipeline.py) a (e.gi. muons from icc data)
