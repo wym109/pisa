@@ -79,9 +79,9 @@ To install this package, you'll need to have the following non-python requiremen
 
 In Ubuntu Linux, you can install these via
 ```bash
-sudo apt-get install git hdf5
+sudo apt-get install git swig hdf5
 ```
-although you can also obtain `hdf5` by installing the Anaconda Python distribution (see below).
+although you can also obtain `hdf5` and `swig` (and ensure their compatibility with your Python installation) by installing a Python distribution like Anaconda.
 
 The Python requirements are
 * [python](http://www.python.org) — version 2.7.x required
