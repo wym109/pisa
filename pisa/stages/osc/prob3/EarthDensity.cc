@@ -261,11 +261,10 @@ void EarthDensity::Load()
     // If not...then we're good to go.
     _density[largest_radius] = last_rho;
 
-    RDetector = REarth - DetectorDepth;
-    //cout<<"RDetector: "<<RDetector<<" DetectorDepth: "<<DetectorDepth<<endl;
-
   }
 
+  RDetector = REarth - DetectorDepth;
+  //cout<<"RDetector: "<<RDetector<<" DetectorDepth: "<<DetectorDepth<<endl;
 
   if( _TraverseRhos     != NULL ) delete [] _TraverseRhos;
   if( _TraverseDistance != NULL ) delete [] _TraverseDistance;
