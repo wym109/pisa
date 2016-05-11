@@ -20,6 +20,7 @@ This is basically the old github documentation, followed by the docstrings colle
    readmes/aeff
    readmes/reco
    readmes/pid
+   readmes/scripts
    readmes/cross_sections
    readmes/flavor_interaction_types
    Docstrings <modules>
