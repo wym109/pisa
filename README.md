@@ -65,7 +65,7 @@ The original drawing is [here](https://docs.google.com/drawings/edit?id=1RxQj8rP
 ### More information about analysis
 
 An excellent (and far more detailed) description of the analysis process is maintained by Elim Cheung with particular application to IceCube/DeepCore atmospheric neutrino measurements [here](http://umdgrb.umd.edu/~elims/Fitter/Basics).
-She wrote her own fitter to perform these tasks. You can evaluate her ezFit software for performing analysis [here](http://code.icecube.wisc.edu/projects/icecube/browser/IceCube/sandbox/elims/ezfit).
+She wrote her own fitter to perform these tasks. You can evaluate her ezFit analysis software as an alternative to (or as a complementary tool for comparing results with) PISA [here](http://code.icecube.wisc.edu/projects/icecube/browser/IceCube/sandbox/elims/ezfit).
 
 
 ## Installation
@@ -74,6 +74,7 @@ She wrote her own fitter to perform these tasks. You can evaluate her ezFit soft
 
 To install this package, you'll need to have the following non-python requirements
 * [git](https://git-scm.com/)
+* [swig](http://www.swig.org/)
 * [hdf5](http://www.hdfgroup.org/HDF5/) — install with `--enable-cxx` option
 
 In Ubuntu Linux, you can install these via
