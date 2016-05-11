@@ -27,6 +27,10 @@ Optional dependencies to enable add-on features are
 * [PyCUDA](https://mathema.tician.de/software/pycuda)
 * [openmp](http://www.openmp.org)
 
+Requirements for compiling the Sphinx documentation
+* [Sphinx](http://www.sphinx-doc.org/en/stable/) - version > 1.3
+* [recommonmark](http://recommonmark.readthedocs.io/en/latest/)
+
 Obtaining packages and handling interdependencies is easiest if you use a Python distribution, such as [Anaconda](https://www.continuum.io/downloads) or [Canopy](https://www.enthought.com/products/canopy).
 Although the selection of maintained packages is smaller than if you use the `pip` command to obtain packages from the Python Package Index (PyPi), you can stil use `pip` even if you use a Python distribution.
 
@@ -128,3 +132,7 @@ If you want to do so, simply run<br>
 `sudo pip install ...`<br>
 If you do not have administrative access, you can install PISA as a user module via the `--user` flag:<br>
 `pip install --user ...`
+
+### Compiling the Docs
+
+To generate a new version of the documentation simply go to `$PISA/docs` and excecute `make html` to compile. (Alternatively also other output formats like pdf documents can be generated)
