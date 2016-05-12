@@ -1,10 +1,12 @@
 #
 # honda.py
 #
-# This flux service provides flux values from tables provided by Honda. It can
-# be for a grid of energy / cos(zenith) (for maps) or just singular values
-# (for events). This is achieved through b-spline interpolation, done in both
-# energy and cosZenith dimensions simultaneously in log10(flux).
+# This flux service provides flux values from tables provided by Honda.
+# The returned values are in a map of energy / cos(zenith) (for maps) 
+# This is either achieved through b-spline interpolation (done in both
+# energy and cosZenith dimensions simultaneously in log10(flux)) or an
+# integral-preserving method that manipulated 1 dimensional splines of
+# integrated flux.
 #
 # Most of the functionality will be ported from PISA with any necessary
 # changes/improvements applied.
@@ -28,6 +30,7 @@ from pisa.core.stage import Stage
 from pisa.core.map import Map, MapSet
 from pisa.resources.resources import open_resource
 from pisa.utils.hash import hash_obj
+prom pits.utils.log import logging
 
 
 class honda(Stage):
@@ -285,10 +288,13 @@ class honda(Stage):
         seed = hash_obj(self.params.values, hash_to='int') % (2**32-1)
         np.random.seed(seed)
 
-        if len(self.output_binning.names) == 3:
-            output_maps = self.compute_3D_outputs()
-        else:
-            output_maps = self.compute_2D_outputs()
+        output_maps = []
+
+        for prim in self.primaries:
+            if len(self.output_binning.names) == 3:
+                output_maps.append(self.compute_3D_outputs(prim))
+            else:
+                output_maps.append(self.compute_2D_outputs(prim))
 
         # Combine the output maps into a single MapSet object to return.
         # The MapSet contains the varous things that are necessary to make
@@ -296,19 +302,13 @@ class honda(Stage):
         # of the contained maps
         return MapSet(maps=output_maps, name='flux maps')
 
-    def _compute_2D_outputs(self):
+    def _compute_2D_outputs(self, prim):
         '''
         Method for computing 2 dimensional fluxes. Binning always expected 
         in energy and cosZenith. Splines are manipulated based on whether
         they were set up as bisplrep or integral-preserving.
         '''
-
-        cache_key = hash_obj((ebins, czbins, prim))
-        try:
-            return self.raw_flux_cache[cache_key]
-        except KeyError:
-            pass
-
+        
         ebins = self.output_binning['ebins'].bin_edges
         evals = ebins.weighted_centers
         ebin_sizes = ebins.bin_sizes
@@ -364,19 +364,19 @@ class honda(Stage):
 
         # Flux is given per sr and GeV, so we need to multiply
         # by bin width in both dimensions
-        # Get the bin size in both dimensions
-        ebin_sizes = get_bin_sizes(ebins)
-        czbin_sizes = 2.*np.pi*get_bin_sizes(czbins)
         bin_sizes = np.meshgrid(ebin_sizes, czbin_sizes)
 
         return_table *= np.abs(bin_sizes[0]*bin_sizes[1])
         return_table = return_table.T
 
-        self.raw_flux_cache[cache_key] = return_table
+         # Put the flux into a Map object, give it the output_name
+         return_map = Map(name=prim,
+                          hist=return_table,
+                          binning=self.output_binning)
         
-        return return_table
+        return return_map
 
-    def _compute_3D_outputs(self):
+    def _compute_3D_outputs(self, prim):
         '''
         Method for computing 3 dimensional fluxes when binning is also 
         called in azimuth. Binning always expected in energy and
