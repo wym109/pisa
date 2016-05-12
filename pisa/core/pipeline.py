@@ -10,6 +10,7 @@ from pisa.core.stage import Stage
 from pisa.core.param import ParamSet
 from pisa.utils.parse_config import parse_config
 from pisa.utils.log import logging, set_verbosity
+from pisa.utils.profiler import profile
 
 """
 Implementation of the Pipeline object, and a __main__ script to instantiate and
@@ -103,6 +104,7 @@ class Pipeline(object):
 
         logging.debug(str(self.params))
 
+    @profile
     def get_outputs(self, inputs=None, idx=None,
                     return_intermediate=False):
         """Run the pipeline to compute its outputs.

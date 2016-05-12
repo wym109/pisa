@@ -41,10 +41,18 @@ logconfig = from_json(find_resource('logging.json'))
 # Setup the logging system with this config
 logging.config.dictConfig(logconfig)
 
+thandler = logging.StreamHandler()
+tformatter = logging.Formatter(fmt=logconfig['formatters']['profile']['format'])
+thandler.setFormatter(tformatter)
+
+#capture warnings
+logging.captureWarnings(True)
+
 # Make the loggers public
 # In case they haven't been defined, this will just inherit from the root logger
 physics = logging.getLogger('physics')
 tprofile = logging.getLogger('profile')
+tprofile.handlers =[thandler]
 
 
 def set_verbosity(verbosity):
@@ -53,12 +61,12 @@ def set_verbosity(verbosity):
     """
     # Ignore if no verbosity is given
     if verbosity is None: return
-
+    assert(verbosity in [0,1,2,3])
     # define verbosity levels
     levels = {0:logging.WARN,
               1:logging.INFO,
               2:logging.DEBUG,
               3:logging.TRACE}
-
     # Overwrite the root logger with the verbosity level
-    logging.root.setLevel(levels[min(1,verbosity)])
+    logging.root.setLevel(levels[verbosity])
+    tprofile.setLevel(levels[verbosity])

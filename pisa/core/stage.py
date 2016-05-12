@@ -9,6 +9,7 @@ from pisa.core.map import MapSet
 from pisa.utils.cache import MemoryCache
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
+from pisa.utils.profiler import profile
 
 # TODO: mode for not propagating errors. Probably needs hooks here, but meat of
 # implementation would live inside map.py and/or transform.py.
@@ -248,6 +249,7 @@ class Stage(object):
         self.transforms = transforms
         return transforms
 
+    @profile
     def get_outputs(self, inputs=None):
         """Top-level function for computing outputs. Use this method to get
         outputs if you live outside this stage/service.
