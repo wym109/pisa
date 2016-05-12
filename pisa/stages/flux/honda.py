@@ -410,19 +410,15 @@ class honda(Stage):
         properly later
         """
 
-        output_maps = []
-        for output_name in self.output_names:
-            # Generate the fake per-bin "fluxes", modified by the parameter
-            hist = np.ones(self.output_binning.shape) * height
+        hist = np.ones(self.output_binning.shape) * 27.0
+        
+        # Put the "fluxes" into a Map object, give it the output_name
+        m = Map(name=prim, hist=hist, binning=self.output_binning)
 
-            # Put the "fluxes" into a Map object, give it the output_name
-            m = Map(name=output_name, hist=hist, binning=self.output_binning)
-
-            # Optionally turn on errors here, that will be propagated through
-            # rest of pipeline (slows things down, but essential in some cases)
-            #m.set_poisson_errors()
-            output_maps.append(m)
-        return output_maps
+        # Optionally turn on errors here, that will be propagated through
+        # rest of pipeline (slows things down, but essential in some cases)
+        #m.set_poisson_errors()
+        return m
 
     def validate_params(self, params):
         # do some checks on the parameters
