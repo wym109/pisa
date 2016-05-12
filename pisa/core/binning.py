@@ -76,6 +76,7 @@ class OneDimBinning(object):
     is_bin_spacing_lin
     is_binning_ok
     is_compat
+    ito
     to
     oversample
     __eq__
@@ -427,9 +428,18 @@ class OneDimBinning(object):
 
         return {'bin_edges': np.array(bin_edges)*self.units}
 
+    def ito(self, units):
+        """Convert units in-place. Cf. Pint's `ito` method."""
+        if units is None:
+            units = ''
+        for attr in ['bin_edges', 'domain', 'midpoints', 'weighted_centers']:
+            getattr(self, attr).ito(units)
+
     @new_obj
-    def to(self, unit):
-        return {'bin_edges': self.bin_edges.to(unit)}
+    def to(self, units):
+        if units is None:
+            units = ''
+        return {'bin_edges': self.bin_edges.to(ureg(str(units)))}
 
     def __getattr__(self, attr):
         return super(self.__class__, self).__getattribute__(attr)
@@ -719,11 +729,16 @@ class MultiDimBinning(object):
                                                   self.names))
         return [kwargs[name] for name in self.names]
 
+    def ito(self, *args, **kwargs):
+        """Convert units in-place. Cf. Pint's `ito` method."""
+        units_list = self._args_kwargs_to_list(*args, **kwargs)
+        [dim.ito(units) for dim, units in izip(self.dimensions, units_list)]
+
     def to(self, *args, **kwargs):
-        units = self._args_kwargs_to_list(*args, **kwargs)
-        units = [ureg(unit) for unit in units]
-        new_binnings = [dim.to(unit)
-                        for dim, unit in izip(self.dimensions, units)]
+        """Convert the contained dimensions to the passed units."""
+        units_list = self._args_kwargs_to_list(*args, **kwargs)
+        new_binnings = [dim.to(units)
+                        for dim, units in izip(self.dimensions, units_list)]
         return MultiDimBinning(new_binnings)
 
     # TODO: magnitude method that replicates Pint version's behavior (???)
@@ -774,7 +789,7 @@ class MultiDimBinning(object):
 
     # TODO: modify technique depending upon grid size for memory concerns, or
     # even take a `method` argument to force method manually.
-    def bin_volumes(self, attach_units=True):
+    def bin_sizes(self, attach_units=True):
         meshgrid = self.meshgrid(entity='bin_sizes', attach_units=False)
         volumes = reduce(lambda x,y: x*y, meshgrid)
         if attach_units:
@@ -945,8 +960,11 @@ def test_MultiDimBinning():
     mg = binning.meshgrid(entity='bin_edges')
     mg = binning.meshgrid(entity='weighted_centers')
     mg = binning.meshgrid(entity='midpoints')
-    bv = binning.bin_volumes(attach_units=False)
-    bv = binning.bin_volumes(attach_units=True)
+    bv = binning.bin_sizes(attach_units=False)
+    bv = binning.bin_sizes(attach_units=True)
+    binning.to('MeV', None)
+    binning.to('MeV', '')
+    binning.to(ureg.joule, '')
 
     logging.info('<< PASSED >> test_MultiDimBinning')
 
