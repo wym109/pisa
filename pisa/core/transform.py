@@ -42,9 +42,9 @@ class TransformSet(object):
 
     Methods
     -------
+    apply
     check_predecessor_compat
     check_successor_compat
-    apply
 
     """
     def __init__(self, transforms, name=None):
@@ -96,7 +96,6 @@ class TransformSet(object):
         Parameters
         -----------
         inputs : sequence of objects
-        cache : cache object or None
 
         Returns
         -------
@@ -126,12 +125,12 @@ class Transform(object):
 
     """
     # Attributes that __setattr__ will allow setting
-    _slots = ('_input_names', '_output_name', '_tex', '_params_hash', '_hash')
+    _slots = ('_input_names', '_output_name', '_tex', '_hash', '_hash')
     # Attributes that should be retrieved to fully describe state
     _state_attrs = ('input_names', 'output_name', 'tex', 'hash')
 
     def __init__(self, input_names, output_name, input_binning=None,
-                 output_binning=None, tex=None, params_hash=None):
+                 output_binning=None, tex=None, hash=None):
         if isinstance(input_names, basestring):
             input_names = [input_names]
         assert isinstance(output_name, basestring)
@@ -146,7 +145,7 @@ class Transform(object):
         else:
             self._output_binning = None
         self._tex = tex if tex is not None else output_name
-        self._params_hash = params_hash
+        self._hash = hash
 
     @property
     def hash(self):
@@ -196,19 +195,55 @@ class Transform(object):
 #       estimate of the error in the output map.
 class BinnedTensorTransform(Transform):
     """
+
     Parameters
     ----------
-    input_names
-    output_name
-    input_binning
-    output_binning
-    params_hash
+    input_names : string or sequence thereof
+        Names of maps expected in the input MapSet.
+
+    output_name : string
+        Name of Map that will be generated.
+
+    input_binning : MultiDimBinning
+        Binning required for inputs maps.
+
+    output_binning : MultiDimBinning
+        Binning used for generated output maps.
+
+    xform_array : numpy ndarray
+        The actual transform's numerical values. Shape must be in accordance
+        with `input_binning` and `output_binning` to accommodate the type
+        of transform being implemented. See Notes for more detail on allowed
+        shapes.
+
+    tex : string
+        TeX label for e.g. automatic plot labelling.
+
+    hash : immutable object (usually integer)
+        A hash value the user can attach
+
 
     Properties
     ----------
     hash
-    params_hash
     source_hash
+
+    Notes
+    -----
+    For an input map that is M_ebins x N_czbins, the transform must either be
+    2-dimensional of shape (M x N) or 4-dimensional of shape (M x N x M x N).
+    The latter case can be thought of as a 2-dimensional (M x N) array, each
+    element of which is a 2-dimensional (M x N) array, and is currently used
+    for the reconstruction stage's convolution kernels where there is one
+    (M_ebins x N_czbins)-size kernel for each (energy, coszen) bin.
+
+    There can be extra objects in `inputs` that are not used by this transform
+    ("sideband" objects, which are simply ignored here). If multiple input maps
+    are used by the transform, they are combined via
+    numpy.stack((map0, map1, ... ), axis=0) I.e., the first dimension of the
+    input sent to the transform has a length the same number of input maps
+    requested by the transform.
+
     """
     _slots = tuple(list(Transform._slots) +
                    ['_input_binning', '_output_binning', '_xform_array'])
@@ -217,13 +252,13 @@ class BinnedTensorTransform(Transform):
                          ['input_binning', 'output_binning', 'xform_array'])
 
     def __init__(self, input_names, output_name, input_binning, output_binning,
-                 xform_array, tex=None, params_hash=None):
+                 xform_array, tex=None, hash=None):
         super(self.__class__, self).__init__(input_names=input_names,
                                              output_name=output_name,
                                              input_binning=input_binning,
                                              output_binning=output_binning,
                                              tex=tex,
-                                             params_hash=params_hash)
+                                             hash=hash)
         self.xform_array = xform_array
 
     @property
@@ -270,7 +305,7 @@ class BinnedTensorTransform(Transform):
     # given the (concatenated) input dimension and the dimension of the
     # transform kernel
 
-    def _apply(self, inputs, cache=None):
+    def _apply(self, inputs):
         """Apply transforms to input maps to compute output maps.
 
         Parameters
@@ -283,23 +318,6 @@ class BinnedTensorTransform(Transform):
         -------
         output : Map
             Result of applying the transform to the input map(s).
-
-        Notes
-        -----
-        For an input map that is M_ebins x N_czbins, the transform must either
-        be 2-dimensional of shape (M x N) or 4-dimensional of shape
-        (M x N x M x N). The latter case can be thought of as a 2-dimensional
-        (M x N) array, each element of which is a 2-dimensional (M x N) array,
-        and is currently used for the reconstruction stage's convolution
-        kernels where there is one (M_ebins x N_czbins)-size kernel for each
-        (energy, coszen) bin.
-
-        There can be extra objects in `inputs` that are not used by this
-        transform ("sideband" objects, which are simply ignored here). If
-        multiple input maps are used by the transform, they are combined via
-          numpy.stack((map0, map1, ... ), axis=0)
-        I.e., the first dimension of the input sent to the transform has a
-        length the same number of input maps requested by the transform.
 
         """
         self.validate_input(inputs)

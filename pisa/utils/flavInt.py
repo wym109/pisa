@@ -945,8 +945,8 @@ ALL_NUNC = NuFlavIntGroup('nuall_nc,nuallbar_nc')
 class FlavIntData(dict):
     """Container class for storing data for each NuFlavInt.
 
-    Paramters
-    ---------
+    Parameters
+    ----------
     val : string, dict, or None
         Data with which to populate the hierarchy.
 
