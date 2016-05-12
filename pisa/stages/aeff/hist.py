@@ -115,8 +115,8 @@ class hist(Stage):
                 # Divide histogram by
                 #   (energy bin width x coszen bin width x azimuth bin width)
                 # to convert from sum-of-OneWeights-in-bin to effective area
-                delta0 = self.output_binning[bin_names[0]].bin_sizes
-                delta1 = self.output_binning[bin_names[1]].bin_sizes
+                delta0 = self.output_binning[bin_names[0]].bin_sizes.magnitude
+                delta1 = self.output_binning[bin_names[1]].bin_sizes.magnitude
                 bin_areas = np.abs(delta0[:, None] * delta1 * 2. * np.pi)
                 aeff_hist /= bin_areas
 
