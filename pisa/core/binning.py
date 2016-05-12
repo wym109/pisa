@@ -240,12 +240,11 @@ class OneDimBinning(object):
 
     @property
     def units(self):
-        #return format(self.bin_edges.units, '~')
         return self.bin_edges.units
 
     @property
     def bin_sizes(self):
-        return np.diff(self.bin_edges)
+        return np.diff(self.bin_edges)*self.units
 
     def new_obj(original_function):
         """ decorator to deepcopy unaltered states into new object """
@@ -773,6 +772,15 @@ class MultiDimBinning(object):
             return [m*dim.units for m, dim in izip(mg, self.dimensions)]
         return mg
 
+    # TODO: modify technique depending upon grid size for memory concerns, or
+    # even take a `method` argument to force method manually.
+    def bin_volumes(self, attach_units=True):
+        meshgrid = self.meshgrid(entity='bin_sizes', attach_units=False)
+        volumes = reduce(lambda x,y: x*y, meshgrid)
+        if attach_units:
+            return volumes * reduce(lambda x,y:x*y, [ureg(str(d.units))
+                                                     for d in self.dimensions])
+        return volumes
 
     def __eq__(self, other):
         if not isinstance(other, MultiDimBinning):
@@ -937,6 +945,8 @@ def test_MultiDimBinning():
     mg = binning.meshgrid(entity='bin_edges')
     mg = binning.meshgrid(entity='weighted_centers')
     mg = binning.meshgrid(entity='midpoints')
+    bv = binning.bin_volumes(attach_units=False)
+    bv = binning.bin_volumes(attach_units=True)
 
     logging.info('<< PASSED >> test_MultiDimBinning')
 
