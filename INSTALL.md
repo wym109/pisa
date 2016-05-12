@@ -139,3 +139,5 @@ If you do not have administrative access, you can install PISA as a user module 
 ### Compiling the Docs
 
 To generate a new version of the documentation simply go to `$PISA/docs` and excecute `make html` to compile. (Alternatively also other output formats like pdf documents can be generated)
+
+in case code structure changed, rebuild the apidoc by executing `sphinx-apidoc -f -o docs/source pisa` from the pisa root dir `$PISA`.

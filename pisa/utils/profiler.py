@@ -5,7 +5,7 @@ try:
     from line_profiler import LineProfiler
     profiler = LineProfiler()
     # to use simple timer add silly import that breaks
-    import sdfghj
+    #import sdfghj
 
     # to redirect into our logging stream 
     class log():

@@ -188,6 +188,14 @@ pisa.utils.proc module
     :undoc-members:
     :show-inheritance:
 
+pisa.utils.profiler module
+--------------------------
+
+.. automodule:: pisa.utils.profiler
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 pisa.utils.seed module
 ----------------------
 
@@ -216,14 +224,6 @@ pisa.utils.smooth_pid module
 ----------------------------
 
 .. automodule:: pisa.utils.smooth_pid
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-pisa.utils.stage_tester module
-------------------------------
-
-.. automodule:: pisa.utils.stage_tester
     :members:
     :undoc-members:
     :show-inheritance:
