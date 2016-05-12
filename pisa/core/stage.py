@@ -74,7 +74,7 @@ class Stage(object):
     stage_name : str
         Name of the stage (e.g., 'flux', 'osc', 'aeff', 'reco', 'pid', ...)
     state_hash
-        Combines source_code_hash and params_hash for checking/tagging
+        Combines source_code_hash and params.hash for checking/tagging
         provenance of persisted (on-disk) objects.
     transforms : TransformSet
         A stage that takes to-be-transformed inputs and has had these
