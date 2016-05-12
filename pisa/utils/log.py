@@ -45,6 +45,9 @@ thandler = logging.StreamHandler()
 tformatter = logging.Formatter(fmt=logconfig['formatters']['profile']['format'])
 thandler.setFormatter(tformatter)
 
+#capture warnings
+logging.captureWarnings(True)
+
 # Make the loggers public
 # In case they haven't been defined, this will just inherit from the root logger
 physics = logging.getLogger('physics')
