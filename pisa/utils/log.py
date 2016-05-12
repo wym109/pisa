@@ -58,12 +58,12 @@ def set_verbosity(verbosity):
     """
     # Ignore if no verbosity is given
     if verbosity is None: return
-
+    assert(verbosity in [0,1,2,3])
     # define verbosity levels
     levels = {0:logging.WARN,
               1:logging.INFO,
               2:logging.DEBUG,
               3:logging.TRACE}
-
     # Overwrite the root logger with the verbosity level
-    logging.root.setLevel(levels[min(1,verbosity)])
+    logging.root.setLevel(levels[verbosity])
+    tprofile.setLevel(levels[verbosity])

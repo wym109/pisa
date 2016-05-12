@@ -5,14 +5,14 @@ try:
     from line_profiler import LineProfiler
     profiler = LineProfiler()
     # to use simple timer add silly import that breaks
-    #import sdfghj
+    import sdfghj
 
     # to redirect into our logging stream 
     class log():
         def write(self, bla):
             bla = bla.rstrip('\n')
             if bla:
-                tprofile.info(bla)
+                tprofile.debug(bla)
         def flush():
             pass
     tlog = log()
@@ -43,20 +43,20 @@ except ImportError:
                 return func(*args, **kwargs)
             finally:
                 end_t = time.time()
-                tprofile.info('module %s, function %s: %.4f ms'%(func.__module__,func.__name__,(end_t - start_t) * 1000))
+                tprofile.debug('module %s, function %s: %.4f ms'%(func.__module__,func.__name__,(end_t - start_t) * 1000))
         return profiled_func
 
 if __name__ == '__main__':
 
     @profile
     def get_number():
-        logging.info('hello, i am get_number')
+        logging.debug('hello, i am get_number')
         for x in xrange(500000):
             yield x
 
     @profile
     def expensive_function():
-        logging.info('hello, i am expensive fun')
+        logging.debug('hello, i am expensive fun')
         for x in get_number():
             i = x ^ x ^ x
         return 'some result!'
