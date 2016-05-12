@@ -391,7 +391,6 @@ class honda(Stage):
             # Current dimensionality is (cz,E)
             # So need to transpose is desired is (E,cz)
             return_table = return_table.T
-            
         
          # Put the flux into a Map object, give it the output_name
          return_map = Map(name=prim,
