@@ -789,7 +789,7 @@ class MultiDimBinning(object):
 
     # TODO: modify technique depending upon grid size for memory concerns, or
     # even take a `method` argument to force method manually.
-    def bin_sizes(self, attach_units=True):
+    def bin_volumes(self, attach_units=True):
         meshgrid = self.meshgrid(entity='bin_sizes', attach_units=False)
         volumes = reduce(lambda x,y: x*y, meshgrid)
         if attach_units:
@@ -960,8 +960,8 @@ def test_MultiDimBinning():
     mg = binning.meshgrid(entity='bin_edges')
     mg = binning.meshgrid(entity='weighted_centers')
     mg = binning.meshgrid(entity='midpoints')
-    bv = binning.bin_sizes(attach_units=False)
-    bv = binning.bin_sizes(attach_units=True)
+    bv = binning.bin_volumes(attach_units=False)
+    bv = binning.bin_volumes(attach_units=True)
     binning.to('MeV', None)
     binning.to('MeV', '')
     binning.to(ureg.joule, '')
