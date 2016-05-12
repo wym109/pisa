@@ -1,5 +1,18 @@
 # authors: J.Lanfranchi/P.Eller
 # date:   March 20, 2016
+"""
+This is a dummy oscillations service, provided as a template others can use to
+build their own services.
+
+This service makes use of transforms, but does *not* use nominal_transforms.
+
+Note that this string, delineated by triple-quotes, is the "module-level
+docstring," which you should write for your own services. Also, include all of
+the docstrings (delineated by triple-quotes just beneath a class or method
+definition) seen below, too! These all automatically get compiled into the PISA
+documentation.
+
+"""
 
 import numpy as np
 
@@ -13,8 +26,49 @@ class dummy(Stage):
     """Example stage with maps as inputs and outputs, and no disk cache. E.g.,
     histogrammed oscillations stages will work like this.
 
+
+    Parameters
+    ----------
+    params : ParamSet
+        Parameters which set everything besides the binning.
+
+    input_binning : MultiDimBinning
+        The `inputs` must be a MapSet whose member maps (instances of Map)
+        match the `input_binning` specified here.
+
+    output_binning : MultiDimBinning
+        The `outputs` produced by this service will be a MapSet whose member
+        maps (instances of Map) will have binning `output_binning`.
+
+    transforms_cache_depth : int >= 0
+        Number of transforms (TransformSet) to store in the transforms cache.
+        Setting this to 0 effectively disables transforms caching.
+
+    outputs_cache_depth : int >= 0
+        Number of outputs (MapSet) to store in the outputs cache. Setting this
+        to 0 effectively disables outputs caching.
+
+
+    Attributes
+    ----------
+    an_attr
+    another_attr
+
+
+    Methods
+    -------
+    foo
+    bar
+    bat
+    baz
+
+
+    Notes
+    -----
+    Blah blah blah ...
+
     """
-    def __init__(self, params, input_binning, output_binning, disk_cache=None,
+    def __init__(self, params, input_binning, output_binning,
                  transforms_cache_depth=20, outputs_cache_depth=20):
         # All of the following params (and no more) must be passed via the
         # `params` argument.
@@ -46,7 +100,7 @@ class dummy(Stage):
             expected_params=expected_params,
             input_names=input_names,
             output_names=output_names,
-            disk_cache=disk_cache,
+            disk_cache=None,
             outputs_cache_depth=outputs_cache_depth,
             transforms_cache_depth=transforms_cache_depth,
             input_binning=input_binning,
@@ -61,7 +115,7 @@ class dummy(Stage):
         # by invoking that same method).
 
     def _compute_transforms(self):
-        """Compute new oscillation transforms"""
+        """Compute new oscillation transforms."""
         # This is done just to produce different set of transforms for
         # different set of parameters
         seed = hash_obj(self.params.values, hash_to='int') % (2**32-1)
