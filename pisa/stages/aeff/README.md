@@ -2,50 +2,17 @@
 
 The purpose of this stage is the conversion of the incoming neutrino flux at the detector into an event count. This includes the interaction of the neutrinos, as well as the triggering and event selection criteria (filters), so that the resulting flux is at _analysis level_. 
 
-## Main module
-
-The main module for this stage is `Aeff.py`, which provides a function that takes the flux maps as an input and returns event count maps.
-```
-def get_event_rates(osc_flux_maps,aeff_service,livetime=None,nu_xsec_scale=None,
-                    nubar_xsec_scale=None,aeff_scale=None,**kwargs):
-```
 The total event __counts__ in each bin is simply calculated as the product of 
 
 ![Events](images/events.png)
 
-### Parameters
-* `osc_flux_maps`: A set of oscillated flux maps in the format, with one map for each neutrino flavour and parity (i.e `nue, nue_bar, numu, numu_bar, nutau, nutau_bar`).
-
-* `aeff_service`: An _effective area service_ that provides effective areas as a function of energy and cos(zenith) and interaction type. See below for a choice of services.
-
-* `livetime`: the livetime in Julian years (**not** seconds)
-* `nu_xsec_scale` : a scale factor for all **neutrino** event rates
-* `nubar_xsec_scale` : a scale factor for all **anti-neutrino** event rates
-* `aeff_scale` : an overall scale factor (independent of flavour or parity)
-
-### Output
-This function returns maps of events counts for each flavour and interaction type.
-```
-  { ‘nue’: { ‘cc’: map,  ‘nc’: map},
-     ‘nue_bar’: { ‘cc’: map,  ‘nc’: map},
-     ‘numu’: { ‘cc’: map,  ‘nc’: map},
-     ‘numu_bar’: { ‘cc’: map,  ‘nc’: map},
-     ‘nutau’: { ‘cc’: map,  ‘nc’: map},
-     ‘nutau_bar’: { ‘cc’: map,  ‘nc’: map},
-     ‘params’: params}
-```
 
 ## Services
-So far, two effective area services are surported, one for __parametrized__ effective areas, the other one builds effective areas directly from MC events.
+Two effective area services are surported, one for __parametrized__ effective areas, the other one builds effective areas directly from histogrammed MC events.
 
-###AeffServiceMC
+### hist
 
-```
-class AeffServiceMC:
-    def __init__(self,ebins,czbins,aeff_weight_file=None,**kwargs):
-````
-
-This service takes the energy and cos(zenith) bins as well as a data file (`aeff_weight_file`) in HDF5 format in the constructor. I then reads the events weights for each flavour and interaction type from the datafile and creates histogram of the effective area. The structure of the datafile is
+This service takes the energy and cos(zenith) bins as well as a data file (`aeff_weight_file`) in HDF5 format. It then reads the events weights for each flavour and interaction type from the datafile and creates histogram of the effective area. The structure of the datafile is
 ```
 flavour / int_type / value
 ```
@@ -72,10 +39,7 @@ To obtain the effective area, these weights are histrogrammed in the given binni
 ![AeffMC](images/aeffmc.png)
 
 ### AeffServicePar
-```
-class AeffServicePar:
-    def __init__(self,ebins,czbins,aeff_egy_par,aeff_coszen_par,**kwargs):
-```
+
 This service uses pre-made datatables to describe the energy dependence of the effective area, while the cos(zenith) dependence is described as a functional form (i.e parametrization).
 * **Energy dependence**:  `aeff_egy_par` is a dictionary that lists datatables for the 1D energy dependence for each flavour for charged-current interactions  (`nue`,`nue_bar`,`numu`,`numu_bar`,`nutau`,`nutau_bar`), while neutral-current interactions are modelled as flavour-independent (`NC`,`NC_bar`). A simple text file is used for the datatables with the format
 

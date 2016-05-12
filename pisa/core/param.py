@@ -501,7 +501,7 @@ class ParamSet(object):
         return iter(self._params)
 
     def __str__(self):
-        numfmt = '%+.6e'
+        numfmt = '%+.4e'
         strings = []
         for p in self:
             string = p.name + '='

@@ -6,6 +6,9 @@
     },
     "time": {
       "format": "%(asctime)s : %(message)s"
+    },
+    "profile": {
+      "format": "[ PROFILE] %(message)s"
     }
   },
   "handlers": {
@@ -22,8 +25,8 @@
   },
   "loggers": {
     "profile": {
-      "handlers": [ "console"  ],
-      "level": "DEBUG",
+      "handlers": [ "console" ],
+      "level": "WARN",
       "propagate": false
     },
     "physics": {
@@ -34,6 +37,6 @@
   },
   "root": {
     "handlers": [ "console" ],
-    "level": "TRACE"
+    "level": "WARN"
   }
 }

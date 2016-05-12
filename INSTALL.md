@@ -27,6 +27,9 @@ Optional dependencies to enable add-on features are
 * [PyCUDA](https://mathema.tician.de/software/pycuda)
 * [openmp](http://www.openmp.org)
 
+For detailed profiling output (optional)
+* [line_profiler](https://pypi.python.org/pypi/line_profiler/)
+
 Requirements for compiling the Sphinx documentation
 * [Sphinx](http://www.sphinx-doc.org/en/stable/) - version > 1.3
 * [recommonmark](http://recommonmark.readthedocs.io/en/latest/)

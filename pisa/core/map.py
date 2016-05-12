@@ -45,16 +45,28 @@ def strip_outer_parens(value):
 
 
 class Map(object):
-    """Class to contain 2D histogram, error, and metadata about the contents.
-    Also provides basic mathematical operations for the contained data.
+    """Class to contain a multi-dimensional histogram, error, and metadata
+    about the contents. Also provides basic mathematical operations for the
+    contained data.
+
+
     Parameters
     ----------
-    name
-    hist
-    binning
-    hash
-    tex
-    full_comparison
+    name : string
+        Name for the map. Used to identify the map.
+    hist : numpy ndarray
+        The "data" (counts, etc.) in the map.  The shape of `hist` must be
+        compatible with the `binning` specified.
+    binning : MultiDimBinning
+        Describes the binning of the Map.
+    hash : None, or immutable object (typically an integer)
+        Hash value to attach to the map.
+    tex : None or string
+        TeX string that can be used for e.g. plotting.
+    full_comparison : bool
+        Whether to perform full (recursive) comparisons when testing the
+        equality of this map with another. See `__eq__` method.
+
 
     Properties
     ----------
@@ -67,6 +79,7 @@ class Map(object):
     shape
     state
     tex
+
 
     Methods
     -------
@@ -583,19 +596,42 @@ class MapSet(object):
     """
     Set of maps.
 
+
+    Parameters
+    ----------
+    maps : one Map or a sequence of Map
+
+    name : string
+
+    tex : string
+
+    collate_by_name : bool
+        If True, when this MapSet is passed alongside another MapSet to a
+        function that operates on the maps, contained maps in each will be
+        accessed by name. Hence, only maps with the same names will be operated
+        on simultaneously.
+
+        If false, the contained maps in each MapSet will be accessed by their
+        order in each MapSet. This behavior is useful if maps are renamed
+        through some operation but their order is maintained, and then
+        comparisons are sought with their progenitors with the original
+        (different) name.
+
+
+    Attributes
+    ----------
+
+
     Methods
     -------
     __contains__
     __len__
     __iter__
 
-    Properties
-    ----------
-
     """
     __slots = ('_name')
     __state_attrs = ('name', 'maps')
-    def __init__(self, maps, name=None, tex=None, collate_by_name=False):
+    def __init__(self, maps, name=None, tex=None, collate_by_name=True):
         super(MapSet, self).__setattr__('maps', tuple(maps))
         super(MapSet, self).__setattr__('name', name)
         super(MapSet, self).__setattr__('tex', name)
