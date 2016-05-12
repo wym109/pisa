@@ -228,6 +228,7 @@ class BinnedTensorTransform(Transform):
     hash
     source_hash
 
+
     Notes
     -----
     For an input map that is M_ebins x N_czbins, the transform must either be
