@@ -21,7 +21,6 @@ Most of the functionality will be ported from PISA with any necessary
 changes/improvements applied.
 """
 
-
 import numpy as np
 import pint
 ureg = pint.UnitRegistry()
@@ -99,10 +98,16 @@ class honda(Stage):
         # Initialisation of this service should load the flux tables
         # Can work with either 2D (E,Z,AA) or 3D (E,Z,A) tables.
         # Also, the splining should only be done once, so do that too
-        if len(output_binning.names) == 3:
+        if set(output_binning.names) == set(['energy', 'coszen', 'azimuth']):
             self.load_3D_table(smooth=0.05)
-        else:
+        elif set(self.output_binning.names) == set(['energy', 'coszen']):
             self.load_2D_table(smooth=0.05)
+        else:
+            raise ValueError(
+                'Incompatible `output_binning` for either 2D (requires'
+                ' "energy" and "coszen") or 3D (additionally requires'
+                ' "azimuth"). Faulty `output_binning`=%s'
+                %self.output_binning)
         
     def load_2D_table(self, smooth=0.05):
         """
@@ -113,9 +118,10 @@ class honda(Stage):
 
         Parameters
         ----------
-        smooth : The smoothing factor for the splining when using bisplrep
-                 Not changing from 0.05 is strongly recommended
-                 The integral-preserving has a fixed smoothing of 0.
+        smooth : float
+            The smoothing factor for the splining when using bisplrep
+            Not changing from 0.05 is strongly recommended
+            The integral-preserving has a fixed smoothing of 0.
         """
         
         flux_file = self.params['flux_file'].value
@@ -131,7 +137,7 @@ class honda(Stage):
         for key in flux_dict.iterkeys():
             # There are 20 lines per zenith range
             flux_dict[key] = np.array(np.split(flux_dict[key], 20))
-            if not key=='energy':
+            if key != 'energy':
                 flux_dict[key] = flux_dict[key].T
 
         # Set the zenith and energy range as they are in the tables
@@ -173,8 +179,8 @@ class honda(Stage):
             int_flux_dict = {}
             # Energy and CosZenith bins needed for integral-preserving
             # method must be the edges of those of the normal tables
-            int_flux_dict['logenergy'] = np.linspace(-1.025,4.025,102)
-            int_flux_dict['coszen'] = np.linspace(-1,1,21)
+            int_flux_dict['logenergy'] = np.linspace(-1.025, 4.025, 102)
+            int_flux_dict['coszen'] = np.linspace(-1, 1, 21)
             for nutype in primaries:
                 # spline_dict now wants to be a set of splines for
                 # every table cosZenith value.
@@ -226,7 +232,7 @@ class honda(Stage):
         # Set the zenith and energy range
         flux_dict['energy'] = flux_dict['energy'][0].T[0]
         flux_dict['coszen'] = np.linspace(0.95, -0.95, 20)
-        flux_dict['azimuth'] = np.linspace(15,345,12)
+        flux_dict['azimuth'] = np.linspace(15, 345, 12)
 
         # Now get a spline representation of the flux table.
         logging.debug('Make spline representation of flux')
@@ -265,8 +271,8 @@ class honda(Stage):
             int_flux_dict = {}
             # Energy and CosZenith bins needed for integral-preserving
             # method must be the edges of those of the normal tables
-            int_flux_dict['logenergy'] = np.linspace(-1.025,4.025,102)
-            int_flux_dict['coszen'] = np.linspace(-1,1,21)
+            int_flux_dict['logenergy'] = np.linspace(-1.025, 4.025, 102)
+            int_flux_dict['coszen'] = np.linspace(-1, 1, 21)
             for nutype in primaries:
                 # spline_dict now wants to be a set of splines for
                 # every table cosZenith value.
@@ -311,8 +317,11 @@ class honda(Stage):
             elif set(self.output_binning.names) == set(['energy', 'coszen']):
                 output_maps.append(self.compute_2D_outputs(prim))
             else:
-                print "some error message"
-
+                raise ValueError(
+                    'Incompatible `output_binning` for either 2D (requires'
+                    ' "energy" and "coszen") or 3D (additionally requires'
+                    ' "azimuth"). Faulty `output_binning`=%s'
+                    %self.output_binning)
         # Combine the output maps into a single MapSet object to return.
         # The MapSet contains the varous things that are necessary to make
         # caching work and also provides a nice interface for the user to all
@@ -325,16 +334,13 @@ class honda(Stage):
         in energy and cosZenith. Splines are manipulated based on whether
         they were set up as bisplrep or integral-preserving.
         """
-        
-        energy_binning = self.output_binning.energy
-        ebin_edges = energy_binning.bin_edges.to('GeV').magnitude
-        evals = energy_binning.weighted_centers.to('GeV').magnitude
-        ebin_sizes = energy_binning.bin_sizes
 
-        coszen_binning = self.output_binning.coszen
-        czbin_edges = coszen_binning.bin_edges.to('').magnitude
-        czvals = coszen_binning.weighted_centers.to('').magnitude
-        czbin_sizes = coszen_binning.bin_sizes.to('').magnitude
+        # Adds/ensures the expected units for the binning
+        all_binning = self.output_binning.to(energy='GeV', coszen=None)
+
+        # Get bin centers to evaluate splines at
+        evals = all_binning.energy.weighted_centers.magnitude
+        czvals = all_binning.coszen.weighted_centers.magnitude
 
         flux_mode = self.params['flux_mode'].value
 
@@ -361,7 +367,7 @@ class honda(Stage):
             for energyval in evals:
                 logenergyval = np.log10(energyval)
                 spline_vals = []
-                for czkey in np.linspace(-0.95,0.95,20):
+                for czkey in np.linspace(-0.95, 0.95, 20):
                     # Have to multiply by bin widths to get correct derivatives
                     # Here the bin width is in log energy, is 0.05
                     spline_vals.append(splev(logenergyval,self.spline_dict[prim]['%.2f'%czkey],der=1)*0.05)
@@ -372,7 +378,7 @@ class honda(Stage):
                     tot_val += val
                     int_spline_vals.append(tot_val)
 
-                spline = splrep(np.linspace(-1,1,21),int_spline_vals,s=0)
+                spline = splrep(np.linspace(-1, 1, 21),int_spline_vals,s=0)
                 
                 # Have to multiply by bin widths to get correct derivatives
                 # Here the bin width is in cosZenith, is 0.1
@@ -383,9 +389,8 @@ class honda(Stage):
 
         # Flux is given per sr and GeV, so we need to multiply
         # by bin width in both dimensions
-        bin_sizes = np.meshgrid(ebin_sizes, czbin_sizes)
-
-        return_table *= np.abs(bin_sizes[0]*bin_sizes[1])
+        # i.e. the bin volume
+        return_table *= output_binning.bin_volumes(attach_units=False)
 
         if self.output_binning.names[0] == 'energy':
             # Current dimensionality is (cz,E)
@@ -422,11 +427,17 @@ class honda(Stage):
 
     def validate_params(self, params):
         # do some checks on the parameters
+        
+        # Currently, these are the only interpolation methods supported
         assert (params['flux_mode'].value in ['integral-preserving','bisplrep'])
+        
+        # This is the Honda service after all...
         assert ('honda' in params['flux_file'].value)
+        
         # Flux file should have aa (for azimuth-averaged) if binning
         # is energy and cosZenith
         assert ('aa' in params['flux_file'].value if set(self.output_binning.names) == set(['energy', 'coszen']))
+        
         # Flux file should not have aa (for azimuth-averaged) if binning
         # is energy, cosZenith and azimuth
         assert ('aa' not in params['flux_file'].value if set(self.output_binning.names) == set(['energy', 'coszen', 'azimuth']))
