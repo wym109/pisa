@@ -6,6 +6,9 @@
     },
     "time": {
       "format": "%(asctime)s : %(message)s"
+    },
+    "profile": {
+      "format": "[ PROFILE] %(message)s"
     }
   },
   "handlers": {
@@ -22,7 +25,7 @@
   },
   "loggers": {
     "profile": {
-      "handlers": [ "console"  ],
+      "handlers": [ "console" ],
       "level": "DEBUG",
       "propagate": false
     },

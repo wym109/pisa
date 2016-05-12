@@ -41,10 +41,15 @@ logconfig = from_json(find_resource('logging.json'))
 # Setup the logging system with this config
 logging.config.dictConfig(logconfig)
 
+thandler = logging.StreamHandler()
+tformatter = logging.Formatter(fmt=logconfig['formatters']['profile']['format'])
+thandler.setFormatter(tformatter)
+
 # Make the loggers public
 # In case they haven't been defined, this will just inherit from the root logger
 physics = logging.getLogger('physics')
 tprofile = logging.getLogger('profile')
+tprofile.handlers =[thandler]
 
 
 def set_verbosity(verbosity):
