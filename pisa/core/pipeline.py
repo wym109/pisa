@@ -249,7 +249,8 @@ if __name__ == '__main__':
     #print (m1/m0)['nue'][0,0]
     #print m0['nue']
     #print m0[m0.names[0]]
-    json = {}
-    for name in m0.names:
-        json[name] = m0[name].hist
-    to_file(json, args.outputs_file)
+    #json = {}
+    #for name in m0.names:
+    #    json[name] = m0[name].hist
+    #to_file(json, args.outputs_file)
+    to_file(m0, args.outputs_file)

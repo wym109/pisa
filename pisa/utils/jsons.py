@@ -18,7 +18,6 @@ import numpy as np
 from pisa.utils.log import logging
 from pisa.resources.resources import open_resource
 
-
 # Try and get the much faster simplejson if we can
 try:
     import simplejson as json
@@ -79,7 +78,21 @@ class NumpyEncoder(json.JSONEncoder):
     def default(self, o):
         if isinstance(o, np.ndarray):
             return o.tolist()
-        return json.JSONEncoder.default(self, o)
+        elif type(o).__name__ in ['MultiDimBinning']:
+            return o.__dict__
+        elif type(o).__name__ in ['MapSet']:
+            return o.maps
+        elif type(o).__name__ in ['Quantity']:
+            return o.to_tuple()
+        elif type(o).__name__ in ['OneDimBinning', 'Map']:
+            d = {}
+            for slot in o._state_attrs:
+                d[slot] = getattr(o, slot)
+            return d
+        try:
+            return json.JSONEncoder.default(self, o)
+        except:
+            raise Exception('JSON serialization for %s not implemented'%type(o).__name__)
 
 
 class NumpyDecoder(json.JSONDecoder):
