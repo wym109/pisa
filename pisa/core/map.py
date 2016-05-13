@@ -46,8 +46,8 @@ def strip_outer_parens(value):
 
 class Map(object):
     """Class to contain a multi-dimensional histogram, error, and metadata
-    about the contents. Also provides basic mathematical operations for the
-    contained data.
+    about the histogram. Also provides basic mathematical operations for the
+    contained data. See Examples below for how to use a Map object.
 
 
     Parameters
@@ -86,6 +86,7 @@ class Map(object):
     assert_compat
     fluctuate
     chi2
+    iterbins
     llh
     set_poisson_errors
     set_errors
@@ -105,23 +106,56 @@ class Map(object):
     __str__
     __sub__
 
+
+    Examples
+    --------
+    >>> import pint; ureg = pint.UnitRegistry()
+    >>> from pisa.core.binning import MultiDimBinning
+    >>> binning = MultiDimBinning(dict(name='energy', is_log=True, num_bins=4,
+    ...                                domain=[1,80]*ureg.GeV),
+    ...                           dict(name='coszen', is_lin=True, num_bins=5,
+    ...                                domain=[-1,0]))
+    >>> m0 = Map(name='x', binning=binning, hist=np.zeros(binning.shape))
+    >>> m0
+    array([[ 0.,  0.,  0.,  0.,  0.],
+           [ 0.,  0.,  0.,  0.,  0.],
+           [ 0.,  0.,  0.,  0.,  0.],
+           [ 0.,  0.,  0.,  0.,  0.]])
+    >>> m0.binning
+    energy: 4 logarithmically-uniform bins spanning [1.0, 80.0] GeV
+    coszen: 5 equally-sized bins spanning [-1.0, 0.0]
+    >>> m0.hist[0:4, 0] = 1
+    >>> m0
+    array([[ 1.,  0.,  0.,  0.,  0.],
+           [ 1.,  0.,  0.,  0.,  0.],
+           [ 1.,  0.,  0.,  0.,  0.],
+           [ 1.,  0.,  0.,  0.,  0.]])
+    >>> m1 = m0[0:3, 0:2]
+    >>> m1.binning
+    energy: 3 logarithmically-uniform bins spanning [1.0, 26.7496121991]
+    coszen: 2 equally-sized bins spanning [-1.0, -0.6]
+    >>> m1
+    array([[ 1.,  0.],
+           [ 1.,  0.],
+           [ 1.,  0.]])
+    >>> for bin in m1.iterbins():
+    ...     print '({0:~.2f}, {1:~.2f}): {2:0.1f}'.format(
+    ...             bin.binning.energy.midpoints[0],
+    ...             bin.binning.coszen.midpoints[0],
+    ...             bin.hist[0,0])
+    (2.00 GeV, -0.90 ): 1.0
+    (2.00 GeV, -0.70 ): 0.0
+    (5.97 GeV, -0.90 ): 1.0
+    (5.97 GeV, -0.70 ): 0.0
+    (17.85 GeV, -0.90 ): 1.0
+    (17.85 GeV, -0.70 ): 0.0
+
+
     """
     _slots = ('name', 'hist', 'binning', 'hash', 'tex',
-               'full_comparison')
-    _state_attrs = _slots
-
-    def new_obj(original_function):
-        """ decorator to deepcopy unaltered states into new object """
-        def new_function(self, *args, **kwargs):
-            new_state = OrderedDict()
-            state_updates = original_function(self, *args, **kwargs)
-            for slot in self._state_attrs:
-                if state_updates.has_key(slot):
-                    new_state[slot] = state_updates[slot]
-                else:
-                    new_state[slot] = deepcopy(self.__getattr__(slot))
-            return Map(**new_state)
-        return new_function
+               'full_comparison', 'parent_indexer')
+    _state_attrs = ('name', 'hist', 'binning', 'hash', 'tex',
+                    'full_comparison')
 
     def __init__(self, name, hist, binning, hash=None, tex=None,
                  full_comparison=True):
@@ -136,6 +170,7 @@ class Map(object):
             pass
         else:
             binning = MultiDimBinning(binning)
+        self.parent_indexer = None
 
         # Do the work here to set read-only attributes
         super(Map, self).__setattr__('_binning', binning)
@@ -151,6 +186,19 @@ class Map(object):
         self.assert_compat(error_hist)
         super(Map, self).__setattr__('_hist', unp.uarray(self._hist,
                                                          error_hist))
+
+    def new_obj(original_function):
+        """ decorator to deepcopy unaltered states into new object """
+        def new_function(self, *args, **kwargs):
+            new_state = OrderedDict()
+            state_updates = original_function(self, *args, **kwargs)
+            for slot in self._state_attrs:
+                if state_updates.has_key(slot):
+                    new_state[slot] = state_updates[slot]
+                else:
+                    new_state[slot] = deepcopy(self.__getattr__(slot))
+            return Map(**new_state)
+        return new_function
 
     @new_obj
     def fluctuate(self, method, seed=None):
@@ -193,10 +241,47 @@ class Map(object):
         # Indexing a single element e.g. hist[1,3] returns a 0D array while
         # e.g. hist[1,3:8] returns a 1D array; but we need 2D... so reshape
         # after indexing.
-        new_hist = deepcopy(self.hist)
-        new_binning = deepcopy(self.binning[idx])
+        new_hist = (self.hist)
+        new_binning = (self.binning[idx])
         return {'binning': self.binning[idx],
-                'hist': np.reshape(new_hist[idx],new_binning.shape)}
+                'hist': np.reshape(new_hist[idx], new_binning.shape)}
+
+    def iterbins(self):
+        """Returns a bin iterator which yields a map containing a single bin
+        each time. Modifications to that map will be reflected in this (the
+        parent) map.
+
+        Note that the returned map has the attribute `parent_indexer` for
+        indexing directly into to the parent map (or to a similar map).
+
+        Yields
+        ------
+        Map object containing one of each bin of this Map
+
+        """
+        shape = self.shape
+        for i in xrange(self.hist.size):
+            idx_item = np.unravel_index(i, shape)
+            idx_view = tuple([slice(x, x+1) for x in idx_item])
+            single_bin_map = Map(
+                name=self.name, hist=self.hist[idx_view],
+                binning=self.binning[idx_item], hash=None, tex=self.tex,
+                full_comparison=self.full_comparison
+            )
+            single_bin_map.parent_indexer = idx_item
+            yield single_bin_map
+
+    def iterindices(self):
+        """Iterator that yields the index for accessing each bin in
+        the map.
+
+        >>> map = Map('x', binning=[dict('E', )
+
+        """
+        shape = self.shape
+        for i in xrange(self.hist.size):
+            idx_item = np.unravel_index(i, shape)
+            yield idx_item
 
     def __repr__(self):
         return np.array_repr(self._hist)
@@ -258,17 +343,8 @@ class Map(object):
         return np.sum(chi2(actual_values=self.hist,
                            expected_values=expected_values))
 
-    # TODO: is this a good behavior to have, setting the indexed value(s) of
-    # .hist but leaving everything else alone? Seems like this should be left
-    # to explicit setting on the contained hist, e.g. map.hist[2,8] = 4 is
-    # more explicit and might signal more clearly where things are left UNdone
-    # like setting the variance in that case wasn't done and so synchronization
-    # can fail. One advantage of intercepting a setitem here is that we can
-    # automatically invalidate the hash (set it to None or np.nan) when setitem
-    # is called.
-
-    #def __setitem__(self, idx, val):
-    #    return setitem(self.hist, idx, val)
+    def __setitem__(self, idx, val):
+        return setitem(self.hist, idx, val)
 
     @property
     def name(self):
@@ -759,12 +835,6 @@ class MapSet(object):
     def __contains__(self, name):
         return name in [m.name for m in self]
 
-    # TODO: implement __hash__?
-    #def __hash__(self):
-    #    if self.hash is not None:
-    #        return self.hash
-    #    raise ValueError('No hash defined.')
-
     def __setattr__(self, attr, val):
         if attr in MapSet.__slots:
             object.__setattr__(attr, val)
@@ -955,8 +1025,11 @@ def test_Map():
     r = m1 / m2
     assert r == ufloat(0.5,0.5)
     print r, '=', r[0,0]
+    print [b.binning.energy.midpoints[0] for b in m1.iterbins()][0:2]
+
 
 # TODO: add tests for llh, chi2 methods
+# TODO: make tests use assert rather than rely on printouts!
 def test_MapSet():
     import pint; ureg = pint.UnitRegistry()
     n_ebins = 5
@@ -1012,7 +1085,7 @@ def test_MapSet():
     print 'np.log10(ms1):', np.log10(ms1)
     print '(ms1 * np.e).binning:', (ms1 * np.e).binning
     print 'np.log(ms1 * np.e)[0][0,0]:', (np.log(ms1 * np.e))[0][0,0]
-    print 'np.sqrt(ms1)[0:4,0:2].hist:', np.sqrt(ms1)[0:4,0:2].hist
+    print 'np.sqrt(ms1)[0][0:4,0:2].hist:', np.sqrt(ms1)[0][0:4,0:2].hist
     print 'str(ms1)', str(ms1)
     print 'str(ms4)', str(ms4)
     print 'ms3', ms3
