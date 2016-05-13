@@ -1,3 +1,8 @@
+# Authors: J.L.Lanfranchi/P.Eller
+# Date   : 2016-05-13
+
+from collections import OrderedDict
+from copy import copy, deepcopy
 
 import numpy as np
 
@@ -22,6 +27,9 @@ from pisa.utils.log import logging, set_verbosity
 
 # TODO: Add Sequence capabilities to TransformSet (e.g. it'd be nice to have at
 # least append, extend, ...)
+TRANS_SET_SLOTS = ('name', 'hash', 'transforms', '__iter__',
+                   'nonvolatile_hash', 'input_names', 'num_inputs',
+                   'output_names', 'apply', '__getattribute__')
 class TransformSet(object):
     """
     Parameters
@@ -107,6 +115,11 @@ class TransformSet(object):
         # TODO: what to set for name, tex, ... ?
         return MapSet(maps=outputs)
 
+    def __getattribute__(self, attr):
+        if attr in TRANS_SET_SLOTS:
+            return super(TransformSet, self).__getattribute__(attr)
+        return TransformSet([getattr(t) for t in self], name=self.name)
+
 
 class Transform(object):
     """
@@ -170,6 +183,10 @@ class Transform(object):
     @property
     def output_binning(self):
         return self._output_binning
+
+    @property
+    def tex(self):
+        return self._tex
 
     def apply(self, inputs):
         output = self._apply(inputs)
@@ -272,6 +289,93 @@ class BinnedTensorTransform(Transform):
         self.validate_transform(self.input_binning, self.output_binning, x)
         self._xform_array = x
 
+    def new_obj(original_function):
+        """Decorator to deepcopy unaltered states into new object"""
+        def new_function(self, *args, **kwargs):
+            new_state = OrderedDict()
+            state_updates = original_function(self, *args, **kwargs)
+            for slot in self._state_attrs:
+                if state_updates.has_key(slot):
+                    new_state[slot] = state_updates[slot]
+                else:
+                    new_state[slot] = deepcopy(getattr(self, slot))
+            return self.__class__(**new_state)
+        return new_function
+
+    @new_obj
+    def __abs__(self):
+        return dict(xform_array=np.abs(self.xform_array))
+
+    @new_obj
+    def __add__(self, other):
+        if isinstance(other, BinnedTensorTransform):
+            return dict(xform_array=self.xform_array + other.xform_array)
+        return dict(xform_array=self.xform_array + other)
+
+    @new_obj
+    def __div__(self, other):
+        if isinstance(other, BinnedTensorTransform):
+            return dict(xform_array=self.xform_array / other.xform_array)
+        return dict(xform_array=self.xform_array / other)
+
+    @new_obj
+    def __eq__(self, other):
+        if not isinstance(other, BinnedTensorTransform):
+            return False
+        return np.all(self.xform_array == other.xform_array)
+
+    @new_obj
+    def __mul__(self, other):
+        if isinstance(other, BinnedTensorTransform):
+            return dict(xform_array=self.xform_array * other.xform_array)
+        return dict(xform_array=self.xform_array * other)
+
+    @new_obj
+    def __ne__(self, other):
+        return not self == other
+
+    @new_obj
+    def __neg__(self, other):
+        return dict(xform_array=-self.xform_array)
+
+    @new_obj
+    def __pow__(self, other):
+        if isinstance(other, BinnedTensorTransform):
+            return dict(xform_array=self.xform_array ** other.xform_array)
+        return dict(xform_array=self.xform_array ** other)
+
+    @new_obj
+    def __radd__(self, other):
+        return self + other
+
+    @new_obj
+    def __rdiv__(self, other):
+        if isinstance(other, BinnedTensorTransform):
+            return dict(xform_array=other.xform_array / self.xform_array)
+        return dict(xform_array=other / self.xform_array)
+
+    @new_obj
+    def __rmul__(self, other):
+        if isinstance(other, BinnedTensorTransform):
+            return dict(xform_array=other.xform_array * self.xform_array)
+        return dict(xform_array=other * self.xform_array)
+
+    @new_obj
+    def __rsub__(self, other):
+        if isinstance(other, BinnedTensorTransform):
+            return dict(xform_array=other.xform_array - self.xform_array)
+        return dict(xform_array=other - self.xform_array)
+
+    @new_obj
+    def sqrt(self):
+        return dict(xform_array=np.sqrt(self.xform_array))
+
+    @new_obj
+    def __sub__(self, other):
+        if isinstance(other, BinnedTensorTransform):
+            return dict(xform_array=self.xform_array - other.xform_array)
+        return dict(xform_array=self.xform_array - other)
+
     # TODO: validate transform...
     def validate_transform(self, input_binning, output_binning, xform_array):
         """Superficial validation that the transform being set is reasonable.
@@ -361,7 +465,8 @@ class BinnedTensorTransform(Transform):
         return output
 
 
-def test_BinnedTensorTransform():
+#def test_BinnedTensorTransform():
+if __name__ == '__main__':
     import pint; ureg = pint.UnitRegistry()
 
     from pisa.core.map import Map, MapSet
@@ -409,6 +514,7 @@ def test_BinnedTensorTransform():
         xform_array=np.stack([2*np.ones(binning.shape),
                               3*np.ones(binning.shape)], axis=-1)
     )
+    print (xform2 + 2).xform_array[0,0] - xform2.xform_array[0,0]
 
     xforms = TransformSet(
         name='scaling',
@@ -417,6 +523,8 @@ def test_BinnedTensorTransform():
 
     outputs = xforms.apply(inputs)
 
+    xforms2 = xforms * 2
 
-if __name__ == "__main__":
-    test_BinnedTensorTransform()
+
+#if __name__ == "__main__":
+#    test_BinnedTensorTransform()
