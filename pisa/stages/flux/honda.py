@@ -29,8 +29,7 @@ from pisa.core.stage import Stage
 from pisa.core.map import Map, MapSet
 from pisa.resources.resources import open_resource
 from pisa.utils.hash import hash_obj
-from pits.utils.log import logging
-
+from pisa.utils.log import logging
 
 class honda(Stage):
     """
