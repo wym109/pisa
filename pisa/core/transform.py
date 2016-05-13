@@ -199,7 +199,8 @@ class BinnedTensorTransform(Transform):
     Parameters
     ----------
     input_names : string or sequence thereof
-        Names of maps expected in the input MapSet.
+        Names of maps expected in the input MapSet. See Notes for how multiple
+        inputs are ito be indexed in the `xform_array`.
 
     output_name : string
         Name of Map that will be generated.
@@ -415,12 +416,6 @@ def test_BinnedTensorTransform():
     )
 
     outputs = xforms.apply(inputs)
-    print 'inputs:\n', inputs
-    print '\noutputs:\n', outputs
-    print '\nout.nue/in.nue:\n', (outputs.nue / inputs.nue).hist[0,0]
-    print '\nout.numu/in.numu:\n', (outputs.numu / inputs.numu).hist[0,0]
-    print '\nout.nue_numu/(2*in.nue+3*in.numu):\n', \
-            (outputs.nue_numu / (2*inputs.nue+3*inputs.numu)).hist[0,0]
 
 
 if __name__ == "__main__":
