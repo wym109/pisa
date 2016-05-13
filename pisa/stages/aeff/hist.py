@@ -79,6 +79,8 @@ class hist(Stage):
         )
 
     def _compute_nominal_transforms(self):
+        # Units must be the following for correctly converting a sum-of-
+        # OneWeights-in-bin to an average effective area across the bin.
         comp_units = dict(energy='GeV', coszen=None, azimuth='rad')
 
         # Only works if energy is in input_binning
@@ -100,8 +102,8 @@ class hist(Stage):
                      %(self.params.aeff_weight_file.value))
         events = Events(self.params.aeff_weight_file.value)
 
-        # Units must be the following for correctly converting a sum-of-
-        # OneWeights-in-bin to an average effective area across the bin.
+        # Select only the inits in the input/output binning for conversion
+        # (can't pass more than what's actually there)
         in_units = {dim: unit for dim, unit in comp_units.items()
                     if dim in self.input_binning}
         out_units = {dim: unit for dim, unit in comp_units.items()
@@ -116,8 +118,10 @@ class hist(Stage):
         # the full bin size. See IceCube wiki/documentation for OneWeight for
         # more info.
         missing_dims_vol = 1
-        if 'azimuth' not in input_binning: missing_dims_vol *= 2*np.pi
-        if 'coszen' not in input_binning: missing_dims_vol *= 2
+        if 'azimuth' not in input_binning:
+            missing_dims_vol *= 2*np.pi
+        if 'coszen' not in input_binning:
+            missing_dims_vol *= 2
 
         # TODO: take events object as an input instead of as a param that
         # specifies a file? Or handle both cases?
