@@ -13,7 +13,9 @@ import numpy as np
 import pint; ureg = pint.UnitRegistry()
 
 
-def normalizeQuantities(x, sigfigs):
+PREC = np.finfo(float).eps
+
+def normQuant(x, sigfigs):
     """Normalize floating point numbers, pint quantities, and sequences thereof
     such that numerical precision issues and quantities with compatible but
     differently-scaled units come out identically.
@@ -36,8 +38,8 @@ def normalizeQuantities(x, sigfigs):
     >>> q1 = 1e-5 * ureg.um
     >>> q0.to_base_units() == q1.to_base_units()
     False
-    >>> q0_approx = normalizeQuantities(q0, self.HASH_SIGFIGS)
-    >>> q1_approx = normalizeQuantities(q1, self.HASH_SIGFIGS)
+    >>> q0_approx = normQuant(q0, self.HASH_SIGFIGS)
+    >>> q1_approx = normQuant(q1, self.HASH_SIGFIGS)
     >>> q0_approx == q1_approx
     True
 
@@ -51,10 +53,10 @@ def normalizeQuantities(x, sigfigs):
         return x
 
     if is_pquant:
-        mag = np.ceil(np.log10(np.abs(x.magnitude)))
+        mag = np.ceil(np.log10(np.abs(x.magnitude)+PREC))
     elif isinstance(x, float) or (isinstance(x, np.ndarray) and
                                   np.issubsctype(x, np.float)):
-        mag = np.ceil(np.log10(np.abs(x)))
+        mag = np.ceil(np.log10(np.abs(x)+PREC))
     else:
         return x
 
@@ -79,32 +81,23 @@ def normalizeQuantities(x, sigfigs):
     raise TypeError('Unhandled type %s' %type(x))
 
 
-def test_normalizeQuantities():
+def test_normQuant():
     from pisa.utils.log import logging, set_verbosity
     q0 = 1e5*np.ones(10)*ureg.um
     q1 = 0.1*np.ones(10)*ureg.m
     assert not np.any(q0 == q1)
     assert not np.any(q0.to_base_units() == q1.to_base_units())
-    assert not np.any(normalizeQuantities(q0, None)
-                      == normalizeQuantities(q1, None))
-    assert not np.any(normalizeQuantities(q0, 17)
-                      == normalizeQuantities(q1, 17))
-    assert np.all(normalizeQuantities(q0, 16)
-                  == normalizeQuantities(q1, 16))
-    assert np.all(normalizeQuantities(q0, 15)
-                  == normalizeQuantities(q1, 15))
-    assert np.all(normalizeQuantities(q0, 1)
-                  == normalizeQuantities(q1, 1))
-    assert (normalizeQuantities(np.inf, sigfigs=15)
-            == normalizeQuantities(np.inf, sigfigs=15))
-    assert (normalizeQuantities(-np.inf, sigfigs=15)
-            == normalizeQuantities(-np.inf, sigfigs=15))
-    assert (normalizeQuantities(np.inf, sigfigs=15)
-            != normalizeQuantities(-np.inf, sigfigs=15))
-    assert (normalizeQuantities(np.nan, sigfigs=15)
-            != normalizeQuantities(np.nan, sigfigs=15))
-    logging.info('<< PASSED >> test_normalizeQuantities')
+    assert not np.any(normQuant(q0, None) == normQuant(q1, None))
+    assert not np.any(normQuant(q0, 17) == normQuant(q1, 17))
+    assert np.all(normQuant(q0, 16) == normQuant(q1, 16))
+    assert np.all(normQuant(q0, 15) == normQuant(q1, 15))
+    assert np.all(normQuant(q0, 1) == normQuant(q1, 1))
+    assert (normQuant(np.inf, sigfigs=15) == normQuant(np.inf, sigfigs=15))
+    assert (normQuant(-np.inf, sigfigs=15) == normQuant(-np.inf, sigfigs=15))
+    assert (normQuant(np.inf, sigfigs=15) != normQuant(-np.inf, sigfigs=15))
+    assert (normQuant(np.nan, sigfigs=15) != normQuant(np.nan, sigfigs=15))
+    logging.info('<< PASSED >> test_normQuant')
 
 
 if __name__ == '__main__':
-    test_normalizeQuantities()
+    test_normQuant()
