@@ -9,8 +9,10 @@ import numpy as np
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.utils.events import Events
+from pisa.utils.flavInt import NuFlavInt
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
+from pisa.utils.profiler import profile
 
 
 # TODO: the below logic does not generalize to muons, but probably should
@@ -22,9 +24,23 @@ class hist(Stage):
     """Example stage with maps as inputs and outputs, and no disk cache. E.g.,
     histogrammed oscillations stages will work like this.
 
+    Parameters
+    ----------
+    params
+    input_binning
+    output_binning
+    particles : string
+        Must be one of 'neutrinos' or 'muons'
+    disk_cache
+    transforms_cache_depth
+    outputs_cache_depth
+
     """
-    def __init__(self, params, input_binning, output_binning, disk_cache=None,
+    def __init__(self, params, input_binning, output_binning,
+                 particles='neutrinos', disk_cache=None,
                  transforms_cache_depth=20, outputs_cache_depth=20):
+        assert particles in ['neutrinos', 'muons']
+
         # All of the following params (and no more) must be passed via the
         # `params` argument.
         expected_params = (
@@ -63,25 +79,45 @@ class hist(Stage):
         )
 
     def _compute_nominal_transforms(self):
+        comp_units = dict(energy='GeV', coszen=None, azimuth='rad')
+
+        # Only works if energy is in input_binning
+        if 'energy' not in self.input_binning:
+            raise ValueError('Input binning must contain "energy" dimension,'
+                             ' but does not.')
+
+        # coszen and azimuth are both optional, but no further dimensions are
+        excess_dims = set(self.input_binning.names).difference(comp_units.keys())
+        if len(excess_dims) > 0:
+            raise ValueError('Input binning has extra dimension(s): %s'
+                             %sorted(excess_dims))
+
+        # TODO: not handling rebinning in this stage or within Transform
+        # objects; implement this! (and then this assert statement can go away)
+        assert self.input_binning == self.output_binning
+
         logging.info('Extracting events from file: %s'
                      %(self.params.aeff_weight_file.value))
         events = Events(self.params.aeff_weight_file.value)
 
-        # TODO: convert energy, coszen, and/or azimuth bin edges (if present)
-        # to the expected units (GeV, None/dimensionless, and rad,
-        # respectively) so that bin area computation is correct for converting
-        # sum-of-OneWeights-in-bin to average effective area across bin.
+        # Units must be the following for correctly converting a sum-of-
+        # OneWeights-in-bin to an average effective area across the bin.
+        in_units = {dim: unit for dim, unit in comp_units.items()
+                    if dim in self.input_binning}
+        out_units = {dim: unit for dim, unit in comp_units.items()
+                     if dim in self.output_binning}
 
-        # TODO: More flexible handling of E, CZ, and/or azimuth (+ other
-        # dimensions that don't enter directly into OneWeight normalization):
-        # Start with defaults for each (energy, coszen, and azimuth default
-        # "widths" are the full simulated ranges for each, given the events
-        # file and MC sim run info for each); then, loop through the binning.
-        # If it is found that binning is done in one of these three, then the
-        # bin sizes are modified from the full range to the new widths.
-        # Finally, allow binning to be done in variables *other* than these
-        # (which does not change a bin width for computing aeff from OneWeight,
-        # but does add some complexity for handling).
+        # These will be in the computational units
+        input_binning = self.input_binning.to(**in_units)
+        output_binning = self.output_binning.to(**out_units)
+
+        # Account for "missing" dimension(s) (dimensions OneWeight expects for
+        # computation of bin volume), and accommodate with a factor equal to
+        # the full bin size. See IceCube wiki/documentation for OneWeight for
+        # more info.
+        missing_dims_vol = 1
+        if 'azimuth' not in input_binning: missing_dims_vol *= 2*np.pi
+        if 'coszen' not in input_binning: missing_dims_vol *= 2
 
         # TODO: take events object as an input instead of as a param that
         # specifies a file? Or handle both cases?
@@ -95,38 +131,47 @@ class hist(Stage):
         # runs. Parameters can include which groupings to use to formulate an
         # output.
 
+        # This gets used in innermost loop, so produce it just once here
+        all_bin_edges = [edges.magnitude for edges in output_binning.bin_edges]
+
         nominal_transforms = []
         for flav in self.input_names:
             for interaction in ['cc', 'nc']:
-                xform_input_names = [flav]
-                flav_int = '%s_%s'%(flav, interaction)
-                bin_names = self.output_binning.names
-                var_names = ['true_%s'%bin_name for bin_name in bin_names]
+                # Single input per transform
+                xform_input_name = flav
+
+                # Flavor+interaction type naming convention used in the PISA
+                # HDF5 files
+                flav_int = NuFlavInt(flav, interaction)
 
                 logging.debug("Working on %s effective areas" %flav_int)
-                aeff_hist, _, _ = np.histogram2d(
-                    events[flav_int][var_names[0]],
-                    events[flav_int][var_names[1]],
+
+                # "MC-True" field naming convention in PISA HDF5
+                var_names = ['true_%s' %bin_name
+                             for bin_name in output_binning.names]
+
+                # Extract the columns' data into a list for histogramming
+                sample = [events[flav_int][vn] for vn in var_names]
+
+                aeff_hist, _ = np.histogramdd(
+                    sample=sample,
                     weights=events[flav_int]['weighted_aeff'],
-                    bins=(self.output_binning[bin_names[0]].bin_edges.m,
-                          self.output_binning[bin_names[1]].bin_edges.m)
+                    bins=all_bin_edges
                 )
 
                 # Divide histogram by
                 #   (energy bin width x coszen bin width x azimuth bin width)
-                # to convert from sum-of-OneWeights-in-bin to effective area
-                delta0 = self.output_binning[bin_names[0]].bin_sizes.magnitude
-                delta1 = self.output_binning[bin_names[1]].bin_sizes.magnitude
-                bin_areas = np.abs(delta0[:, None] * delta1 * 2. * np.pi)
-                aeff_hist /= bin_areas
-
-                dimensionality = list(self.input_binning.shape)
+                # volumes to convert from sums-of-OneWeights-in-bins to
+                # effective areas. Note that volume correction factor for
+                # missing dimensions is applied here.
+                bin_volumes = output_binning.bin_volumes(attach_units=False)
+                aeff_hist /= (bin_volumes * missing_dims_vol)
 
                 # Construct the BinnedTensorTransform
                 xform = BinnedTensorTransform(
-                    input_names=xform_input_names,
-                    output_name=flav_int,
-                    input_binning=self.input_binning,
+                    input_names=xform_input_name,
+                    output_name=str(flav_int),
+                    input_binning=input_binning,
                     output_binning=self.output_binning,
                     xform_array=aeff_hist,
                 )
@@ -137,7 +182,7 @@ class hist(Stage):
     def _compute_transforms(self):
         """Compute new oscillation transforms"""
         # Read parameters in in the units used for computation
-        aeff_scale = self.params.aeff_scale.value.magnitude
+        aeff_scale = self.params.aeff_scale.value.to('').magnitude
         livetime_s = self.params.livetime.value.to('sec').magnitude
         logging.trace('livetime = %s --> %s sec'
                       %(self.params.livetime.value, livetime_s))
@@ -149,8 +194,13 @@ class hist(Stage):
 
         new_transforms = []
         for xform in self.nominal_transforms:
-            new_xform = copy.deepcopy(xform)
-            new_xform.xform_array *= aeff_scale * livetime_s
+            new_xform = BinnedTensorTransform(
+                input_names=xform.input_names,
+                output_name=xform.output_name,
+                input_binning=xform.input_binning,
+                output_binning=xform.output_binning,
+                xform_array=xform.xform_array * (aeff_scale * livetime_s)
+            )
             new_transforms.append(new_xform)
 
         return TransformSet(new_transforms)
