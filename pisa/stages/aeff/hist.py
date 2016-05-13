@@ -19,8 +19,22 @@ from pisa.utils.log import logging, set_verbosity
 # input_names and output_names.
 
 class hist(Stage):
-    """Example stage with maps as inputs and outputs, and no disk cache. E.g.,
-    histogrammed oscillations stages will work like this.
+    """Implementation of histogrammed MC effective Area stage
+
+    Parameters
+    ----------
+
+    param : ParamSet
+        ParamSet object containg the params that are expected in this service, must corresponf to `expected_params`
+
+    input_binning : MultiDimBinning
+
+    outpu_binning : MultiDimBinning
+
+    Notes
+    -----
+
+    At them moment expecting neutrino maps for all 3 flavours
 
     """
     def __init__(self, params, input_binning, output_binning, disk_cache=None,
@@ -63,37 +77,44 @@ class hist(Stage):
         )
 
     def _compute_nominal_transforms(self):
+        '''
+        .. todo::
+            convert energy, coszen, and/or azimuth bin edges (if present)
+            to the expected units (GeV, None/dimensionless, and rad,
+            respectively) so that bin area computation is correct for converting
+            sum-of-OneWeights-in-bin to average effective area across bin.
+
+        .. todo::
+            More flexible handling of E, CZ, and/or azimuth (+ other
+            dimensions that don't enter directly into OneWeight normalization):
+            Start with defaults for each (energy, coszen, and azimuth default
+            "widths" are the full simulated ranges for each, given the events
+            file and MC sim run info for each); then, loop through the binning.
+            If it is found that binning is done in one of these three, then the
+            bin sizes are modified from the full range to the new widths.
+            Finally, allow binning to be done in variables *other* than these
+            (which does not change a bin width for computing aeff from OneWeight,
+            but does add some complexity for handling).
+ 
+        .. todo::
+            take events object as an input instead of as a param that
+            specifies a file? Or handle both cases?
+
+        .. todo::
+            include here the logic from the make_events_file.py script so
+            we can go directly from a (reasonably populated) icetray-converted
+            HDF5 file (or files) to a nominal transform, rather than having to
+            rely on the intermediate step of converting that HDF5 file (or files)
+            to a PISA HDF5 file that has additional column(s) in it to account
+            for the combinations of flavors, interaction types, and/or simulation
+            runs. Parameters can include which groupings to use to formulate an
+            output.
+        '''
+
         logging.info('Extracting events from file: %s'
                      %(self.params.aeff_weight_file.value))
         events = Events(self.params.aeff_weight_file.value)
 
-        # TODO: convert energy, coszen, and/or azimuth bin edges (if present)
-        # to the expected units (GeV, None/dimensionless, and rad,
-        # respectively) so that bin area computation is correct for converting
-        # sum-of-OneWeights-in-bin to average effective area across bin.
-
-        # TODO: More flexible handling of E, CZ, and/or azimuth (+ other
-        # dimensions that don't enter directly into OneWeight normalization):
-        # Start with defaults for each (energy, coszen, and azimuth default
-        # "widths" are the full simulated ranges for each, given the events
-        # file and MC sim run info for each); then, loop through the binning.
-        # If it is found that binning is done in one of these three, then the
-        # bin sizes are modified from the full range to the new widths.
-        # Finally, allow binning to be done in variables *other* than these
-        # (which does not change a bin width for computing aeff from OneWeight,
-        # but does add some complexity for handling).
-
-        # TODO: take events object as an input instead of as a param that
-        # specifies a file? Or handle both cases?
-
-        # TODO: include here the logic from the make_events_file.py script so
-        # we can go directly from a (reasonably populated) icetray-converted
-        # HDF5 file (or files) to a nominal transform, rather than having to
-        # rely on the intermediate step of converting that HDF5 file (or files)
-        # to a PISA HDF5 file that has additional column(s) in it to account
-        # for the combinations of flavors, interaction types, and/or simulation
-        # runs. Parameters can include which groupings to use to formulate an
-        # output.
 
         nominal_transforms = []
         for flav in self.input_names:
