@@ -22,7 +22,7 @@ import pint; ureg = pint.UnitRegistry()
 from pisa.utils.comparisons import recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils.numerical import normalizeQuantities
+from pisa.utils.numerical import normQuant
 
 
 HASH_SIGFIGS = 12
@@ -235,7 +235,7 @@ class OneDimBinning(object):
         """
         normalized_state = OrderedDict()
         for attr in self._state_attrs:
-            val = normalizeQuantities(getattr(self, attr), HASH_SIGFIGS)
+            val = normQuant(getattr(self, attr), HASH_SIGFIGS)
             setitem(normalized_state, attr, val)
         return hash_obj(normalized_state)
 
@@ -245,7 +245,7 @@ class OneDimBinning(object):
 
     @property
     def bin_sizes(self):
-        return np.diff(self.bin_edges)*self.units
+        return np.abs(np.diff(self.bin_edges))*self.units
 
     def new_obj(original_function):
         """ decorator to deepcopy unaltered states into new object """
@@ -379,8 +379,8 @@ class OneDimBinning(object):
         if self.units.dimensionality != other.units.dimensionality:
             return False
 
-        my_normed_bin_edges = set(normalizeQuantities(self.bin_edges))
-        other_normed_bin_edges = set(normalizeQuantities(other.bin_edges))
+        my_normed_bin_edges = set(normQuant(self.bin_edges))
+        other_normed_bin_edges = set(normQuant(other.bin_edges))
 
         if len(my_normed_bin_edges.difference(other_normed_bin_edges)) == 0:
             return True
@@ -535,16 +535,13 @@ class OneDimBinning(object):
 
     def __eq__(self, other):
         if not isinstance(other, OneDimBinning):
-            print 'not OneDimBinning;', type(other)
             return False
         for slot in self._state_attrs:
-            normed_self = normalizeQuantities(self.__getattr__(slot),
-                                              sigfigs=HASH_SIGFIGS)
-            normed_other = normalizeQuantities(other.__getattr__(slot),
-                                               sigfigs=HASH_SIGFIGS)
+            normed_self = normQuant(self.__getattr__(slot),
+                                    sigfigs=HASH_SIGFIGS)
+            normed_other = normQuant(other.__getattr__(slot),
+                                     sigfigs=HASH_SIGFIGS)
             if not np.all(normed_other == normed_self):
-                print normed_other
-                print normed_self
                 return False
         return True
 
@@ -568,11 +565,14 @@ class MultiDimBinning(object):
 
     Attributes
     ----------
+    bin_edges
     dimensions
     hash
     names
+    num_bins
     num_dims
     shape
+    tot_num_bins
 
     Methods
     -------
@@ -581,6 +581,7 @@ class MultiDimBinning(object):
     meshgrid
     oversample
     to
+    __contains__
     __eq__
     __getitem__
     __iter__
@@ -588,6 +589,12 @@ class MultiDimBinning(object):
     __ne__
     __repr__
     __str__
+
+
+    See Also
+    --------
+    OneDimBinning : each arg that is a Mapping (e.g. a dict) is sent to
+        OneDimBinning as its **kwargs. Refer to this object for valid fields.
 
     """
     def __init__(self, *args):
@@ -640,6 +647,44 @@ class MultiDimBinning(object):
     @property
     def hash(self):
         return hash_obj(tuple([d.hash for d in self.dimensions]))
+
+    @property
+    def bin_edges(self):
+        """Return a list of the contained dimensions' bin_edges that is
+        compatible with the numpy.histogramdd `hist` argument.
+
+        """
+        return [d.bin_edges for d in self.dimensions]
+
+    @property
+    def domains(self):
+        """Return a list of the contained dimensions' domains"""
+        return [d.domain for d in self.dimensions]
+
+    @property
+    def midpoints(self):
+        """Return a list of the contained dimensions' midpoints"""
+        return [d.midpoints for d in self.dimensions]
+
+    @property
+    def num_bins(self):
+        """Return a list of the contained dimensions' num_bins."""
+        return [d.num_bins for d in self.dimensions]
+
+    @property
+    def tot_num_bins(self):
+        """Return total number of bins."""
+        return np.sum(self.num_bins)
+
+    @property
+    def units(self):
+        """Return a list of the contained dimensions' units"""
+        return [d.units for d in self.dimensions]
+
+    @property
+    def weighted_centers(self):
+        """Return a list of the contained dimensions' weighted_centers"""
+        return [d.weighted_centers for d in self.dimensions]
 
     def oversample(self, *args, **kwargs):
         """Return a Binning object oversampled relative to this binning.
@@ -720,7 +765,7 @@ class MultiDimBinning(object):
         if len(args) > 1:
             if len(args) != self.num_dims:
                 raise ValueError('Specified %s args, but binning is'
-                                 ' %s-dim.' %(len(values), self.num_dims))
+                                 ' %s-dim.' %(len(args), self.num_dims))
             return args
 
         if set(kwargs.keys()) != set(self.names):
@@ -772,14 +817,18 @@ class MultiDimBinning(object):
         units = [d.units for d in self.dimensions]
         #stripped = self.stripped()
         if entity == 'midpoints':
-            mg = np.meshgrid(*tuple([d.midpoints for d in self.dimensions]))
+            mg = np.meshgrid(*tuple([d.midpoints for d in self.dimensions]),
+                             indexing='ij')
         elif entity == 'weighted_centers':
             mg = np.meshgrid(*tuple([d.weighted_centers
-                                     for d in self.dimensions]))
+                                     for d in self.dimensions]),
+                             indexing='ij')
         elif entity == 'bin_edges':
-            mg = np.meshgrid(*tuple([d.bin_edges for d in self.dimensions]))
+            mg = np.meshgrid(*tuple([d.bin_edges for d in self.dimensions]),
+                             indexing='ij')
         elif entity == 'bin_sizes':
-            mg = np.meshgrid(*tuple([d.bin_sizes for d in self.dimensions]))
+            mg = np.meshgrid(*tuple([d.bin_sizes for d in self.dimensions]),
+                             indexing='ij')
         else:
             raise ValueError('Unrecognized `entity`: "%s"' %entity)
 
@@ -796,6 +845,9 @@ class MultiDimBinning(object):
             return volumes * reduce(lambda x,y:x*y, [ureg(str(d.units))
                                                      for d in self.dimensions])
         return volumes
+
+    def __contains__(self, name):
+        return name in self.names
 
     def __eq__(self, other):
         if not isinstance(other, MultiDimBinning):
@@ -902,13 +954,12 @@ def test_OneDimBinning():
 
     # Without rounding, converting bin edges to base units yields different
     # results due to finite precision effects
-    assert np.any(normalizeQuantities(b3.bin_edges, sigfigs=None)
-                  != normalizeQuantities(b4.bin_edges, sigfigs=None))
+    assert np.any(normQuant(b3.bin_edges, sigfigs=None)
+                  != normQuant(b4.bin_edges, sigfigs=None))
 
     # Normalize function should take care of this
-    assert np.all(normalizeQuantities(b3.bin_edges, sigfigs=HASH_SIGFIGS)
-                  == normalizeQuantities(b4.bin_edges,
-                                          sigfigs=HASH_SIGFIGS))
+    assert np.all(normQuant(b3.bin_edges, sigfigs=HASH_SIGFIGS)
+                  == normQuant(b4.bin_edges, sigfigs=HASH_SIGFIGS))
 
     # And the hashes should be equal, reflecting the latter result
     assert b3.hash == b4.hash

@@ -63,8 +63,7 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
                    run_settings=None, data_proc_params=None, join=None,
                    cust_cuts=None, extract_fields=EXTRACT_FIELDS,
                    output_fields=OUTPUT_FIELDS):
-    """
-    Takes the simulated and reconstructed HDF5 file(s) (as converted from I3
+    """Takes the simulated and reconstructed HDF5 file(s) (as converted from I3
     by icecube.hdfwriter.I3HDFTableService) as input and writes out a
     simplified PISA-standard-format HDF5 file for use in aeff, reco, and/or PID
     stages of the template maker.
@@ -112,6 +111,7 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
         Fields to include in the generated PISA-standard-format events HDF5
         file; note that if 'weighted_aeff' is not preent, effective area will
         not be computed
+
     """
     if isinstance(run_settings, basestring):
         run_settings = mcSimRunSettings.DetMCSimRunsSettings(
@@ -179,7 +179,7 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
         assert xsec_ver == xsec_ver_ref
         ngen_weighted_energy_integral[str(run)] = powerLawIntegral(
         #flavs_by_run[run] = run_settings.flavs(run)
-    flavs_present = 
+    #flavs_present = 
 
     # Create Events object to store data
     evts = events.Events()

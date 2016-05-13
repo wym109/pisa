@@ -175,7 +175,7 @@ if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument(
-        '-t', '--pipeline-settings', metavar='CONFIGFILE', type=str,
+        '-p', '--pipeline-settings', metavar='CONFIGFILE', type=str,
         help='File containing settings for the pipeline.'
     )
     parser.add_argument(
