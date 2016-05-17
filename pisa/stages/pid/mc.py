@@ -24,15 +24,16 @@ returned.
 """
 
 import numpy as np
-import pint
-ureg = pint.UnitRegistry()
 
 from pisa.core.stage import Stage
+from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.utils.events import Events
-import pisa.utils.flavInt as flavInt
+from pisa.utils.flavInt import NuFlavInt
 from pisa.utils.PIDSpec import PIDSpec
 from pisa.utils.dataProcParams import DataProcParams
-from pisa.utils.log import logging
+from pisa.utils.hash import hash_obj
+from pisa.utils.log import logging, set_verbosity
+from pisa.utils.profiler import profile
 
 
 class mc(Stage):
@@ -62,9 +63,15 @@ class mc(Stage):
             * pid_remove_true_downgoing : Bool
                 Remove MC-true-downgoing events
 
-            * pid_spec : TODO(shivesh) figure out what this is
+            * pid_spec :
+                TODO(shivesh): Why can a PIDSpec object be an input but not
+                the dataProcParams object?
+                TODO(shivesh): pid_events along with pid_spec_source predefines
+                what pid_spec. Maybe there is a better way to implement this?
 
             * pid_spec_source : filepath
+                TODO(shivesh): Why can the PIDSpec filepath be an input but not
+                the dataProcParams filepath?
                 Resource for loading PID specifications
 
             * compute_error : Bool
@@ -104,7 +111,7 @@ class mc(Stage):
                  transforms_cache_depth=20, outputs_cache_depth=20):
         # All of the following params (and no more) must be passed via
         # the `params` argument.
-        # TODO(shivesh) hard-code replace_invalid?
+        # TODO(shivesh): hard-code replace_invalid?
         expected_params = (
             'pid_events', 'pid_ver', 'pid_remove_true_downgoing', 'pid_spec',
             'pid_spec_source', 'compute_error', 'replace_invalid'
@@ -140,27 +147,85 @@ class mc(Stage):
         """Compute new PID transforms."""
         logging.info('Updating PIDServiceMC PID histograms...')
 
+        # Units must be the following for correctly converting a sum-of-
+        # OneWeights-in-bin to an average effective area across the bin.
+        # TODO(shivesh): azimuth dependence?
+        comp_units = dict(energy='GeV', coszen=None)
+
+        # Only works if energy and coszen is in input_binning
+        if 'energy' not in self.input_binning:
+            raise ValueError('Input binning must contain "energy" dimension,'
+                             ' but does not.')
+        if 'coszen' not in self.input_binning:
+            raise ValueError('Input binning must contain "coszen" dimension,'
+                             ' but does not.')
+
+        # No further dimensions are allowed
+        # TODO(shivesh): check this works
+        excess_dims = set(self.input_binning.names).difference(comp_units.keys())
+        if len(excess_dims) > 0:
+            raise ValueError('Input binning has extra dimension(s): %s'
+                             %sorted(excess_dims))
+
+        # TODO: not handling rebinning in this stage or within Transform
+        # objects; implement this! (and then this assert statement can go away)
+        assert self.input_binning == self.output_binning
+
+        # TODO(shivesh): check is error handled is managed by Transform
+        #self.error_computed = False
         events = Events(self.params['pid_events'])
+
+        # TODO(shivesh): figure out what this comment means
+        # Select only the inits in the input/output binning for conversion
+        # (can't pass more than what's actually there)
+        in_units = {dim: unit for dim, unit in comp_units.items()
+                    if dim in self.input_binning}
+        out_units = {dim: unit for dim, unit in comp_units.items()
+                     if dim in self.output_binning}
+
+        # These will be in the computational units
+        input_binning = self.input_binning.to(**in_units)
+        output_binning = self.output_binning.to(**out_units)
+
+        # TODO(shivesh): figure out if these todo's are relavant
+        # TODO: take events object as an input instead of as a param that
+        # specifies a file? Or handle both cases?
+
+        # TODO: include here the logic from the make_events_file.py script so
+        # we can go directly from a (reasonably populated) icetray-converted
+        # HDF5 file (or files) to a nominal transform, rather than having to
+        # rely on the intermediate step of converting that HDF5 file (or files)
+        # to a PISA HDF5 file that has additional column(s) in it to account
+        # for the combinations of flavors, interaction types, and/or simulation
+        # runs. Parameters can include which groupings to use to formulate an
+        # output.
+
+        # TODO(shivesh): units for these
+        # TODO(shivesh): allow for input of custom data_proc_params filepath?
         data_proc_params = DataProcParams(
             detector=events.metadata['detector'],
             proc_ver=events.metadata['proc_ver']
         )
 
         if self.params['pid_remove_true_downgoing']:
-            cut_events = dataProcParams.applyCuts(
+            # TODO(shivesh): more options for cuts?
+            cut_events = data_proc_params.applyCuts(
                 events, cuts='true_upgoing_coszen'
             )
         else:
             cut_events = events
 
         pid_spec = PIDSpec(
-            detector=events.metadata['detector'],
-            geom=events.metadata['geom'],
-            proc_ver=events.metadata['proc_ver'],
+            detector=cut_events.metadata['detector'],
+            geom=cut_events.metadata['geom'],
+            proc_ver=cut_events.metadata['proc_ver'],
             pid_specs=self.params['pid_spec_source']
         )
-        # TODO(shivesh): Check to see if these are the same as output_names?
-        signatures = pid_spec.get_signatures()
+        if self.output_names != pid_spec.get_signatures():
+            msg = 'PID criteria from `pid_spec` ({0}) does not \
+                    match the following specification {1}'
+            raise ValueError(msg.format(pid_spec.get_signatures(),
+                                        self.output_names))
 
         # TODO: add importance weights, error computation
 
@@ -169,6 +234,13 @@ class mc(Stage):
             events=cut_events,
             return_fields=['reco_energy', 'reco_coszen']
         )
+
+        # These get used in innermost loop, so produce it just once here
+        all_bin_edges = [edges.magnitude for edges in output_binning.bin_edges]
+        rep_flavint = flavInt.NuFlavIntGroup(self.input_names)
+
+        transforms = []
+        for signature in self.output_names:
 
 
     def validate_params(self, params):
@@ -179,17 +251,17 @@ class mc(Stage):
 
         # Check type of compute_error, replace_invalid,
         # pid_remove_true_downgoing
-        assert isinstance(compute_error, bool)
-        assert isinstance(replace_invalid, bool)
-        assert isinstance(pid_remove_true_downgoing, bool)
+        assert isinstance(params['compute_error'], bool)
+        assert isinstance(params['replace_invalid'], bool)
+        assert isinstance(params['pid_remove_true_downgoing'], bool)
 
         # Check type of pid_ver, pid_spec_source
-        assert isinstance(pid_ver, basestring)
-        assert isinstance(pid_spec_source, basestring)
+        assert isinstance(params['pid_ver'], basestring)
+        assert isinstance(params['pid_spec_source'], basestring)
 
         # Check the groupings of the pid_events file
         # TODO(shivesh): check the events initialisation
-        events = Events(pid_events)
+        events = Events(params['pid_events'])
         should_be_joined = sorted([
             flavInt.NuFlavIntGroup('nuecc+nuebarcc'),
             flavInt.NuFlavIntGroup('numucc+numubarcc'),
