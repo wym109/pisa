@@ -45,7 +45,6 @@ class mc(Stage):
 
     Parameters
     ----------
-    # TODO(shivesh): Correctly classify the params
     params : ParamSet or sequence with which to instantiate a ParamSet
         Parameters which set everything besides the binning.
 
@@ -150,7 +149,6 @@ class mc(Stage):
 
         # Units must be the following for correctly converting a sum-of-
         # OneWeights-in-bin to an average effective area across the bin.
-        # TODO(shivesh): azimuth dependence?
         comp_units = dict(energy='GeV', coszen=None)
 
         # Only works if energy and coszen is in input_binning
@@ -172,8 +170,7 @@ class mc(Stage):
         # objects; implement this! (and then this assert statement can go away)
         assert self.input_binning == self.output_binning
 
-        # TODO(shivesh): check is error handled is managed by Transform
-        #self.error_computed = False
+        self.error_computed = False
         events = Events(self.params['pid_events'].value)
 
         # TODO(shivesh): figure out what this comment means
@@ -242,17 +239,20 @@ class mc(Stage):
         transforms = []
         for flavint in self.input_names:
             rep_flavint = NuFlavIntGroup(flavint)[0]
-            # TODO(shivesh): error propagation
             raw_histo = {}
-            total_histo = np.zeros(output_binning.shape)
-
+            # TODO(shivesh): errors
             # TODO(shivesh): total histo check?
+            total_histo = np.zeros(output_binning.shape)
+            if self.params['compute_error']:
+                total_err2 = np.zeros([n_ebins, n_czbins])
+
             for sig in self.output_names:
                 raw_histo[sig] = {}
                 flav_sigdata = separated_events[rep_flavint][sig]
                 reco_e = flav_sigdata['reco_energy']
                 reco_cz = flav_sigdata['reco_coszen']
                 weights = flav_sigdata['weighted_aeff']
+                weights2 = weights * weights
                 raw_histo[sig], _, _ = np.histogram2d(
                     reco_e,
                     reco_cz,
@@ -262,7 +262,6 @@ class mc(Stage):
                 total_histo += raw_histo[sig]
 
             for sig in self.output_names:
-                rep_flavint = NuFlavIntGroup(flavint)[0]
                 xform_array = raw_histo[sig]/ total_histo
 
                 invalid_idx = total_histo == 0
