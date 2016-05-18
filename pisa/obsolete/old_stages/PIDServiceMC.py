@@ -163,11 +163,9 @@ class PIDServiceMC(PIDServiceBase):
                 reco_e = flav_sigdata['reco_energy']
                 reco_cz = flav_sigdata['reco_coszen']
                 try:
-                    #weights = flav_sigdata['importance_weight']
-                    weights = flav_sigdata['weighted_aeff']
+                    weights = flav_sigdata['importance_weight']
                     weights2 = weights * weights
-                    #weights_check = self.cut_events[rep_flavint]['importance_weight']
-                    weights_check = self.cut_events[rep_flavint]['weighted_aeff']
+                    weights_check = self.cut_events[rep_flavint]['importance_weight']
                 except:
                     logging.warn('No importance weights found in events!')
                     weights = None
