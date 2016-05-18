@@ -240,31 +240,30 @@ class mc(Stage):
         all_bin_edges = [edges.magnitude for edges in output_binning.bin_edges]
 
         transforms = []
-        for sig in self.output_names:
-            logging.debug('Working on {0} particle ID'.format(sig))
+        for flavint in self.input_names:
+            rep_flavint = NuFlavIntGroup(flavint)[0]
             # TODO(shivesh): error propagation
             raw_histo = {}
             total_histo = np.zeros(output_binning.shape)
 
             # TODO(shivesh): total histo check?
-            for flavint in self.input_names:
-                raw_histo[flavint] = {}
-                rep_flavint = NuFlavIntGroup(flavint)[0]
+            for sig in self.output_names:
+                raw_histo[sig] = {}
                 flav_sigdata = separated_events[rep_flavint][sig]
                 reco_e = flav_sigdata['reco_energy']
                 reco_cz = flav_sigdata['reco_coszen']
                 weights = flav_sigdata['weighted_aeff']
-                raw_histo[rep_flavint], _, _ = np.histogram2d(
+                raw_histo[sig], _, _ = np.histogram2d(
                     reco_e,
                     reco_cz,
                     weights=weights,
                     bins=all_bin_edges,
                 )
-                total_histo += raw_histo[rep_flavint]
+                total_histo += raw_histo[sig]
 
-            for flavint in self.input_names:
+            for sig in self.output_names:
                 rep_flavint = NuFlavIntGroup(flavint)[0]
-                xform_array = raw_histo[rep_flavint]/ total_histo
+                xform_array = raw_histo[sig]/ total_histo
 
                 invalid_idx = total_histo == 0
                 valid_idx = 1-invalid_idx
