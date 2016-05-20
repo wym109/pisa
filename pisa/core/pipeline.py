@@ -257,4 +257,5 @@ if __name__ == '__main__':
     to_file(m0, args.outputs_file)
     my_plotter = plotter()
     my_plotter.add_mapset(m0)
-    my_plotter.plot_2d()
+    #my_plotter.plot_2d_maps()
+    my_plotter.plot_2d_array(2,6)
