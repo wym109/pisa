@@ -31,9 +31,7 @@ from pisa.utils.events import Events
 from pisa.utils.flavInt import NuFlavInt, NuFlavIntGroup
 from pisa.utils.PIDSpec import PIDSpec
 from pisa.utils.dataProcParams import DataProcParams
-from pisa.utils.hash import hash_obj
-from pisa.utils.log import logging, set_verbosity
-from pisa.utils.profiler import profile
+from pisa.utils.log import logging
 
 
 class mc(Stage):
@@ -52,7 +50,7 @@ class mc(Stage):
         If dict, set contained params. Format expected is
             {'<param_name>': <Param object or passable to Param()>}.
 
-        Options:
+        Required fields:
             * pid_events : Events or filepath
                 Events object or file path to HDF5 file containing events
 
@@ -63,15 +61,14 @@ class mc(Stage):
             * pid_remove_true_downgoing : Bool
                 Remove MC-true-downgoing events
 
-            * pid_spec :
-                TODO(shivesh): Why can a PIDSpec object be an input but not
-                the dataProcParams object?
-                TODO(shivesh): pid_events along with pid_spec_source predefines
-                what pid_spec. Maybe there is a better way to implement this?
+            TODO(shivesh): Either `pid_spec` or `pid_spec_source` can be used
+            to define the PID specifications. Implement this behaviour and for
+            the case when `pid_spec` is used, do a check to confirm that the
+            pid_events object has the matching PID spec metadata
+            * pid_spec : PIDSpec
+                PIDSpec object which specifies the PID specifications
 
             * pid_spec_source : filepath
-                TODO(shivesh): Why can the PIDSpec filepath be an input but not
-                the dataProcParams filepath?
                 Resource for loading PID specifications
 
             * compute_error : Bool
@@ -147,45 +144,22 @@ class mc(Stage):
         """Compute new PID transforms."""
         logging.info('Updating PIDServiceMC PID histograms...')
 
-        # Units must be the following for correctly converting a sum-of-
-        # OneWeights-in-bin to an average effective area across the bin.
-        comp_units = dict(energy='GeV', coszen=None)
+        # TODO(shivesh): As of now, events do not have units as far as PISA
+        # is concerned
 
-        # Only works if energy and coszen is in input_binning
-        if 'energy' not in self.input_binning:
-            raise ValueError('Input binning must contain "energy" dimension,'
-                             ' but does not.')
-        if 'coszen' not in self.input_binning:
-            raise ValueError('Input binning must contain "coszen" dimension,'
-                             ' but does not.')
-
-        # No further dimensions are allowed
-        # TODO(shivesh): check this works
-        excess_dims = set(self.input_binning.names).difference(comp_units.keys())
-        if len(excess_dims) > 0:
-            raise ValueError('Input binning has extra dimension(s): %s'
-                             %sorted(excess_dims))
+        # Works only if either energy, coszen or azimuth is in input_binning
+        bin_names = ('energy', 'coszen', 'azimuth')
+        if set(self.input_binning.names).isdisjoint(bin_names):
+            raise ValueError('Input binning must contain either one or a '
+                             'combination of "energy", "coszen" or "azimuth" '
+                             'dimensions.')
 
         # TODO: not handling rebinning in this stage or within Transform
         # objects; implement this! (and then this assert statement can go away)
         assert self.input_binning == self.output_binning
 
-        self.error_computed = False
         events = Events(self.params['pid_events'].value)
 
-        # TODO(shivesh): figure out what this comment means
-        # Select only the inits in the input/output binning for conversion
-        # (can't pass more than what's actually there)
-        in_units = {dim: unit for dim, unit in comp_units.items()
-                    if dim in self.input_binning}
-        out_units = {dim: unit for dim, unit in comp_units.items()
-                     if dim in self.output_binning}
-
-        # These will be in the computational units
-        input_binning = self.input_binning.to(**in_units)
-        output_binning = self.output_binning.to(**out_units)
-
-        # TODO(shivesh): figure out if these todo's are relavant
         # TODO: take events object as an input instead of as a param that
         # specifies a file? Or handle both cases?
 
@@ -198,8 +172,6 @@ class mc(Stage):
         # runs. Parameters can include which groupings to use to formulate an
         # output.
 
-        # TODO(shivesh): units for these
-        # TODO(shivesh): allow for input of custom data_proc_params filepath?
         data_proc_params = DataProcParams(
             detector=events.metadata['detector'],
             proc_ver=events.metadata['proc_ver']
@@ -228,13 +200,17 @@ class mc(Stage):
         # TODO: add importance weights, error computation
 
         logging.info("Separating events by PID...")
+        var_names = ['reco_%s' %bin_name
+                     for bin_name in self.output_binning.names]
+        var_names += ['weighted_aeff']
         separated_events = pid_spec.applyPID(
             events=cut_events,
-            return_fields=['reco_energy', 'reco_coszen', 'weighted_aeff']
+            return_fields=var_names
         )
 
         # These get used in innermost loop, so produce it just once here
-        all_bin_edges = [edges.magnitude for edges in output_binning.bin_edges]
+        all_bin_edges = [edges.magnitude
+                         for edges in self.output_binning.bin_edges]
 
         transforms = []
         for flavint in self.input_names:
@@ -242,22 +218,16 @@ class mc(Stage):
             raw_histo = {}
             # TODO(shivesh): errors
             # TODO(shivesh): total histo check?
-            total_histo = np.zeros(output_binning.shape)
-            if self.params['compute_error']:
-                total_err2 = np.zeros([n_ebins, n_czbins])
+            total_histo = np.zeros(self.output_binning.shape)
 
             for sig in self.output_names:
                 raw_histo[sig] = {}
                 flav_sigdata = separated_events[rep_flavint][sig]
-                reco_e = flav_sigdata['reco_energy']
-                reco_cz = flav_sigdata['reco_coszen']
-                weights = flav_sigdata['weighted_aeff']
-                weights2 = weights * weights
-                raw_histo[sig], _, _ = np.histogram2d(
-                    reco_e,
-                    reco_cz,
-                    weights=weights,
-                    bins=all_bin_edges,
+                reco_params = [flav_sigdata[vn] for vn in var_names]
+                raw_histo[sig], _ = np.histogramdd(
+                    sample=reco_params[:-1],
+                    weights=reco_params[-1],
+                    bins=all_bin_edges
                 )
                 total_histo += raw_histo[sig]
 
@@ -289,7 +259,7 @@ class mc(Stage):
                 xform = BinnedTensorTransform(
                     input_names=flavint,
                     output_name=sig,
-                    input_binning=input_binning,
+                    input_binning=self.input_binning,
                     output_binning=self.output_binning,
                     xform_array=xform_array
                 )
@@ -301,7 +271,6 @@ class mc(Stage):
         # do some checks on the parameters
 
         # Check type of pid_events
-        # TODO(shivesh): assertion for units
         assert isinstance(params['pid_events'].value, (basestring, Events))
 
         # Check type of compute_error, replace_invalid,
