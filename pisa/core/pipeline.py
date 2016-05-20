@@ -172,6 +172,7 @@ if __name__ == '__main__':
     from pisa.core.map import Map, MapSet
     from pisa.utils.fileio import from_file, to_file
     from pisa.utils.parse_config import parse_config
+    from pisa.utils.plotter import plotter
 
     parser = ArgumentParser()
     parser.add_argument(
@@ -254,3 +255,6 @@ if __name__ == '__main__':
     #    json[name] = m0[name].hist
     #to_file(json, args.outputs_file)
     to_file(m0, args.outputs_file)
+    my_plotter = plotter()
+    my_plotter.add_mapset(m0)
+    my_plotter.plot_2d()

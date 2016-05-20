@@ -240,6 +240,13 @@ class OneDimBinning(object):
         return hash_obj(normalized_state)
 
     @property
+    def label(self):
+        unit = format(self.units, '~')
+        if unit == '':
+            return self.tex
+        return self.tex + ' (%s)'%unit
+
+    @property
     def units(self):
         return self.bin_edges.units
 
