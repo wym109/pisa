@@ -258,4 +258,5 @@ if __name__ == '__main__':
     my_plotter = plotter()
     my_plotter.add_mapset(m0)
     #my_plotter.plot_2d_maps()
-    my_plotter.plot_2d_array(2,6)
+    #my_plotter.plot_2d_array(2,6)
+    my_plotter.plot_1d_array(2,6,'energy')

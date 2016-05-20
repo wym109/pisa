@@ -555,6 +555,11 @@ class OneDimBinning(object):
     def __ne__(self, other):
         return not self == other
 
+    @property
+    def bin_centers(self):
+        ''' TODO: generalize for log etc...'''
+        return 0.5*(self.bin_edges[1:]+self.bin_edges[:-1])
+
 
 # TODO: make this able to be loaded from a pickle!!!
 class MultiDimBinning(object):
