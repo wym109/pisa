@@ -57,14 +57,16 @@ class Analysis(object):
         assert isinstance(template_maker, DistributionMaker)
         self.data_maker = data_maker
         self.template_maker = template_maker
+        self.minimizer_settings = None
+        self.metric = None
 
-        # Generate (at least the initial) data distribution
+        # Generate distribution
         self.asimov = self.data_maker.get_outputs()
         self.pseudodata = None
 
     def generate_psudodata(self, method):
         if method == 'asimov':
-            sefl.pseudodata = self.asimov
+            self.pseudodata = self.asimov
         elif method == 'poisson':
             self.pseudodata = self.asimov.fluctuate('poisson')
         else:
@@ -203,11 +205,11 @@ class Analysis(object):
         # if necessary
         metric_val = (
             self.pseudodata.metric_total(expected_values=template, metric=metric)
-            + template_maker.params.free.priors_penalty(metric=metric)
+            + template_maker.params.priors_penalty(metric=metric)
         )
 
         # Report status of metric & params
-        msg = '%s=%.8e | %s' %(metric, metric_val,
+        msg = '%s=%.6e | %s' %(metric, metric_val,
                                self.template_maker.params.free)
         if pprint:
             sys.stdout.write(msg)
@@ -218,7 +220,7 @@ class Analysis(object):
 
         return sign*metric_val
 
-    def run_l_bfgs(self, minimizer_settings, metric, pprint=True):
+    def run_l_bfgs(self,  metric, pprint=True):
         # Reset free parameters to nominal values
         self.template_maker.params.free.reset()
 
@@ -226,7 +228,7 @@ class Analysis(object):
         x0 = self.template_maker.params.free.rescaled_values
 
         # bfgs steps outside of given bounds by 1 epsilon to evaluate gradients
-        epsilon = minimizer_settings['options']['value']['epsilon']
+        epsilon = self.minimizer_settings['options']['value']['epsilon']
         bounds = [(0+epsilon, 1-epsilon)]*len(x0)
         logging.info('running the L-BFGS-B optimizer')
 
@@ -235,13 +237,26 @@ class Analysis(object):
                               x0=x0,
                               args=(metric, pprint),
                               bounds=bounds,
-                              **minimizer_settings['options']['value'])
+                              **self.minimizer_settings['options']['value'])
         if pprint:
             # clear the line
             print ''
         logging.info('Found best fit parameters: %s'
                      %self.template_maker.params.free)
         return a
+
+    def profile_llh(self, p_name):
+        ''' run profile llh method for param p_name '''
+        self.template_maker.params.reset()
+        logging.info('fixing param %s'%p_name)
+        self.template_maker.params.fix(p_name)
+        num = self.run_l_bfgs(metric=self.metric, pprint=True)
+        logging.info('resetting params')
+        self.template_maker.params.reset()
+        self.template_maker.params.unfix(p_name)
+        logging.info('unfixing param %s'%p_name)
+        denom = self.run_l_bfgs(metric=self.metric, pprint=True)
+        return num[1] - denom[1]
 
 
 if __name__ == '__main__':
@@ -282,7 +297,7 @@ if __name__ == '__main__':
     data_maker = DistributionMaker(data_maker_configurator)
 
     test = data_maker.params['test']
-    test.value *= 1.2
+    test.value *= 1.25
     data_maker.update_params(test)
 
     template_maker_settings = from_file(args.template_settings)
@@ -292,9 +307,12 @@ if __name__ == '__main__':
     analysis = Analysis(data_maker=data_maker,
                         template_maker=template_maker)
 
+    analysis.minimizer_settings = from_file(args.minimizer_settings)
+    analysis.metric = args.metric
+
     logging.info('Minimizing... ')
-    minimizer_settings  = from_file(args.minimizer_settings)
     np.random.seed()
-    analysis.generate_psudodata('poisson')
-    analysis.run_l_bfgs(minimizer_settings, metric=args.metric, pprint=True)
+    analysis.generate_psudodata('asimov')
+    qmu = analysis.profile_llh('test')
+    print 'Significance of %.2f'%np.sqrt(qmu)
     logging.info('Done.')
