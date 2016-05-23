@@ -259,7 +259,7 @@ if __name__ == '__main__':
     my_plotter.ratio = True
     #my_plotter.plot_2d_maps()
     #my_plotter.plot_2d_array(2,6)
-    #my_plotter.plot_1d_array(m0, 3,4,'energy')
+    my_plotter.plot_1d_array(m0, 3,4,'energy')
     #my_plotter.plot_1d_all(m0,'energy')
     #my_plotter.plot_1d_stack(m0,'energy')
-    my_plotter.plot_1d_cmp(m0, m0.fluctuate('poisson'), 'energy')
+    #my_plotter.plot_1d_cmp(m0, m0.fluctuate('poisson'), 'energy')

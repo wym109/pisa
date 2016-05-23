@@ -40,13 +40,6 @@ class Analysis(object):
         that can be modifed or studied for their effects during the analysis
         process.
 
-    data_fluctuations : case-insensitive string
-        Method for how to obtain (pseudo)data. Choices are:
-          * 'Asimov':
-          * <fluctuation kind>: this string is passed on to the
-            MapSet.fluctuate() method to apply the specified kind of
-            fluctuations to the Asimov template.
-
     Attributes
     ----------
     data_maker
@@ -59,18 +52,23 @@ class Analysis(object):
     _minimizer_callable : private method indended to be called by a minimizer
 
     """
-    def __init__(self, data_maker, template_maker, data_fluctuations=None,
-                 template_fluctuations=None):
+    def __init__(self, data_maker, template_maker):
         assert isinstance(data_maker, DistributionMaker)
         assert isinstance(template_maker, DistributionMaker)
         self.data_maker = data_maker
         self.template_maker = template_maker
 
-        self.data_maker.fluctuations = data_fluctuations
-        self.template_maker.fluctuations = template_fluctuations
-
         # Generate (at least the initial) data distribution
-        self.data = self.data_maker.get_outputs()
+        self.asimov = self.data_maker.get_outputs()
+        self.pseudodata = None
+
+    def generate_psudodata(self, method):
+        if method == 'asimov':
+            sefl.pseudodata = self.asimov
+        elif method == 'poisson':
+            self.pseudodata = self.asimov.fluctuate('poisson')
+        else:
+            raise Exception('unknown method %s'%method)
 
     # TODO: move the complexity of defining a scan into a class with various
     # factory methods, and just pass that class to the scan method; we will
@@ -153,15 +151,13 @@ class Analysis(object):
             values = np.array([values])
             nparams = len(param_names)
 
-        #self.template_maker.params.
-
         metric_vals = []
         for val in values:
             fp = self.template_maker.params.free
             fp[param_names].value = val
             self.template_maker.update_params(fp)
             template = self.template_maker.get_outputs()
-            metric_vals.append(self.data.metric_total(expected_values=template,
+            metric_vals.append(self.pseudodata.metric_total(expected_values=template,
                                                       metric=metric))
         return metric_vals
 
@@ -206,7 +202,7 @@ class Analysis(object):
         # Assess the fit of the template to the data distribution, and negate
         # if necessary
         metric_val = (
-            self.data.metric_total(expected_values=template, metric=metric)
+            self.pseudodata.metric_total(expected_values=template, metric=metric)
             + template_maker.params.free.priors_penalty(metric=metric)
         )
 
@@ -286,7 +282,6 @@ if __name__ == '__main__':
     data_maker = DistributionMaker(data_maker_configurator)
 
     test = data_maker.params['test']
-    #test.value /=2.
     test.value *= 1.2
     data_maker.update_params(test)
 
@@ -295,41 +290,11 @@ if __name__ == '__main__':
     template_maker = DistributionMaker(template_maker_configurator)
 
     analysis = Analysis(data_maker=data_maker,
-                        template_maker=template_maker,
-                        data_fluctuations=None,
-                        template_fluctuations='poisson')
-
-    # TODO: Justin broke the scan feature...
-    #logging.info(
-    #    'Sweeping over 3 values of `test` (should affect both flux and osc)'
-    #)
-    #print ''
-    #analysis.scan(metric=args.metric, param_names='test',
-    #              values=np.linspace(0, 5, 3)*ureg.foot)
-
-    #logging.info(
-    #    'Sweeping over 3 values of `atm_delta_index` (should only affect flux)'
-    #)
-    #analysis.scan('atm_delta_index',
-    #              np.linspace(-0.2, 0.2, 3),
-    #              metric=args.metric)
-
-    #print ''
-    #logging.info(
-    #    'Sweeping over 3 values of `theta23` (should only affect osc)'
-    #)
-    #print ''
-    #analysis.scan('theta23', np.linspace(40, 45, 3)*ureg.degrees,
-    #         metric=args.metric)
-    #print ''
-    #logging.info(
-    #    'Sweeping over 3  times the same value of "test"'
-    #)
-    #print ''
-    #analysis.scan('test', np.array([2, 2, 2])*ureg.meter,
-    #         metric=args.metric)
+                        template_maker=template_maker)
 
     logging.info('Minimizing... ')
     minimizer_settings  = from_file(args.minimizer_settings)
+    np.random.seed()
+    analysis.generate_psudodata('poisson')
     analysis.run_l_bfgs(minimizer_settings, metric=args.metric, pprint=True)
     logging.info('Done.')
