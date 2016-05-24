@@ -2,16 +2,20 @@
 #
 # Allow PISA to be distributed via distutils, i.e the user can just
 #
+# TODO: does the following work with requirements.txt file?
+#
 #   pip install git+https://github.com/sboeser/pisa#egg=pisa
 #
 # author: Sebastian Boeser
 #         sboeser@physik.uni-bonn.de
+
 
 from distutils.command.build import build as _build
 from distutils.core import setup, Extension
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 
 from Cython.Build import cythonize
@@ -27,6 +31,7 @@ except:
     )
 else:
     CUDA = True
+
 
 # OpenMP is present if a test program can compile with -fopenmp flag
 # (e.g. Apple's compiler apparently doesn't support OpenMP, but gcc does) 
@@ -110,12 +115,17 @@ if CUDA:
             'pisa/stages/osc/prob3/EarthDensity.cc',
             'pisa/stages/osc/grid_propagator/GridPropagator.i'
         ],
-        include_dirs=[numpy_include, 'pisa/stages/osc/prob3/'],
+        include_dirs=[
+            numpy_include,
+            'pisa/stages/osc/prob3/'
+        ],
         extra_compile_args=[
             '-xc++', '-lstdc++', '-shared-libgcc', '-c', '-Wall', '-O3',
             '-fPIC'
         ],
-        swig_opts=['-v', '-c++']
+        swig_opts=[
+            '-v', '-c++'
+        ]
     )
     ext_modules.append(prob3gpu_module)
 
