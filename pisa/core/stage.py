@@ -359,7 +359,7 @@ class Stage(object):
 
     def check_outputs(self, outputs):
         assert set(outputs.names) == set(self.output_names), \
-                "Transforms' outputs: " + str(transforms.output_names) + \
+                "Outputs: " + str(outputs.names) + \
                 "\nStage outputs: " + str(self.output_names)
 
     @property
