@@ -24,6 +24,7 @@ changes/improvements applied.
 import numpy as np
 import pint
 ureg = pint.UnitRegistry()
+from scipy import interpolate
 
 from pisa.core.stage import Stage
 from pisa.core.map import Map, MapSet
@@ -180,7 +181,7 @@ class honda(Stage):
             # method must be the edges of those of the normal tables
             int_flux_dict['logenergy'] = np.linspace(-1.025, 4.025, 102)
             int_flux_dict['coszen'] = np.linspace(-1, 1, 21)
-            for nutype in primaries:
+            for nutype in self.primaries:
                 # spline_dict now wants to be a set of splines for
                 # every table cosZenith value.
                 splines = {}
@@ -194,7 +195,7 @@ class honda(Stage):
                         tot_flux += energyfluxval*energyval
                         int_flux.append(tot_flux)
 
-                    spline = splrep(int_flux_dict['logenergy'],int_flux,s=0)
+                    spline = interpolate.splrep(int_flux_dict['logenergy'],int_flux,s=0)
                     CZvalue = '%.2f'%(1.05-CZiter*0.1)
                     splines[CZvalue] = spline
                     CZiter += 1
@@ -396,8 +397,8 @@ class honda(Stage):
             # So need to transpose is desired is (E,cz)
             return_table = return_table.T
         
-         # Put the flux into a Map object, give it the output_name
-         return_map = Map(name=prim,
+        # Put the flux into a Map object, give it the output_name
+        return_map = Map(name=prim,
                           hist=return_table,
                           binning=self.output_binning)
         
@@ -435,10 +436,12 @@ class honda(Stage):
         
         # Flux file should have aa (for azimuth-averaged) if binning
         # is energy and cosZenith
-        assert ('aa' in params['flux_file'].value if set(self.output_binning.names) == set(['energy', 'coszen']))
+        if set(self.output_binning.names) == set(['energy', 'coszen']):
+            assert ('aa' in params['flux_file'].value )
         
         # Flux file should not have aa (for azimuth-averaged) if binning
         # is energy, cosZenith and azimuth
-        assert ('aa' not in params['flux_file'].value if set(self.output_binning.names) == set(['energy', 'coszen', 'azimuth']))
+        elif set(self.output_binning.names) == set(['energy', 'coszen', 'azimuth']):
+            assert ('aa' not in params['flux_file'].value )
 
         

@@ -18,7 +18,6 @@ class Analysis(object):
 
     * "Data" distribution creation (via passed `data_maker` object)
     * Template distribution creation (via passed `distribution_maker` object)
-    * Fluctuations applied (or not) to either produced distributions.
 
     * Minimizer Interface (via method `_minimizer_callable`)
         Interfaces to a minimizer for modifying the free parameters of the
@@ -40,6 +39,10 @@ class Analysis(object):
         that can be modifed or studied for their effects during the analysis
         process.
 
+    metric : str
+        What metric to be used for likelihood calculations / optimization
+        llh or chi2
+
     Attributes
     ----------
     data_maker
@@ -49,6 +52,7 @@ class Analysis(object):
     -------
     optimize
     scan
+    profile_llh : run profile LLH for a given param
     _minimizer_callable : private method indended to be called by a minimizer
 
     """
@@ -251,7 +255,8 @@ class Analysis(object):
         condMLE['llh'] = num[1]
         for pname in self.template_maker.params.free.names:
             condMLE[pname] = self.template_maker.params[pname].value
-
+        # also add the fixed param
+        condMLE[p_name] = self.template_maker.params[p_name].value
         # run denominator
         logging.info('resetting params')
         self.template_maker.params.reset()
@@ -321,10 +326,11 @@ if __name__ == '__main__':
     analysis.minimizer_settings = from_file(args.minimizer_settings)
 
     for i in range(args.num_trials):
+        logging.info('Running trial %i'%i)
         np.random.seed()
         analysis.generate_psudodata('poisson')
         condMLE, globMLE = analysis.profile_llh('test')
-        print 'Significance of %.2f'%np.sqrt(condMLE['llh']-globMLE['llh'])
+        logging.info('Significance of %.2f'%np.sqrt(condMLE['llh']-globMLE['llh']))
         if i == 0:
             MLEs = {'cond':{}, 'glob':{}}
             for key, val in condMLE.items():
