@@ -26,11 +26,12 @@ from pisa.utils.numerical import normQuant
 
 
 HASH_SIGFIGS = 12
-
+"""Round to this many significant figures for hashing numbers, such that
+machine precision doesn't cause effectively equivalent numbers to hash
+differently."""
 
 class OneDimBinning(object):
-    """
-    Histogram-oriented binning specialized to a single dimension.
+    """Histogram-oriented binning specialized to a single dimension.
 
     Either `domain` or `bin_edges` must be specified, but not both. `is_lin`
     and `is_log` are mutually exclusive and *must* be specified if `domain` is
@@ -45,12 +46,27 @@ class OneDimBinning(object):
     Parameters
     ----------
     name : str, of length > 0
+        Name for this dimension. Must be valid Python name (since it will be
+        accessed with the dot operator).
+
     tex : str or None
+        TeX label for this dimension.
+
     bin_edges : sequence
-    is_log : bool
+        Numerical values (including Pint units, if there are units) that
+        represent the *edges* of the bins. `bin_edges` needn't be specified if
+        `domain`, `num_bins`, and some combination of `is_lin` and `is_log` are
+        specified.
+
     is_lin : bool
-    num_bins : int
+        If `num_bins` and `domain` are specified,
+
+    is_log : bool
+        Whether
+
     domain : length-2 sequence
+
+    num_bins : int
 
 
     Attributes
@@ -120,8 +136,8 @@ class OneDimBinning(object):
     # will retain the log/linear property of the original OneDimBinning.
     _state_attrs = ('name', 'tex', 'bin_edges', 'is_log', 'is_lin')
 
-    def __init__(self, name, tex=None, bin_edges=None, is_log=None,
-                 is_lin=None, num_bins=None, domain=None):
+    def __init__(self, name, tex=None, bin_edges=None, domain=None,
+                 num_bins=None, is_lin=None, is_log=None):
         assert isinstance(name, basestring), str(type(name))
         self.name = name
         if tex is None:
