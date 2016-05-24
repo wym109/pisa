@@ -262,6 +262,9 @@ class hist(Stage):
                         # TODO: raise ValueError(message) ?
                         pass
 
+                # Double check that no NaN remain
+                assert not np.any(np.isnan(xform_array))
+
                 xform = BinnedTensorTransform(
                     input_names=flavint,
                     output_name=sig,
