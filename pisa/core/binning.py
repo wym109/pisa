@@ -256,6 +256,13 @@ class OneDimBinning(object):
         return hash_obj(normalized_state)
 
     @property
+    def label(self):
+        unit = format(self.units, '~')
+        if unit == '':
+            return self.tex
+        return self.tex + ' (%s)'%unit
+
+    @property
     def units(self):
         return self.bin_edges.units
 
@@ -563,6 +570,11 @@ class OneDimBinning(object):
 
     def __ne__(self, other):
         return not self == other
+
+    @property
+    def bin_centers(self):
+        ''' TODO: generalize for log etc...'''
+        return 0.5*(self.bin_edges[1:]+self.bin_edges[:-1])
 
 
 # TODO: make this able to be loaded from a pickle!!!

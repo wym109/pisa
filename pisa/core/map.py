@@ -161,7 +161,7 @@ class Map(object):
                  full_comparison=True):
         # Set Read/write attributes via their defined setters
         super(Map, self).__setattr__('_name', name)
-        tex = r'{\rm %s}' % name if tex is None else tex
+        tex = r'\rm{%s}' % name if tex is None else tex
         super(Map, self).__setattr__('_tex', tex)
         super(Map, self).__setattr__('_hash', hash)
         super(Map, self).__setattr__('_full_comparison', full_comparison)
@@ -207,6 +207,7 @@ class Map(object):
         if method in ['poisson']:
             if seed is not None:
                 np.random.seed(seed)
+            #return {'hist': unp.uarray(poisson.rvs(self.hist), np.sqrt(self.hist))}
             return {'hist': poisson.rvs(self.hist)}
         elif method in ['', 'none', 'false']:
             return
