@@ -37,7 +37,7 @@ class TransformSet(object):
     transforms
     name
 
-    Properties
+    Attributes
     ----------
     hash
     input_names
@@ -128,7 +128,7 @@ class Transform(object):
     Parameters
     ----------
 
-    Properties
+    Attributes
     ----------
     hash
     input_names
@@ -240,8 +240,20 @@ class BinnedTensorTransform(Transform):
     hash : immutable object (usually integer)
         A hash value the user can attach
 
+    output_name : string
 
-    Properties
+    input_binning : MultiDimBinning
+
+    output_binnin : MultiDimBinning
+
+    xform_array : numpy ndarray
+
+    tex : string
+
+    params_hash : immutable object (usually integer)
+
+
+    Attributes
     ----------
     hash
     source_hash
