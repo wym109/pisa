@@ -258,7 +258,7 @@ if __name__ == '__main__':
     my_plotter = plotter(stamp = 'PISA cake test')
     #my_plotter.ratio = True
     #my_plotter.plot_2d_maps()
-    #my_plotter.plot_2d_array(m0, 2,4)
+    my_plotter.plot_2d_array(m0, 3,4)
     my_plotter.plot_1d_array(m0, 3,4,'coszen')
     #my_plotter.plot_1d_all(m0,'energy')
     #my_plotter.plot_1d_stack(m0,'energy')
