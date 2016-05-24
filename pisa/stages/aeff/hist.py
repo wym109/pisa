@@ -102,7 +102,7 @@ class hist(Stage):
                      %(self.params.aeff_weight_file.value))
         events = Events(self.params.aeff_weight_file.value)
 
-        # Select only the inits in the input/output binning for conversion
+        # Select only the units in the input/output binning for conversion
         # (can't pass more than what's actually there)
         in_units = {dim: unit for dim, unit in comp_units.items()
                     if dim in self.input_binning}
@@ -115,7 +115,7 @@ class hist(Stage):
 
         # Account for "missing" dimension(s) (dimensions OneWeight expects for
         # computation of bin volume), and accommodate with a factor equal to
-        # the full bin size. See IceCube wiki/documentation for OneWeight for
+        # the full range. See IceCube wiki/documentation for OneWeight for
         # more info.
         missing_dims_vol = 1
         if 'azimuth' not in input_binning:
@@ -141,9 +141,6 @@ class hist(Stage):
         nominal_transforms = []
         for flav in self.input_names:
             for interaction in ['cc', 'nc']:
-                # Single input per transform
-                xform_input_name = flav
-
                 # Flavor+interaction type naming convention used in the PISA
                 # HDF5 files
                 flav_int = NuFlavInt(flav, interaction)
@@ -173,7 +170,7 @@ class hist(Stage):
 
                 # Construct the BinnedTensorTransform
                 xform = BinnedTensorTransform(
-                    input_names=xform_input_name,
+                    input_names=flav,
                     output_name=str(flav_int),
                     input_binning=input_binning,
                     output_binning=self.output_binning,
@@ -186,8 +183,8 @@ class hist(Stage):
     def _compute_transforms(self):
         """Compute new oscillation transforms"""
         # Read parameters in in the units used for computation
-        aeff_scale = self.params.aeff_scale.value.to('').magnitude
-        livetime_s = self.params.livetime.value.to('sec').magnitude
+        aeff_scale = self.params.aeff_scale.value.m_as('dimensionless')
+        livetime_s = self.params.livetime.value.m_as('sec')
         logging.trace('livetime = %s --> %s sec'
                       %(self.params.livetime.value, livetime_s))
 
