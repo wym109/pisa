@@ -75,7 +75,7 @@ class dummy(Stage):
         expected_params = (
             'oversample_e', 'oversample_cz', 'earth_model',
             'YeI', 'YeM', 'YeO', 'deltacp', 'deltam21', 'deltam31',
-            'detector_depth', 'prop_height', 'test', 'theta12', 'theta13',
+            'detector_depth', 'prop_height', 'theta12', 'theta13',
             'theta23'
         )
 
