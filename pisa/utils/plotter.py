@@ -135,6 +135,7 @@ class plotter(object):
         for i, map in enumerate(mapset):
             plt.subplot(n_rows,n_cols,i+1)
             getattr(self, fun)(map, *args)
+            self.add_stamp(map.tex)
 
     def plot_2d_map(self, map):
         ''' plot map on current axis in 2d'''

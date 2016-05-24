@@ -71,7 +71,7 @@ class honda(Stage):
 
         # Define the names of objects that get produced by this stage
         output_names = (
-            'nue', 'numu', 'nuebar', 'numubar'
+            'nue', 'numu', 'nue_bar', 'numu_bar'
         )
 
         # Invoke the init method from the parent class, which does a lot of
