@@ -255,7 +255,7 @@ if __name__ == '__main__':
     #    json[name] = m0[name].hist
     #to_file(json, args.outputs_file)
     to_file(m0, args.outputs_file)
-    my_plotter = plotter(stamp = 'PISA cake IP flux', label='flux')
+    my_plotter = plotter(stamp = 'PISA cake test')
     #my_plotter.ratio = True
     #my_plotter.plot_2d_maps()
     #my_plotter.plot_2d_array(m0, 2,4)
