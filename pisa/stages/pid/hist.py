@@ -34,7 +34,7 @@ from pisa.utils.dataProcParams import DataProcParams
 from pisa.utils.log import logging
 
 
-class mc(Stage):
+class hist(Stage):
     """PID based on input PISA events HDF5 file.
 
     Transforms a input map of the specified particle "signature" (aka ID) into
@@ -128,7 +128,7 @@ class mc(Stage):
         super(self.__class__, self).__init__(
             use_transforms=True,
             stage_name='pid',
-            service_name='mc',
+            service_name='hist',
             params=params,
             expected_params=expected_params,
             input_names=input_names,
