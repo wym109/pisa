@@ -232,7 +232,7 @@ class hist(Stage):
                 total_histo += raw_histo[sig]
 
             for sig in self.output_names:
-                xform_array = raw_histo[sig]/ total_histo
+                xform_array = raw_histo[sig] / total_histo
 
                 invalid_idx = total_histo == 0
                 valid_idx = 1-invalid_idx
@@ -251,7 +251,6 @@ class hist(Stage):
                         logging.warn('Replacing the no-events bins with values'
                                      ' from closest bins that have events.')
                         replace_idx = []
-                        logging.warn(message)
                         valid_idx = np.where(valid_idx)[0]
                         for idx in invalid_idx:
                             dist = np.abs(valid_idx-idx)
