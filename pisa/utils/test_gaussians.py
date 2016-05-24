@@ -47,11 +47,11 @@ def test_gaussian():
 
 def test_gaussians():
     np.random.seed(0)
-    mu = np.array(np.random.randn(100), dtype=np.float64)
+    mu = np.array(np.random.randn(1e3), dtype=np.float64)
     sigma = np.array(np.abs(np.random.randn(len(mu))), dtype=np.float64)
     np.clip(sigma, a_min=1e-20, a_max=np.inf, out=sigma)
 
-    x = np.linspace(-10, 10, 1e3, dtype=np.float64)
+    x = np.linspace(-10, 10, 1e4, dtype=np.float64)
 
     # Place to store result of `gaussians()`; zero-stuffed in the below lopp
     outbuf = np.empty_like(x, dtype=np.float64)
@@ -64,7 +64,7 @@ def test_gaussians():
     
     # Try out the threads functionality for each result; reset the accumulation
     # buffer each time.
-    for threads in (1, 2):
+    for threads in (1, 2, 32):
         outbuf.fill(0)
         gaussians(outbuf, x, mu, sigma, threads)
         assert np.allclose(outbuf, refbuf, rtol=1e-14, atol=0, equal_nan=True),\

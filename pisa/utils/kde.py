@@ -379,4 +379,5 @@ def speedTest():
 
 
 if __name__ == "__main__":
+    print 'OMP_NUM_THREADS =', openmp_num_threads
     speedTest()
