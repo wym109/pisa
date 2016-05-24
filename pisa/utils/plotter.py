@@ -125,7 +125,7 @@ class plotter(object):
     def plot_array(self, mapset, n_rows, n_cols, fun, *args):
         ''' plot mapset in array using a function fun '''
         n = len(mapset)
-        assert( n <= n_cols * n_rows), 'you are trying to plot %n subplots on a grid with %s x %s cells'%(n, n_cols, n_rows)
+        assert( n <= n_cols * n_rows), 'you are trying to plot %s subplots on a grid with %s x %s cells'%(n, n_cols, n_rows)
         size = (n_cols*self.size[0], n_rows*self.size[1])
         self.init_fig(size)
         plt.tight_layout()

@@ -258,8 +258,8 @@ if __name__ == '__main__':
     my_plotter = plotter(stamp = 'PISA cake IP flux', label='flux')
     #my_plotter.ratio = True
     #my_plotter.plot_2d_maps()
-    #my_plotter.plot_2d_array(2,6)
-    my_plotter.plot_1d_array(m0, 2,4,'energy')
+    #my_plotter.plot_2d_array(m0, 2,4)
+    my_plotter.plot_1d_array(m0, 3,4,'coszen')
     #my_plotter.plot_1d_all(m0,'energy')
     #my_plotter.plot_1d_stack(m0,'energy')
     #my_plotter.plot_1d_cmp(m0, m0.fluctuate('poisson'), 'energy')
