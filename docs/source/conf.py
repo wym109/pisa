@@ -62,8 +62,8 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'PISA'
-copyright = u'2016, IceCube/PINGU'
-author = u'IceCube/PINGU'
+copyright = u'2016, The IceCube/PINGU Collaboration'
+author = u'The IceCube/PINGU Collaboration'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
