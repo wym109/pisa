@@ -1,41 +1,62 @@
 ## Installation Guide
 
+Obtaining packages and handling interdependencies is easiest if you use a Python distribution, such as [Anaconda](https://www.continuum.io/downloads) or [Canopy](https://www.enthought.com/products/canopy).
+Although the selection of maintained packages is smaller than if you use the `pip` command to obtain packages from the Python Package Index (PyPi), you can still use `pip` with these distributions (but always prefer to use the distribution's install mechanism over `pip`, since `pip` does not handle interdependencies well).
+
+The other advantage to these distributions is that they easily install without system administrative privileges (i.e., in a user directory) and come with the non-Python libraries upon which many Python modules rely, making them ideal for setup on e.g. clusters.
+
 ### Requirements
 
-To install this package, you'll need to have the following non-python requirements
+To install this package, you'll need to have the following non-python requirements.
+Note that these are not installed automatically, and you must install them yourself prior to installing PISA.
+Also not that both SWIG and HDF5 support come pre-packaged in the Anaconda and Canopy Python distributions.
 * [git](https://git-scm.com/)
 * [swig](http://www.swig.org/)
 * [hdf5](http://www.hdfgroup.org/HDF5/) — install with `--enable-cxx` option
 
-In Ubuntu Linux, you can install these via
-```bash
-sudo apt-get install git swig hdf5
-```
-although you can also obtain `hdf5` and `swig` (and ensure their compatibility with your Python installation) by installing a Python distribution like Anaconda.
+If you are *not* using Anaconda or Canopy, you can install the above via:
+* In Ubuntu,
+  'sudo apt-get install git swig hdf5`
 
-The Python requirements are
-* [python](http://www.python.org) — version 2.7.x required
-* [pip](https://pip.pypa.io/) — version > 1.2 recommended
+The Python requirements are as follows; note that all *required* Python modules (i.e., everything besides Python and pip) are installed automatically when you install PISA with the `pip ... -r $PISA/requirements.txt` option detailed later.
+* [python](http://www.python.org) — version 2.7.x required (tested with 2.7.11)
+* [pip](https://pip.pypa.io/)
 * [numpy](http://www.numpy.org/)
 * [scipy](http://www.scipy.org/) — version > 0.12 recommended
 * [h5py](http://www.h5py.org/)
+* [pytables](http://www.pytables.org/)
 * [cython](http://cython.org/)
 * [uncertainties](https://pythonhosted.org/uncertainties/)
 * [pint](https://pint.readthedocs.org/en/0.7.2/)
 
-Optional dependencies to enable add-on features are
-* [PyCUDA](https://mathema.tician.de/software/pycuda)
-* [openmp](http://www.openmp.org)
-
-For detailed profiling output (optional)
-* [line_profiler](https://pypi.python.org/pypi/line_profiler/)
-
-Requirements for compiling the Sphinx documentation
-* [Sphinx](http://www.sphinx-doc.org/en/stable/) - version > 1.3
-* [recommonmark](http://recommonmark.readthedocs.io/en/latest/)
-
-Obtaining packages and handling interdependencies is easiest if you use a Python distribution, such as [Anaconda](https://www.continuum.io/downloads) or [Canopy](https://www.enthought.com/products/canopy).
-Although the selection of maintained packages is smaller than if you use the `pip` command to obtain packages from the Python Package Index (PyPi), you can stil use `pip` even if you use a Python distribution.
+Optional dependencies, on the other hand, must be installed manually prior to installing PISA.
+The features enabled by and the relevant install commands for optional dependencies are listed below.
+* To parallelize certain routines on multi-core computers<br>
+  [openmp](http://www.openmp.org)<br>
+  (available by compiler; gcc supports OpenMP this, while Clang does not)
+* For running certain routines on Nvidia CUDA (>= compute 2.0) GPUs<br>
+  [PyCUDA](https://mathema.tician.de/software/pycuda)<br>
+  `pip install pycuda`
+* Just-in-time compilation via LLVM to accelerate certain routines<br>
+  [numba](http://numba.pydata.org)
+  * Anaconda:<br>
+    `conda install numba`
+  * pip:<br>
+    `pip install numba`
+* For detailed profiling output<br>
+  [line_profiler](https://pypi.python.org/pypi/line_profiler/)
+  * Anaconda:<br>
+    `conda install line_profiler`
+  * pip:<br>
+    `pip install line_profiler`
+* For compiling the Sphinx documentation<br>
+  * [Sphinx](http://www.sphinx-doc.org/en/stable/) - version > 1.3
+    * Anaconda:<br>
+      `conda install sphinx`
+    * pip:<br>
+      `pip install sphinx`
+  * [recommonmark](http://recommonmark.readthedocs.io/en/latest/)<br>
+    `pip install recommonmark`
 
 ### Install Python
 There are many ways of obtaining Python and many ways of installing it.
@@ -115,14 +136,15 @@ If you just wish to pull changes from github (and not submit any changes back), 
 
 ### Install PISA
 ```bash
-pip install --src $PISA --requirement $PISA/requirements.txt --editable
+pip install --editable $PISA -r $PISA/requirements.txt
 ```
 Explanation of the above command:
-* `--src $PISA`: Installs PISA from the sourcecode you just cloned in the directory pointed to by the environment variable `$PISA`.
-* `--requirement $PISA/requirements.txt`: Specifies the file containing PISA's dependencies for `pip` to install prior to installing PISA.
+* `--editable <dir>`: Installs from `<dir>` and  allows for changes to the source code within to be immediately propagated to your Python installation.
+Basically, within your Python source tree, PISA is just a link to your source directory, so changes within your source tree are seen directly by your Python installation.
+* `-r $PISA/requirements.txt`: Specifies the file containing PISA's dependencies for `pip` to install prior to installing PISA.
 This file lives at `$PISA/requirements.txt`.
-* `--editable`: Allows for changes to the source code to be immediately propagated to your Python installation.
-Basically, within your Python source tree, PISA is just a series of links to your source directory, so changes within your source tree are seen directly by your Python installation.
+
+* `--src $PISA`: Installs PISA from the sourcecode you just cloned in the directory pointed to by the environment variable `$PISA`.
 
 __Notes:__
 

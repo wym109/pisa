@@ -1,0 +1,8 @@
+numpy
+scipy > 0.12
+h5py
+tables
+cython
+uncertainties
+pint
+pip > 1.2
