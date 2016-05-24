@@ -52,13 +52,14 @@ class Analysis(object):
     _minimizer_callable : private method indended to be called by a minimizer
 
     """
-    def __init__(self, data_maker, template_maker):
+    def __init__(self, data_maker, template_maker, metric):
         assert isinstance(data_maker, DistributionMaker)
         assert isinstance(template_maker, DistributionMaker)
         self.data_maker = data_maker
         self.template_maker = template_maker
+        assert isinstance(metric, basestring)
+        self.metric = metric.lower()
         self.minimizer_settings = None
-        self.metric = None
 
         # Generate distribution
         self.asimov = self.data_maker.get_outputs()
@@ -78,7 +79,7 @@ class Analysis(object):
     #   set (some) fixed params, then run (minimizer, scan, etc.) on free params
     #   set (some free or fixed) params, then check metric
     # where the setting of the params is done for some number of values.
-    def scan(self, metric, param_names=None, steps=None, values=None,
+    def scan(self, param_names=None, steps=None, values=None,
              outer=False):
         """Set template maker parameters named by `param_names` according to
         either values specified by `values` or number of steps specified by
@@ -93,10 +94,6 @@ class Analysis(object):
 
         Parameters
         ----------
-        metric : string
-            Metric to use to measure the "distance" between the produced
-            template(s) and the data distribution.
-
         param_names : None, string, or sequence of strings
             If None, assume all parameters are to be scanned; otherwise,
             specifies only the name or names of parameters to be scanned.
@@ -144,7 +141,6 @@ class Analysis(object):
             See `values` for a more detailed explanation.
 
         """
-        assert isinstance(metric, basestring)
         assert not (steps is not None and values is not None)
         if isinstance(param_names, basestring):
             param_names = [param_names]
@@ -160,10 +156,10 @@ class Analysis(object):
             self.template_maker.update_params(fp)
             template = self.template_maker.get_outputs()
             metric_vals.append(self.pseudodata.metric_total(expected_values=template,
-                                                      metric=metric))
+                                                      metric=self.metric))
         return metric_vals
 
-    def _minimizer_callable(self, scaled_param_vals, metric, pprint=True):
+    def _minimizer_callable(self, scaled_param_vals, pprint=True):
         """The callable interface to provide to simple minimzers e.g. those in
         scipy.optimize.
 
@@ -181,19 +177,13 @@ class Analysis(object):
             original (physical) ranges (including units) is handled within this
             method.
 
-        metric : case-insensitive string
-            Metric to use to compare the template maker's produced distribution
-            to the data distribution. Either 'llh' or 'chi2'.
-
         pprint
             Displays a single-line that updates live (assuming the entire line
             fits the width of your TTY).
 
         """
-        metric = metric.lower()
-
         sign = +1
-        if metric == 'llh':
+        if self.metric == 'llh':
             # Want to *maximize* log-likelihood but we're using a minimizer
             sign = -1
 
@@ -204,12 +194,12 @@ class Analysis(object):
         # Assess the fit of the template to the data distribution, and negate
         # if necessary
         metric_val = (
-            self.pseudodata.metric_total(expected_values=template, metric=metric)
-            + template_maker.params.priors_penalty(metric=metric)
+            self.pseudodata.metric_total(expected_values=template, metric=self.metric)
+            + template_maker.params.priors_penalty(metric=self.metric)
         )
 
         # Report status of metric & params
-        msg = '%s=%.6e | %s' %(metric, metric_val,
+        msg = '%s=%.6e | %s' %(self.metric, metric_val,
                                self.template_maker.params.free)
         if pprint:
             sys.stdout.write(msg)
@@ -220,7 +210,7 @@ class Analysis(object):
 
         return sign*metric_val
 
-    def run_l_bfgs(self,  metric, pprint=True):
+    def run_l_bfgs(self, pprint=True):
         # Reset free parameters to nominal values
         self.template_maker.params.free.reset()
 
@@ -235,7 +225,7 @@ class Analysis(object):
         # TODO: fix the minimizer implementation!
         a = opt.fmin_l_bfgs_b(func=self._minimizer_callable,
                               x0=x0,
-                              args=(metric, pprint),
+                              args=(pprint,),
                               bounds=bounds,
                               **self.minimizer_settings['options']['value'])
         if pprint:
@@ -243,20 +233,38 @@ class Analysis(object):
             print ''
         logging.info('Found best fit parameters: %s'
                      %self.template_maker.params.free)
+        if a[2]['warnflag'] > 0:
+            logging.warning(str(a[2]))
         return a
 
     def profile_llh(self, p_name):
         ''' run profile llh method for param p_name '''
+
+        # run numerator
+        logging.info('resetting params')
         self.template_maker.params.reset()
         logging.info('fixing param %s'%p_name)
         self.template_maker.params.fix(p_name)
-        num = self.run_l_bfgs(metric=self.metric, pprint=True)
+        num = self.run_l_bfgs()
+        # report MLEs and LLH
+        condMLE = {}
+        condMLE['llh'] = num[1]
+        for pname in self.template_maker.params.free.names:
+            condMLE[pname] = self.template_maker.params[pname].value
+
+        # run denominator
         logging.info('resetting params')
         self.template_maker.params.reset()
-        self.template_maker.params.unfix(p_name)
         logging.info('unfixing param %s'%p_name)
-        denom = self.run_l_bfgs(metric=self.metric, pprint=True)
-        return num[1] - denom[1]
+        self.template_maker.params.unfix(p_name)
+        denom = self.run_l_bfgs()
+        # report MLEs and LLH
+        globMLE = {}
+        globMLE['llh'] = denom[1]
+        for pname in self.template_maker.params.free.names:
+            globMLE[pname] = self.template_maker.params[pname].value
+
+        return condMLE, globMLE
 
 
 if __name__ == '__main__':
@@ -280,6 +288,8 @@ if __name__ == '__main__':
                         help='file to store the output')
     parser.add_argument('-v', action='count', default=None,
                         help='set verbosity level')
+    parser.add_argument('-n', '--num-trials', type=int, default=1,
+                        help='number of trials')
     parser.add_argument('-m', '--minimizer-settings', type=str,
                         metavar='JSONFILE', required=True,
                         help='''Settings related to the optimizer used in the
@@ -305,14 +315,27 @@ if __name__ == '__main__':
     template_maker = DistributionMaker(template_maker_configurator)
 
     analysis = Analysis(data_maker=data_maker,
-                        template_maker=template_maker)
+                        template_maker=template_maker,
+                        metric=args.metric)
 
     analysis.minimizer_settings = from_file(args.minimizer_settings)
-    analysis.metric = args.metric
 
-    logging.info('Minimizing... ')
-    np.random.seed()
-    analysis.generate_psudodata('asimov')
-    qmu = analysis.profile_llh('test')
-    print 'Significance of %.2f'%np.sqrt(qmu)
+    for i in range(args.num_trials):
+        np.random.seed()
+        analysis.generate_psudodata('poisson')
+        condMLE, globMLE = analysis.profile_llh('test')
+        print 'Significance of %.2f'%np.sqrt(condMLE['llh']-globMLE['llh'])
+        if i == 0:
+            MLEs = {'cond':{}, 'glob':{}}
+            for key, val in condMLE.items():
+                MLEs['cond'][key] = [val]
+            for key, val in globMLE.items():
+                MLEs['glob'][key] = [val]
+        else:
+            for key, val in condMLE.items():
+                MLEs['cond'][key].append(val)
+            for key, val in globMLE.items():
+                MLEs['glob'][key].append(val)
+
+    to_file(MLEs, args.outfile)
     logging.info('Done.')
