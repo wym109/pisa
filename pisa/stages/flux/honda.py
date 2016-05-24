@@ -25,6 +25,7 @@ import numpy as np
 import pint
 ureg = pint.UnitRegistry()
 from scipy import interpolate
+from collections import Mapping
 
 from pisa.core.stage import Stage
 from pisa.core.map import Map, MapSet
@@ -137,8 +138,6 @@ class honda(Stage):
         for key in flux_dict.iterkeys():
             # There are 20 lines per zenith range
             flux_dict[key] = np.array(np.split(flux_dict[key], 20))
-            if key != 'energy':
-                flux_dict[key] = flux_dict[key].T
 
         # Set the zenith and energy range as they are in the tables
         # The energy may change, but the zenith should always be
@@ -154,6 +153,13 @@ class honda(Stage):
         if flux_mode == 'bisplrep':
 
             logging.debug('Doing quick bivariate spline interpolation')
+
+            # bisplrep needs this to be transposed.
+            # Not exactly sure why, but there you go!
+            for key in flux_dict.iterkeys():
+                if key != 'energy' and key != 'coszen':
+                    flux_dict[key] = flux_dict[key].T
+            
             # do this in log of energy and log of flux (more stable)
             logE, C = np.meshgrid(np.log10(flux_dict['energy']),
                                   flux_dict['coszen'])
@@ -163,7 +169,7 @@ class honda(Stage):
                 # Get the logarithmic flux
                 log_flux = np.log10(flux_dict[nutype]).T
                 # Get a spline representation
-                spline =  bisplrep(logE, C, log_flux, s=smooth)
+                spline =  interpolate.bisplrep(logE, C, log_flux, s=smooth)
                 # and store
                 self.spline_dict[nutype] = spline
 
@@ -352,7 +358,7 @@ class honda(Stage):
 
             # Get the spline interpolation, which is in
             # log(flux) as function of log(E), cos(zenith)
-            return_table = bisplev(np.log10(evals), czvals, self.spline_dict[prim])
+            return_table = interpolate.bisplev(np.log10(evals), czvals, self.spline_dict[prim])
             return_table = np.power(10., return_table).T
 
         elif flux_mode == 'integral-preserving':
@@ -360,7 +366,8 @@ class honda(Stage):
             # Assert that spline dict matches what is expected
             # i.e. One spline for every table cosZenith value
             #      0.95 is used for no particular reason
-            assert not isinstance(self.spline_dict[self.primaries[0]][0.95], Mapping)
+            #      These keys are strings, despite being numbers
+            assert not isinstance(self.spline_dict[self.primaries[0]]['0.95'], Mapping)
 
             return_table = []
 
@@ -370,7 +377,7 @@ class honda(Stage):
                 for czkey in np.linspace(-0.95, 0.95, 20):
                     # Have to multiply by bin widths to get correct derivatives
                     # Here the bin width is in log energy, is 0.05
-                    spline_vals.append(splev(logenergyval,self.spline_dict[prim]['%.2f'%czkey],der=1)*0.05)
+                    spline_vals.append(interpolate.splev(logenergyval,self.spline_dict[prim]['%.2f'%czkey],der=1)*0.05)
                 int_spline_vals = []
                 tot_val = 0.0
                 int_spline_vals.append(tot_val)
@@ -378,11 +385,11 @@ class honda(Stage):
                     tot_val += val
                     int_spline_vals.append(tot_val)
 
-                spline = splrep(np.linspace(-1, 1, 21),int_spline_vals,s=0)
+                spline = interpolate.splrep(np.linspace(-1, 1, 21),int_spline_vals,s=0)
                 
                 # Have to multiply by bin widths to get correct derivatives
                 # Here the bin width is in cosZenith, is 0.1
-                czfluxes = splev(czvals,spline,der=1)*0.1/energyval
+                czfluxes = interpolate.splev(czvals,spline,der=1)*0.1/energyval
                 return_table.append(czfluxes)
 
             return_table = np.array(return_table).T
@@ -390,7 +397,7 @@ class honda(Stage):
         # Flux is given per sr and GeV, so we need to multiply
         # by bin width in both dimensions
         # i.e. the bin volume
-        return_table *= output_binning.bin_volumes(attach_units=False)
+        return_table *= self.output_binning.bin_volumes(attach_units=False)
 
         if self.output_binning.names[0] == 'energy':
             # Current dimensionality is (cz,E)
