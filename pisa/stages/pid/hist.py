@@ -239,22 +239,28 @@ class hist(Stage):
                 invalid_idx = np.where(invalid_idx)[0]
                 num_invalid = len(invalid_idx)
 
-                message = 'Group "%s", PID signature "%s" has %d invalid' \
-                        ' entry(ies)!' % (flavint, sig, num_invalid)
+                if num_invalid > 0:
+                    logging.warn(
+                        'Group "%s", PID signature "%s" has %d bins with no'
+                        ' events (and hence the ability to separate events'
+                        ' by PID cannot be ascertained).'
+                        %(flavint, sig, num_invalid)
+                    )
 
-                if num_invalid > 0 and not self.params['replace_invalid']:
-                    pass
-                    #raise ValueError(message)
-
-                replace_idx = []
-                if num_invalid > 0 and self.params['replace_invalid']:
-                    logging.warn(message)
-                    valid_idx = np.where(valid_idx)[0]
-                    for idx in invalid_idx:
-                        dist = np.abs(valid_idx-idx)
-                        nearest_valid_idx = valid_idx[np.where(dist==np.min(dist))[0][0]]
-                        replace_idx.append(nearest_valid_idx)
-                        xform_array[idx] = xform_array[nearest_valid_idx]
+                    if self.params['replace_invalid']:
+                        logging.warn('Replacing the no-events bins with values'
+                                     ' from closest bins that have events.')
+                        replace_idx = []
+                        logging.warn(message)
+                        valid_idx = np.where(valid_idx)[0]
+                        for idx in invalid_idx:
+                            dist = np.abs(valid_idx-idx)
+                            nearest_valid_idx = valid_idx[np.where(dist==np.min(dist))[0][0]]
+                            replace_idx.append(nearest_valid_idx)
+                            xform_array[idx] = xform_array[nearest_valid_idx]
+                    else:
+                        # TODO: raise ValueError(message) ?
+                        pass
 
                 xform = BinnedTensorTransform(
                     input_names=flavint,
