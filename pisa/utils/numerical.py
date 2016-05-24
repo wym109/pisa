@@ -81,6 +81,73 @@ def normQuant(x, sigfigs):
     raise TypeError('Unhandled type %s' %type(x))
 
 
+def engfmt(n, sigfigs=3, decimals=None, sign_always=False):
+    """Format number as string in engineering format (10^(multiples-of-three)),
+    including the most common metric prefixes (from atto to Exa).
+
+    Parameters
+    ----------
+    n : scalar
+        Number to be formatted
+    sigfigs : int >= 0
+        Number of significant figures to limit the result to; default=3.
+    decimals : int or None
+        Number of decimals to display (zeros filled out as necessary). If None,
+        `decimals` is automatically determined by the magnitude of the
+        significand and the specified `sigfigs`.
+    sign_always : bool
+        Prefix the number with "+" sign if number is positive; otherwise,
+        only negative numbers are prefixed with a sign ("-")
+
+    """
+    prefixes = {-18:'a', -15:'f', -12:'p', -9:'n', -6:'u', -3:'m', 0:'',
+                3:'k', 6:'M', 9:'G', 12:'T', 15:'P', 18:'E'}
+    if isinstance(n, pint.quantity._Quantity):
+        units = n.units
+        n = n.magnitude
+    else:
+        units = ureg.dimensionless
+
+    # Logs don't like negative numbers...
+    sign = np.sign(n)
+    n *= sign
+
+    mag = int(np.floor(np.log10(n)))
+    pfx_mag = int(np.floor(np.log10(n)/3.0)*3)
+
+    if decimals is None:
+        decimals = sigfigs-1 - (mag-pfx_mag)
+    decimals = int(np.clip(decimals, a_min=0, a_max=np.inf))
+
+    round_to = decimals
+    if sigfigs is not None:
+        round_to = sigfigs-1 - (mag-pfx_mag)
+
+    scaled_rounded = np.round(n/10.0**pfx_mag, round_to)
+
+    sign_str = ''
+    if sign_always and sign > 0:
+        sign_str = '+'
+    num_str = sign_str + format(sign*scaled_rounded, '.'+str(decimals)+'f')
+
+    # Very large or small quantities have their order of magnitude displayed
+    # by printing the exponent rather than showing a prefix; due to my
+    # inability to strip off prefix in Pint quantities (and attach my own
+    # prefix), just use the "e" notation.
+    if pfx_mag not in prefixes or not units.dimensionless:
+        if pfx_mag == 0:
+            return str.strip('{0:s} {1:~} '.format(num_str, units))
+        else:
+            return str.strip('{0:s}e{1:d} {2:~} '.format(num_str, pfx_mag,
+                                                         units))
+
+    # Dimensionless quantities are treated separately since Pint apparently
+    # can't handle prefixed-dimensionless (e.g., simply "1 k", "2.2 M", etc.,
+    # with no units attached).
+    #if units.dimensionless:
+    return  '{0:s} {1:s}'.format(num_str, prefixes[pfx_mag])
+
+
 def test_normQuant():
     from pisa.utils.log import logging, set_verbosity
     q0 = 1e5*np.ones(10)*ureg.um

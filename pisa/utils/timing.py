@@ -1,4 +1,12 @@
+#!/usr/bin/env python
+
 import time
+
+import numpy as np
+
+from pisa.utils.numerical import engfmt
+
+# TODO: add unit tests!
 
 class Timer(object):
     def __init__(self, verbose=False):
@@ -16,7 +24,7 @@ class Timer(object):
             print 'elapsed time: %f ms' % self.msecs
 
 
-def timediffstamp(dt_sec, hms_always=False, sigfigs=3):
+def timediffstamp(dt_sec, hms_always=False, sec_resolution=3):
     """Smart string formatting for a time difference (in seconds)
 
     Parameters
@@ -34,12 +42,12 @@ def timediffstamp(dt_sec, hms_always=False, sigfigs=3):
             * dt_sec < 1 s
                 Use engineering formatting for the number.
             * dt_sec is an integer in the range 0-59 (inclusive)
-                `sigfigs` is ignored and the number is formatted as an integer
+                `sec_decimals` is ignored and the number is formatted as an
+                integer
             See Notes below for handling of units.
         (Default: False)
-    sigfigs : int
-        Number of significant figures to display for seconds; zeros are filled
-        out as necessary
+    sec_decimals : int
+        Round seconds to this number of digits
 
     Notes
     -----
@@ -70,12 +78,14 @@ def timediffstamp(dt_sec, hms_always=False, sigfigs=3):
     else:
         # If no hours or minutes, use engineering fmt
         if (h == 0) and (m == 0) and not hms_always:
-            return engfmt(dt_sec*sgn, sigfigs=sigfigs, units='s')
-        # Otherwise, round seconds to sigfigs-1 decimal digits (so sigfigs
-        # isn't really acting as significant figures in this case)
-        s = np.round(s, sigfigs-1)
-        s_fmt = '.'+str(sigfigs-1)+'f' if len(strdt) == 0 \
-            else '06.'+str(sigfigs-1)+'f'
+            return engfmt(dt_sec*sgn, sigfigs=100, decimals=sec_decimals) + 's'
+        # Otherwise, round seconds to sec_decimals decimal digits
+        s = np.round(s, sec_decimals)
+        if len(strdt) == 0:
+            s_fmt = '.%df' %sec_decimals
+        else:
+            s_fmt = '0%d.%df' %(3+sec_decimals, sec_decimals)
+        print 's_fmt:', s_fmt
     if len(strdt) > 0:
         strdt += format(s, s_fmt)
     else:
@@ -130,8 +140,21 @@ def timestamp(d=True, t=True, tz=True, utc=False, winsafe=False):
                 dts += offset
     return dts
 
-if __name__ == '__main__':
+
+def test_timestamp():
     print timestamp()
+
+
+def test_timediffstamp():
     print timediffstamp(1234)
+
+
+def test_Timer():
     with Timer() as t:
         pass
+
+
+if __name__ == '__main__':
+    test_timestamp()
+    test_timediffstamp()
+    test_Timer()
