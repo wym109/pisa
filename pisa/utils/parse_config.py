@@ -54,7 +54,7 @@ def parse_quantity(string):
 
 def parse_string_literal(string):
     if string.lower().strip() == 'true': return True
-    elif string.lower().strip() == 'false' return False 
+    elif string.lower().strip() == 'false': return False 
     return string
 
 
