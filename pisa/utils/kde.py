@@ -80,6 +80,8 @@ estimation via diffusion. The Annals of Statistics, 38(5):2916-2957, 2010.
 
 from __future__ import division
 
+import os
+
 import numpy as np
 from scipy import fftpack
 from scipy import optimize
@@ -106,12 +108,8 @@ except:
 else:
     gaussian = GAUS.gaussian
     gaussians = GAUS.gaussians
-    try:
-        import multiprocessing
-        openmp_num_threads = max(multiprocessing.cpu_count(), 8)
-    except:
-        openmp_num_threads = 1
-
+    if os.environ.has_key('OMP_NUM_THREADS'):
+        openmp_num_threads = os.environ['OMP_NUM_THREADS']
 
 
 def fbw_kde(data, N=None, MIN=None, MAX=None, overfit_factor=1.0):
@@ -304,12 +302,12 @@ def vbw_kde(data, N=None, MIN=None, MAX=None, evaluate_dens=True,
 
     # Create linear interpolator for this new density then find density est. at
     # the original data points' locations; call this fbw_dens_at_datapoints
-    interp = interpolate.interp1d(x             = mesh,
-                                  y             = fbw_dens_on_mesh,
-                                  kind          = 'linear',
-                                  copy          = False,
-                                  bounds_error  = True,
-                                  fill_value    = np.nan)
+    interp = interpolate.interp1d(x=mesh,
+                                  y=fbw_dens_on_mesh,
+                                  kind='linear',
+                                  copy=False,
+                                  bounds_error=True,
+                                  fill_value=np.nan)
     fbw_dens_at_datapoints = interp(data)
 
     # Note below diverges from the published Ambramson method, by forcing the
@@ -331,11 +329,15 @@ def vbw_kde(data, N=None, MIN=None, MAX=None, evaluate_dens=True,
     if not evaluate_dens:
         return kernel_bandwidths, evaluate_at, None
     vbw_dens_est = np.zeros_like(evaluate_at, dtype=np.double)
-    gaussians(outbuf  = vbw_dens_est,
-              x       = evaluate_at.astype(np.double),
-              mu      = data.astype(np.double),
-              sigma   = kernel_bandwidths.astype(np.double),
-              threads = int(openmp_num_threads))
+    gaussians(outbuf=vbw_dens_est,
+              x=evaluate_at.astype(np.double),
+              mu=data.astype(np.double),
+              sigma=kernel_bandwidths.astype(np.double),
+              threads=int(openmp_num_threads))
+
+    # TODO: simply divide by number of points (since using normalized
+    # gaussians, each point will contribute an area of 1--or area of the
+    # point's weight, if weighting)
 
     # Normalize distribution to have area of 1
     vbw_dens_est = vbw_dens_est/np.trapz(y=vbw_dens_est, x=evaluate_at)
@@ -359,6 +361,7 @@ def fixed_point(t, M, I, a2):
     return t-(2*M*sqrtpi*f)**(-0.4)
 
 
+# TODO: use the "toy" events file instead
 def speedTest():
     import os
     import cPickle
