@@ -4,104 +4,75 @@ The purpose of this stage is to simulate the event classification of
 PINGU, sorting the reconstructed nue CC, numu CC, nutau CC, and NC
 events into the track and cascade channels.
 
-## Main module
-
-The main module for this stage is `PID.py`, which takes the
-reconstructed event rates (output of `Reco.py`) as an input and sorts
-it into the event classes PINGU can distinguish: track-like (`'trck'`)
-and shower-like (`'cscd'`). There is the possibility to open a third
-channel (`'unkn'`) for events that passed neither track nor shower
-selection cuts.
-
-Therefore, it provides the function `get_pid_maps`, which is called as
-```
-get_pid_maps(reco_events, pid_service=None, recalculate=False,
-             return_unknown=False, **kwargs)
-```
-where
-* `reco_events`: dict holding reconstructed event rates with the
-following fields:
-```
-{"nue_cc": {'czbins':[], 'ebins':[], 'map':[]},
- "numu_cc": {...},
- "nutau_cc": {...},
- "nuall_nc": {...} }
-```
-* `pid_service`: a pid service to use
-* `recalculate`: whether to re-calculate the PID kernels before doing the
- identification
-* `return_unknown`: whether to return a channel of 'unknown' signature
-
-### Parameters
-
-* `reco_event_maps`: Reconstructed event rate input file (`JSON`) whose
- content will be passed to `get_pid_maps`.
-* `mode`: Defines which service to use for the particle identification,
- one of [`param`, `stored`]. Details below.
-* Depending on the chosen PID mode, one of [`param_file` (`JSON`), `kernel_file` (`JSON`)]
- has to be specified, providing the actual PID information.
-
-### Output
-
-This stage returns maps of event counts for both signatures:
-```
-{"cscd": {'czbins':[], 'ebins':[], 'map':[]},
- "trck": {'czbins':[], 'ebins':[], 'map':[]}}
-```
-
 ## Services
 
-The base service class `PIDServiceBase` contains everything that is
-related to actually applying the PID kernels to the data, as
-well as sanity checks of the kernels. The methods common to all PID
-services (which are all implemented here) are:
+There exists three services for this particular stage: `hist`, `param` and
+`kernel`.
 
-* `get_pid_kernels`: This method is called to construct the PID kernels,
- i.e. two 2D histograms of ID probability as track and cascade as function
- of energy and cos(zenith) for each flavour. It is individually
- implemented in the derived classes, since the way the PID kernels are
- generated depends on the PID method.
-* `check_kernels`: Test whether the PID kernels have the correct shape
- (see above) and the sum of the track and cascade ID probabilities is not
- larger than 1.
-* `recalculate_kernels(**kwargs)`: Call `get_pid_kernels` again, passing
- `kwargs` and do all necessary checks. If new kernels are corrupted,
- stick with the old ones.
-* `store_pid_kernels(filename)`: Store PID kernels in `JSON`  format to
- re-use them later.
-
-The different derived PID services (i.e. different implementations
-of `get_pid_kernels`) are:
-
-### PIDServiceParam
-Argument(s):
-* `pid_paramfile`: `JSON` file containing the PID functions as strings for
-all flavours. This should look like
+### hist
+This service takes in events from a *joined* PISA HDF5 file. The current
+implementation of this service requires that the nodes on these file
+match a certain flavour/interaction combination or "particle signature", which
+is `nue_cc, numu_cc, nutau_cc, nuall_nc`. Thus, only the HDF5 files with the
+naming convention
 ```
-{"nue_cc": {
-   "cscd": "lambda E: some_func_of(E)",
-   "trck": "lambda E: some_other_func_of(E)"
- },
- "numu_cc": {...},
- "nutau_cc": {...},
- "nuall_nc": {...}
-}
+events__*__joined_G_nue_cc+nuebar_cc_G_numu_cc+numubar_cc_G_nutau_cc+nutaubar_cc_G_nuall_nc+nuallbar_nc.hdf5
 ```
-such that it can be evaluated via pythons `eval()` function. In the function
-definitions, `numpy` (as `np`) and `scipy.stats` can be used.
-* `PID_scale` (default: 1): Systematic parameter, scales *all* PID functions
- by this factor. Reflects the fact that particle ID might be more or less
- effective than assumed. Note that `PID_scale != 1` will lead to losing or
- generating additional  events if the `unkn` channel is not enabled!
-* `PID_offset` in GeV (default: 0): Systematic parameter, shifts all PID
- functions in energy. Stands for the possibility that particle ID, which can
- usually be described by a step-like function, might become effecive at higher
- (lower) energies than assumed.
+should be used as input. The structure of the datafile is
+```
+flavour / int_type / value
+```
+where
+  *  `flavour` is one of `nue, nue_bar, numu, numu_bar, nutau, nutau_bar`
+  *  `int_type` is one of `cc` or `nc`
+  *  `values` is one of
+    * `pid` : the pid score per event
+    * `reco_energy` : the reco energy of the event
+    * `reco_coszen` : the reco cos(zenith) of the event
+    * `weighted_aeff`: the effective area weight per event (see Stage 3, Effective Area)
 
-### PIDServiceKernelFile
+For the 'joined' event files, the charged current components for the particle
+and antiparticle of a specific neutrino flavour are summed so that, for
+example, the data in the nodes `nue/cc` and `nue_bar/cc` both contain their
+own and each others events. The combined neutral current interaction for all
+neutrino flavours is also summed in the same way, so that any `nc` node
+contains the data of all neutrino flavours.
+Once the file has been read in, for each particle signature, a histogram in the
+input binning dimensions and pid score is created and then normalised to one
+with respect to the particle signature to give the PID probabilities in each
+bin. The input maps are then transformed according to these probabilities to
+provide an output containing a map for track-like events ('trck') and
+shower-like events ('cscd'), which is then returned.
 
-Argument(s):
-* `pid_kernelfile`: `JSON` file containing a previously calculated PID
- kernel as produced by the `store_pid_kernels` method.
+Arguments:
+  * `params` : `ParamSet` or sequence with which to instantiate a ParamSet
+    Parameters which set everything besides the binning.
 
-Loads the kernels from disk and uses them for particle ID.
+    Parameters required by this service are:
+      - `pid_events` : `Events` or filepath
+        Events object or file path to HDF5 file containing events
+
+      - `pid_ver` : `string`
+        Version of PID to use (as defined for this detector/geometry/processing)
+
+      - `pid_remove_true_downgoing` : `bool`
+        Remove MC-true-downgoing events
+
+      - `pid_spec` : `PIDSpec`
+        PIDSpec object which specifies the PID specifications
+        Either `pid_spec` or `pid_spec_source` can be used to define the PID specifications
+
+      - `pid_spec_source` : filepath
+        Resource for loading PID specifications
+
+      - `compute_error` : `bool`
+        Compute histogram errors
+
+  * `input_binning` : `MultiDimBinning`
+    Arbitrary number of dimensions accepted. Contents of the input `pid_events`
+    parameter defines the possible binning dimensions. Name(s) of given
+    binning(s) must match to a reco variable in `pid_events`.
+
+  * `output_binning` : `MultiDimBinning`
+  * `transforms_cache_depth` : `int` >= 0
+  * `outputs_cache_depth` : `int` >= 0
