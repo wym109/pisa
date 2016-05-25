@@ -48,9 +48,9 @@ class hist(Stage):
 
         If str, interpret as resource location and load params from resource.
         If dict, set contained params. Format expected is
-            {'<param_name>': <Param object or passable to Param()>}.
+            {'<param_name>': <Param object or passable to Param()>}
 
-        Required fields:
+        Parameters required by this service are
             * pid_events : Events or filepath
                 Events object or file path to HDF5 file containing events
 
@@ -73,9 +73,6 @@ class hist(Stage):
 
             * compute_error : Bool
                 Compute histogram errors
-
-            * replace_invalid : Bool
-                Replace invalid histogram entries with nearest neighbor's value
 
     input_binning : MultiDimBinning
         The `inputs` must be a MapSet whose member maps (instances of Map)
@@ -108,10 +105,9 @@ class hist(Stage):
                  transforms_cache_depth=20, outputs_cache_depth=20):
         # All of the following params (and no more) must be passed via
         # the `params` argument.
-        # TODO(shivesh): hard-code replace_invalid?
         expected_params = (
             'pid_events', 'pid_ver', 'pid_remove_true_downgoing', 'pid_spec',
-            'pid_spec_source', 'compute_error', 'replace_invalid'
+            'pid_spec_source', 'compute_error'
         )
 
         # Define the names of objects that are required by this stage (objects
@@ -142,7 +138,7 @@ class hist(Stage):
 
     def _compute_transforms(self):
         """Compute new PID transforms."""
-        logging.info('Updating PIDServiceMC PID histograms...')
+        logging.info('Updating pid.hist PID histograms...')
 
         # TODO(shivesh): As of now, events do not have units as far as PISA
         # is concerned
@@ -235,31 +231,18 @@ class hist(Stage):
                 xform_array = raw_histo[sig] / total_histo
 
                 invalid_idx = total_histo == 0
-                valid_idx = 1-invalid_idx
-                invalid_idx = np.where(invalid_idx)[0]
+                invalid_idx = np.where(invalid_idx)
                 num_invalid = len(invalid_idx)
 
                 if num_invalid > 0:
                     logging.warn(
                         'Group "%s", PID signature "%s" has %d bins with no'
                         ' events (and hence the ability to separate events'
-                        ' by PID cannot be ascertained).'
+                        ' by PID cannot be ascertained). These are being'
+                        ' masked off from any further computations.'
                         %(flavint, sig, num_invalid)
                     )
-
-                    if self.params['replace_invalid']:
-                        logging.warn('Replacing the no-events bins with values'
-                                     ' from closest bins that have events.')
-                        replace_idx = []
-                        valid_idx = np.where(valid_idx)[0]
-                        for idx in invalid_idx:
-                            dist = np.abs(valid_idx-idx)
-                            nearest_valid_idx = valid_idx[np.where(dist==np.min(dist))[0][0]]
-                            replace_idx.append(nearest_valid_idx)
-                            xform_array[idx] = xform_array[nearest_valid_idx]
-                    else:
-                        # TODO: raise ValueError(message) ?
-                        pass
+                    xform_array = np.ma.masked_invalid(xform_array)
 
                 # Double check that no NaN remain
                 assert not np.any(np.isnan(xform_array))
@@ -281,10 +264,8 @@ class hist(Stage):
         # Check type of pid_events
         assert isinstance(params['pid_events'].value, (basestring, Events))
 
-        # Check type of compute_error, replace_invalid,
-        # pid_remove_true_downgoing
+        # Check type of compute_error, pid_remove_true_downgoing
         assert isinstance(params['compute_error'].value, bool)
-        assert isinstance(params['replace_invalid'].value, bool)
         assert isinstance(params['pid_remove_true_downgoing'].value, bool)
 
         # Check type of pid_ver, pid_spec_source
@@ -294,10 +275,10 @@ class hist(Stage):
         # Check the groupings of the pid_events file
         events = Events(params['pid_events'].value)
         should_be_joined = sorted([
-            NuFlavIntGroup('nuecc+nuebarcc'),
-            NuFlavIntGroup('numucc+numubarcc'),
-            NuFlavIntGroup('nutaucc+nutaubarcc'),
-            NuFlavIntGroup('nuallnc+nuallbarnc'),
+            NuFlavIntGroup('nue_cc + nuebar_cc'),
+            NuFlavIntGroup('numu_cc + numubar_cc'),
+            NuFlavIntGroup('nutau_cc + nutaubar_cc'),
+            NuFlavIntGroup('nuall_nc + nuallbar_nc'),
         ])
         are_joined = sorted([
             NuFlavIntGroup(s)
