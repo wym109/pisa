@@ -10,7 +10,7 @@ There exists three services for this particular stage: `hist`, `param` and
 `kernel`.
 
 ### hist
-This service takes in events from a *joined* PISA HDF5 file. The current
+This service takes in events from a **joined** PISA HDF5 file. The current
 implementation of this service requires that the nodes on these file
 match a certain flavour/interaction combination or "particle signature", which
 is `nue_cc, numu_cc, nutau_cc, nuall_nc`. Thus, only the HDF5 files with the
@@ -37,38 +37,47 @@ example, the data in the nodes `nue/cc` and `nue_bar/cc` both contain their
 own and each others events. The combined neutral current interaction for all
 neutrino flavours is also summed in the same way, so that any `nc` node
 contains the data of all neutrino flavours.
+
 Once the file has been read in, for each particle signature, a histogram in the
 input binning dimensions and pid score is created and then normalised to one
 with respect to the particle signature to give the PID probabilities in each
 bin. The input maps are then transformed according to these probabilities to
-provide an output containing a map for track-like events ('trck') and
-shower-like events ('cscd'), which is then returned.
+provide an output containing a map for track-like events `trck` and
+shower-like events `cscd`, which is then returned.
 
 Arguments:
-  * `params` : `ParamSet` or sequence with which to instantiate a ParamSet
+  * `params` : `ParamSet` or sequence with which to instantiate a ParamSet.
+
     Parameters which set everything besides the binning.
 
     Parameters required by this service are:
       - `pid_events` : `Events` or filepath
+
         Events object or file path to HDF5 file containing events
 
       - `pid_ver` : `string`
+
         Version of PID to use (as defined for this detector/geometry/processing)
 
       - `pid_remove_true_downgoing` : `bool`
+
         Remove MC-true-downgoing events
 
       - `pid_spec` : `PIDSpec`
-        PIDSpec object which specifies the PID specifications
+
+        PIDSpec object which specifies the PID specifications.
         Either `pid_spec` or `pid_spec_source` can be used to define the PID specifications
 
       - `pid_spec_source` : filepath
+
         Resource for loading PID specifications
 
       - `compute_error` : `bool`
+
         Compute histogram errors
 
   * `input_binning` : `MultiDimBinning`
+
     Arbitrary number of dimensions accepted. Contents of the input `pid_events`
     parameter defines the possible binning dimensions. Name(s) of given
     binning(s) must match to a reco variable in `pid_events`.
