@@ -94,7 +94,7 @@ class honda(Stage):
         )
 
         # Set the neutrio primaries
-        self.primaries = ['nue', 'numu', 'nue_bar', 'numu_bar']
+        self.primaries = ['numu', 'numu_bar', 'nue', 'nue_bar']
 
         # Initialisation of this service should load the flux tables
         # Can work with either 2D (E,Z,AA) or 3D (E,Z,A) tables.
@@ -406,8 +406,8 @@ class honda(Stage):
         
         # Put the flux into a Map object, give it the output_name
         return_map = Map(name=prim,
-                          hist=return_table,
-                          binning=self.output_binning)
+                         hist=return_table,
+                         binning=self.output_binning)
         
         return return_map
 
