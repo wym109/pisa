@@ -48,9 +48,9 @@ class hist(Stage):
 
         If str, interpret as resource location and load params from resource.
         If dict, set contained params. Format expected is
-            {'<param_name>': <Param object or passable to Param()>}.
+            {'<param_name>': <Param object or passable to Param()>}
 
-        Required fields:
+        Parameters required by this service are
             * pid_events : Events or filepath
                 Events object or file path to HDF5 file containing events
 
@@ -138,7 +138,7 @@ class hist(Stage):
 
     def _compute_transforms(self):
         """Compute new PID transforms."""
-        logging.info('Updating PIDServiceMC PID histograms...')
+        logging.info('Updating pid.hist PID histograms...')
 
         # TODO(shivesh): As of now, events do not have units as far as PISA
         # is concerned
@@ -275,10 +275,10 @@ class hist(Stage):
         # Check the groupings of the pid_events file
         events = Events(params['pid_events'].value)
         should_be_joined = sorted([
-            NuFlavIntGroup('nuecc+nuebarcc'),
-            NuFlavIntGroup('numucc+numubarcc'),
-            NuFlavIntGroup('nutaucc+nutaubarcc'),
-            NuFlavIntGroup('nuallnc+nuallbarnc'),
+            NuFlavIntGroup('nue_cc + nuebar_cc'),
+            NuFlavIntGroup('numu_cc + numubar_cc'),
+            NuFlavIntGroup('nutau_cc + nutaubar_cc'),
+            NuFlavIntGroup('nuall_nc + nuallbar_nc'),
         ])
         are_joined = sorted([
             NuFlavIntGroup(s)
