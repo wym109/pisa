@@ -161,9 +161,13 @@ class Map(object):
                  full_comparison=True):
         # Set Read/write attributes via their defined setters
         super(Map, self).__setattr__('_name', name)
+        # TeX dict for some common map names
         tex_dict = {'nue':r'\nu_e',
                     'numu':r'\nu_{\mu}',
                     'nutau':r'\nu_{\tau}',
+                    'nuebar':r'\bar{\nu}_e',
+                    'numubar':r'\bar{\nu}_{\mu}',
+                    'nutaubar':r'\bar{\nu}_{\tau}',
                     'nue_cc':r'\nu_e\ CC',
                     'numu_cc':r'\nu_{\mu}\ CC',
                     'nutau_cc':r'\nu_{\tau}\ CC',
