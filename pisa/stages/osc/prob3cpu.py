@@ -9,6 +9,7 @@ import pint; ureg = pint.UnitRegistry()
 from pisa.core.binning import MultiDimBinning
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
+from pisa.resources.resources import find_resource
 from pisa.stages.osc.prob3.BargerPropagator import BargerPropagator
 from pisa.utils.log import logging
 from pisa.utils.numerical import normQuant
@@ -186,7 +187,7 @@ class prob3cpu(Stage):
 
         # TODO: can we pass kwargs to swig-ed C++ code?
         self.barger_propagator = BargerPropagator(
-            self._barger_earth_model,
+            find_resource(self._barger_earth_model),
             self._barger_detector_depth.magnitude
         )
         self.barger_propagator.UseMassEigenstates(False)
@@ -276,13 +277,10 @@ class prob3cpu(Stage):
                 antipart_xform[full_indexer] = \
                         self.barger_propagator.GetProb(in_code, out_code)
 
-        print 'shapes:', part_xform.shape, 'and', antipart_xform.shape
-
         # Slice up the transform arrays into views to populate each transform
         transforms = []
         for out_idx, output_name in enumerate(self.output_names):
             out_idx = out_idx % 3
-            print out_idx
             if 'bar' not in output_name:
                 xform = part_xform[out_idx, :, ...]
                 input_names = self.input_names[0:2]
@@ -300,10 +298,7 @@ class prob3cpu(Stage):
                 )
             )
 
-        xform_set = TransformSet(transforms=transforms)
-        print len(transforms)
-        #print xform_set
-        return xform_set
+        return TransformSet(transforms=transforms)
 
     def validate_params(self, params):
         pass
