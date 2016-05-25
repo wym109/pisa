@@ -228,12 +228,10 @@ class hist(Stage):
                 total_histo += raw_histo[sig]
 
             for sig in self.output_names:
-                xform_array = raw_histo[sig] / total_histo
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    xform_array = raw_histo[sig] / total_histo
 
-                invalid_idx = total_histo == 0
-                invalid_idx = np.where(invalid_idx)
-                num_invalid = len(invalid_idx)
-
+                num_invalid = np.sum(~np.isfinite(xform_array))
                 if num_invalid > 0:
                     logging.warn(
                         'Group "%s", PID signature "%s" has %d bins with no'
