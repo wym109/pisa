@@ -8,6 +8,10 @@
 
 # Naming conventions
 * Stage/service naming: see [creating a service](creating_a_service). (Note that the all-lower-case class naming scheme for services is one of the few exceptions we make to the general Python conventions above.)
+* Use the following syntax to refer to neutrino signatures `*flavour*_*interaction*_*pid*` where:
+  * `flavour` is one of `nue, nuebar, numu, numubar, nutau, nutaubar`
+  * `interaction` is one of `cc, nc`
+  * `pid` is one of `trck, cscd`
 
 # Documentation conventions
 ## Docstrings
