@@ -10,78 +10,18 @@ There exists three services for this particular stage: `hist`, `param` and
 `kernel`.
 
 ### hist
-This service takes in events from a **joined** PISA HDF5 file. The current
-implementation of this service requires that the nodes on these file
-match a certain flavour/interaction combination or "particle signature", which
-is `nue_cc, numu_cc, nutau_cc, nuall_nc`. Thus, only the HDF5 files with the
-naming convention
-```
-events__*__joined_G_nue_cc+nuebar_cc_G_numu_cc+numubar_cc_G_nutau_cc+nutaubar_cc_G_nuall_nc+nuallbar_nc.hdf5
-```
-should be used as input. The structure of the datafile is
-```
-flavour / int_type / value
-```
-where
-  *  `flavour` is one of `nue, nue_bar, numu, numu_bar, nutau, nutau_bar`
-  *  `int_type` is one of `cc` or `nc`
-  *  `values` is one of
-    * `pid` : the pid score per event
-    * `reco_energy` : the reco energy of the event
-    * `reco_coszen` : the reco cos(zenith) of the event
-    * `weighted_aeff`: the effective area weight per event (see Stage 3, Effective Area)
+This service utilises pre-computed particle ID scores in its determination of
+which events classify as tracks and which classify as cascades. This has the
+advtantage that one can utilise much more sophisticated classfication methods
+such as multivariate analysis (MVA) techniques however, the computation time to
+generate these scores grows exponentially with the complexity of these
+techniques. Once they are calculated, the pid score gives a single value which
+quantifies the likelihood of a given event being track-like. Specifications
+given as input to this service give the pid score value which is used as the
+minimum cut-off to classify an event as track-like, the events which have pid
+score's under this cut-off value are classified as cascade-like.
 
-For the 'joined' event files, the charged current components for the particle
-and antiparticle of a specific neutrino flavour are summed so that, for
-example, the data in the nodes `nue/cc` and `nue_bar/cc` both contain their
-own and each others events. The combined neutral current interaction for all
-neutrino flavours is also summed in the same way, so that any `nc` node
-contains the data of all neutrino flavours.
-
-Once the file has been read in, for each particle signature, a histogram in the
-input binning dimensions and pid score is created and then normalised to one
-with respect to the particle signature to give the PID probabilities in each
-bin. The input maps are then transformed according to these probabilities to
-provide an output containing a map for track-like events `trck` and
-shower-like events `cscd`, which is then returned.
-
-Arguments:
-  * `params` : `ParamSet` or sequence with which to instantiate a ParamSet.
-
-    Parameters which set everything besides the binning.
-
-    Parameters required by this service are:
-      - `pid_events` : `Events` or filepath
-
-        Events object or file path to HDF5 file containing events
-
-      - `pid_ver` : `string`
-
-        Version of PID to use (as defined for this detector/geometry/processing)
-
-      - `pid_remove_true_downgoing` : `bool`
-
-        Remove MC-true-downgoing events
-
-      - `pid_spec` : `PIDSpec`
-
-        PIDSpec object which specifies the PID specifications.
-        Either `pid_spec` or `pid_spec_source` can be used to define the PID specifications
-
-      - `pid_spec_source` : filepath
-
-        Resource for loading PID specifications
-
-      - `compute_error` : `bool`
-
-        Compute histogram errors
-
-  * `input_binning` : `MultiDimBinning`
-
-    Arbitrary number of dimensions accepted. Contents of the input `pid_events`
-    parameter defines the possible binning dimensions. Name(s) of given
-    binning(s) must match to a reco variable in `pid_events`.
-
-  * `output_binning` : `MultiDimBinning`
-  * `transforms_cache_depth` : `int` >= 0
-  * `outputs_cache_depth` : `int` >= 0
+Related links:
+[Status of Particle Identification on PINGU, JP,
+2013-11-20](https://wikispaces.psu.edu/download/attachments/173476942/20131120_jpamdandre_PINGUPID.pdf?version=1&modificationDate=1384959568000&api=v2)
+[PID update, JP, 2014-03-26](https://wikispaces.psu.edu/download/attachments/194447201/20140326_jpamdandre_PIDinFrame.pdf?version=1&modificationDate=1395806349000&api=v2)

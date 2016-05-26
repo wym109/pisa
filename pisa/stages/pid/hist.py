@@ -28,7 +28,7 @@ import numpy as np
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.utils.events import Events
-from pisa.utils.flavInt import NuFlavInt, NuFlavIntGroup
+from pisa.utils.flavInt import NuFlavIntGroup
 from pisa.utils.PIDSpec import PIDSpec
 from pisa.utils.dataProcParams import DataProcParams
 from pisa.utils.log import logging
@@ -101,6 +101,43 @@ class hist(Stage):
         * 'trck'
         * 'cscd'
 
+    Notes
+    ----------
+    This service takes in events from a **joined** PISA HDF5 file. The current
+    implementation of this service requires that the nodes on these file match
+    a certain flavour/interaction combination or "particle signature", which is
+    `nue_cc, numu_cc, nutau_cc, nuall_nc`. Thus, only the HDF5 files with the
+    naming convention
+    ```
+    events__*__joined_G_nue_cc+nuebar_cc_G_numu_cc+numubar_cc_G_nutau_cc+nutaubar_cc_G_nuall_nc+nuallbar_nc.hdf5
+    ```
+    should be used as input. The structure of the datafile is
+    ```
+    flavour / int_type / value
+    ```
+    where
+      *  `flavour` is one of `nue, nue_bar, numu, numu_bar, nutau, nutau_bar`
+      *  `int_type` is one of `cc` or `nc`
+      *  `values` is one of
+        * `pid` : the pid score per event
+        * `reco_energy` : the reco energy of the event
+        * `reco_coszen` : the reco cos(zenith) of the event
+        * `weighted_aeff`: the effective area weight per event
+          (see Stage 3, Effective Area)
+
+    For the 'joined' event files, the charged current components for the
+    particle and antiparticle of a specific neutrino flavour are summed so
+    that, for example, the data in the nodes `nue/cc` and `nue_bar/cc` both
+    contain their own and each others events. The combined neutral current
+    interaction for all neutrino flavours is also summed in the same way, so
+    that any `nc` node contains the data of all neutrino flavours.
+
+    Once the file has been read in, for each particle signature, a histogram in
+    the input binning dimensions and pid score is created and then normalised
+    to one with respect to the particle signature to give the PID probabilities
+    in each bin. The input maps are then transformed according to these
+    probabilities to provide an output containing a map for track-like events
+    `trck` and shower-like events `cscd`, which is then returned.
     """
     def __init__(self, params, input_binning, output_binning, disk_cache=None,
                  transforms_cache_depth=20, outputs_cache_depth=20):
@@ -198,7 +235,7 @@ class hist(Stage):
         # TODO: add importance weights, error computation
 
         logging.info("Separating events by PID...")
-        var_names = ['reco_%s' %bin_name
+        var_names = ['reco_%s' % bin_name
                      for bin_name in self.output_binning.names]
         var_names += ['weighted_aeff']
         separated_events = pid_spec.applyPID(
@@ -240,7 +277,7 @@ class hist(Stage):
                         ' events (and hence the ability to separate events'
                         ' by PID cannot be ascertained). These are being'
                         ' masked off from any further computations.'
-                        %(flavint, sig, num_invalid)
+                        % (flavint, sig, num_invalid)
                     )
                     xform_array = np.ma.masked_invalid(xform_array)
 
