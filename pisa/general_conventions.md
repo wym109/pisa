@@ -13,6 +13,8 @@
   * `interaction` is one of `cc, nc`
   * `pid` is one of `trck, cscd`
 
+  Omit suffixed fields as necessary to refer to a more general signature for the same flavour, e.g. `nue` refers to all interactions/pids involving electron neutrinos. To refer to multiple signatures separate each signature with a `+` symbol, e.g. `nue_cc+nuebar_cc`
+
 # Documentation conventions
 ## Docstrings
 Docstrings should be used *extensively*, and follow the NumPy/SciPy convention
