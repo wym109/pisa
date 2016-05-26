@@ -12,6 +12,14 @@ pisa.stages.flux.dummy module
     :undoc-members:
     :show-inheritance:
 
+pisa.stages.flux.honda module
+-----------------------------
+
+.. automodule:: pisa.stages.flux.honda
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 
 Module contents
 ---------------

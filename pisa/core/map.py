@@ -161,7 +161,30 @@ class Map(object):
                  full_comparison=True):
         # Set Read/write attributes via their defined setters
         super(Map, self).__setattr__('_name', name)
-        tex = r'\rm{%s}' % name if tex is None else tex
+        # TeX dict for some common map names
+        tex_dict = {'nue':r'\nu_e',
+                    'numu':r'\nu_{\mu}',
+                    'nutau':r'\nu_{\tau}',
+                    'nuebar':r'\bar{\nu}_e',
+                    'numubar':r'\bar{\nu}_{\mu}',
+                    'nutaubar':r'\bar{\nu}_{\tau}',
+                    'nue_cc':r'\nu_e\ CC',
+                    'numu_cc':r'\nu_{\mu}\ CC',
+                    'nutau_cc':r'\nu_{\tau}\ CC',
+                    'nue_nc':r'\nu_e\ NC',
+                    'numu_nc':r'\nu_{\mu}\ NC',
+                    'nutau_nc':r'\nu_{\tau}\ NC',
+                    'nuebar_cc':r'\bar{\nu}_e\ CC',
+                    'numubar_cc':r'\bar{\nu}_{\mu}\ CC',
+                    'nutaubar_cc':r'\bar{\nu}_{\tau}\ CC',
+                    'nuebar_nc':r'\bar{\nu}_e\ NC',
+                    'numubar_nc':r'\bar{\nu}_{\mu}\ NC',
+                    'nutaubar_nc':r'\bar{\nu}_{\tau}\ NC'}
+        if tex is None:
+            if tex_dict.has_key(name):
+                tex = tex_dict[name]
+            else:
+                tex = r'\rm{%s}' % name
         super(Map, self).__setattr__('_tex', tex)
         super(Map, self).__setattr__('_hash', hash)
         super(Map, self).__setattr__('_full_comparison', full_comparison)

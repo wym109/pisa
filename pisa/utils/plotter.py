@@ -1,6 +1,7 @@
 import numpy as np
 from uncertainties import unumpy as unp
 import matplotlib as mpl
+import math
 # headless mode
 mpl.use('Agg')
 # fonts
@@ -65,9 +66,9 @@ class plotter(object):
             self.add_stamp(map.tex)
             self.dump(map.name)
 
-    def plot_2d_array(self, mapset, n_rows, n_cols):
+    def plot_2d_array(self, mapset, n_rows=None, n_cols=None):
         ''' plot all maps in a single plot '''
-        self.plot_array(mapset, n_rows, n_cols,'plot_2d_map')
+        self.plot_array(mapset, 'plot_2d_map', n_rows=n_rows, n_cols=n_cols)
         self.dump('test2d')
 
     # --- 1d plots ---
@@ -80,8 +81,10 @@ class plotter(object):
             self.add_stamp(map.tex)
             self.dump(map.name)
 
-    def plot_1d_array(self, mapset, n_rows, n_cols, plot_axis):
-        self.plot_array(mapset, n_rows, n_cols,'plot_1d_projection', plot_axis)
+    def plot_1d_array(self, mapset, plot_axis, n_rows=None,
+            n_cols=None):
+        self.plot_array(mapset, 'plot_1d_projection', plot_axis, n_rows=n_rows,
+                n_cols=n_cols)
         self.dump('test1d')
 
     def plot_1d_all(self, mapset, plot_axis):
@@ -122,10 +125,18 @@ class plotter(object):
 
     # --- plotting core functions ---
 
-    def plot_array(self, mapset, n_rows, n_cols, fun, *args):
+    def plot_array(self, mapset, fun, *args, **kwargs):
+        n_rows = kwargs.pop('n_rows', None)
+        n_cols = kwargs.pop('n_cols', None)
         ''' plot mapset in array using a function fun '''
         n = len(mapset)
-        assert( n <= n_cols * n_rows)
+        if n_rows is None and n_cols is None:
+            # TODO: auto row/cols
+            n_rows = math.floor(math.sqrt(n))
+            while n % n_rows != 0:
+               n_rows -= 1
+            n_cols = n / n_rows
+        assert( n <= n_cols * n_rows), 'you are trying to plot %s subplots on a grid with %s x %s cells'%(n, n_cols, n_rows)
         size = (n_cols*self.size[0], n_rows*self.size[1])
         self.init_fig(size)
         plt.tight_layout()

@@ -3,11 +3,11 @@
 Obtaining packages and handling interdependencies is easiest if you use a Python distribution, such as [Anaconda](https://www.continuum.io/downloads) or [Canopy](https://www.enthought.com/products/canopy).
 Although the selection of maintained packages is smaller than if you use the `pip` command to obtain packages from the Python Package Index (PyPi), you can still use `pip` with these distributions (but always prefer to use the distribution's install mechanism over `pip`, since `pip` does not handle interdependencies well).
 
-The other advantage to these distributions is that they easily install without system administrative privileges (i.e., in a user directory) and come with the non-Python libraries upon which many Python modules rely, making them ideal for setup on e.g. clusters.
+The other advantage to these distributions is that they easily install without system administrative privileges (and install in a user directory) and come with the non-Python binary libraries upon which many Python modules rely, making them ideal for setup on clusters, for example.
 
 ### Requirements
 
-To install this package, you'll need to have the following non-python requirements.
+To install PISA, you'll need to have the following non-python requirements.
 Note that these are not installed automatically, and you must install them yourself prior to installing PISA.
 Also not that both SWIG and HDF5 support come pre-packaged in the Anaconda and Canopy Python distributions.
 * [git](https://git-scm.com/)
@@ -18,7 +18,7 @@ If you are *not* using Anaconda or Canopy, you can install the above via:
 * In Ubuntu,
   'sudo apt-get install git swig hdf5`
 
-The Python requirements are as follows; note that all *required* Python modules (i.e., everything besides Python and pip) are installed automatically when you install PISA with the `pip ... -r $PISA/requirements.txt` option detailed later.
+The Python requirements are as follows; note that all *required* Python modules (i.e., everything besides Python and pip) are installed automatically when you install PISA with the command detailed later.
 * [python](http://www.python.org) — version 2.7.x required (tested with 2.7.11)
 * [pip](https://pip.pypa.io/)
 * [numpy](http://www.numpy.org/)
@@ -29,41 +29,39 @@ The Python requirements are as follows; note that all *required* Python modules 
 * [uncertainties](https://pythonhosted.org/uncertainties/)
 * [pint](https://pint.readthedocs.org/en/0.7.2/)
 
-Optional dependencies, on the other hand, must be installed manually prior to installing PISA.
+### Optional dependencies
+
+Optional dependencies, on the other hand, ***must be installed manually prior to installing PISA*** if you want the functionality they provide.
 The features enabled by and the relevant install commands for optional dependencies are listed below.
-* To parallelize certain routines on multi-core computers<br>
-  [openmp](http://www.openmp.org)<br>
-  (available by compiler; gcc supports OpenMP this, while Clang does not)
-* For running certain routines on Nvidia CUDA (>= compute 2.0) GPUs<br>
-  [PyCUDA](https://mathema.tician.de/software/pycuda)<br>
+* [openmp](http://www.openmp.org): parallelize certain routines on multi-core computers<br>
+  *(available from your compiler; gcc supports OpenMP, while Clang (OS X) might not)*
+* [PyCUDA](https://mathema.tician.de/software/pycuda): run certain routines on Nvidia CUDA GPUs (must have compute 2.0 or greater capability)<br>
   `pip install pycuda`
-* Just-in-time compilation via LLVM to accelerate certain routines<br>
-  [numba](http://numba.pydata.org)
+* [numba](http://numba.pydata.org): just-in-time compilation via LLVM to accelerate certain routines<br>
   * Anaconda:<br>
     `conda install numba`
   * pip:<br>
     `pip install numba`
-* For detailed profiling output<br>
-  [line_profiler](https://pypi.python.org/pypi/line_profiler/)
+* [line_profiler](https://pypi.python.org/pypi/line_profiler/): detailed profiling output<br>
   * Anaconda:<br>
     `conda install line_profiler`
   * pip:<br>
     `pip install line_profiler`
-* For compiling the Sphinx documentation<br>
-  * [Sphinx](http://www.sphinx-doc.org/en/stable/) - version > 1.3
+* [Sphinx](http://www.sphinx-doc.org/en/stable/) - version > 1.3 and [recommonmark](http://recommonmark.readthedocs.io/en/latest/) are required to compile PISA's documentation<br>
     * Anaconda:<br>
-      `conda install sphinx`
+      `conda install sphinx`<br>
+      `pip install recommonmark`
     * pip:<br>
-      `pip install sphinx`
-  * [recommonmark](http://recommonmark.readthedocs.io/en/latest/)<br>
-    `pip install recommonmark`
+      `pip install sphinx`<br>
+      `pip install recommonmark`
 
 ### Install Python
 There are many ways of obtaining Python and many ways of installing it.
 Here we'll present two options, but this is by no means a complete list.
 
+* Install the [Anaconda](https://docs.continuum.io/anaconda/install) or [Canopy](https://www.enthought.com/products/canopy) Python distribution; 
+  * **Note**: Make sure that your `PATH` variable points to e.g. `<anaconda_install_dr>/bin` and *not* your system Python directory. To check this, type: `echo $PATH`; to udpate it, add `export PATH=<anaconda_install_dir>/bin:$PIATH` to your .bashrc file.
 * Install Python 2.7.x from the Python website [https://www.python.org/downloads](https://www.python.org/downloads/)
-* Install Python 2.7.x from the Anaconda distribution following instructions [here](https://docs.continuum.io/anaconda/install)
 
 ### Set up your environment
 * Create a "parent" directory (the directory into which you wish for the PISA sourcecode to live).
@@ -85,7 +83,7 @@ Load this variable into your *current* environment by sourcing your `.bashrc` fi
 
 ### Github setup
 1. Create your own [github account](https://github.com/)
-1. Obtain access to the `WIPACrepo/pisa` repository by emailing Sebastian Böeser [sboeser@uni-mainz.de](mailto:sboeser@uni-mainz.de?subject=Access to WIPACrepo/pisa github repository)
+1. Obtain access to the `WIPACrepo/pisa` repository by emailing (as a verifiable IceCube member) your **Github username** to Sebastian Böeser (sboeser@uni-mainz.de), cc: John Kelley (jkelley@icecube.wisc.edu)
 
 #### SSH vs. HTTPS access to repository
 You can interact with Github repositories either via SSH (which allows password-less operation) or HTTPS (which gets through firewalls that don't allow for SSH).
@@ -139,27 +137,35 @@ If you just wish to pull changes from github (and not submit any changes back), 
 pip install --editable $PISA -r $PISA/requirements.txt
 ```
 Explanation of the above command:
+* First, note that this is ***not** run as administrator. It is discouraged to do so (and has not been tested this way).
 * `--editable <dir>`: Installs from `<dir>` and  allows for changes to the source code within to be immediately propagated to your Python installation.
 Basically, within your Python source tree, PISA is just a link to your source directory, so changes within your source tree are seen directly by your Python installation.
 * `-r $PISA/requirements.txt`: Specifies the file containing PISA's dependencies for `pip` to install prior to installing PISA.
 This file lives at `$PISA/requirements.txt`.
 
-* `--src $PISA`: Installs PISA from the sourcecode you just cloned in the directory pointed to by the environment variable `$PISA`.
-
 __Notes:__
+* You can work with your installation using the usual git commands (pull, push, etc.). However, these ***won't recompile*** any of the extension (i.e. pyx, _C/C++_) libraries. See below for how to handle this case.
 
-* You can work with your installation using the usual git commands (pull, push, etc.).
-However, these won't recompile any of the extension (i.e. _C/C++_) libraries.
-If you want to do so, simply run<br>
-`cd $PISA && python setup.py build_ext --inplace`
+### Reinstall PISA
+* To remove any compiled bits to ensure they get recompiled:
+  ```bash
+  cd $PISA
+  python setup.py clean --all
+  pip install --editable $PISA -r $PISA/requirements.txt
+  ```
+* To just reinstall the Python bits (and only build binaries if they don't already exist)
+  ```bash
+  pip install --editable $PISA -r $PISA/requirements.txt
+  ```
 
-* If your Python installation was done by an administrator, if you have administrative access, preface the `pip install` command with `sudo`:<br>
-`sudo pip install ...`<br>
-If you do not have administrative access, you can install PISA as a user module via the `--user` flag:<br>
-`pip install --user ...`
+### Compiling the Documentation
 
-### Compiling the Docs
+To compile a new version of the documentation to html (pdf and other formats are available by replacing `html` with `pdf`, etc.):
+```bash
+cd $PISA/docs && make html
+```
 
-To generate a new version of the documentation simply go to `$PISA/docs` and excecute `make html` to compile. (Alternatively also other output formats like pdf documents can be generated)
-
-in case code structure changed, rebuild the apidoc by executing `sphinx-apidoc -f -o docs/source pisa` from the pisa root dir `$PISA`.
+In case code structure has changed, rebuild the apidoc by executing
+```bash
+cd $PISA && sphinx-apidoc -f -o docs/source pisa
+```

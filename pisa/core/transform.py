@@ -441,7 +441,7 @@ class BinnedTensorTransform(Transform):
         self.validate_input(inputs)
         if self.num_inputs > 1:
             input_array = np.stack([inputs[name].hist
-                                    for name in self.input_names], axis=-1)
+                                    for name in self.input_names], axis=0)
         else:
             input_array = inputs[self.input_names[0]].hist
 
@@ -459,13 +459,13 @@ class BinnedTensorTransform(Transform):
         else:
             raise NotImplementedError(
                 'Unhandled shapes for input(s) "%s": %s and'
-                ' transform "%s": %s.'
-                %(', '.join(self.input_names), input_array.shape, self.name,
+                ' transform: %s.'
+                %(', '.join(self.input_names), input_array.shape,
                   self.xform_array.shape)
             )
 
         if self.num_inputs > 1:
-            output = np.sum(output, axis=-1)
+            output = np.sum(output, axis=0)
 
         # TODO: do rebinning here? (aggregate, truncate, and/or
         # concatenate 0's?)
@@ -524,7 +524,7 @@ if __name__ == '__main__':
         input_binning=binning,
         output_binning=binning,
         xform_array=np.stack([2*np.ones(binning.shape),
-                              3*np.ones(binning.shape)], axis=-1)
+                              3*np.ones(binning.shape)], axis=0)
     )
     print (xform2 + 2).xform_array[0,0] - xform2.xform_array[0,0]
 

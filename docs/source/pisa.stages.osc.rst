@@ -21,6 +21,14 @@ pisa.stages.osc.dummy module
     :undoc-members:
     :show-inheritance:
 
+pisa.stages.osc.prob3cpu module
+-------------------------------
+
+.. automodule:: pisa.stages.osc.prob3cpu
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 
 Module contents
 ---------------

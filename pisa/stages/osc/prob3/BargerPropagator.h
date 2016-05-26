@@ -7,112 +7,129 @@
 #include "mosc3.h"
 #include "mosc.h"
 
-
 #include <iostream>
 #include <cstdlib>
 
-// A neutrino propagator class based on the the 1980 Barger paper PRD.22.11, Dec. 1 1980
+// A neutrino propagator class based on the 1980 Barger paper
+// PRD.22.11, Dec. 1 1980.
+//
 // The underlying oscillation code is written in mosc*
 //
-// Capable of computing oscillation probabilities through constant denisity matter
-// or through sphere's of varying radial density.
-
+// Capable of computing oscillation probabilities through constant density
+// matter or through spheres of varying radial density.
 
 class BargerPropagator : public NeutrinoPropagator
 {
   public:
-
       BargerPropagator( );
-      // const char specifies an input radial density profile, c.f. PREM.dat
+	  // const char specifies an input radial density profile, c.f. PREM.dat
       BargerPropagator( bool );
-      BargerPropagator( const char *, double detectorDepth = 0.0);
-     ~BargerPropagator(      );
+      BargerPropagator( const char *, double detectorDepth = 0.0 );
+     ~BargerPropagator( );
 
-      // main driving routine for computing oscillations through a sphere
-      // called after SetMNS(...) !!
+      // Main driving routine for computing oscillations through a sphere,
+      // to be called after SetMNS(...).
+	  //
       // specify neutrino type:   +int : neutrino   -int: anti-neutrino
       virtual void propagate( int );
 
-      // driving routine for oscillations through linear media of contstant density
-      // called after SetMNS(...)
-      // specify neutrino type:   +int : neutrino   -int: anti-neutrino
-      // specify Path length in the matter
-      // specify density of the matter
+	  // Driving routine for oscillations through linear media of constant
+	  // density, to be called after SetMNS(...).
+	  //
+      // specify:
+	  // 	neutrino type:   +int : neutrino   -int: anti-neutrino
+      // 	path length in the matter
+      // 	density of the matter
       virtual void propagateLinear( int , double, double );
 
-      // driving routine for oscillations in vaccuum!
+      // Driving routine for oscillations in vacuum.
       // called after SetMNS(...)
-      // specify           nu_in, nu_out, Energy [GeV] , pathlength [km]
+      // Args:                    |nu_in| nu_out| Energy | pathlength
+      //                          |     |       | (GeV)  | (km)
       virtual double GetVacuumProb( int , int   , double , double );
 
-      // determines the pathlength and density profile for a neutrino propagating through a sphere
-      // specify, cosine of zenith angle   -1 : upward going 0: horizontal +1: downward going
-      // specify production height in the the atmosphere [km]
-      // specify if the profile withing EarthDensity object should be recomputed, default is true
-      //virtual void DefinePath( double, double, bool kSetProfile = true  );
+	  // determines the pathlength and density profile for a neutrino
+	  // propagating through a sphere
+	  //
+	  // specify:
+	  // 	cosine of zenith angle:
+	  // 		-1=upward going, 0=horizontal, +1=downward going
+	  //
+      // 	production height in the atmosphere (km)
+	  //
+	  // 	if the profile withing EarthDensity object should be recomputed,
+	  // 		default is true
       virtual void DefinePath( double, double,
-                               double YeI = 0.4656, double YeO = 0.4656,double YeM = 0.4957,
-                               bool kSetProfile = true  );
+                               double YeI, double YeO, double YeM,
+                               bool kSetProfile = true );
 
-      // determine the neutrino oscillation parameters
+      // Determine the neutrino oscillation parameters.
+	  //
       // This routine must be called _before_ propagate* routines!
-      // Specify the neutrino oscillation parameters, and energy
-      // the final boolean specifies which form  of mixing angle is input
-      //            x12   ,  x13   ,  x23   ,  dm21  ,  dm32  ,  d_cp  , Energy [GeV],  T: sin^2(x) F: sin^2(2x)
-      // 
-      //  The last argument is the neutrino type  nu > 0 : neutrinos  nu < 0 : antineutrinos
-      //  The default is to define the MNS matrix for neutrino propagation
-      //  This type must agree with the type used in the call to propagate() and propagateLinear()
-      virtual void SetMNS( double , double , double , double , double , double , double , bool, int kNuType = 1 );
-      
-      // for changing the conversion factor from matter density to electron density
-      void SetDensityConversion( double x ) { density_convert = x; }
-      
-      
-      // return oscillation probabilities nu_in -> nu_out
-      // nu_ - 1:e 2:mu 3:tau  -1:e_bar -2:mu_bar -3:tau_bar
-      double GetProb( int nuIn, int nuOut ){ 
-     	int In = abs( nuIn );
-	int Out = abs( nuOut );
-               return Probability[In-1][Out-1];
-            };
-      
-      
-      // miscellaneuos
-      double GetPathLength(){return Earth->get_Pathlength();}
-      void SetPathLength( double x ){ PathLength = x;}
-      void SetEnergy    ( double x ){ Energy     = x;}   
-      virtual void SetMatterPathLength();
-      virtual void SetAirPathLength(double);
-      
-      
-      // Specify weather oscillition probabilities are computed from neutrino mass eigenstates
-      // of from neutrino flavor eigen states   T: mass  F: flavor
-      void UseMassEigenstates( bool x ) { kUseMassEigenstates = x ;}
-      
-      void SetWarningSuppression( bool x = true ) { kSuppressWarnings = x ; }
+	  //
+	  // Specify the neutrino oscillation parameters, energy, a bool for which
+	  // form of mixing angle is input, and the last argument is the neutrino
+	  // type (nu > 0 : neutrinos  nu < 0 : antineutrinos)
+	  //
+	  // This type must agree with the type used in the call to propagate() and
+	  // propagateLinear()
+	  // TODO: Why would you specify the neutrino type thrice, where any one
+	  //       being different will break the result???
+	  //
+      // Args:           |  x12   |  x13   |  x23   |  dm21  |  dm32  |  d_cp  | Energy |T:s^2(x) |1:nu
+      //                 |        |        |        | (eV^2) | (eV^2) | (rad)  | (GeV)  |F:s^2(2x)|2:antinu
+      virtual void SetMNS( double , double , double , double , double , double , double , bool    , int );
 
-      // Specify how the user inputs the atmospheric neutrino mixing mass 
+      // Change the conversion factor from matter density to electron density.
+      void SetDensityConversion( double x ) { density_convert = x; }
+
+      // Return oscillation probabilities nu_in -> nu_out
+	  //
+      // Values for nuIn and nuOut by flavor are:
+	  // 	0=nue{bar}, 1=numu{bar}, 2=nutau{bar}
+	  // where whether neutrinos or antineutrinos are chosen is based upon how
+	  // the calculation was set up.
+      double GetProb( int nuIn, int nuOut ){
+         return Probability[nuIn][nuOut];
+      };
+
+      // Miscellaneous
+      double GetPathLength( ){ return Earth->get_Pathlength(); }
+      void SetPathLength( double x ){ PathLength = x; }
+      void SetEnergy( double x ){ Energy = x; }
+      virtual void SetMatterPathLength( );
+      virtual void SetAirPathLength(double);
+
+
+	  // Specify weather oscillation probabilities are computed from neutrino
+	  // mass eigenstates of from neutrino flavor eigenstates
+	  // 	true = mass eigenstates, false = flavor eigenstates
+      void UseMassEigenstates( bool x ) { kUseMassEigenstates = x; }
+
+      void SetWarningSuppression( bool x = true ) { kSuppressWarnings = x; }
+
+      // Specify how the user inputs the atmospheric neutrino mixing mass.
+	  //
       // true (default mode) means the mixing input for SetMNS corresponds to
-      //    NH: m32 
-      //    IH: m31   
-      //  That is, in this mode the code will correct the input value of the 
-      //  atmospheric mass splitting parameter by the solar mass splitting if 
+      //    NH: m32
+      //    IH: m31
+      //  That is, in this mode the code will correct the input value of the
+      //  atmospheric mass splitting parameter by the solar mass splitting if
       //  the input is negative (corresponding to IH input).
-      //  If SetOneMassScaleMode(false) is called this correction is not 
-      //  performed, and the user is responsible for supplying the correct 
-      //  value of Dm23 for oscillations in both hierarchies.  
-      void SetOneMassScaleMode  ( bool x = true)  { kOneDominantMass  = x ; }
+      //  If SetOneMassScaleMode(false) is called this correction is not
+      //  performed, and the user is responsible for supplying the correct
+      //  value of Dm23 for oscillations in both hierarchies.
+      void SetOneMassScaleMode( bool x = true )  { kOneDominantMass = x; }
 
   protected:
-      void init();
-      
-      void ClearProbabilities();
-      
+      void init( );
+
+      void ClearProbabilities( );
+
       double Probability[3][3];
-      
-      EarthDensity * Earth;		
-      
+
+      EarthDensity * Earth;
+
       double REarth;
       double RDetector;
       double ProductionHeight;
@@ -120,16 +137,14 @@ class BargerPropagator : public NeutrinoPropagator
       double AirPathLength;
       double MatterPathLength;
       double CosineZenith;
-      double Energy;	
+      double Energy;
       double density_convert;
-      
-      
-      bool kAntiMNSMatrix     ;
-      bool kSuppressWarnings  ; 
+
+
+      bool kAntiMNSMatrix;
+      bool kSuppressWarnings;
       bool kUseMassEigenstates;
-      bool kOneDominantMass   ;  
-      
+      bool kOneDominantMass;
 };
-      
+
 #endif
-      

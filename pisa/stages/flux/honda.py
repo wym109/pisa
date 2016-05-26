@@ -71,7 +71,7 @@ class honda(Stage):
 
         # Define the names of objects that get produced by this stage
         output_names = (
-            'nue', 'numu', 'nue_bar', 'numu_bar'
+            'nue', 'numu', 'nuebar', 'numubar'
         )
 
         # Invoke the init method from the parent class, which does a lot of
@@ -94,6 +94,7 @@ class honda(Stage):
         )
 
         # Set the neutrio primaries
+
         self.primaries = ['numu', 'numu_bar', 'nue', 'nue_bar']
 
         # Initialisation of this service should load the flux tables
