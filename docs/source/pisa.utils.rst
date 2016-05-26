@@ -180,6 +180,14 @@ pisa.utils.plot module
     :undoc-members:
     :show-inheritance:
 
+pisa.utils.plotter module
+-------------------------
+
+.. automodule:: pisa.utils.plotter
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 pisa.utils.proc module
 ----------------------
 
@@ -232,6 +240,14 @@ pisa.utils.stats module
 -----------------------
 
 .. automodule:: pisa.utils.stats
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+pisa.utils.test_gaussians module
+--------------------------------
+
+.. automodule:: pisa.utils.test_gaussians
     :members:
     :undoc-members:
     :show-inheritance:

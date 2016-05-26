@@ -18,7 +18,7 @@ If you are *not* using Anaconda or Canopy, you can install the above via:
 * In Ubuntu,
   'sudo apt-get install git swig hdf5`
 
-The Python requirements are as follows; note that all *required* Python modules (i.e., everything besides Python and pip) are installed automatically when you install PISA with the `pip ... -r $PISA/requirements.txt` option detailed later.
+The Python requirements are as follows; note that all *required* Python modules (i.e., everything besides Python and pip) are installed automatically when you install PISA with the command detailed later.
 * [python](http://www.python.org) — version 2.7.x required (tested with 2.7.11)
 * [pip](https://pip.pypa.io/)
 * [numpy](http://www.numpy.org/)
@@ -31,7 +31,7 @@ The Python requirements are as follows; note that all *required* Python modules 
 
 ### Optional dependencies
 
-Optional dependencies, on the other hand, must be installed manually prior to installing PISA.
+Optional dependencies, on the other hand, ***must be installed manually prior to installing PISA*** if you want the functionality they provide.
 The features enabled by and the relevant install commands for optional dependencies are listed below.
 * [openmp](http://www.openmp.org): parallelize certain routines on multi-core computers<br>
   *(available from your compiler; gcc supports OpenMP, while Clang (OS X) might not)*
@@ -83,7 +83,7 @@ Load this variable into your *current* environment by sourcing your `.bashrc` fi
 
 ### Github setup
 1. Create your own [github account](https://github.com/)
-1. Obtain access to the `WIPACrepo/pisa` repository by emailing Sebastian Böeser [sboeser@uni-mainz.de](mailto:sboeser@uni-mainz.de?subject=Access to WIPACrepo/pisa github repository)
+1. Obtain access to the `WIPACrepo/pisa` repository by emailing (as a verifiable IceCube member) your **Github username** to Sebastian Böeser (sboeser@uni-mainz.de), cc: John Kelley (jkelley@icecube.wisc.edu)
 
 #### SSH vs. HTTPS access to repository
 You can interact with Github repositories either via SSH (which allows password-less operation) or HTTPS (which gets through firewalls that don't allow for SSH).
@@ -143,17 +143,29 @@ Basically, within your Python source tree, PISA is just a link to your source di
 * `-r $PISA/requirements.txt`: Specifies the file containing PISA's dependencies for `pip` to install prior to installing PISA.
 This file lives at `$PISA/requirements.txt`.
 
-* `--src $PISA`: Installs PISA from the sourcecode you just cloned in the directory pointed to by the environment variable `$PISA`.
-
 __Notes:__
+* You can work with your installation using the usual git commands (pull, push, etc.). However, these ***won't recompile*** any of the extension (i.e. pyx, _C/C++_) libraries. See below for how to handle this case.
 
-* You can work with your installation using the usual git commands (pull, push, etc.).
-However, these won't recompile any of the extension (i.e. _C/C++_) libraries.
-If you want to do so, simply re-run<br>
-  `pip install --editable $PISA -r $PISA/requirements.txt`
+### Reinstall PISA
+* To remove any compiled bits to ensure they get recompiled:
+  ```bash
+  cd $PISA
+  python setup.py clean --all
+  pip install --editable $PISA -r $PISA/requirements.txt
+  ```
+* To just reinstall the Python bits (and only build binaries if they don't already exist)
+  ```bash
+  pip install --editable $PISA -r $PISA/requirements.txt
+  ```
 
-### Compiling the Docs
+### Compiling the Documentation
 
-To generate a new version of the documentation simply go to `$PISA/docs` and excecute `make html` to compile. (Alternatively also other output formats like pdf documents can be generated)
+To compile a new version of the documentation to html (pdf and other formats are available by replacing `html` with `pdf`, etc.):
+```bash
+cd $PISA/docs && make html
+```
 
-in case code structure changed, rebuild the apidoc by executing `sphinx-apidoc -f -o docs/source pisa` from the pisa root dir `$PISA`.
+In case code structure has changed, rebuild the apidoc by executing
+```bash
+cd $PISA && sphinx-apidoc -f -o docs/source pisa
+```
