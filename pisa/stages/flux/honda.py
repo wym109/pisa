@@ -94,7 +94,9 @@ class honda(Stage):
         )
 
         # Set the neutrio primaries
-        self.primaries = ['nue', 'numu', 'nuebar', 'numubar']
+        # This has to match the headers in the Honda files
+        # When adding new source files please ensure this is respected
+        self.primaries = ['numu', 'numu_bar', 'nue', 'nue_bar']
 
         # Initialisation of this service should load the flux tables
         # Can work with either 2D (E,Z,AA) or 3D (E,Z,A) tables.
@@ -398,6 +400,9 @@ class honda(Stage):
         # by bin width in both dimensions
         # i.e. the bin volume
         return_table *= self.output_binning.bin_volumes(attach_units=False)
+        # For 2D we also need to integrate over azimuth
+        # There is no dependency, so this is a multiplication of 2pi
+        return_table *= 2*np.pi
 
         if self.output_binning.names[0] == 'energy':
             # Current dimensionality is (cz,E)
@@ -406,8 +411,8 @@ class honda(Stage):
         
         # Put the flux into a Map object, give it the output_name
         return_map = Map(name=prim,
-                          hist=return_table,
-                          binning=self.output_binning)
+                         hist=return_table,
+                         binning=self.output_binning)
         
         return return_map
 
