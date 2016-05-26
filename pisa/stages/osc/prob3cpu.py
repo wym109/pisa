@@ -2,6 +2,7 @@
 # date:   March 20, 2016
 
 from itertools import izip, product
+from operator import setitem
 
 import numpy as np
 import pint; ureg = pint.UnitRegistry()
@@ -22,19 +23,16 @@ SIGFIGS = 12
 precision that calculations are being performed in to have the desired effect
 that "essentially equal" things evaluate to be equal."""
 
-# Codes defined in Barger code
-NUE_CODE, NUMU_CODE, NUTAU_CODE = 1, 2, 3
-
 # Indices that are used for transform datastructs created here
 NUE_IDX, NUMU_IDX, NUTAU_IDX = 0, 1, 2
-
-INPUTS = ((NUE_IDX, NUE_CODE), (NUMU_IDX, NUMU_CODE))
-OUTPUTS = ((NUE_IDX, NUE_CODE), (NUMU_IDX, NUMU_CODE), (NUTAU_IDX, NUTAU_CODE))
+INPUTS = (NUE_IDX, NUMU_IDX)
+OUTPUTS = (NUE_IDX, NUMU_IDX, NUTAU_IDX)
+INPUTS_OUTPUTS = tuple([x for x in product(INPUTS, OUTPUTS)])
 
 # More Barger definitions
 K_NEUTRINOS = 1
 K_ANTINEUTRINOS = -1
-
+K_SQUARED = True
 
 class prob3cpu(Stage):
     """Neutrino oscillations calculation via Prob3.
@@ -163,27 +161,26 @@ class prob3cpu(Stage):
 
     def create_transforms_datastructs(self):
         xform_shape = [3, 2] + list(self.input_binning.shape)
-        part_xform = np.empty(xform_shape)
-        antipart_xform = np.empty(xform_shape)
-        return part_xform, antipart_xform
+        nu_xform = np.empty(xform_shape)
+        antinu_xform = np.empty(xform_shape)
+        return nu_xform, antinu_xform
 
     def setup_barger_propagator(self):
-        params = self.params
         # If already instantiated with same parameters, don't instantiate again
-        if ( hasattr(self, 'barger_propagator')
+        if (hasattr(self, 'barger_propagator')
             and hasattr(self, '_barger_earth_model')
             and hasattr(self, '_barger_detector_depth')
             and normQuant(self._barger_detector_depth, sigfigs=SIGFIGS)
-                == normQuant(params.detector_depth.value, sigfigs=SIGFIGS)
-            and params.earth_model.value == self._barger_earth_model):
+                == normQuant(self.params.detector_depth.value, sigfigs=SIGFIGS)
+            and self.params.earth_model.value == self._barger_earth_model):
             return
 
         # Some private variables to keep track of the state of the barger
         # propagator that has been instantiated, so if it is requested to be
         # instantiated again with equivalent parameters, this step can be
         # skipped (see checks above).
-        self._barger_detector_depth = params.detector_depth.value.to('km')
-        self._barger_earth_model = params.earth_model.value
+        self._barger_detector_depth = self.params.detector_depth.value.to('km')
+        self._barger_earth_model = self.params.earth_model.value
 
         # TODO: can we pass kwargs to swig-ed C++ code?
         self.barger_propagator = BargerPropagator(
@@ -194,11 +191,7 @@ class prob3cpu(Stage):
 
     @profile
     def _compute_transforms(self):
-        """Compute oscillation transforms to apply to maps."""
-        params = self.params
-
-        # Run this every time, but it will only do something if relevant
-        # parameters have changed
+        """Compute oscillation transforms using Prob3 CPU code."""
         self.setup_barger_propagator()
 
         # Read parameters in, convert to the units used internally for
@@ -210,17 +203,14 @@ class prob3cpu(Stage):
         deltam21 = self.params.deltam21.value.m_as('eV**2')
         deltam31 = self.params.deltam31.value.m_as('eV**2')
         deltacp = self.params.deltacp.value.m_as('rad')
-        #energy_scale = self.params.energy_scale.value.m_as('')
-        YeI = self.params.YeI.value.m_as('')
-        YeO = self.params.YeO.value.m_as('')
-        YeM = self.params.YeM.value.m_as('')
+        YeI = self.params.YeI.value.m_as('dimensionless')
+        YeO = self.params.YeO.value.m_as('dimensionless')
+        YeM = self.params.YeM.value.m_as('dimensionless')
         prop_height = self.params.prop_height.value.m_as('km')
 
-        logging.info("Defining osc_prob_dict from BargerPropagator...")
-        #tprofile.info("start oscillation calculation")
+        logging.info('Defining osc_prob_dict from BargerPropagator...')
 
         # Set to true, since we are using sin^2(theta) variables
-        kSquared = True
         sin2th12Sq = np.sin(theta12)**2
         sin2th13Sq = np.sin(theta13)**2
         sin2th23Sq = np.sin(theta23)**2
@@ -237,66 +227,41 @@ class prob3cpu(Stage):
         # present in the binning
         indexer = [slice(None)]*self.input_binning.num_dims
 
-        part_xform, antipart_xform = self.create_transforms_datastructs()
-        for i, (energy, coszen) in enumerate(product(self.e_centers,
-                                                     self.cz_centers)):
+        nu_xform, antinu_xform = self.create_transforms_datastructs()
+        for i, (energy, coszen) in enumerate(product(self.e_centers, self.cz_centers)):
             # Construct indices in energy and coszen, and populate to bin
             # indexer
-            e_idx = i // self.num_czbins
-            cz_idx = i - e_idx*self.num_czbins
-            indexer[self.e_dim_num] = e_idx
-            indexer[self.cz_dim_num] = cz_idx
+            indexer[self.e_dim_num] = i // self.num_czbins
+            indexer[self.cz_dim_num] = i - indexer[self.e_dim_num] * self.num_czbins
 
-            scaled_energy = energy #* energy_scale
+            mns_args = [sin2th12Sq, sin2th13Sq, sin2th23Sq, deltam21, m_atm, deltacp, energy, K_SQUARED, 0]
+
+            self.barger_propagator.DefinePath(coszen, prop_height, YeI,YeO,YeM)
 
             # Neutrinos
-            mns_args = [
-                sin2th12Sq, sin2th13Sq, sin2th23Sq,
-                deltam21, m_atm, deltacp, scaled_energy,
-                kSquared
-            ]
-            self.barger_propagator.SetMNS(*(mns_args + [K_NEUTRINOS]))
-            self.barger_propagator.DefinePath(coszen, prop_height, YeI,YeO,YeM)
+            mns_args[-1] = K_NEUTRINOS
+            self.barger_propagator.SetMNS(*mns_args)
             self.barger_propagator.propagate(K_NEUTRINOS)
-
-            for (in_idx, in_code), (out_idx, out_code) in product(INPUTS,
-                                                                  OUTPUTS):
-                full_indexer = tuple([out_idx, in_idx] + indexer)
-                part_xform[full_indexer] = \
-                        self.barger_propagator.GetProb(in_code, out_code)
+            [setitem(nu_xform, tuple([out_idx, in_idx] + indexer), self.barger_propagator.GetProb(in_idx, out_idx)) for in_idx, out_idx in iter(INPUTS_OUTPUTS)]
 
             # Antineutrinos
-            self.barger_propagator.SetMNS(*(mns_args + [K_ANTINEUTRINOS]))
-            self.barger_propagator.DefinePath(coszen, prop_height,
-                                              YeI, YeO, YeM)
+            mns_args[-1] = K_ANTINEUTRINOS
+            self.barger_propagator.SetMNS(*mns_args)
             self.barger_propagator.propagate(K_ANTINEUTRINOS)
-
-            for (in_idx, in_code), (out_idx, out_code) in product(INPUTS,
-                                                                  OUTPUTS):
-                full_indexer = tuple([out_idx, in_idx] + indexer)
-                antipart_xform[full_indexer] = \
-                        self.barger_propagator.GetProb(in_code, out_code)
+            [setitem(antinu_xform, tuple([out_idx, in_idx] + indexer), self.barger_propagator.GetProb(in_idx, out_idx)) for in_idx, out_idx in iter(INPUTS_OUTPUTS)]
 
         # Slice up the transform arrays into views to populate each transform
         transforms = []
         for out_idx, output_name in enumerate(self.output_names):
             out_idx = out_idx % 3
             if 'bar' not in output_name:
-                xform = part_xform[out_idx, :, ...]
+                xform = nu_xform[out_idx, :, ...]
                 input_names = self.input_names[0:2]
             else:
-                xform = antipart_xform[out_idx, :, ...]
+                xform = antinu_xform[out_idx, :, ...]
                 input_names = self.input_names[2:4]
 
-            transforms.append(
-                BinnedTensorTransform(
-                    input_names=input_names,
-                    output_name=output_name,
-                    input_binning=self.input_binning,
-                    output_binning=self.output_binning,
-                    xform_array=xform
-                )
-            )
+            transforms.append(BinnedTensorTransform(input_names=input_names, output_name=output_name, input_binning=self.input_binning, output_binning=self.output_binning, xform_array=xform))
 
         return TransformSet(transforms=transforms)
 
