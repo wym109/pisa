@@ -398,6 +398,9 @@ class honda(Stage):
         # by bin width in both dimensions
         # i.e. the bin volume
         return_table *= self.output_binning.bin_volumes(attach_units=False)
+        # For 2D we also need to integrate over azimuth
+        # There is no dependency, so this is a multiplication of 2pi
+        return_table *= 2*np.pi
 
         if self.output_binning.names[0] == 'energy':
             # Current dimensionality is (cz,E)
