@@ -284,7 +284,6 @@ class hist(Stage):
                 # Double check that no NaN remain
                 assert not np.any(np.isnan(xform_array))
 
-                # TODO(shivesh): These transforms produce 8 maps instead of 2
                 xform = BinnedTensorTransform(
                     input_names=flavint,
                     output_name=sig,
