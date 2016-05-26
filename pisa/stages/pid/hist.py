@@ -23,6 +23,8 @@ returned.
 
 """
 
+from operator import add
+
 import numpy as np
 
 from pisa.core.stage import Stage
@@ -117,9 +119,10 @@ class hist(Stage):
         )
 
         # Define the names of objects that get produced by this stage
-        output_names = (
-            'trck', 'cscd'
-        )
+        def suffix_channel(channel):
+            return [channel+'_'+i for i in input_names]
+        self.output_channels = ('trck', 'cscd')
+        output_names = reduce(add, map(suffix_channel, self.output_channels))
 
         super(self.__class__, self).__init__(
             use_transforms=True,
@@ -187,7 +190,7 @@ class hist(Stage):
             proc_ver=events.metadata['proc_ver'],
             pid_specs=self.params['pid_spec_source'].value
         )
-        u_out_names = map(unicode, self.output_names)
+        u_out_names = map(unicode, self.output_channels)
         if set(u_out_names) != set(pid_spec.get_signatures()):
             msg = 'PID criteria from `pid_spec` {0} does not match {1}'
             raise ValueError(msg.format(pid_spec.get_signatures(),
@@ -216,7 +219,7 @@ class hist(Stage):
             # TODO(shivesh): total histo check?
             total_histo = np.zeros(self.output_binning.shape)
 
-            for sig in self.output_names:
+            for sig in self.output_channels:
                 raw_histo[sig] = {}
                 flav_sigdata = separated_events[rep_flavint][sig]
                 reco_params = [flav_sigdata[vn] for vn in var_names]
@@ -227,7 +230,7 @@ class hist(Stage):
                 )
                 total_histo += raw_histo[sig]
 
-            for sig in self.output_names:
+            for sig in self.output_channels:
                 with np.errstate(divide='ignore', invalid='ignore'):
                     xform_array = raw_histo[sig] / total_histo
 
@@ -247,7 +250,7 @@ class hist(Stage):
 
                 xform = BinnedTensorTransform(
                     input_names=flavint,
-                    output_name=sig,
+                    output_name=sig+'_'+flavint,
                     input_binning=self.input_binning,
                     output_binning=self.output_binning,
                     xform_array=xform_array
