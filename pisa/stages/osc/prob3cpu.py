@@ -19,11 +19,12 @@ from pisa.utils.profiler import profile
 
 SIGFIGS = 12
 """Significant figures for determining if numbers and quantities normalised
-(using normQuant) are equal. Make sure this is less than the numerical
-precision that calculations are being performed in to have the desired effect
-that "essentially equal" things evaluate to be equal."""
+(using pisa.utils.numerical.normQuant) are equal. Make sure this is less than
+the numerical precision that calculations are being performed in to have the
+desired effect that "essentially equal" things evaluate to be equal."""
 
-# Indices that are used for transform datastructs created here
+# Indices that are used for transform datastructs created here and for C++
+# interface to Barger propagator
 NUE_IDX, NUMU_IDX, NUTAU_IDX = 0, 1, 2
 INPUTS = (NUE_IDX, NUMU_IDX)
 OUTPUTS = (NUE_IDX, NUMU_IDX, NUTAU_IDX)
@@ -208,9 +209,6 @@ class prob3cpu(Stage):
         YeM = self.params.YeM.value.m_as('dimensionless')
         prop_height = self.params.prop_height.value.m_as('km')
 
-        logging.info('Defining osc_prob_dict from BargerPropagator...')
-
-        # Set to true, since we are using sin^2(theta) variables
         sin2th12Sq = np.sin(theta12)**2
         sin2th13Sq = np.sin(theta13)**2
         sin2th23Sq = np.sin(theta23)**2
@@ -229,14 +227,14 @@ class prob3cpu(Stage):
 
         nu_xform, antinu_xform = self.create_transforms_datastructs()
         for i, (energy, coszen) in enumerate(product(self.e_centers, self.cz_centers)):
-            # Construct indices in energy and coszen, and populate to bin
-            # indexer
+            # Construct indices in energy and coszen; populate to indexer
             indexer[self.e_dim_num] = i // self.num_czbins
             indexer[self.cz_dim_num] = i - indexer[self.e_dim_num] * self.num_czbins
 
+            # The final element must be populated with K_{ANTI}NEUTRINOS
             mns_args = [sin2th12Sq, sin2th13Sq, sin2th23Sq, deltam21, m_atm, deltacp, energy, K_SQUARED, 0]
 
-            self.barger_propagator.DefinePath(coszen, prop_height, YeI,YeO,YeM)
+            self.barger_propagator.DefinePath(coszen, prop_height, YeI, YeO, YeM)
 
             # Neutrinos
             mns_args[-1] = K_NEUTRINOS
