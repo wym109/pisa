@@ -22,6 +22,6 @@ minimum cut-off to classify an event as track-like, the events which have pid
 score's under this cut-off value are classified as cascade-like.
 
 Related links:
-[Status of Particle Identification on PINGU, JP,
+* [Status of Particle Identification on PINGU, JP,
 2013-11-20](https://wikispaces.psu.edu/download/attachments/173476942/20131120_jpamdandre_PINGUPID.pdf?version=1&modificationDate=1384959568000&api=v2)
-[PID update, JP, 2014-03-26](https://wikispaces.psu.edu/download/attachments/194447201/20140326_jpamdandre_PIDinFrame.pdf?version=1&modificationDate=1395806349000&api=v2)
+* [PID update, JP, 2014-03-26](https://wikispaces.psu.edu/download/attachments/194447201/20140326_jpamdandre_PIDinFrame.pdf?version=1&modificationDate=1395806349000&api=v2)
