@@ -8,20 +8,64 @@
 
 # Naming conventions
 * Stage/service naming: see [creating a service](creating_a_service). (Note that the all-lower-case class naming scheme for services is one of the few exceptions we make to the general Python conventions above.)
+* Use the following syntax to refer to neutrino signatures `*flavour*_*interaction*_*pid*` where:
+  * `flavour` is one of `nue, nuebar, numu, numubar, nutau, nutaubar`
+  * `interaction` is one of `cc, nc`
+  * `pid` is one of `trck, cscd`
+
+  Omit suffixed fields as necessary to refer to a more general signature for the same flavour, e.g. `nue` refers to all interactions/pids involving electron neutrinos. To refer to multiple signatures separate each signature with a `+` symbol, e.g. `nue_cc+nuebar_cc`
 
 # Documentation conventions
+
+Documentation comes in two forms: ***docstrings*** and ***standalone files*** (either markdown **.md** files or reStricturedText **.rst** files). Docstrings are the most important for physics and framework developers to consider, and can (and should) be quite far-ranging in their scope. Standalone files are reserved for guides (install guide, developer's guide, user's guide, quick-start, etc.) and one README.md file within each directory to document the directory's raison d'être, or what is common to all of the things contained in the directory.
+
 ## Docstrings
-Docstrings should be used *extensively*, and follow the NumPy/SciPy convention
-There are a couple of good alternatives, but in order to make Sphinx auto-generate documentation, we need to stick to just one. NumPy docstrings are visually easy to read for detailed documentation, hence the choice.
+
+Docstrings can document nearly everything within a Python file. The various types of docstrings are:
+* **module**: beneath the authorship, at the top of the .py file
+  * Why did you create this file (module)? What purpose does it serve? Are there issues that the user should be aware of? Good and bad situations for using the class(es) and function(s) contained? Anything that doesn't fit into the more usage-oriented docstrings below should go here.
+* **function**: beneath the function declaration line
+  * What the function does, args to the function, notes
+* **class**: beneath the class declaration line
+  * Purpose of the class, instantiation args for the class, notes to go into more detail, references, ...
+* **method**: beneath the method declaration line
+  * Purpose of the method, args to the method, notes
+* **attribute**: beneath the definition of a variable (in any scope in the file)
+  * What purpose it serves. Note that if you add an attribute docstring, the attribute is included in the documentation, while if you do not add such a docstring, the attribute does not appear in the documentation.
+
+Examples of the above can be seen and are discussed further in the [tutorial for creating a service](creating_a_service).
+
+Docstrings should be formatted according to the NumPy/SciPy convention.
 * [PEP257: General Python docstring conventions](https://www.python.org/dev/peps/pep-0257/)
 * [NumPy/SciPy documentation style guide](https://github.com/numpy/numpy/blob/master/doc/HOWTO_DOCUMENT.rst.txt)
 * [Example NumPy docstrings in code](http://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_numpy.html)
-* Since docstrings will be run through Sphinx using the Napoleon extension, the final arbiter on whether a docstring is acceptable is the output generated using [Napoleon](http://sphinxcontrib-napoleon.readthedocs.io/)
+* Since docstrings will be run through Sphinx using the Napoleon extension, the final arbiter on whether a docstring is formatted correctly is the output generated using [Napoleon](http://sphinxcontrib-napoleon.readthedocs.io/)
 
-## Non-docstring documentation
-Again, we'll be using [Sphinx](http://www.sphinx-doc.org/en/stable/) to compile documentation into well-structured, easily-browsable HTML and PDF. Therefore, all documentation must be compatible with Sphinx for it to be maximally useful to users/developers. The convention in PISA up to now was to use simple Markdown syntax, which is displayed nicely on Github but not natively interpretable by Sphinx (which uses [reStructuredText](http://docutils.sourceforge.net/rst.html) with Sphinx-specific directives). Fortunately, it appears we can use [recommonmark](https://github.com/rtfd/recommonmark) to allow Sphinx to at least understand these documents superficially, in addition to any future reST docs people want to write to leverage more Sphinx features.
+## Standalone files
 
-Note that Github understands and renders both Markdown and reStructuredText nicely, so *if you can do so, prefer reST for making such documents*. Markdown *is* dead-easy to write, though, so if learning reST syntax is keeping you from writing documentation, simply do it in Markdown and we'll add reST directives later!
+### Guides
+
+These are high-level documents addressing one (or multiple) of the three audiences: users, physics developers, and framework developers.
+
+* Install guide
+* Quick-start guide
+* User guide
+* Physics developer guide
+* Framework developer guide
+
+### README.md files
+
+There is (or should be) one README.md file per directory in PISA. This should state the raison d'être of the directory, or what is common to all of the "things" contained in the directory. Those that live in stage directories (e.g. `$PISA/pisa/stages/pid/README.md`) are more critical than the others, so are discussed further below.
+
+#### Stage README.md files
+
+* Try to avoid saying anything here that's already (or should be) said in the docstrings within each individual service. Anything like this is only going to get out of sync with the actual implementations, since it's repeating what's already in the docstrings for the individual services. This violates probably the most important [principle of software development](https://en.wikipedia.org/wiki/Don't_repeat_yourself).
+
+* So just make that as high-level as possible. For example, for `$PISA/pisa/stages/pid/README.md`, guidance would be:
+  * What is particle ID? I.e., what is the physics it represents, what is the process we generally use to do PID, and what systematics are pertinent to PID?
+  * What general categories to the contained service(s) fall into?
+  * What are the major difference between services that would lead a user to pick one vs. another?
+  * A table of what systematics are implemented by each service would be useful at this level
 
 # Testing
 If you add a feature: ***add a test that proves it works***. If you find a bug: ***add a test that it's fixed***. Not only does a test ensure that the functionality continues to work / bug continues to be squashed, through future iterations of the code, but it also is another way of communicating the assumptions that went into the code that might not be obvious from the code itself.

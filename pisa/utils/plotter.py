@@ -82,6 +82,7 @@ class plotter(object):
             self.dump(map.name)
 
     def plot_1d_array(self, mapset, plot_axis, n_rows=None,
+        ''' plot 1d projections as an array '''
             n_cols=None):
         self.plot_array(mapset, 'plot_1d_projection', plot_axis, n_rows=n_rows,
                 n_cols=n_cols)
@@ -126,6 +127,8 @@ class plotter(object):
     # --- plotting core functions ---
 
     def plot_array(self, mapset, fun, *args, **kwargs):
+    ''' wrapper funtion to exccute plotting function fun for every map in a set
+        distributed over a grid '''
         n_rows = kwargs.pop('n_rows', None)
         n_cols = kwargs.pop('n_cols', None)
         ''' plot mapset in array using a function fun '''
@@ -188,6 +191,7 @@ class plotter(object):
             plt.grid(True, which="both", ls='-', alpha=0.2)
 
     def project_1d(self, map, plot_axis):
+    ''' sum up a map along all axes except plot_axis '''
         hist = map.hist
         plt_axis_n = map.binning.names.index(plot_axis)
         for i in range(len(map.binning)):
@@ -197,6 +201,7 @@ class plotter(object):
         return hist
 
     def plot_1d_ratio(self, maps, plot_axis):
+    ''' make a ratio plot for a 1d projection '''
         axis = plt.gca()
         map0 = maps[0]
         plt_binning = map0.binning[plot_axis]
