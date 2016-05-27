@@ -82,6 +82,7 @@ def speed_test_gaussians():
         sys.stdout.flush()
 
     num_cpu = multiprocessing.cpu_count()
+    wstdout('Reported #CPUs: %d (includes any hyperthreading)\n' %num_cpu)
 
     np.random.seed(0)
     mu = np.array(np.random.randn(1e4), dtype=np.float64)
@@ -96,23 +97,19 @@ def speed_test_gaussians():
     # Place to store result of `scipy.stats.norm`
     refbuf = np.zeros_like(outbuf, dtype=np.float64)
 
-    # Compute the reference result
-    [refbuf.__iadd__(norm.pdf(x, loc=m, scale=s)) for m, s in izip(mu, sigma)]
-
     # Try out the threads functionality for each result; reset the accumulation
     # buffer each time.
     timings = []
-    wstdout('%7s %10s\n' %('Threads', 'Time'))
+    wstdout('%7s %10s %7s\n' %('Threads', 'Time (s)', 'Speedup'))
     for threads in range(1, num_cpu+1):
         outbuf.fill(0)
         t0 = time.time()
         gaussians(outbuf, x, mu, sigma, threads)
         timing = time.time() - t0
         timings.append((threads, timing))
-        assert np.allclose(outbuf, refbuf, rtol=1e-14, atol=0, equal_nan=True),\
-                'outbuf=\n%s\nrefbuf=\n%s\nmu=\n%s\nsigma=\n%s\nthreads=%d' \
-                %(outbuf, refbuf, mu, sigma, threads)
-        wstdout('%7d %10.3e\n' %(threads, timing))
+
+        wstdout('%7d %10.3e %7s\n' %(threads, timing,
+                                     format(timings[0][1]/timing, '5.3f')))
 
 
 if __name__ == '__main__':
