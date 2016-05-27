@@ -142,6 +142,10 @@ Explanation of the above command:
 Basically, within your Python source tree, PISA is just a link to your source directory, so changes within your source tree are seen directly by your Python installation.
 * `-r $PISA/requirements.txt`: Specifies the file containing PISA's dependencies for `pip` to install prior to installing PISA.
 This file lives at `$PISA/requirements.txt`.
+* If a specific compiler is set under the `CC` env variable, it will be used,
+    otherwise `cc` will be invoked. Note that there have been some problems
+    using `clang` under OSX, since it does not support `openmp`. Using `gcc`
+    instead works well.
 
 __Notes:__
 * You can work with your installation using the usual git commands (pull, push, etc.). However, these ***won't recompile*** any of the extension (i.e. pyx, _C/C++_) libraries. See below for how to handle this case.
