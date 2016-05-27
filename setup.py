@@ -21,6 +21,12 @@ import tempfile
 from Cython.Build import cythonize
 import numpy
 
+def setup_cc():
+    cc = os.environ['CC']
+    if cc == '':
+        os.environ['CC'] = 'cc'
+    print 'using compiler %s'%os.environ['CC']
+
 def has_cuda():
     # pycuda is present if it can be imported
     try:
@@ -56,11 +62,12 @@ def has_openmp():
     tmpdir = tempfile.mkdtemp()
     curdir = os.getcwd()
     os.chdir(tmpdir)
+    cc = os.environ['CC']
     try:
         with open(tmpfname, 'w', 0) as file:
             file.write(omp_test)
         with open(os.devnull, 'w') as fnull:
-            returncode = subprocess.call(['cc', '-fopenmp', tmpfname],
+            returncode = subprocess.call([cc, '-fopenmp', tmpfname],
                                          stdout=fnull, stderr=fnull)
         # Successful build (possibly with warnings) means we can use OpenMP
         OPENMP = returncode >= 0
@@ -68,7 +75,6 @@ def has_openmp():
         # Restore directory location and clean up
         os.chdir(curdir)
         shutil.rmtree(tmpdir)
-
     return OPENMP
 
 
@@ -87,6 +93,7 @@ class build(_build):
 
 
 if __name__ == '__main__':
+    setup_cc()
     CUDA = has_cuda()
     OPENMP = has_openmp()
 
