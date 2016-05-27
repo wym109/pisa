@@ -18,23 +18,29 @@ If you are *not* using Anaconda or Canopy, you can install the above via:
 * In Ubuntu,
   'sudo apt-get install git swig hdf5`
 
-The Python requirements are as follows; note that all *required* Python modules (i.e., everything besides Python and pip) are installed automatically when you install PISA with the command detailed later.
+The Python requirements that you must install manually:
 * [python](http://www.python.org) — version 2.7.x required (tested with 2.7.11)
 * [pip](https://pip.pypa.io/)
-* [numpy](http://www.numpy.org/)
-* [scipy](http://www.scipy.org/) — version > 0.12 recommended
-* [h5py](http://www.h5py.org/)
-* [pytables](http://www.pytables.org/)
+  * Anaconda: both are built in
+  * Otherwise, if on Linux:
+    `sudo apt-get install python pip`
+
+Required Python modules that are installed automatically when you use the pip command detailed later:
 * [cython](http://cython.org/)
-* [uncertainties](https://pythonhosted.org/uncertainties/)
+* [h5py](http://www.h5py.org/)
+* [numpy](http://www.numpy.org/)
 * [pint](https://pint.readthedocs.org/en/0.7.2/)
+* [pytables](http://www.pytables.org/)
+* [scipy](http://www.scipy.org/) — version > 0.12 recommended
+* [simplejson](https://github.com/simplejson/simplejson)
+* [uncertainties](https://pythonhosted.org/uncertainties/)
 
 ### Optional dependencies
 
 Optional dependencies, on the other hand, ***must be installed manually prior to installing PISA*** if you want the functionality they provide.
 The features enabled by and the relevant install commands for optional dependencies are listed below.
 * [openmp](http://www.openmp.org): parallelize certain routines on multi-core computers<br>
-  *(available from your compiler; gcc supports OpenMP, while Clang (OS X) might not)*
+  *available from your compiler; gcc supports OpenMP, while Clang (OS X) might not*
 * [PyCUDA](https://mathema.tician.de/software/pycuda): run certain routines on Nvidia CUDA GPUs (must have compute 2.0 or greater capability)<br>
   `pip install pycuda`
 * [numba](http://numba.pydata.org): just-in-time compilation via LLVM to accelerate certain routines<br>
