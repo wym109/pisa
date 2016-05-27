@@ -72,10 +72,14 @@ def test_gaussians():
                 %(outbuf, refbuf, mu, sigma, threads)
 
 
-def speed_test_gaussians():
+def speed_test_gaussians(num_gaussians, num_points):
     import multiprocessing
     import time
     import sys
+    assert int(num_gaussians) == float(num_gaussians), \
+            'must pass integral value or equivalent for `num_gaussians`'
+    assert int(num_points) == float(num_points), \
+            'must pass integral value or equivalent for `num_points`'
 
     def wstdout(msg):
         sys.stdout.write(msg)
@@ -83,13 +87,15 @@ def speed_test_gaussians():
 
     num_cpu = multiprocessing.cpu_count()
     wstdout('Reported #CPUs: %d (includes any hyperthreading)\n' %num_cpu)
+    wstdout('Summing %d Gaussians evaluated at %d points...\n'
+            %(num_gaussians, num_points))
 
     np.random.seed(0)
-    mu = np.array(np.random.randn(1e4), dtype=np.float64)
+    mu = np.array(np.random.randn(num_gaussians), dtype=np.float64)
     sigma = np.array(np.abs(np.random.randn(len(mu))), dtype=np.float64)
     np.clip(sigma, a_min=1e-20, a_max=np.inf, out=sigma)
 
-    x = np.linspace(-10, 10, 1e4, dtype=np.float64)
+    x = np.linspace(-10, 10, num_points, dtype=np.float64)
 
     # Place to store result of `gaussians()`; zero-stuffed in the below lopp
     outbuf = np.empty_like(x, dtype=np.float64)
@@ -105,21 +111,36 @@ def speed_test_gaussians():
         outbuf.fill(0)
         t0 = time.time()
         gaussians(outbuf, x, mu, sigma, threads)
-        timing = time.time() - t0
-        timings.append((threads, timing))
+        T = time.time() - t0
+        timings.append({'threads': threads, 'timing': T})
 
-        wstdout('%7d %10.3e %7s\n' %(threads, timing,
-                                     format(timings[0][1]/timing, '5.3f')))
+        wstdout('%7d %10.3e %7s\n'
+                %(threads, T, format(timings[0]['timing']/T, '5.3f')))
+
+    return timings
 
 
 if __name__ == '__main__':
     import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-s', '--speed', action='store_true',
-                        help='Run speed test rather than unit tests')
+    parser = argparse.ArgumentParser(
+        'Run tests on functions in gaussians.pyx; by default, runs unit tests.'
+    )
+    parser.add_argument(
+        '-s', '--speed', action='store_true',
+        help='''Run speed test rather than unit tests'''
+    )
+    parser.add_argument(
+        '--num-gaussians', type=float, default=1e4,
+        help='Number of Gaussians to sum if running speed test'
+    )
+    parser.add_argument(
+        '--num-points', type=float, default=1e4,
+        help='Number of points to evaluate if running speed test'
+    )
     args = parser.parse_args()
     if args.speed:
-        speed_test_gaussians()
+        speed_test_gaussians(num_gaussians=args.num_gaussians,
+                             num_points=args.num_points)
     else:
         test_gaussian()
         test_gaussians()
