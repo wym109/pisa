@@ -576,6 +576,9 @@ class OneDimBinning(object):
         ''' TODO: generalize for log etc...'''
         return 0.5*(self.bin_edges[1:]+self.bin_edges[:-1])
 
+    @property
+    def bin_widths(self):
+        return np.diff(self.bin_edges)
 
 # TODO: make this able to be loaded from a pickle!!!
 class MultiDimBinning(object):
