@@ -74,7 +74,7 @@ class honda(Stage):
         * 'nue'
         * 'nue_bar'
 
-    Corresponding to the 4 coventional atmospheric neutrino flavours.
+    Corresponding to the 4 conventional atmospheric neutrino flavours.
     
     Notes
     ----------
@@ -162,20 +162,20 @@ class honda(Stage):
     
     1) 'bisplrep' - A simple b-spline representation. This is quick. 
 
-       Here, the data is splined in both energy and cosZentih dimensions
+       Here, the data is splined in both energy and cosZenith dimensions
        simultaneously. This is done in log10 of the flux to make it more stable
        since the flux is mostly linear in this space as a function of energy.
        We use the SciPy module scipy.interpolate.bisplrep to do this (hence the 
        name of this interpolation method). This stands for Bivariate Spline 
        Representation (Bivariate since it is done in two dimensions 
-       simultaneously) These splines are then just evaluated at the desired 
+       simultaneously). These splines are then just evaluated at the desired 
        points using the function scipy.interpolate.bisplev.
 
     2) 'integral-preserving' - A slower, but more accurate choice.
 
        Here, the data is manipulated in sets of 1D splines. When initialising 
        this method, a spline is produced as a function of energy for every 
-       table coZenith value. However, in order to be integral-preserving, 
+       table cosZenith value. However, in order to be integral-preserving, 
        these splines are of the integrated flux. This is implemented by summing
        the bin contents along the chosen dimension. Thus, the knots of this 
        spline are the bin edges of the tables, so this method naturally gives 
@@ -189,7 +189,7 @@ class honda(Stage):
        the product of flux and energy, since this makes the splining more 
        stable. To evaluate the integral-preserved flux, the derivative of this 
        spline is evaluated. This is achieved with the scipy.interpolate.splev 
-       function with the argument der=1 (it defauls to der=0 i.e. direct 
+       function with the argument der=1 (it defaults to der=0 i.e. direct 
        evaluation of the spline). This is done for every spline in the set over
        all cosZenith and gives another set of points in that dimension at the 
        required energy. One then just repeats the method of integration in this
@@ -201,7 +201,7 @@ class honda(Stage):
        actually be done in the energy dimension as log10 of energy. With this, 
        the Honda tables have a constant binning. Since this bin width was not 
        accounted for in the integration, we instead account for it once the 
-       derivative is taken by multiplying by this bin width. This is a costant 
+       derivative is taken by multiplying by this bin width. This is a constant 
        (for each dimension) set by the original tables. Since this is always 
        consistent in the Honda tables they are hard-coded in this service. This
        is potentially something which may trip people up in the future.
