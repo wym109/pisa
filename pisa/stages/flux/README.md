@@ -17,7 +17,7 @@ The details of these interpolation methods can be found in the Notes section of 
 
 [NuFlux on the IceCube wiki](https://wiki.icecube.wisc.edu/index.php/NuFlux)
 
-Since this is a link on the IceCube wiki, you wil need the access permissions for this page.
+Since this is a link on the IceCube wiki, you will need the access permissions for this page.
 
 #### Output
 
