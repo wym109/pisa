@@ -32,14 +32,13 @@ def normQuant(x, sigfigs):
     are flattened and likewise iterated through, also returning a list.
     Therefore information about dimensionality is lost.
 
-    >>> import pint
-    >>> ureg = pint.UnitRegistry()
+    >>> import pint; ureg = pint.UnitRegistry()
     >>> q0 = 0.1 * ureg.m
-    >>> q1 = 1e-5 * ureg.um
+    >>> q1 = 1e5 * ureg.um
     >>> q0.to_base_units() == q1.to_base_units()
     False
-    >>> q0_approx = normQuant(q0, self.HASH_SIGFIGS)
-    >>> q1_approx = normQuant(q1, self.HASH_SIGFIGS)
+    >>> q0_approx = normQuant(q0, sigfigs=12)
+    >>> q1_approx = normQuant(q1, sigfigs=12)
     >>> q0_approx == q1_approx
     True
 
@@ -155,7 +154,7 @@ def test_normQuant():
     assert not np.any(q0 == q1)
     assert not np.any(q0.to_base_units() == q1.to_base_units())
     assert not np.any(normQuant(q0, None) == normQuant(q1, None))
-    assert not np.any(normQuant(q0, 17) == normQuant(q1, 17))
+    assert not np.any(normQuant(q0, 18) == normQuant(q1, 18))
     assert np.all(normQuant(q0, 16) == normQuant(q1, 16))
     assert np.all(normQuant(q0, 15) == normQuant(q1, 15))
     assert np.all(normQuant(q0, 1) == normQuant(q1, 1))
