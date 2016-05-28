@@ -18,9 +18,11 @@ from operator import setitem
 
 import numpy as np
 import pint; ureg = pint.UnitRegistry()
+#import simplejson as jsons
 
 from pisa.utils.comparisons import recursiveEquality
 from pisa.utils.hash import hash_obj
+from pisa.utils import jsons
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.numerical import normQuant
 
@@ -56,7 +58,13 @@ class OneDimBinning(object):
         Numerical values (including Pint units, if there are units) that
         represent the *edges* of the bins. `bin_edges` needn't be specified if
         `domain`, `num_bins`, and some combination of `is_lin` and `is_log` are
-        specified.
+        specified. Pint units can be attached to `bin_edges`, but will be
+        converted to `units` if these are specified.
+
+    units : None, Pint unit or object convertible to Pint unit
+        If None, units will be read from either `bin_edges` or `domain`, and if
+        none of these have units, the binning has unit 'dimensionless'
+        attached.
 
     is_lin : bool
         If `num_bins` and `domain` are specified,
@@ -64,44 +72,10 @@ class OneDimBinning(object):
     is_log : bool
         Whether
 
-    domain : length-2 sequence
+    domain : length-2 sequence of numerical
+        Units may be specified.
 
     num_bins : int
-
-
-    Attributes
-    ----------
-    bin_edges
-    domain
-    hash
-    is_irregular
-    is_lin
-    is_log
-    midpoints
-    num_bins
-    name
-    tex
-    units
-    weighted_centers
-
-
-    Methods
-    -------
-    assert_compat
-    is_bin_spacing_log
-    is_bin_spacing_lin
-    is_binning_ok
-    is_compat
-    ito
-    to
-    oversample
-    __eq__
-    __getattr__
-    __getitem__
-    __len__
-    __ne__
-    __repr__
-    __str__
 
 
     Notes
@@ -134,28 +108,53 @@ class OneDimBinning(object):
     # `is_log` and `is_lin` are required for state alongsize bin_edges so that
     # a sub-sampling down to a single bin that is then resampled to > 1 bin
     # will retain the log/linear property of the original OneDimBinning.
-    _state_attrs = ('name', 'tex', 'bin_edges', 'is_log', 'is_lin')
+    _hash_attrs = ('name', 'tex', 'bin_edges', 'is_log', 'is_lin')
 
-    def __init__(self, name, tex=None, bin_edges=None, domain=None,
+    def __init__(self, name, tex=None, bin_edges=None, units=None, domain=None,
                  num_bins=None, is_lin=None, is_log=None):
-        assert isinstance(name, basestring), str(type(name))
+        if not isinstance(name, basestring):
+            raise TypeError('`name` must be basestring; got "%s".' %type(name))
+        if domain is not None:
+            assert isinstance(domain, Iterable)
+            assert len(domain) == 2
         self.name = name
         if tex is None:
             tex = name
         self.tex = tex
 
+        # If None, leave this and try to get units from bin_edges or domain
+        # (and if nothing has units in the end, *then* make quantity have the
+        # units 'dimensionless')
+        if units is not None and not isinstance(units, pint.unit._Unit):
+            units = ureg(units)
+
         # Temporarily strip units (if any were provided) to make constructing
         # bins consistent (in particular, log(x) isn't valid if x has units),
         # then reattach units after bin_edges has been defined. Default units
         # are "dimensionless".
-        units = ureg.dimensionless
         if isinstance(bin_edges, pint.quantity._Quantity):
+            if units is not None:
+                if bin_edges.dimensionality != units.dimensionality:
+                    raise ValueError('All units specified must be compatible.')
+                # Explicitly-passed units have precedence, so convert to those
+                bin_edges.ito(units)
             units = bin_edges.units
             bin_edges = bin_edges.magnitude
 
         if isinstance(domain, pint.quantity._Quantity):
+            if units is not None:
+                if domain.dimensionality != units.dimensionality:
+                    raise ValueError('All units specified must be compatible.')
+                # Explicitly-passed AND bin_edges' units have precedence, so
+                # convert to wihichever of those has been populated to `units`
+                domain.ito(units)
             units = domain.units
             domain = domain.magnitude
+
+        # Now if no units have been discovered from the input args, default to
+        # units of 'dimensionless'
+        if units is None:
+            units = ureg.dimensionless
 
         # If both `is_log` and `is_lin` are specified, both cannot be true
         # (but both can be False, in case of irregularly-spaced bins)
@@ -170,17 +169,15 @@ class OneDimBinning(object):
                     and (is_log or is_lin), '%s, %s' %(num_bins, domain)
             if is_log:
                 is_lin = False
-                bin_edges = np.logspace(np.log10(np.min(domain)),
-                                        np.log10(np.max(domain)),
+                bin_edges = np.logspace(np.log10(domain[0]),
+                                        np.log10(domain[1]),
                                         num_bins + 1)
             elif is_lin:
                 is_log = False
-                bin_edges = np.linspace(np.min(domain),
-                                        np.max(domain),
-                                        num_bins + 1)
+                bin_edges = np.linspace(domain[0], domain[1], num_bins + 1)
 
         elif domain is not None:
-            raise ValueError('Specify `bin_edges` or `domain`, but not both.')
+            assert domain[0] == bin_edges[0] and domain[1] == bin_edges[-1]
 
         bin_edges = np.array(bin_edges)
         if is_lin:
@@ -199,12 +196,14 @@ class OneDimBinning(object):
         #if not is_lin and not is_log:
         #    is_log = self.is_bin_spacing_log(bin_edges)
 
-        # Attach units to bin edges
+        # (Re)attach units to bin edges
         self.bin_edges = bin_edges * units
 
-        # Define domain and attach units
-
+        # (Re)define domain and attach units
         self.domain = np.array([bin_edges[0], bin_edges[-1]]) * units
+
+        # Store units for convenience
+        self._units = units
 
         # Derive rest of unspecified parameters from bin_edges or enforce
         # them if they were specified as arguments to init
@@ -231,11 +230,69 @@ class OneDimBinning(object):
         # double-precision limits after conversion so that hashes will work out
         # to be the same after conversion to the base units.
 
+    #def __repr__(self):
+    #    argstrs = [('%s=%s' %item) for item in self._serializable_state.items()]
+    #    return '%s(%s)' %(self.__class__.__name__, ', '.join(argstrs))
+
+    def to_json(self, filename, **kwargs):
+        """Serialize the state to a JSON file that can be instantiated as a new
+        object later.
+
+        Parameters
+        ----------
+        filename : str
+            Filename; must be either a relative or absolute path (*not
+            interpreted as a PISA resource specification*)
+        **kwargs
+            Further keyword args are sent to `pisa.utils.jsons.to_json()`
+
+        See Also
+        --------
+        from_json : Intantiate new OneDimBinning object from the file written
+        by this method pisa.utils.jsons.to_json
+
+        """
+        jsons.to_json(self._serializable_state, filename=filename, **kwargs)
+
+    @classmethod
+    def from_json(cls, resource):
+        """Instantiate a new object from the contents of a JSON file as
+        formatted by the `to_json` method.
+
+        Parameters
+        ----------
+        resource : str
+            A PISA resource specification (see pisa.utils.resources)
+
+        See Also
+        --------
+        to_json
+
+        """
+        state = jsons.from_json(resource)
+        return cls(**state)
+
     @property
-    def state(self):
+    def _serializable_state(self):
         state = OrderedDict()
-        for attr in self._state_attrs:
-            setitem(state, attr, getattr(self, attr))
+        state['name'] = self.name
+        state['tex'] = self.tex
+        state['bin_edges'] = self.bin_edges.magnitude
+        state['units'] = str(self.units)
+        state['is_log'] = self.is_log
+        state['is_lin'] = self.is_lin
+        return state
+
+    @property
+    def _hashable_state(self):
+        state = OrderedDict()
+        state['name'] = self.name
+        state['tex'] = self.tex
+        bin_edges = normQuant(self.bin_edges, sigfigs=HASH_SIGFIGS)
+        state['bin_edges'] = bin_edges
+        state['units'] = str(bin_edges[0].units)
+        state['is_log'] = self.is_log
+        state['is_lin'] = self.is_lin
         return state
 
     @property
@@ -249,11 +306,10 @@ class OneDimBinning(object):
         defined using different unit orders-of-magnitude to hash differently).
 
         """
-        normalized_state = OrderedDict()
-        for attr in self._state_attrs:
-            val = normQuant(getattr(self, attr), HASH_SIGFIGS)
-            setitem(normalized_state, attr, val)
-        return hash_obj(normalized_state)
+        return hash_obj(self._hashable_state)
+
+    def __hash__(self):
+        return self.hash
 
     @property
     def label(self):
@@ -275,11 +331,11 @@ class OneDimBinning(object):
         def new_function(self, *args, **kwargs):
             new_state = OrderedDict()
             state_updates = original_function(self, *args, **kwargs)
-            for slot in self._state_attrs:
-                if state_updates.has_key(slot):
-                    new_state[slot] = state_updates[slot]
+            for attr in self._hash_attrs:
+                if attr in state_updates:
+                    new_state[attr] = state_updates[attr]
                 else:
-                    new_state[slot] = deepcopy(getattr(self, slot))
+                    new_state[attr] = deepcopy(getattr(self, attr))
             return OneDimBinning(**new_state)
         return new_function
 
@@ -461,7 +517,7 @@ class OneDimBinning(object):
     @new_obj
     def to(self, units):
         if units is None:
-            units = ''
+            units = 'dimensionless'
         return {'bin_edges': self.bin_edges.to(ureg(str(units)))}
 
     def __getattr__(self, attr):
@@ -559,14 +615,7 @@ class OneDimBinning(object):
     def __eq__(self, other):
         if not isinstance(other, OneDimBinning):
             return False
-        for slot in self._state_attrs:
-            normed_self = normQuant(self.__getattr__(slot),
-                                    sigfigs=HASH_SIGFIGS)
-            normed_other = normQuant(other.__getattr__(slot),
-                                     sigfigs=HASH_SIGFIGS)
-            if not np.all(normed_other == normed_self):
-                return False
-        return True
+        return recursiveEquality(self._hashable_state, other._hashable_state)
 
     def __ne__(self, other):
         return not self == other
@@ -586,59 +635,25 @@ class MultiDimBinning(object):
 
     Parameters
     ----------
-    *args : each a OneDimBinning or Mapping that can construct one via
-        OneDimBinning Instantiated binning follows the order in which each
-        OneDimBinning See OneDimBinning keys required for a Mapping that can be
-        used to instantiate OneDimBinning.
-
-    Attributes
-    ----------
-    bin_edges
-    dimensions
-    hash
-    names
-    num_bins
-    num_dims
-    shape
-    tot_num_bins
-
-    Methods
-    -------
-    assert_array_fits
-    assert_compat
-    meshgrid
-    oversample
-    to
-    __contains__
-    __eq__
-    __getitem__
-    __iter__
-    __len__
-    __ne__
-    __repr__
-    __str__
-
+    dimensions : OneDimBinning or sequence convertible thereto
+        Dimensions for the binning object. Indexing into the MultiDimBinning
+        object follows the order in which dimensions are provided.
 
     See Also
     --------
-    OneDimBinning : each arg that is a Mapping (e.g. a dict) is sent to
-        OneDimBinning as its **kwargs. Refer to this object for valid fields.
+    OneDimBinning : each item that is not a OneDimBinning object is passed to
+        this class to be instantiated as such.
 
     """
-    def __init__(self, *args):
-        dimensions = []
+    def __init__(self, dimensions):
+        if not isinstance(dimensions, (Sequence, Iterable)):
+            if isinstance(dimensions, Mapping):
+                assert len(dimensions) == 1 and 'dimensions' in dimensions
+                dimensions = dimensions['dimensions']
+            dimensions = [dimensions]
         shape = []
-        # Break out any sequences passed in
-        objects = []
-        for arg in args:
-            if isinstance(arg, (OneDimBinning, Mapping)):
-                objects.append(arg)
-            elif isinstance(arg, MultiDimBinning):
-                objects.extend(arg.dimensions)
-            elif isinstance(arg, (Iterable, Sequence)):
-                objects.extend(arg)
-
-        for obj_num, obj in enumerate(objects):
+        dimensions_ = []
+        for obj_num, obj in enumerate(dimensions):
             if isinstance(obj, OneDimBinning):
                 one_dim_binning = obj
             elif isinstance(obj, Mapping):
@@ -646,19 +661,80 @@ class MultiDimBinning(object):
             else:
                 raise TypeError('Argument/object #%d unhandled type: %s'
                                 %(obj_num, type(obj)))
-            dimensions.append(one_dim_binning)
+            dimensions_.append(one_dim_binning)
             shape.append(one_dim_binning.num_bins)
 
-        self.dimensions = tuple(dimensions)
-        self.num_dims = len(self.dimensions)
-        self.shape = tuple(shape)
+        self._dimensions = tuple(dimensions_)
+        self._num_dims = len(dimensions)
+        self._shape = tuple(shape)
+
+    #def __repr__(self):
+    #    argstrs = [('%s=%s' %item) for item in self._serializable_state.items()]
+    #    return '%s(%s)' %(self.__class__.__name__, ', '.join(argstrs))
+
+    def to_json(self, filename, **kwargs):
+        """Serialize the state to a JSON file that can be instantiated as a new
+        object later.
+
+
+        Parameters
+        ----------
+        filename : str
+            Filename; must be either a relative or absolute path (*not
+            interpreted as a PISA resource specification*)
+
+        **kwargs
+            Further keyword args are sent to `pisa.utils.jsons.to_json()`
+
+
+        See Also
+        --------
+        from_json : Intantiate new object from the file written by this method
+        pisa.utils.jsons.to_json
+
+        """
+        jsons.to_json(self._serializable_state, filename=filename, **kwargs)
+
+    @classmethod
+    def from_json(cls, resource):
+        """Instantiate a new MultiDimBinning object from a JSON file.
+
+        The format of the JSON is generated by the `MultiDimBinning.to_json`
+        method, which converts a MultiDimBinning object to basic types and
+        numpy arrays are converted in a call to `pisa.utils.jsons.to_json`.
+
+        Parameters
+        ----------
+        resource : str
+            A PISA resource specification (see pisa.utils.resources)
+
+        See Also
+        --------
+        to_json
+        pisa.utils.jsons.to_json
+
+        """
+        state = jsons.from_json(resource)
+        return cls(**state)
 
     @property
     def names(self):
         return [dim.name for dim in self.dimensions]
 
     @property
-    def state(self):
+    def dimensions(self):
+        return self._dimensions
+
+    @property
+    def num_dims(self):
+        return self._num_dims
+
+    @property
+    def shape(self):
+        return self._shape
+
+    @property
+    def _serializable_state(self):
         """Everything necessary to fully describe this object's state. Note
         that objects may be returned by reference, so to prevent external
         modification, the user must call deepcopy() separately on the returned
@@ -667,14 +743,34 @@ class MultiDimBinning(object):
         Returns
         -------
         state tuple; can be passed to instantiate a new MultiDimBinning via
-            MultiDimBinning(*state)
+            MultiDimBinning(**state)
 
         """
-        return tuple([d.state for d in self.dimensions])
+        return OrderedDict({'dimensions': [d._serializable_state
+                                           for d in self.dimensions]})
+
+    @property
+    def _hashable_state(self):
+        """Everything necessary to fully describe this object's state. Note
+        that objects may be returned by reference, so to prevent external
+        modification, the user must call deepcopy() separately on the returned
+        tuple.
+
+        Returns
+        -------
+        state tuple; can be passed to instantiate a new MultiDimBinning via
+            MultiDimBinning(**state)
+
+        """
+        return OrderedDict({'dimensions': tuple([d._hashable_state
+                                                 for d in self.dimensions])})
 
     @property
     def hash(self):
         return hash_obj(tuple([d.hash for d in self.dimensions]))
+
+    def __hash__(self):
+        return self.hash
 
     @property
     def bin_edges(self):
@@ -880,7 +976,7 @@ class MultiDimBinning(object):
     def __eq__(self, other):
         if not isinstance(other, MultiDimBinning):
             return False
-        return recursiveEquality(self.state, other.state)
+        return recursiveEquality(self._hashable_state, other._hashable_state)
 
     def __getattr__(self, attr):
         for d in self.dimensions:
@@ -929,9 +1025,10 @@ class MultiDimBinning(object):
             raise ValueError('Binning is %dD, but %dD indexing was passed'
                              %(self.num_dims, input_dim))
 
-        new_binning = [dim[idx] for dim, idx in zip(self.dimensions, index)]
+        new_binning = {'dimensions': [dim[idx] for dim, idx in
+                                      zip(self.dimensions, index)]}
 
-        return MultiDimBinning(*new_binning)
+        return MultiDimBinning(**new_binning)
 
     #def __iter__(self):
     #    return iter(self.dimensions)
@@ -967,7 +1064,8 @@ def test_OneDimBinning():
     logging.debug('b1[:-1]: %s' %b1[:-1])
     logging.debug('copy(b1): %s' %copy(b1))
     logging.debug('deepcopy(b1): %s' %deepcopy(b1))
-    pickle.dumps(b1, pickle.HIGHEST_PROTOCOL)
+    # TODO: make pickle great again
+    #pickle.dumps(b1, pickle.HIGHEST_PROTOCOL)
     try:
         b1[-1:-3]
     except ValueError:
@@ -987,14 +1085,20 @@ def test_OneDimBinning():
 
     # Normalize function should take care of this
     assert np.all(normQuant(b3.bin_edges, sigfigs=HASH_SIGFIGS)
-                  == normQuant(b4.bin_edges, sigfigs=HASH_SIGFIGS))
+                  == normQuant(b4.bin_edges, sigfigs=HASH_SIGFIGS)), \
+            'normQuant(b3.bin_edges)=\n%s\nnormQuant(b4.bin_edges)=\n%s' \
+            %(normQuant(b3.bin_edges, HASH_SIGFIGS),
+              normQuant(b4.bin_edges, HASH_SIGFIGS))
 
     # And the hashes should be equal, reflecting the latter result
-    assert b3.hash == b4.hash
+    assert b3.hash == b4.hash, '\nb3=%s\nb4=%s' %(b3._hashable_state,
+                                                b4._hashable_state)
+    assert b3.hash == b4.hash, 'b3.hash=%s; b4.hash=%s' %(b3.hash, b4.hash)
 
-    s = pickle.dumps(b3, pickle.HIGHEST_PROTOCOL)
-    b3_loaded = pickle.loads(s)
-    assert b3_loaded == b3
+    # TODO: make pickle great again
+    #s = pickle.dumps(b3, pickle.HIGHEST_PROTOCOL)
+    #b3_loaded = pickle.loads(s)
+    #assert b3_loaded == b3
 
     logging.info('<< PASSED >> test_OneDimBinning')
 
@@ -1005,7 +1109,7 @@ def test_MultiDimBinning():
                        domain=[1, 80]*ureg.GeV)
     b2 = OneDimBinning(name='coszen', num_bins=40, is_lin=True,
                        domain=[-1, 1])
-    mdb = MultiDimBinning(b1, b2)
+    mdb = MultiDimBinning([b1, b2])
     b00 = mdb[0,0]
     x0 = mdb[0:, 0]
     x1 = mdb[0:, 0:]
@@ -1014,15 +1118,15 @@ def test_MultiDimBinning():
     logging.debug(str(mdb.energy))
     logging.debug('copy(mdb): %s' %copy(mdb))
     logging.debug('deepcopy(mdb): %s' %deepcopy(mdb))
-    s = pickle.dumps(mdb, pickle.HIGHEST_PROTOCOL)
+    #s = pickle.dumps(mdb, pickle.HIGHEST_PROTOCOL)
     # TODO: add these back in when we get pickle loading working!
     #mdb2 = pickle.loads(s)
     #assert mdb2 == mdb1
 
-    binning = MultiDimBinning(
+    binning = MultiDimBinning([
         dict(name='energy', is_log=True, domain=[1, 80]*ureg.GeV, num_bins=40),
         dict(name='coszen', is_lin=True, domain=[-1, 0], num_bins=20)
-    )
+    ])
 
     assert binning.oversample(10).shape == (400, 200)
 
@@ -1032,7 +1136,8 @@ def test_MultiDimBinning():
     assert binning.oversample(coszen=10, energy=2).shape == (80, 200)
     assert binning.oversample(1, 1) == binning
 
-    assert binning.to('MeV', '') == binning
+    assert binning.to('MeV', '') == binning, 'converted=%s\norig=%s' \
+            %(binning.to('MeV', ''), binning)
     assert binning.to('MeV', '').hash == binning.hash
 
     mg = binning.meshgrid(entity='midpoints')

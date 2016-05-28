@@ -143,10 +143,10 @@ class prob3cpu(Stage):
         # are actually used in the oscillations computation. All other
         # dimensions are ignored. Since these won't change so long as the
         # binning doesn't change, attache these to self.
-        self.ecz_binning = MultiDimBinning(
+        self.ecz_binning = MultiDimBinning([
             self.input_binning.energy.to('GeV'),
             self.input_binning.coszen.to('dimensionless')
-        )
+        ])
         e_centers, cz_centers = self.ecz_binning.weighted_centers
         self.e_centers = e_centers.magnitude
         self.cz_centers = cz_centers.magnitude

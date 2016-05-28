@@ -1,15 +1,25 @@
 # Authors: J.L.Lanfranchi/P.Eller
 # Date   : 2016-05-13
 
-from collections import OrderedDict
+from collections import OrderedDict, Sequence
 from copy import copy, deepcopy
+import importlib
+import inspect
+import sys
 
 import numpy as np
+from uncertainties import unumpy as unp
 
 from pisa.core.binning import MultiDimBinning
 from pisa.core.map import Map, MapSet
+from pisa.utils.comparisons import recursiveEquality
 from pisa.utils.hash import hash_obj
+from pisa.utils import jsons
 from pisa.utils.log import logging, set_verbosity
+from pisa.utils.numerical import normQuant
+
+
+HASH_SIGFIGS = 12
 
 # TODO: Include option for propagating/not propagating errors, so that while
 # e.g. a minimizer runs to match templates to "data," the overhead is not
@@ -29,30 +39,16 @@ from pisa.utils.log import logging, set_verbosity
 # least append, extend, ...)
 TRANS_SET_SLOTS = ('name', 'hash', 'transforms', '__iter__',
                    'nonvolatile_hash', 'input_names', 'num_inputs',
-                   'output_names', 'apply', '__getattribute__')
+                   'output_names', 'apply', '__getattribute__',
+                   'to_json', 'from_json')
 class TransformSet(object):
     """
+    Set of Transform objects.
+
     Parameters
     ----------
     transforms
     name
-
-    Attributes
-    ----------
-    hash
-    input_names
-    name
-    nonvolatile_hash
-    num_inputs
-    num_outputs
-    output_names
-    transforms
-
-    Methods
-    -------
-    apply
-    check_predecessor_compat
-    check_successor_compat
 
     """
     def __init__(self, transforms, name=None):
@@ -60,8 +56,87 @@ class TransformSet(object):
         self.name = name
         self.hash = None
 
+    @property
+    def _serializable_state(self):
+        state = OrderedDict()
+        state['transforms'] = tuple([
+            (t.__module__, t.__class__.__name__, t._serializable_state)
+            for t in self.transforms
+        ])
+        state['name'] = self.name
+        return state
+
+    @property
+    def _hashable_state(self):
+        state = OrderedDict()
+        state['transforms'] = tuple([
+            (t.__module__, t.__class__.__name__, t._hashable_state)
+            for t in self.transforms
+        ])
+        state['name'] = self.name
+        return state
+
     def __iter__(self):
         return iter(self.transforms)
+
+    def __eq__(self, other):
+        if not isinstance(other, TransformSet):
+            return False
+        return recursiveEquality(self._hashable_state, other._hashable_state)
+
+    def to_json(self, filename, **kwargs):
+        """Serialize the state to a JSON file that can be instantiated as a new
+        object later.
+
+        Parameters
+        ----------
+        filename : str
+            Filename; must be either a relative or absolute path (*not
+            interpreted as a PISA resource specification*)
+        **kwargs
+            Further keyword args are sent to `pisa.utils.jsons.to_json()`
+
+        See Also
+        --------
+        from_json : Intantiate new object from the file written by this method
+        pisa.utils.jsons.to_json
+
+        """
+        jsons.to_json(self._serializable_state, filename=filename, **kwargs)
+
+    @classmethod
+    def from_json(cls, resource):
+        """Instantiate a new TransformSet object from a JSON file.
+
+        Parameters
+        ----------
+        resource : str
+            A PISA resource specification (see pisa.utils.resources)
+
+        See Also
+        --------
+        to_json
+        pisa.utils.jsons.to_json
+
+        """
+        state = jsons.from_json(resource)
+        transforms = []
+        for module, classname, transform_state in state['transforms']:
+            clsmembers = inspect.getmembers(sys.modules[__name__],
+                                            inspect.isclass)
+            # First try to get a class within this module/namespace
+            classes = [c[1] for c in clsmembers if c[0] == classname]
+            if len(classes) > 0:
+                class_ = classes[0]
+            else:
+                # Otherwise try to import the module recorded in the JSON file
+                module = importlib.import_module(module)
+                # And then get the class
+                class_ = getattr(module, classsname)
+            transforms.append(class_(**transform_state))
+        state['transforms'] = transforms
+        # State is a dict, so instantiate with double-asterisk syntax
+        return cls(**state)
 
     #@property
     #def hash(self):
@@ -115,28 +190,20 @@ class TransformSet(object):
         # TODO: what to set for name, tex, ... ?
         return MapSet(maps=outputs)
 
-    def __getattribute__(self, attr):
+    def __getattr__(self, attr):
         if attr in TRANS_SET_SLOTS:
             return super(TransformSet, self).__getattribute__(attr)
-        return TransformSet([getattr(t) for t in self], name=self.name)
+        return TransformSet([getattr(t, attr) for t in self.transforms],
+                            name=self.name)
 
 
 class Transform(object):
     """
-    Transform.
-
-    Parameters
-    ----------
-
-    Attributes
-    ----------
-    hash
-    input_names
-    num_inputs
-    output_name
-    tex
+    Base class for building a transform.
 
     """
+    # TODO: get rid of the tex attribute, or add back in the name attribute?
+
     # Attributes that __setattr__ will allow setting
     _slots = ('_input_names', '_output_name', '_tex', '_hash', '_hash')
     # Attributes that should be retrieved to fully describe state
@@ -144,21 +211,101 @@ class Transform(object):
 
     def __init__(self, input_names, output_name, input_binning=None,
                  output_binning=None, tex=None, hash=None):
+        # Convert to sequence of single string if a single string was passed
+        # for uniform interfacing
         if isinstance(input_names, basestring):
             input_names = [input_names]
+        self._input_names = tuple(input_names)
+
         assert isinstance(output_name, basestring)
-        self._input_names = input_names
         self._output_name = output_name
+
         if input_binning is not None:
-            self._input_binning = MultiDimBinning(input_binning)
+            if not isinstance(input_binning, MultiDimBinning):
+                if isinstance(input_binning, Sequence):
+                    input_binning = MultiDimBinning(input_binning)
+                else:
+                    input_binning = MultiDimBinning(**input_binning)
+            self._input_binning = input_binning
         else:
             self._input_binning = None
+
         if output_binning is not None:
-            self._output_binning = MultiDimBinning(output_binning)
+            if not isinstance(output_binning, MultiDimBinning):
+                if isinstance(output_binning, Sequence):
+                    output_binning = MultiDimBinning(output_binning)
+                else:
+                    output_binning = MultiDimBinning(**output_binning)
+            self._output_binning = output_binning
         else:
             self._output_binning = None
+
         self._tex = tex if tex is not None else output_name
         self._hash = hash
+
+    @property
+    def _serializable_state(self):
+        state = OrderedDict()
+        state['input_names'] = self.input_names
+        state['output_name'] = self.output_name
+        state['input_binning'] = self.input_binning._serializable_state
+        state['output_binning'] = self.output_binning._serializable_state
+        state['tex'] = self.tex
+        state['hash'] = self.hash
+        return state
+
+    @property
+    def _hashable_state(self):
+        state = OrderedDict()
+        state['input_names'] = self.input_names
+        state['output_name'] = self.output_name
+        state['input_binning'] = self.input_binning._hashable_state
+        state['output_binning'] = self.output_binning._hashable_state
+        state['tex'] = self.tex
+        return state
+
+    def to_json(self, filename, **kwargs):
+        """Serialize the state to a JSON file that can be instantiated as a new
+        object later.
+
+        Parameters
+        ----------
+        filename : str
+            Filename; must be either a relative or absolute path (*not
+            interpreted as a PISA resource specification*)
+        **kwargs
+            Further keyword args are sent to `pisa.utils.jsons.to_json()`
+
+        See Also
+        --------
+        from_json : Intantiate new object from the file written by this method
+        pisa.utils.jsons.to_json
+
+        """
+        jsons.to_json(self._serializable_state, filename=filename, **kwargs)
+
+    @classmethod
+    def from_json(cls, resource):
+        """Instantiate a new Map object from a JSON file.
+
+        The format of the JSON is generated by the `Map.to_json` method, which
+        converts a Map object to basic types and then numpy arrays are
+        converted in a call to `pisa.utils.jsons.to_json`.
+
+        Parameters
+        ----------
+        resource : str
+            A PISA resource specification (see pisa.utils.resources)
+
+        See Also
+        --------
+        to_json
+        pisa.utils.jsons.to_json
+
+        """
+        state = jsons.from_json(resource)
+        # State is a dict for Map, so instantiate with double-asterisk syntax
+        return cls(**state)
 
     @property
     def hash(self):
@@ -212,6 +359,17 @@ class Transform(object):
 #       estimate of the error in the output map.
 class BinnedTensorTransform(Transform):
     """
+    BinnedTensorTransform implementing common transforms used in PISA:
+        1) Element-by-element multiplicaton. E.g., to transform an N x M map,
+           the transform array is also M x N.
+
+        2) Smearing kernels, e.g. to characterize resolutions. For a transform
+           indended to be applied to a 2D map of dimensions (M x N), for each
+           of the M x N bins of the input map, there is one M x N kernel that
+           represents how that bin gets "smeared out" to the entire output map.
+           The effect of each input bin is added up to yield in the end a single
+           M x N output map.
+
 
     Parameters
     ----------
@@ -248,15 +406,11 @@ class BinnedTensorTransform(Transform):
 
     xform_array : numpy ndarray
 
+    error_array : None or numpy ndarray
+
     tex : string
 
     params_hash : immutable object (usually integer)
-
-
-    Attributes
-    ----------
-    hash
-    source_hash
 
 
     Notes
@@ -283,14 +437,52 @@ class BinnedTensorTransform(Transform):
                          ['input_binning', 'output_binning', 'xform_array'])
 
     def __init__(self, input_names, output_name, input_binning, output_binning,
-                 xform_array, tex=None, hash=None):
-        super(self.__class__, self).__init__(input_names=input_names,
-                                             output_name=output_name,
-                                             input_binning=input_binning,
-                                             output_binning=output_binning,
-                                             tex=tex,
-                                             hash=hash)
+                 xform_array, error_array=None, tex=None, hash=None):
+        super(BinnedTensorTransform, self).__init__(
+            input_names=input_names, output_name=output_name,
+            input_binning=input_binning, output_binning=output_binning,
+            tex=tex, hash=hash
+        )
         self.xform_array = xform_array
+        self.set_errors(error_array)
+
+    @property
+    def _serializable_state(self):
+        state = super(BinnedTensorTransform, self)._serializable_state
+        state['xform_array'] = unp.nominal_values(self.xform_array)
+        state['error_array'] = unp.std_devs(self.xform_array)
+        return state
+
+    @property
+    def _hashable_state(self):
+        state = super(BinnedTensorTransform, self)._hashable_state
+        state['xform_array'] = normQuant(unp.nominal_values(self.xform_array),
+                                         sigfigs=HASH_SIGFIGS)
+        state['error_array'] = normQuant(unp.std_devs(self.xform_array),
+                                         sigfigs=HASH_SIGFIGS)
+        return state
+
+    def set_errors(self, error_array):
+        """Manually define the error with an array the same shape as the
+        contained histogram. Can also remove errors by passing None.
+
+        Parameters
+        ----------
+        error_array : None or ndarray
+            Standard deviations to apply to `self.xform_array`; shapes must
+            match. If None is passed, any errors present are removed, making
+            `self.xform_array` a bare numpy array.
+
+        """
+        if error_array is None:
+            super(Transform, self).__setattr__(
+                '_xform_array', unp.nominal_values(self._xform_array)
+            )
+            return
+        assert error_array.shape == self.xform_array.shape
+        super(BinnedTensorTransform, self).__setattr__(
+            '_xform_array', unp.uarray(self._xform_array, error_array)
+        )
 
     @property
     def xform_array(self):
@@ -330,11 +522,10 @@ class BinnedTensorTransform(Transform):
             return dict(xform_array=self.xform_array / other.xform_array)
         return dict(xform_array=self.xform_array / other)
 
-    @new_obj
     def __eq__(self, other):
         if not isinstance(other, BinnedTensorTransform):
             return False
-        return np.all(self.xform_array == other.xform_array)
+        return recursiveEquality(self._hashable_state, other._hashable_state)
 
     @new_obj
     def __mul__(self, other):
@@ -479,8 +670,10 @@ class BinnedTensorTransform(Transform):
 
 #def test_BinnedTensorTransform():
 if __name__ == '__main__':
+    import os
+    import shutil
+    import tempfile
     import pint; ureg = pint.UnitRegistry()
-
     from pisa.core.map import Map, MapSet
     from pisa.core.binning import MultiDimBinning
 
@@ -526,7 +719,17 @@ if __name__ == '__main__':
         xform_array=np.stack([2*np.ones(binning.shape),
                               3*np.ones(binning.shape)], axis=0)
     )
-    print (xform2 + 2).xform_array[0,0] - xform2.xform_array[0,0]
+    assert np.all((xform2 + 2).xform_array - xform2.xform_array == 2)
+
+    testdir = tempfile.mkdtemp()
+    try:
+        for i, t in enumerate([xform0, xform1, xform2]):
+            t_file = os.path.join(testdir, str(i) + '.json')
+            t.to_json(t_file)
+            t_ = BinnedTensorTransform.from_json(t_file)
+            assert t_ == t, 't=\n%s\nt_=\n%s' %(t, t_)
+    finally:
+        shutil.rmtree(testdir, ignore_errors=True)
 
     xforms = TransformSet(
         name='scaling',
@@ -535,7 +738,18 @@ if __name__ == '__main__':
 
     outputs = xforms.apply(inputs)
 
-    xforms2 = xforms * 2
+    # TODO: get this working above, then test here!
+    #xforms2 = xforms * 2
+
+    testdir = tempfile.mkdtemp()
+    try:
+        for i, t in enumerate([xforms]):
+            t_filename = os.path.join(testdir, str(i) + '.json')
+            t.to_json(t_filename)
+            t_ = TransformSet.from_json(t_filename)
+            assert t_ == t, 't=\n%s\nt_=\n%s' %(t.transforms, t_.transforms)
+    finally:
+        shutil.rmtree(testdir, ignore_errors=True)
 
 
 #if __name__ == "__main__":

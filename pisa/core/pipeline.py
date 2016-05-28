@@ -254,7 +254,7 @@ if __name__ == '__main__':
     #for name in m0.names:
     #    json[name] = m0[name].hist
     #to_file(json, args.outputs_file)
-    to_file(m0, args.outputs_file)
+    m0.to_json(args.outputs_file)
     my_plotter = plotter(stamp = 'PISA cake test')
     #my_plotter.ratio = True
     #my_plotter.plot_2d_maps()
