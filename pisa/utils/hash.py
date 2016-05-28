@@ -50,7 +50,8 @@ def hash_obj(obj, hash_to='int'):
     # Handle e.g. an open file specially
     if hasattr(obj, 'read'):
         return hash_obj(obj.read())
-    hash = hashlib.md5(pickle.dumps(obj, pickle.HIGHEST_PROTOCOL))
+    #hash = hashlib.md5(pickle.dumps(obj, pickle.HIGHEST_PROTOCOL))
+    hash = hashlib.md5(repr(obj))
     if hash_to in ['i', 'int', 'integer']:
         hash_val, = struct.unpack('<q', hash.digest()[:8])
     elif hash_to in ['b', 'bin', 'binary']:
