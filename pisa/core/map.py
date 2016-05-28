@@ -232,9 +232,8 @@ class Map(object):
         if method in ['poisson']:
             if seed is not None:
                 np.random.seed(seed)
-            # TODO: what's the desired behavior here?
-            #return {'hist': unp.uarray(poisson.rvs(self.hist), np.sqrt(self.hist))}
-            return {'hist': poisson.rvs(self.hist)}
+            return {'hist': unp.uarray(poisson.rvs(self.hist),
+                                       np.sqrt(self.hist))}
         elif method in ['', 'none', 'false']:
             return
         else:
@@ -1115,6 +1114,9 @@ class MapSet(object):
 
     def llh_total(self, expected_values):
         return np.sum(self.llh(expected_values))
+
+    def set_poisson_errors(self):
+        return self.apply_to_maps('set_poisson_errors')
 
 ## Now dynamically add all methods from Map to MapSet that don't already exist
 ## in MapSet (and make these methods distribute to contained maps)
