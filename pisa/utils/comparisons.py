@@ -32,7 +32,9 @@ def recursiveEquality(x, y):
       * Mappings of any type evaluate equal if their contents are the same.
         E.g. a dict can equal an OrderedDict.
 
-      * nan equals nan, +inf equals +inf, and -inf equals -inf
+      * nan SHOULD equal nan, +inf SHOULD equal +inf, and -inf SHOULD equal -inf
+        ... but this ***only*** holds true (as of now) if those values are in
+        numpy arrays! (TODO!)
 
       * Two pint units with same __repr__ but that were derived from different
         unit registries evaluate to be equal. (This is contrary to pint's
@@ -107,7 +109,7 @@ def recursiveEquality(x, y):
             logging.trace('shape(x): %s' %np.shape(x))
             logging.trace('shape(y): %s' %np.shape(y))
             return False
-        if not np.all(np.equal(x, y)):
+        if not np.all(np.allclose(x, y, atol=0, rtol=0, equal_nan=True)):
             logging.trace('x: %s' %x)
             logging.trace('y: %s' %y)
             return False
