@@ -52,6 +52,18 @@ def strip_outer_parens(value):
     return value
 
 
+def sanitize_name(name):
+    """Make a name a valid Python identifier.
+
+    From Triptych at http://stackoverflow.com/questions/3303312
+    """
+    # Remove invalid characters
+    name = re.sub('[^0-9a-zA-Z_]', '', name)
+    # Remove leading characters until we find a letter or underscore
+    name = re.sub('^[^a-zA-Z_]+', '', name)
+    return name
+
+
 class Map(object):
     """Class to contain a multi-dimensional histogram, error, and metadata
     about the histogram. Also provides basic mathematical operations for the
@@ -871,13 +883,27 @@ class MapSet(object):
         # State is a dict for Map, so instantiate with double-asterisk syntax
         return cls(**state)
 
-    def combine_re(self, regex):
-        """Add all contained maps whose names match `re`.
+    def combine_re(self, regexes):
+        """For each regex passed, add contained maps whose names match.
+
+        If a single regex is passed, the corresponding maps are combined and
+        returned as a Map object. If a *sequence* of regexes is passed, each
+        grouping is combined into a map separately and the resulting maps are
+        populated into a new MapSet to be returned.
 
         Parameters
         ----------
-        regex : compiled regex or string representing a regex
-            See Python module `re` for more info.
+        regexes : compiled regex, str representing a regex, or sequence thereof
+            See Python module `re` for formatting.
+
+        Returns
+        -------
+        Map : if single regex is passed
+        MapSet : if multiple regexes are passed
+
+        Raises
+        ------
+        ValueError if any of the passed regexes fail to match any map names.
 
         Notes
         -----
@@ -893,6 +919,9 @@ class MapSet(object):
         and "cscd", respectively.
         >>> total_trck_map = outputs.combine_re('.*trck')
         >>> total_cscd_map = outputs.combine_re('.*cscd')
+
+        Get a MapSet with both of the above maps in it (and a single command)
+        >>> total_pid_maps = outputs.combine_re(['.*trck', '.*cscd'])
 
         Strict name-checking, combine  nue_cc + nuebar_cc, including both
         cascades and tracks.
@@ -915,38 +944,57 @@ class MapSet(object):
             https://docs.python.org/2/library/re.html
 
         """
-        maps_to_combine = []
-        for m in self.maps:
-            if re.match(regex, m.name) is not None:
-                logging.debug('Map "%s" will be added...' %m.name)
-                maps_to_combine.append(m)
-        if len(maps_to_combine) == 0:
+        if isinstance(regex, (basestring, re._pattern_type)):
+            regex = [regex]
+        resulting_maps = []
+        for regex in regexes:
             if hasattr(regex, 'pattern'):
                 pattern = regex.pattern
             else:
                 pattern = regex
-            raise ValueError('No map names match `regex` "%s"' % pattern)
-        return reduce(add, maps_to_combine)
+            maps_to_combine = []
+            for m in self.maps:
+                if re.match(regex, m.name) is not None:
+                    logging.debug('Map "%s" will be added...' %m.name)
+                    maps_to_combine.append(m)
+            if len(maps_to_combine) == 0:
 
-    def combine_wildcard(self, expr):
-        """Add all contained maps whose names match expression `expr`, which
-        can contain wildcards.
+                raise ValueError('No map names match `regex` "%s"' % pattern)
+            m = reduce(add, maps_to_combine)
+            # Attach a "reasonable" name to the map; the caller can do better,
+            # but this at least gives the user an idea of what the map
+            # represents
+            m.name = sanitize_name(pattern)
+            resulting_maps.append(reduce(add, maps_to_combine))
+        if len(resulting_maps) == 1:
+            return resulting_maps[0]
+        return MapSet(resulting_maps)
 
-        Valid patterns:
+    def combine_wildcard(self, expressions):
+        """For each expression passed, add contained maps whose names match.
+        Expressions can contain wildcards like those used in the Unix shell.
+
+        Valid wildcards (from fnmatch docs, link below):
             "*" : matches everything
             "?" : mateches any single character
             "[`seq`]" : matches any character in `seq`
             "[!`seq`]" : matches any character not in `seq`
 
+        If a single expression is passed, the matching maps are combined and
+        returned as a Map object. If a *sequence* of expressions is passed,
+        each grouping is combined into a map separately and the resulting maps
+        are populated into a new MapSet to be returned.
+
         Parameters
         ----------
-        expr : string
+        expressions : string or sequence thereof
             See Python module `fnmatch` for more info.
 
         Examples
         --------
         >>> total_trck_map = outputs.combine_wildcard('*trck')
         >>> total_cscd_map = outputs.combine_wildcard('*cscd')
+        >>> total_pid_maps = outpubs.combine_wildcard(['*trck', '*cscd'])
         >>> nue_cc_nuebar_cc_map = outputs.combine_wildcard('nue*_cc_*')
         >>> total = outputs.combine_wildcard('*')
 
@@ -960,14 +1008,25 @@ class MapSet(object):
             https://docs.python.org/2/library/fnmatch.html
 
         """
-        maps_to_combine = []
-        for m in self.maps:
-            if fnmatch(m.name, expr):
-                logging.debug('Map "%s" will be added...' %m.name)
-                maps_to_combine.append(m)
-        if len(maps_to_combine) == 0:
-            raise ValueError('No map names match `expr` "%s"' % expr)
-        return reduce(add, maps_to_combine)
+        if isinstance(expressions, basestring):
+            expressions = [expressions]
+        resulting_maps = []
+        for expr in expressions:
+            maps_to_combine = []
+            for m in self.maps:
+                if fnmatch(m.name, expr):
+                    logging.debug('Map "%s" will be added...' %m.name)
+                    maps_to_combine.append(m)
+            if len(maps_to_combine) == 0:
+                raise ValueError('No map names match `expr` "%s"' % expr)
+            m = reduce(add, maps_to_combine)
+            # Reasonable name for giving user an idea of what the map
+            # represents
+            m.name = sanitize_name(expr)
+            resulting_maps.append(m)
+        if len(resulting_maps) == 1:
+            return resulting_maps[0]
+        return MapSet(resulting_maps)
 
     def __eq__(self, other):
         return recursiveEquality(self._hashable_state, other._hashable_state)
