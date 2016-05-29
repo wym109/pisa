@@ -16,7 +16,8 @@ from __future__ import division
 
 from collections import OrderedDict, Mapping, Sequence
 from copy import deepcopy, copy
-from operator import getitem, setitem
+from fnmatch import fnmatch
+from operator import add, getitem, setitem
 import re
 
 import numpy as np
@@ -129,7 +130,7 @@ class Map(object):
     (17.85 GeV, -0.70 ): 0.0
 
     """
-    _slots = ('name', 'hist', 'binning', 'hash', 'tex',
+    _slots = ('name', 'hist', 'binning', 'hash', '_hash', 'tex',
                'full_comparison', 'parent_indexer')
     _state_attrs = ('name', 'hist', 'binning', 'hash', 'tex',
                     'full_comparison')
@@ -782,6 +783,8 @@ class MapSet(object):
 
     tex : string
 
+    hash : immutable
+
     collate_by_name : bool
         If True, when this MapSet is passed alongside another MapSet to a
         function that operates on the maps, contained maps in each will be
@@ -795,9 +798,9 @@ class MapSet(object):
         (different) name.
 
     """
-    __slots = ('_name')
-    __state_attrs = ('name', 'maps', 'tex', 'collate_by_name')
-    def __init__(self, maps, name=None, tex=None, collate_by_name=True):
+    __slots = ('_name', '_hash', 'hash')
+    __state_attrs = ('name', 'maps', 'tex', 'hash', 'collate_by_name')
+    def __init__(self, maps, name=None, tex=None, hash=None, collate_by_name=True):
         maps_ = []
         for m in maps:
             if isinstance(m, Map):
@@ -810,6 +813,7 @@ class MapSet(object):
         super(MapSet, self).__setattr__('tex', tex)
         super(MapSet, self).__setattr__('collate_by_name', collate_by_name)
         super(MapSet, self).__setattr__('collate_by_num', not collate_by_name)
+        self.hash = hash #super(MapSet, self).__setattr__('_hash', hash)
 
     def __repr__(self):
         argstrs = [('%s=%s' %item) for item in self._serializable_state]
@@ -867,6 +871,104 @@ class MapSet(object):
         # State is a dict for Map, so instantiate with double-asterisk syntax
         return cls(**state)
 
+    def combine_re(self, regex):
+        """Add all contained maps whose names match `re`.
+
+        Parameters
+        ----------
+        regex : compiled regex or string representing a regex
+            See Python module `re` for more info.
+
+        Notes
+        -----
+        If special characters are used in the regex, like a backslash, be sure
+        to use a Python raw string (which does not interpret such special
+        characters), by prefixing the string with an "r". E.g., the regex to
+        match a period requires passing
+            `regex=r'\.'`
+
+        Examples
+        --------
+        Get total of trck and cscd maps, which are named with suffixes "trck"
+        and "cscd", respectively.
+        >>> total_trck_map = outputs.combine_re('.*trck')
+        >>> total_cscd_map = outputs.combine_re('.*cscd')
+
+        Strict name-checking, combine  nue_cc + nuebar_cc, including both
+        cascades and tracks.
+        >>> nue_cc_nuebar_cc_map = outputs.combine_re('^nue(bar){0,1}_cc_(cscd|trck)$')
+
+        Lenient nue_cc + nuebar_cc including both cascades and tracks.
+        >>> nue_cc_nuebar_cc_map = outputs.combine_re('nue.*_cc_.*')
+
+        Total of all maps
+        >>> total = outputs.combine_re('.*')
+
+        See Also
+        --------
+        combine_wildcard : similar method but using wildcards (like filename
+            matching in the Unix shell)
+
+        References
+        ----------
+        re : Python module used for parsing regular expressions
+            https://docs.python.org/2/library/re.html
+
+        """
+        maps_to_combine = []
+        for m in self.maps:
+            if re.match(regex, m.name) is not None:
+                logging.debug('Map "%s" will be added...' %m.name)
+                maps_to_combine.append(m)
+        if len(maps_to_combine) == 0:
+            if hasattr(regex, 'pattern'):
+                pattern = regex.pattern
+            else:
+                pattern = regex
+            raise ValueError('No map names match `regex` "%s"' % pattern)
+        return reduce(add, maps_to_combine)
+
+    def combine_wildcard(self, expr):
+        """Add all contained maps whose names match expression `expr`, which
+        can contain wildcards.
+
+        Valid patterns:
+            "*" : matches everything
+            "?" : mateches any single character
+            "[`seq`]" : matches any character in `seq`
+            "[!`seq`]" : matches any character not in `seq`
+
+        Parameters
+        ----------
+        expr : string
+            See Python module `fnmatch` for more info.
+
+        Examples
+        --------
+        >>> total_trck_map = outputs.combine_wildcard('*trck')
+        >>> total_cscd_map = outputs.combine_wildcard('*cscd')
+        >>> nue_cc_nuebar_cc_map = outputs.combine_wildcard('nue*_cc_*')
+        >>> total = outputs.combine_wildcard('*')
+
+        See Also
+        --------
+        combine_re : similar method but using regular expressions
+
+        References
+        ----------
+        fnmatch : Python module used for parsing the expression with wildcards
+            https://docs.python.org/2/library/fnmatch.html
+
+        """
+        maps_to_combine = []
+        for m in self.maps:
+            if fnmatch(m.name, expr):
+                logging.debug('Map "%s" will be added...' %m.name)
+                maps_to_combine.append(m)
+        if len(maps_to_combine) == 0:
+            raise ValueError('No map names match `expr` "%s"' % expr)
+        return reduce(add, maps_to_combine)
+
     def __eq__(self, other):
         return recursiveEquality(self._hashable_state, other._hashable_state)
 
@@ -881,9 +983,16 @@ class MapSet(object):
     @property
     def hash(self):
         hashes = self.hashes
+        if all([(h is not None and h == hashes[0]) for h in hashes]):
+            return hashes[0]
         if all([(h is not None) for h in hashes]):
             return hash_obj(hashes)
         return None
+
+    @hash.setter
+    def hash(self, val):
+        if val is not None:
+            [setattr(m, 'hash', val) for m in self.maps]
 
     @property
     def names(self):
@@ -991,14 +1100,16 @@ class MapSet(object):
     def __contains__(self, name):
         return name in [m.name for m in self]
 
-    def __setattr__(self, attr, val):
-        if attr in MapSet.__slots:
-            object.__setattr__(attr, val)
-        else:
-            returned_vals = [setattr(mp, attr, val) for mp in self]
-            if all([(r is None) for r in returned_vals]):
-                return
-            return self.collate_with_names(returned_vals)
+    #def __setattr__(self, attr, val):
+    #    print '__setattr__ being accessed, attr = %s, val = %s' %(attr, val)
+    #    if attr in MapSet.__slots:
+    #        print 'attr "%s" found in MapSet.slots.' %attr
+    #        object.__setattr__(self, attr, val)
+    #    else:
+    #        returned_vals = [setattr(mp, attr, val) for mp in self]
+    #        if all([(r is None) for r in returned_vals]):
+    #            return
+    #        return self.collate_with_names(returned_vals)
 
     def __getattr__(self, attr):
         if attr in [m.name for m in self]:
@@ -1158,8 +1269,11 @@ def test_Map():
     # set directly unumpy array with errors
     #m1 = Map(name='x', hist=unp.uarray(np.ones((40,20)),np.sqrt(np.ones((40,20)))), binning=(e_binning, cz_binning))
     # or call init poisson error afterwards
-    m1 = Map(name='x', hist=np.ones((n_ebins, n_czbins)), binning=(e_binning,
-                                                                   cz_binning))
+    m1 = Map(name='x', hist=np.ones((n_ebins, n_czbins)), hash=23,
+             binning=(e_binning, cz_binning))
+    assert m1.hash == 23
+    m1.hash = 42
+    assert m1.hash == 42
     m1.set_poisson_errors()
     # or no errors at all
     m2 = Map(name='y', hist=2*np.ones((n_ebins, n_czbins)),
@@ -1219,15 +1333,48 @@ def test_MapSet():
     cz_binning = OneDimBinning(name='coszen', tex=r'\cos\,\theta',
                                num_bins=n_czbins, domain=(-1,0), is_lin=True)
     binning = MultiDimBinning([e_binning, cz_binning])
-    m1 = Map(name='ones', hist=np.ones(binning.shape), binning=binning)
+    m1 = Map(name='ones', hist=np.ones(binning.shape), binning=binning, hash='xyz')
     m1.set_poisson_errors()
-    m2 = Map(name='twos', hist=2*np.ones(binning.shape), binning=binning)
+    m2 = Map(name='twos', hist=2*np.ones(binning.shape), binning=binning, hash='xyz')
     ms01 = MapSet((m1, m2))
     ms01 = MapSet((m1, m2), name='ms01')
     ms02 = MapSet((m1, m2), name='map set 1')
-    ms1 = MapSet(maps=(m1, m2), name='map set 1', collate_by_name=True)
+    ms1 = MapSet(maps=(m1, m2), name='map set 1', collate_by_name=True, hash=None)
+    assert ms1.combine_re(r'.*') == ms1.combine_wildcard('*') == ms1.ones + ms1.twos
+    assert ms1.combine_re(r'^(one|two)s.*$') == ms1.combine_wildcard('*s') == ms1.ones + ms1.twos
+    assert ms1.combine_re(r'^o') == ms1.combine_wildcard('o*') == ms1.ones
+    try:
+        ms1.combine_re('three')
+    except ValueError:
+        pass
+    else:
+        assert False
+    try:
+        ms1.combine_wildcard('three')
+    except ValueError:
+        pass
+    else:
+        assert False
+
+    assert ms1.hash == 'xyz'
     assert ms1.name == 'map set 1'
-    ms1.hash
+    ms1.hash = 10
+    assert ms1.hash == 10
+    assert m1.hash == 10
+    assert m2.hash == 10
+    ms1.hash = -10
+    assert ms1.hash == -10
+    # "Remove" the hash from the MapSet...
+    ms1.hash = None
+    # ... but this should not remove hashes from the contained maps
+    assert m1.hash == -10
+    # ... and hashing on the MapSet should see that all contained maps have the SAME hash val, and so
+    # should just return the hash value shared among them all
+    assert ms1.hash == -10
+    # However changing a single map's hash means not all hashes are the same for all maps...
+    m1.hash = 40
+    # ... so a hash should be computed from all contained hashes
+    assert ms1.hash != 40 and ms1.hash != -10
 
     assert ms1.maps == (m1, m2)
     assert ms1.names == ('ones', 'twos')

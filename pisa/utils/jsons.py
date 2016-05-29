@@ -67,8 +67,8 @@ def to_json(content, filename, indent=2, overwrite=True):
             raise Exception('Refusing to overwrite path ' + fpath)
 
     with open(filename, 'w') as outfile:
-        json.dump(content, outfile, cls=NumpyEncoder, indent=indent,
-                  sort_keys=True)
+        json.dump(content, outfile, indent=indent, cls=NumpyEncoder,
+                  sort_keys=True, allow_nan=True, ignore_nan=False)
         logging.debug('Wrote %.2f kB to %s' % (outfile.tell()/1024., filename))
 
 
@@ -89,13 +89,28 @@ class NumpyEncoder(json.JSONEncoder):
                             %type(obj).__name__)
 
 # TODO: finish this little bit
-def test_NumpyEncoder():
+def test_NumpyEncoderDecoder():
     import tempfile
-    nda = np.array([-np.inf, np.nan, np.inf, -1, 0, 1, ])
+    from pisa.utils.comparisons import recursiveEquality
+    from pisa.utils.log import logging, set_verbosity
+    set_verbosity(3)
+    nda1 = np.array([-np.inf, np.nan, np.inf, -1, 0, 1, ])
+    testdir = tempfile.mkdtemp()
+    fname = os.path.join(testdir, 'nda1.json')
+    to_json(nda1, fname)
+    nda2 = from_json(fname)
+    assert np.allclose(nda2, nda1, rtol=1e-12, atol=0, equal_nan=True), \
+            'nda1=\n%s\nnda2=\n%s\nsee file: %s' %(nda1, nda2, fname)
+    d1 = {'nda1': nda1}
+    fname = os.path.join(testdir, 'd1.json')
+    to_json(d1, fname)
+    d2 = from_json(fname)
+    assert recursiveEquality(d2, d1), \
+            'd1=\n%s\nd2=\n%s\nsee file: %s' %(d1, d2, fname)
 
 
 class NumpyDecoder(json.JSONDecoder):
-    """Encode to numpy.ndarrays from JSON array, also returns python strings
+    """Decode JSON array(s) as numpy.ndarray, also returns python strings
     instead of unicode."""
     def __init__(self, encoding=None, object_hook=None, parse_float=None,
                  parse_int=None, parse_constant=None, strict=True,
@@ -111,11 +126,15 @@ class NumpyDecoder(json.JSONDecoder):
 
     def json_array_numpy(self, s_and_end, scan_once, **kwargs):
         values, end = json.decoder.JSONArray(s_and_end, scan_once, **kwargs)
-        return np.array(values), end
+        try:
+            values = np.array(values, dtype=float)
+        except:
+            pass
+        return values, end
 
     def json_python_string(self, s, end, encoding, strict):
         values, end = json.decoder.scanstring(s, end, encoding, strict)
         return values.encode('utf-8'), end
 
 if __name__ == '__main__':
-    test_NumpyEncoder()
+    test_NumpyEncoderDecoder()

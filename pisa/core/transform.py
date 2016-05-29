@@ -51,10 +51,10 @@ class TransformSet(object):
     name
 
     """
-    def __init__(self, transforms, name=None):
+    def __init__(self, transforms, name=None, hash=None):
         self.transforms = transforms
         self.name = name
-        self.hash = None
+        self.hash = hash
 
     @property
     def _serializable_state(self):
@@ -138,20 +138,30 @@ class TransformSet(object):
         # State is a dict, so instantiate with double-asterisk syntax
         return cls(**state)
 
-    #@property
-    #def hash(self):
-    #    xform_hashes = [x.hash for x in transforms]
-    #    if all([(h != None) for h in xform_hashes]):
-    #        if all([(h == xform_hashes[0]) for h in xform_hashes]):
-    #            return xform_hashes[0]
-    #        return hash_obj(tuple(xform_hashes))
-    #    return None
+    @property
+    def hash(self):
+        hashes = self.hashes
+        if len(hashes) > 0:
+            if all([(h is not None and h == hashes[0]) for h in hashes]):
+                return hashes[0]
+            if all([(h is not None) for h in hashes]):
+                return hash_obj(hashes)
+        return None
+
+    @hash.setter
+    def hash(self, val):
+        if val is not None:
+            [setattr(xform, 'hash', val) for xform in self.transforms]
+
+    @property
+    def hashes(self):
+        return tuple([t.hash for t in self.transforms])
 
     # TODO: implement a non-volatile hash that includes source code hash in
     # addition to self.hash from the contained transforms
-    @property
-    def nonvolatile_hash(self):
-        return None
+    #@property
+    #def nonvolatile_hash(self):
+    #    return hash_obj((self.source_code_hash,
 
     @property
     def input_names(self):
@@ -187,8 +197,15 @@ class TransformSet(object):
         """
         outputs = [xform.apply(inputs) for xform in self]
 
+        # Automatically attach a sensible hash (this may be replaced, of
+        # course, but it should be a good guess)
+        if inputs.hash is None or self.hash is None:
+            hash = None
+        else:
+            hash = hash_obj((inputs.hash, self.hash))
+
         # TODO: what to set for name, tex, ... ?
-        return MapSet(maps=outputs)
+        return MapSet(maps=outputs, hash=hash)
 
     def __getattr__(self, attr):
         if attr in TRANS_SET_SLOTS:
@@ -310,6 +327,10 @@ class Transform(object):
     @property
     def hash(self):
         return self._hash
+
+    @hash.setter
+    def hash(self, val):
+        self._hash = val
 
     @property
     def input_names(self):
@@ -734,7 +755,12 @@ if __name__ == '__main__':
     xforms = TransformSet(
         name='scaling',
         transforms=[xform0, xform1, xform2],
+        hash=9
     )
+
+    assert xforms.hash == 9
+    xforms.hash = -20
+    assert xforms.hash == -20
 
     outputs = xforms.apply(inputs)
 
