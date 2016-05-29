@@ -24,17 +24,18 @@ then returned.
 
 """
 
-from operator import add
+
+from itertools import product
 
 import numpy as np
 
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
-from pisa.utils.events import Events
-from pisa.utils.flavInt import NuFlavIntGroup
-from pisa.utils.PIDSpec import PIDSpec
 from pisa.utils.dataProcParams import DataProcParams
+from pisa.utils.events import Events
+from pisa.utils.flavInt import NuFlavIntGroup, ALL_NUFLAVINTS
 from pisa.utils.log import logging
+from pisa.utils.PIDSpec import PIDSpec
 from pisa.utils.profiler import profile
 
 
@@ -145,6 +146,7 @@ class hist(Stage):
     specification is used to set a limit on the pid score above which the
     events are distinguished as being track-like `trck` and below as
     shower-like `cscd`.
+
     Next, a histogram in the input binning dimensions is created for all
     combinations of particle signature and pid channel and then normalised to
     one with respect to the particle signature to give the probability of an
@@ -152,6 +154,7 @@ class hist(Stage):
     be transformed according to these probabilities to provide an output which
     will separate each signature into `trck` and `cscd` maps, and this is then
     returned.
+
     """
     def __init__(self, params, input_binning, output_binning, disk_cache=None,
                  transforms_cache_depth=20, outputs_cache_depth=20):
@@ -164,15 +167,19 @@ class hist(Stage):
 
         # Define the names of objects that are required by this stage (objects
         # will have the attribute "name": i.e., obj.name)
-        input_names = (
-            'nue_cc', 'numu_cc', 'nutau_cc', 'nuall_nc'
-        )
+        input_names = [str(fi) for fi in ALL_NUFLAVINTS]
 
         # Define the names of objects that get produced by this stage
-        def suffix_channel(channel):
-            return [i+'_'+channel for i in input_names]
+
         self.output_channels = ('trck', 'cscd')
-        output_names = reduce(add, map(suffix_channel, self.output_channels))
+        output_names = [self.suffix_channel(in_name, out_chan) for in_name,
+                        out_chan in product(input_names, self.output_channels)]
+
+        self.transforms_combined_flavints = tuple([
+            NuFlavIntGroup(s)
+            for s in ('nue_cc+nuebar_cc', 'numu_cc+numubar_cc',
+                      'nutau_cc+nutaubar_cc', 'nuall_nc+nuallbar_nc')
+        ])
 
         super(self.__class__, self).__init__(
             use_transforms=True,
@@ -188,6 +195,9 @@ class hist(Stage):
             input_binning=input_binning,
             output_binning=output_binning
         )
+
+    def suffix_channel(self, flavint, channel):
+        return '%s_%s' % (flavint, channel)
 
     @profile
     def _compute_transforms(self):
@@ -209,6 +219,19 @@ class hist(Stage):
         assert self.input_binning == self.output_binning
 
         events = Events(self.params['pid_events'].value)
+
+        # TODO: in future, the events file will not have these combined
+        # already, and it should be done here (or in a nominal transform,
+        # etc.). See below about taking this step when we move to directly
+        # using the I3-HDF5 files.
+        events_file_combined_flavints = tuple([
+            NuFlavIntGroup(s) for s in events.metadata['flavints_joined']
+        ])
+
+        # This check is still necessary to verify the assumptions below, which
+        # require these flavints be combined in the events file
+        assert set(self.transforms_combined_flavints) == \
+                set(events_file_combined_flavints)
 
         # TODO: take events object as an input instead of as a param that
         # specifies a file? Or handle both cases?
@@ -262,21 +285,26 @@ class hist(Stage):
         all_bin_edges = [edges.magnitude
                          for edges in self.output_binning.bin_edges]
 
+        # Derive transforms by combining flavints that behave similarly, but
+        # apply the derived transforms to the input flavints separately
+        # (leaving combining these together to later)
+
         transforms = []
-        for flavint in self.input_names:
-            rep_flavint = NuFlavIntGroup(flavint)[0]
-            raw_histo = {}
+        for fi_group_str in self.transforms_combined_flavints:
+            fi_group = NuFlavIntGroup(fi_group_str)
+            rep_flavint = fi_group[0]
+
             # TODO(shivesh): errors
             # TODO(shivesh): total histo check?
+            raw_histo = {}
             total_histo = np.zeros(self.output_binning.shape)
-
             for sig in self.output_channels:
                 raw_histo[sig] = {}
                 flav_sigdata = separated_events[rep_flavint][sig]
                 reco_params = [flav_sigdata[vn] for vn in var_names]
                 raw_histo[sig], _ = np.histogramdd(
                     sample=reco_params[:-1],
-                    weights=reco_params[-1],
+                    weights=None, # --> reco_params[-1], # <-- (???)
                     bins=all_bin_edges
                 )
                 total_histo += raw_histo[sig]
@@ -292,21 +320,23 @@ class hist(Stage):
                         ' events (and hence the ability to separate events'
                         ' by PID cannot be ascertained). These are being'
                         ' masked off from any further computations.'
-                        % (flavint, sig, num_invalid)
+                        % (fi_group, sig, num_invalid)
                     )
                     xform_array = np.ma.masked_invalid(xform_array)
 
                 # Double check that no NaN remain
                 assert not np.any(np.isnan(xform_array))
 
-                xform = BinnedTensorTransform(
-                    input_names=flavint,
-                    output_name=flavint+'_'+sig,
-                    input_binning=self.input_binning,
-                    output_binning=self.output_binning,
-                    xform_array=xform_array
-                )
-                transforms.append(xform)
+                # Copy this transform to use for each flavint in the group
+                for flavint in fi_group:
+                    xform = BinnedTensorTransform(
+                        input_names=str(flavint),
+                        output_name=self.suffix_channel(flavint, sig),
+                        input_binning=self.input_binning,
+                        output_binning=self.output_binning,
+                        xform_array=xform_array
+                    )
+                    transforms.append(xform)
 
         return TransformSet(transforms=transforms)
 
