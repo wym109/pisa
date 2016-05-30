@@ -95,9 +95,17 @@ class hist(Stage):
     ----------
     The `inputs` container must include objects with `name` attributes:
         * 'nue_cc'
+        * 'nue_nc'
+        * 'nuebar_cc'
+        * 'nuebar_nc'
         * 'numu_cc'
+        * 'numu_nc'
+        * 'numubar_cc'
+        * 'numubar_nc'
         * 'nutau_cc'
-        * 'nuall_nc'
+        * 'nutau_nc'
+        * 'nutaubar_cc'
+        * 'nutaubar_nc'
 
     Output Names
     ----------
@@ -304,7 +312,7 @@ class hist(Stage):
                 reco_params = [flav_sigdata[vn] for vn in var_names]
                 raw_histo[sig], _ = np.histogramdd(
                     sample=reco_params[:-1],
-                    weights=None, # --> reco_params[-1], # <-- (???)
+                    weights=reco_params[-1],
                     bins=all_bin_edges
                 )
                 total_histo += raw_histo[sig]
