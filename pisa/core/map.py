@@ -185,8 +185,8 @@ class Map(object):
             elif isinstance(binning, Mapping):
                 binning = MultiDimBinning(**binning)
             else:
-                raise ValueError('Do not know what to do with `binning`=%s'
-                                 %binning)
+                raise ValueError('Do not know what to do with `binning`=%s of'
+                                 ' type %s' %(binning, type(binning)))
         self.parent_indexer = None
 
         # Do the work here to set read-only attributes
@@ -330,7 +330,7 @@ class Map(object):
 
         """
         state = jsons.from_json(resource)
-        # State is a dict for Map, so instantiate with double-asterisk syntax
+        # State is a dict with kwargs, so instantiate with double-asterisk syntax
         return cls(**state)
 
     def assert_compat(self, other):
@@ -345,15 +345,13 @@ class Map(object):
 
     @new_obj
     def index(self, idx):
-        if not isinstance(idx, Sequence) and len(idx) == 2:
-            raise ValueError('Map is 2D; 2D indexing is required')
-        # Indexing a single element e.g. hist[1,3] returns a 0D array while
-        # e.g. hist[1,3:8] returns a 1D array; but we need 2D... so reshape
-        # after indexing.
-        new_hist = (self.hist)
-        new_binning = (self.binning[idx])
+        # Indexing single element in self.hist e.g. hist[1,3] returns a 0D
+        # array while hist[1,3:8] returns a 1D array, but we need 2D (in his
+        # example)... so reshape after indexing (the indexed binning obj
+        # implements this logic and so knows the shape the hsit should be).
+        new_binning = self.binning[idx]
         return {'binning': self.binning[idx],
-                'hist': np.reshape(new_hist[idx], new_binning.shape)}
+                'hist': np.reshape(self.hist[idx], new_binning.shape)}
 
     def iterbins(self):
         """Returns a bin iterator which yields a map containing a single bin
@@ -944,8 +942,8 @@ class MapSet(object):
             https://docs.python.org/2/library/re.html
 
         """
-        if isinstance(regex, (basestring, re._pattern_type)):
-            regex = [regex]
+        if isinstance(regexes, (basestring, re._pattern_type)):
+            regexes = [regexes]
         resulting_maps = []
         for regex in regexes:
             if hasattr(regex, 'pattern'):
@@ -958,14 +956,16 @@ class MapSet(object):
                     logging.debug('Map "%s" will be added...' %m.name)
                     maps_to_combine.append(m)
             if len(maps_to_combine) == 0:
-
                 raise ValueError('No map names match `regex` "%s"' % pattern)
-            m = reduce(add, maps_to_combine)
+            if len(maps_to_combine) > 1:
+                m = reduce(add, maps_to_combine)
+            else:
+                m = copy(maps_to_combine[0])
             # Attach a "reasonable" name to the map; the caller can do better,
             # but this at least gives the user an idea of what the map
             # represents
             m.name = sanitize_name(pattern)
-            resulting_maps.append(reduce(add, maps_to_combine))
+            resulting_maps.append(m)
         if len(resulting_maps) == 1:
             return resulting_maps[0]
         return MapSet(resulting_maps)
@@ -1019,7 +1019,10 @@ class MapSet(object):
                     maps_to_combine.append(m)
             if len(maps_to_combine) == 0:
                 raise ValueError('No map names match `expr` "%s"' % expr)
-            m = reduce(add, maps_to_combine)
+            if len(maps_to_combine) > 1:
+                m = reduce(add, maps_to_combine)
+            else:
+                m = copy(maps_to_combine[0])
             # Reasonable name for giving user an idea of what the map
             # represents
             m.name = sanitize_name(expr)
@@ -1091,9 +1094,19 @@ class MapSet(object):
     def apply_to_maps(self, attr, *args, **kwargs):
         if len(kwargs) != 0:
             raise NotImplementedError('Keyword arguments are not handled')
-
-        if not all([hasattr(mp, attr) for mp in self]):
-            raise AttributeError('All maps do not have attribute "%s"' % attr)
+        if hasattr(attr, '__name__'):
+            attrname = attr.__name__
+        else:
+            attrname = attr
+        do_not_have_attr = np.array([(not hasattr(mp, attrname)) for mp in self.maps])
+        if np.any(do_not_have_attr):
+            missing_in_names = ', '.join(np.array(self.names)[do_not_have_attr])
+            num_missing = np.sum(do_not_have_attr)
+            num_total = len(do_not_have_attr)
+            raise AttributeError(
+                'Maps %s (%d of %d maps in set) do not have attribute "%s"'
+                %(missing_in_names, num_missing, num_total, attrname)
+            )
 
         # Retrieve the corresponding callables from contained maps
         val_per_map = [getattr(mp, attr) for mp in self]
@@ -1102,7 +1115,7 @@ class MapSet(object):
             if all([isinstance(r, Map) for r in val_per_map]):
                 return MapSet(val_per_map)
             # Otherwise put in an ordered dict with <name>: <val> pairs ordered
-            # according to the map ordering in the set
+            # according to the map ordering in this map set
             return self.collate_with_names(val_per_map)
 
         # Rename for clarity
@@ -1321,10 +1334,13 @@ def test_Map():
 
     n_ebins = 10
     n_czbins = 5
+    n_azbins = 2
     e_binning = OneDimBinning(name='energy', tex=r'E_\nu', num_bins=n_ebins,
                               domain=(1,80)*ureg.GeV, is_log=True)
     cz_binning = OneDimBinning(name='coszen', tex=r'\cos\,\theta',
                                num_bins=n_czbins, domain=(-1,0), is_lin=True)
+    az_binning = OneDimBinning(name='azimuth', tex=r'\phi',
+                               num_bins=n_azbins, domain=(0,2*np.pi), is_lin=True)
     # set directly unumpy array with errors
     #m1 = Map(name='x', hist=unp.uarray(np.ones((40,20)),np.sqrt(np.ones((40,20)))), binning=(e_binning, cz_binning))
     # or call init poisson error afterwards
@@ -1337,7 +1353,10 @@ def test_Map():
     # or no errors at all
     m2 = Map(name='y', hist=2*np.ones((n_ebins, n_czbins)),
              binning=(e_binning, cz_binning))
+    m3 = Map(name='z', hist=4*np.ones((n_ebins, n_czbins, n_azbins)),
+             binning=(e_binning, cz_binning, az_binning))
 
+    print 'm3[0,0,0] =', m3[0,0,0]
     testdir = tempfile.mkdtemp()
     try:
         for m in [m1, m2, m1+m2, m1-m2, m1/m2, m1*m2]:
@@ -1375,6 +1394,7 @@ def test_Map():
     assert r == ufloat(0.5,0.5)
     print r, '=', r[0,0]
     print [b.binning.energy.midpoints[0] for b in m1.iterbins()][0:2]
+    print '<< PASSED : test_Map >>'
 
 
 # TODO: add tests for llh, chi2 methods
@@ -1399,9 +1419,19 @@ def test_MapSet():
     ms01 = MapSet((m1, m2), name='ms01')
     ms02 = MapSet((m1, m2), name='map set 1')
     ms1 = MapSet(maps=(m1, m2), name='map set 1', collate_by_name=True, hash=None)
-    assert ms1.combine_re(r'.*') == ms1.combine_wildcard('*') == ms1.ones + ms1.twos
-    assert ms1.combine_re(r'^(one|two)s.*$') == ms1.combine_wildcard('*s') == ms1.ones + ms1.twos
-    assert ms1.combine_re(r'^o') == ms1.combine_wildcard('o*') == ms1.ones
+    assert np.all(ms1.combine_re(r'.*').hist == ms1.combine_wildcard('*').hist)
+    assert np.all(ms1.combine_re(r'.*').hist == (ms1.ones + ms1.twos).hist)
+    assert np.all(ms1.combine_re(r'^(one|two)s.*$').hist == ms1.combine_wildcard('*s').hist)
+    assert np.all(ms1.combine_re(r'^(one|two)s.*$').hist == (ms1.ones + ms1.twos).hist)
+    print ms1.combine_re(r'^o').hist
+    print ms1.combine_wildcard(r'o*').hist
+    print ms1.combine_re(r'^o').hist - ms1.combine_wildcard(r'o*').hist
+    print 'map sets equal after combining?', ms1.combine_re(r'^o') == ms1.combine_wildcard(r'o*')
+    print 'hist equal after combining?', np.all(ms1.combine_re(r'^o').hist == ms1.combine_wildcard(r'o*').hist)
+    assert np.all(ms1.combine_re(r'^o').hist == ms1.combine_wildcard('o*').hist)
+    print '5', ms1.names
+    assert np.all(ms1.combine_re(r'^o').hist == ms1.ones.hist)
+    print '6', ms1.names
     try:
         ms1.combine_re('three')
     except ValueError:
@@ -1494,6 +1524,7 @@ def test_MapSet():
             assert ms_ == ms, 'ms=\n%s\nms_=\n%s' %(ms, ms_)
     finally:
         shutil.rmtree(testdir, ignore_errors=True)
+    print '<< PASSED : test_MapSet >>'
 
 
 if __name__ == "__main__":
