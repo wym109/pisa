@@ -21,11 +21,12 @@ import tempfile
 from Cython.Build import cythonize
 import numpy
 
+
 def setup_cc():
-    cc = os.environ['CC']
-    if cc == '':
+    if 'CC' not in os.environ or os.environ['CC'].strip() == '':
         os.environ['CC'] = 'cc'
-    print 'using compiler %s'%os.environ['CC']
+    print 'using compiler %s' %os.environ['CC']
+
 
 def has_cuda():
     # pycuda is present if it can be imported
@@ -154,13 +155,18 @@ if __name__ == '__main__':
             'pisa.utils.gaussians',
             ['pisa/utils/gaussians.pyx'],
             libraries=['m'],
-            extra_compile_args=['-fopenmp'],
+            extra_compile_args=[
+                '-fopenmp', '-O2'
+            ],
             extra_link_args=['-fopenmp']
         )
     else:
         gaussians_module = Extension(
             'pisa.utils.gaussians',
             ['pisa/utils/gaussians.pyx'],
+            extra_compile_args=[
+                '-O2'
+            ],
             libraries=['m']
         )
     ext_modules.append(gaussians_module)

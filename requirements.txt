@@ -2,7 +2,7 @@ cython
 h5py
 numpy
 pint
-pip > 1.2scipy > 0.12
+pip > 1.2
 scipy
 simplejson
 tables
