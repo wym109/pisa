@@ -11,15 +11,17 @@ There exists three services for this particular stage: `hist`, `param` and
 
 ### hist
 This service utilises pre-computed particle ID scores in its determination of
-which events classify as tracks and which classify as cascades. This has the
-advantage that one can utilise much more sophisticated classification methods
-such as multivariate analysis (MVA) techniques however, the computation time to
-generate these scores grows exponentially with the complexity of these
-techniques. Once they are calculated, the pid score gives a single value which
-quantifies the likelihood of a given event being track-like. Specifications
-given as input to this service give the pid score value which is used as the
-minimum cut-off to classify an event as track-like, the events which have pid
-score's under this cut-off value are classified as cascade-like.
+how events should be classified given certain output channels e.g. as
+track-like or cascade-like. This has the advantage that one can utilise much
+more sophisticated classification methods such as multivariate analysis (MVA)
+techniques however, the computation time to generate these scores grows
+exponentially with the complexity of these techniques. Once they are
+calculated, the pid score gives a single value which quantifies the likelihood
+of a given event being classified as a certain channel e.g. track-like.
+Specifications given as input to this service give the pid score value which is
+used as the minimum cut-off to distinguish an event as belonging to this
+channel, the events which have pid score's under this cut-off value are instead
+classified as belonging to the other channel(s).
 
 Related links:
 * [2013-11-20, Status of Particle Identification on PINGU, JP](https://wikispaces.psu.edu/download/attachments/173476942/20131120_jpamdandre_PINGUPID.pdf?version=1&modificationDate=1384959568000&api=v2)
