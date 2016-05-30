@@ -155,6 +155,9 @@ This file lives at `$PISA/requirements.txt`.
 
 __Notes:__
 * You can work with your installation using the usual git commands (pull, push, etc.). However, these ***won't recompile*** any of the extension (i.e. pyx, _C/C++_) libraries. See below for how to handle this case.
+* To test if your system compiled the gaussins.pyx Cython file with OpenMP threading support (and to see the speedup you can get using multiple cores for this module), you can run the following test script:
+  `python $PISA/pisa/utils/test_gaussians.py --speed`
+  The output should show speedups for increasing numbers of threads; if not, then it's likely that OpenMP did not compile on your system.
 
 ### Reinstall PISA
 * To remove any compiled bits to ensure they get recompiled:

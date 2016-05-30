@@ -10,6 +10,7 @@ from pisa.core.stage import Stage
 from pisa.core.param import ParamSet
 from pisa.utils.parse_config import parse_config
 from pisa.utils.log import logging, set_verbosity
+from pisa.utils.hash import hash_obj
 from pisa.utils.profiler import profile
 
 """
@@ -234,34 +235,30 @@ if __name__ == '__main__':
                 hist = np.ones(stage.input_binning.shape)
                 input_maps.append(Map(name=name, hist=hist,
                             binning=stage.input_binning))
-            inputs = MapSet(maps=input_maps, name='ones')
+            inputs = MapSet(maps=input_maps, name='ones', hash=1)
         else:
             inputs = None
-        m0 = stage.get_outputs(inputs=inputs)
+        outputs = stage.get_outputs(inputs=inputs)
     else:
         if args.stop_after_stage is not None:
-            m0 = pipeline.get_outputs(idx=args.stop_after_stage)
+            outputs = pipeline.get_outputs(idx=args.stop_after_stage)
         else:
-            m0 = pipeline.get_outputs()
+            outputs = pipeline.get_outputs()
     #fp = pipeline.params.free
     #fp['test'].value *= 1.2
     #pipeline.update_params(fp)
     #m1 = pipeline.get_outputs()
-    #print (m1/m0)['nue'][0,0]
-    #print m0['nue']
-    #print m0[m0.names[0]]
-    #json = {}
-    #for name in m0.names:
-    #    json[name] = m0[name].hist
-    #to_file(json, args.outputs_file)
-    m0.to_json(args.outputs_file)
-    my_plotter = plotter(stamp = 'PISA cake test')
+    #print (m1/outputs)['nue'][0,0]
+    #print outputs['nue']
+    #print outputs[outputs.names[0]]
+    outputs.to_json(args.outputs_file)
+    #my_plotter = plotter(stamp = 'PISA cake test')
     #my_plotter.ratio = True
     #my_plotter.plot_2d_maps()
-    #my_plotter.plot_2d_array(m0)
-    #my_plotter.plot_1d_array(m0,'coszen')
-    #my_plotter.plot_1d_all(m0,'energy')
-    #my_plotter.plot_1d_stack(m0,'energy')
-    my_plotter.ratio = True
-    m1 = m0.fluctuate('poisson')
-    my_plotter.plot_1d_cmp(m1, m0, 'coszen')
+    #my_plotter.plot_2d_array(outputs)
+    #my_plotter.plot_1d_array(outputs,'coszen')
+    #my_plotter.plot_1d_all(outputs,'energy')
+    #my_plotter.plot_1d_stack(outputs,'energy')
+    #my_plotter.ratio = True
+    #m1 = outputs.fluctuate('poisson')
+    #my_plotter.plot_1d_cmp(m1, outputs, 'coszen')

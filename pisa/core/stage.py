@@ -3,9 +3,9 @@
 import collections
 import inspect
 
-from pisa.core.transform import TransformSet
-from pisa.core.param import ParamSet
 from pisa.core.map import MapSet
+from pisa.core.param import ParamSet
+from pisa.core.transform import TransformSet
 from pisa.utils.cache import MemoryCache
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
@@ -178,25 +178,31 @@ class Stage(object):
         """
         nom_hash = self._derive_nominal_transforms_hash()
         recompute = True
-        if nom_hash is not None:
-            if nom_hash in self.nominal_transforms_cache:
-                self.nominal_transforms = \
-                        self.nominal_transforms_cache[nom_hash]
+        if nom_hash is None:
+            return
+
+        if nom_hash in self.nominal_transforms_cache:
+            self.nominal_transforms = \
+                    self.nominal_transforms_cache[nom_hash]
+            recompute = False
+        elif self.disk_cache is not None:
+            try:
+                self.nominal_transforms = self.disk_cache[nom_hash]
+            except KeyError:
+                pass
+            else:
                 recompute = False
-            elif self.disk_cache is not None:
-                try:
-                    self.nominal_transforms = self.disk_cache[nom_hash]
-                except KeyError:
-                    pass
-                else:
-                    recompute = False
-                    self.nominal_transforms_cache[nom_hash] = \
-                            self.nominal_transforms
+                self.nominal_transforms_cache[nom_hash] = \
+                        self.nominal_transforms
 
         if not recompute:
             return self.nominal_transforms
 
         self.nominal_transforms = self._compute_nominal_transforms()
+        if self.nominal_transforms is None:
+            return
+
+        self.nominal_transforms.hash = nom_hash
         if nom_hash is not None:
             self.nominal_transforms_cache[nom_hash] = self.nominal_transforms
             if self.disk_cache is not None:
@@ -291,27 +297,33 @@ class Stage(object):
 
             logging.trace('... now computing outputs.')
             outputs = self._compute_outputs(inputs=self.inputs)
+            outputs.hash = outputs_hash
             self.check_outputs(outputs)
 
             # Store output to cache
             if self.memcaching_enabled and outputs_hash is not None:
-                outputs.hash = outputs_hash
                 self.outputs_cache[outputs_hash] = outputs
 
         # Keep outputs for inspection later
         self.outputs = outputs
 
+        # TODO: make an intermediate outputs / final outputs distinction, to
+        # keep e.g. maps before being summed up?
+
         # TODO: make generic container object that can be operated on
         # similar to MapSet (but that doesn't require Map as children)
 
-        # Create a new output container different from `outputs` but copying
-        # the contents, for purposes of attaching any sideband objects.
-        augmented_outputs = MapSet(outputs)
-
         # Attach sideband objects (i.e., inputs not specified in
         # `self.input_names`) to the "augmented" output object
-        unused_input_names = set([i.name for i in self.inputs]).difference(
-            self.input_names)
+        names_in_inputs = set([i.name for i in self.inputs])
+        unused_input_names = names_in_inputs.difference(self.input_names)
+
+        if len(unused_input_names) == 0:
+            return outputs
+
+        # Create a new output container different from `outputs` but copying
+        # the contents, for purposes of attaching the sideband objects found.
+        augmented_outputs = MapSet(outputs)
         [augmented_outputs.append(inputs[name]) for name in unused_input_names]
 
         return augmented_outputs
@@ -445,7 +457,22 @@ class Stage(object):
         This implementation returns a hash from the current parameters' values.
 
         """
-        return self.params.values_hash
+        id_objects = []
+        # Hash on input and/or output binning, if it is specified
+        if self.input_binning is not None:
+            id_objects.append(self.input_binning.hash)
+        if self.output_binning is not None:
+            id_objects.append(self.output_binning.hash)
+
+        id_objects.append(self.params.values_hash)
+
+        # If any hashes are missing (i.e, None), invalidate the entire hash
+        if any([(h == None) for h in id_objects]):
+            transforms_hash = None
+        else:
+            transforms_hash = hash_obj(tuple(id_objects))
+
+        return transforms_hash
 
     def _derive_outputs_hash(self):
         """Derive a hash value that unique identifies the outputs that will be
@@ -463,24 +490,38 @@ class Stage(object):
         """
         id_objects = []
 
-        # Hash on input and/or output binning, if it is specified
-        if self.input_binning is not None:
-            id_objects.append(self.input_binning.hash)
-        if self.output_binning is not None:
-            id_objects.append(self.output_binning.hash)
-
-        # Hash on all parameter values
-        id_objects.append(self.params.values_hash)
-
         # If stage uses inputs, grab hash from the inputs container object
         if len(self.input_names) > 0:
+            logging.trace('inputs.hash = %s' %self.inputs.hash)
             id_objects.append(self.inputs.hash)
+
+        # If stage uses transforms, get hash from the transforms
+        if self.use_transforms:
+            id_objects.append(self._derive_transforms_hash())
+            logging.trace('derived transforms hash = %s' %id_objects[-1])
+
+        # Otherwise, generate sub-hash on binning and param values here
+        else:
+            id_subobjects = []
+            # Include binning hashes, if one or both are specified
+            if self.input_binning is not None:
+                id_subobjects.append(self.input_binning.hash)
+            if self.output_binning is not None:
+                id_subobjects.append(self.output_binning.hash)
+
+            # Include all parameter values
+            id_subobjects.append(self.params.values_hash)
+            if any([(h == None) for h in id_subobjects]):
+                sub_hash = None
+            else:
+                sub_hash = hash_obj(tuple(id_subobjects))
+            id_objects.append(sub_hash)
 
         # If any hashes are missing (i.e, None), invalidate the entire hash
         if any([(h == None) for h in id_objects]):
             outputs_hash = None
         else:
-            outputs_hash = hash_obj(id_objects)
+            outputs_hash = hash_obj(tuple(id_objects))
 
         return outputs_hash
 

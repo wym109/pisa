@@ -4,6 +4,6 @@ numpy
 pint
 pip > 1.2
 scipy
-simplejson
+simplejson >= 3.2.0
 tables
 uncertainties
