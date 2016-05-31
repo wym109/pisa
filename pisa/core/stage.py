@@ -131,6 +131,15 @@ class Stage(object):
                  transforms_cache_depth=10,
                  outputs_cache_depth=10, input_binning=None,
                  output_binning=None):
+        # Allow for string inputs, but have to populate into lists for
+        # consistent interfacing to one or multiple of these things
+        if isinstance(expected_params, basestring):
+            expected_params = [expected_params]
+        if isinstance(input_names, basestring):
+            input_names = [input_names]
+        if isinstance(output_names, basestring):
+            output_names = [output_names]
+
         self.use_transforms = use_transforms
         self.stage_name = stage_name
         self.service_name = service_name
