@@ -1,6 +1,9 @@
 # Stage 1: Flux
 
-The purpose of this stage is to get the expected flux produced in the atmosphere for different particles at different energies and angles. It is therefore possible to reweight a dataset using the effective area to investigate uncertainties from using different flux models. The neutrino files come from several different measurements made at different positions on the earth and currently can only use azimuth-averaged data. The ability to load azimuth-dependent data has been implemented, but it is not immediately obvious how one should treat these at the energy range relevant for IceCube studies.
+The purpose of this stage is to get the expected flux produced in the atmosphere for different particles at different energies and angles.
+It is therefore possible to reweight a dataset using the effective area to investigate uncertainties from using different flux models.
+The neutrino files come from several different measurements made at different positions on the earth and currently can only use azimuth-averaged data.
+The ability to load azimuth-dependent data has been implemented, but it is not immediately obvious how one should treat these at the energy range relevant for IceCube studies.
 
 ## Services
 
@@ -8,41 +11,17 @@ Only one service is currently supported in PISA for dealing with atmospheric neu
 
 ### honda
 
-This is the service for dealing with the atmospheric neutrino tables produced by the Honda group. Details of the supported files can be found in the Notes section of the docstrings in the file. Both 2D and 3D files can currently be loaded, but interpolation is only supported with the 2D files. Currently there are two interpolation choices:
+This service implements the atmospheric neutrino tables produced by the Honda group.
+Details of the supported files can be found in the Notes section of the docstrings in the file.
+Both 2D and 3D files can currently be loaded, but interpolation is only supported with the 2D files.
+Currently there are two interpolation choices:
 
 * 'bisplrep' - A simple b-spline representation. This is quick.
 * 'integral-preserving' - A slower, but more accurate choice.
 
-The details of these interpolation methods can be found in the Notes section of the docstrings in the file. For some more information on the second of these choices, and why it is a more accurate choice than the first, please see the following link:
+The details of these interpolation methods can be found in the Notes section of the docstrings in the file.
+For some more information on the second of these choices, and why it is a more accurate choice than the first, please see the following link:
 
 [NuFlux on the IceCube wiki](https://wiki.icecube.wisc.edu/index.php/NuFlux)
 
 Since this is a link on the IceCube wiki, you will need the access permissions for this page.
-
-#### Output
-
-This function returns splined maps of flux (`map`) in bins of energy (`ebins`) and cos(zenith) (`czbins`).
-```
-{
-  "nue" {
-        "czbins": []
-        "ebins": []
-        "map": []
-  }
-  "nue_bar": {
-        "czbins": []
-        "ebins": []
-        "map": []
-  }
-  "numu": {
-        "czbins": []
-        "ebins": []
-        "map": []
-  }
-  "numu_bar": {
-        "czbins": []
-        "ebins": []
-        "map": []
-  }
-}
-```
