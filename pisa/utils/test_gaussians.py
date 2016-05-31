@@ -3,6 +3,7 @@
 Unittests for functions that live in the gaussians.pyx Cython module.
 """
 
+
 from itertools import product, izip
 
 import numpy as np
@@ -43,6 +44,7 @@ def test_gaussian():
         if np.any(np.isnan(refbuf)):
             outbuf.fill(0)
             refbuf.fill(0)
+    print '<< PASSED : test_gaussian >>'
 
 
 def test_gaussians():
@@ -70,6 +72,7 @@ def test_gaussians():
         assert np.allclose(outbuf, refbuf, rtol=1e-14, atol=0, equal_nan=True),\
                 'outbuf=\n%s\nrefbuf=\n%s\nmu=\n%s\nsigma=\n%s\nthreads=%d' \
                 %(outbuf, refbuf, mu, sigma, threads)
+    print '<< PASSED : test_gaussians >>'
 
 
 def speed_test_gaussians(num_gaussians, num_points):

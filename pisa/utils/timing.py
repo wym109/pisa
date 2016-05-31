@@ -4,7 +4,7 @@ import time
 
 import numpy as np
 
-from pisa.utils.numerical import engfmt
+from pisa.utils.format import engfmt
 
 # TODO: add unit tests!
 

@@ -469,6 +469,8 @@ def test_Prior():
     else:
         assert False
 
+    print '<< PASSED : test_Prior >>'
+
 
 def test_Prior_plot(ts_fname, param_name='theta23'):
     """Produce plots roughly like NuFIT's 1D chi-squared projections"""

@@ -365,7 +365,6 @@ def normQuant(obj, sigfigs=None):
 
     >>> import pint; ureg = pint.UnitRegistry()
     >>> from pisa.utils.hash import hash_obj
-    >>> from pisa.utils.numerical import normQuant
     >>> q0 = 1 * ureg.m
     >>> q1 = 100 * ureg.cm
     >>> q0 == q1

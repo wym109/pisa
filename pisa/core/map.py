@@ -27,11 +27,10 @@ from uncertainties import ufloat
 from uncertainties import unumpy as unp
 
 from pisa.core.binning import OneDimBinning, MultiDimBinning
-from pisa.utils.comparisons import recursiveEquality
+from pisa.utils.comparisons import normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils import jsons
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils.numerical import normQuant
 from pisa.utils.stats import chi2, llh
 
 

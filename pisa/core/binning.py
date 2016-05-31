@@ -20,11 +20,9 @@ import numpy as np
 import pint; ureg = pint.UnitRegistry()
 #import simplejson as jsons
 
-from pisa.utils.comparisons import recursiveEquality
+from pisa.utils.comparisons import normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils import jsons
-from pisa.utils.log import logging, set_verbosity
-from pisa.utils.numerical import normQuant
 
 
 HASH_SIGFIGS = 12
@@ -1051,6 +1049,7 @@ class MultiDimBinning(object):
 
 def test_OneDimBinning():
     import pickle
+    from pisa.utils.log import logging, set_verbosity
     b1 = OneDimBinning(name='energy', num_bins=40, is_log=True,
                        domain=[1, 80]*ureg.GeV)
     b2 = OneDimBinning(name='coszen', num_bins=40, is_lin=True,
@@ -1108,6 +1107,7 @@ def test_OneDimBinning():
 
 def test_MultiDimBinning():
     import pickle
+    from pisa.utils.log import logging, set_verbosity
     b1 = OneDimBinning(name='energy', num_bins=40, is_log=True,
                        domain=[1, 80]*ureg.GeV)
     b2 = OneDimBinning(name='coszen', num_bins=40, is_lin=True,
@@ -1157,5 +1157,7 @@ def test_MultiDimBinning():
 
 
 if __name__ == "__main__":
+    from pisa.utils.log import logging, set_verbosity
+    set_verbosity(3)
     test_OneDimBinning()
     test_MultiDimBinning()

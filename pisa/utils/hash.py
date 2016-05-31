@@ -71,14 +71,16 @@ def hash_file(fname, hash_to=None):
 
 
 def test_hash_obj():
-    assert hash_obj('x') == -8438379708274508437
-    assert hash_obj('x') == -8438379708274508437
+    assert hash_obj('x') == 5342080905610180975
+    assert hash_obj('x') == 5342080905610180975
     #assert hash_obj('x', hash_to='bin') == '\xfdn ]\xda\xe4\x8a\xde&\x80xNg+f'.encode,\
     #        (hash_obj('x', hash_to='bin')).decode('ascii')
-    assert hash_obj('x', hash_to='hex') == '6bfd6e205ddae48ade2680784e672b66'
-    assert hash_obj(object) == -591373952375362512
-    assert hash_obj(object()) == -5704184814176152584
+    assert hash_obj('x', hash_to='hex') == '6fb94ab447e2224a422e2cd0271d66c1'
+    assert hash_obj(object) == 7177477609730129002
+    assert hash_obj(object()) != hash_obj(object)
+    print '<< PASSED : test_hash_obj >>'
 
+# TODO: test_hash_file function requires a "standard" file to test on
 
 if __name__ == "__main__":
     test_hash_obj()

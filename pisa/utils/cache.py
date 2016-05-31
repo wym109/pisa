@@ -160,18 +160,6 @@ class DiskCache(object):
         beyond `max_depth`. This adds an additional ~400 ms to item retrieval
         time.
 
-    Methods
-    -------
-    __str__
-    __repr__
-    __getitem__
-    __setitem__
-    __delitem__
-    __len__
-    get
-    clear
-    keys
-
     Notes
     -----
     This is not (as of now) thread-safe, but it is multi-process safe. The
@@ -180,7 +168,14 @@ class DiskCache(object):
     connected to the database simultaneously, however, due to sqlite's locking
     mechanisms that resolve resource contention.
 
+    Large databases are slower to work with than small. Therefore it is
+    recommended to use separate databases for each stage's cache rather than
+    one centralized database acting as the cache for all stages.
+
+    Examples
+    --------
     Access to the database via dict-like syntax:
+
     >>> x = {'xyz': [0,1,2,3], 'abc': {'first': (4,5,6)}}
     >>> disk_cache = DiskCache('/tmp/diskcache.db', max_depth=5, is_lru=False)
     >>> disk_cache[12] = x
@@ -203,14 +198,12 @@ class DiskCache(object):
     0
     >>> disk_cache.keys()
     []
-    >>> # Demonstrate max_depth (limit on # of rows):
+
+    Demonstrate max_depth (limit on number of entries / cache depth)
+
     >>> x = [disk_cache.__setitem__(i, 'foo') for i in xrange(10)]
     >>> len(disk_cache)
     5
-
-    Large databases are slower to work with than small. Therefore it is
-    recommended to use separate databases for each stage's cache rather than
-    one centralized database acting as the cache for all stages.
 
     """
     TABLE_SCHEMA = \
@@ -239,7 +232,7 @@ class DiskCache(object):
                 ref_schema = re.sub(r'\s', '', self.TABLE_SCHEMA).lower()
                 if schema != ref_schema:
                     raise ValueError('Existing database at "%s" has'
-                                     'non-matching schema:\n"""%s"""' 
+                                     'non-matching schema:\n"""%s"""'
                                      %(self.__db_fpath, schema))
             else:
                 # Create the table for storing (hash, data, timestamp) tuples
@@ -258,7 +251,7 @@ class DiskCache(object):
     def __str__(self):
         s = 'DiskCache(db_fpath=%s, max_depth=%d, is_lru=%s)' % \
                 (self.__db_fpath, self.__max_depth, self.__is_lru)
-        return s 
+        return s
 
     def __repr__(self):
         return str(self) + '; %d keys:\n%s' % (len(self), self.keys())
@@ -451,6 +444,7 @@ def test_MemoryCache():
     mc[3] = 'three'
     assert 0 not in mc
     assert mc[3] == 'three'
+    print '<< PASSED : test_MemoryCache >>'
 
 
 # TODO: augment test
@@ -473,6 +467,7 @@ def test_DiskCache():
         os.path.remove(tmp_fname)
     except:
         pass
+    print '<< PASSED : test_DiskCache >>'
 
 
 if __name__ == "__main__":

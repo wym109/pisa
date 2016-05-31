@@ -12,11 +12,10 @@ from uncertainties import unumpy as unp
 
 from pisa.core.binning import MultiDimBinning
 from pisa.core.map import Map, MapSet
-from pisa.utils.comparisons import recursiveEquality
+from pisa.utils.comparisons import normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils import jsons
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils.numerical import normQuant
 
 
 HASH_SIGFIGS = 12
@@ -752,6 +751,8 @@ if __name__ == '__main__':
     finally:
         shutil.rmtree(testdir, ignore_errors=True)
 
+    print '<< PASSED : test_BinnedTensorTransform >>'
+
     xforms = TransformSet(
         name='scaling',
         transforms=[xform0, xform1, xform2],
@@ -776,6 +777,8 @@ if __name__ == '__main__':
             assert t_ == t, 't=\n%s\nt_=\n%s' %(t.transforms, t_.transforms)
     finally:
         shutil.rmtree(testdir, ignore_errors=True)
+
+    print '<< PASSED : test_TransformSet >>'
 
 
 #if __name__ == "__main__":

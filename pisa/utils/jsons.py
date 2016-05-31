@@ -88,27 +88,6 @@ class NumpyEncoder(json.JSONEncoder):
             raise Exception('JSON serialization for %s not implemented'
                             %type(obj).__name__)
 
-# TODO: finish this little bit
-def test_NumpyEncoderDecoder():
-    import tempfile
-    from pisa.utils.comparisons import recursiveEquality
-    from pisa.utils.log import logging, set_verbosity
-    set_verbosity(3)
-    nda1 = np.array([-np.inf, np.nan, np.inf, -1, 0, 1, ])
-    testdir = tempfile.mkdtemp()
-    fname = os.path.join(testdir, 'nda1.json')
-    to_json(nda1, fname)
-    nda2 = from_json(fname)
-    assert np.allclose(nda2, nda1, rtol=1e-12, atol=0, equal_nan=True), \
-            'nda1=\n%s\nnda2=\n%s\nsee file: %s' %(nda1, nda2, fname)
-    d1 = {'nda1': nda1}
-    fname = os.path.join(testdir, 'd1.json')
-    to_json(d1, fname)
-    d2 = from_json(fname)
-    assert recursiveEquality(d2, d1), \
-            'd1=\n%s\nd2=\n%s\nsee file: %s' %(d1, d2, fname)
-
-
 class NumpyDecoder(json.JSONDecoder):
     """Decode JSON array(s) as numpy.ndarray, also returns python strings
     instead of unicode."""
@@ -135,6 +114,29 @@ class NumpyDecoder(json.JSONDecoder):
     def json_python_string(self, s, end, encoding, strict):
         values, end = json.decoder.scanstring(s, end, encoding, strict)
         return values.encode('utf-8'), end
+
+
+# TODO: finish this little bit
+def test_NumpyEncoderDecoder():
+    import tempfile
+    from pisa.utils.comparisons import recursiveEquality
+    from pisa.utils.log import logging, set_verbosity
+    set_verbosity(3)
+    nda1 = np.array([-np.inf, np.nan, np.inf, -1, 0, 1, ])
+    testdir = tempfile.mkdtemp()
+    fname = os.path.join(testdir, 'nda1.json')
+    to_json(nda1, fname)
+    nda2 = from_json(fname)
+    assert np.allclose(nda2, nda1, rtol=1e-12, atol=0, equal_nan=True), \
+            'nda1=\n%s\nnda2=\n%s\nsee file: %s' %(nda1, nda2, fname)
+    d1 = {'nda1': nda1}
+    fname = os.path.join(testdir, 'd1.json')
+    to_json(d1, fname)
+    d2 = from_json(fname)
+    assert recursiveEquality(d2, d1), \
+            'd1=\n%s\nd2=\n%s\nsee file: %s' %(d1, d2, fname)
+    logging.info('<< PASSED : test_NumpyEncoderDecoder >>')
+
 
 if __name__ == '__main__':
     test_NumpyEncoderDecoder()

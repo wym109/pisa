@@ -690,6 +690,7 @@ def test_Param():
         pass
     else:
         assert False
+    print '<< PASSED : test_Param >>'
 
 # TODO: add tests for reset() and reset_all() methods
 def test_ParamSet():
@@ -766,6 +767,7 @@ def test_ParamSet():
 
     print param_set[0].prior_chi2
     print param_set.priors_chi2
+    print '<< PASSED : test_ParamSet >>'
 
 
 if __name__ == "__main__":
