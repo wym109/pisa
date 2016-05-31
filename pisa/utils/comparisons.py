@@ -400,6 +400,10 @@ def normQuant(obj, sigfigs=None):
     True
 
     """
+    # Nothing to convert for strings, None, ...
+    if isinstance(obj, basestring) or obj is None:
+        return obj
+
     round_result = False
     if sigfigs is not None:
         if not (int(sigfigs) == float(sigfigs) and sigfigs > 0):
@@ -431,10 +435,6 @@ def normQuant(obj, sigfigs=None):
         return [normQuant(x, **kwargs) for x in obj]
 
     # Must be a numpy array or scalar if we got here...
-
-    # Nothing to convert for strings
-    if isinstance(obj, basestring):
-        return obj
 
     # NOTE: the order in which units (Pint module) and uncertainties
     # (uncertainties module) are handled is crucial! Essentially, it appears
@@ -624,6 +624,16 @@ def test_normQuant():
     #   * float64 with uncertainties only
     #   * float64 with both units and uncertainties
     # * nested objects... ?
+    assert normQuant('xyz') == normQuant('xyz')
+    assert normQuant('xyz', sigfigs=12) == normQuant('xyz', sigfigs=12)
+    assert normQuant(None) == normQuant(None)
+    assert normQuant(None, sigfigs=12) == normQuant(None, sigfigs=12)
+    assert normQuant(1) == normQuant(1)
+    assert normQuant(1, sigfigs=12) == normQuant(1, sigfigs=12)
+    assert normQuant(1) == normQuant(1.0)
+    assert normQuant(1, sigfigs=12) == normQuant(1.0, sigfigs=12)
+    assert normQuant(1.001) != normQuant(1.002)
+    assert normQuant(1.001, sigfigs=3) == normQuant(1.002, sigfigs=3)
     s0 = 1e5*ureg.um
     s1 = 1e5*ureg.um
     # ...
