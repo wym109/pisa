@@ -26,6 +26,7 @@ in turn is essential for caching to work correctly.
 
 from itertools import izip
 from collections import Iterable, Iterator, Mapping, OrderedDict, Sequence
+from numbers import Number
 
 import numpy as np
 import pint; ureg = pint.UnitRegistry()
@@ -65,6 +66,22 @@ def isscalar(x):
     return (not (hasattr(x, 'shape')
                  or isinstance(x, (Iterator, Mapping, Sequence)))
             or np.isscalar(x))
+
+
+def isbarenumeric(x):
+    """Check if input is a numerical datatype (including arrays of numbers) but
+    without units. Note that for these purposes, booleans are *not* considered
+    numerical datatypes.
+
+    """
+    is_bare_numeric = False
+    if isinstance(x, np.ndarray):
+        if x.dtype.type not in (np.bool, np.bool_, np.bool8, np.object0,
+                                np.object, np.object_):
+            is_bare_numeric = True
+    elif isinstance(x, Number) and not isinstance(x, bool):
+        is_bare_numeric = True
+    return is_bare_numeric
 
 
 def recursiveEquality(x, y):

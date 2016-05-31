@@ -7,6 +7,7 @@
 
 import collections
 from copy import deepcopy
+from numbers import Number
 from operator import setitem
 
 import numpy as np
@@ -82,9 +83,6 @@ class Prior(object):
     -------
     chi2
     llh
-    __eq__
-    __repr__
-    __str__
 
     Notes
     -----
@@ -96,6 +94,8 @@ class Prior(object):
     range, so subtle bugs aren't introduced that appear as an issue in e.g. the
     minimizer.
 
+    Examples
+    --------
     For spline prior: knots, coeffs, and deg can be found by, e.g.,
     scipy.interpolate.splrep; evaluation of spline priors is carried out
     internally by scipy.interpolate.splev, so an exact match to the output of
@@ -136,12 +136,11 @@ class Prior(object):
         else:
             raise TypeError('Unknown Prior kind `' + str(kind) + '`')
 
-
     @property
     def units_str(self):
         if self.units is None:
             return ''
-        return ' ' + format(ureg(self.units).units, '~')
+        return ' ' + format(ureg(self.units).units, '~').strip()
 
     def __str__(self):
         return self._str(self)
@@ -176,11 +175,16 @@ class Prior(object):
         self._str = lambda s: 'uniform prior, llh_offset=%s' %self.llh_offset
 
     def __init_gaussian(self, mean, stddev):
+        if isinstance(mean, Number):
+            mean = mean * ureg.dimensionless
+        if isinstance(stddev, Number):
+            stddev = stddev * ureg.dimensionless
+        assert mean.dimensionality == stddev.dimensionality
         self._state_attrs.extend(['mean', 'stddev'])
         self.kind = 'gaussian'
         if isinstance(mean, pint.quantity._Quantity):
             self.units = str(mean.units)
-            assert isinstance(stddev, pint.quantity._Quantity)
+            assert isinstance(stddev, pint.quantity._Quantity), '%s' %type(stddev)
             stddev = stddev.to(self.units)
         self.mean = mean
         self.stddev = stddev
@@ -195,6 +199,7 @@ class Prior(object):
         self._str = lambda s: 'gaussian prior: stddev=%s%s, maximum at %s%s' %(self.__stringify(self.stddev), self.units_str, self.__stringify(self.mean), self.units_str)
 
     def __init_linterp(self, param_vals, llh_vals):
+        # TODO: handle bare numbers/sequences as ureg.dimensionless
         self._state_attrs.extend(['param_vals', 'llh_vals'])
         self.kind = 'linterp'
         if isinstance(param_vals, pint.quantity._Quantity):
@@ -212,6 +217,8 @@ class Prior(object):
         self._str = lambda s: 'linearly-interpolated prior: valid in [%s, %s]%s, maxima at (%s)%s' %(self.__stringify(np.min(self.param_vals)), self.__stringify(np.max(self.param_vals)), self.units_str, self.max_at_str, self.units_str)
 
     def __init_spline(self, knots, coeffs, deg):
+        if not isinstance(knots, pint.quantity._Quantity):
+            knots = knots * ureg.dimensionless
         self._state_attrs.extend(['knots', 'coeffs', 'deg'])
         self.kind = 'spline'
         if isinstance(knots, pint.quantity._Quantity):
@@ -464,7 +471,7 @@ def test_Prior():
     # ... or vice versa
     try:
         gaussian.llh(10*ureg.meter)
-    except TypeError:
+    except (TypeError, pint.DimensionalityError):
         pass
     else:
         assert False

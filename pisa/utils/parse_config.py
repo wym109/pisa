@@ -16,7 +16,9 @@ scope of a single pipeline; synchronization of parameters across pipelines
 is done by adding the pipelines to a single DistributionMaker object and
 updating params through the DistributionMaker's update_params method.
 """
-
+# TODO: add try: except: blocks around class instantiation calls to give
+# maximally useful error info to the user (spit out a good message, but then
+# re-raise the exception)
 
 from collections import OrderedDict
 
@@ -54,7 +56,7 @@ def parse_quantity(string):
 
 def parse_string_literal(string):
     if string.lower().strip() == 'true': return True
-    elif string.lower().strip() == 'false': return False 
+    elif string.lower().strip() == 'false': return False
     elif string.lower().strip() == 'none': return None
     return string
 
@@ -71,12 +73,12 @@ def parse_config(config):
     binning_dict = {}
     for name, value in config.items('binning'):
         if name.endswith('.order'):
-            order = list_split(config.get('binning', name)) 
+            order = list_split(config.get('binning', name))
             binning, _ = name.split('.')
             bins = []
             for bin_name in order:
-                args = eval(config.get('binning', binning + '.' + bin_name))
-                bins.append(OneDimBinning(bin_name, **args))
+                kwargs = eval(config.get('binning', binning + '.' + bin_name))
+                bins.append(OneDimBinning(bin_name, **kwargs))
             binning_dict[binning] = MultiDimBinning(bins)
 
     stage_dicts = OrderedDict()
@@ -123,22 +125,22 @@ def parse_config(config):
                 else:
 
                     # defaults
-                    args = {'name': pname, 'is_fixed': True, 'prior': None,
-                            'range': None}
+                    kwargs = {'name': pname, 'is_fixed': True, 'prior': None,
+                              'range': None}
                     try:
                         value = parse_quantity(value)
-                        args['value'] = value.n * value.units
+                        kwargs['value'] = value.n * value.units
                     except ValueError:
                         value = parse_string_literal(value)
-                        args['value'] = value
+                        kwargs['value'] = value
                     # search for explicit specifications
                     if config.has_option(section, name + '.fixed'):
-                        args['is_fixed'] = config.getboolean(section,
-                                                             name + '.fixed')
+                        kwargs['is_fixed'] = config.getboolean(section,
+                                                               name + '.fixed')
 
                     if config.has_option(section, name + '.prior'):
                         if config.get(section, name + '.prior') == 'uniform':
-                            args['prior'] = Prior(kind='uniform')
+                            kwargs['prior'] = Prior(kind='uniform')
                         elif config.get(section, name + '.prior') == 'spline':
                             priorname = pname
                             if param_selector:
@@ -151,10 +153,10 @@ def parse_config(config):
                             knots = knots.to(value.units)
                             coeffs = np.asarray(data['coeffs'])
                             deg = data['deg']
-                            args['prior'] = Prior(kind='spline',
-                                                  knots=knots.m,
-                                                  coeffs=coeffs,
-                                                  deg=deg)
+                            kwargs['prior'] = Prior(kind='spline',
+                                                    knots=knots.m,
+                                                    coeffs=coeffs,
+                                                    deg=deg)
                         elif 'gauss' in config.get(section, name + '.prior'):
                             raise Exception(
                                 'Please use new style +/- notation for'
@@ -163,9 +165,9 @@ def parse_config(config):
                         else:
                             raise Exception('Prior type unknown')
                     elif hasattr(value, 's') and value.s != 0:
-                        args['prior'] = Prior(kind='gaussian',
-                                              mean=value.n * value.units,
-                                              stddev=value.s * value.units)
+                        kwargs['prior'] = Prior(kind='gaussian',
+                                                mean=value.n * value.units,
+                                                stddev=value.s * value.units)
 
                     if config.has_option(section, name + '.range'):
                         range = config.get(section, name + '.range')
@@ -175,9 +177,13 @@ def parse_config(config):
                             sigma = value.s * value.units
                         range = range.replace('[', 'np.array([')
                         range = range.replace(']', '])')
-                        args['range'] = eval(range).to(value.units)
-
-                    params.append(Param(**args))
+                        kwargs['range'] = eval(range).to(value.units)
+                    try:
+                        params.append(Param(**kwargs))
+                    except:
+                        logging.error('Failed to instantiate new Param object'
+                                      ' with kwargs %s' %kwargs)
+                        raise
 
             elif 'binning' in name:
                 stage_dicts[stage][name] = binning_dict[value]

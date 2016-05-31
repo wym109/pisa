@@ -1,10 +1,16 @@
 #! /usr/bin/env python
 # authors: J.Lanfranchi/P.Eller
 # date:   March 20, 2016
+"""
+Implementation of the Pipeline object, and a __main__ script to instantiate and
+run a pipeline.
+"""
 
-import importlib
-import sys
+
 from collections import OrderedDict
+import importlib
+import os
+import sys
 
 from pisa.core.stage import Stage
 from pisa.core.param import ParamSet
@@ -13,10 +19,6 @@ from pisa.utils.log import logging, set_verbosity
 from pisa.utils.hash import hash_obj
 from pisa.utils.profiler import profile
 
-"""
-Implementation of the Pipeline object, and a __main__ script to instantiate and
-run a pipeline.
-"""
 
 # TODO: should we check that the output binning of a previous stage produces
 # the inputs required by the current stage, or that the aggregate outputs that
@@ -171,7 +173,7 @@ if __name__ == '__main__':
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
     import numpy as np
     from pisa.core.map import Map, MapSet
-    from pisa.utils.fileio import from_file, to_file
+    from pisa.utils.fileio import from_file, mkdir, to_file
     from pisa.utils.parse_config import parse_config
     from pisa.utils.plotter import plotter
 
@@ -196,25 +198,37 @@ if __name__ == '__main__':
         STAGE, but stop there.'''
     )
     parser.add_argument(
-        '-o', '--outputs-file', metavar='FILE', type=str,
+        '-d', '--outdir', metavar='DIR', default='.', type=str,
+        help='''Store all output files (data and plots) to this directory.
+        Directory will be created (including missing parent directories) if it
+        does not exist already.'''
+    )
+    parser.add_argument(
+        '-o', '--outname', metavar='FILENAME', type=str,
         default='out.json',
-        help='''File for storing outputs. See also --intermediate-outputs
-        argument.'''
+        help='''Filename for storing output data.'''
+    )
+    parser.add_argument(
+        '--intermediate', action='store_true',
+        help='''Store all intermediate outputs, not just the final stage's
+        outputs.'''
     )
     parser.add_argument(
         '-i', '--inputs-file', metavar='FILE', type=str,
-        required=False,
         help='''File from which to read inputs to be fed to the pipeline.'''
     )
+    # TODO: optionally store the transform sets from each stage
+    #parser.add_argument(
+    #    '-T', '--transform-file', metavar='FILE', type=str,
+    #    help='''File into which to store transform(s) from the pipeline.'''
+    #)
     parser.add_argument(
-        '-T', '--transform-file', metavar='FILE', type=str,
-        required=False,
-        help='''File into which to store transform(s) from the pipeline.'''
+        '--pdf', action='store_true',
+        help='''Produce pdf plot(s).'''
     )
     parser.add_argument(
-        '-I', '--intermediate', action='store_true',
-        help='''Store all intermediate outputs, not just the final stage's
-        outputs.'''
+        '--png', action='store_true',
+        help='''Produce png plot(s).'''
     )
     parser.add_argument(
         '-v', action='count', default=None,
@@ -223,9 +237,13 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     set_verbosity(args.v)
+
+    mkdir(args.outdir)
+
     pipeline = Pipeline(args.pipeline_settings)
 
     if args.only_stage is not None:
+        assert args.stop_after_stage is None
         stage = pipeline.stages[args.only_stage]
         # create dummy inputs
         if hasattr(stage, 'input_binning'):
@@ -244,21 +262,15 @@ if __name__ == '__main__':
             outputs = pipeline.get_outputs(idx=args.stop_after_stage)
         else:
             outputs = pipeline.get_outputs()
-    #fp = pipeline.params.free
-    #fp['test'].value *= 1.2
-    #pipeline.update_params(fp)
-    #m1 = pipeline.get_outputs()
-    #print (m1/outputs)['nue'][0,0]
-    #print outputs['nue']
-    #print outputs[outputs.names[0]]
-    outputs.to_json(args.outputs_file)
-    #my_plotter = plotter(stamp = 'PISA cake test')
-    #my_plotter.ratio = True
-    #my_plotter.plot_2d_maps()
-    #my_plotter.plot_2d_array(outputs)
-    #my_plotter.plot_1d_array(outputs,'coszen')
-    #my_plotter.plot_1d_all(outputs,'energy')
-    #my_plotter.plot_1d_stack(outputs,'energy')
-    #my_plotter.ratio = True
-    #m1 = outputs.fluctuate('poisson')
-    #my_plotter.plot_1d_cmp(m1, outputs, 'coszen')
+
+    outputs.to_json(os.path.join(args.outdir, args.outname))
+
+    formats = OrderedDict(png=args.png, pdf=args.pdf)
+    for fmt, enabled in formats.items():
+        if not enabled:
+            continue
+        my_plotter = plotter(stamp='PISA cake test',
+                             outdir=args.outdir,
+                             fmt=fmt)
+        my_plotter.ratio = True
+        my_plotter.plot_2d_array(outputs)

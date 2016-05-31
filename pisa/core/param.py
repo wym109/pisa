@@ -13,7 +13,7 @@ from operator import setitem
 import numpy as np
 import pint; ureg = pint.UnitRegistry()
 
-from pisa.utils.comparisons import recursiveEquality
+from pisa.utils.comparisons import isbarenumeric, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 
@@ -65,11 +65,6 @@ class Param(object):
     units : <r>
 
 
-    Methods
-    -------
-    validate_value
-
-
     Notes
     -----
     In the case of a free (not fixed)  parameter, a valid range for the
@@ -78,14 +73,15 @@ class Param(object):
 
     """
     _slots = ('name', 'value', 'prior', 'range', 'is_fixed', 'is_discrete',
-              '_nominal_value', '_tex', 'help','_value', '_range', '_units',
-              'rescaled_value')
+              'nominal_value', 'rescaled_value',
+              '_nominal_value', '_tex', 'help','_value', '_range', '_units')
     _state_attrs = ('name', '_value', 'prior', 'range', 'is_fixed',
                      'is_discrete', 'nominal_value', 'tex', 'help')
 
     def __init__(self, name, value, prior, range, is_fixed, is_discrete=False,
                  nominal_value=None, tex=None, help=''):
         self._value = None
+        self.value = value
         self.name = name
         self._tex = tex if tex is not None else name
         self.help = help
@@ -93,7 +89,6 @@ class Param(object):
         self.prior = prior
         self.is_fixed = is_fixed
         self.is_discrete = is_discrete
-        self.value = value
         self._nominal_value = value if nominal_value is None else nominal_value
 
     def __eq__(self, other):
@@ -133,6 +128,9 @@ class Param(object):
 
     @value.setter
     def value(self, val):
+        # A number with no units actually has units of "dimensionless"
+        if isbarenumeric(val):
+            val = val * ureg.dimensionless
         if self._value is not None:
             if hasattr(self._value, 'units'):
                 assert hasattr(val, 'units'), \
@@ -157,7 +155,23 @@ class Param(object):
 
     @range.setter
     def range(self, values):
-        self._range = values
+        if values is None:
+            self._range = None
+            return
+        new_vals = []
+        for val in values:
+            if isbarenumeric(val):
+                val = val * ureg.dimensionless
+            assert type(val) == type(self.value), \
+                    'Value "%s" has type %s but must be of type %s.' \
+                    %(val, type(val), type(self.value))
+            if isinstance(self.value, pint.quantity._Quantity):
+                assert self.value.dimensionality == val.dimensionality, \
+                    'Value "%s" units "%s" incompatible with units "%s".' \
+                    %(val, val.units, self.units)
+
+            new_vals.append(val)
+        self._range = new_vals
 
     @property
     def rescaled_value(self):
@@ -201,6 +215,14 @@ class Param(object):
                 val = val.state
             setitem(state, attr, val)
         return state
+
+    def reset(self):
+        """Reset the parameter's value to its nominal value."""
+        self.value = self.nominal_value
+
+    def set_nominal_to_current_value(self):
+        """Define the nominal value to the parameter's current value."""
+        self.nominal_value = self.value
 
     def prior_penalty(self, metric):
         if self.prior is None:
@@ -272,8 +294,8 @@ class ParamSet(object):
     nominal_values : tuple of quantities <r/w>
         Get or set "nominal" values for all parameters. These can be considered
         to be the "initial" or "injected" values, depending upon the context. A
-        call to the `reset` (`reset_all`) methods resets `values` of free (all)
-        params to these `nominal_values`.
+        call to the `reset_free` (`reset_all`) methods resets `values` of free
+        (all) params to these `nominal_values`.
 
     nominal_values_hash : int <r>
         Hash value for the parameters' nominal values
@@ -530,13 +552,21 @@ class ParamSet(object):
                        for obj in self._params])
 
     def reset_all(self):
+        """Reset both free and fixed parameters to their nominal values."""
         self.values = self.nominal_values
 
-    def reset(self):
+    def reset_free(self):
+        """Reset only free parameters to their nominal values."""
         self.free.reset_all()
+
+    def values_to_nominal(self):
+        """Define the nominal values to the parameters' current values."""
+        self.nominal_values = self.values
 
     @property
     def rescaled_values(self):
+        """Parameter values rescaled to be in the range [0, 1], based upon
+        their defined range."""
         return tuple([param.rescaled_value for param in self._params])
 
     @rescaled_values.setter
@@ -652,7 +682,8 @@ def test_Param():
     gaussian = Prior(kind='gaussian', mean=10*ureg.meter, stddev=1*ureg.meter)
     param_vals = np.linspace(-10, 10, 100) * ureg.meter
     llh_vals = (param_vals.magnitude)**2
-    linterp = Prior(kind='linterp', param_vals=param_vals, llh_vals=llh_vals)
+    linterp_m = Prior(kind='linterp', param_vals=param_vals, llh_vals=llh_vals)
+    linterp_nounits = Prior(kind='linterp', param_vals=param_vals.m, llh_vals=llh_vals)
 
     param_vals = np.linspace(-10, 10, 100)
     llh_vals = param_vals**2
@@ -661,22 +692,24 @@ def test_Param():
     spline = Prior(kind='spline', knots=knots, coeffs=coeffs, deg=deg)
 
     # Param with units, prior with compatible units
-    p0 = Param(name='c', value=1.5*ureg.foot, prior=gaussian, range=[1,2],
-               is_fixed=False, is_discrete=False, tex=r'\int{\rm c}')
+    p0 = Param(name='c', value=1.5*ureg.foot, prior=gaussian,
+               range=[1,2]*ureg.foot, is_fixed=False, is_discrete=False,
+               tex=r'\int{\rm c}')
     # Param with no units, prior with no units
     p1 = Param(name='c', value=1.5, prior=spline, range=[1,2],
                is_fixed=False, is_discrete=False, tex=r'\int{\rm c}')
 
     # Param with no units, prior with units
     try:
-        p2 = Param(name='c', value=1.5, prior=linterp, range=[1,2],
-                   is_fixed=False, is_discrete=False, tex=r'\int{\rm c}')
+        p2 = Param(name='c', value=1.5, prior=linterp_m,
+                   range=[1,2], is_fixed=False, is_discrete=False,
+                   tex=r'\int{\rm c}')
         p2.prior_llh
         logging.debug(str(p2))
         logging.debug(str(linterp))
         logging.debug('p2.units: %s' %p2.units)
         logging.debug('p2.prior.units: %s' %p2.prior.units)
-    except TypeError:
+    except (TypeError, pint.DimensionalityError):
         pass
     else:
         assert False
@@ -686,10 +719,60 @@ def test_Param():
         p2 = Param(name='c', value=1.5*ureg.meter, prior=spline, range=[1,2],
                    is_fixed=False, is_discrete=False, tex=r'\int{\rm c}')
         p2.prior_llh
-    except TypeError:
+    except (TypeError, AssertionError):
         pass
     else:
         assert False
+    try:
+        p2 = Param(name='c', value=1.5*ureg.meter, prior=linterp_nounits,
+                   range=[1,2], is_fixed=False, is_discrete=False,
+                   tex=r'\int{\rm c}')
+        p2.prior_llh
+    except (TypeError, AssertionError):
+        pass
+    else:
+        assert False
+
+    # Param, range, prior with no units
+    p2 = Param(name='c', value=1.5, prior=linterp_nounits,
+               range=[1,2], is_fixed=False, is_discrete=False,
+               tex=r'\int{\rm c}')
+    p2.prior_llh
+
+    # Param, prior with no units, range with units
+    try:
+        p2 = Param(name='c', value=1.5, prior=linterp_nounits,
+                   range=[1,2]*ureg.m, is_fixed=False, is_discrete=False,
+                   tex=r'\int{\rm c}')
+        p2.prior_llh
+        logging.debug(str(p2))
+        logging.debug(str(linterp))
+        logging.debug('p2.units: %s' %p2.units)
+        logging.debug('p2.prior.units: %s' %p2.prior.units)
+    except (TypeError, AssertionError):
+        pass
+    else:
+        assert False
+
+    nom0 = p2.nominal_value
+    val0 = p2.value
+    p2.value = p2.value * 1.01
+    val1 = p2.value
+    assert p2.value != val0
+    assert p2.value == val0 * 1.01
+    assert p2.value != nom0
+    assert p2.nominal_value == nom0
+
+    p2.reset()
+    assert p2.value == nom0
+    assert p2.nominal_value == nom0
+
+    p2.value = val1
+    p2.set_nominal_to_current_value()
+    assert p2.nominal_value == p2.value
+    assert p2.nominal_value == val1, \
+            '%s should be %s' %(p2.nominal_value, val1)
+
     print '<< PASSED : test_Param >>'
 
 # TODO: add tests for reset() and reset_all() methods
