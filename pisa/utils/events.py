@@ -14,11 +14,12 @@ Events class for working with PISA events files
 import h5py
 
 import pisa.resources.resources as resources
-import pisa.utils.comparisons
+from pisa.utils.comparisons import normQuant, recursiveEquality
 from pisa.utils import flavInt
+from pisa.utils.hash import hash_obj
 from pisa.utils import hdf
 
-
+# TODO: test hash function (attr)
 class Events(flavInt.FlavIntData):
     """Container for storing events, including metadata about the events"""
     def __init__(self, val=None):
@@ -43,13 +44,17 @@ class Events(flavInt.FlavIntData):
         self.validate(data)
         self.update(data)
 
+    @property
+    def hash(self):
+        return hash_obj(normQuant(self.metadata))
+
     def meta_eq(self, other):
         """Test whether the metadata for this object matches that of `other`"""
-        return comparsions.recursiveEquality(self.metadata, other.metadata)
+        return recursiveEquality(self.metadata, other.metadata)
 
     def data_eq(self, other):
         """Test whether the data for this object matche that of `other`"""
-        return comparsions.recursiveEquality(self, other)
+        return recursiveEquality(self, other)
 
     def __eq__(self, other):
         return self.meta_eq(other) and self.data_eq(other)
@@ -68,7 +73,7 @@ class Events(flavInt.FlavIntData):
 
 def test_Events():
     events = Events()
-    # TODO: add more testing here
+    # TODO: add more testing here!
 
 
 if __name__ == "__main__":
