@@ -1,2 +1,2 @@
-include pisa/oscillations/prob3/*.h
+include pisa/stages/osc/prob3/*.h
 include pisa/utils/*.pyx

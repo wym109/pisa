@@ -96,13 +96,14 @@ if __name__ == '__main__':
 
     CUDA = has_cuda()
     if not CUDA:
-        sys.stdout.write('Could not import pycuda; installing PISA without'
-                         ' CUDA (GPU) support.\n')
+        sys.stderr.write('WARNING: Could not import pycuda; installing PISA'
+                         ' without CUDA (GPU) support.\n')
 
     OPENMP = has_openmp()
     if not OPENMP:
-        sys.stderr.write('Could not compile test program with -fopenmp;'
-                         ' installing PISA without OpenMP support.\n')
+        sys.stderr.write('WARNING: Could not compile test program with'
+                         ' -fopenmp; installing PISA without OpenMP'
+                         ' support.\n')
 
     # Collect (build-able) external modules
     ext_modules = []
