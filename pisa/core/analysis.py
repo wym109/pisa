@@ -216,7 +216,7 @@ class Analysis(object):
 
     def run_l_bfgs(self, pprint=True):
         # Reset free parameters to nominal values
-        self.template_maker.params.free.reset()
+        self.template_maker.params.reset_free()
 
         # Get initial values
         x0 = self.template_maker.params.free.rescaled_values
@@ -242,11 +242,16 @@ class Analysis(object):
         return a
 
     def profile_llh(self, p_name):
-        ''' run profile llh method for param p_name '''
+        """Run profile log likelihood method for param `p_name`.
 
+        Parameters
+        ----------
+        p_name
+
+        """
         # run numerator
         logging.info('resetting params')
-        self.template_maker.params.reset()
+        self.template_maker.params.reset_free()
         logging.info('fixing param %s'%p_name)
         self.template_maker.params.fix(p_name)
         num = self.run_l_bfgs()
@@ -259,7 +264,7 @@ class Analysis(object):
         condMLE[p_name] = self.template_maker.params[p_name].value
         # run denominator
         logging.info('resetting params')
-        self.template_maker.params.reset()
+        self.template_maker.params.reset_free()
         logging.info('unfixing param %s'%p_name)
         self.template_maker.params.unfix(p_name)
         denom = self.run_l_bfgs()
