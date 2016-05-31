@@ -25,7 +25,6 @@ import numpy
 def setup_cc():
     if 'CC' not in os.environ or os.environ['CC'].strip() == '':
         os.environ['CC'] = 'cc'
-    print 'using compiler %s' %os.environ['CC']
 
 
 def has_cuda():
@@ -34,12 +33,8 @@ def has_cuda():
         import pycuda.driver as cuda
     except:
         CUDA = False
-        sys.stderr.write(
-            'Could not import pycuda; installing without GPU support.\n'
-        )
     else:
         CUDA = True
-
     return CUDA
 
 
@@ -48,6 +43,8 @@ def has_openmp():
     # (e.g. Apple's compiler apparently doesn't support OpenMP, but gcc does)
     # nathan12343's solution: http://stackoverflow.com/questions/16549893
     OPENMP = False
+
+    setup_cc()
 
     # see http://openmp.org/wp/openmp-compilers/
     omp_test = \
@@ -71,7 +68,7 @@ def has_openmp():
             returncode = subprocess.call([cc, '-fopenmp', tmpfname],
                                          stdout=fnull, stderr=fnull)
         # Successful build (possibly with warnings) means we can use OpenMP
-        OPENMP = returncode >= 0
+        OPENMP = (returncode == 0)
     finally:
         # Restore directory location and clean up
         os.chdir(curdir)
@@ -95,14 +92,17 @@ class build(_build):
 
 if __name__ == '__main__':
     setup_cc()
-    CUDA = has_cuda()
-    OPENMP = has_openmp()
+    sys.stdout.write('Using compiler %s\n' %os.environ['CC'])
 
+    CUDA = has_cuda()
+    if not CUDA:
+        sys.stdout.write('Could not import pycuda; installing PISA without'
+                         ' CUDA (GPU) support.\n')
+
+    OPENMP = has_openmp()
     if not OPENMP:
-        sys.stderr.write(
-            'Could not compile test program with OpenMP; installing without OpenMP'
-            ' multithreading support.\n'
-        )
+        sys.stderr.write('Could not compile test program with -fopenmp;'
+                         ' installing PISA without OpenMP support.\n')
 
     # Collect (build-able) external modules
     ext_modules = []
