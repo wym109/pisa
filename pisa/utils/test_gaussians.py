@@ -3,6 +3,7 @@
 Unittests for functions that live in the gaussians.pyx Cython module.
 """
 
+
 from itertools import product, izip
 
 import numpy as np
@@ -43,6 +44,7 @@ def test_gaussian():
         if np.any(np.isnan(refbuf)):
             outbuf.fill(0)
             refbuf.fill(0)
+    print '<< PASSED : test_gaussian >>'
 
 
 def test_gaussians():
@@ -61,7 +63,7 @@ def test_gaussians():
 
     # Compute the reference result
     [refbuf.__iadd__(norm.pdf(x, loc=m, scale=s)) for m, s in izip(mu, sigma)]
-    
+
     # Try out the threads functionality for each result; reset the accumulation
     # buffer each time.
     for threads in (1, 2, 32):
@@ -70,8 +72,78 @@ def test_gaussians():
         assert np.allclose(outbuf, refbuf, rtol=1e-14, atol=0, equal_nan=True),\
                 'outbuf=\n%s\nrefbuf=\n%s\nmu=\n%s\nsigma=\n%s\nthreads=%d' \
                 %(outbuf, refbuf, mu, sigma, threads)
+    print '<< PASSED : test_gaussians >>'
+
+
+def speed_test_gaussians(num_gaussians, num_points):
+    import multiprocessing
+    import time
+    import sys
+    assert int(num_gaussians) == float(num_gaussians), \
+            'must pass integral value or equivalent for `num_gaussians`'
+    assert int(num_points) == float(num_points), \
+            'must pass integral value or equivalent for `num_points`'
+
+    def wstdout(msg):
+        sys.stdout.write(msg)
+        sys.stdout.flush()
+
+    num_cpu = multiprocessing.cpu_count()
+    wstdout('Reported #CPUs: %d (includes any hyperthreading)\n' %num_cpu)
+    wstdout('Summing %d Gaussians evaluated at %d points...\n'
+            %(num_gaussians, num_points))
+
+    np.random.seed(0)
+    mu = np.array(np.random.randn(num_gaussians), dtype=np.float64)
+    sigma = np.array(np.abs(np.random.randn(len(mu))), dtype=np.float64)
+    np.clip(sigma, a_min=1e-20, a_max=np.inf, out=sigma)
+
+    x = np.linspace(-10, 10, num_points, dtype=np.float64)
+
+    # Place to store result of `gaussians()`; zero-stuffed in the below lopp
+    outbuf = np.empty_like(x, dtype=np.float64)
+
+    # Place to store result of `scipy.stats.norm`
+    refbuf = np.zeros_like(outbuf, dtype=np.float64)
+
+    # Try out the threads functionality for each result; reset the accumulation
+    # buffer each time.
+    timings = []
+    wstdout('%7s %10s %7s\n' %('Threads', 'Time (s)', 'Speedup'))
+    for threads in range(1, num_cpu+1):
+        outbuf.fill(0)
+        t0 = time.time()
+        gaussians(outbuf, x, mu, sigma, threads)
+        T = time.time() - t0
+        timings.append({'threads': threads, 'timing': T})
+
+        wstdout('%7d %10.3e %7s\n'
+                %(threads, T, format(timings[0]['timing']/T, '5.3f')))
+
+    return timings
 
 
 if __name__ == '__main__':
-    test_gaussian()
-    test_gaussians()
+    import argparse
+    parser = argparse.ArgumentParser(
+        'Run tests on functions in gaussians.pyx; by default, runs unit tests.'
+    )
+    parser.add_argument(
+        '-s', '--speed', action='store_true',
+        help='''Run speed test rather than unit tests'''
+    )
+    parser.add_argument(
+        '--num-gaussians', type=float, default=1e4,
+        help='Number of Gaussians to sum if running speed test'
+    )
+    parser.add_argument(
+        '--num-points', type=float, default=1e4,
+        help='Number of points to evaluate if running speed test'
+    )
+    args = parser.parse_args()
+    if args.speed:
+        speed_test_gaussians(num_gaussians=args.num_gaussians,
+                             num_points=args.num_points)
+    else:
+        test_gaussian()
+        test_gaussians()

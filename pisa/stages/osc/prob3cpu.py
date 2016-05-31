@@ -13,13 +13,13 @@ from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.resources.resources import find_resource
 from pisa.stages.osc.prob3.BargerPropagator import BargerPropagator
 from pisa.utils.log import logging
-from pisa.utils.numerical import normQuant
+from pisa.utils.comparisons import normQuant
 from pisa.utils.profiler import profile
 
 
 SIGFIGS = 12
 """Significant figures for determining if numbers and quantities normalised
-(using pisa.utils.numerical.normQuant) are equal. Make sure this is less than
+(using pisa.utils.comparisons.normQuant) are equal. Make sure this is less than
 the numerical precision that calculations are being performed in to have the
 desired effect that "essentially equal" things evaluate to be equal."""
 
@@ -143,10 +143,10 @@ class prob3cpu(Stage):
         # are actually used in the oscillations computation. All other
         # dimensions are ignored. Since these won't change so long as the
         # binning doesn't change, attache these to self.
-        self.ecz_binning = MultiDimBinning(
+        self.ecz_binning = MultiDimBinning([
             self.input_binning.energy.to('GeV'),
             self.input_binning.coszen.to('dimensionless')
-        )
+        ])
         e_centers, cz_centers = self.ecz_binning.weighted_centers
         self.e_centers = e_centers.magnitude
         self.cz_centers = cz_centers.magnitude

@@ -218,7 +218,7 @@ class honda(Stage):
         # Set the neutrio primaries
         # This has to match the headers in the Honda files
         # When adding new source files please ensure this is respected
-        self.primaries = ['numu', 'numu_bar', 'nue', 'nue_bar']
+        self.primaries = ['numu', 'numubar', 'nue', 'nuebar']
 
         # Initialisation of this service should load the flux tables
         # Can work with either 2D (E,Z,AA) or 3D (E,Z,A) tables.

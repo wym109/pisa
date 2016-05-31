@@ -29,6 +29,14 @@ pisa.stages.osc.prob3cpu module
     :undoc-members:
     :show-inheritance:
 
+pisa.stages.osc.test_prob3cpu module
+------------------------------------
+
+.. automodule:: pisa.stages.osc.test_prob3cpu
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 
 Module contents
 ---------------

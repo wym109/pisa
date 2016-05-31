@@ -21,6 +21,13 @@ import tempfile
 from Cython.Build import cythonize
 import numpy
 
+
+def setup_cc():
+    if 'CC' not in os.environ or os.environ['CC'].strip() == '':
+        os.environ['CC'] = 'cc'
+    print 'using compiler %s' %os.environ['CC']
+
+
 def has_cuda():
     # pycuda is present if it can be imported
     try:
@@ -56,11 +63,12 @@ def has_openmp():
     tmpdir = tempfile.mkdtemp()
     curdir = os.getcwd()
     os.chdir(tmpdir)
+    cc = os.environ['CC']
     try:
         with open(tmpfname, 'w', 0) as file:
             file.write(omp_test)
         with open(os.devnull, 'w') as fnull:
-            returncode = subprocess.call(['cc', '-fopenmp', tmpfname],
+            returncode = subprocess.call([cc, '-fopenmp', tmpfname],
                                          stdout=fnull, stderr=fnull)
         # Successful build (possibly with warnings) means we can use OpenMP
         OPENMP = returncode >= 0
@@ -68,7 +76,6 @@ def has_openmp():
         # Restore directory location and clean up
         os.chdir(curdir)
         shutil.rmtree(tmpdir)
-
     return OPENMP
 
 
@@ -87,6 +94,7 @@ class build(_build):
 
 
 if __name__ == '__main__':
+    setup_cc()
     CUDA = has_cuda()
     OPENMP = has_openmp()
 
@@ -147,13 +155,18 @@ if __name__ == '__main__':
             'pisa.utils.gaussians',
             ['pisa/utils/gaussians.pyx'],
             libraries=['m'],
-            extra_compile_args=['-fopenmp'],
+            extra_compile_args=[
+                '-fopenmp', '-O2'
+            ],
             extra_link_args=['-fopenmp']
         )
     else:
         gaussians_module = Extension(
             'pisa.utils.gaussians',
             ['pisa/utils/gaussians.pyx'],
+            extra_compile_args=[
+                '-O2'
+            ],
             libraries=['m']
         )
     ext_modules.append(gaussians_module)

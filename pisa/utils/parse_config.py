@@ -76,7 +76,7 @@ def parse_config(config):
             for bin_name in order:
                 args = eval(config.get('binning', binning + '.' + bin_name))
                 bins.append(OneDimBinning(bin_name, **args))
-            binning_dict[binning] = MultiDimBinning(*bins)
+            binning_dict[binning] = MultiDimBinning(bins)
 
     stage_dicts = OrderedDict()
     # find pipline setting

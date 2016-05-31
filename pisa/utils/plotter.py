@@ -12,6 +12,7 @@ mpl.rcParams['mathtext.bf'] = 'Bitstream Vera Sans:bold'
 from matplotlib import pyplot as plt
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from matplotlib.offsetbox import AnchoredText
+from pisa.utils.log import logging
 
 class plotter(object):
 
@@ -83,6 +84,7 @@ class plotter(object):
 
     def plot_1d_array(self, mapset, plot_axis, n_rows=None,
             n_cols=None):
+        ''' plot 1d projections as an array '''
         self.plot_array(mapset, 'plot_1d_projection', plot_axis, n_rows=n_rows,
                 n_cols=n_cols)
         self.dump('test1d')
@@ -114,18 +116,20 @@ class plotter(object):
             if self.ratio:
                 ax1 = plt.subplot2grid((4,1), (0,0), rowspan=3)
                 plt.setp(ax1.get_xticklabels(), visible=False)
-            self.plot_1d_projection(map0, plot_axis)
-            self.plot_1d_projection(map1, plot_axis, ptype='data')
+            self.plot_1d_projection(map0, plot_axis, ptype='data')
+            self.plot_1d_projection(map1, plot_axis)
             self.add_stamp()
             self.add_leg()
             if self.ratio:
                 plt.subplot2grid((4,1), (3,0),sharex=ax1)
-                self.plot_1d_ratio([map1, map0], plot_axis)
+                self.plot_1d_ratio([map0, map1], plot_axis)
             self.dump('cmp_%s'%map0.name)
 
     # --- plotting core functions ---
 
     def plot_array(self, mapset, fun, *args, **kwargs):
+        ''' wrapper funtion to exccute plotting function fun for every map in a set
+        distributed over a grid '''
         n_rows = kwargs.pop('n_rows', None)
         n_cols = kwargs.pop('n_cols', None)
         ''' plot mapset in array using a function fun '''
@@ -173,9 +177,13 @@ class plotter(object):
         plt_binning = map.binning[plot_axis]
         hist = self.project_1d(map, plot_axis)
         if ptype == 'hist':
-            axis.hist(plt_binning.bin_centers, weights=hist, bins=plt_binning.bin_edges, histtype='step', lw=1.5, label=r'$%s$'%map.tex, **kwargs)
+            axis.hist(plt_binning.bin_centers, weights=unp.nominal_values(hist), bins=plt_binning.bin_edges, histtype='step', lw=1.5, label=r'$%s$'%map.tex, **kwargs)
+            axis.bar(plt_binning.bin_edges.m[:-1],2*unp.std_devs(hist),
+                    bottom=unp.nominal_values(hist)-unp.std_devs(hist),
+                    width=plt_binning.bin_widths, alpha=0.25, linewidth=0)
         elif ptype == 'data':
-            axis.errorbar(plt_binning.bin_centers, hist, fmt='o',color='black', markersize='4', label=r'$%s$'%map.tex, **kwargs)
+            axis.errorbar(plt_binning.bin_centers.m,
+                    unp.nominal_values(hist),yerr=unp.std_devs(hist), fmt='o', markersize='4', label=r'$%s$'%map.tex, **kwargs)
         axis.set_xlabel(plt_binning.label)
         if self.label:
             axis.set_ylabel(self.label)
@@ -188,6 +196,7 @@ class plotter(object):
             plt.grid(True, which="both", ls='-', alpha=0.2)
 
     def project_1d(self, map, plot_axis):
+        ''' sum up a map along all axes except plot_axis '''
         hist = map.hist
         plt_axis_n = map.binning.names.index(plot_axis)
         for i in range(len(map.binning)):
@@ -197,22 +206,43 @@ class plotter(object):
         return hist
 
     def plot_1d_ratio(self, maps, plot_axis):
+        ''' make a ratio plot for a 1d projection '''
         axis = plt.gca()
         map0 = maps[0]
         plt_binning = map0.binning[plot_axis]
-        hist0 = self.project_1d(map0, plot_axis)
+        hist = self.project_1d(map0, plot_axis)
+        hist0 = unp.nominal_values(hist)
+        err0 = unp.std_devs(hist)
+
         axis.set_xlim(plt_binning.bin_edges.m[0], plt_binning.bin_edges.m[-1])
-        gmin = 1.0
-        gmax = 1.0
-        for map in maps[1:]:
-            hist1 = self.project_1d(map, plot_axis)
-            ratio = hist1/hist0
-            mi = np.nanmin(ratio)
-            gmin = min(mi, gmin)
-            ma = np.nanmax(ratio)
-            gmax = max(ma, gmax)
-            ratio = np.nan_to_num(ratio)
-            axis.hist(plt_binning.bin_centers, weights=ratio, bins=plt_binning.bin_edges, histtype='step', lw=1.5, label=r'$%s$'%map.tex)
+        maximum = 1.0
+        minimum = 1.0
+        for j,map in enumerate(maps):
+            hist = self.project_1d(map, plot_axis)
+            hist1 = unp.nominal_values(hist)
+            err1 = unp.std_devs(hist)
+            ratio = np.zeros_like(hist0)
+            ratio_error = np.zeros_like(hist0)
+            for i in range(len(hist0)):
+                if hist1[i]==0 and hist0[i]==0:
+                    ratio[i] = 1.
+                    ratio_error[i] = 1.
+                elif hist1[i]!=0 and hist0[i]==0:
+                    logging.warning('deviding non 0 by 0 for ratio')
+                    ratio[i] = 0.
+                    ratio_error[i] = 1.
+                else:
+                    ratio[i] = hist1[i]/hist0[i]
+                    ratio_error[i] = err1[i]/hist0[i]
+                    minimum = min(minimum,ratio[i])
+                    maximum = max(maximum,ratio[i])
+
+            h,b,p = axis.hist(plt_binning.bin_centers, weights=ratio,
+                    bins=plt_binning.bin_edges, histtype='step', lw=1.5,
+                    label=r'$%s$'%map.tex)
+            axis.bar(plt_binning.bin_edges.m[:-1],2*ratio_error, bottom=ratio-ratio_error,
+                    width=plt_binning.bin_widths, alpha=0.25,
+                    linewidth=0)
 
         if self.grid:
             plt.grid(True, which="both", ls='-', alpha=0.2)
@@ -220,6 +250,5 @@ class plotter(object):
         axis.set_ylabel('ratio')
         axis.set_xlabel(plt_binning.label)
         # calculate nice scale:
-        off = max(gmax-1, 1-gmin)
+        off = max(maximum-1, 1-minimum)
         axis.set_ylim(1 - 1.2 * off, 1 + 1.2 * off )
-        axis.axhline(1.0, color='k')

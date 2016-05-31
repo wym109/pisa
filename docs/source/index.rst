@@ -9,8 +9,6 @@ Welcome to PISA's documentation!
 Contents
 --------
 
-Documentation is being collected here...
-
 .. toctree::
    :maxdepth: 2
 

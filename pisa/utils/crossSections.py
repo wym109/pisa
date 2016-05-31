@@ -9,16 +9,15 @@ Define CrossSections class for importing, working with, and storing neutrino
 cross sections
 """
 
-import os, sys
-import numpy as np
 from copy import deepcopy
+import os, sys
 
+import numpy as np
 from scipy.interpolate import interp1d
 
-import pisa.utils.fileio as fileio
-import pisa.utils.flavInt as flavInt
-import pisa.utils.utils as utils
-from pisa.resources import resources as resources
+from pisa.resources.resources import find_resource
+from pisa.utils.fileio import expandPath, from_file, to_file
+from pisa.utils import flavInt
 from pisa.utils.log import logging, set_verbosity
 
 # TODO: make class for groups of CX or just a function for finding eisting
@@ -71,7 +70,7 @@ class CrossSections(flavInt.FlavIntData):
         """Load cross sections from a file locatable and readable by the PISA
         from_file command. If `ver` is provided, it is used to index into the
         top level of the loaded dictionary"""
-        all_xsec = fileio.from_file(fpath, **kwargs)
+        all_xsec = from_file(fpath, **kwargs)
         if ver not in all_xsec:
             raise ValueError('Version "%s" not found. Valid versions in file'
                              '"%s" are: %s' % (ver, fpath, all_xsec.keys()))
@@ -224,14 +223,14 @@ class CrossSections(flavInt.FlavIntData):
             assert ver == self.__ver
 
         try:
-            fpath = resources.find_resource(fpath)
+            fpath = find_resource(fpath)
         except IOError:
             pass
         fpath = os.path.expandvars(os.path.expanduser(fpath))
         all_xs = {}
         # Get any existing data from file
         if os.path.exists(fpath):
-            all_xs = fileio.from_file(fpath)
+            all_xs = from_file(fpath)
         # Validate existing data by instantiating objects from each
         for v, d in all_xs.iteritems():
             CrossSections(ver=v, energy=d['energy'], xsec=d['xsec'])
@@ -239,7 +238,7 @@ class CrossSections(flavInt.FlavIntData):
             logging.warning('Overwriting existing version "' + ver +
                             '" in file ' + fpath)
         all_xs[ver] = {'xsec':self, 'energy':self.energy}
-        fileio.to_file(all_xs, fpath, **kwargs)
+        to_file(all_xs, fpath, **kwargs)
 
     def get_xs_value(self, flavintgroup, energy):
         """Get (combined) cross section value (in units of m^2) for
@@ -574,7 +573,7 @@ def test_CrossSections():
     xs = CrossSections(ver='genie_2.6.4', xsec=pisa_xs_file)
 
     # Location of the root file to use (not included in PISA at the moment)
-    test_dir = utils.expandPath('$PISA/../test/cross_sections')
+    test_dir = expandPath('$PISA/../test/cross_sections')
     ROOT_xs_file = os.path.join(test_dir, 'genie_2.6.4_simplified.root')
 
     # Make sure that the XS newly-imported from ROOT match those stored in PISA
@@ -603,7 +602,7 @@ def test_CrossSections():
 
     # Plot all cross sections stored in PISA xs file
     try:
-        alldata = fileio.from_file(pisa_xs_file)
+        alldata = from_file(pisa_xs_file)
         xs_versions = alldata.keys()
         for ver in xs_versions:
             xs = CrossSections(ver=ver, xsec=pisa_xs_file)

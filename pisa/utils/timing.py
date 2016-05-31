@@ -4,7 +4,7 @@ import time
 
 import numpy as np
 
-from pisa.utils.numerical import engfmt
+from pisa.utils.format import engfmt
 
 # TODO: add unit tests!
 
@@ -24,7 +24,7 @@ class Timer(object):
             print 'elapsed time: %f ms' % self.msecs
 
 
-def timediffstamp(dt_sec, hms_always=False, sec_resolution=3):
+def timediffstamp(dt_sec, hms_always=False, sec_decimals=3):
     """Smart string formatting for a time difference (in seconds)
 
     Parameters

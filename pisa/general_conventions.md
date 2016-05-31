@@ -19,6 +19,9 @@
 
 Documentation comes in two forms: ***docstrings*** and ***standalone files*** (either markdown **.md** files or reStricturedText **.rst** files). Docstrings are the most important for physics and framework developers to consider, and can (and should) be quite far-ranging in their scope. Standalone files are reserved for guides (install guide, developer's guide, user's guide, quick-start, etc.) and one README.md file within each directory to document the directory's raison d'être, or what is common to all of the things contained in the directory.
 
+* All documentation is run through [Sphinx](http://www.sphinx-doc.org) using the [Napoleon](http://sphinxcontrib-napoleon.readthedocs.io) (to understand Numpy-style docstrings) and [Recommonmark](http://recommonmark.readthedocs.io) (to understand Markdown syntax) extensions, so the final arbiter of whether a docstring is formatted "correctly" is the output generated using these.
+Refer to those links for how to format docstrings / Markdown to produce a desired result.
+
 ## Docstrings
 
 Docstrings can document nearly everything within a Python file. The various types of docstrings are:
@@ -39,7 +42,8 @@ Docstrings should be formatted according to the NumPy/SciPy convention.
 * [PEP257: General Python docstring conventions](https://www.python.org/dev/peps/pep-0257/)
 * [NumPy/SciPy documentation style guide](https://github.com/numpy/numpy/blob/master/doc/HOWTO_DOCUMENT.rst.txt)
 * [Example NumPy docstrings in code](http://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_numpy.html)
-* Since docstrings will be run through Sphinx using the Napoleon extension, the final arbiter on whether a docstring is formatted correctly is the output generated using [Napoleon](http://sphinxcontrib-napoleon.readthedocs.io/)
+* [Recommonmark translates markdown into reST](http://recommonmark.readthedocs.io/en/latest/auto_structify.html)
+* Since all documentation will be run through Sphinx using the Napoleon and Recommonmark extensions, the final arbiter on whether a docstring is formatted correctly is the output generated using these. Good information for making nice docstrings can be found in both [Napoleon](http://sphinxcontrib-napoleon.readthedocs.io/)
 
 ## Standalone files
 

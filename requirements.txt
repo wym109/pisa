@@ -1,8 +1,9 @@
-numpy
-scipy > 0.12
-h5py
-tables
 cython
-uncertainties
+h5py
+numpy
 pint
 pip > 1.2
+scipy
+simplejson >= 3.2.0
+tables
+uncertainties
