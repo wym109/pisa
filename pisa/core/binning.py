@@ -11,6 +11,8 @@ provide basic operations with the binning.
 # TODO: include Iterables where only Sequence is allowed now?
 # TODO: make indexing accessible by name?
 
+from __future__ import division
+
 from collections import Iterable, Mapping, OrderedDict, Sequence
 from copy import copy, deepcopy
 from itertools import izip
@@ -18,7 +20,6 @@ from operator import setitem
 
 import numpy as np
 import pint; ureg = pint.UnitRegistry()
-#import simplejson as jsons
 
 from pisa.utils.comparisons import normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
@@ -324,6 +325,10 @@ class OneDimBinning(object):
     def bin_sizes(self):
         return np.abs(np.diff(self.bin_edges))*self.units
 
+    @property
+    def bin_widths(self):
+        return np.diff(self.bin_edges)
+
     def new_obj(original_function):
         """ decorator to deepcopy unaltered states into new object """
         def new_function(self, *args, **kwargs):
@@ -505,6 +510,14 @@ class OneDimBinning(object):
 
         return {'bin_edges': np.array(bin_edges)*self.units}
 
+    @new_obj
+    def downsample(self, factor):
+        assert int(factor) == float(factor)
+        factor = int(factor)
+        assert factor > 0 and factor <= self.num_bins
+        assert self.num_bins % factor == 0
+        return {'bin_edges': self.bin_edges[::factor]}
+
     def ito(self, units):
         """Convert units in-place. Cf. Pint's `ito` method."""
         if units is None:
@@ -618,15 +631,6 @@ class OneDimBinning(object):
     def __ne__(self, other):
         return not self == other
 
-    @property
-    def bin_centers(self):
-        ''' TODO: generalize for log etc...'''
-        return 0.5*(self.bin_edges[1:]+self.bin_edges[:-1])
-
-    @property
-    def bin_widths(self):
-        return np.diff(self.bin_edges)
-
 # TODO: make this able to be loaded from a pickle!!!
 class MultiDimBinning(object):
     """
@@ -665,7 +669,7 @@ class MultiDimBinning(object):
             dimensions_.append(one_dim_binning)
             shape.append(one_dim_binning.num_bins)
 
-        self._dimensions = tuple(dimensions_)
+        self._dimensions = dimensions_
         self._num_dims = len(dimensions)
         self._shape = tuple(shape)
 
@@ -739,11 +743,11 @@ class MultiDimBinning(object):
         """Everything necessary to fully describe this object's state. Note
         that objects may be returned by reference, so to prevent external
         modification, the user must call deepcopy() separately on the returned
-        tuple.
+        dict.
 
         Returns
         -------
-        state tuple; can be passed to instantiate a new MultiDimBinning via
+        state dict; can be passed to instantiate a new MultiDimBinning via
             MultiDimBinning(**state)
 
         """
@@ -755,20 +759,20 @@ class MultiDimBinning(object):
         """Everything necessary to fully describe this object's state. Note
         that objects may be returned by reference, so to prevent external
         modification, the user must call deepcopy() separately on the returned
-        tuple.
+        OrderedDict.
 
         Returns
         -------
-        state tuple; can be passed to instantiate a new MultiDimBinning via
-            MultiDimBinning(**state)
+        state : OrderedDict that can be passed to instantiate a new
+            MultiDimBinning via MultiDimBinning(**state)
 
         """
-        return OrderedDict({'dimensions': tuple([d._hashable_state
-                                                 for d in self.dimensions])})
+        return OrderedDict({'dimensions': list([d._hashable_state
+                                                for d in self.dimensions])})
 
     @property
     def hash(self):
-        return hash_obj(tuple([d.hash for d in self.dimensions]))
+        return hash_obj([d.hash for d in self.dimensions])
 
     def __hash__(self):
         return self.hash
@@ -808,7 +812,10 @@ class MultiDimBinning(object):
 
     @property
     def weighted_centers(self):
-        """Return a list of the contained dimensions' weighted_centers"""
+        """Return a list of the contained dimensions' weighted_centers (e.g.
+        equidistant from bin edges on logarithmic scale, if the binning is
+        logarithmic; otherwise linear). Access `midpoints` attribute for
+        always-linear alternative."""
         return [d.weighted_centers for d in self.dimensions]
 
     def oversample(self, *args, **kwargs):
@@ -820,20 +827,46 @@ class MultiDimBinning(object):
             Factors by which to oversample the binnings. There must either be
             one factor (one arg)--which will be broadcast to all dimensions--or
             there must be as many factors (args) as there are dimensions.
-            If positional args arespecified (i.e., non-kwargs), then kwargs are
-            forbidden.
+            If positional args are specified (i.e., non-kwargs), then kwargs
+            are forbidden.
 
         **kwargs : name=factor pairs
 
         Notes
         -----
-        Can either specify oversmapling by passin gin args (ordered values, no
+        Can either specify oversmapling by passing in args (ordered values, no
         keywords) or kwargs (order doesn't matter, but uses keywords), but not
         both.
 
         """
         factors = self._args_kwargs_to_list(*args, **kwargs)
         new_binning = [dim.oversample(f)
+                       for dim, f in izip(self.dimensions, factors)]
+        return MultiDimBinning(new_binning)
+
+    def downsample(self, *args, **kwargs):
+        """Return a Binning object downsampled relative to this binning.
+
+        Parameters
+        ----------
+        *args : each factor an int
+            Factors by which to downsample the binnings. There must either be
+            one factor (one arg)--which will be broadcast to all dimensions--or
+            there must be as many factors (args) as there are dimensions.
+            If positional args are specified (i.e., non-kwargs), then kwargs
+            are forbidden.
+
+        **kwargs : name=factor pairs
+
+        Notes
+        -----
+        Can either specify downsampling by passing in args (ordered values, no
+        keywords) or kwargs (order doesn't matter, but uses keywords), but not
+        both.
+
+        """
+        factors = self._args_kwargs_to_list(*args, **kwargs)
+        new_binning = [dim.downsample(f)
                        for dim, f in izip(self.dimensions, factors)]
         return MultiDimBinning(new_binning)
 
@@ -847,7 +880,7 @@ class MultiDimBinning(object):
 
         Returns
         -------
-        bool : True if array fits, False otherwise
+        fits : bool, True if array fits or False otherwise
 
         """
         assert array.shape == self.shape, \
@@ -905,7 +938,10 @@ class MultiDimBinning(object):
         [dim.ito(units) for dim, units in izip(self.dimensions, units_list)]
 
     def to(self, *args, **kwargs):
-        """Convert the contained dimensions to the passed units."""
+        """Convert the contained dimensions to the passed units. Unspecified
+        dimensions will be omitted.
+
+        """
         units_list = self._args_kwargs_to_list(*args, **kwargs)
         new_binnings = [dim.to(units)
                         for dim, units in izip(self.dimensions, units_list)]
@@ -917,7 +953,6 @@ class MultiDimBinning(object):
     def meshgrid(self, entity, attach_units=True):
         """Apply NumPy's meshgrid method on various entities of interest.
 
-
         Parameters
         ----------
         entity : string
@@ -927,11 +962,9 @@ class MultiDimBinning(object):
             Whether to attach units to the result (can save computation time by
             not doing so).
 
-
         Returns
         -------
         numpy ndarray or Pint quantity of the same
-
 
         See Also
         --------
@@ -942,17 +975,16 @@ class MultiDimBinning(object):
         units = [d.units for d in self.dimensions]
         #stripped = self.stripped()
         if entity == 'midpoints':
-            mg = np.meshgrid(*tuple([d.midpoints for d in self.dimensions]),
+            mg = np.meshgrid(*[d.midpoints for d in self.dimensions],
                              indexing='ij')
         elif entity == 'weighted_centers':
-            mg = np.meshgrid(*tuple([d.weighted_centers
-                                     for d in self.dimensions]),
+            mg = np.meshgrid(*[d.weighted_centers for d in self.dimensions],
                              indexing='ij')
         elif entity == 'bin_edges':
-            mg = np.meshgrid(*tuple([d.bin_edges for d in self.dimensions]),
+            mg = np.meshgrid(*[d.bin_edges for d in self.dimensions],
                              indexing='ij')
         elif entity == 'bin_sizes':
-            mg = np.meshgrid(*tuple([d.bin_sizes for d in self.dimensions]),
+            mg = np.meshgrid(*[d.bin_sizes for d in self.dimensions],
                              indexing='ij')
         else:
             raise ValueError('Unrecognized `entity`: "%s"' %entity)

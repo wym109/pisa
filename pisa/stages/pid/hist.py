@@ -216,11 +216,12 @@ class hist(Stage):
         # is concerned
 
         # Works only if either energy, coszen or azimuth is in input_binning
-        bin_names = ('energy', 'coszen', 'azimuth')
+        bin_names = ('reco_energy', 'reco_coszen', 'reco_azimuth')
         if set(self.input_binning.names).isdisjoint(bin_names):
-            raise ValueError('Input binning must contain either one or a '
-                             'combination of "energy", "coszen" or "azimuth" '
-                             'dimensions.')
+            raise ValueError(
+                'Input binning must contain either one or a combination of'
+                ' "reco_energy", "reco_coszen" or "reco_azimuth" dimensions.'
+            )
 
         # TODO: not handling rebinning in this stage or within Transform
         # objects; implement this! (and then this assert statement can go away)
@@ -281,17 +282,14 @@ class hist(Stage):
         # TODO: add importance weights, error computation
 
         logging.info("Separating events by PID...")
-        var_names = ['reco_%s' % bin_name
-                     for bin_name in self.output_binning.names]
-        var_names += ['weighted_aeff']
         separated_events = pid_spec.applyPID(
             events=cut_events,
-            return_fields=var_names
+            return_fields=self.input_binning.names + ['weighted_aeff']
         )
 
         # These get used in innermost loop, so produce it just once here
-        all_bin_edges = [edges.magnitude
-                         for edges in self.output_binning.bin_edges]
+        all_bin_edges = [dim.bin_edges.magnitude
+                         for dim in self.output_binning.dimensions]
 
         # Derive transforms by combining flavints that behave similarly, but
         # apply the derived transforms to the input flavints separately
@@ -309,10 +307,12 @@ class hist(Stage):
             for sig in self.output_channels:
                 raw_histo[sig] = {}
                 flav_sigdata = separated_events[rep_flavint][sig]
-                reco_params = [flav_sigdata[vn] for vn in var_names]
+                reco_params = [flav_sigdata[n]
+                               for n in self.output_binning.names]
+                weights = flav_sigdata['weighted_aeff']
                 raw_histo[sig], _ = np.histogramdd(
-                    sample=reco_params[:-1],
-                    weights=reco_params[-1],
+                    sample=reco_params,
+                    weights=weights,
                     bins=all_bin_edges
                 )
                 total_histo += raw_histo[sig]

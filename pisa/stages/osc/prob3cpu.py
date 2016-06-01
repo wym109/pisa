@@ -42,9 +42,6 @@ class prob3cpu(Stage):
     ----------
     params : ParamSet
         All of the following param names (and no more) must be in `params`.
-        Oversampling parameters:
-            * osc_oversample_energy : int >= 1
-            * osc_oversample_coszen : int >= 1
         Earth parameters:
             * earth_model : str (resource location with earth model file)
             * YeI : float (electron fraction, inner core)
@@ -66,7 +63,6 @@ class prob3cpu(Stage):
     transforms_cache_depth : int >= 0
     outputs_cache_depth : int >= 0
 
-
     Input Names
     -----------
     The `inputs` container must include objects with `name` attributes:
@@ -74,7 +70,6 @@ class prob3cpu(Stage):
       * 'numu'
       * 'nuebar'
       * 'numubar'
-
 
     Output Names
     ------------
@@ -131,10 +126,10 @@ class prob3cpu(Stage):
 
     def compute_binning_constants(self):
         # Only works if energy and coszen are in input_binning
-        if 'energy' not in self.input_binning \
-                or 'coszen' not in self.input_binning:
-            raise ValueError('Input binning must contain both "energy" and'
-                             ' "coszen" dimensions.')
+        if 'true_energy' not in self.input_binning \
+                or 'true_coszen' not in self.input_binning:
+            raise ValueError('Input binning must contain both "true_energy" and'
+                             ' "true_coszen" dimensions.')
 
         # Not handling rebinning (or oversampling)
         assert self.input_binning == self.output_binning
@@ -144,17 +139,17 @@ class prob3cpu(Stage):
         # dimensions are ignored. Since these won't change so long as the
         # binning doesn't change, attache these to self.
         self.ecz_binning = MultiDimBinning([
-            self.input_binning.energy.to('GeV'),
-            self.input_binning.coszen.to('dimensionless')
+            self.input_binning.true_energy.to('GeV'),
+            self.input_binning.true_coszen.to('dimensionless')
         ])
         e_centers, cz_centers = self.ecz_binning.weighted_centers
         self.e_centers = e_centers.magnitude
         self.cz_centers = cz_centers.magnitude
 
-        self.num_czbins = self.input_binning.coszen.num_bins
+        self.num_czbins = self.input_binning.true_coszen.num_bins
 
-        self.e_dim_num = self.input_binning.names.index('energy')
-        self.cz_dim_num = self.input_binning.names.index('coszen')
+        self.e_dim_num = self.input_binning.names.index('true_energy')
+        self.cz_dim_num = self.input_binning.names.index('true_coszen')
 
         self.extra_dim_nums = range(self.input_binning.num_dims)
         [self.extra_dim_nums.remove(d) for d in (self.e_dim_num,
@@ -219,22 +214,22 @@ class prob3cpu(Stage):
         # for NMH
         m_atm = deltam31 if deltam31 < 0.0 else (deltam31 - deltam21)
 
-        # `:` slices for all binning dimensions (except energy and coszen,
+        # `:` slices for all binning dimensions (except true_energy and coszen,
         # which get populated with their integer indices inside the for loop).
         # Used to duplicate the oscillation E,CZ result to all other dimensions
         # present in the binning
         indexer = [slice(None)]*self.input_binning.num_dims
 
         nu_xform, antinu_xform = self.create_transforms_datastructs()
-        for i, (energy, coszen) in enumerate(product(self.e_centers, self.cz_centers)):
-            # Construct indices in energy and coszen; populate to indexer
+        for i, (true_energy, true_coszen) in enumerate(product(self.e_centers, self.cz_centers)):
+            # Construct indices in true_energy and true_coszen; populate to indexer
             indexer[self.e_dim_num] = i // self.num_czbins
             indexer[self.cz_dim_num] = i - indexer[self.e_dim_num] * self.num_czbins
 
             # The final element must be populated with K_{ANTI}NEUTRINOS
-            mns_args = [sin2th12Sq, sin2th13Sq, sin2th23Sq, deltam21, m_atm, deltacp, energy, K_SQUARED, 0]
+            mns_args = [sin2th12Sq, sin2th13Sq, sin2th23Sq, deltam21, m_atm, deltacp, true_energy, K_SQUARED, 0]
 
-            self.barger_propagator.DefinePath(coszen, prop_height, YeI, YeO, YeM)
+            self.barger_propagator.DefinePath(true_coszen, prop_height, YeI, YeO, YeM)
 
             # Neutrinos
             mns_args[-1] = K_NEUTRINOS

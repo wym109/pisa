@@ -238,6 +238,42 @@ class Map(object):
         return new_function
 
     @new_obj
+    def rebin(self, new_binning):
+        # The new binning's dimensions must be a subset of this map's
+        # dimensions
+        assert len(set(new_binning.names).difference(self.binning.names)) == 0
+        # All current units
+        units = {d.name: d.units for d in self.binning.dimensions}
+        # Update the units that are specified in new_binning (but don't augment
+        # dimensionality; shouldn't need this `if` statement if we get past
+        # `assert` above, but just in case...)
+        units = {d.name: d.units for d in new_binning.dimensions
+                 if d.name in units}
+        rescaled_binning = self.binning.to(**units)
+        coords = rescaled_binning.meshgrid('midpoints', attach_units=False)
+        # Flatten each dim for histogramming; only take dims that exist in
+        # `new_binning`
+        coords = [c.flatten() for n, c in zip(self.binning.names, coords)
+                  if n in new_binning]
+        # Perform the histogramming, weighting by the current bins' values
+        hist, _ = np.histogramdd(
+            sample=coords,
+            bins=new_binning.bin_edges,
+            weights=unp.nominal_values(self.hist.flatten())
+        )
+        # TODO: uncertainties
+        return {'hist': hist, 'binning': new_binning}
+
+    def downsample(self, *args, **kwargs):
+        """Downsample by integer factors.
+
+        See pisa.utils.binning.downsample for args/kwargs details.
+
+        """
+        new_binning = self.binning.downsample(*args, **kwargs)
+        return self.rebin(new_binning)
+
+    @new_obj
     def fluctuate(self, method, seed=None):
         orig = method
         method = str(method).lower()
@@ -1270,6 +1306,9 @@ class MapSet(object):
     def __sub__(self, val):
         return self.apply_to_maps('__sub__', val)
 
+    def downsample(self, *args, **kwargs):
+        return MapSet([m.downsample(*args, **kwargs) for m in self.maps])
+
     def metric_per_map(self, expected_values, metric):
         assert isinstance(metric, basestring)
         metric = metric.lower()
@@ -1345,6 +1384,17 @@ def test_Map():
     # or call init poisson error afterwards
     m1 = Map(name='x', hist=np.ones((n_ebins, n_czbins)), hash=23,
              binning=(e_binning, cz_binning))
+    print "downsampling ====================="
+    m2 = m1 * 2
+    print m2.downsample(1)
+    print m2.downsample(5)
+    print m2.downsample(1, 1)
+    print m2.downsample(1, 5)
+    print m2.downsample(5, 5)
+    print m2.downsample(10, 5)
+    print m2.downsample(10, 5).binning
+    print "===================== downsampling"
+
     assert m1.hash == 23
     m1.hash = 42
     assert m1.hash == 42
@@ -1404,7 +1454,7 @@ def test_MapSet():
     import tempfile
     import pint; ureg = pint.UnitRegistry()
 
-    n_ebins = 5
+    n_ebins = 6
     n_czbins = 3
     e_binning = OneDimBinning(name='energy', tex=r'E_\nu', num_bins=n_ebins,
                               domain=(1,80)*ureg.GeV, is_log=True)
@@ -1415,6 +1465,9 @@ def test_MapSet():
     m1.set_poisson_errors()
     m2 = Map(name='twos', hist=2*np.ones(binning.shape), binning=binning, hash='xyz')
     ms01 = MapSet((m1, m2))
+    print "downsampling ====================="
+    print ms01.downsample(3)
+    print "===================== downsampling"
     ms01 = MapSet((m1, m2), name='ms01')
     ms02 = MapSet((m1, m2), name='map set 1')
     ms1 = MapSet(maps=(m1, m2), name='map set 1', collate_by_name=True, hash=None)
