@@ -43,10 +43,11 @@ class Events(flavInt.FlavIntData):
         self.metadata.update(meta)
         self.validate(data)
         self.update(data)
+        self._hash = hash_obj(normQuant(self.metadata))
 
     @property
     def hash(self):
-        return hash_obj(normQuant(self.metadata))
+        return self._hash
 
     def meta_eq(self, other):
         """Test whether the metadata for this object matches that of `other`"""

@@ -320,7 +320,7 @@ def normQuant(obj, sigfigs=None):
     normed_obj : object roughly of same type as input `obj`
         Simple types are returned as the same type as at the input, Numpy
         ndarrays are returned in the same shape and representation as the
-        input, Mappings (dicts) are returned as OrderdDict, and all other
+        input, Mappings (dicts) are returned as OrderedDict, and all other
         sequences or iterables are returned as (possibly nested) lists.
 
     Notes
@@ -434,11 +434,11 @@ def normQuant(obj, sigfigs=None):
     # Recurse into dict by its (sorted) keys (or into OrderedDict using keys in
     # their defined order) and return an OrderedDict in either case.
     if isinstance(obj, Mapping):
-        if isinstance(obj, OrderdDict):
+        if isinstance(obj, OrderedDict):
             keys = obj.keys()
         else:
             keys = sorted(obj.keys())
-        normed_obj = OrderdDict()
+        normed_obj = OrderedDict()
         for key in keys:
             normed_obj[key] = normQuant(obj[key], **kwargs)
         return normed_obj
