@@ -14,6 +14,7 @@ from the true parameters. Provides reco event rate maps using these pdfs.
 
 
 from copy import deepcopy
+from string import ascii_lowercase
 
 import numpy as np
 
@@ -219,19 +220,23 @@ class hist(Stage):
             # just need to extract the data for one "representative" flav/int.
             repr_flav_int = flav_int_group[0]
 
-            # Full sample for computing transform
-            true_and_reco_sample = [events[repr_flav_int][name]
-                                    for name in transform_binning.names]
+            # Extract the weights column from the events file
+            weights_column = events[repr_flav_int]['weighted_aeff']
 
-            # Truth-only (N-dim) data will be used for normalization (so
-            # transform is in terms of fraction-of-events in input bin).
-            true_only_sample = [events[repr_flav_int][name]
-                                for name in input_binning.names]
+            # Extract both true *and* reco columns from the events file
+            true_and_reco_columns = [events[repr_flav_int][name]
+                                     for name in transform_binning.names]
 
-            # 2N-dimensional histogram
+            # Extract *just* true column(s) from the events file
+            true_only_columns = [events[repr_flav_int][name]
+                                 for name in input_binning.names]
+
+            # True+reco (2N-dimensional) histogram is the basis for the
+            # transformation
             reco_kernel, _ = np.histogramdd(
-                sample=true_and_reco_sample,
-                bins=true_and_reco_bin_edges
+                sample=true_and_reco_columns,
+                bins=true_and_reco_bin_edges,
+                weights=None
             )
 
             # This takes into account the correct kernel normalization:
@@ -245,37 +250,28 @@ class hist(Stage):
             # Previously this was hard-coded for 2 dimensions, but I have tried
             # to generalise it to arbitrary dimensionality.
 
-            # N-dimensional histogram of true-only events
+            # Truth-only (N-dimensional) histogram will be used for
+            # normalization (so transform is in terms of fraction-of-events in
+            # input--i.e. truth--bin).
             true_event_counts, _ = np.histogramdd(
-                sample=true_only_sample,
-                bins=true_only_bin_edges
+                sample=true_only_columns,
+                bins=true_only_bin_edges,
+                weights=None
             )
 
+            # Since numpy broadcasts lower-dimensional things to higher
+            # dimensions from last dimension to first, if we simply divide the
+            # reco_kernel by true_event_counts, this will apply the
+            # normalization to the __output__ dimensions rather than the input
+            # dimensions. However, we can achieve the desired effect by using
+            # either einsum or adding dimensions to true_event_counts where we
+            # want the "extra dimensions" (at the end).
+
+            for dim in self.output_binning.dimensions:
+                true_event_counts = np.expand_dims(true_event_counts, axis=-1)
+
             with np.errstate(divide='ignore', invalid='ignore'):
-                norm_reco_kernel = reco_kernel / true_event_counts
-
-            # NOTE: If no events started out in a given bin (i.e.,
-            # `true_event_counts` == 0), then it is not possible for this
-            # (albeit simplistic) histogramming service to know what fraction
-            # of the events in this bin reconstruct into other bins. Therefore,
-            # this (e.g. (true_energy, true_coszen)) bin coordinate must be
-            # invalidated for use in stages beyond reconstruction.
-            #
-            # Keep in mind that other bins can still reconstruct into this
-            # same bin -- but that affects only this bin's (e.g.
-            # (reco_energy, reco_coszen)) coordinate. I.e., invalidating this
-            # as an "input" bin does *not* invalidate it as an "output" bin.
-
-            num_invalid = np.sum(true_event_counts == 0)
-            if num_invalid > 0:
-                logging.warn(
-                    'Group "%s", has %d input bins with no events (and hence'
-                    ' the reconstruction characteristics for events in this'
-                    ' bin cannot be ascertained). These are being masked off'
-                    ' from any further computations.'
-                    % (flav_int_group, num_invalid)
-                )
-                norm_reco_kernel = np.ma.masked_invalid(norm_reco_kernel)
+                reco_kernel = np.nan_to_num(reco_kernel / true_event_counts)
 
             # Now populate this transform to each input for which it applies
             for input_name in deepcopy(input_names_remaining):
@@ -285,7 +281,7 @@ class hist(Stage):
                         output_name=input_name,
                         input_binning=self.input_binning,
                         output_binning=self.output_binning,
-                        xform_array=norm_reco_kernel,
+                        xform_array=reco_kernel,
                     )
                     nominal_transforms.append(xform)
                     input_names_remaining.remove(input_name)
