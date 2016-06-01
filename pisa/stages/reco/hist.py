@@ -95,13 +95,13 @@ class hist(Stage):
                  particles='neutrinos', disk_cache=None,
                  transforms_cache_depth=20, outputs_cache_depth=20):
         assert particles in ['neutrinos', 'muons']
-
+        self.events_hash = None
         self.transform_groups = flavintGroupsFromString(transform_groups)
 
         # All of the following params (and no more) must be passed via the
         # `params` argument.
         expected_params = (
-            'reco_weight_file', # NOT IMPLEMENTED! 'e_reco_scale', 'cz_reco_scale'
+            'reco_weight_file', # NOT IMPLEMENTED: 'e_reco_scale', 'cz_reco_scale'
         )
 
         if isinstance(input_names, basestring):
@@ -128,6 +128,31 @@ class hist(Stage):
             input_binning=input_binning,
             output_binning=output_binning
         )
+        self.validate_binning()
+
+    def validate_binning(self):
+        # Any dimension in input (*true*) must have its reconstructed version
+        # in the output (*reco*).
+        for dim in self.input_binning.dimensions:
+            in_dim_name = dim.name
+            out_dim_name = in_dim_name.replace('true', 'reco')
+            if out_dim_name not in self.output_binning:
+                raise ValueError(
+                    'Input dimension name "%s" requires corresponding'
+                    ' dimension "%s" be in output; however, output only'
+                    ' contains dimensions %s.'
+                    %(in_dim_name, out_dim_name,
+                      ', '.join(["%s"%d for d in self.output_binning.names]))
+                )
+
+    def load_events(self):
+        evts = self.params.reco_weight_file.value
+        this_hash = hash_obj(evts)
+        if self.events_hash == this_hash:
+            return
+        logging.debug('Extracting events from events/file: %s' %evts)
+        self.events = Events(evts)
+        self.events_hash = this_hash
 
     @profile
     def _compute_nominal_transforms(self):
@@ -149,30 +174,14 @@ class hist(Stage):
         **UN**weighted. This is probably quite wrong...
 
         """
+        self.load_events()
+
         # Computational units must be the following for compatibility with
         # events file
         comp_units = dict(
             true_energy='GeV', true_coszen=None, true_azimuth='rad',
             reco_energy='GeV', reco_coszen=None, reco_azimuth='rad'
         )
-
-        # Any dimension in input (*true*) must have its reconstructed version
-        # in the output (*reco*).
-        for dim in self.input_binning.dimensions:
-            in_dim_name = dim.name
-            out_dim_name = in_dim_name.replace('true', 'reco')
-            if out_dim_name not in self.output_binning:
-                raise ValueError(
-                    'Input dimension name "%s" requires corresponding'
-                    ' dimension "%s" be in output; however, output only'
-                    ' contains dimensions %s.'
-                    %(in_dim_name, out_dim_name,
-                      ', '.join(["%s"%d for d in self.output_binning.names]))
-                )
-
-        logging.info('Extracting events from file: %s'
-                     %(self.params.reco_weight_file.value))
-        events = Events(self.params.reco_weight_file.value)
 
         # Select only the units in the input/output binning for conversion
         # (can't pass more than what's actually there)
@@ -184,22 +193,6 @@ class hist(Stage):
         # These binnings will be in the computational units defined above
         input_binning = self.input_binning.to(**in_units)
         output_binning = self.output_binning.to(**out_units)
-
-        # TODO: take events object as an input instead of as a param that
-        # specifies a file? Or handle both cases?
-
-        # TODO: include here the logic from the make_events_file.py script so
-        # we can go directly from a (reasonably populated) icetray-converted
-        # HDF5 file (or files) to a nominal transform, rather than having to
-        # rely on the intermediate step of converting that HDF5 file (or files)
-        # to a PISA HDF5 file that has additional column(s) in it to account
-        # for the combinations of flavors, interaction types, and/or simulation
-        # runs. Parameters can include which groupings to use to formulate an
-        # output.
-
-        # This gets used in innermost loop, so produce it just once here...
-        # However, we actually need 2N dimensional binning here
-        # i.e. once for truth and once for reco
 
         # First N dimensions of the transform are the input dimensions; last N
         # dimensions are the output dimensions. So concatenate the two into a
@@ -221,14 +214,14 @@ class hist(Stage):
             repr_flav_int = flav_int_group[0]
 
             # Extract the weights column from the events file
-            weights_column = events[repr_flav_int]['weighted_aeff']
+            weights_column = self.events[repr_flav_int]['weighted_aeff']
 
             # Extract both true *and* reco columns from the events file
-            true_and_reco_columns = [events[repr_flav_int][name]
+            true_and_reco_columns = [self.events[repr_flav_int][name]
                                      for name in transform_binning.names]
 
             # Extract *just* true column(s) from the events file
-            true_only_columns = [events[repr_flav_int][name]
+            true_only_columns = [self.events[repr_flav_int][name]
                                  for name in input_binning.names]
 
             # True+reco (2N-dimensional) histogram is the basis for the
