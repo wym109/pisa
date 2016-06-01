@@ -99,8 +99,8 @@ class Pipeline(object):
             # Make sure the input binning of this stage is compatible with the
             # output binning of the previous stage ("compatible binning"
             # includes if both are specified to be None)
-            if len(self._stages) > 0:
-                assert stage.input_binning == self._stages[-1].output_binning
+            #if len(self._stages) > 0:
+            #    assert stage.input_binning.is_compat(self._stages[-1].output_binning)
 
             # Append stage to pipeline
             self._stages.append(stage)
@@ -148,6 +148,8 @@ class Pipeline(object):
                 intermediate.append(outputs)
 
             # Outputs from this stage become inputs for next stage
+            if stage.stage_name == 'aeff':
+                outputs = outputs.downsample(10)
             inputs = outputs
 
         if return_intermediate:
