@@ -1165,6 +1165,51 @@ class FlavIntData(dict):
         return dupe_flavintgroups, dupe_flavintgroups_data
 
 
+def flavint_groups_string(groups):
+    """Interpret `groups` to break into neutrino flavor/interaction type(s)
+    that are to be grouped together; also form singleton groups as specified
+    explicitly in `groups` or for any unspecified flavor/interaction type(s).
+
+    The returned list of groups encompasses all possible flavor/int types, but
+    the groups are mutually exclusive. 
+
+    Parameters
+    ----------
+    groups : None, string, or sequence of strings
+
+    Returns
+    -------
+    groups : list of NuFlavIntGroup
+
+    """
+    if groups is None or groups == '':
+        # None are to be grouped together
+        grouped = []
+        # All will be singleton groups
+        ungrouped = [NuFlavIntGroup(k) for k in ALL_NUFLAVINTS]
+        #groups_label = 'ungrouped'
+    else:
+        grouped, ungrouped = xlateGroupsStr(groups)
+        #evts.metadata['flavints_joined'] = [str(g) for g in grouped]
+        #groups_label = 'joined_G_' + '_G_'.join([str(g) for g in grouped])
+
+    # Find any flavints not included in the above groupings
+    flavint_groupings = grouped + ungrouped
+    if len(ungrouped) == 0:
+        ungrouped = ['(none)']
+    logging.trace('flav/int in the following group(s) will be joined together:'
+                  %'; '.join([str(k) for k in grouped]))
+    logging.trace('flav/ints treated individually: %s'
+                  %'; '.join([str(k) for k in ungrouped]))
+
+    # Enforce that flavints composing groups are mutually exclusive
+    for grp_n, flavintgrp0 in enumerate(flavint_groupings[:-1]):
+        for flavintgrp1 in flavint_groupings[grp_n+1:]:
+            assert len(set(flavintgrp0).intersection(set(flavintgrp1))) == 0
+
+    flavintgrp_names = [str(flavintgrp) for flavintgrp in flavint_groupings]
+
+
 class CombinedFlavIntData(FlavIntData):
     """Container class for storing data redundant for some set(s) of NuFlavInts
     (cf. FlavIntData, which stores one datum for each NuFlavInt separately)
@@ -1431,41 +1476,40 @@ class CombinedFlavIntData(FlavIntData):
         # If you get this far, no match was found
         raise ValueError('Could not locate data for group %s' % str(tgt_grp))
 
-    @staticmethod
-    def xlateGroupsStr(val):
-        """Translate a ";"-separated string into separate `NuFlavIntGroup`s.
+def xlateGroupsStr(val):
+    """Translate a ";"-separated string into separate `NuFlavIntGroup`s.
 
-        val
-            ";"-delimited list of valid NuFlavIntGroup strings, e.g.:
-                "nuall_nc;nue;numu_cc+numubar_cc"
-            Note that specifying NO interaction type results in both interaction
-            types being selected, e.g. "nue" implies "nue_cc+nue_nc". For other
-            details of how the substrings are interpreted, see docs for
-            NuFlavIntGroup.
+    val
+        ";"-delimited list of valid NuFlavIntGroup strings, e.g.:
+            "nuall_nc;nue;numu_cc+numubar_cc"
+        Note that specifying NO interaction type results in both interaction
+        types being selected, e.g. "nue" implies "nue_cc+nue_nc". For other
+        details of how the substrings are interpreted, see docs for
+        NuFlavIntGroup.
 
-        returns:
-            grouped, ungrouped
-
+    returns:
         grouped, ungrouped
-            lists of NuFlavIntGroups; the first will have more than one flavint
-            in each NuFlavIntGroup whereas the second will have just one
-            flavint in each NuFlavIntGroup. Either list can be of 0-length.
 
-        This function does not enforce mutual-exclusion on flavints in the
-        various flavint groupings, but does list any flavints not grouped
-        together in the `ungrouped` return arg. Mutual exclusion can be
-        enforced through set operations upon return.
-        """
-        # What flavints to group together
-        grouped = [NuFlavIntGroup(s) for s in val.split(';')]
+    grouped, ungrouped
+        lists of NuFlavIntGroups; the first will have more than one flavint
+        in each NuFlavIntGroup whereas the second will have just one
+        flavint in each NuFlavIntGroup. Either list can be of 0-length.
 
-        # Find any flavints not included in the above groupings
-        all_flavints = set(ALL_NUFLAVINTS)
-        all_grouped_flavints = set(NuFlavIntGroup(grouped))
-        ungrouped = [NuFlavIntGroup(k) for k in
-                     sorted(all_flavints.difference(all_grouped_flavints))]
+    This function does not enforce mutual-exclusion on flavints in the
+    various flavint groupings, but does list any flavints not grouped
+    together in the `ungrouped` return arg. Mutual exclusion can be
+    enforced through set operations upon return.
+    """
+    # What flavints to group together
+    grouped = [NuFlavIntGroup(s) for s in val.split(';')]
 
-        return grouped, ungrouped
+    # Find any flavints not included in the above groupings
+    all_flavints = set(ALL_NUFLAVINTS)
+    all_grouped_flavints = set(NuFlavIntGroup(grouped))
+    ungrouped = [NuFlavIntGroup(k) for k in
+                 sorted(all_flavints.difference(all_grouped_flavints))]
+
+    return grouped, ungrouped
 
 
 def test_IntType():
@@ -1795,23 +1839,23 @@ def test_CombinedFlavIntData():
     all_i_codes = [1, 2]
 
     #==========================================================================
-    # Test CombinedFlavIntData.xlateGroupsStr function
+    # Test xlateGroupsStr function
     #==========================================================================
     # Test string parsing for flavor groupings
-    gp1, ug1 = CombinedFlavIntData.xlateGroupsStr(
+    gp1, ug1 = xlateGroupsStr(
         'nuall_nc; nuallbar_nc; nue;numu_cc+numubar_cc; nutau_cc'
     )
     logging.info(str(([kg.simpleStr() for kg in gp1], ug1)))
-    gp2, ug2 = CombinedFlavIntData.xlateGroupsStr('nue,numu')
+    gp2, ug2 = xlateGroupsStr('nue,numu')
     logging.info(str(([kg.simpleStr() for kg in gp2], ug2)))
-    gp3, ug3 = CombinedFlavIntData.xlateGroupsStr('nuall_nc')
+    gp3, ug3 = xlateGroupsStr('nuall_nc')
     logging.info(str(([kg.simpleStr() for kg in gp3], ug3)))
-    gp4, ug4 = CombinedFlavIntData.xlateGroupsStr(
+    gp4, ug4 = xlateGroupsStr(
         'nuall_nc+nuallbar_nc;nuall_cc+nuallbar_cc'
     )
     logging.info(str(([kg.simpleStr() for kg in gp4], ug4)))
 
-    logging.info('<< PASS >> : CombinedFlavIntData.xlateGroupsStr')
+    logging.info('<< PASS >> : xlateGroupsStr')
 
     #==========================================================================
     # Test CombinedFlavIntData class

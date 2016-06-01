@@ -665,7 +665,7 @@ class MultiDimBinning(object):
             dimensions_.append(one_dim_binning)
             shape.append(one_dim_binning.num_bins)
 
-        self._dimensions = tuple(dimensions_)
+        self._dimensions = dimensions_
         self._num_dims = len(dimensions)
         self._shape = tuple(shape)
 
@@ -739,11 +739,11 @@ class MultiDimBinning(object):
         """Everything necessary to fully describe this object's state. Note
         that objects may be returned by reference, so to prevent external
         modification, the user must call deepcopy() separately on the returned
-        tuple.
+        dict.
 
         Returns
         -------
-        state tuple; can be passed to instantiate a new MultiDimBinning via
+        state dict; can be passed to instantiate a new MultiDimBinning via
             MultiDimBinning(**state)
 
         """
@@ -755,20 +755,20 @@ class MultiDimBinning(object):
         """Everything necessary to fully describe this object's state. Note
         that objects may be returned by reference, so to prevent external
         modification, the user must call deepcopy() separately on the returned
-        tuple.
+        OrderedDict.
 
         Returns
         -------
-        state tuple; can be passed to instantiate a new MultiDimBinning via
-            MultiDimBinning(**state)
+        state : OrderedDict that can be passed to instantiate a new
+            MultiDimBinning via MultiDimBinning(**state)
 
         """
-        return OrderedDict({'dimensions': tuple([d._hashable_state
-                                                 for d in self.dimensions])})
+        return OrderedDict({'dimensions': list([d._hashable_state
+                                                for d in self.dimensions])})
 
     @property
     def hash(self):
-        return hash_obj(tuple([d.hash for d in self.dimensions]))
+        return hash_obj([d.hash for d in self.dimensions])
 
     def __hash__(self):
         return self.hash
@@ -847,7 +847,7 @@ class MultiDimBinning(object):
 
         Returns
         -------
-        bool : True if array fits, False otherwise
+        fits : bool, True if array fits or False otherwise
 
         """
         assert array.shape == self.shape, \
@@ -917,7 +917,6 @@ class MultiDimBinning(object):
     def meshgrid(self, entity, attach_units=True):
         """Apply NumPy's meshgrid method on various entities of interest.
 
-
         Parameters
         ----------
         entity : string
@@ -927,11 +926,9 @@ class MultiDimBinning(object):
             Whether to attach units to the result (can save computation time by
             not doing so).
 
-
         Returns
         -------
         numpy ndarray or Pint quantity of the same
-
 
         See Also
         --------
@@ -942,17 +939,16 @@ class MultiDimBinning(object):
         units = [d.units for d in self.dimensions]
         #stripped = self.stripped()
         if entity == 'midpoints':
-            mg = np.meshgrid(*tuple([d.midpoints for d in self.dimensions]),
+            mg = np.meshgrid(*[d.midpoints for d in self.dimensions],
                              indexing='ij')
         elif entity == 'weighted_centers':
-            mg = np.meshgrid(*tuple([d.weighted_centers
-                                     for d in self.dimensions]),
+            mg = np.meshgrid(*[d.weighted_centers for d in self.dimensions],
                              indexing='ij')
         elif entity == 'bin_edges':
-            mg = np.meshgrid(*tuple([d.bin_edges for d in self.dimensions]),
+            mg = np.meshgrid(*[d.bin_edges for d in self.dimensions],
                              indexing='ij')
         elif entity == 'bin_sizes':
-            mg = np.meshgrid(*tuple([d.bin_sizes for d in self.dimensions]),
+            mg = np.meshgrid(*[d.bin_sizes for d in self.dimensions],
                              indexing='ij')
         else:
             raise ValueError('Unrecognized `entity`: "%s"' %entity)

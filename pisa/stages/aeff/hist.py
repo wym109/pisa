@@ -81,11 +81,11 @@ class hist(Stage):
     def _compute_nominal_transforms(self):
         # Units must be the following for correctly converting a sum-of-
         # OneWeights-in-bin to an average effective area across the bin.
-        comp_units = dict(energy='GeV', coszen=None, azimuth='rad')
+        comp_units = dict(true_energy='GeV', true_coszen=None, true_azimuth='rad')
 
         # Only works if energy is in input_binning
-        if 'energy' not in self.input_binning:
-            raise ValueError('Input binning must contain "energy" dimension,'
+        if 'true_energy' not in self.input_binning:
+            raise ValueError('Input binning must contain "true_energy" dimension,'
                              ' but does not.')
 
         # coszen and azimuth are both optional, but no further dimensions are
@@ -118,9 +118,9 @@ class hist(Stage):
         # the full range. See IceCube wiki/documentation for OneWeight for
         # more info.
         missing_dims_vol = 1
-        if 'azimuth' not in input_binning:
+        if 'true_azimuth' not in input_binning:
             missing_dims_vol *= 2*np.pi
-        if 'coszen' not in input_binning:
+        if 'true_coszen' not in input_binning:
             missing_dims_vol *= 2
 
         # TODO: take events object as an input instead of as a param that
@@ -136,7 +136,7 @@ class hist(Stage):
         # output.
 
         # This gets used in innermost loop, so produce it just once here
-        all_bin_edges = [edges.magnitude for edges in output_binning.bin_edges]
+        all_bin_edges = output_binning.bin_edges.magnitude
 
         nominal_transforms = []
         for flav in self.input_names:
@@ -147,12 +147,8 @@ class hist(Stage):
 
                 logging.debug("Working on %s effective areas" %flav_int)
 
-                # "MC-True" field naming convention in PISA HDF5
-                var_names = ['true_%s' %bin_name
-                             for bin_name in output_binning.names]
-
                 # Extract the columns' data into a list for histogramming
-                sample = [events[flav_int][vn] for vn in var_names]
+                sample = [events[flav_int][name] for name in self.input_binning.names]
 
                 aeff_hist, _ = np.histogramdd(
                     sample=sample,
