@@ -259,23 +259,33 @@ class hist(Stage):
                 weights=None
             )
 
-            # Since numpy broadcasts lower-dimensional things to higher
-            # dimensions from last dimension to first, if we simply divide the
-            # reco_kernel by true_event_counts, this will apply the
-            # normalization to the __output__ dimensions rather than the input
-            # dimensions. However, we can achieve the desired effect by using
-            # either einsum or adding dimensions to true_event_counts where we
-            # want the "extra dimensions" (at the end).
-
-            for dim in self.output_binning.dimensions:
-                true_event_counts = np.expand_dims(true_event_counts, axis=-1)
-
+            # If there weren't any events in the input (true_*) bin, make this
+            # bin have no effect -- i.e., populate all output bins
+            # corresponding to the input bin with zeros `via nan_to_num`.
             with np.errstate(divide='ignore', invalid='ignore'):
-                reco_kernel = np.nan_to_num(reco_kernel / true_event_counts)
+                norm_factors = np.nan_to_num(1.0 / true_event_counts)
 
-            # Now populate this transform to each input for which it applies
+            # Numpy broadcasts lower-dimensional things to higher dimensions
+            # from last dimension to first; if we simply mult the reco_kernel
+            # by norm_factors, this will apply the normalization to the
+            # __output__ dimensions rather than the input dimensions. Add
+            # "dummy" dimensions to norm_factors where we want the "extra
+            # dimensions": at the end.
+            for dim in self.output_binning.dimensions:
+                norm_factors = np.expand_dims(norm_factors, axis=-1)
+
+            # Apply the normalization to the kernels
+            reco_kernel *= norm_factors
+
+            # Now populate this transform to each input for which it applies.
+
+            # NOTE:
+            # * Output name is same as input name
+            # * Use `self.*_binning` so maps are returned in user's defined
+            #   units (rather than computational units, which are attached to
+            #   non-`self` binnings).
             for input_name in deepcopy(input_names_remaining):
-                if input_name in flav_int_group: 
+                if input_name in flav_int_group:
                     xform = BinnedTensorTransform(
                         input_names=input_name,
                         output_name=input_name,

@@ -271,6 +271,6 @@ if __name__ == '__main__':
             continue
         my_plotter = plotter(stamp='PISA cake test',
                              outdir=args.outdir,
-                             fmt=fmt)
+                             fmt=fmt, log=True)
         my_plotter.ratio = True
         my_plotter.plot_2d_array(outputs)
