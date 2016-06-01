@@ -103,7 +103,6 @@ class hist(Stage):
             'reco_weight_file', # NOT IMPLEMENTED! 'e_reco_scale', 'cz_reco_scale'
         )
 
-        print 'input_names:', input_names
         if isinstance(input_names, basestring):
             input_names = (''.join(input_names.split(' '))).split(',')
 
@@ -213,9 +212,6 @@ class hist(Stage):
 
         nominal_transforms = []
         input_names_remaining = list(deepcopy(self.input_names))
-        print 'input_names = ', self.input_names
-        print 'input_names_remaining = ', input_names_remaining
-        print 'type(input_names_remaining) = ', type(input_names_remaining)
         for flav_int_group in self.transform_groups:
             # Extract the columns' data into lists for histogramming
 
@@ -270,13 +266,14 @@ class hist(Stage):
             # (reco_energy, reco_coszen)) coordinate. I.e., invalidating this
             # as an "input" bin does *not* invalidate it as an "output" bin.
 
-            num_invalid = np.sum(~np.isfinite(norm_reco_kernel))
+            num_invalid = np.sum(true_event_counts == 0)
             if num_invalid > 0:
                 logging.warn(
-                    'Group "%s", has %d bins with no events (and hence the'
-                    ' ability to reconstruct events in this bin cannot be'
-                    ' ascertained). These are being masked off from any'
-                    ' further computations.' % (flav_int_group, num_invalid)
+                    'Group "%s", has %d input bins with no events (and hence'
+                    ' the reconstruction characteristics for events in this'
+                    ' bin cannot be ascertained). These are being masked off'
+                    ' from any further computations.'
+                    % (flav_int_group, num_invalid)
                 )
                 norm_reco_kernel = np.ma.masked_invalid(norm_reco_kernel)
 
