@@ -205,15 +205,19 @@ if __name__ == '__main__':
         Directory will be created (including missing parent directories) if it
         does not exist already.'''
     )
-    parser.add_argument(
-        '-o', '--outname', metavar='FILENAME', type=str,
-        default='out.json',
-        help='''Filename for storing output data.'''
-    )
+    #parser.add_argument(
+    #    '-o', '--outname', metavar='FILENAME', type=str,
+    #    default='out.json',
+    #    help='''Filename for storing output data.'''
+    #)
     parser.add_argument(
         '--intermediate', action='store_true',
         help='''Store all intermediate outputs, not just the final stage's
         outputs.'''
+    )
+    parser.add_argument(
+        '--transforms', action='store_true',
+        help='''Store all transforms (for stages that use transforms).'''
     )
     parser.add_argument(
         '-i', '--inputs-file', metavar='FILE', type=str,
@@ -265,14 +269,21 @@ if __name__ == '__main__':
         else:
             outputs = pipeline.get_outputs()
 
-    outputs.to_json(os.path.join(args.outdir, args.outname))
+    for stage in pipeline.stages:
+        stg_svc = stage.stage_name + '__' + stage.service_name
+        fbase = os.path.join(args.outdir, stg_svc)
+        if args.intermediate or stage == pipeline.stages[-1]:
+            stage.outputs.to_json(fbase + '__output.json')
+        if args.transforms and stage.use_transforms:
+            stage.transforms.to_json(fbase + '__transforms.json')
 
-    formats = OrderedDict(png=args.png, pdf=args.pdf)
-    for fmt, enabled in formats.items():
-        if not enabled:
-            continue
-        my_plotter = plotter(stamp='PISA cake test',
-                             outdir=args.outdir,
-                             fmt=fmt, log=True)
-        my_plotter.ratio = True
-        my_plotter.plot_2d_array(outputs)
+        formats = OrderedDict(png=args.png, pdf=args.pdf)
+        for fmt, enabled in formats.items():
+            if not enabled:
+                continue
+            my_plotter = plotter(stamp='PISA cake test',
+                                 outdir=args.outdir,
+                                 fmt=fmt, log=True,
+                                )
+            my_plotter.ratio = True
+            my_plotter.plot_2d_array(stage.outputs, fname=stg_svc + '__output')
