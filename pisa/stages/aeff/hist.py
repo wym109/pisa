@@ -136,7 +136,8 @@ class hist(Stage):
         # output.
 
         # This gets used in innermost loop, so produce it just once here
-        all_bin_edges = output_binning.bin_edges.magnitude
+        all_bin_edges = [dim.bin_edges.magnitude
+                         for dim in output_binning.dimensions]
 
         nominal_transforms = []
         for flav in self.input_names:

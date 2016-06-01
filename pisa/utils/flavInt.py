@@ -1165,7 +1165,7 @@ class FlavIntData(dict):
         return dupe_flavintgroups, dupe_flavintgroups_data
 
 
-def flavint_groups_string(groups):
+def flavintGroupsFromString(groups):
     """Interpret `groups` to break into neutrino flavor/interaction type(s)
     that are to be grouped together; also form singleton groups as specified
     explicitly in `groups` or for any unspecified flavor/interaction type(s).
@@ -1179,7 +1179,7 @@ def flavint_groups_string(groups):
 
     Returns
     -------
-    groups : list of NuFlavIntGroup
+    flavint_groups : list of NuFlavIntGroup
 
     """
     if groups is None or groups == '':
@@ -1194,20 +1194,19 @@ def flavint_groups_string(groups):
         #groups_label = 'joined_G_' + '_G_'.join([str(g) for g in grouped])
 
     # Find any flavints not included in the above groupings
-    flavint_groupings = grouped + ungrouped
-    if len(ungrouped) == 0:
-        ungrouped = ['(none)']
+    flavint_groups = grouped + ungrouped
     logging.trace('flav/int in the following group(s) will be joined together:'
-                  %'; '.join([str(k) for k in grouped]))
-    logging.trace('flav/ints treated individually: %s'
-                  %'; '.join([str(k) for k in ungrouped]))
+                  + '; '.join([str(k) for k in grouped]))
+    logging.trace('flav/ints treated individually:'
+                  + '; '.join([str(k) for k in ungrouped]))
 
     # Enforce that flavints composing groups are mutually exclusive
-    for grp_n, flavintgrp0 in enumerate(flavint_groupings[:-1]):
-        for flavintgrp1 in flavint_groupings[grp_n+1:]:
+    for grp_n, flavintgrp0 in enumerate(flavint_groups[:-1]):
+        for flavintgrp1 in flavint_groups[grp_n+1:]:
             assert len(set(flavintgrp0).intersection(set(flavintgrp1))) == 0
 
-    flavintgrp_names = [str(flavintgrp) for flavintgrp in flavint_groupings]
+    #flavintgrp_names = [str(flavintgrp) for flavintgrp in flavint_groups]
+    return flavint_groups
 
 
 class CombinedFlavIntData(FlavIntData):

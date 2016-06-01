@@ -12,15 +12,20 @@ This reco service creates the pdfs of the reconstructed energy and coszen
 from the true parameters. Provides reco event rate maps using these pdfs.
 """
 
+
+from copy import deepcopy
+
 import numpy as np
 
+from pisa.core.binning import MultiDimBinning
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.utils.events import Events
-from pisa.utils.flavInt import NuFlavInt, ALL_NUFLAVINTS
+from pisa.utils.flavInt import flavintGroupsFromString
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile
+
 
 # TODO: the below logic does not generalize to muons, but probably should
 # (rather than requiring an almost-identical version just for muons). For
@@ -90,13 +95,17 @@ class hist(Stage):
                  transforms_cache_depth=20, outputs_cache_depth=20):
         assert particles in ['neutrinos', 'muons']
 
-        self.transform_groups = [NuFlavIntGroup(g) for g in transform_groups]
+        self.transform_groups = flavintGroupsFromString(transform_groups)
 
         # All of the following params (and no more) must be passed via the
         # `params` argument.
         expected_params = (
             'reco_weight_file', # NOT IMPLEMENTED! 'e_reco_scale', 'cz_reco_scale'
         )
+
+        print 'input_names:', input_names
+        if isinstance(input_names, basestring):
+            input_names = (''.join(input_names.split(' '))).split(',')
 
         # Define the names of objects that get produced by this stage
         # The output combines nu and nubar together (just called nu)
@@ -147,20 +156,11 @@ class hist(Stage):
             reco_energy='GeV', reco_coszen=None, reco_azimuth='rad'
         )
 
-        # Only works if (true/reco)_energy is in (input/output)_binning
-        if 'true_energy' not in self.input_binning:
-            raise ValueError('Input binning must contain "true_energy"'
-                             ' dimension, but does not.')
-        if 'reco_energy' not in self.output_binning:
-            print self.output_binning
-            raise ValueError('Output binning must contain "reco_energy"'
-                             ' dimension, but does not.')
-
-        # Any dimension in input (true_*) must have its reconstructed version
-        # in the output (reco_*).
+        # Any dimension in input (*true*) must have its reconstructed version
+        # in the output (*reco*).
         for dim in self.input_binning.dimensions:
             in_dim_name = dim.name
-            out_dim_name = in_dim_name.replace('true_', 'reco_')
+            out_dim_name = in_dim_name.replace('true', 'reco')
             if out_dim_name not in self.output_binning:
                 raise ValueError(
                     'Input dimension name "%s" requires corresponding'
@@ -181,7 +181,7 @@ class hist(Stage):
         out_units = {dim: unit for dim, unit in comp_units.items()
                      if dim in self.output_binning}
 
-        # These will be in the computational units
+        # These binnings will be in the computational units defined above
         input_binning = self.input_binning.to(**in_units)
         output_binning = self.output_binning.to(**out_units)
 
@@ -202,71 +202,96 @@ class hist(Stage):
         # i.e. once for truth and once for reco
 
         # First N dimensions of the transform are the input dimensions; last N
-        # dimensions are the output dimensions
-        transform_binning = input_binning.dimensions + output_binning.dimensions
-        all_bin_edges = transform_binning.bin_edges.magnitude
-        input_bin_edges = input_binning.bin_edges.magnitude
+        # dimensions are the output dimensions. So concatenate the two into a
+        # single 2N-dimensional binning object to work with.
+        transform_binning = MultiDimBinning(input_binning.dimensions
+                                            + output_binning.dimensions)
+        true_and_reco_bin_edges = [dim.bin_edges.magnitude
+                                   for dim in transform_binning.dimensions]
+        true_only_bin_edges = [dim.bin_edges.magnitude
+                               for dim in input_binning.dimensions]
 
         nominal_transforms = []
-        for flav_int in ALL_NUFLAVINTS:
-            # Extract the columns' data into a list for histogramming
+        input_names_remaining = list(deepcopy(self.input_names))
+        print 'input_names = ', self.input_names
+        print 'input_names_remaining = ', input_names_remaining
+        print 'type(input_names_remaining) = ', type(input_names_remaining)
+        for flav_int_group in self.transform_groups:
+            # Extract the columns' data into lists for histogramming
+
+            # Since events (as of now) are combined before placing in the file,
+            # just need to extract the data for one "representative" flav/int.
+            repr_flav_int = flav_int_group[0]
 
             # Full sample for computing transform
-            full_sample = [events[flav_int][name] for name in transform_binning.names]
+            true_and_reco_sample = [events[repr_flav_int][name]
+                                    for name in transform_binning.names]
 
-            # Truth-only data will be used for normalization (so transform is
-            # in terms of fraction-of-events in input bin).
-            true_sample = [events[flav_int][name] for name in input_binning.names]
+            # Truth-only (N-dim) data will be used for normalization (so
+            # transform is in terms of fraction-of-events in input bin).
+            true_only_sample = [events[repr_flav_int][name]
+                                for name in input_binning.names]
 
+            # 2N-dimensional histogram
             reco_kernel, _ = np.histogramdd(
-                sample=full_sample,
-                bins=all_bin_edges
+                sample=true_and_reco_sample,
+                bins=true_and_reco_bin_edges
             )
 
             # This takes into account the correct kernel normalization:
             # What this means is that we have to normalise the reco map
             # to the number of events in the truth bin.
-            # i.e. we have N events from the truth bin which then become
+            #
+            # I.e., we have N events from the truth bin which then become
             # spread out over the whole map due to reconstruction.
-            # The normalisation is dividing this map by N
-            # Previously this was hard-coded for 2 dimensions
-            # I have tried to generalise it to arbitrary dimensionality
+            # The normalisation is dividing this map by N.
+            #
+            # Previously this was hard-coded for 2 dimensions, but I have tried
+            # to generalise it to arbitrary dimensionality.
 
-            # First, make a histogram of the truth data
-            truth_map, _ = np.histogramdd(
-                sample=true_sample,
-                bins=all_bin_edges
+            # N-dimensional histogram of true-only events
+            true_event_counts, _ = np.histogramdd(
+                sample=true_only_sample,
+                bins=true_only_bin_edges
             )
 
-            # The bins of this should be the set of N described in the
-            # above comment. So I should be able to divide these
-            # two entities. However, after much trial and error I found
-            # I need to do this to get the right answer:
-            while truth_map.ndim != reco_kernel.ndim:
-                truth_map = np.expand_dims(truth_map,axis=-1)
+            with np.errstate(divide='ignore', invalid='ignore'):
+                norm_reco_kernel = reco_kernel / true_event_counts
 
-            # My understanding is that what this essentially does
-            # is it puts everything in the right place so that numpy
-            # is dividing what I want by what I want when I call
-            norm_reco_kernel = np.nan_to_num(reco_kernel / truth_map)
+            # NOTE: If no events started out in a given bin (i.e.,
+            # `true_event_counts` == 0), then it is not possible for this
+            # (albeit simplistic) histogramming service to know what fraction
+            # of the events in this bin reconstruct into other bins. Therefore,
+            # this (e.g. (true_energy, true_coszen)) bin coordinate must be
+            # invalidated for use in stages beyond reconstruction.
+            #
+            # Keep in mind that other bins can still reconstruct into this
+            # same bin -- but that affects only this bin's (e.g.
+            # (reco_energy, reco_coszen)) coordinate. I.e., invalidating this
+            # as an "input" bin does *not* invalidate it as an "output" bin.
 
-            # NOTE - Here I have used np.nan_to_num to avoid cases where
-            # there were no events in truth bin i and so this division
-            # returns NaN. I assume that in such cases we should have a
-            # set of zeroes in the reco_kernel anyway, since the
-            # contribution to the map from truth bin i must be zero if the
-            # content of truth bin i was also zero. This logic makes sense
-            # to me but please let me know if you disagree!
+            num_invalid = np.sum(~np.isfinite(norm_reco_kernel))
+            if num_invalid > 0:
+                logging.warn(
+                    'Group "%s", has %d bins with no events (and hence the'
+                    ' ability to reconstruct events in this bin cannot be'
+                    ' ascertained). These are being masked off from any'
+                    ' further computations.' % (flav_int_group, num_invalid)
+                )
+                norm_reco_kernel = np.ma.masked_invalid(norm_reco_kernel)
 
-            # Construct the BinnedTensorTransform
-            xform = BinnedTensorTransform(
-                input_names=str(flav_int),
-                output_name=str(flav_int),
-                input_binning=input_binning,
-                output_binning=self.output_binning,
-                xform_array=norm_reco_kernel,
-            )
-            nominal_transforms.append(xform)
+            # Now populate this transform to each input for which it applies
+            for input_name in deepcopy(input_names_remaining):
+                if input_name in flav_int_group: 
+                    xform = BinnedTensorTransform(
+                        input_names=input_name,
+                        output_name=input_name,
+                        input_binning=self.input_binning,
+                        output_binning=self.output_binning,
+                        xform_array=norm_reco_kernel,
+                    )
+                    nominal_transforms.append(xform)
+                    input_names_remaining.remove(input_name)
 
         return TransformSet(transforms=nominal_transforms)
 
