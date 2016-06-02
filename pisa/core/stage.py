@@ -7,6 +7,7 @@ from pisa.core.map import MapSet
 from pisa.core.param import ParamSet
 from pisa.core.transform import TransformSet
 from pisa.utils.cache import MemoryCache
+from pisa.utils.comparisons import normQuant
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile
@@ -166,6 +167,13 @@ class Stage(object):
         self.outputs_cache = MemoryCache(self.outputs_cache_depth, is_lru=True)
         self.disk_cache = disk_cache
         self.params = params
+
+        self._attrs_to_hash = set([])
+        for attr_name in ['input_names', 'output_names', 'input_binning', 'output_binning']:
+            try:
+                self.include_attrs_for_hashes(attr_name)
+            except ValueError():
+                pass
 
     def get_nominal_transforms(self):
         """Load a cached transform from the nominal transform memory cache
@@ -398,11 +406,11 @@ class Stage(object):
 
     @property
     def input_names(self):
-        return tuple(self._input_names)
+        return self._input_names
 
     @property
     def output_names(self):
-        return tuple(self._output_names)
+        return self._output_names
 
     @property
     def source_code_hash(self):
@@ -417,7 +425,38 @@ class Stage(object):
 
     @property
     def state_hash(self):
-        return hash_obj((self.source_code_hash, self.params.state_hash))
+        return hash_obj([self.source_code_hash, self.params.state_hash])
+
+    def include_attrs_for_hashes(self, attr_names):
+        """Include a class attribute or attributes to be included when
+        computing hashes (for all that apply: nominal transforms, transforms,
+        and/or outputs).
+
+        Allows some customization of hashing (and hence caching) behavior
+        without having to override the hash-computation methods
+        (`_derive_nominal_transforms_hash`, `_derive_transforms_hash`, and
+        `_derive_outputs_hash`).
+
+        Parameters
+        ----------
+        attr_name : string or sequence thereof
+            Name of the attribute(s) to include for hashes. Each must be an
+            existing attribute of the object at the time this method is
+            invoked.
+
+        """
+        if isinstance(attr_names, basestring):
+            attr_names = [attr_names]
+
+        # Validate that all are actually attrs before setting any
+        for attr_name in attr_names:
+            assert isinstance(attr_name, basestring)
+            if not hasattr(self, attr_name):
+                raise ValueError('"%s" not an attribute of the class; not'
+                                 ' adding *any* of the passed attributes to'
+                                 ' attrs to hash.')
+        # Include the attribute names
+        [self._attrs_to_hash.add(a) for a in attr_names]
 
     def _derive_nominal_transforms_hash(self):
         """Derive a hash to uniquely identify the nominal transform. This
@@ -456,7 +495,19 @@ class Stage(object):
         and `_derive_nominal_transforms_hash` must reflect this.
 
         """
-        return hash_obj((self.params.nominal_values, self.source_code_hash))
+        id_objects = []
+        id_objects.append(self.params.nominal_values_hash)
+        for attr in sorted(self._attrs_to_hash):
+            id_objects.append(hash_obj(normQuant(getattr(self, attr))))
+        id_objects.append(self.source_code_hash)
+
+        # If any hashes are missing (i.e, None), invalidate the entire hash
+        if any([(h == None) for h in id_objects]):
+            nominal_transforms_hash = None
+        else:
+            nominal_transforms_hash = hash_obj(id_objects)
+
+        return nominal_transforms_hash
 
     def _derive_transforms_hash(self):
         """Compute a hash that uniquely identifies the transforms that will be
@@ -475,11 +526,14 @@ class Stage(object):
 
         id_objects.append(self.params.values_hash)
 
+        for attr in sorted(self._attrs_to_hash):
+            id_objects.append(getattr(self, attr))
+
         # If any hashes are missing (i.e, None), invalidate the entire hash
         if any([(h == None) for h in id_objects]):
             transforms_hash = None
         else:
-            transforms_hash = hash_obj(tuple(id_objects))
+            transforms_hash = hash_obj(id_objects)
 
         return transforms_hash
 
@@ -512,25 +566,25 @@ class Stage(object):
         # Otherwise, generate sub-hash on binning and param values here
         else:
             id_subobjects = []
-            # Include binning hashes, if one or both are specified
-            if self.input_binning is not None:
-                id_subobjects.append(self.input_binning.hash)
-            if self.output_binning is not None:
-                id_subobjects.append(self.output_binning.hash)
-
             # Include all parameter values
             id_subobjects.append(self.params.values_hash)
+
+            # Include additional attributes of this object
+            for attr in sorted(self._attrs_to_hash):
+                id_objects.append(getattr(self, attr))
+
+            # Generate the "sub-hash"
             if any([(h == None) for h in id_subobjects]):
                 sub_hash = None
             else:
-                sub_hash = hash_obj(tuple(id_subobjects))
+                sub_hash = hash_obj(id_subobjects)
             id_objects.append(sub_hash)
 
         # If any hashes are missing (i.e, None), invalidate the entire hash
         if any([(h == None) for h in id_objects]):
             outputs_hash = None
         else:
-            outputs_hash = hash_obj(tuple(id_objects))
+            outputs_hash = hash_obj(id_objects)
 
         return outputs_hash
 

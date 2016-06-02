@@ -67,10 +67,12 @@ class plotter(object):
             self.add_stamp(map.tex)
             self.dump(map.name)
 
-    def plot_2d_array(self, mapset, n_rows=None, n_cols=None):
+    def plot_2d_array(self, mapset, n_rows=None, n_cols=None, fname=None):
         ''' plot all maps in a single plot '''
+        if fname is None:
+            fname = 'test2d'
         self.plot_array(mapset, 'plot_2d_map', n_rows=n_rows, n_cols=n_cols)
-        self.dump('test2d')
+        self.dump(fname)
 
     # --- 1d plots ---
 

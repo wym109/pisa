@@ -219,7 +219,7 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
         logging.info('Events in the following groups will be joined together:'
                      ' (none)')
     else:
-        grouped, ungrouped = flavInt.CombinedFlavIntData.xlateGroupsStr(join)
+        grouped, ungrouped = flavInt.xlateGroupsStr(join)
         evts.metadata['flavints_joined'] = [str(g) for g in grouped]
         groups_label = 'joined_G_' + '_G_'.join([str(g) for g in grouped])
         logging.info('Events in the following groups will be joined together: '

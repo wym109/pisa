@@ -43,6 +43,9 @@ def hash_obj(obj, hash_to='int'):
         hash_to = 'int'
     hash_to = hash_to.lower()
 
+    if hasattr(obj, 'hash') and obj.hash not in [None, np.nan]:
+        return obj.hash
+
     # Handle numpy arrays and matrices specially
     # TODO: is this still needed now that we use pickle?
     if isinstance(obj, np.ndarray) or isinstance(obj, np.matrix):
