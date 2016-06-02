@@ -68,6 +68,7 @@ class Pipeline(object):
         All stages in the pipeline
 
     """
+    @profile
     def __init__(self, config):
         self._stages = []
         if isinstance(config, basestring):
@@ -249,9 +250,10 @@ if __name__ == '__main__':
 
     mkdir(args.outdir)
 
+    # Instantiate the pipeline
     pipeline = Pipeline(args.pipeline_settings)
 
-    for run in xrange(5):
+    for run in xrange(2):
         print ''
         print 'STARTING RUN %d ............' % run
         print ''
