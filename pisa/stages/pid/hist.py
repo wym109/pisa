@@ -271,6 +271,7 @@ class hist(Stage):
             detector=events.metadata['detector'],
             geom=events.metadata['geom'],
             proc_ver=events.metadata['proc_ver'],
+            pid_spec_ver=self.params['pid_ver'].value,
             pid_specs=self.params['pid_spec_source'].value
         )
         u_out_names = map(unicode, self.output_channels)
