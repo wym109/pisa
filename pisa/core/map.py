@@ -1309,6 +1309,9 @@ class MapSet(object):
     def downsample(self, *args, **kwargs):
         return MapSet([m.downsample(*args, **kwargs) for m in self.maps])
 
+    def rebin(self, *args, **kwargs):
+        return MapSet([m.rebin(*args, **kwargs) for m in self.maps])
+
     def metric_per_map(self, expected_values, metric):
         assert isinstance(metric, basestring)
         metric = metric.lower()
