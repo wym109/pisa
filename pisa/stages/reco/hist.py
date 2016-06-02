@@ -46,30 +46,35 @@ class hist(Stage):
     Parameters
     ----------
     params : ParamSet
-        The only param supported at this time is `reco_weight_file`, which is a
-        PISA events file or resource path specifying one.
+        Must include:
+
+        reco_weight_file : string or Events
+            PISA events file to use to derive transforms, or a string
+            specifying the resource location of the same.
+
+    particles : string
+        Must be one of 'neutrinos' or 'muons' (though only neutrinos are
+        supported at this time).
+
+    input_names : string or list of strings
+        Names of inputs expected. These should follow the standard PISA
+        naming conventions for flavor/interaction types OR groupings
+        thereof. Note that this service's outputs are named the same as its
+        inputs. See Conventions section in the documentation for more info.
 
     transform_groups : string
         Specifies which particles/interaction types to combine together in
         computing the transforms. See Notes section for more details on how
         to specify this string
 
-    input_names : string or list of strings
-        Names of inputs expected. These should follow the standard PISA naming
-        conventions for flavor/interaction types OR groupings thereof. Note
-        that this service's outputs are named the same as its inputs.
-
     input_binning : MultiDimBinning or convertible thereto
         Input binning is in true variables, with names prefixed by "true_".
         Each must match a corresponding dimension in `output_binning`.
 
     output_binning : MultiDimBinning or convertible thereto
-        Output binning is in reconstructed variables, with names prefixed by
-        "reco_". Each must match a corresponding dimension in `input_binning`.
-
-    particles : string
-        Must be one of 'neutrinos' or 'muons' (though only neutrinos are
-        supported at this time).
+        Output binning is in reconstructed variables, with names (traditionally
+        in PISA but not necessarily) prefixed by "reco_". Each must match a
+        corresponding dimension in `input_binning`.
 
     disk_cache
 
@@ -90,18 +95,24 @@ class hist(Stage):
     readability.
 
     """
-    def __init__(self, params, transform_groups, input_names,
-                 input_binning, output_binning,
-                 particles='neutrinos', disk_cache=None,
+    def __init__(self, params, particles, input_names, transform_groups,
+                 input_binning, output_binning, disk_cache=None,
                  transforms_cache_depth=20, outputs_cache_depth=20):
-        assert particles in ['neutrinos', 'muons']
         self.events_hash = None
+        """Hash of events file or Events object used"""
+
+        assert particles in ['neutrinos', 'muons']
+        self.particles = particles
+        """Whether stage is instantiated to process neutrinos or muons"""
+
         self.transform_groups = flavintGroupsFromString(transform_groups)
+        """Particle/interaction types to group for computing transforms"""
 
         # All of the following params (and no more) must be passed via the
         # `params` argument.
         expected_params = (
-            'reco_weight_file', # NOT IMPLEMENTED: 'e_reco_scale', 'cz_reco_scale'
+            'reco_weight_file',
+            # NOT IMPLEMENTED: 'e_reco_scale', 'cz_reco_scale'
         )
 
         if isinstance(input_names, basestring):
@@ -128,27 +139,19 @@ class hist(Stage):
             input_binning=input_binning,
             output_binning=output_binning
         )
+
+        # Can do these now that binning has been set up in call to Stage's init
         self.validate_binning()
+        self.include_attrs_for_hashes('particles')
+        self.include_attrs_for_hashes('transform_groups')
 
     def validate_binning(self):
-        # Any dimension in input (*true*) must have its reconstructed version
-        # in the output (*reco*).
-        for dim in self.input_binning.dimensions:
-            in_dim_name = dim.name
-            out_dim_name = in_dim_name.replace('true', 'reco')
-            if out_dim_name not in self.output_binning:
-                raise ValueError(
-                    'Input dimension name "%s" requires corresponding'
-                    ' dimension "%s" be in output; however, output only'
-                    ' contains dimensions %s.'
-                    %(in_dim_name, out_dim_name,
-                      ', '.join(["%s"%d for d in self.output_binning.names]))
-                )
+        assert self.input_binning.num_dims == self.output_binning.num_dims
 
     def load_events(self):
         evts = self.params.reco_weight_file.value
         this_hash = hash_obj(evts)
-        if self.events_hash == this_hash:
+        if this_hash == self.events_hash:
             return
         logging.debug('Extracting events from events/file: %s' %evts)
         self.events = Events(evts)
@@ -205,7 +208,6 @@ class hist(Stage):
                                for dim in input_binning.dimensions]
 
         nominal_transforms = []
-        input_names_remaining = list(deepcopy(self.input_names))
         for flav_int_group in self.transform_groups:
             # Extract the columns' data into lists for histogramming
 
@@ -272,12 +274,13 @@ class hist(Stage):
 
             # Now populate this transform to each input for which it applies.
 
-            # NOTE:
+            # NOTES:
             # * Output name is same as input name
-            # * Use `self.*_binning` so maps are returned in user's defined
-            #   units (rather than computational units, which are attached to
-            #   non-`self` binnings).
-            for input_name in deepcopy(input_names_remaining):
+            # * Use `self.input_binning` and `self.output_binning` so maps are
+            #   returned in user-defined units (rather than computational
+            #   units, which are attached to the non-`self` versions of these
+            #   binnings).
+            for input_name in self.input_names:
                 if input_name in flav_int_group:
                     xform = BinnedTensorTransform(
                         input_names=input_name,
@@ -287,7 +290,6 @@ class hist(Stage):
                         xform_array=reco_kernel,
                     )
                     nominal_transforms.append(xform)
-                    input_names_remaining.remove(input_name)
 
         return TransformSet(transforms=nominal_transforms)
 

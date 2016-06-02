@@ -5,6 +5,7 @@
 # date:   March 22, 2016
 #
 
+
 from collections import Mapping, OrderedDict, Sequence
 from functools import total_ordering
 from itertools import izip
@@ -13,7 +14,7 @@ from operator import setitem
 import numpy as np
 import pint; ureg = pint.UnitRegistry()
 
-from pisa.utils.comparisons import isbarenumeric, recursiveEquality
+from pisa.utils.comparisons import isbarenumeric, normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 
@@ -247,7 +248,7 @@ class Param(object):
 
     @property
     def state_hash(self):
-        return hash_obj(self.state)
+        return hash_obj(normQuant(self.state))
 
 # TODO: temporary modification of parameters using etc.
 class ParamSet(object):
@@ -663,15 +664,15 @@ class ParamSet(object):
 
     @property
     def values_hash(self):
-        return hash_obj(self.values)
+        return hash_obj(normQuant(self.values))
 
     @property
     def nominal_values_hash(self):
-        return hash_obj(self.nominal_values)
+        return hash_obj(normQuant(self.nominal_values))
 
     @property
     def state_hash(self):
-        return hash_obj(self.state)
+        return hash_obj(normQuant(self.state))
 
 
 def test_Param():
