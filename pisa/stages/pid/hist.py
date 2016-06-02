@@ -270,6 +270,7 @@ class hist(Stage):
             detector=events.metadata['detector'],
             geom=events.metadata['geom'],
             proc_ver=events.metadata['proc_ver'],
+            pid_spec_ver=self.params['pid_ver'].value,
             pid_specs=self.params['pid_spec_source'].value
         )
         u_out_names = map(unicode, self.output_channels)
@@ -312,7 +313,7 @@ class hist(Stage):
                 reco_params = [flav_sigdata[vn] for vn in var_names]
                 raw_histo[sig], _ = np.histogramdd(
                     sample=reco_params[:-1],
-                    weights=reco_params[-1],
+                    #weights=reco_params[-1],
                     bins=all_bin_edges
                 )
                 total_histo += raw_histo[sig]

@@ -220,6 +220,12 @@ class DataProcParams(dict):
             lpv = self.proc_ver.lower()
             if lk == lpv or ('v'+lk == lpv) or (lk == 'v'+lpv):
                 self.procver_key = key
+                # This works for PINGU
+            if ('msu_'+lk == lpv) or (lk == 'msu_'+lpv):
+                self.procver_key = key
+            if ('nbi_'+lk == lpv) or (lk == 'nbi_'+lpv):
+                self.procver_key = key
+                # Generalising for DeepCore and different selections
         ps = ps[self.det_key][self.procver_key]
         self.update(ps)
 
