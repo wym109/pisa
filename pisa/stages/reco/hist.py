@@ -281,15 +281,16 @@ class hist(Stage):
             #   units, which are attached to the non-`self` versions of these
             #   binnings).
             for input_name in self.input_names:
-                if input_name in flav_int_group:
-                    xform = BinnedTensorTransform(
-                        input_names=input_name,
-                        output_name=input_name,
-                        input_binning=self.input_binning,
-                        output_binning=self.output_binning,
-                        xform_array=reco_kernel,
-                    )
-                    nominal_transforms.append(xform)
+                if input_name not in flav_int_group:
+                    continue
+                xform = BinnedTensorTransform(
+                    input_names=input_name,
+                    output_name=input_name,
+                    input_binning=self.input_binning,
+                    output_binning=self.output_binning,
+                    xform_array=reco_kernel,
+                )
+                nominal_transforms.append(xform)
 
         return TransformSet(transforms=nominal_transforms)
 

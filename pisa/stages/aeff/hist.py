@@ -38,16 +38,13 @@ class hist(Stage):
         Must be one of 'neutrinos' or 'muons' (though only neutrinos are
         supported at this time).
 
-    input_names : string or list of strings
-        Names of inputs expected. These should follow the standard PISA
-        naming conventions for flavor/interaction types OR groupings
-        thereof. Note that this service's outputs are named the same as its
-        inputs. See Conventions section in the documentation for more info.
-
     transform_groups : string
         Specifies which particles/interaction types to combine together in
-        computing the transforms. See Notes section for more details on how
-        to specify this string
+        computing the transforms. (See Notes.)
+
+    combine_grouped_flavints : bool
+        Whether to combine the event-rate maps for the flavint groupings
+        specified by `transform_groups`.
 
     input_binning : MultiDimBinning or convertible thereto
         Input binning is in true variables, with names prefixed by "true_".
@@ -62,9 +59,15 @@ class hist(Stage):
     transforms_cache_depth
     outputs_cache_depth
 
+    Notes
+    -----
+    Example input names would be:
+    See Conventions section in the documentation for more informaton on
+    particle naming scheme in PISA. As an example
+
     """
-    def __init__(self, params, particles, input_names, transform_groups,
-                 input_binning, output_binning, disk_cache=None,
+    def __init__(self, params, particles, transform_groups,
+                 combine_grouped_flavints, input_binning, output_binning, disk_cache=None,
                  transforms_cache_depth=20, outputs_cache_depth=20):
         self.events_hash = None
         """Hash of events file or Events object used"""
@@ -82,18 +85,22 @@ class hist(Stage):
             'aeff_weight_file', 'livetime', 'aeff_scale'
         )
 
-        # Define the names of objects that are required by this stage (objects
-        # will have the attribute "name": i.e., obj.name)
-        if isinstance(input_names, basestring):
-            input_names = (''.join(input_names.split(' '))).split(',')
+        # Define the names of objects expected in inputs and produced as
+        # outputs
+        if self.particles == 'neutrinos':
+            input_names = (
+                'nue', 'numu', 'nutau', 'nuebar', 'numubar', 'nutaubar'
+            )
+            if combine_grouped_flavints:
+                output_names = tuple([str(g) for g in self.transform_groups])
 
-        # Define the names of objects that get produced by this stage
-        output_names = (
-            'nue_cc', 'numu_cc', 'nutau_cc', 'nuebar_cc', 'numubar_cc',
-            'nutaubar_cc',
-            'nue_nc', 'numu_nc', 'nutau_nc', 'nuebar_nc', 'numubar_nc',
-            'nutaubar_nc'
-        )
+            else:
+                output_names = (
+                    'nue_cc', 'numu_cc', 'nutau_cc', 'nuebar_cc', 'numubar_cc',
+                    'nutaubar_cc',
+                    'nue_nc', 'numu_nc', 'nutau_nc', 'nuebar_nc', 'numubar_nc',
+                    'nutaubar_nc'
+                )
 
         # Invoke the init method from the parent class, which does a lot of
         # work for you.
@@ -217,10 +224,12 @@ class hist(Stage):
             aeff_transform /= (bin_volumes * missing_dims_vol)
 
             flav_names = [str(flav) for flav in flav_int_group.flavs()]
-            for input_name, output_name in product(self.input_names,
-                                                   self.output_names):
-                if input_name in flav_names \
-                        and output_name in flav_int_group:
+            for input_name in self.input_names:
+                if input_name not in flav_names:
+                    continue
+                for output_name in self.output_names:
+                    if output_name not in flav_int_group:
+                        continue
                     xform = BinnedTensorTransform(
                         input_names=input_name,
                         output_name=output_name,

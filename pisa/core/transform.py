@@ -635,7 +635,8 @@ class BinnedTensorTransform(Transform):
     def validate_input(self, inputs):
         for input_name in self.input_names:
             assert input_name in inputs, \
-                    'Input "%s" expected but not present.' % input_name
+                    'Input "%s" expected; got: %s.' \
+                    % (input_name, inputs.names)
             inbin_hash =  inputs[input_name].binning.hash
             mybin_hash = self.input_binning.hash
             if inbin_hash is not None and mybin_hash is not None:

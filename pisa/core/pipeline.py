@@ -107,6 +107,7 @@ class Pipeline(object):
 
         logging.debug(str(self.params))
 
+    @profile
     def get_outputs(self, inputs=None, idx=None,
                     return_intermediate=False):
         """Run the pipeline to compute its outputs.
@@ -130,11 +131,14 @@ class Pipeline(object):
 
         """
         intermediate = []
+        i = 0
         for stage in self.stages[:idx]:
             logging.debug('Working on stage %s (%s)' %(stage.stage_name,
                                                        stage.service_name))
             try:
+                logging.trace('>>> BEGIN: get_outputs')
                 outputs = stage.get_outputs(inputs=inputs)
+                logging.trace('>>> END  : get_outputs')
             except:
                 logging.error('Error occurred computing outputs in stage %s /'
                               ' service %s ...' %(stage.stage_name,
@@ -247,9 +251,16 @@ if __name__ == '__main__':
 
     pipeline = Pipeline(args.pipeline_settings)
 
-    for run in xrange(1):
-        if args.only_stage is not None:
+    for run in xrange(5):
+        print ''
+        print 'STARTING RUN %d ............' % run
+        print ''
+        if args.only_stage is None:
+            idx = slice(0, args.stop_after_stage)
+            outputs = pipeline.get_outputs(idx=args.stop_after_stage)
+        else:
             assert args.stop_after_stage is None
+            idx = slice(args.only_stage, args.only_stage+1)
             stage = pipeline.stages[args.only_stage]
             # create dummy inputs
             if hasattr(stage, 'input_binning'):
@@ -257,22 +268,18 @@ if __name__ == '__main__':
                 input_maps = []
                 for name in stage.input_names:
                     hist = np.ones(stage.input_binning.shape)
-                    input_maps.append(Map(name=name, hist=hist,
-                                binning=stage.input_binning))
+                    input_maps.append(
+                        Map(name=name, hist=hist, binning=stage.input_binning)
+                    )
                 inputs = MapSet(maps=input_maps, name='ones', hash=1)
             else:
                 inputs = None
             outputs = stage.get_outputs(inputs=inputs)
-        else:
-            if args.stop_after_stage is not None:
-                outputs = pipeline.get_outputs(idx=args.stop_after_stage)
-            else:
-                outputs = pipeline.get_outputs()
         print ''
-        print 'DONE WITH RUN %d' % run
+        print ' ............ finished RUN %d' % run
         print ''
 
-    for stage in pipeline.stages:
+    for stage in pipeline.stages[idx]:
         stg_svc = stage.stage_name + '__' + stage.service_name
         fbase = os.path.join(args.outdir, stg_svc)
         if args.intermediate or stage == pipeline.stages[-1]:
