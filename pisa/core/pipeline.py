@@ -107,7 +107,6 @@ class Pipeline(object):
 
         logging.debug(str(self.params))
 
-    @profile
     def get_outputs(self, inputs=None, idx=None,
                     return_intermediate=False):
         """Run the pipeline to compute its outputs.
@@ -248,26 +247,30 @@ if __name__ == '__main__':
 
     pipeline = Pipeline(args.pipeline_settings)
 
-    if args.only_stage is not None:
-        assert args.stop_after_stage is None
-        stage = pipeline.stages[args.only_stage]
-        # create dummy inputs
-        if hasattr(stage, 'input_binning'):
-            logging.info('building dummy input')
-            input_maps = []
-            for name in stage.input_names:
-                hist = np.ones(stage.input_binning.shape)
-                input_maps.append(Map(name=name, hist=hist,
-                            binning=stage.input_binning))
-            inputs = MapSet(maps=input_maps, name='ones', hash=1)
+    for run in xrange(1):
+        if args.only_stage is not None:
+            assert args.stop_after_stage is None
+            stage = pipeline.stages[args.only_stage]
+            # create dummy inputs
+            if hasattr(stage, 'input_binning'):
+                logging.info('building dummy input')
+                input_maps = []
+                for name in stage.input_names:
+                    hist = np.ones(stage.input_binning.shape)
+                    input_maps.append(Map(name=name, hist=hist,
+                                binning=stage.input_binning))
+                inputs = MapSet(maps=input_maps, name='ones', hash=1)
+            else:
+                inputs = None
+            outputs = stage.get_outputs(inputs=inputs)
         else:
-            inputs = None
-        outputs = stage.get_outputs(inputs=inputs)
-    else:
-        if args.stop_after_stage is not None:
-            outputs = pipeline.get_outputs(idx=args.stop_after_stage)
-        else:
-            outputs = pipeline.get_outputs()
+            if args.stop_after_stage is not None:
+                outputs = pipeline.get_outputs(idx=args.stop_after_stage)
+            else:
+                outputs = pipeline.get_outputs()
+        print ''
+        print 'DONE WITH RUN %d' % run
+        print ''
 
     for stage in pipeline.stages:
         stg_svc = stage.stage_name + '__' + stage.service_name
@@ -283,7 +286,6 @@ if __name__ == '__main__':
                 continue
             my_plotter = plotter(stamp='PISA cake test',
                                  outdir=args.outdir,
-                                 fmt=fmt, log=True,
-                                )
+                                 fmt=fmt, log=True)
             my_plotter.ratio = True
             my_plotter.plot_2d_array(stage.outputs, fname=stg_svc + '__output')

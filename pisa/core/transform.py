@@ -16,6 +16,7 @@ from pisa.utils.comparisons import normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils import jsons
 from pisa.utils.log import logging, set_verbosity
+from pisa.utils.profiler import profile
 
 
 HASH_SIGFIGS = 12
@@ -181,6 +182,14 @@ class TransformSet(object):
         output_names = []
         [output_names.append(x.output_name) for x in self]
         return tuple(output_names)
+
+    def get(input_names, output_name):
+        if isinstance(input_names, basestring):
+            input_names = [input_names]
+        for transform in self.transforms:
+            if set(input_names) == set(transform.input_names) \
+               and output_name == transform.output_name:
+                return transform
 
     def apply(self, inputs):
         """Apply each transform to `inputs`; return computed outputs.
@@ -464,7 +473,8 @@ class BinnedTensorTransform(Transform):
             tex=tex, hash=hash
         )
         self.xform_array = xform_array
-        self.set_errors(error_array)
+        if error_array is not None:
+            self.set_errors(error_array)
 
     @property
     def _serializable_state(self):
@@ -626,14 +636,19 @@ class BinnedTensorTransform(Transform):
         for input_name in self.input_names:
             assert input_name in inputs, \
                     'Input "%s" expected but not present.' % input_name
-            assert inputs[input_name].binning == self.input_binning
+            inbin_hash =  inputs[input_name].binning.hash
+            mybin_hash = self.input_binning.hash
+            if inbin_hash is not None and mybin_hash is not None:
+                assert inbin_hash == mybin_hash
+            else:
+                assert inputs[input_name].binning == self.input_binning
 
     # TODO: make _apply work with multiple inputs (i.e., concatenate
     # these into a higher-dimensional array) and make logic for applying
     # element-by-element multiply and tensordot generalize to any dimension
     # given the (concatenated) input dimension and the dimension of the
     # transform kernel
-
+    @profile
     def _apply(self, inputs):
         """Apply transforms to input maps to compute output maps.
 

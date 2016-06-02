@@ -24,6 +24,7 @@ import pint; ureg = pint.UnitRegistry()
 from pisa.utils.comparisons import normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils import jsons
+from pisa.utils.profiler import profile
 
 
 HASH_SIGFIGS = 12
@@ -229,6 +230,8 @@ class OneDimBinning(object):
         # double-precision limits after conversion so that hashes will work out
         # to be the same after conversion to the base units.
 
+        self._hash = hash_obj(self._hashable_state)
+
     #def __repr__(self):
     #    argstrs = [('%s=%s' %item) for item in self._serializable_state.items()]
     #    return '%s(%s)' %(self.__class__.__name__, ', '.join(argstrs))
@@ -305,7 +308,9 @@ class OneDimBinning(object):
         defined using different unit orders-of-magnitude to hash differently).
 
         """
-        return hash_obj(self._hashable_state)
+        if self._hash is None:
+            self._hash = hash_obj(self._hashable_state)
+        return self._hash
 
     def __hash__(self):
         return self.hash

@@ -3,13 +3,14 @@
 
 
 import copy
+from itertools import product
 
 import numpy as np
 
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.utils.events import Events
-from pisa.utils.flavInt import NuFlavInt
+from pisa.utils.flavInt import flavintGroupsFromString, NuFlavInt
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile
@@ -26,20 +27,54 @@ class hist(Stage):
 
     Parameters
     ----------
-    params
-    input_binning
-    output_binning
+    params : ParamSet
+        Must exclusively have parameters:
+
+        aeff_weight_file
+        livetime
+        aeff_scale
+
     particles : string
-        Must be one of 'neutrinos' or 'muons'
+        Must be one of 'neutrinos' or 'muons' (though only neutrinos are
+        supported at this time).
+
+    input_names : string or list of strings
+        Names of inputs expected. These should follow the standard PISA
+        naming conventions for flavor/interaction types OR groupings
+        thereof. Note that this service's outputs are named the same as its
+        inputs. See Conventions section in the documentation for more info.
+
+    transform_groups : string
+        Specifies which particles/interaction types to combine together in
+        computing the transforms. See Notes section for more details on how
+        to specify this string
+
+    input_binning : MultiDimBinning or convertible thereto
+        Input binning is in true variables, with names prefixed by "true_".
+        Each must match a corresponding dimension in `output_binning`.
+
+    output_binning : MultiDimBinning or convertible thereto
+        Output binning is in reconstructed variables, with names (traditionally
+        in PISA but not necessarily) prefixed by "reco_". Each must match a
+        corresponding dimension in `input_binning`.
+
     disk_cache
     transforms_cache_depth
     outputs_cache_depth
 
     """
-    def __init__(self, params, input_binning, output_binning,
-                 particles='neutrinos', disk_cache=None,
+    def __init__(self, params, particles, input_names, transform_groups,
+                 input_binning, output_binning, disk_cache=None,
                  transforms_cache_depth=20, outputs_cache_depth=20):
+        self.events_hash = None
+        """Hash of events file or Events object used"""
+
         assert particles in ['neutrinos', 'muons']
+        self.particles = particles
+        """Whether stage is instantiated to process neutrinos or muons"""
+
+        self.transform_groups = flavintGroupsFromString(transform_groups)
+        """Particle/interaction types to group for computing transforms"""
 
         # All of the following params (and no more) must be passed via the
         # `params` argument.
@@ -49,9 +84,8 @@ class hist(Stage):
 
         # Define the names of objects that are required by this stage (objects
         # will have the attribute "name": i.e., obj.name)
-        input_names = (
-            'nue', 'numu', 'nutau', 'nuebar', 'numubar', 'nutaubar'
-        )
+        if isinstance(input_names, basestring):
+            input_names = (''.join(input_names.split(' '))).split(',')
 
         # Define the names of objects that get produced by this stage
         output_names = (
@@ -78,18 +112,36 @@ class hist(Stage):
             output_binning=output_binning
         )
 
+        # Can do these now that binning has been set up in call to Stage's init
+        self.include_attrs_for_hashes('particles')
+        self.include_attrs_for_hashes('transform_groups')
+
+    def load_events(self):
+        evts = self.params.aeff_weight_file.value
+        this_hash = hash_obj(evts)
+        if this_hash == self.events_hash:
+            return
+        logging.debug('Extracting events from Events obj or file: %s' %evts)
+        self.events = Events(evts)
+        self.events_hash = this_hash
+
+    @profile
     def _compute_nominal_transforms(self):
+        self.load_events()
         # Units must be the following for correctly converting a sum-of-
         # OneWeights-in-bin to an average effective area across the bin.
-        comp_units = dict(true_energy='GeV', true_coszen=None, true_azimuth='rad')
+        comp_units = dict(true_energy='GeV', true_coszen=None,
+                          true_azimuth='rad')
 
         # Only works if energy is in input_binning
         if 'true_energy' not in self.input_binning:
-            raise ValueError('Input binning must contain "true_energy" dimension,'
-                             ' but does not.')
+            raise ValueError('Input binning must contain "true_energy"'
+                             ' dimension, but does not.')
 
         # coszen and azimuth are both optional, but no further dimensions are
-        excess_dims = set(self.input_binning.names).difference(comp_units.keys())
+        excess_dims = set(self.input_binning.names).difference(
+            comp_units.keys()
+        )
         if len(excess_dims) > 0:
             raise ValueError('Input binning has extra dimension(s): %s'
                              %sorted(excess_dims))
@@ -97,10 +149,6 @@ class hist(Stage):
         # TODO: not handling rebinning in this stage or within Transform
         # objects; implement this! (and then this assert statement can go away)
         assert self.input_binning == self.output_binning
-
-        logging.info('Extracting events from file: %s'
-                     %(self.params.aeff_weight_file.value))
-        events = Events(self.params.aeff_weight_file.value)
 
         # Select only the units in the input/output binning for conversion
         # (can't pass more than what's actually there)
@@ -140,43 +188,51 @@ class hist(Stage):
                          for dim in output_binning.dimensions]
 
         nominal_transforms = []
-        for flav in self.input_names:
-            for interaction in ['cc', 'nc']:
-                # Flavor+interaction type naming convention used in the PISA
-                # HDF5 files
-                flav_int = NuFlavInt(flav, interaction)
+        for flav_int_group in self.transform_groups:
+            logging.debug("Working on %s effective areas" %flav_int_group)
 
-                logging.debug("Working on %s effective areas" %flav_int)
+            # Since events (as of now) are combined before placing in the file,
+            # just need to extract the data for one "representative" flav/int.
+            repr_flav_int = flav_int_group[0]
 
-                # Extract the columns' data into a list for histogramming
-                sample = [events[flav_int][name] for name in self.input_binning.names]
+            # Extract the columns' data into a list for histogramming
+            sample = [self.events[repr_flav_int][name]
+                      for name in self.input_binning.names]
 
-                aeff_hist, _ = np.histogramdd(
-                    sample=sample,
-                    weights=events[flav_int]['weighted_aeff'],
-                    bins=all_bin_edges
-                )
+            # Extract the weights
+            weights = self.events[repr_flav_int]['weighted_aeff']
 
-                # Divide histogram by
-                #   (energy bin width x coszen bin width x azimuth bin width)
-                # volumes to convert from sums-of-OneWeights-in-bins to
-                # effective areas. Note that volume correction factor for
-                # missing dimensions is applied here.
-                bin_volumes = output_binning.bin_volumes(attach_units=False)
-                aeff_hist /= (bin_volumes * missing_dims_vol)
+            aeff_transform, _ = np.histogramdd(
+                sample=sample,
+                weights=weights,
+                bins=all_bin_edges
+            )
 
-                # Construct the BinnedTensorTransform
-                xform = BinnedTensorTransform(
-                    input_names=flav,
-                    output_name=str(flav_int),
-                    input_binning=input_binning,
-                    output_binning=self.output_binning,
-                    xform_array=aeff_hist,
-                )
-                nominal_transforms.append(xform)
+            # Divide histogram by
+            #   (energy bin width x coszen bin width x azimuth bin width)
+            # volumes to convert from sums-of-OneWeights-in-bins to
+            # effective areas. Note that volume correction factor for
+            # missing dimensions is applied here.
+            bin_volumes = output_binning.bin_volumes(attach_units=False)
+            aeff_transform /= (bin_volumes * missing_dims_vol)
+
+            flav_names = [str(flav) for flav in flav_int_group.flavs()]
+            for input_name, output_name in product(self.input_names,
+                                                   self.output_names):
+                if input_name in flav_names \
+                        and output_name in flav_int_group:
+                    xform = BinnedTensorTransform(
+                        input_names=input_name,
+                        output_name=output_name,
+                        input_binning=self.input_binning,
+                        output_binning=self.output_binning,
+                        xform_array=aeff_transform,
+                    )
+                    nominal_transforms.append(xform)
 
         return TransformSet(transforms=nominal_transforms)
 
+    @profile
     def _compute_transforms(self):
         """Compute new oscillation transforms"""
         # Read parameters in in the units used for computation
@@ -185,20 +241,24 @@ class hist(Stage):
         logging.trace('livetime = %s --> %s sec'
                       %(self.params.livetime.value, livetime_s))
 
-        # TODO: make the following syntax work by implementing the guts in
-        #       TransformSet/Transform objects, as is done for MapSet/Map
-        #       objects:
-        #return self.nominal_transforms * (aeff_scale * livetime_s)
-
         new_transforms = []
-        for xform in self.nominal_transforms:
-            new_xform = BinnedTensorTransform(
-                input_names=xform.input_names,
-                output_name=xform.output_name,
-                input_binning=xform.input_binning,
-                output_binning=xform.output_binning,
-                xform_array=xform.xform_array * (aeff_scale * livetime_s)
-            )
-            new_transforms.append(new_xform)
+        for flav_int_group in self.transform_groups:
+            repr_flav_int = flav_int_group[0]
+            flav_names = [str(flav) for flav in flav_int_group.flavs()]
+            aeff_transform = None
+            for transform in self.nominal_transforms:
+                if transform.input_names[0] in flav_names \
+                        and transform.output_name in flav_int_group:
+                    if aeff_transform is None:
+                        aeff_transform = transform.xform_array * (aeff_scale *
+                                                                  livetime_s)
+                    new_xform = BinnedTensorTransform(
+                        input_names=transform.input_names,
+                        output_name=transform.output_name,
+                        input_binning=transform.input_binning,
+                        output_binning=transform.output_binning,
+                        xform_array=aeff_transform
+                    )
+                    new_transforms.append(new_xform)
 
         return TransformSet(new_transforms)
