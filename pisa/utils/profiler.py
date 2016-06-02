@@ -43,11 +43,13 @@ except ImportError:
                 return func(*args, **kwargs)
             finally:
                 end_t = time.time()
-                tprofile.debug('module %s, function %s: %.4f ms'%(func.__module__,func.__name__,(end_t - start_t) * 1000))
+                tprofile.debug('module %s, function %s: %.4f ms'
+                               %(func.__module__, func.__name__,
+                                 (end_t - start_t) * 1000))
         return profiled_func
 
-if __name__ == '__main__':
 
+def test_profile():
     @profile
     def get_number():
         logging.debug('hello, i am get_number')
@@ -62,3 +64,7 @@ if __name__ == '__main__':
         return 'some result!'
 
     result = expensive_function()
+
+
+if __name__ == '__main__':
+    test_profile()

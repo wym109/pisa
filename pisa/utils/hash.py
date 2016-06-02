@@ -1,10 +1,8 @@
 import struct
 import hashlib
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
+import cPickle as pickle
 import numpy as np
+#from pisa.utils.profiler import profile
 
 
 # TODO: add sigfigs arg:
@@ -12,7 +10,7 @@ import numpy as np
 #     If specified, round all numerical quantities being hashed prior to
 #     serializing them, such that values that would evaluate to be equal
 #     within that number of significant figures will hash to the same value.
-
+#@profile
 def hash_obj(obj, hash_to='int'):
     """Return hash for an object. Object can be a numpy ndarray or matrix
     (which is serialized to a string), an open file (which has its contents
@@ -43,7 +41,7 @@ def hash_obj(obj, hash_to='int'):
         hash_to = 'int'
     hash_to = hash_to.lower()
 
-    if hasattr(obj, 'hash') and obj.hash not in [None, np.nan]:
+    if hasattr(obj, 'hash') and obj.hash is not None and obj.hash == obj.hash:
         return obj.hash
 
     # Handle numpy arrays and matrices specially
@@ -53,8 +51,8 @@ def hash_obj(obj, hash_to='int'):
     # Handle e.g. an open file specially
     if hasattr(obj, 'read'):
         return hash_obj(obj.read())
-    #hash = hashlib.md5(pickle.dumps(obj, pickle.HIGHEST_PROTOCOL))
-    hash = hashlib.md5(repr(obj))
+    hash = hashlib.md5(pickle.dumps(obj, pickle.HIGHEST_PROTOCOL))
+    #hash = hashlib.md5(repr(obj))
     if hash_to in ['i', 'int', 'integer']:
         hash_val, = struct.unpack('<q', hash.digest()[:8])
     elif hash_to in ['b', 'bin', 'binary']:

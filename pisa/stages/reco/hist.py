@@ -25,7 +25,6 @@ from pisa.utils.events import Events
 from pisa.utils.flavInt import flavintGroupsFromString
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils.profiler import profile
 
 
 # TODO: the below logic does not generalize to muons, but probably should
@@ -46,7 +45,7 @@ class hist(Stage):
     Parameters
     ----------
     params : ParamSet
-        Must include:
+        Must exclusively have parameter:
 
         reco_weight_file : string or Events
             PISA events file to use to derive transforms, or a string
@@ -153,11 +152,10 @@ class hist(Stage):
         this_hash = hash_obj(evts)
         if this_hash == self.events_hash:
             return
-        logging.debug('Extracting events from events/file: %s' %evts)
+        logging.debug('Extracting events from Events obj or file: %s' %evts)
         self.events = Events(evts)
         self.events_hash = this_hash
 
-    @profile
     def _compute_nominal_transforms(self):
         """Generate reconstruction "smearing kernels" by histogramming true and
         reconstructed variables from a Monte Carlo events file.
@@ -209,6 +207,8 @@ class hist(Stage):
 
         nominal_transforms = []
         for flav_int_group in self.transform_groups:
+            logging.debug("Working on %s reco kernels" %flav_int_group)
+
             # Extract the columns' data into lists for histogramming
 
             # Since events (as of now) are combined before placing in the file,
@@ -281,15 +281,16 @@ class hist(Stage):
             #   units, which are attached to the non-`self` versions of these
             #   binnings).
             for input_name in self.input_names:
-                if input_name in flav_int_group:
-                    xform = BinnedTensorTransform(
-                        input_names=input_name,
-                        output_name=input_name,
-                        input_binning=self.input_binning,
-                        output_binning=self.output_binning,
-                        xform_array=reco_kernel,
-                    )
-                    nominal_transforms.append(xform)
+                if input_name not in flav_int_group:
+                    continue
+                xform = BinnedTensorTransform(
+                    input_names=input_name,
+                    output_name=input_name,
+                    input_binning=self.input_binning,
+                    output_binning=self.output_binning,
+                    xform_array=reco_kernel,
+                )
+                nominal_transforms.append(xform)
 
         return TransformSet(transforms=nominal_transforms)
 

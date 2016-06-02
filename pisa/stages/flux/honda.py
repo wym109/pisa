@@ -33,7 +33,7 @@ from pisa.utils.log import logging
 class honda(Stage):
     """
     Flux Service for performing interpolation on the Honda tables.
-    
+
     Both 2D and 3D tables can be loaded; the specifics of this are explained
     below the respective load_table function.
 
@@ -49,18 +49,20 @@ class honda(Stage):
     params : ParamSet or sequence with which to instantiate a ParamSet.
         Expected params are:
             flux_file : str
-                The name of the file containing the atmospheric neutrino files to be read in.
+                The name of the file containing the atmospheric neutrino files
+                to be read in.
             flux_mode : str
-                The name of the interpolation method to be used on these atmospheric neutrino flux tables.
-                The current choices are 'bisplrep' and 'integral-preserving'.
-                The former is fast, but the latter represents a more accurate choice.
+                The name of the interpolation method to be used on these
+                atmospheric neutrino flux tables. The current choices are
+                'bisplrep' and 'integral-preserving'. The former is fast, but
+                the latter represents a more accurate choice.
 
     output_binning : The binning desired for the output maps
 
     disk_cache : None, str, or DiskCache
         If None, no disk cache is available.
-        If str, represents a path with which to instantiate a utils.DiskCache object.
-        Must be concurrent-access-safe (across threads and processes).
+        If str, represents a path with which to instantiate a utils.DiskCache
+        object. Must be concurrent-access-safe (across threads and processes).
 
     memcaching_enabled
 
@@ -84,35 +86,53 @@ class honda(Stage):
 
     Notes
     -----
-    This service reads in a table of flux values and then performs some form of interpolation on them.
-    It is named honda.py since it expects that these input tables come from the Honda group and their simulations.
+    This service reads in a table of flux values and then performs some form of
+    interpolation on them.
+    It is named honda.py since it expects that these input tables come from the
+    Honda group and their simulations.
     All of these tables can be found on his website [1].
-    These are provided for various locations, the list of which now includes the South Pole as of the 2014/15 calculations.
-    The details of this latest calculation are published in Physics Reviews D [2]:
-    These tables are provided over 3 dimensions - neutrino energy, the cosine of the neutrino zenith angle and the azimuth of the neutrino.
-    This is what is meant by a 3D flux calculation in the context of this service.
-    One also deals with 2D flux calculations where the azimuth is averaged over.
-    This is the recommended set of tables to use for the energies one is interested in in IceCube.
-    The Honda group also provide 1D flux calculations, where all of the angles are averaged over i.e. they are provided solely as a function of energy.
+    These are provided for various locations, the list of which now includes
+    the South Pole as of the 2014/15 calculations.
+    The details of this latest calculation are published in Physics Reviews D
+    [2]:
+    These tables are provided over 3 dimensions - neutrino energy, the cosine
+    of the neutrino zenith angle and the azimuth of the neutrino.
+    This is what is meant by a 3D flux calculation in the context of this
+    service.
+    One also deals with 2D flux calculations where the azimuth is averaged
+    over.
+    This is the recommended set of tables to use for the energies one is
+    interested in in IceCube.
+    The Honda group also provide 1D flux calculations, where all of the angles
+    are averaged over i.e. they are provided solely as a function of energy.
 
     The tables should all follow a consistent naming convention:
 
-    1) The first part of the file name will be which group performed the simulation.
+    1) The first part of the file name will be which group performed the
+       simulation.
        So for us they should all say honda
     2) The second part will be the year the calculations were published.
     3) The third part will be the location.
        For example, spl means the South Pole and frj means Frejus.
-       There may also be the word 'mountain' here since tables have been produced for some detectors with and without the large matter above them (mostly a mountain) that purports to shield them from cosmic rays.
-    4) The fourth part will be the part of the solar cycle they were produced for.
-       Solar activity has an effect on the primaries impacting the Earth and therefore on the flux of atmospheric neutrinos.
-       This will either be solmax or solmin, which refers to solar maximum and solar minimum respectively.
+       There may also be the word 'mountain' here since tables have been
+       produced for some detectors with and without the large matter above them
+       (mostly a mountain) that purports to shield them from cosmic rays.
+    4) The fourth part will be the part of the solar cycle they were produced
+       for.
+       Solar activity has an effect on the primaries impacting the Earth and
+       therefore on the flux of atmospheric neutrinos.
+       This will either be solmax or solmin, which refers to solar maximum and
+       solar minimum respectively.
        Solar maximum means the flux is slightly reduced.
     5) The fifth part will be a label whether the tables are 2D or 3D.
-       In the former they will have aa in the name, which means azimuth-averaged.
+       In the former they will have aa in the name, which means
+       azimuth-averaged.
        In the latter there will be no fifth part.
-       This service has been designed to look for this string specifically to validate the input files together with the requested output binning.
+       This service has been designed to look for this string specifically to
+       validate the input files together with the requested output binning.
 
-    Each of these sections of the file name are separated by a hyphen, and they should all have the file extension '.d'.
+    Each of these sections of the file name are separated by a hyphen, and they
+    should all have the file extension '.d'.
     All of the tables in PISA can be found in pisa/resources/flux.
     PISA actively supports the following tables from Honda:
 
@@ -121,8 +141,10 @@ class honda(Stage):
     * honda-2015-spl-solmax.d
     * honda-2015-spl-solmin.d
 
-    As of the time of writing this service, these tables represented the latest and greatest output from the Honda group.
-    The use of azimuth-averaged tables is recommended for the energies IceCube works with, but the ability to read 3D tables has also been included here.
+    As of the time of writing this service, these tables represented the latest
+    and greatest output from the Honda group.
+    The use of azimuth-averaged tables is recommended for the energies IceCube
+    works with, but the ability to read 3D tables has also been included here.
 
     PISA also contains the following other tables:
 
@@ -133,48 +155,81 @@ class honda(Stage):
     * honda-2011-frj-mountain-solmin-aa.d
 
     These are included for legacy purposes and are NOT recommended to be used.
-    If you access the Honda website linked above you will notice that the 2012 South Pole files listed here are NOT on that website.
-    This is because they were given to the IceCube collaboration as an interim while Honda was between major releases of the simulation.
-    They are known to be buggy and have problems which have been fixed with the release of the 2014/15 simulation.
-    Please only use these tables when reproducing old results that also used them.
-    The Frejus file is also included as a legacy since it was used for some of the very first PINGU results.
-    It is not buggy per se, but since we have a better alternative please don't use it.
+    If you access the Honda website linked above you will notice that the 2012
+    South Pole files listed here are NOT on that website.
+    This is because they were given to the IceCube collaboration as an interim
+    while Honda was between major releases of the simulation.
+    They are known to be buggy and have problems which have been fixed with the
+    release of the 2014/15 simulation.
+    Please only use these tables when reproducing old results that also used
+    them.
+    The Frejus file is also included as a legacy since it was used for some of
+    the very first PINGU results.
+    It is not buggy per se, but since we have a better alternative please don't
+    use it.
 
-    To choose the tables file you wish for your PISA analysis, set 'flux_file' in your pipeline settings file to the desired file with the prefix 'flux/' so that the find_resource function knows where to find it.
+    To choose the tables file you wish for your PISA analysis, set 'flux_file'
+    in your pipeline settings file to the desired file with the prefix 'flux/'
+    so that the find_resource function knows where to find it.
 
-    Once the tables have been read in, an interpolation is then performed on them.
+    Once the tables have been read in, an interpolation is then performed on
+    them.
     Currently PISA supports two methods for this with the Honda files:
 
     1) 'bisplrep' - A simple b-spline representation.
 
-       Here, the data is splined in both energy and cosZenith dimensions simultaneously.
-       This is done in log10 of the flux to make it more stable since the flux is mostly linear in this space as a function of energy.
-       We use the SciPy module 'scipy.interpolate.bisplrep' to do this (hence the name of this interpolation method).
-       This stands for Bivariate Spline Representation (Bivariate since it is done in two dimensions simultaneously).
-       These splines are then just evaluated at the desired points using the function 'scipy.interpolate.bisplev'.
+       Here, the data is splined in both energy and cosZenith dimensions
+       simultaneously.
+       This is done in log10 of the flux to make it more stable since the flux
+       is mostly linear in this space as a function of energy.
+       We use the SciPy module 'scipy.interpolate.bisplrep' to do this (hence
+       the name of this interpolation method).
+       This stands for Bivariate Spline Representation (Bivariate since it is
+       done in two dimensions simultaneously).
+       These splines are then just evaluated at the desired points using the
+       function 'scipy.interpolate.bisplev'.
 
     2) 'integral-preserving' - A slower, but more accurate choice.
 
        Here, the data is manipulated in sets of 1D splines.
-       When initialising this method, a spline is produced as a function of energy for every table cosZenith value.
-       However, in order to be integral-preserving, these splines are of the integrated flux.
-       This is implemented by summing the bin contents along the chosen dimension.
-       Thus, the knots of this spline are the bin edges of the tables, so this method naturally gives the correct flux up to the boundaries which the bisplrep method does not.
-       Not only this, but this is in fact the correct method by which to interpolate the tables, since the values provided are the average across the bin and NOT the value at the bin center.
+       When initialising this method, a spline is produced as a function of
+       energy for every table cosZenith value.
+       However, in order to be integral-preserving, these splines are of the
+       integrated flux.
+       This is implemented by summing the bin contents along the chosen
+       dimension.
+       Thus, the knots of this spline are the bin edges of the tables, so this
+       method naturally gives the correct flux up to the boundaries which the
+       bisplrep method does not.
+       Not only this, but this is in fact the correct method by which to
+       interpolate the tables, since the values provided are the average across
+       the bin and NOT the value at the bin center.
        The splining is done using the scipy.interpolate.splrep function.
 
-       In any case, these splines as a function of energy are of the integral of the product of flux and energy, since this makes the splining more stable.
-       To evaluate the integral-preserved flux, the derivative of this spline is evaluated.
-       This is achieved with the 'scipy.interpolate.splev' function with the argument 'der=1' (it defaults to 'der=0' i.e. direct evaluation of the spline).
-       This is done for every spline in the set over all cosZenith and gives another set of points in that dimension at the required energy.
-       One then just repeats the method of integration in this dimension (this time of just flux since it is stable enough and also makes no sense to multiply by cosZenith since we will get sign switches) and evaluates the derivative at the required cosZenith value.
+       In any case, these splines as a function of energy are of the integral
+       of the product of flux and energy, since this makes the splining more
+       stable. To evaluate the integral-preserved flux, the derivative of this
+       spline is evaluated.
+       This is achieved with the 'scipy.interpolate.splev' function with the
+       argument 'der=1' (it defaults to 'der=0' i.e. direct evaluation of the
+       spline).
+       This is done for every spline in the set over all cosZenith and gives
+       another set of points in that dimension at the required energy.
+       One then just repeats the method of integration in this dimension (this
+       time of just flux since it is stable enough and also makes no sense to
+       multiply by cosZenith since we will get sign switches) and evaluates the
+       derivative at the required cosZenith value.
 
        This method only works when the binning is constant.
-       Thus, it must actually be done in the energy dimension as log10 of energy.
+       Thus, it must actually be done in the energy dimension as log10 of
+       energy.
        With this, the Honda tables have a constant binning.
-       Since this bin width was not accounted for in the integration, we instead account for it once the derivative is taken by multiplying by this bin width.
+       Since this bin width was not accounted for in the integration, we
+       instead account for it once the derivative is taken by multiplying by
+       this bin width.
        This is a constant (for each dimension) set by the original tables.
-       Since this is always consistent in the Honda tables they are hard-coded in this service.
+       Since this is always consistent in the Honda tables they are hard-coded
+       in this service.
        This is potentially something which may trip people up in the future.
 
     To choose between these, set 'flux_mode' in your pipeline settings file to
@@ -234,16 +289,19 @@ class honda(Stage):
         # Initialisation of this service should load the flux tables
         # Can work with either 2D (E,Z,AA) or 3D (E,Z,A) tables.
         # Also, the splining should only be done once, so do that too
-        if set(output_binning.names) == set(['true_energy', 'true_coszen', 'true_azimuth']):
+        if set(output_binning.names) == set(['true_energy', 'true_coszen',
+                                             'true_azimuth']):
             self.load_3D_table(smooth=0.05)
-        elif set(self.output_binning.names) == set(['true_energy', 'true_coszen']):
+        elif set(self.output_binning.names) == set(['true_energy',
+                                                    'true_coszen']):
             self.load_2D_table(smooth=0.05)
         else:
             raise ValueError(
                 'Incompatible `output_binning` for either 2D (requires'
-                ' "true_energy" and "true_coszen") or 3D (additionally requires'
-                ' "true_azimuth"). Faulty `output_binning`=%s'
-                %self.output_binning)
+                ' "true_energy" and "true_coszen") or 3D (additionally'
+                ' requires "true_azimuth"). Faulty `output_binning`=%s'
+                %self.output_binning
+            )
 
     def load_2D_table(self, smooth=0.05):
         """
@@ -331,12 +389,14 @@ class honda(Stage):
                     int_flux = []
                     tot_flux = 0.0
                     int_flux.append(tot_flux)
-                    for energyfluxval, energyval in zip(energyfluxlist, flux_dict['energy']):
+                    for energyfluxval, energyval in zip(energyfluxlist,
+                                                        flux_dict['energy']):
                         # Spline works best if you integrate flux * energy
                         tot_flux += energyfluxval*energyval
                         int_flux.append(tot_flux)
 
-                    spline = interpolate.splrep(int_flux_dict['logenergy'], int_flux, s=0)
+                    spline = interpolate.splrep(int_flux_dict['logenergy'],
+                                                int_flux, s=0)
                     CZvalue = '%.2f'%(1.05-CZiter*0.1)
                     splines[CZvalue] = spline
                     CZiter += 1
@@ -391,7 +451,8 @@ class honda(Stage):
 
             logging.debug('Doing quick bsplrep spline interpolation in 3D')
             # do this in log of energy and log of flux (more stable)
-            logE, C = np.meshgrid(np.log10(flux_dict['energy']), flux_dict['coszen'])
+            logE, C = np.meshgrid(np.log10(flux_dict['energy']),
+                                  flux_dict['coszen'])
 
             self.spline_dict = {}
 
@@ -439,7 +500,8 @@ class honda(Stage):
                             tot_flux += energyfluxval*energyval
                             int_flux.append(tot_flux)
 
-                        spline = splrep(int_flux_dict['logenergy'], int_flux, s=0)
+                        spline = splrep(int_flux_dict['logenergy'],
+                                        int_flux, s=0)
                         CZvalue = '%.2f'%(1.05-CZiter*0.1)
                         splines[CZvalue] = spline
                         CZiter += 1
@@ -449,19 +511,23 @@ class honda(Stage):
                 self.spline_dict[nutype] = az_splines
 
     def _compute_outputs(self, inputs=None):
-        """
-        Method for computing both 2D and 3D fluxes.
+        """Method for computing both 2D and 3D fluxes.
+
         The appropriate method is called based on the binning.
         This is done by checking the set of names matches what's expexted
-        If the binning isn't energy and coszen (and azimuth if 3D) then this doesn't know what to do with it and stops.
-        """
+        If the binning isn't energy and coszen (and azimuth if 3D) then this
+        doesn't know what to do with it and stops.
 
+        """
         output_maps = []
 
         for prim in self.primaries:
-            if set(self.output_binning.names) == set(['true_energy', 'true_coszen', 'true_azimuth']):
+            if set(self.output_binning.names) == set(['true_energy',
+                                                      'true_coszen',
+                                                      'true_azimuth']):
                 output_maps.append(self.compute_3D_outputs(prim))
-            elif set(self.output_binning.names) == set(['true_energy', 'true_coszen']):
+            elif set(self.output_binning.names) == set(['true_energy',
+                                                        'true_coszen']):
                 output_maps.append(self.compute_2D_outputs(prim))
             else:
                 raise ValueError(
@@ -487,16 +553,17 @@ class honda(Stage):
         ----------
         prim : string
             The string corresponding to the name of the primary.
-            This deals with atmospheric neutrinos so the following primaries are expected:
+            This deals with atmospheric neutrinos so the following primaries
+            are expected:
               * 'numu'
               * 'numubar'
               * 'nue'
               * 'nuebar'
 
         """
-
         # Adds/ensures the expected units for the binning
-        all_binning = self.output_binning.to(true_energy='GeV', true_coszen=None)
+        all_binning = self.output_binning.to(true_energy='GeV',
+                                             true_coszen=None)
 
         # Get bin centers to evaluate splines at
         evals = all_binning.true_energy.weighted_centers.magnitude
@@ -512,7 +579,8 @@ class honda(Stage):
 
             # Get the spline interpolation, which is in
             # log(flux) as function of log(E), cos(zenith)
-            return_table = interpolate.bisplev(np.log10(evals), czvals, self.spline_dict[prim])
+            return_table = interpolate.bisplev(np.log10(evals), czvals,
+                                               self.spline_dict[prim])
             return_table = np.power(10., return_table).T
 
         elif flux_mode == 'integral-preserving':
@@ -521,17 +589,21 @@ class honda(Stage):
             # i.e. One spline for every table cosZenith value
             #      0.95 is used for no particular reason
             #      These keys are strings, despite being numbers
-            assert not isinstance(self.spline_dict[self.primaries[0]]['0.95'], Mapping)
+            assert not isinstance(self.spline_dict[self.primaries[0]]['0.95'],
+                                  Mapping)
 
             return_table = []
-
             for energyval in evals:
                 logenergyval = np.log10(energyval)
                 spline_vals = []
                 for czkey in np.linspace(-0.95, 0.95, 20):
                     # Have to multiply by bin widths to get correct derivatives
                     # Here the bin width is in log energy, is 0.05
-                    spline_vals.append(interpolate.splev(logenergyval, self.spline_dict[prim]['%.2f'%czkey], der=1)*0.05)
+                    spline_vals.append(
+                        interpolate.splev(logenergyval,
+                                          self.spline_dict[prim]['%.2f'%czkey],
+                                          der=1)*0.05
+                    )
                 int_spline_vals = []
                 tot_val = 0.0
                 int_spline_vals.append(tot_val)
@@ -539,11 +611,13 @@ class honda(Stage):
                     tot_val += val
                     int_spline_vals.append(tot_val)
 
-                spline = interpolate.splrep(np.linspace(-1, 1, 21), int_spline_vals, s=0)
+                spline = interpolate.splrep(np.linspace(-1, 1, 21),
+                                            int_spline_vals, s=0)
 
                 # Have to multiply by bin widths to get correct derivatives
                 # Here the bin width is in cosZenith, is 0.1
-                czfluxes = interpolate.splev(czvals, spline, der=1)*0.1/energyval
+                czfluxes = (interpolate.splev(czvals, spline, der=1)
+                            * 0.1/energyval)
                 return_table.append(czfluxes)
 
             return_table = np.array(return_table).T
@@ -580,7 +654,8 @@ class honda(Stage):
         ----------
         prim : string
             The string corresponding to the name of the primary.
-            This deals with atmospheric neutrinos so the following primaries are expected:
+            This deals with atmospheric neutrinos so the following primaries
+            are expected:
               * 'numu'
               * 'numubar'
               * 'nue'
@@ -618,6 +693,4 @@ class honda(Stage):
         elif set(self.output_binning.names) == set(['true_energy',
                                                     'true_coszen',
                                                     'true_azimuth']):
-            assert ('aa' not in params['flux_file'].value )
-
-
+            assert ('aa' not in params['flux_file'].value)
