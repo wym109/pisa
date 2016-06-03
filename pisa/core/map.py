@@ -1306,6 +1306,9 @@ class MapSet(object):
     def __sub__(self, val):
         return self.apply_to_maps('__sub__', val)
 
+    def rebin(self, *args, **kwargs):
+        return MapSet([m.rebin(*args, **kwargs) for m in self.maps])
+    
     def downsample(self, *args, **kwargs):
         return MapSet([m.downsample(*args, **kwargs) for m in self.maps])
 
