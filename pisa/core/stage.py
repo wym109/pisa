@@ -1,6 +1,6 @@
 # Authors
 
-import collections
+from collections import Iterable, Sequence
 import inspect
 
 from pisa.core.map import MapSet
@@ -136,10 +136,16 @@ class Stage(object):
         # consistent interfacing to one or multiple of these things
         if isinstance(expected_params, basestring):
             expected_params = [expected_params]
+        elif isinstance(expected_params, (Sequence, Iterable)):
+            expected_params = [ep for ep in expected_params]
         if isinstance(input_names, basestring):
             input_names = [input_names]
+        elif isinstance(input_names, (Sequence, Iterable)):
+            input_names = [n for n in input_names]
         if isinstance(output_names, basestring):
             output_names = [output_names]
+        elif isinstance(input_names, (Sequence, Iterable)):
+            output_names = [n for n in output_names]
 
         self.use_transforms = use_transforms
         self.stage_name = stage_name
@@ -170,11 +176,17 @@ class Stage(object):
 
         self._attrs_to_hash = set([])
         for attr_name in ['input_names', 'output_names', 'input_binning', 'output_binning']:
+            if not hasattr(self, attr_name):
+                continue
+            val = getattr(self, attr_name)
+            if val is None:
+                continue
             try:
                 self.include_attrs_for_hashes(attr_name)
             except ValueError():
                 pass
 
+    @profile
     def get_nominal_transforms(self):
         """Load a cached transform from the nominal transform memory cache
         (which is backed by a disk cache, if one is specified) if the nominal
@@ -227,7 +239,8 @@ class Stage(object):
 
         return self.nominal_transforms
 
-    def get_transforms(self):
+    @profile
+    def get_transforms(self, transforms_hash=None):
         """Load a cached transform (keyed on hash of parameter values) if it
         is in the cache, or else compute a new transform from currently-set
         parameter values and store this new transform to the cache.
@@ -245,28 +258,37 @@ class Stage(object):
         non-volatile storage.
 
         """
+        # TODO: store nominal transforms to the transforms cache as well, but
+        # derive the hash value the same way as it is done for transforms,
+        # to avoid needing to apply no systematics to the nominal transforms
+        # to get the (identical) transforms?
+        # Problem: assumes the nominal transform is the same as the transforms
+        # that will result, which *might* not be true (though it seems it will
+        # usually be so)
+
         # Compute nominal transforms; if feature is not used, this doesn't
         # actually do much of anything. To do more than this, override the
         # `_compute_nominal_transforms` method.
         self.get_nominal_transforms()
 
         # Generate hash from param values
-        xforms_hash = self._derive_transforms_hash()
-        logging.trace('xforms_hash: %s' %xforms_hash)
+        if transforms_hash is None:
+            transforms_hash = self._derive_transforms_hash()
+        logging.trace('transforms_hash: %s' %transforms_hash)
 
         # Load and return existing transforms if in the cache
         if self.memcaching_enabled and self.transforms_cache is not None \
-                and xforms_hash in self.transforms_cache:
+                and transforms_hash in self.transforms_cache:
             logging.trace('loading xforms from cache.')
-            transforms = self.transforms_cache[xforms_hash]
+            transforms = self.transforms_cache[transforms_hash]
 
         # Otherwise: compute transforms, set hash, and store to cache
         else:
             logging.trace('computing transforms.')
             transforms = self._compute_transforms()
-            transforms.hash = xforms_hash
+            transforms.hash = transforms_hash
             if self.memcaching_enabled and self.transforms_cache is not None:
-                self.transforms_cache[xforms_hash] = transforms
+                self.transforms_cache[transforms_hash] = transforms
 
         self.check_transforms(transforms)
         self.transforms = transforms
@@ -298,7 +320,7 @@ class Stage(object):
         # Keep inputs for internal use and for inspection later
         self.inputs = {} if inputs is None else inputs
 
-        outputs_hash = self._derive_outputs_hash()
+        outputs_hash, transforms_hash = self._derive_outputs_hash()
 
         logging.trace('outputs_hash: %s' %outputs_hash)
 
@@ -310,7 +332,7 @@ class Stage(object):
             logging.trace('Need to compute outputs...')
 
             if self.use_transforms:
-                self.get_transforms()
+                self.get_transforms(transforms_hash=transforms_hash)
 
             logging.trace('... now computing outputs.')
             outputs = self._compute_outputs(inputs=self.inputs)
@@ -323,12 +345,6 @@ class Stage(object):
 
         # Keep outputs for inspection later
         self.outputs = outputs
-
-        # TODO: make an intermediate outputs / final outputs distinction, to
-        # keep e.g. maps before being summed up?
-
-        # TODO: make generic container object that can be operated on
-        # similar to MapSet (but that doesn't require Map as children)
 
         # Attach sideband objects (i.e., inputs not specified in
         # `self.input_names`) to the "augmented" output object
@@ -458,6 +474,7 @@ class Stage(object):
         # Include the attribute names
         [self._attrs_to_hash.add(a) for a in attr_names]
 
+    #@profile
     def _derive_nominal_transforms_hash(self):
         """Derive a hash to uniquely identify the nominal transform. This
         should be unique across processes and invocations bacuase the nominal
@@ -509,6 +526,7 @@ class Stage(object):
 
         return nominal_transforms_hash
 
+    #@profile
     def _derive_transforms_hash(self):
         """Compute a hash that uniquely identifies the transforms that will be
         produced from the current configuration. Note that this hash needs only
@@ -518,16 +536,11 @@ class Stage(object):
 
         """
         id_objects = []
-        # Hash on input and/or output binning, if it is specified
-        if self.input_binning is not None:
-            id_objects.append(self.input_binning.hash)
-        if self.output_binning is not None:
-            id_objects.append(self.output_binning.hash)
-
-        id_objects.append(self.params.values_hash)
-
+        h = self.params.values_hash
+        logging.trace('self.params.values_hash = %s' %h)
+        id_objects.append(h)
         for attr in sorted(self._attrs_to_hash):
-            id_objects.append(getattr(self, attr))
+            id_objects.append(hash_obj(getattr(self, attr)))
 
         # If any hashes are missing (i.e, None), invalidate the entire hash
         if any([(h == None) for h in id_objects]):
@@ -537,6 +550,7 @@ class Stage(object):
 
         return transforms_hash
 
+    #@profile
     def _derive_outputs_hash(self):
         """Derive a hash value that unique identifies the outputs that will be
         generated based upon the current state of the stage.
@@ -555,12 +569,15 @@ class Stage(object):
 
         # If stage uses inputs, grab hash from the inputs container object
         if len(self.input_names) > 0:
-            logging.trace('inputs.hash = %s' %self.inputs.hash)
-            id_objects.append(self.inputs.hash)
+            inhash = self.inputs.hash
+            logging.trace('inputs.hash = %s' %inhash)
+            id_objects.append(inhash)
 
         # If stage uses transforms, get hash from the transforms
+        transforms_hash = None
         if self.use_transforms:
-            id_objects.append(self._derive_transforms_hash())
+            transforms_hash = self._derive_transforms_hash()
+            id_objects.append(transforms_hash)
             logging.trace('derived transforms hash = %s' %id_objects[-1])
 
         # Otherwise, generate sub-hash on binning and param values here
@@ -571,7 +588,7 @@ class Stage(object):
 
             # Include additional attributes of this object
             for attr in sorted(self._attrs_to_hash):
-                id_objects.append(getattr(self, attr))
+                id_subobjects.append(hash_obj(getattr(self, attr)))
 
             # Generate the "sub-hash"
             if any([(h == None) for h in id_subobjects]):
@@ -586,8 +603,9 @@ class Stage(object):
         else:
             outputs_hash = hash_obj(id_objects)
 
-        return outputs_hash
+        return outputs_hash, transforms_hash
 
+    #@profile
     def _compute_nominal_transforms(self):
         """Stages that start with a nominal transform and use systematic
         parameters to modify the nominal transform in order to obtain the final
@@ -595,12 +613,14 @@ class Stage(object):
         transform."""
         return None
 
+    #@profile
     def _compute_transforms(self):
         """Stages that apply transforms to inputs should override this method
         for deriving the transform. No-input stages should leave this as-is,
         simply returning None."""
         return TransformSet([])
 
+    #@profile
     def _compute_outputs(self, inputs):
         """Override this method for no-input stages which do not use transforms.
         Input stages that compute a TransformSet needn't override this, as the

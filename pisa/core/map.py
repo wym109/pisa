@@ -32,6 +32,7 @@ from pisa.utils.hash import hash_obj
 from pisa.utils import jsons
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.stats import chi2, llh
+from pisa.utils.profiler import profile
 
 
 HASH_SIGFIGS = 12
@@ -237,19 +238,23 @@ class Map(object):
             return Map(**new_state)
         return new_function
 
+    @profile
     @new_obj
     def rebin(self, new_binning):
         # The new binning's dimensions must be a subset of this map's
         # dimensions
         assert len(set(new_binning.names).difference(self.binning.names)) == 0
-        # All current units
-        units = {d.name: d.units for d in self.binning.dimensions}
+
         # Update the units that are specified in new_binning (but don't augment
         # dimensionality; shouldn't need this `if` statement if we get past
         # `assert` above, but just in case...)
-        units = {d.name: d.units for d in new_binning.dimensions
-                 if d.name in units}
-        rescaled_binning = self.binning.to(**units)
+        current_units = {d.name: d.units for d in self.binning.dimensions
+                         if d.name in new_binning}
+        new_units = {d.name: d.units for d in new_binning.dimensions}
+        if new_units != current_units:
+            rescaled_binning = self.binning.to(**units)
+        else:
+            rescaled_binning = self.binning
         coords = rescaled_binning.meshgrid('midpoints', attach_units=False)
         # Flatten each dim for histogramming; only take dims that exist in
         # `new_binning`
@@ -1311,6 +1316,9 @@ class MapSet(object):
     
     def downsample(self, *args, **kwargs):
         return MapSet([m.downsample(*args, **kwargs) for m in self.maps])
+
+    def rebin(self, *args, **kwargs):
+        return MapSet([m.rebin(*args, **kwargs) for m in self.maps])
 
     def metric_per_map(self, expected_values, metric):
         assert isinstance(metric, basestring)

@@ -24,6 +24,7 @@ import pint; ureg = pint.UnitRegistry()
 from pisa.utils.comparisons import normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils import jsons
+from pisa.utils.profiler import profile
 
 
 HASH_SIGFIGS = 12
@@ -229,6 +230,11 @@ class OneDimBinning(object):
         # double-precision limits after conversion so that hashes will work out
         # to be the same after conversion to the base units.
 
+        self._hash = None
+        _ = self.hash
+        self._edges_hash = None
+        _ = self.edges_hash
+
     #def __repr__(self):
     #    argstrs = [('%s=%s' %item) for item in self._serializable_state.items()]
     #    return '%s(%s)' %(self.__class__.__name__, ', '.join(argstrs))
@@ -297,15 +303,34 @@ class OneDimBinning(object):
     @property
     def hash(self):
         """Hash value based upon less-than-double-precision-rounded
-        numerical values and any other state. Rounding is done to
-        `HASH_SIGFIGS` significant figures.
+        numerical values and any other state (includes name, tex, is_log, and
+        is_lin attributes). Rounding is done to `HASH_SIGFIGS` significant
+        figures.
 
         Set this class attribute to None to keep full numerical precision in
         the values hashed (but be aware that this can cause equal things
         defined using different unit orders-of-magnitude to hash differently).
 
         """
-        return hash_obj(self._hashable_state)
+        if self._hash is None:
+            self._hash = hash_obj(self._hashable_state)
+        return self._hash
+
+    @property
+    def edges_hash(self):
+        """Hash value based *solely* upon bin edges' values.
+
+        The hash value is obtained on the edges after "normalizing" their
+        values: values are converted to base units and then rounded to
+        `HASH_SIGFIGS` significant figures. See
+        `pisa.utils.comparsions.normQuant` for details of the normalization
+        process.
+
+        """
+        if self._edges_hash is None:
+            bin_edges = normQuant(self.bin_edges, sigfigs=HASH_SIGFIGS)
+            self._edges_hash = hash_obj(bin_edges)
+        return self._edges_hash
 
     def __hash__(self):
         return self.hash
@@ -776,6 +801,10 @@ class MultiDimBinning(object):
 
     def __hash__(self):
         return self.hash
+
+    @property
+    def edges_hash(self):
+        return hash_obj([d.edges_hash for d in self.dimensions])
 
     @property
     def bin_edges(self):
