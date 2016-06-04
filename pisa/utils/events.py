@@ -11,16 +11,22 @@
 Events class for working with PISA events files
 """
 
-import h5py
 
-import pisa.resources.resources as resources
+from collections import Iterable, Sequence
+
+import h5py
+import numpy as np
+
+from pisa.core.binning import MultiDimBinning, OneDimBinning
+from pisa.resources import resources
 from pisa.utils.comparisons import normQuant, recursiveEquality
-from pisa.utils import flavInt
+from pisa.utils.flavInt import FlavIntData, NuFlavIntGroup
 from pisa.utils.hash import hash_obj
 from pisa.utils import hdf
 
+
 # TODO: test hash function (attr)
-class Events(flavInt.FlavIntData):
+class Events(FlavIntData):
     """Container for storing events, including metadata about the events"""
     def __init__(self, val=None):
         self.metadata = {
@@ -32,7 +38,7 @@ class Events(flavInt.FlavIntData):
             'flavints_joined': [],
         }
         meta = {}
-        data = flavInt.FlavIntData()
+        data = FlavIntData()
         if isinstance(val, basestring) or isinstance(val, h5py.Group):
             data, meta = self.__load(val)
         elif isinstance(val, Events):
@@ -70,6 +76,58 @@ class Events(flavInt.FlavIntData):
 
     def save(self, fname, **kwargs):
         hdf.to_hdf(self, fname, attrs=self.metadata, **kwargs)
+
+    def histogram(self, kinds, binning, binning_cols=None, weights_col=None):
+        """Histogram the events of all `kinds` specified, with `binning` and
+        optionally applying `weights`.
+
+        Parameters
+        ----------
+        kinds : string, sequence of NuFlavInt, or NuFlavIntGroup
+        binning : OneDimBinning, MultiDimBinning or sequence of arrays (one array per binning dimension)
+        weights_col : string
+
+        Returns
+        -------
+        hist : numpy ndarray with as many dimensions as specified by `binning` argument
+
+        """
+        if not isinstance(kinds, NuFlavIntGroup):
+            kinds = NuFlavIntGroup(kinds)
+        #if not isinstance(binning, (OneDimBinning, MultiDimBinning, Sequence)):
+        #    binning = MultiDimBinning(binning)
+        if isinstance(binning_cols, basestring):
+            binning_cols = [binning_cols]
+        assert weights_col is None or isinstance(weights_col, basestring)
+
+        # TODO: units of columns, and convert bin edges if necessary
+        if isinstance(binning, OneDimBinning):
+            bin_edges = [binning.magnitude]
+            if binning_cols is None:
+                binning_cols = [binning.name]
+            else:
+                assert len(binning_cols) == 1 and binning_cols[0] == binning.name
+        elif isinstance(binning, MultiDimBinning):
+            bin_edges = [edges.magnitude for edges in binning.bin_edges]
+            if binning_cols is None:
+                binning_cols = binning.names
+            else:
+                assert set(binning_cols).issubset(set(binning.names))
+        elif isinstance(binning, (Sequence, Iterable)):
+            assert len(binning_cols) == len(binning)
+            bin_edges = binning
+
+        # Extract the columns' data into a list of array(s) for histogramming
+        repr_flav_int = kinds[0]
+        sample = [self[repr_flav_int][colname] for colname in binning_cols]
+        if weights_col is not None:
+            weights = self[repr_flav_int][weights_col]
+        else:
+            weights = None
+
+        hist, _ = np.histogramdd(sample=sample, weights=weights, bins=bin_edges)
+
+        return hist
 
 
 def test_Events():
