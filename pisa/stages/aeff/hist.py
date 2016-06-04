@@ -10,7 +10,7 @@ import numpy as np
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.utils.events import Events
-from pisa.utils.flavInt import flavintGroupsFromString, NuFlavInt
+from pisa.utils.flavInt import flavintGroupsFromString
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile
@@ -153,10 +153,6 @@ class hist(Stage):
             raise ValueError('Input binning has extra dimension(s): %s'
                              %sorted(excess_dims))
 
-        # TODO: not handling rebinning in this stage or within Transform
-        # objects; implement this! (and then this assert statement can go away)
-        assert self.input_binning == self.output_binning
-
         # Select only the units in the input/output binning for conversion
         # (can't pass more than what's actually there)
         in_units = {dim: unit for dim, unit in comp_units.items()
@@ -178,41 +174,18 @@ class hist(Stage):
         if 'true_coszen' not in input_binning:
             missing_dims_vol *= 2
 
-        # TODO: take events object as an input instead of as a param that
-        # specifies a file? Or handle both cases?
-
-        # TODO: include here the logic from the make_events_file.py script so
-        # we can go directly from a (reasonably populated) icetray-converted
-        # HDF5 file (or files) to a nominal transform, rather than having to
-        # rely on the intermediate step of converting that HDF5 file (or files)
-        # to a PISA HDF5 file that has additional column(s) in it to account
-        # for the combinations of flavors, interaction types, and/or simulation
-        # runs. Parameters can include which groupings to use to formulate an
-        # output.
-
         # This gets used in innermost loop, so produce it just once here
-        all_bin_edges = [dim.bin_edges.magnitude
-                         for dim in output_binning.dimensions]
+        all_bin_edges = [edges.magnitude for edges in output_binning.bin_edges]
 
         nominal_transforms = []
         for flav_int_group in self.transform_groups:
             logging.debug("Working on %s effective areas" %flav_int_group)
 
-            # Since events (as of now) are combined before placing in the file,
-            # just need to extract the data for one "representative" flav/int.
-            repr_flav_int = flav_int_group[0]
-
-            # Extract the columns' data into a list for histogramming
-            sample = [self.events[repr_flav_int][name]
-                      for name in self.input_binning.names]
-
-            # Extract the weights
-            weights = self.events[repr_flav_int]['weighted_aeff']
-
-            aeff_transform, _ = np.histogramdd(
-                sample=sample,
-                weights=weights,
-                bins=all_bin_edges
+            aeff_transform = self.events.histogram(
+                kinds=flav_int_group,
+                binning=all_bin_edges,
+                binning_cols=self.input_binning.names,
+                weights_col='weighted_aeff'
             )
 
             # Divide histogram by
@@ -220,7 +193,7 @@ class hist(Stage):
             # volumes to convert from sums-of-OneWeights-in-bins to
             # effective areas. Note that volume correction factor for
             # missing dimensions is applied here.
-            bin_volumes = output_binning.bin_volumes(attach_units=False)
+            bin_volumes = input_binning.bin_volumes(attach_units=False)
             aeff_transform /= (bin_volumes * missing_dims_vol)
 
             flav_names = [str(flav) for flav in flav_int_group.flavs()]

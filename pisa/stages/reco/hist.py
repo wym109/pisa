@@ -202,36 +202,22 @@ class hist(Stage):
                                             + output_binning.dimensions)
         true_and_reco_bin_edges = [dim.bin_edges.magnitude
                                    for dim in transform_binning.dimensions]
+        true_and_reco_binning_cols = transform_binning.names
         true_only_bin_edges = [dim.bin_edges.magnitude
                                for dim in input_binning.dimensions]
+        true_only_binning_cols = input_binning.names
 
         nominal_transforms = []
         for flav_int_group in self.transform_groups:
             logging.debug("Working on %s reco kernels" %flav_int_group)
 
-            # Extract the columns' data into lists for histogramming
-
-            # Since events (as of now) are combined before placing in the file,
-            # just need to extract the data for one "representative" flav/int.
-            repr_flav_int = flav_int_group[0]
-
-            # Extract the weights column from the events file
-            weights_column = self.events[repr_flav_int]['weighted_aeff']
-
-            # Extract both true *and* reco columns from the events file
-            true_and_reco_columns = [self.events[repr_flav_int][name]
-                                     for name in transform_binning.names]
-
-            # Extract *just* true column(s) from the events file
-            true_only_columns = [self.events[repr_flav_int][name]
-                                 for name in input_binning.names]
-
             # True+reco (2N-dimensional) histogram is the basis for the
             # transformation
-            reco_kernel, _ = np.histogramdd(
-                sample=true_and_reco_columns,
-                bins=true_and_reco_bin_edges,
-                weights=None
+            reco_kernel = self.events.histogram(
+                kinds=flav_int_group,
+                binning=true_and_reco_bin_edges,
+                binning_cols=true_and_reco_binning_cols,
+                weights_col=None # 'weighted_aeff'
             )
 
             # This takes into account the correct kernel normalization:
@@ -248,15 +234,16 @@ class hist(Stage):
             # Truth-only (N-dimensional) histogram will be used for
             # normalization (so transform is in terms of fraction-of-events in
             # input--i.e. truth--bin).
-            true_event_counts, _ = np.histogramdd(
-                sample=true_only_columns,
-                bins=true_only_bin_edges,
-                weights=None
+            true_event_counts = self.events.histogram(
+                kinds=flav_int_group,
+                binning=true_only_bin_edges,
+                binning_cols=true_only_binning_cols,
+                weights_col=None # 'weighted_aeff'
             )
 
             # If there weren't any events in the input (true_*) bin, make this
             # bin have no effect -- i.e., populate all output bins
-            # corresponding to the input bin with zeros `via nan_to_num`.
+            # corresponding to the input bin with zeros via `nan_to_num`.
             with np.errstate(divide='ignore', invalid='ignore'):
                 norm_factors = np.nan_to_num(1.0 / true_event_counts)
 
