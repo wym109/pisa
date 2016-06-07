@@ -83,14 +83,19 @@ class PIDSpec(object):
         self.pid_spec_ver = str(pid_spec_ver)
         d = pid_specs
         all_k = []
-        for orig_k in [detector, geom, proc_ver, pid_spec_ver]:
-            lok = orig_k.replace("'","").lower()
-            ks = d.keys()
-            for k in ks:
-                lk = k.replace("'","").lower()
-                if (lk == lok) or ('v'+lk == lok) or (lk == 'v'+lok):
-                    d = d[k]
-                    all_k.append(k)
+        for wanted_key in [detector, geom, proc_ver, pid_spec_ver]:
+            wanted_key = wanted_key.replace("'","").lower()
+            for orig_dict_key, subdict in d.iteritems():
+                dict_key = orig_dict_key.replace("'","").lower()
+                if (dict_key == wanted_key) or ('v'+dict_key == wanted_key) \
+                   or (dict_key == 'v'+wanted_key):
+                    d = subdict
+                    all_k.append(orig_dict_key)
+        if len(all_k) != 4:
+            raise ValueError(
+                'Could not find %s'
+                %str([detector, geom, proc_ver, pid_spec_ver])
+            )
         self.pid_spec = pid_specs[all_k[0]][all_k[1]][all_k[2]][all_k[3]]
 
         # Enforce rules on PID spec:
@@ -142,7 +147,7 @@ class PIDSpec(object):
         events : Events object or convertible thereto
         signatures : string, sequence of strings, or None
             Signatures to return events for.
-            If string or sequence of strings, return events for the specified
+            If sring or sequence of strings, return events for the specified
             signature(s); if None, use all signatures in the PID specification.
         return_fields : sequence of strings or None
 
