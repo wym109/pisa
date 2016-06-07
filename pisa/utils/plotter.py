@@ -59,72 +59,74 @@ class plotter(object):
 
     # --- 2d plots ---
 
-    def plot_2d_single(self, mapset):
+    def plot_2d_single(self, mapset, **kwargs):
         ''' plot all maps in individual plots '''
         for map in mapset:
             self.init_fig()
-            self.plot_2d_map(map)
+            self.plot_2d_map(map, **kwargs)
             self.add_stamp(map.tex)
             self.dump(map.name)
 
-    def plot_2d_array(self, mapset, n_rows=None, n_cols=None, fname=None):
+    def plot_2d_array(self, mapset, n_rows=None, n_cols=None, fname=None,
+            **kwargs):
         ''' plot all maps in a single plot '''
         if fname is None:
             fname = 'test2d'
-        self.plot_array(mapset, 'plot_2d_map', n_rows=n_rows, n_cols=n_cols)
+        self.plot_array(mapset, 'plot_2d_map', n_rows=n_rows, n_cols=n_cols,
+                **kwargs)
         self.dump(fname)
 
     # --- 1d plots ---
 
-    def plot_1d_single(self, mapset, plot_axis):
+    def plot_1d_single(self, mapset, plot_axis, **kwargs):
         ''' plot all maps in individual plots '''
         for map in mapset:
             self.init_fig()
-            self.plot_1d_projection(map, plot_axis)
+            self.plot_1d_projection(map, plot_axis, **kwargs)
             self.add_stamp(map.tex)
             self.dump(map.name)
 
     def plot_1d_array(self, mapset, plot_axis, n_rows=None,
-            n_cols=None):
+            n_cols=None, **kwargs):
         ''' plot 1d projections as an array '''
         self.plot_array(mapset, 'plot_1d_projection', plot_axis, n_rows=n_rows,
-                n_cols=n_cols)
+                n_cols=n_cols, **kwargs)
         self.dump('test1d')
 
-    def plot_1d_all(self, mapset, plot_axis):
+    def plot_1d_all(self, mapset, plot_axis, **kwargs):
         ''' all one one canvas '''
         self.init_fig()
         for map in mapset:
-            self.plot_1d_projection(map, plot_axis)
+            self.plot_1d_projection(map, plot_axis, **kwargs)
         self.add_stamp()
         self.add_leg()
         self.dump('all')
 
-    def plot_1d_stack(self, mapset, plot_axis):
+    def plot_1d_stack(self, mapset, plot_axis, **kwargs):
         ''' all maps stacked on top of each other '''
         self.init_fig()
         for i, map in enumerate(mapset):
             for j in range(i):
                 map += mapset[j]
-            self.plot_1d_projection(map, plot_axis)
+            self.plot_1d_projection(map, plot_axis, **kwargs)
         self.add_stamp()
         self.add_leg()
         self.dump('stack')
 
-    def plot_1d_cmp(self, mapset0, mapset1, plot_axis):
+    def plot_1d_cmp(self, mapset0, mapset1, plot_axis, **kwargs):
         ''' 1d comparisons for two mapsets '''
         for map0, map1 in zip(mapset0, mapset1):
             self.init_fig()
             if self.ratio:
                 ax1 = plt.subplot2grid((4,1), (0,0), rowspan=3)
                 plt.setp(ax1.get_xticklabels(), visible=False)
-            self.plot_1d_projection(map0, plot_axis, ptype='data')
-            self.plot_1d_projection(map1, plot_axis)
+            self.plot_1d_projection(map0, plot_axis, ptype='data', **kwargs)
+            self.plot_1d_projection(map1, plot_axis, **kwargs)
             self.add_stamp()
             self.add_leg()
             if self.ratio:
                 plt.subplot2grid((4,1), (3,0),sharex=ax1)
-                self.plot_1d_ratio([map0, map1], plot_axis)
+                self.plot_1d_ratio([map0, map1], plot_axis, **kwargs)
             self.dump('cmp_%s'%map0.name)
 
     # --- plotting core functions ---
@@ -151,18 +153,19 @@ class plotter(object):
         self.fig.subplots_adjust(hspace=0.3, wspace=0.3, top=1-v_margin, bottom=v_margin, left=h_margin, right=1-h_margin)
         for i, map in enumerate(mapset):
             plt.subplot(n_rows,n_cols,i+1)
-            getattr(self, fun)(map, *args)
+            getattr(self, fun)(map, *args, **kwargs)
             self.add_stamp(map.tex)
 
-    def plot_2d_map(self, map):
+    def plot_2d_map(self, map, cmap='rainbow', **kwargs):
         ''' plot map on current axis in 2d'''
         axis = plt.gca()
         bins = [map.binning[name] for name in map.binning.names]
         bin_edges = map.binning.bin_edges
-        cmap = np.log10(map.hist) if self.log else map.hist
+        zmap = np.log10(map.hist) if self.log else map.hist
         extent = [np.min(bin_edges[0].m), np.max(bin_edges[0].m), np.min(bin_edges[1].m), np.max(bin_edges[1].m)]
         # needs to be flipped for imshow
-        img = plt.imshow(cmap.T,origin='lower',interpolation='nearest',extent=extent,aspect='auto', cmap='rainbow')
+        img = plt.imshow(zmap.T,origin='lower',interpolation='nearest',extent=extent,aspect='auto',
+            cmap=cmap, **kwargs)
         axis.set_xlabel(bins[0].label)
         axis.set_ylabel(bins[1].label)
         if bins[0].is_log:
@@ -182,7 +185,8 @@ class plotter(object):
             axis.hist(plt_binning.bin_centers, weights=unp.nominal_values(hist), bins=plt_binning.bin_edges, histtype='step', lw=1.5, label=r'$%s$'%map.tex, **kwargs)
             axis.bar(plt_binning.bin_edges.m[:-1],2*unp.std_devs(hist),
                     bottom=unp.nominal_values(hist)-unp.std_devs(hist),
-                    width=plt_binning.bin_widths, alpha=0.25, linewidth=0)
+                    width=plt_binning.bin_widths, alpha=0.25, linewidth=0,
+                    **kwargs)
         elif ptype == 'data':
             axis.errorbar(plt_binning.bin_centers.m,
                     unp.nominal_values(hist),yerr=unp.std_devs(hist), fmt='o', markersize='4', label=r'$%s$'%map.tex, **kwargs)
