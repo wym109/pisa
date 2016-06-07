@@ -68,6 +68,7 @@ class Pipeline(object):
         All stages in the pipeline
 
     """
+    @profile
     def __init__(self, config):
         self._stages = []
         if isinstance(config, basestring):
@@ -131,11 +132,14 @@ class Pipeline(object):
 
         """
         intermediate = []
+        i = 0
         for stage in self.stages[:idx]:
             logging.debug('Working on stage %s (%s)' %(stage.stage_name,
                                                        stage.service_name))
             try:
+                logging.trace('>>> BEGIN: get_outputs')
                 outputs = stage.get_outputs(inputs=inputs)
+                logging.trace('>>> END  : get_outputs')
             except:
                 logging.error('Error occurred computing outputs in stage %s /'
                               ' service %s ...' %(stage.stage_name,
@@ -246,34 +250,38 @@ if __name__ == '__main__':
 
     mkdir(args.outdir)
 
+    # Instantiate the pipeline
     pipeline = Pipeline(args.pipeline_settings)
 
-    if args.only_stage is not None:
-        assert args.stop_after_stage is None
-        stage = pipeline.stages[args.only_stage]
-        # create dummy inputs
-        if hasattr(stage, 'input_binning'):
-            logging.info('building dummy input')
-            input_maps = []
-            for name in stage.input_names:
-                if 'mu' in name:
-                    hist = np.ones(stage.input_binning.shape)
-                else:
-                    hist = np.zeros(stage.input_binning.shape)
-                input_maps.append(Map(name=name, hist=hist,
-                            binning=stage.input_binning))
-            inputs = MapSet(maps=input_maps, name='ones', hash=1)
-        else:
-            inputs = None
-        outputs = stage.get_outputs(inputs=inputs)
-    else:
-        if args.stop_after_stage is not None:
+    for run in xrange(2):
+        print ''
+        print 'STARTING RUN %d ............' % run
+        print ''
+        if args.only_stage is None:
+            idx = slice(0, args.stop_after_stage)
             outputs = pipeline.get_outputs(idx=args.stop_after_stage)
         else:
-            outputs = pipeline.get_outputs()
+            assert args.stop_after_stage is None
+            idx = slice(args.only_stage, args.only_stage+1)
+            stage = pipeline.stages[args.only_stage]
+            # create dummy inputs
+            if hasattr(stage, 'input_binning'):
+                logging.info('building dummy input')
+                input_maps = []
+                for name in stage.input_names:
+                    hist = np.ones(stage.input_binning.shape)
+                    input_maps.append(
+                        Map(name=name, hist=hist, binning=stage.input_binning)
+                    )
+                inputs = MapSet(maps=input_maps, name='ones', hash=1)
+            else:
+                inputs = None
+            outputs = stage.get_outputs(inputs=inputs)
+        print ''
+        print ' ............ finished RUN %d' % run
+        print ''
 
-    for stage in pipeline.stages:
-        if stage.outputs is None: continue
+    for stage in pipeline.stages[idx]:
         stg_svc = stage.stage_name + '__' + stage.service_name
         fbase = os.path.join(args.outdir, stg_svc)
         if args.intermediate or stage == pipeline.stages[-1]:
@@ -285,13 +293,8 @@ if __name__ == '__main__':
         for fmt, enabled in formats.items():
             if not enabled:
                 continue
-            my_plotter = plotter(stamp='Oscillation Probability',
+            my_plotter = plotter(stamp='PISA cake test',
                                  outdir=args.outdir,
-                                 fmt=fmt, log=False, label='probability'
-                                )
+                                 fmt=fmt, log=True)
             my_plotter.ratio = True
-            stage.outputs['nue'].tex = r'P(\nu_\mu\rightarrow\nu_e)'
-            stage.outputs['numu'].tex = r'P(\nu_\mu\rightarrow\nu_\mu)'
-            stage.outputs['nutau'].tex = r'P(\nu_\mu\rightarrow\nu_\tau)'
-            my_plotter.plot_2d_array(stage.outputs, fname=stg_svc + '__output',
-                    clim=(0.0, 1.0), cmap='Spectral_r')
+            my_plotter.plot_2d_array(stage.outputs, fname=stg_svc + '__output')
