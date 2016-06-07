@@ -84,21 +84,13 @@ class PIDSpec(object):
         d = pid_specs
         all_k = []
         for orig_k in [detector, geom, proc_ver, pid_spec_ver]:
-            lok = orig_k.lower()
+            lok = orig_k.replace("'","").lower()
             ks = d.keys()
             for k in ks:
-                lk = k.lower()
+                lk = k.replace("'","").lower()
                 if (lk == lok) or ('v'+lk == lok) or (lk == 'v'+lok):
                     d = d[k]
                     all_k.append(k)
-                    # This works for PINGU
-                if ('msu_'+lk == lok) or (lk == 'msu_'+lok):
-                    d = d[k]
-                    all_k.append(k)
-                if ('nbi_'+lk == lok) or (lk == 'nbi_'+lok):
-                    d = d[k]
-                    all_k.append(k)
-                    # Generalising for DeepCore and different selections
         self.pid_spec = pid_specs[all_k[0]][all_k[1]][all_k[2]][all_k[3]]
 
         # Enforce rules on PID spec:
