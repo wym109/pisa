@@ -25,7 +25,6 @@ from pisa.utils.events import Events
 from pisa.utils.flavInt import flavintGroupsFromString
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils.profiler import profile
 
 
 # TODO: the below logic does not generalize to muons, but probably should
@@ -46,7 +45,7 @@ class hist(Stage):
     Parameters
     ----------
     params : ParamSet
-        Must include:
+        Must exclusively have parameter:
 
         reco_weight_file : string or Events
             PISA events file to use to derive transforms, or a string
@@ -153,11 +152,10 @@ class hist(Stage):
         this_hash = hash_obj(evts)
         if this_hash == self.events_hash:
             return
-        logging.debug('Extracting events from events/file: %s' %evts)
+        logging.debug('Extracting events from Events obj or file: %s' %evts)
         self.events = Events(evts)
         self.events_hash = this_hash
 
-    @profile
     def _compute_nominal_transforms(self):
         """Generate reconstruction "smearing kernels" by histogramming true and
         reconstructed variables from a Monte Carlo events file.
@@ -204,34 +202,22 @@ class hist(Stage):
                                             + output_binning.dimensions)
         true_and_reco_bin_edges = [dim.bin_edges.magnitude
                                    for dim in transform_binning.dimensions]
+        true_and_reco_binning_cols = transform_binning.names
         true_only_bin_edges = [dim.bin_edges.magnitude
                                for dim in input_binning.dimensions]
+        true_only_binning_cols = input_binning.names
 
         nominal_transforms = []
         for flav_int_group in self.transform_groups:
-            # Extract the columns' data into lists for histogramming
-
-            # Since events (as of now) are combined before placing in the file,
-            # just need to extract the data for one "representative" flav/int.
-            repr_flav_int = flav_int_group[0]
-
-            # Extract the weights column from the events file
-            weights_column = self.events[repr_flav_int]['weighted_aeff']
-
-            # Extract both true *and* reco columns from the events file
-            true_and_reco_columns = [self.events[repr_flav_int][name]
-                                     for name in transform_binning.names]
-
-            # Extract *just* true column(s) from the events file
-            true_only_columns = [self.events[repr_flav_int][name]
-                                 for name in input_binning.names]
+            logging.debug("Working on %s reco kernels" %flav_int_group)
 
             # True+reco (2N-dimensional) histogram is the basis for the
             # transformation
-            reco_kernel, _ = np.histogramdd(
-                sample=true_and_reco_columns,
-                bins=true_and_reco_bin_edges,
-                weights=None
+            reco_kernel = self.events.histogram(
+                kinds=flav_int_group,
+                binning=true_and_reco_bin_edges,
+                binning_cols=true_and_reco_binning_cols,
+                weights_col=None # 'weighted_aeff'
             )
 
             # This takes into account the correct kernel normalization:
@@ -248,15 +234,16 @@ class hist(Stage):
             # Truth-only (N-dimensional) histogram will be used for
             # normalization (so transform is in terms of fraction-of-events in
             # input--i.e. truth--bin).
-            true_event_counts, _ = np.histogramdd(
-                sample=true_only_columns,
-                bins=true_only_bin_edges,
-                weights=None
+            true_event_counts = self.events.histogram(
+                kinds=flav_int_group,
+                binning=true_only_bin_edges,
+                binning_cols=true_only_binning_cols,
+                weights_col=None # 'weighted_aeff'
             )
 
             # If there weren't any events in the input (true_*) bin, make this
             # bin have no effect -- i.e., populate all output bins
-            # corresponding to the input bin with zeros `via nan_to_num`.
+            # corresponding to the input bin with zeros via `nan_to_num`.
             with np.errstate(divide='ignore', invalid='ignore'):
                 norm_factors = np.nan_to_num(1.0 / true_event_counts)
 
@@ -281,15 +268,16 @@ class hist(Stage):
             #   units, which are attached to the non-`self` versions of these
             #   binnings).
             for input_name in self.input_names:
-                if input_name in flav_int_group:
-                    xform = BinnedTensorTransform(
-                        input_names=input_name,
-                        output_name=input_name,
-                        input_binning=self.input_binning,
-                        output_binning=self.output_binning,
-                        xform_array=reco_kernel,
-                    )
-                    nominal_transforms.append(xform)
+                if input_name not in flav_int_group:
+                    continue
+                xform = BinnedTensorTransform(
+                    input_names=input_name,
+                    output_name=input_name,
+                    input_binning=self.input_binning,
+                    output_binning=self.output_binning,
+                    xform_array=reco_kernel,
+                )
+                nominal_transforms.append(xform)
 
         return TransformSet(transforms=nominal_transforms)
 
