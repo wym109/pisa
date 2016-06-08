@@ -110,7 +110,7 @@ class hist(Stage):
         # All of the following params (and no more) must be passed via the
         # `params` argument.
         expected_params = (
-            'reco_weight_file',
+            'reco_weight_file', 'reco_weights_name'
             # NOT IMPLEMENTED: 'e_reco_scale', 'cz_reco_scale'
         )
 
@@ -217,7 +217,7 @@ class hist(Stage):
                 kinds=flav_int_group,
                 binning=true_and_reco_bin_edges,
                 binning_cols=true_and_reco_binning_cols,
-                weights_col=None # 'weighted_aeff'
+                weights_col=self.params['reco_weights_name'].value
             )
 
             # This takes into account the correct kernel normalization:
@@ -238,7 +238,7 @@ class hist(Stage):
                 kinds=flav_int_group,
                 binning=true_only_bin_edges,
                 binning_cols=true_only_binning_cols,
-                weights_col=None # 'weighted_aeff'
+                weights_col=self.params['reco_weights_name'].value
             )
 
             # If there weren't any events in the input (true_*) bin, make this
