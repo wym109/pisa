@@ -19,7 +19,8 @@ from itertools import izip
 from operator import setitem
 
 import numpy as np
-import pint; ureg = pint.UnitRegistry()
+import pint
+from pisa import ureg, Q_
 
 from pisa.utils.comparisons import normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj

@@ -24,10 +24,10 @@ from collections import OrderedDict
 
 import numpy as np
 import uncertainties
-import pint; ureg = pint.UnitRegistry()
 from uncertainties import ufloat, ufloat_fromstr
 from uncertainties import unumpy as unp
 
+from pisa import ureg, Q_
 from pisa.core.binning import MultiDimBinning, OneDimBinning
 from pisa.core.param import Param, ParamSet
 from pisa.core.prior import Prior

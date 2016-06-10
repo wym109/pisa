@@ -15,9 +15,10 @@ just use from_json, to_json) for... faster JSON serdes?
 import os
 
 import numpy as np
-import pint; ureg = pint.UnitRegistry()
 import simplejson as json
 
+import pint
+from pisa import ureg, Q_
 from pisa.resources.resources import open_resource
 from pisa.utils.log import logging
 

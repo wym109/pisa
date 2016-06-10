@@ -5,8 +5,8 @@ from itertools import izip, product
 from operator import setitem
 
 import numpy as np
-import pint; ureg = pint.UnitRegistry()
 
+from pisa import ureg, Q_
 from pisa.core.binning import MultiDimBinning
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet

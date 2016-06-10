@@ -152,8 +152,8 @@ class Pipeline(object):
                 intermediate.append(outputs)
 
             # Outputs from this stage become inputs for next stage
-            if stage.stage_name == 'aeff':
-                outputs = outputs.downsample(10)
+            #if stage.stage_name == 'aeff':
+            #    outputs = outputs.downsample(10)
             inputs = outputs
 
         if return_intermediate:

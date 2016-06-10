@@ -1376,7 +1376,7 @@ def test_Map():
     import os
     import shutil
     import tempfile
-    import pint; ureg = pint.UnitRegistry()
+    from pisa import ureg, Q_
 
     n_ebins = 10
     n_czbins = 5
@@ -1460,7 +1460,7 @@ def test_MapSet():
     import os
     import shutil
     import tempfile
-    import pint; ureg = pint.UnitRegistry()
+    from pisa import ureg, Q_
 
     n_ebins = 6
     n_czbins = 3
