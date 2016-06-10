@@ -154,7 +154,7 @@ def parse_config(config):
                             coeffs = np.asarray(data['coeffs'])
                             deg = data['deg']
                             kwargs['prior'] = Prior(kind='spline',
-                                                    knots=knots.m,
+                                                    knots=knots,
                                                     coeffs=coeffs,
                                                     deg=deg)
                         elif 'gauss' in config.get(section, name + '.prior'):
