@@ -225,7 +225,7 @@ class Analysis(object):
         logging.info('running the L-BFGS-B optimizer')
 
         # TODO: fix the minimizer implementation!
-        a = opt.fmin_l_bfgs_b(func=self._minimizer_callable,
+        out = opt.fmin_l_bfgs_b(func=self._minimizer_callable,
                               x0=x0,
                               args=(pprint,),
                               bounds=bounds,
@@ -233,14 +233,25 @@ class Analysis(object):
         if pprint:
             # clear the line
             print ''
-        if a[2]['warnflag'] > 0:
-            logging.warning(str(a[2]))
+        if out[2]['warnflag'] > 0:
+            logging.warning(str(out[2]))
 
-        return a
+        return out
 
 
     def find_best_fit(self, pprint=True, second_octant=False):
+        """ find best fit points (max likelihood) for the free parameters and
+            return likelihood + found parameter values.
+
+        Parameters
+        ----------
+        second_octant : bool
+            invert theta23 parameter at 45 deg and repeat fitting, return result
+            of fit with better likelihood, discard the other
+
+        """
         # Reset free parameters to nominal values
+        logging.info('resetting params')
         self.template_maker.params.reset_free()
 
         out = self.run_l_bfgs(pprint=pprint)
@@ -269,7 +280,6 @@ class Analysis(object):
                 
             else:
                 logging.info('Accepting first octant fit')
-                # restore to values from before
 
         return best_fit
 
@@ -281,23 +291,19 @@ class Analysis(object):
         p_name
 
         """
-        # run numerator
-        logging.info('resetting params')
-        self.template_maker.params.reset_free()
+        # run numerator (conditional MLE)
         logging.info('fixing param %s'%p_name)
         self.template_maker.params.fix(p_name)
         condMLE = self.find_best_fit()
         # report MLEs and LLH
         # also add the fixed param
         condMLE[p_name] = self.template_maker.params[p_name].value
-        # run denominator
-        logging.info('resetting params')
-        self.template_maker.params.reset_free()
+        # run denominator (global MLE)
         logging.info('unfixing param %s'%p_name)
         self.template_maker.params.unfix(p_name)
         globMLE = self.find_best_fit()
         # report MLEs and LLH
-        return condMLE, globMLE
+        return [condMLE, globMLE]
 
     def llr(self, template_makerA, template_makerB):
         """ Run loglikelihood ratio for two different template makers A and B
@@ -305,8 +311,6 @@ class Analysis(object):
         results = []
         for template_maker in [template_makerA, template_makerB]:
             self.template_maker = template_maker
-            logging.info('resetting params')
-            self.template_maker.params.reset_free()
             results.append(self.find_best_fit(second_octant=True))
         return results
 
@@ -374,10 +378,15 @@ if __name__ == '__main__':
 
     analysis.minimizer_settings = from_file(args.minimizer_settings)
 
+    results = []
+
     for i in range(args.num_trials):
         logging.info('Running trial %i'%i)
         np.random.seed()
         analysis.generate_psudodata('poisson')
+
+        # LLR:
+        results.append(analysis.llr(template_maker, template_maker_IO))
 
         # profile
         #condMLE, globMLE = analysis.profile_llh('aeff_scale')
@@ -394,8 +403,5 @@ if __name__ == '__main__':
         #    for key, val in globMLE.items():
         #        MLEs['glob'][key].append(val)
 
-        # LLR:
-        MLEs = analysis.llr(template_maker, template_maker_IO)
-
-    to_file(MLEs, args.outfile)
+    to_file(results, args.outfile)
     logging.info('Done.')
