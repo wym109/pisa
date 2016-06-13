@@ -257,6 +257,7 @@ class Analysis(object):
         out = self.run_l_bfgs(pprint=pprint)
         best_fit = {}
         best_fit['llh'] = out[1]
+        best_fit['warnflag'] = out[2]['warnflag']
         for pname in self.template_maker.params.free.names:
             best_fit[pname] = self.template_maker.params[pname].value
 
@@ -275,6 +276,7 @@ class Analysis(object):
                 # accept these values
                 logging.info('Accepting second octant fit')
                 best_fit['llh'] = out[1]
+                best_fit['warnflag'] = out[2]['warnflag']
                 for pname in self.template_maker.params.free.names:
                     best_fit[pname] = self.template_maker.params[pname].value
                 
@@ -323,6 +325,7 @@ if __name__ == '__main__':
 
     from pisa.utils.fileio import from_file, to_file
     from pisa.utils.parse_config import parse_config
+    from pisa.utils.format import append_results, ravel_results
 
     parser = ArgumentParser()
     parser.add_argument('-d', '--data-settings', type=str,
@@ -364,10 +367,10 @@ if __name__ == '__main__':
     data_maker.update_params(test)
 
     template_maker_settings = from_file(args.template_settings)
-
     template_maker_configurator = parse_config(template_maker_settings)
     template_maker = DistributionMaker(template_maker_configurator)
 
+    # select inverted hierarchy
     template_maker_settings.set('stage:osc', 'param_selector', 'ih')
     template_maker_configurator = parse_config(template_maker_settings)
     template_maker_IO = DistributionMaker(template_maker_configurator)
@@ -377,22 +380,6 @@ if __name__ == '__main__':
                         metric=args.metric)
 
     analysis.minimizer_settings = from_file(args.minimizer_settings)
-
-
-    def append_results(best_fits, best_fit):
-        for i,result in enumerate(best_fit):
-            for key, val in result.items():
-                if best_fits[i].has_key(key):
-                    best_fits[i][key].append(val)
-                else:
-                    best_fits[i][key] = [val]
-
-    def ravel_results(results):
-        for i,result in enumerate(results):
-            for key, val in result.items():
-                if hasattr(val[0],'m'):
-                    results[i][key] = np.array([v.m for v in val]) * val[0].u
-            
 
     results = [{},{}]
 
@@ -404,20 +391,8 @@ if __name__ == '__main__':
         # LLR:
         append_results(results, analysis.llr(template_maker, template_maker_IO))
 
-        # profile
-        #condMLE, globMLE = analysis.profile_llh('aeff_scale')
-        #logging.info('Significance of %.2f'%np.sqrt(condMLE['llh']-globMLE['llh']))
-        #if i == 0:
-        #    MLEs = {'cond':{}, 'glob':{}}
-        #    for key, val in condMLE.items():
-        #        MLEs['cond'][key] = [val]
-        #    for key, val in globMLE.items():
-        #        MLEs['glob'][key] = [val]
-        #else:
-        #    for key, val in condMLE.items():
-        #        MLEs['cond'][key].append(val)
-        #    for key, val in globMLE.items():
-        #        MLEs['glob'][key].append(val)
+        # profile LLH:
+        #append_results(results, analysis.profile_llh('aeff_scale'))
 
     ravel_results(results)
     to_file(results, args.outfile)
