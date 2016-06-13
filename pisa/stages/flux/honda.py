@@ -48,14 +48,31 @@ class honda(Stage):
     ----------
     params : ParamSet or sequence with which to instantiate a ParamSet.
         Expected params are:
+            atm_delta_index : float
+                The systematic describing the shift in the shape of the numu(bar) data as a function of energy relative to the prediction from the Honda tables.
+            energy_scale : float
+                A proxy systematic designed to account for any uncertainty on the overall energy measurements.
+                i.e. an energy scale of 0.9 says all energies are systematically reconstructed at 90% of the truth (on average).
+            nue_numu_ratio : float
+                The systematic accounting for the uncertainty in the relative production of nue(bar) and numu(bar) in the atmosphere.
+                It is implemented in a normalising-preserving way i.e. total nue + numu will stay constant.
+            nu_nubar_ratio : float
+                The systematic accounting for the uncertainty in the relative production of nu and nubar in the atmosphere.
+                It is implemented in a normalising-preserving way i.e. total nu + nubar will stay constant.
+            oversample_e : int
+                An integer by which to oversample the requested binning in the energy dimension.
+                i.e. an oversampling of 10 means the flux will be calculated 10 times inside each energy bin.
+                This is implemented in such a way that the bins become equally split up.
+            oversample_cz : int
+                An integer by which to oversample the requested binning in the cosZenith dimension.
+                All the oversampling values will end up effectively "multiplied" together.
+                i.e. if you request 10 oversampling in both energy and cosZenith directions then each (E,cZ) bin will have 100 evaluations inside of it.
             flux_file : str
-                The name of the file containing the atmospheric neutrino files
-                to be read in.
+                The name of the file containing the atmospheric neutrino files to be read in.
             flux_mode : str
-                The name of the interpolation method to be used on these
-                atmospheric neutrino flux tables. The current choices are
-                'bisplrep' and 'integral-preserving'. The former is fast, but
-                the latter represents a more accurate choice.
+                The name of the interpolation method to be used on these atmospheric neutrino flux tables.
+                The current choices are 'bisplrep' and 'integral-preserving'.
+                The former is fast, but the latter represents a more accurate choice.
 
     output_binning : The binning desired for the output maps
 
