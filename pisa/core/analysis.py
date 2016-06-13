@@ -2,11 +2,8 @@
 # authors: J.Lanfranchi/P.Eller
 # date:    March 20, 2016
 
-
 from collections import Sequence
 import sys
-import copy
-
 import scipy.optimize as opt
 
 from pisa.core.distribution_maker import DistributionMaker
