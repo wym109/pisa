@@ -239,16 +239,9 @@ class Analysis(object):
         return out
 
 
-    def find_best_fit(self, pprint=True, second_octant=False):
+    def find_best_fit(self, pprint=True):
         """ find best fit points (max likelihood) for the free parameters and
             return likelihood + found parameter values.
-
-        Parameters
-        ----------
-        second_octant : bool
-            invert theta23 parameter at 45 deg and repeat fitting, return result
-            of fit with better likelihood, discard the other
-
         """
         # Reset free parameters to nominal values
         logging.info('resetting params')
@@ -261,27 +254,29 @@ class Analysis(object):
         for pname in self.template_maker.params.free.names:
             best_fit[pname] = self.template_maker.params[pname].value
 
-        if second_octant and 'theta23' in self.template_maker.params.free.names:
-            logging.info('checking second octant of theta23')
-            self.template_maker.params.reset_free()
-            # changing to other octant
-            theta23 = self.template_maker.params['theta23']
-            inflection_point = 45 * ureg.degree
-            theta23.value = 2*inflection_point.to(theta23.value.units) - theta23.value
-            self.template_maker.update_params(theta23)
-            out = self.run_l_bfgs(pprint=pprint)
+        # decide wether fit for second octant is necessary
+        if 'theta23' in self.template_maker.params.free.names:
+            if self.template_maker.params['theta23'].prior.kind == 'spline':
+                logging.info('checking second octant of theta23')
+                self.template_maker.params.reset_free()
+                # changing to other octant
+                theta23 = self.template_maker.params['theta23']
+                inflection_point = 45 * ureg.degree
+                theta23.value = 2*inflection_point.to(theta23.value.units) - theta23.value
+                self.template_maker.update_params(theta23)
+                out = self.run_l_bfgs(pprint=pprint)
 
-            # compare results a and b, take one with lower llh
-            if out[1] < best_fit['llh']:
-                # accept these values
-                logging.info('Accepting second octant fit')
-                best_fit['llh'] = out[1]
-                best_fit['warnflag'] = out[2]['warnflag']
-                for pname in self.template_maker.params.free.names:
-                    best_fit[pname] = self.template_maker.params[pname].value
-                
-            else:
-                logging.info('Accepting first octant fit')
+                # compare results a and b, take one with lower llh
+                if out[1] < best_fit['llh']:
+                    # accept these values
+                    logging.info('Accepting second octant fit')
+                    best_fit['llh'] = out[1]
+                    best_fit['warnflag'] = out[2]['warnflag']
+                    for pname in self.template_maker.params.free.names:
+                        best_fit[pname] = self.template_maker.params[pname].value
+                    
+                else:
+                    logging.info('Accepting first octant fit')
 
         return best_fit
 
@@ -313,7 +308,7 @@ class Analysis(object):
         results = []
         for template_maker in [template_makerA, template_makerB]:
             self.template_maker = template_maker
-            results.append(self.find_best_fit(second_octant=True))
+            results.append(self.find_best_fit())
         return results
 
 
