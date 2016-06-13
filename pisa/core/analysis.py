@@ -378,7 +378,23 @@ if __name__ == '__main__':
 
     analysis.minimizer_settings = from_file(args.minimizer_settings)
 
-    results = []
+
+    def append_results(best_fits, best_fit):
+        for i,result in enumerate(best_fit):
+            for key, val in result.items():
+                if best_fits[i].has_key(key):
+                    best_fits[i][key].append(val)
+                else:
+                    best_fits[i][key] = [val]
+
+    def ravel_results(results):
+        for i,result in enumerate(results):
+            for key, val in result.items():
+                if hasattr(val[0],'m'):
+                    results[i][key] = np.array([v.m for v in val]) * val[0].u
+            
+
+    results = [{},{}]
 
     for i in range(args.num_trials):
         logging.info('Running trial %i'%i)
@@ -386,7 +402,7 @@ if __name__ == '__main__':
         analysis.generate_psudodata('poisson')
 
         # LLR:
-        results.append(analysis.llr(template_maker, template_maker_IO))
+        append_results(results, analysis.llr(template_maker, template_maker_IO))
 
         # profile
         #condMLE, globMLE = analysis.profile_llh('aeff_scale')
@@ -403,5 +419,6 @@ if __name__ == '__main__':
         #    for key, val in globMLE.items():
         #        MLEs['glob'][key].append(val)
 
+    ravel_results(results)
     to_file(results, args.outfile)
     logging.info('Done.')
