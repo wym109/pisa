@@ -709,7 +709,7 @@ if __name__ == '__main__':
     import os
     import shutil
     import tempfile
-    import pint; ureg = pint.UnitRegistry()
+    from pisa import ureg, Q_
     from pisa.core.map import Map, MapSet
     from pisa.core.binning import MultiDimBinning
 

@@ -20,9 +20,9 @@ Most of the functionality will be ported from PISA with any necessary changes/im
 from collections import Mapping
 
 import numpy as np
-import pint; ureg = pint.UnitRegistry()
 from scipy import interpolate
 
+from pisa import ureg, Q_
 from pisa.core.map import Map, MapSet
 from pisa.core.stage import Stage
 from pisa.resources.resources import open_resource

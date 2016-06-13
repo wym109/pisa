@@ -11,11 +11,11 @@ from numbers import Number
 from operator import setitem
 
 import numpy as np
-import pint
-ureg = pint.UnitRegistry()
 from scipy.interpolate import splev, interp1d
 from scipy.optimize import fminbound
 
+import pint
+from pisa import ureg, Q_
 from pisa.utils.comparisons import recursiveEquality
 from pisa.utils import fileio
 from pisa.utils.log import logging

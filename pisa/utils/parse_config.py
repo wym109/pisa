@@ -24,10 +24,10 @@ from collections import OrderedDict
 
 import numpy as np
 import uncertainties
-import pint; ureg = pint.UnitRegistry()
 from uncertainties import ufloat, ufloat_fromstr
 from uncertainties import unumpy as unp
 
+from pisa import ureg, Q_
 from pisa.core.binning import MultiDimBinning, OneDimBinning
 from pisa.core.param import Param, ParamSet
 from pisa.core.prior import Prior
@@ -154,7 +154,7 @@ def parse_config(config):
                             coeffs = np.asarray(data['coeffs'])
                             deg = data['deg']
                             kwargs['prior'] = Prior(kind='spline',
-                                                    knots=knots.m,
+                                                    knots=knots,
                                                     coeffs=coeffs,
                                                     deg=deg)
                         elif 'gauss' in config.get(section, name + '.prior'):
