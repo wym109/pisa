@@ -19,9 +19,9 @@ will fail (`pint.unit` and `pint.quantity` effectively don't exist) until you fi
 ```python
 ureg = pint.UnitRegistry()
 ```
-Therefore, the "standard" way of importing pint in PISA is the following line:
+Therefore, and to assure that we alsways use the same instance, the "standard" way of importing pint in PISA is the following line:
 ```python
-import pint; ureg = pint.UnitRegistry()
+from pisa import ureg, Q_
 ```
 
 ### Basic attributes of Pint quantities
@@ -77,7 +77,7 @@ More examples of how to use the above packages are given below.
 * For ordinary numbers (floats):
   ```python
   >>> from uncertainties import ufloat
-  >>> import pint; ureg = pint.UnitRegistry()
+  >>> from pisa import ureg, Q_
   
   >>> q = ufloat(1.3, 0.2) * ureg.meter
   
