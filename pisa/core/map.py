@@ -17,6 +17,7 @@ from __future__ import division
 from collections import OrderedDict, Mapping, Sequence
 from copy import deepcopy, copy
 from fnmatch import fnmatch
+from functools import wraps
 from operator import add, getitem, setitem
 import re
 
@@ -227,6 +228,7 @@ class Map(object):
 
     def new_obj(original_function):
         """ decorator to deepcopy unaltered states into new object """
+        @wraps(original_function)
         def new_function(self, *args, **kwargs):
             new_state = OrderedDict()
             state_updates = original_function(self, *args, **kwargs)
