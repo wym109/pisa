@@ -865,7 +865,7 @@ class MapSet(object):
         super(MapSet, self).__setattr__('tex', tex)
         super(MapSet, self).__setattr__('collate_by_name', collate_by_name)
         super(MapSet, self).__setattr__('collate_by_num', not collate_by_name)
-        self.hash = hash #super(MapSet, self).__setattr__('_hash', hash)
+        self.hash = hash
 
     def __repr__(self):
         argstrs = [('%s=%s' %item) for item in self._serializable_state]
@@ -924,10 +924,9 @@ class MapSet(object):
         return cls(**state)
 
     def pop(self, mapname):
-        """ return map with name mapname and remove from mapset """
+        """Return map with name `mapname` and remove from mapset."""
         idx = self.names.index(mapname)
         return self.maps.pop(idx)
-
 
     def combine_re(self, regexes):
         """For each regex passed, add contained maps whose names match.
@@ -1092,6 +1091,15 @@ class MapSet(object):
 
     @property
     def hash(self):
+        """Hash value of the map set is based upon the contained maps.
+            * If all maps have the same hash value, this value is returned as
+              the map set's hash
+            * If one or more maps have different hash values, a list of the
+              contained maps' hash values is hashed
+            * If any contained map has None for hash value, the hash value of
+              the map set is also None (i.e., invalid)
+
+        """
         hashes = self.hashes
         if all([(h is not None and h == hashes[0]) for h in hashes]):
             return hashes[0]
@@ -1101,6 +1109,8 @@ class MapSet(object):
 
     @hash.setter
     def hash(self, val):
+        """Setting a hash to `val` for the map set sets the hash values of all
+        contained maps to `val`."""
         if val is not None:
             [setattr(m, 'hash', val) for m in self.maps]
 
