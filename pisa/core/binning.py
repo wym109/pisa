@@ -15,6 +15,7 @@ from __future__ import division
 
 from collections import Iterable, Mapping, OrderedDict, Sequence
 from copy import copy, deepcopy
+from functools import wraps
 from itertools import izip
 from operator import setitem
 
@@ -348,15 +349,12 @@ class OneDimBinning(object):
         return self.bin_edges.units
 
     @property
-    def bin_sizes(self):
-        return np.abs(np.diff(self.bin_edges))*self.units
-
-    @property
     def bin_widths(self):
-        return np.diff(self.bin_edges)
+        return np.abs(np.diff(self.bin_edges))
 
     def new_obj(original_function):
         """ decorator to deepcopy unaltered states into new object """
+        @wraps(original_function)
         def new_function(self, *args, **kwargs):
             new_state = OrderedDict()
             state_updates = original_function(self, *args, **kwargs)
@@ -986,7 +984,7 @@ class MultiDimBinning(object):
         Parameters
         ----------
         entity : string
-            One of 'midpoints', 'weighted_centers', 'bin_edges', or 'bin_sizes'
+            One of 'midpoints', 'weighted_centers', 'bin_edges', or 'bin_widths'
 
         attach_units : bool
             Whether to attach units to the result (can save computation time by
@@ -1013,8 +1011,8 @@ class MultiDimBinning(object):
         elif entity == 'bin_edges':
             mg = np.meshgrid(*[d.bin_edges for d in self.dimensions],
                              indexing='ij')
-        elif entity == 'bin_sizes':
-            mg = np.meshgrid(*[d.bin_sizes for d in self.dimensions],
+        elif entity == 'bin_widths':
+            mg = np.meshgrid(*[d.bin_widths for d in self.dimensions],
                              indexing='ij')
         else:
             raise ValueError('Unrecognized `entity`: "%s"' %entity)
@@ -1026,7 +1024,7 @@ class MultiDimBinning(object):
     # TODO: modify technique depending upon grid size for memory concerns, or
     # even take a `method` argument to force method manually.
     def bin_volumes(self, attach_units=True):
-        meshgrid = self.meshgrid(entity='bin_sizes', attach_units=False)
+        meshgrid = self.meshgrid(entity='bin_widths', attach_units=False)
         volumes = reduce(lambda x,y: x*y, meshgrid)
         if attach_units:
             return volumes * reduce(lambda x,y:x*y, [ureg(str(d.units))
@@ -1205,7 +1203,6 @@ def test_MultiDimBinning():
             %(binning.to('MeV', ''), binning)
     assert binning.to('MeV', '').hash == binning.hash
 
-    mg = binning.meshgrid(entity='midpoints')
     mg = binning.meshgrid(entity='bin_edges')
     mg = binning.meshgrid(entity='weighted_centers')
     mg = binning.meshgrid(entity='midpoints')
