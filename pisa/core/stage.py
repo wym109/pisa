@@ -539,6 +539,8 @@ class Stage(object):
         h = self.params.values_hash
         logging.trace('self.params.values_hash = %s' %h)
         id_objects.append(h)
+        # also check nominal values for nominal xform
+        id_objects.append(self.params.nominal_values_hash)
         for attr in sorted(self._attrs_to_hash):
             id_objects.append(hash_obj(getattr(self, attr)))
 
