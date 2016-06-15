@@ -395,33 +395,23 @@ class smooth(Stage):
                     )
                     nominal_transforms.append(xform)
 
-        # HACK #######################################################
-        import matplotlib.pyplot as plt
-        import seaborn as sns
-        plt.close()
-        plt.switch_backend('Qt4Agg')
-        fig, axarr = plt.subplots(2, len(nominal_transforms))
-        vmin = 0.0
-        vmax = 0.0002
-        ##############################################################
-
         nominal_transforms = TransformSet(transforms=nominal_transforms)
-        for i, transform in enumerate(nominal_transforms):
-            sns.heatmap(transform.xform_array, ax=axarr[0,i], square=True)
-            axarr[0,i].set_yticks([])
-            axarr[0,i].set_xticks([])
+
+        from pisa.utils.plotter import plotter
+        plots = plotter()
+        plots.init_fig()
+        plots.plot_2d_array(nominal_transforms)
+        plots.dump('aeff_transforms')
 
         nominal_transforms = self.smooth_transforms(nominal_transforms)
-        for i, transform in enumerate(nominal_transforms):
-            sns.heatmap(transform.xform_array, ax=axarr[1,i], vmin=vmin, 
-                    vmax=vmax, square=True)
-            axarr[1,i].set_yticks([])
-            axarr[1,i].set_xticks([])
+        plots.init_fig()
+        plots.plot_2d_array(nominal_transforms)
+        plots.dump('smoothed_aeff_transforms')
 
         nominal_transforms = self.interpolate_transforms(nominal_transforms)
 
-        plt.show()
         return nominal_transforms
+
 
     @profile
     def _compute_transforms(self):

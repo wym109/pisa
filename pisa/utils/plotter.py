@@ -12,7 +12,10 @@ mpl.rcParams['mathtext.bf'] = 'Bitstream Vera Sans:bold'
 from matplotlib import pyplot as plt
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from matplotlib.offsetbox import AnchoredText
+from pisa.core.map import Map, MapSet
+from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.utils.log import logging
+
 
 class plotter(object):
 
@@ -69,6 +72,7 @@ class plotter(object):
 
     def plot_2d_array(self, mapset, n_rows=None, n_cols=None, fname=None,
             **kwargs):
+        # TODO consider renaming mapset since this now takes TransformSets too
         ''' plot all maps in a single plot '''
         if fname is None:
             fname = 'test2d'
@@ -137,7 +141,10 @@ class plotter(object):
         n_rows = kwargs.pop('n_rows', None)
         n_cols = kwargs.pop('n_cols', None)
         ''' plot mapset in array using a function fun '''
-        n = len(mapset)
+        if isinstance(mapset, MapSet):
+            n = len(mapset)
+        elif isinstance(mapset, TransformSet):
+            n = len(mapset.transforms)
         if n_rows is None and n_cols is None:
             # TODO: auto row/cols
             n_rows = math.floor(math.sqrt(n))
@@ -157,11 +164,17 @@ class plotter(object):
             self.add_stamp(map.tex)
 
     def plot_2d_map(self, map, cmap='rainbow', **kwargs):
-        ''' plot map on current axis in 2d'''
+        ''' plot map or transform on current axis in 2d'''
         axis = plt.gca()
-        bins = [map.binning[name] for name in map.binning.names]
-        bin_edges = map.binning.bin_edges
-        zmap = np.log10(map.hist) if self.log else map.hist
+        if isinstance(map, BinnedTensorTransform):
+            bins = [map.input_binning[name] for name in map.input_binning.names]
+            bin_edges = map.input_binning.bin_edges
+            zmap = np.log10(map.xform_array) if self.log else map.xform_array
+        elif isinstance(map, Map):
+            bins = [map.binning[name] for name in map.binning.names]
+            bin_edges = map.binning.bin_edges
+            zmap = np.log10(map.hist) if self.log else map.hist
+
         extent = [np.min(bin_edges[0].m), np.max(bin_edges[0].m), np.min(bin_edges[1].m), np.max(bin_edges[1].m)]
         # needs to be flipped for imshow
         img = plt.imshow(zmap.T,origin='lower',interpolation='nearest',extent=extent,aspect='auto',
