@@ -187,7 +187,7 @@ class Stage(object):
                 pass
 
     @profile
-    def get_nominal_transforms(self):
+    def get_nominal_transforms(self, nominal_transforms_hash):
         """Load a cached transform from the nominal transform memory cache
         (which is backed by a disk cache, if one is specified) if the nominal
         transform is in the cache, or else recompute it and store to the
@@ -204,43 +204,58 @@ class Stage(object):
         think about any of this within the `_compute_nominal_transforms`
         method.
 
-        """
-        nom_hash = self._derive_nominal_transforms_hash()
-        recompute = True
-        if nom_hash is None:
-            return
+        Returns
+        -------
+        nominal_transforms, hash
 
-        if nom_hash in self.nominal_transforms_cache:
-            self.nominal_transforms = \
-                    self.nominal_transforms_cache[nom_hash]
+        """
+        if nominal_transforms_hash is None:
+            nominal_transforms_hash = self._derive_nominal_transforms_hash()
+
+        nominal_transforms = None
+        # Quick way to avoid further logic is if hash value is None
+        if nominal_transforms_hash is None:
+            self.nominal_transforms_hash = nominal_transforms_hash
+            self.nominal_transforms = nominal_transforms
+            return self.nominal_transforms, self.nominal_transforms_hash
+
+        recompute = True
+        # If hash found in memory cache, load nominal transforms from there
+        if nominal_transforms_hash in self.nominal_transforms_cache:
+            nominal_transforms = \
+                    self.nominal_transforms_cache[nominal_transforms_hash]
             recompute = False
+
+        # Otherwise try to load from an extant disk cache
         elif self.disk_cache is not None:
             try:
-                self.nominal_transforms = self.disk_cache[nom_hash]
+                nominal_transforms = self.disk_cache[nominal_transforms_hash]
             except KeyError:
                 pass
             else:
                 recompute = False
-                self.nominal_transforms_cache[nom_hash] = \
-                        self.nominal_transforms
+                # Save to memory cache
+                self.nominal_transforms_cache[nominal_transforms_hash] = nominal_transforms
 
-        if not recompute:
-            return self.nominal_transforms
+        if recompute:
+            nominal_transforms = self._compute_nominal_transforms()
+            if nominal_transforms is None:
+                # Invalidate hash value since found transforms
+                nominal_transforms_hash = None
+            else:
+                nominal_transforms.hash = nominal_transforms_hash
+                self.nominal_transforms_cache[nominal_transforms_hash] = \
+                        nominal_transforms
+                if self.disk_cache is not None:
+                    self.disk_cache[nominal_transforms_hash] = nominal_transforms
 
-        self.nominal_transforms = self._compute_nominal_transforms()
-        if self.nominal_transforms is None:
-            return
-
-        self.nominal_transforms.hash = nom_hash
-        if nom_hash is not None:
-            self.nominal_transforms_cache[nom_hash] = self.nominal_transforms
-            if self.disk_cache is not None:
-                self.disk_cache[nom_hash] = self.nominal_transforms
-
-        return self.nominal_transforms
+        self.nominal_transforms = nominal_transforms
+        self.nominal_transforms_hash = nominal_transforms_hash
+        return nominal_transforms, nominal_transforms_hash
 
     @profile
-    def get_transforms(self, transforms_hash=None):
+    def get_transforms(self, transforms_hash=None,
+                       nominal_transforms_hash=None):
         """Load a cached transform (keyed on hash of parameter values) if it
         is in the cache, or else compute a new transform from currently-set
         parameter values and store this new transform to the cache.
@@ -269,11 +284,16 @@ class Stage(object):
         # Compute nominal transforms; if feature is not used, this doesn't
         # actually do much of anything. To do more than this, override the
         # `_compute_nominal_transforms` method.
-        self.get_nominal_transforms()
+        nominal_transforms, nominal_transforms_hash = \
+                self.get_nominal_transforms(
+                    nominal_transforms_hash=nominal_transforms_hash
+                )
 
         # Generate hash from param values
         if transforms_hash is None:
-            transforms_hash = self._derive_transforms_hash()
+            transforms_hash = self._derive_transforms_hash(
+                nominal_transforms_hash=nominal_transforms_hash
+            )
         logging.trace('transforms_hash: %s' %transforms_hash)
 
         # Load and return existing transforms if in the cache
@@ -320,7 +340,7 @@ class Stage(object):
         # Keep inputs for internal use and for inspection later
         self.inputs = {} if inputs is None else inputs
 
-        outputs_hash, transforms_hash = self._derive_outputs_hash()
+        outputs_hash, transforms_hash, nominal_transforms_hash  = self._derive_outputs_hash()
 
         logging.trace('outputs_hash: %s' %outputs_hash)
 
@@ -332,7 +352,8 @@ class Stage(object):
             logging.trace('Need to compute outputs...')
 
             if self.use_transforms:
-                self.get_transforms(transforms_hash=transforms_hash)
+                self.get_transforms(transforms_hash=transforms_hash,
+                                    nominal_transforms_hash=nominal_transforms_hash)
 
             logging.trace('... now computing outputs.')
             outputs = self._compute_outputs(inputs=self.inputs)
@@ -475,6 +496,95 @@ class Stage(object):
         [self._attrs_to_hash.add(a) for a in attr_names]
 
     #@profile
+    def _derive_outputs_hash(self):
+        """Derive a hash value that unique identifies the outputs that will be
+        generated based upon the current state of the stage.
+
+        This implementation hashes together:
+        * Input and output binning objects' hash values (if either input or
+          output binning is not None)
+        * Current params' values hash
+        * Hashes from any input objects with names in `self.input_names`
+
+        If any of the above objects is specified but returns None for its hash
+        value, the entire output hash is invalidated, and None is returned.
+
+        """
+        id_objects = []
+
+        # If stage uses inputs, grab hash from the inputs container object
+        if len(self.input_names) > 0:
+            inhash = self.inputs.hash
+            logging.trace('inputs.hash = %s' %inhash)
+            id_objects.append(inhash)
+
+        # If stage uses transforms, get hash from the transforms
+        transforms_hash = None
+        if self.use_transforms:
+            transforms_hash, nominal_transforms_hash = \
+                    self._derive_transforms_hash()
+            id_objects.append(transforms_hash)
+            logging.trace('derived transforms hash = %s' %id_objects[-1])
+
+        # Otherwise, generate sub-hash on binning and param values here
+        else:
+            transforms_hash, nominal_transforms_hash = None, None
+            id_subobjects = []
+            # Include all parameter values
+            id_subobjects.append(self.params.values_hash)
+
+            # Include additional attributes of this object
+            for attr in sorted(self._attrs_to_hash):
+                id_subobjects.append(hash_obj(getattr(self, attr)))
+
+            # Generate the "sub-hash"
+            if any([(h == None) for h in id_subobjects]):
+                sub_hash = None
+            else:
+                sub_hash = hash_obj(id_subobjects)
+            id_objects.append(sub_hash)
+
+        # If any hashes are missing (i.e, None), invalidate the entire hash
+        if any([(h == None) for h in id_objects]):
+            outputs_hash = None
+        else:
+            outputs_hash = hash_obj(id_objects)
+
+        return outputs_hash, transforms_hash, nominal_transforms_hash
+
+    #@profile
+    def _derive_transforms_hash(self, nominal_transforms_hash=None):
+        """Compute a hash that uniquely identifies the transforms that will be
+        produced from the current configuration. Note that this hash needs only
+        to be valid for this run (i.e., it is a volatile hash).
+
+        This implementation returns a hash from the current parameters' values.
+
+        """
+        id_objects = []
+        h = self.params.values_hash
+        logging.trace('self.params.values_hash = %s' %h)
+        id_objects.append(h)
+
+        # Grab any provided nominal transforms hash, or derive it again
+        if nominal_transforms_hash is None:
+            nominal_transforms_hash = self._derive_nominal_transforms_hash()
+        # If a valid hash has been gotten, include it
+        if nominal_transforms_hash is not None:
+            id_objects.append(nominal_transforms_hash)
+
+        for attr in sorted(self._attrs_to_hash):
+            id_objects.append(hash_obj(getattr(self, attr)))
+
+        # If any hashes are missing (i.e, None), invalidate the entire hash
+        if any([(h == None) for h in id_objects]):
+            transforms_hash = None
+        else:
+            transforms_hash = hash_obj(id_objects)
+
+        return transforms_hash, nominal_transforms_hash
+
+    #@profile
     def _derive_nominal_transforms_hash(self):
         """Derive a hash to uniquely identify the nominal transform. This
         should be unique across processes and invocations bacuase the nominal
@@ -525,85 +635,6 @@ class Stage(object):
             nominal_transforms_hash = hash_obj(id_objects)
 
         return nominal_transforms_hash
-
-    #@profile
-    def _derive_transforms_hash(self):
-        """Compute a hash that uniquely identifies the transforms that will be
-        produced from the current configuration. Note that this hash needs only
-        to be valid for this run (i.e., it is a volatile hash).
-
-        This implementation returns a hash from the current parameters' values.
-
-        """
-        id_objects = []
-        h = self.params.values_hash
-        logging.trace('self.params.values_hash = %s' %h)
-        id_objects.append(h)
-        for attr in sorted(self._attrs_to_hash):
-            id_objects.append(hash_obj(getattr(self, attr)))
-
-        # If any hashes are missing (i.e, None), invalidate the entire hash
-        if any([(h == None) for h in id_objects]):
-            transforms_hash = None
-        else:
-            transforms_hash = hash_obj(id_objects)
-
-        return transforms_hash
-
-    #@profile
-    def _derive_outputs_hash(self):
-        """Derive a hash value that unique identifies the outputs that will be
-        generated based upon the current state of the stage.
-
-        This implementation hashes together:
-        * Input and output binning objects' hash values (if either input or
-          output binning is not None)
-        * Current params' values hash
-        * Hashes from any input objects with names in `self.input_names`
-
-        If any of the above objects is specified but returns None for its hash
-        value, the entire output hash is invalidated, and None is returned.
-
-        """
-        id_objects = []
-
-        # If stage uses inputs, grab hash from the inputs container object
-        if len(self.input_names) > 0:
-            inhash = self.inputs.hash
-            logging.trace('inputs.hash = %s' %inhash)
-            id_objects.append(inhash)
-
-        # If stage uses transforms, get hash from the transforms
-        transforms_hash = None
-        if self.use_transforms:
-            transforms_hash = self._derive_transforms_hash()
-            id_objects.append(transforms_hash)
-            logging.trace('derived transforms hash = %s' %id_objects[-1])
-
-        # Otherwise, generate sub-hash on binning and param values here
-        else:
-            id_subobjects = []
-            # Include all parameter values
-            id_subobjects.append(self.params.values_hash)
-
-            # Include additional attributes of this object
-            for attr in sorted(self._attrs_to_hash):
-                id_subobjects.append(hash_obj(getattr(self, attr)))
-
-            # Generate the "sub-hash"
-            if any([(h == None) for h in id_subobjects]):
-                sub_hash = None
-            else:
-                sub_hash = hash_obj(id_subobjects)
-            id_objects.append(sub_hash)
-
-        # If any hashes are missing (i.e, None), invalidate the entire hash
-        if any([(h == None) for h in id_objects]):
-            outputs_hash = None
-        else:
-            outputs_hash = hash_obj(id_objects)
-
-        return outputs_hash, transforms_hash
 
     #@profile
     def _compute_nominal_transforms(self):

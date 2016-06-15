@@ -29,11 +29,12 @@ from collections import Iterable, Iterator, Mapping, OrderedDict, Sequence
 from numbers import Number
 
 import numpy as np
-import pint; ureg = pint.UnitRegistry()
 from uncertainties.core import AffineScalarFunc
 from uncertainties import ufloat
 from uncertainties import unumpy as unp
+import pint
 
+from pisa import ureg, Q_
 from pisa.utils.log import logging, set_verbosity
 
 

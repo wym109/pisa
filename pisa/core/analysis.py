@@ -2,16 +2,14 @@
 # authors: J.Lanfranchi/P.Eller
 # date:    March 20, 2016
 
-
 from collections import Sequence
 import sys
-
 import scipy.optimize as opt
 
 from pisa.core.distribution_maker import DistributionMaker
 from pisa.utils.fileio import from_file
 from pisa.utils.log import logging, set_verbosity
-
+from pisa import ureg, Q_
 
 class Analysis(object):
     """Major tools for performing "canonical" IceCube/DeepCore/PINGU analyses.
@@ -215,9 +213,6 @@ class Analysis(object):
         return sign*metric_val
 
     def run_l_bfgs(self, pprint=True):
-        # Reset free parameters to nominal values
-        self.template_maker.params.reset_free()
-
         # Get initial values
         x0 = self.template_maker.params.free.rescaled_values
 
@@ -227,7 +222,7 @@ class Analysis(object):
         logging.info('running the L-BFGS-B optimizer')
 
         # TODO: fix the minimizer implementation!
-        a = opt.fmin_l_bfgs_b(func=self._minimizer_callable,
+        out = opt.fmin_l_bfgs_b(func=self._minimizer_callable,
                               x0=x0,
                               args=(pprint,),
                               bounds=bounds,
@@ -235,11 +230,52 @@ class Analysis(object):
         if pprint:
             # clear the line
             print ''
-        logging.info('Found best fit parameters: %s'
-                     %self.template_maker.params.free)
-        if a[2]['warnflag'] > 0:
-            logging.warning(str(a[2]))
-        return a
+        if out[2]['warnflag'] > 0:
+            logging.warning(str(out[2]))
+
+        return out
+
+
+    def find_best_fit(self, pprint=True):
+        """ find best fit points (max likelihood) for the free parameters and
+            return likelihood + found parameter values.
+        """
+        # Reset free parameters to nominal values
+        logging.info('resetting params')
+        self.template_maker.params.reset_free()
+
+        out = self.run_l_bfgs(pprint=pprint)
+        best_fit = {}
+        best_fit['llh'] = out[1]
+        best_fit['warnflag'] = out[2]['warnflag']
+        for pname in self.template_maker.params.free.names:
+            best_fit[pname] = self.template_maker.params[pname].value
+
+        # decide wether fit for second octant is necessary
+        if 'theta23' in self.template_maker.params.free.names:
+            if self.template_maker.params['theta23'].prior.kind == 'spline':
+                logging.info('checking second octant of theta23')
+                self.template_maker.params.reset_free()
+                # changing to other octant
+                theta23 = self.template_maker.params['theta23']
+                inflection_point = 45 * ureg.degree
+                theta23.value = 2*inflection_point.to(theta23.value.units) - theta23.value
+                self.template_maker.update_params(theta23)
+                out = self.run_l_bfgs(pprint=pprint)
+
+                # compare results a and b, take one with lower llh
+                if out[1] < best_fit['llh']:
+                    # accept these values
+                    logging.info('Accepting second octant fit')
+                    best_fit['llh'] = out[1]
+                    best_fit['warnflag'] = out[2]['warnflag']
+                    for pname in self.template_maker.params.free.names:
+                        best_fit[pname] = self.template_maker.params[pname].value
+                    
+                else:
+                    logging.info('Accepting first octant fit')
+
+        return best_fit
 
     def profile_llh(self, p_name):
         """Run profile log likelihood method for param `p_name`.
@@ -249,46 +285,43 @@ class Analysis(object):
         p_name
 
         """
-        # run numerator
-        logging.info('resetting params')
-        self.template_maker.params.reset_free()
+        # run numerator (conditional MLE)
         logging.info('fixing param %s'%p_name)
         self.template_maker.params.fix(p_name)
-        num = self.run_l_bfgs()
+        condMLE = self.find_best_fit()
         # report MLEs and LLH
-        condMLE = {}
-        condMLE['llh'] = num[1]
-        for pname in self.template_maker.params.free.names:
-            condMLE[pname] = self.template_maker.params[pname].value
         # also add the fixed param
         condMLE[p_name] = self.template_maker.params[p_name].value
-        # run denominator
-        logging.info('resetting params')
-        self.template_maker.params.reset_free()
+        # run denominator (global MLE)
         logging.info('unfixing param %s'%p_name)
         self.template_maker.params.unfix(p_name)
-        denom = self.run_l_bfgs()
+        globMLE = self.find_best_fit()
         # report MLEs and LLH
-        globMLE = {}
-        globMLE['llh'] = denom[1]
-        for pname in self.template_maker.params.free.names:
-            globMLE[pname] = self.template_maker.params[pname].value
+        return [condMLE, globMLE]
 
-        return condMLE, globMLE
+    def llr(self, template_makerA, template_makerB):
+        """ Run loglikelihood ratio for two different template makers A and B
+        """
+        results = []
+        for template_maker in [template_makerA, template_makerB]:
+            self.template_maker = template_maker
+            results.append(self.find_best_fit())
+        return results
 
 
 if __name__ == '__main__':
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
     import numpy as np
-    import pint; ureg = pint.UnitRegistry()
+    from pisa import ureg, Q_
 
     from pisa.utils.fileio import from_file, to_file
     from pisa.utils.parse_config import parse_config
+    from pisa.utils.format import append_results, ravel_results
 
     parser = ArgumentParser()
     parser.add_argument('-d', '--data-settings', type=str,
-                        metavar='configfile', required=True,
+                        metavar='configfile', default=None,
                         help='settings for the generation of "data"')
     parser.add_argument('-t', '--template-settings', type=str,
                         metavar='configfile', required=True,
@@ -312,11 +345,16 @@ if __name__ == '__main__':
 
     set_verbosity(args.v)
 
-    data_maker_settings = from_file(args.data_settings)
+    if args.data_settings is None:
+        data_settings = args.template_settings
+    else:
+        data_settings = args.data_settings
+
+    data_maker_settings = from_file(data_settings)
     data_maker_configurator = parse_config(data_maker_settings)
     data_maker = DistributionMaker(data_maker_configurator)
 
-    test = data_maker.params['test']
+    test = data_maker.params['aeff_scale']
     test.value *= 1.25
     data_maker.update_params(test)
 
@@ -324,29 +362,30 @@ if __name__ == '__main__':
     template_maker_configurator = parse_config(template_maker_settings)
     template_maker = DistributionMaker(template_maker_configurator)
 
+    # select inverted hierarchy
+    template_maker_settings.set('stage:osc', 'param_selector', 'ih')
+    template_maker_configurator = parse_config(template_maker_settings)
+    template_maker_IO = DistributionMaker(template_maker_configurator)
+
     analysis = Analysis(data_maker=data_maker,
                         template_maker=template_maker,
                         metric=args.metric)
 
     analysis.minimizer_settings = from_file(args.minimizer_settings)
 
+    results = [{},{}]
+
     for i in range(args.num_trials):
         logging.info('Running trial %i'%i)
         np.random.seed()
         analysis.generate_psudodata('poisson')
-        condMLE, globMLE = analysis.profile_llh('test')
-        logging.info('Significance of %.2f'%np.sqrt(condMLE['llh']-globMLE['llh']))
-        if i == 0:
-            MLEs = {'cond':{}, 'glob':{}}
-            for key, val in condMLE.items():
-                MLEs['cond'][key] = [val]
-            for key, val in globMLE.items():
-                MLEs['glob'][key] = [val]
-        else:
-            for key, val in condMLE.items():
-                MLEs['cond'][key].append(val)
-            for key, val in globMLE.items():
-                MLEs['glob'][key].append(val)
 
-    to_file(MLEs, args.outfile)
+        # LLR:
+        append_results(results, analysis.llr(template_maker, template_maker_IO))
+
+        # profile LLH:
+        #append_results(results, analysis.profile_llh('aeff_scale'))
+
+    ravel_results(results)
+    to_file(results, args.outfile)
     logging.info('Done.')

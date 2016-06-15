@@ -3,6 +3,7 @@
 
 from collections import OrderedDict, Sequence
 from copy import copy, deepcopy
+from functools import wraps
 import importlib
 import inspect
 import sys
@@ -529,6 +530,7 @@ class BinnedTensorTransform(Transform):
 
     def new_obj(original_function):
         """Decorator to deepcopy unaltered states into new object"""
+        @wraps(original_function)
         def new_function(self, *args, **kwargs):
             new_state = OrderedDict()
             state_updates = original_function(self, *args, **kwargs)
@@ -643,11 +645,16 @@ class BinnedTensorTransform(Transform):
                     % (input_name, inputs.names)
             inbin_hash =  1.0#inputs[input_name].binning.hash
             mybin_hash = 1.0#self.input_binning.hash
-            if inbin_hash is not None and mybin_hash is not None:
-                assert inbin_hash == mybin_hash
-            else:
-                assert inputs[input_name].binning == self.input_binning
-
+            try:
+                if inbin_hash is not None and mybin_hash is not None:
+                    assert inbin_hash == mybin_hash
+                else:
+                    assert inputs[input_name].binning == self.input_binning
+            except AssertionError:
+                raise ValueError('\n--- Input "%s" has binning of\n%s'
+                                 '\n--- but specified input binning is\n%s'
+                                 %(input_name, inputs[input_name].binning,
+                                   self.input_binning))
     # TODO: make _apply work with multiple inputs (i.e., concatenate
     # these into a higher-dimensional array) and make logic for applying
     # element-by-element multiply and tensordot generalize to any dimension
@@ -713,7 +720,7 @@ if __name__ == '__main__':
     import os
     import shutil
     import tempfile
-    import pint; ureg = pint.UnitRegistry()
+    from pisa import ureg, Q_
     from pisa.core.map import Map, MapSet
     from pisa.core.binning import MultiDimBinning
 

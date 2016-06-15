@@ -17,6 +17,7 @@ from __future__ import division
 from collections import OrderedDict, Mapping, Sequence
 from copy import deepcopy, copy
 from fnmatch import fnmatch
+from functools import wraps
 from operator import add, getitem, setitem
 import re
 
@@ -227,6 +228,7 @@ class Map(object):
 
     def new_obj(original_function):
         """ decorator to deepcopy unaltered states into new object """
+        @wraps(original_function)
         def new_function(self, *args, **kwargs):
             new_state = OrderedDict()
             state_updates = original_function(self, *args, **kwargs)
@@ -409,7 +411,7 @@ class Map(object):
         shape = self.shape
         for i in xrange(self.hist.size):
             idx_item = np.unravel_index(i, shape)
-            idx_view = tuple([slice(x, x+1) for x in idx_item])
+            idx_view = [slice(x, x+1) for x in idx_item]
             single_bin_map = Map(
                 name=self.name, hist=self.hist[idx_view],
                 binning=self.binning[idx_item], hash=None, tex=self.tex,
@@ -858,12 +860,12 @@ class MapSet(object):
             else:
                 maps_.append(Map(**m))
         tex = (r'{\rm %s}' %name) if tex is None else tex
-        super(MapSet, self).__setattr__('maps', tuple(maps_))
+        super(MapSet, self).__setattr__('maps', maps_)
         super(MapSet, self).__setattr__('name', name)
         super(MapSet, self).__setattr__('tex', tex)
         super(MapSet, self).__setattr__('collate_by_name', collate_by_name)
         super(MapSet, self).__setattr__('collate_by_num', not collate_by_name)
-        self.hash = hash #super(MapSet, self).__setattr__('_hash', hash)
+        self.hash = hash
 
     def __repr__(self):
         argstrs = [('%s=%s' %item) for item in self._serializable_state]
@@ -920,6 +922,11 @@ class MapSet(object):
         state = jsons.from_json(resource)
         # State is a dict for Map, so instantiate with double-asterisk syntax
         return cls(**state)
+
+    def pop(self, mapname):
+        """Return map with name `mapname` and remove from mapset."""
+        idx = self.names.index(mapname)
+        return self.maps.pop(idx)
 
     def combine_re(self, regexes):
         """For each regex passed, add contained maps whose names match.
@@ -1084,6 +1091,15 @@ class MapSet(object):
 
     @property
     def hash(self):
+        """Hash value of the map set is based upon the contained maps.
+            * If all maps have the same hash value, this value is returned as
+              the map set's hash
+            * If one or more maps have different hash values, a list of the
+              contained maps' hash values is hashed
+            * If any contained map has None for hash value, the hash value of
+              the map set is also None (i.e., invalid)
+
+        """
         hashes = self.hashes
         if all([(h is not None and h == hashes[0]) for h in hashes]):
             return hashes[0]
@@ -1093,16 +1109,18 @@ class MapSet(object):
 
     @hash.setter
     def hash(self, val):
+        """Setting a hash to `val` for the map set sets the hash values of all
+        contained maps to `val`."""
         if val is not None:
             [setattr(m, 'hash', val) for m in self.maps]
 
     @property
     def names(self):
-        return tuple([mp.name for mp in self])
+        return [mp.name for mp in self]
 
     @property
     def hashes(self):
-        return tuple([mp.hash for mp in self])
+        return [mp.hash for mp in self]
 
     def hash_maps(self, map_names=None):
         if map_names is None:
@@ -1182,7 +1200,7 @@ class MapSet(object):
                 else:
                     raise TypeError('Unhandled arg %s / type %s' %
                                     (arg, type(arg)))
-            args_per_map.append(tuple(this_map_args))
+            args_per_map.append(this_map_args)
 
         # Make the method calls and collect returned values
         returned_vals = [meth(*args)
@@ -1190,7 +1208,7 @@ class MapSet(object):
 
         # If all results are maps, put them into a new map set & return
         if all([isinstance(r, Map) for r in returned_vals]):
-            return MapSet(tuple(returned_vals))
+            return MapSet(returned_vals)
 
         # If None returned by all, return a single None
         if all([(r is None) for r in returned_vals]):
@@ -1379,7 +1397,7 @@ def test_Map():
     import os
     import shutil
     import tempfile
-    import pint; ureg = pint.UnitRegistry()
+    from pisa import ureg, Q_
 
     n_ebins = 10
     n_czbins = 5
@@ -1463,7 +1481,7 @@ def test_MapSet():
     import os
     import shutil
     import tempfile
-    import pint; ureg = pint.UnitRegistry()
+    from pisa import ureg, Q_
 
     n_ebins = 6
     n_czbins = 3
@@ -1475,7 +1493,7 @@ def test_MapSet():
     m1 = Map(name='ones', hist=np.ones(binning.shape), binning=binning, hash='xyz')
     m1.set_poisson_errors()
     m2 = Map(name='twos', hist=2*np.ones(binning.shape), binning=binning, hash='xyz')
-    ms01 = MapSet((m1, m2))
+    ms01 = MapSet([m1, m2])
     print "downsampling ====================="
     print ms01.downsample(3)
     print "===================== downsampling"
@@ -1528,8 +1546,8 @@ def test_MapSet():
     # ... so a hash should be computed from all contained hashes
     assert ms1.hash != 40 and ms1.hash != -10
 
-    assert ms1.maps == (m1, m2)
-    assert ms1.names == ('ones', 'twos')
+    assert ms1.maps == [m1, m2]
+    assert ms1.names == ['ones', 'twos']
     assert ms1.tex == r'{\rm map set 1}'
     # Check the Poisson errors
     assert np.all(unp.nominal_values(ms1[0].hist) == np.ones(binning.shape))
