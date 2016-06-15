@@ -212,29 +212,43 @@ class Analysis(object):
 
         return sign*metric_val
 
-    def run_l_bfgs(self, pprint=True):
+    def run_minimizer(self, pprint=True):
         # Get initial values
         x0 = self.template_maker.params.free.rescaled_values
 
         # bfgs steps outside of given bounds by 1 epsilon to evaluate gradients
-        epsilon = self.minimizer_settings['options']['value']['epsilon']
+        try:
+            epsilon = self.minimizer_settings['options']['value']['eps']
+        except:
+            epsilon = self.minimizer_settings['options']['value']['epsilon']
         bounds = [(0+epsilon, 1-epsilon)]*len(x0)
-        logging.info('running the L-BFGS-B optimizer')
+        logging.info('running the %s optimizer'%self.minimizer_settings['method']['value'])
 
-        # TODO: fix the minimizer implementation!
-        out = opt.fmin_l_bfgs_b(func=self._minimizer_callable,
-                              x0=x0,
-                              args=(pprint,),
-                              bounds=bounds,
-                              **self.minimizer_settings['options']['value'])
+        # Using scipy.opt.minimize allows a whole host of minimisers to be used
+        # This set by the method value in your minimiser settings file
+        minim_result = opt.minimize(fun=self._minimizer_callable,
+                                    x0=x0,
+                                    args=(pprint,),
+                                    bounds=bounds,
+                                    method = self.minimizer_settings['method']['value'],
+                                    options = self.minimizer_settings['options']['value'])
+        
         if pprint:
             # clear the line
             print ''
-        if out[2]['warnflag'] > 0:
-            logging.warning(str(out[2]))
+        best_fit_vals = minim_result.x
+        metric_val = minim_result.fun
+        dict_flags = {}
+        dict_flags['warnflag'] = minim_result.status
+        dict_flags['task'] = minim_result.message
+        if minim_result.has_key('jac'):
+            dict_flags['grad'] = minim_result.jac
+        dict_flags['funcalls'] = minim_result.nfev
+        dict_flags['nit'] = minim_result.nit
+        if dict_flags['warnflag'] > 0:
+            logging.warning(str(dict_flags))
 
-        return out
-
+        return best_fit_vals, metric_val, dict_flags
 
     def find_best_fit(self, pprint=True):
         """ find best fit points (max likelihood) for the free parameters and
@@ -244,10 +258,10 @@ class Analysis(object):
         logging.info('resetting params')
         self.template_maker.params.reset_free()
 
-        out = self.run_l_bfgs(pprint=pprint)
+        best_fit_vals, metric_val, dict_flags = self.run_minimizer(pprint=pprint)
         best_fit = {}
-        best_fit['llh'] = out[1]
-        best_fit['warnflag'] = out[2]['warnflag']
+        best_fit['llh'] = metric_val
+        best_fit['warnflag'] = dict_flags['warnflag']
         for pname in self.template_maker.params.free.names:
             best_fit[pname] = self.template_maker.params[pname].value
 
@@ -261,14 +275,14 @@ class Analysis(object):
                 inflection_point = 45 * ureg.degree
                 theta23.value = 2*inflection_point.to(theta23.value.units) - theta23.value
                 self.template_maker.update_params(theta23)
-                out = self.run_l_bfgs(pprint=pprint)
+                best_fit_vals, metric_val, dict_flags = self.run_minimizer(pprint=pprint)
 
                 # compare results a and b, take one with lower llh
-                if out[1] < best_fit['llh']:
+                if metric_val < best_fit['llh']:
                     # accept these values
                     logging.info('Accepting second octant fit')
-                    best_fit['llh'] = out[1]
-                    best_fit['warnflag'] = out[2]['warnflag']
+                    best_fit['llh'] = metric_val
+                    best_fit['warnflag'] = dict_flags['warnflag']
                     for pname in self.template_maker.params.free.names:
                         best_fit[pname] = self.template_maker.params[pname].value
                     
