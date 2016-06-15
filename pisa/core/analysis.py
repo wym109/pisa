@@ -250,7 +250,7 @@ class Analysis(object):
 
         return best_fit_vals, metric_val, dict_flags
 
-    def find_best_fit(self, pprint=True):
+    def find_best_fit(self, check_octant=True, pprint=True):
         """ find best fit points (max likelihood) for the free parameters and
             return likelihood + found parameter values.
         """
@@ -267,8 +267,8 @@ class Analysis(object):
 
         # decide wether fit for second octant is necessary
         if 'theta23' in self.template_maker.params.free.names:
-            if self.template_maker.params['theta23'].prior.kind == 'spline':
-                logging.info('checking second octant of theta23')
+            if check_octant:
+                logging.info('checking other octant of theta23')
                 self.template_maker.params.reset_free()
                 # changing to other octant
                 theta23 = self.template_maker.params['theta23']
@@ -280,14 +280,14 @@ class Analysis(object):
                 # compare results a and b, take one with lower llh
                 if metric_val < best_fit['llh']:
                     # accept these values
-                    logging.info('Accepting second octant fit')
+                    logging.info('Accepting other octant fit')
                     best_fit['llh'] = metric_val
                     best_fit['warnflag'] = dict_flags['warnflag']
                     for pname in self.template_maker.params.free.names:
                         best_fit[pname] = self.template_maker.params[pname].value
                     
                 else:
-                    logging.info('Accepting first octant fit')
+                    logging.info('Accepting initial octant fit')
 
         return best_fit
 
