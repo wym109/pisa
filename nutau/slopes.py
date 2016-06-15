@@ -1,6 +1,7 @@
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import numpy as np
 from scipy.optimize import curve_fit
+from scipy import interpolate
 
 from pisa import ureg, Q_
 from pisa.core.distribution_maker import DistributionMaker
@@ -30,7 +31,7 @@ fname_joined = 'joined_G_nue_cc+nuebar_cc_G_numu_cc+numubar_cc_G_nutau_cc+nutaub
 
 pname = 'dom_eff'
 nominal = 1.0
-runs = [('601', 0.88), ('603', 0.94), ('604', 0.97), ('605', 1.03), ('606', 1.06), ('608', 1.12)]
+runs = [('601', 0.88), ('603', 0.94)]#, ('604', 0.97), ('605', 1.03), ('606', 1.06), ('608', 1.12)]
 
 x_values = np.array(sorted([r[1] for r in runs] + [nominal]))
 
@@ -71,6 +72,14 @@ cscd_array = np.array(cscd_array).transpose(1,2,0)
 trck_array = np.array(trck_array).transpose(1,2,0)
 
 cscd_slopes = np.ones_like(cscd[nominal])
+nx, ny = cscd_slopes.shape
+bins_x = np.arange(nx)
+bins_y = np.arange(ny)
+
+grid_x, grid_y = np.meshgrid(bins_x, bins_y)
+
+grid_x = np.ravel(grid_x)
+grid_y = np.ravel(grid_y)
 
 def fit_fun(x, k):
     return 1. + k * (x - 1.)
@@ -81,7 +90,11 @@ for i, j in np.ndindex(cscd_slopes.shape):
             y_values)
     cscd_slopes[i,j] = popt
 
+spline = interpolate.SmoothBivariateSpline(grid_x, grid_y, np.ravel(cscd_slopes))
+smooth = spline(grid_x, grid_y)
+smooth = smooth.reshape(nx, ny)
+
 import matplotlib.pyplot as plt
-plt.imshow(cscd_slopes,interpolation='nearest')
+plt.imshow(smooth,interpolation='nearest')
 plt.show()
 plt.savefig('cscd.pdf')
