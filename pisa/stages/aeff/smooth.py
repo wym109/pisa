@@ -397,15 +397,16 @@ class smooth(Stage):
 
         nominal_transforms = TransformSet(transforms=nominal_transforms)
 
+        from matplotlib.cm import Paired
         from pisa.utils.plotter import plotter
         plots = plotter()
         plots.init_fig()
-        plots.plot_2d_array(nominal_transforms)
+        plots.plot_2d_array(nominal_transforms, n_rows=2, n_cols=6, cmap=Paired)
         plots.dump('aeff_transforms')
 
         nominal_transforms = self.smooth_transforms(nominal_transforms)
         plots.init_fig()
-        plots.plot_2d_array(nominal_transforms)
+        plots.plot_2d_array(nominal_transforms, n_rows=2, n_cols=6, cmap=Paired)
         plots.dump('smoothed_aeff_transforms')
 
         nominal_transforms = self.interpolate_transforms(nominal_transforms)
