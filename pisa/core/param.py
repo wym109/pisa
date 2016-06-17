@@ -502,7 +502,10 @@ class ParamSet(object):
         return len(self._params)
 
     def __setitem__(self, i, val):
-        self._params[i].value = val
+        if isinstance(i, int):
+            self._params[i].value = val
+        elif isinstance(i, basestring):
+            self._by_name[i].value = val
 
     def __getitem__(self, i):
         if isinstance(i, int):
@@ -514,7 +517,10 @@ class ParamSet(object):
         try:
             return super(ParamSet, self).__getattr__(attr)
         except AttributeError:
-            return self[attr]
+            try:
+                return self[attr]
+            except KeyError:
+                raise AttributeError(attr)
 
     def __setattr__(self, attr, val):
         try:
