@@ -440,28 +440,67 @@ class smooth(Stage):
                     nominal_transforms.append(xform)
 
         nominal_transforms = TransformSet(transforms=nominal_transforms)
-
-        from matplotlib.cm import Paired
-        from pisa.utils.plotter import plotter
-        plots = plotter()
-        plots.init_fig()
-        plots.plot_2d_array(nominal_transforms, n_rows=2, n_cols=6, cmap=Paired)
-        plots.dump('aeff_transforms')
-
-        nominal_transforms = self.smooth_transforms(nominal_transforms)
-
-        plots.init_fig()
-        plots.plot_2d_array(nominal_transforms, n_rows=2, n_cols=6, cmap=Paired)
-        plots.dump('smoothed_aeff_transforms')
-
-        nominal_transforms = self.interpolate_transforms(nominal_transforms, 
+        smooth_transforms = self.smooth_transforms(nominal_transforms)
+        interp_transforms = self.interpolate_transforms(smooth_transforms, 
                 new_binning=input_binning)
 
-        plots.init_fig()
-        plots.plot_2d_array(nominal_transforms, n_rows=2, n_cols=6, cmap=Paired)
-        plots.dump('interp_aeff_transforms')
+        
+        # TODO handle plotting and saving options properly
+        make_plots = False
+        if make_plots:
+            from matplotlib.cm import Paired
+            from pisa.utils.plotter import plotter
+            plots = plotter()
+    
+            plots.init_fig()
+            plots.plot_2d_array(nominal_transforms, n_rows=2, n_cols=6, 
+                    cmap=Paired)
+            plots.dump('aeff_transforms')
+    
+            plots.init_fig()
+            plots.plot_2d_array(smooth_transforms, n_rows=2, n_cols=6, 
+                    cmap=Paired)
+            plots.dump('smoothed_aeff_transforms')
+    
+            plots.init_fig()
+            plots.plot_2d_array(interp_transforms, n_rows=2, n_cols=6, 
+                    cmap=Paired)
+            plots.dump('interp_aeff_transforms')
 
-        return nominal_transforms
+        # TODO
+        compare_results = True
+        if compare_results:
+            smooth_vs_orig = []
+            for smooth, orig in zip(smooth_transforms, nominal_transforms):
+                smooth_arr = smooth.xform_array
+                orig_arr = orig.xform_array
+                assert (smooth.input_names == orig.input_names), (
+                        smooth.input_names, orig.input_names)
+                assert smooth.output_name == smooth.output_name, (
+                        smooth.output_name, orig.output_name)
+                med_abs_dev = np.abs((smooth_arr - orig_arr) / orig_arr)
+                med_abs_dev = BinnedTensorTransform(
+                                    input_names=smooth.input_names,
+                                    output_name=smooth.output_name,
+                                    input_binning=smooth.input_binning,
+                                    output_binning=smooth.output_binning,
+                                    xform_array=med_abs_dev
+                                    )
+                smooth_vs_orig.append(med_abs_dev)
+            smooth_vs_orig = TransformSet(transforms=comparisons)
+
+            from matplotlib.cm import Paired
+            from pisa.utils.plotter import plotter
+            plots = plotter()
+
+            plots.init_fig()
+            plots.plot_2d_array(comparisons)
+            plots.dump('smooth_vs_orig')
+
+
+
+        # TODO Should there be one transform per input or per group?
+        return interp_transforms
 
 
     @profile
