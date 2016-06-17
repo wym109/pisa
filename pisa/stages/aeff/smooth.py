@@ -8,6 +8,7 @@ from itertools import product
 import numpy as np
 from scipy.interpolate import interp2d, splrep, splev
 
+from pisa import ureg, Q_
 from pisa.core.binning import OneDimBinning, MultiDimBinning
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
@@ -16,7 +17,6 @@ from pisa.utils.flavInt import flavintGroupsFromString, NuFlavInt, NuFlavIntGrou
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile
-
 
 # TODO: the below logic does not generalize to muons, but probably should
 # (rather than requiring an almost-identical version just for muons). For
@@ -231,20 +231,6 @@ class smooth(Stage):
         return smoothed_hist, metadata
 
 
-    def interpolate_hist(self, hist, hist_binning, new_binning):
-
-        interp_kind = self.params.interp_kind.value
-
-        interpolant = interp2d(
-                x=hist_binning.true_energy.midpoints,
-                y=hist_binning.true_coszen.midpoints,
-                z=hist, 
-                kind=interp_kind, copy=True, fill_value=None)
-        
-        return interpolant(new_binning.energy.midpoints,
-                           new_binning.coszen.midpoints)
-
-
     def smooth_transforms(self, transforms):
         new_transforms = []
         # TODO avoid redundant calculations in flav int groups
@@ -259,8 +245,8 @@ class smooth(Stage):
                 new_transform = BinnedTensorTransform(
                         input_names=transform.input_names,
                         output_name=transform.output_name,
-                        input_binning=transform.input_binning,
-                        output_binning=transform.output_binning,
+                        input_binning=done[t_group].input_binning,
+                        output_binning=done[t_group].output_binning,
                         xform_array=done[t_group].xform_array
                         )
                 new_transforms.append(new_transform)
@@ -283,8 +269,56 @@ class smooth(Stage):
         return TransformSet(transforms=new_transforms)
 
 
-    def interpolate_transforms(self, transforms):
-        return transforms
+    def interpolate_hist(self, hist, hist_binning, new_binning):
+
+        interp_kind = self.params.interp_kind.value
+
+        interpolant = interp2d(
+                x=hist_binning.true_energy.midpoints,
+                y=hist_binning.true_coszen.midpoints,
+                z=hist, 
+                kind=interp_kind, copy=True, fill_value=None)
+        
+        # NOTE Is this still "true" dimensions
+        return interpolant(new_binning.true_energy.midpoints,
+                           new_binning.true_coszen.midpoints)
+
+
+    def interpolate_transforms(self, transforms, new_binning):
+        new_transforms = []
+        v = [None]*len(self.transform_groups)
+        done = dict(zip(self.transform_groups, v))
+
+        for transform in transforms:
+            t_group = NuFlavIntGroup(transform.output_name)
+            if done[t_group] is not None:
+                new_transform = BinnedTensorTransform(
+                        input_names=transform.input_names,
+                        output_name=transform.output_name,
+                        input_binning=done[t_group].input_binning,
+                        output_binning=done[t_group].output_binning,
+                        xform_array=done[t_group].xform_array
+                        )
+                new_transforms.append(new_transform)
+            else:
+                interp_xform = self.interpolate_hist(
+                        hist=transform.xform_array,
+                        hist_binning=transform.output_binning,
+                        new_binning=new_binning
+                        )
+
+                new_transform = BinnedTensorTransform(
+                       input_names=transform.input_names,
+                       output_name=transform.output_name,
+                       input_binning=new_binning,
+                       output_binning=new_binning,
+                       xform_array=interp_xform
+                       )
+                new_transforms.append(new_transform)
+                assert done[t_group] is None
+                done[t_group] = new_transform
+
+        return TransformSet(transforms=new_transforms)
         
 
     @profile
@@ -345,9 +379,19 @@ class smooth(Stage):
         # runs. Parameters can include which groupings to use to formulate an
         # output.
 
+        # Make binning for smoothing
+        # TODO make this binning look like input? remove assertion
+        assert input_binning.names == ['true_coszen', 'true_energy']
+        s_ebins = OneDimBinning(name='true_energy', tex=r'E_\nu',
+                is_log=True, num_bins=39, domain=[1,80]*ureg.GeV)
+        s_czbins = OneDimBinning(name='true_coszen', 
+                tex=r'\cos\theta_\nu', is_lin=True, num_bins=40, 
+                domain=[-1,1]*ureg(None))
+        smoothing_binning = MultiDimBinning([s_czbins, s_ebins])
+
         # This gets used in innermost loop, so produce it just once here
         all_bin_edges = [dim.bin_edges.magnitude
-                         for dim in output_binning.dimensions]
+                         for dim in smoothing_binning.dimensions]
 
         nominal_transforms = []
         for flav_int_group in self.transform_groups:
@@ -359,7 +403,7 @@ class smooth(Stage):
 
             # Extract the columns' data into a list for histogramming
             sample = [self.events[repr_flav_int][name]
-                      for name in self.input_binning.names]
+                      for name in smoothing_binning.names]
 
             # Extract the weights
             weights = self.events[repr_flav_int]['weighted_aeff']
@@ -375,7 +419,7 @@ class smooth(Stage):
             # volumes to convert from sums-of-OneWeights-in-bins to
             # effective areas. Note that volume correction factor for
             # missing dimensions is applied here.
-            bin_volumes = output_binning.bin_volumes(attach_units=False)
+            bin_volumes = smoothing_binning.bin_volumes(attach_units=False)
             aeff_transform /= (bin_volumes * missing_dims_vol)
 
             # Store copy of transform for each member of the group
@@ -389,8 +433,8 @@ class smooth(Stage):
                     xform = BinnedTensorTransform(
                         input_names=input_name,
                         output_name=output_name,
-                        input_binning=self.input_binning,
-                        output_binning=self.output_binning,
+                        input_binning=smoothing_binning,
+                        output_binning=smoothing_binning,
                         xform_array=aeff_transform,
                     )
                     nominal_transforms.append(xform)
@@ -405,11 +449,17 @@ class smooth(Stage):
         plots.dump('aeff_transforms')
 
         nominal_transforms = self.smooth_transforms(nominal_transforms)
+
         plots.init_fig()
         plots.plot_2d_array(nominal_transforms, n_rows=2, n_cols=6, cmap=Paired)
         plots.dump('smoothed_aeff_transforms')
 
-        nominal_transforms = self.interpolate_transforms(nominal_transforms)
+        nominal_transforms = self.interpolate_transforms(nominal_transforms, 
+                new_binning=input_binning)
+
+        plots.init_fig()
+        plots.plot_2d_array(nominal_transforms, n_rows=2, n_cols=6, cmap=Paired)
+        plots.dump('interp_aeff_transforms')
 
         return nominal_transforms
 
