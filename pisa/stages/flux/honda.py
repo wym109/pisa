@@ -53,6 +53,7 @@ class honda(Stage):
             energy_scale : float
                 A proxy systematic designed to account for any uncertainty on the overall energy measurements.
                 i.e. an energy scale of 0.9 says all energies are systematically reconstructed at 90% of the truth (on average).
+                This systematic works by evaluating the flux splines at energy E*energy_scale and reading it in to energy bin E.
             nue_numu_ratio : float
                 The systematic accounting for the uncertainty in the relative production of nue(bar) and numu(bar) in the atmosphere.
                 It is implemented in a normalising-preserving way i.e. total nue + numu will stay constant.
@@ -606,6 +607,9 @@ class honda(Stage):
         evals = all_binning.true_energy.weighted_centers.magnitude
         czvals = all_binning.true_coszen.weighted_centers.magnitude
 
+        # Energy scale systematic says to read in flux to bin E at energy_scale*E
+        evals *= self.params['energy_scale'].value.magnitude
+
         flux_mode = self.params['flux_mode'].value
 
         if flux_mode == 'bisplrep':
@@ -663,6 +667,8 @@ class honda(Stage):
         # by bin width in both dimensions
         # i.e. the bin volume
         return_table *= self.output_binning.bin_volumes(attach_units=False)
+        # Energy scale systematic must be applied again here since it should come in the bin volume
+        return_table *= self.params['energy_scale'].value.magnitude
         # For 2D we also need to integrate over azimuth
         # There is no dependency, so this is a multiplication of 2pi
         return_table *= 2*np.pi
@@ -907,3 +913,11 @@ class honda(Stage):
                                                     'true_coszen',
                                                     'true_azimuth']):
             assert ('aa' not in params['flux_file'].value)
+
+        # Ratio systematics should not be negative.
+        # This makes no sense after all
+        assert (params['nue_numu_ratio'].value > 0.0)
+        assert (params['nu_nubar_ratio'].value > 0.0)
+
+        # Neither should energy scale for that matter
+        assert (params['energy_scale'].value > 0.0)
