@@ -29,6 +29,9 @@ def do_comparison(config=None, stagenum=None, stagename=None,
         except:
             config[stagename.lower()]['params'][systname] = 1.25*config[stagename.lower()]['params'][systname].value
 
+        pisa2file = pisa2file.split('.json')[0]+'-%s%.2f.json'%(systname,config[stagename.lower()]['params'][systname].value)
+        servicename += '-%s%.2f.json'%(systname,config[stagename.lower()]['params'][systname].value)
+
     pipeline = Pipeline(config)
     stage = pipeline.stages[stagenum]
     outputs = stage.get_outputs(inputs=None)
@@ -38,11 +41,13 @@ def do_comparison(config=None, stagenum=None, stagename=None,
         if 'nu' in nukey:
 
             pisa_map_to_plot = pisa2_comparisons[nukey]
-        
-            if nukey == 'numu_bar':
-                nukey = 'numubar'
-            if nukey == 'nue_bar':
-                nukey = 'nuebar'
+
+            if '_' in nukey:
+                if nukey.split('_')[1] == 'bar':
+                    new_nukey = ""
+                    for substr in nukey.split('_'):
+                        new_nukey += substr
+                    nukey = new_nukey
             
             cake_map = outputs[nukey]
             cake_map_to_plot = {}
@@ -92,72 +97,24 @@ def do_comparison(config=None, stagenum=None, stagename=None,
 
 base_config = parse_config('settings/pipeline_test.ini')
 
-logging.debug('Performing Tests of Flux Stage')
-logging.trace('>>> BEGIN: honda.py, integral-preserving, honda-2015-spl-solmax-aa.d')
-
 flux_config = deepcopy(base_config)
 
 flux_config['flux']['params']['flux_file'] = 'flux/honda-2015-spl-solmax-aa.d'
 flux_config['flux']['params']['flux_mode'] = 'integral-preserving'
 
-logging.trace('>>> >>> Systematics at Nominal')
+for syst in [None, 'atm_delta_index', 'nue_numu_ratio', 'nu_nubar_ratio', 'energy_scale']:
 
-do_comparison(config=deepcopy(flux_config),
-              stagenum=0,
-              stagename='Flux',
-              servicename='IP_Honda',
-              pisa2file='data/flux/PISAV2IPHonda2015SPLSolMaxFlux.json',
-              systname=None)
-
-logging.trace('>>> >>> Atm Delta Index +1 Sigma (0.05)')
-
-do_comparison(config=deepcopy(flux_config),
-              stagenum=0,
-              stagename='Flux',
-              servicename='IP_Honda_Atm_Delta_Index_0.05',
-              pisa2file='data/flux/PISAV2IPHonda2015SPLSolMaxFlux-DeltaIndex0.05.json',
-              systname='atm_delta_index')
-
-logging.trace('>>> >>> NuE / NuMu Ratio +1 Sigma (1.03)')
-
-do_comparison(config=deepcopy(flux_config),
-              stagenum=0,
-              stagename='Flux',
-              servicename='IP_Honda_NuE_NuMu_Ratio_1.03',
-              pisa2file='data/flux/PISAV2IPHonda2015SPLSolMaxFlux-NuENuMuRatio1.03.json',
-              systname='nue_numu_ratio')
-
-logging.trace('>>> >>> Nu / NuBar Ratio +1 Sigma (1.10)')
-
-do_comparison(config=deepcopy(flux_config),
-              stagenum=0,
-              stagename='Flux',
-              servicename='IP_Honda_Nu_NuBar_Ratio_1.10',
-              pisa2file='data/flux/PISAV2IPHonda2015SPLSolMaxFlux-NuNuBarRatio1.10.json',
-              systname='nu_nubar_ratio')
-
-logging.trace('>>> >>> Energy Scale +1 Sigma (1.10)')
-
-do_comparison(config=deepcopy(flux_config),
-              stagenum=0,
-              stagename='Flux',
-              servicename='IP_Honda_Energy_Scale_1.10',
-              pisa2file='data/flux/PISAV2IPHonda2015SPLSolMaxFlux-EnergyScale1.10.json',
-              systname='energy_scale')
-
-logging.trace('>>> END: honda.py, integral-preserving, honda-2015-spl-solmax-aa.d')
-
-logging.trace('>>> BEGIN: honda.py, bisplrep, honda-2015-spl-solmax-aa.d')
+    do_comparison(config=deepcopy(flux_config),
+                  stagenum=0,
+                  stagename='Flux',
+                  servicename='IP_Honda',
+                  pisa2file='data/flux/PISAV2IPHonda2015SPLSolMaxFlux.json',
+                  systname=syst)
 
 flux_config['flux']['params']['flux_mode'] = 'bisplrep'
-
-logging.trace('>>> >>> Systematics at Nominal')
-
 do_comparison(config=deepcopy(flux_config),
               stagenum=0,
               stagename='Flux',
               servicename='bisplrep_Honda',
               pisa2file='data/flux/PISAV2bisplrepHonda2015SPLSolMaxFlux.json',
               systname=None)
-
-logging.trace('>>> END: honda.py, bisplrep, honda-2015-spl-solmax-aa.d')
