@@ -48,14 +48,32 @@ class honda(Stage):
     ----------
     params : ParamSet or sequence with which to instantiate a ParamSet.
         Expected params are:
+            atm_delta_index : float
+                The systematic describing the shift in the shape of the numu(bar) data as a function of energy relative to the prediction from the Honda tables.
+            energy_scale : float
+                A proxy systematic designed to account for any uncertainty on the overall energy measurements.
+                i.e. an energy scale of 0.9 says all energies are systematically reconstructed at 90% of the truth (on average).
+                This systematic works by evaluating the flux splines at energy E*energy_scale and reading it in to energy bin E.
+            nue_numu_ratio : float
+                The systematic accounting for the uncertainty in the relative production of nue(bar) and numu(bar) in the atmosphere.
+                It is implemented in a normalising-preserving way i.e. total nue + numu will stay constant.
+            nu_nubar_ratio : float
+                The systematic accounting for the uncertainty in the relative production of nu and nubar in the atmosphere.
+                It is implemented in a normalising-preserving way i.e. total nu + nubar will stay constant.
+            oversample_e : int
+                An integer by which to oversample the requested binning in the energy dimension.
+                i.e. an oversampling of 10 means the flux will be calculated 10 times inside each energy bin.
+                This is implemented in such a way that the bins become equally split up.
+            oversample_cz : int
+                An integer by which to oversample the requested binning in the cosZenith dimension.
+                All the oversampling values will end up effectively "multiplied" together.
+                i.e. if you request 10 oversampling in both energy and cosZenith directions then each (E,cZ) bin will have 100 evaluations inside of it.
             flux_file : str
-                The name of the file containing the atmospheric neutrino files
-                to be read in.
+                The name of the file containing the atmospheric neutrino files to be read in.
             flux_mode : str
-                The name of the interpolation method to be used on these
-                atmospheric neutrino flux tables. The current choices are
-                'bisplrep' and 'integral-preserving'. The former is fast, but
-                the latter represents a more accurate choice.
+                The name of the interpolation method to be used on these atmospheric neutrino flux tables.
+                The current choices are 'bisplrep' and 'integral-preserving'.
+                The former is fast, but the latter represents a more accurate choice.
 
     output_binning : The binning desired for the output maps
 
@@ -540,7 +558,27 @@ class honda(Stage):
         # The MapSet contains the varous things that are necessary to make
         # caching work and also provides a nice interface for the user to all
         # of the contained maps
-        return MapSet(maps=output_maps, name='flux maps')
+
+        # Now apply systematics if needed
+        # First check what needs doing
+        nuenumuratio_toapply = self.params['nue_numu_ratio'].value != 1.0
+        nunubarratio_toapply = self.params['nu_nubar_ratio'].value != 1.0
+        atmdeltaindex_toapply = self.params['atm_delta_index'].value != 0.0
+
+        # If any
+        if nuenumuratio_toapply or nunubarratio_toapply or atmdeltaindex_toapply:
+            # Make a copy, since we don't know which we want to apply this to
+            scaled_output_maps = MapSet(maps=output_maps, name='flux maps')
+            # Then just go through applying whatever
+            if nuenumuratio_toapply:
+                scaled_output_maps = self.apply_nue_numu_ratio(scaled_output_maps)
+            if nunubarratio_toapply:
+                scaled_output_maps = self.apply_nu_nubar_ratio(scaled_output_maps)
+            if atmdeltaindex_toapply:
+                scaled_output_maps = self.apply_delta_index(scaled_output_maps)
+            return scaled_output_maps
+        else:
+            return MapSet(maps=output_maps, name='flux maps')
 
     def compute_2D_outputs(self, prim):
         """
@@ -568,6 +606,9 @@ class honda(Stage):
         # Get bin centers to evaluate splines at
         evals = all_binning.true_energy.weighted_centers.magnitude
         czvals = all_binning.true_coszen.weighted_centers.magnitude
+
+        # Energy scale systematic says to read in flux to bin E at energy_scale*E
+        evals *= self.params['energy_scale'].value.magnitude
 
         flux_mode = self.params['flux_mode'].value
 
@@ -626,6 +667,8 @@ class honda(Stage):
         # by bin width in both dimensions
         # i.e. the bin volume
         return_table *= self.output_binning.bin_volumes(attach_units=False)
+        # Energy scale systematic must be applied again here since it should come in the bin volume
+        return_table *= self.params['energy_scale'].value.magnitude
         # For 2D we also need to integrate over azimuth
         # There is no dependency, so this is a multiplication of 2pi
         return_table *= 2*np.pi
@@ -643,12 +686,12 @@ class honda(Stage):
         return return_map
 
     def compute_3D_outputs(self, prim):
-        """Method for computing 3 dimensional fluxes when binning is also
-        called in azimuth. Binning always expected in energy and cosZenith, and
-        the previous compute_2D_outputs is called in that case instead.
+        """
+        Method for computing 3 dimensional fluxes when binning is also called in azimuth.
+        Binning always expected in energy and cosZenith, and the previous compute_2D_outputs is called in that case instead.
 
-        For now this just mimics the dummy functionality. Will add it in
-        properly later.
+        For now this just mimics the dummy functionality.
+        Will add it in properly later.
 
         Parameters
         ----------
@@ -672,6 +715,182 @@ class honda(Stage):
         #m.set_poisson_errors()
         return m
 
+    def apply_nue_numu_ratio(self, flux_maps):
+        """
+        Method for applying the nue/numu ratio systematic.
+        The actual calculation is done by apply_ratio_scale.
+
+        Parameters
+        ----------
+        flux_maps : MapSet
+            The set of maps returned by the Honda interpolation.
+
+        """
+        scaled_nue_flux, scaled_numu_flux = self.apply_ratio_scale(
+            map1 = flux_maps['nue'],
+            map2 = flux_maps['numu'],
+            ratio_scale = self.params['nue_numu_ratio'].value.magnitude
+        )
+
+        scaled_nuebar_flux, scaled_numubar_flux = self.apply_ratio_scale(
+            map1 = flux_maps['nuebar'],
+            map2 = flux_maps['numubar'],
+            ratio_scale = self.params['nue_numu_ratio'].value.magnitude
+        )
+
+        # Names of maps get messed up by apply_ratio_scale function
+        # Just redefine them correctly now to be sure
+        scaled_numu_flux = Map(name='numu',
+                               hist=scaled_numu_flux.hist,
+                               binning=self.output_binning)
+        scaled_numubar_flux = Map(name='numubar',
+                                  hist=scaled_numubar_flux.hist,
+                                  binning=self.output_binning)
+        scaled_nue_flux = Map(name='nue',
+                              hist=scaled_nue_flux.hist,
+                              binning=self.output_binning)
+        scaled_nuebar_flux = Map(name='nuebar',
+                                 hist=scaled_nuebar_flux.hist,
+                                 binning=self.output_binning)
+
+        scaled_flux_maps = []
+        scaled_flux_maps.append(scaled_numu_flux)
+        scaled_flux_maps.append(scaled_numubar_flux)
+        scaled_flux_maps.append(scaled_nue_flux)
+        scaled_flux_maps.append(scaled_nuebar_flux)
+        
+        return MapSet(maps=scaled_flux_maps, name='flux maps')
+
+    def apply_nu_nubar_ratio(self, flux_maps):
+        """
+        Method for applying the nue/nubar ratio systematic.
+        The actual calculation is done by apply_ratio_scale.
+
+        Parameters
+        ----------
+        flux_maps : MapSet
+            The set of maps returned by the Honda interpolation.
+
+        """
+        scaled_nue_flux, scaled_nuebar_flux = self.apply_ratio_scale(
+            map1 = flux_maps['nue'],
+            map2 = flux_maps['nuebar'],
+            ratio_scale = self.params['nu_nubar_ratio'].value.magnitude
+        )
+
+        scaled_numu_flux, scaled_numubar_flux = self.apply_ratio_scale(
+            map1 = flux_maps['numu'],
+            map2 = flux_maps['numubar'],
+            ratio_scale = self.params['nu_nubar_ratio'].value.magnitude
+        )
+
+        # Names of maps get messed up by apply_ratio_scale function
+        # Just redefine them correctly now to be sure
+        scaled_numu_flux = Map(name='numu',
+                               hist=scaled_numu_flux.hist,
+                               binning=self.output_binning)
+        scaled_numubar_flux = Map(name='numubar',
+                                  hist=scaled_numubar_flux.hist,
+                                  binning=self.output_binning)
+        scaled_nue_flux = Map(name='nue',
+                              hist=scaled_nue_flux.hist,
+                              binning=self.output_binning)
+        scaled_nuebar_flux = Map(name='nuebar',
+                                 hist=scaled_nuebar_flux.hist,
+                                 binning=self.output_binning)
+
+        scaled_flux_maps = []
+        scaled_flux_maps.append(scaled_numu_flux)
+        scaled_flux_maps.append(scaled_numubar_flux)
+        scaled_flux_maps.append(scaled_nue_flux)
+        scaled_flux_maps.append(scaled_nuebar_flux)
+        
+        return MapSet(maps=scaled_flux_maps, name='flux maps')
+
+    def apply_ratio_scale(self, map1, map2, ratio_scale):
+        """
+        Method for applying an arbitrary ratio systematic.
+        This will be normalisation-preserving to minimise the correlation with any normalisation systematics such as aeff_scale.
+        This systematic changes map1/map2 to a new value.
+        If map1/map2 = orig_ratio then the returned maps will have map1/map2 = orig_ratio * ratio_scale.
+        Normalisation-preserving means original_map1 + original_map2 = returned_map1 + returned_map2.
+
+        Parameters
+        ----------
+        map1 : Map
+            The numerator map in the ratio.
+        map2 : Map
+            The denominator map in the ratio.
+        ratio_scale : float
+            The amount by which to scale map1/map2 by.
+
+        """
+        # We require S1/S2 = O1/O2 * R and S1 + S2 = O1 + O2
+        # This trivially tells us S1 = S2*R*O1/O2
+        # The second can then be used to derive the form of S2
+        # S1 + S2 = S2*R*O1/O2 + S2 = S2(1+R*O1/O2) = O1 + O2
+        # Gives S2 = (O1 + O2) / (1+R*O1/O2)
+
+        orig_map_sum = map1 + map2
+        orig_map_ratio = map1/map2
+        orig_total1 = map1.hist.sum()
+        orig_total2 = map2.hist.sum()
+
+        scaled_map2 = orig_map_sum / (1 + ratio_scale * orig_map_ratio)
+        scaled_map1 = ratio_scale * orig_map_ratio * scaled_map2
+        
+        return scaled_map1, scaled_map2
+
+    def apply_delta_index(self, flux_maps):
+        """
+        Method for applying the atmospheric index systematic.
+        This is applied as a shift in the E^{-\gamma} spectrum predicted by Honda.
+        i.e. A value of the atmospheric index systematic of 0 leaves the shape as a function of E unchanged.
+        A value of the atmospheric index systematic of 0.5 shifts it to E^{-\gamma+0.5}
+
+        This is applied in a normalisation-preserving way.
+
+        Currently it is only applied to the numu/numubar flux.
+
+        Parameters
+        ----------
+        flux_maps : MapSet
+            The set of maps returned by the Honda interpolation.
+
+        """
+
+        scaled_flux_maps = []
+
+        for flav in ['numu','numubar']:
+
+            all_binning = self.output_binning.to(true_energy='GeV',
+                                                 true_coszen=None)
+            evals = all_binning.true_energy.weighted_centers.magnitude
+            
+            # Values are pivoted about the median energy in the chosen range
+            median_energy = evals[len(evals)/2]
+
+            # This pivoting will give an energy-dependent scale factor
+            scale = np.power((evals/median_energy),self.params['atm_delta_index'].value)
+            
+            flux_map = flux_maps[flav]
+
+            # Need to multiply along the energy axis, so it must be second
+            if self.output_binning.names[0] == 'energy':
+                scaled_flux = (flux_map.T*scale).T
+            else:
+                scaled_flux = flux_map*scale
+
+            # Now perform the renormalisation
+            scaled_flux *= (flux_map.hist.sum()/scaled_flux.hist.sum())
+
+            scaled_flux_maps.append(scaled_flux)
+
+        scaled_flux_maps.append(flux_maps['nue'])
+        scaled_flux_maps.append(flux_maps['nuebar'])
+
+        return MapSet(maps=scaled_flux_maps, name='flux maps')
+
     def validate_params(self, params):
         # do some checks on the parameters
 
@@ -694,3 +913,11 @@ class honda(Stage):
                                                     'true_coszen',
                                                     'true_azimuth']):
             assert ('aa' not in params['flux_file'].value)
+
+        # Ratio systematics should not be negative.
+        # This makes no sense after all
+        assert (params['nue_numu_ratio'].value > 0.0)
+        assert (params['nu_nubar_ratio'].value > 0.0)
+
+        # Neither should energy scale for that matter
+        assert (params['energy_scale'].value > 0.0)
