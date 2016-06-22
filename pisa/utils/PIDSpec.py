@@ -84,25 +84,13 @@ class PIDSpec(object):
         d = pid_specs
         all_k = []
         for wanted_key in [detector, geom, proc_ver, pid_spec_ver]:
-            wanted_key = wanted_key.lower()
+            wanted_key = wanted_key.replace("'","").lower()
             for orig_dict_key, subdict in d.iteritems():
-                dict_key = orig_dict_key.lower()
-                # This works for PINGU datasets
+                dict_key = orig_dict_key.replace("'","").lower()
                 if (dict_key == wanted_key) or ('v'+dict_key == wanted_key) \
-                        or (dict_key == 'v'+wanted_key):
+                   or (dict_key == 'v'+wanted_key):
                     d = subdict
                     all_k.append(orig_dict_key)
-                # This works for MSU deepcore datasets
-                elif ('msu_'+dict_key == wanted_key) or \
-                        (dict_key == 'msu_'+wanted_key):
-                    d = subdict
-                    all_k.append(orig_dict_key)
-                # This works for NBI deepcore datasets
-                elif ('nbi_'+dict_key == wanted_key) or \
-                        (dict_key == 'nbi_'+wanted_key):
-                    d = subdict
-                    all_k.append(orig_dict_key)
-                    # Generalising for DeepCore and different selections
         if len(all_k) != 4:
             raise ValueError(
                 'Could not find %s'

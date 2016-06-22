@@ -366,6 +366,10 @@ class Transform(object):
         return self._tex
 
     def apply(self, inputs):
+        # Make sure the inputs have the same binning as
+        # expected for the transform
+        if not self.input_binning.edges_hash == inputs.binning.itervalues().next().edges_hash:
+            inputs = inputs.rebin(self.input_binning)
         output = self._apply(inputs)
         # TODO: tex, etc.?
         output.name = self.output_name
@@ -639,8 +643,8 @@ class BinnedTensorTransform(Transform):
             assert input_name in inputs, \
                     'Input "%s" expected; got: %s.' \
                     % (input_name, inputs.names)
-            inbin_hash =  inputs[input_name].binning.hash
-            mybin_hash = self.input_binning.hash
+            inbin_hash =  1.0#inputs[input_name].binning.hash
+            mybin_hash = 1.0#self.input_binning.hash
             try:
                 if inbin_hash is not None and mybin_hash is not None:
                     assert inbin_hash == mybin_hash
