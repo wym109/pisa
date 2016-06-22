@@ -15,10 +15,15 @@ parser = ArgumentParser()
 parser.add_argument('-t', '--template-settings', type=str,
                     metavar='configfile', required=True,
                     help='settings for the generation of templates')
+parser.add_argument('-p', '--plot', action='store_true',
+                    help='plot')
 parser.add_argument('-v', action='count', default=None,
                     help='set verbosity level')
 args = parser.parse_args()
 set_verbosity(args.v)
+
+if args.plot: 
+    import matplotlib.pyplot as plt
 
 template_maker_settings = from_file(args.template_settings)
 template_maker_configurator = parse_config(template_maker_settings)
@@ -31,7 +36,7 @@ fname_joined = 'joined_G_nue_cc+nuebar_cc_G_numu_cc+numubar_cc_G_nutau_cc+nutaub
 
 pname = 'dom_eff'
 nominal = 1.0
-runs = [('601', 0.88), ('603', 0.94)]#, ('604', 0.97), ('605', 1.03), ('606', 1.06), ('608', 1.12)]
+runs = [('601', 0.88), ('603', 0.94), ('604', 0.97), ('605', 1.03), ('606', 1.06), ('608', 1.12)]
 
 x_values = np.array(sorted([r[1] for r in runs] + [nominal]))
 
@@ -89,12 +94,31 @@ for i, j in np.ndindex(cscd_slopes.shape):
     popt, pcov = curve_fit(fit_fun, x_values,
             y_values)
     cscd_slopes[i,j] = popt
+    if args.plot:
+        fig_num = i + nx * j
+        if fig_num == 0:
+            fig = plt.figure(num=1, figsize=( 4*nx, 4*ny))
+        subplot_idx = nx*(ny-1-j)+ i + 1
+        plt.subplot(ny, nx, subplot_idx)
+        plt.scatter(x_values, y_values, color='blue')
+        f_values = fit_fun(x_values, popt)
+        fun_plot, = plt.plot(x_values, f_values,'k-')
+        plt.ylim(np.min(cscd_array)*0.9, np.max(cscd_array)*1.1)
+        if i > 0:
+            plt.setp(plt.gca().get_yticklabels(), visible=False)
+        if j > 0:
+            plt.setp(plt.gca().get_xticklabels(), visible=False)
 
-spline = interpolate.SmoothBivariateSpline(grid_x, grid_y, np.ravel(cscd_slopes))
-smooth = spline(grid_x, grid_y)
-smooth = smooth.reshape(nx, ny)
+if args.plot:
+    fig.subplots_adjust(hspace=0)
+    fig.subplots_adjust(wspace=0)
+    plt.show()
+    plt.savefig('cscd.pdf')
 
-import matplotlib.pyplot as plt
-plt.imshow(smooth,interpolation='nearest')
-plt.show()
-plt.savefig('cscd.pdf')
+
+
+#spline = interpolate.SmoothBivariateSpline(grid_x, grid_y,
+#        np.ravel(cscd_slopes), kx=2, ky=2)
+#smooth = spline(bins_x, bins_y)
+
+#plt.imshow(smooth,interpolation='nearest')
