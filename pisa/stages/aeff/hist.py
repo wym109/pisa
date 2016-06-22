@@ -67,7 +67,8 @@ class hist(Stage):
 
     """
     def __init__(self, params, particles, transform_groups,
-                 combine_grouped_flavints, input_binning, output_binning, disk_cache=None,
+                 combine_grouped_flavints, input_binning, output_binning,
+                 errors=None, disk_cache=None,
                  transforms_cache_depth=20, outputs_cache_depth=20):
         self.events_hash = None
         """Hash of events file or Events object used"""
@@ -84,6 +85,12 @@ class hist(Stage):
         expected_params = (
             'aeff_weight_file', 'livetime', 'aeff_scale'
         )
+
+        # use errors?
+        if errors is not None:
+            self.errors = True
+        else:
+            self.errors = False
 
         # Define the names of objects expected in inputs and produced as
         # outputs
@@ -185,7 +192,8 @@ class hist(Stage):
                 kinds=flav_int_group,
                 binning=all_bin_edges,
                 binning_cols=self.input_binning.names,
-                weights_col='weighted_aeff'
+                weights_col='weighted_aeff',
+                errors=self.errors
             )
 
             # Divide histogram by
