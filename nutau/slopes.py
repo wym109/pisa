@@ -1,5 +1,6 @@
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import numpy as np
+from numpy.polynomial.polynomial import polyval
 from scipy.optimize import curve_fit
 from scipy import interpolate
 
@@ -21,6 +22,9 @@ parser.add_argument('-v', action='count', default=None,
                     help='set verbosity level')
 args = parser.parse_args()
 set_verbosity(args.v)
+
+degree = 2
+force_through_nominal = False
 
 if args.plot: 
     import matplotlib.pyplot as plt
@@ -86,14 +90,20 @@ grid_x, grid_y = np.meshgrid(bins_x, bins_y)
 grid_x = np.ravel(grid_x)
 grid_y = np.ravel(grid_y)
 
-def fit_fun(x, k):
-    return 1. + k * (x - 1.)
+# shift to get deltas
+x_values -= nominal
+
+# fix point poly definition
+if force_through_nominal:
+    fit_fun = lambda x, *p: polyval(x, [1.] + list(p))
+else:
+    fit_fun = lambda x, *p: polyval(x, list(p))
 
 for i, j in np.ndindex(cscd_slopes.shape):
     y_values = cscd_array[i,j,:]
     popt, pcov = curve_fit(fit_fun, x_values,
-            y_values)
-    cscd_slopes[i,j] = popt
+            y_values, p0=np.ones(degree))
+    cscd_slopes[i,j] = popt[0]
     if args.plot:
         fig_num = i + nx * j
         if fig_num == 0:
@@ -101,7 +111,7 @@ for i, j in np.ndindex(cscd_slopes.shape):
         subplot_idx = nx*(ny-1-j)+ i + 1
         plt.subplot(ny, nx, subplot_idx)
         plt.scatter(x_values, y_values, color='blue')
-        f_values = fit_fun(x_values, popt)
+        f_values = fit_fun(x_values, *popt)
         fun_plot, = plt.plot(x_values, f_values,'k-')
         plt.ylim(np.min(cscd_array)*0.9, np.max(cscd_array)*1.1)
         if i > 0:
