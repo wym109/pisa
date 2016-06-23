@@ -81,6 +81,9 @@ class hist(Stage):
 
     outputs_cache_depth
 
+    debug_mode : None, bool, or string
+        Whether to store extra debug info for this service.
+
     Notes
     -----
     The `transform_groups` string is interpreted (and therefore defined) by
@@ -95,8 +98,9 @@ class hist(Stage):
 
     """
     def __init__(self, params, particles, input_names, transform_groups,
-                 input_binning, output_binning, disk_cache=None,
-                 transforms_cache_depth=20, outputs_cache_depth=20):
+                 input_binning, output_binning, error_method=None,
+                 disk_cache=None, transforms_cache_depth=20,
+                 outputs_cache_depth=20, debug_mode=None):
         self.events_hash = None
         """Hash of events file or Events object used"""
 
@@ -132,11 +136,13 @@ class hist(Stage):
             expected_params=expected_params,
             input_names=input_names,
             output_names=output_names,
+            error_method=error_method,
             disk_cache=disk_cache,
             outputs_cache_depth=outputs_cache_depth,
             transforms_cache_depth=transforms_cache_depth,
             input_binning=input_binning,
-            output_binning=output_binning
+            output_binning=output_binning,
+            debug_mode=debug_mode
         )
 
         # Can do these now that binning has been set up in call to Stage's init
