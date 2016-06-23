@@ -40,14 +40,12 @@ class Pipeline(object):
     """Instantiate stages according to a parsed config object; excecute
     stages.
 
-
     Parameters
     ----------
     config : string or OrderedDict
         If string, interpret as resource location; send to the
           parse_config.parse_config() function to get a config OrderedDict.
         If OrderedDict, use directly as pipeline configuration.
-
 
     Methods
     -------
@@ -57,7 +55,6 @@ class Pipeline(object):
 
     update_params
         Update params of all stages using values from a passed ParamSet
-
 
     Attributes
     ----------
@@ -85,26 +82,31 @@ class Pipeline(object):
 
         self._stages = []
         for stage_num, stage_name in enumerate(self.config.keys()):
-            logging.debug('instatiating stage %s'%stage_name)
-            service = self.config[stage_name.lower()].pop('service').lower()
-            # Import stage service
-            module = importlib.import_module('pisa.stages.%s.%s'
-                                             %(stage_name.lower(), service))
-            # Get class
-            cls = getattr(module, service)
+            try:
+                logging.debug('instatiating stage %s' % stage_name)
+                service = self.config[stage_name.lower()].pop('service').lower()
+                # Import stage service
+                module = importlib.import_module('pisa.stages.%s.%s'
+                                                 %(stage_name.lower(), service))
+                # Get class
+                cls = getattr(module, service)
 
-            # Instantiate object, do basic type check
-            stage = cls(**self.config[stage_name.lower()])
-            assert isinstance(stage, Stage)
+                # Instantiate object, do basic type check
+                stage = cls(**self.config[stage_name.lower()])
+                assert isinstance(stage, Stage)
 
-            # Make sure the input binning of this stage is compatible with the
-            # output binning of the previous stage ("compatible binning"
-            # includes if both are specified to be None)
-            #if len(self._stages) > 0:
-            #    assert stage.input_binning.is_compat(self._stages[-1].output_binning)
+                # Make sure the input binning of this stage is compatible with the
+                # output binning of the previous stage ("compatible binning"
+                # includes if both are specified to be None)
+                #if len(self._stages) > 0:
+                #    assert stage.input_binning.is_compat(self._stages[-1].output_binning)
 
-            # Append stage to pipeline
-            self._stages.append(stage)
+                # Append stage to pipeline
+                self._stages.append(stage)
+            except:
+                logging.error('Failed to initialize stage #%d (%s).'
+                              %(stage_num, stage_name))
+                raise
 
         logging.debug(str(self.params))
 
@@ -134,8 +136,8 @@ class Pipeline(object):
         intermediate = []
         i = 0
         for stage in self.stages[:idx]:
-            logging.debug('Working on stage %s (%s)' %(stage.stage_name,
-                                                       stage.service_name))
+            logging.info('>> Working on stage "%s" service "%s"'
+                         %(stage.stage_name, stage.service_name))
             try:
                 logging.trace('>>> BEGIN: get_outputs')
                 outputs = stage.get_outputs(inputs=inputs)
@@ -179,7 +181,7 @@ if __name__ == '__main__':
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
     import numpy as np
     from pisa.core.map import Map, MapSet
-    from pisa.utils.fileio import from_file, mkdir, to_file
+    from pisa.utils.fileio import mkdir, to_file
     from pisa.utils.parse_config import parse_config
     from pisa.utils.plotter import plotter
 
@@ -204,10 +206,11 @@ if __name__ == '__main__':
         STAGE, but stop there.'''
     )
     parser.add_argument(
-        '-d', '--outdir', metavar='DIR', default='.', type=str,
+        '-d', '--outdir', metavar='DIR', type=str,
         help='''Store all output files (data and plots) to this directory.
         Directory will be created (including missing parent directories) if it
-        does not exist already.'''
+        does not exist already. If no outdir is provided, no outputs will be
+        saved.'''
     )
     #parser.add_argument(
     #    '-o', '--outname', metavar='FILENAME', type=str,
@@ -248,15 +251,19 @@ if __name__ == '__main__':
     args = parser.parse_args()
     set_verbosity(args.v)
 
-    mkdir(args.outdir)
+    if args.outdir:
+        mkdir(args.outdir)
+    else:
+        if args.pdf or args.png:
+            raise ValueError('No --outdir provided, so cannot save images.')
 
     # Instantiate the pipeline
     pipeline = Pipeline(args.pipeline_settings)
 
-    for run in xrange(2):
-        print ''
-        print 'STARTING RUN %d ............' % run
-        print ''
+    for run in xrange(3):
+        logging.info('')
+        logging.info('## STARTING RUN %d ............' % run)
+        logging.info('')
         if args.only_stage is None:
             idx = slice(0, args.stop_after_stage)
             outputs = pipeline.get_outputs(idx=args.stop_after_stage)
@@ -277,11 +284,13 @@ if __name__ == '__main__':
             else:
                 inputs = None
             outputs = stage.get_outputs(inputs=inputs)
-        print ''
-        print ' ............ finished RUN %d' % run
-        print ''
+        logging.info('')
+        logging.info('## ............ finished RUN %d' % run)
+        logging.info('')
 
     for stage in pipeline.stages[idx]:
+        if not args.outdir:
+            break
         stg_svc = stage.stage_name + '__' + stage.service_name
         fbase = os.path.join(args.outdir, stg_svc)
         if args.intermediate or stage == pipeline.stages[-1]:
