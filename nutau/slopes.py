@@ -1,6 +1,5 @@
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import numpy as np
-
 from scipy.optimize import curve_fit
 from scipy import interpolate
 
@@ -23,53 +22,53 @@ parser.add_argument('-v', action='count', default=None,
 args = parser.parse_args()
 set_verbosity(args.v)
 
+if args.plot: 
+    import matplotlib.pyplot as plt
+
+# ---- this should go into external cfg ----
 # 1: linear, 2: quadratic, etc...
 degree = 1
 # force fit to go through nominal point
 force_through_nominal = True
+# discrete sys files
+path = '/Users/peller/PSU/cake/nutau/event_files/'
+fname_s = 'events__deepcore__IC86__runs_12%s1-12%s3,14%s1-14%s3,16%s1-16%s3__proc_v5digit__'
+fname_unjoined = 'unjoined.hdf5'
+fname_joined = 'joined_G_nue_cc+nuebar_cc_G_numu_cc+numubar_cc_G_nutau_cc+nutaubar_cc_G_nuall_nc+nuallbar_nc.hdf5'
+pname = 'dom_eff'
+nominal = 1.0
+runs = [('601', 0.88), ('603', 0.94), ('604', 0.97), ('605', 1.03), ('606', 1.06), ('608', 1.12)]
+#runs = [('601', 0.88), ('603', 0.94), ('606', 1.06), ('608', 1.12)]
+# -----------------------------------------
 
-# define fit function
+categories = ['cscd', 'trck']
+plt_colors = {'cscd':'b', 'trck':'r'}
+
+x_values = np.array(sorted([r[1] for r in runs] + [nominal]))
+
+# build fit function
 if force_through_nominal:
     function = "fit_fun = lambda x, *p: np.polynomial.polynomial.polyval(x, [1.] + list(p))"
 else:
     function = "fit_fun = lambda x, *p: np.polynomial.polynomial.polyval(x, list(p))"
     # add free parameter for constant term
     degree += 1
-
 exec(function)
 
-if args.plot: 
-    import matplotlib.pyplot as plt
-
+# instantiate template maker
 template_maker_settings = from_file(args.template_settings)
 template_maker_configurator = parse_config(template_maker_settings)
 template_maker = DistributionMaker(template_maker_configurator)
 
-path = '/Users/peller/PSU/cake/nutau/event_files/'
-fname_s = 'events__deepcore__IC86__runs_12%s1-12%s3,14%s1-14%s3,16%s1-16%s3__proc_v5digit__'
-fname_unjoined = 'unjoined.hdf5'
-fname_joined = 'joined_G_nue_cc+nuebar_cc_G_numu_cc+numubar_cc_G_nutau_cc+nutaubar_cc_G_nuall_nc+nuallbar_nc.hdf5'
-
-pname = 'dom_eff'
-nominal = 1.0
-runs = [('601', 0.88), ('603', 0.94), ('604', 0.97), ('605', 1.03), ('606', 1.06), ('608', 1.12)]
-#runs = [('601', 0.88), ('603', 0.94), ('606', 1.06), ('608', 1.12)]
-
-x_values = np.array(sorted([r[1] for r in runs] + [nominal]))
-
-categories = ['cscd', 'trck']
-plt_colors = {'cscd':'b', 'trck':'r'}
-
+# get nominal templates
 inputs = {}
-for cat in categories:
-     inputs[cat] = {}
-
-# get templates
 template = template_maker.get_outputs()
 for cat in categories:
+    inputs[cat] = {}
     inputs[cat][nominal] = sum([map.hist for map in template if
             map.name.endswith(cat)])
 
+# get sys templates
 for run, value in runs:
     # adjust params
     param = template_maker.params['aeff_weight_file']
@@ -90,15 +89,12 @@ for run, value in runs:
         inputs[cat][value] = sum([map.hist for map in template if
             map.name.endswith(cat)])
 
+# numpy acrobatics:
 arrays = {}
 for cat in categories:
     arrays[cat] = []
-
-for x in x_values:
-    for cat in categories:
+    for x in x_values:
         arrays[cat].append(inputs[cat][x]/inputs[cat][nominal])
-
-for cat in categories:
     arrays[cat] = np.array(arrays[cat]).transpose(1,2,0)
 
 nx, ny = inputs[categories[0]][nominal].shape
@@ -106,7 +102,6 @@ bins_x = np.arange(nx)
 bins_y = np.arange(ny)
 
 grid_x, grid_y = np.meshgrid(bins_x, bins_y)
-
 grid_x = np.ravel(grid_x)
 grid_y = np.ravel(grid_y)
 
@@ -115,6 +110,8 @@ x_values -= nominal
 
 # array to store params
 outputs = {}
+
+# now actualy do some fits
 for cat in categories:
     outputs[cat] = np.ones((nx, ny, degree))
 
@@ -125,6 +122,7 @@ for cat in categories:
                 y_values, p0=np.ones(degree))
         for k, p in enumerate(popt):
             outputs[cat][i,j,k] = p
+
         # plot
         if args.plot:
             fig_num = i + nx * j
