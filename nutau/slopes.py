@@ -3,6 +3,7 @@ import numpy as np
 from scipy.optimize import curve_fit
 from scipy.ndimage.filters import gaussian_filter
 from scipy import interpolate
+import copy
 
 from pisa import ureg, Q_
 from pisa.core.distribution_maker import DistributionMaker
@@ -10,7 +11,7 @@ from pisa.utils.fileio import from_file, to_file
 from pisa.utils.log import set_verbosity
 from pisa.utils.parse_config import parse_config
 from pisa.utils.plotter import plotter
-from pisa.core.map import MapSet
+from pisa.core.map import Map, MapSet
 
 parser = ArgumentParser()
 parser.add_argument('-t', '--template-settings', type=str,
@@ -25,6 +26,7 @@ set_verbosity(args.v)
 
 if args.plot: 
     import matplotlib.pyplot as plt
+    from pisa.utils.plotter import plotter
 
 # ---- this should go into external cfg ----
 # 1: linear, 2: quadratic, etc...
@@ -38,9 +40,9 @@ fname_unjoined = 'unjoined.hdf5'
 fname_joined = 'joined_G_nue_cc+nuebar_cc_G_numu_cc+numubar_cc_G_nutau_cc+nutaubar_cc_G_nuall_nc+nuallbar_nc.hdf5'
 pname = 'dom_eff'
 nominal = 1.0
-runs = [('601', 0.88), ('603', 0.94), ('604', 0.97), ('605', 1.03), ('606', 1.06), ('608', 1.12)]
-#runs = [('601', 0.88), ('603', 0.94), ('606', 1.06), ('608', 1.12)]
-smooth = None
+#runs = [('601', 0.88), ('603', 0.94), ('604', 0.97), ('605', 1.03), ('606', 1.06), ('608', 1.12)]
+runs = [('601', 0.88), ('603', 0.94), ('606', 1.06), ('608', 1.12)]
+smooth = 'gauss'
 # -----------------------------------------
 
 categories = ['cscd', 'trck']
@@ -65,6 +67,7 @@ template_maker = DistributionMaker(template_maker_configurator)
 # get nominal templates
 inputs = {}
 template = template_maker.get_outputs()
+binning = template.maps[0].binning
 for cat in categories:
     inputs[cat] = {}
     inputs[cat][nominal] = sum([map.hist for map in template if
@@ -146,6 +149,8 @@ for cat in categories:
 
 # smoothing
 if bool(smooth):
+    raw_outputs = copy.deepcopy(outputs)
+    errors = {}
     for cat in categories:
         for d in range(degree):
             if smooth == 'spline':
@@ -174,6 +179,22 @@ if args.plot:
     plt.show()
     plt.savefig('%s_sysfits.pdf'%pname)
     plt.clf()
+
+    if bool(smooth):
+        maps = []
+        for cat in categories:
+            maps.append(Map(name='%s_raw'%cat, hist=raw_outputs[cat][:,:,0],
+                        binning=binning))
+            maps.append(Map(name='%s_smooth'%cat, hist=outputs[cat][:,:,0],
+                        binning=binning))
+            maps.append(Map(name='%s_ratio'%cat,
+                        hist=raw_outputs[cat][:,:,0]/outputs[cat][:,:,0],
+                        binning=binning))
+        maps = MapSet(maps)
+        my_plotter = plotter(stamp='PISA cake test', outdir='.',
+            fmt='pdf',log=False)
+        my_plotter.plot_2d_array(maps, fname='%s_smooth'%pname)
+
 
 outputs['pname'] = pname
 outputs['nominal'] = nominal
