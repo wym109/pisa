@@ -57,7 +57,7 @@ class Param(object):
 
     nominal_value : <r/w>
 
-    rescaled_value: <r/w>
+    _rescaled_value: <r/w>
         `value` as a normalized, dimensionless quantity between 0 and 1 (used
         for interfacing with a minimizer)
 
@@ -76,7 +76,7 @@ class Param(object):
 
     """
     _slots = ('name', 'value', 'prior', 'range', 'is_fixed', 'is_discrete',
-              'nominal_value', 'rescaled_value',
+              'nominal_value', '_rescaled_value',
               '_nominal_value', '_tex', 'help','_value', '_range', '_units')
     _state_attrs = ('name', '_value', 'prior', 'range', 'is_fixed',
                      'is_discrete', 'nominal_value', 'tex', 'help')
@@ -177,7 +177,7 @@ class Param(object):
         self._range = new_vals
 
     @property
-    def rescaled_value(self):
+    def _rescaled_value(self):
         if self.is_discrete:
             val = self.value
         else:
@@ -187,8 +187,8 @@ class Param(object):
             val = val.magnitude
         return val
 
-    @rescaled_value.setter
-    def rescaled_value(self, rval):
+    @_rescaled_value.setter
+    def _rescaled_value(self, rval):
         self.value = ((self.range[1].m-self.range[0].m) * rval +
                 self.range[0].m) * self.value.units
 
@@ -309,7 +309,7 @@ class ParamSet(object):
     ranges : sequence of (?) <r/w>
         Get or set the ranges for all parameters.
 
-    rescaled_values : sequence of float <r/w>
+    _rescaled_values : sequence of float <r/w>
         Continuous parameters rescaled to the range [0, 1] and without units;
         designed for interfacing with a minimizer
 
@@ -562,21 +562,21 @@ class ParamSet(object):
         """Reset only free parameters to their nominal values."""
         self.free.reset_all()
 
-    def values_to_nominal(self):
-        """Define the nominal values to the parameters' current values."""
+    def set_nominal_by_current_values(self):
+        """Define the nominal values as the parameters' current values."""
         self.nominal_values = self.values
 
     @property
-    def rescaled_values(self):
+    def _rescaled_values(self):
         """Parameter values rescaled to be in the range [0, 1], based upon
         their defined range."""
-        return tuple([param.rescaled_value for param in self._params])
+        return tuple([param._rescaled_value for param in self._params])
 
-    @rescaled_values.setter
-    def rescaled_values(self, vals):
+    @_rescaled_values.setter
+    def _rescaled_values(self, vals):
         assert len(vals) == len(self)
         for param, val in zip(self._params, vals):
-            param.rescaled_value = val
+            param._rescaled_value = val
 
     @property
     def tex(self):
