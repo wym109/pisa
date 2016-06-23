@@ -1,6 +1,6 @@
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import numpy as np
-from numpy.polynomial.polynomial import polyval
+
 from scipy.optimize import curve_fit
 from scipy import interpolate
 
@@ -24,15 +24,15 @@ args = parser.parse_args()
 set_verbosity(args.v)
 
 # 1: linear, 2: quadratic, etc...
-degree = 2
+degree = 1
 # force fit to go through nominal point
 force_through_nominal = True
 
 # define fit function
 if force_through_nominal:
-    function = "fit_fun = lambda x, *p: polyval(x, [1.] + list(p))"
+    function = "fit_fun = lambda x, *p: np.polynomial.polynomial.polyval(x, [1.] + list(p))"
 else:
-    function = "fit_fun = lambda x, *p: polyval(x, list(p))"
+    function = "fit_fun = lambda x, *p: np.polynomial.polynomial.polyval(x, list(p))"
     # add free parameter for constant term
     degree += 1
 
@@ -52,8 +52,8 @@ fname_joined = 'joined_G_nue_cc+nuebar_cc_G_numu_cc+numubar_cc_G_nutau_cc+nutaub
 
 pname = 'dom_eff'
 nominal = 1.0
-#runs = [('601', 0.88), ('603', 0.94), ('604', 0.97), ('605', 1.03), ('606', 1.06), ('608', 1.12)]
-runs = [('601', 0.88), ('603', 0.94), ('606', 1.06), ('608', 1.12)]
+runs = [('601', 0.88), ('603', 0.94), ('604', 0.97), ('605', 1.03), ('606', 1.06), ('608', 1.12)]
+#runs = [('601', 0.88), ('603', 0.94), ('606', 1.06), ('608', 1.12)]
 
 x_values = np.array(sorted([r[1] for r in runs] + [nominal]))
 
