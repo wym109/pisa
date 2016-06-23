@@ -82,9 +82,6 @@ class hist(Stage):
                 create the reco and pid variables histogram. If NoneType is
                 given then events will not be weighted.
 
-            * compute_error : bool
-                Compute histogram errors
-
     particles
 
     input_names
@@ -96,13 +93,19 @@ class hist(Stage):
 
     output_binning : MultiDimBinning
 
+    error_method : None, bool, or string
+
     disk_cache : None, str, or DiskCache
         If None, no disk cache is available.
         If str, represents a path with which to instantiate a utils.DiskCache
         object. Must be concurrent-access-safe (across threads and processes).
 
     transforms_cache_depth : int >= 0
+
     outputs_cache_depth : int >= 0
+
+    debug_mode : None, bool, or string
+        Whether to store extra debug info for this service.
 
 
     Input Names
@@ -195,8 +198,9 @@ class hist(Stage):
 
     """
     def __init__(self, params, particles, input_names, transform_groups,
-                 input_binning, output_binning, disk_cache=None,
-                 transforms_cache_depth=20, outputs_cache_depth=20):
+                 input_binning, output_binning, error_method,
+                 disk_cache=None, transforms_cache_depth=20,
+                 outputs_cache_depth=20, debug_mode=None):
         assert particles in ['neutrinos', 'muons']
         self.particles = particles
         """Whether stage is instantiated to process neutrinos or muons"""
@@ -208,7 +212,7 @@ class hist(Stage):
         # the `params` argument.
         expected_params = (
             'pid_events', 'pid_ver', 'pid_remove_true_downgoing', 'pid_spec',
-            'pid_spec_source', 'pid_weights_name', 'compute_error'
+            'pid_spec_source', 'pid_weights_name'
         )
 
         if isinstance(input_names, basestring):
@@ -227,11 +231,13 @@ class hist(Stage):
             expected_params=expected_params,
             input_names=input_names,
             output_names=output_names,
+            error_method=error_method,
             disk_cache=disk_cache,
             outputs_cache_depth=outputs_cache_depth,
             transforms_cache_depth=transforms_cache_depth,
             input_binning=input_binning,
-            output_binning=output_binning
+            output_binning=output_binning,
+            debug_mode=debug_mode
         )
 
     @profile
@@ -399,8 +405,7 @@ class hist(Stage):
         # Check type of pid_events
         assert isinstance(params['pid_events'].value, (basestring, Events))
 
-        # Check type of compute_error, pid_remove_true_downgoing
-        assert isinstance(params['compute_error'].value, bool)
+        # Check type of pid_remove_true_downgoing
         assert isinstance(params['pid_remove_true_downgoing'].value, bool)
 
         # Check type of pid_ver, pid_spec_source
