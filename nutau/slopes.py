@@ -1,6 +1,7 @@
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import numpy as np
 from scipy.optimize import curve_fit
+from scipy.ndimage.filters import gaussian_filter
 from scipy import interpolate
 
 from pisa import ureg, Q_
@@ -39,6 +40,7 @@ pname = 'dom_eff'
 nominal = 1.0
 runs = [('601', 0.88), ('603', 0.94), ('604', 0.97), ('605', 1.03), ('606', 1.06), ('608', 1.12)]
 #runs = [('601', 0.88), ('603', 0.94), ('606', 1.06), ('608', 1.12)]
+smooth = None
 # -----------------------------------------
 
 categories = ['cscd', 'trck']
@@ -142,6 +144,30 @@ for cat in categories:
             if j > 0:
                 plt.setp(plt.gca().get_xticklabels(), visible=False)
 
+# smoothing
+if bool(smooth):
+    for cat in categories:
+        for d in range(degree):
+            if smooth == 'spline':
+                spline = interpolate.SmoothBivariateSpline(grid_x, grid_y,
+                        np.ravel(outputs[cat][:,:,d]), kx=1, ky=1)
+                outputs[cat][:,:,d] = spline(bins_x, bins_y)
+            elif smooth == 'gauss':
+                outputs[cat][:,:,d] = gaussian_filter(outputs[cat][:,:,d],
+                        sigma=1)
+
+        if args.plot:
+            for i, j in np.ndindex((nx,ny)):
+                fig_num = i + nx * j
+                if fig_num == 0:
+                    fig = plt.figure(num=1, figsize=( 4*nx, 4*ny))
+                subplot_idx = nx*(ny-1-j)+ i + 1
+                plt.subplot(ny, nx, subplot_idx)
+                p_smooth = outputs[cat][i,j,:]
+                f_values = fit_fun(x_values, *p_smooth)
+                fun_plot, = plt.plot(x_values, f_values,
+                        color=plt_colors[cat], linestyle='--')
+
 if args.plot:
     fig.subplots_adjust(hspace=0)
     fig.subplots_adjust(wspace=0)
@@ -154,7 +180,7 @@ outputs['nominal'] = nominal
 outputs['function'] = function
 to_file(outputs, './%s_sysfits.json'%pname)
 
-#spline = interpolate.SmoothBivariateSpline(grid_x, grid_y,
+#spline = interpolate.smoothbivariatespline(grid_x, grid_y,
 #        np.ravel(cscd_slopes), kx=2, ky=2)
 #smooth = spline(bins_x, bins_y)
 #plt.imshow(smooth,interpolation='nearest')
