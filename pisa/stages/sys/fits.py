@@ -30,7 +30,7 @@ class fits(Stage):
         # All of the following params (and no more) must be passed via the
         # `params` argument.
         expected_params = (
-            'dom_eff', 'fit_results'
+            'dom_eff', 'dom_eff_file', 'hole_ice_fwd', 'hole_ice_fwd_file'
         )
 
         # Define the names of objects expected in inputs and produced as
@@ -43,9 +43,7 @@ class fits(Stage):
                         'nutaubar_cc_trck','nutaubar_cc_cscd','nutaubar_nc_trck','nutaubar_nc_cscd'
         )
 
-        output_names = (
-            'cscd', 'trck'
-        )
+        output_names = input_names
 
         # Invoke the init method from the parent class, which does a lot of
         # work for you.
@@ -64,40 +62,40 @@ class fits(Stage):
             output_binning=output_binning
         )
 
-        # load fit results
-        fit_results = from_file(self.params.fit_results.value)
-        assert (fit_results['pname'] in self.params.names)
+        self.pnames = [pname for pname in self.params.names if not
+            pname.endswith('_file')]
+        self.fit_results = {}
+        self.categories = None
+        for pname in self.pnames:
+            self.fit_results[pname] = from_file(self.params[pname+'_file'].value)
+            if self.categories is None:
+                self.categories = self.fit_results[pname]['categories']
+            else:
+                assert (self.categories == self.fit_results[pname]['categories']), 'use of different categories not supported' 
         
-        self.pname = fit_results['pname']
-        self.nominal = fit_results['nominal']
-        self.function = fit_results['function']
-        
-        self.fit_params = {}
-        for cat in self.output_names:
-            self.fit_params[cat] = fit_results[cat]
-
     @profile
     def _compute_transforms(self):
 
         transforms = []
-        p_value = self.params[self.pname].value.m - self.nominal
-        exec(self.function)
-
-        for cat in self.output_names:
+        for cat in self.categories:
             transform = None
             for name in self.input_names:
                 if name.endswith(cat):
                     if transform is None:
-                        fit_params  = self.fit_params[cat]
-                        nx, ny, _ = fit_params.shape
-                        transform = np.ones((nx, ny))
-                        for i, j in np.ndindex((nx,ny)):
-                            transform[i,j] = fit_fun(p_value,
-                                    *fit_params[i,j,:])
+                        for pname in self.pnames:
+                            p_value = self.params[pname].value.m - self.fit_results[pname]['nominal']
+                            exec(self.fit_results[pname]['function'])
+                            fit_params  = self.fit_results[pname][cat]
+                            nx, ny, _ = fit_params.shape
+                            if transform is None:
+                                transform = np.ones((nx, ny))
+                            for i, j in np.ndindex((nx,ny)):
+                                transform[i,j] *= fit_fun(p_value,
+                                        *fit_params[i,j,:])
 
                     xform = BinnedTensorTransform(
                         input_names=(name),
-                        output_name=cat,
+                        output_name=name,
                         input_binning=self.input_binning,
                         output_binning=self.output_binning,
                         xform_array=transform

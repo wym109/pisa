@@ -198,7 +198,7 @@ class hist(Stage):
 
     """
     def __init__(self, params, particles, input_names, transform_groups,
-                 input_binning, output_binning, error_method,
+                 input_binning, output_binning, error_method=None,
                  disk_cache=None, transforms_cache_depth=20,
                  outputs_cache_depth=20, debug_mode=None):
         assert particles in ['neutrinos', 'muons']

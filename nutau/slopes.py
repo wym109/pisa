@@ -4,6 +4,7 @@ from scipy.optimize import curve_fit
 from scipy.ndimage.filters import gaussian_filter
 from scipy import interpolate
 import copy
+import itertools
 
 from pisa import ureg, Q_
 from pisa.core.distribution_maker import DistributionMaker
@@ -30,12 +31,15 @@ if args.plot:
 
 cfg = from_file('nutau/sys_fits.ini')
 sys_list = cfg.get('general','sys_list').replace(' ','').split(',')
+categories = cfg.get('general','categories').replace(' ','').split(',')
 
-categories = ['cscd', 'trck']
-plt_colors = {'cscd':'b', 'trck':'r'}
+# setup plotting colors
+colors = itertools.cycle(["r", "b", "g"])
+plt_colors = {}
+for cat in categories:
+    plt_colors[cat] = next(colors)
 
 for sys in sys_list:
-    
     # parse info for given systematic
     nominal = cfg.getfloat(sys,'nominal')
     degree = cfg.getint(sys, 'degree')
@@ -187,4 +191,5 @@ for sys in sys_list:
     outputs['pname'] = sys
     outputs['nominal'] = nominal
     outputs['function'] = function
+    outputs['categories'] = categories
     to_file(outputs, './%s_sysfits.json'%sys)
