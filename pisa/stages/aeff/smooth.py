@@ -84,8 +84,8 @@ class smooth(Stage):
         # All of the following params (and no more) must be passed via the
         # `params` argument.
         expected_params = (
-            'aeff_weight_file', 'livetime', 'aeff_scale', 
-            'e_smooth_factor', 'cz_smooth_factor', 
+            'aeff_weight_file', 'livetime', 'aeff_scale',
+            'e_smooth_factor', 'cz_smooth_factor',
             'interp_kind'
         )
 
@@ -137,18 +137,36 @@ class smooth(Stage):
         self.events_hash = this_hash
 
 
+    def rearrange_dimensions(func):
+        '''Possible decorator/wrapper to swap axes and undo swap.'''
+        pass
+
+
     def slice_smooth(self, hist, hist_binning):
         '''Generate splines. Based on pisa.utils.slice_smooth_aeff'''
         # TODO add support for azimuth
         # TODO add support for error
         # TODO access hist dimensions by name
 
+        # Swap hist dimensions to be [true_coszen, true_energy, true_azimuth]
+        names = hist_binning.names
+        cz_i = names.index('true_coszen')
+        e_i = names.index('true_energy')
+#        az_i = names.index('true_azimuth')
+
+        if cz_i != 0:
+            hist = np.swapaxes(hist, 0, cz_i)
+#        if e_i != 1:
+#            hist = np.swapaxes(hist, 1, e_i)
+
         # Load events file
+        # NOTE This is also done in _compute_nominal_transforms
+        # Is it possible to get the wrong metadata in any case?
         events = self.events
 
         # Copy metadata from events (to become metadata for smoothed transform)
         metadata = copy.deepcopy(events.metadata)
-            # NOTE How do we know this is the metadata that corresponds to the 
+            # NOTE How do we know this is the metadata that corresponds to the
             # transform? Can events be assumed to have generated transform?
 
         # Get smooth factors from stage parameters
@@ -168,15 +186,15 @@ class smooth(Stage):
 
         # Add binning info to metadata
         metadata.update(dict(emin=ebins[0],
-                             emax=ebins[-1], 
+                             emax=ebins[-1],
                              n_ebins=len(ebins),
-                             czmin=czbins[0], 
-                             czmax=czbins[-1], 
+                             czmin=czbins[0],
+                             czmax=czbins[-1],
                              n_czbins=len(ebins)))
-  
+
         # Smooth cz-slices of hist
         smoothed_cz_slices = []
-        #for index, czbin in enumerate(czbins): 
+        #for index, czbin in enumerate(czbins):
             # NOTE AssertionError 400
             # NOTE __iter__ for OneDimBinning is commented out
             # and uncommenting it leads to issues with pickle (in hashing)
@@ -190,13 +208,13 @@ class smooth(Stage):
             # Remove extra dimensions
             s_cz_slice = np.squeeze(cz_slice)
             # TODO check if does anything --> It appears to
-    
+
             # Fit spline to cz-slices
             cz_slice_spline = splrep(
                 ebins.midpoints, s_cz_slice,
                 k=3, s=e_smooth_factor
             )
-    
+
             # Sample cz-spline over ebin midpoints
             smoothed_cz_slice = splev(ebins.midpoints, cz_slice_spline)
 
@@ -216,8 +234,8 @@ class smooth(Stage):
 
             # Fit spline to e-slice
             e_slice_spline = splrep(
-                    czbin_midpoints, e_slice, w=None,
-                    k=3, s=cz_smooth_factor
+                czbin_midpoints, e_slice, w=None,
+                k=3, s=cz_smooth_factor
             )
 
             # Evaluate spline at bin midpoints
@@ -225,9 +243,18 @@ class smooth(Stage):
 
             smoothed_e_slices.append(smoothed_aeff)
 
-        # Convert list of slices to array
+        # Convert list of slices to array with cz as first index
         smoothed_hist = np.array(smoothed_e_slices).T
-        
+
+        # Clip out negative values
+        smoothed_hist = smoothed_hist.clip(0)
+
+        # Un-swap axes
+        if cz_i != 0:
+            smoothed_hist = np.swapaxes(smoothed_hist, 0, cz_i)
+#        if e_i != 1:
+#            smoothed_hist = np.swapaxes(smoothed_hist, 1, e_i)
+
         return smoothed_hist, metadata
 
 
@@ -243,25 +270,25 @@ class smooth(Stage):
             t_group = NuFlavIntGroup(transform.output_name)
             if done[t_group] is not None:
                 new_transform = BinnedTensorTransform(
-                        input_names=transform.input_names,
-                        output_name=transform.output_name,
-                        input_binning=done[t_group].input_binning,
-                        output_binning=done[t_group].output_binning,
-                        xform_array=done[t_group].xform_array
-                        )
+                    input_names=transform.input_names,
+                    output_name=transform.output_name,
+                    input_binning=done[t_group].input_binning,
+                    output_binning=done[t_group].output_binning,
+                    xform_array=done[t_group].xform_array
+                )
                 new_transforms.append(new_transform)
             else:
                 smooth_xform, metadata = self.slice_smooth(
-                        hist=transform.xform_array,
-                        hist_binning=transform.output_binning
-                        )
-    
+                    hist=transform.xform_array,
+                    hist_binning=transform.output_binning
+                )
+
                 new_transform = BinnedTensorTransform(
-                   input_names=transform.input_names,
-                   output_name=transform.output_name,
-                   input_binning=transform.input_binning,
-                   output_binning=transform.output_binning,
-                   xform_array=smooth_xform
+                    input_names=transform.input_names,
+                    output_name=transform.output_name,
+                    input_binning=transform.input_binning,
+                    output_binning=transform.output_binning,
+                    xform_array=smooth_xform
                 )
                 new_transforms.append(new_transform)
                 assert done[t_group] is None
@@ -274,11 +301,11 @@ class smooth(Stage):
         interp_kind = self.params.interp_kind.value
 
         interpolant = interp2d(
-                x=hist_binning.true_energy.midpoints,
-                y=hist_binning.true_coszen.midpoints,
-                z=hist, 
-                kind=interp_kind, copy=True, fill_value=None)
-        
+            x=hist_binning.true_energy.midpoints,
+            y=hist_binning.true_coszen.midpoints,
+            z=hist,
+            kind=interp_kind, copy=True, fill_value=None)
+
         # NOTE Is this still "true" dimensions
         return interpolant(new_binning.true_energy.midpoints,
                            new_binning.true_coszen.midpoints)
@@ -293,33 +320,33 @@ class smooth(Stage):
             t_group = NuFlavIntGroup(transform.output_name)
             if done[t_group] is not None:
                 new_transform = BinnedTensorTransform(
-                        input_names=transform.input_names,
-                        output_name=transform.output_name,
-                        input_binning=done[t_group].input_binning,
-                        output_binning=done[t_group].output_binning,
-                        xform_array=done[t_group].xform_array
-                        )
+                    input_names=transform.input_names,
+                    output_name=transform.output_name,
+                    input_binning=done[t_group].input_binning,
+                    output_binning=done[t_group].output_binning,
+                    xform_array=done[t_group].xform_array
+                )
                 new_transforms.append(new_transform)
             else:
                 interp_xform = self.interpolate_hist(
-                        hist=transform.xform_array,
-                        hist_binning=transform.output_binning,
-                        new_binning=new_binning
-                        )
+                    hist=transform.xform_array,
+                    hist_binning=transform.output_binning,
+                    new_binning=new_binning
+                )
 
                 new_transform = BinnedTensorTransform(
-                       input_names=transform.input_names,
-                       output_name=transform.output_name,
-                       input_binning=new_binning,
-                       output_binning=new_binning,
-                       xform_array=interp_xform
-                       )
+                    input_names=transform.input_names,
+                    output_name=transform.output_name,
+                    input_binning=new_binning,
+                    output_binning=new_binning,
+                    xform_array=interp_xform
+                )
                 new_transforms.append(new_transform)
                 assert done[t_group] is None
                 done[t_group] = new_transform
 
         return TransformSet(transforms=new_transforms)
-        
+
 
     @profile
     def _compute_nominal_transforms(self):
@@ -351,7 +378,7 @@ class smooth(Stage):
         in_units = {dim: unit for dim, unit in comp_units.items()
                     if dim in self.input_binning}
         out_units = {dim: unit for dim, unit in comp_units.items()
-                     if dim in self.output_binning}
+                   if dim in self.output_binning}
 
         # These will be in the computational units
         input_binning = self.input_binning.to(**in_units)
@@ -383,17 +410,17 @@ class smooth(Stage):
         # TODO make this binning look like input? remove assertion
         assert input_binning.names == ['true_coszen', 'true_energy']
         s_ebins = OneDimBinning(name='true_energy', tex=r'E_\nu',
-                is_log=True, num_bins=39, domain=[1,80]*ureg.GeV)
-        s_czbins = OneDimBinning(name='true_coszen', 
-                tex=r'\cos\theta_\nu', is_lin=True, num_bins=40, 
-                domain=[-1,1]*ureg(None))
+                                is_log=True, num_bins=39, domain=[1,80]*ureg.GeV)
+        s_czbins = OneDimBinning(name='true_coszen',
+                                 tex=r'\cos\theta_\nu', is_lin=True, num_bins=40,
+                                 domain=[-1,1]*ureg(None))
         smoothing_binning = MultiDimBinning([s_czbins, s_ebins])
 
         # This gets used in innermost loop, so produce it just once here
         all_bin_edges = [dim.bin_edges.magnitude
                          for dim in smoothing_binning.dimensions]
 
-        nominal_transforms = []
+        raw_transforms = []
         for flav_int_group in self.transform_groups:
             logging.debug("Working on %s effective areas" %flav_int_group)
 
@@ -437,66 +464,186 @@ class smooth(Stage):
                         output_binning=smoothing_binning,
                         xform_array=aeff_transform,
                     )
-                    nominal_transforms.append(xform)
+                    raw_transforms.append(xform)
 
-        nominal_transforms = TransformSet(transforms=nominal_transforms)
-        smooth_transforms = self.smooth_transforms(nominal_transforms)
-        interp_transforms = self.interpolate_transforms(smooth_transforms, 
+        nominal_transforms = TransformSet(transforms=raw_transforms)
+        smooth_transforms = self.smooth_transforms(raw_transforms)
+        interp_transforms = self.interpolate_transforms(smooth_transforms,
                 new_binning=input_binning)
 
-        
+        debug = True
+        if debug:
+            import matplotlib.pyplot as plt
+            from pisa.utils.plotter import plotter
+
+
+
+
+        # PLOT MC, SMOOTHED, AND INTERP AEFF TRANSFORMS
         # TODO handle plotting and saving options properly
-        make_plots = False
+        #      nom, smt, and interp transforms will be passed out of stage
+        make_plots = True
         if make_plots:
             from matplotlib.cm import Paired
             from pisa.utils.plotter import plotter
             plots = plotter()
-    
-            plots.init_fig()
-            plots.plot_2d_array(nominal_transforms, n_rows=2, n_cols=6, 
-                    cmap=Paired)
-            plots.dump('aeff_transforms')
-    
-            plots.init_fig()
-            plots.plot_2d_array(smooth_transforms, n_rows=2, n_cols=6, 
-                    cmap=Paired)
-            plots.dump('smoothed_aeff_transforms')
-    
-            plots.init_fig()
-            plots.plot_2d_array(interp_transforms, n_rows=2, n_cols=6, 
-                    cmap=Paired)
-            plots.dump('interp_aeff_transforms')
 
-        # TODO
+            plots.init_fig()
+            plots.plot_2d_array(nominal_transforms, n_rows=2, n_cols=6,
+                                cmap=Paired)
+            plots.dump('aeff_transforms')
+
+            plots.init_fig()
+            plots.plot_2d_array(smooth_transforms, n_rows=2, n_cols=6,
+                                cmap=Paired)
+            plots.dump('smoothed_aeff_transforms')
+
+#            plots.init_fig()
+#            plots.plot_2d_array(interp_transforms, n_rows=2, n_cols=6,
+#                                cmap=Paired)
+#            plots.dump('interp_aeff_transforms')
+
+
+        # SMOOTHING COMPARISONS
+        # Compare smoothed and original
         compare_results = True
+        values = []
         if compare_results:
             smooth_vs_orig = []
+            perc_diff_values = np.array([])
             for smooth, orig in zip(smooth_transforms, nominal_transforms):
                 smooth_arr = smooth.xform_array
                 orig_arr = orig.xform_array
                 assert (smooth.input_names == orig.input_names), (
-                        smooth.input_names, orig.input_names)
+                    smooth.input_names, orig.input_names)
                 assert smooth.output_name == smooth.output_name, (
-                        smooth.output_name, orig.output_name)
-                med_abs_dev = np.abs((smooth_arr - orig_arr) / orig_arr)
-                med_abs_dev = BinnedTensorTransform(
-                                    input_names=smooth.input_names,
-                                    output_name=smooth.output_name,
-                                    input_binning=smooth.input_binning,
-                                    output_binning=smooth.output_binning,
-                                    xform_array=med_abs_dev
-                                    )
-                smooth_vs_orig.append(med_abs_dev)
-            smooth_vs_orig = TransformSet(transforms=comparisons)
+                    smooth.output_name, orig.output_name)
 
+                perc_diff = (smooth_arr - orig_arr) / orig_arr
+
+                perc_diff_finite = perc_diff[np.isfinite(perc_diff)]
+                # Some numbers
+                mean = np.mean(perc_diff_finite)
+                stddev = np.std(perc_diff_finite)
+                mad = np.median(np.abs(perc_diff_finite - np.median(perc_diff_finite)))
+                med = np.median(perc_diff_finite)
+                min_val = min(perc_diff_finite)
+                max_val = max(perc_diff_finite)
+
+#                print np.mean(perc_diff[:,15:][np.isfinite(perc_diff[:,15:])])
+
+                values.append([mean, stddev, mad, med, min_val, max_val])
+                perc_diff_values = np.concatenate((perc_diff_values, perc_diff_finite.flatten()))
+
+                # Deal with 0s in orig_arr. Set nans in perc_diff to 0
+                perc_diff[perc_diff != perc_diff] = 0
+
+                perc_diff = BinnedTensorTransform(
+                    input_names=smooth.input_names,
+                    output_name=smooth.output_name,
+                    input_binning=smooth.input_binning,
+                    output_binning=smooth.output_binning,
+                    xform_array=perc_diff
+                )
+                smooth_vs_orig.append(perc_diff)
+
+#                import matplotlib.pyplot as plt
+#                plt.close('all')
+#                plt.hist(perc_diff_finite, bins=300, histtype='step')
+#                plt.xlabel('Fractional Difference Between Smoothed and MC Aeff Transforms')
+#                plt.title('Distribution of Fractional Difference Values in\nSmoothed-vs-MC Aeff Tranform Comparison (%s to %s transform)'%(perc_diff.input_names, perc_diff.output_name))
+#                plt.savefig('frac_diff_histogram.png')
+#
+#                raw_input()
+
+            smooth_vs_orig = TransformSet(transforms=smooth_vs_orig)
+
+#            import matplotlib.pyplot as plt
+#            plt.close('all')
+#            #perc_diff_values = perc_diff_values[(perc_diff_values>=-1) & (perc_diff_values<3)]
+#            plt.hist(perc_diff_finite, bins=300, histtype='step')
+#            plt.xlabel('Fractional Difference Between Smoothed and MC Aeff Transforms')
+#            plt.title('Distribution of Fractional Difference Values in\nSmoothed-vs-MC Aeff Tranform Comparison')
+#            plt.savefig('frac_diff_histogram.png')
+
+
+            # Plotting
+            import matplotlib as mpl
+            import matplotlib.pyplot as plt
             from matplotlib.cm import Paired
+            from matplotlib.offsetbox import AnchoredText
+
             from pisa.utils.plotter import plotter
-            plots = plotter()
+
+            plots = plotter(stamp='Comparison Between'+'\n'
+                    'Smoothed and Original Aeff'+'\n'
+                    r'Plotted value: $\frac{smoothed - orig}{orig}$')
 
             plots.init_fig()
-            plots.plot_2d_array(comparisons)
+            plots.log = False
+            plots.plot_2d_array(smooth_vs_orig, n_rows=2, n_cols=6,
+                    cmap=plt.get_cmap('bwr'), vmin=-1, vmax=1)
+            # TODO add text boxes to correct axes
+            for i, arr in enumerate(smooth_vs_orig):
+                plt.subplot(2, 6, i+1)
+                textstr = (#r'Values for $\frac{smooth - orig}{orig}$'+'\n'
+                           'mean\t%f\n'
+                           'std\t%f\n'
+                           'mad\t%f\n'
+                           'med\t%f\n'
+                           'min\t%f\n'
+                           'max\t%f') % tuple(values[i])
+                textstr = textstr.expandtabs()
+                a_text = AnchoredText(textstr, loc=1, frameon=False)
+                plt.gca().add_artist(a_text)
             plots.dump('smooth_vs_orig')
 
+
+            # Plot smoothed-vs-original cz slice comparison
+            # Make cz slices into Maps
+            # Plot with plot1darray
+            from pisa.core.map import Map
+            # assert smooth binning == nom binning
+            # assert binning.names == [true_cz, true_e]
+            i_cz = 30
+            ebins = nominal_transforms.transforms[0].input_binning.true_energy
+            czbin = nominal_transforms.transforms[0].input_binning.true_coszen[i_cz]
+            binning = MultiDimBinning([czbin, ebins])
+            nom_cz_slice = nominal_transforms.transforms[0].xform_array[i_cz]
+            nom_cz_slice = nom_cz_slice.reshape((1,-1))
+            nom_cz_slice = Map(name='nominal transform cz slice', hist=nom_cz_slice, binning=binning)
+            smth_cz_slice = smooth_transforms.transforms[0].xform_array[i_cz]
+            smth_cz_slice = smth_cz_slice.reshape((1,-1))
+            smth_cz_slice = Map(name='smooth transform cz slice', hist=smth_cz_slice, binning=binning)
+            plots = plotter(stamp='Aeff transform smoothing comparison')
+            plots.init_fig()
+            #plots.label = 'un-smoothed'
+            plots.plot_1d_projection(nom_cz_slice, 'true_energy')
+            #plots.label = 'smoothed'
+            plots.plot_1d_projection(smth_cz_slice, 'true_energy')
+            #plots.add_leg()
+            plots.add_stamp('Smoothed-vs-original\n'
+                            + str(czbin) + '\n'
+                            + 'input_names: '+str(nominal_transforms.transforms[0].input_names)+'\n'
+                            + 'output_name: '+str(nominal_transforms.transforms[0].output_name))
+            plots.dump('cz_slice_comparison')
+
+
+#            plt.close('all')
+#            ax = plt.subplot(111)
+#            plt.plot(nominal_transforms.transforms[0].input_binning.true_energy.bin_edges[:-1], 
+#                    nominal_transforms.transforms[0].xform_array[20], 'bo-',
+#                    label='original')
+#            plt.plot(smooth_transforms.transforms[0].input_binning.true_energy.bin_edges[:-1], 
+#                    smooth_transforms.transforms[0].xform_array[20], 'go-',
+#                    label='smoothed')
+#            ax.set_xscale('log', nonposx='clip')
+#            ax.set_yscale('log', nonposy='clip')
+#            plt.xlabel(repr(nominal_transforms.transforms[0].input_binning.true_energy))
+#            plt.ylabel('Effective area transform values')
+#            plt.title('Comparison of Original and Smoothed Coszen Slices (nuall_nc, cz_index=20)')
+#            plt.legend(loc='best')
+#            plt.savefig('cz_slice_comparison.png')
 
 
         # TODO Should there be one transform per input or per group?

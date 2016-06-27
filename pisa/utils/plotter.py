@@ -22,6 +22,7 @@ class plotter(object):
     def __init__(self, outdir='.', stamp='PISA cake test', size=(8,8), fmt='pdf', log=True, label='# events', grid=True, ratio=False):
         self.outdir = outdir
         self.stamp = stamp
+        # NOTE Since multiple subplots can be used, self.stamp tends to write over existing text.
         self.fmt = fmt
         self.size = size
         self.fig = None
@@ -72,8 +73,7 @@ class plotter(object):
 
     def plot_2d_array(self, mapset, n_rows=None, n_cols=None, fname=None,
             **kwargs):
-        # TODO consider renaming mapset since this now takes TransformSets too
-        ''' plot all maps in a single plot '''
+        ''' plot all maps or transforms in a single plot '''
         if fname is None:
             fname = 'test2d'
         self.plot_array(mapset, 'plot_2d_map', n_rows=n_rows, n_cols=n_cols,
@@ -195,13 +195,13 @@ class plotter(object):
         plt_binning = map.binning[plot_axis]
         hist = self.project_1d(map, plot_axis)
         if ptype == 'hist':
-            axis.hist(plt_binning.bin_centers, weights=unp.nominal_values(hist), bins=plt_binning.bin_edges, histtype='step', lw=1.5, label=r'$%s$'%map.tex, **kwargs)
+            axis.hist(plt_binning.midpoints, weights=unp.nominal_values(hist), bins=plt_binning.bin_edges, histtype='step', lw=1.5, label=r'$%s$'%map.tex, **kwargs)
             axis.bar(plt_binning.bin_edges.m[:-1],2*unp.std_devs(hist),
                     bottom=unp.nominal_values(hist)-unp.std_devs(hist),
                     width=plt_binning.bin_widths, alpha=0.25, linewidth=0,
                     **kwargs)
         elif ptype == 'data':
-            axis.errorbar(plt_binning.bin_centers.m,
+            axis.errorbar(plt_binning.midpoints.m,
                     unp.nominal_values(hist),yerr=unp.std_devs(hist), fmt='o', markersize='4', label=r'$%s$'%map.tex, **kwargs)
         axis.set_xlabel(plt_binning.label)
         if self.label:
