@@ -55,6 +55,9 @@ class hist(Stage):
         in PISA but not necessarily) prefixed by "reco_". Each must match a
         corresponding dimension in `input_binning`.
 
+    debug_mode : None, bool, or string
+        Whether to store extra debug info for this service.
+
     disk_cache
     transforms_cache_depth
     outputs_cache_depth
@@ -67,8 +70,9 @@ class hist(Stage):
 
     """
     def __init__(self, params, particles, transform_groups,
-                 combine_grouped_flavints, input_binning, output_binning, disk_cache=None,
-                 transforms_cache_depth=20, outputs_cache_depth=20):
+                 combine_grouped_flavints, input_binning, output_binning,
+                 error_method=None, disk_cache=None, transforms_cache_depth=20,
+                 outputs_cache_depth=20, debug_mode=None):
         self.events_hash = None
         """Hash of events file or Events object used"""
 
@@ -112,11 +116,13 @@ class hist(Stage):
             expected_params=expected_params,
             input_names=input_names,
             output_names=output_names,
+            error_method=error_method,
             disk_cache=disk_cache,
             outputs_cache_depth=outputs_cache_depth,
             transforms_cache_depth=transforms_cache_depth,
             input_binning=input_binning,
-            output_binning=output_binning
+            output_binning=output_binning,
+            debug_mode=debug_mode
         )
 
         # Can do these now that binning has been set up in call to Stage's init
@@ -185,7 +191,8 @@ class hist(Stage):
                 kinds=flav_int_group,
                 binning=all_bin_edges,
                 binning_cols=self.input_binning.names,
-                weights_col='weighted_aeff'
+                weights_col='weighted_aeff',
+                errors=(self.error_method is not None)
             )
 
             # Divide histogram by

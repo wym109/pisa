@@ -62,6 +62,7 @@ class prob3cpu(Stage):
     output_binning : MultiDimBinning
     transforms_cache_depth : int >= 0
     outputs_cache_depth : int >= 0
+    debug_mode : bool
 
     Input Names
     -----------
@@ -84,7 +85,8 @@ class prob3cpu(Stage):
 
     """
     def __init__(self, params, input_binning, output_binning,
-                 transforms_cache_depth=20, outputs_cache_depth=20):
+                 error_method=None, transforms_cache_depth=20,
+                 outputs_cache_depth=20, debug_mode=None):
         expected_params = (
             'earth_model', 'YeI', 'YeM', 'YeO',
             'detector_depth', 'prop_height',
@@ -115,11 +117,13 @@ class prob3cpu(Stage):
             expected_params=expected_params,
             input_names=input_names,
             output_names=output_names,
+            error_method=error_method,
             disk_cache=None,
             outputs_cache_depth=outputs_cache_depth,
             transforms_cache_depth=transforms_cache_depth,
             input_binning=input_binning,
-            output_binning=output_binning
+            output_binning=output_binning,
+            debug_mode=debug_mode
         )
 
         self.compute_binning_constants()
@@ -184,6 +188,10 @@ class prob3cpu(Stage):
             self._barger_detector_depth.magnitude
         )
         self.barger_propagator.UseMassEigenstates(False)
+
+    def _derive_nominal_transforms_hash(self):
+        """No nominal transforms implemented for this service."""
+        return None
 
     @profile
     def _compute_transforms(self):

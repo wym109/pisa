@@ -16,6 +16,7 @@ from collections import Iterable, Sequence
 
 import h5py
 import numpy as np
+from uncertainties import unumpy as unp
 
 from pisa.core.binning import MultiDimBinning, OneDimBinning
 from pisa.resources import resources
@@ -77,7 +78,8 @@ class Events(FlavIntData):
     def save(self, fname, **kwargs):
         hdf.to_hdf(self, fname, attrs=self.metadata, **kwargs)
 
-    def histogram(self, kinds, binning, binning_cols=None, weights_col=None):
+    def histogram(self, kinds, binning, binning_cols=None, weights_col=None,
+            errors=False):
         """Histogram the events of all `kinds` specified, with `binning` and
         optionally applying `weights`.
 
@@ -126,6 +128,9 @@ class Events(FlavIntData):
             weights = None
 
         hist, _ = np.histogramdd(sample=sample, weights=weights, bins=bin_edges)
+        if errors:
+            sumw2, _ = np.histogramdd(sample=sample, weights=np.square(weights), bins=bin_edges)
+            hist = unp.uarray(hist, np.sqrt(sumw2))
 
         return hist
 

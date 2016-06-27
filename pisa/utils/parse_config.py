@@ -189,7 +189,7 @@ def parse_config(config):
                 stage_dicts[stage][name] = binning_dict[value]
 
             elif not name == 'param_selector':
-                stage_dicts[stage][name] = value
+                stage_dicts[stage][name] = parse_string_literal(value)
 
         if len(params) > 0:
             stage_dicts[stage]['params'] = ParamSet(*params)
