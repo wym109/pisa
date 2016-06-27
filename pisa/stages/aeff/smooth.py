@@ -466,125 +466,101 @@ class smooth(Stage):
                     )
                     raw_transforms.append(xform)
 
-        nominal_transforms = TransformSet(transforms=raw_transforms)
+        raw_transforms = TransformSet(transforms=raw_transforms)
         smooth_transforms = self.smooth_transforms(raw_transforms)
         interp_transforms = self.interpolate_transforms(smooth_transforms,
                 new_binning=input_binning)
 
+
+        # DEBUG MODE: plot raw, smooth, interp xforms, raw-smooth comparison
+        # ------------------------------------------------------------------
+        # TODO return transforms to user?
         debug = True
         if debug:
             import matplotlib.pyplot as plt
             from pisa.utils.plotter import plotter
 
-
-
-
-        # PLOT MC, SMOOTHED, AND INTERP AEFF TRANSFORMS
-        # TODO handle plotting and saving options properly
-        #      nom, smt, and interp transforms will be passed out of stage
-        make_plots = True
-        if make_plots:
-            from matplotlib.cm import Paired
-            from pisa.utils.plotter import plotter
-            plots = plotter()
-
-            plots.init_fig()
-            plots.plot_2d_array(nominal_transforms, n_rows=2, n_cols=6,
-                                cmap=Paired)
-            plots.dump('aeff_transforms')
-
-            plots.init_fig()
-            plots.plot_2d_array(smooth_transforms, n_rows=2, n_cols=6,
-                                cmap=Paired)
-            plots.dump('smoothed_aeff_transforms')
-
-#            plots.init_fig()
-#            plots.plot_2d_array(interp_transforms, n_rows=2, n_cols=6,
-#                                cmap=Paired)
-#            plots.dump('interp_aeff_transforms')
-
-
-        # SMOOTHING COMPARISONS
-        # Compare smoothed and original
-        compare_results = True
-        values = []
-        if compare_results:
-            smooth_vs_orig = []
-            perc_diff_values = np.array([])
-            for smooth, orig in zip(smooth_transforms, nominal_transforms):
+            # calculate raw-smooth comparison values (frac diff, etc)
+            # -------------------------------------------------------
+            frac_diff_xforms = []
+            values = []
+            for raw, smooth in zip(raw_transforms, smooth_transforms):
                 smooth_arr = smooth.xform_array
-                orig_arr = orig.xform_array
-                assert (smooth.input_names == orig.input_names), (
-                    smooth.input_names, orig.input_names)
-                assert smooth.output_name == smooth.output_name, (
-                    smooth.output_name, orig.output_name)
+                raw_arr = raw.xform_array
 
-                perc_diff = (smooth_arr - orig_arr) / orig_arr
+                # make sure you're comparing the right transforms
+                assert smooth.input_names == raw.input_names
+                assert smooth.output_name == smooth.output_name
 
-                perc_diff_finite = perc_diff[np.isfinite(perc_diff)]
-                # Some numbers
-                mean = np.mean(perc_diff_finite)
-                stddev = np.std(perc_diff_finite)
-                mad = np.median(np.abs(perc_diff_finite - np.median(perc_diff_finite)))
-                med = np.median(perc_diff_finite)
-                min_val = min(perc_diff_finite)
-                max_val = max(perc_diff_finite)
+                # Calculate fractional difference (may have np.inf and np.nan)
+                frac_diff = (smooth_arr - raw_arr) / raw_arr
 
-#                print np.mean(perc_diff[:,15:][np.isfinite(perc_diff[:,15:])])
+                # Calculate some values
+                frac_diff_finite = frac_diff[np.isfinite(frac_diff) & 
+                        ~np.isnan(frac_diff)]
+
+                mean = np.mean(frac_diff_finite)
+                stddev = np.std(frac_diff_finite)
+                mad = np.median(np.abs(frac_diff_finite - 
+                    np.median(frac_diff_finite)))
+                med = np.median(frac_diff_finite)
+                min_val = np.min(frac_diff_finite)
+                max_val = np.max(frac_diff_finite)
 
                 values.append([mean, stddev, mad, med, min_val, max_val])
-                perc_diff_values = np.concatenate((perc_diff_values, perc_diff_finite.flatten()))
 
-                # Deal with 0s in orig_arr. Set nans in perc_diff to 0
-                perc_diff[perc_diff != perc_diff] = 0
-
-                perc_diff = BinnedTensorTransform(
+                # Make Transforms out of frac_diff (may contain inf and nans)
+                frac_diff = BinnedTensorTransform(
                     input_names=smooth.input_names,
                     output_name=smooth.output_name,
                     input_binning=smooth.input_binning,
                     output_binning=smooth.output_binning,
-                    xform_array=perc_diff
+                    xform_array=frac_diff
                 )
-                smooth_vs_orig.append(perc_diff)
-
-#                import matplotlib.pyplot as plt
-#                plt.close('all')
-#                plt.hist(perc_diff_finite, bins=300, histtype='step')
-#                plt.xlabel('Fractional Difference Between Smoothed and MC Aeff Transforms')
-#                plt.title('Distribution of Fractional Difference Values in\nSmoothed-vs-MC Aeff Tranform Comparison (%s to %s transform)'%(perc_diff.input_names, perc_diff.output_name))
-#                plt.savefig('frac_diff_histogram.png')
-#
-#                raw_input()
-
-            smooth_vs_orig = TransformSet(transforms=smooth_vs_orig)
-
-#            import matplotlib.pyplot as plt
-#            plt.close('all')
-#            #perc_diff_values = perc_diff_values[(perc_diff_values>=-1) & (perc_diff_values<3)]
-#            plt.hist(perc_diff_finite, bins=300, histtype='step')
-#            plt.xlabel('Fractional Difference Between Smoothed and MC Aeff Transforms')
-#            plt.title('Distribution of Fractional Difference Values in\nSmoothed-vs-MC Aeff Tranform Comparison')
-#            plt.savefig('frac_diff_histogram.png')
+                # Append to list of frac_diff transforms
+                frac_diff_xforms.append(frac_diff)
+            frac_diff_xforms = TransformSet(transforms=frac_diff_xforms)
 
 
-            # Plotting
-            import matplotlib as mpl
-            import matplotlib.pyplot as plt
+            # Plot raw, smoothed, and interp transforms
+            # -----------------------------------------
+            from pisa.utils.plotter import plotter
+            from pisa.core.map import Map
             from matplotlib.cm import Paired
             from matplotlib.offsetbox import AnchoredText
 
-            from pisa.utils.plotter import plotter
+            plots = plotter(stamp='Aeff Transforms')
 
+            # Raw
+            plots.init_fig()
+            plots.plot_2d_array(raw_transforms, n_rows=2, n_cols=6,
+                                cmap=Paired)
+            plots.dump('aeff_raw_transforms')
+
+            # Smoothed
+            plots.init_fig()
+            plots.plot_2d_array(smooth_transforms, n_rows=2, n_cols=6,
+                                cmap=Paired)
+            plots.dump('aeff_smooth_transforms')
+
+            # Interpolated
+            plots.init_fig()
+            plots.plot_2d_array(interp_transforms, n_rows=2, n_cols=6,
+                                cmap=Paired)
+            plots.dump('aeff_interp_transforms')
+
+            # Plot fractional difference and coszen slice comparison
+            # ------------------------------------------------------
+            # Fractional difference
             plots = plotter(stamp='Comparison Between'+'\n'
                     'Smoothed and Original Aeff'+'\n'
-                    r'Plotted value: $\frac{smoothed - orig}{orig}$')
-
+                    r'Plotted value: $\frac{smoothed - orig}{orig}$')   
             plots.init_fig()
             plots.log = False
-            plots.plot_2d_array(smooth_vs_orig, n_rows=2, n_cols=6,
+            plots.plot_2d_array(frac_diff_xforms, n_rows=2, n_cols=6,
                     cmap=plt.get_cmap('bwr'), vmin=-1, vmax=1)
-            # TODO add text boxes to correct axes
-            for i, arr in enumerate(smooth_vs_orig):
+            # TODO add text boxes to axes correctly
+            for i, arr in enumerate(frac_diff_xforms):
                 plt.subplot(2, 6, i+1)
                 textstr = (#r'Values for $\frac{smooth - orig}{orig}$'+'\n'
                            'mean\t%f\n'
@@ -596,25 +572,31 @@ class smooth(Stage):
                 textstr = textstr.expandtabs()
                 a_text = AnchoredText(textstr, loc=1, frameon=False)
                 plt.gca().add_artist(a_text)
-            plots.dump('smooth_vs_orig')
-
-
-            # Plot smoothed-vs-original cz slice comparison
-            # Make cz slices into Maps
-            # Plot with plot1darray
-            from pisa.core.map import Map
-            # assert smooth binning == nom binning
-            # assert binning.names == [true_cz, true_e]
+            plots.dump('aeff_frac_diff_raw_smooth')
+            
+            # Smooth-vs-raw coszen slice comparison 
+            # TODO assert binning.names == [true_cz, true_e]
+            # TODO better way to pick out coszen slices
+            i_xform = 0
             i_cz = 30
-            ebins = nominal_transforms.transforms[0].input_binning.true_energy
-            czbin = nominal_transforms.transforms[0].input_binning.true_coszen[i_cz]
+
+            raw_xform = raw_transforms.transforms[i_xform]
+            smooth_xform = smooth_transforms.transforms[i_xform]
+
+            assert raw_xform.input_binning == smooth_xform.input_binning
+            ebins = raw_xform.input_binning.true_energy
+            czbin = raw_xform.input_binning.true_coszen[i_cz]
             binning = MultiDimBinning([czbin, ebins])
-            nom_cz_slice = nominal_transforms.transforms[0].xform_array[i_cz]
+
+            nom_cz_slice = raw_xform.xform_array[i_cz]
             nom_cz_slice = nom_cz_slice.reshape((1,-1))
-            nom_cz_slice = Map(name='nominal transform cz slice', hist=nom_cz_slice, binning=binning)
-            smth_cz_slice = smooth_transforms.transforms[0].xform_array[i_cz]
+            nom_cz_slice = Map(name='raw coszen slice', 
+                    hist=nom_cz_slice, binning=binning)
+            smth_cz_slice = smooth_xform.xform_array[i_cz]
             smth_cz_slice = smth_cz_slice.reshape((1,-1))
-            smth_cz_slice = Map(name='smooth transform cz slice', hist=smth_cz_slice, binning=binning)
+            smth_cz_slice = Map(name='smooth coszen slice', hist=smth_cz_slice,
+                    binning=binning)
+
             plots = plotter(stamp='Aeff transform smoothing comparison')
             plots.init_fig()
             #plots.label = 'un-smoothed'
@@ -624,29 +606,10 @@ class smooth(Stage):
             #plots.add_leg()
             plots.add_stamp('Smoothed-vs-original\n'
                             + str(czbin) + '\n'
-                            + 'input_names: '+str(nominal_transforms.transforms[0].input_names)+'\n'
-                            + 'output_name: '+str(nominal_transforms.transforms[0].output_name))
+                            + 'input_names: '+str(raw_xform.input_names)+'\n'
+                            + 'output_name: '+str(raw_xform.output_name))
             plots.dump('cz_slice_comparison')
 
-
-#            plt.close('all')
-#            ax = plt.subplot(111)
-#            plt.plot(nominal_transforms.transforms[0].input_binning.true_energy.bin_edges[:-1], 
-#                    nominal_transforms.transforms[0].xform_array[20], 'bo-',
-#                    label='original')
-#            plt.plot(smooth_transforms.transforms[0].input_binning.true_energy.bin_edges[:-1], 
-#                    smooth_transforms.transforms[0].xform_array[20], 'go-',
-#                    label='smoothed')
-#            ax.set_xscale('log', nonposx='clip')
-#            ax.set_yscale('log', nonposy='clip')
-#            plt.xlabel(repr(nominal_transforms.transforms[0].input_binning.true_energy))
-#            plt.ylabel('Effective area transform values')
-#            plt.title('Comparison of Original and Smoothed Coszen Slices (nuall_nc, cz_index=20)')
-#            plt.legend(loc='best')
-#            plt.savefig('cz_slice_comparison.png')
-
-
-        # TODO Should there be one transform per input or per group?
         return interp_transforms
 
 
