@@ -10,13 +10,16 @@ Only one service is currently supported in PISA.
 
 This service applies the results obtained from fits to discrete samples.
 
-The fit fitting parameters must at the moment be extracted with an external
-script, that saves them in a json file. This file is specified in the sys stage
-section of the pipeline config. There the associated nuisance parameters (can be
-N different ones), e.g. `hole_ice` is specified together with a paremter
+The fitting parameters are at the moment extracted by an external
+script, that saves them in a json file, see below.
+
+Any parameterized systematic needs to be added to the `[stage:sys]` section of the pipeline config. There the associated nuisance parameters (can be
+N different ones), e.g. `hole_ice` are specified together with a paremter
 `hole_ice_file` pointing to the `.json` file with the fit info.
 
-To generate this fit file, the script `$PISA/pisa/utils/fit_discrerte_sys.py` can
+### generating the fit values
+
+To generate the fit file, the script `$PISA/pisa/utils/fit_discrerte_sys.py` can
 be exceuted together with a special configuration file. An example as used in
 the nutau analysis is found under `$PISA/resources/settings/discrete_sys_settings/nutau_holice_domeff_fits.ini`
 
@@ -37,3 +40,5 @@ the nominal point being at `dom_eff=1.0`, parametrized ith a linear fit that is
 forced through the nominal point, and gaussian smoothing is aplied.
 
 All 7 datasets must be specified in a separate section.
+
+At the moment different fits are generated for `cscd` and `trck` maps only (they are added together for the fit). Systematics listed under `sys_list` are considered in the fit. This will generate N different `.json` for N systematics. All the info from the fit, including the fit function itself is stored in that file. Plotting is also available via `-p/--plot' and is HIGHLY recomended to inspect the fit results.
