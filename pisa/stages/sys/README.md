@@ -1,0 +1,39 @@
+# Stage 6: Discrete Systematics
+
+This stage applies parameterized systematics to the templates. 
+
+## Services
+
+Only one service is currently supported in PISA.
+
+### fits
+
+This service applies the results obtained from fits to discrete samples.
+
+The fit fitting parameters must at the moment be extracted with an external
+script, that saves them in a json file. This file is specified in the sys stage
+section of the pipeline config. There the associated nuisance parameters (can be
+N different ones), e.g. `hole_ice` is specified together with a paremter
+`hole_ice_file` pointing to the `.json` file with the fit info.
+
+To generate this fit file, the script `$PISA/pisa/utils/fit_discrerte_sys.py` can
+be exceuted together with a special configuration file. An example as used in
+the nutau analysis is found under `$PISA/resources/settings/discrete_sys_settings/nutau_holice_domeff_fits.ini`
+
+This cfg file specifies the discrete datasets for the fits, here an example:
+
+```
+[dom_eff]
+nominal = 1.0
+degree = 1
+force_through_nominal = True
+smooth = gauss
+; discrete sets for param values
+runs = [1.0, 0.88, 0.94, 0.97, 1.03, 1.06, 1.12]
+```
+
+That means the systematic `dom_eff` is parametrized from 7 discrete datasets, with
+the nominal point being at `dom_eff=1.0`, parametrized ith a linear fit that is
+forced through the nominal point, and gaussian smoothing is aplied.
+
+All 7 datasets must be specified in a separate section.
