@@ -18,6 +18,9 @@ parser = ArgumentParser()
 parser.add_argument('-t', '--template-settings', type=str,
                     metavar='configfile', required=True,
                     help='settings for the generation of templates')
+parser.add_argument('-f', '--fit-settings', type=str,
+                    metavar='configfile', required=True,
+                    help='settings for the generation of templates')
 parser.add_argument('-p', '--plot', action='store_true',
                     help='plot')
 parser.add_argument('-v', action='count', default=None,
@@ -29,7 +32,7 @@ if args.plot:
     import matplotlib.pyplot as plt
     from pisa.utils.plotter import plotter
 
-cfg = from_file('nutau/sys_fits.ini')
+cfg = from_file(args.fit_settings)
 sys_list = cfg.get('general','sys_list').replace(' ','').split(',')
 categories = cfg.get('general','categories').replace(' ','').split(',')
 
@@ -139,14 +142,14 @@ for sys in sys_list:
                     plt.setp(plt.gca().get_xticklabels(), visible=False)
 
     # smoothing
-    if bool(smooth):
+    if not smooth == 'raw':
         raw_outputs = copy.deepcopy(outputs)
         errors = {}
         for cat in categories:
             for d in range(degree):
                 if smooth == 'spline':
                     spline = interpolate.SmoothBivariateSpline(grid_x, grid_y,
-                            np.ravel(outputs[cat][:,:,d]), kx=3, ky=3)
+                            np.ravel(outputs[cat][:,:,d]), kx=2, ky=2)
                     outputs[cat][:,:,d] = spline(bins_x, bins_y)
                 elif smooth == 'gauss':
                     outputs[cat][:,:,d] = gaussian_filter(outputs[cat][:,:,d],
@@ -168,10 +171,10 @@ for sys in sys_list:
         fig.subplots_adjust(hspace=0)
         fig.subplots_adjust(wspace=0)
         plt.show()
-        plt.savefig('%s_sysfits.pdf'%sys)
+        plt.savefig('%s_sysfits_%s.pdf'%(sys,smooth))
         plt.clf()
 
-        if bool(smooth):
+        if not smooth == 'raw':
             for d in range(degree):
                 maps = []
                 for cat in categories:
@@ -192,4 +195,4 @@ for sys in sys_list:
     outputs['nominal'] = nominal
     outputs['function'] = function
     outputs['categories'] = categories
-    to_file(outputs, './%s_sysfits.json'%sys)
+    to_file(outputs, './%s_sysfits_%s.json'%(sys,smooth))
