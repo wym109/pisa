@@ -7,7 +7,7 @@ import copy
 import itertools
 
 from pisa import ureg, Q_
-from pisa.core.distribution_maker import DistributionMaker
+from pisa.core.pipeline import Pipeline
 from pisa.utils.fileio import from_file, to_file
 from pisa.utils.log import set_verbosity
 from pisa.utils.parse_config import parse_config
@@ -35,6 +35,7 @@ if args.plot:
 cfg = from_file(args.fit_settings)
 sys_list = cfg.get('general','sys_list').replace(' ','').split(',')
 categories = cfg.get('general','categories').replace(' ','').split(',')
+idx = cfg.getint('general','stop_after_stage')
 
 # setup plotting colors
 colors = itertools.cycle(["r", "b", "g"])
@@ -64,7 +65,7 @@ for sys in sys_list:
     # instantiate template maker
     template_maker_settings = from_file(args.template_settings)
     template_maker_configurator = parse_config(template_maker_settings)
-    template_maker = DistributionMaker(template_maker_configurator)
+    template_maker = Pipeline(template_maker_configurator)
 
     inputs = {}
     for cat in categories:
@@ -80,7 +81,7 @@ for sys in sys_list:
                 param.set_nominal_to_current_value()
                 template_maker.update_params(param)
         # retreive maps
-        template = template_maker.get_outputs()
+        template = template_maker.get_outputs(idx=idx)
         for cat in categories:
             inputs[cat][run] = sum([map.hist for map in template if
                 map.name.endswith(cat)])
@@ -195,4 +196,4 @@ for sys in sys_list:
     outputs['nominal'] = nominal
     outputs['function'] = function
     outputs['categories'] = categories
-    to_file(outputs, './%s_sysfits_%s.json'%(sys,smooth))
+    to_file(outputs, 'pisa/resources/sys/%s_sysfits_%s.json'%(sys,smooth))
