@@ -137,11 +137,6 @@ class smooth(Stage):
         self.events_hash = this_hash
 
 
-    def rearrange_dimensions(func):
-        '''Possible decorator/wrapper to swap axes and undo swap.'''
-        pass
-
-
     def slice_smooth(self, hist, hist_binning):
         '''Generate splines. Based on pisa.utils.slice_smooth_aeff'''
         # TODO add support for azimuth
@@ -308,7 +303,7 @@ class smooth(Stage):
 
         # NOTE Is this still "true" dimensions
         return interpolant(new_binning.true_energy.midpoints,
-                           new_binning.true_coszen.midpoints)
+                           new_binning.true_coszen.midpoints).clip(0)
 
 
     def interpolate_transforms(self, transforms, new_binning):
