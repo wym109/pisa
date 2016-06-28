@@ -69,6 +69,8 @@ class fits(Stage):
         self.categories = None
         for pname in self.pnames:
             self.fit_results[pname] = from_file(self.params[pname+'_file'].value)
+            #assert (input_binning == self.fit_results[pname]['binning']),\
+            #    'incompatible binning between fit results and provided maps'
             if self.categories is None:
                 self.categories = self.fit_results[pname]['categories']
             else:

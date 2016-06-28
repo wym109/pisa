@@ -196,4 +196,5 @@ for sys in sys_list:
     outputs['nominal'] = nominal
     outputs['function'] = function
     outputs['categories'] = categories
+    #outputs['binning'] = binning
     to_file(outputs, 'pisa/resources/sys/%s_sysfits_%s.json'%(sys,smooth))
