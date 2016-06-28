@@ -36,12 +36,19 @@ class fits(Stage):
 
         # Define the names of objects expected in inputs and produced as
         # outputs
-        input_names = ( 'nue_cc_trck','nue_cc_cscd','nue_nc_trck','nue_nc_cscd',
-                        'nuebar_cc_trck','nuebar_cc_cscd','nuebar_nc_trck','nuebar_nc_cscd',
-                        'numu_cc_trck','numu_cc_cscd','numu_nc_trck','numu_nc_cscd',
-                        'numubar_cc_trck','numubar_cc_cscd','numubar_nc_trck','numubar_nc_cscd',
-                        'nutau_cc_trck','nutau_cc_cscd','nutau_nc_trck','nutau_nc_cscd',
-                        'nutaubar_cc_trck','nutaubar_cc_cscd','nutaubar_nc_trck','nutaubar_nc_cscd'
+        #input_names = ( 'nue_cc_trck','nue_cc_cscd','nue_nc_trck','nue_nc_cscd',
+        #                'nuebar_cc_trck','nuebar_cc_cscd','nuebar_nc_trck','nuebar_nc_cscd',
+        #                'numu_cc_trck','numu_cc_cscd','numu_nc_trck','numu_nc_cscd',
+        #                'numubar_cc_trck','numubar_cc_cscd','numubar_nc_trck','numubar_nc_cscd',
+        #                'nutau_cc_trck','nutau_cc_cscd','nutau_nc_trck','nutau_nc_cscd',
+        #                'nutaubar_cc_trck','nutaubar_cc_cscd','nutaubar_nc_trck','nutaubar_nc_cscd'
+        #)
+        input_names = ( 'nue_cc_trck','nue_cc_cscd','nuall_nc_trck','nuall_nc_cscd',
+                        'nuebar_cc_trck','nuebar_cc_cscd',
+                        'numu_cc_trck','numu_cc_cscd',
+                        'numubar_cc_trck','numubar_cc_cscd','nuallbar_nc_trck','nuallbar_nc_cscd',
+                        'nutau_cc_trck','nutau_cc_cscd',
+                        'nutaubar_cc_trck','nutaubar_cc_cscd',
         )
 
         output_names = input_names

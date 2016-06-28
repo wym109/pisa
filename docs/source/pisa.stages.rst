@@ -11,6 +11,7 @@ Subpackages
     pisa.stages.osc
     pisa.stages.pid
     pisa.stages.reco
+    pisa.stages.sys
 
 Submodules
 ----------
