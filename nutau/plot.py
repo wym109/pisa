@@ -3,6 +3,7 @@ import numpy as np
 
 from pisa import ureg, Q_
 from pisa.core.distribution_maker import DistributionMaker
+from pisa.core.pipeline import Pipeline
 from pisa.utils.fileio import from_file, to_file
 from pisa.utils.log import set_verbosity
 from pisa.utils.parse_config import parse_config
@@ -21,7 +22,7 @@ set_verbosity(args.v)
 
 template_maker_settings = from_file(args.template_settings)
 template_maker_configurator = parse_config(template_maker_settings)
-template_maker = DistributionMaker(template_maker_configurator)
+template_maker = Pipeline(template_maker_configurator)
 
 template = template_maker.get_outputs()
 
