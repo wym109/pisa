@@ -360,11 +360,14 @@ class honda(Stage):
         flux_file = self.params['flux_file'].value
         logging.info("Loading atmospheric flux table %s" % flux_file)
 
-        # Load the data table
-        table = np.loadtxt(open_resource(flux_file)).T
-
         # columns in Honda files are in the same order
         cols = ['energy'] + self.primaries
+
+        # Load the data table
+        table = np.genfromtxt(open_resource(flux_file),
+                              usecols=range(len(cols)))
+        mask = np.all(np.isnan(table) | np.equal(table, 0), axis=1)
+        table = table[~mask].T
 
         flux_dict = dict(zip(cols, table))
         for key in flux_dict.iterkeys():
@@ -456,11 +459,14 @@ class honda(Stage):
         flux_file = self.params['flux_file'].value
         logging.info("Loading atmospheric flux table %s" %flux_file)
 
-        # Load the data table
-        table = np.loadtxt(open_resource(flux_file)).T
-
         # columns in Honda files are in the same order
-        cols = ['energy']+primaries
+        cols = ['energy'] + self.primaries
+
+        # Load the data table
+        table = np.genfromtxt(open_resource(flux_file),
+                              usecols=range(len(cols)))
+        mask = np.all(np.isnan(table) | np.equal(table, 0), axis=1)
+        table = table[~mask].T
 
         flux_dict = dict(zip(cols, table))
         for key in flux_dict.iterkeys():
