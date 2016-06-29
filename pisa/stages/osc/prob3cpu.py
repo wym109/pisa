@@ -10,7 +10,7 @@ from pisa import ureg, Q_
 from pisa.core.binning import MultiDimBinning
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
-from pisa.resources.resources import find_resource
+from pisa.utils.resources import find_resource
 from pisa.stages.osc.prob3.BargerPropagator import BargerPropagator
 from pisa.utils.log import logging
 from pisa.utils.comparisons import normQuant

@@ -25,7 +25,7 @@ from scipy import interpolate
 from pisa import ureg, Q_
 from pisa.core.map import Map, MapSet
 from pisa.core.stage import Stage
-from pisa.resources.resources import open_resource
+from pisa.utils.resources import open_resource
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
 

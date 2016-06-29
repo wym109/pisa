@@ -15,7 +15,7 @@ import os, sys
 import numpy as np
 from scipy.interpolate import interp1d
 
-from pisa.resources.resources import find_resource
+from pisa.utils.resources import find_resource
 from pisa.utils.fileio import expandPath, from_file, to_file
 from pisa.utils import flavInt
 from pisa.utils.log import logging, set_verbosity
