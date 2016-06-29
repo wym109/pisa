@@ -19,7 +19,7 @@ import numpy as np
 from uncertainties import unumpy as unp
 
 from pisa.core.binning import MultiDimBinning, OneDimBinning
-from pisa.resources import resources
+from pisa.utils import resources
 from pisa.utils.comparisons import normQuant, recursiveEquality
 from pisa.utils.flavInt import FlavIntData, NuFlavIntGroup
 from pisa.utils.hash import hash_obj
