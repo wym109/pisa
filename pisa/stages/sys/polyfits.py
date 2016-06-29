@@ -22,7 +22,7 @@ from pisa.utils.fileio import from_file
 # example, an input arg can dictate neutrino or muon, which then sets the
 # input_names and output_names.
 
-class fits(Stage):
+class polyfits(Stage):
     def __init__(self, params, input_binning, output_binning,
                  disk_cache=None,
                  transforms_cache_depth=20, outputs_cache_depth=20):
@@ -58,7 +58,7 @@ class fits(Stage):
         super(self.__class__, self).__init__(
             use_transforms=True,
             stage_name='sys',
-            service_name='fits',
+            service_name='polyfits',
             params=params,
             expected_params=expected_params,
             input_names=input_names,

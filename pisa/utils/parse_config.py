@@ -36,21 +36,22 @@ The config file is expected to contain the following sections::
     ...
 
 * `pipeline` is the top most section that defines the hierarchy of stages and what
-services to be instatiated.
+    services to be instatiated.
 
 * `binning` can contain different binning definitions, that are then later
-reffered to rom within the stage sections
+    referred to from within the stage sections.
 
 * `stage` one such section per stage:service is necessary. It cotains some options
-that are common for all stages (`binning`, `error_method` and `debug_mode`) as
-well as all the necessary arguments and parameters for a given stage.
+    that are common for all stages (`binning`, `error_method` and `debug_mode`) as
+    well as all the necessary arguments and parameters for a given stage.
 
 
 Param definitions:
 ------------------
 
 Every key in a stage section that starts with `param.name` is interpreted and
-parsed into a PISA param object. These can be strings (e.g. a filename) or
+parsed into a PISA param object. These can be strings (e.g. a filename - don't
+use any quotation marks) or
 quantities. The later case expects an expression that can be converted by the
 `parse_quantity` function. The `+/-` notation will be interpreted as a gaussian
 prior for the quantity. Units can be added by `* unit.soandso`.
