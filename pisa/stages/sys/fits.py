@@ -30,17 +30,25 @@ class fits(Stage):
         # All of the following params (and no more) must be passed via the
         # `params` argument.
         expected_params = (
-            'dom_eff', 'dom_eff_file', 'hole_ice_fwd', 'hole_ice_fwd_file'
+            'dom_eff', 'dom_eff_file', 'hole_ice_fwd', 'hole_ice_fwd_file',
+            'hole_ice', 'hole_ice_file'
         )
 
         # Define the names of objects expected in inputs and produced as
         # outputs
-        input_names = ( 'nue_cc_trck','nue_cc_cscd','nue_nc_trck','nue_nc_cscd',
-                        'nuebar_cc_trck','nuebar_cc_cscd','nuebar_nc_trck','nuebar_nc_cscd',
-                        'numu_cc_trck','numu_cc_cscd','numu_nc_trck','numu_nc_cscd',
-                        'numubar_cc_trck','numubar_cc_cscd','numubar_nc_trck','numubar_nc_cscd',
-                        'nutau_cc_trck','nutau_cc_cscd','nutau_nc_trck','nutau_nc_cscd',
-                        'nutaubar_cc_trck','nutaubar_cc_cscd','nutaubar_nc_trck','nutaubar_nc_cscd'
+        #input_names = ( 'nue_cc_trck','nue_cc_cscd','nue_nc_trck','nue_nc_cscd',
+        #                'nuebar_cc_trck','nuebar_cc_cscd','nuebar_nc_trck','nuebar_nc_cscd',
+        #                'numu_cc_trck','numu_cc_cscd','numu_nc_trck','numu_nc_cscd',
+        #                'numubar_cc_trck','numubar_cc_cscd','numubar_nc_trck','numubar_nc_cscd',
+        #                'nutau_cc_trck','nutau_cc_cscd','nutau_nc_trck','nutau_nc_cscd',
+        #                'nutaubar_cc_trck','nutaubar_cc_cscd','nutaubar_nc_trck','nutaubar_nc_cscd'
+        #)
+        input_names = ( 'nue_cc_trck','nue_cc_cscd','nuall_nc_trck','nuall_nc_cscd',
+                        'nuebar_cc_trck','nuebar_cc_cscd',
+                        'numu_cc_trck','numu_cc_cscd',
+                        'numubar_cc_trck','numubar_cc_cscd','nuallbar_nc_trck','nuallbar_nc_cscd',
+                        'nutau_cc_trck','nutau_cc_cscd',
+                        'nutaubar_cc_trck','nutaubar_cc_cscd',
         )
 
         output_names = input_names
@@ -68,6 +76,8 @@ class fits(Stage):
         self.categories = None
         for pname in self.pnames:
             self.fit_results[pname] = from_file(self.params[pname+'_file'].value)
+            #assert (input_binning == self.fit_results[pname]['binning']),\
+            #    'incompatible binning between fit results and provided maps'
             if self.categories is None:
                 self.categories = self.fit_results[pname]['categories']
             else:

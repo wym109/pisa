@@ -86,7 +86,7 @@ class hist(Stage):
         # All of the following params (and no more) must be passed via the
         # `params` argument.
         expected_params = (
-            'aeff_weight_file', 'livetime', 'aeff_scale'
+            'aeff_weight_file', 'livetime', 'aeff_scale', 'nutau_cc_norm'
         )
 
         # Define the names of objects expected in inputs and produced as
@@ -241,6 +241,8 @@ class hist(Stage):
                     if aeff_transform is None:
                         aeff_transform = transform.xform_array * (aeff_scale *
                                                                   livetime_s)
+                        if transform.output_name in ['nutau_cc', 'nutaubar_cc']:
+                            aeff_transform = aeff_transform * self.params.nutau_cc_norm.value.m
                     new_xform = BinnedTensorTransform(
                         input_names=transform.input_names,
                         output_name=transform.output_name,

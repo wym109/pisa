@@ -1108,8 +1108,13 @@ class MultiDimBinning(object):
 
 
 def test_OneDimBinning():
+    import os
     import pickle
+    import shutil
+    import tempfile
+    from pisa.utils.jsons import to_json
     from pisa.utils.log import logging, set_verbosity
+
     b1 = OneDimBinning(name='energy', num_bins=40, is_log=True,
                        domain=[1, 80]*ureg.GeV)
     b2 = OneDimBinning(name='coszen', num_bins=40, is_lin=True,
@@ -1162,12 +1167,30 @@ def test_OneDimBinning():
     #b3_loaded = pickle.loads(s)
     #assert b3_loaded == b3
 
+    testdir = tempfile.mkdtemp()
+    try:
+        for b in [b1, b2, b3, b4]:
+            b_file = os.path.join(testdir, 'one_dim_binning.json')
+            b.to_json(b_file)
+            b_ = OneDimBinning.from_json(b_file)
+            assert b_ == b, 'b=\n%s\nb_=\n%s' %(b, b_)
+            to_json(b, b_file)
+            b_ = OneDimBinning.from_json(b_file)
+            assert b_ == b, 'b=\n%s\nb_=\n%s' %(b, b_)
+    finally:
+        shutil.rmtree(testdir, ignore_errors=True)
+
     logging.info('<< PASSED >> test_OneDimBinning')
 
 
 def test_MultiDimBinning():
+    import os
     import pickle
+    import shutil
+    import tempfile
+    from pisa.utils.jsons import to_json
     from pisa.utils.log import logging, set_verbosity
+
     b1 = OneDimBinning(name='energy', num_bins=40, is_log=True,
                        domain=[1, 80]*ureg.GeV)
     b2 = OneDimBinning(name='coszen', num_bins=40, is_lin=True,
@@ -1211,6 +1234,18 @@ def test_MultiDimBinning():
     binning.to('MeV', None)
     binning.to('MeV', '')
     binning.to(ureg.joule, '')
+
+    testdir = tempfile.mkdtemp()
+    try:
+        b_file = os.path.join(testdir, 'multi_dim_binning.json')
+        binning.to_json(b_file)
+        b_ = MultiDimBinning.from_json(b_file)
+        assert b_ == binning, 'binning=\n%s\nb_=\n%s' %(binning, b_)
+        to_json(binning, b_file)
+        b_ = MultiDimBinning.from_json(b_file)
+        assert b_ == binning, 'binning=\n%s\nb_=\n%s' %(binning, b_)
+    finally:
+        shutil.rmtree(testdir, ignore_errors=True)
 
     logging.info('<< PASSED >> test_MultiDimBinning')
 

@@ -4,14 +4,6 @@ pisa.scripts package
 Submodules
 ----------
 
-pisa.scripts.compare_hists module
----------------------------------
-
-.. automodule:: pisa.scripts.compare_hists
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 pisa.scripts.convert_to_pisa_reco_format module
 -----------------------------------------------
 

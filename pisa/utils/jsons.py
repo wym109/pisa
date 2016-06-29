@@ -59,7 +59,7 @@ def to_json(content, filename, indent=2, overwrite=True):
 
     """
     if hasattr(content, 'to_json'):
-        content.to_json(filename, indent=indent, overwrite=overwrite)
+        return content.to_json(filename, indent=indent, overwrite=overwrite)
     fpath = os.path.expandvars(os.path.expanduser(filename))
     if os.path.exists(fpath):
         if overwrite:

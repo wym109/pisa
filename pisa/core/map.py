@@ -1397,6 +1397,7 @@ def test_Map():
     import os
     import shutil
     import tempfile
+    from pisa.utils.jsons import to_json
     from pisa import ureg, Q_
 
     n_ebins = 10
@@ -1442,6 +1443,9 @@ def test_Map():
             m.to_json(m_file)
             m_ = Map.from_json(m_file)
             assert m_ == m, 'm=\n%s\nm_=\n%s' %(m, m_)
+            to_json(m, m_file)
+            m_ = Map.from_json(m_file)
+            assert m_ == m, 'm=\n%s\nm_=\n%s' %(m, m_)
     finally:
         shutil.rmtree(testdir, ignore_errors=True)
 
@@ -1481,6 +1485,7 @@ def test_MapSet():
     import os
     import shutil
     import tempfile
+    from pisa.utils.jsons import to_json
     from pisa import ureg, Q_
 
     n_ebins = 6
@@ -1601,6 +1606,9 @@ def test_MapSet():
         for ms in [ms01, ms02, ms1, ms2, ms3, ms4]:
             ms_file = os.path.join(testdir, ms.name + '.json')
             ms.to_json(ms_file)
+            ms_ = MapSet.from_json(ms_file)
+            assert ms_ == ms, 'ms=\n%s\nms_=\n%s' %(ms, ms_)
+            to_json(ms, ms_file)
             ms_ = MapSet.from_json(ms_file)
             assert ms_ == ms, 'ms=\n%s\nms_=\n%s' %(ms, ms_)
     finally:

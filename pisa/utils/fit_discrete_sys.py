@@ -7,7 +7,7 @@ import copy
 import itertools
 
 from pisa import ureg, Q_
-from pisa.core.distribution_maker import DistributionMaker
+from pisa.core.pipeline import Pipeline
 from pisa.utils.fileio import from_file, to_file
 from pisa.utils.log import set_verbosity
 from pisa.utils.parse_config import parse_config
@@ -16,6 +16,9 @@ from pisa.core.map import Map, MapSet
 
 parser = ArgumentParser()
 parser.add_argument('-t', '--template-settings', type=str,
+                    metavar='configfile', required=True,
+                    help='settings for the generation of templates')
+parser.add_argument('-f', '--fit-settings', type=str,
                     metavar='configfile', required=True,
                     help='settings for the generation of templates')
 parser.add_argument('-p', '--plot', action='store_true',
@@ -29,9 +32,10 @@ if args.plot:
     import matplotlib.pyplot as plt
     from pisa.utils.plotter import plotter
 
-cfg = from_file('nutau/sys_fits.ini')
+cfg = from_file(args.fit_settings)
 sys_list = cfg.get('general','sys_list').replace(' ','').split(',')
 categories = cfg.get('general','categories').replace(' ','').split(',')
+idx = cfg.getint('general','stop_after_stage')
 
 # setup plotting colors
 colors = itertools.cycle(["r", "b", "g"])
@@ -61,7 +65,7 @@ for sys in sys_list:
     # instantiate template maker
     template_maker_settings = from_file(args.template_settings)
     template_maker_configurator = parse_config(template_maker_settings)
-    template_maker = DistributionMaker(template_maker_configurator)
+    template_maker = Pipeline(template_maker_configurator)
 
     inputs = {}
     for cat in categories:
@@ -77,7 +81,7 @@ for sys in sys_list:
                 param.set_nominal_to_current_value()
                 template_maker.update_params(param)
         # retreive maps
-        template = template_maker.get_outputs()
+        template = template_maker.get_outputs(idx=idx)
         for cat in categories:
             inputs[cat][run] = sum([map.hist for map in template if
                 map.name.endswith(cat)])
@@ -139,14 +143,14 @@ for sys in sys_list:
                     plt.setp(plt.gca().get_xticklabels(), visible=False)
 
     # smoothing
-    if bool(smooth):
+    if not smooth == 'raw':
         raw_outputs = copy.deepcopy(outputs)
         errors = {}
         for cat in categories:
             for d in range(degree):
                 if smooth == 'spline':
                     spline = interpolate.SmoothBivariateSpline(grid_x, grid_y,
-                            np.ravel(outputs[cat][:,:,d]), kx=3, ky=3)
+                            np.ravel(outputs[cat][:,:,d]), kx=2, ky=2)
                     outputs[cat][:,:,d] = spline(bins_x, bins_y)
                 elif smooth == 'gauss':
                     outputs[cat][:,:,d] = gaussian_filter(outputs[cat][:,:,d],
@@ -168,10 +172,10 @@ for sys in sys_list:
         fig.subplots_adjust(hspace=0)
         fig.subplots_adjust(wspace=0)
         plt.show()
-        plt.savefig('%s_sysfits.pdf'%sys)
+        plt.savefig('%s_sysfits_%s.pdf'%(sys,smooth))
         plt.clf()
 
-        if bool(smooth):
+        if not smooth == 'raw':
             for d in range(degree):
                 maps = []
                 for cat in categories:
@@ -192,4 +196,5 @@ for sys in sys_list:
     outputs['nominal'] = nominal
     outputs['function'] = function
     outputs['categories'] = categories
-    to_file(outputs, './%s_sysfits.json'%sys)
+    #outputs['binning'] = binning
+    to_file(outputs, 'pisa/resources/sys/%s_sysfits_%s.json'%(sys,smooth))
