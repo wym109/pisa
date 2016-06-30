@@ -120,8 +120,6 @@ def do_osc_comparison(config=None, servicename=None,
         except:
             config['osc']['params'][systname] = 1.25*config['osc']['params'][systname].value
 
-        print config['osc']['params'][systname].value
-
         if config['osc']['params'][systname].value.magnitude < 0.01:
             systval = '%e'%config['osc']['params'][systname].value.magnitude
             systval = systval[0:4]
