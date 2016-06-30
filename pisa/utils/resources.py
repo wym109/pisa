@@ -70,7 +70,9 @@ def find_resource(resourcename, is_dir=False, fail=True):
 
     # Not in the resource path, so look inside the package
     logging.trace('Searching package resources...')
-    rsrc_path = resource_filename(__name__, resourcename)
+    rsrc_path = resource_filename(__name__,
+            os.path.join('../resources',resourcename))
+    rsrc_path = os.path.relpath(rsrc_path)
     if isentity(rsrc_path):
         logging.debug('Found %s at %s' % (resourcename, rsrc_path))
         return rsrc_path

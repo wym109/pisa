@@ -33,7 +33,7 @@ logging.trace = logging.root.trace
 
 # Don't move these up, as "trace" might be used in them
 from pisa.utils.jsons import from_json
-from pisa.resources.resources import find_resource
+from pisa.utils.resources import find_resource
 
 # Get the logging configuration
 # Will search in local dir, $PISA and finally package resources

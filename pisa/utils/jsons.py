@@ -19,7 +19,7 @@ import simplejson as json
 
 import pint
 from pisa import ureg, Q_
-from pisa.resources.resources import open_resource
+from pisa.utils.resources import open_resource
 from pisa.utils.log import logging
 
 

@@ -124,6 +124,14 @@ pisa.utils.hdf module
     :undoc-members:
     :show-inheritance:
 
+pisa.utils.hdfchain module
+--------------------------
+
+.. automodule:: pisa.utils.hdfchain
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 pisa.utils.jsons module
 -----------------------
 
@@ -200,6 +208,14 @@ pisa.utils.profiler module
 --------------------------
 
 .. automodule:: pisa.utils.profiler
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+pisa.utils.resources module
+---------------------------
+
+.. automodule:: pisa.utils.resources
     :members:
     :undoc-members:
     :show-inheritance:

@@ -25,7 +25,7 @@ from scipy import interpolate
 from pisa import ureg, Q_
 from pisa.core.map import Map, MapSet
 from pisa.core.stage import Stage
-from pisa.resources.resources import open_resource
+from pisa.utils.resources import open_resource
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
 
@@ -170,7 +170,7 @@ class honda(Stage):
 
     Each of these sections of the file name are separated by a hyphen, and they
     should all have the file extension '.d'.
-    All of the tables in PISA can be found in pisa/resources/flux.
+    All of the tables in PISA can be found in pisa.utils/flux.
     PISA actively supports the following tables from Honda:
 
     * honda-2015-spl-solmax-aa.d
