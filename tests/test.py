@@ -696,7 +696,7 @@ if test_aeff:
 
     aeff_config = parse_config('settings/aeff_test.ini')
 
-    aeff_config['aeff']['params']['aeff_weight_file'] = 'aeff/DC/2015/mdunkman/1XXXX/Unjoined/DC_MSU_1X585_unjoined_events_mc.hdf5'
+    aeff_config['aeff']['params']['aeff_weight_file'] = 'events/DC/2015/mdunkman/1XXXX/Unjoined/DC_MSU_1X585_unjoined_events_mc.hdf5'
 
     for syst in [None, 'aeff_scale']:
 
@@ -725,13 +725,13 @@ if test_reco:
 
     reco_config = parse_config('settings/reco_test.ini')
     reco_config['reco']['params']['reco_weights_name'] = None
-    reco_config['reco']['params']['reco_weight_file'] = 'aeff/DC/2015/mdunkman/1XXXX/Joined/DC_MSU_1X585_joined_nu_nubar_events_mc.hdf5'
+    reco_config['reco']['params']['reco_weight_file'] = 'events/DC/2015/mdunkman/1XXXX/Joined/DC_MSU_1X585_joined_nu_nubar_events_mc.hdf5'
 
     do_reco_comparison(config=deepcopy(reco_config),
                        servicename='hist1X585',
                        pisa2file='data/reco/PISAV2RecoStageHist1X585Service.json')
 
-    reco_config['reco']['params']['reco_weight_file'] = 'aeff/DC/2015/mdunkman/1XXX/2016/Joined/DC_MSU_1X60_joined_nu_nubar_events_mc.hdf5'
+    reco_config['reco']['params']['reco_weight_file'] = 'events/DC/2015/mdunkman/1XXX/Joined/DC_MSU_1X60_joined_nu_nubar_events_mc.hdf5'
 
     do_reco_comparison(config=deepcopy(reco_config),
                        servicename='hist1X60',
