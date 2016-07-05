@@ -744,6 +744,7 @@ if test_reco:
 #   - Histogram Service                                       #
 #                                                             #
 #       = PINGU V39 Baseline                                  #
+#       = DeepCore 1X585 Baseline                             #
 #                                                             #
 ###############################################################
 
@@ -753,7 +754,15 @@ if test_pid:
 
     do_pid_comparison(config=deepcopy(pid_config),
                       servicename='pidV39',
-                      pisa2file='data/pid/PIDAV2PIDStageHistV39Service.json')
+                      pisa2file='data/pid/PISAV2PIDStageHistV39Service.json')
+
+    pid_config['pid']['params']['pid_events'] = 'events/DC/2015/mdunkman/1XXXX/Joined/DC_MSU_1X585_joined_nu_nubar_events_mc.hdf5'
+    pid_config['pid']['params']['pid_weights_name'] = 'weighted_aeff'
+    pid_config['pid']['params']['pid_ver'] = 'msu_mn8d-mn7d'
+
+    do_pid_comparison(config=deepcopy(pid_config),
+                      servicename='pid1X585',
+                      pisa2file='data/pid/PISAV2PIDStageHist1X585Service.json')
 
 ###############################################################
 #                                                             #
