@@ -9,7 +9,7 @@
 
 import pisa.utils.fileio as fileio
 import pisa.utils.flavInt as flavInt
-from pisa.resources import resources as resources
+from pisa.utils import resources as resources
 import pisa.utils.crossSections as crossSections
 
 # Following "import *" is intentionally done so that `eval` called in

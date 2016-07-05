@@ -1,6 +1,6 @@
 # Cross Sections
 
-Cross sections used to generate Monte Carlo simulations are stored in $PISA/pisa/resources/cross_sections/cross_sections.json. New cross sections can be added to this file and existing cross sections can be loaded, plotted, and worked with via the class $PISA/utils/crossSections.py:CrossSections.
+Cross sections used to generate Monte Carlo simulations are stored in $PISA/pisa.utils/cross_sections/cross_sections.json. New cross sections can be added to this file and existing cross sections can be loaded, plotted, and worked with via the class $PISA/utils/crossSections.py:CrossSections.
 
 
 ## cross_sections.json format

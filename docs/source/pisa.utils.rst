@@ -76,6 +76,14 @@ pisa.utils.fileio module
     :undoc-members:
     :show-inheritance:
 
+pisa.utils.fit_discrete_sys module
+----------------------------------
+
+.. automodule:: pisa.utils.fit_discrete_sys
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 pisa.utils.flavInt module
 -------------------------
 
@@ -116,6 +124,14 @@ pisa.utils.hdf module
     :undoc-members:
     :show-inheritance:
 
+pisa.utils.hdfchain module
+--------------------------
+
+.. automodule:: pisa.utils.hdfchain
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 pisa.utils.jsons module
 -----------------------
 
@@ -144,14 +160,6 @@ pisa.utils.mcSimRunSettings module
 ----------------------------------
 
 .. automodule:: pisa.utils.mcSimRunSettings
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-pisa.utils.numerical module
----------------------------
-
-.. automodule:: pisa.utils.numerical
     :members:
     :undoc-members:
     :show-inheritance:
@@ -200,6 +208,14 @@ pisa.utils.profiler module
 --------------------------
 
 .. automodule:: pisa.utils.profiler
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+pisa.utils.resources module
+---------------------------
+
+.. automodule:: pisa.utils.resources
     :members:
     :undoc-members:
     :show-inheritance:

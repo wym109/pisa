@@ -7,9 +7,6 @@ Subpackages
 .. toctree::
 
     pisa.core
-    pisa.obsolete
-    pisa.resources
-    pisa.scripts
     pisa.stages
     pisa.utils
 

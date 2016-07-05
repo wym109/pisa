@@ -3,10 +3,73 @@
 #
 # date:   2016-04-28
 """
-Parse a ConfigFile object into a dict containing a an entry for every stage,
-that contains values indicated by param. each as a Param object in one
-ParamSet, and the binning as binning objects.
+Parse a ConfigFile object into a dict containing an item for every analysis stage,
+that itself contains all necessary instantiation arguments/objects for that
+stage.
+for en example config file, please consider
+`$PISA/pisa.utils/settings/pipeline_settings/pipeline_settings_example.ini`
 
+Config File Structure:
+===============
+
+The config file is expected to contain the following sections::
+
+    [pipeline]
+    order = stageA:serviceA, stageB:serviceB
+
+    [binning]
+    binning1.order = axis1, axis2
+    binning1.axis1 = {'num_bins':40, 'is_log':True, 'domain':[1,80] * units.GeV, 'tex': r'$A_1$'}
+    binning1.axis2 = {'num_bins':10, 'is_lin':True, 'domain':[1,5], 'tex': r'$A_2$'}
+
+    [stage:stageA]
+    input_binning = bining1
+    output_binning = binning1
+    error_method = None
+    debug_mode = False
+
+    param.p1 = 0.0 +/- 0.5 * units.deg
+    param.p1.fixed = False
+    param.p1.range = nominal + [-2.0, +2.0] * sigma
+
+    [stage:stageB]
+    ...
+
+* `pipeline` is the top most section that defines the hierarchy of stages and what
+    services to be instatiated.
+
+* `binning` can contain different binning definitions, that are then later
+    referred to from within the stage sections.
+
+* `stage` one such section per stage:service is necessary. It cotains some options
+    that are common for all stages (`binning`, `error_method` and `debug_mode`) as
+    well as all the necessary arguments and parameters for a given stage.
+
+
+Param definitions:
+------------------
+
+Every key in a stage section that starts with `param.name` is interpreted and
+parsed into a PISA param object. These can be strings (e.g. a filename - don't
+use any quotation marks) or
+quantities. The later case expects an expression that can be converted by the
+`parse_quantity` function. The `+/-` notation will be interpreted as a gaussian
+prior for the quantity. Units can be added by `* unit.soandso`.
+
+Additional arguments to a parameter are passed in with the `.` notation, for
+example `param.name.fixed = False`, which makes it a free parameter in the fit (by
+default a parameter is fixed unless specified like this).
+
+A range must be given for a free parameter. Either as absolute range `[x,y]` or
+in conjuction with the keywords `nominal` (= nominal parameter value) and
+`sigma` if the param was specified with the `+/-` notation.
+
+`.prior` is another argument, that can take the values `uniform` or `spline`,
+for the latter case a `.prior.data` will be expected, pointing to the spline
+data file.
+
+N.B.:
++++++
 Params that have the same name in multiple stages of the pipeline are
 instantiated as references to a single param in memory, so updating one updates
 all of them.
@@ -16,6 +79,7 @@ scope of a single pipeline; synchronization of parameters across pipelines
 is done by adding the pipelines to a single DistributionMaker object and
 updating params through the DistributionMaker's update_params method.
 """
+
 # TODO: add try: except: blocks around class instantiation calls to give
 # maximally useful error info to the user (spit out a good message, but then
 # re-raise the exception)
@@ -40,6 +104,9 @@ units = ureg
 
 
 def parse_quantity(string):
+    """ Helper function to parse a string into a pint/uncertainty quantity
+        e.g. '1.2 +/- 0.7 * units.meter'
+    """
     value = string.replace(' ', '')
     if 'units.' in value:
         value, unit = value.split('units.')
@@ -55,6 +122,8 @@ def parse_quantity(string):
 
 
 def parse_string_literal(string):
+    """ Helper function to evaluate a string
+    """
     if string.lower().strip() == 'true': return True
     elif string.lower().strip() == 'false': return False
     elif string.lower().strip() == 'none': return None
@@ -62,11 +131,16 @@ def parse_string_literal(string):
 
 
 def list_split(string):
+    """ Helper function to parse a comma separated list as string into a python
+        list
+    """
     list = string.split(',')
     return [x.strip() for x in list]
 
 
 def parse_config(config):
+    """ The core function to parse a PISA pipeline config file
+    """
     if isinstance(config, basestring):
         config = from_file(config)
     # create binning objects
@@ -189,7 +263,7 @@ def parse_config(config):
                 stage_dicts[stage][name] = binning_dict[value]
 
             elif not name == 'param_selector':
-                stage_dicts[stage][name] = value
+                stage_dicts[stage][name] = parse_string_literal(value)
 
         if len(params) > 0:
             stage_dicts[stage]['params'] = ParamSet(*params)

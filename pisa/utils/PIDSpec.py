@@ -15,7 +15,7 @@ import h5py
 
 import pisa.utils.jsons as jsons
 import pisa.utils.flavInt as flavInt
-import pisa.resources.resources as resources
+import pisa.utils.resources as resources
 
 # Note that the form of the numpy import is intentional, so that cuts -- which
 # are exectuted with `eval` -- will have access to numpy's namespace without

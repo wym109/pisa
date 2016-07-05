@@ -1,1 +1,0 @@
-../../../pisa/scripts/README.md

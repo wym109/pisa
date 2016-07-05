@@ -11,7 +11,7 @@ import h5py
 
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.hash import hash_obj
-from pisa.resources.resources import find_resource
+from pisa.utils.resources import find_resource
 from pisa.utils.comparisons import recursiveEquality
 
 

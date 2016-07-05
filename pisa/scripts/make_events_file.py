@@ -21,7 +21,7 @@ import pisa.utils.flavInt as flavInt
 import pisa.utils.events as events
 from pisa.utils.mcSimRunSettings import MCSimRunSettings
 from pisa.utils.dataProcParams import DataProcParams
-import pisa.resources.resources as resources
+import pisa.utils.resources as resources
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
@@ -503,7 +503,7 @@ def main():
         '--outdir',
         metavar='DIR',
         type=str,
-        default='$PISA/pisa/resources/events',
+        default='$PISA/pisa.utils/events',
         help='directory into which to store resulting HDF5 file'
     )
 

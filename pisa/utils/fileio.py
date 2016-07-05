@@ -13,7 +13,7 @@ import os
 import re
 import pisa.utils.jsons as jsons
 import pisa.utils.hdf as hdf
-import pisa.resources.resources as resources
+import pisa.utils.resources as resources
 from pisa.utils.log import logging
 import cPickle
 from pisa.utils.BetterConfigParser import BetterConfigParser
