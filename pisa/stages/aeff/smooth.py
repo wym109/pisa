@@ -137,7 +137,7 @@ class smooth(Stage):
         self.events_hash = this_hash
 
 
-    def slice_smooth(self, hist, hist_binning):
+    def slice_smooth(self, hist, hist_err, hist_binning):
         '''Generate splines. Based on pisa.utils.slice_smooth_aeff'''
         # TODO add support for azimuth
         # TODO add support for error
@@ -195,6 +195,7 @@ class smooth(Stage):
             # and uncommenting it leads to issues with pickle (in hashing)
         for index in xrange(len(czbins)): # czbins.size instead?
             cz_slice = hist[index,:]
+            cz_slice_err = hist_err[index,:]
             # NOTE Go through cz slices without enumeration. There's probably a better way.
             # NOTE transform.xform_array is d-dimensional hist
             # but aeff_data[flavint] is 2-dimensional.
@@ -202,11 +203,18 @@ class smooth(Stage):
 
             # Remove extra dimensions
             s_cz_slice = np.squeeze(cz_slice)
-            # TODO check if does anything --> It appears to
+            s_cz_slice_err = np.squeeze(cz_slice_err)
+
+            zero_and_nan_indices = np.squeeze(
+                (s_cz_slice == 0) | (s_cz_slice != s_cz_slice) |
+                (s_cz_slice_err == 0) | (s_cz_slice_err != s_cz_slice_err)
+            )
+            min_err = np.min(s_cz_slice_err[s_cz_slice_err > 0])
+            s_cz_slice_err[zero_and_nan_indices] = min_err
 
             # Fit spline to cz-slices
             cz_slice_spline = splrep(
-                ebins.midpoints, s_cz_slice,
+                ebins.midpoints, s_cz_slice, w=1./np.array(s_cz_slice_err),
                 k=3, s=e_smooth_factor
             )
 
@@ -275,6 +283,8 @@ class smooth(Stage):
             else:
                 smooth_xform, metadata = self.slice_smooth(
                     hist=transform.xform_array,
+                    # TODO handle error properly
+                    hist_err=transform.xform_array_err,
                     hist_binning=transform.output_binning
                 )
 
@@ -442,7 +452,14 @@ class smooth(Stage):
             # effective areas. Note that volume correction factor for
             # missing dimensions is applied here.
             bin_volumes = smoothing_binning.bin_volumes(attach_units=False)
+            # TODO check for nan and inf values in aeff_transform?
             aeff_transform /= (bin_volumes * missing_dims_vol)
+            bin_counts, _ = np.histogramdd(
+                    sample=sample,
+                    weights=None,
+                    bins=all_bin_edges)
+            aeff_err = aeff_transform / np.sqrt(bin_counts)
+            # TODO check the above error calcuation method
 
             # Store copy of transform for each member of the group
             flav_names = [str(flav) for flav in flav_int_group.flavs()]
@@ -459,6 +476,8 @@ class smooth(Stage):
                         output_binning=smoothing_binning,
                         xform_array=aeff_transform,
                     )
+                    # TODO REMOVE TERRIBLE HACK!
+                    xform.xform_array_err = aeff_err
                     raw_transforms.append(xform)
 
         raw_transforms = TransformSet(transforms=raw_transforms)
@@ -470,6 +489,7 @@ class smooth(Stage):
         # DEBUG MODE: plot raw, smooth, interp xforms, raw-smooth comparison
         # ------------------------------------------------------------------
         # TODO return transforms to user?
+        # TODO print what version of data was used on plots
         debug = True
         if debug:
             import matplotlib.pyplot as plt
@@ -572,8 +592,8 @@ class smooth(Stage):
             # Smooth-vs-raw coszen slice comparison 
             # TODO assert binning.names == [true_cz, true_e]
             # TODO better way to pick out coszen slices
-            i_xform = 0
-            i_cz = 30
+            i_xform = 4
+            i_cz = 39
 
             raw_xform = raw_transforms.transforms[i_xform]
             smooth_xform = smooth_transforms.transforms[i_xform]
@@ -603,7 +623,7 @@ class smooth(Stage):
                             + str(czbin) + '\n'
                             + 'input_names: '+str(raw_xform.input_names)+'\n'
                             + 'output_name: '+str(raw_xform.output_name))
-            plots.dump('cz_slice_comparison')
+            plots.dump('aeff_cz_slice_comparison')
 
         return interp_transforms
 
