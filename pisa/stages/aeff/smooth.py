@@ -267,9 +267,6 @@ class smooth(Stage):
         # Convert list of slices to array with cz as first index
         smoothed_hist = np.array(smoothed_e_slices).T
 
-        # Clip out negative values
-        smoothed_hist = smoothed_hist.clip(0)
-
         # Un-swap axes
         if cz_i != 0:
             smoothed_hist = np.swapaxes(smoothed_hist, 0, cz_i)
@@ -500,6 +497,11 @@ class smooth(Stage):
         interp_transforms = self.interpolate_transforms(smooth_transforms,
                 new_binning=input_binning)
 
+        # Clip negative values
+        for xform in smooth_transforms.transforms:
+            xform.xform_array = xform.xform_array.clip(0)
+        for xform in interp_transforms.transforms:
+            xform.xform_array = xform.xform_array.clip(0)
 
         # DEBUG MODE: plot raw, smooth, interp xforms, raw-smooth comparison
         # ------------------------------------------------------------------
