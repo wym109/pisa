@@ -169,7 +169,8 @@ class plotter(object):
         if isinstance(map, BinnedTensorTransform):
             bins = [map.input_binning[name] for name in map.input_binning.names]
             bin_edges = map.input_binning.bin_edges
-            zmap = np.log10(map.xform_array) if self.log else map.xform_array
+            xform_array = unp.nominal_values(map.xform_array)
+            zmap = np.log10(xform_array) if self.log else xform_array
         elif isinstance(map, Map):
             bins = [map.binning[name] for name in map.binning.names]
             bin_edges = map.binning.bin_edges

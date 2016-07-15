@@ -7,6 +7,8 @@ from itertools import product
 
 import numpy as np
 from scipy.interpolate import interp2d, splrep, splev
+import uncertainties as unc
+from uncertainties import unumpy as unp
 
 from pisa import ureg, Q_
 from pisa.core.binning import OneDimBinning, MultiDimBinning
@@ -69,8 +71,9 @@ class smooth(Stage):
 
     """
     def __init__(self, params, particles, transform_groups,
-                 combine_grouped_flavints, input_binning, output_binning, disk_cache=None,
-                 transforms_cache_depth=20, outputs_cache_depth=20):
+                 combine_grouped_flavints, input_binning, output_binning,
+                 error_method=None, disk_cache=None, transforms_cache_depth=20,
+                 outputs_cache_depth=20, debug_mode=None):
         self.events_hash = None
         """Hash of events file or Events object used"""
 
@@ -116,11 +119,13 @@ class smooth(Stage):
             expected_params=expected_params,
             input_names=input_names,
             output_names=output_names,
+            error_method=error_method,
             disk_cache=disk_cache,
             outputs_cache_depth=outputs_cache_depth,
             transforms_cache_depth=transforms_cache_depth,
             input_binning=input_binning,
-            output_binning=output_binning
+            output_binning=output_binning,
+            debug_mode=debug_mode
         )
 
         # Can do these now that binning has been set up in call to Stage's init
@@ -137,7 +142,7 @@ class smooth(Stage):
         self.events_hash = this_hash
 
 
-    def slice_smooth(self, hist, hist_err, hist_binning):
+    def slice_smooth(self, hist, hist_binning):
         '''Generate splines. Based on pisa.utils.slice_smooth_aeff'''
         # TODO add support for azimuth
         # TODO add support for error
@@ -187,6 +192,15 @@ class smooth(Stage):
                              czmax=czbins[-1],
                              n_czbins=len(ebins)))
 
+        # Set spline weights
+        if type(hist.flatten()[0]) is unc.core.AffineScalarFunc or \
+                type(hist.flatten()[0]) is unc.core.Variable:
+            error = unp.std_devs(hist)
+            hist = unp.nominal_values(hist)
+        else:
+            error = None
+
+
         # Smooth cz-slices of hist
         smoothed_cz_slices = []
         #for index, czbin in enumerate(czbins):
@@ -195,7 +209,7 @@ class smooth(Stage):
             # and uncommenting it leads to issues with pickle (in hashing)
         for index in xrange(len(czbins)): # czbins.size instead?
             cz_slice = hist[index,:]
-            cz_slice_err = hist_err[index,:]
+            cz_slice_err = error[index,:]
             # NOTE Go through cz slices without enumeration. There's probably a better way.
             # NOTE transform.xform_array is d-dimensional hist
             # but aeff_data[flavint] is 2-dimensional.
@@ -203,18 +217,22 @@ class smooth(Stage):
 
             # Remove extra dimensions
             s_cz_slice = np.squeeze(cz_slice)
-            s_cz_slice_err = np.squeeze(cz_slice_err)
-
-            zero_and_nan_indices = np.squeeze(
-                (s_cz_slice == 0) | (s_cz_slice != s_cz_slice) |
-                (s_cz_slice_err == 0) | (s_cz_slice_err != s_cz_slice_err)
-            )
-            min_err = np.min(s_cz_slice_err[s_cz_slice_err > 0])
-            s_cz_slice_err[zero_and_nan_indices] = min_err
+            if error is not None:
+                s_cz_slice_err = np.squeeze(cz_slice_err)
+    
+                zero_and_nan_indices = np.squeeze(
+                    (s_cz_slice == 0) | (s_cz_slice != s_cz_slice) |
+                    (s_cz_slice_err == 0) | (s_cz_slice_err != s_cz_slice_err)
+                )
+                min_err = np.min(s_cz_slice_err[s_cz_slice_err > 0])
+                s_cz_slice_err[zero_and_nan_indices] = min_err
+            else:
+                s_cz_slice_err = None
 
             # Fit spline to cz-slices
             cz_slice_spline = splrep(
-                ebins.midpoints, s_cz_slice, w=1./np.array(s_cz_slice_err),
+                ebins.midpoints, s_cz_slice, w=1./np.array(s_cz_slice_err)\
+                        if s_cz_slice_err is not None else None,
                 k=3, s=e_smooth_factor
             )
 
@@ -283,8 +301,6 @@ class smooth(Stage):
             else:
                 smooth_xform, metadata = self.slice_smooth(
                     hist=transform.xform_array,
-                    # TODO handle error properly
-                    hist_err=transform.xform_array_err,
                     hist_binning=transform.output_binning
                 )
 
@@ -459,6 +475,7 @@ class smooth(Stage):
                     weights=None,
                     bins=all_bin_edges)
             aeff_err = aeff_transform / np.sqrt(bin_counts)
+            aeff_transform = unp.uarray(aeff_transform, aeff_err)
             # TODO check the above error calcuation method
 
             # Store copy of transform for each member of the group
@@ -476,8 +493,6 @@ class smooth(Stage):
                         output_binning=smoothing_binning,
                         xform_array=aeff_transform,
                     )
-                    # TODO REMOVE TERRIBLE HACK!
-                    xform.xform_array_err = aeff_err
                     raw_transforms.append(xform)
 
         raw_transforms = TransformSet(transforms=raw_transforms)
@@ -500,8 +515,8 @@ class smooth(Stage):
             frac_diff_xforms = []
             values = []
             for raw, smooth in zip(raw_transforms, smooth_transforms):
-                smooth_arr = smooth.xform_array
-                raw_arr = raw.xform_array
+                smooth_arr = unp.nominal_values(smooth.xform_array)
+                raw_arr = unp.nominal_values(raw.xform_array)
 
                 # make sure you're comparing the right transforms
                 assert smooth.input_names == raw.input_names

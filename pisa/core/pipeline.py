@@ -260,7 +260,7 @@ if __name__ == '__main__':
     # Instantiate the pipeline
     pipeline = Pipeline(args.pipeline_settings)
 
-    for run in xrange(3):
+    for run in xrange(1):
         logging.info('')
         logging.info('## STARTING RUN %d ............' % run)
         logging.info('')
