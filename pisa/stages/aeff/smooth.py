@@ -1,10 +1,12 @@
 # authors: J.Lanfranchi/P.Eller
 # date:   March 20, 2016
 
-
 import copy
 from itertools import product
 
+import matplotlib.pyplot as plt
+from matplotlib.cm import Paired
+from matplotlib.offsetbox import AnchoredText
 import numpy as np
 from scipy.interpolate import interp2d, splrep, splev
 import uncertainties as unc
@@ -12,12 +14,14 @@ from uncertainties import unumpy as unp
 
 from pisa import ureg, Q_
 from pisa.core.binning import OneDimBinning, MultiDimBinning
+from pisa.core.map import Map
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.utils.events import Events
 from pisa.utils.flavInt import flavintGroupsFromString, NuFlavInt, NuFlavIntGroup, ALL_NUFLAVINTS, FlavIntData
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
+from pisa.utils.plotter import plotter
 from pisa.utils.profiler import profile
 
 # TODO: the below logic does not generalize to muons, but probably should
@@ -59,9 +63,11 @@ class smooth(Stage):
         in PISA but not necessarily) prefixed by "reco_". Each must match a
         corresponding dimension in `input_binning`.
 
+    error_method
     disk_cache
     transforms_cache_depth
     outputs_cache_depth
+    debug_mode
 
     Notes
     -----
@@ -143,80 +149,77 @@ class smooth(Stage):
 
 
     def slice_smooth(self, hist, hist_binning):
-        '''Generate splines. Based on pisa.utils.slice_smooth_aeff'''
-        # TODO add support for azimuth
-        # TODO add support for error
-        # TODO access hist dimensions by name
+        '''Returns a smoothed version of `hist`. 
 
-        # Swap hist dimensions to be [true_coszen, true_energy, true_azimuth]
+        Fits splines to `hist`, parallel to energy direction, then parallel to
+        coszen, using the smoothing parameters found in params.
+
+        Note that values in returned array can be negative, which is
+        non-physical. Consider using `np.clip` on output.
+        
+        Smoothing operation based on pisa.utils.slice_smooth_aeff.
+
+        Parameters
+        ----------
+        hist : np.ndarray or unp.uarray
+            Histogram to be smoothed. Has dimensions true_energy and
+            true_coszen.
+        hist_binning : MultiDimBinning
+            The binning for `hist`. Should contain true_energy and true_coszen.
+
+        Returns
+        -------
+        A smoothed histogram as a np.ndarray.
+
+        '''
+
+        # Swap hist dim order to be [true_coszen, true_energy, true_azimuth]
         names = hist_binning.names
         cz_i = names.index('true_coszen')
         e_i = names.index('true_energy')
-#        az_i = names.index('true_azimuth')
+        #az_i = names.index('true_azimuth')     # No azimuth yet
 
         if cz_i != 0:
             hist = np.swapaxes(hist, 0, cz_i)
-#        if e_i != 1:
-#            hist = np.swapaxes(hist, 1, e_i)
+        #if e_i != 1:
+        #    hist = np.swapaxes(hist, 1, e_i)
 
         # Load events file
-        # NOTE This is also done in _compute_nominal_transforms
-        # Is it possible to get the wrong metadata in any case?
         events = self.events
-
-        # Copy metadata from events (to become metadata for smoothed transform)
-        metadata = copy.deepcopy(events.metadata)
-            # NOTE How do we know this is the metadata that corresponds to the
-            # transform? Can events be assumed to have generated transform?
 
         # Get smooth factors from stage parameters
         e_smooth_factor = self.params.e_smooth_factor.value
         cz_smooth_factor = self.params.cz_smooth_factor.value
 
-        # Adding smooth factors to metadata
-        metadata.update(dict(e_smooth_factor=e_smooth_factor,
-                             cz_smooth_factor=cz_smooth_factor))
-
         # Separate binning dimensions
         czbins = hist_binning.true_coszen
         ebins = hist_binning.true_energy
-
         czbin_midpoints = czbins.midpoints
         ebin_midpoints = ebins.midpoints
 
-        # Add binning info to metadata
-        metadata.update(dict(emin=ebins[0],
-                             emax=ebins[-1],
-                             n_ebins=len(ebins),
-                             czmin=czbins[0],
-                             czmax=czbins[-1],
-                             n_czbins=len(ebins)))
-
         # Set spline weights
+        # If hist has uncertainties
         if type(hist.flatten()[0]) is unc.core.AffineScalarFunc or \
                 type(hist.flatten()[0]) is unc.core.Variable:
             error = unp.std_devs(hist)
             hist = unp.nominal_values(hist)
+        # If no uncertainties
         else:
             error = None
 
-
         # Smooth cz-slices of hist
         smoothed_cz_slices = []
-        #for index, czbin in enumerate(czbins):
-            # NOTE AssertionError 400
-            # NOTE __iter__ for OneDimBinning is commented out
-            # and uncommenting it leads to issues with pickle (in hashing)
-        for index in xrange(len(czbins)): # czbins.size instead?
+        for index in xrange(len(czbins)):
+
+            # Get slice and slice error
             cz_slice = hist[index,:]
-            cz_slice_err = error[index,:]
-            # NOTE Go through cz slices without enumeration. There's probably a better way.
-            # NOTE transform.xform_array is d-dimensional hist
-            # but aeff_data[flavint] is 2-dimensional.
-            # Add support for transforms with azimuth.
+            if error is not None:
+                cz_slice_err = error[index,:]
 
             # Remove extra dimensions
             s_cz_slice = np.squeeze(cz_slice)
+
+            # Deal with problematic bin values in error
             if error is not None:
                 s_cz_slice_err = np.squeeze(cz_slice_err)
     
@@ -226,26 +229,26 @@ class smooth(Stage):
                 )
                 min_err = np.min(s_cz_slice_err[s_cz_slice_err > 0])
                 s_cz_slice_err[zero_and_nan_indices] = min_err
+                weights = 1./np.array(s_cz_slice_err)
             else:
-                s_cz_slice_err = None
+                weights = None
 
             # Fit spline to cz-slices
             cz_slice_spline = splrep(
-                ebins.midpoints, s_cz_slice, w=1./np.array(s_cz_slice_err)\
-                        if s_cz_slice_err is not None else None,
+                ebins.midpoints, s_cz_slice, w=weights,
                 k=3, s=e_smooth_factor
             )
 
             # Sample cz-spline over ebin midpoints
             smoothed_cz_slice = splev(ebins.midpoints, cz_slice_spline)
 
-            # Assert that there are no nan or infinite values
+            # Assert that there are no nan or inf values in smoothed cz-slice
             assert not np.any(np.isnan(smoothed_cz_slice) +
                               np.isinf(np.abs(smoothed_cz_slice)))
 
             smoothed_cz_slices.append(smoothed_cz_slice)
 
-        # Convert list of slices to array
+        # Convert list of cz-slices to array
         smoothed_cz_slices = np.array(smoothed_cz_slices)
 
         # Iterate through e-slices
@@ -264,7 +267,7 @@ class smooth(Stage):
 
             smoothed_e_slices.append(smoothed_aeff)
 
-        # Convert list of slices to array with cz as first index
+        # Convert list of e-slices to array with cz as first index
         smoothed_hist = np.array(smoothed_e_slices).T
 
         # Un-swap axes
@@ -273,13 +276,15 @@ class smooth(Stage):
 #        if e_i != 1:
 #            smoothed_hist = np.swapaxes(smoothed_hist, 1, e_i)
 
-        return smoothed_hist, metadata
+        return smoothed_hist
 
 
     def smooth_transforms(self, transforms):
+        """
+        Apply slice_smooth to a whole set of BinnedTensorTransforms.
+
+        """
         new_transforms = []
-        # TODO avoid redundant calculations in flav int groups
-        # TODO put metadata somewhere
 
         v = [None]*len(self.transform_groups)
         done = dict(zip(self.transform_groups, v))
@@ -296,7 +301,7 @@ class smooth(Stage):
                 )
                 new_transforms.append(new_transform)
             else:
-                smooth_xform, metadata = self.slice_smooth(
+                smooth_xform = self.slice_smooth(
                     hist=transform.xform_array,
                     hist_binning=transform.output_binning
                 )
@@ -315,6 +320,7 @@ class smooth(Stage):
 
 
     def interpolate_hist(self, hist, hist_binning, new_binning):
+        """Interpolates `hist` to `new_binning` using params.inter_kind."""
 
         interp_kind = self.params.interp_kind.value
 
@@ -324,12 +330,12 @@ class smooth(Stage):
             z=hist,
             kind=interp_kind, copy=True, fill_value=None)
 
-        # NOTE Is this still "true" dimensions
         return interpolant(new_binning.true_energy.midpoints,
                            new_binning.true_coszen.midpoints).clip(0)
 
 
     def interpolate_transforms(self, transforms, new_binning):
+        """Interpolate transforms in a TransformSet to `new_binning`."""
         new_transforms = []
         v = [None]*len(self.transform_groups)
         done = dict(zip(self.transform_groups, v))
@@ -425,14 +431,20 @@ class smooth(Stage):
         # output.
 
         # Make binning for smoothing
-        # TODO make this binning look like input? remove assertion
-        assert input_binning.names == ['true_coszen', 'true_energy']
+        # TODO Add support for azimuth
+        assert 'true_coszen' in input_binning.names
+        assert 'true_energy' in input_binning.names
+        assert len(input_binning.names) == 2
+
         s_ebins = OneDimBinning(name='true_energy', tex=r'E_\nu',
                                 is_log=True, num_bins=39, domain=[1,80]*ureg.GeV)
         s_czbins = OneDimBinning(name='true_coszen',
                                  tex=r'\cos\theta_\nu', is_lin=True, num_bins=40,
                                  domain=[-1,1]*ureg(None))
-        smoothing_binning = MultiDimBinning([s_czbins, s_ebins])
+        smoothing_dims = []
+        smoothing_dims.append(s_ebins)
+        smoothing_dims.insert(input_binning.names.index('true_coszen'), s_czbins)
+        smoothing_binning = MultiDimBinning(smoothing_dims)
 
         # This gets used in innermost loop, so produce it just once here
         all_bin_edges = [dim.bin_edges.magnitude
@@ -442,21 +454,12 @@ class smooth(Stage):
         for flav_int_group in self.transform_groups:
             logging.debug("Working on %s effective areas" %flav_int_group)
 
-            # Since events (as of now) are combined before placing in the file,
-            # just need to extract the data for one "representative" flav/int.
-            repr_flav_int = flav_int_group[0]
-
-            # Extract the columns' data into a list for histogramming
-            sample = [self.events[repr_flav_int][name]
-                      for name in smoothing_binning.names]
-
-            # Extract the weights
-            weights = self.events[repr_flav_int]['weighted_aeff']
-
-            aeff_transform, _ = np.histogramdd(
-                sample=sample,
-                weights=weights,
-                bins=all_bin_edges
+            aeff_transform = self.events.histogram(
+                kinds=flav_int_group,
+                binning=all_bin_edges,
+                binning_cols=self.input_binning.names,
+                weights_col='weighted_aeff',
+                errors=None
             )
 
             # Divide histogram by
@@ -465,15 +468,17 @@ class smooth(Stage):
             # effective areas. Note that volume correction factor for
             # missing dimensions is applied here.
             bin_volumes = smoothing_binning.bin_volumes(attach_units=False)
-            # TODO check for nan and inf values in aeff_transform?
             aeff_transform /= (bin_volumes * missing_dims_vol)
-            bin_counts, _ = np.histogramdd(
-                    sample=sample,
-                    weights=None,
-                    bins=all_bin_edges)
+
+            bin_counts = self.events.histogram(
+                    kinds=flav_int_group,
+                    binning=all_bin_edges,
+                    binning_cols=self.input_binning.names,
+                    weights_col=None,
+                    errors=None
+                )
             aeff_err = aeff_transform / np.sqrt(bin_counts)
             aeff_transform = unp.uarray(aeff_transform, aeff_err)
-            # TODO check the above error calcuation method
 
             # Store copy of transform for each member of the group
             flav_names = [str(flav) for flav in flav_int_group.flavs()]
@@ -503,17 +508,18 @@ class smooth(Stage):
         for xform in interp_transforms.transforms:
             xform.xform_array = xform.xform_array.clip(0)
 
+
         # DEBUG MODE: plot raw, smooth, interp xforms, raw-smooth comparison
         # ------------------------------------------------------------------
         # TODO return transforms to user?
         # TODO print what version of data was used on plots
-        debug = True
-        if debug:
-            import matplotlib.pyplot as plt
-            from pisa.utils.plotter import plotter
+        # TODO do something with smoothing metadata?
+        if self.debug_mode:
 
-            # calculate raw-smooth comparison values (frac diff, etc)
-            # -------------------------------------------------------
+            # TODO Summary of what debug_mode does (maybe make a function)
+
+            # Calculate fractional diff between smoothed and raw transforms
+            # -------------------------------------------------------------
             frac_diff_xforms = []
             values = []
             for raw, smooth in zip(raw_transforms, smooth_transforms):
@@ -556,11 +562,6 @@ class smooth(Stage):
 
             # Plot raw, smoothed, and interp transforms
             # -----------------------------------------
-            from pisa.utils.plotter import plotter
-            from pisa.core.map import Map
-            from matplotlib.cm import Paired
-            from matplotlib.offsetbox import AnchoredText
-
             plots = plotter(stamp='Aeff Transforms')
 
             # Raw
@@ -580,6 +581,7 @@ class smooth(Stage):
             plots.plot_2d_array(interp_transforms, n_rows=2, n_cols=6,
                                 cmap=Paired)
             plots.dump('aeff_interp_transforms')
+
 
             # Plot fractional difference and coszen slice comparison
             # ------------------------------------------------------
@@ -607,7 +609,6 @@ class smooth(Stage):
             plots.dump('aeff_frac_diff_raw_smooth')
             
             # Smooth-vs-raw coszen slice comparison 
-            # TODO assert binning.names == [true_cz, true_e]
             # TODO better way to pick out coszen slices
             i_xform = 4
             i_cz = 39
@@ -631,11 +632,8 @@ class smooth(Stage):
 
             plots = plotter(stamp='Aeff transform smoothing comparison')
             plots.init_fig()
-            #plots.label = 'un-smoothed'
             plots.plot_1d_projection(nom_cz_slice, 'true_energy')
-            #plots.label = 'smoothed'
             plots.plot_1d_projection(smth_cz_slice, 'true_energy')
-            #plots.add_leg()
             plots.add_stamp('Smoothed-vs-original\n'
                             + str(czbin) + '\n'
                             + 'input_names: '+str(raw_xform.input_names)+'\n'
