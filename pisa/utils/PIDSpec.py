@@ -87,8 +87,7 @@ class PIDSpec(object):
             wanted_key = wanted_key.replace("'","").lower()
             for orig_dict_key, subdict in d.iteritems():
                 dict_key = orig_dict_key.replace("'","").lower()
-                if (dict_key == wanted_key) or ('v'+dict_key == wanted_key) \
-                   or (dict_key == 'v'+wanted_key):
+                if (dict_key == wanted_key):
                     d = subdict
                     all_k.append(orig_dict_key)
         if len(all_k) != 4:
