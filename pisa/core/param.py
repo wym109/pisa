@@ -516,11 +516,11 @@ class ParamSet(object):
     def __getattr__(self, attr):
         try:
             return super(ParamSet, self).__getattr__(attr)
-        except AttributeError:
+        except AttributeError, exc:
             try:
                 return self[attr]
             except KeyError:
-                raise AttributeError(attr)
+                raise exc
 
     def __setattr__(self, attr, val):
         try:
