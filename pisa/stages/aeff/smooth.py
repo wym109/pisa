@@ -30,8 +30,7 @@ from pisa.utils.profiler import profile
 # input_names and output_names.
 
 class smooth(Stage):
-    """Example stage with maps as inputs and outputs, and no disk cache. E.g.,
-    histogrammed oscillations stages will work like this.
+    """Smooth each effective area transform by fitting splines
 
     Parameters
     ----------
@@ -69,12 +68,6 @@ class smooth(Stage):
     outputs_cache_depth
     debug_mode
 
-    Notes
-    -----
-    Example input names would be:
-    See Conventions section in the documentation for more informaton on
-    particle naming scheme in PISA. As an example
-
     """
     def __init__(self, params, particles, transform_groups,
                  combine_grouped_flavints, input_binning, output_binning,
@@ -95,7 +88,7 @@ class smooth(Stage):
         expected_params = (
             'aeff_weight_file', 'livetime', 'aeff_scale',
             'e_smooth_factor', 'cz_smooth_factor',
-            'interp_kind'
+            'interp_kind', 'nutau_cc_norm'
         )
 
         # Define the names of objects expected in inputs and produced as
@@ -320,7 +313,7 @@ class smooth(Stage):
 
 
     def interpolate_hist(self, hist, hist_binning, new_binning):
-        """Interpolates `hist` to `new_binning` using params.inter_kind."""
+        """Interpolates `hist` to `new_binning` using params.interp_kind."""
 
         interp_kind = self.params.interp_kind.value
 
@@ -478,6 +471,7 @@ class smooth(Stage):
                     errors=None
                 )
             aeff_err = aeff_transform / np.sqrt(bin_counts)
+
             aeff_transform = unp.uarray(aeff_transform, aeff_err)
 
             # Store copy of transform for each member of the group
@@ -511,12 +505,7 @@ class smooth(Stage):
 
         # DEBUG MODE: plot raw, smooth, interp xforms, raw-smooth comparison
         # ------------------------------------------------------------------
-        # TODO return transforms to user?
-        # TODO print what version of data was used on plots
-        # TODO do something with smoothing metadata?
         if self.debug_mode:
-
-            # TODO Summary of what debug_mode does (maybe make a function)
 
             # Calculate fractional diff between smoothed and raw transforms
             # -------------------------------------------------------------
@@ -593,7 +582,7 @@ class smooth(Stage):
             plots.log = False
             plots.plot_2d_array(frac_diff_xforms, n_rows=2, n_cols=6,
                     cmap=plt.get_cmap('bwr'), vmin=-1, vmax=1)
-            # TODO add text boxes to axes correctly
+            # TODO better way to add text boxes to axes
             for i, arr in enumerate(frac_diff_xforms):
                 plt.subplot(2, 6, i+1)
                 textstr = (#r'Values for $\frac{smooth - orig}{orig}$'+'\n'
@@ -663,6 +652,8 @@ class smooth(Stage):
                     if aeff_transform is None:
                         aeff_transform = transform.xform_array * (aeff_scale *
                                                                   livetime_s)
+                        if transform.output_name in ['nutau_cc', 'nutaubar_cc']:
+                            aeff_transform = aeff_transform * self.params.nutau_cc_norm.value.m
                     new_xform = BinnedTensorTransform(
                         input_names=transform.input_names,
                         output_name=transform.output_name,

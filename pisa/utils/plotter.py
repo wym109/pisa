@@ -1,4 +1,5 @@
 import numpy as np
+import uncertainties as unc
 from uncertainties import unumpy as unp
 import matplotlib as mpl
 import math
@@ -12,6 +13,7 @@ mpl.rcParams['mathtext.bf'] = 'Bitstream Vera Sans:bold'
 from matplotlib import pyplot as plt
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from matplotlib.offsetbox import AnchoredText
+
 from pisa.core.map import Map, MapSet
 from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.utils.log import logging
@@ -22,7 +24,6 @@ class plotter(object):
     def __init__(self, outdir='.', stamp='PISA cake test', size=(8,8), fmt='pdf', log=True, label='# events', grid=True, ratio=False):
         self.outdir = outdir
         self.stamp = stamp
-        # NOTE Since multiple subplots can be used, self.stamp tends to write over existing text.
         self.fmt = fmt
         self.size = size
         self.fig = None
@@ -46,6 +47,8 @@ class plotter(object):
         self.fig.patch.set_facecolor('none')
 
     def add_stamp(self, text=None):
+        # NOTE add_stamp cannot be used on a subplot that has been
+        # de-selected and then re-selected. It will write over existing text.
         ''' ad common stamp with text '''
         if text is not None:
             a_text = AnchoredText(self.stamp + '\n' + r'$%s$'%text, loc=2, frameon=False)
@@ -166,11 +169,13 @@ class plotter(object):
     def plot_2d_map(self, map, cmap='rainbow', **kwargs):
         ''' plot map or transform on current axis in 2d'''
         axis = plt.gca()
+        # If map is BinnedTensorTransform
         if isinstance(map, BinnedTensorTransform):
             bins = [map.input_binning[name] for name in map.input_binning.names]
             bin_edges = map.input_binning.bin_edges
             xform_array = unp.nominal_values(map.xform_array)
             zmap = np.log10(xform_array) if self.log else xform_array
+        # If map is Map
         elif isinstance(map, Map):
             bins = [map.binning[name] for name in map.binning.names]
             bin_edges = map.binning.bin_edges
