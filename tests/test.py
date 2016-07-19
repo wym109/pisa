@@ -520,26 +520,38 @@ def do_pipeline_comparison(config=None, pisa2file=None):
 
 parser = ArgumentParser(description=
                         '''
-                        Runs a set of tests on the PISA 3 pipeline against benchmark PISA 2 data. 
-                        Output plots will be stored in the output directory (which this script will make if it doesn't find them) which you should browse. 
-                        The plots will be deleted and re-made every time you run this script so you can always be sure that the ones you have represent your PISA 3 in its' current state.
-                        This script should always be run when you make any major modifications to be sure nothing has broken.
-                        If you find this script does not work, please either fix it or report it!
+                        Runs a set of tests on the PISA 3 pipeline against 
+                        benchmark PISA 2 data. 
+                        Output plots will be stored in the output directory 
+                        (which this script will make if it doesn't find them) 
+                        which you should browse. 
+                        The plots will be deleted and re-made every time you run
+                        this script so you can always be sure that the ones you
+                        have represent your PISA 3 in its' current state.
+                        This script should always be run when you make any major
+                        modifications to be sure nothing has broken.
+                        If you find this script does not work, please either 
+                        fix it or report it!
                         ''',
                         formatter_class=ArgumentDefaultsHelpFormatter)
-
 parser.add_argument('-a','--all', action='store_true', default=True,
-                    help="Run all tests. This is recommended and is the default behaviour!")
+                    help="Run all tests. This is recommended and is the default
+                    behaviour!")
 parser.add_argument('--flux', action='store_true', default=False,
-                    help="Run flux tests i.e. the interpolation methods and the flux systematics.")
+                    help="Run flux tests i.e. the interpolation methods and the
+                    flux systematics.")
 parser.add_argument('--osc', action='store_true', default=False,
-                    help="Run osc tests i.e. the oscillograms with one sigma deviations in the parameters.")
+                    help="Run osc tests i.e. the oscillograms with one sigma 
+                    deviations in the parameters.")
 parser.add_argument('--aeff', action='store_true', default=False,
-                    help="Run effective area tests i.e. the different transforms with the aeff systematics.")
+                    help="Run effective area tests i.e. the different transforms
+                    with the aeff systematics.")
 parser.add_argument('--reco', action='store_true', default=False,
-                    help="Run reco tests i.e. the different reco kernels and their systematics.")
+                    help="Run reco tests i.e. the different reco kernels and 
+                    their systematics.")
 parser.add_argument('--pid', action='store_true', default=False,
-                    help="Run PID tests i.e. the different pid kernels methods and their systematics.")
+                    help="Run PID tests i.e. the different pid kernels methods 
+                    and their systematics.")
 parser.add_argument('--full', action='store_true', default=False,
                     help="Run full pipeline tests for the baseline.")
 args = parser.parse_args()
