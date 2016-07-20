@@ -65,12 +65,13 @@ def do_plotting(pisa_map=None, cake_map=None,
 
     plt.tight_layout()
 
-    plt.savefig('output/%s/%s_PISAV2-V3_Comparisons_%s_Stage_%s_Service.png'%(stagename.lower(),nukey,stagename,servicename))
+    plt.savefig(args.outdir+'/%s/%s_PISAV2-V3_Comparisons_%s_Stage_%s_Service.png'%(stagename.lower(),nukey,stagename,servicename))
 
     plt.close()
 
 def do_flux_comparison(config=None, servicename=None,
-                       pisa2file=None, systname=None):
+                       pisa2file=None, systname=None,
+                       outdir=None):
 
     if systname is not None:
         try:
@@ -112,7 +113,8 @@ def do_flux_comparison(config=None, servicename=None,
                         nukey=nukey)
 
 def do_osc_comparison(config=None, servicename=None,
-                      pisa2file=None, systname=None):
+                      pisa2file=None, systname=None,
+                      outdir=None):
 
     if systname is not None:
         try:
@@ -130,7 +132,7 @@ def do_osc_comparison(config=None, servicename=None,
         servicename += '-%s%s.json'%(systname,systval)
 
     pipeline = Pipeline(config)
-    stage = pipeline.stages[1]
+    stage = pipeline.stages[0]
     input_maps = []
     for name in stage.input_names:
         hist = np.ones(stage.input_binning.shape)
@@ -166,7 +168,8 @@ def do_osc_comparison(config=None, servicename=None,
                         nukey=nukey)
 
 def do_aeff_comparison(config=None, servicename=None,
-                       pisa2file=None, systname=None):
+                       pisa2file=None, systname=None,
+                       outdir=None):
 
     if systname is not None:
         try:
@@ -178,7 +181,7 @@ def do_aeff_comparison(config=None, servicename=None,
         servicename += '-%s%.2f'%(systname,config['aeff']['params'][systname].value)
 
     pipeline = Pipeline(config)
-    stage = pipeline.stages[2]
+    stage = pipeline.stages[0]
     input_maps = []
     for name in stage.input_names:
         hist = np.ones(stage.input_binning.shape)
@@ -215,10 +218,10 @@ def do_aeff_comparison(config=None, servicename=None,
                             nukey=cakekey)
 
 def do_reco_comparison(config=None, servicename=None,
-                       pisa2file=None):
+                       pisa2file=None, outdir=None):
 
     pipeline = Pipeline(config)
-    stage = pipeline.stages[3]
+    stage = pipeline.stages[0]
     input_maps = []
     for name in stage.input_names:
         hist = np.ones(stage.input_binning.shape)
@@ -285,10 +288,11 @@ def do_reco_comparison(config=None, servicename=None,
                         nutexname=outputs[nukey].tex,
                         nukey=nukey)
 
-def do_pid_comparison(config=None, servicename=None, pisa2file=None):
+def do_pid_comparison(config=None, servicename=None,
+                      pisa2file=None, outdir=None):
     
     pipeline = Pipeline(config)
-    stage = pipeline.stages[4]
+    stage = pipeline.stages[0]
     input_maps = []
     for name in stage.input_names:
         hist = np.ones(stage.input_binning.shape)
@@ -359,7 +363,7 @@ def do_pid_comparison(config=None, servicename=None, pisa2file=None):
 
     plt.tight_layout()
 
-    plt.savefig('output/pid/DeepCore_PISAV2-V3_Comparisons_PID_%s_Track-Like.png'%servicename)
+    plt.savefig(args.outdir+'/pid/DeepCore_PISAV2-V3_Comparisons_PID_%s_Track-Like.png'%servicename)
 
     plt.close()
 
@@ -401,11 +405,11 @@ def do_pid_comparison(config=None, servicename=None, pisa2file=None):
 
     plt.tight_layout()
 
-    plt.savefig('output/pid/DeepCore_PISAV2-V3_Comparisons_PID_%s_Cascade-Like.png'%servicename)
+    plt.savefig(args.outdir+'/pid/DeepCore_PISAV2-V3_Comparisons_PID_%s_Cascade-Like.png'%servicename)
 
     plt.close()
 
-def do_pipeline_comparison(config=None, pisa2file=None):
+def do_pipeline_comparison(config=None, pisa2file=None, outdir=None):
     
     pipeline = Pipeline(config)
     outputs = pipeline.get_outputs(None)
@@ -472,7 +476,7 @@ def do_pipeline_comparison(config=None, pisa2file=None):
 
     plt.tight_layout()
 
-    plt.savefig('output/full/DeepCore_PISAV2-V3_Comparisons_Full_Pipeline_Track-Like.png')
+    plt.savefig(args.outdir+'/full/DeepCore_PISAV2-V3_Comparisons_Full_Pipeline_Track-Like.png')
 
     plt.close()
 
@@ -514,46 +518,51 @@ def do_pipeline_comparison(config=None, pisa2file=None):
 
     plt.tight_layout()
 
-    plt.savefig('output/full/DeepCore_PISAV2-V3_Comparisons_Full_Pipeline_Cascade-Like.png')
+    plt.savefig(args.outdir+'/full/DeepCore_PISAV2-V3_Comparisons_Full_Pipeline_Cascade-Like.png')
 
     plt.close()
 
-parser = ArgumentParser(description=
-                        '''
-                        Runs a set of tests on the PISA 3 pipeline against 
-                        benchmark PISA 2 data. 
-                        Output plots will be stored in the output directory 
-                        (which this script will make if it doesn't find them) 
-                        which you should browse. 
-                        The plots will be deleted and re-made every time you run
-                        this script so you can always be sure that the ones you
-                        have represent your PISA 3 in its' current state.
-                        This script should always be run when you make any major
-                        modifications to be sure nothing has broken.
-                        If you find this script does not work, please either 
-                        fix it or report it!
-                        ''',
+parser = ArgumentParser(description='''Runs a set of tests on the PISA 3 
+                                       pipeline against benchmark PISA 2 data. 
+                                       The plots will be deleted and re-made 
+                                       every time you run this script so you can
+                                       always be sure that the ones you have 
+                                       represent your PISA 3 in its current 
+                                       state. This script should always be run 
+                                       when you make any major modifications to                                        be sure nothing has broken. If you find 
+                                       this script does not work, please either 
+                                       fix it or report it! In general, this 
+                                       will signify you have "changed" 
+                                       something, somehow in the basic 
+                                       functionality which you should 
+                                       understand!
+                                    ''',
                         formatter_class=ArgumentDefaultsHelpFormatter)
-parser.add_argument('-a','--all', action='store_true', default=True,
-                    help="Run all tests. This is recommended and is the default
-                    behaviour!")
+parser.add_argument('--all', action='store_true', default=True,
+                    help='''Run all tests. This is recommended and is the 
+                    default behaviour!''')
 parser.add_argument('--flux', action='store_true', default=False,
-                    help="Run flux tests i.e. the interpolation methods and the
-                    flux systematics.")
+                    help='''Run flux tests i.e. the interpolation methods and 
+                    the flux systematics.''')
 parser.add_argument('--osc', action='store_true', default=False,
-                    help="Run osc tests i.e. the oscillograms with one sigma 
-                    deviations in the parameters.")
+                    help='''Run osc tests i.e. the oscillograms with one sigma 
+                    deviations in the parameters.''')
 parser.add_argument('--aeff', action='store_true', default=False,
-                    help="Run effective area tests i.e. the different transforms
-                    with the aeff systematics.")
+                    help='''Run effective area tests i.e. the different 
+                    transforms with the aeff systematics.''')
 parser.add_argument('--reco', action='store_true', default=False,
-                    help="Run reco tests i.e. the different reco kernels and 
-                    their systematics.")
+                    help='''Run reco tests i.e. the different reco kernels and 
+                    their systematics.''')
 parser.add_argument('--pid', action='store_true', default=False,
-                    help="Run PID tests i.e. the different pid kernels methods 
-                    and their systematics.")
+                    help='''Run PID tests i.e. the different pid kernels 
+                    methods and their systematics.''')
 parser.add_argument('--full', action='store_true', default=False,
-                    help="Run full pipeline tests for the baseline.")
+                    help='''Run full pipeline tests for the baseline i.e. all 
+                    stages simultaneously rather than indiviually.''')
+parser.add_argument('--outdir', metavar='DIR', type=str, required=True,
+                    help='''Store all output plots to this directory. If they 
+                    don't exist, the script will make them, including all 
+                    subdirectories.''')
 args = parser.parse_args()
 
 ###############################################################################
@@ -562,16 +571,16 @@ args = parser.parse_args()
 #                                                                             #
 ###############################################################################
 
-if not os.path.isdir('output'):
-    os.makedirs('output')
+if not os.path.isdir(args.outdir):
+    os.makedirs(args.outdir)
 
-outdirs = ['output/flux', 'output/osc', 'output/aeff', 'output/reco', 'output/pid', 'output/full']
+outdirs = ['flux', 'osc', 'aeff', 'reco', 'pid', 'full']
 
 for outdir in outdirs:
-    if not os.path.isdir(outdir):
-        os.makedirs(outdir)
-    for outimg in os.listdir(outdir):
-        os.unlink(os.path.join(outdir,outimg))
+    if not os.path.isdir(args.outdir+'/'+outdir):
+        os.makedirs(args.outdir+'/'+outdir)
+    for outimg in os.listdir(args.outdir+'/'+outdir):
+        os.unlink(os.path.join(args.outdir+'/'+outdir,outimg))
 
 ##############################################################
 #                                                            #
@@ -586,216 +595,120 @@ else:
     test_all = args.all
 
 if test_all:
-    test_flux = True
-    test_osc = True
-    test_aeff = True
-    test_reco = True
-    test_pid = True
-    test_full = True
-else:
-    if args.flux:
-        test_flux = True
-    else:
-        test_flux = False
-    if args.osc:
-        test_osc = True
-    else:
-        test_osc = False
-    if args.aeff:
-        test_aeff = True
-    else:
-        test_aeff = False
-    if args.reco:
-        test_reco = True
-    else:
-        test_reco = False
-    if args.pid:
-        test_pid = True
-    else:
-        test_pid = False
-    if args.full:
-        test_full = True
-    else:
-        test_full = False
+    args.flux = True
+    args.osc = True
+    args.aeff = True
+    args.reco = True
+    args.pid = True
+    args.full = True
 
 ###############################################################
 #                                                             #
 # Perform Flux Tests.                                         #
 #                                                             #
-# This includes:                                              #
-#                                                             #
-#   - Integral-Preserving Baseline                            #
-#                                                             #
-#       = Atmospheric Index + 1 sigma                         #
-#       = NuE / NuMu Ratio + 1 sigma                          #
-#       = Nu / NuBar Ratio + 1 sigma                          #
-#       = Energy Scale + 1 sigma                              #
-#                                                             #
-#    - Bivariate Spline Interpolation Baseline                #
-#                                                             #
-# Systematics are not tested twice since they are independent #
-# of the choice of interpolation method.                      #
-#                                                             #
 ###############################################################
 
-if test_flux:
-
+if args.flux:
     flux_config = parse_config('settings/flux_test.ini')
-
     flux_config['flux']['params']['flux_file'] = 'flux/honda-2015-spl-solmax-aa.d'
     flux_config['flux']['params']['flux_mode'] = 'integral-preserving'
-
+    
     for syst in [None, 'atm_delta_index', 'nue_numu_ratio', 'nu_nubar_ratio', 'energy_scale']:
-
         do_flux_comparison(config=deepcopy(flux_config),
                            servicename='IP_Honda',
                            pisa2file='data/flux/PISAV2IPHonda2015SPLSolMaxFlux.json',
-                           systname=syst)
+                           systname=syst,
+                           outdir=args.outdir)
 
     flux_config['flux']['params']['flux_mode'] = 'bisplrep'
-
     do_flux_comparison(config=deepcopy(flux_config),
                        servicename='bisplrep_Honda',
                        pisa2file='data/flux/PISAV2bisplrepHonda2015SPLSolMaxFlux.json',
-                       systname=None)
+                       systname=None,
+                       outdir=args.outdir)
 
 ###############################################################
 #                                                             #
 # Perform Oscillations Tests.                                 #
 #                                                             #
-# This includes:                                              #
-#                                                             #
-#   - Prob 3 Probability Calculator                           #
-#                                                             #
-#       = Theta12 + 25%                                       #
-#       = Theta13 + 1 sigma                                   #
-#       = Theta23 + 25%                                       #
-#       = Deltam21 + 25%                                      #
-#       = Deltam31 + 25%                                      #
-#                                                             #
 ###############################################################
 
-if test_osc:
-
+if args.osc:
     osc_config = parse_config('settings/osc_test.ini')
 
     for syst in [None, 'theta12', 'theta13', 'theta23', 'deltam21', 'deltam31']:
-
         do_osc_comparison(config=deepcopy(osc_config),
                           servicename='prob3',
                           pisa2file='data/osc/PISAV2OscStageProb3Service.json',
-                          systname=syst)
+                          systname=syst,
+                          outdir=args.outdir)
 
 ###############################################################
 #                                                             #
 # Perform Effective Area Tests.                               #
 #                                                             #
-# This includes:                                              #
-#                                                             #
-#   - Histogram Service                                       #
-#                                                             #
-#       = 1X585 Baseline                                      #
-#           > Effective Area Scale + 25%                      #
-#                                                             #
-# Systematics are not tested twice since they are independent #
-# of the choice of effective area service                     #
-#                                                             #
 ###############################################################
 
-if test_aeff:
-
+if args.aeff:
     aeff_config = parse_config('settings/aeff_test.ini')
-
     aeff_config['aeff']['params']['aeff_weight_file'] = 'events/DC/2015/mdunkman/1XXXX/Unjoined/DC_MSU_1X585_unjoined_events_mc.hdf5'
 
     for syst in [None, 'aeff_scale']:
-
         do_aeff_comparison(config=deepcopy(aeff_config),
                            servicename='hist1X585',
                            pisa2file='data/aeff/PISAV2AeffStageHist1X585Service.json',
-                           systname=syst)
+                           systname=syst,
+                           outdir=args.outdir)
 
 ###############################################################
 #                                                             #
 # Perform Reconstruction Tests.                               #
 #                                                             #
-# This includes:                                              #
-#                                                             #
-#   - Histogram Service                                       #
-#                                                             #
-#       = 1X585 Baseline                                      #
-#       = 1X60 Baseline                                       #
-#                                                             #
-# Systematics are not tested twice since they are independent #
-# of the choice of reconstruction service                     #
-#                                                             #
 ###############################################################
 
-if test_reco:
-
+if args.reco:
     reco_config = parse_config('settings/reco_test.ini')
     reco_config['reco']['params']['reco_weights_name'] = None
     reco_config['reco']['params']['reco_weight_file'] = 'events/DC/2015/mdunkman/1XXXX/Joined/DC_MSU_1X585_joined_nu_nubar_events_mc.hdf5'
-
     do_reco_comparison(config=deepcopy(reco_config),
                        servicename='hist1X585',
-                       pisa2file='data/reco/PISAV2RecoStageHist1X585Service.json')
+                       pisa2file='data/reco/PISAV2RecoStageHist1X585Service.json',
+                       outdir=args.outdir)
 
     reco_config['reco']['params']['reco_weight_file'] = 'events/DC/2015/mdunkman/1XXX/Joined/DC_MSU_1X60_joined_nu_nubar_events_mc.hdf5'
-
     do_reco_comparison(config=deepcopy(reco_config),
                        servicename='hist1X60',
-                       pisa2file='data/reco/PISAV2RecoStageHist1X60Service.json')
+                       pisa2file='data/reco/PISAV2RecoStageHist1X60Service.json',
+                       outdir=args.outdir)
 
 ###############################################################
 #                                                             #
 # Perform PID Tests.                                          #
 #                                                             #
-# This includes:                                              #
-#                                                             #
-#   - Histogram Service                                       #
-#                                                             #
-#       = PINGU V39 Baseline                                  #
-#       = DeepCore 1X585 Baseline                             #
-#                                                             #
 ###############################################################
 
-if test_pid:
-
+if args.pid:
     pid_config = parse_config('settings/pid_test.ini')
-
     do_pid_comparison(config=deepcopy(pid_config),
                       servicename='pidV39',
-                      pisa2file='data/pid/PISAV2PIDStageHistV39Service.json')
-
+                      pisa2file='data/pid/PISAV2PIDStageHistV39Service.json',
+                      outdir=args.outdir)
     pid_config['pid']['params']['pid_events'] = 'events/DC/2015/mdunkman/1XXXX/Joined/DC_MSU_1X585_joined_nu_nubar_events_mc.hdf5'
     pid_config['pid']['params']['pid_weights_name'] = 'weighted_aeff'
     pid_config['pid']['params']['pid_ver'] = 'msu_mn8d-mn7d'
-
     do_pid_comparison(config=deepcopy(pid_config),
                       servicename='pid1X585',
-                      pisa2file='data/pid/PISAV2PIDStageHist1X585Service.json')
+                      pisa2file='data/pid/PISAV2PIDStageHist1X585Service.json',
+                      outdir=args.outdir)
 
 ###############################################################
 #                                                             #
 # Perform Full Pipeline Tests.                                #
 #                                                             #
-# This includes:                                              #
-#                                                             #
-#   - DeepCore MSU Standard Baseline (1X585)                  #
-#                                                             #
-#       = Integral-Preserving Interpolation                   #
-#           > Honda South Pole 2015 Sol Max                   #
-#       = NuFit 2014 Oscillations Model                       #
-#       = Histogram Service Aeff                              #
-#       = Histogram Service Reco                              #
-#       = Histogram Service PID                               #
-#                                                             #
 ###############################################################
 
-if test_full:
-
+if args.full:
     full_config = parse_config('settings/full_pipeline_test.ini')
-
     do_pipeline_comparison(config=deepcopy(full_config),
-                           pisa2file='data/full/PISAV2FullDeepCorePipeline-IPSPL2015SolMax-Prob3CPUNuFit2014-AeffHist1X585-RecoHist1X585-PIDHist1X585.json')
+                           pisa2file='data/full/PISAV2FullDeepCorePipeline-IPSPL2015SolMax-Prob3CPUNuFit2014-AeffHist1X585-RecoHist1X585-PIDHist1X585.json',
+                           outdir=args.outdir)
