@@ -522,22 +522,18 @@ def do_pipeline_comparison(config=None, pisa2file=None, outdir=None):
 
     plt.close()
 
-parser = ArgumentParser(description='''Runs a set of tests on the PISA 3 
-                                       pipeline against benchmark PISA 2 data. 
-                                       The plots will be deleted and re-made 
-                                       every time you run this script so you can
-                                       always be sure that the ones you have 
-                                       represent your PISA 3 in its current 
-                                       state. This script should always be run 
-                                       when you make any major modifications to                                        be sure nothing has broken. If you find 
-                                       this script does not work, please either 
-                                       fix it or report it! In general, this 
-                                       will signify you have "changed" 
-                                       something, somehow in the basic 
-                                       functionality which you should 
-                                       understand!
-                                    ''',
-                        formatter_class=ArgumentDefaultsHelpFormatter)
+parser = ArgumentParser(
+    description='''
+    Runs a set of tests on the PISA 3 pipeline against benchmark PISA 2 data. 
+    The plots will be deleted and re-made every time you run this script so you 
+    can always be sure that the ones you have represent your PISA 3 in its 
+    current state. This script should always be run when you make any major 
+    modifications to be sure nothing has broken. If you find this script does 
+    not work, please either fix it or report it! In general, this will signify 
+    you have "changed" something, somehow in the basic functionality which you 
+    should understand!
+    ''',
+    formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('--all', action='store_true', default=True,
                     help='''Run all tests. This is recommended and is the 
                     default behaviour!''')
