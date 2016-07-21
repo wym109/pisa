@@ -169,21 +169,19 @@ class plotter(object):
     def plot_2d_map(self, map, cmap='rainbow', **kwargs):
         ''' plot map or transform on current axis in 2d'''
         axis = plt.gca()
-        # If map is BinnedTensorTransform
         if isinstance(map, BinnedTensorTransform):
             bins = [map.input_binning[name] for name in map.input_binning.names]
             bin_edges = map.input_binning.bin_edges
             xform_array = unp.nominal_values(map.xform_array)
             zmap = np.log10(xform_array) if self.log else xform_array
-        # If map is Map
         elif isinstance(map, Map):
             bins = [map.binning[name] for name in map.binning.names]
             bin_edges = map.binning.bin_edges
             zmap = np.log10(map.hist) if self.log else map.hist
 
         extent = [np.min(bin_edges[0].m), np.max(bin_edges[0].m), np.min(bin_edges[1].m), np.max(bin_edges[1].m)]
-        # needs to be flipped for imshow
-        img = plt.imshow(zmap.T,origin='lower',interpolation='nearest',extent=extent,aspect='auto',
+        # needs to be transposed for imshow
+        img = plt.imshow(zmap.T, origin='lower',interpolation='nearest',extent=extent,aspect='auto',
             cmap=cmap, **kwargs)
         axis.set_xlabel(bins[0].label)
         axis.set_ylabel(bins[1].label)
