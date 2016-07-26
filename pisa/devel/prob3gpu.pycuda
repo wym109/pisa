@@ -22,7 +22,6 @@ from pisa.utils.log import logging
 import pycuda.driver as cuda
 import pycuda.compiler
 from pycuda.compiler import SourceModule
-import pycuda.autoinit
 
 class Prob3GPU(object):
     """
@@ -31,11 +30,18 @@ class Prob3GPU(object):
     which is identical to the prob3 code, but adapted for use on
     the GPU.
     """
-    def __init__(self):
+    def __init__(self, detector_depth=None, earth_model=None, prop_height=None,  YeI=0., YeO=0., YeM=0.):
+        self.FTYPE = np.float64
         self.initialize_kernel()
+        self.detector_depth = detector_depth
+        self.earth_model = earth_model
+        self.prop_height = prop_height
+        self.YeI = YeI
+        self.YeO = YeO
+        self.YeM = YeM
         self.grid_prop = None
 
-    def calc_Layers(self, coszen, detector_depth=None, earth_model=None, prop_height=None,  YeI=0., YeO=0., YeM=0.):
+    def calc_Layers(self, coszen):
         """
         \params:
           * energy: array of energies in GeV
@@ -45,11 +51,9 @@ class Prob3GPU(object):
           * detector_depth: Detector depth in km.
           * prop_height: Height in the atmosphere to begin in km.
         """
-        self.prop_height = prop_height
-        self.FTYPE = np.float64
-        self.grid_prop  = GridPropagator(earth_model, self.FTYPE(coszen), detector_depth)
+        self.grid_prop  = GridPropagator(self.earth_model, self.FTYPE(coszen), self.detector_depth)
 
-        self.grid_prop.SetEarthDensityParams(self.prop_height,YeI,YeO,YeM)
+        self.grid_prop.SetEarthDensityParams(self.prop_height,self.YeI,self.YeO,self.YeM)
 
         n_evts = np.uint32(len(coszen))
 
@@ -184,6 +188,7 @@ class Prob3GPU(object):
               if( kUseMassEstates ) convert_from_mass_eigenstate(i+1,kNuBar,RawInputPsi,d_mix);
               else RawInputPsi[i][0] = 1.0;
 
+              // calculate 'em all here, from legacy code...
               multiply_complex_matvec( TransitionProduct, RawInputPsi, OutputPsi );
               Probability[i][0] +=OutputPsi[0][0]*OutputPsi[0][0]+OutputPsi[0][1]*OutputPsi[0][1];
               Probability[i][1] +=OutputPsi[1][0]*OutputPsi[1][0]+OutputPsi[1][1]*OutputPsi[1][1];
@@ -206,7 +211,7 @@ class Prob3GPU(object):
         self.propagateArray = self.module.get_function("propagateArray")
 
 
-    def calc_probs(self, n_evts, kNuBar, kFlav, d_energy, d_numLayers, d_densityInLayer, d_distanceInLayer, d_prob_e, d_prob_mu):
+    def calc_probs(self, kNuBar, kFlav, n_evts, d_energy, d_numLayers, d_densityInLayer, d_distanceInLayer, d_prob_e, d_prob_mu, **kwargs):
 
         bdim = (256,1,1)
         dx, mx = divmod(n_evts, bdim[0])
@@ -227,19 +232,27 @@ class Prob3GPU(object):
                       block=bdim, grid=gdim)
 
 if __name__ == '__main__':
+    import pycuda.autoinit
 
-    energy = np.linspace(1,100,100)
-    coszen = np.linspace(-1,1,100)
-    n_evts = np.uint32(len(coszen))
-    prob_e = np.zeros(n_evts, dtype=np.float64)
-    prob_mu = np.zeros(n_evts, dtype=np.float64)
+    def copy_dict_to_d(events):
+        d_events = {}
+        for key, val in events.items():
+            d_events['d_%s'%key] = cuda.mem_alloc(val.nbytes)
+            cuda.memcpy_htod(d_events['d_%s'%key], val)
+        return d_events
+
+
+    events = {}
+    events['energy'] = np.linspace(1,100,100)
+    events['coszen'] = np.linspace(-1,1,100)
+    n_evts = np.uint32(len(events['coszen']))
+    events['prob_e'] = np.zeros(n_evts, dtype=np.float64)
+    events['prob_mu'] = np.zeros(n_evts, dtype=np.float64)
     # neutrinos: 1, anti-neutrinos: -1 
-    kNuBar = np.int32(-1)
+    kNuBar = np.int32(1)
     # electron: 0, muon: 1, tau: 2
     kFlav = np.int32(2)
     
-    osc = Prob3GPU()
-
     # layer params
     detector_depth = 2.0
     earth_model = find_resource('osc/PREM_12layer.dat')
@@ -247,24 +260,16 @@ if __name__ == '__main__':
     YeI = 0.4656
     YeO = 0.4656
     YeM = 0.4957
+
+    osc = Prob3GPU(detector_depth, earth_model, prop_height,  YeI, YeO, YeM)
+
+    # SETUP ARRAYS
     # calulate layers
-    numLayers, densityInLayer, distanceInLayer = osc.calc_Layers(coszen, detector_depth, earth_model, prop_height,  YeI, YeO, YeM)
+    events['numLayers'], events['densityInLayer'], events['distanceInLayer'] = osc.calc_Layers(events['coszen'])
 
-    # Copy all these earth info arrays and energy array to device:
-    d_energy = cuda.mem_alloc(energy.nbytes)
-    d_numLayers       = cuda.mem_alloc(numLayers.nbytes)
-    d_densityInLayer  = cuda.mem_alloc(densityInLayer.nbytes)
-    d_distanceInLayer = cuda.mem_alloc(distanceInLayer.nbytes)
-    d_prob_e = cuda.mem_alloc(prob_e.nbytes)
-    d_prob_mu = cuda.mem_alloc(prob_mu.nbytes)
-    cuda.memcpy_htod(d_energy,energy)
-    cuda.memcpy_htod(d_numLayers,numLayers)
-    cuda.memcpy_htod(d_densityInLayer,densityInLayer)
-    cuda.memcpy_htod(d_distanceInLayer,distanceInLayer)
-    cuda.memcpy_htod(d_prob_e,prob_e)
-    cuda.memcpy_htod(d_prob_mu,prob_mu)
+    d_events = copy_dict_to_d(events)
 
-    # MNS
+    # SETUP MNS
     theta12 = 0.5839958715755919
     theta13 = 0.14819001778459273
     theta23 = 0.7373241279447564
@@ -273,8 +278,8 @@ if __name__ == '__main__':
     deltacp = 5.340707511102648
     osc.update_MNS(theta12, theta13, theta23, deltam21, deltam31, deltacp)
 
-    osc.calc_probs(n_evts, kNuBar, kFlav, d_energy, d_numLayers, d_densityInLayer, d_distanceInLayer, d_prob_e, d_prob_mu)
+    osc.calc_probs(kNuBar, kFlav, n_evts, **d_events)
 
-    cuda.memcpy_dtoh(prob_e,d_prob_e)
-    cuda.memcpy_dtoh(prob_mu,d_prob_mu)
-    print prob_e, prob_mu
+    cuda.memcpy_dtoh(events['prob_e'],d_events['d_prob_e'])
+    cuda.memcpy_dtoh(events['prob_mu'],d_events['d_prob_mu'])
+    print events['prob_e'], events['prob_mu']
