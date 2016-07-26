@@ -44,7 +44,8 @@ cuda.memcpy_htod(hist2d_gpu, hist2d)
 cuda.memcpy_htod(bin_edges_e_gpu, bin_edges_e)
 cuda.memcpy_htod(bin_edges_cz_gpu, bin_edges_cz)
 
-mod = SourceModule("""
+mod = SourceModule(
+"""//CUDA//
   __device__ int GetBin(float x, const int n_bins, float *bin_edges){
     int first = 0;
     int last = n_bins -1;

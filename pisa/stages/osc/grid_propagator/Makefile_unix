@@ -9,20 +9,23 @@ SHELL:=/bin/bash
 
 #############################
 # NEEDED FOR PYTHON DLL
-PYLIB = /gpfs/home/tca3/local/anaconda/pkgs/python-2.7.8-1/lib/
-PYINC = /gpfs/home/tca3/local/anaconda/pkgs/python-2.7.8-1/include/python2.7/
-PYFLAGS = -L$(PYLIB) -lpython2.7
-NUMPYINC = /usr/local/lib/python2.7/site-packages/numpy/core/include/
+#PYLIB = /gpfs/home/tca3/local/anaconda/pkgs/python-2.7.8-1/lib/
+#PYINC = /gpfs/home/tca3/local/anaconda/pkgs/python-2.7.8-1/include/python2.7/
+#PYFLAGS = -L$(PYLIB) -lpython2.7
+#NUMPYINC = /usr/local/lib/python2.7/site-packages/numpy/core/include/
+NUMPYINC = /home/peller/anaconda2/include/python2.7/
+PYINC = /home/peller/anaconda2/include/python2.7/
 
 # Depending on your OS/compiler, you may need a different for a dynamic lib for c++
 DLLFLAG = -shared
-SWIG = /usr/bin/swig
+#SWIG = /usr/bin/swig
+SWIG = swig
 #############################
 
 ################################################
 # NEEDED FOR getting Earth Model in one place
 ################################################
-INC=$(PISA)/pisa/oscillations/prob3/
+INC=$(PISA)/pisa/stages/osc/prob3/
 
 CXX = g++ -O3 -fPIC
 CXXFLAGS += -I$(INC) -I. -Wall
