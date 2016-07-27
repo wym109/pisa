@@ -15,7 +15,7 @@ class GPUweight(object):
           {
             int idx = threadIdx.x + blockDim.x * blockIdx.x;
             if (idx < n_evts) {
-               weight[idx] = weighted_aeff[idx] * ((neutrino_nue_flux[idx] * prob_e[idx]) + (neutrino_numu_flux[idx] * prob_mu[idx]));
+               weight[idx] = 4 * 31557600 * weighted_aeff[idx] * ((neutrino_nue_flux[idx] * prob_e[idx]) + (neutrino_numu_flux[idx] * prob_mu[idx]));
             }
           }
           """
