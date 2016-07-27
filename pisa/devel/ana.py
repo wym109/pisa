@@ -55,8 +55,8 @@ histogrammer = GPUhist(bin_edges_cz, bin_edges_e)
 evts = Events(fname)
 
 # Load and copy events
-variables = ['true_energy', 'true_coszen', 'reco_energy', 'reco_coszen', 'neutrino_nue_flux', 'neutrino_numu_flux', 'weighted_aeff']
-empty = ['prob_e', 'prob_mu', 'weight']
+variables = ['true_energy', 'true_coszen', 'reco_energy', 'reco_coszen', 'neutrino_nue_flux', 'neutrino_numu_flux', 'weighted_aeff', 'pid']
+empty = ['prob_e', 'prob_mu', 'weight_trck', 'weight_cscd']
 flavs = ['nue_cc', 'numu_cc', 'nutau_cc', 'nue_nc', 'numu_nc', 'nutau_nc', 'nuebar_cc', 'numubar_cc', 'nutaubar_cc', 'nuebar_nc', 'numubar_nc', 'nutaubar_nc']
 kFlavs = [0, 1, 2] * 4
 kNuBars = [1] *6 + [-1] * 6
@@ -94,7 +94,8 @@ for i in range(1):
     for flav in flavs:
         osc.calc_probs(events_dict[flav]['kNuBar'], events_dict[flav]['kFlav'], events_dict[flav]['n_evts'], **events_dict[flav]['device'])
         weight.calc_weight(events_dict[flav]['n_evts'], **events_dict[flav]['device'])
-        events_dict[flav]['hist'] = histogrammer.get_hist(events_dict[flav]['n_evts'], events_dict[flav]['device']['reco_coszen'], events_dict[flav]['device']['reco_energy'], events_dict[flav]['device']['weight'])
+        events_dict[flav]['hist_cscd'] = histogrammer.get_hist(events_dict[flav]['n_evts'], events_dict[flav]['device']['reco_coszen'], events_dict[flav]['device']['reco_energy'], events_dict[flav]['device']['weight_cscd'])
+        events_dict[flav]['hist_trck'] = histogrammer.get_hist(events_dict[flav]['n_evts'], events_dict[flav]['device']['reco_coszen'], events_dict[flav]['device']['reco_energy'], events_dict[flav]['device']['weight_trck'])
         tot += events_dict[flav]['n_evts']
     end_t = time.time()
     print 'GPU done in %.4f ms for %s events'%(((end_t - start_t) * 1000),tot)
@@ -108,19 +109,36 @@ from pisa.core.map import Map, MapSet
 from pisa.utils.plotter import plotter
 
 
-e_binning = OneDimBinning(name='energy', tex=r'E_\nu', 
+e_binning = OneDimBinning(name='energy', tex=r'$E_\nu$', 
                                bin_edges=bin_edges_e*ureg.GeV, is_log=True)
-cz_binning = OneDimBinning(name='coszen', tex=r'\cos\,\theta', 
+cz_binning = OneDimBinning(name='coszen', tex=r'$\cos\,\theta$', 
                                bin_edges=bin_edges_cz, is_lin=True)
 binning = MultiDimBinning([cz_binning, e_binning])
 
 maps = []
 for flav in flavs:
-    maps.append(Map(name=flav, hist=events_dict[flav]['hist'], binning=binning))
+    maps.append(Map(name='%s_cscd'%flav, hist=events_dict[flav]['hist_cscd'], binning=binning))
+    maps.append(Map(name='%s_trck'%flav, hist=events_dict[flav]['hist_trck'], binning=binning))
 
-mapset = MapSet(maps,name='test')
+template = MapSet(maps,name='test')
+
+nutau_cc_cscd = template.pop('nutau_cc_cscd') + template.pop('nutaubar_cc_cscd')
+nutau_cc_trck = template.pop('nutau_cc_trck') + template.pop('nutaubar_cc_trck')
+nutau_cc_all = nutau_cc_trck + nutau_cc_cscd
+
+cscd = sum([map for map in template if map.name.endswith('cscd')])
+trck = sum([map for map in template if map.name.endswith('trck')])
+all = cscd + trck
+
+m = MapSet((nutau_cc_cscd/cscd.sqrt(), nutau_cc_trck/trck.sqrt(),
+            nutau_cc_all/all.sqrt()))
+m[0].tex = 'cascades'
+m[1].tex = 'tracks'
+m[2].tex = 'all'
+
+my_plotter = plotter(stamp='GPU MC test', outdir='.', fmt='pdf', log=False,
+        label=r'$s/\sqrt{b}$')
+my_plotter.plot_2d_array(m, fname='nutau_test',cmap='OrRd')
+
 my_plotter = plotter(stamp='GPU MC test', outdir='.',fmt='pdf', log=False)
-my_plotter.plot_2d_array(mapset, fname='GPU_test',cmap='OrRd')
-#plt.imshow(events_dict[flav]['hist'],origin='lower',interpolation='nearest')
-#plt.show()
-#plt.savefig('%s.pdf'%flav)
+my_plotter.plot_2d_array(template, fname='GPU_test',cmap='OrRd')

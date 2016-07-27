@@ -2,8 +2,6 @@ import os
 import pycuda.driver as cuda
 from pycuda.compiler import SourceModule
 import numpy as np
-from pisa.utils.events import Events
-
 
 class GPUhist(object):
     
@@ -88,12 +86,6 @@ if __name__ == '__main__':
     import pycuda.autoinit
     FTYPE = np.float64
 
-    #fname = '/home/peller/cake/pisa/resources/events/pingu_v39/events__pingu__v39__runs_620-622__proc_v5.1__unjoined.hdf5'
-    #events = Events(fname)
-
-    # Load and copy events
-    #e = events['nue_cc']['reco_energy'].astype(FTYPE)
-    #cz = events['nue_cc']['reco_coszen'].astype(FTYPE)
     e = np.linspace(1,100,1000).astype(FTYPE)
     cz = np.linspace(-1,1,1000).astype(FTYPE)
     n_evts = np.int32(len(e))
