@@ -40,8 +40,8 @@ deltam21 = 7.5e-05
 deltam31 = 0.002457
 deltacp = 5.340707511102648
 # histo bins
-bin_edges_e = np.logspace(0,2,500).astype(FTYPE)
-bin_edges_cz = np.linspace(-1,1,500).astype(FTYPE)
+bin_edges_e = np.logspace(0,2,50).astype(FTYPE)
+bin_edges_cz = np.linspace(-1,1,50).astype(FTYPE)
 # ------
 
 # initialize classes
@@ -55,40 +55,48 @@ histogrammer = GPUhist(bin_edges_e, bin_edges_cz)
 evts = Events(fname)
 
 # Load and copy events
-events = {}
-events['true_energy'] = evts['nue_cc']['true_energy'].astype(FTYPE)
-events['true_coszen'] = evts['nue_cc']['true_coszen'].astype(FTYPE)
-events['reco_energy'] = evts['nue_cc']['reco_energy'].astype(FTYPE)
-events['reco_coszen'] = evts['nue_cc']['reco_coszen'].astype(FTYPE)
-events['neutrino_nue_flux'] = evts['nue_cc']['neutrino_nue_flux'].astype(FTYPE)
-events['neutrino_numu_flux'] = evts['nue_cc']['neutrino_numu_flux'].astype(FTYPE)
-events['weighted_aeff'] = evts['nue_cc']['weighted_aeff'].astype(FTYPE)
-n_evts = np.uint32(len(events['true_coszen']))
-events['prob_e'] = np.zeros(n_evts, dtype=FTYPE)
-events['prob_mu'] = np.zeros(n_evts, dtype=FTYPE)
-events['weight'] = np.zeros(n_evts, dtype=FTYPE)
-# neutrinos: 1, anti-neutrinos: -1 
-kNuBar = np.int32(1)
-# electron: 0, muon: 1, tau: 2
-kFlav = np.int32(0)
-# calulate layers
-events['numLayers'], events['densityInLayer'], events['distanceInLayer'] = osc.calc_Layers(events['true_coszen'])
-# copy to GPU
-print 'copy to GPU'
-d_events = copy_dict_to_d(events)
-print 'retreive weighted histo'
+variables = ['true_energy', 'true_coszen', 'reco_energy', 'reco_coszen', 'neutrino_nue_flux', 'neutrino_numu_flux', 'weighted_aeff']
+empty = ['prob_e', 'prob_mu', 'weight']
+flavs = ['nue_cc', 'numu_cc', 'nutau_cc', 'nue_nc', 'numu_nc', 'nutau_nc', 'nuebar_cc', 'numubar_cc', 'nutaubar_cc', 'nuebar_nc', 'numubar_nc', 'nutaubar_nc']
+kFlavs = [0, 1, 2] * 4
+kNuBars = [1] *6 + [-1] * 6
+
+print 'read in events and copy to GPU'
+events_dict = {}
+for flav, kFlav, kNuBar in zip(flavs, kFlavs, kNuBars):
+    events_dict[flav] = {}
+    # neutrinos: 1, anti-neutrinos: -1 
+    events_dict[flav]['kNuBar'] = np.int32(kNuBar)
+    # electron: 0, muon: 1, tau: 2
+    events_dict[flav]['kFlav'] = np.int32(kFlav)
+    # host arrays
+    events_dict[flav]['host'] = {}
+    for var in variables:
+        events_dict[flav]['host'][var] = evts[flav][var].astype(FTYPE)
+    events_dict[flav]['n_evts'] = np.uint32(len(events_dict[flav]['host'][variables[0]]))
+    for var in empty:
+        events_dict[flav]['host'][var] = np.zeros(events_dict[flav]['n_evts'], dtype=FTYPE)
+    # calulate layers
+    events_dict[flav]['host']['numLayers'], events_dict[flav]['host']['densityInLayer'], events_dict[flav]['host']['distanceInLayer'] = osc.calc_Layers(events_dict[flav]['host']['true_coszen'])
+    # copy to device arrays
+    events_dict[flav]['device'] = copy_dict_to_d(events_dict[flav]['host'])
 # ------
+
 
 # --- do the calculation ---
+print 'retreive weighted histo'
 start_t = time.time()
 osc.update_MNS(theta12, theta13, theta23, deltam21, deltam31, deltacp)
-osc.calc_probs(kNuBar, kFlav, n_evts, **d_events)
-weight.calc_weight(n_evts, **d_events)
-hist2d = histogrammer.get_hist(n_evts, d_events['reco_energy'], d_events['reco_coszen'], d_events['weight'])
+for flav in flavs:
+    osc.calc_probs(events_dict[flav]['kNuBar'], events_dict[flav]['kFlav'], events_dict[flav]['n_evts'], **events_dict[flav]['device'])
+    weight.calc_weight(events_dict[flav]['n_evts'], **events_dict[flav]['device'])
+    events_dict[flav]['hist'] = histogrammer.get_hist(events_dict[flav]['n_evts'], events_dict[flav]['device']['reco_energy'], events_dict[flav]['device']['reco_coszen'], events_dict[flav]['device']['weight'])
 end_t = time.time()
-print 'GPU done in %.4f ms for %s events'%(((end_t - start_t) * 1000),n_evts)
+print 'GPU done in %.4f ms'%((end_t - start_t) * 1000)
 # ------
 
-plt.imshow(hist2d,origin='lower',interpolation='nearest')
-plt.show()
-plt.savefig('test.pdf')
+
+for flav in flavs:
+    plt.imshow(events_dict[flav]['hist'],origin='lower',interpolation='nearest')
+    plt.show()
+    plt.savefig('%s.pdf'%flav)
