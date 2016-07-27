@@ -7,13 +7,12 @@ from pisa.utils.log import logging
 from pisa.devel.prob3gpu import Prob3GPU
 from pisa.devel.hist import GPUhist
 from pisa.devel.weight import GPUweight
+from pisa.devel.const import FTYPE
 from pisa.utils.events import Events
 import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 import time
-
-FTYPE = np.float64
 
 def copy_dict_to_d(events):
     d_events = {}
@@ -32,6 +31,13 @@ YeO = 0.4656
 YeM = 0.4957
 # events file
 fname = '/fastio/peller/events__deepcore__IC86__runs_126001-126003,146001-146003,166001-166003__proc_v5digit__unjoined_with_fluxes_GENIE_Barr.hdf5'
+# histo bins
+bin_edges_e = np.logspace(0.75,2,11).astype(FTYPE)
+bin_edges_cz = np.linspace(-1,1,17).astype(FTYPE)
+# nuisance params:
+# flux
+nu_nubar_ratio = 1.0
+nue_numu_ratio = 1.0
 # osc
 theta12 = 0.5839958715755919
 theta13 = 0.14819001778459273
@@ -39,9 +45,12 @@ theta23 = 0.7373241279447564
 deltam21 = 7.5e-05
 deltam31 = 0.002457
 deltacp = 5.340707511102648
-# histo bins
-bin_edges_e = np.logspace(0.75,2,11).astype(FTYPE)
-bin_edges_cz = np.linspace(-1,1,17).astype(FTYPE)
+# aeff
+livetime = 4.0
+aeff_scale = 1.0
+# pid
+pid_bound = 2.0
+pid_remove = -3.0
 # ------
 
 # initialize classes
@@ -55,7 +64,7 @@ histogrammer = GPUhist(bin_edges_cz, bin_edges_e)
 evts = Events(fname)
 
 # Load and copy events
-variables = ['true_energy', 'true_coszen', 'reco_energy', 'reco_coszen', 'neutrino_nue_flux', 'neutrino_numu_flux', 'weighted_aeff', 'pid']
+variables = ['true_energy', 'true_coszen', 'reco_energy', 'reco_coszen', 'neutrino_nue_flux', 'neutrino_numu_flux', 'neutrino_oppo_nue_flux', 'neutrino_oppo_numu_flux', 'weighted_aeff', 'pid']
 empty = ['prob_e', 'prob_mu', 'weight_trck', 'weight_cscd']
 flavs = ['nue_cc', 'numu_cc', 'nutau_cc', 'nue_nc', 'numu_nc', 'nutau_nc', 'nuebar_cc', 'numubar_cc', 'nutaubar_cc', 'nuebar_nc', 'numubar_nc', 'nutaubar_nc']
 kFlavs = [0, 1, 2] * 4
@@ -67,9 +76,9 @@ events_dict = {}
 for flav, kFlav, kNuBar in zip(flavs, kFlavs, kNuBars):
     events_dict[flav] = {}
     # neutrinos: 1, anti-neutrinos: -1 
-    events_dict[flav]['kNuBar'] = np.int32(kNuBar)
+    events_dict[flav]['kNuBar'] = kNuBar
     # electron: 0, muon: 1, tau: 2
-    events_dict[flav]['kFlav'] = np.int32(kFlav)
+    events_dict[flav]['kFlav'] = kFlav
     # host arrays
     events_dict[flav]['host'] = {}
     for var in variables:
@@ -93,7 +102,7 @@ for i in range(1):
     tot = 0
     for flav in flavs:
         osc.calc_probs(events_dict[flav]['kNuBar'], events_dict[flav]['kFlav'], events_dict[flav]['n_evts'], **events_dict[flav]['device'])
-        weight.calc_weight(events_dict[flav]['n_evts'], **events_dict[flav]['device'])
+        weight.calc_weight(events_dict[flav]['n_evts'], livetime=livetime, pid_bound=pid_bound, pid_remove=pid_remove, aeff_scale=aeff_scale, nue_numu_ratio=nue_numu_ratio, nu_nubar_ratio=nu_nubar_ratio, **events_dict[flav]['device'])
         events_dict[flav]['hist_cscd'] = histogrammer.get_hist(events_dict[flav]['n_evts'], events_dict[flav]['device']['reco_coszen'], events_dict[flav]['device']['reco_energy'], events_dict[flav]['device']['weight_cscd'])
         events_dict[flav]['hist_trck'] = histogrammer.get_hist(events_dict[flav]['n_evts'], events_dict[flav]['device']['reco_coszen'], events_dict[flav]['device']['reco_energy'], events_dict[flav]['device']['weight_trck'])
         tot += events_dict[flav]['n_evts']
