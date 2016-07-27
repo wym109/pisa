@@ -211,24 +211,24 @@ class Prob3GPU(object):
         self.propagateArray = self.module.get_function("propagateArray")
 
 
-    def calc_probs(self, kNuBar, kFlav, n_evts, d_energy, d_numLayers, d_densityInLayer, d_distanceInLayer, d_prob_e, d_prob_mu, **kwargs):
+    def calc_probs(self, kNuBar, kFlav, n_evts, true_energy, numLayers, densityInLayer, distanceInLayer, prob_e, prob_mu, **kwargs):
 
         bdim = (256,1,1)
         dx, mx = divmod(n_evts, bdim[0])
         gdim = ((dx + (mx>0)) * bdim[0], 1)
 
-        self.propagateArray(d_prob_e,
-                      d_prob_mu,
+        self.propagateArray(prob_e,
+                      prob_mu,
                       self.d_dm_mat,
                       self.d_mix_mat,
                       n_evts,
                       kNuBar,
                       kFlav,
                       np.uint32(self.maxLayers),
-                      d_energy,
-                      d_numLayers,
-                      d_densityInLayer,
-                      d_distanceInLayer,
+                      true_energy,
+                      numLayers,
+                      densityInLayer,
+                      distanceInLayer,
                       block=bdim, grid=gdim)
 
 if __name__ == '__main__':
