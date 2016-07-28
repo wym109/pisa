@@ -10,6 +10,8 @@ class GPUhist(object):
     
     def __init__(self, bin_edges_x, bin_edges_y):
         self.FTYPE = np.float64
+        # events to be histogrammed per thread
+        self.n_thread = 20
         self.n_bins_x = np.int32(len(bin_edges_x)-1)
         self.n_bins_y = np.int32(len(bin_edges_y)-1)
         self.hist2d = np.ravel(np.zeros((self.n_bins_x, self.n_bins_y))).astype(self.FTYPE)
@@ -26,6 +28,7 @@ class GPUhist(object):
 
         kernel_template = """//CUDA//
           #define N_BINS %i
+          #define N_THREAD %i
             
           #include "constants.h"
           #include "utils.h"
@@ -64,9 +67,8 @@ class GPUhist(object):
             }
             __syncthreads();
 
-            int n = 20;
-            int idx = n * (threadIdx.x + blockDim.x * blockIdx.x);
-            for (int i = 0; i < n; i++){
+            int idx = N_THREAD * (threadIdx.x + blockDim.x * blockIdx.x);
+                for (int i = 0; i < N_THREAD; i++){
 
                 if (idx < n_evts) {
                     fType x = X[idx];
@@ -87,7 +89,7 @@ class GPUhist(object):
             }
 
           }
-          """%(self.n_bins_x*self.n_bins_y)
+          """%(self.n_bins_x*self.n_bins_y, self.n_thread)
         include_path = os.path.expandvars('$PISA/pisa/stages/osc/grid_propagator/')
         module = SourceModule(kernel_template, include_dirs=[include_path], keep=True)
         self.hist2d_fun = module.get_function("Hist2D")

@@ -50,26 +50,29 @@ class gpu(Stage):
             'livetime',
             'aeff_scale',
             'pid_bound',
-            'pid_remove'
+            'pid_remove',
+            'nu_nc_norm',
+            'nutau_cc_norm'
         )
 
 
         bin_edges_e = np.logspace(0.75,2,11).astype(FTYPE)
         bin_edges_cz = np.linspace(-1,1,17).astype(FTYPE)
 
-        output_names = ( 'nue_cc_trck','nue_cc_cscd',
-                        'nuebar_cc_trck','nuebar_cc_cscd',
-                        'numu_cc_trck','numu_cc_cscd',
-                        'numubar_cc_trck','numubar_cc_cscd',
-                        'nutau_cc_trck','nutau_cc_cscd',
-                        'nutaubar_cc_trck','nutaubar_cc_cscd',
-                        'nue_nc_trck','nue_nc_cscd',
-                        'nuebar_nc_trck','nuebar_nc_cscd',
-                        'numu_nc_trck','numu_nc_cscd',
-                        'numubar_nc_trck','numubar_nc_cscd',
-                        'nutau_nc_trck','nutau_nc_cscd',
-                        'nutaubar_nc_trck','nutaubar_nc_cscd',
-                        )
+        #output_names = ( 'nue_cc_trck','nue_cc_cscd',
+        #                'nuebar_cc_trck','nuebar_cc_cscd',
+        #                'numu_cc_trck','numu_cc_cscd',
+        #                'numubar_cc_trck','numubar_cc_cscd',
+        #                'nutau_cc_trck','nutau_cc_cscd',
+        #                'nutaubar_cc_trck','nutaubar_cc_cscd',
+        #                'nue_nc_trck','nue_nc_cscd',
+        #                'nuebar_nc_trck','nuebar_nc_cscd',
+        #                'numu_nc_trck','numu_nc_cscd',
+        #                'numubar_nc_trck','numubar_nc_cscd',
+        #                'nutau_nc_trck','nutau_nc_cscd',
+        #                'nutaubar_nc_trck','nutaubar_nc_cscd',
+        #                )
+        output_names = ('trck','cscd')
 
         super(self.__class__, self).__init__(
             use_transforms=False,
@@ -198,35 +201,24 @@ class gpu(Stage):
         logging.debug('GPU done in %.4f ms for %s events'%(((end_t - start_t) * 1000),tot))
 
         maps = []
-        for flav in self.flavs:
-            maps.append(Map(name='%s_cscd'%flav, hist=self.events_dict[flav]['hist_cscd'], binning=self.output_binning))
-            maps.append(Map(name='%s_trck'%flav, hist=self.events_dict[flav]['hist_trck'], binning=self.output_binning))
+        for i,flav in enumerate(self.flavs):
+            if flav in ['nutau_cc','nutaubar_cc']:
+                f = self.params.nutau_cc_norm.value.m_as('dimensionless')
+            elif '_nc' in flav:
+                f = self.params.nu_nc_norm.value.m_as('dimensionless')
+            else:
+                f = 1.0
+            if i == 0:
+                hist_cscd = self.events_dict[flav]['hist_cscd'] * f
+                hist_trck = self.events_dict[flav]['hist_trck'] * f
+            else:
+                hist_cscd += self.events_dict[flav]['hist_cscd'] * f
+                hist_trck += self.events_dict[flav]['hist_trck'] * f
 
-        template = MapSet(maps,name='test')
+            
+        maps.append(Map(name='cscd', hist=hist_cscd, binning=self.output_binning))
+        maps.append(Map(name='trck', hist=hist_trck, binning=self.output_binning))
+
+        template = MapSet(maps,name='gpu_mc')
 
         return template
-
-if __name__ == '__main__':
-
-    from pisa.utils.plotter import plotter
-
-    nutau_cc_cscd = template.pop('nutau_cc_cscd') + template.pop('nutaubar_cc_cscd')
-    nutau_cc_trck = template.pop('nutau_cc_trck') + template.pop('nutaubar_cc_trck')
-    nutau_cc_all = nutau_cc_trck + nutau_cc_cscd
-
-    cscd = sum([map for map in template if map.name.endswith('cscd')])
-    trck = sum([map for map in template if map.name.endswith('trck')])
-    all = cscd + trck
-
-    m = MapSet((nutau_cc_cscd/cscd.sqrt(), nutau_cc_trck/trck.sqrt(),
-                nutau_cc_all/all.sqrt()))
-    m[0].tex = 'cascades'
-    m[1].tex = 'tracks'
-    m[2].tex = 'all'
-
-    my_plotter = plotter(stamp='GPU MC test', outdir='.', fmt='pdf', log=False,
-            label=r'$s/\sqrt{b}$')
-    my_plotter.plot_2d_array(m, fname='nutau_test',cmap='OrRd')
-
-    my_plotter = plotter(stamp='GPU MC test', outdir='.',fmt='pdf', log=False)
-    my_plotter.plot_2d_array(template, fname='GPU_test',cmap='OrRd')

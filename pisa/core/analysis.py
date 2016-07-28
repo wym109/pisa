@@ -189,7 +189,7 @@ class Analysis(object):
             # Want to *maximize* log-likelihood but we're using a minimizer
             sign = -1
 
-        self.template_maker.params.free.rescaled_values = scaled_param_vals
+        self.template_maker.params.free._rescaled_values = scaled_param_vals
 
         template = self.template_maker.get_outputs()
 
@@ -214,7 +214,7 @@ class Analysis(object):
 
     def run_minimizer(self, pprint=True):
         # Get initial values
-        x0 = self.template_maker.params.free.rescaled_values
+        x0 = self.template_maker.params.free._rescaled_values
 
         # bfgs steps outside of given bounds by 1 epsilon to evaluate gradients
         try:
@@ -368,18 +368,18 @@ if __name__ == '__main__':
     data_maker_configurator = parse_config(data_maker_settings)
     data_maker = DistributionMaker(data_maker_configurator)
 
-    test = data_maker.params['aeff_scale']
-    test.value *= 1.25
-    data_maker.update_params(test)
-
     template_maker_settings = from_file(args.template_settings)
     template_maker_configurator = parse_config(template_maker_settings)
     template_maker = DistributionMaker(template_maker_configurator)
 
+    test = template_maker.params['nutau_cc_norm']
+    test.value *= 0
+    template_maker.update_params(test)
+
     # select inverted hierarchy
-    template_maker_settings.set('stage:osc', 'param_selector', 'ih')
-    template_maker_configurator = parse_config(template_maker_settings)
-    template_maker_IO = DistributionMaker(template_maker_configurator)
+    #template_maker_settings.set('stage:osc', 'param_selector', 'ih')
+    #template_maker_configurator = parse_config(template_maker_settings)
+    #template_maker_IO = DistributionMaker(template_maker_configurator)
 
     analysis = Analysis(data_maker=data_maker,
                         template_maker=template_maker,
@@ -392,13 +392,14 @@ if __name__ == '__main__':
     for i in range(args.num_trials):
         logging.info('Running trial %i'%i)
         np.random.seed()
-        analysis.generate_psudodata('poisson')
+        #analysis.generate_psudodata('poisson')
+        analysis.generate_psudodata('asimov')
 
         # LLR:
-        append_results(results, analysis.llr(template_maker, template_maker_IO))
+        #append_results(results, analysis.llr(template_maker, template_maker_IO))
 
         # profile LLH:
-        #append_results(results, analysis.profile_llh('aeff_scale'))
+        append_results(results, analysis.profile_llh('nutau_cc_norm'))
 
     ravel_results(results)
     to_file(results, args.outfile)
