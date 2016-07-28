@@ -65,7 +65,7 @@ class GPUweight(object):
                         }
 
                         // calc weight
-                        fType w = aeff_scale * livetime * 31557600 * weighted_aeff[idx] *
+                        fType w = aeff_scale * livetime * weighted_aeff[idx] *
                                  ((scaled_nue_flux2 * prob_e[idx]) + (scaled_numu_flux2 * prob_mu[idx]));
                         // distinguish between PID classes
                         weight_cscd[idx] = ((pid[idx] < pid_bound) && (pid[idx] >= pid_remove)) * w;

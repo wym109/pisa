@@ -304,6 +304,6 @@ if __name__ == '__main__':
                 continue
             my_plotter = plotter(stamp='PISA cake test',
                                  outdir=args.outdir,
-                                 fmt=fmt, log=True)
+                                 fmt=fmt, log=False)
             my_plotter.ratio = True
             my_plotter.plot_2d_array(stage.outputs, fname=stg_svc + '__output')
