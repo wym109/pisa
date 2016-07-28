@@ -4,10 +4,10 @@ import pycuda.driver as cuda
 import pycuda.autoinit
 from pisa.utils.resources import find_resource
 from pisa.utils.log import logging
-from pisa.devel.prob3gpu import Prob3GPU
-from pisa.devel.hist import GPUhist
-from pisa.devel.weight import GPUweight
-from pisa.devel.const import FTYPE
+from pisa.stages.osc.prob3gpu import Prob3GPU
+from pisa.utils.GPUhist import GPUhist
+from pisa.stages.mc.GPUweight import GPUweight
+from pisa.utils.const import FTYPE
 from pisa.utils.events import Events
 import matplotlib as mpl
 mpl.use('Agg')
@@ -25,6 +25,7 @@ def copy_dict_to_d(events):
 # layer params
 detector_depth = 2.0
 earth_model = find_resource('osc/PREM_12layer.dat')
+#earth_model = find_resource('osc/PREM_4layer.dat')
 prop_height = 20.0
 YeI = 0.4656
 YeO = 0.4656
@@ -64,9 +65,12 @@ histogrammer = GPUhist(bin_edges_cz, bin_edges_e)
 evts = Events(fname)
 
 # Load and copy events
-variables = ['true_energy', 'true_coszen', 'reco_energy', 'reco_coszen', 'neutrino_nue_flux', 'neutrino_numu_flux', 'neutrino_oppo_nue_flux', 'neutrino_oppo_numu_flux', 'weighted_aeff', 'pid']
+variables = ['true_energy', 'true_coszen', 'reco_energy', 'reco_coszen',
+            'neutrino_nue_flux', 'neutrino_numu_flux', 'neutrino_oppo_nue_flux',
+            'neutrino_oppo_numu_flux', 'weighted_aeff', 'pid']
 empty = ['prob_e', 'prob_mu', 'weight_trck', 'weight_cscd']
-flavs = ['nue_cc', 'numu_cc', 'nutau_cc', 'nue_nc', 'numu_nc', 'nutau_nc', 'nuebar_cc', 'numubar_cc', 'nutaubar_cc', 'nuebar_nc', 'numubar_nc', 'nutaubar_nc']
+flavs = ['nue_cc', 'numu_cc', 'nutau_cc', 'nue_nc', 'numu_nc', 'nutau_nc',
+        'nuebar_cc', 'numubar_cc', 'nutaubar_cc', 'nuebar_nc', 'numubar_nc', 'nutaubar_nc']
 kFlavs = [0, 1, 2] * 4
 kNuBars = [1] *6 + [-1] * 6
 
@@ -94,17 +98,33 @@ end_t = time.time()
 print 'copy done in %.4f ms'%((end_t - start_t) * 1000)
 # ------
 
-for i in range(1):
+for i in range(2):
 # --- do the calculation ---
     print 'retreive weighted histo'
+    tot = 0
     start_t = time.time()
     osc.update_MNS(theta12, theta13, theta23, deltam21, deltam31, deltacp)
-    tot = 0
     for flav in flavs:
-        osc.calc_probs(events_dict[flav]['kNuBar'], events_dict[flav]['kFlav'], events_dict[flav]['n_evts'], **events_dict[flav]['device'])
-        weight.calc_weight(events_dict[flav]['n_evts'], livetime=livetime, pid_bound=pid_bound, pid_remove=pid_remove, aeff_scale=aeff_scale, nue_numu_ratio=nue_numu_ratio, nu_nubar_ratio=nu_nubar_ratio, **events_dict[flav]['device'])
-        events_dict[flav]['hist_cscd'] = histogrammer.get_hist(events_dict[flav]['n_evts'], events_dict[flav]['device']['reco_coszen'], events_dict[flav]['device']['reco_energy'], events_dict[flav]['device']['weight_cscd'])
-        events_dict[flav]['hist_trck'] = histogrammer.get_hist(events_dict[flav]['n_evts'], events_dict[flav]['device']['reco_coszen'], events_dict[flav]['device']['reco_energy'], events_dict[flav]['device']['weight_trck'])
+        if i == 0:
+            osc.calc_probs(events_dict[flav]['kNuBar'], events_dict[flav]['kFlav'],
+                            events_dict[flav]['n_evts'], **events_dict[flav]['device'])
+
+        weight.calc_weight(events_dict[flav]['n_evts'], livetime=livetime,
+                            pid_bound=pid_bound, pid_remove=pid_remove,
+                            aeff_scale=aeff_scale, nue_numu_ratio=nue_numu_ratio, 
+                            nu_nubar_ratio=nu_nubar_ratio, kNuBar=kNuBar,
+                            **events_dict[flav]['device'])
+
+        events_dict[flav]['hist_cscd'] = histogrammer.get_hist(events_dict[flav]['n_evts'],
+                                                                events_dict[flav]['device']['reco_coszen'],
+                                                                events_dict[flav]['device']['reco_energy'],
+                                                                events_dict[flav]['device']['weight_cscd'])
+
+        events_dict[flav]['hist_trck'] = histogrammer.get_hist(events_dict[flav]['n_evts'],
+                                                                events_dict[flav]['device']['reco_coszen'],
+                                                                events_dict[flav]['device']['reco_energy'],
+                                                                events_dict[flav]['device']['weight_trck'])
+
         tot += events_dict[flav]['n_evts']
     end_t = time.time()
     print 'GPU done in %.4f ms for %s events'%(((end_t - start_t) * 1000),tot)

@@ -213,7 +213,7 @@ class Prob3GPU(object):
 
     def calc_probs(self, kNuBar, kFlav, n_evts, true_energy, numLayers, densityInLayer, distanceInLayer, prob_e, prob_mu, **kwargs):
 
-        bdim = (256,1,1)
+        bdim = (32,1,1)
         dx, mx = divmod(n_evts, bdim[0])
         gdim = ((dx + (mx>0)) * bdim[0], 1)
 

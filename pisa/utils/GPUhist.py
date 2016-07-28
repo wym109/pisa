@@ -2,6 +2,9 @@ import os
 import pycuda.driver as cuda
 from pycuda.compiler import SourceModule
 import numpy as np
+from pisa.utils.profiler import profile
+from pisa.utils.log import set_verbosity
+#set_verbosity(3)
 
 class GPUhist(object):
     
@@ -22,6 +25,8 @@ class GPUhist(object):
         cuda.memcpy_htod(self.d_bin_edges_y, bin_edges_y)
 
         kernel_template = """//CUDA//
+          #define N_BINS %i
+            
           #include "constants.h"
           #include "utils.h"
           
@@ -49,19 +54,40 @@ class GPUhist(object):
 
           __global__ void Hist2D(fType *X, fType *Y, fType *W, const int n_evts, fType *hist, const int n_bins_x, const int n_bins_y, fType *bin_edges_x, fType *bin_edges_y)
           {
-            int idx = threadIdx.x + blockDim.x * blockIdx.x;
-            if (idx < n_evts) {
-                fType x = X[idx];
-                fType y = Y[idx];
-                // check if event is even in range
-                if ((x >= bin_edges_x[0]) && (x <= bin_edges_x[n_bins_x]) && (y >= bin_edges_y[0]) && (y <= bin_edges_y[n_bins_y])){
-                    int bin_x = GetBin(x, n_bins_x, bin_edges_x);
-                    int bin_y = GetBin(y, n_bins_y, bin_edges_y);
-                    atomicAdd(&hist[bin_y + bin_x * n_bins_y], W[idx]);
-                }
+            __shared__ fType temp_hist[N_BINS];
+            // zero out
+            int iterations = (N_BINS / blockDim.x) + 1;
+            int bin;
+            for (int i = 0; i < iterations; i++){
+                bin = (i * blockDim.x) + threadIdx.x;
+                if (bin < N_BINS) temp_hist[bin] = 0;
             }
+            __syncthreads();
+
+            int n = 20;
+            int idx = n * (threadIdx.x + blockDim.x * blockIdx.x);
+            for (int i = 0; i < n; i++){
+
+                if (idx < n_evts) {
+                    fType x = X[idx];
+                    fType y = Y[idx];
+                    // check if event is even in range
+                    if ((x >= bin_edges_x[0]) && (x <= bin_edges_x[n_bins_x]) && (y >= bin_edges_y[0]) && (y <= bin_edges_y[n_bins_y])){
+                        int bin_x = GetBin(x, n_bins_x, bin_edges_x);
+                        int bin_y = GetBin(y, n_bins_y, bin_edges_y);
+                        atomicAdd(&temp_hist[bin_y + bin_x * n_bins_y], W[idx]);
+                    }
+                }
+                idx++;
+            }
+            __syncthreads();
+            for (int i = 0; i < iterations; i++){
+                bin = (i * blockDim.x) + threadIdx.x;
+                if (bin < N_BINS) atomicAdd( &(hist[bin]), temp_hist[bin] );
+            }
+
           }
-          """
+          """%(self.n_bins_x*self.n_bins_y)
         include_path = os.path.expandvars('$PISA/pisa/stages/osc/grid_propagator/')
         module = SourceModule(kernel_template, include_dirs=[include_path], keep=True)
         self.hist2d_fun = module.get_function("Hist2D")
@@ -74,7 +100,7 @@ class GPUhist(object):
     def get_hist(self, n_evts, d_x, d_y, d_w):
         # block and grid dimensions
         bdim = (256,1,1)
-        dx, mx = divmod(n_evts, bdim[0])
+        dx, mx = divmod(n_evts/20+1, bdim[0])
         gdim = ((dx + (mx>0)) * bdim[0], 1)
         self.clear()
         self.hist2d_fun(d_x, d_y, d_w, n_evts, self.d_hist2d, self.n_bins_x, self.n_bins_y, self.d_bin_edges_x, self.d_bin_edges_y, block=bdim, grid=gdim)
