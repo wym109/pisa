@@ -16,6 +16,8 @@ from pisa import ureg, Q_
 from pisa.core.binning import OneDimBinning, MultiDimBinning
 from pisa.core.map import Map, MapSet
 from pisa.utils.log import logging
+from pisa.utils.comparisons import normQuant
+from pisa.utils.hash import hash_obj
 
 
 def copy_dict_to_d(events):
@@ -89,6 +91,8 @@ class gpu(Stage):
             debug_mode=debug_mode
         )
 
+        self.osc_hash = None
+
         # initialize classes
         earth_model = find_resource(self.params.earth_model.value)
         YeI = self.params.YeI.value.m_as('dimensionless')
@@ -160,12 +164,17 @@ class gpu(Stage):
     def _compute_outputs(self, inputs=None):
         logging.info('retreive weighted histo')
         start_t = time.time()
+        osc_params = ['theta12','theta13','theta23','deltam21','deltam31','deltacp']
         theta12 = self.params.theta12.value.m_as('rad')
         theta13 = self.params.theta13.value.m_as('rad')
         theta23 = self.params.theta23.value.m_as('rad')
         deltam21 = self.params.deltam21.value.m_as('eV**2')
         deltam31 = self.params.deltam31.value.m_as('eV**2')
         deltacp = self.params.deltacp.value.m_as('rad')
+        
+        # get hash
+        osc_hash = hash_obj(normQuant([self.params[name].value for name in osc_params]))
+        recalc_osc = not (osc_hash == self.osc_hash)
 
         livetime = self.params.livetime.value.m_as('seconds')
         pid_bound = self.params.pid_bound.value.m_as('dimensionless')
@@ -174,10 +183,12 @@ class gpu(Stage):
         nue_numu_ratio = self.params.nue_numu_ratio.value.m_as('dimensionless')
         nu_nubar_ratio = self.params.nu_nubar_ratio.value.m_as('dimensionless')
 
-        self.osc.update_MNS(theta12, theta13, theta23, deltam21, deltam31, deltacp)
+        if recalc_osc:
+            self.osc.update_MNS(theta12, theta13, theta23, deltam21, deltam31, deltacp)
         tot = 0
         for flav in self.flavs:
-            self.osc.calc_probs(self.events_dict[flav]['kNuBar'], self.events_dict[flav]['kFlav'],
+            if recalc_osc:
+                self.osc.calc_probs(self.events_dict[flav]['kNuBar'], self.events_dict[flav]['kFlav'],
                                 self.events_dict[flav]['n_evts'], **self.events_dict[flav]['device'])
 
             self.weight.calc_weight(self.events_dict[flav]['n_evts'], livetime=livetime,
@@ -199,6 +210,9 @@ class gpu(Stage):
             tot += self.events_dict[flav]['n_evts']
         end_t = time.time()
         logging.debug('GPU done in %.4f ms for %s events'%(((end_t - start_t) * 1000),tot))
+        
+        # set new hash
+        self.osc_hash = osc_hash
 
         maps = []
         for i,flav in enumerate(self.flavs):
