@@ -109,8 +109,8 @@ class icc(Stage):
         reco_coszen_all = reco_coszen_all[dLLH>=pid_remove]
         dLLH = dLLH[dLLH>=pid_remove]
         pid_cut = pid_bound 
-        print "pid_remove = ", pid_remove
-        print "pid_bound = ", pid_bound
+        #print "pid_remove = ", pid_remove
+        #print "pid_bound = ", pid_bound
 
         # split in half for testing:
         #the commented out section was just a test for using subsets of the MC files
@@ -144,7 +144,7 @@ class icc(Stage):
 
         maps = []
         for flavor in ['cscd','trck']:
-            maps.append(Map(name=flavor, hist=self.icc_bg_dict[flavor] * scale, binning=self.output_binning))
+            maps.append(Map(name=flavor, hist=(self.icc_bg_dict[flavor] * scale), binning=self.output_binning))
         template = MapSet(maps,name='icc')
 
         return template
