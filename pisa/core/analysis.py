@@ -337,9 +337,10 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--data-settings', type=str,
                         metavar='configfile', default=None,
                         help='settings for the generation of "data"')
-    parser.add_argument('-t', '--template-settings', type=str,
+    parser.add_argument('-t', '--template-settings',
                         metavar='configfile', required=True,
-                        help='settings for the generation of templates')
+                        action='append',
+                        help='''settings for the template generation''')
     parser.add_argument('--outfile', metavar='FILE',
                         type=str, action='store', default='out.json',
                         help='file to store the output')
@@ -364,13 +365,8 @@ if __name__ == '__main__':
     else:
         data_settings = args.data_settings
 
-    data_maker_settings = from_file(data_settings)
-    data_maker_configurator = parse_config(data_maker_settings)
-    data_maker = DistributionMaker(data_maker_configurator)
-
-    template_maker_settings = from_file(args.template_settings)
-    template_maker_configurator = parse_config(template_maker_settings)
-    template_maker = DistributionMaker(template_maker_configurator)
+    data_maker = DistributionMaker(data_settings)
+    template_maker = DistributionMaker(args.template_settings)
 
     test = template_maker.params['nutau_cc_norm']
     test.value *= 0
