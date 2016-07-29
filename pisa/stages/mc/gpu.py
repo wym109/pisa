@@ -58,9 +58,6 @@ class gpu(Stage):
         )
 
 
-        bin_edges_e = np.logspace(0.75,2,11).astype(FTYPE)
-        bin_edges_cz = np.linspace(-1,1,17).astype(FTYPE)
-
         #output_names = ( 'nue_cc_trck','nue_cc_cscd',
         #                'nuebar_cc_trck','nuebar_cc_cscd',
         #                'numu_cc_trck','numu_cc_cscd',
