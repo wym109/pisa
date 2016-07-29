@@ -16,7 +16,7 @@ from pisa.utils.log import logging
 
 class plotter(object):
 
-    def __init__(self, outdir='.', stamp='PISA cake test', size=(8,8), fmt='pdf', log=True, label='# events', grid=True, ratio=False):
+    def __init__(self, outdir='.', stamp='PISA cake test', size=(8,8), fmt='pdf', log=True, label='# events', grid=True, ratio=False, annotate=False):
         self.outdir = outdir
         self.stamp = stamp
         self.fmt = fmt
@@ -26,6 +26,7 @@ class plotter(object):
         self.label = label
         self.grid = grid
         self.ratio = ratio
+        self.annotate = annotate
 
     # --- helper functions ---
 
@@ -161,11 +162,19 @@ class plotter(object):
         axis = plt.gca()
         bins = [map.binning[name] for name in map.binning.names]
         bin_edges = map.binning.bin_edges
+        bin_centers = map.binning.weighted_centers
         zmap = np.log10(map.hist) if self.log else map.hist
         extent = [np.min(bin_edges[0].m), np.max(bin_edges[0].m), np.min(bin_edges[1].m), np.max(bin_edges[1].m)]
         # needs to be flipped for imshow
         img = plt.imshow(zmap.T,origin='lower',interpolation='nearest',extent=extent,aspect='auto',
             cmap=cmap, **kwargs)
+        if self.annotate:
+            counts = img.get_array().T
+            for i in range(len(bin_centers[0])):
+                for j in range(len(bin_centers[1])):
+                    bin_x = bin_centers[0][i].m
+                    bin_y = bin_centers[1][j].m
+                    plt.annotate('%.1f'%(counts[i,j]), xy=(bin_x, bin_y), xycoords=('data', 'data'), xytext=(bin_x, bin_y), textcoords='data', va='top', ha='center', size=7)
         axis.set_xlabel(bins[0].label)
         axis.set_ylabel(bins[1].label)
         if bins[0].is_log:
@@ -182,13 +191,13 @@ class plotter(object):
         plt_binning = map.binning[plot_axis]
         hist = self.project_1d(map, plot_axis)
         if ptype == 'hist':
-            axis.hist(plt_binning.bin_centers, weights=unp.nominal_values(hist), bins=plt_binning.bin_edges, histtype='step', lw=1.5, label=r'$%s$'%map.tex, **kwargs)
+            axis.hist(plt_binning.weighted_centers, weights=unp.nominal_values(hist), bins=plt_binning.bin_edges, histtype='step', lw=1.5, label=r'$%s$'%map.tex, **kwargs)
             axis.bar(plt_binning.bin_edges.m[:-1],2*unp.std_devs(hist),
                     bottom=unp.nominal_values(hist)-unp.std_devs(hist),
                     width=plt_binning.bin_widths, alpha=0.25, linewidth=0,
                     **kwargs)
         elif ptype == 'data':
-            axis.errorbar(plt_binning.bin_centers.m,
+            axis.errorbar(plt_binning.weighted_centers.m,
                     unp.nominal_values(hist),yerr=unp.std_devs(hist), fmt='o', markersize='4', label=r'$%s$'%map.tex, **kwargs)
         axis.set_xlabel(plt_binning.label)
         if self.label:
