@@ -44,6 +44,7 @@ class GPUweight(object):
                         //apply flux systematics
                         // nue/numu ratio
                         // for neutrinos
+                        
                         fType scaled_nue_flux, scaled_numu_flux;
                         apply_ratio_scale(neutrino_nue_flux[idx], neutrino_numu_flux[idx], nue_numu_ratio, true,
                                             scaled_nue_flux, scaled_numu_flux);
@@ -53,17 +54,20 @@ class GPUweight(object):
                                             scaled_nue_oppo_flux, scaled_numu_oppo_flux);
                         // nu/nubar ratio
                         fType scaled_nue_flux2, scaled_nue_oppo_flux2;
-                        apply_ratio_scale(scaled_nue_flux, scaled_nue_oppo_flux, nu_nubar_ratio, true,
-                                            scaled_nue_flux2, scaled_nue_oppo_flux2);
                         fType scaled_numu_flux2, scaled_numu_oppo_flux2;
-                        apply_ratio_scale(scaled_numu_flux, scaled_numu_oppo_flux, nu_nubar_ratio, true,
-                                            scaled_numu_flux2, scaled_numu_oppo_flux2);
-                        // if antineutinos, swap
                         if (kNuBar < 0){
-                            scaled_nue_flux2 = scaled_nue_oppo_flux2;
-                            scaled_numu_flux2 = scaled_numu_oppo_flux2;
+                            apply_ratio_scale(scaled_nue_oppo_flux, scaled_nue_flux, nu_nubar_ratio, true,
+                                                scaled_nue_oppo_flux2, scaled_nue_flux2);
+                            apply_ratio_scale(scaled_numu_oppo_flux, scaled_numu_flux, nu_nubar_ratio, true,
+                                                scaled_numu_oppo_flux2, scaled_numu_flux2);
                         }
-
+                        else {
+                            apply_ratio_scale(scaled_nue_flux, scaled_nue_oppo_flux, nu_nubar_ratio, true,
+                                                scaled_nue_flux2, scaled_nue_oppo_flux2);
+                            apply_ratio_scale(scaled_numu_flux, scaled_numu_oppo_flux, nu_nubar_ratio, true,
+                                                scaled_numu_flux2, scaled_numu_oppo_flux2);
+                        }
+                        
                         // calc weight
                         fType w = aeff_scale * livetime * weighted_aeff[idx] *
                                  ((scaled_nue_flux2 * prob_e[idx]) + (scaled_numu_flux2 * prob_mu[idx]));

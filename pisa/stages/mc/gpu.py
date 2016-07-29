@@ -230,6 +230,9 @@ class gpu(Stage):
         maps.append(Map(name='cscd', hist=hist_cscd, binning=self.output_binning))
         maps.append(Map(name='trck', hist=hist_trck, binning=self.output_binning))
 
+        logging.info('total number of cscd events: %s'%np.sum(hist_cscd))
+        logging.info('total number of trck events: %s'%np.sum(hist_trck))
+
         template = MapSet(maps,name='gpu_mc')
 
         return template
