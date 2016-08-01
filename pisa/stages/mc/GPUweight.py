@@ -11,6 +11,7 @@ class GPUweight(object):
         kernel_template = """//CUDA//
           #include "constants.h"
           #include "utils.h"
+          #include "math.h"
 
 	  __device__ void apply_ratio_scale(fType flux1, fType flux2,
                                             fType ratio_scale, bool sum_const,
@@ -29,14 +30,19 @@ class GPUweight(object):
                     scaled_flux2 = flux2;
 		    }
 		}
+
+            __device__ fType spectral_index_scale(fType true_energy, fType egy_pivot, fType delta_index){
+                    fType scale = pow((true_energy/egy_pivot),delta_index);
+                    return scale;
+                }
  
           
-          __global__ void weights(const int n_evts, fType *weighted_aeff,
+            __global__ void weights(const int n_evts, fType *weighted_aeff, fType *true_energy,
                                     fType *neutrino_nue_flux, fType *neutrino_numu_flux,
                                     fType *neutrino_oppo_nue_flux, fType *neutrino_oppo_numu_flux,
                                     fType *prob_e, fType *prob_mu, fType *pid, fType *weight_cscd, fType *weight_trck,
                                     fType livetime, fType pid_bound, fType pid_remove, fType aeff_scale,
-                                    fType nue_numu_ratio, fType nu_nubar_ratio, const int kNuBar)
+                                    fType nue_numu_ratio, fType nu_nubar_ratio, const int kNuBar, fType delta_index)
                 {
                     int idx = threadIdx.x + blockDim.x * blockIdx.x;
                     if (idx < n_evts) {
@@ -44,6 +50,7 @@ class GPUweight(object):
                         //apply flux systematics
                         // nue/numu ratio
                         // for neutrinos
+                        fType idx_scale = spectral_index_scale(true_energy[idx], 24.0900951261, delta_index);
                         
                         fType scaled_nue_flux, scaled_numu_flux;
                         apply_ratio_scale(neutrino_nue_flux[idx], neutrino_numu_flux[idx], nue_numu_ratio, true,
@@ -69,7 +76,7 @@ class GPUweight(object):
                         }
                         
                         // calc weight
-                        fType w = aeff_scale * livetime * weighted_aeff[idx] *
+                        fType w = idx_scale * aeff_scale * livetime * weighted_aeff[idx] *
                                  ((scaled_nue_flux2 * prob_e[idx]) + (scaled_numu_flux2 * prob_mu[idx]));
                         // distinguish between PID classes
                         weight_cscd[idx] = ((pid[idx] < pid_bound) && (pid[idx] >= pid_remove)) * w;
@@ -82,18 +89,19 @@ class GPUweight(object):
         self.weights_fun = module.get_function("weights")
 
 
-    def calc_weight(self, n_evts, weighted_aeff,
+    def calc_weight(self, n_evts, weighted_aeff, true_energy,
                     neutrino_nue_flux, neutrino_numu_flux,
                     neutrino_oppo_nue_flux, neutrino_oppo_numu_flux,
                     prob_e, prob_mu, pid, weight_cscd, weight_trck,
-                    livetime, pid_bound, pid_remove, aeff_scale, nue_numu_ratio, nu_nubar_ratio, kNuBar, **kwargs):
+                    livetime, pid_bound, pid_remove, aeff_scale,
+                    nue_numu_ratio, nu_nubar_ratio, kNuBar, delta_index, **kwargs):
         # block and grid dimensions
         bdim = (256,1,1)
         dx, mx = divmod(n_evts, bdim[0])
         gdim = ((dx + (mx>0)) * bdim[0], 1)
-        self.weights_fun(n_evts, weighted_aeff,
+        self.weights_fun(n_evts, weighted_aeff, true_energy, 
                             neutrino_nue_flux, neutrino_numu_flux,
                             neutrino_oppo_nue_flux, neutrino_oppo_numu_flux,
                             prob_e, prob_mu, pid, weight_cscd, weight_trck,
                             FTYPE(livetime), FTYPE(pid_bound), FTYPE(pid_remove), FTYPE(aeff_scale),
-                            FTYPE(nue_numu_ratio), FTYPE(nu_nubar_ratio), np.int32(kNuBar), block=bdim, grid=gdim)
+                            FTYPE(nue_numu_ratio), FTYPE(nu_nubar_ratio), np.int32(kNuBar), FTYPE(delta_index),  block=bdim, grid=gdim)

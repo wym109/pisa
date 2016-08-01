@@ -54,7 +54,8 @@ class gpu(Stage):
             'pid_bound',
             'pid_remove',
             'nu_nc_norm',
-            'nutau_cc_norm'
+            'nutau_cc_norm',
+            'delta_index'
         )
 
 
@@ -179,6 +180,7 @@ class gpu(Stage):
         aeff_scale = self.params.aeff_scale.value.m_as('dimensionless')
         nue_numu_ratio = self.params.nue_numu_ratio.value.m_as('dimensionless')
         nu_nubar_ratio = self.params.nu_nubar_ratio.value.m_as('dimensionless')
+        delta_index = self.params.delta_index.value.m_as('dimensionless')
 
         if recalc_osc:
             self.osc.update_MNS(theta12, theta13, theta23, deltam21, deltam31, deltacp)
@@ -192,6 +194,7 @@ class gpu(Stage):
                                 pid_bound=pid_bound, pid_remove=pid_remove,
                                 aeff_scale=aeff_scale, nue_numu_ratio=nue_numu_ratio, 
                                 nu_nubar_ratio=nu_nubar_ratio, kNuBar=self.events_dict[flav]['kNuBar'],
+                                delta_index=delta_index,
                                 **self.events_dict[flav]['device'])
 
             self.events_dict[flav]['hist_cscd'] = self.histogrammer.get_hist(self.events_dict[flav]['n_evts'],
