@@ -55,7 +55,8 @@ class gpu(Stage):
             'pid_remove',
             'nu_nc_norm',
             'nutau_cc_norm',
-            'delta_index'
+            'delta_index',
+            'no_nc_osc'
         )
 
 
@@ -154,7 +155,10 @@ class gpu(Stage):
                 self.events_dict[flav]['host'][var] = evts[flav][var].astype(FTYPE)
             self.events_dict[flav]['n_evts'] = np.uint32(len(self.events_dict[flav]['host'][variables[0]]))
             for var in empty:
-                self.events_dict[flav]['host'][var] = np.zeros(self.events_dict[flav]['n_evts'], dtype=FTYPE)
+                if self.params.no_nc_osc and ( (flav in ['nue_nc', 'nuebar_nc'] and var == 'prob_e') or (flav in ['numu_nc', 'numubar_nc'] and var == 'prob_mu') ):
+                    self.events_dict[flav]['host'][var] = np.ones(self.events_dict[flav]['n_evts'], dtype=FTYPE)
+                else:
+                    self.events_dict[flav]['host'][var] = np.zeros(self.events_dict[flav]['n_evts'], dtype=FTYPE)
             # calulate layers
             self.events_dict[flav]['host']['numLayers'], self.events_dict[flav]['host']['densityInLayer'], self.events_dict[flav]['host']['distanceInLayer'] = self.osc.calc_Layers(self.events_dict[flav]['host']['true_coszen'])
             # copy to device arrays
@@ -189,7 +193,7 @@ class gpu(Stage):
             self.osc.update_MNS(theta12, theta13, theta23, deltam21, deltam31, deltacp)
         tot = 0
         for flav in self.flavs:
-            if recalc_osc:
+            if recalc_osc and not (self.params.no_nc_osc and flav.endswith('_nc')):
                 self.osc.calc_probs(self.events_dict[flav]['kNuBar'], self.events_dict[flav]['kFlav'],
                                 self.events_dict[flav]['n_evts'], **self.events_dict[flav]['device'])
 
