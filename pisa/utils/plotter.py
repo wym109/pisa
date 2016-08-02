@@ -16,7 +16,7 @@ from pisa.utils.log import logging
 
 class plotter(object):
 
-    def __init__(self, outdir='.', stamp='PISA cake test', size=(8,8), fmt='pdf', log=True, label='# events', grid=True, ratio=False, annotate=False):
+    def __init__(self, outdir='.', stamp='PISA cake test', size=(8,8), fmt='pdf', log=True, label='# events', grid=True, ratio=False, annotate=False, symmetric=False):
         self.outdir = outdir
         self.stamp = stamp
         self.fmt = fmt
@@ -27,6 +27,8 @@ class plotter(object):
         self.grid = grid
         self.ratio = ratio
         self.annotate = annotate
+        if symmetric: assert(self.log == False), 'cannot do log and symmetric at th same time'
+        self.symmetric = symmetric
 
     # --- helper functions ---
 
@@ -164,10 +166,16 @@ class plotter(object):
         bin_edges = map.binning.bin_edges
         bin_centers = map.binning.weighted_centers
         zmap = np.log10(map.hist) if self.log else map.hist
+        if self.symmetric:
+            vmax = max(zmap.max(), - zmap.min())
+            vmin = -vmax
+        else:
+            vmax = zmap.max()
+            vmin = zmap.min()
         extent = [np.min(bin_edges[0].m), np.max(bin_edges[0].m), np.min(bin_edges[1].m), np.max(bin_edges[1].m)]
         # needs to be flipped for imshow
         img = plt.imshow(zmap.T,origin='lower',interpolation='nearest',extent=extent,aspect='auto',
-            cmap=cmap, **kwargs)
+            cmap=cmap, vmax=vmax, vmin=vmin, **kwargs)
         if self.annotate:
             counts = img.get_array().T
             for i in range(len(bin_centers[0])):

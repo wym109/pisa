@@ -25,6 +25,7 @@ class icc(Stage):
             'pid_remove',
             'use_def1',
             'sim_ver',
+            'livetime'
         )
 
         output_names = ('trck','cscd')
@@ -141,6 +142,7 @@ class icc(Stage):
     def _compute_outputs(self, inputs=None):
 
         scale = self.params.atm_muon_scale.value.m_as('dimensionless')
+        scale *= self.params.livetime.value.m_as('common_year')
 
         maps = []
         for flavor in ['cscd','trck']:

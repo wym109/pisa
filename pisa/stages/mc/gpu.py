@@ -89,6 +89,9 @@ class gpu(Stage):
             debug_mode=debug_mode
         )
 
+
+    def _compute_nominal_outputs(self):
+
         self.osc_hash = None
 
         # initialize classes
