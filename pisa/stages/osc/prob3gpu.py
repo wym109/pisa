@@ -194,7 +194,7 @@ class Prob3GPU(object):
               Probability[i][1] +=OutputPsi[1][0]*OutputPsi[1][0]+OutputPsi[1][1]*OutputPsi[1][1];
               Probability[i][2] +=OutputPsi[2][0]*OutputPsi[2][0]+OutputPsi[2][1]*OutputPsi[2][1];
 
-			}
+	    }
 
             d_prob_e[idx] = Probability[0][kFlav];
             d_prob_mu[idx] = Probability[1][kFlav];
@@ -224,7 +224,7 @@ class Prob3GPU(object):
                       n_evts,
                       np.int32(kNuBar),
                       np.int32(kFlav),
-                      np.uint32(self.maxLayers),
+                      np.int32(self.maxLayers),
                       true_energy,
                       numLayers,
                       densityInLayer,
@@ -233,53 +233,66 @@ class Prob3GPU(object):
 
 if __name__ == '__main__':
     import pycuda.autoinit
+    import matplotlib as mpl
+    mpl.use('Agg')
+    from matplotlib import pyplot as plt
 
     def copy_dict_to_d(events):
         d_events = {}
         for key, val in events.items():
-            d_events['d_%s'%key] = cuda.mem_alloc(val.nbytes)
-            cuda.memcpy_htod(d_events['d_%s'%key], val)
+            d_events[key] = cuda.mem_alloc(val.nbytes)
+            cuda.memcpy_htod(d_events[key], val)
         return d_events
 
 
+    e = np.logspace(0,2,1000)
+    cz = np.linspace(-1,1,1000)
+    ee, czcz = np.meshgrid(e,cz)
     events = {}
-    events['energy'] = np.linspace(1,100,100)
-    events['coszen'] = np.linspace(-1,1,100)
-    n_evts = np.uint32(len(events['coszen']))
+    events['true_energy'] = ee.ravel().astype(np.float64)
+    events['true_coszen'] = czcz.ravel().astype(np.float64)
+    n_evts = np.uint32(len(events['true_coszen']))
     events['prob_e'] = np.zeros(n_evts, dtype=np.float64)
     events['prob_mu'] = np.zeros(n_evts, dtype=np.float64)
-    # neutrinos: 1, anti-neutrinos: -1 
-    kNuBar = np.int32(1)
-    # electron: 0, muon: 1, tau: 2
-    kFlav = np.int32(2)
     
     # layer params
     detector_depth = 2.0
     earth_model = find_resource('osc/PREM_12layer.dat')
     prop_height = 20.0
     YeI = 0.4656
-    YeO = 0.4656
     YeM = 0.4957
+    YeO = 0.4656
+
 
     osc = Prob3GPU(detector_depth, earth_model, prop_height,  YeI, YeO, YeM)
 
     # SETUP ARRAYS
     # calulate layers
-    events['numLayers'], events['densityInLayer'], events['distanceInLayer'] = osc.calc_Layers(events['coszen'])
+    events['numLayers'], events['densityInLayer'], events['distanceInLayer'] = osc.calc_Layers(events['true_coszen'])
 
     d_events = copy_dict_to_d(events)
 
     # SETUP MNS
-    theta12 = 0.5839958715755919
-    theta13 = 0.14819001778459273
-    theta23 = 0.7373241279447564
+    theta12 = 0.584
+    theta13 = 0.148
+    theta23 = 0.7383
     deltam21 = 7.5e-05
     deltam31 = 0.002457
-    deltacp = 5.340707511102648
+    deltacp = 5.340
     osc.update_MNS(theta12, theta13, theta23, deltam21, deltam31, deltacp)
 
-    osc.calc_probs(kNuBar, kFlav, n_evts, **d_events)
-
-    cuda.memcpy_dtoh(events['prob_e'],d_events['d_prob_e'])
-    cuda.memcpy_dtoh(events['prob_mu'],d_events['d_prob_mu'])
-    print events['prob_e'], events['prob_mu']
+    # neutrinos: 1, anti-neutrinos: -1 
+    #kNuBar = np.int32(1)
+    # electron: 0, muon: 1, tau: 2
+    #kFlav = np.int32(2)
+    for kNuBar in [-1,1]:
+        for kFlav in [0,1,2]:
+            osc.calc_probs(kNuBar, kFlav, n_evts, **d_events)
+            cuda.memcpy_dtoh(events['prob_e'],d_events['prob_e'])
+            cuda.memcpy_dtoh(events['prob_mu'],d_events['prob_mu'])
+            hist,_,_ = np.histogram2d(ee.ravel(), czcz.ravel(),bins=(e, cz), weights=events['prob_mu'])
+            plt.imshow(hist,origin='lower',interpolation='nearest',extent=[cz.min(),cz.max(),e.min(),e.max()],aspect='auto',cmap='Spectral_r',vmin=0, vmax=1)
+            plt.gca().set_yscale('log')
+            plt.show()
+            plt.savefig('osc_test_mu_to_%i_%i.pdf'%(kFlav,kNuBar))
+            plt.clf()

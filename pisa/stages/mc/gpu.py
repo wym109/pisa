@@ -59,20 +59,6 @@ class gpu(Stage):
             'no_nc_osc'
         )
 
-
-        #output_names = ( 'nue_cc_trck','nue_cc_cscd',
-        #                'nuebar_cc_trck','nuebar_cc_cscd',
-        #                'numu_cc_trck','numu_cc_cscd',
-        #                'numubar_cc_trck','numubar_cc_cscd',
-        #                'nutau_cc_trck','nutau_cc_cscd',
-        #                'nutaubar_cc_trck','nutaubar_cc_cscd',
-        #                'nue_nc_trck','nue_nc_cscd',
-        #                'nuebar_nc_trck','nuebar_nc_cscd',
-        #                'numu_nc_trck','numu_nc_cscd',
-        #                'numubar_nc_trck','numubar_nc_cscd',
-        #                'nutau_nc_trck','nutau_nc_cscd',
-        #                'nutaubar_nc_trck','nutaubar_nc_cscd',
-        #                )
         output_names = ('trck','cscd')
 
         super(self.__class__, self).__init__(
@@ -170,13 +156,6 @@ class gpu(Stage):
         logging.info('retreive weighted histo')
         start_t = time.time()
         osc_params = ['theta12','theta13','theta23','deltam21','deltam31','deltacp']
-        theta12 = self.params.theta12.value.m_as('rad')
-        theta13 = self.params.theta13.value.m_as('rad')
-        theta23 = self.params.theta23.value.m_as('rad')
-        deltam21 = self.params.deltam21.value.m_as('eV**2')
-        deltam31 = self.params.deltam31.value.m_as('eV**2')
-        deltacp = self.params.deltacp.value.m_as('rad')
-        
         # get hash
         osc_hash = hash_obj(normQuant([self.params[name].value for name in osc_params]))
         recalc_osc = not (osc_hash == self.osc_hash)
@@ -190,6 +169,12 @@ class gpu(Stage):
         delta_index = self.params.delta_index.value.m_as('dimensionless')
 
         if recalc_osc:
+            theta12 = self.params.theta12.value.m_as('rad')
+            theta13 = self.params.theta13.value.m_as('rad')
+            theta23 = self.params.theta23.value.m_as('rad')
+            deltam21 = self.params.deltam21.value.m_as('eV**2')
+            deltam31 = self.params.deltam31.value.m_as('eV**2')
+            deltacp = self.params.deltacp.value.m_as('rad')
             self.osc.update_MNS(theta12, theta13, theta23, deltam21, deltam31, deltacp)
         tot = 0
         for flav in self.flavs:
@@ -225,10 +210,11 @@ class gpu(Stage):
         for i,flav in enumerate(self.flavs):
             if flav in ['nutau_cc','nutaubar_cc']:
                 f = self.params.nutau_cc_norm.value.m_as('dimensionless')
-            elif '_nc' in flav:
+            elif flav.endswith('_nc'):
                 f = self.params.nu_nc_norm.value.m_as('dimensionless')
             else:
                 f = 1.0
+            # add up
             if i == 0:
                 hist_cscd = self.events_dict[flav]['hist_cscd'] * f
                 hist_trck = self.events_dict[flav]['hist_trck'] * f
@@ -236,13 +222,10 @@ class gpu(Stage):
                 hist_cscd += self.events_dict[flav]['hist_cscd'] * f
                 hist_trck += self.events_dict[flav]['hist_trck'] * f
 
-            
         maps.append(Map(name='cscd', hist=hist_cscd, binning=self.output_binning))
         maps.append(Map(name='trck', hist=hist_trck, binning=self.output_binning))
 
         #logging.info('total number of cscd events: %s'%np.sum(hist_cscd))
         #logging.info('total number of trck events: %s'%np.sum(hist_trck))
 
-        template = MapSet(maps,name='gpu_mc')
-
-        return template
+        return MapSet(maps,name='gpu_mc')

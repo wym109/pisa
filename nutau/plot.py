@@ -5,7 +5,6 @@ from pisa import ureg, Q_
 from pisa.core.distribution_maker import DistributionMaker
 from pisa.utils.log import set_verbosity
 from pisa.utils.plotter import plotter
-from pisa.core.map import MapSet
 
 parser = ArgumentParser()
 parser.add_argument('-t', '--template-settings',
@@ -15,14 +14,12 @@ parser.add_argument('-t', '--template-settings',
 parser.add_argument('-v', action='count', default=None,
                     help='set verbosity level')
 args = parser.parse_args()
-
 set_verbosity(args.v)
 
 my_plotter = plotter(stamp='nutau sys test', outdir='.', fmt='pdf', log=False, annotate=True, symmetric=True)
-
 template_maker = DistributionMaker(args.template_settings)
-template_nominal = template_maker.get_outputs()
 
+template_nominal = template_maker.get_outputs()
 my_plotter.plot_2d_array(template_nominal, fname='nominal',cmap='RdBu')
 
 variation = {'deltam31': 0.2e-3*ureg.eV**2,
@@ -39,9 +36,6 @@ variation = {'deltam31': 0.2e-3*ureg.eV**2,
             'hole_ice_fwd': -1.,
             'atm_muon_scale': 0.1
             }
-
-
-my_plotter = plotter(stamp='nutau sys test', outdir='.', fmt='pdf', log=False, annotate=True, symmetric=True)
 
 for sys, var in variation.items():
     template_maker.params.reset_free()

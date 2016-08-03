@@ -193,7 +193,7 @@ class Stage(object):
         self.transforms_cache = MemoryCache(self.transforms_cache_depth,
                                             is_lru=True)
         self.nominal_transforms_cache = MemoryCache(10, is_lru=True)
-        self.nominal_outputs_cache = MemoryCache(10, is_lru=True)
+        self.nominal_outputs_hash = None
 
         self.outputs_cache_depth = outputs_cache_depth
 
@@ -421,30 +421,12 @@ class Stage(object):
         nominal_outputs, hash
 
         """
-
-        if nominal_outputs_hash is None:
-            nominal_outputs_hash = self._derive_nominal_outputs_hash()
-
-        nominal_outputs = None
-        # Quick way to avoid further logic is if hash value is None
-        if nominal_outputs_hash is None:
-            self.nominal_outputs_hash = None
-            self.nominal_outputs = None
-            return self.nominal_outputs, self.nominal_outputs_hash
-
-        self.nominal_outputs_computed = True
-        nominal_outputs = self._compute_nominal_outputs()
-        if nominal_outputs is None:
-            # Invalidate hash value since found outputs
-            nominal_outputs_hash = None
-        else:
-            nominal_outputs.hash = nominal_outputs_hash
-        self.nominal_outputs = nominal_outputs
-        self.nominal_outputs_hash = nominal_outputs_hash
-        return nominal_outputs, nominal_outputs_hash
+        if (self.nominal_outputs_hash is None) or (self.nominal_outputs_hash != self._derive_nominal_outputs_hash()):
+            self._compute_nominal_outputs()
+            self.nominal_outputs_hash = self._derive_nominal_outputs_hash()
 
     @profile
-    def get_outputs(self, inputs=None, nominal_outputs_hash = None):
+    def get_outputs(self, inputs=None):
         """Top-level function for computing outputs. Use this method to get
         outputs if you live outside this stage/service.
 
@@ -478,18 +460,18 @@ class Stage(object):
         # that will result, which *might* not be true (though it seems it will
         # usually be so)
 
-        # Compute nominal outputs; if feature is not used, this doesn't
-        # actually do much of anything. To do more than this, override the
-        # `_compute_nominal_outputs` method.
-        nominal_outputs, nominal_outputs_hash = \
-                self.get_nominal_outputs(
-                    nominal_outputs_hash=nominal_outputs_hash
-                )
-
         # Keep inputs for internal use and for inspection later
         self.inputs = {} if inputs is None else inputs
 
         outputs_hash, transforms_hash, nominal_transforms_hash  = self._derive_outputs_hash()
+
+        # Compute nominal outputs; if feature is not used, this doesn't
+        # actually do much of anything. To do more than this, override the
+        # `_compute_nominal_outputs` method.
+        self.get_nominal_outputs(
+                    nominal_outputs_hash=nominal_transforms_hash
+                )
+
 
         logging.trace('outputs_hash: %s' %outputs_hash)
 
@@ -814,7 +796,7 @@ class Stage(object):
         return nominal_transforms_hash
 
     def _derive_nominal_outputs_hash(self):
-        return self._derive_transforms_hash()
+        return self._derive_nominal_transforms_hash()
 
     def _compute_nominal_transforms(self):
         """Stages that start with a nominal transform and use systematic
