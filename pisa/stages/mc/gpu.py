@@ -121,6 +121,8 @@ class gpu(Stage):
                     'neutrino_nue_flux', 'neutrino_numu_flux', 'neutrino_oppo_nue_flux',
                     'neutrino_oppo_numu_flux', 'weighted_aeff', 'pid']
         empty = ['prob_e', 'prob_mu', 'weight_trck', 'weight_cscd']
+        if self.error_method == 'sumw2':
+            empty += ['sumw2_trck', 'sumw2_cscd']
         self.flavs = ['nue_cc', 'numu_cc', 'nutau_cc', 'nue_nc', 'numu_nc', 'nutau_nc',
                 'nuebar_cc', 'numubar_cc', 'nutaubar_cc', 'nuebar_nc', 'numubar_nc', 'nutaubar_nc']
         kFlavs = [0, 1, 2] * 4
@@ -199,6 +201,18 @@ class gpu(Stage):
                                                                     self.events_dict[flav]['device'][self.bin_names[1]],
                                                                     self.events_dict[flav]['device']['weight_trck'])
 
+            if self.error_method == 'sumw2':
+                self.weight.calc_sumw2(self.events_dict[flav]['n_evts'], **self.events_dict[flav]['device'])
+                self.events_dict[flav]['sumw2_cscd'] = self.histogrammer.get_hist(self.events_dict[flav]['n_evts'],
+                                                                        self.events_dict[flav]['device'][self.bin_names[0]],
+                                                                        self.events_dict[flav]['device'][self.bin_names[1]],
+                                                                        self.events_dict[flav]['device']['sumw2_cscd'])
+
+                self.events_dict[flav]['sumw2_trck'] = self.histogrammer.get_hist(self.events_dict[flav]['n_evts'],
+                                                                        self.events_dict[flav]['device'][self.bin_names[0]],
+                                                                        self.events_dict[flav]['device'][self.bin_names[1]],
+                                                                        self.events_dict[flav]['device']['sumw2_trck'])
+
             tot += self.events_dict[flav]['n_evts']
         end_t = time.time()
         logging.debug('GPU done in %.4f ms for %s events'%(((end_t - start_t) * 1000),tot))
@@ -218,12 +232,23 @@ class gpu(Stage):
             if i == 0:
                 hist_cscd = self.events_dict[flav]['hist_cscd'] * f
                 hist_trck = self.events_dict[flav]['hist_trck'] * f
+                if self.error_method == 'sumw2':
+                    sumw2_cscd = self.events_dict[flav]['sumw2_cscd'] * f * f
+                    sumw2_trck = self.events_dict[flav]['sumw2_trck'] * f * f
             else:
                 hist_cscd += self.events_dict[flav]['hist_cscd'] * f
                 hist_trck += self.events_dict[flav]['hist_trck'] * f
+                if self.error_method == 'sumw2':
+                    sumw2_cscd += self.events_dict[flav]['sumw2_cscd'] * f * f
+                    sumw2_trck += self.events_dict[flav]['sumw2_trck'] * f * f
 
-        maps.append(Map(name='cscd', hist=hist_cscd, binning=self.output_binning))
-        maps.append(Map(name='trck', hist=hist_trck, binning=self.output_binning))
+        if self.error_method == 'sumw2':
+            maps.append(Map(name='cscd', hist=hist_cscd, error_hist=np.sqrt(sumw2_cscd), binning=self.output_binning))
+            maps.append(Map(name='trck', hist=hist_trck, error_hist=np.sqrt(sumw2_trck), binning=self.output_binning))
+        else:
+            maps.append(Map(name='cscd', hist=hist_cscd, binning=self.output_binning))
+            maps.append(Map(name='trck', hist=hist_trck, binning=self.output_binning))
+
 
         #logging.info('total number of cscd events: %s'%np.sum(hist_cscd))
         #logging.info('total number of trck events: %s'%np.sum(hist_trck))

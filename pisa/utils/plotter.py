@@ -90,11 +90,11 @@ class plotter(object):
             self.dump(map.name)
 
     def plot_1d_array(self, mapset, plot_axis, n_rows=None,
-            n_cols=None, **kwargs):
+            n_cols=None, fname=None, **kwargs):
         ''' plot 1d projections as an array '''
         self.plot_array(mapset, 'plot_1d_projection', plot_axis, n_rows=n_rows,
                 n_cols=n_cols, **kwargs)
-        self.dump('test1d')
+        self.dump(fname)
 
     def plot_1d_all(self, mapset, plot_axis, **kwargs):
         ''' all one one canvas '''

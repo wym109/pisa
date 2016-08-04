@@ -36,7 +36,6 @@ class GPUweight(object):
                     return scale;
                 }
  
-          
             __global__ void weights(const int n_evts, fType *weighted_aeff, fType *true_energy,
                                     fType *neutrino_nue_flux, fType *neutrino_numu_flux,
                                     fType *neutrino_oppo_nue_flux, fType *neutrino_oppo_numu_flux,
@@ -83,10 +82,20 @@ class GPUweight(object):
                         weight_trck[idx] = (pid[idx] >= pid_bound) * w;
                     }
                 }
+
+            __global__ void sumw2(const int n_evts, fType *weight_cscd, fType *weight_trck,
+                                    fType *sumw2_cscd, fType *sumw2_trck) {
+                    int idx = threadIdx.x + blockDim.x * blockIdx.x;
+                    if (idx < n_evts) {
+                        sumw2_cscd[idx] = weight_cscd[idx] * weight_cscd[idx];
+                        sumw2_trck[idx] = weight_trck[idx] * weight_trck[idx];
+                    }
+                }
           """
         include_path = os.path.expandvars('$PISA/pisa/stages/osc/grid_propagator/')
         module = SourceModule(kernel_template, include_dirs=[include_path], keep=True)
         self.weights_fun = module.get_function("weights")
+        self.sumw2_fun = module.get_function("sumw2")
 
 
     def calc_weight(self, n_evts, weighted_aeff, true_energy,
@@ -105,3 +114,10 @@ class GPUweight(object):
                             prob_e, prob_mu, pid, weight_cscd, weight_trck,
                             FTYPE(livetime), FTYPE(pid_bound), FTYPE(pid_remove), FTYPE(aeff_scale),
                             FTYPE(nue_numu_ratio), FTYPE(nu_nubar_ratio), np.int32(kNuBar), FTYPE(delta_index),  block=bdim, grid=gdim)
+
+    def calc_sumw2(self, n_evts, weight_cscd, weight_trck, sumw2_cscd, sumw2_trck, **kwargs):
+        bdim = (256,1,1)
+        dx, mx = divmod(n_evts, bdim[0])
+        gdim = ((dx + (mx>0)) * bdim[0], 1)
+        self.sumw2_fun(n_evts, weight_cscd, weight_trck, sumw2_cscd, sumw2_trck, block=bdim, grid=gdim)
+

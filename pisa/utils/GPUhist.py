@@ -102,7 +102,7 @@ class GPUhist(object):
     def get_hist(self, n_evts, d_x, d_y, d_w):
         # block and grid dimensions
         bdim = (256,1,1)
-        dx, mx = divmod(n_evts/20+1, bdim[0])
+        dx, mx = divmod(n_evts/self.n_thread+1, bdim[0])
         gdim = ((dx + (mx>0)) * bdim[0], 1)
         self.clear()
         self.hist2d_fun(d_x, d_y, d_w, n_evts, self.d_hist2d, self.n_bins_x, self.n_bins_y, self.d_bin_edges_x, self.d_bin_edges_y, block=bdim, grid=gdim)

@@ -146,7 +146,11 @@ class icc(Stage):
 
         maps = []
         for flavor in ['cscd','trck']:
-            maps.append(Map(name=flavor, hist=(self.icc_bg_dict[flavor] * scale), binning=self.output_binning))
+            if self.error_method == 'sumw2':
+                maps.append(Map(name=flavor, hist=(self.icc_bg_dict[flavor] * scale), error_hist=(np.sqrt(self.icc_bg_dict[flavor]) * scale) ,binning=self.output_binning))
+            else:
+                maps.append(Map(name=flavor, hist=(self.icc_bg_dict[flavor] * scale), binning=self.output_binning))
+                
         template = MapSet(maps,name='icc')
 
         return template
