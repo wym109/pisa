@@ -5,6 +5,7 @@
 from collections import Sequence
 import sys
 import scipy.optimize as opt
+import time
 
 from pisa.core.distribution_maker import DistributionMaker
 from pisa.utils.fileio import from_file
@@ -66,6 +67,7 @@ class Analysis(object):
         # Generate distribution
         self.asimov = self.data_maker.get_outputs()
         self.pseudodata = None
+        self.n_minimizer_calls = 0
 
     def generate_psudodata(self, method):
         if method == 'asimov':
@@ -210,6 +212,7 @@ class Analysis(object):
         else:
             logging.debug(msg)
 
+        self.n_minimizer_calls += 1
         return sign*metric_val
 
     def run_minimizer(self, pprint=True):
@@ -226,6 +229,8 @@ class Analysis(object):
 
         # Using scipy.opt.minimize allows a whole host of minimisers to be used
         # This set by the method value in your minimiser settings file
+        self.n_minimizer_calls = 0
+        start_t = time.time()
         minim_result = opt.minimize(fun=self._minimizer_callable,
                                     x0=x0,
                                     args=(pprint,),
@@ -233,9 +238,11 @@ class Analysis(object):
                                     method = self.minimizer_settings['method']['value'],
                                     options = self.minimizer_settings['options']['value'])
         
+        end_t = time.time()
         if pprint:
             # clear the line
             print ''
+        print 'average template generation time during minimizer run: %.4f ms'%((end_t - start_t) * 1000./self.n_minimizer_calls)
         best_fit_vals = minim_result.x
         metric_val = minim_result.fun
         dict_flags = {}
