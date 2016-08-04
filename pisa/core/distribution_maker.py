@@ -63,7 +63,7 @@ class DistributionMaker(object):
         return total_outputs
 
     def update_params(self, params):
-        [pipeline.params.update_existing(params) for pipeline in self]
+        [pipeline.update_params(params) for pipeline in self]
 
     @property
     def pipelines(self):
