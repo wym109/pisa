@@ -59,7 +59,7 @@ class data(Stage):
 
         # the rest of this function is PISA v2 legacy code...
 	# right now only use burn sample with sim_version = '4digit'
-	print "sim_version == ", sim_version
+	#print "sim_version == ", sim_version
 	if sim_version == "4digit":
 	    Reco_Neutrino_Name = 'IC86_Dunkman_L6_MultiNest8D_PDG_Neutrino'
 	    Reco_Track_Name = 'IC86_Dunkman_L6_MultiNest8D_PDG_Track'
@@ -112,7 +112,7 @@ class data(Stage):
 
         maps = []
         for flavor in ['cscd','trck']:
-            maps.append(Map(name=flavor, hist=self.data_dict[flavor], binning=self.output_binning))
+            maps.append(Map(name=flavor, hist=self.data_dict[flavor], binning=self.output_binning, tex='data'))
 
         self.template = MapSet(maps,name='data')
 
