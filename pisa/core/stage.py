@@ -643,7 +643,7 @@ class Stage(object):
         """Read-only attribute indicating whether or not the stage will compute
         errors for its transforms and outputs (whichever is applicable). Errors
         on inputs are propagated regardless of this setting."""
-        return self._debug_mode
+        return self._error_method
 
     @profile
     def _derive_outputs_hash(self):
