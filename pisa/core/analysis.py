@@ -298,27 +298,35 @@ class Analysis(object):
 
         return best_fit
 
-    def profile_llh(self, p_name):
+    def profile_llh(self, p_name, values):
         """Run profile log likelihood method for param `p_name`.
 
         Parameters
         ----------
         p_name
+        values to fix parameter to in conditional llh
 
         """
         # run numerator (conditional MLE)
         logging.info('fixing param %s'%p_name)
         self.template_maker.params.fix(p_name)
-        condMLE = self.find_best_fit()
-        # report MLEs and LLH
-        # also add the fixed param
-        condMLE[p_name] = self.template_maker.params[p_name].value
+        condMLEs = {}
+        for value in values:
+            test = template_maker.params[p_name]
+            test.value = value
+            template_maker.update_params(test)
+            condMLE = self.find_best_fit()
+            condMLE[p_name] = self.template_maker.params[p_name].value
+            append_results(condMLEs,condMLE)
+            # report MLEs and LLH
+            # also add the fixed param
         # run denominator (global MLE)
+        ravel_results(condMLEs)
         logging.info('unfixing param %s'%p_name)
         self.template_maker.params.unfix(p_name)
         globMLE = self.find_best_fit()
         # report MLEs and LLH
-        return [condMLE, globMLE]
+        return [condMLEs, globMLE]
 
     def llr(self, template_makerA, template_makerB):
         """ Run loglikelihood ratio for two different template makers A and B
@@ -348,7 +356,7 @@ if __name__ == '__main__':
                         metavar='configfile', required=True,
                         action='append',
                         help='''settings for the template generation''')
-    parser.add_argument('--outfile', metavar='FILE',
+    parser.add_argument('-o', '--outfile', metavar='FILE',
                         type=str, action='store', default='out.json',
                         help='file to store the output')
     parser.add_argument('-v', action='count', default=None,
@@ -375,10 +383,6 @@ if __name__ == '__main__':
     data_maker = DistributionMaker(data_settings)
     template_maker = DistributionMaker(args.template_settings)
 
-    test = template_maker.params['nutau_cc_norm']
-    test.value *= 0
-    template_maker.update_params(test)
-
     # select inverted hierarchy
     #template_maker_settings.set('stage:osc', 'param_selector', 'ih')
     #template_maker_configurator = parse_config(template_maker_settings)
@@ -390,20 +394,19 @@ if __name__ == '__main__':
 
     analysis.minimizer_settings = from_file(args.minimizer_settings)
 
-    results = [{},{}]
+    results = []
 
     for i in range(args.num_trials):
         logging.info('Running trial %i'%i)
         np.random.seed()
-        #analysis.generate_psudodata('poisson')
-        analysis.generate_psudodata('asimov')
+        analysis.generate_psudodata('poisson')
+        #analysis.generate_psudodata('asimov')
 
         # LLR:
         #append_results(results, analysis.llr(template_maker, template_maker_IO))
 
         # profile LLH:
-        append_results(results, analysis.profile_llh('nutau_cc_norm'))
+        results.append(analysis.profile_llh('nutau_cc_norm',np.linspace(0,2,21)*ureg.dimensionless))
 
-    ravel_results(results)
     to_file(results, args.outfile)
     logging.info('Done.')

@@ -5,12 +5,13 @@ from scipy.ndimage.filters import gaussian_filter
 from scipy import interpolate
 import copy
 import itertools
+from uncertainties import unumpy as unp
 
 from pisa import ureg, Q_
 from pisa.core.pipeline import Pipeline
 from pisa.utils.fileio import from_file, to_file
 from pisa.utils.log import set_verbosity
-from pisa.utils.parse_config import parse_config
+from pisa.utils.parse_config import parse_config, parse_quantity, parse_string_literal
 from pisa.utils.plotter import plotter
 from pisa.core.map import Map, MapSet
 
@@ -77,7 +78,12 @@ for sys in sys_list:
             if key.startswith('param.'):
                 _,pname = key.split('.')
                 param = template_maker.params[pname]
-                param.value = val
+                try:
+                    value = parse_quantity(val)
+                    param.value = value.n * value.units
+                except ValueError:
+                    value = parse_string_literal(val)
+                    param.value = value
                 param.set_nominal_to_current_value()
                 template_maker.update_params(param)
         # retreive maps
@@ -117,7 +123,7 @@ for sys in sys_list:
 
         for i, j in np.ndindex((nx,ny)):
         #for i, j in np.ndindex(inputs[cat][nominal].shape):
-            y_values = arrays[cat][i,j,:]
+            y_values = unp.nominal_values(arrays[cat][i,j,:])
             popt, pcov = curve_fit(fit_fun, x_values,
                     y_values, p0=np.ones(degree))
             for k, p in enumerate(popt):
@@ -136,7 +142,7 @@ for sys in sys_list:
                 f_values = fit_fun(x_values, *popt)
                 fun_plot, = plt.plot(x_values, f_values,
                         color=plt_colors[cat])
-                plt.ylim(np.min(arrays[cat])*0.9, np.max(arrays[cat])*1.1)
+                plt.ylim(np.min(unp.nominal_values(arrays[cat]))*0.9, np.max(unp.nominal_values(arrays[cat]))*1.1)
                 if i > 0:
                     plt.setp(plt.gca().get_yticklabels(), visible=False)
                 if j > 0:

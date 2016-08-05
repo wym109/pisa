@@ -343,19 +343,17 @@ def engfmt(n, sigfigs=3, decimals=None, sign_always=False):
     #if units.dimensionless:
     return  '{0:s} {1:s}'.format(num_str, prefixes[pfx_mag])
 
-def append_results(best_fits, best_fit):
-    for i,result in enumerate(best_fit):
-        for key, val in result.items():
-            if best_fits[i].has_key(key):
-                best_fits[i][key].append(val)
-            else:
-                best_fits[i][key] = [val]
+def append_results(results_dict, result_dict):
+    for key, val in result_dict.items():
+        if results_dict.has_key(key):
+            results_dict[key].append(val)
+        else:
+            results_dict[key] = [val]
 
 def ravel_results(results):
-    for i,result in enumerate(results):
-        for key, val in result.items():
-            if hasattr(val[0],'m'):
-                results[i][key] = np.array([v.m for v in val]) * val[0].u
+    for key, val in results.items():
+        if hasattr(val[0],'m'):
+            results[key] = np.array([v.m for v in val]) * val[0].u
 
 
 if __name__ == '__main__':

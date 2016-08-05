@@ -56,7 +56,10 @@ class gpu(Stage):
             'nu_nc_norm',
             'nutau_cc_norm',
             'delta_index',
-            'no_nc_osc'
+            'no_nc_osc',
+            'reco_e_res_raw',
+            'reco_e_scale_raw',
+            'reco_cz_res_raw'
         )
 
         output_names = ('trck','cscd')
@@ -140,7 +143,19 @@ class gpu(Stage):
             # host arrays
             self.events_dict[flav]['host'] = {}
             for var in variables:
-                self.events_dict[flav]['host'][var] = evts[flav][var].astype(FTYPE)
+                if var == 'reco_energy':
+                    f = self.params.reco_e_res_raw.value.m_as('dimensionless')
+                    g = self.params.reco_e_scale_raw.value.m_as('dimensionless')
+                    self.events_dict[flav]['host']['reco_energy'] = (g * ((1.-f) * evts[flav]['true_energy'] + f * evts[flav]['reco_energy'])).astype(FTYPE)
+                elif var == 'reco_coszen':
+                    f = self.params.reco_cz_res_raw.value.m_as('dimensionless')
+                    reco_coszen = ((1.-f) * evts[flav]['true_coszen'] + f * evts[flav]['reco_coszen']).astype(FTYPE)
+                    while np.any(reco_coszen<-1) or np.any(reco_coszen>1):
+                        reco_coszen[reco_coszen>1] = 2-reco_coszen[reco_coszen>1]
+                        reco_coszen[reco_coszen<-1] = -2-reco_coszen[reco_coszen<-1]
+                    self.events_dict[flav]['host']['reco_coszen'] = reco_coszen 
+                else:
+                    self.events_dict[flav]['host'][var] = evts[flav][var].astype(FTYPE)
             self.events_dict[flav]['n_evts'] = np.uint32(len(self.events_dict[flav]['host'][variables[0]]))
             for var in empty:
                 if self.params.no_nc_osc and ( (flav in ['nue_nc', 'nuebar_nc'] and var == 'prob_e') or (flav in ['numu_nc', 'numubar_nc'] and var == 'prob_mu') ):
@@ -149,6 +164,10 @@ class gpu(Stage):
                     self.events_dict[flav]['host'][var] = np.zeros(self.events_dict[flav]['n_evts'], dtype=FTYPE)
             # calulate layers
             self.events_dict[flav]['host']['numLayers'], self.events_dict[flav]['host']['densityInLayer'], self.events_dict[flav]['host']['distanceInLayer'] = self.osc.calc_Layers(self.events_dict[flav]['host']['true_coszen'])
+        end_t = time.time()
+        logging.debug('layers done in %.4f ms'%((end_t - start_t) * 1000))
+        start_t = time.time()
+        for flav in self.flavs:
             # copy to device arrays
             self.events_dict[flav]['device'] = copy_dict_to_d(self.events_dict[flav]['host'])
         end_t = time.time()
@@ -156,7 +175,6 @@ class gpu(Stage):
 
     def _compute_outputs(self, inputs=None):
         logging.info('retreive weighted histo')
-        start_t = time.time()
         osc_params = ['theta12','theta13','theta23','deltam21','deltam31','deltacp']
         # get hash
         osc_hash = hash_obj(normQuant([self.params[name].value for name in osc_params]))
@@ -179,6 +197,7 @@ class gpu(Stage):
             deltacp = self.params.deltacp.value.m_as('rad')
             self.osc.update_MNS(theta12, theta13, theta23, deltam21, deltam31, deltacp)
         tot = 0
+        start_t = time.time()
         for flav in self.flavs:
             if recalc_osc and not (self.params.no_nc_osc and flav.endswith('_nc')):
                 self.osc.calc_probs(self.events_dict[flav]['kNuBar'], self.events_dict[flav]['kFlav'],
@@ -191,6 +210,15 @@ class gpu(Stage):
                                 delta_index=delta_index,
                                 **self.events_dict[flav]['device'])
 
+            if self.error_method == 'sumw2':
+                self.weight.calc_sumw2(self.events_dict[flav]['n_evts'], **self.events_dict[flav]['device'])
+
+            tot += self.events_dict[flav]['n_evts']
+        end_t = time.time()
+        logging.debug('GPU calc done in %.4f ms for %s events'%(((end_t - start_t) * 1000),tot))
+
+        start_t = time.time()
+        for flav in self.flavs:
             self.events_dict[flav]['hist_cscd'] = self.histogrammer.get_hist(self.events_dict[flav]['n_evts'],
                                                                     self.events_dict[flav]['device'][self.bin_names[0]],
                                                                     self.events_dict[flav]['device'][self.bin_names[1]],
@@ -202,7 +230,6 @@ class gpu(Stage):
                                                                     self.events_dict[flav]['device']['weight_trck'])
 
             if self.error_method == 'sumw2':
-                self.weight.calc_sumw2(self.events_dict[flav]['n_evts'], **self.events_dict[flav]['device'])
                 self.events_dict[flav]['sumw2_cscd'] = self.histogrammer.get_hist(self.events_dict[flav]['n_evts'],
                                                                         self.events_dict[flav]['device'][self.bin_names[0]],
                                                                         self.events_dict[flav]['device'][self.bin_names[1]],
@@ -212,10 +239,9 @@ class gpu(Stage):
                                                                         self.events_dict[flav]['device'][self.bin_names[0]],
                                                                         self.events_dict[flav]['device'][self.bin_names[1]],
                                                                         self.events_dict[flav]['device']['sumw2_trck'])
-
-            tot += self.events_dict[flav]['n_evts']
         end_t = time.time()
-        logging.debug('GPU done in %.4f ms for %s events'%(((end_t - start_t) * 1000),tot))
+        logging.debug('GPU hist done in %.4f ms for %s events'%(((end_t - start_t) * 1000),tot))
+
         
         # set new hash
         self.osc_hash = osc_hash
