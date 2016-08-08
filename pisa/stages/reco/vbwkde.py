@@ -6,10 +6,14 @@
 #
 # date:   2016-05-27
 
-"""
-This reco service creates the pdfs of the reconstructed energy and coszen
-from the true parameters using variable-bandwidth KDEs. Provides reco event
-rate maps using these pdfs.
+"""This reco service produces a set of transforms mapping true
+events values (energy and coszen) onto reconstructed values.
+
+For each bin in true energy and true coszen, a corresponding distribution of
+reconstructed energy and coszen values is estimated using a variable-bandwidth
+KDE.
+
+These transforms are used to produce reco event rate maps.
 """
 
 # TODO reco_scale params
@@ -39,10 +43,13 @@ from pisa.utils.log import logging, set_verbosity
 
 class vbwkde(Stage):
     """
-    From the simulation file, creates 4D histograms of
-    [true_energy][true_coszen][reco_energy][reco_coszen] which act as
-    2D pdfs for the probability that an event with (true_energy,
-    true_coszen) will be reconstructed as (reco_energy,reco_coszen).
+    From the simulation file, a set of 4D transforms are created which map
+    bins of true events onto distributions of reconstructed events using
+    variable-bandwidth kernel density estimation. These transforms can be
+    accessed by [true_energy][true_coszen][reco_energy][reco_coszen].
+    These distributions represent the probability that a true event
+    (true_energy, true_coszen) with be reconstructed as (reco_energy,
+    reco_coszen).
 
     From these histograms and the true event rate maps, calculates
     the reconstructed even rate templates.
@@ -225,6 +232,10 @@ class vbwkde(Stage):
             Reconstructed neutrino coszen, one per event
         flav : str
         int_type : str
+        ebins : ndarray
+            Energy binning in GeV
+        czbins: ndarray
+            Coszen binning (unitless)
         make_plots : bool
         out_dir : str or None
             path to directory into which to save plots. ``None`` (default)
@@ -240,6 +251,9 @@ class vbwkde(Stage):
               len(self.czbins)-1
             since ebins and czbins define the histograms' bin edges.
         """
+        # TODO out_dir not used
+        # TODO set constants externally?
+
         OVERFIT_FACTOR = 1.0
 
         MIN_NUM_EVENTS = 100
@@ -922,8 +936,9 @@ class vbwkde(Stage):
         # TODO How should REMOVE_SIM_DOWNGOING be set? (currently hard-coded)
         # TODO reco scale? must be 1
         # TODO arbitrary dimensions (currently energy and coszen)
-        """Generate reconstruction "smearing kernels" by histogramming true and
-        reconstructed variables from a Monte Carlo events file.
+        """Generate reconstruction "smearing kernels" by estimating the
+        distribution of reconstructed events corresponding to each bin of true
+        events using VBWKDE.
 
         The resulting transform is a 2N-dimensional histogram, where N is the
         dimensionality of the input binning. The transform maps the truth bin
@@ -934,15 +949,11 @@ class vbwkde(Stage):
         over all the reco space from truth bin i. This will be normalised to
         the total number of events in truth bin i.
 
-        Notes
-        -----
-        In the current implementation these histograms are made
-        **UN**weighted. This is probably quite wrong...
-
         """
+        # TODO Why is there an option to remove downgoing events?
         # It's different from upgoing-only binning:
         # kernels are over full range
-        REMOVE_SIM_DOWNGOING = False
+        REMOVE_SIM_DOWNGOING = True
 
         self.load_events()
 
