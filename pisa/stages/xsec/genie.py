@@ -122,12 +122,12 @@ class genie(Stage):
         )
 
         input_names = (
-            'nue', 'nuebar', 'numu', 'numubar'
+            'nue', 'nuebar', 'numu', 'numubar', 'nutau', 'nutaubar'
         )
 
         all_names = (
-            'nue_cc', 'nuebar_cc', 'numu_cc', 'numubar_cc',
-            'nue_nc', 'nuebar_nc', 'numu_nc', 'numubar_nc'
+            'nue_cc', 'nuebar_cc', 'numu_cc', 'numubar_cc', 'nutau_cc', 'nutaubar_cc',
+            'nue_nc', 'nuebar_nc', 'numu_nc', 'numubar_nc', 'nutau_nc', 'nutaubar_nc',
         )
         if transform_groups is None:
             output_names = all_names
