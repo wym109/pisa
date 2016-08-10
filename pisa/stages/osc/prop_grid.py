@@ -14,13 +14,6 @@ import pycuda.compiler
 from pycuda.compiler import SourceModule
 import pycuda.driver as cuda
 
-SIGFIGS = 12
-"""Significant figures for determining if numbers and quantities normalised
-(using pisa.utils.comparisons.normQuant) are equal. Make sure this is less than
-the numerical precision that calculations are being performed in to have the
-desired effect that "essentially equal" things evaluate to be equal."""
-
-
 class prop_grid(Stage):
     """Neutrino oscillations calculation via Prob3 with a GPU.
 
