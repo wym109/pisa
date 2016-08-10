@@ -647,7 +647,7 @@ if args.osc:
 
 if args.aeff:
     aeff_config = parse_config('settings/aeff_test.ini')
-    aeff_config['aeff']['params']['aeff_weight_file'] = 'events/DC/2015/mdunkman/1XXXX/Unjoined/DC_MSU_1X585_unjoined_events_mc.hdf5'
+    aeff_config['aeff']['params']['aeff_weight_file'] = 'events/DC/2015/mdunkman/1XXXX/UnJoined/DC_MSU_1X585_unjoined_events_mc.hdf5'
 
     for syst in [None, 'aeff_scale']:
         do_aeff_comparison(config=deepcopy(aeff_config),
