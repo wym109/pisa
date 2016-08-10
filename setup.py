@@ -105,12 +105,6 @@ if __name__ == '__main__':
                          ' -fopenmp; installing PISA without OpenMP'
                          ' support.\n')
 
-    # Obtain the numpy include directory. This logic works across numpy versions.
-    try:
-        numpy_include = numpy.get_include()
-    except AttributeError:
-        numpy_include = numpy.get_numpy_include()
-        
     # Collect (build-able) external modules
     ext_modules = []
 
@@ -124,14 +118,16 @@ if __name__ == '__main__':
             'pisa/stages/osc/prob3/mosc.c',
             'pisa/stages/osc/prob3/mosc3.c'
         ],
-        include_dirs=[
-            numpy_include,
-            'pisa/stages/osc/prob3/'
-        ],
         extra_compile_args=['-Wall', '-O3', '-fPIC'],
         swig_opts=['-c++'],
     )
     ext_modules.append(prob3cpu_module)
+
+    # Obtain the numpy include directory. This logic works across numpy versions.
+    try:
+        numpy_include = numpy.get_include()
+    except AttributeError:
+        numpy_include = numpy.get_numpy_include()
 
     if CUDA:
         prob3gpu_module = Extension(
