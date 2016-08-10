@@ -1,0 +1,67 @@
+# Makefile
+#
+# IMPORTANT! If you don't rename EarthDensity.py -> <something
+# else>.py, then bad things/name collisions happen!
+#
+
+# Needed to create the __init__.py
+SHELL:=/bin/bash
+
+#############################
+# NEEDED FOR PYTHON DLL
+#PYLIB = /gpfs/home/tca3/local/anaconda/pkgs/python-2.7.8-1/lib/
+#PYINC = /gpfs/home/tca3/local/anaconda/pkgs/python-2.7.8-1/include/python2.7/
+#PYFLAGS = -L$(PYLIB) -lpython2.7
+#NUMPYINC = /usr/local/lib/python2.7/site-packages/numpy/core/include/
+NUMPYINC = /home/peller/anaconda2/include/python2.7/
+PYINC = /home/peller/anaconda2/include/python2.7/
+
+# Depending on your OS/compiler, you may need a different for a dynamic lib for c++
+DLLFLAG = -shared
+#SWIG = /usr/bin/swig
+SWIG = swig
+#############################
+
+################################################
+# NEEDED FOR getting Earth Model in one place
+################################################
+INC=$(PISA)/pisa/stages/osc/prob3/
+
+CXX = g++ -O3 -fPIC
+CXXFLAGS += -I$(INC) -I. -Wall
+
+GridPropagator.o : GridPropagator.cpp
+	$(RM) $@
+	$(CXX) -c $(CXXFLAGS) -o $@ $<
+EarthDensity.o : $(INC)/EarthDensity.cc
+	$(RM) $@
+	$(CXX) -c $(CXXFLAGS) -o $@ $<
+
+
+OBJS = EarthDensity.o GridPropagator.o
+
+targets = _GridPropagator.so GridProp.py
+
+
+# Now generate the python dll
+_GridPropagator.so: GridPropagator_wrap.o GridPropagator.o
+	$(CXX) $(DLLFLAG) GridPropagator_wrap.o $(OBJS) $(PYFLAGS) -o $@
+	touch __init__.py
+
+GridPropagator_wrap.o: GridPropagator_wrap.cxx $(OBJS)
+	$(CXX) $(CXXFLAGS) GridPropagator_wrap.cxx -c -g -I$(PYINC) -I$(NUMPYINC)
+
+GridPropagator_wrap.cxx: GridPropagator.i
+	$(SWIG) -v -c++ -python GridPropagator.i
+
+GridProp.py: GridPropagator.i
+	$(SWIG) -v -c++ -python GridPropagator.i
+
+.PHONY: all
+all: $(targets)
+
+.PHONY: clean
+clean:
+	$(RM) $(targets) *.o *.a *.so *.pyc *~ *.cxx
+
+emptyrule: $(targets)

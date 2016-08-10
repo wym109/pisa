@@ -287,8 +287,8 @@ class Map(object):
         if method in ['poisson']:
             if seed is not None:
                 np.random.seed(seed)
-            return {'hist': unp.uarray(poisson.rvs(self.hist),
-                                       np.sqrt(self.hist))}
+            return {'hist': unp.uarray(poisson.rvs(unp.nominal_values(self.hist)),
+                                       np.sqrt(unp.nominal_values(self.hist)))}
         elif method in ['', 'none', 'false']:
             return
         else:
