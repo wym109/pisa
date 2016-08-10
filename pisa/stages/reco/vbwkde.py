@@ -63,6 +63,12 @@ class vbwkde(Stage):
             PISA events file to use to derive transforms, or a string
             specifying the resource location of the same.
 
+        e_res_scale : float
+            A scaling factor for energy resolutions.
+
+        cz_res_scale : float
+            A scaling factor for coszen resolutions.
+
     particles : string
         Must be one of 'neutrinos' or 'muons' (though only neutrinos are
         supported at this time).
@@ -126,7 +132,7 @@ class vbwkde(Stage):
         # All of the following params (and no more) must be passed via the
         # `params` argument.
         expected_params = (
-            'reco_weight_file',
+            'reco_weight_file', 'e_res_scale', 'cz_res_scale'
             # NOT IMPLEMENTED: 'e_reco_scale', 'cz_reco_scale'
         )
 
@@ -390,6 +396,10 @@ class vbwkde(Stage):
             # succinctness
             enu_err = e_reco[in_ebin_ind] - e_true[in_ebin_ind]
             cz_err = cz_reco[in_ebin_ind] - cz_true[in_ebin_ind]
+
+            # Scale resolutions
+            enu_err *= self.params.e_res_scale.value
+            cz_err *= self.params.cz_res_scale.value
 
             #==================================================================
             # Neutrino energy resolutions
