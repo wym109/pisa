@@ -24,6 +24,7 @@ void GridPropagator::Get_dm_mat(fType dm_mat[3][3])
       dm_mat[i][j] = m_dm[i][j];
 }
 
+
 void GridPropagator::Get_mix_mat(fType mix_mat[3][3][2])
 {
   for(int i=0; i<3; i++) {
@@ -33,6 +34,7 @@ void GridPropagator::Get_mix_mat(fType mix_mat[3][3][2])
     }
   }
 }
+
 
 void GridPropagator::GetDensityInLayer( fType* densityInLayer, int len)
 {
@@ -46,6 +48,7 @@ void GridPropagator::GetDensityInLayer( fType* densityInLayer, int len)
       *(densityInLayer + i*m_maxLayers + j) = *(m_densityInLayer + i*m_maxLayers + j);
 }
 
+
 void GridPropagator::GetDistanceInLayer( fType* distanceInLayer, int len)
 {
   // assert that len == m_numberOfLayers*m_maxLayers??
@@ -53,6 +56,7 @@ void GridPropagator::GetDistanceInLayer( fType* distanceInLayer, int len)
     for(int j=0; j<m_maxLayers; j++)
       *(distanceInLayer + i*m_maxLayers + j) = *(m_distanceInLayer + i*m_maxLayers + j);
 }
+
 
 void GridPropagator::GetNumberOfLayers( int* numLayers, int len)
 {
@@ -110,8 +114,6 @@ void GridPropagator::SetMNS(fType dm_solar,fType dm_atm,fType x12,fType x13,fTyp
     * deltacp - \delta_{cp} value to use.
 */
 {
-
-
   // NOTE: does not support values of x_ij given in sin^2(2*theta_ij)
   fType sin12 = sqrt(x12);
   fType sin13 = sqrt(x13);
@@ -146,6 +148,7 @@ void GridPropagator::SetMNS(fType dm_solar,fType dm_atm,fType x12,fType x13,fTyp
   }
 
 }
+
 
 void GridPropagator::SetEarthDensityParams(fType prop_height,
                                            fType YeI, fType YeO, fType YeM)
@@ -199,57 +202,6 @@ void GridPropagator::SetEarthDensityParams(fType prop_height,
 
 
 }
-
-/*
-void GridPropagator::SetEarthDensityParams(char* earthModelFile)
-{
-
-  // These should go into the Earth model file
-  fType detector_depth = 2.0; fType prod_height = 20.0*kmTOcm;
-
-  m_earthModel = new EarthDensity(earthModelFile, detector_depth);
-  fType rDetector = m_earthModel->get_RDetector()*kmTOcm;
-
-  // Set member variable pointers/arrays:
-  m_maxLayers = m_earthModel->get_MaxLayers();
-
-  size_t layer_size = m_nczbins*m_maxLayers*sizeof(fType);
-  m_densityInLayer = (fType*)malloc(layer_size);
-  memset(m_densityInLayer,0.0,layer_size);
-  m_distanceInLayer = (fType*)malloc(layer_size);
-  memset(m_distanceInLayer,0.0,layer_size);
-
-  m_numberOfLayers = (int*)malloc(m_nczbins*sizeof(int));
-
-  for (int i=0; i<m_nczbins; i++) {
-    fType coszen = m_czcen[i];
-    fType pathLength = DefinePath(coszen, prod_height, rDetector);
-    m_earthModel->SetDensityProfile( coszen, pathLength, prod_height );
-
-    //printf("here?\n");
-    *(m_numberOfLayers+i) = m_earthModel->get_LayersTraversed();
-    if (VERBOSE) {
-      printf("coszen: %f, layers traversed: %d, path length: %f\n",coszen,
-             *(m_numberOfLayers+i), pathLength/kmTOcm);
-    }
-    for (int j=0; j < *(m_numberOfLayers+i); j++) {
-      fType density = m_earthModel->get_DensityInLayer(j)*
-        m_earthModel->get_ElectronFractionInLayer(j);
-      *(m_densityInLayer + i*m_maxLayers + j) = density;
-
-      fType distance = m_earthModel->get_DistanceAcrossLayer(j)/kmTOcm;
-      *(m_distanceInLayer + i*m_maxLayers + j) = distance;
-
-      if (VERBOSE) {
-        printf("  >> Layer: %d, density: %f, distance: %f\n",j,
-               *(m_densityInLayer + i*m_maxLayers + j),
-               *(m_distanceInLayer + i*m_maxLayers + j));
-      }
-    }
-  }  // end loop over number of cz bins
-
-}
-*/
 
 
 fType GridPropagator::DefinePath(fType cz, fType prod_height, fType rDetector)

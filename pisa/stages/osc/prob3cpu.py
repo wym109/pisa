@@ -128,6 +128,7 @@ class prob3cpu(Stage):
 
         self.compute_binning_constants()
 
+
     def compute_binning_constants(self):
         # Only works if energy and coszen are in input_binning
         if 'true_energy' not in self.input_binning \
@@ -159,11 +160,13 @@ class prob3cpu(Stage):
         [self.extra_dim_nums.remove(d) for d in (self.e_dim_num,
                                                  self.cz_dim_num)]
 
+
     def create_transforms_datastructs(self):
         xform_shape = [3, 2] + list(self.input_binning.shape)
         nu_xform = np.empty(xform_shape)
         antinu_xform = np.empty(xform_shape)
         return nu_xform, antinu_xform
+
 
     def setup_barger_propagator(self):
         # If already instantiated with same parameters, don't instantiate again
@@ -189,9 +192,11 @@ class prob3cpu(Stage):
         )
         self.barger_propagator.UseMassEigenstates(False)
 
+
     def _derive_nominal_transforms_hash(self):
         """No nominal transforms implemented for this service."""
         return None
+
 
     @profile
     def _compute_transforms(self):
@@ -216,13 +221,13 @@ class prob3cpu(Stage):
         sin2th13Sq = np.sin(theta13)**2
         sin2th23Sq = np.sin(theta23)**2
 
-
         total_bins = int(len(self.e_centers)*len(self.cz_centers))
         evals = np.empty(total_bins, "double")
         czvals = np.empty(total_bins, "double")
         # We use 18 since we have each 3*3 possible oscillations for neutrinos
         # and antineutrinos.
         probList = np.empty(total_bins*18,"double")
+
         # The 1.0 was energyscale from earlier versions. Perhaps delete this
         # if we no longer want energyscale.
         probList, evals, czvals = self.barger_propagator.fill_osc_prob_c(
@@ -259,8 +264,8 @@ class prob3cpu(Stage):
                               input_binning=self.input_binning,
                               output_binning=self.output_binning,
                               xform_array=xform))
-        Tset = TransformSet(transforms=transforms)
-        return Tset
+        return TransformSet(transforms=transforms)
+
 
     def validate_params(self, params):
         pass

@@ -111,8 +111,9 @@ if __name__ == '__main__':
     except AttributeError:
         numpy_include = numpy.get_numpy_include()
         
-    # Collect (build-able) external modules
+    # Collect (build-able) external modules and package_data
     ext_modules = []
+    package_data = {}
 
     # Prob3 oscillation code (pure C++, no CUDA)
     prob3cpu_module = Extension(
@@ -132,6 +133,26 @@ if __name__ == '__main__':
         swig_opts=['-c++'],
     )
     ext_modules.append(prob3cpu_module)
+
+    package_data['pisa.resources'] = [
+        'aeff/*.json',
+        'events/*.hdf5',
+        'events/*.json',
+        'events/pingu_v36/*.hdf5',
+        'events/pingu_v38/*.hdf5',
+        'events/pingu_v39/*.hdf5',
+        'flux/*.d',
+        'logging.json',
+        'osc/*.hdf5',
+        'osc/*.dat',
+        'pid/*.json',
+        'priors/*.json',
+        'reco/*.json',
+        'settings/discrete_sys_settings/*.ini',
+        'settings/minimizer_settings/*.json',
+        'settings/pipeline_settings/*.ini',
+        'sys/*.json'
+    ]
 
     if CUDA:
         prob3gpu_module = Extension(
@@ -154,7 +175,18 @@ if __name__ == '__main__':
             ]
         )
         ext_modules.append(prob3gpu_module)
-
+        package_data['pisa.stages.osc.grid_propagator'] = [
+            'mosc3.cu',
+            'mosc.cu',
+            'mosc3.h',
+            'mosc.h',
+            'constants.h',
+            'numpy.i',
+            'GridPropagator.h',
+            'OscUtils.h',
+            'utils.h'
+        ]
+            
     if OPENMP:
         gaussians_module = Extension(
             'pisa.utils.gaussians',
@@ -190,6 +222,7 @@ if __name__ == '__main__':
             'pisa.core',
             'pisa.utils',
             'pisa.stages',
+            'pisa.stages.flux',
             'pisa.stages.osc',
             'pisa.stages.osc.prob3',
             'pisa.stages.osc.nuCraft',
@@ -197,6 +230,7 @@ if __name__ == '__main__':
             'pisa.stages.aeff',
             'pisa.stages.reco',
             'pisa.stages.pid',
+            'pisa.stages.sys',
             'pisa.utils',
             'pisa.resources'
         ],
@@ -206,19 +240,5 @@ if __name__ == '__main__':
             'pisa/core/stage.py',
         ],
         ext_modules=cythonize(ext_modules),
-        package_data={
-            'pisa.resources': [
-                'logging.json',
-                'aeff/*.json',
-                'reco/*.json',
-                'pid/*.json',
-                'flux/*.d',
-                'settings/grid_settings/*.json',
-                'settings/minimizer_settings/*.json',
-                'settings/pipeline_settings/*.json',
-                'osc/*.hdf5',
-                'osc/*.dat',
-                'events/*.hdf5'
-            ]
-        }
+        package_data=package_data
     )
