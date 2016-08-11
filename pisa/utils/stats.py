@@ -126,3 +126,43 @@ def llh(actual_values, expected_values):
 
     return (actual_values*np.log(expected_values) - expected_values -
             gammaln(actual_values + 1))
+
+
+def log_poisson(k,l):
+    return k*np.log(l) -l - gammaln(k+1)
+
+def log_smear(x,sigma):
+    return-np.log(sigma)-0.5*np.log(2*np.pi)-np.square(x)/(2*np.square(sigma))
+
+def conv_poisson(k,l,s,nsigma=3,steps=100.):
+    st = 2*(steps+1)
+    conv_x = np.linspace(-nsigma*s,+nsigma*s,st)[:-1]+nsigma*s/(st-1.)
+    conv_y = log_smear(conv_x,s)
+    f_x = conv_x + l
+    # avoid zero values for lambda
+    idx = np.argmax(f_x>0)
+    f_y = log_poisson(k,f_x[idx:])
+    if np.isnan(f_y).any():
+	logging.error('`NaN values`:')
+        logging.error("idx = ", idx)
+        logging.error("s = ", s)
+        logging.error("l = ", l)
+        logging.error("f_x = ", f_x)
+        logging.error("f_y = ", f_y)
+    f_y = np.nan_to_num(f_y)
+    conv = np.exp(conv_y[idx:] + f_y)
+    return conv.sum()*(conv_x[1]-conv_x[0])
+
+def conv_llh(actual_values, expected_values):
+    """
+    compute the convolution llh using the uncertainty on the expected values to smear out the poisson pdfs
+    """
+    actual_values = unp.nominal_values(actual_values).ravel()
+    sigma = unp.std_devs(expected_values).ravel()
+    expected_values = unp.nominal_values(expected_values).ravel()
+    #template[template <= 0] = 10e-10
+    triplets = np.array([actual_values, expected_values, sigma]).T
+    sum = 0
+    for i in xrange(len(triplets)):
+        sum += np.log(max(SMALL_POS,conv_poisson(*triplets[i])))
+    return sum
