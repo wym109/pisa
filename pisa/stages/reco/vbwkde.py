@@ -397,9 +397,10 @@ class vbwkde(Stage):
             enu_err = e_reco[in_ebin_ind] - e_true[in_ebin_ind]
             cz_err = cz_reco[in_ebin_ind] - cz_true[in_ebin_ind]
 
-            # Scale resolutions
-            enu_err *= self.params.e_res_scale.value
-            cz_err *= self.params.cz_res_scale.value
+            # DEPRECATED
+            ## Scale resolutions
+            #enu_err *= self.params.e_res_scale.value
+            #cz_err *= self.params.cz_res_scale.value
 
             #==================================================================
             # Neutrino energy resolutions
@@ -428,14 +429,29 @@ class vbwkde(Stage):
                 str(egy_kde_lims) + ', VBWKDE_N: ' + str(kde_num_pts)
             )
 
+            # Adjust range of kde for future axis scaling
+            factor = self.params.e_res_scale.value
+            enu_median = np.median(enu_err)
+
+            low_lim_shift = egy_kde_lims[0] * (factor - 1) + enu_median * (1 - factor)
+            upp_lim_shift = egy_kde_lims[1] * (factor - 1) + enu_median * (1 - factor)
+            # the above is equiv. to (factor*(lim - median) + median) - lim
+
+            egy_kde_lims_ext = np.array([0.]*2)
+            if low_lim_shift > 0:
+                egy_kde_lims_ext[0] = egy_kde_lims[0] - low_lim_shift * (1./factor)
+            if upp_lim_shift < 0:
+                egy_kde_lims_ext[1] = egy_kde_lims[1] - upp_lim_shift * (1./factor)
+
             # Compute variable-bandwidth KDEs
             enu_bw, enu_mesh, enu_pdf = kde.vbw_kde(
                 data           = enu_err,
                 overfit_factor = OVERFIT_FACTOR,
-                MIN            = egy_kde_lims[0],
-                MAX            = egy_kde_lims[1],
+                MIN            = egy_kde_lims_ext[0],
+                MAX            = egy_kde_lims_ext[1],
                 N              = kde_num_pts
             )
+            # TODO change number of points according to `factor`
 
             if np.min(enu_pdf) < 0:
                 # Only issue warning if the most-negative value is negative
@@ -452,10 +468,50 @@ class vbwkde(Stage):
 
             assert np.min(enu_pdf) >= 0, str(np.min(enu_pdf))
 
+            #kde_mode = enu_mesh[np.where(enu_pdf == np.max(enu_pdf))[0]]
+            kde_area = np.trapz(y=enu_pdf, x=enu_mesh)
+
+            # Scale distribution around median
+            #enu_mesh_scaled = factor * (enu_mesh - enu_median) + enu_median
+            #enu_mesh_scaled = factor * (enu_mesh - kde_mode) + kde_mode
+            enu_mesh_scaled = factor * enu_mesh
+
+            interp = interpolate.interp1d(
+                        x=enu_mesh_scaled,
+                        y=enu_pdf,
+                        kind='linear',
+                        copy=True,
+                        bounds_error=True,
+                        fill_value=np.nan
+                        )
+            #enu_mesh = enu_mesh[(enu_mesh >= egy_kde_lims[0]) & \
+            #        (enu_mesh <= egy_kde_lims[1])]
+            full_enu_mesh = np.copy(enu_mesh)
+            enu_mesh = enu_mesh[(enu_mesh >= enu_mesh_scaled[0]) & \
+                    (enu_mesh <= enu_mesh_scaled[-1])]
+            enu_pdf_scaled = interp(enu_mesh)
+
+            # Re-normalize pdf
+            enu_pdf_scaled /= np.trapz(x=enu_mesh, y=enu_pdf_scaled)
+
+            # CHECK SLOWER METHOD TOO
+            # Scale resolutions
+            enu_err_scaled = enu_err * self.params.e_res_scale.value
+            cz_err_scaled = cz_err * self.params.cz_res_scale.value
+            # Compute variable-bandwidth KDEs
+            enu_bw_slow, enu_mesh_slow, enu_pdf_slow = kde.vbw_kde(
+                data           = enu_err_scaled,
+                overfit_factor = OVERFIT_FACTOR,
+                MIN            = egy_kde_lims[0],
+                MAX            = egy_kde_lims[1],
+                N              = kde_num_pts
+            )
+
+
             # Re-center distribution at the center of the energy bin for which
             # errors were computed
             offset_enu_mesh = enu_mesh+ebin_mid
-            offset_enu_pdf = enu_pdf
+            offset_enu_pdf = enu_pdf_scaled
 
             # Get reference area under the PDF, for checking after interpolated
             # values are added.
@@ -540,7 +596,7 @@ class vbwkde(Stage):
                 ax1 = fig1.add_subplot(211, axisbg=AXISBG)
 
                 # Retrieve region where VBWKDE lives
-                ml_ci = confInterval.MLConfInterval(x=enu_mesh, y=enu_pdf)
+                ml_ci = confInterval.MLConfInterval(x=full_enu_mesh, y=enu_pdf)
                 #for conf in np.logspace(np.log10(0.999), np.log10(0.95), 50):
                 #    try:
                 #        lb, ub, yopt, r = ml_ci.findCI_lin(conf=conf)
@@ -570,11 +626,15 @@ class vbwkde(Stage):
                                                   **HIST_PP)
 
                 # Plot the VBWKDE
-                ax1.plot(enu_mesh, enu_pdf, **DIFFUS_PP)
+                ax1.plot(full_enu_mesh, enu_pdf, label='no scaling')
+                ax1.plot(enu_mesh_slow, enu_pdf_slow, label='by scaling events')
+                #ax1.plot([kde_mode]*2, [0, np.max(enu_pdf_scaled)])
+                ax1.plot(enu_mesh, enu_pdf_scaled, **DIFFUS_PP)
                 axlims = ax1.axis('tight')
                 ax1.set_xlim(xlims)
                 ymax = axlims[3]*1.05
                 ax1.set_ylim(0, ymax)
+
 
                 # Grey-out regions outside binned region, so it's clear what
                 # part of tail(s) will be thrown away
