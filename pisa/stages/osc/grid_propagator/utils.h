@@ -16,7 +16,7 @@ void check(T err, const char* const func, const char* const file, const int line
 }
 */
 
-
+/*
 __device__ double atomicAdd(double* address, double val)
 {
   unsigned long long int* address_as_ull = (unsigned long long int*) address;
@@ -35,6 +35,6 @@ __device__ double atomicAdd(double* address, double val)
 
 }
 
-
+*/
 
 #endif

@@ -268,6 +268,8 @@ class gpu(Stage):
                     sumw2_cscd += self.events_dict[flav]['sumw2_cscd'] * f * f
                     sumw2_trck += self.events_dict[flav]['sumw2_trck'] * f * f
 
+        #print 'cscd %.4f'%(np.sum(hist_cscd))
+        #print 'trck %.4f'%(np.sum(hist_trck))
         if self.error_method == 'sumw2':
             maps.append(Map(name='cscd', hist=hist_cscd, error_hist=np.sqrt(sumw2_cscd), binning=self.output_binning))
             maps.append(Map(name='trck', hist=hist_trck, error_hist=np.sqrt(sumw2_trck), binning=self.output_binning))

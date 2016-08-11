@@ -52,25 +52,25 @@ class GPUweight(object):
                         fType idx_scale = spectral_index_scale(true_energy[idx], 24.0900951261, delta_index);
                         
                         fType scaled_nue_flux, scaled_numu_flux;
-                        apply_ratio_scale(neutrino_nue_flux[idx], neutrino_numu_flux[idx], nue_numu_ratio, true,
+                        apply_ratio_scale(neutrino_nue_flux[idx], neutrino_numu_flux[idx], nue_numu_ratio, false,
                                             scaled_nue_flux, scaled_numu_flux);
                         // and the opposite (bar) type
                         fType scaled_nue_oppo_flux, scaled_numu_oppo_flux;
-                        apply_ratio_scale(neutrino_oppo_nue_flux[idx], neutrino_oppo_numu_flux[idx], nue_numu_ratio, true,
+                        apply_ratio_scale(neutrino_oppo_nue_flux[idx], neutrino_oppo_numu_flux[idx], nue_numu_ratio, false,
                                             scaled_nue_oppo_flux, scaled_numu_oppo_flux);
                         // nu/nubar ratio
                         fType scaled_nue_flux2, scaled_nue_oppo_flux2;
                         fType scaled_numu_flux2, scaled_numu_oppo_flux2;
                         if (kNuBar < 0){
-                            apply_ratio_scale(scaled_nue_oppo_flux, scaled_nue_flux, nu_nubar_ratio, true,
+                            apply_ratio_scale(scaled_nue_oppo_flux, scaled_nue_flux, nu_nubar_ratio, false,
                                                 scaled_nue_oppo_flux2, scaled_nue_flux2);
-                            apply_ratio_scale(scaled_numu_oppo_flux, scaled_numu_flux, nu_nubar_ratio, true,
+                            apply_ratio_scale(scaled_numu_oppo_flux, scaled_numu_flux, nu_nubar_ratio, false,
                                                 scaled_numu_oppo_flux2, scaled_numu_flux2);
                         }
                         else {
-                            apply_ratio_scale(scaled_nue_flux, scaled_nue_oppo_flux, nu_nubar_ratio, true,
+                            apply_ratio_scale(scaled_nue_flux, scaled_nue_oppo_flux, nu_nubar_ratio, false,
                                                 scaled_nue_flux2, scaled_nue_oppo_flux2);
-                            apply_ratio_scale(scaled_numu_flux, scaled_numu_oppo_flux, nu_nubar_ratio, true,
+                            apply_ratio_scale(scaled_numu_flux, scaled_numu_oppo_flux, nu_nubar_ratio, false,
                                                 scaled_numu_flux2, scaled_numu_oppo_flux2);
                         }
                         

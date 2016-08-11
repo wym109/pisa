@@ -166,7 +166,7 @@ class plotter(object):
         bins = [map.binning[name] for name in map.binning.names]
         bin_edges = map.binning.bin_edges
         bin_centers = map.binning.weighted_centers
-        zmap = np.log10(map.hist) if self.log else map.hist
+        zmap = np.log10(unp.nominal_values(map.hist)) if self.log else unp.nominal_values(map.hist)
         if self.symmetric:
             vmax = max(zmap.max(), - zmap.min())
             vmin = -vmax
