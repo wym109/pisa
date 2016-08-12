@@ -397,11 +397,6 @@ class vbwkde(Stage):
             enu_err = e_reco[in_ebin_ind] - e_true[in_ebin_ind]
             cz_err = cz_reco[in_ebin_ind] - cz_true[in_ebin_ind]
 
-            # DEPRECATED
-            ## Scale resolutions
-            #enu_err *= self.params.e_res_scale.value
-            #cz_err *= self.params.cz_res_scale.value
-
             #==================================================================
             # Neutrino energy resolutions
             #==================================================================
@@ -443,13 +438,19 @@ class vbwkde(Stage):
             if upp_lim_shift < 0:
                 egy_kde_lims_ext[1] = egy_kde_lims[1] - upp_lim_shift * (1./factor)
 
+            # Adjust kde_num_points accordingly
+            (egy_kde_lims[1] - egy_kde_lims[0])
+            kde_num_pts_ext = int(kde_num_pts * ((egy_kde_lims_ext[1] - egy_kde_lims_ext[0])
+                                / (egy_kde_lims[1] - egy_kde_lims[0])))
+
+
             # Compute variable-bandwidth KDEs
             enu_bw, enu_mesh, enu_pdf = kde.vbw_kde(
                 data           = enu_err,
                 overfit_factor = OVERFIT_FACTOR,
                 MIN            = egy_kde_lims_ext[0],
                 MAX            = egy_kde_lims_ext[1],
-                N              = kde_num_pts
+                N              = kde_num_pts_ext
             )
             # TODO change number of points according to `factor`
 
