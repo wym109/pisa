@@ -160,7 +160,6 @@ def conv_llh(actual_values, expected_values):
     actual_values = unp.nominal_values(actual_values).ravel()
     sigma = unp.std_devs(expected_values).ravel()
     expected_values = unp.nominal_values(expected_values).ravel()
-    #template[template <= 0] = 10e-10
     triplets = np.array([actual_values, expected_values, sigma]).T
     sum = 0
     for i in xrange(len(triplets)):
