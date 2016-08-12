@@ -73,6 +73,7 @@ class polyfits(Stage):
             output_binning=output_binning
         )
 
+    def _compute_nominal_transforms(self):
         self.pnames = [pname for pname in self.params.names if not
             pname.endswith('_file')]
         self.fit_results = {}
