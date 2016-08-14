@@ -269,7 +269,6 @@ class Transform(object):
         if isinstance(input_names, basestring):
             input_names = [input_names]
         self._input_names = input_names
-        print self._input_names
 
         assert isinstance(output_name, basestring)
         self._output_name = output_name
@@ -455,6 +454,11 @@ class BinnedTensorTransform(Transform):
         of transform being implemented. See Notes for more detail on allowed
         shapes.
 
+    sum_inputs : bool
+        If true, add inputs together if multiple are specified. Otherwise,
+        stack input maps along the first dimension (increases dimensionality of
+        the input array by one).
+
     tex : string
         TeX label for e.g. automatic plot labelling.
 
@@ -487,10 +491,10 @@ class BinnedTensorTransform(Transform):
 
     There can be extra objects in `inputs` that are not used by this transform
     ("sideband" objects, which are simply ignored here). If multiple input maps
-    are used by the transform, they are combined via
-    numpy.stack((map0, map1, ... ), axis=0) I.e., the first dimension of the
-    input sent to the transform has a length the same number of input maps
-    requested by the transform.
+    are used by the transform, if `sum_inputs` is Ture, they are summed;
+    otherwise, they are combined via numpy.stack((map0, map1, ... ), axis=0)
+    I.e., the first dimension of the input sent to the transform has a length
+    the same number of input maps requested by the transform.
 
     """
     _slots = tuple(list(Transform._slots) +
@@ -500,13 +504,15 @@ class BinnedTensorTransform(Transform):
                          ['input_binning', 'output_binning', 'xform_array'])
 
     def __init__(self, input_names, output_name, input_binning, output_binning,
-                 xform_array, error_array=None, tex=None, hash=None):
+                 xform_array, sum_inputs=False, error_array=None, tex=None,
+                 hash=None):
         super(BinnedTensorTransform, self).__init__(
             input_names=input_names, output_name=output_name,
             input_binning=input_binning, output_binning=output_binning,
             tex=tex, hash=hash
         )
         self.xform_array = xform_array
+        self.sum_inputs = sum_inputs
         if error_array is not None:
             self.set_errors(error_array)
 
@@ -684,7 +690,7 @@ class BinnedTensorTransform(Transform):
 
         Parameters
         ----------
-        inputs : Mapping
+        inputs : MapSet
             Container class that must contain (at least) the maps to be
             transformed.
 
@@ -731,33 +737,46 @@ class BinnedTensorTransform(Transform):
         # by a factor of the number of inputs being "combined" (the number of
         # adds stays the same).
 
-        if self.num_inputs > 1:
+        # TODO: make (sure) all of these operations compatible with
+        # uncertainties module!
+
+        if self.num_inputs == 1:
+            input_array = inputs[self.input_names[0]].hist
+        else:
             input_array = np.stack([inputs[name].hist
                                     for name in self.input_names], axis=0)
-        else:
-            input_array = inputs[self.input_names[0]].hist
+            if self.sum_inputs:
+                input_array = np.sum(input_array, axis=0)
 
         if self.xform_array.shape == input_array.shape:
             output = input_array * self.xform_array
+
+            # If multiple inputs were concatenated together, and we did not sum
+            # these inputs together, we need to sum the results together now.
+
+            # TODO: generalize this and the above operation (and possibly speed
+            # this up) by formulating a simple inner product above and avoiding
+            # an explicit sum here?
+            if self.num_inputs > 1 and not self.sum_inputs:
+                output = np.sum(output, axis=0)
 
         # TODO: Check that
         #   len(xform.shape) == 2*len(input_array.shape)
         # and then check that
         #   xform.shape == (input_array.shape, input_array.shape) (roughly)
-        # and then apply tensordot appropriately for this generic case...
+        # and then apply tensordot appropriately for this generic case...Q
+
         elif len(self.xform_array.shape) == 2*len(input_array.shape):
             output = np.tensordot(input_array, self.xform_array,
                                   axes=([0,1], [0,1]))
+
         else:
-            raise NotImplementedError(
+            raise ValueError(
                 'Unhandled shapes for input(s) "%s": %s and'
                 ' transform: %s.'
                 %(', '.join(self.input_names), input_array.shape,
                   self.xform_array.shape)
             )
-
-        if self.num_inputs > 1:
-            output = np.sum(output, axis=0)
 
         # TODO: do rebinning here? (aggregate, truncate, and/or
         # concatenate 0's?)

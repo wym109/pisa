@@ -10,7 +10,8 @@ import numpy as np
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.utils.events import Events
-from pisa.utils.flavInt import flavintGroupsFromString
+from pisa.utils.flavInt import ALL_NUFLAVINTS, flavintGroupsFromString, \
+        NuFlavIntGroup
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile
@@ -38,13 +39,20 @@ class hist(Stage):
         Must be one of 'neutrinos' or 'muons' (though only neutrinos are
         supported at this time).
 
-    transform_groups : string
-        Specifies which particles/interaction types to combine together in
-        computing the transforms. (See Notes.)
+    input_names : 
 
-    combine_grouped_flavints : bool
-        Whether to combine the event-rate maps for the flavint groupings
-        specified by `transform_groups`.
+    transform_groups : string
+        Specifies which particles/interaction types to use for computing the
+        transforms. (See Notes.)
+
+    sum_grouped_flavints : bool
+        Whether to sum the event-rate maps for the flavint groupings
+        specified by `transform_groups`. If this is done, the output map names
+        will be the group names (as well as the names of any flavor/interaction
+        types not grouped together). Otherwise, the output map names will be
+        the same as the input map names. Combining grouped flavints' is
+        computationally faster and results in fewer maps, but it may be
+        desirable to not do so for, e.g., debugging.
 
     input_binning : MultiDimBinning or convertible thereto
         Input binning is in true variables, with names prefixed by "true_".
@@ -69,8 +77,8 @@ class hist(Stage):
     particle naming scheme in PISA. As an example
 
     """
-    def __init__(self, params, particles, transform_groups,
-                 combine_grouped_flavints, input_binning, output_binning,
+    def __init__(self, params, particles, input_names, transform_groups,
+                 sum_grouped_flavints, input_binning, output_binning,
                  error_method=None, disk_cache=None, transforms_cache_depth=20,
                  outputs_cache_depth=20, debug_mode=None):
         self.events_hash = None
@@ -83,33 +91,28 @@ class hist(Stage):
         self.transform_groups = flavintGroupsFromString(transform_groups)
         """Particle/interaction types to group for computing transforms"""
 
+        self.sum_grouped_flavints = sum_grouped_flavints
+
         # All of the following params (and no more) must be passed via the
         # `params` argument.
         expected_params = (
             'aeff_weight_file', 'livetime', 'aeff_scale', 'nutau_cc_norm'
         )
 
+        if isinstance(input_names, basestring):
+            input_names = input_names.replace(' ', '').split(',')
+
         # Define the names of objects expected in inputs and produced as
         # outputs
         if self.particles == 'neutrinos':
-            input_names = (
-                'nue', 'numu', 'nutau', 'nuebar', 'numubar', 'nutaubar'
-            )
-            if combine_grouped_flavints:
-                logging.trace('self.transform_groups: ' +
-                              str(self.transform_groups))
+            if self.sum_grouped_flavints:
                 output_names = tuple([str(g) for g in self.transform_groups])
-                logging.trace('self.transform_groups: ' +
-                              str(self.transform_groups))
-                logging.trace('output_names: ' + ' :: '.join(output_names))
-
             else:
-                output_names = (
-                    'nue_cc', 'numu_cc', 'nutau_cc', 'nuebar_cc', 'numubar_cc',
-                    'nutaubar_cc',
-                    'nue_nc', 'numu_nc', 'nutau_nc', 'nuebar_nc', 'numubar_nc',
-                    'nutaubar_nc'
-                )
+                input_flavints = NuFlavIntGroup(input_names)
+                output_names = tuple([str(fi) for fi in input_flavints])
+
+        logging.trace('transform_groups = %s' %self.transform_groups)
+        logging.trace('output_names = %s' %' :: '.join(output_names))
 
         # Invoke the init method from the parent class, which does a lot of
         # work for you.
@@ -189,11 +192,11 @@ class hist(Stage):
         all_bin_edges = [edges.magnitude for edges in output_binning.bin_edges]
 
         nominal_transforms = []
-        for flav_int_group in self.transform_groups:
-            logging.debug("Working on %s effective areas" %flav_int_group)
+        for xform_flavints in self.transform_groups:
+            logging.debug("Computing aeff xform for %s..." %xform_flavints)
 
             aeff_transform = self.events.histogram(
-                kinds=flav_int_group,
+                kinds=xform_flavints,
                 binning=all_bin_edges,
                 binning_cols=self.input_binning.names,
                 weights_col='weighted_aeff',
@@ -208,36 +211,45 @@ class hist(Stage):
             bin_volumes = input_binning.bin_volumes(attach_units=False)
             aeff_transform /= (bin_volumes * missing_dims_vol)
 
-            #xform_flavs = set([str(flav) for flav in flav_int_group.flavs()])
-            # Copy the transform for each flavor
-            if self.combine_grouped_flavints:
+            # If combinging grouped flavints:
+            # Create a single transform for each group and assign all flavors
+            # that contribute to the group as the transform's inputs. Combining
+            # the event rate maps will be performed by the
+            # BinnedTensorTransform object upon invocation of the `apply`
+            # method.
+            if self.sum_grouped_flavints:
+                xform_input_names = []
                 for input_name in self.input_names:
-                    input_flavints = flavintGroupsFromString(input_name)
-                    #input_flav_names = [str(flav) for flav in flav_int_group.flavs()]
-                    if input_flavints not in flav_int_group:
+                    input_flavs = NuFlavIntGroup(input_name)
+                    if len(set(xform_flavints).intersection(input_flavs)) > 0:
+                        xform_input_names.append(input_name)
+
+                for output_name in self.output_names:
+                    if not output_name in xform_flavints:
                         continue
-                    for output_name in self.output_names:
-                        if output_name not in flav_int_group:
-                            continue
-                        xform = BinnedTensorTransform(
-                            input_names=input_name,
-                            output_name=output_name,
-                            input_binning=self.input_binning,
-                            output_binning=self.output_binning,
-                            xform_array=aeff_transform,
-                        )
-                        if not self.combine_grouped_flavints:
-                            nominal_transforms.append(xform)
-                    if self.combine_grouped_flavints:
-                        nominal_transforms.append(xform)
+                    xform = BinnedTensorTransform(
+                        input_names=xform_input_names,
+                        output_name=output_name,
+                        input_binning=self.input_binning,
+                        output_binning=self.output_binning,
+                        xform_array=aeff_transform,
+                        sum_inputs=self.sum_grouped_flavints
+                    )
+                    nominal_transforms.append(xform)
+
+            # If *not* combinging grouped flavints:
+            # Copy the transform for each input flavor, regardless if the
+            # transform is computed from a combination of flavors.
             else:
                 for input_name in self.input_names:
-                    input_flavints = flavintGroupsFromString(input_name)
-                    #input_flav_names = [str(flav) for flav in flav_int_group.flavs()]
-                    if input_flavints not in flav_int_group:
+                    input_flavs = NuFlavIntGroup(input_name)
+                    # Since aeff "splits" neutrino flavors into
+                    # flavor+interaction types, need to check if the output
+                    # flavints' are encapsulated by the input flavor(s).
+                    if xform_flavints not in input_flavs:
                         continue
                     for output_name in self.output_names:
-                        if output_name not in flav_int_group:
+                        if output_name not in xform_flavints:
                             continue
                         xform = BinnedTensorTransform(
                             input_names=input_name,
@@ -245,6 +257,7 @@ class hist(Stage):
                             input_binning=self.input_binning,
                             output_binning=self.output_binning,
                             xform_array=aeff_transform,
+                            sum_inputs=self.sum_grouped_flavints
                         )
                         nominal_transforms.append(xform)
 
@@ -260,13 +273,13 @@ class hist(Stage):
                       %(self.params.livetime.value, livetime_s))
 
         new_transforms = []
-        for flav_int_group in self.transform_groups:
-            repr_flav_int = flav_int_group[0]
-            flav_names = [str(flav) for flav in flav_int_group.flavs()]
+        for xform_flavints in self.transform_groups:
+            repr_flav_int = xform_flavints[0]
+            flav_names = [str(flav) for flav in xform_flavints.flavs()]
             aeff_transform = None
             for transform in self.nominal_transforms:
                 if transform.input_names[0] in flav_names \
-                        and transform.output_name in flav_int_group:
+                        and transform.output_name in xform_flavints:
                     if aeff_transform is None:
                         aeff_transform = transform.xform_array * (aeff_scale *
                                                                   livetime_s)
@@ -277,7 +290,8 @@ class hist(Stage):
                         output_name=transform.output_name,
                         input_binning=transform.input_binning,
                         output_binning=transform.output_binning,
-                        xform_array=aeff_transform
+                        xform_array=aeff_transform,
+                        sum_inputs=self.sum_grouped_flavints
                     )
                     new_transforms.append(new_xform)
 
