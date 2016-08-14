@@ -96,7 +96,12 @@ class hist(Stage):
                 'nue', 'numu', 'nutau', 'nuebar', 'numubar', 'nutaubar'
             )
             if combine_grouped_flavints:
+                logging.trace('self.transform_groups: ' +
+                              str(self.transform_groups))
                 output_names = tuple([str(g) for g in self.transform_groups])
+                logging.trace('self.transform_groups: ' +
+                              str(self.transform_groups))
+                logging.trace('output_names: ' + ' :: '.join(output_names))
 
             else:
                 output_names = (
@@ -203,21 +208,45 @@ class hist(Stage):
             bin_volumes = input_binning.bin_volumes(attach_units=False)
             aeff_transform /= (bin_volumes * missing_dims_vol)
 
-            flav_names = [str(flav) for flav in flav_int_group.flavs()]
-            for input_name in self.input_names:
-                if input_name not in flav_names:
-                    continue
-                for output_name in self.output_names:
-                    if output_name not in flav_int_group:
+            #xform_flavs = set([str(flav) for flav in flav_int_group.flavs()])
+            # Copy the transform for each flavor
+            if self.combine_grouped_flavints:
+                for input_name in self.input_names:
+                    input_flavints = flavintGroupsFromString(input_name)
+                    #input_flav_names = [str(flav) for flav in flav_int_group.flavs()]
+                    if input_flavints not in flav_int_group:
                         continue
-                    xform = BinnedTensorTransform(
-                        input_names=input_name,
-                        output_name=output_name,
-                        input_binning=self.input_binning,
-                        output_binning=self.output_binning,
-                        xform_array=aeff_transform,
-                    )
-                    nominal_transforms.append(xform)
+                    for output_name in self.output_names:
+                        if output_name not in flav_int_group:
+                            continue
+                        xform = BinnedTensorTransform(
+                            input_names=input_name,
+                            output_name=output_name,
+                            input_binning=self.input_binning,
+                            output_binning=self.output_binning,
+                            xform_array=aeff_transform,
+                        )
+                        if not self.combine_grouped_flavints:
+                            nominal_transforms.append(xform)
+                    if self.combine_grouped_flavints:
+                        nominal_transforms.append(xform)
+            else:
+                for input_name in self.input_names:
+                    input_flavints = flavintGroupsFromString(input_name)
+                    #input_flav_names = [str(flav) for flav in flav_int_group.flavs()]
+                    if input_flavints not in flav_int_group:
+                        continue
+                    for output_name in self.output_names:
+                        if output_name not in flav_int_group:
+                            continue
+                        xform = BinnedTensorTransform(
+                            input_names=input_name,
+                            output_name=output_name,
+                            input_binning=self.input_binning,
+                            output_binning=self.output_binning,
+                            xform_array=aeff_transform,
+                        )
+                        nominal_transforms.append(xform)
 
         return TransformSet(transforms=nominal_transforms)
 

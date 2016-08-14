@@ -19,6 +19,7 @@ from copy import deepcopy
 from pisa.core.map import Map, MapSet
 from pisa.core.pipeline import Pipeline
 from pisa.utils.log import logging
+from pisa.utils.fileio import mkdir
 from pisa.utils.parse_config import parse_config
 from pisa.utils.jsons import from_json
 from pisa.utils.plot import show_map, delta_map, ratio_map
@@ -412,7 +413,7 @@ def do_pid_comparison(config=None, servicename=None,
 def do_pipeline_comparison(config=None, pisa2file=None, outdir=None):
     
     pipeline = Pipeline(config)
-    outputs = pipeline.get_outputs(None)
+    outputs = pipeline.get_outputs(idx=2)
 
     total_cake_trck_dict = {}
     total_cake_cscd_dict = {}
@@ -567,16 +568,15 @@ args = parser.parse_args()
 #                                                                             #
 ###############################################################################
 
-if not os.path.isdir(args.outdir):
-    os.makedirs(args.outdir)
+mkdir(args.outdir)
 
 outdirs = ['flux', 'osc', 'aeff', 'reco', 'pid', 'full']
 
 for outdir in outdirs:
-    if not os.path.isdir(args.outdir+'/'+outdir):
-        os.makedirs(args.outdir+'/'+outdir)
-    for outimg in os.listdir(args.outdir+'/'+outdir):
-        os.unlink(os.path.join(args.outdir+'/'+outdir,outimg))
+    basedir = os.path.join(args.outdir, outdir)
+    mkdir(basedir)
+    for fname in os.listdir(basedir):
+        os.unlink(os.path.join(basedir, outimg))
 
 ##############################################################
 #                                                            #
