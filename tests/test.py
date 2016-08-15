@@ -155,6 +155,7 @@ def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
     plt.close(fig.number)
 
 def compare_flux(config, servicename, pisa2file, systname, outdir):
+
     if systname is not None:
         try:
             config['flux']['params'][systname] = \
@@ -165,16 +166,16 @@ def compare_flux(config, servicename, pisa2file, systname, outdir):
                     1.25*config['flux']['params'][systname].value
 
         pisa2file = pisa2file.split('.json')[0] + \
-                '-%s%.2f.json' \
-                %(systname, config['flux']['params'][systname].value)
+                        '-%s%.2f.json' \
+                        %(systname, config['flux']['params'][systname].value)
         servicename += '-%s%.2f.json' \
-                %(systname, config['flux']['params'][systname].value)
+                           %(systname, config['flux']['params'][systname].value)
 
     pipeline = Pipeline(config)
     stage = pipeline.stages[0]
     outputs = stage.get_outputs()
     pisa2_comparisons = from_json(pisa2file)
-
+    
     for nukey in pisa2_comparisons.keys():
         if 'nu' in nukey:
             pisa_map_to_plot = pisa2_comparisons[nukey]
@@ -207,7 +208,6 @@ def compare_flux(config, servicename, pisa2file, systname, outdir):
             )
     
     return pipeline
-
 
 def compare_osc(config, servicename, pisa2file, systname, outdir):
     if systname is not None:
@@ -483,18 +483,11 @@ def compare_pid(config, servicename, pisa2file, outdir):
     
     return pipeline
 
-
-def compare_pipeline(config, pisa2file, outdir):
-    pipeline = Pipeline(config)
-    pisa2_comparisons = from_json(pisa2file)
-
-    # Up to flux stage comparisons
-    pisa2_comparison = pisa2_comparisons[0]
-    flux_outputs = pipeline.get_outputs(idx=1)
-
-    for nukey in pisa2_comparison.keys():
+def compare_flux_full(cake_maps, pisa_maps, outdir):
+    
+    for nukey in pisa_maps.keys():
         if 'nu' in nukey:
-            pisa_map_to_plot = pisa2_comparison[nukey]
+            pisa_map_to_plot = pisa_maps[nukey]
 
             if '_' in nukey:
                 if nukey.split('_')[1] == 'bar':
@@ -503,7 +496,7 @@ def compare_pipeline(config, pisa2file, outdir):
                         new_nukey += substr
                     nukey = new_nukey
 
-            cake_map = flux_outputs[nukey]
+            cake_map = cake_maps[nukey]
             cake_map_to_plot = {}
             cake_map_to_plot['ebins'] = \
                     cake_map.binning['true_energy'].bin_edges.magnitude
@@ -520,16 +513,14 @@ def compare_pipeline(config, pisa2file, outdir):
                 stagename='flux',
                 servicename='honda',
                 name=nukey,
-                texname=flux_outputs[nukey].tex
+                texname=cake_maps[nukey].tex
             )
 
-    # Up to osc stage comparisons
-    pisa2_comparison = pisa2_comparisons[1]
-    osc_outputs = pipeline.get_outputs(idx=2)
+def compare_osc_full(cake_maps, pisa_maps, outdir):
 
-    for nukey in pisa2_comparison.keys():
+    for nukey in pisa_maps.keys():
         if 'nu' in nukey:
-            pisa_map_to_plot = pisa2_comparison[nukey]
+            pisa_map_to_plot = pisa_maps[nukey]
 
             if '_' in nukey:
                 if nukey.split('_')[1] == 'bar':
@@ -538,7 +529,7 @@ def compare_pipeline(config, pisa2file, outdir):
                         new_nukey += substr
                     nukey = new_nukey
 
-            cake_map = osc_outputs[nukey]
+            cake_map = cake_maps[nukey]
             cake_map_to_plot = {}
             cake_map_to_plot['ebins'] = \
                     cake_map.binning['true_energy'].bin_edges.magnitude
@@ -555,16 +546,14 @@ def compare_pipeline(config, pisa2file, outdir):
                 stagename='osc',
                 servicename='prob3cpu',
                 name=nukey,
-                texname=osc_outputs[nukey].tex
+                texname=cake_maps[nukey].tex
             )
 
-    # Up to aeff stage comparisons
-    pisa2_comparison = pisa2_comparisons[2]
-    aeff_outputs = pipeline.get_outputs(idx=3)
+def compare_aeff_full(cake_maps, pisa_maps, outdir):
 
-    for nukey in pisa2_comparison.keys():
+    for nukey in pisa_maps.keys():
         if 'nu' in nukey:
-            for intkey in pisa2_comparison[nukey].keys():
+            for intkey in pisa_maps[nukey].keys():
                 if '_' in nukey:
                     if nukey.split('_')[1] == 'bar':
                         new_nukey = ""
@@ -573,9 +562,9 @@ def compare_pipeline(config, pisa2file, outdir):
                 else:
                     new_nukey = nukey
                 cakekey = new_nukey + '_' + intkey
-                pisa_map_to_plot = pisa2_comparison[nukey][intkey]
+                pisa_map_to_plot = pisa_maps[nukey][intkey]
 
-                cake_map = aeff_outputs[cakekey]
+                cake_map = cake_maps[cakekey]
                 cake_map_to_plot = {}
                 cake_map_to_plot['ebins'] = \
                         cake_map.binning['true_energy'].bin_edges.magnitude
@@ -592,58 +581,57 @@ def compare_pipeline(config, pisa2file, outdir):
                     stagename='aeff',
                     servicename='hist1X585',
                     name=cakekey,
-                    texname=aeff_outputs[cakekey].tex,
+                    texname=cake_maps[cakekey].tex,
                 )
 
-    # Up to reco stage comparisons
-    pisa2_comparison = pisa2_comparisons[3]
-    reco_outputs = pipeline.get_outputs(idx=4)
+def compare_reco_full(cake_maps, pisa_maps, outdir):
+
     modified_cake_outputs = {}
-    for name in reco_outputs.names:
+    for name in cake_maps.names:
         if name in ['nue_cc', 'nuebar_cc']:
             if 'nue_cc' in modified_cake_outputs.keys():
-                modified_cake_outputs['nue_cc']['map'] += reco_outputs[name].hist.T
+                modified_cake_outputs['nue_cc']['map'] += cake_maps[name].hist.T
             else:
                 modified_cake_outputs['nue_cc'] = {}
                 modified_cake_outputs['nue_cc']['ebins'] = \
-                        reco_outputs[name].binning['reco_energy'].bin_edges.magnitude
+                        cake_maps[name].binning['reco_energy'].bin_edges.magnitude
                 modified_cake_outputs['nue_cc']['czbins'] = \
-                        reco_outputs[name].binning['reco_coszen'].bin_edges.magnitude
-                modified_cake_outputs['nue_cc']['map'] = reco_outputs[name].hist.T
+                        cake_maps[name].binning['reco_coszen'].bin_edges.magnitude
+                modified_cake_outputs['nue_cc']['map'] = cake_maps[name].hist.T
         elif name in ['numu_cc', 'numubar_cc']:
             if 'numu_cc' in modified_cake_outputs.keys():
-                modified_cake_outputs['numu_cc']['map'] += reco_outputs[name].hist.T
+                modified_cake_outputs['numu_cc']['map'] += cake_maps[name].hist.T
             else:
                 modified_cake_outputs['numu_cc'] = {}
                 modified_cake_outputs['numu_cc']['ebins'] = \
-                        reco_outputs[name].binning['reco_energy'].bin_edges.magnitude
+                        cake_maps[name].binning['reco_energy'].bin_edges.magnitude
                 modified_cake_outputs['numu_cc']['czbins'] = \
-                        reco_outputs[name].binning['reco_coszen'].bin_edges.magnitude
-                modified_cake_outputs['numu_cc']['map'] = reco_outputs[name].hist.T
+                        cake_maps[name].binning['reco_coszen'].bin_edges.magnitude
+                modified_cake_outputs['numu_cc']['map'] = cake_maps[name].hist.T
         elif name in ['nutau_cc', 'nutaubar_cc']:
             if 'nutau_cc' in modified_cake_outputs.keys():
-                modified_cake_outputs['nutau_cc']['map'] += reco_outputs[name].hist.T
+                modified_cake_outputs['nutau_cc']['map'] += cake_maps[name].hist.T
             else:
                 modified_cake_outputs['nutau_cc'] = {}
                 modified_cake_outputs['nutau_cc']['ebins'] = \
-                        reco_outputs[name].binning['reco_energy'].bin_edges.magnitude
+                        cake_maps[name].binning['reco_energy'].bin_edges.magnitude
                 modified_cake_outputs['nutau_cc']['czbins'] = \
-                        reco_outputs[name].binning['reco_coszen'].bin_edges.magnitude
-                modified_cake_outputs['nutau_cc']['map'] = reco_outputs[name].hist.T
+                        cake_maps[name].binning['reco_coszen'].bin_edges.magnitude
+                modified_cake_outputs['nutau_cc']['map'] = cake_maps[name].hist.T
         elif 'nc' in name:
             if 'nuall_nc' in modified_cake_outputs.keys():
-                modified_cake_outputs['nuall_nc']['map'] += reco_outputs[name].hist.T
+                modified_cake_outputs['nuall_nc']['map'] += cake_maps[name].hist.T
             else:
                 modified_cake_outputs['nuall_nc'] = {}
                 modified_cake_outputs['nuall_nc']['ebins'] = \
-                        reco_outputs[name].binning['reco_energy'].bin_edges.magnitude
+                        cake_maps[name].binning['reco_energy'].bin_edges.magnitude
                 modified_cake_outputs['nuall_nc']['czbins'] = \
-                        reco_outputs[name].binning['reco_coszen'].bin_edges.magnitude
-                modified_cake_outputs['nuall_nc']['map'] = reco_outputs[name].hist.T
+                        cake_maps[name].binning['reco_coszen'].bin_edges.magnitude
+                modified_cake_outputs['nuall_nc']['map'] = cake_maps[name].hist.T
 
-    for nukey in pisa2_comparison.keys():
+    for nukey in pisa_maps.keys():
         if 'nu' in nukey:
-            pisa_map_to_plot = pisa2_comparison[nukey]
+            pisa_map_to_plot = pisa_maps[nukey]
 
             if '_' in nukey:
                 if nukey.split('_')[1] == 'bar':
@@ -660,7 +648,7 @@ def compare_pipeline(config, pisa2file, outdir):
                 else:
                     texname = r'\nu NC'
             else:
-                texname = reco_outputs[nukey].tex
+                texname = cake_maps[nukey].tex
             plot_comparisons(
                 ref_map=pisa_map_to_plot,
                 new_map=cake_map_to_plot,
@@ -672,32 +660,30 @@ def compare_pipeline(config, pisa2file, outdir):
                 name=nukey,
                 texname=texname
             )
-    
-    # Up to PID stage comparisons
-    pisa2_comparison = pisa2_comparisons[4]
-    pid_outputs = pipeline.get_outputs()
+
+def compare_pid_full(cake_maps, pisa_maps, outdir):
 
     total_cake_trck_dict = {}
     total_cake_cscd_dict = {}
     
-    for cake_key in pid_outputs.names:
+    for cake_key in cake_maps.names:
         if 'trck' in cake_key:
             if len(total_cake_trck_dict.keys()) == 0:
-                total_cake_trck_dict['ebins'] = pid_outputs[cake_key].binning['reco_energy'].bin_edges.magnitude
-                total_cake_trck_dict['czbins'] = pid_outputs[cake_key].binning['reco_coszen'].bin_edges.magnitude
-                total_cake_trck_dict['map'] = pid_outputs[cake_key].hist.T
+                total_cake_trck_dict['ebins'] = cake_maps[cake_key].binning['reco_energy'].bin_edges.magnitude
+                total_cake_trck_dict['czbins'] = cake_maps[cake_key].binning['reco_coszen'].bin_edges.magnitude
+                total_cake_trck_dict['map'] = cake_maps[cake_key].hist.T
             else:
-                total_cake_trck_dict['map'] += pid_outputs[cake_key].hist.T
+                total_cake_trck_dict['map'] += cake_maps[cake_key].hist.T
         elif 'cscd' in cake_key:
             if len(total_cake_cscd_dict.keys()) == 0:
-                total_cake_cscd_dict['ebins'] = pid_outputs[cake_key].binning['reco_energy'].bin_edges.magnitude
-                total_cake_cscd_dict['czbins'] = pid_outputs[cake_key].binning['reco_coszen'].bin_edges.magnitude
-                total_cake_cscd_dict['map'] = pid_outputs[cake_key].hist.T
+                total_cake_cscd_dict['ebins'] = cake_maps[cake_key].binning['reco_energy'].bin_edges.magnitude
+                total_cake_cscd_dict['czbins'] = cake_maps[cake_key].binning['reco_coszen'].bin_edges.magnitude
+                total_cake_cscd_dict['map'] = cake_maps[cake_key].hist.T
             else:
-                total_cake_cscd_dict['map'] += pid_outputs[cake_key].hist.T
+                total_cake_cscd_dict['map'] += cake_maps[cake_key].hist.T
 
-    total_pisa_trck_dict = pisa2_comparison['trck']
-    total_pisa_cscd_dict = pisa2_comparison['cscd']
+    total_pisa_trck_dict = pisa_maps['trck']
+    total_pisa_cscd_dict = pisa_maps['cscd']
 
     plot_comparisons(
         ref_map=total_pisa_cscd_dict,
@@ -720,6 +706,45 @@ def compare_pipeline(config, pisa2file, outdir):
         servicename=None,
         name='trck',
         texname=r'{\rm trck}'
+    )
+
+def compare_pipeline(config, pisa2file, outdir):
+    pipeline = Pipeline(config)
+    pisa2_comparisons = from_json(pisa2file)
+
+    # Up to flux stage comparisons
+    compare_flux_full(
+        pisa_maps=pisa2_comparisons[0],
+        cake_maps=pipeline.get_outputs(idx=1),
+        outdir=args.outdir
+    )
+
+    # Up to osc stage comparisons
+    compare_osc_full(
+        pisa_maps=pisa2_comparisons[1],
+        cake_maps=pipeline.get_outputs(idx=2),
+        outdir=args.outdir
+    )
+
+    # Up to aeff stage comparisons
+    compare_aeff_full(
+        pisa_maps=pisa2_comparisons[2],
+        cake_maps=pipeline.get_outputs(idx=3),
+        outdir=args.outdir
+    )
+
+    # Up to reco stage comparisons
+    compare_reco_full(
+        pisa_maps=pisa2_comparisons[3],
+        cake_maps=pipeline.get_outputs(idx=4),
+        outdir=args.outdir
+    )
+    
+    # Up to PID stage comparisons
+    compare_pid_full(
+        pisa_maps=pisa2_comparisons[4],
+        cake_maps=pipeline.get_outputs(idx=5),
+        outdir=args.outdir
     )
     
     return pipeline
