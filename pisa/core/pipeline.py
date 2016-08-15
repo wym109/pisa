@@ -83,7 +83,7 @@ class Pipeline(object):
         self._stages = []
         for stage_num, stage_name in enumerate(self.config.keys()):
             try:
-                logging.debug('instatiating stage %s' % stage_name)
+                logging.debug('instantiating stage %s' % stage_name)
                 service = self.config[stage_name.lower()].pop('service').lower()
                 # Import stage service
                 module = importlib.import_module('pisa.stages.%s.%s'
@@ -264,7 +264,7 @@ if __name__ == '__main__':
     # Instantiate the pipeline
     pipeline = Pipeline(args.pipeline_settings)
 
-    for run in xrange(3):
+    for run in xrange(1):
         logging.info('')
         logging.info('## STARTING RUN %d ............' % run)
         logging.info('')
