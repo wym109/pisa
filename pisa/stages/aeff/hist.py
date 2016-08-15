@@ -211,7 +211,7 @@ class hist(Stage):
             bin_volumes = input_binning.bin_volumes(attach_units=False)
             aeff_transform /= (bin_volumes * missing_dims_vol)
 
-            # If combinging grouped flavints:
+            # If combining grouped flavints:
             # Create a single transform for each group and assign all flavors
             # that contribute to the group as the transform's inputs. Combining
             # the event rate maps will be performed by the
@@ -237,7 +237,7 @@ class hist(Stage):
                     )
                     nominal_transforms.append(xform)
 
-            # If *not* combinging grouped flavints:
+            # If *not* combining grouped flavints:
             # Copy the transform for each input flavor, regardless if the
             # transform is computed from a combination of flavors.
             else:
