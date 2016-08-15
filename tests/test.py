@@ -412,11 +412,341 @@ def do_pid_comparison(config=None, servicename=None,
 def do_pipeline_comparison(config=None, pisa2file=None, outdir=None):
     
     pipeline = Pipeline(config)
-    outputs = pipeline.get_outputs(None)
+    pisa2_comparisons = from_json(pisa2file)
+
+    # Up to flux stage comparisons
+    pisa2_comparison = pisa2_comparisons[0]
+    outputs = pipeline.get_outputs(idx=1)
+
+    for nukey in pisa2_comparison.keys():
+        if 'nu' in nukey:
+
+            pisa_map_to_plot = pisa2_comparison[nukey]
+
+            if '_' in nukey:
+                if nukey.split('_')[1] == 'bar':
+                    new_nukey = ""
+                    for substr in nukey.split('_'):
+                        new_nukey += substr
+                    nukey = new_nukey
+            
+            cake_map = outputs[nukey]
+            cake_map_to_plot = {}
+            cake_map_to_plot['ebins'] = cake_map.binning['true_energy'].bin_edges.magnitude
+            cake_map_to_plot['czbins'] = cake_map.binning['true_coszen'].bin_edges.magnitude
+            cake_map_to_plot['map'] = cake_map.hist.T
+
+            RatioMapObj = ratio_map(cake_map_to_plot, pisa_map_to_plot)
+            DiffMapObj = delta_map(pisa_map_to_plot, cake_map_to_plot)
+            DiffRatioMapObj = ratio_map(DiffMapObj, pisa_map_to_plot)
+
+            plt.figure(figsize = (20,5))
+    
+            plt.subplot(1,5,1)
+            show_map(pisa_map_to_plot)
+            plt.xlabel(r'$\cos\theta_Z$')
+            plt.ylabel(r'Energy [GeV]')
+            plt.title('$%s$ Flux PISA V2'%(outputs[nukey].tex))
+
+            plt.subplot(1,5,2)
+            show_map(cake_map_to_plot)
+            plt.xlabel(r'$\cos\theta_Z$')
+            plt.ylabel(r'Energy [GeV]')
+            plt.title('$%s$ Flux PISA V3'%(outputs[nukey].tex))
+
+            plt.subplot(1,5,3)
+            show_map(RatioMapObj)
+            plt.xlabel(r'$\cos\theta_Z$')
+            plt.ylabel(r'Energy [GeV]')
+            plt.title('$%s$ Flux PISA V3/V2'%(outputs[nukey].tex))
+
+            plt.subplot(1,5,4)
+            show_map(DiffMapObj)
+            plt.xlabel(r'$\cos\theta_Z$')
+            plt.ylabel(r'Energy [GeV]')
+            plt.title('$%s$ Flux PISA V2-V3'%(outputs[nukey].tex))
+
+            plt.subplot(1,5,5)
+            show_map(DiffRatioMapObj)
+            plt.xlabel(r'$\cos\theta_Z$')
+            plt.ylabel(r'Energy [GeV]')
+            plt.title('$%s$ Flux PISA (V2-V3)/V2'%(outputs[nukey].tex))
+
+            plt.tight_layout()
+
+            plt.savefig(args.outdir+'/full/%s_PISAV2-V3_Comparisons_Flux_Stage_IP_Honda_Service.png'%(nukey))
+
+            plt.close()
+
+    # Up to osc stage comparisons
+    pisa2_comparison = pisa2_comparisons[1]
+    outputs = pipeline.get_outputs(idx=2)
+
+    for nukey in pisa2_comparison.keys():
+        if 'nu' in nukey:
+
+            pisa_map_to_plot = pisa2_comparison[nukey]
+
+            if '_' in nukey:
+                if nukey.split('_')[1] == 'bar':
+                    new_nukey = ""
+                    for substr in nukey.split('_'):
+                        new_nukey += substr
+                    nukey = new_nukey
+            
+            cake_map = outputs[nukey]
+            cake_map_to_plot = {}
+            cake_map_to_plot['ebins'] = cake_map.binning['true_energy'].bin_edges.magnitude
+            cake_map_to_plot['czbins'] = cake_map.binning['true_coszen'].bin_edges.magnitude
+            cake_map_to_plot['map'] = cake_map.hist.T
+
+            RatioMapObj = ratio_map(cake_map_to_plot, pisa_map_to_plot)
+            DiffMapObj = delta_map(pisa_map_to_plot, cake_map_to_plot)
+            DiffRatioMapObj = ratio_map(DiffMapObj, pisa_map_to_plot)
+
+            plt.figure(figsize = (20,5))
+    
+            plt.subplot(1,5,1)
+            show_map(pisa_map_to_plot)
+            plt.xlabel(r'$\cos\theta_Z$')
+            plt.ylabel(r'Energy [GeV]')
+            plt.title('$%s$ Osc PISA V2'%(outputs[nukey].tex))
+
+            plt.subplot(1,5,2)
+            show_map(cake_map_to_plot)
+            plt.xlabel(r'$\cos\theta_Z$')
+            plt.ylabel(r'Energy [GeV]')
+            plt.title('$%s$ Osc PISA V3'%(outputs[nukey].tex))
+
+            plt.subplot(1,5,3)
+            show_map(RatioMapObj)
+            plt.xlabel(r'$\cos\theta_Z$')
+            plt.ylabel(r'Energy [GeV]')
+            plt.title('$%s$ Osc PISA V3/V2'%(outputs[nukey].tex))
+
+            plt.subplot(1,5,4)
+            show_map(DiffMapObj)
+            plt.xlabel(r'$\cos\theta_Z$')
+            plt.ylabel(r'Energy [GeV]')
+            plt.title('$%s$ Osc PISA V2-V3'%(outputs[nukey].tex))
+
+            plt.subplot(1,5,5)
+            show_map(DiffRatioMapObj)
+            plt.xlabel(r'$\cos\theta_Z$')
+            plt.ylabel(r'Energy [GeV]')
+            plt.title('$%s$ Osc PISA (V2-V3)/V2'%(outputs[nukey].tex))
+
+            plt.tight_layout()
+
+            plt.savefig(args.outdir+'/full/%s_PISAV2-V3_Comparisons_Osc_Stage_prob3_Service.png'%(nukey))
+
+            plt.close()
+
+    # Up to aeff stage comparisons
+    pisa2_comparison = pisa2_comparisons[2]
+    outputs = pipeline.get_outputs(idx=3)
+
+    total_pisa_nuall_nc_dict = {}
+    total_pisa_nuallbar_nc_dict = {}
+
+    i = 0
+
+    for nukey in pisa2_comparison.keys():
+        if 'nu' in nukey:
+            for intkey in pisa2_comparison[nukey].keys():
+                if intkey == 'cc':
+
+                    if '_' in nukey:
+                        if nukey.split('_')[1] == 'bar':
+                            new_nukey = ""
+                            for substr in nukey.split('_'):
+                                new_nukey += substr
+                    else:
+                        new_nukey = nukey
+                        
+                    cakekey = new_nukey + '_' + intkey
+                    pisa_map_to_plot = pisa2_comparison[nukey][intkey]
+
+                    cake_map = outputs[cakekey]
+                    cake_map_to_plot = {}
+                    cake_map_to_plot['ebins'] = cake_map.binning['true_energy'].bin_edges.magnitude
+                    cake_map_to_plot['czbins'] = cake_map.binning['true_coszen'].bin_edges.magnitude
+                    cake_map_to_plot['map'] = cake_map.hist.T
+
+                    RatioMapObj = ratio_map(cake_map_to_plot, pisa_map_to_plot)
+                    DiffMapObj = delta_map(pisa_map_to_plot, cake_map_to_plot)
+                    DiffRatioMapObj = ratio_map(DiffMapObj, pisa_map_to_plot)
+
+                    plt.figure(figsize = (20,5))
+    
+                    plt.subplot(1,5,1)
+                    show_map(pisa_map_to_plot)
+                    plt.xlabel(r'$\cos\theta_Z$')
+                    plt.ylabel(r'Energy [GeV]')
+                    plt.title('$%s$ Aeff PISA V2'%(outputs[cakekey].tex))
+
+                    plt.subplot(1,5,2)
+                    show_map(cake_map_to_plot)
+                    plt.xlabel(r'$\cos\theta_Z$')
+                    plt.ylabel(r'Energy [GeV]')
+                    plt.title('$%s$ Aeff PISA V3'%(outputs[cakekey].tex))
+
+                    plt.subplot(1,5,3)
+                    show_map(RatioMapObj)
+                    plt.xlabel(r'$\cos\theta_Z$')
+                    plt.ylabel(r'Energy [GeV]')
+                    plt.title('$%s$ Aeff PISA V3/V2'%(outputs[cakekey].tex))
+
+                    plt.subplot(1,5,4)
+                    show_map(DiffMapObj)
+                    plt.xlabel(r'$\cos\theta_Z$')
+                    plt.ylabel(r'Energy [GeV]')
+                    plt.title('$%s$ Aeff PISA V2-V3'%(outputs[cakekey].tex))
+
+                    plt.subplot(1,5,5)
+                    show_map(DiffRatioMapObj)
+                    plt.xlabel(r'$\cos\theta_Z$')
+                    plt.ylabel(r'Energy [GeV]')
+                    plt.title('$%s$ Aeff PISA (V2-V3)/V2'%(outputs[cakekey].tex))
+
+                    plt.tight_layout()
+
+                    plt.savefig(args.outdir+'/full/%s_PISAV2-V3_Comparisons_Aeff_Stage_hist1X585_Service.png'%(cakekey))
+
+                    plt.close()
+
+                else:
+
+                    if 'bar' in nukey:
+                        if len(total_pisa_nuallbar_nc_dict.keys()) == 0:
+                            total_pisa_nuallbar_nc_dict = pisa2_comparison[nukey][intkey]
+                            total_pisa_nuallbar_nc_dict['map'] = np.array(total_pisa_nuallbar_nc_dict['map'])
+                        else:
+                            total_pisa_nuallbar_nc_dict['map'] += np.array(pisa2_comparison[nukey][intkey]['map'])
+                    else:
+                        if len(total_pisa_nuall_nc_dict.keys()) == 0:
+                            total_pisa_nuall_nc_dict = pisa2_comparison[nukey][intkey]
+                            total_pisa_nuall_nc_dict['map'] = np.array(total_pisa_nuall_nc_dict['map'])
+                        else:
+                            total_pisa_nuall_nc_dict['map'] += np.array(pisa2_comparison[nukey][intkey]['map'])
+
+    cakekey = 'nuall_nc'
+    cake_map_to_plot = {}
+    for cake_map in outputs:
+        if cake_map.name == cakekey:
+            if len(cake_map_to_plot.keys()) == 0:
+                cake_map_to_plot['ebins'] = cake_map.binning['true_energy'].bin_edges.magnitude
+                cake_map_to_plot['czbins'] = cake_map.binning['true_coszen'].bin_edges.magnitude
+                cake_map_to_plot['map'] = cake_map.hist.T
+            else:
+                cake_map_to_plot['map'] += cake_map.hist.T
+
+    pisa_map_to_plot = total_pisa_nuall_nc_dict
+
+    RatioMapObj = ratio_map(cake_map_to_plot, pisa_map_to_plot)
+    DiffMapObj = delta_map(pisa_map_to_plot, cake_map_to_plot)
+    DiffRatioMapObj = ratio_map(DiffMapObj, pisa_map_to_plot)
+
+    plt.figure(figsize = (20,5))
+    
+    plt.subplot(1,5,1)
+    show_map(pisa_map_to_plot)
+    plt.xlabel(r'$\cos\theta_Z$')
+    plt.ylabel(r'Energy [GeV]')
+    plt.title('$%s$ Aeff PISA V2'%(outputs[cakekey].tex))
+
+    plt.subplot(1,5,2)
+    show_map(cake_map_to_plot)
+    plt.xlabel(r'$\cos\theta_Z$')
+    plt.ylabel(r'Energy [GeV]')
+    plt.title('$%s$ Aeff PISA V3'%(outputs[cakekey].tex))
+
+    plt.subplot(1,5,3)
+    show_map(RatioMapObj)
+    plt.xlabel(r'$\cos\theta_Z$')
+    plt.ylabel(r'Energy [GeV]')
+    plt.title('$%s$ Aeff PISA V3/V2'%(outputs[cakekey].tex))
+
+    plt.subplot(1,5,4)
+    show_map(DiffMapObj)
+    plt.xlabel(r'$\cos\theta_Z$')
+    plt.ylabel(r'Energy [GeV]')
+    plt.title('$%s$ Aeff PISA V2-V3'%(outputs[cakekey].tex))
+
+    plt.subplot(1,5,5)
+    show_map(DiffRatioMapObj)
+    plt.xlabel(r'$\cos\theta_Z$')
+    plt.ylabel(r'Energy [GeV]')
+    plt.title('$%s$ Aeff PISA (V2-V3)/V2'%(outputs[cakekey].tex))
+
+    plt.tight_layout()
+
+    plt.savefig(args.outdir+'/full/%s_PISAV2-V3_Comparisons_Aeff_Stage_hist1X585_Service.png'%(cakekey))
+
+    plt.close()
+
+    cakekey = 'nuallbar_nc'
+    cake_map_to_plot = {}
+    for cake_map in outputs:
+        if cake_map.name == cakekey:
+            if len(cake_map_to_plot.keys()) == 0:
+                cake_map_to_plot['ebins'] = cake_map.binning['true_energy'].bin_edges.magnitude
+                cake_map_to_plot['czbins'] = cake_map.binning['true_coszen'].bin_edges.magnitude
+                cake_map_to_plot['map'] = cake_map.hist.T
+            else:
+                cake_map_to_plot['map'] += cake_map.hist.T
+
+    pisa_map_to_plot = total_pisa_nuallbar_nc_dict
+
+    RatioMapObj = ratio_map(cake_map_to_plot, pisa_map_to_plot)
+    DiffMapObj = delta_map(pisa_map_to_plot, cake_map_to_plot)
+    DiffRatioMapObj = ratio_map(DiffMapObj, pisa_map_to_plot)
+
+    plt.figure(figsize = (20,5))
+    
+    plt.subplot(1,5,1)
+    show_map(pisa_map_to_plot)
+    plt.xlabel(r'$\cos\theta_Z$')
+    plt.ylabel(r'Energy [GeV]')
+    plt.title('$%s$ Aeff PISA V2'%(outputs[cakekey].tex))
+
+    plt.subplot(1,5,2)
+    show_map(cake_map_to_plot)
+    plt.xlabel(r'$\cos\theta_Z$')
+    plt.ylabel(r'Energy [GeV]')
+    plt.title('$%s$ Aeff PISA V3'%(outputs[cakekey].tex))
+
+    plt.subplot(1,5,3)
+    show_map(RatioMapObj)
+    plt.xlabel(r'$\cos\theta_Z$')
+    plt.ylabel(r'Energy [GeV]')
+    plt.title('$%s$ Aeff PISA V3/V2'%(outputs[cakekey].tex))
+
+    plt.subplot(1,5,4)
+    show_map(DiffMapObj)
+    plt.xlabel(r'$\cos\theta_Z$')
+    plt.ylabel(r'Energy [GeV]')
+    plt.title('$%s$ Aeff PISA V2-V3'%(outputs[cakekey].tex))
+
+    plt.subplot(1,5,5)
+    show_map(DiffRatioMapObj)
+    plt.xlabel(r'$\cos\theta_Z$')
+    plt.ylabel(r'Energy [GeV]')
+    plt.title('$%s$ Aeff PISA (V2-V3)/V2'%(outputs[cakekey].tex))
+
+    plt.tight_layout()
+
+    plt.savefig(args.outdir+'/full/%s_PISAV2-V3_Comparisons_Aeff_Stage_hist1X585_Service.png'%(cakekey))
+
+    plt.close()
+
+    # Up to PID stage comparisons
+    pisa2_comparison = pisa2_comparisons[4]
+    outputs = pipeline.get_outputs(idx=5)
 
     total_cake_trck_dict = {}
     total_cake_cscd_dict = {}
-
+    
     for cake_key in outputs.names:
         if 'trck' in cake_key:
             if len(total_cake_trck_dict.keys()) == 0:
@@ -432,11 +762,10 @@ def do_pipeline_comparison(config=None, pisa2file=None, outdir=None):
                 total_cake_cscd_dict['map'] = outputs[cake_key].hist.T
             else:
                 total_cake_cscd_dict['map'] += outputs[cake_key].hist.T
-        
-    pisa2_comparisons = from_json(pisa2file)
 
-    total_pisa_trck_dict = pisa2_comparisons['trck']
-    total_pisa_cscd_dict = pisa2_comparisons['cscd']
+
+    total_pisa_trck_dict = pisa2_comparison['trck']
+    total_pisa_cscd_dict = pisa2_comparison['cscd']
 
     RatioMapObj = ratio_map(total_cake_trck_dict, total_pisa_trck_dict)
     DiffMapObj = delta_map(total_pisa_trck_dict, total_cake_trck_dict)
