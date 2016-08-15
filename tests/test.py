@@ -25,12 +25,33 @@ from pisa.utils.fileio import mkdir
 from pisa.utils.jsons import from_json
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.parse_config import parse_config
-from pisa.utils.plot import show_map, delta_map, ratio_map
 
 # TODO:
 # * Currently must be run from within tests dir. Fix this.
 # * Data files should live somewhere relatively reference-able via $PISA dir
 #   (or find-able by resources module)
+
+def validate_pisa2_maps(amap, bmap):
+    """Validate that two PISA 2 maps are compatible binning."""
+    if not (np.allclose(amap['ebins'], bmap['ebins']) and
+            np.allclose(amap['czbins'], bmap['czbins'])):
+        raise ValueError("Maps' binnings do not match!")
+
+def delta_map(amap, bmap):
+    """Get the difference between two PISA 2 maps (amap-bmap) and return as
+    another PISA 2 map."""
+    validate_pisa2_maps(amap, bmap)
+    return {'ebins': amap['ebins'],
+            'czbins': amap['czbins'],
+            'map': amap['map'] - bmap['map']}
+
+def ratio_map(amap, bmap):
+    """Get the ratio of two PISA 2 maps (amap/bmap) and return as another PISA
+    2 map."""
+    validate_pisa2_maps(amap, bmap)
+    return {'ebins': amap['ebins'],
+            'czbins': amap['czbins'],
+            'map': amap['map']/bmap['map']}
 
 
 def clean_dir(path):
@@ -80,10 +101,10 @@ def baseplot(m, title, ax, symm=False, evtrate=False):
     max_e = np.max(energy)
     ax.set_xlim(np.min(x), np.max(x))
     ax.set_ylim(np.min(y), np.max(y))
-    lin_yticks = 2**(np.arange(np.ceil(np.log2(min_e)), np.floor(np.log2(max_e))+1))
+    lin_yticks = 2**(np.arange(np.ceil(np.log2(min_e)),
+                               np.floor(np.log2(max_e))+1))
     ax.set_yticks(np.log10(lin_yticks))
     ax.set_yticklabels([str(int(yt)) for yt in lin_yticks])
-
 
 
 def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
@@ -137,12 +158,18 @@ def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
 def compare_flux(config, servicename, pisa2file, systname, outdir):
     if systname is not None:
         try:
-            config['flux']['params'][systname] = config['flux']['params'][systname].value+config['flux']['params'][systname].prior.stddev
+            config['flux']['params'][systname] = \
+                    config['flux']['params'][systname].value + \
+                    config['flux']['params'][systname].prior.stddev
         except:
-            config['flux']['params'][systname] = 1.25*config['flux']['params'][systname].value
+            config['flux']['params'][systname] = \
+                    1.25*config['flux']['params'][systname].value
 
-        pisa2file = pisa2file.split('.json')[0]+'-%s%.2f.json'%(systname,config['flux']['params'][systname].value)
-        servicename += '-%s%.2f.json'%(systname,config['flux']['params'][systname].value)
+        pisa2file = pisa2file.split('.json')[0] + \
+                '-%s%.2f.json' \
+                %(systname, config['flux']['params'][systname].value)
+        servicename += '-%s%.2f.json' \
+                %(systname, config['flux']['params'][systname].value)
 
     pipeline = Pipeline(config)
     stage = pipeline.stages[0]
@@ -162,8 +189,10 @@ def compare_flux(config, servicename, pisa2file, systname, outdir):
 
             cake_map = outputs[nukey]
             cake_map_to_plot = {}
-            cake_map_to_plot['ebins'] = cake_map.binning['true_energy'].bin_edges.magnitude
-            cake_map_to_plot['czbins'] = cake_map.binning['true_coszen'].bin_edges.magnitude
+            cake_map_to_plot['ebins'] = \
+                    cake_map.binning['true_energy'].bin_edges.magnitude
+            cake_map_to_plot['czbins'] = \
+                    cake_map.binning['true_coszen'].bin_edges.magnitude
             cake_map_to_plot['map'] = cake_map.hist.T
 
             plot_comparisons(
@@ -184,9 +213,12 @@ def compare_flux(config, servicename, pisa2file, systname, outdir):
 def compare_osc(config, servicename, pisa2file, systname, outdir):
     if systname is not None:
         try:
-            config['osc']['params'][systname] = config['osc']['params'][systname].value+config['osc']['params'][systname].prior.stddev
+            config['osc']['params'][systname] = \
+                    config['osc']['params'][systname].value + \
+                    config['osc']['params'][systname].prior.stddev
         except:
-            config['osc']['params'][systname] = 1.25*config['osc']['params'][systname].value
+            config['osc']['params'][systname] = \
+                    1.25*config['osc']['params'][systname].value
 
         if config['osc']['params'][systname].value.magnitude < 0.01:
             systval = '%e'%config['osc']['params'][systname].value.magnitude
@@ -205,7 +237,9 @@ def compare_osc(config, servicename, pisa2file, systname, outdir):
         input_maps.append(
             Map(name=name, hist=hist, binning=stage.input_binning)
         )
-    outputs = stage.get_outputs(inputs=MapSet(maps=input_maps, name='ones', hash=1))
+    outputs = stage.get_outputs(
+        inputs=MapSet(maps=input_maps, name='ones', hash=1)
+    )
     pisa2_comparisons = from_json(pisa2file)
 
     for nukey in pisa2_comparisons.keys():
@@ -221,8 +255,10 @@ def compare_osc(config, servicename, pisa2file, systname, outdir):
 
             cake_map = outputs[nukey]
             cake_map_to_plot = {}
-            cake_map_to_plot['ebins'] = cake_map.binning['true_energy'].bin_edges.magnitude
-            cake_map_to_plot['czbins'] = cake_map.binning['true_coszen'].bin_edges.magnitude
+            cake_map_to_plot['ebins'] = \
+                    cake_map.binning['true_energy'].bin_edges.magnitude
+            cake_map_to_plot['czbins'] = \
+                    cake_map.binning['true_coszen'].bin_edges.magnitude
             cake_map_to_plot['map'] = cake_map.hist.T
 
             plot_comparisons(
@@ -243,12 +279,18 @@ def compare_osc(config, servicename, pisa2file, systname, outdir):
 def compare_aeff(config, servicename, pisa2file, systname, outdir):
     if systname is not None:
         try:
-            config['aeff']['params'][systname] = config['aeff']['params'][systname].value+config['aeff']['params'][systname].prior.stddev
+            config['aeff']['params'][systname] = \
+                    config['aeff']['params'][systname].value + \
+                    config['aeff']['params'][systname].prior.stddev
         except:
-            config['aeff']['params'][systname] = 1.25*config['aeff']['params'][systname].value
+            config['aeff']['params'][systname] = \
+                    1.25*config['aeff']['params'][systname].value
 
-        pisa2file = pisa2file.split('.json')[0]+'-%s%.2f.json'%(systname,config['aeff']['params'][systname].value)
-        servicename += '-%s%.2f'%(systname,config['aeff']['params'][systname].value)
+        pisa2file = pisa2file.split('.json')[0] + \
+                '-%s%.2f.json' \
+                %(systname, config['aeff']['params'][systname].value)
+        servicename += '-%s%.2f' \
+                %(systname, config['aeff']['params'][systname].value)
 
     pipeline = Pipeline(config)
     stage = pipeline.stages[0]
@@ -258,7 +300,8 @@ def compare_aeff(config, servicename, pisa2file, systname, outdir):
         input_maps.append(
             Map(name=name, hist=hist, binning=stage.input_binning)
         )
-    outputs = stage.get_outputs(inputs=MapSet(maps=input_maps, name='ones', hash=1))
+    outputs = stage.get_outputs(inputs=MapSet(maps=input_maps, name='ones',
+                                              hash=1))
     pisa2_comparisons = from_json(pisa2file)
 
     for nukey in pisa2_comparisons.keys():
@@ -276,8 +319,10 @@ def compare_aeff(config, servicename, pisa2file, systname, outdir):
 
                 cake_map = outputs[cakekey]
                 cake_map_to_plot = {}
-                cake_map_to_plot['ebins'] = cake_map.binning['true_energy'].bin_edges.magnitude
-                cake_map_to_plot['czbins'] = cake_map.binning['true_coszen'].bin_edges.magnitude
+                cake_map_to_plot['ebins'] = \
+                        cake_map.binning['true_energy'].bin_edges.magnitude
+                cake_map_to_plot['czbins'] = \
+                        cake_map.binning['true_coszen'].bin_edges.magnitude
                 cake_map_to_plot['map'] = cake_map.hist.T
 
                 plot_comparisons(
@@ -307,37 +352,45 @@ def compare_reco(config, servicename, pisa2file, outdir):
     outputs = stage.get_outputs(inputs=MapSet(maps=input_maps, name='ones', hash=1))
     modified_cake_outputs = {}
     for name in outputs.names:
-        if name in ['nue_cc','nuebar_cc']:
+        if name in ['nue_cc', 'nuebar_cc']:
             if 'nue_cc' in modified_cake_outputs.keys():
                 modified_cake_outputs['nue_cc']['map'] += outputs[name].hist.T
             else:
                 modified_cake_outputs['nue_cc'] = {}
-                modified_cake_outputs['nue_cc']['ebins'] = outputs[name].binning['reco_energy'].bin_edges.magnitude
-                modified_cake_outputs['nue_cc']['czbins'] = outputs[name].binning['reco_coszen'].bin_edges.magnitude
+                modified_cake_outputs['nue_cc']['ebins'] = \
+                        outputs[name].binning['reco_energy'].bin_edges.magnitude
+                modified_cake_outputs['nue_cc']['czbins'] = \
+                        outputs[name].binning['reco_coszen'].bin_edges.magnitude
                 modified_cake_outputs['nue_cc']['map'] = outputs[name].hist.T
-        elif name in ['numu_cc','numubar_cc']:
+        elif name in ['numu_cc', 'numubar_cc']:
             if 'numu_cc' in modified_cake_outputs.keys():
                 modified_cake_outputs['numu_cc']['map'] += outputs[name].hist.T
             else:
                 modified_cake_outputs['numu_cc'] = {}
-                modified_cake_outputs['numu_cc']['ebins'] = outputs[name].binning['reco_energy'].bin_edges.magnitude
-                modified_cake_outputs['numu_cc']['czbins'] = outputs[name].binning['reco_coszen'].bin_edges.magnitude
+                modified_cake_outputs['numu_cc']['ebins'] = \
+                        outputs[name].binning['reco_energy'].bin_edges.magnitude
+                modified_cake_outputs['numu_cc']['czbins'] = \
+                        outputs[name].binning['reco_coszen'].bin_edges.magnitude
                 modified_cake_outputs['numu_cc']['map'] = outputs[name].hist.T
-        elif name in ['nutau_cc','nutaubar_cc']:
+        elif name in ['nutau_cc', 'nutaubar_cc']:
             if 'nutau_cc' in modified_cake_outputs.keys():
                 modified_cake_outputs['nutau_cc']['map'] += outputs[name].hist.T
             else:
                 modified_cake_outputs['nutau_cc'] = {}
-                modified_cake_outputs['nutau_cc']['ebins'] = outputs[name].binning['reco_energy'].bin_edges.magnitude
-                modified_cake_outputs['nutau_cc']['czbins'] = outputs[name].binning['reco_coszen'].bin_edges.magnitude
+                modified_cake_outputs['nutau_cc']['ebins'] = \
+                        outputs[name].binning['reco_energy'].bin_edges.magnitude
+                modified_cake_outputs['nutau_cc']['czbins'] = \
+                        outputs[name].binning['reco_coszen'].bin_edges.magnitude
                 modified_cake_outputs['nutau_cc']['map'] = outputs[name].hist.T
         elif 'nc' in name:
             if 'nuall_nc' in modified_cake_outputs.keys():
                 modified_cake_outputs['nuall_nc']['map'] += outputs[name].hist.T
             else:
                 modified_cake_outputs['nuall_nc'] = {}
-                modified_cake_outputs['nuall_nc']['ebins'] = outputs[name].binning['reco_energy'].bin_edges.magnitude
-                modified_cake_outputs['nuall_nc']['czbins'] = outputs[name].binning['reco_coszen'].bin_edges.magnitude
+                modified_cake_outputs['nuall_nc']['ebins'] = \
+                        outputs[name].binning['reco_energy'].bin_edges.magnitude
+                modified_cake_outputs['nuall_nc']['czbins'] = \
+                        outputs[name].binning['reco_coszen'].bin_edges.magnitude
                 modified_cake_outputs['nuall_nc']['map'] = outputs[name].hist.T
 
     pisa2_comparisons = from_json(pisa2file)
@@ -379,7 +432,8 @@ def compare_pid(config, servicename, pisa2file, outdir):
         input_maps.append(
             Map(name=name, hist=hist, binning=stage.input_binning)
         )
-    outputs = stage.get_outputs(inputs=MapSet(maps=input_maps, name='ones', hash=1))
+    outputs = stage.get_outputs(inputs=MapSet(maps=input_maps, name='ones',
+                                              hash=1))
 
     total_cake_trck_dict = {}
     total_cake_cscd_dict = {}
@@ -502,27 +556,28 @@ if __name__ == '__main__':
         formatter_class=ArgumentDefaultsHelpFormatter
     )
     parser.add_argument('--flux', action='store_true', default=False,
-                        help='''Run flux tests i.e. the interpolation methods and
-                        the flux systematics.''')
+                        help='''Run flux tests i.e. the interpolation methods
+                        and the flux systematics.''')
     parser.add_argument('--osc', action='store_true', default=False,
-                        help='''Run osc tests i.e. the oscillograms with one sigma
-                        deviations in the parameters.''')
+                        help='''Run osc tests i.e. the oscillograms with one
+                        sigma deviations in the parameters.''')
     parser.add_argument('--aeff', action='store_true', default=False,
                         help='''Run effective area tests i.e. the different
                         transforms with the aeff systematics.''')
     parser.add_argument('--reco', action='store_true', default=False,
-                        help='''Run reco tests i.e. the different reco kernels and
-                        their systematics.''')
+                        help='''Run reco tests i.e. the different reco kernels
+                        and their systematics.''')
     parser.add_argument('--pid', action='store_true', default=False,
                         help='''Run PID tests i.e. the different pid kernels
                         methods and their systematics.''')
     parser.add_argument('--full', action='store_true', default=False,
-                        help='''Run full pipeline tests for the baseline i.e. all
-                        stages simultaneously rather than each in isolation.''')
+                        help='''Run full pipeline tests for the baseline i.e.
+                        all stages simultaneously rather than each in
+                        isolation.''')
     parser.add_argument('--outdir', metavar='DIR', type=str, required=True,
-                        help='''Store all output plots to this directory. If they
-                        don't exist, the script will make them, including all
-                        subdirectories.''')
+                        help='''Store all output plots to this directory. If
+                        they don't exist, the script will make them, including
+                        all subdirectories.''')
     parser.add_argument('-v', action='count', default=None,
                         help='set verbosity level')
     args = parser.parse_args()
@@ -536,8 +591,10 @@ if __name__ == '__main__':
     # Perform Flux Tests.
     if args.flux or test_all:
         flux_config = parse_config('settings/flux_test.ini')
-        flux_config['flux']['params']['flux_file'] = 'flux/honda-2015-spl-solmax-aa.d'
-        flux_config['flux']['params']['flux_mode'] = 'integral-preserving'
+        flux_config['flux']['params']['flux_file'] = \
+                'flux/honda-2015-spl-solmax-aa.d'
+        flux_config['flux']['params']['flux_mode'] = \
+                'integral-preserving'
 
         for syst in [None, 'atm_delta_index', 'nue_numu_ratio',
                      'nu_nubar_ratio', 'energy_scale']:
@@ -562,7 +619,8 @@ if __name__ == '__main__':
     if args.osc or test_all:
         osc_config = parse_config('settings/osc_test.ini')
 
-        for syst in [None, 'theta12', 'theta13', 'theta23', 'deltam21', 'deltam31']:
+        for syst in [None, 'theta12', 'theta13', 'theta23', 'deltam21',
+                     'deltam31']:
             osc_pipeline = compare_osc(
                 config=deepcopy(osc_config),
                 servicename='prob3',
@@ -574,13 +632,19 @@ if __name__ == '__main__':
     # Perform Effective Area Tests.
     if args.aeff or test_all:
         aeff_config = parse_config('settings/aeff_test.ini')
-        aeff_config['aeff']['params']['aeff_weight_file'] = 'events/DC/2015/mdunkman/1XXXX/UnJoined/DC_MSU_1X585_unjoined_events_mc.hdf5'
+        aeff_config['aeff']['params']['aeff_weight_file'] = os.path.join(
+            'events', 'DC', '2015', 'mdunkman', '1XXXX', 'UnJoined',
+            'DC_MSU_1X585_unjoined_events_mc.hdf5'
+        )
+        psia2file = os.path.join(
+            'data', 'aeff', 'PISAV2AeffStageHist1X585Service.json'
+        )
 
         for syst in [None, 'aeff_scale']:
             aeff_pipeline = compare_aeff(
                 config=deepcopy(aeff_config),
                 servicename='hist1X585',
-                pisa2file='data/aeff/PISAV2AeffStageHist1X585Service.json',
+                pisa2file=pisa2file,
                 systname=syst,
                 outdir=args.outdir
             )
