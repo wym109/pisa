@@ -48,8 +48,24 @@ def clean_dir(path):
     mkdir(path)
 
 
-def baseplot(m, title):
-    show_map(m)
+def baseplot(m, title, symm=False, evtrate=False):
+    hist = m['map']
+    islog = False
+    if symm:
+        cmap = plt.cm.seismic
+        extr = np.max(np.abs(hist))
+        vmax = extr
+        vmin = -extr
+    else:
+        cmap = plt.cm.hot
+        vmin = np.min(hist)
+        if evtrate:
+            #islog = True
+            vmin = 0
+        vmax = np.max(hist)
+    cmap.set_bad(color=(0,1,0), alpha=1)
+    show_map(m, vmin=vmin, vmax=vmax, cmap=cmap, invalid=False, log=islog)
+    #show_map(m, invalid=True) #, log=islog)
     plt.xlabel(r'$\cos\theta_Z$')
     plt.ylabel(r'Energy (GeV)')
     plt.title(title)
@@ -89,20 +105,21 @@ def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
 
     plt.figure(figsize = (20,5))
     plt.subplot(1,5,1)
-    baseplot(m=ref_map, title=basetitle+' '+ref_abv)
+    baseplot(m=ref_map, title=basetitle+' '+ref_abv, evtrate=True)
 
     plt.subplot(1,5,2)
-    baseplot(m=new_map, title=basetitle+' '+new_abv)
+    baseplot(m=new_map, title=basetitle+' '+new_abv, evtrate=True)
 
     plt.subplot(1,5,3)
     baseplot(m=RatioMapObj, title=basetitle+' %s/%s' %(new_abv, ref_abv))
 
     plt.subplot(1,5,4)
-    baseplot(m=DiffMapObj, title=basetitle+' %s-%s' %(new_abv, ref_abv))
+    baseplot(m=DiffMapObj, title=basetitle+' %s-%s' %(new_abv, ref_abv),
+             symm=True)
 
     plt.subplot(1,5,5)
     baseplot(m=DiffRatioMapObj, title=basetitle+' (%s-%s)/%s'
-             %(new_abv, ref_abv, ref_abv))
+             %(new_abv, ref_abv, ref_abv), symm=True)
 
     plt.tight_layout()
     plt.savefig(os.path.join(*path))

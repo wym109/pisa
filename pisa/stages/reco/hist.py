@@ -265,6 +265,12 @@ class hist(Stage):
             # Apply the normalization to the kernels
             reco_kernel *= norm_factors
 
+            #assert np.all(reco_kernel >= 0), 'number of elements less than 0 = %d' % np.sum(reco_kernel < 0)
+            #ndims = len(reco_kernel.shape)
+            #sum_over_axes = tuple(range(-int(ndims/2),0))
+            #totals = np.sum(reco_kernel, axis=sum_over_axes)
+            #assert np.all(totals <= 1+1e-14), 'max = ' + str(np.max(totals)-1)
+
             # Now populate this transform to each input for which it applies.
 
             # NOTES:

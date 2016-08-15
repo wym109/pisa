@@ -11,7 +11,7 @@ from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.utils.events import Events
 from pisa.utils.flavInt import ALL_NUFLAVINTS, flavintGroupsFromString, \
-        NuFlavIntGroup
+        IntType, NuFlavIntGroup
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile
