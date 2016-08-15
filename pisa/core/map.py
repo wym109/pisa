@@ -32,7 +32,7 @@ from pisa.utils.comparisons import normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils import jsons
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils.stats import chi2, llh
+from pisa.utils.stats import chi2, llh, conv_llh
 from pisa.utils.profiler import profile
 
 
@@ -471,6 +471,26 @@ class Map(object):
         if isinstance(expected_values, Map):
             expected_values = expected_values.hist
         return np.sum(llh(actual_values=self.hist,
+                          expected_values=expected_values))
+
+    def conv_llh(self, expected_values):
+        """Calculate the total convoluted log-likelihood value between this map and the map
+        described by `expected_values`; self is taken to be the "actual values"
+        (or (pseudo)data), and `expected_values` are the expectation values for
+        each bin.
+
+        Parameters
+        ----------
+        expected_values : numpy.ndarray or Map of same dimension as this
+
+        Returns
+        -------
+        total_conv_llh : float
+
+        """
+        if isinstance(expected_values, Map):
+            expected_values = expected_values.hist
+        return np.sum(conv_llh(actual_values=self.hist,
                           expected_values=expected_values))
 
     def chi2(self, expected_values):
@@ -1341,11 +1361,11 @@ class MapSet(object):
     def metric_per_map(self, expected_values, metric):
         assert isinstance(metric, basestring)
         metric = metric.lower()
-        if metric in ['chi2', 'llh']:
+        if metric in ['chi2', 'llh', 'conv_llh']:
             return self.apply_to_maps(metric, expected_values)
         else:
             raise ValueError('`metric` "%s" not recognized; use either'
-                             ' "chi2" or "llh".' %metric)
+                             ' "chi2", "conv_llh" or "llh".' %metric)
 
     def metric_total(self, expected_values, metric):
         return np.sum(self.metric_per_map(expected_values, metric).values())

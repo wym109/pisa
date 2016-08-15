@@ -30,8 +30,10 @@ class polyfits(Stage):
         # All of the following params (and no more) must be passed via the
         # `params` argument.
         expected_params = (
-            'dom_eff', 'dom_eff_file', 'hole_ice_fwd', 'hole_ice_fwd_file',
-            'hole_ice', 'hole_ice_file'
+            'dom_eff', 'dom_eff_file',
+            'hole_ice_fwd', 'hole_ice_fwd_file',
+            'hole_ice', 'hole_ice_file',
+            'reco_cz_res', 'reco_cz_res_file',
         )
 
         # Define the names of objects expected in inputs and produced as
