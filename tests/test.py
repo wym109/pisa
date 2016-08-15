@@ -96,7 +96,7 @@ def baseplot(m, title, ax, symm=False, evtrate=False):
     cbar.ax.tick_params(labelsize='large')
     ax.set_xlabel(r'$\cos\theta_Z$')
     ax.set_ylabel(r'Energy (GeV)')
-    ax.set_title(title)
+    ax.set_title(title, y=1.03)
     min_e = np.min(energy)
     max_e = np.max(energy)
     ax.set_xlim(np.min(x), np.max(x))
@@ -636,7 +636,7 @@ if __name__ == '__main__':
             'events', 'DC', '2015', 'mdunkman', '1XXXX', 'UnJoined',
             'DC_MSU_1X585_unjoined_events_mc.hdf5'
         )
-        psia2file = os.path.join(
+        pisa2file = os.path.join(
             'data', 'aeff', 'PISAV2AeffStageHist1X585Service.json'
         )
 
