@@ -39,7 +39,8 @@ class hist(Stage):
         Must be one of 'neutrinos' or 'muons' (though only neutrinos are
         supported at this time).
 
-    input_names : 
+    input_names : None, string or sequence of strings
+        If None, defaults are derived from `particles`.
 
     transform_groups : string
         Specifies which particles/interaction types to use for computing the
@@ -77,10 +78,11 @@ class hist(Stage):
     particle naming scheme in PISA. As an example
 
     """
-    def __init__(self, params, particles, input_names, transform_groups,
+    def __init__(self, params, particles, transform_groups,
                  sum_grouped_flavints, input_binning, output_binning,
-                 error_method=None, disk_cache=None, transforms_cache_depth=20,
-                 outputs_cache_depth=20, debug_mode=None):
+                 input_names=None, error_method=None, disk_cache=None,
+                 transforms_cache_depth=20, outputs_cache_depth=20,
+                 debug_mode=None):
         self.events_hash = None
         """Hash of events file or Events object used"""
 
@@ -101,15 +103,21 @@ class hist(Stage):
 
         if isinstance(input_names, basestring):
             input_names = input_names.replace(' ', '').split(',')
+        elif input_names is None:
+            if particles == 'neutrinos':
+                input_names = ('nue', 'nuebar', 'numu', 'numubar', 'nutau',
+                               'nutaubar')
 
         # Define the names of objects expected in inputs and produced as
         # outputs
         if self.particles == 'neutrinos':
             if self.sum_grouped_flavints:
                 output_names = tuple([str(g) for g in self.transform_groups])
+                print '00:', output_names
             else:
                 input_flavints = NuFlavIntGroup(input_names)
                 output_names = tuple([str(fi) for fi in input_flavints])
+                print '01:', output_names
 
         logging.trace('transform_groups = %s' %self.transform_groups)
         logging.trace('output_names = %s' %' :: '.join(output_names))
@@ -246,11 +254,12 @@ class hist(Stage):
                     # Since aeff "splits" neutrino flavors into
                     # flavor+interaction types, need to check if the output
                     # flavints' are encapsulated by the input flavor(s).
-                    if xform_flavints not in input_flavs:
+                    if len(set(xform_flavints).intersection(input_flavs)) == 0:
                         continue
                     for output_name in self.output_names:
                         if output_name not in xform_flavints:
                             continue
+                        print output_name
                         xform = BinnedTensorTransform(
                             input_names=input_name,
                             output_name=output_name,
