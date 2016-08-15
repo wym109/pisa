@@ -708,58 +708,14 @@ def compare_pid_full(cake_maps, pisa_maps, outdir):
         texname=r'{\rm trck}'
     )
 
-def compare_pipeline(config, pisa2file, outdir):
-    pipeline = Pipeline(config)
-    pisa2_comparisons = from_json(pisa2file)
-
-    # Up to flux stage comparisons
-    compare_flux_full(
-        pisa_maps=pisa2_comparisons[0],
-        cake_maps=pipeline.get_outputs(idx=1),
-        outdir=args.outdir
-    )
-
-    # Up to osc stage comparisons
-    compare_osc_full(
-        pisa_maps=pisa2_comparisons[1],
-        cake_maps=pipeline.get_outputs(idx=2),
-        outdir=args.outdir
-    )
-
-    # Up to aeff stage comparisons
-    compare_aeff_full(
-        pisa_maps=pisa2_comparisons[2],
-        cake_maps=pipeline.get_outputs(idx=3),
-        outdir=args.outdir
-    )
-
-    # Up to reco stage comparisons
-    compare_reco_full(
-        pisa_maps=pisa2_comparisons[3],
-        cake_maps=pipeline.get_outputs(idx=4),
-        outdir=args.outdir
-    )
-    
-    # Up to PID stage comparisons
-    compare_pid_full(
-        pisa_maps=pisa2_comparisons[4],
-        cake_maps=pipeline.get_outputs(idx=5),
-        outdir=args.outdir
-    )
-    
-    return pipeline
-
-
 if __name__ == '__main__':
     parser = ArgumentParser(
         description='''Runs a set of tests on the PISA 3 pipeline against
-        benchmark PISA 2 data. The plots will be deleted and re-made every time
-        you run this script so you can always be sure that the ones you have
-        represent your PISA 3 in its current state. This script should always
-        be run when you make any major modifications to be sure nothing has
-        broken. If you find this script does not work, please either fix it or
-        report it! In general, this will signify you have "changed" something,
-        somehow in the basic functionality which you should understand!''',
+        benchmark PISA 2 data. This script should always be run when you make 
+        any major modifications to be sure nothing has broken. If you find this
+        script does not work, please either fix it or report it! In general, 
+        this will signify you have "changed" something, somehow in the basic 
+        functionality which you should understand!''',
         formatter_class=ArgumentDefaultsHelpFormatter
     )
     parser.add_argument('--flux', action='store_true', default=False,
@@ -898,8 +854,41 @@ if __name__ == '__main__':
     # Perform Full Pipeline Tests.
     if args.full or test_all:
         full_config = parse_config('settings/full_pipeline_test.ini')
-        full_pipeline = compare_pipeline(
-            config=deepcopy(full_config),
-            pisa2file='data/full/PISAV2FullDeepCorePipeline-IPSPL2015SolMax-Prob3CPUNuFit2014-AeffHist1X585-RecoHist1X585-PIDHist1X585.json',
+        pipeline = Pipeline(full_config)
+        pisa2file='data/full/PISAV2FullDeepCorePipeline-IPSPL2015SolMax-Prob3CPUNuFit2014-AeffHist1X585-RecoHist1X585-PIDHist1X585.json'
+        pisa2_comparisons = from_json(pisa2file)
+
+        # Up to PID stage comparisons
+        compare_pid_full(
+            pisa_maps=pisa2_comparisons[4],
+            cake_maps=pipeline.get_outputs(idx=5),
+            outdir=args.outdir
+        )
+        
+        # Up to flux stage comparisons
+        compare_flux_full(
+            pisa_maps=pisa2_comparisons[0],
+            cake_maps=pipeline.get_outputs(idx=1),
+            outdir=args.outdir
+        )
+
+        # Up to osc stage comparisons
+        compare_osc_full(
+            pisa_maps=pisa2_comparisons[1],
+            cake_maps=pipeline.get_outputs(idx=2),
+            outdir=args.outdir
+        )
+
+        # Up to aeff stage comparisons
+        compare_aeff_full(
+            pisa_maps=pisa2_comparisons[2],
+            cake_maps=pipeline.get_outputs(idx=3),
+            outdir=args.outdir
+        )
+
+        # Up to reco stage comparisons
+        compare_reco_full(
+            pisa_maps=pisa2_comparisons[3],
+            cake_maps=pipeline.get_outputs(idx=4),
             outdir=args.outdir
         )
