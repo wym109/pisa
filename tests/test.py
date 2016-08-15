@@ -13,6 +13,7 @@ from collections import Sequence
 from copy import deepcopy
 import os
 import shutil
+import sys
 
 import matplotlib.pyplot as plt
 plt.rcParams['text.usetex'] = True
@@ -20,10 +21,10 @@ import numpy as np
 
 from pisa.core.map import Map, MapSet
 from pisa.core.pipeline import Pipeline
-from pisa.utils.log import logging, set_verbosity
 from pisa.utils.fileio import mkdir
-from pisa.utils.parse_config import parse_config
 from pisa.utils.jsons import from_json
+from pisa.utils.log import logging, set_verbosity
+from pisa.utils.parse_config import parse_config
 from pisa.utils.plot import show_map, delta_map, ratio_map
 
 # TODO:
@@ -48,27 +49,41 @@ def clean_dir(path):
     mkdir(path)
 
 
-def baseplot(m, title, symm=False, evtrate=False):
-    hist = m['map']
+def baseplot(m, title, ax, symm=False, evtrate=False):
+    hist = np.ma.masked_invalid(m['map'])
+    energy = m['ebins']
+    coszen = m['czbins']
     islog = False
     if symm:
         cmap = plt.cm.seismic
-        extr = np.max(np.abs(hist))
+        extr = np.nanmax(np.abs(hist))
         vmax = extr
         vmin = -extr
     else:
         cmap = plt.cm.hot
-        vmin = np.min(hist)
         if evtrate:
-            #islog = True
             vmin = 0
-        vmax = np.max(hist)
+        else:
+            vmin = np.nanmin(hist)
+        vmax = np.nanmax(hist)
     cmap.set_bad(color=(0,1,0), alpha=1)
-    show_map(m, vmin=vmin, vmax=vmax, cmap=cmap, invalid=False, log=islog)
-    #show_map(m, invalid=True) #, log=islog)
-    plt.xlabel(r'$\cos\theta_Z$')
-    plt.ylabel(r'Energy (GeV)')
-    plt.title(title)
+    x = coszen
+    y = np.log10(energy)
+    X, Y = np.meshgrid(x, y)
+    pcmesh = ax.pcolormesh(X, Y, hist, vmin=vmin, vmax=vmax, cmap=cmap)
+    cbar = plt.colorbar(mappable=pcmesh, ax=ax)
+    cbar.ax.tick_params(labelsize='large')
+    ax.set_xlabel(r'$\cos\theta_Z$')
+    ax.set_ylabel(r'Energy (GeV)')
+    ax.set_title(title)
+    min_e = np.min(energy)
+    max_e = np.max(energy)
+    ax.set_xlim(np.min(x), np.max(x))
+    ax.set_ylim(np.min(y), np.max(y))
+    lin_yticks = 2**(np.arange(np.ceil(np.log2(min_e)), np.floor(np.log2(max_e))+1))
+    ax.set_yticks(np.log10(lin_yticks))
+    ax.set_yticklabels([str(int(yt)) for yt in lin_yticks])
+
 
 
 def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
@@ -79,7 +94,7 @@ def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
         subdir = stagename.lower()
     path.append(subdir)
 
-    mkdir(os.path.join(*path))
+    mkdir(os.path.join(*path), warn=False)
 
     fname = ['pisa_%s_%s_comparisons' %(ref_abv.lower(), new_abv.lower()),
              'stage_'+stagename]
@@ -92,10 +107,10 @@ def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
     path.append(fname)
 
     basetitle = []
-    if texname is not None:
-        basetitle.append(r'$%s$' % texname)
     if stagename is not None:
         basetitle.append('%s' % stagename)
+    if texname is not None:
+        basetitle.append(r'$%s$' % texname)
     basetitle.append('PISA')
     basetitle = ' '.join(basetitle)
 
@@ -103,27 +118,20 @@ def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
     DiffMapObj = delta_map(new_map, ref_map)
     DiffRatioMapObj = ratio_map(DiffMapObj, ref_map)
 
-    plt.figure(figsize = (20,5))
-    plt.subplot(1,5,1)
-    baseplot(m=ref_map, title=basetitle+' '+ref_abv, evtrate=True)
-
-    plt.subplot(1,5,2)
-    baseplot(m=new_map, title=basetitle+' '+new_abv, evtrate=True)
-
-    plt.subplot(1,5,3)
-    baseplot(m=RatioMapObj, title=basetitle+' %s/%s' %(new_abv, ref_abv))
-
-    plt.subplot(1,5,4)
+    gridspec_kw = dict(left=0.03, right=0.968, wspace=0.32)
+    fig, axes = plt.subplots(nrows=1, ncols=5, gridspec_kw=gridspec_kw,
+                             sharex=False, sharey=False, figsize=(20,5))
+    baseplot(m=ref_map, title=basetitle+' '+ref_abv, evtrate=True, ax=axes[0])
+    baseplot(m=new_map, title=basetitle+' '+new_abv, evtrate=True, ax=axes[1])
+    baseplot(m=RatioMapObj, title=basetitle+' %s/%s' %(new_abv, ref_abv),
+             ax=axes[2])
     baseplot(m=DiffMapObj, title=basetitle+' %s-%s' %(new_abv, ref_abv),
-             symm=True)
-
-    plt.subplot(1,5,5)
+             symm=True, ax=axes[3])
     baseplot(m=DiffRatioMapObj, title=basetitle+' (%s-%s)/%s'
-             %(new_abv, ref_abv, ref_abv), symm=True)
-
-    plt.tight_layout()
-    plt.savefig(os.path.join(*path))
-    plt.close()
+             %(new_abv, ref_abv, ref_abv), symm=True, ax=axes[4])
+    #plt.tight_layout()
+    fig.savefig(os.path.join(*path))
+    plt.close(fig.number)
 
 
 def compare_flux(config, servicename, pisa2file, systname, outdir):

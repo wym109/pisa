@@ -35,14 +35,26 @@ def expandPath(path, exp_user=True, exp_vars=True, absolute=False):
     return path
 
 
-def mkdir(d, mode=0750):
+def mkdir(d, mode=0750, warn=True):
     """Simple wrapper around os.makedirs to create a directory but not raise an
-    exception if the dir already exists"""
+    exception if the dir already exists
+
+    Parameters
+    ----------
+    d : string
+        Directory path
+    mode : integer
+        Permissions on created directory; see os.makedirs for details.
+    warn : bool
+        Whether to warn if directory already exists.
+
+    """
     try:
         os.makedirs(d, mode=mode)
     except OSError as err:
         if err[0] == 17:
-            logging.warn('Directory "' + str(d) + '" already exists')
+            if warn:
+                logging.warn('Directory "' + str(d) + '" already exists')
         else:
             raise err
     else:
