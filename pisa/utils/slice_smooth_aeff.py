@@ -24,8 +24,8 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import numpy as np
 from scipy.interpolate import splrep, splev
 
+from pisa.core.events import Events
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils.events import Events
 from pisa.utils import flavInt
 from pisa.utils import hdf
 from pisa.utils import utils
