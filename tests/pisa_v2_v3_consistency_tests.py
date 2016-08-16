@@ -4,7 +4,7 @@
 """
 Runs the pipeline multiple times to test everything still agrees with PISA 2.
 Test data for comparing against should be in the tests/data directory.
-A set of plots will be output in the tests/output directory for you to check.
+A set of plots will be output in your output directory for you to check.
 Agreement is expected to order 10^{-14} in the far right plots.
 """
 
@@ -24,6 +24,7 @@ from pisa.core.pipeline import Pipeline
 from pisa.utils.fileio import mkdir
 from pisa.utils.jsons import from_json
 from pisa.utils.log import logging, set_verbosity
+from pisa.utils.resources import find_resource
 from pisa.utils.parse_config import parse_config
 
 # TODO:
@@ -421,7 +422,6 @@ def compare_reco(config, servicename, pisa2file, outdir):
     
     return pipeline
 
-
 def compare_pid(config, servicename, pisa2file, outdir):
     pipeline = Pipeline(config)
     stage = pipeline.stages[0]
@@ -753,7 +753,11 @@ if __name__ == '__main__':
 
     # Perform Flux Tests.
     if args.flux or test_all:
-        flux_config = parse_config('settings/flux_test.ini')
+        flux_settings = os.path.join(
+            'tests', 'settings', 'flux_test.ini'
+        )
+        flux_settings = find_resource(flux_settings)
+        flux_config = parse_config(flux_settings)
         flux_config['flux']['params']['flux_file'] = \
                 'flux/honda-2015-spl-solmax-aa.d'
         flux_config['flux']['params']['flux_mode'] = \
@@ -761,48 +765,67 @@ if __name__ == '__main__':
 
         for syst in [None, 'atm_delta_index', 'nue_numu_ratio',
                      'nu_nubar_ratio', 'energy_scale']:
+            pisa2file = os.path.join(
+                'tests', 'data', 'flux', 'PISAV2IPHonda2015SPLSolMaxFlux.json'
+            )
+            pisa2file = find_resource(pisa2file)
             flux_pipeline = compare_flux(
                 config=deepcopy(flux_config),
                 servicename='IP_Honda',
-                pisa2file='data/flux/PISAV2IPHonda2015SPLSolMaxFlux.json',
+                pisa2file=pisa2file,
                 systname=syst,
                 outdir=args.outdir
             )
 
         flux_config['flux']['params']['flux_mode'] = 'bisplrep'
+        pisa2file = os.path.join(
+            'tests', 'data', 'flux', 'PISAV2bisplrepHonda2015SPLSolMaxFlux.json'
+        )
+        pisa2file = find_resource(pisa2file)
         flux_pipeline = compare_flux(
             config=deepcopy(flux_config),
             servicename='bisplrep_Honda',
-            pisa2file='data/flux/PISAV2bisplrepHonda2015SPLSolMaxFlux.json',
+            pisa2file=pisa2file,
             systname=None,
             outdir=args.outdir
         )
 
     # Perform Oscillations Tests.
     if args.osc or test_all:
-        osc_config = parse_config('settings/osc_test.ini')
-
+        osc_settings = os.path.join(
+            'tests', 'settings', 'osc_test.ini'
+        )
+        osc_settings = find_resource(osc_settings)
+        osc_config = parse_config(osc_settings)
         for syst in [None, 'theta12', 'theta13', 'theta23', 'deltam21',
                      'deltam31']:
+            pisa2file = os.path.join(
+                'tests', 'data', 'osc', 'PISAV2OscStageProb3Service.json'
+            )
+            pisa2file = find_resource(pisa2file)
             osc_pipeline = compare_osc(
                 config=deepcopy(osc_config),
                 servicename='prob3',
-                pisa2file='data/osc/PISAV2OscStageProb3Service.json',
+                pisa2file=pisa2file,
                 systname=syst,
                 outdir=args.outdir
             )
 
     # Perform Effective Area Tests.
     if args.aeff or test_all:
-        aeff_config = parse_config('settings/aeff_test.ini')
+        aeff_settings = os.path.join(
+            'tests', 'settings', 'aeff_test.ini'
+        )
+        aeff_settings = find_resource(aeff_settings)
+        aeff_config = parse_config(aeff_settings)
         aeff_config['aeff']['params']['aeff_weight_file'] = os.path.join(
             'events', 'DC', '2015', 'mdunkman', '1XXXX', 'UnJoined',
             'DC_MSU_1X585_unjoined_events_mc.hdf5'
         )
         pisa2file = os.path.join(
-            'data', 'aeff', 'PISAV2AeffStageHist1X585Service.json'
+            'tests', 'data', 'aeff', 'PISAV2AeffStageHist1X585Service.json'
         )
-
+        pisa2file = find_resource(pisa2file)
         for syst in [None, 'aeff_scale']:
             aeff_pipeline = compare_aeff(
                 config=deepcopy(aeff_config),
@@ -814,78 +837,114 @@ if __name__ == '__main__':
 
     # Perform Reconstruction Tests.
     if args.reco or test_all:
-        reco_config = parse_config('settings/reco_test.ini')
+        reco_settings = os.path.join(
+            'tests', 'settings', 'reco_test.ini'
+        )
+        reco_settings = find_resource(reco_settings)
+        reco_config = parse_config(reco_settings)
         reco_config['reco']['params']['reco_weights_name'] = None
-        reco_config['reco']['params']['reco_weight_file'] = 'events/DC/2015/mdunkman/1XXXX/Joined/DC_MSU_1X585_joined_nu_nubar_events_mc.hdf5'
+        reco_config['reco']['params']['reco_weight_file'] = os.path.join(
+            'events', 'DC', '2015', 'mdunkman', '1XXXX', 'Joined',
+            'DC_MSU_1X585_joined_nu_nubar_events_mc.hdf5'
+        )
+        pisa2file = os.path.join(
+            'tests', 'data', 'reco', 'PISAV2RecoStageHist1X585Service.json'
+        )
+        pisa2file = find_resource(pisa2file)
         reco_pipeline = compare_reco(
             config=deepcopy(reco_config),
             servicename='hist1X585',
-            pisa2file='data/reco/PISAV2RecoStageHist1X585Service.json',
+            pisa2file=pisa2file,
             outdir=args.outdir
         )
 
-        reco_config['reco']['params']['reco_weight_file'] = 'events/DC/2015/mdunkman/1XXX/Joined/DC_MSU_1X60_joined_nu_nubar_events_mc.hdf5'
+        reco_config['reco']['params']['reco_weight_file'] = os.path.join(
+            'events', 'DC', '2015', 'mdunkman', '1XXX', 'Joined',
+            'DC_MSU_1X60_joined_nu_nubar_events_mc.hdf5'
+        )
+        pisa2file = os.path.join(
+            'tests', 'data', 'reco', 'PISAV2RecoStageHist1X60Service.json'
+        )
+        pisa2file = find_resource(pisa2file)
         reco_pipeline = compare_reco(
             config=deepcopy(reco_config),
             servicename='hist1X60',
-            pisa2file='data/reco/PISAV2RecoStageHist1X60Service.json',
+            pisa2file=pisa2file,
             outdir=args.outdir
         )
 
     # Perform PID Tests.
     if args.pid or test_all:
-        pid_config = parse_config('settings/pid_test.ini')
+        pid_settings = os.path.join(
+            'tests', 'settings', 'pid_test.ini'
+        )
+        pid_settings = find_resource(pid_settings)
+        pid_config = parse_config(pid_settings)
+        pisa2file = os.path.join(
+            'tests', 'data', 'pid', 'PISAV2PIDStageHistV39Service.json'
+        )
+        pisa2file = find_resource(pisa2file)
         pid_pipeline = compare_pid(
             config=deepcopy(pid_config),
             servicename='pidV39',
-            pisa2file='data/pid/PISAV2PIDStageHistV39Service.json',
+            pisa2file=pisa2file,
             outdir=args.outdir
         )
-        pid_config['pid']['params']['pid_events'] = 'events/DC/2015/mdunkman/1XXXX/Joined/DC_MSU_1X585_joined_nu_nubar_events_mc.hdf5'
+        pid_config['pid']['params']['pid_events'] = os.path.join(
+            'events', 'DC', '2015', 'mdunkman', '1XXXX', 'Joined',
+            'DC_MSU_1X585_joined_nu_nubar_events_mc.hdf5'
+        )
         pid_config['pid']['params']['pid_weights_name'] = 'weighted_aeff'
         pid_config['pid']['params']['pid_ver'] = 'msu_mn8d-mn7d'
+        pisa2file = os.path.join(
+            'tests', 'data', 'pid', 'PISAV2PIDStageHist1X585Service.json'
+        )
+        pisa2file = find_resource(pisa2file)
         pid_pipeline = compare_pid(
             config=deepcopy(pid_config),
             servicename='pid1X585',
-            pisa2file='data/pid/PISAV2PIDStageHist1X585Service.json',
+            pisa2file=pisa2file,
             outdir=args.outdir
         )
 
     # Perform Full Pipeline Tests.
     if args.full or test_all:
-        full_config = parse_config('settings/full_pipeline_test.ini')
+        full_settings = os.path.join(
+            'tests', 'settings', 'full_pipeline_test.ini'
+        )
+        full_settings = find_resource(full_settings)
+        full_config = parse_config(full_settings)
         pipeline = Pipeline(full_config)
-        pisa2file='data/full/PISAV2FullDeepCorePipeline-IPSPL2015SolMax-Prob3CPUNuFit2014-AeffHist1X585-RecoHist1X585-PIDHist1X585.json'
+        pisa2file = os.path.join(
+            'tests', 'data', 'full',
+            'PISAV2FullDeepCorePipeline-IPSPL2015SolMax-Prob3CPUNuFit2014-AeffHist1X585-RecoHist1X585-PIDHist1X585.json'
+        )
+        pisa2file = find_resource(pisa2file)
         pisa2_comparisons = from_json(pisa2file)
-
         # Up to PID stage comparisons
         compare_pid_full(
             pisa_maps=pisa2_comparisons[4],
             cake_maps=pipeline.get_outputs(idx=5),
             outdir=args.outdir
         )
-        
         # Up to flux stage comparisons
         compare_flux_full(
             pisa_maps=pisa2_comparisons[0],
             cake_maps=pipeline.get_outputs(idx=1),
             outdir=args.outdir
         )
-
         # Up to osc stage comparisons
         compare_osc_full(
             pisa_maps=pisa2_comparisons[1],
             cake_maps=pipeline.get_outputs(idx=2),
             outdir=args.outdir
         )
-
         # Up to aeff stage comparisons
         compare_aeff_full(
             pisa_maps=pisa2_comparisons[2],
             cake_maps=pipeline.get_outputs(idx=3),
             outdir=args.outdir
         )
-
         # Up to reco stage comparisons
         compare_reco_full(
             pisa_maps=pisa2_comparisons[3],
