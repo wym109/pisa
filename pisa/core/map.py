@@ -372,7 +372,8 @@ class Map(object):
 
         """
         state = jsons.from_json(resource)
-        # State is a dict with kwargs, so instantiate with double-asterisk syntax
+        # State is a dict with kwargs, so instantiate with double-asterisk
+        # syntax
         return cls(**state)
 
     def assert_compat(self, other):
@@ -844,7 +845,8 @@ class Map(object):
 
 class MapSet(object):
     """
-    Set of maps.
+    Ordered set of event rate maps (aka histograms) defined over an arbitrary
+    regluar hyper-rectangular binning.
 
 
     Parameters
@@ -1176,7 +1178,8 @@ class MapSet(object):
             attrname = attr.__name__
         else:
             attrname = attr
-        do_not_have_attr = np.array([(not hasattr(mp, attrname)) for mp in self.maps])
+        do_not_have_attr = np.array([(not hasattr(mp, attrname))
+                                     for mp in self.maps])
         if np.any(do_not_have_attr):
             missing_in_names = ', '.join(np.array(self.names)[do_not_have_attr])
             num_missing = np.sum(do_not_have_attr)
@@ -1349,11 +1352,11 @@ class MapSet(object):
     def __sub__(self, val):
         return self.apply_to_maps('__sub__', val)
 
-    def downsample(self, *args, **kwargs):
-        return MapSet([m.downsample(*args, **kwargs) for m in self.maps])
-
     def rebin(self, *args, **kwargs):
         return MapSet([m.rebin(*args, **kwargs) for m in self.maps])
+    
+    def downsample(self, *args, **kwargs):
+        return MapSet([m.downsample(*args, **kwargs) for m in self.maps])
 
     def metric_per_map(self, expected_values, metric):
         assert isinstance(metric, basestring)
