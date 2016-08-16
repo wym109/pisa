@@ -27,11 +27,6 @@ from pisa.utils.log import logging, set_verbosity
 from pisa.utils.resources import find_resource
 from pisa.utils.parse_config import parse_config
 
-# TODO:
-# * Currently must be run from within tests dir. Fix this.
-# * Data files should live somewhere relatively reference-able via $PISA dir
-#   (or find-able by resources module)
-
 def validate_pisa2_maps(amap, bmap):
     """Validate that two PISA 2 maps are compatible binning."""
     if not (np.allclose(amap['ebins'], bmap['ebins']) and
@@ -346,6 +341,9 @@ def compare_reco(config, servicename, pisa2file, outdir):
     input_maps = []
     for name in stage.input_names:
         hist = np.ones(stage.input_binning.shape)
+        if 'nc' in name:
+            # NC is combination of three flavours
+            hist *= 3.0
         input_maps.append(
             Map(name=name, hist=hist, binning=stage.input_binning)
         )
@@ -428,6 +426,9 @@ def compare_pid(config, servicename, pisa2file, outdir):
     input_maps = []
     for name in stage.input_names:
         hist = np.ones(stage.input_binning.shape)
+        # Input names still has nu and nubar separated.
+        # PISA 2 is not expecting this
+        hist *= 0.5
         input_maps.append(
             Map(name=name, hist=hist, binning=stage.input_binning)
         )
