@@ -503,7 +503,7 @@ def main():
         '--outdir',
         metavar='DIR',
         type=str,
-        default='$PISA/pisa.utils/events',
+        default='$PISA/pisa/resources/events',
         help='directory into which to store resulting HDF5 file'
     )
 
