@@ -372,7 +372,8 @@ class Map(object):
 
         """
         state = jsons.from_json(resource)
-        # State is a dict with kwargs, so instantiate with double-asterisk syntax
+        # State is a dict with kwargs, so instantiate with double-asterisk
+        # syntax
         return cls(**state)
 
     def assert_compat(self, other):
@@ -844,7 +845,8 @@ class Map(object):
 
 class MapSet(object):
     """
-    Set of maps.
+    Ordered set of event rate maps (aka histograms) defined over an arbitrary
+    regluar hyper-rectangular binning.
 
 
     Parameters
@@ -982,20 +984,25 @@ class MapSet(object):
         --------
         Get total of trck and cscd maps, which are named with suffixes "trck"
         and "cscd", respectively.
+
         >>> total_trck_map = outputs.combine_re('.*trck')
         >>> total_cscd_map = outputs.combine_re('.*cscd')
 
         Get a MapSet with both of the above maps in it (and a single command)
+
         >>> total_pid_maps = outputs.combine_re(['.*trck', '.*cscd'])
 
         Strict name-checking, combine  nue_cc + nuebar_cc, including both
         cascades and tracks.
+
         >>> nue_cc_nuebar_cc_map = outputs.combine_re('^nue(bar){0,1}_cc_(cscd|trck)$')
 
         Lenient nue_cc + nuebar_cc including both cascades and tracks.
+
         >>> nue_cc_nuebar_cc_map = outputs.combine_re('nue.*_cc_.*')
 
         Total of all maps
+
         >>> total = outputs.combine_re('.*')
 
         See Also
@@ -1176,7 +1183,8 @@ class MapSet(object):
             attrname = attr.__name__
         else:
             attrname = attr
-        do_not_have_attr = np.array([(not hasattr(mp, attrname)) for mp in self.maps])
+        do_not_have_attr = np.array([(not hasattr(mp, attrname))
+                                     for mp in self.maps])
         if np.any(do_not_have_attr):
             missing_in_names = ', '.join(np.array(self.names)[do_not_have_attr])
             num_missing = np.sum(do_not_have_attr)
@@ -1349,11 +1357,11 @@ class MapSet(object):
     def __sub__(self, val):
         return self.apply_to_maps('__sub__', val)
 
-    def downsample(self, *args, **kwargs):
-        return MapSet([m.downsample(*args, **kwargs) for m in self.maps])
-
     def rebin(self, *args, **kwargs):
         return MapSet([m.rebin(*args, **kwargs) for m in self.maps])
+    
+    def downsample(self, *args, **kwargs):
+        return MapSet([m.downsample(*args, **kwargs) for m in self.maps])
 
     def metric_per_map(self, expected_values, metric):
         assert isinstance(metric, basestring)
