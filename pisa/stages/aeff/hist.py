@@ -113,11 +113,9 @@ class hist(Stage):
         if self.particles == 'neutrinos':
             if self.sum_grouped_flavints:
                 output_names = tuple([str(g) for g in self.transform_groups])
-                print '00:', output_names
             else:
                 input_flavints = NuFlavIntGroup(input_names)
                 output_names = tuple([str(fi) for fi in input_flavints])
-                print '01:', output_names
 
         logging.trace('transform_groups = %s' %self.transform_groups)
         logging.trace('output_names = %s' %' :: '.join(output_names))
@@ -259,7 +257,6 @@ class hist(Stage):
                     for output_name in self.output_names:
                         if output_name not in xform_flavints:
                             continue
-                        print output_name
                         xform = BinnedTensorTransform(
                             input_names=input_name,
                             output_name=output_name,

@@ -77,32 +77,50 @@ class Pipeline(object):
     def __iter__(self):
         return iter(self._stages)
 
+    def __getitem__(self, idx):
+        if isinstance(idx, basestring):
+            for stage_num, stage in enumerate(self):
+                if stage.stage_name == idx:
+                    idx = stage_num
+                    break
+
+        if isinstance(idx, (int, slice)):
+            return self.stages[idx]
+
+        raise ValueError('Cannot locate stage "%s" in pipeline. Stages'
+                         ' available are %s.' %(idx, self.stage_names))
+
+    def __getattr__(self, attr):
+        for stage in self:
+            if stage.stage_name == attr:
+                return stage
+        raise AttributeError('Stage or attribute "%s" not in pipeline.' %attr)
+
     def _init_stages(self):
         """Stage factory: Instantiate stages specified by self.config."""
 
         self._stages = []
-        for stage_num, stage_name in enumerate(self.config.keys()):
+        for stage_num, (stage_name, settings) in enumerate(self.config.items()):
+            stage_name = stage_name.lower()
             try:
                 logging.debug('instantiating stage %s' % stage_name)
-                service = self.config[stage_name.lower()].pop('service').lower()
+                print settings
+                service = settings['service'].lower()
                 # Import stage service
                 module = importlib.import_module('pisa.stages.%s.%s'
-                                                 %(stage_name.lower(), service))
+                                                 %(stage_name, service))
                 # Get class
                 cls = getattr(module, service)
 
                 # Instantiate object, do basic type check
-                stage = cls(**self.config[stage_name.lower()])
+                # NOTE: the `service` kwarg is not for the class, so leave it
+                # out!
+                stage = cls(**{k:v for k,v in settings.items() if k!='service'})
                 assert isinstance(stage, Stage)
-
-                # Make sure the input binning of this stage is compatible with the
-                # output binning of the previous stage ("compatible binning"
-                # includes if both are specified to be None)
-                #if len(self._stages) > 0:
-                #    assert stage.input_binning.is_compat(self._stages[-1].output_binning)
 
                 # Append stage to pipeline
                 self._stages.append(stage)
+
             except:
                 logging.error('Failed to initialize stage #%d (%s).'
                               %(stage_num, stage_name))
@@ -119,9 +137,12 @@ class Pipeline(object):
         ----------
         inputs : None or MapSet # TODO: other container(s)
             Optional inputs to send to the first stage of the pipeline.
-        idx : None, int, or slice
+        idx : None, string, or int
             Specification of which stage(s) to run. If None is passed, all
-            stages will be run.
+            stages will be run. If a string is passed, all stages are run up to
+            and including the named stage. If int is passed, all stages are run
+            up to but *not* including `idx`. Numbering follows Python
+            conventions (i.e., is 0-indexed).
         return_intermediate : bool
             If True,
 
@@ -135,6 +156,10 @@ class Pipeline(object):
         """
         intermediate = []
         i = 0
+        if isinstance(idx, basestring):
+            idx = self.stage_names.index(idx) + 1
+        if idx is not None and idx <= 0:
+            raise ValueError('Integer `idx` must be > 0')
         for stage in self.stages[:idx]:
             logging.info('>> Working on stage "%s" service "%s"'
                          %(stage.stage_name, stage.service_name))
@@ -153,9 +178,6 @@ class Pipeline(object):
             if return_intermediate:
                 intermediate.append(outputs)
 
-            # Outputs from this stage become inputs for next stage
-            #if stage.stage_name == 'aeff':
-            #    outputs = outputs.downsample(10)
             inputs = outputs
 
         if return_intermediate:
@@ -175,6 +197,10 @@ class Pipeline(object):
     @property
     def stages(self):
         return [s for s in self]
+
+    @property
+    def stage_names(self):
+        return [s.stage_name for s in self]
 
 
 if __name__ == '__main__':

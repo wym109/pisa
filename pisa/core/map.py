@@ -984,20 +984,25 @@ class MapSet(object):
         --------
         Get total of trck and cscd maps, which are named with suffixes "trck"
         and "cscd", respectively.
+
         >>> total_trck_map = outputs.combine_re('.*trck')
         >>> total_cscd_map = outputs.combine_re('.*cscd')
 
         Get a MapSet with both of the above maps in it (and a single command)
+
         >>> total_pid_maps = outputs.combine_re(['.*trck', '.*cscd'])
 
         Strict name-checking, combine  nue_cc + nuebar_cc, including both
         cascades and tracks.
+
         >>> nue_cc_nuebar_cc_map = outputs.combine_re('^nue(bar){0,1}_cc_(cscd|trck)$')
 
         Lenient nue_cc + nuebar_cc including both cascades and tracks.
+
         >>> nue_cc_nuebar_cc_map = outputs.combine_re('nue.*_cc_.*')
 
         Total of all maps
+
         >>> total = outputs.combine_re('.*')
 
         See Also
