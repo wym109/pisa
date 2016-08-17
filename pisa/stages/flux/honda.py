@@ -840,8 +840,11 @@ class honda(Stage):
 
             return_table = np.array(return_table)
 
-        if self.output_binning.names[0] == 'true_coszen':
-            return_table = return_table.T
+        if self.output_binning.names[0] != 'true_energy':
+            print "Arbitrary handling of dimensionality not currently supported in 3D"
+            print "Please use (E,CZ,Az) in that order when calling for 3D fluxes"
+            # TODO: implement this functionality
+            raise NotImplementedError()
 
         # Flux is given per sr and GeV, so we need to multiply
         # by bin width in both dimensions
