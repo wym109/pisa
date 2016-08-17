@@ -5,6 +5,7 @@ detector into an event count.
 This service in particular reads in from a GENIE cross-section spline ROOT file
 in order to obtain the relavant cross-sections.
 """
+from itertools import product
 from operator import add
 
 import numpy as np
@@ -95,6 +96,8 @@ class genie(Stage):
         * 'nuebar'
         * 'numu'
         * 'numubar'
+        * 'nutau'
+        * 'nutaubar'
 
     Output Names
     ----------
@@ -108,11 +111,16 @@ class genie(Stage):
         * 'numu_nc'
         * 'numubar_cc'
         * 'numubar_nc'
+        * 'nutau_cc'
+        * 'nutau_nc'
+        * 'nutaubar_cc'
+        * 'nutaubar_nc'
 
     """
-    def __init__(self, params, transform_groups, input_binning, output_binning,
-                 error_method=None, debug_mode=None, disk_cache=None,
-                 transforms_cache_depth=20, outputs_cache_depth=20):
+    def __init__(self, params, input_binning, output_binning, input_names,
+                 transform_groups, error_method=None, debug_mode=None,
+                 disk_cache=None, transforms_cache_depth=20,
+                 outputs_cache_depth=20):
         self.xsec_hash = None
         """Hash of GENIE spline file"""
 
@@ -121,14 +129,16 @@ class genie(Stage):
             'x_energy_scale'
         )
 
-        input_names = (
-            'nue', 'nuebar', 'numu', 'numubar', 'nutau', 'nutaubar'
-        )
+        def suffix_channel(sign, suf):
+            return '%s_%s' % (sign, suf)
 
-        all_names = (
-            'nue_cc', 'nuebar_cc', 'numu_cc', 'numubar_cc', 'nutau_cc', 'nutaubar_cc',
-            'nue_nc', 'nuebar_nc', 'numu_nc', 'numubar_nc', 'nutau_nc', 'nutaubar_nc',
-        )
+        if isinstance(input_names, basestring):
+            input_names = (''.join(input_names.split(' '))).split(',')
+
+        self.output_channels = ('cc', 'nc')
+        all_names = [suffix_channel(in_name, out_chan) for in_name, out_chan in
+                     product(input_names, self.output_channels)]
+
         if transform_groups is None:
             output_names = all_names
         else:
