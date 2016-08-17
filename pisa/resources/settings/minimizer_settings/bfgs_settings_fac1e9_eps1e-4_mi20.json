@@ -11,7 +11,7 @@
       "gtol"   : 1.0e-5,
       "maxcor" : 10,
       "maxfun" : 15000,
-      "maxiter": 20
+      "maxiter": 200
     },
     "desc": {
       "disp"   : "Set to True to print convergence messages",

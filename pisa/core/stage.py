@@ -117,6 +117,7 @@ class Stage(object):
     applicable:
         _derive_nominal_transforms_hash
         _derive_transforms_hash
+        _derive_nominal_outputs_hash
         _derive_outputs_hash
         _compute_nominal_transforms
             This is called during initialization to compute what are termed
@@ -128,6 +129,8 @@ class Stage(object):
             nominal transform is useful when systematic parameters merely have
             the effect of modifying the nominal transform, rather than
             requiring a complete recomputation of the transform.
+        _compute_nominal_outputs
+            same as nominal transforms, but for outputs (e.g. used for non-input stages)
         _compute_transforms
             Do the actual work to produce the stage's transforms. For stages
             that specify use_transforms=False, this method is never called.
@@ -190,6 +193,7 @@ class Stage(object):
         self.transforms_cache = MemoryCache(self.transforms_cache_depth,
                                             is_lru=True)
         self.nominal_transforms_cache = MemoryCache(10, is_lru=True)
+        self.nominal_outputs_hash = None
 
         self.outputs_cache_depth = outputs_cache_depth
 
@@ -240,6 +244,9 @@ class Stage(object):
 
         self.transforms_computed = False
         """Records whether transforms were (re)computed."""
+
+        self.nominal_outputs_computed = False
+        """Records whether nominal outputs were (re)computed."""
 
         self.outputs_loaded_from_cache = None
         """Records which cache outputs were loaded from, or None."""
@@ -392,6 +399,33 @@ class Stage(object):
         return transforms
 
     @profile
+    def get_nominal_outputs(self, nominal_outputs_hash):
+        """Load a cached output from the nominal outputs memory cache
+        (which is backed by a disk cache, if one is specified) if the nominal
+        outout is in the cache, or else recompute it and store to the
+        cache(s).
+
+        This method calls the `_compute_nominal_outputs` method, which by
+        default does nothing.
+
+        However, if you want to use the nominal outputs feature, override
+        the `_compute_nominal_outputs` method and fill in the logic there.
+
+        Deciding whether to invoke the `_compute_nominal_outputs` method or
+        to load the nominal outputs from cache is done here, so you needn't
+        think about any of this within the `_compute_nominal_outputs`
+        method.
+
+        Returns
+        -------
+        nominal_outputs, hash
+
+        """
+        if (self.nominal_outputs_hash is None) or (self.nominal_outputs_hash != self._derive_nominal_outputs_hash()):
+            self._compute_nominal_outputs()
+            self.nominal_outputs_hash = self._derive_nominal_outputs_hash()
+
+    @profile
     def get_outputs(self, inputs=None):
         """Top-level function for computing outputs. Use this method to get
         outputs if you live outside this stage/service.
@@ -418,10 +452,26 @@ class Stage(object):
         self.outputs_loaded_from_cache = None
         self.outputs_computed = False
 
+        # TODO: store nominal outputs to the outputs cache as well, but
+        # derive the hash value the same way as it is done for outputs,
+        # to avoid needing to apply no systematics to the nominal outputs
+        # to get the (identical) outputs?
+        # Problem: assumes the nominal transform is the same as the outputs
+        # that will result, which *might* not be true (though it seems it will
+        # usually be so)
+
         # Keep inputs for internal use and for inspection later
         self.inputs = {} if inputs is None else inputs
 
         outputs_hash, transforms_hash, nominal_transforms_hash  = self._derive_outputs_hash()
+
+        # Compute nominal outputs; if feature is not used, this doesn't
+        # actually do much of anything. To do more than this, override the
+        # `_compute_nominal_outputs` method.
+        self.get_nominal_outputs(
+                    nominal_outputs_hash=nominal_transforms_hash
+                )
+
 
         logging.trace('outputs_hash: %s' %outputs_hash)
 
@@ -593,7 +643,7 @@ class Stage(object):
         """Read-only attribute indicating whether or not the stage will compute
         errors for its transforms and outputs (whichever is applicable). Errors
         on inputs are propagated regardless of this setting."""
-        return self._debug_mode
+        return self._error_method
 
     @profile
     def _derive_outputs_hash(self):
@@ -745,6 +795,9 @@ class Stage(object):
 
         return nominal_transforms_hash
 
+    def _derive_nominal_outputs_hash(self):
+        return self._derive_nominal_transforms_hash()
+
     def _compute_nominal_transforms(self):
         """Stages that start with a nominal transform and use systematic
         parameters to modify the nominal transform in order to obtain the final
@@ -758,7 +811,9 @@ class Stage(object):
         simply returning None."""
         return TransformSet([])
 
-    #@profile
+    def _compute_nominal_outputs(self):
+        return None
+
     def _compute_outputs(self, inputs):
         """Override this method for no-input stages which do not use transforms.
         Input stages that compute a TransformSet needn't override this, as the

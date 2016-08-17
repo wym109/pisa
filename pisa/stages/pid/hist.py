@@ -34,6 +34,7 @@ from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.utils.dataProcParams import DataProcParams
 from pisa.utils.events import Events
 from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup, ALL_NUFLAVINTS
+from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
 from pisa.utils.PIDSpec import PIDSpec
 from pisa.utils.profiler import profile
@@ -78,13 +79,17 @@ class hist(Stage):
                 Resource for loading PID specifications
 
             * pid_weights_name: str or NoneType
-                Specify the name of the node whose data will be used as weights to
-                create the reco and pid variables histogram. If NoneType is
+                Specify the name of the node whose data will be used as weights
+                to create the reco and pid variables histogram. If NoneType is
                 given then events will not be weighted.
 
     particles
 
     input_names
+
+    transform_groups
+
+    TODO: sum_grouped_flavints
 
     input_binning : MultiDimBinning
         Arbitrary number of dimensions accepted. Contents of the input
@@ -197,16 +202,23 @@ class hist(Stage):
     returned.
 
     """
+    # TODO: add sum_grouped_flavints instantiation arg
     def __init__(self, params, particles, input_names, transform_groups,
                  input_binning, output_binning, error_method=None,
                  disk_cache=None, transforms_cache_depth=20,
                  outputs_cache_depth=20, debug_mode=None):
+        self.events_hash = None
+        """Hash of events file or Events object used"""
+
         assert particles in ['neutrinos', 'muons']
         self.particles = particles
         """Whether stage is instantiated to process neutrinos or muons"""
 
         self.transform_groups = flavintGroupsFromString(transform_groups)
         """Particle/interaction types to group for computing transforms"""
+
+        # TODO
+        #self.sum_grouped_flavints = sum_grouped_flavints
 
         # All of the following params (and no more) must be passed via
         # the `params` argument.
@@ -216,7 +228,7 @@ class hist(Stage):
         )
 
         if isinstance(input_names, basestring):
-            input_names = (''.join(input_names.split(' '))).split(',')
+            input_names = input_names.replace(' ', '').split(',')
 
         # Define the names of objects that get produced by this stage
         self.output_channels = ('trck', 'cscd')
@@ -240,6 +252,19 @@ class hist(Stage):
             debug_mode=debug_mode
         )
 
+        # Can do these now that binning has been set up in call to Stage's init
+        self.include_attrs_for_hashes('particles')
+        self.include_attrs_for_hashes('transform_groups')
+
+    def load_events(self):
+        evts = self.params['pid_events'].value
+        this_hash = hash_obj(evts)
+        if this_hash == self.events_hash:
+            return
+        logging.debug('Extracting events from Events obj or file: %s' %evts)
+        self.events = Events(evts)
+        self.events_hash = this_hash
+
     @profile
     def _compute_nominal_transforms(self):
         """Compute new PID transforms."""
@@ -260,14 +285,14 @@ class hist(Stage):
         # objects; implement this! (and then this assert statement can go away)
         assert self.input_binning == self.output_binning
 
-        events = Events(self.params['pid_events'].value)
+        self.load_events()
 
         # TODO: in future, the events file will not have these combined
         # already, and it should be done here (or in a nominal transform,
         # etc.). See below about taking this step when we move to directly
         # using the I3-HDF5 files.
         events_file_combined_flavints = tuple([
-            NuFlavIntGroup(s) for s in events.metadata['flavints_joined']
+            NuFlavIntGroup(s) for s in self.events.metadata['flavints_joined']
         ])
 
         # TODO: take events object as an input instead of as a param that
@@ -283,22 +308,22 @@ class hist(Stage):
         # output.
 
         data_proc_params = DataProcParams(
-            detector=events.metadata['detector'],
-            proc_ver=events.metadata['proc_ver']
+            detector=self.events.metadata['detector'],
+            proc_ver=self.events.metadata['proc_ver']
         )
 
         if self.params['pid_remove_true_downgoing'].value:
             # TODO(shivesh): more options for cuts?
             cut_events = data_proc_params.applyCuts(
-                events, cuts='true_upgoing_coszen'
+                self.events, cuts='true_upgoing_coszen'
             )
         else:
-            cut_events = events
+            cut_events = self.events
 
         pid_spec = PIDSpec(
-            detector=events.metadata['detector'],
-            geom=events.metadata['geom'],
-            proc_ver=events.metadata['proc_ver'],
+            detector=self.events.metadata['detector'],
+            geom=self.events.metadata['geom'],
+            proc_ver=self.events.metadata['proc_ver'],
             pid_spec_ver=self.params['pid_ver'].value,
             pid_specs=self.params['pid_spec_source'].value
         )
@@ -368,10 +393,14 @@ class hist(Stage):
                         ' masked off from any further computations.'
                         % (flav_int_group, sig, num_invalid)
                     )
-                    xform_array = np.ma.masked_invalid(xform_array)
+                    # TODO: this caused buggy event propagation for some
+                    # reason; check and re-introduced the masked array idea
+                    # when this is fixed. For now, replicating the behavior
+                    # from PISA 2.
+                    #xform_array = np.ma.masked_invalid(xform_array)
 
                 # Double check that no NaN remain
-                assert not np.any(np.isnan(xform_array))
+                #assert not np.any(np.isnan(xform_array))
 
                 # Copy this transform to use for each input in the group
                 for input_name in self.input_names:

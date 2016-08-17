@@ -643,7 +643,6 @@ class honda(Stage):
         flux_mode = self.params['flux_mode'].value
 
         if flux_mode == 'bisplrep':
-
             # Assert that spline dict matches what is expected
             # i.e. One spline for each primary
             assert not isinstance(self.spline_dict[self.primaries[0]], Mapping)
@@ -652,10 +651,9 @@ class honda(Stage):
             # log(flux) as function of log(E), cos(zenith)
             return_table = interpolate.bisplev(np.log10(evals), czvals,
                                                self.spline_dict[prim])
-            return_table = np.power(10., return_table).T
+            return_table = np.power(10., return_table)
 
         elif flux_mode == 'integral-preserving':
-
             # Assert that spline dict matches what is expected
             # i.e. One spline for every table cosZenith value
             #      0.95 is used for no particular reason
@@ -691,7 +689,10 @@ class honda(Stage):
                             * 0.1/energyval)
                 return_table.append(czfluxes)
 
-            return_table = np.array(return_table).T
+            return_table = np.array(return_table)
+
+        if self.output_binning.names[0] == 'coszen':
+            return_table = return_table.T
 
         # Flux is given per sr and GeV, so we need to multiply
         # by bin width in both dimensions

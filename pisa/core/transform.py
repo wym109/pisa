@@ -60,20 +60,20 @@ class TransformSet(object):
     @property
     def _serializable_state(self):
         state = OrderedDict()
-        state['transforms'] = tuple([
+        state['transforms'] = [
             (t.__module__, t.__class__.__name__, t._serializable_state)
             for t in self.transforms
-        ])
+        ]
         state['name'] = self.name
         return state
 
     @property
     def _hashable_state(self):
         state = OrderedDict()
-        state['transforms'] = tuple([
+        state['transforms'] = [
             (t.__module__, t.__class__.__name__, t._hashable_state)
             for t in self.transforms
-        ])
+        ]
         state['name'] = self.name
         return state
 
@@ -156,7 +156,7 @@ class TransformSet(object):
 
     @property
     def hashes(self):
-        return tuple([t.hash for t in self.transforms])
+        return [t.hash for t in self.transforms]
 
     # TODO: implement a non-volatile hash that includes source code hash in
     # addition to self.hash from the contained transforms
@@ -168,7 +168,7 @@ class TransformSet(object):
     def input_names(self):
         input_names = set()
         [input_names.update(x.input_names) for x in self]
-        return tuple(sorted(input_names))
+        return sorted(input_names)
 
     @property
     def num_inputs(self):
@@ -182,9 +182,22 @@ class TransformSet(object):
     def output_names(self):
         output_names = []
         [output_names.append(x.output_name) for x in self]
-        return tuple(output_names)
+        return output_names
 
-    def get(input_names, output_name):
+    def get(self, input_names, output_name):
+        """Retrieve the transform that maps `input_names` to `output_name`.
+        Note that `input_names` can be a single name.
+
+        Parameters
+        ----------
+        input_names : string or sequence thereof
+        output_name : string
+
+        Returns
+        -------
+        transform : Transform object
+
+        """
         if isinstance(input_names, basestring):
             input_names = [input_names]
         for transform in self.transforms:
@@ -204,16 +217,30 @@ class TransformSet(object):
         outputs : container with computed outputs (no sideband objects)
 
         """
-        outputs = [xform.apply(inputs) for xform in self]
+        output_names = []
+        outputs = []
 
-        # Automatically attach a sensible hash (this may be replaced, of
-        # course, but it should be a good guess)
+        # If any outputs have the same name, add them together to form a single
+        # output for that name
+        for xform in self:
+            output = xform.apply(inputs)
+            name = output.name
+            try:
+                idx = output_names.index(name)
+                outputs[idx] = outputs[idx] + output
+                outputs[idx].name = name
+            except ValueError:
+                outputs.append(output)
+                output_names.append(name)
+
+        # Automatically attach a sensible hash (this may be overwritten, but
+        # the below should be a reasonable hash in most cases)
         if inputs.hash is None or self.hash is None:
             hash = None
         else:
             hash = hash_obj((inputs.hash, self.hash))
 
-        # TODO: what to set for name, tex, ... ?
+        # TODO: what to set for map set's name, tex, etc. ?
         return MapSet(maps=outputs, hash=hash)
 
     def __getattr__(self, attr):
@@ -241,7 +268,7 @@ class Transform(object):
         # for uniform interfacing
         if isinstance(input_names, basestring):
             input_names = [input_names]
-        self._input_names = tuple(input_names)
+        self._input_names = input_names
 
         assert isinstance(output_name, basestring)
         self._output_name = output_name
@@ -366,6 +393,11 @@ class Transform(object):
         return self._tex
 
     def apply(self, inputs):
+        # Make sure the inputs have the same binning as
+        # expected for the transform
+        if not self.input_binning.edges_hash == \
+				inputs.binning.itervalues().next().edges_hash:
+            inputs = inputs.rebin(self.input_binning)
         output = self._apply(inputs)
         # TODO: tex, etc.?
         output.name = self.output_name
@@ -422,6 +454,11 @@ class BinnedTensorTransform(Transform):
         of transform being implemented. See Notes for more detail on allowed
         shapes.
 
+    sum_inputs : bool
+        If true, add inputs together if multiple are specified. Otherwise,
+        stack input maps along the first dimension (increases dimensionality of
+        the input array by one).
+
     tex : string
         TeX label for e.g. automatic plot labelling.
 
@@ -432,7 +469,7 @@ class BinnedTensorTransform(Transform):
 
     input_binning : MultiDimBinning
 
-    output_binnin : MultiDimBinning
+    output_binning : MultiDimBinning
 
     xform_array : numpy ndarray
 
@@ -454,10 +491,10 @@ class BinnedTensorTransform(Transform):
 
     There can be extra objects in `inputs` that are not used by this transform
     ("sideband" objects, which are simply ignored here). If multiple input maps
-    are used by the transform, they are combined via
-    numpy.stack((map0, map1, ... ), axis=0) I.e., the first dimension of the
-    input sent to the transform has a length the same number of input maps
-    requested by the transform.
+    are used by the transform, if `sum_inputs` is Ture, they are summed;
+    otherwise, they are combined via numpy.stack((map0, map1, ... ), axis=0)
+    I.e., the first dimension of the input sent to the transform has a length
+    the same number of input maps requested by the transform.
 
     """
     _slots = tuple(list(Transform._slots) +
@@ -467,13 +504,15 @@ class BinnedTensorTransform(Transform):
                          ['input_binning', 'output_binning', 'xform_array'])
 
     def __init__(self, input_names, output_name, input_binning, output_binning,
-                 xform_array, error_array=None, tex=None, hash=None):
+                 xform_array, sum_inputs=False, error_array=None, tex=None,
+                 hash=None):
         super(BinnedTensorTransform, self).__init__(
             input_names=input_names, output_name=output_name,
             input_binning=input_binning, output_binning=output_binning,
             tex=tex, hash=hash
         )
         self.xform_array = xform_array
+        self.sum_inputs = sum_inputs
         if error_array is not None:
             self.set_errors(error_array)
 
@@ -639,18 +678,7 @@ class BinnedTensorTransform(Transform):
             assert input_name in inputs, \
                     'Input "%s" expected; got: %s.' \
                     % (input_name, inputs.names)
-            inbin_hash =  inputs[input_name].binning.hash
-            mybin_hash = self.input_binning.hash
-            try:
-                if inbin_hash is not None and mybin_hash is not None:
-                    assert inbin_hash == mybin_hash
-                else:
-                    assert inputs[input_name].binning == self.input_binning
-            except AssertionError:
-                raise ValueError('\n--- Input "%s" has binning of\n%s'
-                                 '\n--- but specified input binning is\n%s'
-                                 %(input_name, inputs[input_name].binning,
-                                   self.input_binning))
+
     # TODO: make _apply work with multiple inputs (i.e., concatenate
     # these into a higher-dimensional array) and make logic for applying
     # element-by-element multiply and tensordot generalize to any dimension
@@ -662,7 +690,7 @@ class BinnedTensorTransform(Transform):
 
         Parameters
         ----------
-        inputs : Mapping
+        inputs : MapSet
             Container class that must contain (at least) the maps to be
             transformed.
 
@@ -673,33 +701,82 @@ class BinnedTensorTransform(Transform):
 
         """
         self.validate_input(inputs)
-        if self.num_inputs > 1:
+
+        # TODO: In the multiple inputs / single output case and depending upon
+        # the dimensions of the transform, for efficiency purposes we should
+        # make sure that an operation is not carried out like
+        #
+        #   (input0 [*] transform) + (input1 [*] transform) = output
+        #
+        # but instead is performed more efficiently as
+        #
+        #   (input0 + input1) [*] transform = output
+        #
+        # where [*] is some linear operation, like element-by-element
+        # multiplication, a dot product, etc.
+        #
+        # E.g., for a 1D dot product (dimensionality-reducing linear operation)
+        # with M_in inputs and N_el elements in each
+        # vector, for the first (less efficient) formulation, there are
+        #
+        #   (N_el-1)*M_in + (M_in-1) = (M_in*N_el - 1) adds
+        #
+        # and
+        #
+        #   (N_el*M_in) multiplies
+        #
+        # while for the second (more efficient) formulation, there are
+        #
+        #   (M_in-1)*N_el + (N_el-1) = (M_in*N_el - 1) adds
+        #
+        # and
+        #
+        #   (N_el) multiplies
+        #
+        # so the benefit is a reduction of the number of multiplies necessary
+        # by a factor of the number of inputs being "combined" (the number of
+        # adds stays the same).
+
+        # TODO: make (sure) all of these operations compatible with
+        # uncertainties module!
+
+        if self.num_inputs == 1:
+            input_array = inputs[self.input_names[0]].hist
+        else:
             input_array = np.stack([inputs[name].hist
                                     for name in self.input_names], axis=0)
-        else:
-            input_array = inputs[self.input_names[0]].hist
+            if self.sum_inputs:
+                input_array = np.sum(input_array, axis=0)
 
         if self.xform_array.shape == input_array.shape:
             output = input_array * self.xform_array
+
+            # If multiple inputs were concatenated together, and we did not sum
+            # these inputs together, we need to sum the results together now.
+
+            # TODO: generalize this and the above operation (and possibly speed
+            # this up) by formulating a simple inner product above and avoiding
+            # an explicit sum here?
+            if self.num_inputs > 1 and not self.sum_inputs:
+                output = np.sum(output, axis=0)
 
         # TODO: Check that
         #   len(xform.shape) == 2*len(input_array.shape)
         # and then check that
         #   xform.shape == (input_array.shape, input_array.shape) (roughly)
-        # and then apply tensordot appropriately for this generic case...
+        # and then apply tensordot appropriately for this generic case...Q
+
         elif len(self.xform_array.shape) == 2*len(input_array.shape):
             output = np.tensordot(input_array, self.xform_array,
                                   axes=([0,1], [0,1]))
+
         else:
-            raise NotImplementedError(
+            raise ValueError(
                 'Unhandled shapes for input(s) "%s": %s and'
                 ' transform: %s.'
                 %(', '.join(self.input_names), input_array.shape,
                   self.xform_array.shape)
             )
-
-        if self.num_inputs > 1:
-            output = np.sum(output, axis=0)
 
         # TODO: do rebinning here? (aggregate, truncate, and/or
         # concatenate 0's?)

@@ -32,7 +32,7 @@ from pisa.utils.comparisons import normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils import jsons
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils.stats import chi2, llh
+from pisa.utils.stats import chi2, llh, conv_llh
 from pisa.utils.profiler import profile
 
 
@@ -287,8 +287,8 @@ class Map(object):
         if method in ['poisson']:
             if seed is not None:
                 np.random.seed(seed)
-            return {'hist': unp.uarray(poisson.rvs(self.hist),
-                                       np.sqrt(self.hist))}
+            return {'hist': unp.uarray(poisson.rvs(unp.nominal_values(self.hist)),
+                                       np.sqrt(unp.nominal_values(self.hist)))}
         elif method in ['', 'none', 'false']:
             return
         else:
@@ -372,7 +372,8 @@ class Map(object):
 
         """
         state = jsons.from_json(resource)
-        # State is a dict with kwargs, so instantiate with double-asterisk syntax
+        # State is a dict with kwargs, so instantiate with double-asterisk
+        # syntax
         return cls(**state)
 
     def assert_compat(self, other):
@@ -470,6 +471,26 @@ class Map(object):
         if isinstance(expected_values, Map):
             expected_values = expected_values.hist
         return np.sum(llh(actual_values=self.hist,
+                          expected_values=expected_values))
+
+    def conv_llh(self, expected_values):
+        """Calculate the total convoluted log-likelihood value between this map and the map
+        described by `expected_values`; self is taken to be the "actual values"
+        (or (pseudo)data), and `expected_values` are the expectation values for
+        each bin.
+
+        Parameters
+        ----------
+        expected_values : numpy.ndarray or Map of same dimension as this
+
+        Returns
+        -------
+        total_conv_llh : float
+
+        """
+        if isinstance(expected_values, Map):
+            expected_values = expected_values.hist
+        return np.sum(conv_llh(actual_values=self.hist,
                           expected_values=expected_values))
 
     def chi2(self, expected_values):
@@ -824,7 +845,8 @@ class Map(object):
 
 class MapSet(object):
     """
-    Set of maps.
+    Ordered set of event rate maps (aka histograms) defined over an arbitrary
+    regluar hyper-rectangular binning.
 
 
     Parameters
@@ -962,20 +984,25 @@ class MapSet(object):
         --------
         Get total of trck and cscd maps, which are named with suffixes "trck"
         and "cscd", respectively.
+
         >>> total_trck_map = outputs.combine_re('.*trck')
         >>> total_cscd_map = outputs.combine_re('.*cscd')
 
         Get a MapSet with both of the above maps in it (and a single command)
+
         >>> total_pid_maps = outputs.combine_re(['.*trck', '.*cscd'])
 
         Strict name-checking, combine  nue_cc + nuebar_cc, including both
         cascades and tracks.
+
         >>> nue_cc_nuebar_cc_map = outputs.combine_re('^nue(bar){0,1}_cc_(cscd|trck)$')
 
         Lenient nue_cc + nuebar_cc including both cascades and tracks.
+
         >>> nue_cc_nuebar_cc_map = outputs.combine_re('nue.*_cc_.*')
 
         Total of all maps
+
         >>> total = outputs.combine_re('.*')
 
         See Also
@@ -1156,7 +1183,8 @@ class MapSet(object):
             attrname = attr.__name__
         else:
             attrname = attr
-        do_not_have_attr = np.array([(not hasattr(mp, attrname)) for mp in self.maps])
+        do_not_have_attr = np.array([(not hasattr(mp, attrname))
+                                     for mp in self.maps])
         if np.any(do_not_have_attr):
             missing_in_names = ', '.join(np.array(self.names)[do_not_have_attr])
             num_missing = np.sum(do_not_have_attr)
@@ -1329,20 +1357,20 @@ class MapSet(object):
     def __sub__(self, val):
         return self.apply_to_maps('__sub__', val)
 
-    def downsample(self, *args, **kwargs):
-        return MapSet([m.downsample(*args, **kwargs) for m in self.maps])
-
     def rebin(self, *args, **kwargs):
         return MapSet([m.rebin(*args, **kwargs) for m in self.maps])
+    
+    def downsample(self, *args, **kwargs):
+        return MapSet([m.downsample(*args, **kwargs) for m in self.maps])
 
     def metric_per_map(self, expected_values, metric):
         assert isinstance(metric, basestring)
         metric = metric.lower()
-        if metric in ['chi2', 'llh']:
+        if metric in ['chi2', 'llh', 'conv_llh']:
             return self.apply_to_maps(metric, expected_values)
         else:
             raise ValueError('`metric` "%s" not recognized; use either'
-                             ' "chi2" or "llh".' %metric)
+                             ' "chi2", "conv_llh" or "llh".' %metric)
 
     def metric_total(self, expected_values, metric):
         return np.sum(self.metric_per_map(expected_values, metric).values())

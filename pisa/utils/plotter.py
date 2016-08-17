@@ -16,7 +16,7 @@ from pisa.utils.log import logging
 
 class plotter(object):
 
-    def __init__(self, outdir='.', stamp='PISA cake test', size=(8,8), fmt='pdf', log=True, label='# events', grid=True, ratio=False):
+    def __init__(self, outdir='.', stamp='PISA cake test', size=(8,8), fmt='pdf', log=True, label='# events', grid=True, ratio=False, annotate=False, symmetric=False):
         self.outdir = outdir
         self.stamp = stamp
         self.fmt = fmt
@@ -26,6 +26,9 @@ class plotter(object):
         self.label = label
         self.grid = grid
         self.ratio = ratio
+        self.annotate = annotate
+        if symmetric: assert(self.log == False), 'cannot do log and symmetric at th same time'
+        self.symmetric = symmetric
 
     # --- helper functions ---
 
@@ -87,11 +90,11 @@ class plotter(object):
             self.dump(map.name)
 
     def plot_1d_array(self, mapset, plot_axis, n_rows=None,
-            n_cols=None, **kwargs):
+            n_cols=None, fname=None, **kwargs):
         ''' plot 1d projections as an array '''
         self.plot_array(mapset, 'plot_1d_projection', plot_axis, n_rows=n_rows,
                 n_cols=n_cols, **kwargs)
-        self.dump('test1d')
+        self.dump(fname)
 
     def plot_1d_all(self, mapset, plot_axis, **kwargs):
         ''' all one one canvas '''
@@ -113,21 +116,22 @@ class plotter(object):
         self.add_leg()
         self.dump('stack')
 
-    def plot_1d_cmp(self, mapset0, mapset1, plot_axis, **kwargs):
+    def plot_1d_cmp(self, mapsets, plot_axis, fname=None, **kwargs):
         ''' 1d comparisons for two mapsets '''
-        for map0, map1 in zip(mapset0, mapset1):
+        for i in range(len(mapsets[0])):
+            maps = [mapset[i] for mapset in mapsets]
             self.init_fig()
             if self.ratio:
                 ax1 = plt.subplot2grid((4,1), (0,0), rowspan=3)
                 plt.setp(ax1.get_xticklabels(), visible=False)
-            self.plot_1d_projection(map0, plot_axis, ptype='data', **kwargs)
-            self.plot_1d_projection(map1, plot_axis, **kwargs)
+            for map in maps:
+                self.plot_1d_projection(map, plot_axis, **kwargs)
             self.add_stamp()
             self.add_leg()
             if self.ratio:
                 plt.subplot2grid((4,1), (3,0),sharex=ax1)
-                self.plot_1d_ratio([map0, map1], plot_axis, **kwargs)
-            self.dump('cmp_%s'%map0.name)
+                self.plot_1d_ratio(maps, plot_axis, **kwargs)
+            self.dump('%s_%s'%(fname,maps[0].name))
 
     # --- plotting core functions ---
 
@@ -161,11 +165,25 @@ class plotter(object):
         axis = plt.gca()
         bins = [map.binning[name] for name in map.binning.names]
         bin_edges = map.binning.bin_edges
-        zmap = np.log10(map.hist) if self.log else map.hist
+        bin_centers = map.binning.weighted_centers
+        zmap = np.log10(unp.nominal_values(map.hist)) if self.log else unp.nominal_values(map.hist)
+        if self.symmetric:
+            vmax = max(zmap.max(), - zmap.min())
+            vmin = -vmax
+        else:
+            vmax = zmap.max()
+            vmin = zmap.min()
         extent = [np.min(bin_edges[0].m), np.max(bin_edges[0].m), np.min(bin_edges[1].m), np.max(bin_edges[1].m)]
         # needs to be flipped for imshow
         img = plt.imshow(zmap.T,origin='lower',interpolation='nearest',extent=extent,aspect='auto',
-            cmap=cmap, **kwargs)
+            cmap=cmap, vmax=vmax, vmin=vmin, **kwargs)
+        if self.annotate:
+            counts = img.get_array().T
+            for i in range(len(bin_centers[0])):
+                for j in range(len(bin_centers[1])):
+                    bin_x = bin_centers[0][i].m
+                    bin_y = bin_centers[1][j].m
+                    plt.annotate('%.1f'%(counts[i,j]), xy=(bin_x, bin_y), xycoords=('data', 'data'), xytext=(bin_x, bin_y), textcoords='data', va='top', ha='center', size=7)
         axis.set_xlabel(bins[0].label)
         axis.set_ylabel(bins[1].label)
         if bins[0].is_log:
@@ -181,15 +199,15 @@ class plotter(object):
         axis = plt.gca()
         plt_binning = map.binning[plot_axis]
         hist = self.project_1d(map, plot_axis)
-        if ptype == 'hist':
-            axis.hist(plt_binning.bin_centers, weights=unp.nominal_values(hist), bins=plt_binning.bin_edges, histtype='step', lw=1.5, label=r'$%s$'%map.tex, **kwargs)
+        if map.tex == 'data':
+            axis.errorbar(plt_binning.weighted_centers.m,
+                    unp.nominal_values(hist),yerr=unp.std_devs(hist), fmt='o', markersize='4', label='data', color='k', ecolor='k', mec='k', **kwargs)
+        else:
+            axis.hist(plt_binning.weighted_centers, weights=unp.nominal_values(hist), bins=plt_binning.bin_edges, histtype='step', lw=1.5, label=r'$%s$'%map.tex, **kwargs)
             axis.bar(plt_binning.bin_edges.m[:-1],2*unp.std_devs(hist),
                     bottom=unp.nominal_values(hist)-unp.std_devs(hist),
                     width=plt_binning.bin_widths, alpha=0.25, linewidth=0,
                     **kwargs)
-        elif ptype == 'data':
-            axis.errorbar(plt_binning.bin_centers.m,
-                    unp.nominal_values(hist),yerr=unp.std_devs(hist), fmt='o', markersize='4', label=r'$%s$'%map.tex, **kwargs)
         axis.set_xlabel(plt_binning.label)
         if self.label:
             axis.set_ylabel(self.label)
@@ -197,6 +215,8 @@ class plotter(object):
             axis.set_xscale('log')
         if self.log:
             axis.set_yscale('log')
+        else:
+            axis.set_ylim(0,np.max(unp.nominal_values(hist))*1.4)
         axis.set_xlim(plt_binning.bin_edges.m[0], plt_binning.bin_edges.m[-1])
         if self.grid:
             plt.grid(True, which="both", ls='-', alpha=0.2)
@@ -243,12 +263,16 @@ class plotter(object):
                     minimum = min(minimum,ratio[i])
                     maximum = max(maximum,ratio[i])
 
-            h,b,p = axis.hist(plt_binning.bin_centers, weights=ratio,
+            if map.tex == 'data':
+                axis.errorbar(plt_binning.weighted_centers.m,
+                    ratio,yerr=ratio_error, fmt='o', markersize='4', label='data', color='k', ecolor='k', mec='k')
+            else:
+                h,b,p = axis.hist(plt_binning.weighted_centers, weights=ratio,
                     bins=plt_binning.bin_edges, histtype='step', lw=1.5,
                     label=r'$%s$'%map.tex)
-            axis.bar(plt_binning.bin_edges.m[:-1],2*ratio_error, bottom=ratio-ratio_error,
-                    width=plt_binning.bin_widths, alpha=0.25,
-                    linewidth=0)
+                axis.bar(plt_binning.bin_edges.m[:-1],2*ratio_error, bottom=ratio-ratio_error,
+                        width=plt_binning.bin_widths, alpha=0.25,
+                        linewidth=0)
 
         if self.grid:
             plt.grid(True, which="both", ls='-', alpha=0.2)

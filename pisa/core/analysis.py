@@ -5,6 +5,7 @@
 from collections import Sequence
 import sys
 import scipy.optimize as opt
+import time
 
 from pisa.core.distribution_maker import DistributionMaker
 from pisa.utils.fileio import from_file
@@ -66,6 +67,7 @@ class Analysis(object):
         # Generate distribution
         self.asimov = self.data_maker.get_outputs()
         self.pseudodata = None
+        self.n_minimizer_calls = 0
 
     def generate_psudodata(self, method):
         if method == 'asimov':
@@ -185,11 +187,11 @@ class Analysis(object):
 
         """
         sign = +1
-        if self.metric == 'llh':
+        if self.metric in ['llh', 'conv_llh']:
             # Want to *maximize* log-likelihood but we're using a minimizer
             sign = -1
 
-        self.template_maker.params.free.rescaled_values = scaled_param_vals
+        self.template_maker.params.free._rescaled_values = scaled_param_vals
 
         template = self.template_maker.get_outputs()
 
@@ -210,11 +212,12 @@ class Analysis(object):
         else:
             logging.debug(msg)
 
+        self.n_minimizer_calls += 1
         return sign*metric_val
 
     def run_minimizer(self, pprint=True):
         # Get initial values
-        x0 = self.template_maker.params.free.rescaled_values
+        x0 = self.template_maker.params.free._rescaled_values
 
         # bfgs steps outside of given bounds by 1 epsilon to evaluate gradients
         try:
@@ -226,6 +229,8 @@ class Analysis(object):
 
         # Using scipy.opt.minimize allows a whole host of minimisers to be used
         # This set by the method value in your minimiser settings file
+        self.n_minimizer_calls = 0
+        start_t = time.time()
         minim_result = opt.minimize(fun=self._minimizer_callable,
                                     x0=x0,
                                     args=(pprint,),
@@ -233,9 +238,11 @@ class Analysis(object):
                                     method = self.minimizer_settings['method']['value'],
                                     options = self.minimizer_settings['options']['value'])
         
+        end_t = time.time()
         if pprint:
             # clear the line
             print ''
+        print '\naverage template generation time during minimizer run: %.4f ms'%((end_t - start_t) * 1000./self.n_minimizer_calls)
         best_fit_vals = minim_result.x
         metric_val = minim_result.fun
         dict_flags = {}
@@ -291,27 +298,35 @@ class Analysis(object):
 
         return best_fit
 
-    def profile_llh(self, p_name):
+    def profile_llh(self, p_name, values):
         """Run profile log likelihood method for param `p_name`.
 
         Parameters
         ----------
         p_name
+        values to fix parameter to in conditional llh
 
         """
         # run numerator (conditional MLE)
         logging.info('fixing param %s'%p_name)
         self.template_maker.params.fix(p_name)
-        condMLE = self.find_best_fit()
-        # report MLEs and LLH
-        # also add the fixed param
-        condMLE[p_name] = self.template_maker.params[p_name].value
+        condMLEs = {}
+        for value in values:
+            test = template_maker.params[p_name]
+            test.value = value
+            template_maker.update_params(test)
+            condMLE = self.find_best_fit()
+            condMLE[p_name] = self.template_maker.params[p_name].value
+            append_results(condMLEs,condMLE)
+            # report MLEs and LLH
+            # also add the fixed param
         # run denominator (global MLE)
+        ravel_results(condMLEs)
         logging.info('unfixing param %s'%p_name)
         self.template_maker.params.unfix(p_name)
         globMLE = self.find_best_fit()
         # report MLEs and LLH
-        return [condMLE, globMLE]
+        return [condMLEs, globMLE]
 
     def llr(self, template_makerA, template_makerB):
         """ Run loglikelihood ratio for two different template makers A and B
@@ -337,10 +352,11 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--data-settings', type=str,
                         metavar='configfile', default=None,
                         help='settings for the generation of "data"')
-    parser.add_argument('-t', '--template-settings', type=str,
+    parser.add_argument('-t', '--template-settings',
                         metavar='configfile', required=True,
-                        help='settings for the generation of templates')
-    parser.add_argument('--outfile', metavar='FILE',
+                        action='append',
+                        help='''settings for the template generation''')
+    parser.add_argument('-o', '--outfile', metavar='FILE',
                         type=str, action='store', default='out.json',
                         help='file to store the output')
     parser.add_argument('-v', action='count', default=None,
@@ -352,7 +368,7 @@ if __name__ == '__main__':
                         help='''Settings related to the optimizer used in the
                         LLR analysis.''')
     parser.add_argument('--metric', type=str,
-                        choices=['llh', 'chi2'], required=True,
+                        choices=['llh', 'chi2', 'conv_llh'], required=True,
                         help='''Settings related to the optimizer used in the
                         LLR analysis.''')
     args = parser.parse_args()
@@ -364,22 +380,13 @@ if __name__ == '__main__':
     else:
         data_settings = args.data_settings
 
-    data_maker_settings = from_file(data_settings)
-    data_maker_configurator = parse_config(data_maker_settings)
-    data_maker = DistributionMaker(data_maker_configurator)
-
-    test = data_maker.params['aeff_scale']
-    test.value *= 1.25
-    data_maker.update_params(test)
-
-    template_maker_settings = from_file(args.template_settings)
-    template_maker_configurator = parse_config(template_maker_settings)
-    template_maker = DistributionMaker(template_maker_configurator)
+    data_maker = DistributionMaker(data_settings)
+    template_maker = DistributionMaker(args.template_settings)
 
     # select inverted hierarchy
-    template_maker_settings.set('stage:osc', 'param_selector', 'ih')
-    template_maker_configurator = parse_config(template_maker_settings)
-    template_maker_IO = DistributionMaker(template_maker_configurator)
+    #template_maker_settings.set('stage:osc', 'param_selector', 'ih')
+    #template_maker_configurator = parse_config(template_maker_settings)
+    #template_maker_IO = DistributionMaker(template_maker_configurator)
 
     analysis = Analysis(data_maker=data_maker,
                         template_maker=template_maker,
@@ -387,19 +394,20 @@ if __name__ == '__main__':
 
     analysis.minimizer_settings = from_file(args.minimizer_settings)
 
-    results = [{},{}]
+    results = []
 
     for i in range(args.num_trials):
         logging.info('Running trial %i'%i)
         np.random.seed()
-        analysis.generate_psudodata('poisson')
+        #analysis.generate_psudodata('poisson')
+        analysis.generate_psudodata('asimov')
 
         # LLR:
-        append_results(results, analysis.llr(template_maker, template_maker_IO))
+        #append_results(results, analysis.llr(template_maker, template_maker_IO))
 
         # profile LLH:
-        #append_results(results, analysis.profile_llh('aeff_scale'))
+        #results.append(analysis.profile_llh('nutau_cc_norm',np.linspace(0,2,21)*ureg.dimensionless))
+        results.append(analysis.profile_llh('nutau_cc_norm',[0.]*ureg.dimensionless))
 
-    ravel_results(results)
     to_file(results, args.outfile)
     logging.info('Done.')

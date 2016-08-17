@@ -63,7 +63,7 @@ class DistributionMaker(object):
         return total_outputs
 
     def update_params(self, params):
-        [pipeline.params.update_existing(params) for pipeline in self]
+        [pipeline.update_params(params) for pipeline in self]
 
     @property
     def pipelines(self):
@@ -117,14 +117,13 @@ if __name__ == '__main__':
     import numpy as np
     from pisa.utils.fileio import from_file, to_file
     from pisa.utils.parse_config import parse_config
+    from pisa.utils.plotter import plotter    
 
     parser = ArgumentParser()
-    parser.add_argument('-t', '--template-settings', type=str,
+    parser.add_argument('-t', '--template-settings',
                         metavar='configfile', required=True,
+                        action='append',
                         help='''settings for the template generation''')
-    parser.add_argument('-o', '--outfile', dest='outfile', metavar='FILE',
-                        type=str, action='store', default="out.json",
-                        help='file to store the output')
     parser.add_argument(
         '-v', action='count', default=None,
         help='set verbosity level'
@@ -133,7 +132,11 @@ if __name__ == '__main__':
 
     set_verbosity(args.v)
 
-    template_maker = DistributionMaker([args.template_settings,
-                                       args.template_settings])
-    print template_maker.get_outputs()
-    print template_maker.get_outputs()
+    template_maker = DistributionMaker(args.template_settings)
+    outputs =  template_maker.get_outputs()
+    my_plotter = plotter(stamp='PISA cake test',
+			 outdir='.',
+			 fmt='pdf', log=False,
+			 annotate=False)
+    my_plotter.ratio = True
+    my_plotter.plot_2d_array(outputs, fname='dist_output', cmap='OrRd')
