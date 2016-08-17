@@ -697,7 +697,6 @@ class honda(Stage):
         # Flux is given per sr and GeV, so we need to multiply
         # by bin width in both dimensions
         # i.e. the bin volume
-        print self.output_binning.bin_volumes(attach_units=False)*2*np.pi
         return_table *= self.output_binning.bin_volumes(attach_units=False)
 
         # Energy scale systematic must be applied again here since it should
@@ -755,19 +754,42 @@ class honda(Stage):
 
         if flux_mode == 'bisplrep':
             # Assert that spline dict matches what is expected
-            # i.e. One spline for each primary
-            assert not isinstance(self.spline_dict[self.primaries[0]], Mapping)
+            # i.e. One spline for each primary for every table azimuth value
+            #      45.0 is used for no particular reason
+            assert not isinstance(self.spline_dict[self.primaries[0]][45.0], Mapping)
 
             # Get the spline interpolation, which is in
             # log(flux) as function of log(E), cos(zenith)
-            return_table = interpolate.bisplev(np.log10(evals), czvals,
-                                               self.spline_dict[prim])
-            return_table = np.power(10., return_table)
+            # There is one for every table azimuth value
+            az_maps = []
+            for azkey in np.linspace(15.0, 345.0, 12):
+                intermediate_table = interpolate.bisplev(np.log10(evals), czvals,
+                                                   self.spline_dict[prim][azkey])
+                intermediate_table = np.power(10., intermediate_table)
+                az_maps.append(intermediate_table)
+
+            # Then have to interpolate in remaining dimension
+            # This is done in this stupid manner since splining
+            # in all 3 dimensions at once takes FOREVER.
+            # This method is still slow, but is at least an improvement.
+            return_table = []
+            for enit in range(0,len(az_maps[0])):
+                cz_vals = []
+                for czit in range(0,len(az_maps[0][0])):
+                    az_spline_vals = []
+                    for azit in range(0,len(az_maps)):
+                        az_spline_vals.append(az_maps[azit][enit][czit])
+                    # Do this linearly to avoid issues in that dimension.
+                    az_spline = interpolate.splrep(np.linspace(15.0, 345.0, 12),
+                                                   az_spline_vals, k=1, s=0)
+                    azfluxes = interpolate.splev(azvals, az_spline)
+                    cz_vals.append(azfluxes)
+                return_table.append(cz_vals)
 
         elif flux_mode == 'integral-preserving':
             # Assert that spline dict matches what is expected
             # i.e. A set of splines for every table azimuth value corresponding
-            #      to ne spline for every table cosZenith value.
+            #      to one spline for every table cosZenith value.
             #      45.0 and 0.95 are used for no particular reason
             #      cosZenith keys are strings, despite being numbers
             assert not isinstance(
@@ -824,7 +846,6 @@ class honda(Stage):
         # Flux is given per sr and GeV, so we need to multiply
         # by bin width in both dimensions
         # i.e. the bin volume
-        print self.output_binning.bin_volumes(attach_units=False)
         return_table *= self.output_binning.bin_volumes(attach_units=False)
 
         # Energy scale systematic must be applied again here since it should
