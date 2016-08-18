@@ -693,7 +693,7 @@ class honda(Stage):
 
         if self.output_binning.names[0] == 'true_coszen':
             # Current dimensionality is (E,cz)
-            # So need to transpose is desired is (cz,E)
+            # So need to transpose if desired is (cz,E)
             return_table = return_table.T
 
         # Flux is given per sr and GeV, so we need to multiply
