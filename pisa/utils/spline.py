@@ -55,30 +55,8 @@ class Spline(object):
         self._spline = spline
         self._hash = hash
 
-        # TeX dict for some common map names
-        tex_dict = {'nue': r'\nu_e',
-                    'numu': r'\nu_{\mu}',
-                    'nutau': r'\nu_{\tau}',
-                    'nuebar': r'\bar{\nu}_e',
-                    'numubar': r'\bar{\nu}_{\mu}',
-                    'nutaubar': r'\bar{\nu}_{\tau}',
-                    'nue_cc': r'\nu_e\ CC',
-                    'numu_cc': r'\nu_{\mu}\ CC',
-                    'nutau_cc': r'\nu_{\tau}\ CC',
-                    'nue_nc': r'\nu_e\ NC',
-                    'numu_nc': r'\nu_{\mu}\ NC',
-                    'nutau_nc': r'\nu_{\tau}\ NC',
-                    'nuebar_cc': r'\bar{\nu}_e\ CC',
-                    'numubar_cc': r'\bar{\nu}_{\mu}\ CC',
-                    'nutaubar_cc': r'\bar{\nu}_{\tau}\ CC',
-                    'nuebar_nc': r'\bar{\nu}_e\ NC',
-                    'numubar_nc': r'\bar{\nu}_{\mu}\ NC',
-                    'nutaubar_nc': r'\bar{\nu}_{\tau}\ NC'}
         if tex is None:
-            if name in tex_dict:
-                tex = tex_dict[name]
-            else:
-                tex = r'\rm{%s}' % name
+            tex = flavInt.NuFlavIntGroup(name).tex()
 
         # Ensure eval_spl has correct structure
         eval_args = inspect.getargspec(eval_spl).args

@@ -3,7 +3,9 @@ The purpose of this stage is the conversion of the neutrino flux at the
 detector into an event count.
 
 This service in particular reads in from a GENIE cross-section spline ROOT file
-in order to obtain the relavant cross-sections.
+in order to obtain the relavant cross-sections. Example pipeline settings file
+can be found in
+$PISA/pisa/resources/settings/pipeline_settings/pipeline_settings_xsec.ini
 """
 from itertools import product
 from operator import add
