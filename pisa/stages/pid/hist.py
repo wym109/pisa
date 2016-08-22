@@ -31,8 +31,8 @@ import numpy as np
 
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
+from pisa.core.events import Events
 from pisa.utils.dataProcParams import DataProcParams
-from pisa.utils.events import Events
 from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup, ALL_NUFLAVINTS
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging

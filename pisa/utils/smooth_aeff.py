@@ -25,8 +25,8 @@ from itertools import izip
 import numpy as np
 from scipy.interpolate import splrep, splev
 
+from pisa.core.events import Events
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils.events import Events
 from pisa.utils import flavInt
 from pisa.utils import jsons
 from pisa.utils import utils

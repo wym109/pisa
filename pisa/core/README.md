@@ -26,6 +26,7 @@ Some examples are given to facilitate understanding.
           * [Param](/pisa/core/param.py) bar (e.g. honda_flux_file)
           * [Param](/pisa/core/param.py) ...
             * [Prior](/pisa/core/prior.py) (e.g. a gaussian prior with given mu and sigma) 
+        * [Events](/pisa/core/events.py) (if used by stage)
         * [TransformSet](/pisa/core/transform.py) (if applicable)
           * [Transform](/pisa/core/transform.py) t0 : BinnedTensorTransform (inherits from Transform)
           * [Transform](/pisa/core/transform.py) t1 : BinnedTensorTransform (inherits from Transform)
