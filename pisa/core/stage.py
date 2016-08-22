@@ -85,6 +85,8 @@ class Stage(object):
 
     memcaching_enabled : bool
 
+    memcache_deepcopy : bool
+
     outputs_cache_depth : int >= 0
 
     transforms_cache_depth : int >= 0
@@ -146,9 +148,9 @@ class Stage(object):
     def __init__(self, use_transforms, stage_name='', service_name='',
                  params=None, expected_params=None, input_names=None,
                  output_names=None, error_method=None, disk_cache=None,
-                 memcaching_enabled=True, transforms_cache_depth=10,
-                 outputs_cache_depth=10, input_binning=None,
-                 output_binning=None, debug_mode=None):
+                 memcaching_enabled=True, memcache_deepcopy=True,
+                 transforms_cache_depth=10, outputs_cache_depth=10,
+                 input_binning=None, output_binning=None, debug_mode=None):
 
         # Allow for string inputs, but have to populate into lists for
         # consistent interfacing to one or multiple of these things
@@ -188,16 +190,25 @@ class Stage(object):
         """Last-computed outputs; None if no outputs have been computed yet."""
 
         self.memcaching_enabled = memcaching_enabled
+        self.memcache_deepcopy = memcache_deepcopy
 
         self.transforms_cache_depth = transforms_cache_depth
-        self.transforms_cache = MemoryCache(self.transforms_cache_depth,
-                                            is_lru=True)
-        self.nominal_transforms_cache = MemoryCache(10, is_lru=True)
-        self.nominal_outputs_hash = None
+        self.transforms_cache = MemoryCache(
+            max_depth=int(self.transforms_cache_depth), is_lru=True,
+            deepcopy=self.memcache_deepcopy
+        )
+        """Memory cache object for storing transforms"""
+        self.nominal_transforms_cache = MemoryCache(
+            max_depth=10, is_lru=True, deepcopy=self.memcache_deepcopy
+        )
+        """Memory cache object for storing nominal transforms"""
 
         self.outputs_cache_depth = outputs_cache_depth
 
-        self.outputs_cache = MemoryCache(self.outputs_cache_depth, is_lru=True)
+        self.outputs_cache = MemoryCache(
+            max_depth=int(self.outputs_cache_depth), is_lru=True,
+            deepcopy=self.memcache_deepcopy
+        )
         """Memory cache object for storing outputs (excludes sideband
         objects)."""
 
@@ -253,6 +264,11 @@ class Stage(object):
 
         self.outputs_computed = False
         """Records whether outputs were (re)computed."""
+
+        self.nominal_transforms_hash = None
+        self.transforms_hash = None
+        self.nominal_outputs_hash = None
+        self.outputs_hash = None
 
     @profile
     def get_nominal_transforms(self, nominal_transforms_hash):
@@ -421,7 +437,8 @@ class Stage(object):
         nominal_outputs, hash
 
         """
-        if (self.nominal_outputs_hash is None) or (self.nominal_outputs_hash != self._derive_nominal_outputs_hash()):
+        if self.nominal_outputs_hash is None \
+           or self.nominal_outputs_hash != self._derive_nominal_outputs_hash():
             self._compute_nominal_outputs()
             self.nominal_outputs_hash = self._derive_nominal_outputs_hash()
 
@@ -468,10 +485,7 @@ class Stage(object):
         # Compute nominal outputs; if feature is not used, this doesn't
         # actually do much of anything. To do more than this, override the
         # `_compute_nominal_outputs` method.
-        self.get_nominal_outputs(
-                    nominal_outputs_hash=nominal_transforms_hash
-                )
-
+        self.get_nominal_outputs(nominal_outputs_hash=nominal_transforms_hash)
 
         logging.trace('outputs_hash: %s' %outputs_hash)
 
@@ -487,8 +501,10 @@ class Stage(object):
             logging.trace('Need to compute outputs...')
 
             if self.use_transforms:
-                self.get_transforms(transforms_hash=transforms_hash,
-                                    nominal_transforms_hash=nominal_transforms_hash)
+                self.get_transforms(
+                    transforms_hash=transforms_hash,
+                    nominal_transforms_hash=nominal_transforms_hash
+                )
 
             logging.trace('... now computing outputs.')
             outputs = self._compute_outputs(inputs=self.inputs)

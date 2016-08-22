@@ -77,9 +77,11 @@ class hist(Stage):
 
     disk_cache
 
-    transforms_cache_depth
+    transforms_cache_depth : int >= 0
 
-    outputs_cache_depth
+    outputs_cache_depth : int >= 0
+
+    memcache_deepcopy : bool
 
     debug_mode : None, bool, or string
         Whether to store extra debug info for this service.
@@ -100,7 +102,8 @@ class hist(Stage):
     def __init__(self, params, particles, input_names, transform_groups,
                  input_binning, output_binning, error_method=None,
                  disk_cache=None, transforms_cache_depth=20,
-                 outputs_cache_depth=20, debug_mode=None):
+                 outputs_cache_depth=20, memcache_deepcopy=True,
+                 debug_mode=None):
         self.events_hash = None
         """Hash of events file or Events object used"""
 
@@ -140,6 +143,7 @@ class hist(Stage):
             disk_cache=disk_cache,
             outputs_cache_depth=outputs_cache_depth,
             transforms_cache_depth=transforms_cache_depth,
+            memcache_deepcopy=memcache_deepcopy,
             input_binning=input_binning,
             output_binning=output_binning,
             debug_mode=debug_mode
