@@ -100,13 +100,13 @@ print("Calculating the probabilities took %f seconds." % (time()-t))
 
 
 print("Plotting...")
-
-from matplotlib import rc
-rc('axes', grid=True, titlesize=14, labelsize=14, color_cycle=['b','r','k'])   # only available in recent versions
-rc('xtick', labelsize=12)
-rc('ytick', labelsize=12)
-rc('lines', linewidth=2)
-rc('text', usetex=True)
+import matplotlib as mpl
+mpl.use('pdf')
+mpl.rc('axes', grid=True, titlesize=14, labelsize=14, color_cycle=['b','r','k'])   # only available in recent versions
+mpl.rc('xtick', labelsize=12)
+mpl.rc('ytick', labelsize=12)
+mpl.rc('lines', linewidth=2)
+mpl.rc('text', usetex=True)
 from pylab import *
 
 

@@ -186,6 +186,7 @@ def slice_smooth(events, n_ebins, n_czbins, e_smooth_factor, cz_smooth_factor,
 
 def plot_slice_smooth(smooth_store, metadata=None, save_basename=None):
     import matplotlib as mpl
+    mpl.use('pdf')
     mpl.rc('font', **{'family':'serif', 'weight':'normal', 'size': 10})
     import matplotlib.pyplot as plt
     from pisa.utils.plot import stepHist

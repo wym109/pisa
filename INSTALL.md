@@ -44,6 +44,8 @@ The features enabled by and the relevant install commands for optional dependenc
   *available from your compiler; gcc supports OpenMP, while Clang (OS X) might not*
 * [PyCUDA](https://mathema.tician.de/software/pycuda): run certain routines on Nvidia CUDA GPUs (must have compute 2.0 or greater capability)<br>
   `pip install pycuda` (but note that support for CUDA 8 and Pascal architecture GPUs is currently only available in unreleased github version of pycuda)
+* [PyROOT](https://root.cern.ch/pyroot): read ROOT cross sections files; must install ROOT on your system in addition to PyROOT. Instructions here work for Ubuntu 15.x and 16.04.
+  `sudo apt-get install root-system libroot-bindings-python*`
 * [numba](http://numba.pydata.org): just-in-time compilation via LLVM to accelerate certain routines<br>
   * Anaconda:<br>
     `conda install numba`

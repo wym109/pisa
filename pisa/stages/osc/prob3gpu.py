@@ -234,7 +234,7 @@ class Prob3GPU(object):
 if __name__ == '__main__':
     import pycuda.autoinit
     import matplotlib as mpl
-    mpl.use('Agg')
+    mpl.use('pdf')
     from matplotlib import pyplot as plt
 
     def copy_dict_to_d(events):
