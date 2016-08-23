@@ -11,7 +11,7 @@ from pisa.stages.osc.prob3gpu import Prob3GPU
 from pisa.utils.GPUhist import GPUhist
 from pisa.stages.mc.GPUweight import GPUweight
 from pisa.utils.const import FTYPE
-from pisa.utils.events import Events
+from pisa.core.events import Events
 from pisa import ureg, Q_
 from pisa.core.binning import OneDimBinning, MultiDimBinning
 from pisa.core.map import Map, MapSet

@@ -15,10 +15,10 @@ from copy import deepcopy
 import numpy as np
 import sympy as sym
 
+import pisa.core.events as events
 from pisa.utils.log import logging, set_verbosity
 import pisa.utils.utils as utils
 import pisa.utils.flavInt as flavInt
-import pisa.utils.events as events
 from pisa.utils.mcSimRunSettings import MCSimRunSettings
 from pisa.utils.dataProcParams import DataProcParams
 import pisa.utils.resources as resources
@@ -503,7 +503,7 @@ def main():
         '--outdir',
         metavar='DIR',
         type=str,
-        default='$PISA/pisa.utils/events',
+        default='$PISA/pisa/resources/events',
         help='directory into which to store resulting HDF5 file'
     )
 

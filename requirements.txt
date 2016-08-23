@@ -1,5 +1,6 @@
 cython
 h5py
+matplotlib
 numpy
 pint
 pip > 1.2
