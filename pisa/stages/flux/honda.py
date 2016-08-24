@@ -691,7 +691,7 @@ class honda(Stage):
 
             return_table = np.array(return_table)
 
-        if self.output_binning.names[0] == 'true_coszen':
+        if 'coszen' in self.output_binning.names[0]:
             # Current dimensionality is (E,cz)
             # So need to transpose if desired is (cz,E)
             return_table = return_table.T
@@ -935,8 +935,10 @@ class honda(Stage):
             flux_map = flux_maps[flav]
 
             # Need to multiply along the energy axis, so it must be second
-            if self.output_binning.names[0] == 'energy':
-                scaled_flux = (flux_map.T*scale).T
+            if 'energy' in self.output_binning.names[0]:
+                transposed_map = flux_map.reorder_dimensions(['true_coszen','true_energy'])
+                scaled_transposed_map = transposed_map*scale
+                scaled_flux = scaled_transposed_map.reorder_dimensions(['true_energy','true_coszen'])
             else:
                 scaled_flux = flux_map*scale
 
