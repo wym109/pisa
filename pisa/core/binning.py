@@ -26,6 +26,7 @@ from pisa import ureg, Q_
 from pisa.utils.comparisons import normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils import jsons
+from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile
 
 
@@ -143,15 +144,45 @@ class OneDimBinning(object):
             units = bin_edges.units
             bin_edges = bin_edges.magnitude
 
-        if isinstance(domain, pint.quantity._Quantity):
+        if domain is not None and \
+                (isinstance(domain[0], pint.quantity._Quantity) or \
+                 isinstance(domain[1], pint.quantity._Quantity)):
+            if domain[0].dimensionality != domain[1].dimensionality:
+                raise ValueError(
+                    'Incompatible units: '
+                    ' `domain` limits have units of (%s) and (%s).'
+                    %(domain[0].dimensionality, domain[1].dimensionality)
+                )
+            # TODO: hack to test simple unit equality by converting to string
+            # (probably an issue with unit registries?)
+            if str(domain[0].units) != str(domain[1].units):
+                logging.warn(
+                    'Different (but compatible) units used to specify `domain`'
+                    ' limits: (%s) and (%s).'
+                    %(domain[0].units, domain[1].units)
+                )
             if units is not None:
-                if domain.dimensionality != units.dimensionality:
-                    raise ValueError('All units specified must be compatible.')
+                if domain[0].dimensionality != units.dimensionality:
+                    raise ValueError(
+                        'Incompatible units: units passed/deduced are (%s) but'
+                        ' `domain` has units of (%s).'
+                        %(units.dimensionality, domain[0].dimensionality)
+                    )
+                if str(units) != str(domain[0].units) \
+                        or str(units) != str(domain[1].units):
+                    logging.warn(
+                        'Different (but compatible) units deduced/passed vs.'
+                        ' units used to specify `domain` limits:'
+                        ' (%s) vs. (%s and %s).'
+                        %(units, domain[0].units, domain[1].units)
+                    )
                 # Explicitly-passed AND bin_edges' units have precedence, so
                 # convert to wihichever of those has been populated to `units`
-                domain.ito(units)
-            units = domain.units
-            domain = domain.magnitude
+                domain = [d.ito(units) for d in domain]
+            else:
+                units = domain[0].units
+            # Strip units off of domain
+            domain = np.array([d.magnitude for d in domain])
 
         # Now if no units have been discovered from the input args, default to
         # units of 'dimensionless'
@@ -680,8 +711,7 @@ class MultiDimBinning(object):
                 assert len(dimensions) == 1 and 'dimensions' in dimensions
                 dimensions = dimensions['dimensions']
             dimensions = [dimensions]
-        shape = []
-        dimensions_ = []
+        tmp_dimensions = []
         for obj_num, obj in enumerate(dimensions):
             if isinstance(obj, OneDimBinning):
                 one_dim_binning = obj
@@ -690,12 +720,13 @@ class MultiDimBinning(object):
             else:
                 raise TypeError('Argument/object #%d unhandled type: %s'
                                 %(obj_num, type(obj)))
-            dimensions_.append(one_dim_binning)
-            shape.append(one_dim_binning.num_bins)
+            tmp_dimensions.append(one_dim_binning)
+        self._dimensions = tmp_dimensions
+        self._compute_metadata()
 
-        self._dimensions = dimensions_
-        self._num_dims = len(dimensions)
-        self._shape = tuple(shape)
+    def _compute_metadata(self):
+        self._shape = tuple([b.num_bins for b in self._dimensions])
+        self._num_dims = len(self._dimensions)
 
     #def __repr__(self):
     #    argstrs = [('%s=%s' %item) for item in self._serializable_state.items()]
@@ -846,6 +877,68 @@ class MultiDimBinning(object):
         always-linear alternative."""
         return [d.weighted_centers for d in self.dimensions]
 
+    def index(self, dim):
+        names = self.names
+        if isinstance(dim, basestring):
+            idx = names.index(dim)
+        elif isinstance(dim, OneDimBinning):
+            idx = names.index(dim.name)
+        elif isinstance(dim, int):
+            if dim < 0 or dim >= len(self):
+                raise ValueError("'%d' is not in range." %dim)
+            idx = dim
+        else:
+            raise TypeError('Unhandled type for `dim`: "%s"' %type(dim))
+        return idx
+
+    def reorder_dimensions(self, order):
+        """Return a new MultiDimBinning object with dimensions (axes)
+        ordered according to `order`.
+
+        Parameters
+        ----------
+        order : sequence of string, int, or OneDimBinning
+            Order of dimensions to use. Strings are interpreted as dimension
+            names, integers are interpreted as dimension indices, and
+            OneDimBinning objects are interpreted by their `name` attributes
+            (so e.g. binning does not have to match this object's dimensions).
+            Note that a MultiDimBinning object is a valid sequence.
+
+        Notes
+        -----
+        Dimensions specified in `order` that are missing in this object are
+        ignored, but dimensions in this object that are missing in `order`
+        result in an error.
+
+        Returns
+        -------
+        MultiDimBinning object with reordred dimensions.
+
+        Raises
+        ------
+        ValueError if dimensions present in this object are missing from
+        `order`.
+
+        """
+        if isinstance(order, MultiDimBinning):
+            order = order.dimensions
+
+        indices = []
+        for dim in order:
+            try:
+                idx = self.index(dim)
+            except ValueError:
+                continue
+            indices.append(idx)
+        if set(indices) != set(range(len(self))):
+            raise ValueError(
+                'Invalid `order`: Only a subset of the dimensions present'
+                ' were specified. `order`=%s; dimensions=%s' %(order, self)
+            )
+        new_dimensions = [deepcopy(self._dimensions[n]) for n in indices]
+        new_binning = MultiDimBinning(new_dimensions)
+        return new_binning
+
     def oversample(self, *args, **kwargs):
         """Return a Binning object oversampled relative to this binning.
 
@@ -984,7 +1077,8 @@ class MultiDimBinning(object):
         Parameters
         ----------
         entity : string
-            One of 'midpoints', 'weighted_centers', 'bin_edges', or 'bin_widths'
+            One of 'midpoints', 'weighted_centers', 'bin_edges', or
+            'bin_widths'.
 
         attach_units : bool
             Whether to attach units to the result (can save computation time by
@@ -1091,8 +1185,8 @@ class MultiDimBinning(object):
 
         return MultiDimBinning(**new_binning)
 
-    #def __iter__(self):
-    #    return iter(self.dimensions)
+    def __iter__(self):
+        return iter(self.dimensions)
 
     def __len__(self):
         return self.num_dims
@@ -1246,6 +1340,68 @@ def test_MultiDimBinning():
         assert b_ == binning, 'binning=\n%s\nb_=\n%s' %(binning, b_)
     finally:
         shutil.rmtree(testdir, ignore_errors=True)
+
+    # Test that reordering dimensions works correctly
+    e_binning = OneDimBinning(
+        name='energy', num_bins=80, is_log=True, domain=[1, 80]*ureg.GeV
+    )
+    cz_binning = OneDimBinning(
+        name='coszen', num_bins=40, is_lin=True, domain=[-1, 1]
+    )
+    az_binning = OneDimBinning(
+        name='azimuth', num_bins=10, is_lin=True,
+        domain=[0*ureg.rad, 2*np.pi*ureg.rad]
+    )
+    mdb_2d_orig = MultiDimBinning([e_binning, cz_binning])
+    orig_order = mdb_2d_orig.names
+
+    # Reverse ordering; reorder by dimension names
+    new_order = orig_order[::-1]
+    mdb_2d_new = MultiDimBinning(mdb_2d_orig)
+    mdb_2d_new = mdb_2d_new.reorder_dimensions(new_order)
+
+    assert mdb_2d_new.names == new_order
+    new_order = ['azimuth', 'energy', 'coszen']
+    mdb_2d_new = mdb_2d_new.reorder_dimensions(new_order)
+    assert mdb_2d_new == mdb_2d_orig
+    mdb_2d_new2 = MultiDimBinning([e_binning, cz_binning])
+
+    mdb_3d_orig = MultiDimBinning([e_binning, cz_binning, az_binning])
+    orig_order = mdb_3d_orig.names
+    new_order = [orig_order[2], orig_order[0], orig_order[1]]
+
+    mdb_3d_new = MultiDimBinning(mdb_3d_orig)
+    mdb_3d_new = mdb_3d_new.reorder_dimensions(new_order)
+    assert mdb_3d_new.names == new_order
+    # Reorder by MultiDimBinning object
+    mdb_3d_new = mdb_3d_new.reorder_dimensions(mdb_3d_orig)
+    assert mdb_3d_new.names == orig_order
+
+    # Reorder by indices
+    mdb_3d_new = MultiDimBinning(mdb_3d_orig)
+    mdb_3d_new = mdb_3d_new.reorder_dimensions([2,0,1])
+    assert mdb_3d_new.names == new_order
+
+    # Reorder by combination of index, OneDimBinning, and name
+    mdb_3d_new = MultiDimBinning(mdb_3d_orig)
+    mdb_3d_new = mdb_3d_new.reorder_dimensions(
+        [2, 'energy', mdb_2d_orig.dimensions[1]]
+    )
+    assert mdb_3d_new.names == new_order
+
+    # Reorder by superset
+    mdb_2d_new = MultiDimBinning(mdb_3d_orig.dimensions[0:2])
+    mdb_2d_new = mdb_2d_new = mdb_2d_new.reorder_dimensions(new_order)
+    assert mdb_2d_new.names == [o for o in new_order if o in mdb_2d_new]
+
+    # Reorder by subset
+    mdb_3d_new = MultiDimBinning(mdb_3d_orig)
+    try:
+        mdb_3d_new = mdb_3d_new.reorder_dimensions(new_order[0:2])
+    except:
+        pass
+    else:
+        raise Exception('Should not be able to reorder by subset.')
 
     logging.info('<< PASSED >> test_MultiDimBinning')
 

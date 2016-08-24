@@ -1,7 +1,7 @@
 cython
 h5py
 matplotlib
-numpy
+numpy >= 1.11.0
 pint
 pip > 1.2
 scipy >= 0.17.0
