@@ -23,17 +23,6 @@ SIGFIGS = 12
 the numerical precision that calculations are being performed in to have the
 desired effect that "essentially equal" things evaluate to be equal."""
 
-# Indices that are used for transform datastructs created here and for C++
-# interface to Barger propagator
-NUE_IDX, NUMU_IDX, NUTAU_IDX = 0, 1, 2
-INPUTS = (NUE_IDX, NUMU_IDX)
-OUTPUTS = (NUE_IDX, NUMU_IDX, NUTAU_IDX)
-INPUTS_OUTPUTS = tuple([x for x in product(INPUTS, OUTPUTS)])
-
-# More Barger definitions
-K_NEUTRINOS = 1
-K_ANTINEUTRINOS = -1
-K_SQUARED = True
 
 class prob3cpu(Stage):
     """Neutrino oscillations calculation via Prob3.
@@ -128,6 +117,7 @@ class prob3cpu(Stage):
 
         self.compute_binning_constants()
 
+
     def compute_binning_constants(self):
         # Only works if energy and coszen are in input_binning
         if 'true_energy' not in self.input_binning \
@@ -151,6 +141,7 @@ class prob3cpu(Stage):
         self.cz_centers = cz_centers.magnitude
 
         self.num_czbins = self.input_binning.true_coszen.num_bins
+        self.num_ebins = self.input_binning.true_energy.num_bins
 
         self.e_dim_num = self.input_binning.names.index('true_energy')
         self.cz_dim_num = self.input_binning.names.index('true_coszen')
@@ -159,11 +150,13 @@ class prob3cpu(Stage):
         [self.extra_dim_nums.remove(d) for d in (self.e_dim_num,
                                                  self.cz_dim_num)]
 
+
     def create_transforms_datastructs(self):
         xform_shape = [3, 2] + list(self.input_binning.shape)
         nu_xform = np.empty(xform_shape)
         antinu_xform = np.empty(xform_shape)
         return nu_xform, antinu_xform
+
 
     def setup_barger_propagator(self):
         # If already instantiated with same parameters, don't instantiate again
@@ -189,9 +182,11 @@ class prob3cpu(Stage):
         )
         self.barger_propagator.UseMassEigenstates(False)
 
+
     def _derive_nominal_transforms_hash(self):
         """No nominal transforms implemented for this service."""
         return None
+
 
     @profile
     def _compute_transforms(self):
@@ -216,55 +211,51 @@ class prob3cpu(Stage):
         sin2th13Sq = np.sin(theta13)**2
         sin2th23Sq = np.sin(theta23)**2
 
-        # In BargerPropagator code, it takes the "atmospheric
-        # mass difference"-the nearest two mass differences, so
-        # that it takes as input deltam31 for IMH and deltam32
-        # for NMH
-        m_atm = deltam31 if deltam31 < 0.0 else (deltam31 - deltam21)
-
-        # `:` slices for all binning dimensions (except true_energy and coszen,
-        # which get populated with their integer indices inside the for loop).
-        # Used to duplicate the oscillation E,CZ result to all other dimensions
-        # present in the binning
-        indexer = [slice(None)]*self.input_binning.num_dims
-
-        nu_xform, antinu_xform = self.create_transforms_datastructs()
-        for i, (true_energy, true_coszen) in enumerate(product(self.e_centers, self.cz_centers)):
-            # Construct indices in true_energy and true_coszen; populate to indexer
-            indexer[self.e_dim_num] = i // self.num_czbins
-            indexer[self.cz_dim_num] = i - indexer[self.e_dim_num] * self.num_czbins
-
-            # The final element must be populated with K_{ANTI}NEUTRINOS
-            mns_args = [sin2th12Sq, sin2th13Sq, sin2th23Sq, deltam21, m_atm, deltacp, true_energy, K_SQUARED, 0]
-
-            self.barger_propagator.DefinePath(true_coszen, prop_height, YeI, YeO, YeM)
-
-            # Neutrinos
-            mns_args[-1] = K_NEUTRINOS
-            self.barger_propagator.SetMNS(*mns_args)
-            self.barger_propagator.propagate(K_NEUTRINOS)
-            [setitem(nu_xform, tuple([out_idx, in_idx] + indexer), self.barger_propagator.GetProb(in_idx, out_idx)) for in_idx, out_idx in iter(INPUTS_OUTPUTS)]
-
-            # Antineutrinos
-            mns_args[-1] = K_ANTINEUTRINOS
-            self.barger_propagator.SetMNS(*mns_args)
-            self.barger_propagator.propagate(K_ANTINEUTRINOS)
-            [setitem(antinu_xform, tuple([out_idx, in_idx] + indexer), self.barger_propagator.GetProb(in_idx, out_idx)) for in_idx, out_idx in iter(INPUTS_OUTPUTS)]
+        total_bins = int(len(self.e_centers)*len(self.cz_centers))
+        evals = np.empty(total_bins, "double")
+        czvals = np.empty(total_bins, "double")
+        # We use 18 since we have each 3*3 possible oscillations for neutrinos
+        # and antineutrinos.
+        probList = np.empty(total_bins*18,"double")
+        # The 1.0 was energyscale from earlier versions. Perhaps delete this
+        # if we no longer want energyscale.
+        probList, evals, czvals = self.barger_propagator.fill_osc_prob_c(
+                self.e_centers, self.cz_centers, 1.0,
+                deltam21, deltam31, deltacp, prop_height, YeI,
+                YeO, YeM, total_bins*18, total_bins, total_bins,
+                theta12, theta13, theta23)
 
         # Slice up the transform arrays into views to populate each transform
         transforms = []
+        xShape = [2] + list(self.input_binning.shape)
         for out_idx, output_name in enumerate(self.output_names):
-            out_idx = out_idx % 3
-            if 'bar' not in output_name:
-                xform = nu_xform[out_idx, :, ...]
+            xform = np.empty(xShape)
+            if out_idx < 3:
+                # Neutrinos
+                xform[0] = np.array([probList[out_idx+i*18*self.num_czbins:out_idx
+                            +18*(i+1)*self.num_czbins:18]
+                            for i in range(0, self.num_ebins)])
+                xform[1] = np.array([probList[out_idx+3+i*18*self.num_czbins:out_idx
+                            +18*(i+1)*self.num_czbins:18]
+                            for i in range(0, self.num_ebins)])
                 input_names = self.input_names[0:2]
             else:
-                xform = antinu_xform[out_idx, :, ...]
+                # Antineutrinos
+                xform[0] = np.array([probList[out_idx+6+i*18*self.num_czbins:out_idx
+                            +6+18*(i+1)*self.num_czbins:18]
+                            for i in range(0, self.num_ebins)])
+                xform[1] = np.array([probList[out_idx+9+i*18*self.num_czbins:out_idx
+                            +9+18*(i+1)*self.num_czbins:18]
+                            for i in range(0, self.num_ebins)])
                 input_names = self.input_names[2:4]
-
-            transforms.append(BinnedTensorTransform(input_names=input_names, output_name=output_name, input_binning=self.input_binning, output_binning=self.output_binning, xform_array=xform))
+            transforms.append(BinnedTensorTransform(input_names=input_names,
+                              output_name=output_name,
+                              input_binning=self.input_binning,
+                              output_binning=self.output_binning,
+                              xform_array=xform))
 
         return TransformSet(transforms=transforms)
+
 
     def validate_params(self, params):
         pass

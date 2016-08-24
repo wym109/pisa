@@ -9,7 +9,7 @@ import numpy as np
 
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
-from pisa.utils.events import Events
+from pisa.core.events import Events
 from pisa.utils.flavInt import ALL_NUFLAVINTS, flavintGroupsFromString, \
         IntType, NuFlavIntGroup
 from pisa.utils.hash import hash_obj

@@ -9,7 +9,7 @@ import numpy as np
 
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
-from pisa.utils.events import Events
+from pisa.core.events import Events
 from pisa.utils.flavInt import flavintGroupsFromString
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
@@ -73,6 +73,7 @@ class polyfits(Stage):
             output_binning=output_binning
         )
 
+    def _compute_nominal_transforms(self):
         self.pnames = [pname for pname in self.params.names if not
             pname.endswith('_file')]
         self.fit_results = {}

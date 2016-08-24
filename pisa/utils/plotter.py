@@ -1,7 +1,7 @@
-import numpy as np
-from uncertainties import unumpy as unp
-import matplotlib as mpl
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import math
+
+import matplotlib as mpl
 # headless mode
 mpl.use('Agg')
 # fonts
@@ -10,9 +10,12 @@ mpl.rcParams['mathtext.rm'] = 'Bitstream Vera Sans'
 mpl.rcParams['mathtext.it'] = 'Bitstream Vera Sans:italic'
 mpl.rcParams['mathtext.bf'] = 'Bitstream Vera Sans:bold'
 from matplotlib import pyplot as plt
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from matplotlib.offsetbox import AnchoredText
+import numpy as np
+from uncertainties import unumpy as unp
+
 from pisa.utils.log import logging
+
 
 class plotter(object):
 
