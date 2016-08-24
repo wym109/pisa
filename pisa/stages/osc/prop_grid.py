@@ -1,5 +1,10 @@
-import numpy as np
 import os # Needed to get the absolute path to mosc3.cu and mosc.cu or else nvcc fails
+
+import numpy as np
+import pycuda.compiler
+from pycuda.compiler import SourceModule
+import pycuda.driver as cuda
+
 from pisa import ureg, Q_
 from pisa.core.binning import MultiDimBinning
 from pisa.core.stage import Stage
@@ -10,9 +15,6 @@ from pisa.utils.comparisons import normQuant
 from pisa.utils.profiler import profile
 from pisa.utils.resources import find_resource
 
-import pycuda.compiler
-from pycuda.compiler import SourceModule
-import pycuda.driver as cuda
 
 class prop_grid(Stage):
     """Neutrino oscillations calculation via Prob3 with a GPU.
@@ -120,7 +122,6 @@ class prop_grid(Stage):
         self._grid_earth_model = self.params.earth_model.value
         self.initialize_kernel(self._grid_detector_depth)
 
-
     def compute_binning_constants(self):
         # Only works if energy and coszen are in input_binning
         if 'true_energy' not in self.input_binning \
@@ -153,18 +154,15 @@ class prop_grid(Stage):
         [self.extra_dim_nums.remove(d) for d in (self.e_dim_num,
                                                  self.cz_dim_num)]
 
-
     def create_transforms_datastructs(self):
         xform_shape = [3, 2] + list(self.output_binning.shape)
         nu_xform = np.empty(xform_shape)
         antinu_xform = np.empty(xform_shape)
         return nu_xform, antinu_xform
 
-
     def _derive_nominal_transforms_hash(self):
         """No nominal transforms implemented for this service."""
         return None
-
 
     @profile
     def _compute_transforms(self):
@@ -279,10 +277,8 @@ class prop_grid(Stage):
                               xform_array=xform))
         return TransformSet(transforms=transforms)
 
-
     def validate_params(self, params):
         pass
-
 
     def initialize_kernel(self,detector_depth):
         """
@@ -425,9 +421,6 @@ class prop_grid(Stage):
                                    keep=True)
         self.propGrid = self.module.get_function("propagateGrid")
 
-        return
-
-
     def prepare_device_arrays(self):
         self.maxLayers  = self.grid_prop.GetMaxLayers()
         nczbins_fine    = len(self.czcen_fine)
@@ -452,9 +445,6 @@ class prop_grid(Stage):
         cuda.memcpy_htod(self.d_ecen_fine,self.ecen_fine)
         cuda.memcpy_htod(self.d_czcen_fine,self.czcen_fine)
 
-        return
-
-
     def free_device_memory(self):
         self.d_numLayers.free()
         self.d_densityInLayer.free()
@@ -463,9 +453,5 @@ class prop_grid(Stage):
         self.d_ecen_fine.free()
         self.d_czcen_fine.free()
 
-        return
-
-
     def validate_params(self, params):
-
         pass
