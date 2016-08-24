@@ -211,7 +211,6 @@ class prob3cpu(Stage):
         sin2th13Sq = np.sin(theta13)**2
         sin2th23Sq = np.sin(theta23)**2
 
-
         total_bins = int(len(self.e_centers)*len(self.cz_centers))
         evals = np.empty(total_bins, "double")
         czvals = np.empty(total_bins, "double")
@@ -233,20 +232,20 @@ class prob3cpu(Stage):
             xform = np.empty(xShape)
             if out_idx < 3:
                 # Neutrinos
-                xform[0] = np.array([probList[out_idx+i*18:out_idx
-                            +18*(i+1)*self.num_ebins*self.num_czbins:18*self.num_ebins]
+                xform[0] = np.array([probList[out_idx+i*18*self.num_czbins:out_idx
+                            +18*(i+1)*self.num_czbins:18]
                             for i in range(0, self.num_ebins)])
-                xform[1] = np.array([probList[out_idx+3+i*18:out_idx
-                            +18*(i+1)*self.num_ebins*self.num_czbins:18*self.num_ebins]
+                xform[1] = np.array([probList[out_idx+3+i*18*self.num_czbins:out_idx
+                            +18*(i+1)*self.num_czbins:18]
                             for i in range(0, self.num_ebins)])
                 input_names = self.input_names[0:2]
             else:
                 # Antineutrinos
-                xform[0] = np.array([probList[out_idx+6+i*18:out_idx
-                            +6+18*(i+1)*self.num_ebins*self.num_czbins:18*self.num_ebins]
+                xform[0] = np.array([probList[out_idx+6+i*18*self.num_czbins:out_idx
+                            +6+18*(i+1)*self.num_czbins:18]
                             for i in range(0, self.num_ebins)])
-                xform[1] = np.array([probList[out_idx+9+i*18:out_idx
-                            +9+18*(i+1)*self.num_ebins*self.num_czbins:18*self.num_ebins]
+                xform[1] = np.array([probList[out_idx+9+i*18*self.num_czbins:out_idx
+                            +9+18*(i+1)*self.num_czbins:18]
                             for i in range(0, self.num_ebins)])
                 input_names = self.input_names[2:4]
             transforms.append(BinnedTensorTransform(input_names=input_names,
@@ -254,6 +253,7 @@ class prob3cpu(Stage):
                               input_binning=self.input_binning,
                               output_binning=self.output_binning,
                               xform_array=xform))
+
         return TransformSet(transforms=transforms)
 
 
