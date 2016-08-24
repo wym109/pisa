@@ -9,7 +9,7 @@ import numpy as np
 
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
-from pisa.utils.events import Events
+from pisa.core.events import Events
 from pisa.utils.flavInt import flavintGroupsFromString
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
@@ -30,8 +30,10 @@ class polyfits(Stage):
         # All of the following params (and no more) must be passed via the
         # `params` argument.
         expected_params = (
-            'dom_eff', 'dom_eff_file', 'hole_ice_fwd', 'hole_ice_fwd_file',
-            'hole_ice', 'hole_ice_file'
+            'dom_eff', 'dom_eff_file',
+            'hole_ice_fwd', 'hole_ice_fwd_file',
+            'hole_ice', 'hole_ice_file',
+            'reco_cz_res', 'reco_cz_res_file',
         )
 
         # Define the names of objects expected in inputs and produced as
@@ -71,6 +73,7 @@ class polyfits(Stage):
             output_binning=output_binning
         )
 
+    def _compute_nominal_transforms(self):
         self.pnames = [pname for pname in self.params.names if not
             pname.endswith('_file')]
         self.fit_results = {}

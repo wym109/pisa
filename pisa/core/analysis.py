@@ -187,7 +187,7 @@ class Analysis(object):
 
         """
         sign = +1
-        if self.metric == 'llh':
+        if self.metric in ['llh', 'conv_llh']:
             # Want to *maximize* log-likelihood but we're using a minimizer
             sign = -1
 
@@ -242,7 +242,7 @@ class Analysis(object):
         if pprint:
             # clear the line
             print ''
-        print 'average template generation time during minimizer run: %.4f ms'%((end_t - start_t) * 1000./self.n_minimizer_calls)
+        print '\naverage template generation time during minimizer run: %.4f ms'%((end_t - start_t) * 1000./self.n_minimizer_calls)
         best_fit_vals = minim_result.x
         metric_val = minim_result.fun
         dict_flags = {}
@@ -368,7 +368,7 @@ if __name__ == '__main__':
                         help='''Settings related to the optimizer used in the
                         LLR analysis.''')
     parser.add_argument('--metric', type=str,
-                        choices=['llh', 'chi2'], required=True,
+                        choices=['llh', 'chi2', 'conv_llh'], required=True,
                         help='''Settings related to the optimizer used in the
                         LLR analysis.''')
     args = parser.parse_args()
@@ -399,14 +399,15 @@ if __name__ == '__main__':
     for i in range(args.num_trials):
         logging.info('Running trial %i'%i)
         np.random.seed()
-        analysis.generate_psudodata('poisson')
-        #analysis.generate_psudodata('asimov')
+        #analysis.generate_psudodata('poisson')
+        analysis.generate_psudodata('asimov')
 
         # LLR:
         #append_results(results, analysis.llr(template_maker, template_maker_IO))
 
         # profile LLH:
         results.append(analysis.profile_llh('nutau_cc_norm',np.linspace(0,2,21)*ureg.dimensionless))
+        #results.append(analysis.profile_llh('nutau_cc_norm',[0.]*ureg.dimensionless))
 
     to_file(results, args.outfile)
     logging.info('Done.')

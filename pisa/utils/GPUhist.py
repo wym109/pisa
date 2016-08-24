@@ -77,7 +77,7 @@ class GPUhist(object):
                     if ((x >= bin_edges_x[0]) && (x <= bin_edges_x[n_bins_x]) && (y >= bin_edges_y[0]) && (y <= bin_edges_y[n_bins_y])){
                         int bin_x = GetBin(x, n_bins_x, bin_edges_x);
                         int bin_y = GetBin(y, n_bins_y, bin_edges_y);
-                        atomicAdd(&temp_hist[bin_y + bin_x * n_bins_y], W[idx]);
+                        atomicAdd_custom(&temp_hist[bin_y + bin_x * n_bins_y], W[idx]);
                     }
                 }
                 idx++;
@@ -85,7 +85,7 @@ class GPUhist(object):
             __syncthreads();
             for (int i = 0; i < iterations; i++){
                 bin = (i * blockDim.x) + threadIdx.x;
-                if (bin < N_BINS) atomicAdd( &(hist[bin]), temp_hist[bin] );
+                if (bin < N_BINS) atomicAdd_custom( &(hist[bin]), temp_hist[bin] );
             }
 
           }

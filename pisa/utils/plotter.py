@@ -1,7 +1,7 @@
-import numpy as np
-from uncertainties import unumpy as unp
-import matplotlib as mpl
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import math
+
+import matplotlib as mpl
 # headless mode
 mpl.use('Agg')
 # fonts
@@ -10,9 +10,12 @@ mpl.rcParams['mathtext.rm'] = 'Bitstream Vera Sans'
 mpl.rcParams['mathtext.it'] = 'Bitstream Vera Sans:italic'
 mpl.rcParams['mathtext.bf'] = 'Bitstream Vera Sans:bold'
 from matplotlib import pyplot as plt
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from matplotlib.offsetbox import AnchoredText
+import numpy as np
+from uncertainties import unumpy as unp
+
 from pisa.utils.log import logging
+
 
 class plotter(object):
 
@@ -166,7 +169,7 @@ class plotter(object):
         bins = [map.binning[name] for name in map.binning.names]
         bin_edges = map.binning.bin_edges
         bin_centers = map.binning.weighted_centers
-        zmap = np.log10(map.hist) if self.log else map.hist
+        zmap = np.log10(unp.nominal_values(map.hist)) if self.log else unp.nominal_values(map.hist)
         if self.symmetric:
             vmax = max(zmap.max(), - zmap.min())
             vmin = -vmax

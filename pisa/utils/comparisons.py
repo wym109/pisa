@@ -144,7 +144,7 @@ def recursiveEquality(x, y):
         xunit = str(x.units)
         try:
             converted_y = y.to(xunit)
-        except DimensionalityError:
+        except pint.DimensionalityError:
             logging.trace('Incompatible units: x.units=%s, y.units=%s'
                           %(x.units, y.units))
             return False

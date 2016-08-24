@@ -23,17 +23,6 @@ SIGFIGS = 12
 the numerical precision that calculations are being performed in to have the
 desired effect that "essentially equal" things evaluate to be equal."""
 
-# Indices that are used for transform datastructs created here and for C++
-# interface to Barger propagator
-NUE_IDX, NUMU_IDX, NUTAU_IDX = 0, 1, 2
-INPUTS = (NUE_IDX, NUMU_IDX)
-OUTPUTS = (NUE_IDX, NUMU_IDX, NUTAU_IDX)
-INPUTS_OUTPUTS = tuple([x for x in product(INPUTS, OUTPUTS)])
-
-# More Barger definitions
-K_NEUTRINOS = 1
-K_ANTINEUTRINOS = -1
-K_SQUARED = True
 
 class prob3cpu(Stage):
     """Neutrino oscillations calculation via Prob3.
@@ -152,6 +141,7 @@ class prob3cpu(Stage):
         self.cz_centers = cz_centers.magnitude
 
         self.num_czbins = self.input_binning.true_coszen.num_bins
+        self.num_ebins = self.input_binning.true_energy.num_bins
 
         self.e_dim_num = self.input_binning.names.index('true_energy')
         self.cz_dim_num = self.input_binning.names.index('true_coszen')
@@ -227,7 +217,6 @@ class prob3cpu(Stage):
         # We use 18 since we have each 3*3 possible oscillations for neutrinos
         # and antineutrinos.
         probList = np.empty(total_bins*18,"double")
-
         # The 1.0 was energyscale from earlier versions. Perhaps delete this
         # if we no longer want energyscale.
         probList, evals, czvals = self.barger_propagator.fill_osc_prob_c(
@@ -239,31 +228,32 @@ class prob3cpu(Stage):
         # Slice up the transform arrays into views to populate each transform
         transforms = []
         xShape = [2] + list(self.input_binning.shape)
-        xform = np.empty(xShape)
         for out_idx, output_name in enumerate(self.output_names):
+            xform = np.empty(xShape)
             if out_idx < 3:
                 # Neutrinos
-                xform[0] = np.array([probList[out_idx+i*self.num_czbins*18:out_idx
+                xform[0] = np.array([probList[out_idx+i*18*self.num_czbins:out_idx
                             +18*(i+1)*self.num_czbins:18]
-                            for i in range(0, self.num_czbins)])
-                xform[1] = np.array([probList[out_idx+3+i*self.num_czbins*18:out_idx
+                            for i in range(0, self.num_ebins)])
+                xform[1] = np.array([probList[out_idx+3+i*18*self.num_czbins:out_idx
                             +18*(i+1)*self.num_czbins:18]
-                            for i in range(0, self.num_czbins)])
+                            for i in range(0, self.num_ebins)])
                 input_names = self.input_names[0:2]
             else:
                 # Antineutrinos
-                xform[0] = np.array([probList[out_idx+6+i*self.num_czbins*18:out_idx
+                xform[0] = np.array([probList[out_idx+6+i*18*self.num_czbins:out_idx
                             +6+18*(i+1)*self.num_czbins:18]
-                            for i in range(0, self.num_czbins)])
-                xform[1] = np.array([probList[out_idx+9+i*self.num_czbins*18:out_idx
+                            for i in range(0, self.num_ebins)])
+                xform[1] = np.array([probList[out_idx+9+i*18*self.num_czbins:out_idx
                             +9+18*(i+1)*self.num_czbins:18]
-                            for i in range(0, self.num_czbins)])
+                            for i in range(0, self.num_ebins)])
                 input_names = self.input_names[2:4]
             transforms.append(BinnedTensorTransform(input_names=input_names,
                               output_name=output_name,
                               input_binning=self.input_binning,
                               output_binning=self.output_binning,
                               xform_array=xform))
+
         return TransformSet(transforms=transforms)
 
 

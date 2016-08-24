@@ -21,7 +21,7 @@ import numpy as np
 from pisa.core.binning import MultiDimBinning
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
-from pisa.utils.events import Events
+from pisa.core.events import Events
 from pisa.utils.flavInt import flavintGroupsFromString
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
@@ -114,7 +114,7 @@ class hist(Stage):
         # All of the following params (and no more) must be passed via the
         # `params` argument.
         expected_params = (
-            'reco_weight_file',
+            'reco_weight_file', 'reco_weights_name'
             # NOT IMPLEMENTED: 'e_reco_scale', 'cz_reco_scale'
         )
 
@@ -223,7 +223,7 @@ class hist(Stage):
                 kinds=flav_int_group,
                 binning=true_and_reco_bin_edges,
                 binning_cols=true_and_reco_binning_cols,
-                weights_col=None # 'weighted_aeff'
+                weights_col=self.params['reco_weights_name'].value
             )
 
             # This takes into account the correct kernel normalization:
@@ -244,7 +244,7 @@ class hist(Stage):
                 kinds=flav_int_group,
                 binning=true_only_bin_edges,
                 binning_cols=true_only_binning_cols,
-                weights_col=None # 'weighted_aeff'
+                weights_col=self.params['reco_weights_name'].value
             )
 
             # If there weren't any events in the input (true_*) bin, make this
@@ -264,6 +264,12 @@ class hist(Stage):
 
             # Apply the normalization to the kernels
             reco_kernel *= norm_factors
+
+            #assert np.all(reco_kernel >= 0), 'number of elements less than 0 = %d' % np.sum(reco_kernel < 0)
+            #ndims = len(reco_kernel.shape)
+            #sum_over_axes = tuple(range(-int(ndims/2),0))
+            #totals = np.sum(reco_kernel, axis=sum_over_axes)
+            #assert np.all(totals <= 1+1e-14), 'max = ' + str(np.max(totals)-1)
 
             # Now populate this transform to each input for which it applies.
 

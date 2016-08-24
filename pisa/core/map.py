@@ -32,11 +32,14 @@ from pisa.utils.comparisons import normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils import jsons
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils.stats import chi2, llh
+from pisa.utils.stats import chi2, llh, conv_llh
 from pisa.utils.profiler import profile
 
 
 HASH_SIGFIGS = 12
+
+
+# TODO: move these functions to a generic utils.py module?
 
 def type_error(value):
     raise TypeError('Type of argument not supported: "%s"' % type(value))
@@ -242,6 +245,21 @@ class Map(object):
 
     @profile
     @new_obj
+    def reorder_dimensions(self, order):
+        new_binning = self.binning.reorder_dimensions(order)
+        orig_order = range(len(self.binning))
+        new_order = [self.binning.index(b) for b in new_binning]
+        # TODO: should this be a deepcopy rather than a simple veiw of the
+        # original hist (the result of np.moveaxis)?
+        new_hist = np.moveaxis(
+            self.hist,
+            source=new_order,
+            destination=orig_order
+        )
+        return {'hist': new_hist, 'binning': new_binning}
+
+    @profile
+    @new_obj
     def rebin(self, new_binning):
         # The new binning's dimensions must be a subset of this map's
         # dimensions
@@ -263,13 +281,13 @@ class Map(object):
         coords = [c.flatten() for n, c in zip(self.binning.names, coords)
                   if n in new_binning]
         # Perform the histogramming, weighting by the current bins' values
-        hist, _ = np.histogramdd(
+        new_hist, _ = np.histogramdd(
             sample=coords,
             bins=new_binning.bin_edges,
             weights=unp.nominal_values(self.hist.flatten())
         )
         # TODO: uncertainties
-        return {'hist': hist, 'binning': new_binning}
+        return {'hist': new_hist, 'binning': new_binning}
 
     def downsample(self, *args, **kwargs):
         """Downsample by integer factors.
@@ -372,7 +390,8 @@ class Map(object):
 
         """
         state = jsons.from_json(resource)
-        # State is a dict with kwargs, so instantiate with double-asterisk syntax
+        # State is a dict with kwargs, so instantiate with double-asterisk
+        # syntax
         return cls(**state)
 
     def assert_compat(self, other):
@@ -470,6 +489,26 @@ class Map(object):
         if isinstance(expected_values, Map):
             expected_values = expected_values.hist
         return np.sum(llh(actual_values=self.hist,
+                          expected_values=expected_values))
+
+    def conv_llh(self, expected_values):
+        """Calculate the total convoluted log-likelihood value between this map and the map
+        described by `expected_values`; self is taken to be the "actual values"
+        (or (pseudo)data), and `expected_values` are the expectation values for
+        each bin.
+
+        Parameters
+        ----------
+        expected_values : numpy.ndarray or Map of same dimension as this
+
+        Returns
+        -------
+        total_conv_llh : float
+
+        """
+        if isinstance(expected_values, Map):
+            expected_values = expected_values.hist
+        return np.sum(conv_llh(actual_values=self.hist,
                           expected_values=expected_values))
 
     def chi2(self, expected_values):
@@ -824,7 +863,8 @@ class Map(object):
 
 class MapSet(object):
     """
-    Set of maps.
+    Ordered set of event rate maps (aka histograms) defined over an arbitrary
+    regluar hyper-rectangular binning.
 
 
     Parameters
@@ -852,7 +892,8 @@ class MapSet(object):
     """
     __slots = ('_name', '_hash', 'hash')
     __state_attrs = ('name', 'maps', 'tex', 'hash', 'collate_by_name')
-    def __init__(self, maps, name=None, tex=None, hash=None, collate_by_name=True):
+    def __init__(self, maps, name=None, tex=None, hash=None,
+                 collate_by_name=True):
         maps_ = []
         for m in maps:
             if isinstance(m, Map):
@@ -962,20 +1003,25 @@ class MapSet(object):
         --------
         Get total of trck and cscd maps, which are named with suffixes "trck"
         and "cscd", respectively.
+
         >>> total_trck_map = outputs.combine_re('.*trck')
         >>> total_cscd_map = outputs.combine_re('.*cscd')
 
         Get a MapSet with both of the above maps in it (and a single command)
+
         >>> total_pid_maps = outputs.combine_re(['.*trck', '.*cscd'])
 
         Strict name-checking, combine  nue_cc + nuebar_cc, including both
         cascades and tracks.
+
         >>> nue_cc_nuebar_cc_map = outputs.combine_re('^nue(bar){0,1}_cc_(cscd|trck)$')
 
         Lenient nue_cc + nuebar_cc including both cascades and tracks.
+
         >>> nue_cc_nuebar_cc_map = outputs.combine_re('nue.*_cc_.*')
 
         Total of all maps
+
         >>> total = outputs.combine_re('.*')
 
         See Also
@@ -1156,7 +1202,8 @@ class MapSet(object):
             attrname = attr.__name__
         else:
             attrname = attr
-        do_not_have_attr = np.array([(not hasattr(mp, attrname)) for mp in self.maps])
+        do_not_have_attr = np.array([(not hasattr(mp, attrname))
+                                     for mp in self.maps])
         if np.any(do_not_have_attr):
             missing_in_names = ', '.join(np.array(self.names)[do_not_have_attr])
             num_missing = np.sum(do_not_have_attr)
@@ -1329,20 +1376,23 @@ class MapSet(object):
     def __sub__(self, val):
         return self.apply_to_maps('__sub__', val)
 
-    def downsample(self, *args, **kwargs):
-        return MapSet([m.downsample(*args, **kwargs) for m in self.maps])
+    def reorder_dimensions(self, order):
+        return MapSet([m.reorder_dimensions(order=order) for m in self.maps])
 
     def rebin(self, *args, **kwargs):
         return MapSet([m.rebin(*args, **kwargs) for m in self.maps])
 
+    def downsample(self, *args, **kwargs):
+        return MapSet([m.downsample(*args, **kwargs) for m in self.maps])
+
     def metric_per_map(self, expected_values, metric):
         assert isinstance(metric, basestring)
         metric = metric.lower()
-        if metric in ['chi2', 'llh']:
+        if metric in ['chi2', 'llh', 'conv_llh']:
             return self.apply_to_maps(metric, expected_values)
         else:
             raise ValueError('`metric` "%s" not recognized; use either'
-                             ' "chi2" or "llh".' %metric)
+                             ' "chi2", "conv_llh" or "llh".' %metric)
 
     def metric_total(self, expected_values, metric):
         return np.sum(self.metric_per_map(expected_values, metric).values())
@@ -1473,12 +1523,51 @@ def test_Map():
     assert r == ufloat(0.5,0.5)
     print r, '=', r[0,0]
     print [b.binning.energy.midpoints[0] for b in m1.iterbins()][0:2]
+
+    # Test reorder_dimensions
+    e_binning = OneDimBinning(
+        name='energy', num_bins=2, is_log=True, domain=[1, 80]*ureg.GeV
+    )
+    cz_binning = OneDimBinning(
+        name='coszen', num_bins=3, is_lin=True, domain=[-1, 1]
+    )
+    az_binning = OneDimBinning(
+        name='azimuth', num_bins=4, is_lin=True,
+        domain=[0, 2*np.pi]*ureg.rad
+    )
+    a = []
+    for i in range(len(e_binning)):
+        b = []
+        for j in range(len(cz_binning)):
+            c = []
+            for k in range(len(az_binning)):
+                c.append(i*100 + j*10 + k)
+            b.append(c)
+        a.append(b)
+    a = np.array(a)
+    m_orig = Map(name='orig', hist=deepcopy(a),
+                 binning=[e_binning, cz_binning, az_binning])
+    m_new = m_orig.reorder_dimensions(['azimuth', 'energy', 'coszen'])
+
+    assert np.alltrue(m_orig[:,0,0].hist.flatten() ==
+                      m_new[0,:,0].hist.flatten())
+    assert np.alltrue(m_orig[0,:,0].hist.flatten() ==
+                      m_new[0,0,:].hist.flatten())
+    assert np.alltrue(m_orig[0,0,:].hist.flatten() ==
+                      m_new[:,0,0].hist.flatten())
+
+    for dim in m_orig.binning.names:
+        assert m_orig[:,0,0].binning[dim] == m_new[0,:,0].binning[dim]
+        assert m_orig[0,:,0].binning[dim] == m_new[0,0,:].binning[dim]
+        assert m_orig[0,0,:].binning[dim] == m_new[:,0,0].binning[dim]
+
     print '<< PASSED : test_Map >>'
 
 
 # TODO: add tests for llh, chi2 methods
 # TODO: make tests use assert rather than rely on printouts!
 def test_MapSet():
+    from itertools import permutations
     import os
     import shutil
     import tempfile
@@ -1492,25 +1581,33 @@ def test_MapSet():
     cz_binning = OneDimBinning(name='coszen', tex=r'\cos\,\theta',
                                num_bins=n_czbins, domain=(-1,0), is_lin=True)
     binning = MultiDimBinning([e_binning, cz_binning])
-    m1 = Map(name='ones', hist=np.ones(binning.shape), binning=binning, hash='xyz')
+    m1 = Map(name='ones', hist=np.ones(binning.shape), binning=binning,
+             hash='xyz')
     m1.set_poisson_errors()
-    m2 = Map(name='twos', hist=2*np.ones(binning.shape), binning=binning, hash='xyz')
+    m2 = Map(name='twos', hist=2*np.ones(binning.shape), binning=binning,
+             hash='xyz')
     ms01 = MapSet([m1, m2])
     print "downsampling ====================="
     print ms01.downsample(3)
     print "===================== downsampling"
     ms01 = MapSet((m1, m2), name='ms01')
     ms02 = MapSet((m1, m2), name='map set 1')
-    ms1 = MapSet(maps=(m1, m2), name='map set 1', collate_by_name=True, hash=None)
+    ms1 = MapSet(maps=(m1, m2), name='map set 1', collate_by_name=True,
+                 hash=None)
     assert np.all(ms1.combine_re(r'.*').hist == ms1.combine_wildcard('*').hist)
     assert np.all(ms1.combine_re(r'.*').hist == (ms1.ones + ms1.twos).hist)
-    assert np.all(ms1.combine_re(r'^(one|two)s.*$').hist == ms1.combine_wildcard('*s').hist)
-    assert np.all(ms1.combine_re(r'^(one|two)s.*$').hist == (ms1.ones + ms1.twos).hist)
+    assert np.all(ms1.combine_re(r'^(one|two)s.*$').hist ==
+                  ms1.combine_wildcard('*s').hist)
+    assert np.all(ms1.combine_re(r'^(one|two)s.*$').hist == (ms1.ones +
+                                                             ms1.twos).hist)
     print ms1.combine_re(r'^o').hist
     print ms1.combine_wildcard(r'o*').hist
     print ms1.combine_re(r'^o').hist - ms1.combine_wildcard(r'o*').hist
-    print 'map sets equal after combining?', ms1.combine_re(r'^o') == ms1.combine_wildcard(r'o*')
-    print 'hist equal after combining?', np.all(ms1.combine_re(r'^o').hist == ms1.combine_wildcard(r'o*').hist)
+    print 'map sets equal after combining?', \
+            ms1.combine_re(r'^o') == ms1.combine_wildcard(r'o*')
+    print 'hist equal after combining?', \
+            np.all(ms1.combine_re(r'^o').hist == \
+                   ms1.combine_wildcard(r'o*').hist)
     assert np.all(ms1.combine_re(r'^o').hist == ms1.combine_wildcard('o*').hist)
     print '5', ms1.names
     assert np.all(ms1.combine_re(r'^o').hist == ms1.ones.hist)
@@ -1540,10 +1637,12 @@ def test_MapSet():
     ms1.hash = None
     # ... but this should not remove hashes from the contained maps
     assert m1.hash == -10
-    # ... and hashing on the MapSet should see that all contained maps have the SAME hash val, and so
-    # should just return the hash value shared among them all
+    # ... and hashing on the MapSet should see that all contained maps have the
+    # SAME hash val, and so should just return the hash value shared among them
+    # all
     assert ms1.hash == -10
-    # However changing a single map's hash means not all hashes are the same for all maps...
+    # However changing a single map's hash means not all hashes are the same
+    # for all maps...
     m1.hash = 40
     # ... so a hash should be computed from all contained hashes
     assert ms1.hash != 40 and ms1.hash != -10
@@ -1610,6 +1709,13 @@ def test_MapSet():
             assert ms_ == ms, 'ms=\n%s\nms_=\n%s' %(ms, ms_)
     finally:
         shutil.rmtree(testdir, ignore_errors=True)
+
+    # Test reorder_dimensions (this just tests that it succeeds on the map set;
+    # correctness of the reordering is tested in the unit test for Map)
+    for ms in [ms01, ms02, ms1, ms2, ms3, ms4]:
+        for p in permutations(ms[0].binning.dimensions):
+            ms.reorder_dimensions(p)
+
     print '<< PASSED : test_MapSet >>'
 
 

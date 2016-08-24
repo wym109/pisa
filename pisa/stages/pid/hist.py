@@ -31,8 +31,8 @@ import numpy as np
 
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
+from pisa.core.events import Events
 from pisa.utils.dataProcParams import DataProcParams
-from pisa.utils.events import Events
 from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup, ALL_NUFLAVINTS
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
@@ -79,13 +79,17 @@ class hist(Stage):
                 Resource for loading PID specifications
 
             * pid_weights_name: str or NoneType
-                Specify the name of the node whose data will be used as weights to
-                create the reco and pid variables histogram. If NoneType is
+                Specify the name of the node whose data will be used as weights
+                to create the reco and pid variables histogram. If NoneType is
                 given then events will not be weighted.
 
     particles
 
     input_names
+
+    transform_groups
+
+    TODO: sum_grouped_flavints
 
     input_binning : MultiDimBinning
         Arbitrary number of dimensions accepted. Contents of the input
@@ -198,6 +202,7 @@ class hist(Stage):
     returned.
 
     """
+    # TODO: add sum_grouped_flavints instantiation arg
     def __init__(self, params, particles, input_names, transform_groups,
                  input_binning, output_binning, error_method=None,
                  disk_cache=None, transforms_cache_depth=20,
@@ -212,6 +217,9 @@ class hist(Stage):
         self.transform_groups = flavintGroupsFromString(transform_groups)
         """Particle/interaction types to group for computing transforms"""
 
+        # TODO
+        #self.sum_grouped_flavints = sum_grouped_flavints
+
         # All of the following params (and no more) must be passed via
         # the `params` argument.
         expected_params = (
@@ -220,7 +228,7 @@ class hist(Stage):
         )
 
         if isinstance(input_names, basestring):
-            input_names = (''.join(input_names.split(' '))).split(',')
+            input_names = input_names.replace(' ', '').split(',')
 
         # Define the names of objects that get produced by this stage
         self.output_channels = ('trck', 'cscd')
@@ -385,10 +393,14 @@ class hist(Stage):
                         ' masked off from any further computations.'
                         % (flav_int_group, sig, num_invalid)
                     )
-                    xform_array = np.ma.masked_invalid(xform_array)
+                    # TODO: this caused buggy event propagation for some
+                    # reason; check and re-introduced the masked array idea
+                    # when this is fixed. For now, replicating the behavior
+                    # from PISA 2.
+                    #xform_array = np.ma.masked_invalid(xform_array)
 
                 # Double check that no NaN remain
-                assert not np.any(np.isnan(xform_array))
+                #assert not np.any(np.isnan(xform_array))
 
                 # Copy this transform to use for each input in the group
                 for input_name in self.input_names:

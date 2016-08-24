@@ -317,6 +317,8 @@ def plot_prior(obj, param=None, x_xform=None, ax1=None, ax2=None, **plt_kwargs):
     ax1, ax2
         The axes onto which plots were drawn (ax1 = LLH, ax2 = chi^2)
     """
+    import matplotlib as mpl
+    mpl.use('pdf')
     import matplotlib.pyplot as plt
     if isinstance(obj, basestring):
         obj = fileio.from_file(obj)
@@ -482,6 +484,7 @@ def test_Prior():
 def test_Prior_plot(ts_fname, param_name='theta23'):
     """Produce plots roughly like NuFIT's 1D chi-squared projections"""
     import matplotlib as mpl
+    mpl.use('pdf')
     import matplotlib.pyplot as plt
     stddev = [1, 2, 3, 4, 5]
     chi2 =  [s**2 for s in stddev]
