@@ -234,20 +234,20 @@ class prob3cpu(Stage):
             if out_idx < 3:
                 # Neutrinos
                 xform[0] = np.array([probList[out_idx+i*18:out_idx
-                            +18*(i+1)*self.num_ebins*self.num_czbins:18*self.num_czbins]
-                            for i in range(0, self.num_czbins)])
+                            +18*(i+1)*self.num_ebins*self.num_czbins:18*self.num_ebins]
+                            for i in range(0, self.num_ebins)])
                 xform[1] = np.array([probList[out_idx+3+i*18:out_idx
-                            +18*(i+1)*self.num_ebins*self.num_czbins:18*self.num_czbins]
-                            for i in range(0, self.num_czbins)])
+                            +18*(i+1)*self.num_ebins*self.num_czbins:18*self.num_ebins]
+                            for i in range(0, self.num_ebins)])
                 input_names = self.input_names[0:2]
             else:
                 # Antineutrinos
                 xform[0] = np.array([probList[out_idx+6+i*18:out_idx
-                            +6+18*(i+1)*self.num_ebins*self.num_czbins:18*self.num_czbins]
-                            for i in range(0, self.num_czbins)])
+                            +6+18*(i+1)*self.num_ebins*self.num_czbins:18*self.num_ebins]
+                            for i in range(0, self.num_ebins)])
                 xform[1] = np.array([probList[out_idx+9+i*18:out_idx
-                            +9+18*(i+1)*self.num_ebins*self.num_czbins:18*self.num_czbins]
-                            for i in range(0, self.num_czbins)])
+                            +9+18*(i+1)*self.num_ebins*self.num_czbins:18*self.num_ebins]
+                            for i in range(0, self.num_ebins)])
                 input_names = self.input_names[2:4]
             transforms.append(BinnedTensorTransform(input_names=input_names,
                               output_name=output_name,
