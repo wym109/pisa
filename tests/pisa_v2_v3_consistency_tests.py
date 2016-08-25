@@ -151,22 +151,24 @@ def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
 
     MaxDiffRatio = np.nanmax(DiffRatioMapObj['map'])
 
-    gridspec_kw = dict(left=0.03, right=0.968, wspace=0.32)
-    fig, axes = plt.subplots(nrows=1, ncols=5, gridspec_kw=gridspec_kw,
-                             sharex=False, sharey=False, figsize=(20,5))
-    baseplot(m=ref_map, title=basetitle+' '+ref_abv, evtrate=True, ax=axes[0])
-    baseplot(m=new_map, title=basetitle+' '+new_abv, evtrate=True, ax=axes[1])
-    baseplot(m=RatioMapObj, title=basetitle+' %s/%s' %(new_abv, ref_abv),
-             ax=axes[2])
-    baseplot(m=DiffMapObj, title=basetitle+' %s-%s' %(new_abv, ref_abv),
-             symm=True, ax=axes[3])
-    baseplot(m=DiffRatioMapObj, title=basetitle+' (%s-%s)/%s'
-             %(new_abv, ref_abv, ref_abv), symm=True, ax=axes[4])
     if outdir is not None:
+        gridspec_kw = dict(left=0.03, right=0.968, wspace=0.32)
+        fig, axes = plt.subplots(nrows=1, ncols=5, gridspec_kw=gridspec_kw,
+                                 sharex=False, sharey=False, figsize=(20,5))
+        baseplot(m=ref_map, title=basetitle+' '+ref_abv, evtrate=True,
+                 ax=axes[0])
+        baseplot(m=new_map, title=basetitle+' '+new_abv, evtrate=True,
+                 ax=axes[1])
+        baseplot(m=RatioMapObj, title=basetitle+' %s/%s' %(new_abv, ref_abv),
+                 ax=axes[2])
+        baseplot(m=DiffMapObj, title=basetitle+' %s-%s' %(new_abv, ref_abv),
+                 symm=True, ax=axes[3])
+        baseplot(m=DiffRatioMapObj, title=basetitle+' (%s-%s)/%s'
+             %(new_abv, ref_abv, ref_abv), symm=True, ax=axes[4])
         logging.debug('>>>> Plot for inspection saved at %s'
                       %os.path.join(*path))
         fig.savefig(os.path.join(*path))
-    plt.close(fig.number)
+        plt.close(fig.number)
 
     return MaxDiffRatio
 
