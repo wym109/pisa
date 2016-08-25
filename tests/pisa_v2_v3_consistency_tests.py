@@ -13,7 +13,6 @@ from collections import Sequence
 from copy import deepcopy
 import os
 import shutil
-import sys
 
 import matplotlib
 matplotlib.use('Agg')
@@ -240,10 +239,10 @@ def compare_flux(config, servicename, pisa2file, systname,
             if maxdiff <= test_threshold:
                 logging.debug(">>>> That's a pass!")
             else:
-                logging.error('Agreement is not sufficient to pass (require '
-                              '10E%i level).'%np.log10(test_threshold))
-                sys.exit()
-                          
+                raise ValueError('Agreement is not sufficient to pass (require '
+                                 '10E%i level, got 10E%i level).'
+                                 %(np.log10(test_threshold),
+                                   int(np.log10(maxdiff))))
 
     return pipeline
 
@@ -326,8 +325,10 @@ def compare_osc(config, servicename, pisa2file, systname,
             if maxdiff <= test_threshold:
                 logging.debug(">>>> That's a pass!")
             else:
-                logging.error('Agreement is not sufficient to pass (require '
-                              '10E%i level).'%np.log10(test_threshold))
+                raise ValueError('Agreement is not sufficient to pass '
+                                 '(require 10E%i level, got 10E%i level).'
+                                 %(np.log10(test_threshold),
+                                   int(np.log10(maxdiff))))
 
     return pipeline
 
@@ -408,11 +409,11 @@ def compare_aeff(config, servicename, pisa2file, systname,
                 if maxdiff <= test_threshold:
                     logging.debug(">>>> That's a pass!")
                 else:
-                    logging.error('Agreement is not sufficient to pass '
-                                  '(require 10E%i level).'
-                                  %np.log10(test_threshold))
-                    sys.exit()
-
+                    raise ValueError('Agreement is not sufficient to pass '
+                                     '(require 10E%i level, got 10E%i level).'
+                                     %(np.log10(test_threshold),
+                                       int(np.log10(maxdiff))))
+                
     return pipeline
 
 
@@ -496,9 +497,10 @@ def compare_reco(config, servicename, pisa2file, outdir, test_threshold):
             if maxdiff <= test_threshold:
                 logging.debug(">>>> That's a pass!")
             else:
-                logging.error('Agreement is not sufficient to pass (require '
-                              '10E%i level).'%np.log10(test_threshold))
-                sys.exit()
+                raise ValueError('Agreement is not sufficient to pass (require '
+                                 '10E%i, got 10E%i level).'
+                                 %(np.log10(test_threshold),
+                                   int(np.log10(maxdiff))))
 
     return pipeline
 
@@ -558,9 +560,10 @@ def compare_pid(config, servicename, pisa2file, outdir, test_threshold):
     if maxdiff_cscd <= test_threshold:
         logging.debug(">>>> That's a pass!")
     else:
-        logging.error('Agreement is not sufficient to pass (require '
-                      '10E%i level).'%np.log10(test_threshold))
-        sys.exit()
+        raise ValueError('Agreement is not sufficient to pass (require '
+                         '10E%i, got 10E%i level).'
+                         %(np.log10(test_threshold),
+                           int(np.log10(maxdiff_cscd))))
     maxdiff_trck = plot_comparisons(
         ref_map=total_pisa_trck_dict,
         new_map=total_cake_trck_dict,
@@ -578,9 +581,10 @@ def compare_pid(config, servicename, pisa2file, outdir, test_threshold):
     if maxdiff_trck <= test_threshold:
         logging.debug(">>>> That's a pass!")
     else:
-        logging.error('Agreement is not sufficient to pass (require '
-                      '10E%i level).'%np.log10(test_threshold))
-        sys.exit()
+        raise ValueError('Agreement is not sufficient to pass (require '
+                         '10E%i, got 10E%i level).'
+                         %(np.log10(test_threshold),
+                           int(np.log10(maxdiff_trck))))
 
     return pipeline
 
@@ -627,9 +631,10 @@ def compare_flux_full(cake_maps, pisa_maps, outdir, test_threshold):
             if maxdiff <= test_threshold:
                 logging.debug(">>>> That's a pass!")
             else:
-                logging.error('Agreement is not sufficient to pass (require '
-                              '10E%i level).'%np.log10(test_threshold))
-                sys.exit()
+                raise ValueError('Agreement is not sufficient to pass (require '
+                                 '10E%i, got 10E%i level).'
+                                 %(np.log10(test_threshold),
+                                   int(np.log10(maxdiff))))
 
 
 def compare_osc_full(cake_maps, pisa_maps, outdir, test_threshold):
@@ -674,9 +679,10 @@ def compare_osc_full(cake_maps, pisa_maps, outdir, test_threshold):
             if maxdiff <= test_threshold:
                 logging.debug(">>>> That's a pass!")
             else:
-                logging.error('Agreement is not sufficient to pass (require '
-                              '10E%i level).'%np.log10(test_threshold))
-                sys.exit()
+                raise ValueError('Agreement is not sufficient to pass (require '
+                                 '10E%i, got 10E%i level).'
+                                 %(np.log10(test_threshold),
+                                   int(np.log10(maxdiff))))
 
 
 def compare_aeff_full(cake_maps, pisa_maps, outdir, test_threshold):
@@ -722,10 +728,10 @@ def compare_aeff_full(cake_maps, pisa_maps, outdir, test_threshold):
                 if maxdiff <= test_threshold:
                     logging.debug(">>>> That's a pass!")
                 else:
-                    logging.error('Agreement is not sufficient to pass '
-                                  '(require 10E%i level).'
-                                  %np.log10(test_threshold))
-                    sys.exit()
+                    raise ValueError('Agreement is not sufficient to pass '
+                                     ' (require 10E%i, got 10E%i level).'
+                                     %(np.log10(test_threshold),
+                                       int(np.log10(maxdiff))))
                     
 
 def compare_reco_full(cake_maps, pisa_maps, outdir, test_threshold):
@@ -799,9 +805,10 @@ def compare_reco_full(cake_maps, pisa_maps, outdir, test_threshold):
             if maxdiff <= test_threshold:
                 logging.debug(">>>> That's a pass!")
             else:
-                logging.error('Agreement is not sufficient to pass (require '
-                              '10E%i level).'%np.log10(test_threshold))
-                sys.exit()
+                raise ValueError('Agreement is not sufficient to pass (require '
+                                 '10E%i, got 10E%i level).'
+                                 %(np.log10(test_threshold),
+                                   int(np.log10(maxdiff))))
 
 
 def compare_pid_full(cake_maps, pisa_maps, outdir, test_threshold):
@@ -843,8 +850,10 @@ def compare_pid_full(cake_maps, pisa_maps, outdir, test_threshold):
     if maxdiff_cscd <= test_threshold:
         logging.debug(">>>> That's a pass!")
     else:
-        logging.error('Agreement is not sufficient to pass (require '
-                      '10E%i level).'%np.log10(test_threshold))
+        raise ValueError('Agreement is not sufficient to pass '
+                         '(require 10E%i level, got 10E%i level).'
+                         %(np.log10(test_threshold),
+                           int(np.log10(maxdiff_cscd))))
     maxdiff_trck = plot_comparisons(
         ref_map=total_pisa_trck_dict,
         new_map=total_cake_trck_dict,
@@ -861,8 +870,10 @@ def compare_pid_full(cake_maps, pisa_maps, outdir, test_threshold):
     if maxdiff_trck <= test_threshold:
         logging.debug(">>>> That's a pass!")
     else:
-        logging.error('Agreement is not sufficient to pass (require '
-                      '10E%i level).'%np.log10(test_threshold))
+        raise ValueError('Agreement is not sufficient to pass '
+                         '(require 10E%i level, got 10E%i level).'
+                         %(np.log10(test_threshold),
+                           int(np.log10(maxdiff_trck))))
 
 
 if __name__ == '__main__':
