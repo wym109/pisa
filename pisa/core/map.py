@@ -261,9 +261,29 @@ class Map(object):
     @profile
     @new_obj
     def rebin(self, new_binning):
+        """Rebin the map.
+
+        Parameters
+        ----------
+        new_binning : MultiDimBinning
+            Dimensions specified in new_binning must be a subset of those
+            contained in the map's binning; only those dimensions specified
+            will be rebinned; all dimensions present will be returned, even
+            those not rebinned.
+
+        Returns
+        -------
+        Map binned according to `new_binning`.
+
+        """
         # The new binning's dimensions must be a subset of this map's
         # dimensions
-        assert len(set(new_binning.names).difference(self.binning.names)) == 0
+        assert set(new_binning.names).issubset(self.binning.names)
+
+        existing_binning = MultiDimBinning([dim for dim in self.binning
+                                            if dim in new_binning])
+        if existing_binning.edges_hash == new_binning.edges_hash:
+            return {'hist': new_hist, 'binning': new_binning}
 
         # Update the units that are specified in new_binning (but don't augment
         # dimensionality; shouldn't need this `if` statement if we get past

@@ -463,15 +463,12 @@ class Stage(object):
         # Keep inputs for internal use and for inspection later
         self.inputs = {} if inputs is None else inputs
 
-        outputs_hash, transforms_hash, nominal_transforms_hash  = self._derive_outputs_hash()
+        outputs_hash, transforms_hash, nominal_transforms_hash = self._derive_outputs_hash()
 
         # Compute nominal outputs; if feature is not used, this doesn't
         # actually do much of anything. To do more than this, override the
         # `_compute_nominal_outputs` method.
-        self.get_nominal_outputs(
-                    nominal_outputs_hash=nominal_transforms_hash
-                )
-
+        self.get_nominal_outputs(nominal_outputs_hash=nominal_transforms_hash)
 
         logging.trace('outputs_hash: %s' %outputs_hash)
 
@@ -518,8 +515,10 @@ class Stage(object):
         return augmented_outputs
 
     def check_params(self, params):
-        """ Make sure that `expected_params` is defined and that exactly the
-        params specified in self.expected_params are present """
+        """Make sure that `expected_params` is defined and that exactly the
+        params specified in self.expected_params are present.
+        
+        """
         assert self.expected_params is not None
         exp_p, got_p = set(self.expected_params), set(params.names)
         if exp_p == got_p:
