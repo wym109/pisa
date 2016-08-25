@@ -1035,8 +1035,13 @@ class honda(Stage):
 
         for flav in ['numu','numubar']:
 
-            all_binning = self.output_binning.to(true_energy='GeV',
-                                                 true_coszen=None)
+            if len(self.output_binning.names) == 2:
+                all_binning = self.output_binning.to(true_energy='GeV',
+                                                     true_coszen=None)
+            elif len(self.output_binning.names) == 3:
+                all_binning = self.output_binning.to(true_energy='GeV',
+                                                     true_coszen=None,
+                                                     true_azimuth='deg')
             evals = all_binning.true_energy.weighted_centers.magnitude
 
             # Values are pivoted about the median energy in the chosen range
@@ -1048,11 +1053,14 @@ class honda(Stage):
 
             flux_map = flux_maps[flav]
 
-            # Need to multiply along the energy axis, so it must be second
-            if 'energy' in self.output_binning.names[0]:
-                transposed_map = flux_map.reorder_dimensions(['true_coszen','true_energy'])
+            # Need to multiply along the energy axis, so it must be last
+            if 'energy' not in self.output_binning.names[-1]:
+                if len(self.output_binning.names) == 2:
+                    transposed_map = flux_map.reorder_dimensions(['true_coszen','true_energy'])
+                elif len(self.output_binning.names) == 3:
+                    transposed_map = flux_map.reorder_dimensions(['true_azimuth','true_coszen','true_energy'])
                 scaled_transposed_map = transposed_map*scale
-                scaled_flux = scaled_transposed_map.reorder_dimensions(['true_energy','true_coszen'])
+                scaled_flux = scaled_transposed_map.reorder_dimensions(self.output_binning.names)
             else:
                 scaled_flux = flux_map*scale
 
