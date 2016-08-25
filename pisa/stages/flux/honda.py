@@ -104,9 +104,9 @@ class honda(Stage):
         If str, represents a path with which to instantiate a utils.DiskCache
         object. Must be concurrent-access-safe (across threads and processes).
 
-    memcaching_enabled : bool
-
     outputs_cache_depth : int >= 0
+
+    memcache_deepcopy : bool
 
     debug_mode : None, bool, or string
         Whether to store extra debug info for this service.
@@ -284,8 +284,8 @@ class honda(Stage):
 
     """
     def __init__(self, params, output_binning, disk_cache=None,
-                 memcaching_enabled=True, error_method=None,
-                 outputs_cache_depth=20, debug_mode=None):
+                 error_method=None, outputs_cache_depth=20,
+                 memcache_deepcopy=True, debug_mode=None):
         # All of the following params (and no more) must be passed via the
         # `params` argument.
         expected_params = (
@@ -313,7 +313,7 @@ class honda(Stage):
             output_names=output_names,
             error_method=error_method,
             disk_cache=disk_cache,
-            memcaching_enabled=memcaching_enabled,
+            memcache_deepcopy=memcache_deepcopy,
             outputs_cache_depth=outputs_cache_depth,
             output_binning=output_binning,
             debug_mode=debug_mode
