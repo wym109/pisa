@@ -83,8 +83,6 @@ class Stage(object):
         If str, represents a path with which to instantiate a utils.DiskCache
         object. Must be concurrent-access-safe (across threads and processes).
 
-    memcaching_enabled : bool
-
     memcache_deepcopy : bool
 
     outputs_cache_depth : int >= 0
@@ -148,9 +146,9 @@ class Stage(object):
     def __init__(self, use_transforms, stage_name='', service_name='',
                  params=None, expected_params=None, input_names=None,
                  output_names=None, error_method=None, disk_cache=None,
-                 memcaching_enabled=True, memcache_deepcopy=True,
-                 transforms_cache_depth=10, outputs_cache_depth=10,
-                 input_binning=None, output_binning=None, debug_mode=None):
+                 memcache_deepcopy=True, transforms_cache_depth=10,
+                 outputs_cache_depth=10, input_binning=None,
+                 output_binning=None, debug_mode=None):
 
         # Allow for string inputs, but have to populate into lists for
         # consistent interfacing to one or multiple of these things
@@ -189,28 +187,37 @@ class Stage(object):
         self.outputs = None
         """Last-computed outputs; None if no outputs have been computed yet."""
 
-        self.memcaching_enabled = memcaching_enabled
         self.memcache_deepcopy = memcache_deepcopy
 
-        self.transforms_cache_depth = transforms_cache_depth
-        self.transforms_cache = MemoryCache(
-            max_depth=int(self.transforms_cache_depth), is_lru=True,
-            deepcopy=self.memcache_deepcopy
-        )
+        self.transforms_cache_depth = int(transforms_cache_depth)
+
+        self.transforms_cache = None
         """Memory cache object for storing transforms"""
-        self.nominal_transforms_cache = MemoryCache(
-            max_depth=10, is_lru=True, deepcopy=self.memcache_deepcopy
-        )
+
+        self.nominal_transforms_cache = None
         """Memory cache object for storing nominal transforms"""
 
-        self.outputs_cache_depth = outputs_cache_depth
+        if self.transforms_cache_depth > 0:
+            self.transforms_cache = MemoryCache(
+                max_depth=self.transforms_cache_depth, is_lru=True,
+                deepcopy=self.memcache_deepcopy
+            )
+            self.nominal_transforms_cache = MemoryCache(
+                max_depth=self.transforms_cache_depth, is_lru=True,
+                deepcopy=self.memcache_deepcopy
+            )
 
-        self.outputs_cache = MemoryCache(
-            max_depth=int(self.outputs_cache_depth), is_lru=True,
-            deepcopy=self.memcache_deepcopy
-        )
+        self.outputs_cache_depth = int(outputs_cache_depth)
+
+        self.outputs_cache = None
         """Memory cache object for storing outputs (excludes sideband
         objects)."""
+
+        if self.outputs_cache_depth > 0:
+            self.outputs_cache = MemoryCache(
+                max_depth=self.outputs_cache_depth, is_lru=True,
+                deepcopy=self.memcache_deepcopy
+            )
 
         self.disk_cache = disk_cache
         """Disk cache object"""
@@ -393,8 +400,7 @@ class Stage(object):
         logging.trace('transforms_hash: %s' %transforms_hash)
 
         # Load and return existing transforms if in the cache
-        if self.memcaching_enabled \
-                and self.transforms_cache is not None \
+        if self.transforms_cache is not None \
                 and transforms_hash in self.transforms_cache \
                 and self.debug_mode is None:
             self.transforms_loaded_from_cache = 'memory'
@@ -407,7 +413,7 @@ class Stage(object):
             logging.trace('computing transforms.')
             transforms = self._compute_transforms()
             transforms.hash = transforms_hash
-            if self.memcaching_enabled and self.transforms_cache is not None:
+            if self.transforms_cache is not None:
                 self.transforms_cache[transforms_hash] = transforms
 
         self.check_transforms(transforms)
@@ -489,7 +495,7 @@ class Stage(object):
 
         logging.trace('outputs_hash: %s' %outputs_hash)
 
-        if self.memcaching_enabled \
+        if self.outputs_cache is not None \
                 and outputs_hash is not None \
                 and outputs_hash in self.outputs_cache \
                 and self.debug_mode is None:
@@ -512,7 +518,7 @@ class Stage(object):
             self.check_outputs(outputs)
 
             # Store output to cache
-            if self.memcaching_enabled and outputs_hash is not None:
+            if self.outputs_cache is not None and outputs_hash is not None:
                 self.outputs_cache[outputs_hash] = outputs
 
         # Keep outputs for inspection later
