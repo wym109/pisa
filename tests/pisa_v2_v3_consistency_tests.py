@@ -984,7 +984,7 @@ if __name__ == '__main__':
         aeff_settings = find_resource(aeff_settings)
         aeff_config = parse_config(aeff_settings)
         aeff_config['aeff']['params']['aeff_weight_file'] = os.path.join(
-            'events', 'DC', '2015', 'mdunkman', '1XXXX', 'UnJoined',
+            'events', 'deepcore_ic86', 'MSU', '1XXXX', 'UnJoined',
             'DC_MSU_1X585_unjoined_events_mc.hdf5'
         )
         pisa2file = os.path.join(
@@ -1010,7 +1010,7 @@ if __name__ == '__main__':
         reco_config = parse_config(reco_settings)
         reco_config['reco']['params']['reco_weights_name'] = None
         reco_config['reco']['params']['reco_weight_file'] = os.path.join(
-            'events', 'DC', '2015', 'mdunkman', '1XXXX', 'Joined',
+            'events', 'deepcore_ic86', 'MSU', '1XXXX', 'Joined',
             'DC_MSU_1X585_joined_nu_nubar_events_mc.hdf5'
         )
         pisa2file = os.path.join(
@@ -1026,7 +1026,7 @@ if __name__ == '__main__':
         )
 
         reco_config['reco']['params']['reco_weight_file'] = os.path.join(
-            'events', 'DC', '2015', 'mdunkman', '1XXX', 'Joined',
+            'events', 'deepcore_ic86', 'MSU', '1XXX', 'Joined',
             'DC_MSU_1X60_joined_nu_nubar_events_mc.hdf5'
         )
         pisa2file = os.path.join(
@@ -1060,7 +1060,7 @@ if __name__ == '__main__':
             test_threshold=args.threshold
         )
         pid_config['pid']['params']['pid_events'] = os.path.join(
-            'events', 'DC', '2015', 'mdunkman', '1XXXX', 'Joined',
+            'events', 'deepcore_ic86', 'MSU', '1XXXX', 'Joined',
             'DC_MSU_1X585_joined_nu_nubar_events_mc.hdf5'
         )
         pid_config['pid']['params']['pid_weights_name'] = 'weighted_aeff'
