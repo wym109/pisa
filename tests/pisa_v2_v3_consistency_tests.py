@@ -124,7 +124,8 @@ def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
         subdir = stagename.lower()
     path.append(subdir)
 
-    mkdir(os.path.join(*path), warn=False)
+    if outdir is not None:
+        mkdir(os.path.join(*path), warn=False)
 
     fname = ['pisa_%s_%s_comparisons' %(ref_abv.lower(), new_abv.lower()),
              'stage_'+stagename]
@@ -148,6 +149,8 @@ def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
     DiffMapObj = delta_map(new_map, ref_map)
     DiffRatioMapObj = ratio_map(DiffMapObj, ref_map)
 
+    MaxDiffRatio = np.nanmax(DiffRatioMapObj['map'])
+
     gridspec_kw = dict(left=0.03, right=0.968, wspace=0.32)
     fig, axes = plt.subplots(nrows=1, ncols=5, gridspec_kw=gridspec_kw,
                              sharex=False, sharey=False, figsize=(20,5))
@@ -159,13 +162,24 @@ def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
              symm=True, ax=axes[3])
     baseplot(m=DiffRatioMapObj, title=basetitle+' (%s-%s)/%s'
              %(new_abv, ref_abv, ref_abv), symm=True, ax=axes[4])
-    fig.savefig(os.path.join(*path))
+    if outdir is not None:
+        logging.debug('>>>> Plot for inspection saved at %s'
+                      %os.path.join(*path))
+        fig.savefig(os.path.join(*path))
     plt.close(fig.number)
 
+    return MaxDiffRatio
 
-def compare_flux(config, servicename, pisa2file, systname, outdir):
+
+def compare_flux(config, servicename, pisa2file, systname,
+                 outdir, test_threshold):
     """Compare flux stages run in isolation with dummy inputs"""
+    logging.info('>> Working on flux stage comparisons')
+    logging.info('>>> Checking %s service'%servicename)
+    test_service = servicename
     if systname is not None:
+        logging.info('>>> Checking %s systematic'%systname)
+        test_syst = systname
         try:
             config['flux']['params'][systname] = \
                     config['flux']['params'][systname].value + \
@@ -177,8 +191,11 @@ def compare_flux(config, servicename, pisa2file, systname, outdir):
         pisa2file = pisa2file.split('.json')[0] + \
                         '-%s%.2f.json' \
                         %(systname, config['flux']['params'][systname].value)
-        servicename += '-%s%.2f.json' \
+        servicename += '-%s%.2f' \
                            %(systname, config['flux']['params'][systname].value)
+    else:
+        logging.info('>>> Checking baseline')
+        test_syst = 'baseline'
 
     pipeline = Pipeline(config)
     stage = pipeline.stages[0]
@@ -204,7 +221,7 @@ def compare_flux(config, servicename, pisa2file, systname, outdir):
                     cake_map.binning['true_coszen'].bin_edges.magnitude
             cake_map_to_plot['map'] = cake_map.hist
 
-            plot_comparisons(
+            maxdiff = plot_comparisons(
                 ref_map=pisa_map_to_plot,
                 new_map=cake_map_to_plot,
                 ref_abv='V2', new_abv='V3',
@@ -215,13 +232,29 @@ def compare_flux(config, servicename, pisa2file, systname, outdir):
                 name=nukey,
                 texname=outputs[nukey].tex
             )
+            logging.debug(">>>> %s %s flux %s test agrees to 10E%i level"
+                          %(nukey,test_service,test_syst,
+                            int(np.log10(maxdiff))))
+            if maxdiff <= test_threshold:
+                logging.debug(">>>> That's a pass!")
+            else:
+                logging.error('Agreement is not sufficient to pass (require '
+                              '10E%i level).'%np.log10(test_threshold))
+                sys.exit()
+                          
 
     return pipeline
 
 
-def compare_osc(config, servicename, pisa2file, systname, outdir):
+def compare_osc(config, servicename, pisa2file, systname,
+                outdir, test_threshold):
     """Compare osc stages run in isolation with dummy inputs"""
+    logging.info('>> Working on osc stage comparisons')
+    logging.info('>>> Checking %s service'%servicename)
+    test_service = servicename
     if systname is not None:
+        logging.info('>>> Checking %s systematic'%systname)
+        test_syst = systname
         try:
             config['osc']['params'][systname] = \
                     config['osc']['params'][systname].value + \
@@ -237,7 +270,10 @@ def compare_osc(config, servicename, pisa2file, systname, outdir):
             systval = '%.2f'%config['osc']['params'][systname].value.magnitude
 
         pisa2file = pisa2file.split('.json')[0]+'-%s%s.json'%(systname,systval)
-        servicename += '-%s%s.json'%(systname,systval)
+        servicename += '-%s%s'%(systname,systval)
+    else:
+        logging.info('>>> Checking baseline')
+        test_syst = 'baseline'
 
     pipeline = Pipeline(config)
     stage = pipeline.stages[0]
@@ -271,7 +307,7 @@ def compare_osc(config, servicename, pisa2file, systname, outdir):
                     cake_map.binning['true_coszen'].bin_edges.magnitude
             cake_map_to_plot['map'] = cake_map.hist
 
-            plot_comparisons(
+            maxdiff = plot_comparisons(
                 ref_map=pisa_map_to_plot,
                 new_map=cake_map_to_plot,
                 ref_abv='V2', new_abv='V3',
@@ -282,13 +318,27 @@ def compare_osc(config, servicename, pisa2file, systname, outdir):
                 name=nukey,
                 texname=outputs[nukey].tex
             )
+            logging.debug(">>>> %s %s osc %s test agrees to 10E%i level"
+                          %(nukey,test_service,test_syst,
+                            int(np.log10(maxdiff))))
+            if maxdiff <= test_threshold:
+                logging.debug(">>>> That's a pass!")
+            else:
+                logging.error('Agreement is not sufficient to pass (require '
+                              '10E%i level).'%np.log10(test_threshold))
 
     return pipeline
 
 
-def compare_aeff(config, servicename, pisa2file, systname, outdir):
+def compare_aeff(config, servicename, pisa2file, systname,
+                 outdir, test_threshold):
     """Compare aeff stages run in isolation with dummy inputs"""
+    logging.info('>> Working on aeff stage comparisons')
+    logging.info('>>> Checking %s service'%servicename)
+    test_service = servicename
     if systname is not None:
+        logging.info('>>> Checking %s systematic'%systname)
+        test_syst = systname
         try:
             config['aeff']['params'][systname] = \
                     config['aeff']['params'][systname].value + \
@@ -302,6 +352,9 @@ def compare_aeff(config, servicename, pisa2file, systname, outdir):
                 %(systname, config['aeff']['params'][systname].value)
         servicename += '-%s%.2f' \
                 %(systname, config['aeff']['params'][systname].value)
+    else:
+        logging.info('>>> Checking baseline')
+        test_syst = 'baseline'
 
     pipeline = Pipeline(config)
     stage = pipeline.stages[0]
@@ -336,7 +389,7 @@ def compare_aeff(config, servicename, pisa2file, systname, outdir):
                         cake_map.binning['true_coszen'].bin_edges.magnitude
                 cake_map_to_plot['map'] = cake_map.hist
 
-                plot_comparisons(
+                maxdiff = plot_comparisons(
                     ref_map=pisa_map_to_plot,
                     new_map=cake_map_to_plot,
                     ref_abv='V2', new_abv='V3',
@@ -347,12 +400,27 @@ def compare_aeff(config, servicename, pisa2file, systname, outdir):
                     name=cakekey,
                     texname=outputs[cakekey].tex,
                 )
+                logging.debug(">>>> %s %s aeff %s test agrees to 10E%i level"
+                              %(cakekey,test_service,test_syst,
+                                int(np.log10(maxdiff))))
+                if maxdiff <= test_threshold:
+                    logging.debug(">>>> That's a pass!")
+                else:
+                    logging.error('Agreement is not sufficient to pass '
+                                  '(require 10E%i level).'
+                                  %np.log10(test_threshold))
+                    sys.exit()
 
     return pipeline
 
 
-def compare_reco(config, servicename, pisa2file, outdir):
+def compare_reco(config, servicename, pisa2file, outdir, test_threshold):
     """Compare reco stages run in isolation with dummy inputs"""
+    logging.info('>> Working on reco stage comparisons')
+    logging.info('>>> Checking %s service'%servicename)
+    test_service = servicename
+    logging.info('>>> Checking baseline')
+    test_syst = 'baseline'
     pipeline = Pipeline(config)
     stage = pipeline.stages[0]
     input_maps = []
@@ -409,7 +477,7 @@ def compare_reco(config, servicename, pisa2file, outdir):
 
             cake_map_to_plot = modified_cake_outputs[nukey]
 
-            plot_comparisons(
+            maxdiff = plot_comparisons(
                 ref_map=pisa_map_to_plot,
                 new_map=cake_map_to_plot,
                 ref_abv='V2', new_abv='V3',
@@ -420,12 +488,26 @@ def compare_reco(config, servicename, pisa2file, outdir):
                 name=nukey,
                 texname=outputs[nukey].tex
             )
+            logging.debug(">>>> %s %s reco %s test agrees to 10E%i level"
+                          %(nukey,test_service,test_syst,
+                            int(np.log10(maxdiff))))
+            if maxdiff <= test_threshold:
+                logging.debug(">>>> That's a pass!")
+            else:
+                logging.error('Agreement is not sufficient to pass (require '
+                              '10E%i level).'%np.log10(test_threshold))
+                sys.exit()
 
     return pipeline
 
 
-def compare_pid(config, servicename, pisa2file, outdir):
+def compare_pid(config, servicename, pisa2file, outdir, test_threshold):
     """Compare pid stages run in isolation with dummy inputs"""
+    logging.info('>> Working on pid stage comparisons')
+    logging.info('>>> Checking %s service'%servicename)
+    test_service = servicename
+    logging.info('>>> Checking baseline')
+    test_syst = 'baseline'
     pipeline = Pipeline(config)
     stage = pipeline.stages[0]
     input_maps = []
@@ -457,7 +539,7 @@ def compare_pid(config, servicename, pisa2file, outdir):
     total_pisa_trck_dict = pisa2_comparisons['trck']
     total_pisa_cscd_dict = pisa2_comparisons['cscd']
 
-    plot_comparisons(
+    maxdiff_cscd = plot_comparisons(
         ref_map=total_pisa_cscd_dict,
         new_map=total_cake_cscd_dict,
         ref_abv='V2', new_abv='V3',
@@ -468,7 +550,16 @@ def compare_pid(config, servicename, pisa2file, outdir):
         name='cscd',
         texname=r'{\rm cscd}'
     )
-    plot_comparisons(
+    logging.debug(">>>> cscd %s pid cscd %s test agrees to 10E%i level"
+                  %(test_service,test_syst,
+                    int(np.log10(maxdiff_cscd))))
+    if maxdiff_cscd <= test_threshold:
+        logging.debug(">>>> That's a pass!")
+    else:
+        logging.error('Agreement is not sufficient to pass (require '
+                      '10E%i level).'%np.log10(test_threshold))
+        sys.exit()
+    maxdiff_trck = plot_comparisons(
         ref_map=total_pisa_trck_dict,
         new_map=total_cake_trck_dict,
         ref_abv='V2', new_abv='V3',
@@ -479,15 +570,26 @@ def compare_pid(config, servicename, pisa2file, outdir):
         name='trck',
         texname=r'{\rm trck}'
     )
+    logging.debug(">>>> trck %s pid %s test agrees to 10E%i level"
+                  %(test_service,test_syst,
+                    int(np.log10(maxdiff_trck))))
+    if maxdiff_trck <= test_threshold:
+        logging.debug(">>>> That's a pass!")
+    else:
+        logging.error('Agreement is not sufficient to pass (require '
+                      '10E%i level).'%np.log10(test_threshold))
+        sys.exit()
 
     return pipeline
 
 
-def compare_flux_full(cake_maps, pisa_maps, outdir):
+def compare_flux_full(cake_maps, pisa_maps, outdir, test_threshold):
     """Compare a fully configured pipeline (with stages flux, osc, aeff, reco,
     and pid) through the flux stage.
 
     """
+    logging.info('>> Working on full pipeline comparisons')
+    logging.info('>>> Checking to end of flux stage')
     for nukey in pisa_maps.keys():
         if 'nu' in nukey:
             pisa_map_to_plot = pisa_maps[nukey]
@@ -507,7 +609,7 @@ def compare_flux_full(cake_maps, pisa_maps, outdir):
                     cake_map.binning['true_coszen'].bin_edges.magnitude
             cake_map_to_plot['map'] = cake_map.hist
 
-            plot_comparisons(
+            maxdiff = plot_comparisons(
                 ref_map=pisa_map_to_plot,
                 new_map=cake_map_to_plot,
                 ref_abv='V2', new_abv='V3',
@@ -518,13 +620,23 @@ def compare_flux_full(cake_maps, pisa_maps, outdir):
                 name=nukey,
                 texname=cake_maps[nukey].tex
             )
+            logging.debug('>>>> Full pipeline through to end of %s flux agrees '
+                          'to 10E%i level'%(nukey, int(np.log10(maxdiff))))
+            if maxdiff <= test_threshold:
+                logging.debug(">>>> That's a pass!")
+            else:
+                logging.error('Agreement is not sufficient to pass (require '
+                              '10E%i level).'%np.log10(test_threshold))
+                sys.exit()
 
 
-def compare_osc_full(cake_maps, pisa_maps, outdir):
+def compare_osc_full(cake_maps, pisa_maps, outdir, test_threshold):
     """Compare a fully configured pipeline (with stages flux, osc, aeff, reco,
     and pid) through the osc stage.
 
     """
+    logging.info('>> Working on full pipeline comparisons')
+    logging.info('>>> Checking to end of osc stage')
     for nukey in pisa_maps.keys():
         if 'nu' in nukey:
             pisa_map_to_plot = pisa_maps[nukey]
@@ -544,7 +656,7 @@ def compare_osc_full(cake_maps, pisa_maps, outdir):
                     cake_map.binning['true_coszen'].bin_edges.magnitude
             cake_map_to_plot['map'] = cake_map.hist
 
-            plot_comparisons(
+            maxdiff = plot_comparisons(
                 ref_map=pisa_map_to_plot,
                 new_map=cake_map_to_plot,
                 ref_abv='V2', new_abv='V3',
@@ -555,12 +667,21 @@ def compare_osc_full(cake_maps, pisa_maps, outdir):
                 name=nukey,
                 texname=cake_maps[nukey].tex
             )
+            logging.debug('>>>> Full pipeline through to end of %s osc agrees '
+                          'to 10E%i level'%(nukey,int(np.log10(maxdiff))))
+            if maxdiff <= test_threshold:
+                logging.debug(">>>> That's a pass!")
+            else:
+                logging.error('Agreement is not sufficient to pass (require '
+                              '10E%i level).'%np.log10(test_threshold))
+                sys.exit()
 
 
-def compare_aeff_full(cake_maps, pisa_maps, outdir):
+def compare_aeff_full(cake_maps, pisa_maps, outdir, test_threshold):
     """Compare a fully configured pipeline (with stages flux, osc, aeff, reco,
     and pid) through the aeff stage."""
-
+    logging.info('>> Working on full pipeline comparisons')
+    logging.info('>>> Checking to end of aeff stage')
     for nukey in pisa_maps.keys():
         if 'nu' in nukey:
             for intkey in pisa_maps[nukey].keys():
@@ -582,7 +703,7 @@ def compare_aeff_full(cake_maps, pisa_maps, outdir):
                         cake_map.binning['true_coszen'].bin_edges.magnitude
                 cake_map_to_plot['map'] = cake_map.hist
 
-                plot_comparisons(
+                maxdiff = plot_comparisons(
                     ref_map=pisa_map_to_plot,
                     new_map=cake_map_to_plot,
                     ref_abv='V2', new_abv='V3',
@@ -593,13 +714,25 @@ def compare_aeff_full(cake_maps, pisa_maps, outdir):
                     name=cakekey,
                     texname=cake_maps[cakekey].tex,
                 )
+                logging.debug('>>>> Full pipeline through to end of %s aeff '
+                              'agrees to 10E%i level'
+                              %(cakekey, int(np.log10(maxdiff))))
+                if maxdiff <= test_threshold:
+                    logging.debug(">>>> That's a pass!")
+                else:
+                    logging.error('Agreement is not sufficient to pass '
+                                  '(require 10E%i level).'
+                                  %np.log10(test_threshold))
+                    sys.exit()
+                    
 
-
-def compare_reco_full(cake_maps, pisa_maps, outdir):
+def compare_reco_full(cake_maps, pisa_maps, outdir, test_threshold):
     """Compare a fully configured pipeline (with stages flux, osc, aeff, reco,
     and pid) through the reco stage.
 
     """
+    logging.info('>> Working on full pipeline comparisons')
+    logging.info('>>> Checking to end of reco stage')
     nue_nuebar_cc = cake_maps.combine_re(r'nue(bar){0,1}_cc')
     numu_numubar_cc = cake_maps.combine_re(r'numu(bar){0,1}_cc')
     nutau_nutaubar_cc = cake_maps.combine_re(r'nutau(bar){0,1}_cc')
@@ -648,7 +781,7 @@ def compare_reco_full(cake_maps, pisa_maps, outdir):
                     texname = r'\nu NC'
             else:
                 texname = cake_maps[nukey].tex
-            plot_comparisons(
+            maxdiff = plot_comparisons(
                 ref_map=pisa_map_to_plot,
                 new_map=cake_map_to_plot,
                 ref_abv='V2', new_abv='V3',
@@ -659,13 +792,23 @@ def compare_reco_full(cake_maps, pisa_maps, outdir):
                 name=nukey,
                 texname=texname
             )
+            logging.debug('>>>> Full pipeline through to end of %s reco agrees '
+                          'to 10E%i level'%(nukey,int(np.log10(maxdiff))))
+            if maxdiff <= test_threshold:
+                logging.debug(">>>> That's a pass!")
+            else:
+                logging.error('Agreement is not sufficient to pass (require '
+                              '10E%i level).'%np.log10(test_threshold))
+                sys.exit()
 
 
-def compare_pid_full(cake_maps, pisa_maps, outdir):
+def compare_pid_full(cake_maps, pisa_maps, outdir, test_threshold):
     """Compare a fully configured pipeline (with stages flux, osc, aeff, reco,
     and pid) through the pid stage.
 
     """
+    logging.info('>> Working on full pipeline comparisons')
+    logging.info('>>> Checking to end of pid stage')
     cake_trck = cake_maps.combine_wildcard('*_trck')
     cake_cscd = cake_maps.combine_wildcard('*_cscd')
     total_cake_trck_dict = {
@@ -682,7 +825,7 @@ def compare_pid_full(cake_maps, pisa_maps, outdir):
     total_pisa_trck_dict = pisa_maps['trck']
     total_pisa_cscd_dict = pisa_maps['cscd']
 
-    plot_comparisons(
+    maxdiff_cscd = plot_comparisons(
         ref_map=total_pisa_cscd_dict,
         new_map=total_cake_cscd_dict,
         ref_abv='V2', new_abv='V3',
@@ -693,7 +836,14 @@ def compare_pid_full(cake_maps, pisa_maps, outdir):
         name='cscd',
         texname=r'{\rm cscd}'
     )
-    plot_comparisons(
+    logging.debug('>>>> Full pipeline through to end of pid cscd agrees '
+                  'to 10E%i level'%int(np.log10(maxdiff_cscd)))
+    if maxdiff_cscd <= test_threshold:
+        logging.debug(">>>> That's a pass!")
+    else:
+        logging.error('Agreement is not sufficient to pass (require '
+                      '10E%i level).'%np.log10(test_threshold))
+    maxdiff_trck = plot_comparisons(
         ref_map=total_pisa_trck_dict,
         new_map=total_cake_trck_dict,
         ref_abv='V2', new_abv='V3',
@@ -704,6 +854,13 @@ def compare_pid_full(cake_maps, pisa_maps, outdir):
         name='trck',
         texname=r'{\rm trck}'
     )
+    logging.debug('>>>> Full pipeline through to end of pid trck agrees '
+                  'to 10E%i level'%int(np.log10(maxdiff_trck)))
+    if maxdiff_trck <= test_threshold:
+        logging.debug(">>>> That's a pass!")
+    else:
+        logging.error('Agreement is not sufficient to pass (require '
+                      '10E%i level).'%np.log10(test_threshold))
 
 
 if __name__ == '__main__':
@@ -738,10 +895,14 @@ if __name__ == '__main__':
                         help='''Run full pipeline tests for the baseline i.e.
                         all stages simultaneously rather than each in
                         isolation.''')
-    parser.add_argument('--outdir', metavar='DIR', type=str, required=True,
+    parser.add_argument('--outdir', metavar='DIR', type=str,
                         help='''Store all output plots to this directory. If
                         they don't exist, the script will make them, including
-                        all subdirectories.''')
+                        all subdirectories. If none is supplied no plots will
+                        be saved.''')
+    parser.add_argument('--threshold', type=float, default=1E-8,
+                        help='''Sets the agreement threshold on the test
+                        plots. If this is not reached the tests will fail.''')
     parser.add_argument('-v', action='count', default=None,
                         help='set verbosity level')
     args = parser.parse_args()
@@ -775,7 +936,8 @@ if __name__ == '__main__':
                 servicename='IP_Honda',
                 pisa2file=pisa2file,
                 systname=syst,
-                outdir=args.outdir
+                outdir=args.outdir,
+                test_threshold=args.threshold
             )
 
         flux_config['flux']['params']['flux_mode'] = 'bisplrep'
@@ -788,7 +950,8 @@ if __name__ == '__main__':
             servicename='bisplrep_Honda',
             pisa2file=pisa2file,
             systname=None,
-            outdir=args.outdir
+            outdir=args.outdir,
+            test_threshold=args.threshold
         )
 
     # Perform Oscillations Tests.
@@ -809,7 +972,8 @@ if __name__ == '__main__':
                 servicename='prob3',
                 pisa2file=pisa2file,
                 systname=syst,
-                outdir=args.outdir
+                outdir=args.outdir,
+                test_threshold=args.threshold
             )
 
     # Perform Effective Area Tests.
@@ -833,7 +997,8 @@ if __name__ == '__main__':
                 servicename='hist_1X585',
                 pisa2file=pisa2file,
                 systname=syst,
-                outdir=args.outdir
+                outdir=args.outdir,
+                test_threshold=args.threshold
             )
 
     # Perform Reconstruction Tests.
@@ -856,7 +1021,8 @@ if __name__ == '__main__':
             config=deepcopy(reco_config),
             servicename='hist_1X585',
             pisa2file=pisa2file,
-            outdir=args.outdir
+            outdir=args.outdir,
+            test_threshold=args.threshold
         )
 
         reco_config['reco']['params']['reco_weight_file'] = os.path.join(
@@ -871,7 +1037,8 @@ if __name__ == '__main__':
             config=deepcopy(reco_config),
             servicename='hist_1X60',
             pisa2file=pisa2file,
-            outdir=args.outdir
+            outdir=args.outdir,
+            test_threshold=args.threshold
         )
 
     # Perform PID Tests.
@@ -889,7 +1056,8 @@ if __name__ == '__main__':
             config=deepcopy(pid_config),
             servicename='hist_V39',
             pisa2file=pisa2file,
-            outdir=args.outdir
+            outdir=args.outdir,
+            test_threshold=args.threshold
         )
         pid_config['pid']['params']['pid_events'] = os.path.join(
             'events', 'DC', '2015', 'mdunkman', '1XXXX', 'Joined',
@@ -905,7 +1073,8 @@ if __name__ == '__main__':
             config=deepcopy(pid_config),
             servicename='hist_1X585',
             pisa2file=pisa2file,
-            outdir=args.outdir
+            outdir=args.outdir,
+            test_threshold=args.threshold
         )
 
     # Perform Full Pipeline Tests.
@@ -928,29 +1097,34 @@ if __name__ == '__main__':
         compare_flux_full(
             pisa_maps=pisa2_comparisons[0],
             cake_maps=pipeline['flux'].outputs,
-            outdir=args.outdir
+            outdir=args.outdir,
+            test_threshold=args.threshold
         )
         # Up to osc stage comparisons
         compare_osc_full(
             pisa_maps=pisa2_comparisons[1],
             cake_maps=pipeline['osc'].outputs,
-            outdir=args.outdir
+            outdir=args.outdir,
+            test_threshold=args.threshold
         )
         # Up to aeff stage comparisons
         compare_aeff_full(
             pisa_maps=pisa2_comparisons[2],
             cake_maps=pipeline['aeff'].outputs,
-            outdir=args.outdir
+            outdir=args.outdir,
+            test_threshold=args.threshold
         )
         # Up to reco stage comparisons
         compare_reco_full(
             pisa_maps=pisa2_comparisons[3],
             cake_maps=pipeline['reco'].outputs,
-            outdir=args.outdir
+            outdir=args.outdir,
+            test_threshold=args.threshold
         )
         # Up to PID stage comparisons
         compare_pid_full(
             pisa_maps=pisa2_comparisons[4],
             cake_maps=pipeline['pid'].outputs,
-            outdir=args.outdir
+            outdir=args.outdir,
+            test_threshold=args.threshold
         )
