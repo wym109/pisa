@@ -104,9 +104,9 @@ class honda(Stage):
         If str, represents a path with which to instantiate a utils.DiskCache
         object. Must be concurrent-access-safe (across threads and processes).
 
-    memcaching_enabled : bool
-
     outputs_cache_depth : int >= 0
+
+    memcache_deepcopy : bool
 
     debug_mode : None, bool, or string
         Whether to store extra debug info for this service.
@@ -284,8 +284,8 @@ class honda(Stage):
 
     """
     def __init__(self, params, output_binning, disk_cache=None,
-                 memcaching_enabled=True, error_method=None,
-                 outputs_cache_depth=20, debug_mode=None):
+                 error_method=None, outputs_cache_depth=20,
+                 memcache_deepcopy=True, debug_mode=None):
         # All of the following params (and no more) must be passed via the
         # `params` argument.
         expected_params = (
@@ -313,7 +313,7 @@ class honda(Stage):
             output_names=output_names,
             error_method=error_method,
             disk_cache=disk_cache,
-            memcaching_enabled=memcaching_enabled,
+            memcache_deepcopy=memcache_deepcopy,
             outputs_cache_depth=outputs_cache_depth,
             output_binning=output_binning,
             debug_mode=debug_mode
@@ -691,7 +691,9 @@ class honda(Stage):
 
             return_table = np.array(return_table)
 
-        if self.output_binning.names[0] == 'true_coszen':
+        if 'coszen' in self.output_binning.names[0]:
+            # Current dimensionality is (E,cz)
+            # So need to transpose if desired is (cz,E)
             return_table = return_table.T
 
         # Flux is given per sr and GeV, so we need to multiply
@@ -840,25 +842,26 @@ class honda(Stage):
 
             return_table = np.array(return_table)
 
-        if self.output_binning.names[0] != 'true_energy':
-            print "Arbitrary handling of dimensionality not currently supported in 3D"
-            print "Please use (E,CZ,Az) in that order when calling for 3D fluxes"
-            # TODO: implement this functionality
-            raise NotImplementedError()
+        # Put the flux into a Map object, give it the output_name
+        # Need a dummy binning object for this first
+        proxy_binning = all_binning.reorder_dimensions(['true_energy',
+                                                        'true_coszen',
+                                                        'true_azimuth'])
+        return_map = Map(name=prim,
+                         hist=return_table,
+                         binning=proxy_binning)
+
+        # Now put map in correct dimensionality for user request
+        return_map = return_map.reorder_dimensions(self.output_binning.names)
 
         # Flux is given per sr and GeV, so we need to multiply
-        # by bin width in both dimensions
+        # by bin width in all dimensions
         # i.e. the bin volume
-        return_table *= self.output_binning.bin_volumes(attach_units=False)
+        return_map *= self.output_binning.bin_volumes(attach_units=False)
 
         # Energy scale systematic must be applied again here since it should
         # come in the bin volume
-        return_table *= self.params['energy_scale'].value.magnitude
-
-        # Put the flux into a Map object, give it the output_name
-        return_map = Map(name=prim,
-                         hist=return_table,
-                         binning=self.output_binning)
+        return_map *= self.params['energy_scale'].value.magnitude
 
         return return_map
 
@@ -1046,8 +1049,10 @@ class honda(Stage):
             flux_map = flux_maps[flav]
 
             # Need to multiply along the energy axis, so it must be second
-            if self.output_binning.names[0] == 'energy':
-                scaled_flux = (flux_map.T*scale).T
+            if 'energy' in self.output_binning.names[0]:
+                transposed_map = flux_map.reorder_dimensions(['true_coszen','true_energy'])
+                scaled_transposed_map = transposed_map*scale
+                scaled_flux = scaled_transposed_map.reorder_dimensions(['true_energy','true_coszen'])
             else:
                 scaled_flux = flux_map*scale
 

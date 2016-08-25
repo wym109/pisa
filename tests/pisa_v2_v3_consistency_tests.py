@@ -15,6 +15,8 @@ import os
 import shutil
 import sys
 
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 plt.rcParams['text.usetex'] = True
 import numpy as np

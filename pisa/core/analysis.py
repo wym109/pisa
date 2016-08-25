@@ -406,8 +406,8 @@ if __name__ == '__main__':
         #append_results(results, analysis.llr(template_maker, template_maker_IO))
 
         # profile LLH:
-        #results.append(analysis.profile_llh('nutau_cc_norm',np.linspace(0,2,21)*ureg.dimensionless))
-        results.append(analysis.profile_llh('nutau_cc_norm',[0.]*ureg.dimensionless))
+        results.append(analysis.profile_llh('nutau_cc_norm',np.linspace(0,2,21)*ureg.dimensionless))
+        #results.append(analysis.profile_llh('nutau_cc_norm',[0.]*ureg.dimensionless))
 
     to_file(results, args.outfile)
     logging.info('Done.')

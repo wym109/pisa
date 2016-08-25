@@ -9,7 +9,7 @@ import numpy as np
 
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
-from pisa.utils.events import Events
+from pisa.core.events import Events
 from pisa.utils.flavInt import ALL_NUFLAVINTS, flavintGroupsFromString, \
         IntType, NuFlavIntGroup
 from pisa.utils.hash import hash_obj
@@ -68,8 +68,12 @@ class hist(Stage):
         Whether to store extra debug info for this service.
 
     disk_cache
-    transforms_cache_depth
-    outputs_cache_depth
+
+    transforms_cache_depth : int >= 0
+
+    outputs_cache_depth : int >= 0
+
+    memcache_deepcopy : bool
 
     Notes
     -----
@@ -82,7 +86,7 @@ class hist(Stage):
                  sum_grouped_flavints, input_binning, output_binning,
                  input_names=None, error_method=None, disk_cache=None,
                  transforms_cache_depth=20, outputs_cache_depth=20,
-                 debug_mode=None):
+                 memcache_deepcopy=True, debug_mode=None):
         self.events_hash = None
         """Hash of events file or Events object used"""
 
@@ -131,6 +135,7 @@ class hist(Stage):
             input_names=input_names,
             output_names=output_names,
             error_method=error_method,
+            memcache_deepcopy=memcache_deepcopy,
             disk_cache=disk_cache,
             outputs_cache_depth=outputs_cache_depth,
             transforms_cache_depth=transforms_cache_depth,

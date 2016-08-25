@@ -1,19 +1,20 @@
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-import numpy as np
-from scipy.optimize import curve_fit
-from scipy.ndimage.filters import gaussian_filter
-from scipy import interpolate
 import copy
 import itertools
 from uncertainties import unumpy as unp
 
+import numpy as np
+from scipy.optimize import curve_fit
+from scipy.ndimage.filters import gaussian_filter
+from scipy import interpolate
+
 from pisa import ureg, Q_
+from pisa.core.map import Map, MapSet
 from pisa.core.pipeline import Pipeline
 from pisa.utils.fileio import from_file, to_file
 from pisa.utils.log import set_verbosity
 from pisa.utils.parse_config import parse_config, parse_quantity, parse_string_literal
 from pisa.utils.plotter import plotter
-from pisa.core.map import Map, MapSet
 
 parser = ArgumentParser()
 parser.add_argument('-t', '--template-settings', type=str,
@@ -30,6 +31,8 @@ args = parser.parse_args()
 set_verbosity(args.v)
 
 if args.plot: 
+    import matplotlib as mpl
+    mpl.use('pdf')
     import matplotlib.pyplot as plt
     from pisa.utils.plotter import plotter
 

@@ -1,10 +1,10 @@
 cython
 h5py
-numpy
+matplotlib
+numpy >= 1.11.0
 pint
 pip > 1.2
 scipy >= 0.17.0
 simplejson >= 3.2.0
 tables
 uncertainties
-swig
