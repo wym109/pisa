@@ -691,28 +691,29 @@ class honda(Stage):
 
             return_table = np.array(return_table)
 
-        if 'coszen' in self.output_binning.names[0]:
-            # Current dimensionality is (E,cz)
-            # So need to transpose if desired is (cz,E)
-            return_table = return_table.T
+        # Put the flux into a Map object, give it the output_name
+        # Need a dummy binning object for this first
+        proxy_binning = all_binning.reorder_dimensions(['true_energy',
+                                                        'true_coszen'])
+        return_map = Map(name=prim,
+                         hist=return_table,
+                         binning=proxy_binning)
+
+        # Now put map in correct dimensionality for user request
+        return_map = return_map.reorder_dimensions(self.output_binning.names)
 
         # Flux is given per sr and GeV, so we need to multiply
         # by bin width in both dimensions
         # i.e. the bin volume
-        return_table *= self.output_binning.bin_volumes(attach_units=False)
+        return_map *= self.output_binning.bin_volumes(attach_units=False)
 
         # Energy scale systematic must be applied again here since it should
         # come in the bin volume
-        return_table *= self.params['energy_scale'].value.magnitude
+        return_map *= self.params['energy_scale'].value.magnitude
 
         # For 2D we also need to integrate over azimuth
         # There is no dependency, so this is a multiplication of 2pi
-        return_table *= 2*np.pi
-
-        # Put the flux into a Map object, give it the output_name
-        return_map = Map(name=prim,
-                         hist=return_table,
-                         binning=self.output_binning)
+        return_map *= 2*np.pi
 
         return return_map
 
