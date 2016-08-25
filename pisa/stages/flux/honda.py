@@ -782,10 +782,22 @@ class honda(Stage):
                     az_spline_vals = []
                     for azit in range(0,len(az_maps)):
                         az_spline_vals.append(az_maps[azit][enit][czit])
+                    # Azimuth spline wants to be cyclic.
+                    # Achieve this by adding 15 deg point at 375
+                    az_spline_vals.append(az_spline_vals[0])
                     # Do this linearly to avoid issues in that dimension.
-                    az_spline = interpolate.splrep(np.linspace(15.0, 345.0, 12),
+                    az_spline = interpolate.splrep(np.linspace(15.0, 375.0, 13),
                                                    az_spline_vals, k=1, s=0)
-                    azfluxes = interpolate.splev(azvals, az_spline)
+                    # Therefore any value requested Az < 15 deg we need
+                    # to evaluate at Az + 360 deg
+                    proxy_azvals = []
+                    for azval in azvals:
+                        if azval < 15.0:
+                            proxy_azvals.append(azval+360.0)
+                        else:
+                            proxy_azvals.append(azval)
+                    # Thus these fluxes should be cyclic
+                    azfluxes = interpolate.splev(proxy_azvals, az_spline)
                     cz_vals.append(azfluxes)
                 return_table.append(cz_vals)
 
@@ -828,20 +840,33 @@ class honda(Stage):
                         azflux = (interpolate.splev(czval, cz_spline, der=1)
                                   * 0.1/energyval)
                         az_spline_vals.append(azflux)
+                    # Azimuth spline wants to be cyclic.
+                    # Achieve this by adding 15 deg point at 375
+                    az_spline_vals.append(az_spline_vals[0])
                     # Now spline in azimuth.
                     # Do this linearly to avoid issues in that dimension.
-                    az_spline = interpolate.splrep(np.linspace(15.0, 345.0, 12),
+                    az_spline = interpolate.splrep(np.linspace(15.0, 375.0, 13),
                                                    az_spline_vals, k=1, s=0)
+                    # Therefore any value requested Az < 15 deg we need
+                    # to evaluate at Az + 360 deg
+                    proxy_azvals = []
+                    for azval in azvals:
+                        if azval < 15.0:
+                            proxy_azvals.append(azval+360.0)
+                        else:
+                            proxy_azvals.append(azval)
+                    # Thus these fluxes should be cyclic
                     # So we evaluate this spline directly
                     # i.e. rather than the first derivative.
-                    azfluxes = interpolate.splev(azvals, az_spline, der=0)
+                    azfluxes = interpolate.splev(proxy_azvals, az_spline, der=0)
                     # Save these fluxes in an intermediate table
                     intermediate_table.append(azfluxes)
                 # Save these fluxes in to the return table
                 # Dimensionality should be (E, CZ, Az)
                 return_table.append(intermediate_table)
 
-            return_table = np.array(return_table)
+        # Need to turn the list in to a numpy array
+        return_table = np.array(return_table)
 
         # Put the flux into a Map object, give it the output_name
         # Need a dummy binning object for this first
