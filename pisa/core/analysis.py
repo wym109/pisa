@@ -349,28 +349,44 @@ if __name__ == '__main__':
     from pisa.utils.format import append_results, ravel_results
 
     parser = ArgumentParser()
-    parser.add_argument('-d', '--data-settings', type=str,
-                        metavar='configfile', default=None,
-                        help='settings for the generation of "data"')
-    parser.add_argument('-t', '--template-settings',
-                        metavar='configfile', required=True,
-                        action='append',
-                        help='''settings for the template generation''')
-    parser.add_argument('-o', '--outfile', metavar='FILE',
-                        type=str, action='store', default='out.json',
-                        help='file to store the output')
-    parser.add_argument('-v', action='count', default=None,
-                        help='set verbosity level')
-    parser.add_argument('-n', '--num-trials', type=int, default=1,
-                        help='number of trials')
-    parser.add_argument('-m', '--minimizer-settings', type=str,
-                        metavar='JSONFILE', required=True,
-                        help='''Settings related to the optimizer used in the
-                        LLR analysis.''')
-    parser.add_argument('--metric', type=str,
-                        choices=['llh', 'chi2', 'conv_llh'], required=True,
-                        help='''Settings related to the optimizer used in the
-                        LLR analysis.''')
+    parser.add_argument(
+        '-d', '--data-settings', type=str,
+        metavar='configfile', default=None,
+        help='''Settings for the generation of "data" distributions; repeat
+        this argument to specify multiple pipelines. If omitted, the same
+        settings as specified for --template-settings are used to generate data
+        distributions.'''
+    )
+    parser.add_argument(
+        '-t', '--template-settings',
+        metavar='CONFIGFILE', required=True,
+        action='append',
+        help='''Settings for generating template distributions; repeat
+        this option to define multiple pipelines.'''
+    )
+    parser.add_argument(
+        '-o', '--outfile', metavar='FILE',
+        type=str, action='store', default='out.json',
+        help='file to store the output'
+    )
+    parser.add_argument(
+        '-n', '--num-trials', type=int, default=1,
+        help='number of trials'
+    )
+    parser.add_argument(
+        '-m', '--minimizer-settings', type=str,
+        metavar='JSONFILE', required=True,
+        help='''Settings related to the optimizer used in the LLR analysis.'''
+    )
+    parser.add_argument(
+        '--metric', type=str,
+        choices=['llh', 'chi2', 'conv_llh'], required=True,
+        help='''Settings related to the optimizer used in the LLR analysis.'''
+    )
+    parser.add_argument(
+        '-v', action='count', default=None,
+        help='set verbosity level'
+    )
     args = parser.parse_args()
 
     set_verbosity(args.v)
