@@ -12,12 +12,12 @@ from pisa.utils.fileio import from_file
 from pisa.utils.log import logging, set_verbosity
 from pisa import ureg, Q_
 
+`
 class Analysis(object):
     """Major tools for performing "canonical" IceCube/DeepCore/PINGU analyses.
 
     * "Data" distribution creation (via passed `data_maker` object)
     * Template distribution creation (via passed `distribution_maker` object)
-
     * Minimizer Interface (via method `_minimizer_callable`)
         Interfaces to a minimizer for modifying the free parameters of the
         `distribution_maker` to fit its output (as closely as possible) to the
@@ -42,32 +42,34 @@ class Analysis(object):
         What metric to be used for likelihood calculations / optimization
         llh or chi2
 
-    Attributes
-    ----------
-    data_maker
-    template_maker
-
-    Methods
-    -------
-    optimize
-    scan
-    profile_llh : run profile LLH for a given param
-    _minimizer_callable : private method indended to be called by a minimizer
-
     """
     def __init__(self, data_maker, template_maker, metric):
         assert isinstance(data_maker, DistributionMaker)
         assert isinstance(template_maker, DistributionMaker)
+
         self.data_maker = data_maker
+        """DistributionMaker object for making data distributions"""
+
         self.template_maker = template_maker
+        """DistributionMaker object for making template distributions to be fit
+        to the data distribution"""
+
         assert isinstance(metric, basestring)
         self.metric = metric.lower()
-        self.minimizer_settings = None
+        self._minimizer_settings = None
 
         # Generate distribution
         self.asimov = self.data_maker.get_outputs()
         self.pseudodata = None
         self.n_minimizer_calls = 0
+
+    @property
+    def minimizer_settings(self, settings):
+        self._minimizer_settings = settings
+
+    @minimizer_settings.setter
+    def minimizer_settings(self):
+        return self._minimizer_settings
 
     def generate_psudodata(self, method):
         if method == 'asimov':
@@ -75,7 +77,7 @@ class Analysis(object):
         elif method == 'poisson':
             self.pseudodata = self.asimov.fluctuate('poisson')
         else:
-            raise Exception('unknown method %s'%method)
+            raise ValueError('Unknown `method` "%s"' %method)
 
     # TODO: move the complexity of defining a scan into a class with various
     # factory methods, and just pass that class to the scan method; we will
@@ -181,7 +183,7 @@ class Analysis(object):
             original (physical) ranges (including units) is handled within this
             method.
 
-        pprint
+        pprint :bool
             Displays a single-line that updates live (assuming the entire line
             fits the width of your TTY).
 
@@ -231,13 +233,14 @@ class Analysis(object):
         # This set by the method value in your minimiser settings file
         self.n_minimizer_calls = 0
         start_t = time.time()
-        minim_result = opt.minimize(fun=self._minimizer_callable,
-                                    x0=x0,
-                                    args=(pprint,),
-                                    bounds=bounds,
-                                    method = self.minimizer_settings['method']['value'],
-                                    options = self.minimizer_settings['options']['value'])
-        
+        minim_result = opt.minimize(
+            fun=self._minimizer_callable,
+            x0=x0,
+            args=(pprint,),
+            bounds=bounds,
+            method = self.minimizer_settings['method']['value'],
+            options = self.minimizer_settings['options']['value']
+        )
         end_t = time.time()
         if pprint:
             # clear the line
@@ -258,8 +261,20 @@ class Analysis(object):
         return best_fit_vals, metric_val, dict_flags
 
     def find_best_fit(self, check_octant=True, pprint=True):
-        """ find best fit points (max likelihood) for the free parameters and
-            return likelihood + found parameter values.
+        """Find best fit points according to (that maximize likelihood / minimize
+        chi-squared) for the free parameters.
+        
+        Parameters
+        ----------
+        check_octant : bool
+
+        pprint : bool
+
+        Returns
+        -------
+        Best-fit metric (e.g. log-likelihood or chi-squared) value and the
+        corresponding parameter values.
+
         """
         # Reset free parameters to nominal values
         logging.info('resetting params')
@@ -269,11 +284,11 @@ class Analysis(object):
         best_fit = {}
         best_fit['llh'] = metric_val
         best_fit['warnflag'] = dict_flags['warnflag']
-        for pname in self.template_maker.params.free.names:
+        for pname in self.template_maker.params.free:
             best_fit[pname] = self.template_maker.params[pname].value
 
-        # decide wether fit for second octant is necessary
-        if 'theta23' in self.template_maker.params.free.names:
+        # Decide whether fit for second octant is necessary
+        if 'theta23' in self.template_maker.params.free:
             if check_octant:
                 logging.info('checking other octant of theta23')
                 self.template_maker.params.reset_free()
@@ -290,46 +305,71 @@ class Analysis(object):
                     logging.info('Accepting other octant fit')
                     best_fit['llh'] = metric_val
                     best_fit['warnflag'] = dict_flags['warnflag']
-                    for pname in self.template_maker.params.free.names:
+                    for pname in self.template_maker.params.free:
                         best_fit[pname] = self.template_maker.params[pname].value
-                    
+
                 else:
                     logging.info('Accepting initial octant fit')
 
         return best_fit
 
-    def profile_llh(self, p_name, values):
-        """Run profile log likelihood method for param `p_name`.
+    # TODO: add references, usage, docstring correctness
+    def profile_llh(self, param_name, values):
+        """Run profile log likelihood for a single parameter.
 
         Parameters
         ----------
-        p_name
-        values to fix parameter to in conditional llh
+        param_name : string
+            Parameter for which to run the profile log likelihood.
+
+        values : sequence of float (?)
+            Values at which to fix parameter in conditional llh
+
+        Returns
+        -------
+        list of [condMLEs, globMLE]
+
+        Notes
+        -----
+
+        Examples
+        --------
 
         """
         # run numerator (conditional MLE)
-        logging.info('fixing param %s'%p_name)
-        self.template_maker.params.fix(p_name)
+        logging.info('fixing param %s'%param_name)
+        self.template_maker.params.fix(param_name)
         condMLEs = {}
         for value in values:
-            test = template_maker.params[p_name]
+            test = template_maker.params[param_name]
             test.value = value
             template_maker.update_params(test)
             condMLE = self.find_best_fit()
-            condMLE[p_name] = self.template_maker.params[p_name].value
-            append_results(condMLEs,condMLE)
+            condMLE[param_name] = self.template_maker.params[param_name].value
+            append_results(condMLEs, condMLE)
             # report MLEs and LLH
             # also add the fixed param
         # run denominator (global MLE)
         ravel_results(condMLEs)
-        logging.info('unfixing param %s'%p_name)
-        self.template_maker.params.unfix(p_name)
+        logging.info('unfixing param %s'%param_name)
+        self.template_maker.params.unfix(param_name)
         globMLE = self.find_best_fit()
         # report MLEs and LLH
         return [condMLEs, globMLE]
 
-    def llr(self, template_makerA, template_makerB):
-        """ Run loglikelihood ratio for two different template makers A and B
+    def llr(self, template_maker, data_maker):
+        """Find the log-likelihood ratio that the distribution generated by
+        `data_maker` came from the distribution generated by `template_maker`.
+
+        Parameters
+        ----------
+        template_maker : DistributionMaker
+
+        data_maker : DistributionMaker
+
+        Returns
+        -------
+
         """
         results = []
         for template_maker in [template_makerA, template_makerB]:
@@ -411,7 +451,6 @@ if __name__ == '__main__':
     analysis.minimizer_settings = from_file(args.minimizer_settings)
 
     results = []
-
     for i in range(args.num_trials):
         logging.info('Running trial %i'%i)
         np.random.seed()
@@ -422,8 +461,10 @@ if __name__ == '__main__':
         #append_results(results, analysis.llr(template_maker, template_maker_IO))
 
         # profile LLH:
-        results.append(analysis.profile_llh('nutau_cc_norm',np.linspace(0,2,21)*ureg.dimensionless))
-        #results.append(analysis.profile_llh('nutau_cc_norm',[0.]*ureg.dimensionless))
+        results.append(analysis.profile_llh(
+            'nutau_cc_norm', np.linspace(0, 2, 21)*ureg.dimensionless
+        ))
+        #results.append(analysis.profile_llh('nutau_cc_norm', [0.]*ureg.dimensionless))
 
     to_file(results, args.outfile)
     logging.info('Done.')
