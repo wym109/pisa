@@ -10,8 +10,13 @@
 
 """
 This flux service provides flux values from tables provided by Honda.
-The returned values are in a map of energy / cos(zenith) (for maps).
-This is either achieved through b-spline interpolation (done in both energy and cosZenith dimensions simultaneously in log10(flux)) or an integral-preserving method that manipulates 1 dimensional splines of integrated flux.
+The returned values are in a map with binning defined by the user. Currently
+this can be either 2D (energy and cosZenith) or 3D (including azimuth) though
+the latter is currently rather untested. If you end up using it please keep in
+contact with us so we can work through any issues together!
+This is either achieved through b-spline interpolation (done in both energy and
+cosZenith dimensions simultaneously in log10(flux)) or an integral-preserving
+method that manipulates 1 dimensional splines of integrated flux.
 
 Most of the functionality will be ported from PISA with any necessary changes/improvements applied.
 """
@@ -136,6 +141,8 @@ class honda(Stage):
     of the neutrino zenith angle and the azimuth of the neutrino.
     This is what is meant by a 3D flux calculation in the context of this
     service.
+    Please be aware that the 3D calculations are currently untested in PISA.
+    If you find any issues with them please contact the developers.
     One also deals with 2D flux calculations where the azimuth is averaged
     over.
     This is the recommended set of tables to use for the energies one is
@@ -330,6 +337,17 @@ class honda(Stage):
         if set(output_binning.names) == set(['true_energy', 'true_coszen',
                                              'true_azimuth']):
             self.load_3D_table(smooth=0.05)
+            logging.warn('!! ############################################ !!')
+            logging.warn('')
+            logging.warn('You have requested a full 3D calculation from the '
+                         'tables.')
+            logging.warn('Please be aware that this version is '
+                         'currently untested and so you should put your '
+                         'results under extra scrutiny.')
+            logging.warn('Please also keep in contact with the developers '
+                         'about your findings!')
+            logging.warn('')
+            logging.warn('!! ############################################ !!')
         elif set(self.output_binning.names) == set(['true_energy',
                                                     'true_coszen']):
             self.load_2D_table(smooth=0.05)
