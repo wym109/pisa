@@ -10,8 +10,13 @@
 
 """
 This flux service provides flux values from tables provided by Honda.
-The returned values are in a map of energy / cos(zenith) (for maps).
-This is either achieved through b-spline interpolation (done in both energy and cosZenith dimensions simultaneously in log10(flux)) or an integral-preserving method that manipulates 1 dimensional splines of integrated flux.
+The returned values are in a map with binning defined by the user. Currently
+this can be either 2D (energy and cosZenith) or 3D (including azimuth) though
+the latter is currently rather untested. If you end up using it please keep in
+contact with us so we can work through any issues together!
+This is either achieved through b-spline interpolation (done in both energy and
+cosZenith dimensions simultaneously in log10(flux)) or an integral-preserving
+method that manipulates 1 dimensional splines of integrated flux.
 
 Most of the functionality will be ported from PISA with any necessary changes/improvements applied.
 """
@@ -136,6 +141,8 @@ class honda(Stage):
     of the neutrino zenith angle and the azimuth of the neutrino.
     This is what is meant by a 3D flux calculation in the context of this
     service.
+    Please be aware that the 3D calculations are currently untested in PISA.
+    If you find any issues with them please contact the developers.
     One also deals with 2D flux calculations where the azimuth is averaged
     over.
     This is the recommended set of tables to use for the energies one is
@@ -330,6 +337,17 @@ class honda(Stage):
         if set(output_binning.names) == set(['true_energy', 'true_coszen',
                                              'true_azimuth']):
             self.load_3D_table(smooth=0.05)
+            logging.warn('!! ############################################ !!')
+            logging.warn('')
+            logging.warn('You have requested a full 3D calculation from the '
+                         'tables.')
+            logging.warn('Please be aware that this version is '
+                         'currently untested and so you should put your '
+                         'results under extra scrutiny.')
+            logging.warn('Please also keep in contact with the developers '
+                         'about your findings!')
+            logging.warn('')
+            logging.warn('!! ############################################ !!')
         elif set(self.output_binning.names) == set(['true_energy',
                                                     'true_coszen']):
             self.load_2D_table(smooth=0.05)
@@ -499,14 +517,14 @@ class honda(Stage):
 
             self.spline_dict = {}
 
-            for nutype in primaries:
+            for nutype in self.primaries:
                 self.spline_dict[nutype] = {}
                 # Make 1 2D bsplrep in E,CZ for each azimuth value
                 for az, f in zip(flux_dict['azimuth'], flux_dict[nutype]):
                     # Get the logarithmic flux
                     log_flux = np.log10(f.T)
                     # Get a spline representation
-                    spline =  bisplrep(logE, C, log_flux, s=smooth*4.)
+                    spline =  interpolate.bisplrep(logE, C, log_flux, s=smooth*4.)
                     # Found smoothing has to be weaker here. Not sure why.
                     # and store
                     self.spline_dict[nutype][az] = spline
@@ -525,7 +543,7 @@ class honda(Stage):
             # method must be the edges of those of the normal tables
             int_flux_dict['logenergy'] = np.linspace(-1.025, 4.025, 102)
             int_flux_dict['coszen'] = np.linspace(-1, 1, 21)
-            for nutype in primaries:
+            for nutype in self.primaries:
                 # spline_dict now wants to be a set of splines for
                 # every table cosZenith value.
                 # In 3D mode we have a set of these sets for every
@@ -544,7 +562,7 @@ class honda(Stage):
                             tot_flux += energyfluxval*energyval
                             int_flux.append(tot_flux)
 
-                        spline = splrep(int_flux_dict['logenergy'],
+                        spline = interpolate.splrep(int_flux_dict['logenergy'],
                                         int_flux, s=0)
                         CZvalue = '%.2f'%(1.05-CZiter*0.1)
                         splines[CZvalue] = spline
@@ -679,7 +697,7 @@ class honda(Stage):
                 for val in spline_vals:
                     tot_val += val
                     int_spline_vals.append(tot_val)
-
+                    
                 spline = interpolate.splrep(np.linspace(-1, 1, 21),
                                             int_spline_vals, s=0)
 
@@ -691,28 +709,29 @@ class honda(Stage):
 
             return_table = np.array(return_table)
 
-        if 'coszen' in self.output_binning.names[0]:
-            # Current dimensionality is (E,cz)
-            # So need to transpose if desired is (cz,E)
-            return_table = return_table.T
+        # Put the flux into a Map object, give it the output_name
+        # Need a dummy binning object for this first
+        proxy_binning = all_binning.reorder_dimensions(['true_energy',
+                                                        'true_coszen'])
+        return_map = Map(name=prim,
+                         hist=return_table,
+                         binning=proxy_binning)
+
+        # Now put map in correct dimensionality for user request
+        return_map = return_map.reorder_dimensions(self.output_binning.names)
 
         # Flux is given per sr and GeV, so we need to multiply
         # by bin width in both dimensions
         # i.e. the bin volume
-        return_table *= self.output_binning.bin_volumes(attach_units=False)
+        return_map *= self.output_binning.bin_volumes(attach_units=False)
 
         # Energy scale systematic must be applied again here since it should
         # come in the bin volume
-        return_table *= self.params['energy_scale'].value.magnitude
+        return_map *= self.params['energy_scale'].value.magnitude
 
         # For 2D we also need to integrate over azimuth
         # There is no dependency, so this is a multiplication of 2pi
-        return_table *= 2*np.pi
-
-        # Put the flux into a Map object, give it the output_name
-        return_map = Map(name=prim,
-                         hist=return_table,
-                         binning=self.output_binning)
+        return_map *= 2*np.pi
 
         return return_map
 
@@ -738,18 +757,157 @@ class honda(Stage):
               * 'nuebar'
 
         """
-        # TODO: implement this method properly
-        raise NotImplementedError()
+        # Adds/ensures the expected units for the binning
+        all_binning = self.output_binning.to(true_energy='GeV',
+                                             true_coszen=None,
+                                             true_azimuth='deg')
 
-        hist = np.ones(self.output_binning.shape) * 27.0
+        # Get bin centers to evaluate splines at
+        evals = all_binning.true_energy.weighted_centers.magnitude
+        czvals = all_binning.true_coszen.weighted_centers.magnitude
+        azvals = all_binning.true_azimuth.weighted_centers.magnitude
 
-        # Put the "fluxes" into a Map object, give it the output_name
-        m = Map(name=prim, hist=hist, binning=self.output_binning)
+        # Energy scale systematic says to read in flux to bin E at
+        # energy_scale*E
+        evals *= self.params['energy_scale'].value.magnitude
 
-        # Optionally turn on errors here, that will be propagated through
-        # rest of pipeline (slows things down, but essential in some cases)
-        #m.set_poisson_errors()
-        return m
+        flux_mode = self.params['flux_mode'].value
+
+        if flux_mode == 'bisplrep':
+            # Assert that spline dict matches what is expected
+            # i.e. One spline for each primary for every table azimuth value
+            #      45.0 is used for no particular reason
+            assert not isinstance(self.spline_dict[self.primaries[0]][45.0], Mapping)
+
+            # Get the spline interpolation, which is in
+            # log(flux) as function of log(E), cos(zenith)
+            # There is one for every table azimuth value
+            az_maps = []
+            for azkey in np.linspace(15.0, 345.0, 12):
+                intermediate_table = interpolate.bisplev(np.log10(evals), czvals,
+                                                   self.spline_dict[prim][azkey])
+                intermediate_table = np.power(10., intermediate_table)
+                az_maps.append(intermediate_table)
+
+            # Then have to interpolate in remaining dimension
+            # This is done in this stupid manner since splining
+            # in all 3 dimensions at once takes FOREVER.
+            # This method is still slow, but is at least an improvement.
+            return_table = []
+            for enit in range(0,len(az_maps[0])):
+                cz_vals = []
+                for czit in range(0,len(az_maps[0][0])):
+                    az_spline_vals = []
+                    for azit in range(0,len(az_maps)):
+                        az_spline_vals.append(az_maps[azit][enit][czit])
+                    # Azimuth spline wants to be cyclic.
+                    # Achieve this by adding 15 deg point at 375
+                    az_spline_vals.append(az_spline_vals[0])
+                    # Do this linearly to avoid issues in that dimension.
+                    az_spline = interpolate.splrep(np.linspace(15.0, 375.0, 13),
+                                                   az_spline_vals, k=1, s=0)
+                    # Therefore any value requested Az < 15 deg we need
+                    # to evaluate at Az + 360 deg
+                    proxy_azvals = []
+                    for azval in azvals:
+                        if azval < 15.0:
+                            proxy_azvals.append(azval+360.0)
+                        else:
+                            proxy_azvals.append(azval)
+                    # Thus these fluxes should be cyclic
+                    azfluxes = interpolate.splev(proxy_azvals, az_spline)
+                    cz_vals.append(azfluxes)
+                return_table.append(cz_vals)
+
+        elif flux_mode == 'integral-preserving':
+            # Assert that spline dict matches what is expected
+            # i.e. A set of splines for every table azimuth value corresponding
+            #      to one spline for every table cosZenith value.
+            #      45.0 and 0.95 are used for no particular reason
+            #      cosZenith keys are strings, despite being numbers
+            assert not isinstance(
+                self.spline_dict[self.primaries[0]][45.0]['0.95'],Mapping)
+
+            return_table = []
+            for energyval in evals:
+                logenergyval = np.log10(energyval)
+                intermediate_table = []
+                for czval in czvals:
+                    az_spline_vals = []
+                    for azkey in np.linspace(15.0, 345.0, 12):
+                        cz_spline_vals = []
+                        for czkey in np.linspace(-0.95, 0.95, 20):
+                            # Have to multiply by bin widths to get correct
+                            # derivatives, Here the bin width is in log
+                            # energy is 0.05
+                            cz_spline_vals.append(interpolate.splev(
+                                logenergyval,
+                                self.spline_dict[prim][azkey]['%.2f'%czkey],
+                                der=1)*0.05)
+                        int_spline_vals = []
+                        tot_val = 0.0
+                        int_spline_vals.append(tot_val)
+                        for val in cz_spline_vals:
+                            tot_val += val
+                            int_spline_vals.append(tot_val)
+
+                        cz_spline = interpolate.splrep(np.linspace(-1, 1, 21),
+                                                       int_spline_vals, s=0)
+                        # Have to multiply by bin widths to get correct derivatives
+                        # Here the bin width is in cosZenith, is 0.1
+                        azflux = (interpolate.splev(czval, cz_spline, der=1)
+                                  * 0.1/energyval)
+                        az_spline_vals.append(azflux)
+                    # Azimuth spline wants to be cyclic.
+                    # Achieve this by adding 15 deg point at 375
+                    az_spline_vals.append(az_spline_vals[0])
+                    # Now spline in azimuth.
+                    # Do this linearly to avoid issues in that dimension.
+                    az_spline = interpolate.splrep(np.linspace(15.0, 375.0, 13),
+                                                   az_spline_vals, k=1, s=0)
+                    # Therefore any value requested Az < 15 deg we need
+                    # to evaluate at Az + 360 deg
+                    proxy_azvals = []
+                    for azval in azvals:
+                        if azval < 15.0:
+                            proxy_azvals.append(azval+360.0)
+                        else:
+                            proxy_azvals.append(azval)
+                    # Thus these fluxes should be cyclic
+                    # So we evaluate this spline directly
+                    # i.e. rather than the first derivative.
+                    azfluxes = interpolate.splev(proxy_azvals, az_spline, der=0)
+                    # Save these fluxes in an intermediate table
+                    intermediate_table.append(azfluxes)
+                # Save these fluxes in to the return table
+                # Dimensionality should be (E, CZ, Az)
+                return_table.append(intermediate_table)
+
+        # Need to turn the list in to a numpy array
+        return_table = np.array(return_table)
+
+        # Put the flux into a Map object, give it the output_name
+        # Need a dummy binning object for this first
+        proxy_binning = all_binning.reorder_dimensions(['true_energy',
+                                                        'true_coszen',
+                                                        'true_azimuth'])
+        return_map = Map(name=prim,
+                         hist=return_table,
+                         binning=proxy_binning)
+
+        # Now put map in correct dimensionality for user request
+        return_map = return_map.reorder_dimensions(self.output_binning.names)
+
+        # Flux is given per sr and GeV, so we need to multiply
+        # by bin width in all dimensions
+        # i.e. the bin volume
+        return_map *= self.output_binning.bin_volumes(attach_units=False)
+
+        # Energy scale systematic must be applied again here since it should
+        # come in the bin volume
+        return_map *= self.params['energy_scale'].value.magnitude
+
+        return return_map
 
     def apply_nue_numu_ratio(self, flux_maps):
         """
@@ -921,8 +1079,13 @@ class honda(Stage):
 
         for flav in ['numu','numubar']:
 
-            all_binning = self.output_binning.to(true_energy='GeV',
-                                                 true_coszen=None)
+            if len(self.output_binning.names) == 2:
+                all_binning = self.output_binning.to(true_energy='GeV',
+                                                     true_coszen=None)
+            elif len(self.output_binning.names) == 3:
+                all_binning = self.output_binning.to(true_energy='GeV',
+                                                     true_coszen=None,
+                                                     true_azimuth='deg')
             evals = all_binning.true_energy.weighted_centers.magnitude
 
             # Values are pivoted about the median energy in the chosen range
@@ -934,11 +1097,14 @@ class honda(Stage):
 
             flux_map = flux_maps[flav]
 
-            # Need to multiply along the energy axis, so it must be second
-            if 'energy' in self.output_binning.names[0]:
-                transposed_map = flux_map.reorder_dimensions(['true_coszen','true_energy'])
+            # Need to multiply along the energy axis, so it must be last
+            if 'energy' not in self.output_binning.names[-1]:
+                if len(self.output_binning.names) == 2:
+                    transposed_map = flux_map.reorder_dimensions(['true_coszen','true_energy'])
+                elif len(self.output_binning.names) == 3:
+                    transposed_map = flux_map.reorder_dimensions(['true_azimuth','true_coszen','true_energy'])
                 scaled_transposed_map = transposed_map*scale
-                scaled_flux = scaled_transposed_map.reorder_dimensions(['true_energy','true_coszen'])
+                scaled_flux = scaled_transposed_map.reorder_dimensions(self.output_binning.names)
             else:
                 scaled_flux = flux_map*scale
 
