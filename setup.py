@@ -105,7 +105,8 @@ if __name__ == '__main__':
                          ' -fopenmp; installing PISA without OpenMP'
                          ' support.\n')
 
-    # Obtain the numpy include directory. This logic works across numpy versions.
+    # Obtain the numpy include directory. This logic works across numpy
+    # versions.
     try:
         numpy_include = numpy.get_include()
     except AttributeError:
