@@ -7,6 +7,7 @@
 
 
 from collections import Mapping, OrderedDict, Sequence
+from copy import deepcopy
 from functools import total_ordering
 from itertools import izip
 from operator import setitem
@@ -38,47 +39,58 @@ class Param(object):
 
     value : string or pint Quantity with units
 
-    prior
+    prior : pisa.prior.Prior
 
-    range
+    range : sequence of two numbers or Pint quantities
 
-    is_fixed
+    is_fixed : bool
 
-    is_discrete
+    is_discrete : bool
 
-    tex
+    tex : string
 
-    help
-
-
-    Attributes
-    ----------
-    tex : <r>
-
-    nominal_value : <r/w>
-
-    _rescaled_value: <r/w>
-        `value` as a normalized, dimensionless quantity between 0 and 1 (used
-        for interfacing with a minimizer)
-
-    state : <r>
-
-    prior_penalty : <r>
-
-    units : <r>
-
+    help : string
 
     Notes
     -----
-    In the case of a free (not fixed)  parameter, a valid range for the
-    parameter should be spicfied, and prior must be assigned to compute llh and
+    In the case of a free (`is_fixed`=False) parameter, a valid range for the
+    parameter should be spicfied and a prior must be assigned to compute llh and
     chi2 values.
+
+    Examples
+    --------
+    >>> from pisa import ureg
+    >>> from pisa.core.prior import Prior
+    >>> gaussian = Prior(kind='gaussian', mean=10*ureg.meter,
+    ...                  stddev=1*ureg.meter)
+    >>> x = Param(name='x', value=1.5*ureg.foot, prior=gaussian,
+    ...           range=[-10, 60]*ureg.foot, is_fixed=False, is_discrete=False,
+    ...           tex=r'{\rm x}')
+    >>> x.value
+    <Quantity(1.5, 'foot')>
+    >>> print x.prior_llh
+    -45.532515919999994
+    >>> print x.to('m')
+
+    >>> x.value = 10*ureg.m
+    >>> print x.value
+    <Quantity(32.8083989501, 'foot')>
+    >>> x.ito('m')
+    >>> print x.value
+
+    >>> x.prior_llh
+    -1.5777218104420236e-30
+    >>> p.nominal_value
+
+    >>> x.reset()
+    >>> print x.value
+
 
     """
     _slots = ('name', 'value', 'prior', 'range', 'is_fixed', 'is_discrete',
               'nominal_value', '_rescaled_value',
               '_nominal_value', '_tex', 'help','_value', '_range', '_units')
-    _state_attrs = ('name', '_value', 'prior', 'range', 'is_fixed',
+    _state_attrs = ('name', 'value', 'prior', 'range', 'is_fixed',
                      'is_discrete', 'nominal_value', 'tex', 'help')
 
     def __init__(self, name, value, prior, range, is_fixed, is_discrete=False,
@@ -240,6 +252,48 @@ class Param(object):
         else:
             raise ValueError('Unrecognized `metric` "%s"' %str(metric))
 
+    def to(self, units):
+        """Return an equivalent copy of param but in units of `units`.
+
+        Parameters
+        ----------
+        units : string or pint.Unit
+
+        Returns
+        -------
+        Param : copy of this param, but in specified `units`.
+
+        See also
+        --------
+        ito
+        Pint.to
+        Pint.ito
+
+        """
+        new_param = Param(**deepcopy(self.state))
+        new_param.ito(units)
+        return new_param
+
+    def ito(self, units):
+        """Convert this param (in place) to have units of `units`.
+
+        Parameters
+        ----------
+        units : string or pint.Unit
+
+        Returns
+        -------
+        None
+
+        See also
+        --------
+        to
+        Pint.to
+        Pint.ito
+
+        """
+        self.value.ito(units)
+
     @property
     def prior_llh(self):
         return self.prior_penalty(metric='llh')
@@ -252,7 +306,7 @@ class Param(object):
     def state_hash(self):
         return hash_obj(normQuant(self.state))
 
-# TODO: temporary modification of parameters using etc.
+# TODO: temporary modification of parameters via "with" syntax?
 class ParamSet(object):
     """Container class for a set of parameters. Most methods are passed through
     to contained params.
@@ -261,128 +315,43 @@ class ParamSet(object):
     ----------
     *args : one or more Param objects or sequences thereof
 
-    Attributes
-    ----------
-    Note that all sequences returned as properties are returned in the order
-    in which the parameters are stored internally (and this same order is
-    maintained for setting parameters using sequences). Properties that are
-    readable are indicated by 'r' and properties that are set-able are
-    indicated by 'w'.
-
-    are_discrete : tuple of bool <r>
-        Is each param discrete?
-
-    are_fixed : tuple of bool <r>
-        Is each param fixed?
-
-    continuous : ParamSet <r>
-        ParamSet with only the continuous params from this one
-
-    discrete : ParamSet <r>
-        Only the discrete params from this one
-
-    fixed : ParamSet <r>
-        Only the fixed params from this one
-
-    free : ParamSet <r>
-        Only the free params from this one
-
-    is_nominal : bool <r>
-        Whether all parameters (both free and fixed) have their `value` set to
-        `nominal_value`
-
-    names : tuple of str <r>
-        Names of all parameters
-
-    nominal_values : tuple of quantities <r/w>
-        Get or set "nominal" values for all parameters. These can be considered
-        to be the "initial" or "injected" values, depending upon the context. A
-        call to the `reset_free` (`reset_all`) methods resets `values` of free
-        (all) params to these `nominal_values`.
-
-    nominal_values_hash : int <r>
-        Hash value for the parameters' nominal values
-
-    priors : sequence of Prior <r/w>
-        Get or set priors for all parameters.
-
-    ranges : sequence of (?) <r/w>
-        Get or set the ranges for all parameters.
-
-    _rescaled_values : sequence of float <r/w>
-        Continuous parameters rescaled to the range [0, 1] and without units;
-        designed for interfacing with a minimizer
-
-    state : tuple <r>
-        Tuple containing the `state` OrderedDict of each contained param
-
-    tex : str <r>
-        LaTeX representation of the contained parameter names & values
-
-    priors_llh : float <r>
-        Aggregate log-likelihood for parameter values given their priors
-
-    priors_chi2 : float <r>
-        Aggregate chi-squred for all parameter values given their priors
-
-    state_hash : int <r>
-        Hash on the complete state of the contained params, which includes
-        properties such as `name`, `prior`, `tex`, and *all* other param
-        properties.
-
-    values : sequence of quantities <r/w>
-        Get or set values of all parameters
-
-    values_hash : <r>
-        Hash on all parameters' current `value` attributes
-
-    Methods
-    -------
-    extend(obj)
-        Call `update` with existing_must_match=True and extend=True
-
-    fix(vals)
-        Set param found at each `index(val)` to be fixed.
-
-    index(val)
-        Locate and return index given `val` which can be an int (index), str
-        (name), or Param object (an actual item in the set).
-
-    priors_penalty(metric)
-        Aggregate penalty for the specified metric, given current parameter
-        values.
-
-    replace(new)
-        Replace param (by name)
-
-    unfix(vals)
-        Set param at each `index(val)` to be free.
-
-    update(obj, existing_must_match=False, extend=True)
-        Update this param set using obj (a Param, ParamSet, or sequence
-        thereof), optionally enforcing existing param values to match
-        those in both `obj` and self, and optionally extending the
-        current param set with any new params in `obj`
-
-    update_existing(obj)
-        Call `update` with existing_must_match=False and extend=False
-
-    __getitem__
-    __iter__
-    __len__
-    __setitem__
-
-
     Examples
     --------
-    Hash on the values of all of the params:
-    >>> all_p_hash = param_set.values_hash
+    >>> from pisa import ureg
+    >>> from pisa.core.prior import Prior
 
-    but to just hash on free params' values:
-    >>> free_p_hash = params_set.free_params.values_hash
+    >>> e_prior = Prior(kind='gaussian', mean=10*ureg.GeV, stddev=1*ureg.GeV)
+    >>> cz_prior = Prior(kind='uniform', llh_offset=-5)
+    >>> reco_energy = Param(name='reco_energy', value=12*ureg.GeV,
+                            prior=e_prior, range=[1, 80]*ureg.GeV,
+                            is_fixed=False, is_discrete=False,
+                            tex=r'E^{\rm reco}')
+    >>> reco_coszen = Param(name='reco_coszen', value=-0.2, prior=cz_prior,
+                            range=[-1, 1], is_fixed=True, is_discrete=False,
+                            tex=r'\cos\,\theta_Z^{\rm reco}')
+    >>> param_set = ParamSet(reco_energy, reco_coszen)
+    >>> print param_set
+    reco_coszen=-2.0000e-01 reco_energy=+1.2000e+01 GeV
+
+    >>> print param_set.free
+    reco_energy=+1.2000e+01 GeV
+
+    >>> print param_set.reco_energy.value
+    12 gigaelectron_volt
+
+    >>> print [p.prior_llh for p in param_set]
+    [-5.0, -2]
+
+    >>> print param_set.priors_llh
+    -7.0
+
+    >>> print param_set.values_hash
+    3917547535160330856
+
+    >>> print param_set.free.values_hash
+    -7121742559130813936
 
     """
-
     def __init__(self, *args):
         param_sequence = []
         # Unpack the input args into a flat list of params
@@ -692,7 +661,8 @@ def test_Param():
     param_vals = np.linspace(-10, 10, 100) * ureg.meter
     llh_vals = (param_vals.magnitude)**2
     linterp_m = Prior(kind='linterp', param_vals=param_vals, llh_vals=llh_vals)
-    linterp_nounits = Prior(kind='linterp', param_vals=param_vals.m, llh_vals=llh_vals)
+    linterp_nounits = Prior(kind='linterp', param_vals=param_vals.m,
+                            llh_vals=llh_vals)
 
     param_vals = np.linspace(-10, 10, 100)
     llh_vals = param_vals**2
