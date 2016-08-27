@@ -26,7 +26,7 @@ from pisa.utils.fileio import mkdir
 from pisa.utils.jsons import from_json
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.resources import find_resource
-from pisa.utils.parse_config import parse_config
+from pisa.utils.config_parser import parse_pipeline_config
 
 
 def validate_pisa2_maps(amap, bmap):
@@ -1034,8 +1034,7 @@ if __name__ == '__main__':
         flux_settings = os.path.join(
             'tests', 'settings', 'flux_test.ini'
         )
-        flux_settings = find_resource(flux_settings)
-        flux_config = parse_config(flux_settings)
+        flux_config = parse_pipeline_config(flux_settings)
         flux_config['flux']['params']['flux_file'] = \
                 'flux/honda-2015-spl-solmax-aa.d'
         flux_config['flux']['params']['flux_mode'] = \
@@ -1077,8 +1076,7 @@ if __name__ == '__main__':
         osc_settings = os.path.join(
             'tests', 'settings', 'osc_test.ini'
         )
-        osc_settings = find_resource(osc_settings)
-        osc_config = parse_config(osc_settings)
+        osc_config = parse_pipeline_config(osc_settings)
         for syst in [None, 'theta12', 'theta13', 'theta23', 'deltam21',
                      'deltam31']:
             pisa2file = os.path.join(
@@ -1100,8 +1098,7 @@ if __name__ == '__main__':
         aeff_settings = os.path.join(
             'tests', 'settings', 'aeff_test.ini'
         )
-        aeff_settings = find_resource(aeff_settings)
-        aeff_config = parse_config(aeff_settings)
+        aeff_config = parse_pipeline_config(aeff_settings)
         aeff_config['aeff']['params']['aeff_weight_file'] = os.path.join(
             'events', 'deepcore_ic86', 'MSU', '1XXXX', 'UnJoined',
             'DC_MSU_1X585_unjoined_events_mc.hdf5'
@@ -1126,8 +1123,7 @@ if __name__ == '__main__':
         reco_settings = os.path.join(
             'tests', 'settings', 'reco_test.ini'
         )
-        reco_settings = find_resource(reco_settings)
-        reco_config = parse_config(reco_settings)
+        reco_config = parse_pipeline_config(reco_settings)
         reco_config['reco']['params']['reco_weights_name'] = None
         reco_config['reco']['params']['reco_weight_file'] = os.path.join(
             'events', 'deepcore_ic86', 'MSU', '1XXXX', 'Joined',
@@ -1168,8 +1164,7 @@ if __name__ == '__main__':
         pid_settings = os.path.join(
             'tests', 'settings', 'pid_test.ini'
         )
-        pid_settings = find_resource(pid_settings)
-        pid_config = parse_config(pid_settings)
+        pid_config = parse_pipeline_config(pid_settings)
         pisa2file = os.path.join(
             'tests', 'data', 'pid', 'PISAV2PIDStageHistV39Service.json'
         )
@@ -1206,9 +1201,7 @@ if __name__ == '__main__':
         full_settings = os.path.join(
             'tests', 'settings', 'full_pipeline_test.ini'
         )
-        full_settings = find_resource(full_settings)
-        full_config = parse_config(full_settings)
-        pipeline = Pipeline(full_config)
+        pipeline = Pipeline(full_settings)
         pipeline.get_outputs()
 
         pisa2file = os.path.join(
