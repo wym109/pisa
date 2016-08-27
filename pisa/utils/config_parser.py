@@ -102,10 +102,20 @@ from pisa.utils.log import logging
 # ureg is also referred to as "units" in this context.
 units = ureg
 
-
+# TODO: document code, add comments, docstrings, abide by PISA coding
+# conventions
 def parse_quantity(string):
-    """ Helper function to parse a string into a pint/uncertainty quantity
-        e.g. '1.2 +/- 0.7 * units.meter'
+    """Parse a string into a pint/uncertainty quantity.
+
+    Parameters
+    ----------
+    string : string
+
+    Examples
+    --------
+    >>> print parse_quantity('1.2 +/- 0.7 * units.meter')
+    <?>
+
     """
     value = string.replace(' ', '')
     if 'units.' in value:
@@ -122,24 +132,73 @@ def parse_quantity(string):
 
 
 def parse_string_literal(string):
-    """ Helper function to evaluate a string
+    """Evaluate a string with special values, or return the string.
+
+    Parameters
+    ----------
+    string : string
+
+    Returns
+    -------
+    bool, None, or str
+
+    Examples
+    --------
+    >>> print parse_string_literal('true')
+    True
+
+    >>> print parse_string_literal('False')
+    False
+
+    >>> print parse_string_literal('none')
+    None
+
+    >>> print parse_string_literal('something else')
+    'something else'
+
     """
-    if string.lower().strip() == 'true': return True
-    elif string.lower().strip() == 'false': return False
-    elif string.lower().strip() == 'none': return None
+    if string.lower().strip() == 'true':
+        return True
+    if string.lower().strip() == 'false':
+        return False
+    if string.lower().strip() == 'none':
+        return None
     return string
 
 
-def list_split(string):
-    """ Helper function to parse a comma separated list as string into a python
-        list
+def split_list(string):
+    """Parse a string containing a comma-separated list as a Python list of
+    strings.
+
+    Parameters
+    ----------
+    string : string
+
+    Returns
+    -------
+    list of strings
+
+    Examples
+    --------
+    >>> print split_list('one, two, three')
+    ['one', 'two', 'three']
+
     """
-    list = string.split(',')
-    return [x.strip() for x in list]
+    l = string.split(',')
+    return [x.strip() for x in l]
 
 
-def parse_config(config):
-    """ The core function to parse a PISA pipeline config file
+def parse_pipeline_config(config):
+    """Parse a PISA pipeline configuration file.
+
+    Parameters
+    ----------
+    config : <?>
+
+    Returns
+    -------
+    <?>
+
     """
     if isinstance(config, basestring):
         config = from_file(config)
@@ -147,7 +206,7 @@ def parse_config(config):
     binning_dict = {}
     for name, value in config.items('binning'):
         if name.endswith('.order'):
-            order = list_split(config.get('binning', name))
+            order = split_list(config.get('binning', name))
             binning, _ = name.split('.')
             bins = []
             for bin_name in order:
@@ -157,7 +216,7 @@ def parse_config(config):
 
     stage_dicts = OrderedDict()
     # find pipline setting
-    pipeline_order = list_split(config.get('pipeline', 'order'))
+    pipeline_order = split_list(config.get('pipeline', 'order'))
     for item in pipeline_order:
         stage, service = item.split(':')
         section = 'stage:' + stage
@@ -197,7 +256,6 @@ def parse_config(config):
                         params.append(stage_dict['params'][pname])
                         break
                 else:
-
                     # defaults
                     kwargs = {'name': pname, 'is_fixed': True, 'prior': None,
                               'range': None}

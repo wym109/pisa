@@ -246,6 +246,7 @@ class TransformSet(object):
     def __getattr__(self, attr):
         if attr in TRANS_SET_SLOTS:
             return super(TransformSet, self).__getattribute__(attr)
+        if attr in 
         return TransformSet([getattr(t, attr) for t in self.transforms],
                             name=self.name)
 

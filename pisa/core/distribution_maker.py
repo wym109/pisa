@@ -11,43 +11,48 @@ from pisa.utils.log import logging, set_verbosity
 
 
 class DistributionMaker(object):
-    """Creates a DistributionMaker object that has several pipelines inside
-    the outputs from all pipelines are added together  
+    """Container for one or more pipelines; the outputs from all contained
+    pipelines are added together to create the distribution.
 
     Parameters
     ----------
-    *args : Pipelines, strings, OrderedDicts, or sequences thereof
+    pipelines : Pipeline or convertible thereto, or sequence thereof
         A new pipline is instantiated with each object passed. Legal objects
-        are already-instantiated Pipelines, strings (which specify a resource
-        location for a pipeline config file) and OrderedDicts (as returned by
-        parse_config).
+        are already-instantiated Pipelines and anything interpret-able by the
+        Pipeline init method.
+
+    fluctuate : None or string
+        Apply fluctuations to outputs (as in the case of pseudo-data).
+        Specifying None disables fluctuations while e.g. 'poisson' applies
+        Poisson fluctuations. See `Map.fluctuate` for all valid strings.
 
     Notes
     -----
     Free params with the same name in two pipelines are updated at the same
-    time using the `update_params`, `set_free_params`, or
-    `set_rescaled_free_params` methods.
+    time using the `update_params`, `set_free_params`, and
+    `_set_rescaled_free_params` methods.
 
-    `*_rescaled_*` properties and methods are for interfacing with a minimizer,
-    where values are linearly mapped onto the interval [0, 1] according to
-    the parameter's allowed range.
+    `_*_rescaled_*` properties and methods are for interfacing with a
+    minimizer, where values are linearly mapped onto the interval [0, 1]
+    according to the parameter's allowed range. Avoid interfacing with these
+    except if using a minimizer, since, e.g., units are stripped and values and
+    intervals are non-physical.
 
     """
-    def __init__(self, *args):
+    def __init__(self, pipelines, fluctuate=None, label=None):
+        self.label = None
         # TODO: make this a property so that input can be validated
-        self.fluctuate = None
+        self.fluctuate = fluctuate
+        """Whether the output of the distribution maker will be fluctuated (and
+        if so, by which method this is done)"""
 
         self._pipelines = []
-        extended_args = []
-        for arg in args:
-            if isinstance(arg, (basestring, OrderedDict)):
-                extended_args.append(arg)
-            elif isinstance(arg, Sequence):
-                extended_args.extend(arg)
+        if isinstance(pipelines, (basestring, Pipeline)):
+            pipelines = [pipelines]
 
-        for arg in extended_args:
+        for pipeline in pipelines:
             if not isinstance(arg, Pipeline):
-                arg = Pipeline(arg)
+                pipeline = Pipeline(pipeline)
             self._pipelines.append(arg)
 
     def __iter__(self):
@@ -63,11 +68,11 @@ class DistributionMaker(object):
         return total_outputs
 
     def update_params(self, params):
-        [pipeline.update_params(params) for pipeline in self]
+        [pipeline.params.update_existing(params) for pipeline in self]
 
     @property
     def pipelines(self):
-        return tuple(self._pipelines)
+        return self._pipelines
 
     @property
     def params(self):
@@ -75,23 +80,12 @@ class DistributionMaker(object):
         [params.extend(pipeline.params) for pipeline in self.pipelines]
         return params
 
-    @property
-    def free_params_values(self):
-        # a simple list of param values
-        return self.params.free.values
-
-    @property
-    def free_params_rescaled_values(self):
-        # a simple list of idimensionless param values rescaled to (0,1)
-        return [p.rescaled_value for p in self.params.free]
-
-    @property
-    def free_params_names(self):
-        # a simple list of names of the free params
-        return [p.name for p in self.params.free]
-
     def set_free_params(self, values):
-        """Set free param values given a simple list
+        """Set free parameters' values.
+
+        Parameters
+        ----------
+        values : list of quantities
 
         """
         for name, value in zip(self.free_params_names, values):
@@ -99,7 +93,7 @@ class DistributionMaker(object):
                 if name in [p.name for p in pipeline.params.free]:
                     pipeline.params.free.value = value
 
-    def set_rescaled_free_params(self, rvalues):
+    def _set_rescaled_free_params(self, rvalues):
         """Set free param values given a simple list of (0,1) rescaled,
         dimensionless values
 
@@ -108,35 +102,46 @@ class DistributionMaker(object):
             fp = pipeline.params.free
             for name, rvalue in zip(self.free_params_names, rvalues):
                 if name in [p.name for p in fp]:
-                    fp[name].rescaled_value = rvalue
+                    fp[name]._rescaled_value = rvalue
             pipeline.update_params(fp)
-                    
+
 
 if __name__ == '__main__':
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
     import numpy as np
     from pisa.utils.fileio import from_file, to_file
-    from pisa.utils.parse_config import parse_config
-    from pisa.utils.plotter import plotter    
+    from pisa.utils.config_parser import parse_pipeline_config
+    from pisa.utils.plotter import plotter
 
     parser = ArgumentParser()
-    parser.add_argument('-t', '--template-settings',
-                        metavar='configfile', required=True,
-                        action='append',
-                        help='''settings for the template generation''')
+    parser.add_argument(
+        '-p', '--pipeline-settings', type=str, required=True,
+        metavar='CONFIGFILE', action='append',
+        help='''Settings file for each pipeline'''
+    )
+    parser.add_argument(
+        '--outdir', type=str, action='store',
+        help='Directory into which to store the output'
+    )
     parser.add_argument(
         '-v', action='count', default=None,
-        help='set verbosity level'
+        help='Set verbosity level'
     )
     args = parser.parse_args()
 
     set_verbosity(args.v)
 
-    template_maker = DistributionMaker(args.template_settings)
-    outputs =  template_maker.get_outputs()
-    my_plotter = plotter(stamp='PISA cake test',
-			 outdir='.',
-			 fmt='pdf', log=False,
-			 annotate=False)
-    my_plotter.ratio = True
-    my_plotter.plot_2d_array(outputs, fname='dist_output', cmap='OrRd')
+    distribution_maker = DistributionMaker(
+        pipelines=args.pipeline_settings,
+        fluctuate=False
+    )
+    outputs = distribution_maker.get_outputs()
+    if args.outdir:
+        my_plotter = plotter(
+            stamp='PISA cake test',
+            outdir=args.outdir,
+            fmt='pdf', log=False,
+            annotate=False
+        )
+        my_plotter.ratio = True
+        my_plotter.plot_2d_array(outputs, fname='dist_output', cmap='OrRd')
