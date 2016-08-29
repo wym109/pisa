@@ -12,7 +12,6 @@ from pisa.utils.fileio import from_file
 from pisa.utils.log import logging, set_verbosity
 from pisa import ureg, Q_
 
-`
 class Analysis(object):
     """Major tools for performing "canonical" IceCube/DeepCore/PINGU analyses.
 
@@ -43,7 +42,7 @@ class Analysis(object):
         llh or chi2
 
     """
-    def __init__(self, data_maker, template_maker, minimizer_settings=None, metric):
+    def __init__(self, data_maker, template_maker, metric, minimizer_settings=None):
         assert isinstance(data_maker, DistributionMaker)
         assert isinstance(template_maker, DistributionMaker)
 
@@ -57,22 +56,17 @@ class Analysis(object):
         assert isinstance(metric, basestring)
         self.metric = metric.lower()
         if isinstance(minimizer_settings, basestring):
-            self._minimizer_settings = from_file(minimizer_settings)
+            self.minimizer_settings = from_file(minimizer_settings)
+        elif isinstance(minimizer_settings, Mapping):
+            self.minimizer_settings = minimizer_settings
         else:
-            self._minimizer_settings = minimizer_settings
+            raise ValueError('Minimizer settings expected either as path to '
+                             'file or as dictionary read from file')
 
         # Generate distribution
         self.asimov = self.data_maker.get_outputs()
         self.pseudodata = None
         self.n_minimizer_calls = 0
-
-    @property
-    def minimizer_settings(self, settings):
-        self._minimizer_settings = settings
-
-    @minimizer_settings.setter
-    def minimizer_settings(self):
-        return self._minimizer_settings
 
     def generate_pseudodata(self, method):
         if method == 'asimov':
@@ -204,7 +198,7 @@ class Analysis(object):
         # if necessary
         metric_val = (
             self.pseudodata.metric_total(expected_values=template, metric=self.metric)
-            + template_maker.params.priors_penalty(metric=self.metric)
+            + self.template_maker.params.priors_penalty(metric=self.metric)
         )
 
         # Report status of metric & params
@@ -287,7 +281,8 @@ class Analysis(object):
         best_fit = {}
         best_fit['metric'] = metric_val
         best_fit['warnflag'] = dict_flags['warnflag']
-        for pname in self.template_maker.params.free:
+        print self.template_maker.params.free
+        for pname in self.template_maker.params.free.names:
             best_fit[pname] = self.template_maker.params[pname].value
 
         # Decide whether fit for second octant is necessary
@@ -398,6 +393,7 @@ class Analysis(object):
         hypos = [hypo0, hypo1]
         for hypo, template_maker in zip(hypos, template_makers):
             self.template_maker = template_maker
+            print ">>>> Fitting for %s"%hypo
             results[hypo] = self.find_best_fit()
         metric0 = results[hypo0]['metric']
         metric1 = results[hypo1]['metric']
