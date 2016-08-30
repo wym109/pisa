@@ -18,6 +18,7 @@ from copy import copy, deepcopy
 from functools import wraps
 from itertools import izip
 from operator import setitem
+import re
 
 import numpy as np
 import pint
@@ -27,13 +28,56 @@ from pisa.utils.comparisons import normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils import jsons
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils.profiler import profile
+from pisa.utils.profiler import line_profile, profile
 
 
 HASH_SIGFIGS = 12
 """Round to this many significant figures for hashing numbers, such that
 machine precision doesn't cause effectively equivalent numbers to hash
 differently."""
+
+NAME_FIXES = ['true', 'truth', 'reco', 'reconstructed']
+NAME_SEPCHARS = r'([_\s-])*'
+NAME_FIXES_REGEXES = [re.compile(p + NAME_SEPCHARS, re.IGNORECASE)
+                      for p in NAME_FIXES]
+
+def basename(n):
+    """Remove "true" or "reco" prefix(es) and/or suffix(es) from binning
+    name `n` along with any number of possible separator characters.
+
+    * Valid (pre/suf)fix(es): "true", "reco"
+    * Valid separator characters: "<whitespace>", "_", "-" (any number)
+
+    Parameters
+    ----------
+    n : string or OneDimBinning
+        Name from which to have pre/suffixes stripped.
+
+    Returns
+    -------
+    string
+
+    Examples
+    --------
+    >>> print basename('true_energy')
+    'energy'
+    >>> print basename('Reconstructed coszen')
+    'coszen'
+    >>> print basename('energy___truth')
+    'energy'
+
+    """
+    # Type checkingn and conversion
+    orig_type = type(n)
+    if isinstance(n, OneDimBinning):
+        n = x.name
+    if not isinstance(n, basestring):
+        raise ValueError('Unhandled type %s' %orig_type)
+    # Remove all (pre/suf)fixes and any separator chars
+    for regex in NAME_FIXES_REGEXES:
+        n = regex.sub('', n)
+    return n
+
 
 class OneDimBinning(object):
     """Histogram-oriented binning specialized to a single dimension.
@@ -122,7 +166,7 @@ class OneDimBinning(object):
             assert len(domain) == 2
         self.name = name
         if tex is None:
-            tex = name
+            tex = r'{\rm ' + name + '}'
         self.tex = tex
 
         # If None, leave this and try to get units from bin_edges or domain
@@ -334,6 +378,19 @@ class OneDimBinning(object):
         return state
 
     @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, n):
+        self._basename = basename(n)
+        self._name = n
+
+    @property
+    def basename(self):
+        return self._basename
+
+    @property
     def hash(self):
         """Hash value based upon less-than-double-precision-rounded
         numerical values and any other state (includes name, tex, is_log, and
@@ -384,7 +441,7 @@ class OneDimBinning(object):
         return np.abs(np.diff(self.bin_edges))
 
     def new_obj(original_function):
-        """ decorator to deepcopy unaltered states into new object """
+        """Decorator to deepcopy unaltered states into new object."""
         @wraps(original_function)
         def new_function(self, *args, **kwargs):
             new_state = OrderedDict()
@@ -782,6 +839,13 @@ class MultiDimBinning(object):
         return [dim.name for dim in self.dimensions]
 
     @property
+    def basenames(self):
+        """List of binning names with prefixes and/or suffixes along with any
+        number of possible separator characters removed. See function
+        `basename` for detailed specifications."""
+        return [b.basename for b in self]
+
+    @property
     def dimensions(self):
         return self._dimensions
 
@@ -877,12 +941,32 @@ class MultiDimBinning(object):
         always-linear alternative."""
         return [d.weighted_centers for d in self.dimensions]
 
-    def index(self, dim):
-        names = self.names
-        if isinstance(dim, basestring):
-            idx = names.index(dim)
-        elif isinstance(dim, OneDimBinning):
-            idx = names.index(dim.name)
+    def index(self, dim, use_basenames=False):
+        """Find dimension `dim` and return its integer index.
+
+        Parameters
+        ----------
+        dim : int, string, OneDimBinning
+        use_basenames : bool
+            Dimension names are only compared after pre/suffixes are stripped,
+            allowing for e.g. `dim`='true_energy' to find 'reco_energy'.
+
+        Returns
+        -------
+        integer index of the dimension corresponding to `dim`
+
+        Raises
+        ------
+        ValueError if `dim` cannot be found
+
+        """
+        names = self.basenames if use_basenames else self.names
+        if isinstance(dim, OneDimBinning):
+            d = dim.basename if use_basenames else dim.name
+            idx = names.index(d)
+        elif isinstance(dim, basestring):
+            d = basename(dim) if use_basenames else dim
+            idx = names.index(d)
         elif isinstance(dim, int):
             if dim < 0 or dim >= len(self):
                 raise ValueError("'%d' is not in range." %dim)
@@ -891,22 +975,25 @@ class MultiDimBinning(object):
             raise TypeError('Unhandled type for `dim`: "%s"' %type(dim))
         return idx
 
-    def reorder_dimensions(self, order):
-        """Return a new MultiDimBinning object with dimensions (axes)
-        ordered according to `order`.
+    # TODO: examples!
+    def reorder_dimensions(self, order, use_deepcopy=False):
+        """Return a new MultiDimBinning object with dimensions ordered
+        according to `order`.
 
         Parameters
         ----------
-        order : sequence of string, int, or OneDimBinning
+        order : sequence of (string, int, or OneDimBinning)
             Order of dimensions to use. Strings are interpreted as dimension
-            names, integers are interpreted as dimension indices, and
-            OneDimBinning objects are interpreted by their `name` attributes
-            (so e.g. binning does not have to match this object's dimensions).
-            Note that a MultiDimBinning object is a valid sequence.
+            basenames, integers are interpreted as dimension indices, and
+            OneDimBinning objects are interpreted by their `basename`
+            attributes (so e.g. the exact binnings in `order` do not have to
+            match this object's exact binnings; only their basenames). Note
+            that a MultiDimBinning object is a valid sequence type to use for
+            `order`.
 
         Notes
         -----
-        Dimensions specified in `order` that are missing in this object are
+        Dimensions specified in `order` that are not in this object are
         ignored, but dimensions in this object that are missing in `order`
         result in an error.
 
@@ -919,6 +1006,13 @@ class MultiDimBinning(object):
         ValueError if dimensions present in this object are missing from
         `order`.
 
+        Examples
+        --------
+        >>> b0 = MultiDimBinning(...)
+        >>> b1 = MultiDimBinning(...)
+        >>> b2 = b0.reorder_dimensions(b1)
+        >>> print b2.binning.names
+
         """
         if isinstance(order, MultiDimBinning):
             order = order.dimensions
@@ -926,7 +1020,7 @@ class MultiDimBinning(object):
         indices = []
         for dim in order:
             try:
-                idx = self.index(dim)
+                idx = self.index(dim, use_basenames=True)
             except ValueError:
                 continue
             indices.append(idx)
@@ -935,7 +1029,10 @@ class MultiDimBinning(object):
                 'Invalid `order`: Only a subset of the dimensions present'
                 ' were specified. `order`=%s; dimensions=%s' %(order, self)
             )
-        new_dimensions = [deepcopy(self._dimensions[n]) for n in indices]
+        if use_deepcopy:
+            new_dimensions = [deepcopy(self._dimensions[n]) for n in indices]
+        else:
+            new_dimensions = [self._dimensions[n] for n in indices]
         new_binning = MultiDimBinning(new_dimensions)
         return new_binning
 
