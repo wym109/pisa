@@ -28,12 +28,12 @@ from uncertainties import ufloat
 from uncertainties import unumpy as unp
 
 from pisa.core.binning import OneDimBinning, MultiDimBinning
-from pisa.utils.comparisons import normQuant, recursiveEquality
+from pisa.utils.comparisons import isbarenumeric, normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils import jsons
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.stats import chi2, llh, conv_llh
-from pisa.utils.profiler import profile
+from pisa.utils.profiler import line_profile, profile
 
 
 HASH_SIGFIGS = 12
@@ -67,6 +67,9 @@ def sanitize_name(name):
     name = re.sub('^[^a-zA-Z_]+', '', name)
     return name
 
+
+# TODO: implement strategies for decreasing dimensionality (i.e.
+# projecting map onto subset of dimensions in the original map)
 
 class Map(object):
     """Class to contain a multi-dimensional histogram, error, and metadata
@@ -230,7 +233,7 @@ class Map(object):
                                                          error_hist))
 
     def new_obj(original_function):
-        """ decorator to deepcopy unaltered states into new object """
+        """Decorator to deepcopy unaltered states into new object."""
         @wraps(original_function)
         def new_function(self, *args, **kwargs):
             new_state = OrderedDict()
@@ -243,12 +246,12 @@ class Map(object):
             return Map(**new_state)
         return new_function
 
-    @profile
     @new_obj
     def reorder_dimensions(self, order):
         new_binning = self.binning.reorder_dimensions(order)
         orig_order = range(len(self.binning))
-        new_order = [self.binning.index(b) for b in new_binning]
+        new_order = [self.binning.index(b, use_basenames=True)
+                     for b in new_binning]
         # TODO: should this be a deepcopy rather than a simple veiw of the
         # original hist (the result of np.moveaxis)?
         new_hist = np.moveaxis(
@@ -261,9 +264,42 @@ class Map(object):
     @profile
     @new_obj
     def rebin(self, new_binning):
-        # The new binning's dimensions must be a subset of this map's
-        # dimensions
-        assert len(set(new_binning.names).difference(self.binning.names)) == 0
+        """Rebin the map with bin edge lodations and names according to those
+        specified in `new_binning`.
+
+        Parameters
+        ----------
+        new_binning : MultiDimBinning
+            Dimensions specified in `new_binning` must match (modulo
+            pre/suffixes) the current dimensions.
+
+        Returns
+        -------
+        Map binned according to `new_binning`.
+
+        """
+        current_binning = self.binning
+        if set(new_binning.basenames) != set(current_binning.basenames):
+            raise ValueError(
+                "`new_binning` dimensions' basenames %s do not have 1:1"
+                " correspondence (modulo pre/suffixes) to current binning"
+                " dimensions' basenames %s"
+                %(new_binning.basenames, self.binning.basenames)
+            )
+
+        # TODO: if dimensionality reduction is implemented, this is the place
+        # where extra dimensions not specified in `new_binning` would need to
+        # be removed.
+        # ...
+
+        # Reorder dimensions according to specification in `new_binning`
+        new_map = self.reorder_dimensions(new_binning)
+
+        # Cheap test to see if nothing substantive (besides prefixed/suffixed
+        # names) has changed about the # binning spec's; if that's the case,
+        # just return current hist but with new names.
+        if current_binning.edges_hash == new_binning.edges_hash:
+            return {'hist': self.hist, 'binning': new_binning}
 
         # Update the units that are specified in new_binning (but don't augment
         # dimensionality; shouldn't need this `if` statement if we get past
@@ -280,13 +316,19 @@ class Map(object):
         # `new_binning`
         coords = [c.flatten() for n, c in zip(self.binning.names, coords)
                   if n in new_binning]
+
+        weights = self.hist.flatten()
+        # TODO: is this a sufficient test for whether it's a unp.uarray?
+        if not isbarenumeric(self.hist):
+            weights = unp.nominal_values(weights)
+
         # Perform the histogramming, weighting by the current bins' values
         new_hist, _ = np.histogramdd(
             sample=coords,
             bins=new_binning.bin_edges,
-            weights=unp.nominal_values(self.hist.flatten())
+            weights=weights
         )
-        # TODO: uncertainties
+        # TODO: put uncertainties in
         return {'hist': new_hist, 'binning': new_binning}
 
     def downsample(self, *args, **kwargs):
@@ -402,17 +444,7 @@ class Map(object):
         elif isinstance(other, Map):
             self.binning.assert_compat(other.binning)
         else:
-            assert False, 'Unrecognized type'
-
-    @new_obj
-    def index(self, idx):
-        # Indexing single element in self.hist e.g. hist[1,3] returns a 0D
-        # array while hist[1,3:8] returns a 1D array, but we need 2D (in his
-        # example)... so reshape after indexing (the indexed binning obj
-        # implements this logic and so knows the shape the hsit should be).
-        new_binning = self.binning[idx]
-        return {'binning': self.binning[idx],
-                'hist': np.reshape(self.hist[idx], new_binning.shape)}
+            raise TypeError('Unhandled type %s' %type(other))
 
     def iterbins(self):
         """Returns a bin iterator which yields a map containing a single bin
@@ -439,11 +471,14 @@ class Map(object):
             single_bin_map.parent_indexer = idx_item
             yield single_bin_map
 
+    # TODO : example!
     def iterindices(self):
         """Iterator that yields the index for accessing each bin in
         the map.
 
-        >>> map = Map('x', binning=[dict('E', )
+        Examples
+        --------
+        >>> map = Map('x', binning=[dict('E', )])
 
         """
         shape = self.shape
@@ -468,8 +503,21 @@ class Map(object):
     def __getattr__(self, attr):
         return super(Map, self).__getattribute__(attr)
 
+    @new_obj
+    def _slice_or_index(self, idx):
+        """Slice or index into the map. Indexing single element in self.hist
+        e.g. hist[1,3] returns a 0D array while hist[1,3:8] returns a 1D array,
+        but we need 2D (in his example)... so reshape after indexing (the
+        indexed binning obj implements this logic and so knows the shape the
+        hist should be).
+
+        """
+        new_binning = self.binning[idx]
+        return {'binning': self.binning[idx],
+                'hist': np.reshape(self.hist[idx], new_binning.shape)}
+
     def __getitem__(self, idx):
-        return self.index(idx)
+        return self._slice_or_index(idx)
 
     def llh(self, expected_values):
         """Calculate the total log-likelihood value between this map and the map
@@ -964,10 +1012,61 @@ class MapSet(object):
         # State is a dict for Map, so instantiate with double-asterisk syntax
         return cls(**state)
 
-    def pop(self, mapname):
-        """Return map with name `mapname` and remove from mapset."""
-        idx = self.names.index(mapname)
-        return self.maps.pop(idx)
+    def index(self, m):
+        """Find map according to `x` and return the corresponding index.
+        Accepts either an integer index or a map name to make interface
+        consistent.
+
+        Parameters
+        ----------
+        x : int, string, or Map
+            Map, map name, or integer index of map in this MapSet. If a Map is
+            passed, only its name is matched to the maps in this set.
+
+        Returns
+        -------
+        integer index to the map
+
+        """
+        if isinstance(x, int):
+            l = len(self)
+            assert x >= -l and x < l
+        elif isinstance(x, Map):
+            x = self.names.index(x.name)
+        elif isinstance(x, basestring):
+            x = self.names.index(x)
+        else:
+            raise TypeError('Unhandled type "%s" for `x`' %type(x))
+        return x
+
+    def pop(self, *args): #x=None):
+        """Remove a map and return it. If a value is passed, the map
+        corresponding to `index(value)` is removed and returned instead.
+
+        Parameters
+        ----------
+        x (optional) : int, string, or Map
+            Map, map name, or integer index of map in this MapSet. If a Map is
+            passed, only its name is matched to the maps in this set.
+
+        Returns
+        -------
+        Map removed from this MapSet
+
+        See Also
+        --------
+        list.pop
+
+        """
+        if len(args) == 0:
+            m = self.maps.pop()
+        elif len(args) == 1:
+            idx = self.index(args[0])
+            m = self.maps.pop(idx)
+        else:
+            raise ValueError('`pop` takes 0 or 1 argument; %d passed instead.'
+                             %len(args))
+        return m
 
     def combine_re(self, regexes):
         """For each regex passed, add contained maps whose names match.

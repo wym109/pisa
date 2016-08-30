@@ -393,11 +393,6 @@ class Transform(object):
         return self._tex
 
     def apply(self, inputs):
-        # Make sure the inputs have the same binning as
-        # expected for the transform
-        if not self.input_binning.edges_hash == \
-				inputs.binning.itervalues().next().edges_hash:
-            inputs = inputs.rebin(self.input_binning)
         output = self._apply(inputs)
         # TODO: tex, etc.?
         output.name = self.output_name
@@ -702,6 +697,9 @@ class BinnedTensorTransform(Transform):
         """
         self.validate_input(inputs)
 
+        # Rebin if necessary so inputs have `input_binning`
+        inputs = inputs.rebin(self.input_binning)
+
         # TODO: In the multiple inputs / single output case and depending upon
         # the dimensions of the transform, for efficiency purposes we should
         # make sure that an operation is not carried out like
@@ -764,7 +762,7 @@ class BinnedTensorTransform(Transform):
         #   len(xform.shape) == 2*len(input_array.shape)
         # and then check that
         #   xform.shape == (input_array.shape, input_array.shape) (roughly)
-        # and then apply tensordot appropriately for this generic case...Q
+        # and then apply tensordot appropriately for this generic case...
 
         elif len(self.xform_array.shape) == 2*len(input_array.shape):
             output = np.tensordot(input_array, self.xform_array,
@@ -778,12 +776,12 @@ class BinnedTensorTransform(Transform):
                   self.xform_array.shape)
             )
 
-        # TODO: do rebinning here? (aggregate, truncate, and/or
-        # concatenate 0's?)
-
         output = Map(name=self.output_name,
                      hist=output,
-                     binning=self.output_binning)
+                     binning=self.input_binning)
+
+        # Rebin if necessary so output has `output_binning`
+        output = output.rebin(self.output_binning)
 
         return output
 
