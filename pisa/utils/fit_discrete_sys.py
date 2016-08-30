@@ -13,7 +13,7 @@ from pisa.core.map import Map, MapSet
 from pisa.core.pipeline import Pipeline
 from pisa.utils.fileio import from_file, to_file
 from pisa.utils.log import set_verbosity
-from pisa.utils.parse_config import parse_config, parse_quantity, parse_string_literal
+from pisa.utils.config_parser import parse_pipeline_config, parse_quantity, parse_string_literal
 from pisa.utils.plotter import plotter
 
 parser = ArgumentParser()
@@ -68,7 +68,9 @@ for sys in sys_list:
 
     # instantiate template maker
     template_maker_settings = from_file(args.template_settings)
-    template_maker_configurator = parse_config(template_maker_settings)
+    template_maker_configurator = parse_pipeline_config(
+        template_maker_settings
+    )
     template_maker = Pipeline(template_maker_configurator)
 
     inputs = {}
