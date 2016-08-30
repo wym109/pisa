@@ -94,10 +94,10 @@ class prop_grid(Stage):
         try:
             import pycuda.autoinit
             self.context = cuda.Device(self.gpu_id).make_context()
-            print "Initializing PyCUDA using gpu id: %d"%self.gpu_id
+            logging.debug('Initializing PyCUDA using gpu id: %d' %self.gpu_id)
         except:
             import pycuda.autoinit
-            print "Auto initializing PyCUDA..."
+            logging.debug('Auto initializing PyCUDA...')
 
         # Invoke the init method from the parent class (Stage), which does a
         # lot of work (caching, providing public interfaces, etc.)
@@ -259,7 +259,7 @@ class prop_grid(Stage):
         xShape = [2] + list(self.input_binning.shape)
         xform = np.empty(xShape)
         for out_idx, output_name in enumerate(self.output_names):
-            print "saving xform with index: ", out_idx
+            logging.trace('saving xform with index: %s' %out_idx)
             if out_idx < 3:
                 # Neutrinos
                 xform[0] = smooth_maps[out_idx]
