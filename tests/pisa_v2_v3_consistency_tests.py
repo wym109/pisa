@@ -29,6 +29,56 @@ from pisa.utils.resources import find_resource
 from pisa.utils.parse_config import parse_config
 
 
+def order(x):
+    return np.ceil(np.log10(x))
+
+
+def order_str(x):
+    order_float = order(x)
+    try:
+        return str(int(order_float))
+    except OverflowError:
+        pass
+    return str(order_float)
+
+
+def check_agreement(testname, thresh_ratio, ratio, thresh_diff, diff):
+    ratio_pass = ratio <= thresh_ratio
+    diff_pass = diff <= thresh_diff
+
+    thresh_ratio_str = order_str(thresh_ratio)
+    ratio_ord_str = order_str(ratio)
+    ratio_pass_str = 'PASS' if diff_pass else 'FAIL'
+
+    thresh_diff_str = order_str(thresh_diff)
+    diff_ord_str = order_str(diff)
+    diff_pass_str = 'PASS' if diff_pass else 'FAIL'
+
+    s = '<< {testname:s} test, {kind:s}: {pass_str:s} >>' \
+        ' agreement to 10^{level:s} (threshold={thresh:e})'
+
+    s_ratio = s.format(
+        testname=testname, kind='fract diff', pass_str=ratio_pass_str,
+        level=ratio_ord_str, thresh=thresh_ratio
+    )
+    s_diff = s.format(
+        testname=testname, kind='diff', pass_str=diff_pass_str,
+        level=diff_ord_str, thresh=thresh_diff
+    )
+
+    if ratio_pass:
+        logging.debug(s_ratio)
+    else:
+        logging.error(s_ratio)
+        raise ValueError(s_ratio)
+
+    if diff_pass:
+        logging.debug(s_diff)
+    else:
+        logging.error(s_diff)
+        raise ValueError(s_diff)
+
+
 def validate_pisa2_maps(amap, bmap):
     """Validate that two PISA 2 maps are compatible binning."""
     if not (np.allclose(amap['ebins'], bmap['ebins']) and
@@ -148,25 +198,25 @@ def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
     DiffMapObj = delta_map(new_map, ref_map)
     DiffRatioMapObj = ratio_map(DiffMapObj, ref_map)
 
-    MaxDiffRatio = np.nanmax(DiffRatioMapObj['map'])
+    max_diff_ratio = np.nanmax(DiffRatioMapObj['map'])
 
     # Handle cases where ratio returns infinite
     # This isn't necessarily a fail, since all it means is the referene was zero
     # If the new value is sufficiently close to zero then it's still fine
-    if MaxDiffRatio == float('inf'):
+    if max_diff_ratio == float('inf'):
         logging.warn('Infinite value found in ratio tests. Difference tests '
                      'now also being calculated')
         # First find all the finite elements
         FiniteMap = np.isfinite(DiffRatioMapObj['map'])
         # Then find the nanmax of this, will be our new test value
-        MaxDiffRatio = np.nanmax(DiffRatioMapObj['map'][FiniteMap])
+        max_diff_ratio = np.nanmax(DiffRatioMapObj['map'][FiniteMap])
         # Also find all the infinite elements
         InfiniteMap = not FiniteMap
         # This will be a second test value
-        MaxDiff = np.nanmax(DiffMapObj['map'][InfiniteMap])
+        max_diff = np.nanmax(DiffMapObj['map'][InfiniteMap])
     else:
         # Without any infinite elements we can ignore this second test
-        MaxDiff = 0.0
+        max_diff = 0.0
 
     if outdir is not None:
         gridspec_kw = dict(left=0.03, right=0.968, wspace=0.32)
@@ -187,15 +237,17 @@ def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
         fig.savefig(os.path.join(*path))
         plt.close(fig.number)
 
-    return MaxDiffRatio, MaxDiff
+    return max_diff_ratio, max_diff
 
 
 def compare_flux(config, servicename, pisa2file, systname,
                  outdir, ratio_test_threshold, diff_test_threshold):
     """Compare flux stages run in isolation with dummy inputs"""
+
     logging.info('>> Working on flux stage comparisons')
     logging.info('>>> Checking %s service'%servicename)
     test_service = servicename
+
     if systname is not None:
         logging.info('>>> Checking %s systematic'%systname)
         test_syst = systname
@@ -222,52 +274,46 @@ def compare_flux(config, servicename, pisa2file, systname,
     pisa2_comparisons = from_json(pisa2file)
 
     for nukey in pisa2_comparisons.keys():
-        if 'nu' in nukey:
-            pisa_map_to_plot = pisa2_comparisons[nukey]
+        if 'nu' not in nukey:
+            continue
 
-            if '_' in nukey:
-                if nukey.split('_')[1] == 'bar':
-                    new_nukey = ""
-                    for substr in nukey.split('_'):
-                        new_nukey += substr
-                    nukey = new_nukey
+        pisa_map_to_plot = pisa2_comparisons[nukey]
 
-            cake_map = outputs[nukey]
-            cake_map_to_plot = {}
-            cake_map_to_plot['ebins'] = \
-                    cake_map.binning['true_energy'].bin_edges.magnitude
-            cake_map_to_plot['czbins'] = \
-                    cake_map.binning['true_coszen'].bin_edges.magnitude
-            cake_map_to_plot['map'] = cake_map.hist
+        if '_' in nukey:
+            if nukey.split('_')[1] == 'bar':
+                new_nukey = ""
+                for substr in nukey.split('_'):
+                    new_nukey += substr
+                nukey = new_nukey
 
-            maxdiffratio, maxdiff = plot_comparisons(
-                ref_map=pisa_map_to_plot,
-                new_map=cake_map_to_plot,
-                ref_abv='V2', new_abv='V3',
-                outdir=outdir,
-                subdir='flux',
-                stagename='flux',
-                servicename=servicename,
-                name=nukey,
-                texname=outputs[nukey].tex
-            )
-            logging.debug(">>>> %s %s flux %s test agrees to 10E%i level"
-                          %(nukey,test_service,test_syst,
-                            int(np.log10(maxdiffratio))))
-            if maxdiffratio <= ratio_test_threshold:
-                if maxdiff <= diff_test_threshold:
-                    logging.debug(">>>> That's a pass!")
-                else:
-                    raise ValueError('Agreement in difference is not '
-                                     'sufficient to pass (require 10E%i level, '
-                                     'got 10E%i level).'
-                                     %(np.log10(ratio_test_threshold),
-                                       int(np.log10(maxdiffratio))))
-            else:
-                raise ValueError('Agreement in ratio is not sufficient to pass '
-                                 '(require 10E%i level, got 10E%i level).'
-                                 %(np.log10(ratio_test_threshold),
-                                   int(np.log10(maxdiffratio))))
+        cake_map = outputs[nukey]
+        cake_map_to_plot = {}
+        cake_map_to_plot['ebins'] = \
+                cake_map.binning['true_energy'].bin_edges.magnitude
+        cake_map_to_plot['czbins'] = \
+                cake_map.binning['true_coszen'].bin_edges.magnitude
+        cake_map_to_plot['map'] = cake_map.hist
+
+        max_diff_ratio, max_diff = plot_comparisons(
+            ref_map=pisa_map_to_plot,
+            new_map=cake_map_to_plot,
+            ref_abv='V2', new_abv='V3',
+            outdir=outdir,
+            subdir='flux',
+            stagename='flux',
+            servicename=servicename,
+            name=nukey,
+            texname=outputs[nukey].tex
+        )
+
+        check_agreement(
+            testname='V3-V2 flux %s %s %s'
+                %(test_service, nukey, test_syst),
+            thresh_ratio=ratio_test_threshold,
+            ratio=max_diff_ratio,
+            thresh_diff=diff_test_threshold,
+            diff=max_diff
+        )
 
     return pipeline
 
@@ -275,9 +321,11 @@ def compare_flux(config, servicename, pisa2file, systname,
 def compare_osc(config, servicename, pisa2file, systname,
                 outdir, ratio_test_threshold, diff_test_threshold):
     """Compare osc stages run in isolation with dummy inputs"""
+
     logging.info('>> Working on osc stage comparisons')
     logging.info('>>> Checking %s service'%servicename)
     test_service = servicename
+
     if systname is not None:
         logging.info('>>> Checking %s systematic'%systname)
         test_syst = systname
@@ -295,8 +343,9 @@ def compare_osc(config, servicename, pisa2file, systname,
         else:
             systval = '%.2f'%config['osc']['params'][systname].value.magnitude
 
-        pisa2file = pisa2file.split('.json')[0]+'-%s%s.json'%(systname,systval)
-        servicename += '-%s%s'%(systname,systval)
+        pisa2file = pisa2file.split('.json')[0] + \
+                '-%s%s.json' %(systname, systval)
+        servicename += '-%s%s' %(systname, systval)
     else:
         logging.info('>>> Checking baseline')
         test_syst = 'baseline'
@@ -315,52 +364,46 @@ def compare_osc(config, servicename, pisa2file, systname,
     pisa2_comparisons = from_json(pisa2file)
 
     for nukey in pisa2_comparisons.keys():
-        if 'nu' in nukey:
-            pisa_map_to_plot = pisa2_comparisons[nukey]
+        if 'nu' not in nukey:
+            continue
 
-            if '_' in nukey:
-                if nukey.split('_')[1] == 'bar':
-                    new_nukey = ""
-                    for substr in nukey.split('_'):
-                        new_nukey += substr
-                    nukey = new_nukey
+        pisa_map_to_plot = pisa2_comparisons[nukey]
 
-            cake_map = outputs[nukey]
-            cake_map_to_plot = {}
-            cake_map_to_plot['ebins'] = \
-                    cake_map.binning['true_energy'].bin_edges.magnitude
-            cake_map_to_plot['czbins'] = \
-                    cake_map.binning['true_coszen'].bin_edges.magnitude
-            cake_map_to_plot['map'] = cake_map.hist
+        if '_' in nukey:
+            if nukey.split('_')[1] == 'bar':
+                new_nukey = ""
+                for substr in nukey.split('_'):
+                    new_nukey += substr
+                nukey = new_nukey
 
-            maxdiffratio, maxdiff = plot_comparisons(
-                ref_map=pisa_map_to_plot,
-                new_map=cake_map_to_plot,
-                ref_abv='V2', new_abv='V3',
-                outdir=outdir,
-                subdir='osc',
-                stagename='osc',
-                servicename=servicename,
-                name=nukey,
-                texname=outputs[nukey].tex
-            )
-            logging.debug(">>>> %s %s osc %s test agrees to 10E%i level"
-                          %(nukey,test_service,test_syst,
-                            int(np.log10(maxdiffratio))))
-            if maxdiffratio <= ratio_test_threshold:
-                if maxdiff <= diff_test_threshold:
-                    logging.debug(">>>> That's a pass!")
-                else:
-                    raise ValueError('Agreement in difference is not '
-                                     'sufficient to pass (require 10E%i level, '
-                                     'got 10E%i level).'
-                                     %(np.log10(ratio_test_threshold),
-                                       int(np.log10(maxdiffratio))))
-            else:
-                raise ValueError('Agreement in ratio is not sufficient to pass '
-                                 '(require 10E%i level, got 10E%i level).'
-                                 %(np.log10(ratio_test_threshold),
-                                   int(np.log10(maxdiffratio))))
+        cake_map = outputs[nukey]
+        cake_map_to_plot = {}
+        cake_map_to_plot['ebins'] = \
+                cake_map.binning['true_energy'].bin_edges.magnitude
+        cake_map_to_plot['czbins'] = \
+                cake_map.binning['true_coszen'].bin_edges.magnitude
+        cake_map_to_plot['map'] = cake_map.hist
+
+        max_diff_ratio, max_diff = plot_comparisons(
+            ref_map=pisa_map_to_plot,
+            new_map=cake_map_to_plot,
+            ref_abv='V2', new_abv='V3',
+            outdir=outdir,
+            subdir='osc',
+            stagename='osc',
+            servicename=servicename,
+            name=nukey,
+            texname=outputs[nukey].tex
+        )
+
+        check_agreement(
+            testname='V3-V2 osc %s %s %s'
+                %(test_service, nukey, test_syst),
+            thresh_ratio=ratio_test_threshold,
+            ratio=max_diff_ratio,
+            thresh_diff=diff_test_threshold,
+            diff=max_diff
+        )
 
     return pipeline
 
@@ -368,9 +411,11 @@ def compare_osc(config, servicename, pisa2file, systname,
 def compare_aeff(config, servicename, pisa2file, systname,
                  outdir, ratio_test_threshold, diff_test_threshold):
     """Compare aeff stages run in isolation with dummy inputs"""
+
     logging.info('>> Working on aeff stage comparisons')
     logging.info('>>> Checking %s service'%servicename)
     test_service = servicename
+
     if systname is not None:
         logging.info('>>> Checking %s systematic'%systname)
         test_syst = systname
@@ -404,56 +449,49 @@ def compare_aeff(config, servicename, pisa2file, systname,
     pisa2_comparisons = from_json(pisa2file)
 
     for nukey in pisa2_comparisons.keys():
-        if 'nu' in nukey:
-            for intkey in pisa2_comparisons[nukey].keys():
-                if '_' in nukey:
-                    if nukey.split('_')[1] == 'bar':
-                        new_nukey = ""
-                        for substr in nukey.split('_'):
-                            new_nukey += substr
-                else:
-                    new_nukey = nukey
-                cakekey = new_nukey + '_' + intkey
-                pisa_map_to_plot = pisa2_comparisons[nukey][intkey]
+        if 'nu' not in nukey:
+            continue
 
-                cake_map = outputs[cakekey]
-                cake_map_to_plot = {}
-                cake_map_to_plot['ebins'] = \
-                        cake_map.binning['true_energy'].bin_edges.magnitude
-                cake_map_to_plot['czbins'] = \
-                        cake_map.binning['true_coszen'].bin_edges.magnitude
-                cake_map_to_plot['map'] = cake_map.hist
+        for intkey in pisa2_comparisons[nukey].keys():
+            if '_' in nukey:
+                if nukey.split('_')[1] == 'bar':
+                    new_nukey = ""
+                    for substr in nukey.split('_'):
+                        new_nukey += substr
+            else:
+                new_nukey = nukey
+            cakekey = new_nukey + '_' + intkey
+            pisa_map_to_plot = pisa2_comparisons[nukey][intkey]
 
-                maxdiffratio, maxdiff = plot_comparisons(
-                    ref_map=pisa_map_to_plot,
-                    new_map=cake_map_to_plot,
-                    ref_abv='V2', new_abv='V3',
-                    outdir=outdir,
-                    subdir='aeff',
-                    stagename='aeff',
-                    servicename=servicename,
-                    name=cakekey,
-                    texname=outputs[cakekey].tex,
-                )
-                logging.debug(">>>> %s %s aeff %s test agrees to 10E%i level"
-                              %(cakekey,test_service,test_syst,
-                                int(np.log10(maxdiffratio))))
-                if maxdiffratio <= ratio_test_threshold:
-                    if maxdiff <= diff_test_threshold:
-                        logging.debug(">>>> That's a pass!")
-                    else:
-                        raise ValueError('Agreement in difference is not '
-                                         'sufficient to pass (require 10E%i '
-                                         'level, got 10E%i level).'
-                                         %(np.log10(ratio_test_threshold),
-                                           int(np.log10(maxdiffratio))))
-                else:
-                    raise ValueError('Agreement in ratio is not sufficient to '
-                                     'pass (require 10E%i level, got 10E%i '
-                                     'level).'
-                                     %(np.log10(ratio_test_threshold),
-                                       int(np.log10(maxdiffratio))))
-                
+            cake_map = outputs[cakekey]
+            cake_map_to_plot = {}
+            cake_map_to_plot['ebins'] = \
+                    cake_map.binning['true_energy'].bin_edges.magnitude
+            cake_map_to_plot['czbins'] = \
+                    cake_map.binning['true_coszen'].bin_edges.magnitude
+            cake_map_to_plot['map'] = cake_map.hist
+
+            max_diff_ratio, max_diff = plot_comparisons(
+                ref_map=pisa_map_to_plot,
+                new_map=cake_map_to_plot,
+                ref_abv='V2', new_abv='V3',
+                outdir=outdir,
+                subdir='aeff',
+                stagename='aeff',
+                servicename=servicename,
+                name=cakekey,
+                texname=outputs[cakekey].tex,
+            )
+
+            check_agreement(
+                testname='V3-V2 aeff %s %s %s'
+                    %(test_service, cakekey, test_syst),
+                thresh_ratio=ratio_test_threshold,
+                ratio=max_diff_ratio,
+                thresh_diff=diff_test_threshold,
+                diff=max_diff
+            )
+
     return pipeline
 
 
@@ -508,46 +546,40 @@ def compare_reco(config, servicename, pisa2file, outdir, ratio_test_threshold, d
     pisa2_comparisons = from_json(pisa2file)
 
     for nukey in pisa2_comparisons.keys():
-        if 'nu' in nukey:
-            pisa_map_to_plot = pisa2_comparisons[nukey]
+        if 'nu' not in nukey:
+            continue
 
-            if '_' in nukey:
-                if nukey.split('_')[1] == 'bar':
-                    new_nukey = ""
-                    for substr in nukey.split('_'):
-                        new_nukey += substr
-                    nukey = new_nukey
+        pisa_map_to_plot = pisa2_comparisons[nukey]
 
-            cake_map_to_plot = modified_cake_outputs[nukey]
+        if '_' in nukey:
+            if nukey.split('_')[1] == 'bar':
+                new_nukey = ""
+                for substr in nukey.split('_'):
+                    new_nukey += substr
+                nukey = new_nukey
 
-            maxdiffratio, maxdiff = plot_comparisons(
-                ref_map=pisa_map_to_plot,
-                new_map=cake_map_to_plot,
-                ref_abv='V2', new_abv='V3',
-                outdir=outdir,
-                subdir='reco',
-                stagename='reco',
-                servicename=servicename,
-                name=nukey,
-                texname=outputs[nukey].tex
-            )
-            logging.debug(">>>> %s %s reco %s test agrees to 10E%i level"
-                          %(nukey,test_service,test_syst,
-                            int(np.log10(maxdiffratio))))
-            if maxdiffratio <= ratio_test_threshold:
-                if maxdiff <= diff_test_threshold:
-                    logging.debug(">>>> That's a pass!")
-                else:
-                    raise ValueError('Agreement in difference is not '
-                                     'sufficient to pass (require 10E%i level, '
-                                     'got 10E%i level).'
-                                     %(np.log10(ratio_test_threshold),
-                                       int(np.log10(maxdiffratio))))
-            else:
-                raise ValueError('Agreement in ratio is not sufficient to pass '
-                                 '(require 10E%i, got 10E%i level).'
-                                 %(np.log10(ratio_test_threshold),
-                                   int(np.log10(maxdiffratio))))
+        cake_map_to_plot = modified_cake_outputs[nukey]
+
+        max_diff_ratio, max_diff = plot_comparisons(
+            ref_map=pisa_map_to_plot,
+            new_map=cake_map_to_plot,
+            ref_abv='V2', new_abv='V3',
+            outdir=outdir,
+            subdir='reco',
+            stagename='reco',
+            servicename=servicename,
+            name=nukey,
+            texname=outputs[nukey].tex
+        )
+
+        check_agreement(
+            testname='V3-V2 reco %s %s %s'
+                %(test_service, nukey, test_syst),
+            thresh_ratio=ratio_test_threshold,
+            ratio=max_diff_ratio,
+            thresh_diff=diff_test_threshold,
+            diff=max_diff
+        )
 
     return pipeline
 
@@ -590,7 +622,7 @@ def compare_pid(config, servicename, pisa2file, outdir, ratio_test_threshold, di
     total_pisa_trck_dict = pisa2_comparisons['trck']
     total_pisa_cscd_dict = pisa2_comparisons['cscd']
 
-    maxdiffratio_cscd, maxdiff_cscd = plot_comparisons(
+    max_diff_ratio, max_diff= plot_comparisons(
         ref_map=total_pisa_cscd_dict,
         new_map=total_cake_cscd_dict,
         ref_abv='V2', new_abv='V3',
@@ -601,23 +633,17 @@ def compare_pid(config, servicename, pisa2file, outdir, ratio_test_threshold, di
         name='cscd',
         texname=r'{\rm cscd}'
     )
-    logging.debug(">>>> cscd %s pid cscd %s test agrees to 10E%i level"
-                  %(test_service,test_syst,
-                    int(np.log10(maxdiffratio_cscd))))
-    if maxdiffratio_cscd <= ratio_test_threshold:
-        if maxdiff_cscd <= diff_test_threshold:
-            logging.debug(">>>> That's a pass!")
-        else:
-            raise ValueError('Agreement in difference is not sufficient to '
-                             'pass (require 10E%i level, got 10E%i level).'
-                             %(np.log10(ratio_test_threshold),
-                               int(np.log10(maxdiffratio_cscd))))
-    else:
-        raise ValueError('Agreement in ratio is not sufficient to pass '
-                         '(require 10E%i, got 10E%i level).'
-                         %(np.log10(ratio_test_threshold),
-                           int(np.log10(maxdiffratio_cscd))))
-    maxdiffratio_trck, maxdiff_trck = plot_comparisons(
+
+    check_agreement(
+        testname='V3-V2 pid %s %s cscd %s'
+            %(test_service, nukey, test_syst),
+        thresh_ratio=ratio_test_threshold,
+        ratio=max_diff_ratio,
+        thresh_diff=diff_test_threshold,
+        diff=max_diff
+    )
+
+    max_diff_ratio, max_diff = plot_comparisons(
         ref_map=total_pisa_trck_dict,
         new_map=total_cake_trck_dict,
         ref_abv='V2', new_abv='V3',
@@ -628,22 +654,15 @@ def compare_pid(config, servicename, pisa2file, outdir, ratio_test_threshold, di
         name='trck',
         texname=r'{\rm trck}'
     )
-    logging.debug(">>>> trck %s pid %s test agrees to 10E%i level"
-                  %(test_service,test_syst,
-                    int(np.log10(maxdiffratio_trck))))
-    if maxdiffratio_trck <= ratio_test_threshold:
-        if maxdiff_trck <= diff_test_threshold:
-            logging.debug(">>>> That's a pass!")
-        else:
-            raise ValueError('Agreement in difference is not sufficient to '
-                             'pass (require 10E%i level, got 10E%i level).'
-                             %(np.log10(ratio_test_threshold),
-                               int(np.log10(maxdiffratio_trck))))
-    else:
-        raise ValueError('Agreement in ratio is not sufficient to pass '
-                         '(require 10E%i, got 10E%i level).'
-                         %(np.log10(ratio_test_threshold),
-                           int(np.log10(maxdiffratio_trck))))
+
+    check_agreement(
+        testname='V3-V2 pid %s %s trck %s'
+            %(test_service, nukey, test_syst),
+        thresh_ratio=ratio_test_threshold,
+        ratio=max_diff_ratio,
+        thresh_diff=diff_test_threshold,
+        diff=max_diff
+    )
 
     return pipeline
 
@@ -655,52 +674,48 @@ def compare_flux_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_t
     """
     logging.info('>> Working on full pipeline comparisons')
     logging.info('>>> Checking to end of flux stage')
+
     for nukey in pisa_maps.keys():
-        if 'nu' in nukey:
-            pisa_map_to_plot = pisa_maps[nukey]
+        if 'nu' not in nukey:
+            continue
 
-            if '_' in nukey:
-                if nukey.split('_')[1] == 'bar':
-                    new_nukey = ""
-                    for substr in nukey.split('_'):
-                        new_nukey += substr
-                    nukey = new_nukey
+        pisa_map_to_plot = pisa_maps[nukey]
 
-            cake_map = cake_maps[nukey]
-            cake_map_to_plot = {}
-            cake_map_to_plot['ebins'] = \
-                    cake_map.binning['true_energy'].bin_edges.magnitude
-            cake_map_to_plot['czbins'] = \
-                    cake_map.binning['true_coszen'].bin_edges.magnitude
-            cake_map_to_plot['map'] = cake_map.hist
+        if '_' in nukey:
+            if nukey.split('_')[1] == 'bar':
+                new_nukey = ""
+                for substr in nukey.split('_'):
+                    new_nukey += substr
+                nukey = new_nukey
 
-            maxdiffratio, maxdiff = plot_comparisons(
-                ref_map=pisa_map_to_plot,
-                new_map=cake_map_to_plot,
-                ref_abv='V2', new_abv='V3',
-                outdir=outdir,
-                subdir='fullpipeline',
-                stagename='flux',
-                servicename='honda',
-                name=nukey,
-                texname=cake_maps[nukey].tex
-            )
-            logging.debug('>>>> Full pipeline through to end of %s flux agrees '
-                          'to 10E%i level'%(nukey, int(np.log10(maxdiffratio))))
-            if maxdiffratio <= ratio_test_threshold:
-                if maxdiff <= diff_test_threshold:
-                    logging.debug(">>>> That's a pass!")
-                else:
-                    raise ValueError('Agreement in difference is not '
-                                     'sufficient to pass (require 10E%i level, '
-                                     'got 10E%i level).'
-                                     %(np.log10(ratio_test_threshold),
-                                       int(np.log10(maxdiffratio))))
-            else:
-                raise ValueError('Agreement in ratio is not sufficient to pass '
-                                 '(require 10E%i, got 10E%i level).'
-                                 %(np.log10(ratio_test_threshold),
-                                   int(np.log10(maxdiffratio))))
+        cake_map = cake_maps[nukey]
+        cake_map_to_plot = {}
+        cake_map_to_plot['ebins'] = \
+                cake_map.binning['true_energy'].bin_edges.magnitude
+        cake_map_to_plot['czbins'] = \
+                cake_map.binning['true_coszen'].bin_edges.magnitude
+        cake_map_to_plot['map'] = cake_map.hist
+
+        max_diff_ratio, max_diff = plot_comparisons(
+            ref_map=pisa_map_to_plot,
+            new_map=cake_map_to_plot,
+            ref_abv='V2', new_abv='V3',
+            outdir=outdir,
+            subdir='fullpipeline',
+            stagename='flux',
+            servicename='honda',
+            name=nukey,
+            texname=cake_maps[nukey].tex
+        )
+
+        check_agreement(
+            testname='V3-V2 flux %s %s'
+                %(test_service, nukey),
+            thresh_ratio=ratio_test_threshold,
+            ratio=max_diff_ratio,
+            thresh_diff=diff_test_threshold,
+            diff=max_diff
+        )
 
 
 def compare_osc_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_test_threshold):
@@ -710,18 +725,75 @@ def compare_osc_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_te
     """
     logging.info('>> Working on full pipeline comparisons')
     logging.info('>>> Checking to end of osc stage')
-    for nukey in pisa_maps.keys():
-        if 'nu' in nukey:
-            pisa_map_to_plot = pisa_maps[nukey]
+    test_service = 'prob3cpu'
 
+    for nukey in pisa_maps.keys():
+        if 'nu' not in nukey:
+            continue
+
+        pisa_map_to_plot = pisa_maps[nukey]
+
+        if '_' in nukey:
+            if nukey.split('_')[1] == 'bar':
+                new_nukey = ""
+                for substr in nukey.split('_'):
+                    new_nukey += substr
+                nukey = new_nukey
+
+        cake_map = cake_maps[nukey]
+        cake_map_to_plot = {}
+        cake_map_to_plot['ebins'] = \
+                cake_map.binning['true_energy'].bin_edges.magnitude
+        cake_map_to_plot['czbins'] = \
+                cake_map.binning['true_coszen'].bin_edges.magnitude
+        cake_map_to_plot['map'] = cake_map.hist
+
+        max_diff_ratio, max_diff = plot_comparisons(
+            ref_map=pisa_map_to_plot,
+            new_map=cake_map_to_plot,
+            ref_abv='V2', new_abv='V3',
+            outdir=outdir,
+            subdir='fullpipeline',
+            stagename='osc',
+            servicename=test_service,
+            name=nukey,
+            texname=cake_maps[nukey].tex
+        )
+
+        check_agreement(
+            testname='V3-V2 full pipeline through osc (%s) %s'
+                %(test_service, nukey),
+            thresh_ratio=ratio_test_threshold,
+            ratio=max_diff_ratio,
+            thresh_diff=diff_test_threshold,
+            diff=max_diff
+        )
+
+
+def compare_aeff_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_test_threshold):
+    """Compare a fully configured pipeline (with stages flux, osc, aeff, reco,
+    and pid) through the aeff stage.
+    
+    """
+    logging.info('>> Working on full pipeline comparisons')
+    logging.info('>>> Checking to end of aeff stage')
+
+    for nukey in pisa_maps.keys():
+        if 'nu' not in nukey:
+            continue
+
+        for intkey in pisa_maps[nukey].keys():
             if '_' in nukey:
                 if nukey.split('_')[1] == 'bar':
                     new_nukey = ""
                     for substr in nukey.split('_'):
                         new_nukey += substr
-                    nukey = new_nukey
+            else:
+                new_nukey = nukey
+            cakekey = new_nukey + '_' + intkey
+            pisa_map_to_plot = pisa_maps[nukey][intkey]
 
-            cake_map = cake_maps[nukey]
+            cake_map = cake_maps[cakekey]
             cake_map_to_plot = {}
             cake_map_to_plot['ebins'] = \
                     cake_map.binning['true_energy'].bin_edges.magnitude
@@ -729,90 +801,27 @@ def compare_osc_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_te
                     cake_map.binning['true_coszen'].bin_edges.magnitude
             cake_map_to_plot['map'] = cake_map.hist
 
-            maxdiffratio, maxdiff = plot_comparisons(
+            max_diff_ratio, max_diff = plot_comparisons(
                 ref_map=pisa_map_to_plot,
                 new_map=cake_map_to_plot,
                 ref_abv='V2', new_abv='V3',
                 outdir=outdir,
                 subdir='fullpipeline',
-                stagename='osc',
-                servicename='prob3cpu',
-                name=nukey,
-                texname=cake_maps[nukey].tex
+                stagename='aeff',
+                servicename='hist_1X585',
+                name=cakekey,
+                texname=cake_maps[cakekey].tex,
             )
-            logging.debug('>>>> Full pipeline through to end of %s osc agrees '
-                          'to 10E%i level'%(nukey,int(np.log10(maxdiffratio))))
-            if maxdiffratio <= ratio_test_threshold:
-                if maxdiff <= diff_test_threshold:
-                    logging.debug(">>>> That's a pass!")
-                else:
-                    raise ValueError('Agreement in difference is not '
-                                     'sufficient to pass (require 10E%i level, '
-                                     'got 10E%i level).'
-                                     %(np.log10(ratio_test_threshold),
-                                       int(np.log10(maxdiffratio))))
-            else:
-                raise ValueError('Agreement in ratio is not sufficient to pass '
-                                 '(require 10E%i, got 10E%i level).'
-                                 %(np.log10(ratio_test_threshold),
-                                   int(np.log10(maxdiffratio))))
 
+            check_agreement(
+                testname='V3-V2 full pipeline through aeff (hist) %s'
+                    %nukey,
+                thresh_ratio=ratio_test_threshold,
+                ratio=max_diff_ratio,
+                thresh_diff=diff_test_threshold,
+                diff=max_diff
+            )
 
-def compare_aeff_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_test_threshold):
-    """Compare a fully configured pipeline (with stages flux, osc, aeff, reco,
-    and pid) through the aeff stage."""
-    logging.info('>> Working on full pipeline comparisons')
-    logging.info('>>> Checking to end of aeff stage')
-    for nukey in pisa_maps.keys():
-        if 'nu' in nukey:
-            for intkey in pisa_maps[nukey].keys():
-                if '_' in nukey:
-                    if nukey.split('_')[1] == 'bar':
-                        new_nukey = ""
-                        for substr in nukey.split('_'):
-                            new_nukey += substr
-                else:
-                    new_nukey = nukey
-                cakekey = new_nukey + '_' + intkey
-                pisa_map_to_plot = pisa_maps[nukey][intkey]
-
-                cake_map = cake_maps[cakekey]
-                cake_map_to_plot = {}
-                cake_map_to_plot['ebins'] = \
-                        cake_map.binning['true_energy'].bin_edges.magnitude
-                cake_map_to_plot['czbins'] = \
-                        cake_map.binning['true_coszen'].bin_edges.magnitude
-                cake_map_to_plot['map'] = cake_map.hist
-
-                maxdiffratio, maxdiff = plot_comparisons(
-                    ref_map=pisa_map_to_plot,
-                    new_map=cake_map_to_plot,
-                    ref_abv='V2', new_abv='V3',
-                    outdir=outdir,
-                    subdir='fullpipeline',
-                    stagename='aeff',
-                    servicename='hist_1X585',
-                    name=cakekey,
-                    texname=cake_maps[cakekey].tex,
-                )
-                logging.debug('>>>> Full pipeline through to end of %s aeff '
-                              'agrees to 10E%i level'
-                              %(cakekey, int(np.log10(maxdiffratio))))
-                if maxdiffratio <= ratio_test_threshold:
-                    if maxdiff <= diff_test_threshold:
-                        logging.debug(">>>> That's a pass!")
-                    else:
-                        raise ValueError('Agreement in difference is not '
-                                         'sufficient to pass (require 10E%i '
-                                         'level, got 10E%i level).'
-                                         %(np.log10(ratio_test_threshold),
-                                           int(np.log10(maxdiffratio))))
-                else:
-                    raise ValueError('Agreement in ratio is not sufficient to '
-                                     'pass (require 10E%i, got 10E%i level).'
-                                     %(np.log10(ratio_test_threshold),
-                                       int(np.log10(maxdiffratio))))
-                    
 
 def compare_reco_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_test_threshold):
     """Compare a fully configured pipeline (with stages flux, osc, aeff, reco,
@@ -850,52 +859,49 @@ def compare_reco_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_t
     }
 
     for nukey in pisa_maps.keys():
-        if 'nu' in nukey:
-            pisa_map_to_plot = pisa_maps[nukey]
+        test_service = 'hist_1X585'
+        if 'nu' not in nukey:
+            continue
 
-            if '_' in nukey:
-                if nukey.split('_')[1] == 'bar':
-                    new_nukey = ""
-                    for substr in nukey.split('_'):
-                        new_nukey += substr
-                    nukey = new_nukey
+        pisa_map_to_plot = pisa_maps[nukey]
 
-            cake_map_to_plot = modified_cake_outputs[nukey]
+        if '_' in nukey:
+            if nukey.split('_')[1] == 'bar':
+                new_nukey = ""
+                for substr in nukey.split('_'):
+                    new_nukey += substr
+                nukey = new_nukey
 
-            if 'nc' in nukey:
-                if 'bar' in nukey:
-                    texname = r'\bar{\nu} NC'
-                else:
-                    texname = r'\nu NC'
+        cake_map_to_plot = modified_cake_outputs[nukey]
+
+        if 'nc' in nukey:
+            if 'bar' in nukey:
+                texname = r'\bar{\nu} NC'
             else:
-                texname = cake_maps[nukey].tex
-            maxdiffratio, maxdiff = plot_comparisons(
-                ref_map=pisa_map_to_plot,
-                new_map=cake_map_to_plot,
-                ref_abv='V2', new_abv='V3',
-                outdir=outdir,
-                subdir='fullpipeline',
-                stagename='reco',
-                servicename='hist_1X585',
-                name=nukey,
-                texname=texname
-            )
-            logging.debug('>>>> Full pipeline through to end of %s reco agrees '
-                          'to 10E%i level'%(nukey,int(np.log10(maxdiffratio))))
-            if maxdiffratio <= ratio_test_threshold:
-                if maxdiff <= diff_test_threshold:
-                    logging.debug(">>>> That's a pass!")
-                else:
-                    raise ValueError('Agreement in difference is not '
-                                     'sufficient to pass (require 10E%i level, '
-                                     'got 10E%i level).'
-                                     %(np.log10(ratio_test_threshold),
-                                       int(np.log10(maxdiffratio))))
-            else:
-                raise ValueError('Agreement in ratio is not sufficient to pass '
-                                 '(require 10E%i, got 10E%i level).'
-                                 %(np.log10(ratio_test_threshold),
-                                   int(np.log10(maxdiffratio))))
+                texname = r'\nu NC'
+        else:
+            texname = cake_maps[nukey].tex
+
+        max_diff_ratio, max_diff = plot_comparisons(
+            ref_map=pisa_map_to_plot,
+            new_map=cake_map_to_plot,
+            ref_abv='V2', new_abv='V3',
+            outdir=outdir,
+            subdir='fullpipeline',
+            stagename='reco',
+            servicename=test_service,
+            name=nukey,
+            texname=texname
+        )
+
+        check_agreement(
+            testname='V3-V2 full pipeline through reco (%s) %s'
+                %(test_service, nukey),
+            thresh_ratio=ratio_test_threshold,
+            ratio=max_diff_ratio,
+            thresh_diff=diff_test_threshold,
+            diff=max_diff
+        )
 
 
 def compare_pid_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_test_threshold):
@@ -921,58 +927,46 @@ def compare_pid_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_te
     total_pisa_trck_dict = pisa_maps['trck']
     total_pisa_cscd_dict = pisa_maps['cscd']
 
-    maxdiffratio_cscd, maxdiff_cscd = plot_comparisons(
+    test_service = 'hist_1X585'
+    max_diff_ratio, max_diff = plot_comparisons(
         ref_map=total_pisa_cscd_dict,
         new_map=total_cake_cscd_dict,
         ref_abv='V2', new_abv='V3',
         outdir=outdir,
         subdir='fullpipeline',
         stagename='pid',
-        servicename='hist_1X585',
+        servicename=test_service,
         name='cscd',
         texname=r'{\rm cscd}'
     )
-    logging.debug('>>>> Full pipeline through to end of pid cscd agrees '
-                  'to 10E%i level'%int(np.log10(maxdiffratio_cscd)))
-    if maxdiffratio_cscd <= ratio_test_threshold:
-        if maxdiff_cscd <= diff_test_threshold:
-            logging.debug(">>>> That's a pass!")
-        else:
-            raise ValueError('Agreement in difference is not sufficient to '
-                             'pass (require 10E%i level, got 10E%i level).'
-                             %(np.log10(ratio_test_threshold),
-                               int(np.log10(maxdiffratio_cscd))))
-    else:
-        raise ValueError('Agreement in ratio is not sufficient to pass '
-                         '(require 10E%i level, got 10E%i level).'
-                         %(np.log10(ratio_test_threshold),
-                           int(np.log10(maxdiffratio_cscd))))
-    maxdiffratio_trck, maxdiff_trck = plot_comparisons(
+    check_agreement(
+        testname='V3-V2 full pipeline through pid (%s) cscd %s'
+            %(test_service, nukey),
+        thresh_ratio=ratio_test_threshold,
+        ratio=max_diff_ratio,
+        thresh_diff=diff_test_threshold,
+        diff=max_diff
+    )
+
+    max_diff_ratio, max_diff = plot_comparisons(
         ref_map=total_pisa_trck_dict,
         new_map=total_cake_trck_dict,
         ref_abv='V2', new_abv='V3',
         outdir=outdir,
         subdir='fullpipeline',
         stagename='pid',
-        servicename='hist_1X585',
+        servicename=test_service,
         name='trck',
         texname=r'{\rm trck}'
     )
-    logging.debug('>>>> Full pipeline through to end of pid trck agrees '
-                  'to 10E%i level'%int(np.log10(maxdiffratio_trck)))
-    if maxdiffratio_trck <= ratio_test_threshold:
-        if maxdiff_trck <= diff_test_threshold:
-            logging.debug(">>>> That's a pass!")
-        else:
-            raise ValueError('Agreement in difference is not sufficient to '
-                             'pass (require 10E%i level, got 10E%i level).'
-                             %(np.log10(ratio_test_threshold),
-                               int(np.log10(maxdiffratio_trck))))
-    else:
-        raise ValueError('Agreement in ratio is not sufficient to pass '
-                         '(require 10E%i level, got 10E%i level).'
-                         %(np.log10(ratio_test_threshold),
-                           int(np.log10(maxdiffratio_trck))))
+    check_agreement(
+        testname='V3-V2 full pipeline through pid (%s) trck %s'
+            %(test_service, nukey),
+        thresh_ratio=ratio_test_threshold,
+        ratio=max_diff_ratio,
+        thresh_diff=diff_test_threshold,
+        diff=max_diff
+    )
 
 
 if __name__ == '__main__':
