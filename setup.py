@@ -105,6 +105,13 @@ if __name__ == '__main__':
                          ' -fopenmp; installing PISA without OpenMP'
                          ' support.\n')
 
+    # Obtain the numpy include directory. This logic works across numpy
+    # versions.
+    try:
+        numpy_include = numpy.get_include()
+    except AttributeError:
+        numpy_include = numpy.get_numpy_include()
+
     # Collect (build-able) external modules
     ext_modules = []
 
@@ -118,16 +125,14 @@ if __name__ == '__main__':
             'pisa/stages/osc/prob3/mosc.c',
             'pisa/stages/osc/prob3/mosc3.c'
         ],
+        include_dirs=[
+            numpy_include,
+            'pisa/stages/osc/prob3/'
+        ],
         extra_compile_args=['-Wall', '-O3', '-fPIC'],
         swig_opts=['-c++'],
     )
     ext_modules.append(prob3cpu_module)
-
-    # Obtain the numpy include directory. This logic works across numpy versions.
-    try:
-        numpy_include = numpy.get_include()
-    except AttributeError:
-        numpy_include = numpy.get_numpy_include()
 
     if CUDA:
         prob3gpu_module = Extension(
@@ -186,6 +191,7 @@ if __name__ == '__main__':
             'pisa.core',
             'pisa.utils',
             'pisa.stages',
+            'pisa.stages.flux',
             'pisa.stages.osc',
             'pisa.stages.osc.prob3',
             'pisa.stages.osc.nuCraft',
@@ -193,6 +199,8 @@ if __name__ == '__main__':
             'pisa.stages.aeff',
             'pisa.stages.reco',
             'pisa.stages.pid',
+            'pisa.stages.sys',
+            'pisa.stages.xsec',
             'pisa.utils',
             'pisa.resources'
         ],
@@ -208,13 +216,30 @@ if __name__ == '__main__':
                 'aeff/*.json',
                 'reco/*.json',
                 'pid/*.json',
+                'priors/*.json',
                 'flux/*.d',
                 'settings/grid_settings/*.json',
                 'settings/minimizer_settings/*.json',
-                'settings/pipeline_settings/*.json',
+                'settings/pipeline_settings/*.ini',
+                'settings/discrete_sys_settings/*.ini',
                 'osc/*.hdf5',
                 'osc/*.dat',
+                'osc/*.dat',
                 'events/*.hdf5'
+                'events/*.json',
+                'events/pingu_v39/*.hdf5',
+                'events/pingu_v38/*.hdf5',
+                'events/pingu_v36/*.hdf5',
+                'tests/data/aeff/*.json',
+                'tests/data/flux/*.json',
+                'tests/data/full/*.json',
+                'tests/data/osc/*.json',
+                'tests/data/pid/*.json',
+                'tests/data/reco/*.json',
+                'tests/data/xsec/*.root',
+                'sys/*.json',
+                'cross_sections/cross_sections.json',
+                'tests/settings/*.ini'
             ]
         }
     )

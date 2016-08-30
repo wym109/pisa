@@ -4,13 +4,13 @@
 
 ***FlavIntData*** and ***CombinedFlavIntData*** are container objects for data particular to neutrino flavors+interaction types. The former stores one datum for each flavor/interaction type combination, whereas the latter allows one to store a single data set for each grouping of flavor/interaction types. Source code: *pisa/utils/flavInt.py*
 
-***Events*** subclasses *FlavIntData* but also contains standard metatadata pertinent to events. Source code: *pisa/utils/events.py*
+***Events*** subclasses *FlavIntData* but also contains standard metatadata pertinent to events. Source code: *pisa/core/events.py*
 
 ## Examples using flavor/interaction type objects
 ```python
 import numpy as np
+import pisa.core.events as events
 import pisa.utils.flavInt as flavInt
-import pisa.utils.events as events
 
 # Create a flavor
 numu = flavInt.NuFlav(14) # from code
@@ -134,7 +134,7 @@ print utils.recursiveEquality(nested_obj1, nested_obj2) # -> True
 
 ## Examples of using Events container object
 ```python
-from pisa.utils.events import Events
+from pisa.core.events import Events
 
 ev = Events('events/events__pingu__v36__runs_388-390__proc_v5__joined_G_nuall_nc_G_nuallbar_nc.hdf5')
 
