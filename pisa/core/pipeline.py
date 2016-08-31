@@ -219,6 +219,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument(
         '-p', '--pipeline-settings', metavar='CONFIGFILE', type=str,
+        required=True,
         help='File containing settings for the pipeline.'
     )
     parser.add_argument(
@@ -271,12 +272,12 @@ if __name__ == '__main__':
         help='''Produce pdf plot(s).'''
     )
     parser.add_argument(
-        '--annotate', action='store_true',
-        help='''Annotate pllots with counts per bin'''
-    )
-    parser.add_argument(
         '--png', action='store_true',
         help='''Produce png plot(s).'''
+    )
+    parser.add_argument(
+        '--annotate', action='store_true',
+        help='''Annotate plots with counts per bin'''
     )
     parser.add_argument(
         '-v', action='count', default=None,
