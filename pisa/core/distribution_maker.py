@@ -51,9 +51,9 @@ class DistributionMaker(object):
             pipelines = [pipelines]
 
         for pipeline in pipelines:
-            if not isinstance(arg, Pipeline):
+            if not isinstance(pipeline, Pipeline):
                 pipeline = Pipeline(pipeline)
-            self._pipelines.append(arg)
+            self._pipelines.append(pipeline)
 
     def __iter__(self):
         return iter(self._pipelines)
