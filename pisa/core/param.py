@@ -621,7 +621,7 @@ class ParamSet(object):
 
     @property
     def nominal_values(self):
-        return tuple([obj.nominal_value for obj in self._params])
+        return [obj.nominal_value for obj in self._params]
 
     @nominal_values.setter
     def nominal_values(self, values):

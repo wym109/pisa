@@ -94,8 +94,6 @@ class prob3cpu(Stage):
             'nue', 'numu', 'nutau', 'nuebar', 'numubar', 'nutaubar'
         )
 
-        assert input_binning == output_binning
-
         # Invoke the init method from the parent class (Stage), which does a
         # lot of work (caching, providing public interfaces, etc.)
         super(self.__class__, self).__init__(
@@ -116,7 +114,6 @@ class prob3cpu(Stage):
         )
 
         self.compute_binning_constants()
-
 
     def compute_binning_constants(self):
         # Only works if energy and coszen are in input_binning
@@ -150,13 +147,11 @@ class prob3cpu(Stage):
         [self.extra_dim_nums.remove(d) for d in (self.e_dim_num,
                                                  self.cz_dim_num)]
 
-
     def create_transforms_datastructs(self):
         xform_shape = [3, 2] + list(self.input_binning.shape)
         nu_xform = np.empty(xform_shape)
         antinu_xform = np.empty(xform_shape)
         return nu_xform, antinu_xform
-
 
     def setup_barger_propagator(self):
         # If already instantiated with same parameters, don't instantiate again
@@ -182,11 +177,9 @@ class prob3cpu(Stage):
         )
         self.barger_propagator.UseMassEigenstates(False)
 
-
     def _derive_nominal_transforms_hash(self):
         """No nominal transforms implemented for this service."""
         return None
-
 
     @profile
     def _compute_transforms(self):
@@ -255,7 +248,6 @@ class prob3cpu(Stage):
                               xform_array=xform))
 
         return TransformSet(transforms=transforms)
-
 
     def validate_params(self, params):
         pass

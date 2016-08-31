@@ -18,6 +18,7 @@ from collections import OrderedDict, Mapping, Sequence
 from copy import deepcopy, copy
 from fnmatch import fnmatch
 from functools import wraps
+from itertools import izip
 from operator import add, getitem, setitem
 import re
 
@@ -38,6 +39,7 @@ from pisa.utils.profiler import line_profile, profile
 
 HASH_SIGFIGS = 12
 
+# TODO: CUDA and numba implementations of rebin if these libs are available
 
 # TODO: move these functions to a generic utils.py module?
 
@@ -308,13 +310,14 @@ class Map(object):
                          if d.name in new_binning}
         new_units = {d.name: d.units for d in new_binning.dimensions}
         if new_units != current_units:
-            rescaled_binning = new_map.binning.to(**units)
+            rescaled_binning = new_map.binning.to(**new_units)
         else:
             rescaled_binning = new_map.binning
-        coords = rescaled_binning.meshgrid('midpoints', attach_units=False)
+        coords = rescaled_binning.meshgrid(entity='midpoints',
+                                           attach_units=False)
         # Flatten each dim for histogramming; only take dims that exist in
         # `new_binning`
-        coords = [c.flatten() for n, c in zip(new_map.binning.names, coords)
+        coords = [c.flatten() for n, c in izip(new_map.binning.names, coords)
                   if n in new_binning]
 
         weights = new_map.hist.flatten()

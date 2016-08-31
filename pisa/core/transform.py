@@ -17,7 +17,7 @@ from pisa.utils.comparisons import normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils import jsons
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils.profiler import profile
+from pisa.utils.profiler import line_profile, profile
 
 
 HASH_SIGFIGS = 12
@@ -35,6 +35,11 @@ HASH_SIGFIGS = 12
 # so we can trnsparently handle e.g. events alongside maps where one is a
 # sideband object for the other in a given stage, but which is which should be
 # irrelevant).
+
+# TODO: dtype arg to BinnedTensorTransform (or a global def like HASH_SIGFIGS?)
+# to allow for single precision and hence any associated speedups
+
+# TODO: numba implementation of BinnedTensorTransform
 
 # TODO: Add Sequence capabilities to TransformSet (e.g. it'd be nice to have at
 # least append, extend, ...)

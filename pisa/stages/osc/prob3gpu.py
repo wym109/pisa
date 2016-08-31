@@ -210,8 +210,6 @@ class prob3gpu(Stage):
             'nue', 'numu', 'nutau', 'nuebar', 'numubar', 'nutaubar'
         )
 
-        assert input_binning == output_binning
-
         self.gpu_id = gpu_id
         try:
             import pycuda.autoinit

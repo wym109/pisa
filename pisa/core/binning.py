@@ -164,10 +164,11 @@ class OneDimBinning(object):
         if domain is not None:
             assert isinstance(domain, Iterable)
             assert len(domain) == 2
-        self.name = name
+        self._name = name
+        self._basename = basename(name)
         if tex is None:
             tex = r'{\rm ' + name + '}'
-        self.tex = tex
+        self._tex = tex
 
         # If None, leave this and try to get units from bin_edges or domain
         # (and if nothing has units in the end, *then* make quantity have the
@@ -274,10 +275,10 @@ class OneDimBinning(object):
         #    is_log = self.is_bin_spacing_log(bin_edges)
 
         # (Re)attach units to bin edges
-        self.bin_edges = bin_edges * units
+        self._bin_edges = bin_edges * units
 
         # (Re)define domain and attach units
-        self.domain = np.array([bin_edges[0], bin_edges[-1]]) * units
+        self._domain = np.array([np.min(bin_edges), np.max(bin_edges)]) * units
 
         # Store units for convenience
         self._units = units
@@ -289,17 +290,17 @@ class OneDimBinning(object):
         else:
             assert num_bins == len(self.bin_edges) - 1, \
                     '%s, %s' %(num_bins, self.bin_edges)
-        self.num_bins = num_bins
+        self._num_bins = num_bins
 
-        self.is_lin = is_lin
-        self.is_log = is_log
-        self.is_irregular = not (self.is_lin or self.is_log)
-        self.midpoints = (self.bin_edges[:-1] + self.bin_edges[1:])/2.0
+        self._is_lin = is_lin
+        self._is_log = is_log
+        self._is_irregular = not (self.is_lin or self.is_log)
+        self._midpoints = (self.bin_edges[:-1] + self.bin_edges[1:])/2.0
         if self.is_log:
-            self.weighted_centers = np.sqrt(self.bin_edges[:-1] *
+            self._weighted_centers = np.sqrt(self.bin_edges[:-1] *
                                             self.bin_edges[1:])
         else:
-            self.weighted_centers = self.midpoints
+            self._weighted_centers = self.midpoints
 
         # TODO: define hash based upon conversion of things to base units (such
         # that a valid comparison can be made between indentical binnings but
@@ -308,9 +309,8 @@ class OneDimBinning(object):
         # to be the same after conversion to the base units.
 
         self._hash = None
-        _ = self.hash
         self._edges_hash = None
-        _ = self.edges_hash
+        self.rehash()
 
     #def __repr__(self):
     #    argstrs = [('%s=%s' %item) for item in self._serializable_state.items()]
@@ -372,7 +372,7 @@ class OneDimBinning(object):
         state['tex'] = self.tex
         bin_edges = normQuant(self.bin_edges, sigfigs=HASH_SIGFIGS)
         state['bin_edges'] = bin_edges
-        state['units'] = str(bin_edges[0].units)
+        state['units'] = str(self.units)
         state['is_log'] = self.is_log
         state['is_lin'] = self.is_lin
         return state
@@ -381,14 +381,53 @@ class OneDimBinning(object):
     def name(self):
         return self._name
 
-    @name.setter
-    def name(self, n):
-        self._basename = basename(n)
-        self._name = n
-
     @property
     def basename(self):
         return self._basename
+
+    @property
+    def tex(self):
+        return self._tex
+
+    @property
+    def bin_edges(self):
+        return self._bin_edges
+
+    @property
+    def bin_edges(self):
+        return self._bin_edges
+
+    @property
+    def domain(self):
+        return self._domain
+
+    @property
+    def units(self):
+        return self._units
+
+    @property
+    def num_bins(self):
+        return self._num_bins
+
+    @property
+    def is_lin(self):
+        return self._is_lin
+
+    @property
+    def is_log(self):
+        return self._is_log
+
+    @property
+    def is_irregular(self):
+        return self._is_irregular
+
+    @property
+    def midpoints(self):
+        return self._midpoints
+
+    @property
+    def weighted_centers(self):
+        return self._weighted_centers
 
     @property
     def hash(self):
@@ -422,6 +461,12 @@ class OneDimBinning(object):
             self._edges_hash = hash_obj(bin_edges)
         return self._edges_hash
 
+    def rehash(self):
+        self._hash = None
+        self._edges_hash = None
+        _ = self.hash
+        _ = self.edges_hash
+
     def __hash__(self):
         return self.hash
 
@@ -431,10 +476,6 @@ class OneDimBinning(object):
         if unit == '':
             return self.tex
         return self.tex + ' (%s)'%unit
-
-    @property
-    def units(self):
-        return self.bin_edges.units
 
     @property
     def bin_widths(self):
@@ -836,7 +877,7 @@ class MultiDimBinning(object):
 
     @property
     def names(self):
-        return [dim.name for dim in self.dimensions]
+        return [dim.name for dim in self]
 
     @property
     def basenames(self):
@@ -871,7 +912,7 @@ class MultiDimBinning(object):
 
         """
         return OrderedDict({'dimensions': [d._serializable_state
-                                           for d in self.dimensions]})
+                                           for d in self]})
 
     @property
     def _hashable_state(self):
@@ -886,19 +927,21 @@ class MultiDimBinning(object):
             MultiDimBinning via MultiDimBinning(**state)
 
         """
-        return OrderedDict({'dimensions': list([d._hashable_state
-                                                for d in self.dimensions])})
+        state = OrderedDict()
+        state['dimensions'] = [self[name]._hashable_state
+                               for name in sorted(self.names)]
+        return state
 
     @property
     def hash(self):
-        return hash_obj([d.hash for d in self.dimensions])
+        return hash_obj(self._hashable_state) #[d.hash for d in self])
 
     def __hash__(self):
         return self.hash
 
     @property
     def edges_hash(self):
-        return hash_obj([d.edges_hash for d in self.dimensions])
+        return hash_obj([d.edges_hash for d in self])
 
     @property
     def bin_edges(self):
@@ -906,22 +949,22 @@ class MultiDimBinning(object):
         compatible with the numpy.histogramdd `hist` argument.
 
         """
-        return [d.bin_edges for d in self.dimensions]
+        return [d.bin_edges for d in self]
 
     @property
     def domains(self):
         """Return a list of the contained dimensions' domains"""
-        return [d.domain for d in self.dimensions]
+        return [d.domain for d in self]
 
     @property
     def midpoints(self):
         """Return a list of the contained dimensions' midpoints"""
-        return [d.midpoints for d in self.dimensions]
+        return [d.midpoints for d in self]
 
     @property
     def num_bins(self):
         """Return a list of the contained dimensions' num_bins."""
-        return [d.num_bins for d in self.dimensions]
+        return [d.num_bins for d in self]
 
     @property
     def tot_num_bins(self):
@@ -931,7 +974,7 @@ class MultiDimBinning(object):
     @property
     def units(self):
         """Return a list of the contained dimensions' units"""
-        return [d.units for d in self.dimensions]
+        return [d.units for d in self]
 
     @property
     def weighted_centers(self):
@@ -939,7 +982,7 @@ class MultiDimBinning(object):
         equidistant from bin edges on logarithmic scale, if the binning is
         logarithmic; otherwise linear). Access `midpoints` attribute for
         always-linear alternative."""
-        return [d.weighted_centers for d in self.dimensions]
+        return [d.weighted_centers for d in self]
 
     def index(self, dim, use_basenames=False):
         """Find dimension `dim` and return its integer index.
@@ -1241,7 +1284,6 @@ class MultiDimBinning(object):
         Indices refer to dimensions in same order they were specified at
         instantiation, and all dimensions must be present.
 
-
         Parameters
         ----------
         index : int, len-N-sequence of ints, or len-N-sequence of slices
@@ -1253,7 +1295,6 @@ class MultiDimBinning(object):
             If a len-N-sequence of integers or slices is passed, dimensions are
             indexed by these in the order in which dimensions are stored
             internally.
-
 
         Returns
         -------
@@ -1350,7 +1391,7 @@ def test_OneDimBinning():
 
     # And the hashes should be equal, reflecting the latter result
     assert b3.hash == b4.hash, '\nb3=%s\nb4=%s' %(b3._hashable_state,
-                                                b4._hashable_state)
+                                                  b4._hashable_state)
     assert b3.hash == b4.hash, 'b3.hash=%s; b4.hash=%s' %(b3.hash, b4.hash)
 
     # TODO: make pickle great again
