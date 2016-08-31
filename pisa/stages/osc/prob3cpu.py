@@ -164,7 +164,7 @@ class prob3cpu(Stage):
             and hasattr(self, '_barger_earth_model')
             and hasattr(self, '_barger_detector_depth')
             and normQuant(self._barger_detector_depth, sigfigs=SIGFIGS)
-                == normQuant(self.params.detector_depth.value, sigfigs=SIGFIGS)
+                == normQuant(self.params.detector_depth.m_as('km'), sigfigs=SIGFIGS)
             and self.params.earth_model.value == self._barger_earth_model):
             return
 
@@ -172,13 +172,13 @@ class prob3cpu(Stage):
         # propagator that has been instantiated, so if it is requested to be
         # instantiated again with equivalent parameters, this step can be
         # skipped (see checks above).
-        self._barger_detector_depth = self.params.detector_depth.value.to('km')
+        self._barger_detector_depth = self.params.detector_depth.m_as('km')
         self._barger_earth_model = self.params.earth_model.value
 
         # TODO: can we pass kwargs to swig-ed C++ code?
         self.barger_propagator = BargerPropagator(
             find_resource(self._barger_earth_model),
-            self._barger_detector_depth.magnitude
+            self._barger_detector_depth
         )
         self.barger_propagator.UseMassEigenstates(False)
 
@@ -196,16 +196,16 @@ class prob3cpu(Stage):
         # Read parameters in, convert to the units used internally for
         # computation, and then strip the units off. Note that this also
         # enforces compatible units (but does not sanity-check the numbers).
-        theta12 = self.params.theta12.value.m_as('rad')
-        theta13 = self.params.theta13.value.m_as('rad')
-        theta23 = self.params.theta23.value.m_as('rad')
-        deltam21 = self.params.deltam21.value.m_as('eV**2')
-        deltam31 = self.params.deltam31.value.m_as('eV**2')
-        deltacp = self.params.deltacp.value.m_as('rad')
-        YeI = self.params.YeI.value.m_as('dimensionless')
-        YeO = self.params.YeO.value.m_as('dimensionless')
-        YeM = self.params.YeM.value.m_as('dimensionless')
-        prop_height = self.params.prop_height.value.m_as('km')
+        theta12 = self.params.theta12.m_as('rad')
+        theta13 = self.params.theta13.m_as('rad')
+        theta23 = self.params.theta23.m_as('rad')
+        deltam21 = self.params.deltam21.m_as('eV**2')
+        deltam31 = self.params.deltam31.m_as('eV**2')
+        deltacp = self.params.deltacp.m_as('rad')
+        YeI = self.params.YeI.m_as('dimensionless')
+        YeO = self.params.YeO.m_as('dimensionless')
+        YeM = self.params.YeM.m_as('dimensionless')
+        prop_height = self.params.prop_height.m_as('km')
 
         sin2th12Sq = np.sin(theta12)**2
         sin2th13Sq = np.sin(theta13)**2

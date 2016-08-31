@@ -154,12 +154,31 @@ class Param(object):
             self.validate_value(val)
         self._value = val
         if hasattr(self._value, 'units'):
-            self._units = str(self._value.units)
+            self._units = self._value.units
         else:
-            self._units = None
+            self._units = ureg.Unit('dimensionless')
+
+    @property
+    def magnitude(self):
+        return self._value.magnitude
+
+    @property
+    def m(self):
+        return self._value.magnitude
+
+    def m_as(self, u):
+        return self._value.m_as(u)
+
+    @property
+    def dimensionality(self):
+        return self._value.dimensionality
 
     @property
     def units(self):
+        return self._units
+
+    @property
+    def u(self):
         return self._units
 
     @property
@@ -181,7 +200,7 @@ class Param(object):
                     'Value "%s" has type %s but must be of type %s.' \
                     %(val, type(val), type(self.value))
             if isinstance(self.value, pint.quantity._Quantity):
-                assert self.value.dimensionality == val.dimensionality, \
+                assert self.dimensionality == val.dimensionality, \
                     'Value "%s" units "%s" incompatible with units "%s".' \
                     %(val, val.units, self.units)
 
@@ -193,7 +212,7 @@ class Param(object):
         if self.is_discrete:
             val = self.value
         else:
-            val = (self.value.m - self.range[0].m) \
+            val = (self._value.m - self.range[0].m) \
                     / (self.range[1].m-self.range[0].m)
         if hasattr(val, 'magnitude'):
             val = val.magnitude
@@ -201,8 +220,8 @@ class Param(object):
 
     @_rescaled_value.setter
     def _rescaled_value(self, rval):
-        self.value = ((self.range[1].m-self.range[0].m) * rval +
-                self.range[0].m) * self.value.units
+        self.value = ((self.range[1].m - self.range[0].m)*rval +
+                      self.range[0].m)*self.units
 
     @property
     def tex(self):
@@ -292,7 +311,7 @@ class Param(object):
         Pint.ito
 
         """
-        self.value.ito(units)
+        self._value.ito(units)
 
     @property
     def prior_llh(self):
@@ -305,6 +324,7 @@ class Param(object):
     @property
     def state_hash(self):
         return hash_obj(normQuant(self.state))
+
 
 # TODO: temporary modification of parameters via "with" syntax?
 class ParamSet(object):
@@ -506,8 +526,8 @@ class ParamSet(object):
         for p in self:
             string = p.name + '='
             if isinstance(p.value, pint.quantity._Quantity):
-                string += numfmt %p.value.m
-                full_unit_str = str(p.value.u)
+                string += numfmt %p.m
+                full_unit_str = str(p.u)
                 if full_unit_str in [str(ureg('electron_volt ** 2').u)]:
                     unit = ' eV2'
                 elif full_unit_str in [str(ureg.deg)]:
@@ -515,7 +535,7 @@ class ParamSet(object):
                 elif full_unit_str in [str(ureg.rad)]:
                     unit = ' rad'
                 else:
-                    unit = ' ' + format(p.value.u, '~')
+                    unit = ' ' + format(p.u, '~')
                 string += unit
             else:
                 try:

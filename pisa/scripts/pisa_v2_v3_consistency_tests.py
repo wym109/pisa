@@ -29,17 +29,8 @@ from pisa.utils.resources import find_resource
 from pisa.utils.config_parser import parse_pipeline_config
 
 
-def has_cuda():
-    """pycuda is present if it can be imported"""
-    try:
-        import pycuda.driver as cuda
-    except ImportError:
-        return False
-    return True
-
-
 def order(x):
-    with np.errstate(divide='ignore'):
+    with np.errstate(divide='ignore', invalid='ignore'):
         o = np.ceil(np.log10(x))
     return o
 
@@ -97,7 +88,7 @@ def validate_pisa2_maps(amap, bmap):
         raise ValueError("Maps' binnings do not match!")
 
 
-def delta_map(amap, bmap):
+def make_delta_map(amap, bmap):
     """Get the difference between two PISA 2 maps (amap-bmap) and return as
     another PISA 2 map."""
     validate_pisa2_maps(amap, bmap)
@@ -106,13 +97,15 @@ def delta_map(amap, bmap):
             'map': amap['map'] - bmap['map']}
 
 
-def ratio_map(amap, bmap):
+def make_ratio_map(amap, bmap):
     """Get the ratio of two PISA 2 maps (amap/bmap) and return as another PISA
     2 map."""
     validate_pisa2_maps(amap, bmap)
-    return {'ebins': amap['ebins'],
-            'czbins': amap['czbins'],
-            'map': amap['map']/bmap['map']}
+    with np.errstate(divide='ignore', invalid='ignore'):
+        result = {'ebins': amap['ebins'],
+                  'czbins': amap['czbins'],
+                  'map': amap['map']/bmap['map']}
+    return result
 
 
 def clean_dir(path):
@@ -205,26 +198,26 @@ def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
     basetitle.append('PISA')
     basetitle = ' '.join(basetitle)
 
-    RatioMapObj = ratio_map(new_map, ref_map)
-    DiffMapObj = delta_map(new_map, ref_map)
-    DiffRatioMapObj = ratio_map(DiffMapObj, ref_map)
+    ratio_map = make_ratio_map(new_map, ref_map)
+    diff_map = make_delta_map(new_map, ref_map)
+    diff_ratio_map = make_ratio_map(diff_map, ref_map)
 
-    max_diff_ratio = np.nanmax(DiffRatioMapObj['map'])
+    max_diff_ratio = np.nanmax(diff_ratio_map['map'])
 
     # Handle cases where ratio returns infinite
-    # This isn't necessarily a fail, since all it means is the referene was zero
-    # If the new value is sufficiently close to zero then it's still fine
+    # This isn't necessarily a fail, since all it means is the referene was
+    # zero If the new value is sufficiently close to zero then it's still fine
     if max_diff_ratio == float('inf'):
         logging.warn('Infinite value found in ratio tests. Difference tests '
                      'now also being calculated')
         # First find all the finite elements
-        FiniteMap = np.isfinite(DiffRatioMapObj['map'])
+        FiniteMap = np.isfinite(diff_ratio_map['map'])
         # Then find the nanmax of this, will be our new test value
-        max_diff_ratio = np.nanmax(DiffRatioMapObj['map'][FiniteMap])
+        max_diff_ratio = np.nanmax(diff_ratio_map['map'][FiniteMap])
         # Also find all the infinite elements
         InfiniteMap = not FiniteMap
         # This will be a second test value
-        max_diff = np.nanmax(DiffMapObj['map'][InfiniteMap])
+        max_diff = np.nanmax(diff_map['map'][InfiniteMap])
     else:
         # Without any infinite elements we can ignore this second test
         max_diff = 0.0
@@ -237,11 +230,11 @@ def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
                  ax=axes[0])
         baseplot(m=new_map, title=basetitle+' '+new_abv, evtrate=True,
                  ax=axes[1])
-        baseplot(m=RatioMapObj, title=basetitle+' %s/%s' %(new_abv, ref_abv),
+        baseplot(m=ratio_map, title=basetitle+' %s/%s' %(new_abv, ref_abv),
                  ax=axes[2])
-        baseplot(m=DiffMapObj, title=basetitle+' %s-%s' %(new_abv, ref_abv),
+        baseplot(m=diff_map, title=basetitle+' %s-%s' %(new_abv, ref_abv),
                  symm=True, ax=axes[3])
-        baseplot(m=DiffRatioMapObj, title=basetitle+' (%s-%s)/%s'
+        baseplot(m=diff_ratio_map, title=basetitle+' (%s-%s)/%s'
              %(new_abv, ref_abv, ref_abv), symm=True, ax=axes[4])
         logging.debug('>>>> Plot for inspection saved at %s'
                       %os.path.join(*path))
@@ -270,11 +263,10 @@ def compare_flux(config, servicename, pisa2file, systname,
             config['flux']['params'][systname] = \
                     1.25*config['flux']['params'][systname].value
 
-        pisa2file = pisa2file.split('.json')[0] + \
-                        '-%s%.2f.json' \
-                        %(systname, config['flux']['params'][systname].value)
-        servicename += '-%s%.2f' \
-                           %(systname, config['flux']['params'][systname].value)
+        pisa2file = (pisa2file.split('.json')[0] + '-%s%.2f.json'
+                     %(systname, config['flux']['params'][systname].value))
+        servicename += ('-%s%.2f'
+                        %(systname, config['flux']['params'][systname].value))
     else:
         logging.debug('>>> Checking baseline')
         test_syst = 'baseline'
@@ -348,11 +340,11 @@ def compare_osc(config, servicename, pisa2file, systname,
             config['osc']['params'][systname] = \
                     1.25*config['osc']['params'][systname].value
 
-        if config['osc']['params'][systname].value.magnitude < 0.01:
-            systval = '%e'%config['osc']['params'][systname].value.magnitude
+        if config['osc']['params'][systname].magnitude < 0.01:
+            systval = '%e'%config['osc']['params'][systname].magnitude
             systval = systval[0:4]
         else:
-            systval = '%.2f'%config['osc']['params'][systname].value.magnitude
+            systval = '%.2f'%config['osc']['params'][systname].magnitude
 
         pisa2file = pisa2file.split('.json')[0] + \
                 '-%s%s.json' %(systname, systval)
@@ -1001,10 +993,10 @@ if __name__ == '__main__':
     parser.add_argument('--flux', action='store_true', default=False,
                         help='''Run flux tests i.e. the interpolation methods
                         and the flux systematics.''')
-    parser.add_argument('--osc', action='store_true', default=False,
+    parser.add_argument('--osc-prob3cpu', action='store_true', default=False,
                         help='''Run osc tests i.e. the oscillograms with one
                         sigma deviations in the parameters.''')
-    parser.add_argument('--osc-gpu', action='store_true', default=False,
+    parser.add_argument('--osc-prob3gpu', action='store_true', default=False,
                         help='''Run GPU-based osc tests i.e. the oscillograms
                         with one sigma deviations in the parameters.''')
     parser.add_argument('--aeff', action='store_true', default=False,
@@ -1039,8 +1031,8 @@ if __name__ == '__main__':
 
     # Figure out which tests to do
     test_all = True
-    if args.flux or args.osc or args.osc_gpu or args.aeff or args.reco or \
-            args.pid or args.full:
+    if args.flux or args.osc_prob3cpu or args.osc_prob3gpu or args.aeff or \
+            args.reco or args.pid or args.full:
         test_all = False
 
     # Perform flux tests
@@ -1085,10 +1077,10 @@ if __name__ == '__main__':
             diff_test_threshold=args.diff_threshold
         )
 
-    # Perform (CPU-based) oscillations tests
-    if args.osc or test_all:
+    # Perform CPU-based oscillations tests
+    if args.osc_prob3cpu or test_all:
         osc_settings = os.path.join(
-            'tests', 'settings', 'osc_test.ini'
+            'tests', 'settings', 'osc_prob3cpu_test.ini'
         )
         osc_config = parse_pipeline_config(osc_settings)
         for syst in [None, 'theta12', 'theta13', 'theta23', 'deltam21',
@@ -1099,7 +1091,7 @@ if __name__ == '__main__':
             pisa2file = find_resource(pisa2file)
             osc_pipeline = compare_osc(
                 config=deepcopy(osc_config),
-                servicename='prob3',
+                servicename='prob3cpu',
                 pisa2file=pisa2file,
                 systname=syst,
                 outdir=args.outdir,
@@ -1108,9 +1100,9 @@ if __name__ == '__main__':
             )
 
     # Perform GPU-based oscillations tests
-    if args.osc_gpu or test_all:
+    if args.osc_prob3gpu or test_all:
         osc_settings = os.path.join(
-            'tests', 'settings', 'osc_gpu_test.ini'
+            'tests', 'settings', 'osc_prob3gpu_test.ini'
         )
         osc_config = parse_pipeline_config(osc_settings)
         for syst in [None, 'theta12', 'theta13', 'theta23', 'deltam21',
@@ -1121,7 +1113,7 @@ if __name__ == '__main__':
             pisa2file = find_resource(pisa2file)
             osc_pipeline = compare_osc(
                 config=deepcopy(osc_config),
-                servicename='prop_grid',
+                servicename='prob3gpu',
                 pisa2file=pisa2file,
                 systname=syst,
                 outdir=args.outdir,

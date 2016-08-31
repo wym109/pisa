@@ -278,8 +278,8 @@ class hist(Stage):
     def _compute_transforms(self):
         """Compute new oscillation transforms"""
         # Read parameters in in the units used for computation
-        aeff_scale = self.params.aeff_scale.value.m_as('dimensionless')
-        livetime_s = self.params.livetime.value.m_as('sec')
+        aeff_scale = self.params.aeff_scale.m_as('dimensionless')
+        livetime_s = self.params.livetime.m_as('sec')
         logging.trace('livetime = %s --> %s sec'
                       %(self.params.livetime.value, livetime_s))
 
@@ -295,7 +295,8 @@ class hist(Stage):
                         aeff_transform = transform.xform_array * (aeff_scale *
                                                                   livetime_s)
                         if transform.output_name in ['nutau_cc', 'nutaubar_cc']:
-                            aeff_transform = aeff_transform * self.params.nutau_cc_norm.value.m
+                            aeff_transform = aeff_transform * \
+                                    self.params.nutau_cc_norm.magnitude
                     new_xform = BinnedTensorTransform(
                         input_names=transform.input_names,
                         output_name=transform.output_name,
