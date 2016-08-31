@@ -656,7 +656,7 @@ class honda(Stage):
 
         # Energy scale systematic says to read in flux to bin E at
         # energy_scale*E
-        evals *= self.params['energy_scale'].value.magnitude
+        evals *= self.params['energy_scale'].magnitude
 
         flux_mode = self.params['flux_mode'].value
 
@@ -727,7 +727,7 @@ class honda(Stage):
 
         # Energy scale systematic must be applied again here since it should
         # come in the bin volume
-        return_map *= self.params['energy_scale'].value.magnitude
+        return_map *= self.params['energy_scale'].magnitude
 
         # For 2D we also need to integrate over azimuth
         # There is no dependency, so this is a multiplication of 2pi
@@ -769,7 +769,7 @@ class honda(Stage):
 
         # Energy scale systematic says to read in flux to bin E at
         # energy_scale*E
-        evals *= self.params['energy_scale'].value.magnitude
+        evals *= self.params['energy_scale'].magnitude
 
         flux_mode = self.params['flux_mode'].value
 
@@ -905,7 +905,7 @@ class honda(Stage):
 
         # Energy scale systematic must be applied again here since it should
         # come in the bin volume
-        return_map *= self.params['energy_scale'].value.magnitude
+        return_map *= self.params['energy_scale'].magnitude
 
         return return_map
 
@@ -927,13 +927,13 @@ class honda(Stage):
         scaled_nue_flux, scaled_numu_flux = self.apply_ratio_scale(
             map1 = flux_maps['nue'],
             map2 = flux_maps['numu'],
-            ratio_scale = self.params['nue_numu_ratio'].value.magnitude
+            ratio_scale = self.params['nue_numu_ratio'].magnitude
         )
 
         scaled_nuebar_flux, scaled_numubar_flux = self.apply_ratio_scale(
             map1 = flux_maps['nuebar'],
             map2 = flux_maps['numubar'],
-            ratio_scale = self.params['nue_numu_ratio'].value.magnitude
+            ratio_scale = self.params['nue_numu_ratio'].magnitude
         )
 
         # Names of maps get messed up by apply_ratio_scale function
@@ -977,13 +977,13 @@ class honda(Stage):
         scaled_nue_flux, scaled_nuebar_flux = self.apply_ratio_scale(
             map1 = flux_maps['nue'],
             map2 = flux_maps['nuebar'],
-            ratio_scale = self.params['nu_nubar_ratio'].value.magnitude
+            ratio_scale = self.params['nu_nubar_ratio'].magnitude
         )
 
         scaled_numu_flux, scaled_numubar_flux = self.apply_ratio_scale(
             map1 = flux_maps['numu'],
             map2 = flux_maps['numubar'],
-            ratio_scale = self.params['nu_nubar_ratio'].value.magnitude
+            ratio_scale = self.params['nu_nubar_ratio'].magnitude
         )
 
         # Names of maps get messed up by apply_ratio_scale function

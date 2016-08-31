@@ -18,6 +18,7 @@ from copy import copy, deepcopy
 from functools import wraps
 from itertools import izip
 from operator import setitem
+import re
 
 import numpy as np
 import pint
@@ -27,13 +28,56 @@ from pisa.utils.comparisons import normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils import jsons
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils.profiler import profile
+from pisa.utils.profiler import line_profile, profile
 
 
 HASH_SIGFIGS = 12
 """Round to this many significant figures for hashing numbers, such that
 machine precision doesn't cause effectively equivalent numbers to hash
 differently."""
+
+NAME_FIXES = ['true', 'truth', 'reco', 'reconstructed']
+NAME_SEPCHARS = r'([_\s-])*'
+NAME_FIXES_REGEXES = [re.compile(p + NAME_SEPCHARS, re.IGNORECASE)
+                      for p in NAME_FIXES]
+
+def basename(n):
+    """Remove "true" or "reco" prefix(es) and/or suffix(es) from binning
+    name `n` along with any number of possible separator characters.
+
+    * Valid (pre/suf)fix(es): "true", "reco"
+    * Valid separator characters: "<whitespace>", "_", "-" (any number)
+
+    Parameters
+    ----------
+    n : string or OneDimBinning
+        Name from which to have pre/suffixes stripped.
+
+    Returns
+    -------
+    string
+
+    Examples
+    --------
+    >>> print basename('true_energy')
+    'energy'
+    >>> print basename('Reconstructed coszen')
+    'coszen'
+    >>> print basename('energy___truth')
+    'energy'
+
+    """
+    # Type checkingn and conversion
+    orig_type = type(n)
+    if isinstance(n, OneDimBinning):
+        n = x.name
+    if not isinstance(n, basestring):
+        raise ValueError('Unhandled type %s' %orig_type)
+    # Remove all (pre/suf)fixes and any separator chars
+    for regex in NAME_FIXES_REGEXES:
+        n = regex.sub('', n)
+    return n
+
 
 class OneDimBinning(object):
     """Histogram-oriented binning specialized to a single dimension.
@@ -120,10 +164,11 @@ class OneDimBinning(object):
         if domain is not None:
             assert isinstance(domain, Iterable)
             assert len(domain) == 2
-        self.name = name
+        self._name = name
+        self._basename = basename(name)
         if tex is None:
-            tex = name
-        self.tex = tex
+            tex = r'{\rm ' + name + '}'
+        self._tex = tex
 
         # If None, leave this and try to get units from bin_edges or domain
         # (and if nothing has units in the end, *then* make quantity have the
@@ -230,10 +275,10 @@ class OneDimBinning(object):
         #    is_log = self.is_bin_spacing_log(bin_edges)
 
         # (Re)attach units to bin edges
-        self.bin_edges = bin_edges * units
+        self._bin_edges = bin_edges * units
 
         # (Re)define domain and attach units
-        self.domain = np.array([bin_edges[0], bin_edges[-1]]) * units
+        self._domain = np.array([np.min(bin_edges), np.max(bin_edges)]) * units
 
         # Store units for convenience
         self._units = units
@@ -245,17 +290,17 @@ class OneDimBinning(object):
         else:
             assert num_bins == len(self.bin_edges) - 1, \
                     '%s, %s' %(num_bins, self.bin_edges)
-        self.num_bins = num_bins
+        self._num_bins = num_bins
 
-        self.is_lin = is_lin
-        self.is_log = is_log
-        self.is_irregular = not (self.is_lin or self.is_log)
-        self.midpoints = (self.bin_edges[:-1] + self.bin_edges[1:])/2.0
+        self._is_lin = is_lin
+        self._is_log = is_log
+        self._is_irregular = not (self.is_lin or self.is_log)
+        self._midpoints = (self.bin_edges[:-1] + self.bin_edges[1:])/2.0
         if self.is_log:
-            self.weighted_centers = np.sqrt(self.bin_edges[:-1] *
+            self._weighted_centers = np.sqrt(self.bin_edges[:-1] *
                                             self.bin_edges[1:])
         else:
-            self.weighted_centers = self.midpoints
+            self._weighted_centers = self.midpoints
 
         # TODO: define hash based upon conversion of things to base units (such
         # that a valid comparison can be made between indentical binnings but
@@ -264,9 +309,8 @@ class OneDimBinning(object):
         # to be the same after conversion to the base units.
 
         self._hash = None
-        _ = self.hash
         self._edges_hash = None
-        _ = self.edges_hash
+        self.rehash()
 
     #def __repr__(self):
     #    argstrs = [('%s=%s' %item) for item in self._serializable_state.items()]
@@ -328,10 +372,62 @@ class OneDimBinning(object):
         state['tex'] = self.tex
         bin_edges = normQuant(self.bin_edges, sigfigs=HASH_SIGFIGS)
         state['bin_edges'] = bin_edges
-        state['units'] = str(bin_edges[0].units)
+        state['units'] = str(self.units)
         state['is_log'] = self.is_log
         state['is_lin'] = self.is_lin
         return state
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def basename(self):
+        return self._basename
+
+    @property
+    def tex(self):
+        return self._tex
+
+    @property
+    def bin_edges(self):
+        return self._bin_edges
+
+    @property
+    def bin_edges(self):
+        return self._bin_edges
+
+    @property
+    def domain(self):
+        return self._domain
+
+    @property
+    def units(self):
+        return self._units
+
+    @property
+    def num_bins(self):
+        return self._num_bins
+
+    @property
+    def is_lin(self):
+        return self._is_lin
+
+    @property
+    def is_log(self):
+        return self._is_log
+
+    @property
+    def is_irregular(self):
+        return self._is_irregular
+
+    @property
+    def midpoints(self):
+        return self._midpoints
+
+    @property
+    def weighted_centers(self):
+        return self._weighted_centers
 
     @property
     def hash(self):
@@ -365,6 +461,12 @@ class OneDimBinning(object):
             self._edges_hash = hash_obj(bin_edges)
         return self._edges_hash
 
+    def rehash(self):
+        self._hash = None
+        self._edges_hash = None
+        _ = self.hash
+        _ = self.edges_hash
+
     def __hash__(self):
         return self.hash
 
@@ -376,15 +478,11 @@ class OneDimBinning(object):
         return self.tex + ' (%s)'%unit
 
     @property
-    def units(self):
-        return self.bin_edges.units
-
-    @property
     def bin_widths(self):
         return np.abs(np.diff(self.bin_edges))
 
     def new_obj(original_function):
-        """ decorator to deepcopy unaltered states into new object """
+        """Decorator to deepcopy unaltered states into new object."""
         @wraps(original_function)
         def new_function(self, *args, **kwargs):
             new_state = OrderedDict()
@@ -779,7 +877,14 @@ class MultiDimBinning(object):
 
     @property
     def names(self):
-        return [dim.name for dim in self.dimensions]
+        return [dim.name for dim in self]
+
+    @property
+    def basenames(self):
+        """List of binning names with prefixes and/or suffixes along with any
+        number of possible separator characters removed. See function
+        `basename` for detailed specifications."""
+        return [b.basename for b in self]
 
     @property
     def dimensions(self):
@@ -807,7 +912,7 @@ class MultiDimBinning(object):
 
         """
         return OrderedDict({'dimensions': [d._serializable_state
-                                           for d in self.dimensions]})
+                                           for d in self]})
 
     @property
     def _hashable_state(self):
@@ -822,19 +927,21 @@ class MultiDimBinning(object):
             MultiDimBinning via MultiDimBinning(**state)
 
         """
-        return OrderedDict({'dimensions': list([d._hashable_state
-                                                for d in self.dimensions])})
+        state = OrderedDict()
+        state['dimensions'] = [self[name]._hashable_state
+                               for name in sorted(self.names)]
+        return state
 
     @property
     def hash(self):
-        return hash_obj([d.hash for d in self.dimensions])
+        return hash_obj(self._hashable_state) #[d.hash for d in self])
 
     def __hash__(self):
         return self.hash
 
     @property
     def edges_hash(self):
-        return hash_obj([d.edges_hash for d in self.dimensions])
+        return hash_obj([d.edges_hash for d in self])
 
     @property
     def bin_edges(self):
@@ -842,22 +949,22 @@ class MultiDimBinning(object):
         compatible with the numpy.histogramdd `hist` argument.
 
         """
-        return [d.bin_edges for d in self.dimensions]
+        return [d.bin_edges for d in self]
 
     @property
     def domains(self):
         """Return a list of the contained dimensions' domains"""
-        return [d.domain for d in self.dimensions]
+        return [d.domain for d in self]
 
     @property
     def midpoints(self):
         """Return a list of the contained dimensions' midpoints"""
-        return [d.midpoints for d in self.dimensions]
+        return [d.midpoints for d in self]
 
     @property
     def num_bins(self):
         """Return a list of the contained dimensions' num_bins."""
-        return [d.num_bins for d in self.dimensions]
+        return [d.num_bins for d in self]
 
     @property
     def tot_num_bins(self):
@@ -867,7 +974,7 @@ class MultiDimBinning(object):
     @property
     def units(self):
         """Return a list of the contained dimensions' units"""
-        return [d.units for d in self.dimensions]
+        return [d.units for d in self]
 
     @property
     def weighted_centers(self):
@@ -875,14 +982,34 @@ class MultiDimBinning(object):
         equidistant from bin edges on logarithmic scale, if the binning is
         logarithmic; otherwise linear). Access `midpoints` attribute for
         always-linear alternative."""
-        return [d.weighted_centers for d in self.dimensions]
+        return [d.weighted_centers for d in self]
 
-    def index(self, dim):
-        names = self.names
-        if isinstance(dim, basestring):
-            idx = names.index(dim)
-        elif isinstance(dim, OneDimBinning):
-            idx = names.index(dim.name)
+    def index(self, dim, use_basenames=False):
+        """Find dimension `dim` and return its integer index.
+
+        Parameters
+        ----------
+        dim : int, string, OneDimBinning
+        use_basenames : bool
+            Dimension names are only compared after pre/suffixes are stripped,
+            allowing for e.g. `dim`='true_energy' to find 'reco_energy'.
+
+        Returns
+        -------
+        integer index of the dimension corresponding to `dim`
+
+        Raises
+        ------
+        ValueError if `dim` cannot be found
+
+        """
+        names = self.basenames if use_basenames else self.names
+        if isinstance(dim, OneDimBinning):
+            d = dim.basename if use_basenames else dim.name
+            idx = names.index(d)
+        elif isinstance(dim, basestring):
+            d = basename(dim) if use_basenames else dim
+            idx = names.index(d)
         elif isinstance(dim, int):
             if dim < 0 or dim >= len(self):
                 raise ValueError("'%d' is not in range." %dim)
@@ -891,22 +1018,25 @@ class MultiDimBinning(object):
             raise TypeError('Unhandled type for `dim`: "%s"' %type(dim))
         return idx
 
-    def reorder_dimensions(self, order):
-        """Return a new MultiDimBinning object with dimensions (axes)
-        ordered according to `order`.
+    # TODO: examples!
+    def reorder_dimensions(self, order, use_deepcopy=False):
+        """Return a new MultiDimBinning object with dimensions ordered
+        according to `order`.
 
         Parameters
         ----------
-        order : sequence of string, int, or OneDimBinning
+        order : sequence of (string, int, or OneDimBinning)
             Order of dimensions to use. Strings are interpreted as dimension
-            names, integers are interpreted as dimension indices, and
-            OneDimBinning objects are interpreted by their `name` attributes
-            (so e.g. binning does not have to match this object's dimensions).
-            Note that a MultiDimBinning object is a valid sequence.
+            basenames, integers are interpreted as dimension indices, and
+            OneDimBinning objects are interpreted by their `basename`
+            attributes (so e.g. the exact binnings in `order` do not have to
+            match this object's exact binnings; only their basenames). Note
+            that a MultiDimBinning object is a valid sequence type to use for
+            `order`.
 
         Notes
         -----
-        Dimensions specified in `order` that are missing in this object are
+        Dimensions specified in `order` that are not in this object are
         ignored, but dimensions in this object that are missing in `order`
         result in an error.
 
@@ -919,6 +1049,13 @@ class MultiDimBinning(object):
         ValueError if dimensions present in this object are missing from
         `order`.
 
+        Examples
+        --------
+        >>> b0 = MultiDimBinning(...)
+        >>> b1 = MultiDimBinning(...)
+        >>> b2 = b0.reorder_dimensions(b1)
+        >>> print b2.binning.names
+
         """
         if isinstance(order, MultiDimBinning):
             order = order.dimensions
@@ -926,7 +1063,7 @@ class MultiDimBinning(object):
         indices = []
         for dim in order:
             try:
-                idx = self.index(dim)
+                idx = self.index(dim, use_basenames=True)
             except ValueError:
                 continue
             indices.append(idx)
@@ -935,7 +1072,10 @@ class MultiDimBinning(object):
                 'Invalid `order`: Only a subset of the dimensions present'
                 ' were specified. `order`=%s; dimensions=%s' %(order, self)
             )
-        new_dimensions = [deepcopy(self._dimensions[n]) for n in indices]
+        if use_deepcopy:
+            new_dimensions = [deepcopy(self._dimensions[n]) for n in indices]
+        else:
+            new_dimensions = [self._dimensions[n] for n in indices]
         new_binning = MultiDimBinning(new_dimensions)
         return new_binning
 
@@ -1144,7 +1284,6 @@ class MultiDimBinning(object):
         Indices refer to dimensions in same order they were specified at
         instantiation, and all dimensions must be present.
 
-
         Parameters
         ----------
         index : int, len-N-sequence of ints, or len-N-sequence of slices
@@ -1156,7 +1295,6 @@ class MultiDimBinning(object):
             If a len-N-sequence of integers or slices is passed, dimensions are
             indexed by these in the order in which dimensions are stored
             internally.
-
 
         Returns
         -------
@@ -1253,7 +1391,7 @@ def test_OneDimBinning():
 
     # And the hashes should be equal, reflecting the latter result
     assert b3.hash == b4.hash, '\nb3=%s\nb4=%s' %(b3._hashable_state,
-                                                b4._hashable_state)
+                                                  b4._hashable_state)
     assert b3.hash == b4.hash, 'b3.hash=%s; b4.hash=%s' %(b3.hash, b4.hash)
 
     # TODO: make pickle great again

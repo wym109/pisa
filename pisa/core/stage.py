@@ -10,7 +10,7 @@ from pisa.utils.cache import MemoryCache
 from pisa.utils.comparisons import normQuant
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils.profiler import profile
+from pisa.utils.profiler import line_profile, profile
 
 # TODO: mode for not propagating errors. Probably needs hooks here, but meat of
 # implementation would live inside map.py and/or transform.py.
@@ -486,7 +486,8 @@ class Stage(object):
         # Keep inputs for internal use and for inspection later
         self.inputs = {} if inputs is None else inputs
 
-        outputs_hash, transforms_hash, nominal_transforms_hash  = self._derive_outputs_hash()
+        outputs_hash, transforms_hash, nominal_transforms_hash = \
+                self._derive_outputs_hash()
 
         # Compute nominal outputs; if feature is not used, this doesn't
         # actually do much of anything. To do more than this, override the
@@ -540,8 +541,10 @@ class Stage(object):
         return augmented_outputs
 
     def check_params(self, params):
-        """ Make sure that `expected_params` is defined and that exactly the
-        params specified in self.expected_params are present """
+        """Make sure that `expected_params` is defined and that exactly the
+        params specified in self.expected_params are present.
+        
+        """
         assert self.expected_params is not None
         exp_p, got_p = set(self.expected_params), set(params.names)
         if exp_p == got_p:
@@ -708,9 +711,12 @@ class Stage(object):
             # Include additional attributes of this object
             for attr in sorted(self._attrs_to_hash):
                 val = getattr(self, attr)
-                norm_val = normQuant(val)
-                hash_val = hash_obj(val)
-                id_subobjects.append(hash_val)
+                if hasattr(val, 'hash'):
+                    attr_hash = val.hash
+                else:
+                    norm_val = normQuant(val)
+                    attr_hash = hash_obj(val)
+                id_subobjects.append(attr_hash)
 
             # Generate the "sub-hash"
             if any([(h == None) for h in id_subobjects]):
@@ -750,8 +756,11 @@ class Stage(object):
 
         for attr in sorted(self._attrs_to_hash):
             val = getattr(self, attr)
-            norm_val = normQuant(val)
-            attr_hash = hash_obj(norm_val)
+            if hasattr(val, 'hash'):
+                attr_hash = val.hash
+            else:
+                norm_val = normQuant(val)
+                attr_hash = hash_obj(val)
             id_objects.append(attr_hash)
 
         # If any hashes are missing (i.e, None), invalidate the entire hash
@@ -804,9 +813,12 @@ class Stage(object):
         id_objects.append(self.params.nominal_values_hash)
         for attr in sorted(self._attrs_to_hash):
             val = getattr(self, attr)
-            norm_val = normQuant(val)
-            hash_val = hash_obj(norm_val)
-            id_objects.append(hash_val)
+            if hasattr(val, 'hash'):
+                attr_hash = val.hash
+            else:
+                norm_val = normQuant(val)
+                attr_hash = hash_obj(val)
+            id_objects.append(attr_hash)
         id_objects.append(self.source_code_hash)
 
         # If any hashes are missing (i.e, None), invalidate the entire hash

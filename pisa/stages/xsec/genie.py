@@ -186,7 +186,6 @@ class genie(Stage):
         x_energy_scale = self.params['x_energy_scale'].value
 
         input_binning = self.input_binning
-        assert input_binning == self.output_binning
 
         ebins = input_binning.true_energy
         for idx, name in enumerate(input_binning.names):
