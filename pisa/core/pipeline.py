@@ -71,8 +71,11 @@ class Pipeline(object):
         if isinstance(config, basestring):
             config = parse_pipeline_config(config=config)
         assert isinstance(config, OrderedDict)
-        self.config = config
+        self._config = config
         self._init_stages()
+
+    def __len__(self):
+        return len(self._stages)
 
     def __iter__(self):
         return iter(self._stages)
@@ -200,6 +203,10 @@ class Pipeline(object):
     @property
     def stage_names(self):
         return [s.stage_name for s in self]
+
+    @property
+    def config(self):
+        return self._config
 
 
 if __name__ == '__main__':
