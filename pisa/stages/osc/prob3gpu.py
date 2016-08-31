@@ -182,8 +182,8 @@ class prob3gpu(Stage):
         for (unsigned to_nu=0; to_nu<3; to_nu++) {
           int k = (iMap+to_nu);
           fType prob = Probability[i][to_nu];
-          atomicAdd((d_smooth_maps + k*nczbins*nebins + eidx_smooth*nczbins +
-                     czidx_smooth), prob/scale);
+          atomicAdd_custom((d_smooth_maps + k*nczbins*nebins +
+              eidx_smooth*nczbins + czidx_smooth), prob/scale);
         }
       }
     }
@@ -415,7 +415,8 @@ class prob3gpu(Stage):
             self.FTYPE(self.params.detector_depth.m_as('km'))
         )
 
-        file_path = find_resource('pisa/stages/osc/grid_propagator/mosc3.cu')
+        # Path relative to `resources` directory
+        file_path = find_resource('../stages/osc/grid_propagator/mosc3.cu')
         dir_path = os.path.dirname(file_path)
         include_path = os.path.abspath(dir_path)
         logging.debug('  pycuda INC PATH: %s' %include_path)

@@ -6,8 +6,7 @@ from pisa.utils.profiler import profile
 from pisa.utils.log import set_verbosity
 
 
-# TODO: remove referenc to atomicAdd_custom, as this should be taken care of
-# now where it is defined in .h file (double check though...)
+# TODO: use native atomicAdd instead of atomicAdd_custom
 class GPUhist(object):
     """TODO: document me, Philipp!"""
 
