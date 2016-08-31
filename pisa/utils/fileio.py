@@ -9,14 +9,16 @@
 # date:   2015-06-13
 """Generic file I/O, dispatching specific file readers/writers as necessary"""
 
+import cPickle
 import os
 import re
-import pisa.utils.jsons as jsons
-import pisa.utils.hdf as hdf
-import pisa.utils.resources as resources
-from pisa.utils.log import logging
-import cPickle
+
 from pisa.utils.BetterConfigParser import BetterConfigParser
+from pisa.utils import hdf
+from pisa.utils import jsons
+from pisa.utils.log import logging
+from pisa.utils import resources
+
 
 JSON_EXTS = ['json']
 HDF5_EXTS = ['hdf', 'h5', 'hdf5']

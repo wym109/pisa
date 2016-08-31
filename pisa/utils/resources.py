@@ -41,8 +41,8 @@ def find_resource(resourcename, is_dir=False, fail=True):
     Raises
     ------
     Exception if the file is not found and `fail=True`.
-    """
 
+    """
     if is_dir:
         isentity = os.path.isdir
         entity_type = 'dir'

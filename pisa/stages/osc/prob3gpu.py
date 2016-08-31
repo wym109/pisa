@@ -415,9 +415,9 @@ class prob3gpu(Stage):
             self.FTYPE(self.params.detector_depth.m_as('km'))
         )
 
-        include_path = find_resource('../stages/osc/grid_propagator/mosc3.cu')
-        include_path = include_path[:-8]
-        include_path = os.path.abspath(include_path)
+        file_path = find_resource('pisa/stages/osc/grid_propagator/mosc3.cu')
+        dir_path = os.path.dirname(file_path)
+        include_path = os.path.abspath(dir_path)
         logging.debug('  pycuda INC PATH: %s' %include_path)
         logging.debug('  pycuda FLAGS: %s' %pycuda.compiler.DEFAULT_NVCC_FLAGS)
         self.module = pycuda.compiler.SourceModule(
