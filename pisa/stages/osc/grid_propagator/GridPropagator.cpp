@@ -36,36 +36,37 @@ void GridPropagator::Get_mix_mat(fType mix_mat[3][3][2])
 }
 
 
-void GridPropagator::GetDensityInLayer( fType* densityInLayer, int len)
+void GridPropagator::GetDensityInLayer(fType* densityInLayer, int len)
 {
-  // assert that len == m_nczbinss*m_maxLayers?? Not sure why below won't work...
+  // Assert that len == m_nczbinss*m_maxLayers?? Not sure why below won't work...
   //if (len != m_nczbins*m_maxLayers) {
-  //  fprintf(stderr, "ERROR: INVALID binning in %s",__PRETTY_FUNCTION__);
+  //  fprintf(stderr, "ERROR: INVALID binning in %s", __PRETTY_FUNCTION__);
   //  exit(EXIT_FAILURE);
-  // }
+  //}
   for(int i=0; i<m_nczbins; i++)
     for(int j=0; j<m_maxLayers; j++)
       *(densityInLayer + i*m_maxLayers + j) = *(m_densityInLayer + i*m_maxLayers + j);
 }
 
 
-void GridPropagator::GetDistanceInLayer( fType* distanceInLayer, int len)
+void GridPropagator::GetDistanceInLayer(fType* distanceInLayer, int len)
 {
-  // assert that len == m_numberOfLayers*m_maxLayers??
+  // Assert that len == m_numberOfLayers*m_maxLayers??
   for(int i=0; i<m_nczbins; i++)
     for(int j=0; j<m_maxLayers; j++)
       *(distanceInLayer + i*m_maxLayers + j) = *(m_distanceInLayer + i*m_maxLayers + j);
 }
 
 
-void GridPropagator::GetNumberOfLayers( int* numLayers, int len)
+void GridPropagator::GetNumberOfLayers(int* numLayers, int len)
 {
-  // assert that len == maxLayers??
-  for (int i=0; i<len; i++) *(numLayers +i) = *(m_numberOfLayers+i);
+  // Assert that len == maxLayers??
+  for (int i=0; i<len; i++)
+    *(numLayers +i) = *(m_numberOfLayers+i);
 }
 
 
-GridPropagator::GridPropagator(char* earthModelFile,fType* czcen, int nczbins,
+GridPropagator::GridPropagator(char* earthModelFile, fType* czcen, int nczbins,
                                fType detector_depth)
 /*
   \params:
@@ -78,7 +79,6 @@ GridPropagator::GridPropagator(char* earthModelFile,fType* czcen, int nczbins,
   function if one wishes to do anything later on.
 */
 {
-
   m_czcen = czcen;
   m_nczbins = nczbins;
 
@@ -88,14 +88,13 @@ GridPropagator::GridPropagator(char* earthModelFile,fType* czcen, int nczbins,
   m_distanceInLayer = NULL;
   m_numberOfLayers = NULL;
 
-  //SetEarthDensityParams(earthModelFile,detector_depth);
-  //LoadEarthModel(earthModelFile,detector_depth);
+  //SetEarthDensityParams(earthModelFile, detector_depth);
+  //LoadEarthModel(earthModelFile, detector_depth);
   m_earthModel = new EarthDensity(earthModelFile, detector_depth);
-
 }
 
 
-void GridPropagator::SetMNS(fType dm_solar,fType dm_atm,fType x12,fType x13,fType x23,
+void GridPropagator::SetMNS(fType dm_solar, fType dm_atm, fType x12, fType x13, fType x23,
                             fType deltacp)
 /*
   NOTE: This gets called in the constructor but can also be called
@@ -123,30 +122,27 @@ void GridPropagator::SetMNS(fType dm_solar,fType dm_atm,fType x12,fType x13,fTyp
   // "For the inverted Hierarchy, adjust the input
   // by the solar mixing (should be positive)
   // to feed the core libraries the correct value of m32."
-  if( dm_atm < 0.0 ) dm_atm -= dm_solar;
+  if (dm_atm < 0.0) dm_atm -= dm_solar;
 
-  // these functions are all described in mosc.h/mosc.cu
+  // These functions are all described in mosc.h/mosc.cu
   //setMatterFlavor(nue_type);
-  setmix_sin(sin12,sin23,sin13,deltacp,m_mix);
-  setmass(dm_solar,dm_atm,m_dm);
+  setmix_sin(sin12, sin23, sin13, deltacp, m_mix);
+  setmass(dm_solar, dm_atm, m_dm);
 
   if (VERBOSE) {
-    printf("dm21,dm32   : %f %f \n",dm_solar,dm_atm);
-    printf("s12,s23,s31 : %f %f %f \n",sin12,sin23,sin13);
-    printf("m_dm  : %f %f %f \n",m_dm[0][0],m_dm[0][1],m_dm[0][2]);
-    printf("m_dm  : %f %f %f \n",m_dm[1][0],m_dm[1][1],m_dm[1][2]);
-    printf("m_dm  : %f %f %f \n",m_dm[2][0],m_dm[2][1],m_dm[2][2]);
-    //***********
-    //**********
-    printf("m_mix : %f %f %f \n",m_mix[0][0][0],m_mix[0][1][0],m_mix[0][2][0]);
-    printf("m_mix : %f %f %f \n",m_mix[1][0][0],m_mix[1][1][0],m_mix[1][2][0]);
-    printf("m_mix : %f %f %f \n",m_mix[2][0][0],m_mix[2][1][0],m_mix[2][2][0]);
-    printf("m_mix : %f %f %f \n",m_mix[0][0][1],m_mix[0][1][1],m_mix[0][2][1]);
-    printf("m_mix : %f %f %f \n",m_mix[1][0][1],m_mix[1][1][1],m_mix[1][2][1]);
-    printf("m_mix : %f %f %f \n",m_mix[2][0][1],m_mix[2][1][1],m_mix[2][2][1]);
-    //***********
-  }
+    printf("dm21, dm32    : %f %f \n", dm_solar, dm_atm);
+    printf("s12, s23, s31 : %f %f %f \n", sin12, sin23, sin13);
+    printf("m_dm  : %f %f %f \n", m_dm[0][0], m_dm[0][1], m_dm[0][2]);
+    printf("m_dm  : %f %f %f \n", m_dm[1][0], m_dm[1][1], m_dm[1][2]);
+    printf("m_dm  : %f %f %f \n", m_dm[2][0], m_dm[2][1], m_dm[2][2]);
 
+    printf("m_mix : %f %f %f \n", m_mix[0][0][0], m_mix[0][1][0], m_mix[0][2][0]);
+    printf("m_mix : %f %f %f \n", m_mix[1][0][0], m_mix[1][1][0], m_mix[1][2][0]);
+    printf("m_mix : %f %f %f \n", m_mix[2][0][0], m_mix[2][1][0], m_mix[2][2][0]);
+    printf("m_mix : %f %f %f \n", m_mix[0][0][1], m_mix[0][1][1], m_mix[0][2][1]);
+    printf("m_mix : %f %f %f \n", m_mix[1][0][1], m_mix[1][1][1], m_mix[1][2][1]);
+    printf("m_mix : %f %f %f \n", m_mix[2][0][1], m_mix[2][1][1], m_mix[2][2][1]);
+  }
 }
 
 
@@ -156,7 +152,6 @@ void GridPropagator::SetEarthDensityParams(fType prop_height,
   prop_height - atmospheric propagation height in km
 */
 {
-
   prop_height *= kmTOcm;
 
   fType rDetector = m_earthModel->get_RDetector()*kmTOcm;
@@ -167,40 +162,37 @@ void GridPropagator::SetEarthDensityParams(fType prop_height,
 
   size_t layer_size = m_nczbins*m_maxLayers*sizeof(fType);
   m_densityInLayer = (fType*)malloc(layer_size);
-  memset(m_densityInLayer,0.0,layer_size);
+  memset(m_densityInLayer, 0.0, layer_size);
   m_distanceInLayer = (fType*)malloc(layer_size);
-  memset(m_distanceInLayer,0.0,layer_size);
+  memset(m_distanceInLayer, 0.0, layer_size);
 
   m_numberOfLayers = (int*)malloc(m_nczbins*sizeof(int));
 
   for (int i=0; i<m_nczbins; i++) {
     fType coszen = m_czcen[i];
     fType pathLength = DefinePath(coszen, prop_height, rDetector);
-    m_earthModel->SetDensityProfile( coszen, pathLength, prop_height );
+    m_earthModel->SetDensityProfile(coszen, pathLength, prop_height);
 
     //printf("here?\n");
     *(m_numberOfLayers+i) = m_earthModel->get_LayersTraversed();
     if (VERBOSE) {
-      printf("coszen: %f, layers traversed: %d, path length: %f\n",coszen,
+      printf("coszen: %f, layers traversed: %d, path length: %f\n", coszen,
              *(m_numberOfLayers+i), pathLength/kmTOcm);
     }
     for (int j=0; j < *(m_numberOfLayers+i); j++) {
-      fType density = m_earthModel->get_DensityInLayer(j)*
-        m_earthModel->get_ElectronFractionInLayer(j);
+      fType density = m_earthModel->get_DensityInLayer(j) * m_earthModel->get_ElectronFractionInLayer(j);
       *(m_densityInLayer + i*m_maxLayers + j) = density;
 
       fType distance = m_earthModel->get_DistanceAcrossLayer(j)/kmTOcm;
       *(m_distanceInLayer + i*m_maxLayers + j) = distance;
 
       if (VERBOSE) {
-        printf("  >> Layer: %d, density: %f, distance: %f\n",j,
+        printf("  >> Layer: %d, density: %f, distance: %f\n", j,
                *(m_densityInLayer + i*m_maxLayers + j),
                *(m_distanceInLayer + i*m_maxLayers + j));
       }
     }
-  }  // end loop over number of cz bins
-
-
+  } // end loop over number of cz bins
 }
 
 
@@ -211,18 +203,16 @@ fType GridPropagator::DefinePath(fType cz, fType prod_height, fType rDetector)
 
  */
 {
-
   fType path_length = 0.0;
   fType depth = (fType)m_earthModel->get_DetectorDepth()*kmTOcm;
 
   if(cz < 0) {
     path_length = sqrt((rDetector + prod_height +depth)*(rDetector + prod_height +depth)
-                       - (rDetector*rDetector)*( 1 - cz*cz)) - rDetector*cz;
+                       - (rDetector*rDetector)*(1 - cz*cz)) - rDetector*cz;
   } else {
     fType kappa = (depth + prod_height)/rDetector;
     path_length = rDetector*sqrt(cz*cz - 1 + (1 + kappa)*(1 + kappa)) - rDetector*cz;
   }
 
   return path_length;
-
 }

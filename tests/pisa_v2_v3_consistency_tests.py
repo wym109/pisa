@@ -29,8 +29,19 @@ from pisa.utils.resources import find_resource
 from pisa.utils.config_parser import parse_pipeline_config
 
 
+def has_cuda():
+    """pycuda is present if it can be imported"""
+    try:
+        import pycuda.driver as cuda
+    except ImportError:
+        return False
+    return True
+
+
 def order(x):
-    return np.ceil(np.log10(x))
+    with np.errstate(divide='ignore'):
+        o = np.ceil(np.log10(x))
+    return o
 
 
 def order_str(x):
@@ -54,7 +65,7 @@ def check_agreement(testname, thresh_ratio, ratio, thresh_diff, diff):
     diff_ord_str = order_str(diff)
     diff_pass_str = 'PASS' if diff_pass else 'FAIL'
 
-    s = '<< {testname:s} test, {kind:s}: {pass_str:s} >>' \
+    s = '<< {testname:s}, {kind:s}: {pass_str:s} >>' \
         ' agreement to 10^{level:s} (threshold={thresh:e})'
 
     s_ratio = s.format(
@@ -67,13 +78,13 @@ def check_agreement(testname, thresh_ratio, ratio, thresh_diff, diff):
     )
 
     if ratio_pass:
-        logging.debug(s_ratio)
+        logging.info(s_ratio)
     else:
         logging.error(s_ratio)
         raise ValueError(s_ratio)
 
     if diff_pass:
-        logging.debug(s_diff)
+        logging.info(s_diff)
     else:
         logging.error(s_diff)
         raise ValueError(s_diff)
@@ -244,12 +255,12 @@ def compare_flux(config, servicename, pisa2file, systname,
                  outdir, ratio_test_threshold, diff_test_threshold):
     """Compare flux stages run in isolation with dummy inputs"""
 
-    logging.info('>> Working on flux stage comparisons')
-    logging.info('>>> Checking %s service'%servicename)
+    logging.debug('>> Working on flux stage comparisons')
+    logging.debug('>>> Checking %s service'%servicename)
     test_service = servicename
 
     if systname is not None:
-        logging.info('>>> Checking %s systematic'%systname)
+        logging.debug('>>> Checking %s systematic'%systname)
         test_syst = systname
         try:
             config['flux']['params'][systname] = \
@@ -265,7 +276,7 @@ def compare_flux(config, servicename, pisa2file, systname,
         servicename += '-%s%.2f' \
                            %(systname, config['flux']['params'][systname].value)
     else:
-        logging.info('>>> Checking baseline')
+        logging.debug('>>> Checking baseline')
         test_syst = 'baseline'
 
     pipeline = Pipeline(config)
@@ -322,12 +333,12 @@ def compare_osc(config, servicename, pisa2file, systname,
                 outdir, ratio_test_threshold, diff_test_threshold):
     """Compare osc stages run in isolation with dummy inputs"""
 
-    logging.info('>> Working on osc stage comparisons')
-    logging.info('>>> Checking %s service'%servicename)
+    logging.debug('>> Working on osc stage comparisons')
+    logging.debug('>>> Checking %s service'%servicename)
     test_service = servicename
 
     if systname is not None:
-        logging.info('>>> Checking %s systematic'%systname)
+        logging.debug('>>> Checking %s systematic'%systname)
         test_syst = systname
         try:
             config['osc']['params'][systname] = \
@@ -347,7 +358,7 @@ def compare_osc(config, servicename, pisa2file, systname,
                 '-%s%s.json' %(systname, systval)
         servicename += '-%s%s' %(systname, systval)
     else:
-        logging.info('>>> Checking baseline')
+        logging.debug('>>> Checking baseline')
         test_syst = 'baseline'
 
     pipeline = Pipeline(config)
@@ -412,12 +423,12 @@ def compare_aeff(config, servicename, pisa2file, systname,
                  outdir, ratio_test_threshold, diff_test_threshold):
     """Compare aeff stages run in isolation with dummy inputs"""
 
-    logging.info('>> Working on aeff stage comparisons')
-    logging.info('>>> Checking %s service'%servicename)
+    logging.debug('>> Working on aeff stage comparisons')
+    logging.debug('>>> Checking %s service'%servicename)
     test_service = servicename
 
     if systname is not None:
-        logging.info('>>> Checking %s systematic'%systname)
+        logging.debug('>>> Checking %s systematic'%systname)
         test_syst = systname
         try:
             config['aeff']['params'][systname] = \
@@ -433,7 +444,7 @@ def compare_aeff(config, servicename, pisa2file, systname,
         servicename += '-%s%.2f' \
                 %(systname, config['aeff']['params'][systname].value)
     else:
-        logging.info('>>> Checking baseline')
+        logging.debug('>>> Checking baseline')
         test_syst = 'baseline'
 
     pipeline = Pipeline(config)
@@ -497,11 +508,11 @@ def compare_aeff(config, servicename, pisa2file, systname,
 
 def compare_reco(config, servicename, pisa2file, outdir, ratio_test_threshold, diff_test_threshold):
     """Compare reco stages run in isolation with dummy inputs"""
-    logging.info('>> Working on reco stage comparisons')
-    logging.info('>>> Checking %s service'%servicename)
+    logging.debug('>> Working on reco stage comparisons')
+    logging.debug('>>> Checking %s service'%servicename)
     test_service = servicename
 
-    logging.info('>>> Checking baseline')
+    logging.debug('>>> Checking baseline')
     test_syst = 'baseline'
     pipeline = Pipeline(config)
     stage = pipeline.stages[0]
@@ -587,11 +598,11 @@ def compare_reco(config, servicename, pisa2file, outdir, ratio_test_threshold, d
 
 def compare_pid(config, servicename, pisa2file, outdir, ratio_test_threshold, diff_test_threshold):
     """Compare pid stages run in isolation with dummy inputs"""
-    logging.info('>> Working on pid stage comparisons')
-    logging.info('>>> Checking %s service'%servicename)
+    logging.debug('>> Working on pid stage comparisons')
+    logging.debug('>>> Checking %s service'%servicename)
     test_service = servicename
 
-    logging.info('>>> Checking baseline')
+    logging.debug('>>> Checking baseline')
     test_syst = 'baseline'
     pipeline = Pipeline(config)
     stage = pipeline.stages[0]
@@ -674,8 +685,8 @@ def compare_flux_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_t
     and pid) through the flux stage.
 
     """
-    logging.info('>> Working on full pipeline comparisons')
-    logging.info('>>> Checking to end of flux stage')
+    logging.debug('>> Working on full pipeline comparisons')
+    logging.debug('>>> Checking to end of flux stage')
     test_service = 'honda'
 
     for nukey in pisa_maps.keys():
@@ -726,8 +737,8 @@ def compare_osc_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_te
     and pid) through the osc stage.
 
     """
-    logging.info('>> Working on full pipeline comparisons')
-    logging.info('>>> Checking to end of osc stage')
+    logging.debug('>> Working on full pipeline comparisons')
+    logging.debug('>>> Checking to end of osc stage')
     test_service = 'prob3cpu'
 
     for nukey in pisa_maps.keys():
@@ -776,10 +787,10 @@ def compare_osc_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_te
 def compare_aeff_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_test_threshold):
     """Compare a fully configured pipeline (with stages flux, osc, aeff, reco,
     and pid) through the aeff stage.
-    
+
     """
-    logging.info('>> Working on full pipeline comparisons')
-    logging.info('>>> Checking to end of aeff stage')
+    logging.debug('>> Working on full pipeline comparisons')
+    logging.debug('>>> Checking to end of aeff stage')
     test_service = 'hist_1X585'
 
     for nukey in pisa_maps.keys():
@@ -831,8 +842,8 @@ def compare_reco_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_t
     and pid) through the reco stage.
 
     """
-    logging.info('>> Working on full pipeline comparisons')
-    logging.info('>>> Checking to end of reco stage')
+    logging.debug('>> Working on full pipeline comparisons')
+    logging.debug('>>> Checking to end of reco stage')
     test_service = 'hist_1X585'
 
     nue_nuebar_cc = cake_maps.combine_re(r'nue(bar){0,1}_cc')
@@ -913,8 +924,8 @@ def compare_pid_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_te
     and pid) through the pid stage.
 
     """
-    logging.info('>> Working on full pipeline comparisons')
-    logging.info('>>> Checking to end of pid stage')
+    logging.debug('>> Working on full pipeline comparisons')
+    logging.debug('>>> Checking to end of pid stage')
     test_service = 'hist_1X585'
 
     cake_trck = cake_maps.combine_wildcard('*_trck')
@@ -993,6 +1004,9 @@ if __name__ == '__main__':
     parser.add_argument('--osc', action='store_true', default=False,
                         help='''Run osc tests i.e. the oscillograms with one
                         sigma deviations in the parameters.''')
+    parser.add_argument('--osc-gpu', action='store_true', default=False,
+                        help='''Run GPU-based osc tests i.e. the oscillograms
+                        with one sigma deviations in the parameters.''')
     parser.add_argument('--aeff', action='store_true', default=False,
                         help='''Run effective area tests i.e. the different
                         transforms with the aeff systematics.''')
@@ -1025,10 +1039,11 @@ if __name__ == '__main__':
 
     # Figure out which tests to do
     test_all = True
-    if args.flux or args.osc or args.aeff or args.reco or args.pid or args.full:
+    if args.flux or args.osc or args.osc_gpu or args.aeff or args.reco or \
+            args.pid or args.full:
         test_all = False
 
-    # Perform Flux Tests.
+    # Perform flux tests
     if args.flux or test_all:
         flux_settings = os.path.join(
             'tests', 'settings', 'flux_test.ini'
@@ -1070,7 +1085,7 @@ if __name__ == '__main__':
             diff_test_threshold=args.diff_threshold
         )
 
-    # Perform Oscillations Tests.
+    # Perform (CPU-based) oscillations tests
     if args.osc or test_all:
         osc_settings = os.path.join(
             'tests', 'settings', 'osc_test.ini'
@@ -1092,7 +1107,29 @@ if __name__ == '__main__':
                 diff_test_threshold=args.diff_threshold
             )
 
-    # Perform Effective Area Tests.
+    # Perform GPU-based oscillations tests
+    if args.osc_gpu or test_all:
+        osc_settings = os.path.join(
+            'tests', 'settings', 'osc_gpu_test.ini'
+        )
+        osc_config = parse_pipeline_config(osc_settings)
+        for syst in [None, 'theta12', 'theta13', 'theta23', 'deltam21',
+                     'deltam31']:
+            pisa2file = os.path.join(
+                'tests', 'data', 'osc', 'PISAV2OscStageProb3Service.json'
+            )
+            pisa2file = find_resource(pisa2file)
+            osc_pipeline = compare_osc(
+                config=deepcopy(osc_config),
+                servicename='prop_grid',
+                pisa2file=pisa2file,
+                systname=syst,
+                outdir=args.outdir,
+                ratio_test_threshold=args.ratio_threshold,
+                diff_test_threshold=args.diff_threshold
+            )
+
+    # Perform effective-area tests
     if args.aeff or test_all:
         aeff_settings = os.path.join(
             'tests', 'settings', 'aeff_test.ini'
@@ -1117,7 +1154,7 @@ if __name__ == '__main__':
                 diff_test_threshold=args.diff_threshold
             )
 
-    # Perform Reconstruction Tests.
+    # Perform reconstruction tests
     if args.reco or test_all:
         reco_settings = os.path.join(
             'tests', 'settings', 'reco_test.ini'
@@ -1158,7 +1195,7 @@ if __name__ == '__main__':
             diff_test_threshold=args.diff_threshold
         )
 
-    # Perform PID Tests.
+    # Perform PID tests
     if args.pid or test_all:
         pid_settings = os.path.join(
             'tests', 'settings', 'pid_test.ini'
@@ -1195,7 +1232,7 @@ if __name__ == '__main__':
             diff_test_threshold=args.diff_threshold
         )
 
-    # Perform Full Pipeline Tests.
+    # Perform full-pipeline tests
     if args.full or test_all:
         full_settings = os.path.join(
             'tests', 'settings', 'full_pipeline_test.ini'
