@@ -12,11 +12,11 @@ import importlib
 import os
 import sys
 
-from pisa.core.stage import Stage
 from pisa.core.param import ParamSet
-from pisa.utils.parse_config import parse_config
-from pisa.utils.log import logging, set_verbosity
+from pisa.core.stage import Stage
+from pisa.utils.config_parser import parse_pipeline_config
 from pisa.utils.hash import hash_obj
+from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile
 
 
@@ -44,7 +44,7 @@ class Pipeline(object):
     ----------
     config : string or OrderedDict
         If string, interpret as resource location; send to the
-          parse_config.parse_config() function to get a config OrderedDict.
+          config_parser.parse_pipeline_config() function to get a config OrderedDict.
         If OrderedDict, use directly as pipeline configuration.
 
     Methods
@@ -69,10 +69,13 @@ class Pipeline(object):
     def __init__(self, config):
         self._stages = []
         if isinstance(config, basestring):
-            config = parse_config(config=config)
+            config = parse_pipeline_config(config=config)
         assert isinstance(config, OrderedDict)
-        self.config = config
+        self._config = config
         self._init_stages()
+
+    def __len__(self):
+        return len(self._stages)
 
     def __iter__(self):
         return iter(self._stages)
@@ -201,18 +204,22 @@ class Pipeline(object):
     def stage_names(self):
         return [s.stage_name for s in self]
 
+    @property
+    def config(self):
+        return self._config
+
 
 if __name__ == '__main__':
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
     import numpy as np
     from pisa.core.map import Map, MapSet
     from pisa.utils.fileio import mkdir, to_file
-    from pisa.utils.parse_config import parse_config
     from pisa.utils.plotter import plotter
 
     parser = ArgumentParser()
     parser.add_argument(
         '-p', '--pipeline-settings', metavar='CONFIGFILE', type=str,
+        required=True,
         help='File containing settings for the pipeline.'
     )
     parser.add_argument(
@@ -265,12 +272,12 @@ if __name__ == '__main__':
         help='''Produce pdf plot(s).'''
     )
     parser.add_argument(
-        '--annotate', action='store_true',
-        help='''Annotate pllots with counts per bin'''
-    )
-    parser.add_argument(
         '--png', action='store_true',
         help='''Produce png plot(s).'''
+    )
+    parser.add_argument(
+        '--annotate', action='store_true',
+        help='''Annotate plots with counts per bin'''
     )
     parser.add_argument(
         '-v', action='count', default=None,

@@ -12,6 +12,7 @@ from pisa.utils.fileio import from_file
 from pisa.utils.log import logging, set_verbosity
 from pisa import ureg, Q_
 
+
 class Analysis(object):
     """Major tools for performing "canonical" IceCube/DeepCore/PINGU analyses.
 
@@ -68,7 +69,15 @@ class Analysis(object):
         self.pseudodata = None
         self.n_minimizer_calls = 0
 
-    def generate_pseudodata(self, method):
+    @property
+    def minimizer_settings(self):
+        return self._minimizer_settings
+
+    @minimizer_settings.setter
+    def minimizer_settings(self, settings):
+        self._minimizer_settings = settings
+
+    def generate_psudodata(self, method):
         if method == 'asimov':
             self.pseudodata = self.asimov
         elif method == 'poisson':
@@ -200,6 +209,9 @@ class Analysis(object):
             self.pseudodata.metric_total(expected_values=template, metric=self.metric)
             + self.template_maker.params.priors_penalty(metric=self.metric)
         )
+
+        # TODO: make this a single header line and a single line that gets
+        # updated, to save horizontal space (and easier to read/follow)
 
         # Report status of metric & params
         msg = '%s=%.6e | %s' %(self.metric, metric_val,
@@ -409,7 +421,7 @@ if __name__ == '__main__':
     from pisa import ureg, Q_
 
     from pisa.utils.fileio import from_file, to_file
-    from pisa.utils.parse_config import parse_config
+    from pisa.utils.config_parser import parse_pipeline_config
     from pisa.utils.format import append_results, ravel_results
 
     parser = ArgumentParser()
@@ -465,7 +477,7 @@ if __name__ == '__main__':
 
     # select inverted hierarchy
     #template_maker_settings.set('stage:osc', 'param_selector', 'ih')
-    #template_maker_configurator = parse_config(template_maker_settings)
+    #template_maker_configurator = parse_pipeline_config(template_maker_settings)
     #template_maker_IO = DistributionMaker(template_maker_configurator)
 
     analysis = Analysis(data_maker=data_maker,

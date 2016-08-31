@@ -17,7 +17,7 @@ from pisa.utils.comparisons import normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils import jsons
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils.profiler import profile
+from pisa.utils.profiler import line_profile, profile
 
 
 HASH_SIGFIGS = 12
@@ -36,6 +36,11 @@ HASH_SIGFIGS = 12
 # sideband object for the other in a given stage, but which is which should be
 # irrelevant).
 
+# TODO: dtype arg to BinnedTensorTransform (or a global def like HASH_SIGFIGS?)
+# to allow for single precision and hence any associated speedups
+
+# TODO: numba implementation of BinnedTensorTransform
+
 # TODO: Add Sequence capabilities to TransformSet (e.g. it'd be nice to have at
 # least append, extend, ...)
 TRANS_SET_SLOTS = ('name', 'hash', 'transforms', '__iter__',
@@ -53,7 +58,7 @@ class TransformSet(object):
 
     """
     def __init__(self, transforms, name=None, hash=None):
-        self.transforms = transforms
+        self._transforms = transforms
         self.name = name
         self.hash = hash
 
@@ -62,7 +67,7 @@ class TransformSet(object):
         state = OrderedDict()
         state['transforms'] = [
             (t.__module__, t.__class__.__name__, t._serializable_state)
-            for t in self.transforms
+            for t in self
         ]
         state['name'] = self.name
         return state
@@ -72,13 +77,13 @@ class TransformSet(object):
         state = OrderedDict()
         state['transforms'] = [
             (t.__module__, t.__class__.__name__, t._hashable_state)
-            for t in self.transforms
+            for t in self
         ]
         state['name'] = self.name
         return state
 
     def __iter__(self):
-        return iter(self.transforms)
+        return iter(self._transforms)
 
     def __eq__(self, other):
         if not isinstance(other, TransformSet):
@@ -152,11 +157,11 @@ class TransformSet(object):
     @hash.setter
     def hash(self, val):
         if val is not None:
-            [setattr(xform, 'hash', val) for xform in self.transforms]
+            [setattr(xform, 'hash', val) for xform in self]
 
     @property
     def hashes(self):
-        return [t.hash for t in self.transforms]
+        return [t.hash for t in self]
 
     # TODO: implement a non-volatile hash that includes source code hash in
     # addition to self.hash from the contained transforms
@@ -200,7 +205,7 @@ class TransformSet(object):
         """
         if isinstance(input_names, basestring):
             input_names = [input_names]
-        for transform in self.transforms:
+        for transform in self:
             if set(input_names) == set(transform.input_names) \
                and output_name == transform.output_name:
                 return transform
@@ -246,8 +251,16 @@ class TransformSet(object):
     def __getattr__(self, attr):
         if attr in TRANS_SET_SLOTS:
             return super(TransformSet, self).__getattribute__(attr)
-        return TransformSet([getattr(t, attr) for t in self.transforms],
-                            name=self.name)
+        # TODO: return maps based upon name?
+        #if attr in
+        return TransformSet([getattr(t, attr) for t in self], name=self.name)
+
+    def __getitem__(self, idx):
+        if isinstance(idx, (int, slice)):
+            return self._transforms[idx]
+        # TODO: search for transform by output name?
+        #if isinstance(idx, basestring):
+        raise IndexError('`idx` %s not found in map set.' %idx)
 
 
 class Transform(object):
@@ -393,11 +406,6 @@ class Transform(object):
         return self._tex
 
     def apply(self, inputs):
-        # Make sure the inputs have the same binning as
-        # expected for the transform
-        if not self.input_binning.edges_hash == \
-				inputs.binning.itervalues().next().edges_hash:
-            inputs = inputs.rebin(self.input_binning)
         output = self._apply(inputs)
         # TODO: tex, etc.?
         output.name = self.output_name
@@ -684,6 +692,7 @@ class BinnedTensorTransform(Transform):
     # element-by-element multiply and tensordot generalize to any dimension
     # given the (concatenated) input dimension and the dimension of the
     # transform kernel
+
     @profile
     def _apply(self, inputs):
         """Apply transforms to input maps to compute output maps.
@@ -701,6 +710,9 @@ class BinnedTensorTransform(Transform):
 
         """
         self.validate_input(inputs)
+
+        # Rebin if necessary so inputs have `input_binning`
+        inputs = inputs.rebin(self.input_binning)
 
         # TODO: In the multiple inputs / single output case and depending upon
         # the dimensions of the transform, for efficiency purposes we should
@@ -764,7 +776,7 @@ class BinnedTensorTransform(Transform):
         #   len(xform.shape) == 2*len(input_array.shape)
         # and then check that
         #   xform.shape == (input_array.shape, input_array.shape) (roughly)
-        # and then apply tensordot appropriately for this generic case...Q
+        # and then apply tensordot appropriately for this generic case...
 
         elif len(self.xform_array.shape) == 2*len(input_array.shape):
             output = np.tensordot(input_array, self.xform_array,
@@ -778,12 +790,12 @@ class BinnedTensorTransform(Transform):
                   self.xform_array.shape)
             )
 
-        # TODO: do rebinning here? (aggregate, truncate, and/or
-        # concatenate 0's?)
-
         output = Map(name=self.output_name,
                      hist=output,
                      binning=self.output_binning)
+
+        # Rebin if necessary so output has `output_binning`
+        output = output.rebin(self.output_binning)
 
         return output
 

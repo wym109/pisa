@@ -15,21 +15,38 @@ Also note that both SWIG and HDF5 support come pre-packaged in the Anaconda and 
 * [hdf5](http://www.hdfgroup.org/HDF5/) — install with `--enable-cxx` option
 
 If you are *not* using Anaconda or Canopy, you can install the above via:
-* In Ubuntu,
+* In Ubuntu,<br>
   'sudo apt-get install git swig hdf5`
 
 The Python requirements that you must install manually:
 * [python](http://www.python.org) — version 2.7.x required (tested with 2.7.11)
+  * Anaconda: built in
+  * Otherwise, if on Linux:<br>
+    `sudo apt-get install python-2.7`
 * [pip](https://pip.pypa.io/)
-  * Anaconda: both are built in
-  * Otherwise, if on Linux:
-    `sudo apt-get install python pip`
+  * Anaconda:<br>
+    `conda install pip`
+  * Otherwise, if on Linux:<br>
+    `sudo apt-get install pip`
+* [numpy](http://www.numpy.org/)
+  * Anaconda:<br>
+    `conda install numpy`
+  * Otherwise:<br>
+    `pip install numpy`
+* [cython](http://cython.org/)
+  * Anaconda:<br>
+    `conda install cython`
+  * Otherwise:<br>
+    `pip install cython`
+* [line_profiler](https://pypi.python.org/pypi/line_profiler/): detailed profiling output<br>
+  * Anaconda:<br>
+    `conda install line_profiler`
+  * pip:<br>
+    `pip install line_profiler`
 
 Required Python modules that are installed automatically when you use the pip command detailed later:
-* [cython](http://cython.org/)
 * [h5py](http://www.h5py.org/)
 * [matplotlib](http://matplotlib.org/)
-* [numpy](http://www.numpy.org/)
 * [pint](https://pint.readthedocs.org/en/0.7.2/)
 * [scipy](http://www.scipy.org/) — version > 0.12 recommended
 * [simplejson](https://github.com/simplejson/simplejson)
@@ -51,11 +68,6 @@ The features enabled by and the relevant install commands for optional dependenc
     `conda install numba`
   * pip:<br>
     `pip install numba`
-* [line_profiler](https://pypi.python.org/pypi/line_profiler/): detailed profiling output<br>
-  * Anaconda:<br>
-    `conda install line_profiler`
-  * pip:<br>
-    `pip install line_profiler`
 * [Sphinx](http://www.sphinx-doc.org/en/stable/) - version > 1.3 and [recommonmark](http://recommonmark.readthedocs.io/en/latest/) are required to compile PISA's documentation<br>
     * Anaconda:<br>
       `conda install sphinx`<br>

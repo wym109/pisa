@@ -1,5 +1,6 @@
 cython
 h5py
+line_profiler
 matplotlib
 numpy >= 1.11.0
 pint
