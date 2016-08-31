@@ -223,7 +223,7 @@ if __name__ == '__main__':
     # Now do the actual work
     setup(
         name='pisa',
-        version='3.0',
+        version='3.0.0',
         description='PINGU Simulation and Analysis',
         author='The IceCube/PINGU Collaboration',
         author_email='sboeser@uni-mainz.de',
@@ -250,7 +250,7 @@ if __name__ == '__main__':
         scripts=[
             'pisa/core/analysis.py',
             'pisa/core/distribution_maker.py',
-            'pisa/core/stage.py',
+            'pisa/core/pipeline.py',
             'pisa/scripts/pisa_v2_v3_consistency_tests.py'
         ],
         ext_modules=cythonize(ext_modules),
