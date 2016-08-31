@@ -64,12 +64,12 @@ class Analysis(object):
         self.n_minimizer_calls = 0
 
     @property
-    def minimizer_settings(self, settings):
-        self._minimizer_settings = settings
-
-    @minimizer_settings.setter
     def minimizer_settings(self):
         return self._minimizer_settings
+
+    @minimizer_settings.setter
+    def minimizer_settings(self, settings):
+        self._minimizer_settings = settings
 
     def generate_psudodata(self, method):
         if method == 'asimov':
