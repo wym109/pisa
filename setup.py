@@ -251,6 +251,7 @@ if __name__ == '__main__':
             'pisa/core/analysis.py',
             'pisa/core/distribution_maker.py',
             'pisa/core/stage.py',
+            'pisa/scripts/pisa_v2_v3_consistency_tests.py'
         ],
         ext_modules=cythonize(ext_modules),
         package_data=package_data
