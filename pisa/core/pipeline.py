@@ -71,8 +71,11 @@ class Pipeline(object):
         if isinstance(config, basestring):
             config = parse_pipeline_config(config=config)
         assert isinstance(config, OrderedDict)
-        self.config = config
+        self._config = config
         self._init_stages()
+
+    def __len__(self):
+        return len(self._stages)
 
     def __iter__(self):
         return iter(self._stages)
@@ -201,6 +204,10 @@ class Pipeline(object):
     def stage_names(self):
         return [s.stage_name for s in self]
 
+    @property
+    def config(self):
+        return self._config
+
 
 if __name__ == '__main__':
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
@@ -212,6 +219,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument(
         '-p', '--pipeline-settings', metavar='CONFIGFILE', type=str,
+        required=True,
         help='File containing settings for the pipeline.'
     )
     parser.add_argument(
@@ -264,12 +272,12 @@ if __name__ == '__main__':
         help='''Produce pdf plot(s).'''
     )
     parser.add_argument(
-        '--annotate', action='store_true',
-        help='''Annotate pllots with counts per bin'''
-    )
-    parser.add_argument(
         '--png', action='store_true',
         help='''Produce png plot(s).'''
+    )
+    parser.add_argument(
+        '--annotate', action='store_true',
+        help='''Annotate plots with counts per bin'''
     )
     parser.add_argument(
         '-v', action='count', default=None,

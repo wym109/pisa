@@ -3,6 +3,8 @@
 # Allow PISA to be distributed via distutils, i.e the user can just
 #
 # TODO: does the following work with requirements.txt file?
+# --> some version of cython and numpy must already be installed, since they
+#     are imported here
 #
 #   pip install git+https://github.com/sboeser/pisa#egg=pisa
 #
