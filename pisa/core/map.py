@@ -299,27 +299,27 @@ class Map(object):
         # names) has changed about the # binning spec's; if that's the case,
         # just return current hist but with new names.
         if current_binning.edges_hash == new_binning.edges_hash:
-            return {'hist': self.hist, 'binning': new_binning}
+            return {'hist': new_map.hist, 'binning': new_binning}
 
         # Update the units that are specified in new_binning (but don't augment
         # dimensionality; shouldn't need this `if` statement if we get past
         # `assert` above, but just in case...)
-        current_units = {d.name: d.units for d in self.binning.dimensions
+        current_units = {d.name: d.units for d in new_map.binning.dimensions
                          if d.name in new_binning}
         new_units = {d.name: d.units for d in new_binning.dimensions}
         if new_units != current_units:
-            rescaled_binning = self.binning.to(**units)
+            rescaled_binning = new_map.binning.to(**units)
         else:
-            rescaled_binning = self.binning
+            rescaled_binning = new_map.binning
         coords = rescaled_binning.meshgrid('midpoints', attach_units=False)
         # Flatten each dim for histogramming; only take dims that exist in
         # `new_binning`
-        coords = [c.flatten() for n, c in zip(self.binning.names, coords)
+        coords = [c.flatten() for n, c in zip(new_map.binning.names, coords)
                   if n in new_binning]
 
-        weights = self.hist.flatten()
+        weights = new_map.hist.flatten()
         # TODO: is this a sufficient test for whether it's a unp.uarray?
-        if not isbarenumeric(self.hist):
+        if not isbarenumeric(new_map.hist):
             weights = unp.nominal_values(weights)
 
         # Perform the histogramming, weighting by the current bins' values
