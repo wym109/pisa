@@ -41,15 +41,17 @@ def find_resource(resourcename, fail=True):
     IOError if `resource` is not found and `fail` is True.
 
     """
+    logging.trace('Attempting to locate `resourcename` "%s"' %resourcename)
     # 1) Check for absolute path or path relative to current working
     #    directory
+    logging.trace('Checking absolute or path relative to cwd...')
     rsrc_path = os.path.expandvars(os.path.expanduser(resourcename))
     if os.path.isfile(rsrc_path) or os.path.isdir(rsrc_path):
         logging.debug('Found %s at %s' % (resourcename, rsrc_path))
         return rsrc_path
 
     # 2) Check if $PISA is set in environment, and look relative to that
-    logging.trace("Checking environment for $PISA...")
+    logging.trace('Checking environment for $PISA...')
     if 'PISA' in os.environ:
         rpath = os.path.expandvars(os.path.expanduser(os.environ['PISA']))
         logging.trace('Searching resource path PISA=%s' % rpath)

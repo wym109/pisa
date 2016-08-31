@@ -200,8 +200,10 @@ def parse_pipeline_config(config):
     <?>
 
     """
+    print '** config0 = ' + str(config)
     if isinstance(config, basestring):
         config = from_file(config)
+        print '** config1 = ' + config
     # create binning objects
     binning_dict = {}
     for name, value in config.items('binning'):
