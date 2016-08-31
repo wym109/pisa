@@ -307,8 +307,8 @@ def compare_flux(config, servicename, pisa2file, systname,
         )
 
         check_agreement(
-            testname='V3-V2 flux %s %s %s'
-                %(test_service, nukey, test_syst),
+            testname='V3-V2 flux:%s %s %s'
+                %(test_service, test_syst, nukey),
             thresh_ratio=ratio_test_threshold,
             ratio=max_diff_ratio,
             thresh_diff=diff_test_threshold,
@@ -397,8 +397,8 @@ def compare_osc(config, servicename, pisa2file, systname,
         )
 
         check_agreement(
-            testname='V3-V2 osc %s %s %s'
-                %(test_service, nukey, test_syst),
+            testname='V3-V2 osc:%s %s %s'
+                %(test_service, test_syst, nukey),
             thresh_ratio=ratio_test_threshold,
             ratio=max_diff_ratio,
             thresh_diff=diff_test_threshold,
@@ -484,8 +484,8 @@ def compare_aeff(config, servicename, pisa2file, systname,
             )
 
             check_agreement(
-                testname='V3-V2 aeff %s %s %s'
-                    %(test_service, cakekey, test_syst),
+                testname='V3-V2 aeff:%s %s %s'
+                    %(test_service, test_syst, cakekey),
                 thresh_ratio=ratio_test_threshold,
                 ratio=max_diff_ratio,
                 thresh_diff=diff_test_threshold,
@@ -500,6 +500,7 @@ def compare_reco(config, servicename, pisa2file, outdir, ratio_test_threshold, d
     logging.info('>> Working on reco stage comparisons')
     logging.info('>>> Checking %s service'%servicename)
     test_service = servicename
+
     logging.info('>>> Checking baseline')
     test_syst = 'baseline'
     pipeline = Pipeline(config)
@@ -573,8 +574,8 @@ def compare_reco(config, servicename, pisa2file, outdir, ratio_test_threshold, d
         )
 
         check_agreement(
-            testname='V3-V2 reco %s %s %s'
-                %(test_service, nukey, test_syst),
+            testname='V3-V2 reco:%s %s %s'
+                %(test_service, test_syst, nukey),
             thresh_ratio=ratio_test_threshold,
             ratio=max_diff_ratio,
             thresh_diff=diff_test_threshold,
@@ -589,6 +590,7 @@ def compare_pid(config, servicename, pisa2file, outdir, ratio_test_threshold, di
     logging.info('>> Working on pid stage comparisons')
     logging.info('>>> Checking %s service'%servicename)
     test_service = servicename
+
     logging.info('>>> Checking baseline')
     test_syst = 'baseline'
     pipeline = Pipeline(config)
@@ -635,8 +637,8 @@ def compare_pid(config, servicename, pisa2file, outdir, ratio_test_threshold, di
     )
 
     check_agreement(
-        testname='V3-V2 pid %s %s cscd %s'
-            %(test_service, nukey, test_syst),
+        testname='V3-V2 pid:%s %s cscd'
+            %(test_service, test_syst),
         thresh_ratio=ratio_test_threshold,
         ratio=max_diff_ratio,
         thresh_diff=diff_test_threshold,
@@ -656,8 +658,8 @@ def compare_pid(config, servicename, pisa2file, outdir, ratio_test_threshold, di
     )
 
     check_agreement(
-        testname='V3-V2 pid %s %s trck %s'
-            %(test_service, nukey, test_syst),
+        testname='V3-V2 pid:%s %s trck'
+            %(test_service, test_syst),
         thresh_ratio=ratio_test_threshold,
         ratio=max_diff_ratio,
         thresh_diff=diff_test_threshold,
@@ -674,6 +676,7 @@ def compare_flux_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_t
     """
     logging.info('>> Working on full pipeline comparisons')
     logging.info('>>> Checking to end of flux stage')
+    test_service = 'honda'
 
     for nukey in pisa_maps.keys():
         if 'nu' not in nukey:
@@ -703,13 +706,13 @@ def compare_flux_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_t
             outdir=outdir,
             subdir='fullpipeline',
             stagename='flux',
-            servicename='honda',
+            servicename=test_service,
             name=nukey,
             texname=cake_maps[nukey].tex
         )
 
         check_agreement(
-            testname='V3-V2 flux %s %s'
+            testname='V3-V2 flux:%s %s'
                 %(test_service, nukey),
             thresh_ratio=ratio_test_threshold,
             ratio=max_diff_ratio,
@@ -761,7 +764,7 @@ def compare_osc_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_te
         )
 
         check_agreement(
-            testname='V3-V2 full pipeline through osc (%s) %s'
+            testname='V3-V2 full pipeline through osc:%s %s'
                 %(test_service, nukey),
             thresh_ratio=ratio_test_threshold,
             ratio=max_diff_ratio,
@@ -777,6 +780,7 @@ def compare_aeff_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_t
     """
     logging.info('>> Working on full pipeline comparisons')
     logging.info('>>> Checking to end of aeff stage')
+    test_service = 'hist_1X585'
 
     for nukey in pisa_maps.keys():
         if 'nu' not in nukey:
@@ -808,14 +812,13 @@ def compare_aeff_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_t
                 outdir=outdir,
                 subdir='fullpipeline',
                 stagename='aeff',
-                servicename='hist_1X585',
+                servicename=test_service,
                 name=cakekey,
                 texname=cake_maps[cakekey].tex,
             )
 
             check_agreement(
-                testname='V3-V2 full pipeline through aeff (hist) %s'
-                    %nukey,
+                testname='V3-V2 full pipeline through aeff:hist %s' %nukey,
                 thresh_ratio=ratio_test_threshold,
                 ratio=max_diff_ratio,
                 thresh_diff=diff_test_threshold,
@@ -830,6 +833,8 @@ def compare_reco_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_t
     """
     logging.info('>> Working on full pipeline comparisons')
     logging.info('>>> Checking to end of reco stage')
+    test_service = 'hist_1X585'
+
     nue_nuebar_cc = cake_maps.combine_re(r'nue(bar){0,1}_cc')
     numu_numubar_cc = cake_maps.combine_re(r'numu(bar){0,1}_cc')
     nutau_nutaubar_cc = cake_maps.combine_re(r'nutau(bar){0,1}_cc')
@@ -859,7 +864,6 @@ def compare_reco_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_t
     }
 
     for nukey in pisa_maps.keys():
-        test_service = 'hist_1X585'
         if 'nu' not in nukey:
             continue
 
@@ -895,7 +899,7 @@ def compare_reco_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_t
         )
 
         check_agreement(
-            testname='V3-V2 full pipeline through reco (%s) %s'
+            testname='V3-V2 full pipeline through reco:%s %s'
                 %(test_service, nukey),
             thresh_ratio=ratio_test_threshold,
             ratio=max_diff_ratio,
@@ -911,6 +915,8 @@ def compare_pid_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_te
     """
     logging.info('>> Working on full pipeline comparisons')
     logging.info('>>> Checking to end of pid stage')
+    test_service = 'hist_1X585'
+
     cake_trck = cake_maps.combine_wildcard('*_trck')
     cake_cscd = cake_maps.combine_wildcard('*_cscd')
     total_cake_trck_dict = {
@@ -927,7 +933,6 @@ def compare_pid_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_te
     total_pisa_trck_dict = pisa_maps['trck']
     total_pisa_cscd_dict = pisa_maps['cscd']
 
-    test_service = 'hist_1X585'
     max_diff_ratio, max_diff = plot_comparisons(
         ref_map=total_pisa_cscd_dict,
         new_map=total_cake_cscd_dict,
@@ -940,8 +945,8 @@ def compare_pid_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_te
         texname=r'{\rm cscd}'
     )
     check_agreement(
-        testname='V3-V2 full pipeline through pid (%s) cscd %s'
-            %(test_service, nukey),
+        testname='V3-V2 full pipeline through pid:%s cscd'
+            %(test_service),
         thresh_ratio=ratio_test_threshold,
         ratio=max_diff_ratio,
         thresh_diff=diff_test_threshold,
@@ -960,8 +965,8 @@ def compare_pid_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_te
         texname=r'{\rm trck}'
     )
     check_agreement(
-        testname='V3-V2 full pipeline through pid (%s) trck %s'
-            %(test_service, nukey),
+        testname='V3-V2 full pipeline through pid:%s trck'
+            %(test_service),
         thresh_ratio=ratio_test_threshold,
         ratio=max_diff_ratio,
         thresh_diff=diff_test_threshold,
