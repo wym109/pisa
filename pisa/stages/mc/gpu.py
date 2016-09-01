@@ -50,16 +50,6 @@ class gpu(Stage):
             'no_nc_osc',
             )
 
-	self.barr_params = (
-            'Barr_uphor_ratio',
-            'Barr_nu_nubar_ratio'
-	)
-
-	self.genie_params = (
-            'Genie_Ma_QE',
-            'Genie_Ma_RES',
-	)
-
         self.weight_params = (
             'nu_nubar_ratio',
             'nue_numu_ratio',
@@ -68,6 +58,10 @@ class gpu(Stage):
             'pid_bound',
             'pid_remove',
             'delta_index',
+            'Barr_uphor_ratio',
+            'Barr_nu_nubar_ratio',
+            'Genie_Ma_QE',
+            'Genie_Ma_RES',
         )
 
         self.other_params = (
@@ -79,7 +73,7 @@ class gpu(Stage):
             'reco_cz_res_raw'
         )
 
-        expected_params = self.osc_params + self.barr_params + self.genie_params + self.weight_params + self.other_params
+        expected_params = self.osc_params +  self.weight_params + self.other_params
 
         output_names = ('trck','cscd')
 
@@ -103,8 +97,6 @@ class gpu(Stage):
 
         self.osc_hash = None
         self.weight_hash = None
-        self.genie_hash = None
-        self.barr_hash = None
 
         # initialize classes
         earth_model = find_resource(self.params.earth_model.value)
@@ -212,41 +204,6 @@ class gpu(Stage):
             self.update_device(flav, 'reco_energy')
             self.update_device(flav, 'reco_coszen')
 
-    def apply_barr(self):
-        for flav in self.flavs:
-            neutrino_nue_flux, neutrino_numu_flux = self.apply_Barr_flux_ratio(
-                    self.events_dict[flav]['kNuBar'],
-                    self.events_dict[flav]['host']['neutrino_nue_flux'].copy(),
-                    self.events_dict[flav]['host']['neutrino_numu_flux'].copy(), 
-                    self.events_dict[flav]['host']['true_energy'],
-                    self.events_dict[flav]['host']['true_coszen'],
-                    )
-            #self.events_dict[flav]['host']['neutrino_oppo_nue_flux'], self.events_dict[flav]['host']['neutrino_oppo_numu_flux'] = 
-            #self.apply_Barr_flux_ratio(
-            #        -self.events_dict[flav]['kNuBar'],
-            #        self.events_dict[flav]['host']['neutrino_oppo_nue_flux'],
-            #        self.events_dict[flav]['host']['neutrino_oppo_numu_flux'], 
-            #        self.events_dict[flav]['host']['true_energy'],
-            #        self.events_dict[flav]['host']['true_coszen'],
-            #        )
-
-            cuda.memcpy_htod(self.events_dict[flav]['device']['neutrino_nue_flux'], neutrino_nue_flux)
-            cuda.memcpy_htod(self.events_dict[flav]['device']['neutrino_numu_flux'], neutrino_numu_flux)
-        
-    def apply_genie(self):
-        for flav in self.flavs:
-            weighted_aeff = self.apply_GENIE_mod_oscFit(
-                                    self.events_dict[flav]['host']['weighted_aeff'].copy(),
-                                    self.events_dict[flav]['host']['linear_fit_MaCCQE'], 
-                                    self.events_dict[flav]['host']['quad_fit_MaCCQE'], 
-                                    self.params['Genie_Ma_QE'].value.m_as('dimensionless'))
-            weighted_aeff = self.apply_GENIE_mod_oscFit(
-                                    weighted_aeff,
-                                    self.events_dict[flav]['host']['linear_fit_MaCCRES'], 
-                                    self.events_dict[flav]['host']['quad_fit_MaCCRES'], 
-                                    self.params['Genie_Ma_RES'].value.m_as('dimensionless'))
-
-            cuda.memcpy_htod(self.events_dict[flav]['device']['weighted_aeff'], weighted_aeff)
 
     def update_device(self, flav, var):
         # update existing
@@ -260,11 +217,7 @@ class gpu(Stage):
         # get hash to decide wether expensive stuff needs to be recalculated 
         osc_hash = hash_obj(normQuant([self.params[name].value for name in self.osc_params]))
         weight_hash = hash_obj(normQuant([self.params[name].value for name in self.weight_params]))
-        genie_hash = hash_obj(normQuant([self.params[name].value for name in self.genie_params]))
-        barr_hash = hash_obj(normQuant([self.params[name].value for name in self.barr_params]))
         recalc_osc = not (osc_hash == self.osc_hash)
-        recalc_barr = not (barr_hash == self.barr_hash)
-        recalc_genie = not (genie_hash == self.genie_hash)
         recalc_weight = True
 
         if recalc_weight:
@@ -275,6 +228,10 @@ class gpu(Stage):
             nue_numu_ratio = self.params.nue_numu_ratio.value.m_as('dimensionless')
             nu_nubar_ratio = self.params.nu_nubar_ratio.value.m_as('dimensionless')
             delta_index = self.params.delta_index.value.m_as('dimensionless')
+            Barr_uphor_ratio = self.params.Barr_uphor_ratio.value.m_as('dimensionless')
+            Barr_nu_nubar_ratio = self.params.Barr_nu_nubar_ratio.value.m_as('dimensionless')
+            Genie_Ma_QE = self.params.Genie_Ma_QE.value.m_as('dimensionless')
+            Genie_Ma_RES = self.params.Genie_Ma_RES.value.m_as('dimensionless')
 
         if recalc_osc:
             theta12 = self.params.theta12.value.m_as('rad')
@@ -289,10 +246,6 @@ class gpu(Stage):
         start_t = time.time()
         for flav in self.flavs:
 
-            # apply genie and barr systematics on host
-            if recalc_barr: self.apply_barr()
-            if recalc_genie: self.apply_genie()
-
             # calculate osc probs
             if recalc_osc and not (self.params.no_nc_osc and flav.endswith('_nc')):
                 self.osc.calc_probs(self.events_dict[flav]['kNuBar'], self.events_dict[flav]['kFlav'],
@@ -305,6 +258,8 @@ class gpu(Stage):
                                     aeff_scale=aeff_scale, nue_numu_ratio=nue_numu_ratio, 
                                     nu_nubar_ratio=nu_nubar_ratio, kNuBar=self.events_dict[flav]['kNuBar'],
                                     delta_index=delta_index,
+                                    Barr_uphor_ratio=Barr_uphor_ratio, Barr_nu_nubar_ratio=Barr_nu_nubar_ratio,
+                                    Genie_Ma_QE=Genie_Ma_QE, Genie_Ma_RES=Genie_Ma_RES,
                                     **self.events_dict[flav]['device'])
 
                 if self.error_method == 'sumw2':
@@ -345,8 +300,6 @@ class gpu(Stage):
         # set new hash
         self.osc_hash = osc_hash
         self.weight_hash = weight_hash
-        self.barr_hash = barr_hash
-        self.genie_hash = genie_hash
 
         maps = []
         # apply scales, add up all cscds and tracks, and pack them up in final PISA MapSet
@@ -379,18 +332,3 @@ class gpu(Stage):
             maps.append(Map(name='trck', hist=hist_trck, binning=self.output_binning))
 
         return MapSet(maps,name='gpu_mc')
-
-    def apply_GENIE_mod_oscFit(self, aeff_weights, linear_coeffs, quad_coeffs, param_value):
-	coeffs = np.array([quad_coeffs, linear_coeffs])
-	coeffs = coeffs.transpose()
-	aeff_weights *= sf.axialMassVar(coeff = coeffs, Ma = param_value)
-	return aeff_weights
-
-    def apply_Barr_flux_ratio(self, kNuBar, nue_flux, numu_flux, true_e, true_cz):
-	params_nu_nubar = 1.0
-	isbar = '_bar' if kNuBar < 0 else ''
-        nue_flux *= sf.modRatioNuBar('nue'+isbar, true_e, true_cz, params_nu_nubar, self.params['Barr_nu_nubar_ratio'].value.m_as('dimensionless'))
-        numu_flux *= sf.modRatioNuBar('numu'+isbar, true_e, true_cz, params_nu_nubar, self.params['Barr_nu_nubar_ratio'].value.m_as('dimensionless'))
-        nue_flux *= sf.modRatioUpHor('nue'+isbar, true_e, true_cz, self.params['Barr_uphor_ratio'].value.m_as('dimensionless'))
-        numu_flux *= sf.modRatioUpHor('numu'+isbar, true_e, true_cz, self.params['Barr_uphor_ratio'].value.m_as('dimensionless'))
-	return nue_flux, numu_flux
