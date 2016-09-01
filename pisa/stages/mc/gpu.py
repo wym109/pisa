@@ -18,6 +18,7 @@ from pisa.core.map import Map, MapSet
 from pisa.utils.log import logging
 from pisa.utils.comparisons import normQuant
 from pisa.utils.hash import hash_obj
+import pisa.utils.systematicFunctions as sf
 
 
 def copy_dict_to_d(events):
@@ -49,6 +50,15 @@ class gpu(Stage):
             'no_nc_osc',
             )
 
+	self.barr_params = (
+            'Barr_uphor_ratio',
+            'Barr_nu_nubar_ratio'
+	)
+
+	self.genie_params = (
+            'Genie_Ma_QE',
+            'Genie_Ma_RES',
+	)
 
         self.weight_params = (
             'nu_nubar_ratio',
@@ -69,7 +79,7 @@ class gpu(Stage):
             'reco_cz_res_raw'
         )
 
-        expected_params = self.osc_params + self.weight_params + self.other_params
+        expected_params = self.osc_params + self.barr_params + self.genie_params + self.weight_params + self.other_params
 
         output_names = ('trck','cscd')
 
@@ -93,6 +103,8 @@ class gpu(Stage):
 
         self.osc_hash = None
         self.weight_hash = None
+        self.genie_hash = None
+        self.barr_hash = None
 
         # initialize classes
         earth_model = find_resource(self.params.earth_model.value)
@@ -132,10 +144,16 @@ class gpu(Stage):
         # Load and copy events
         variables = ['true_energy', 'true_coszen', 'reco_energy', 'reco_coszen',
                     'neutrino_nue_flux', 'neutrino_numu_flux', 'neutrino_oppo_nue_flux',
-                    'neutrino_oppo_numu_flux', 'weighted_aeff', 'pid']
+                    'neutrino_oppo_numu_flux', 'weighted_aeff', 'pid',
+                    'linear_fit_MaCCQE', 'quad_fit_MaCCQE',
+                    'linear_fit_MaCCRES', 'quad_fit_MaCCRES',
+                    ]
+        # to allocate empty arrays on GPU
         empty = ['prob_e', 'prob_mu', 'weight_trck', 'weight_cscd']
         if self.error_method == 'sumw2':
             empty += ['sumw2_trck', 'sumw2_cscd']
+
+        # list of flav_ints to use and corresponding number used in several parts of the code
         self.flavs = ['nue_cc', 'numu_cc', 'nutau_cc', 'nue_nc', 'numu_nc', 'nutau_nc',
                 'nuebar_cc', 'numubar_cc', 'nutaubar_cc', 'nuebar_nc', 'numubar_nc', 'nutaubar_nc']
         kFlavs = [0, 1, 2] * 4
@@ -154,21 +172,7 @@ class gpu(Stage):
             # host arrays
             self.events_dict[flav]['host'] = {}
             for var in variables:
-                if var == 'reco_energy':
-                    # apply energy reco sys
-                    f = self.params.reco_e_res_raw.value.m_as('dimensionless')
-                    g = self.params.reco_e_scale_raw.value.m_as('dimensionless')
-                    self.events_dict[flav]['host']['reco_energy'] = (g * ((1.-f) * evts[flav]['true_energy'] + f * evts[flav]['reco_energy'])).astype(FTYPE)
-                elif var == 'reco_coszen':
-                    # apply coszen reco sys
-                    f = self.params.reco_cz_res_raw.value.m_as('dimensionless')
-                    reco_coszen = ((1.-f) * evts[flav]['true_coszen'] + f * evts[flav]['reco_coszen']).astype(FTYPE)
-                    while np.any(reco_coszen<-1) or np.any(reco_coszen>1):
-                        reco_coszen[reco_coszen>1] = 2-reco_coszen[reco_coszen>1]
-                        reco_coszen[reco_coszen<-1] = -2-reco_coszen[reco_coszen<-1]
-                    self.events_dict[flav]['host']['reco_coszen'] = reco_coszen 
-                else:
-                    self.events_dict[flav]['host'][var] = evts[flav][var].astype(FTYPE)
+                self.events_dict[flav]['host'][var] = evts[flav][var].astype(FTYPE)
             self.events_dict[flav]['n_evts'] = np.uint32(len(self.events_dict[flav]['host'][variables[0]]))
             for var in empty:
                 if self.params.no_nc_osc and ( (flav in ['nue_nc', 'nuebar_nc'] and var == 'prob_e') or (flav in ['numu_nc', 'numubar_nc'] and var == 'prob_mu') ):
@@ -187,13 +191,80 @@ class gpu(Stage):
         end_t = time.time()
         logging.debug('copy done in %.4f ms'%((end_t - start_t) * 1000))
 
+        # apply raw reco sys
+        self.apply_reco()
+
+    def apply_reco(self):
+        # applying raw reco systematics (to use as inputs to polyfit stage)
+        for flav in self.flavs:
+            # apply energy reco sys
+            f = self.params.reco_e_res_raw.value.m_as('dimensionless')
+            g = self.params.reco_e_scale_raw.value.m_as('dimensionless')
+            self.events_dict[flav]['host']['reco_energy'] = (g * ((1.-f) * self.events_dict[flav]['host']['true_energy'] + f * self.events_dict[flav]['host']['reco_energy'])).astype(FTYPE)
+
+            # apply coszen reco sys
+            f = self.params.reco_cz_res_raw.value.m_as('dimensionless')
+            self.events_dict[flav]['host']['reco_coszen'] = ((1.-f) * self.events_dict[flav]['host']['true_coszen'] + f * self.events_dict[flav]['host']['reco_coszen']).astype(FTYPE)
+            while np.any(self.events_dict[flav]['host']['reco_coszen']<-1) or np.any(self.events_dict[flav]['host']['reco_coszen']>1):
+                self.events_dict[flav]['host']['reco_coszen'][self.events_dict[flav]['host']['reco_coszen']>1] = 2-self.events_dict[flav]['host']['reco_coszen'][self.events_dict[flav]['host']['reco_coszen']>1]
+                self.events_dict[flav]['host']['reco_coszen'][self.events_dict[flav]['host']['reco_coszen']<-1] = -2-self.events_dict[flav]['host']['reco_coszen'][self.events_dict[flav]['host']['reco_coszen']<-1]
+
+            self.update_device(flav, 'reco_energy')
+            self.update_device(flav, 'reco_coszen')
+
+    def apply_barr(self):
+        for flav in self.flavs:
+            neutrino_nue_flux, neutrino_numu_flux = self.apply_Barr_flux_ratio(
+                    self.events_dict[flav]['kNuBar'],
+                    self.events_dict[flav]['host']['neutrino_nue_flux'].copy(),
+                    self.events_dict[flav]['host']['neutrino_numu_flux'].copy(), 
+                    self.events_dict[flav]['host']['true_energy'],
+                    self.events_dict[flav]['host']['true_coszen'],
+                    )
+            #self.events_dict[flav]['host']['neutrino_oppo_nue_flux'], self.events_dict[flav]['host']['neutrino_oppo_numu_flux'] = 
+            #self.apply_Barr_flux_ratio(
+            #        -self.events_dict[flav]['kNuBar'],
+            #        self.events_dict[flav]['host']['neutrino_oppo_nue_flux'],
+            #        self.events_dict[flav]['host']['neutrino_oppo_numu_flux'], 
+            #        self.events_dict[flav]['host']['true_energy'],
+            #        self.events_dict[flav]['host']['true_coszen'],
+            #        )
+
+            cuda.memcpy_htod(self.events_dict[flav]['device']['neutrino_nue_flux'], neutrino_nue_flux)
+            cuda.memcpy_htod(self.events_dict[flav]['device']['neutrino_numu_flux'], neutrino_numu_flux)
+        
+    def apply_genie(self):
+        for flav in self.flavs:
+            weighted_aeff = self.apply_GENIE_mod_oscFit(
+                                    self.events_dict[flav]['host']['weighted_aeff'].copy(),
+                                    self.events_dict[flav]['host']['linear_fit_MaCCQE'], 
+                                    self.events_dict[flav]['host']['quad_fit_MaCCQE'], 
+                                    self.params['Genie_Ma_QE'].value.m_as('dimensionless'))
+            weighted_aeff = self.apply_GENIE_mod_oscFit(
+                                    weighted_aeff,
+                                    self.events_dict[flav]['host']['linear_fit_MaCCRES'], 
+                                    self.events_dict[flav]['host']['quad_fit_MaCCRES'], 
+                                    self.params['Genie_Ma_RES'].value.m_as('dimensionless'))
+
+            cuda.memcpy_htod(self.events_dict[flav]['device']['weighted_aeff'], weighted_aeff)
+
+    def update_device(self, flav, var):
+        # update existing
+        self.events_dict[flav]['device'][var].free()
+        self.events_dict[flav]['device'][var] = cuda.mem_alloc(self.events_dict[flav]['host'][var].nbytes)
+        cuda.memcpy_htod(self.events_dict[flav]['device'][var], self.events_dict[flav]['host'][var])
+        
+
     def _compute_outputs(self, inputs=None):
         logging.info('retreive weighted histo')
-        # get hash to decide wether weight and/or osc needs to be racalculated
+        # get hash to decide wether expensive stuff needs to be recalculated 
         osc_hash = hash_obj(normQuant([self.params[name].value for name in self.osc_params]))
         weight_hash = hash_obj(normQuant([self.params[name].value for name in self.weight_params]))
+        genie_hash = hash_obj(normQuant([self.params[name].value for name in self.genie_params]))
+        barr_hash = hash_obj(normQuant([self.params[name].value for name in self.barr_params]))
         recalc_osc = not (osc_hash == self.osc_hash)
-        recalc_weight = not (weight_hash == self.weight_hash)
+        recalc_barr = not (barr_hash == self.barr_hash)
+        recalc_genie = not (genie_hash == self.genie_hash)
         recalc_weight = True
 
         if recalc_weight:
@@ -217,6 +288,11 @@ class gpu(Stage):
         tot = 0
         start_t = time.time()
         for flav in self.flavs:
+
+            # apply genie and barr systematics on host
+            if recalc_barr: self.apply_barr()
+            if recalc_genie: self.apply_genie()
+
             # calculate osc probs
             if recalc_osc and not (self.params.no_nc_osc and flav.endswith('_nc')):
                 self.osc.calc_probs(self.events_dict[flav]['kNuBar'], self.events_dict[flav]['kFlav'],
@@ -269,6 +345,8 @@ class gpu(Stage):
         # set new hash
         self.osc_hash = osc_hash
         self.weight_hash = weight_hash
+        self.barr_hash = barr_hash
+        self.genie_hash = genie_hash
 
         maps = []
         # apply scales, add up all cscds and tracks, and pack them up in final PISA MapSet
@@ -301,3 +379,18 @@ class gpu(Stage):
             maps.append(Map(name='trck', hist=hist_trck, binning=self.output_binning))
 
         return MapSet(maps,name='gpu_mc')
+
+    def apply_GENIE_mod_oscFit(self, aeff_weights, linear_coeffs, quad_coeffs, param_value):
+	coeffs = np.array([quad_coeffs, linear_coeffs])
+	coeffs = coeffs.transpose()
+	aeff_weights *= sf.axialMassVar(coeff = coeffs, Ma = param_value)
+	return aeff_weights
+
+    def apply_Barr_flux_ratio(self, kNuBar, nue_flux, numu_flux, true_e, true_cz):
+	params_nu_nubar = 1.0
+	isbar = '_bar' if kNuBar < 0 else ''
+        nue_flux *= sf.modRatioNuBar('nue'+isbar, true_e, true_cz, params_nu_nubar, self.params['Barr_nu_nubar_ratio'].value.m_as('dimensionless'))
+        numu_flux *= sf.modRatioNuBar('numu'+isbar, true_e, true_cz, params_nu_nubar, self.params['Barr_nu_nubar_ratio'].value.m_as('dimensionless'))
+        nue_flux *= sf.modRatioUpHor('nue'+isbar, true_e, true_cz, self.params['Barr_uphor_ratio'].value.m_as('dimensionless'))
+        numu_flux *= sf.modRatioUpHor('numu'+isbar, true_e, true_cz, self.params['Barr_uphor_ratio'].value.m_as('dimensionless'))
+	return nue_flux, numu_flux
