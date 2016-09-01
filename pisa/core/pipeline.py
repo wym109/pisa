@@ -14,7 +14,7 @@ import sys
 
 from pisa.core.param import ParamSet
 from pisa.core.stage import Stage
-from pisa.utils.config_parser import parse_pipeline_config
+from pisa.utils.config_parser import BetterConfigParser, parse_pipeline_config
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile
@@ -42,7 +42,7 @@ class Pipeline(object):
 
     Parameters
     ----------
-    config : string or OrderedDict
+    config : string, OrderedDict, or BetterConfigParser
         If string, interpret as resource location; send to the
           config_parser.parse_pipeline_config() function to get a config OrderedDict.
         If OrderedDict, use directly as pipeline configuration.
@@ -68,7 +68,7 @@ class Pipeline(object):
     @profile
     def __init__(self, config):
         self._stages = []
-        if isinstance(config, basestring):
+        if isinstance(config, (basestring, BetterConfigParser)):
             config = parse_pipeline_config(config=config)
         assert isinstance(config, OrderedDict)
         self._config = config

@@ -16,6 +16,24 @@ from pisa.utils.log import logging, set_verbosity
 from pisa import ureg, Q_
 
 
+class Counter(object):
+    def __init__(self, i=0):
+        self._i = c0
+
+    def __str__(self):
+        return str(self._i)
+
+    def __iadd__(self, inc):
+        self._i += inc
+
+    def reset(self):
+        self._i = 0
+
+    @property
+    def count(self):
+        return self._i
+
+
 class Analysis(object):
     """Major tools for performing "canonical" IceCube/DeepCore/PINGU analyses.
 
@@ -36,7 +54,7 @@ class Analysis(object):
         explanation).
 
     template_maker : DistributionMaker
-        Provides output templates to compare against the data-like template.
+        Provides output template to compare against the data-like template.
         The `template_maker` provides the interface to those parameters
         that can be modifed or studied for their effects during the analysis
         process.
@@ -46,31 +64,34 @@ class Analysis(object):
         llh or chi2
 
     """
-    def __init__(self, data_maker, template_maker, metric, minimizer_settings=None):
-        assert isinstance(data_maker, DistributionMaker)
-        assert isinstance(template_maker, DistributionMaker)
 
-        self.data_maker = data_maker
-        """DistributionMaker object for making data distributions"""
+    METRICS_TO_MAXIMIZE = ['llh', 'conv_llh']
 
-        self.template_maker = template_maker
-        """DistributionMaker object for making template distributions to be fit
-        to the data distribution"""
+    def __init__(self):
+        pass
+        #assert isinstance(data_maker, DistributionMaker)
+        #assert isinstance(template_maker, DistributionMaker)
 
-        assert isinstance(metric, basestring)
-        self.metric = metric.lower()
-        if isinstance(minimizer_settings, basestring):
-            self.minimizer_settings = from_file(minimizer_settings)
-        elif isinstance(minimizer_settings, Mapping):
-            self.minimizer_settings = minimizer_settings
-        else:
-            raise ValueError('Minimizer settings expected either as path to '
-                             'file or as dictionary read from file')
+        #self.data_maker = data_maker
+        #"""DistributionMaker object for making data distributions"""
 
-        # Generate distribution
-        self.asimov = self.data_maker.get_outputs()
-        self.pseudodata = None
-        self.n_minimizer_calls = 0
+        #self.template_maker = template_maker
+        #"""DistributionMaker object for making template distributions to be fit
+        #to the data distribution"""
+
+        #self.metric = metric
+        #if isinstance(minimizer_settings, basestring):
+        #    self.minimizer_settings = from_file(minimizer_settings)
+        #elif isinstance(minimizer_settings, Mapping):
+        #    self.minimizer_settings = minimizer_settings
+        #else:
+        #    raise ValueError('Minimizer settings expected either as path to '
+        #                     'file or as dictionary read from file')
+
+        ## Generate distribution
+        #self.asimov = self.data_maker.get_outputs()
+        #self.pseudodata = None
+        #self.n_minimizer_calls = 0
 
     @property
     def minimizer_settings(self):
@@ -80,6 +101,17 @@ class Analysis(object):
     def minimizer_settings(self, settings):
         self._minimizer_settings = settings
 
+    @property
+    def metric(self):
+        return self._metric
+
+    @metric.setter
+    def metric(self, metric):
+        assert isinstance(metric, basestring)
+        metric = metric.lower().strip()
+        # TODO: validation values here
+        self._metric = metric
+
     def generate_psudodata(self, method):
         if method == 'asimov':
             self.pseudodata = self.asimov
@@ -87,6 +119,7 @@ class Analysis(object):
             self.pseudodata = self.asimov.fluctuate('poisson')
         else:
             raise ValueError('Unknown `method` "%s"' %method)
+        return self.pseudodata
 
     # TODO: move the complexity of defining a scan into a class with various
     # factory methods, and just pass that class to the scan method; we will
@@ -139,7 +172,7 @@ class Analysis(object):
               * If `outer` is False, all inner sequences must have the same
                 length, and there will be one template generated for each set
                 of values across the inner sequences. In other words, there will
-                be a total of len(inner sequenc) templates generated.
+                be a total of len(inner sequence) templates generated.
               * If `outer` is True, the lengths of inner sequences needn't be
                 the same. This takes the outer product of the passed sequences
                 to arrive at the permutations of the parameter values that will
@@ -170,55 +203,74 @@ class Analysis(object):
             fp[param_names].value = val
             self.template_maker.update_params(fp)
             template = self.template_maker.get_outputs()
-            metric_vals.append(self.pseudodata.metric_total(expected_values=template,
-                                                      metric=self.metric))
+            metric_vals.append(
+                self.pseudodata.metric_total(
+                    expected_values=template, metric=self.metric
+                )
+            )
         return metric_vals
 
-    def _minimizer_callable(self, scaled_param_vals, pprint=True):
-        """The callable interface to provide to simple minimzers e.g. those in
-        scipy.optimize.
+    def _minimizer_callable(self, scaled_param_vals, template_maker, data,
+                            metric, counter, pprint):
+        """Simple callback for use by scipy.optimize minimizers.
 
         This should *not* in general be called by users, as `scaled_param_vals`
-        are stripped of their units and rescaled to [0, 1], and hence some
-        validation of inputs is bypassed by this method.
+        are stripped of their units and scaled to the range [0, 1], and hence
+        some validation of inputs is bypassed by this method.
 
         Parameters
         ----------
         scaled_param_vals : sequence of floats
-            If called from a scipy.optimize minimizer, this sequence is provied
-            by the minimizer itself. These values are all expected to be in the
-            range [0, 1] and be simple floats (no units or uncertainties
-            attached, etc.). Rescaling the parameter values to their
-            original (physical) ranges (including units) is handled within this
-            method.
+            If called from a scipy.optimize minimizer, this sequence is
+            provieded by the minimizer itself. These values are all expected to
+            be in the range [0, 1] and be simple floats (no units or
+            uncertainties attached, etc.). Rescaling the parameter values to
+            their original (physical) ranges (including units) is handled
+            within this method.
 
-        pprint :bool
+        template_maker : DistributionMaker
+            Creates the per-bin expectation values per map (aka template) based
+            on its param values. Free params in the `template_maker` are
+            modified by the minimizer to achieve a "best" fit.
+
+        data : MapSet
+            Data distribution to be fit. Can be an actual-, Asimov-, or
+            pseudo-data distribution (where the latter two are derived from
+            simulation and so aren't technically "data").
+
+        metric : str
+            Metric by which to evaluate the fit. See Map
+
+        counter : Counter
+            Mutable object to keep track--outside this method--of the number of
+            times this method is called.
+
+        pprint : bool
             Displays a single-line that updates live (assuming the entire line
             fits the width of your TTY).
 
         """
-        sign = +1
-        if self.metric in ['llh', 'conv_llh']:
-            # Want to *maximize* log-likelihood but we're using a minimizer
-            sign = -1
+        # Want to *maximize* e.g. log-likelihood but we're using a minimizer,
+        # so flip sign of metric in those cases.
+        sign = -1 if metric in self.METRICS_TO_MAXIMIZE else +1
 
-        self.template_maker.params.free._rescaled_values = scaled_param_vals
+        # Set param values from the scaled versions the minimizer works with
+        template_maker.params.free._rescaled_values = scaled_param_vals
 
-        template = self.template_maker.get_outputs()
+        # Get the template map set
+        template = template_maker.get_outputs()
 
-        # Assess the fit of the template to the data distribution, and negate
-        # if necessary
+        # Assess the fit: whether the data came from the template
         metric_val = (
-            self.pseudodata.metric_total(expected_values=template, metric=self.metric)
-            + self.template_maker.params.priors_penalty(metric=self.metric)
+            data.metric_total(expected_values=template, metric=metric)
+            + template_maker.params.priors_penalty(metric=metric)
         )
 
-        # TODO: make this a single header line and a single line that gets
-        # updated, to save horizontal space (and easier to read/follow)
+        # TODO: make this into a header line with param names and values
+        # beneath updated, to save horizontal space (and easier to read/follow)
 
         # Report status of metric & params
-        msg = '%s=%.6e | %s' %(self.metric, metric_val,
-                               self.template_maker.params.free)
+        msg = '%s=%.6e | %s' %(metric, metric_val, template_maker.params.free)
         if pprint:
             sys.stdout.write(msg)
             sys.stdout.flush()
@@ -226,103 +278,167 @@ class Analysis(object):
         else:
             logging.debug(msg)
 
-        self.n_minimizer_calls += 1
+        counter += 1
+
         return sign*metric_val
 
-    def run_minimizer(self, pprint=True):
-        # Get initial values
-        x0 = self.template_maker.params.free._rescaled_values
+    # TODO: make this generic to any minimizer
+    def fit_template_inner(self, template_maker, data, metric,
+                           minimizer_settings, pprint=True):
+        """Fitter "inner" loop: Run an arbitrary scipy minimizer to modify
+        template until the data distribution is most likely to have come from
+        that templated distribution.
+
+        Note that an "outer" loop can handle discrete scanning over e.g. the
+        octant for theta23; for each discrete point the "outer" loop can make a
+        call to this "inner" loop.
+
+        Parameters
+        ----------
+        template_maker : DistributionMaker or convertible thereto
+
+        data : MapSet
+            Data events distribution(s)
+
+        metric : string
+
+        minimizer_settings : string
+
+        pprint : bool
+            Whether to show live-update of minimizer progress.
+
+        Returns
+        -------
+
+        """
+        # Get starting free parameter values
+        x0 = template_maker.params.free._rescaled_values
+
+        # TODO: does this break if not using bfgs?
 
         # bfgs steps outside of given bounds by 1 epsilon to evaluate gradients
+        minimizer_kind = minimizer_settings['options']['value']
         try:
-            epsilon = self.minimizer_settings['options']['value']['eps']
-        except:
-            epsilon = self.minimizer_settings['options']['value']['epsilon']
+            epsilon = minimizer_kind['eps']
+        except KeyError:
+            epsilon = minimizer_kind['epsilon']
         bounds = [(0+epsilon, 1-epsilon)]*len(x0)
-        logging.info('running the %s optimizer'%self.minimizer_settings['method']['value'])
 
-        # Using scipy.opt.minimize allows a whole host of minimisers to be used
-        # This set by the method value in your minimiser settings file
-        self.n_minimizer_calls = 0
+        logging.info('Running the %s minimizer.'
+                     %minimizer_settings['method']['value'])
+
+        # Using scipy.opt.minimize allows a whole host of minimisers to be
+        # used.
+        counter = Counter()
         start_t = time.time()
         minim_result = opt.minimize(
             fun=self._minimizer_callable,
             x0=x0,
-            args=(pprint,),
+            args=(template_maker, data, metric, counter, pprint),
             bounds=bounds,
-            method = self.minimizer_settings['method']['value'],
-            options = self.minimizer_settings['options']['value']
+            method = minimizer_settings['method']['value'],
+            options = minimizer_settings['options']['value']
         )
         end_t = time.time()
         if pprint:
             # clear the line
-            print ''
-        print '\naverage template generation time during minimizer run: %.4f ms'%((end_t - start_t) * 1000./self.n_minimizer_calls)
-        best_fit_vals = minim_result.x
-        metric_val = minim_result.fun
-        dict_flags = {}
-        dict_flags['warnflag'] = minim_result.status
-        dict_flags['task'] = minim_result.message
-        if minim_result.has_key('jac'):
-            dict_flags['grad'] = minim_result.jac
-        dict_flags['funcalls'] = minim_result.nfev
-        dict_flags['nit'] = minim_result.nit
-        if dict_flags['warnflag'] > 0:
-            logging.warning(str(dict_flags))
+            sys.stdout.write('\n')
+            sys.stdout.flush()
+        logging.debug(
+            'Average template generation time during minimizer run: %.4f ms'
+            %((end_t - start_t) * 1000./counter.count)
+        )
 
-        return best_fit_vals, metric_val, dict_flags
+        # Will not assume that the minimizer left the template maker in the
+        # minimized state, so set the values now (also does conversion of
+        # values from [0,1] back to physical range)
+        rescaled_pvals = minim_result.pop('x')
+        template_maker.params._rescaled_values = rescaled_pvals
 
-    def find_best_fit(self, check_octant=True, pprint=True):
-        """Find best fit points according to (that maximize likelihood / minimize
-        chi-squared) for the free parameters.
+        # Get the best-fit metric value
+        metric_val = minim_result.pop('fun')
+
+        # Record minimizer metadata (all info besides 'x' and 'fun')
+        metadata = OrderedDict()
+        for k in sorted(minim_result.keys()):
+            metadata[k] = minim_result[k]
+
+        info = OrderedDict()
+        info['metric'] = metric
+        info['metric_val'] = metric_val
+        info['params'] = deepcopy(template_maker.params)
+        info['metadata'] = metadata
+
+        return info
+
+    def fit_template_outer(self, template_maker, data, metric,
+                           minimizer_settings, check_octant=True, pprint=True):
+        """Fitter "outer" loop: If `check_octant` is True, run
+        `fit_template_inner` starting in each octant of theta23 (assuming that
+        is a param in the `template_maker`). Otherwise, just run the inner
+        method once.
 
         Parameters
         ----------
-        check_octant : bool
+        template_maker : DistributionMaker or convertible thereto
+
+        data : MapSet
+            Data events distribution(s)
+
+        metric : string
+
+        minimizer_settings : string or dict
 
         pprint : bool
+            Whether to show live-update of minimizer progress.
 
         Returns
         -------
-        Best-fit metric (e.g. log-likelihood or chi-squared) value and the
-        corresponding parameter values.
 
         """
         # Reset free parameters to nominal values
-        logging.info('resetting params')
-        self.template_maker.params.reset_free()
+        logging.trace('resetting params')
+        template_maker.params.reset_free()
 
-        best_fit_vals, metric_val, dict_flags = self.run_minimizer(pprint=pprint)
-        best_fit = {}
-        best_fit['metric'] = metric_val
-        best_fit['warnflag'] = dict_flags['warnflag']
-        print self.template_maker.params.free
-        for pname in self.template_maker.params.free.names:
-            best_fit[pname] = self.template_maker.params[pname].value
+        best_fit_info = self.fit_template_inner(
+            template_maker=template_maker,
+            data=data,
+            metric=metric,
+            minimizer_settings=minimizer_settings,
+            pprint=pprint
+        )
 
-        # Decide whether fit for second octant is necessary
-        if 'theta23' in self.template_maker.params.free:
-            if check_octant:
-                logging.info('checking other octant of theta23')
-                self.template_maker.params.reset_free()
-                # changing to other octant
-                theta23 = self.template_maker.params['theta23']
-                inflection_point = 45 * ureg.degree
-                theta23.value = 2*inflection_point.to(theta23.value.units) - theta23.value
-                self.template_maker.update_params(theta23)
-                best_fit_vals, metric_val, dict_flags = self.run_minimizer(pprint=pprint)
+        # Decide whether fit for other octant is necessary
+        if 'theta23' in template_maker.params.free and check_octant:
+            logging.debug('checking other octant of theta23')
+            template_maker.params.reset_free()
 
-                # compare results a and b, take one with lower llh
-                if metric_val < best_fit['metric']:
-                    # accept these values
-                    logging.info('Accepting other octant fit')
-                    best_fit['metric'] = metric_val
-                    best_fit['warnflag'] = dict_flags['warnflag']
-                    for pname in self.template_maker.params.free:
-                        best_fit[pname] = self.template_maker.params[pname].value
+            # Hop to other octant by reflecting about 45 deg
+            theta23 = template_maker.params.theta23
+            inflection_point = (45*ureg.deg).to(theta23.units)
+            theta23.value = 2*inflection_point - theta23.value
+            template_maker.update_params(theta23)
 
-                else:
-                    logging.info('Accepting initial octant fit')
+            # Re-lun minimizer starting at new point
+            info = self.fit_template_inner(
+                template_maker=template_maker,
+                data=data,
+                metric=metric,
+                minimizer_settings=minimizer_settings,
+                pprint=pprint
+            )
+
+            # Take the one with the best fit
+            if metric in self.METRICS_TO_MAXIMIZE:
+                it_got_better = info['metric_val'] > best_fit['metric_val']
+            else:
+                it_got_better = info['metric_val'] < best_fit['metric_val']
+
+            if it_got_better:
+                logging.debug('Accepting other-octant fit')
+                best_fit_info = info
+            else:
+                logging.debug('Accepting initial-octant fit')
 
         return best_fit
 
@@ -455,12 +571,12 @@ if __name__ == '__main__':
     parser.add_argument(
         '-m', '--minimizer-settings', type=str,
         metavar='JSONFILE', required=True,
-        help='''Settings related to the optimizer used in the LLR analysis.'''
+        help='''Settings related to the minimizer used in the LLR analysis.'''
     )
     parser.add_argument(
         '--metric', type=str,
         choices=['llh', 'chi2', 'conv_llh'], required=True,
-        help='''Settings related to the optimizer used in the LLR analysis.'''
+        help='''Settings related to the minimizer used in the LLR analysis.'''
     )
     parser.add_argument(
         '-v', action='count', default=None,
@@ -478,7 +594,7 @@ if __name__ == '__main__':
     data_maker = DistributionMaker(data_settings)
     template_maker = DistributionMaker(args.template_settings)
 
-    # select inverted hierarchy
+    # select inverted mass ordering
     #template_maker_settings.set('stage:osc', 'param_selector', 'ih')
     #template_maker_configurator = parse_pipeline_config(template_maker_settings)
     #template_maker_IO = DistributionMaker(template_maker_configurator)

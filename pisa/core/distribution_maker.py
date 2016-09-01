@@ -7,6 +7,7 @@ from collections import OrderedDict, Sequence
 
 from pisa.core.pipeline import Pipeline
 from pisa.core.param import ParamSet
+from pisa.utils.config_parser import BetterConfigParser
 from pisa.utils.log import logging, set_verbosity
 
 
@@ -47,7 +48,8 @@ class DistributionMaker(object):
         if so, by which method this is done)"""
 
         self._pipelines = []
-        if isinstance(pipelines, (basestring, Pipeline)):
+        if isinstance(pipelines, (basestring, BetterConfigParser, OrderedDict,
+                                  Pipeline)):
             pipelines = [pipelines]
 
         for pipeline in pipelines:

@@ -4,10 +4,10 @@ pisa.utils package
 Submodules
 ----------
 
-pisa.utils.BetterConfigParser module
-------------------------------------
+pisa.utils.config_parser
+------------------------
 
-.. automodule:: pisa.utils.BetterConfigParser
+.. automodule:: pisa.utils.config_parser
     :members:
     :undoc-members:
     :show-inheritance:
@@ -160,14 +160,6 @@ pisa.utils.mcSimRunSettings module
 ----------------------------------
 
 .. automodule:: pisa.utils.mcSimRunSettings
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-pisa.utils.parse_config module
-------------------------------
-
-.. automodule:: pisa.utils.parse_config
     :members:
     :undoc-members:
     :show-inheritance:

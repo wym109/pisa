@@ -615,6 +615,13 @@ class ParamSet(object):
         [setattr(self._params[i], 'value', val) for i,val in enumerate(values)]
 
     @property
+    def name_val_dict(self):
+        d = OrderedDict()
+        for name, val in izip(self.names, self.values):
+            d[name] = val
+        return d
+
+    @property
     def is_nominal(self):
         return np.all([(v0==v1)
                        for v0, v1 in izip(self.values, self.nominal_values)])

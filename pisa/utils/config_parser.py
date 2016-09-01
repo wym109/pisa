@@ -85,6 +85,8 @@ updating params through the DistributionMaker's update_params method.
 # re-raise the exception)
 
 from collections import OrderedDict
+import ConfigParser
+import re
 
 import numpy as np
 import uncertainties
@@ -98,9 +100,41 @@ from pisa.core.prior import Prior
 from pisa.utils.fileio import from_file
 from pisa.utils.log import logging
 
+
 # Config files use "uinits.xyz" to denote that "xyz" is a unit; therefore,
 # ureg is also referred to as "units" in this context.
 units = ureg
+
+
+# TODO: document code, add comments, docstrings, abide by PISA coding
+# conventions
+class BetterConfigParser(ConfigParser.SafeConfigParser):
+    def get(self, section, option):
+        result = ConfigParser.SafeConfigParser.get(self, section, option, raw=True)
+        result = self.__replaceSectionwideTemplates(result)
+        return result
+
+    def items(self, section):
+        list = ConfigParser.SafeConfigParser.items(self, section=section, raw=True)
+        result = [(key, self.__replaceSectionwideTemplates(value)) for key,value
+        in list]
+        return result
+
+    def optionxform(self, optionstr):
+        """Enable case sensitive options in .ini files."""
+        return optionstr
+
+    def __replaceSectionwideTemplates(self, data):
+        """Replace <section|option> with get(section,option) recursivly."""
+        result = data
+        findExpression = re.compile(r"((.*)\<!(.*)\|(.*)\!>(.*))*")
+        groups = findExpression.search(data).groups()
+        if not groups == (None, None, None, None, None): # expression not matched
+            result = self.__replaceSectionwideTemplates(groups[1])
+            result += self.get(groups[2], groups[3])
+            result += self.__replaceSectionwideTemplates(groups[4])
+        return result
+
 
 # TODO: document code, add comments, docstrings, abide by PISA coding
 # conventions
@@ -200,10 +234,9 @@ def parse_pipeline_config(config):
     <?>
 
     """
-    print '** config0 = ' + str(config)
-    if isinstance(config, basestring):
+    if isinstance(config, basestring) \
+            and not isinstance(config, BetterConfigParser):
         config = from_file(config)
-        print '** config1 = ' + config
     # create binning objects
     binning_dict = {}
     for name, value in config.items('binning'):

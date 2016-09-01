@@ -235,7 +235,6 @@ if __name__ == '__main__':
         packages=[
             'pisa',
             'pisa.core',
-            'pisa.utils',
             'pisa.stages',
             'pisa.stages.flux',
             'pisa.stages.osc',

@@ -1493,7 +1493,7 @@ class MapSet(object):
         if metric in ['chi2', 'llh', 'conv_llh']:
             return self.apply_to_maps(metric, expected_values)
         else:
-            raise ValueError('`metric` "%s" not recognized; use either'
+            raise ValueError('`metric` "%s" not recognized; use'
                              ' "chi2", "conv_llh" or "llh".' %metric)
 
     def metric_total(self, expected_values, metric):
