@@ -683,7 +683,7 @@ class ParamSelector(object):
     """
     Parameters
     ----------
-    constant_params : ParamSet or instantiable thereto
+    regular_params : ParamSet or instantiable thereto
 
     selector_param_sets : None, dict, or sequence of dict
         Dict(s) format:
@@ -694,18 +694,18 @@ class ParamSelector(object):
             }
         The names are what must be specified in `selections` to select the
         corresponding ParamSets. Params specified in any of the ParamSets
-        within `selector_param_sets cannot be in `constant_params`.
+        within `selector_param_sets cannot be in `regular_params`.
 
     selections : None, string, or sequence of strings
         One string is required per 
 
     Notes
     -----
-    Params specified in `constant_params` are enforced to be mutually exclusive
+    Params specified in `regular_params` are enforced to be mutually exclusive
     with params in the param set(s) specified by `selector_param_sets`.
 
     """
-    def __init__(self, constant_params=None, selector_param_sets=None,
+    def __init__(self, regular_params=None, selector_param_sets=None,
                  selections=None):
         pass
 

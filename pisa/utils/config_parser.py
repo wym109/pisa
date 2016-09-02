@@ -262,16 +262,20 @@ def parse_pipeline_config(config):
             param_selectors = eval(config.get(section, 'param_selectors'))
         else:
             param_selectors = []
-        params = {'unkeyed_params':[], 'keyed_param_sets':[{key:[] for key in s} for s in param_selectors], 'selections':[]}
+        params = {'unkeyed_params':[],
+                  'keyed_param_sets': [{key:[] for key in s}
+                                       for s in param_selectors],
+                  'selections':[]}
         for s in param_selectors:
             params['selections'].append(s[0])
 
         for name, value in config.items(section):
             if name.startswith('param.'):
                 # find parameter root
-                if any([name.startswith('param.'+ param_selector + '.') for
-                        sublist in param_selectors for param_selector in sublist]) and \
-                        name.count('.') == 2:
+                if any([name.startswith('param.'+ param_selector + '.')
+                        for sublist in param_selectors
+                        for param_selector in sublist]) \
+                        and name.count('.') == 2:
                     _, set_name, pname = name.split('.')
                     set_number = [set_name in l for l in
                         param_selectors].index(True)

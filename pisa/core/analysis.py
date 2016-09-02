@@ -68,7 +68,6 @@ class Analysis(object):
     METRICS_TO_MAXIMIZE = ['llh', 'conv_llh']
 
     def __init__(self):
-        pass
         #assert isinstance(data_maker, DistributionMaker)
         #assert isinstance(template_maker, DistributionMaker)
 
@@ -124,8 +123,9 @@ class Analysis(object):
     # TODO: move the complexity of defining a scan into a class with various
     # factory methods, and just pass that class to the scan method; we will
     # surely want to use scanning over parameters in more general ways, too:
-    #   set (some) fixed params, then run (minimizer, scan, etc.) on free params
-    #   set (some free or fixed) params, then check metric
+    # * set (some) fixed params, then run (minimizer, scan, etc.) on free
+    #   params
+    # * set (some free or fixed) params, then check metric
     # where the setting of the params is done for some number of values.
     def scan(self, param_names=None, steps=None, values=None,
              outer=False):
@@ -171,8 +171,8 @@ class Analysis(object):
                 the order that the param names are specified.
               * If `outer` is False, all inner sequences must have the same
                 length, and there will be one template generated for each set
-                of values across the inner sequences. In other words, there will
-                be a total of len(inner sequence) templates generated.
+                of values across the inner sequences. In other words, there
+                will be a total of len(inner sequence) templates generated.
               * If `outer` is True, the lengths of inner sequences needn't be
                 the same. This takes the outer product of the passed sequences
                 to arrive at the permutations of the parameter values that will
@@ -441,6 +441,116 @@ class Analysis(object):
                 logging.debug('Accepting initial-octant fit')
 
         return best_fit
+
+    def fit_hypo(data, hypo_maker, metric, param_selections=None):
+        """
+        Parameters
+        ----------
+        data : MapSet
+        hypo_maker : DistributionMaker
+        metric : None or string
+        param_selections : None, string, or sequence of strings
+
+        Returns
+        -------
+        FitObj containing llh
+
+        """
+        pass
+
+    def generate_data(data_maker, param_selections=None, fluctuate=None):
+        """
+        Parameters
+        ----------
+        data_maker : DistributionMaker or instantiable thereto
+        param_selections : None, string, or sequence of strings
+        fluctuate : bool
+
+        Returns
+        -------
+        MapSet of the data distribution
+
+        """
+        pass
+
+    def compare_hypos(data, null_hypo_maker, alt_hypo_maker, metric,
+                      null_hypo_param_selections=None,
+                      alt_hypo_param_selections=None):
+        """
+        Parameters
+        ----------
+        data : MapSet
+        null_hypo_maker : DistributionMaker
+        alt_hypo_maker : DistributionMaker
+        metric : None or string
+        null_hypo_param_selections : None, string, or sequence of strings
+        alt_hypo_param_selections : None, string, or sequence of strings
+
+        Returns
+        -------
+        delta_metric, null_fit, alt_fit
+
+        """
+        pass
+
+    def llr_analysis(data_maker, null_hypo_maker, alt_hypo_maker, metric,
+                     data_param_selections=None,
+                     null_hypo_param_selections=None,
+                     alt_hypo_param_selections=None,
+                     fluctuate_data=False,
+                     fluctuate_fid_data=False,
+                     n_data_trials=1, n_fid_data_trials=1,
+                     data_start_ind=0, fid_data_start_ind=0):
+        """
+        Parameters
+        ----------
+        data_maker : DistributionMaker or instantiable thereto
+        null_hypo_maker : DistributionMaker or instantiable thereto
+        alt_hypo_maker : DistributionMaker or instantiable thereto
+        metric : None or string
+        data_param_selections : None, string, or sequence of strings
+        null_hypo_param_selections : None, string, or sequence of strings
+        alt_hypo_param_selections : None, string, or sequence of strings
+        null_hypo_maker : DistributionMaker
+        alt_hypo_maker : DistributionMaker
+
+        Returns
+        -------
+        delta_metric, null_fit, alt_fit
+
+        """
+        # Eliminate any redundant DistributionMaker instantation, since that's
+        # computationally costly
+        if null_hypo_maker == data_maker:
+            null_maker_is_data_maker
+        if alt_hypo_maker == data_maker:
+            alt_maker_is_data_maker
+        if alt_hypo_maker == null_hypo_maker:
+            alt_maker_is_null_maker
+
+        if not isinstance(data_maker, DistributionMaker):
+            data_maker = DistributionMaker(data_maker)
+
+        if not isinstance(null_hypo_maker, DistributionMaker):
+            if null_maker_is_data_maker:
+                # TODO: deepcopy?
+                null_hypo_maker = data_maker
+            else:
+                null_hypo_maker = DistributionMaker(null_hypo_maker)
+
+        if not isinstance(alt_hypo_maker, DistributionMaker):
+            if alt_maker_is_data_maker:
+                # TODO: deepcopy?
+                alt_hypo_maker = data_maker
+            elif alt_maker_is_null_maker:
+                # TODO: deepcopy?
+                alt_hypo_maker = null_hypo_maker
+            else:
+                alt_hypo_maker = DistributionMaker(alt_hypo_maker)
+
+        data = self.generate_data(data_maker=data_maker,
+                                  param_selections=data_param_selections,
+                                  fluctuate=fluctuate_data)
 
     # TODO: add references, usage, docstring correctness
     def profile_llh(self, param_name, values):
