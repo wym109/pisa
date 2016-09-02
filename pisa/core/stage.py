@@ -222,6 +222,10 @@ class Stage(object):
         self.disk_cache = disk_cache
         """Disk cache object"""
 
+        self.param_sets = params
+        """Sets of parameters where multiple can be defined (and one of these
+        chosen as `params`) in a config via the param_selector feature."""
+
         self.params = params
         """All stage parameters, in alphabetical order by param name."""
 
