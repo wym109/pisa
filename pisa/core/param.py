@@ -683,10 +683,9 @@ class ParamSelector(object):
     """
     Parameters
     ----------
-    unkeyed_param_set : ParamSet or instantiable thereto
-        Params specified in `unkeyed_param_set` cannot be in `keyed_param_sets`
+    constant_params : ParamSet or instantiable thereto
 
-    keyed_param_sets : None, dict, or sequence of dict
+    selector_param_sets : None, dict, or sequence of dict
         Dict(s) format:
             {
               '<name1>': <ParamSet or instantiable thereto>,
@@ -695,13 +694,18 @@ class ParamSelector(object):
             }
         The names are what must be specified in `selections` to select the
         corresponding ParamSets. Params specified in any of the ParamSets
-        within `keyed_param_sets` cannot be in `unkeyed_param_set`.
+        within `selector_param_sets cannot be in `constant_params`.
 
     selections : None, string, or sequence of strings
-        One string is required per mutually-exclusive keyed param set
+        One string is required per 
+
+    Notes
+    -----
+    Params specified in `constant_params` are enforced to be mutually exclusive
+    with params in the param set(s) specified by `selector_param_sets`.
 
     """
-    def __init__(self, unkeyed_param_set=None, keyed_param_sets=None,
+    def __init__(self, constant_params=None, selector_param_sets=None,
                  selections=None):
         pass
 
