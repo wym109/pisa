@@ -679,6 +679,33 @@ class ParamSet(object):
         return hash_obj(normQuant(self.state))
 
 
+class ParamSelector(object):
+    """
+    Parameters
+    ----------
+    unkeyed_param_set : ParamSet or instantiable thereto
+        Params specified in `unkeyed_param_set` cannot be in `keyed_param_sets`
+
+    keyed_param_sets : None, dict, or sequence of dict
+        Dict(s) format:
+            {
+              '<name1>': <ParamSet or instantiable thereto>,
+              '<name2>': <ParamSet or instantiable thereto>,
+              ...
+            }
+        The names are what must be specified in `selections` to select the
+        corresponding ParamSets. Params specified in any of the ParamSets
+        within `keyed_param_sets` cannot be in `unkeyed_param_set`.
+
+    selections : None, string, or sequence of strings
+        One string is required per mutually-exclusive keyed param set
+
+    """
+    def __init__(self, unkeyed_param_set=None, keyed_param_sets=None,
+                 selections=None):
+
+
+
 def test_Param():
     from scipy.interpolate import splrep, splev
     from pisa.core.prior import Prior
