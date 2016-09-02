@@ -258,20 +258,28 @@ def parse_pipeline_config(config):
         # get infos for stages
         stage_dicts[stage] = {}
         stage_dicts[stage]['service'] = service
-        params = []
-        if config.has_option(section, 'param_selector'):
-            param_selector = config.get(section, 'param_selector')
+        if config.has_option(section, 'param_selectors'):
+            param_selectors = eval(config.get(section, 'param_selectors'))
         else:
-            param_selector = ''
+            param_selectors = []
+        params = {'unkeyed_params':[], 'keyed_param_sets':[{key:[] for key in s} for s in param_selectors], 'selections':[]}
+        for s in param_selectors:
+            params['selections'].append(s[0])
 
         for name, value in config.items(section):
             if name.startswith('param.'):
                 # find parameter root
-                if name.startswith('param.'+ param_selector + '.') and \
+                if any([name.startswith('param.'+ param_selector + '.') for
+                        sublist in param_selectors for param_selector in sublist]) and \
                         name.count('.') == 2:
-                    _, _, pname = name.split('.')
+                    _, set_name, pname = name.split('.')
+                    set_number = [set_name in l for l in
+                        param_selectors].index(True)
+
                 elif name.startswith('param.') and name.count('.') == 1:
                     _, pname = name.split('.')
+                    set_name = None
+                    set_number = -1
                 else:
                     continue
 
@@ -310,8 +318,8 @@ def parse_pipeline_config(config):
                             kwargs['prior'] = Prior(kind='uniform')
                         elif config.get(section, name + '.prior') == 'spline':
                             priorname = pname
-                            if param_selector:
-                                priorname += '_' + param_selector
+                            if set_name is not None:
+                                priorname += '_' + set_name
                             data = config.get(section, name + '.prior.data')
                             data = from_file(data)
                             data = data[priorname]
@@ -346,7 +354,10 @@ def parse_pipeline_config(config):
                         range = range.replace(']', '])')
                         kwargs['range'] = eval(range).to(value.units)
                     try:
-                        params.append(Param(**kwargs))
+                        if set_name is not None:
+                            params['keyed_param_sets'][set_number][set_name].append(Param(**kwargs))
+                        else:
+                            params['unkeyed_params'].append(Param(**kwargs))
                     except:
                         logging.error('Failed to instantiate new Param object'
                                       ' with kwargs %s' %kwargs)
@@ -355,10 +366,31 @@ def parse_pipeline_config(config):
             elif 'binning' in name:
                 stage_dicts[stage][name] = binning_dict[value]
 
-            elif not name == 'param_selector':
+            elif not name == 'param_selectors':
                 stage_dicts[stage][name] = parse_string_literal(value)
 
-        if len(params) > 0:
-            stage_dicts[stage]['params'] = ParamSet(*params)
+        #if len(params['unkeyed_params']) > 0:
+        stage_dicts[stage]['unkeyed_params'] = ParamSet(*params['unkeyed_params'])
+        stage_dicts[stage]['selections'] = params['selections']
+        stage_dicts[stage]['keyed_param_sets'] = []
+        for pset in params['keyed_param_sets']:
+            stage_dicts[stage]['keyed_param_sets'].append({})
+            for key,item in pset.items():
+                stage_dicts[stage]['keyed_param_sets'][-1][key] = ParamSet(*item)
 
     return stage_dicts
+
+#if __name__ == '__main__':
+#    from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+#    parser = ArgumentParser()
+#    parser.add_argument(
+#        '-p', '--pipeline-settings', metavar='CONFIGFILE', type=str,
+#        required=True,
+#        help='File containing settings for the pipeline.'
+#    )
+#    args = parser.parse_args()
+#    config = BetterConfigParser()
+#    config.read(args.pipeline_settings)
+#    cfg =  parse_pipeline_config(config)
+#    for key,vals in cfg.items():
+#        print key, vals

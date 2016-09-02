@@ -9,7 +9,7 @@ import cPickle
 import os
 import re
 
-import pisa.utils.config_parser
+#import pisa.utils.config_parser
 from pisa.utils import hdf
 from pisa.utils import jsons
 from pisa.utils.log import logging
@@ -144,10 +144,10 @@ def findFiles(root, regex=None, fname=None, recurse=True, dir_sorter=nsort,
                 yield fullfilepath, basename, match
 
 
-def from_cfg(fname):
-    config = pisa.utils.config_parser.BetterConfigParser()
-    config.read(fname)
-    return config
+#def from_cfg(fname):
+#    config = pisa.utils.config_parser.BetterConfigParser()
+#    config.read(fname)
+#    return config
 
 
 def from_pickle(fname):

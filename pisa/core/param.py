@@ -703,6 +703,7 @@ class ParamSelector(object):
     """
     def __init__(self, unkeyed_param_set=None, keyed_param_sets=None,
                  selections=None):
+        pass
 
 
 
