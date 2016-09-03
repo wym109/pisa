@@ -28,6 +28,15 @@ from pisa.utils.log import logging, set_verbosity
 from pisa.utils.resources import find_resource
 from pisa.utils.config_parser import parse_pipeline_config
 
+def has_cuda():
+    # pycuda is present if it can be imported
+    try:
+        import pycuda.driver as cuda
+    except:
+        CUDA = False
+    else:
+        CUDA = True
+    return CUDA
 
 def order(x):
     with np.errstate(divide='ignore', invalid='ignore'):
@@ -1100,7 +1109,14 @@ if __name__ == '__main__':
             )
 
     # Perform GPU-based oscillations tests
-    if args.osc_prob3gpu or test_all:
+    cuda_present = has_cuda()
+    if not cuda_present:
+        msg = 'No GPU present, so GPU tests cannot be performed.'
+        if args.osc_prob3gpu:
+            raise ImportError(msg)
+        if test_all:
+            logging.warn(msg)
+    if (args.osc_prob3gpu or test_all) and cuda_present:
         osc_settings = os.path.join(
             'tests', 'settings', 'osc_prob3gpu_test.ini'
         )
