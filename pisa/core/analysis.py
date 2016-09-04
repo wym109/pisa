@@ -13,6 +13,7 @@ import scipy.optimize as opt
 from pisa.core.distribution_maker import DistributionMaker
 from pisa.utils.fileio import from_file
 from pisa.utils.log import logging, set_verbosity
+from pisa.utils.random_numbers import get_random_state
 from pisa import ureg, Q_
 
 
@@ -115,7 +116,8 @@ class Analysis(object):
         if method == 'asimov':
             self.pseudodata = self.asimov
         elif method == 'poisson':
-            self.pseudodata = self.asimov.fluctuate('poisson')
+            self.pseudodata = self.asimov.fluctuate('poisson',
+                                                    random_state=random_state)
         else:
             raise ValueError('Unknown `method` "%s"' %method)
         return self.pseudodata
@@ -442,7 +444,7 @@ class Analysis(object):
 
         return best_fit
 
-    def fit_hypo(data, hypo_maker, metric, param_selections=None):
+    def fit_hypo(self, data, hypo_maker, metric, param_selections=None):
         """
         Parameters
         ----------
@@ -456,71 +458,143 @@ class Analysis(object):
         FitObj containing llh
 
         """
-        pass
+        data.
 
-    def generate_data(data_maker, param_selections=None, fluctuate=None):
-        """
-        Parameters
-        ----------
-        data_maker : DistributionMaker or instantiable thereto
-        param_selections : None, string, or sequence of strings
-        fluctuate : bool
-
-        Returns
-        -------
-        MapSet of the data distribution
-
-        """
-        pass
-
-    def compare_hypos(data, null_hypo_maker, alt_hypo_maker, metric,
+    def compare_hypos(self, data, null_hypo_maker, alt_hypo_maker, metric,
                       null_hypo_param_selections=None,
                       alt_hypo_param_selections=None):
         """
         Parameters
         ----------
         data : MapSet
+
         null_hypo_maker : DistributionMaker
+
         alt_hypo_maker : DistributionMaker
+
         metric : None or string
+
         null_hypo_param_selections : None, string, or sequence of strings
+
         alt_hypo_param_selections : None, string, or sequence of strings
+
 
         Returns
         -------
-        delta_metric, null_fit, alt_fit
+        delta_metric, null_hypo_fit, alt_hypo_fit
 
         """
-        pass
+        null_hypo_fit = self.fit_hypo(
+            data=data, hypo_maker=null_hypo_maker, metric=metric,
+            param_selections=null_hypo_param_selections
+        )
+        alt_hypo_fit = self.fit_hypo(
+            data=data, hypo_maker=alt_hypo_maker, metric=metric,
+            param_selections=alt_hypo_param_selections
+        )
+        delta_metric = alt_hypo_fit.metric - null_hypo_fit.metric
+        return delta_metric, null_hypo_fit, alt_hypo_fit
 
-    def llr_analysis(data_maker, null_hypo_maker, alt_hypo_maker, metric,
+    def llr_analysis(self, data_maker, null_hypo_maker, alt_hypo_maker,
+                     data_name='data', null_hypo_name='null_hypo',
+                     alt_hypo_name='alt_hypo', metric='llh',
                      data_param_selections=None,
                      null_hypo_param_selections=None,
-                     alt_hypo_param_selections=None,
-                     fluctuate_data=False,
-                     fluctuate_fid_data=False,
-                     n_data_trials=1, n_fid_data_trials=1,
-                     data_start_ind=0, fid_data_start_ind=0):
-        """
+                     alt_hypo_param_selections=None, fluctuate_data=False,
+                     fluctuate_fid_data=False, n_data_trials=1,
+                     n_fid_data_trials=1, data_start_ind=0,
+                     fid_data_start_ind=0):
+        """Perform LLR analysis to determine the significance for data to have
+        come from physics decribed by an alternative hypothesis versus physics
+        decribed a null hypothesis.
+
+        Note that duplicated `*_maker` specifications are _not_ instantiated
+        separately, but instead are re-used for all duplicate definitions.
+        `*_param_selections` allows for this reuse, whereby sets of parameters
+        suffixed with the corresponding param_selectors can be switched among
+        to simulate different physics using the same DistributionMaker (e.g.,
+        switching between null and alt hypotheses).
+
+
         Parameters
         ----------
         data_maker : DistributionMaker or instantiable thereto
+
         null_hypo_maker : DistributionMaker or instantiable thereto
+
         alt_hypo_maker : DistributionMaker or instantiable thereto
-        metric : None or string
+
+        data_name : string
+
+        null_hypo_name : string
+
+        alt_hypo_name : string
+
+        metric : string
+
         data_param_selections : None, string, or sequence of strings
+
         null_hypo_param_selections : None, string, or sequence of strings
+
         alt_hypo_param_selections : None, string, or sequence of strings
-        null_hypo_maker : DistributionMaker
-        alt_hypo_maker : DistributionMaker
+
+        fluctuate_data : bool
+
+        fluctuate_fid_data : bool
+
+        n_data_trials : int >= 1
+
+        n_fid_data_trials : int >= 1
+
+        data_start_ind : int >= 0
+
+        fid_data_start_ind : int >= 0
+
 
         Returns
         -------
-        delta_metric, null_fit, alt_fit
+        <?>
+
+        Notes
+        -----
+        LLR analysis is a very thorough (though computationally expensive)
+        method to compare discrete hypotheses. In general, a total of
+
+            n_data_trials * (2 + 4*n_fid_data_trials)
+
+        fits must be performed (and note that for each fit, many templates
+        (typically dozens or even hunreds) must be generated).
+
+        If the "data" used in the analysis is pseudodata (i.e., `data_maker`
+        uses Monte Carlo to produce its distributions, and these are then
+        Poisson-fluctuated--`fluctuate_data` is True), then `n_data_trials`
+        should be as large as is computationally feasible.
+
+        Likewise, if the fiducial-fit data is to be pseudodata (i.e.,
+        `fluctuate_fid_data` is True--whether or not `data_maker` is uses Monte
+        Carlo), `n_fid_data_trials` should be as large as computationally
+        feasible.
+
+        Typical analyses include the following:
+            * Asimov analysis of data: `data_maker` uses (actual, measured)
+              data and both `fluctuate_data` and `fluctuate_fid_data` are
+              False.
+            * Pseudodata analysis of data: `data_maker` uses (actual, measured)
+              data, `fluctuate_data` is False, and `fluctuate_fid_data` is
+              True.
+            * Asimov analysis of Monte Carlo: `data_maker` uses Monte Carlo to
+              produce its distributions and both `fluctuate_data` and
+              `fluctuate_fid_data` are False.
+            * Pseudodata analysis of Monte Carlo: `data_maker` uses Monte Carlo
+              to produce its distributions and both `fluctuate_data` and
+              `fluctuate_fid_data` are False.
+
+
+        References
+        ----------
 
         """
-        # Eliminate any redundant DistributionMaker instantation, since that's
-        # computationally costly
+        # Identify duplicate `*_maker` specifications
         if null_hypo_maker == data_maker:
             null_maker_is_data_maker
         if alt_hypo_maker == data_maker:
@@ -528,29 +602,104 @@ class Analysis(object):
         if alt_hypo_maker == null_hypo_maker:
             alt_maker_is_null_maker
 
+        # Instantiate distribution makers only where necessry
         if not isinstance(data_maker, DistributionMaker):
             data_maker = DistributionMaker(data_maker)
-
         if not isinstance(null_hypo_maker, DistributionMaker):
             if null_maker_is_data_maker:
-                # TODO: deepcopy?
-                null_hypo_maker = data_maker
+                null_hypo_maker = deepcopy(data_maker)
             else:
                 null_hypo_maker = DistributionMaker(null_hypo_maker)
-
         if not isinstance(alt_hypo_maker, DistributionMaker):
             if alt_maker_is_data_maker:
-                # TODO: deepcopy?
-                alt_hypo_maker = data_maker
+                alt_hypo_maker = deepcopy(data_maker)
             elif alt_maker_is_null_maker:
-                # TODO: deepcopy?
-                alt_hypo_maker = null_hypo_maker
+                alt_hypo_maker = deepcopy(null_hypo_maker)
             else:
                 alt_hypo_maker = DistributionMaker(alt_hypo_maker)
 
-        data = self.generate_data(data_maker=data_maker,
-                                  param_selections=data_param_selections,
-                                  fluctuate=fluctuate_data)
+        # Select params
+        data_maker.param_selections(data_param_selections)
+
+        # Generate (unfluctuated) data
+        unfluctuated_data = data_maker.get_outputs()
+
+        for data_ind in xrange(data_start_ind, data_start_ind+n_data_trials):
+            # random state is defined by:
+            #   * trial-vs-supertrial = 0 : super-trial part (outer loop)
+            #   * super-trial = data_ind : super-trial number
+            #   * sub-trial = 0 : always 0 since not in the sub-trial part
+            data_random_state = get_random_state([0, data_ind, 0])
+
+            # Fluctuate data, if told to do so.
+            data = unfluctuated_data.fluctuate(
+                method=fluctuate_data,
+                random_state=data_random_state
+            )
+
+            # Fiducial fits: Perform fits of the two hypotheses to `data`
+            llr_fit_to_data, null_hypo_fit_to_data, alt_hypo_fit_to_data = \
+                    compare_hypos(
+                        data=data,
+                        null_hypo_maker=null_hypo_maker,
+                        alt_hypo_maker=alt_hypo_maker,
+                        metric=metric,
+                        null_hypo_param_selections=null_hypo_param_selections,
+                        alt_hypo_param_selections=alt_hypo_param_selections
+                    )
+
+            # Retrieve event-rate maps for best fit
+            fid_null_unfluctuated_data = null_hypo_fit_to_data.maps
+            fid_alt_unfluctuated_data = alt_hypo_fit_to_data.maps
+
+            for fid_data_ind in xrange(fid_data_start_ind,
+                                       fid_data_start_ind + n_fid_data_trials):
+                # random state is defined by:
+                #   * trial-vs-supertrial = 1 : we're in the sub-trial part
+                #     (i.e., inner loop)
+                #   * super-trial = data_ind : super-trial number
+                #   * sub-trial = fid_data_ind : which sub-trial we're on
+                fid_random_state = get_random_state([1, data_ind,
+                                                     fid_data_ind])
+
+                # Fluctuate fiducial-fit data if told to do so
+                fid_null_data = fid_null_unfluctuated_data.fluctuate(
+                    fluctuate_fid_data,
+                    random_state=fid_random_state
+                )
+
+                # (Note that the state of `random_state` will be moved
+                # forward now as compared to what it was upon definition above.
+                # This is the desired behavior, so the *exact* same random
+                # state isn't used to fluctuate alt as was used to fluctuate
+                # null.)
+
+                fid_alt_data = fid_alt_unfluctuated_data.fluctuate(
+                    fluctuate_fid_data,
+                    random_state=fid_random_state
+                )
+
+                # Final fits: Perform fits of the two hypotheses to the
+                # fiducial data
+                llr_fit_to_fid_null, null_hypo_fit_to_fid_null, alt_hypo_fit_to_fid_null = \
+                        compare_hypos(
+                            data=fid_null_data,
+                            null_hypo_maker=null_hypo_maker,
+                            alt_hypo_maker=alt_hypo_maker,
+                            metric=metric,
+                            null_hypo_param_selections=null_hypo_param_selections,
+                            alt_hypo_param_selections=alt_hypo_param_selections
+                        )
+
+                llr_fit_to_fid_alt, null_hypo_fit_to_fid_alt, alt_hypo_fit_to_fid_alt = \
+                        compare_hypos(
+                            data=fid_null_data,
+                            null_hypo_maker=null_hypo_maker,
+                            alt_hypo_maker=alt_hypo_maker,
+                            metric=metric,
+                            null_hypo_param_selections=null_hypo_param_selections,
+                            alt_hypo_param_selections=alt_hypo_param_selections
+                        )
 
     # TODO: add references, usage, docstring correctness
     def profile_llh(self, param_name, values):
