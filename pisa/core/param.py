@@ -702,13 +702,18 @@ class ParamSelector(object):
     Notes
     -----
     Params specified in `regular_params` are enforced to be mutually exclusive
-    with params in the param set(s) specified by `selector_param_sets`.
+    with params in the param sets specified by `selector_param_sets`.
 
     """
     def __init__(self, regular_params=None, selector_param_sets=None,
                  selections=None):
-        pass
+        current_params = ParamSet()
+        if regular_params is not None:
+            regular_params = ParamSet(regular_params)
+        else:
 
+    def select(self, selector):
+        pass
 
 
 def test_Param():

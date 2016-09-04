@@ -369,10 +369,8 @@ class OneDimBinning(object):
     def _hashable_state(self):
         state = OrderedDict()
         state['name'] = self.name
-        #state['tex'] = self.tex
         bin_edges = normQuant(self.bin_edges, sigfigs=HASH_SIGFIGS)
         state['bin_edges'] = bin_edges
-        #state['units'] = str(self.units)
         state['is_log'] = self.is_log
         state['is_lin'] = self.is_lin
         return state
