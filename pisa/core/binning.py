@@ -369,10 +369,10 @@ class OneDimBinning(object):
     def _hashable_state(self):
         state = OrderedDict()
         state['name'] = self.name
-        state['tex'] = self.tex
+        #state['tex'] = self.tex
         bin_edges = normQuant(self.bin_edges, sigfigs=HASH_SIGFIGS)
         state['bin_edges'] = bin_edges
-        state['units'] = str(self.units)
+        #state['units'] = str(self.units)
         state['is_log'] = self.is_log
         state['is_lin'] = self.is_lin
         return state
@@ -1390,8 +1390,7 @@ def test_OneDimBinning():
               normQuant(b4.bin_edges, HASH_SIGFIGS))
 
     # And the hashes should be equal, reflecting the latter result
-    assert b3.hash == b4.hash, '\nb3=%s\nb4=%s' %(b3._hashable_state,
-                                                  b4._hashable_state)
+    assert b3.hash == b4.hash, '\nb3=%s\nb4=%s' %(b3._hashable_state, b4._hashable_state)
     assert b3.hash == b4.hash, 'b3.hash=%s; b4.hash=%s' %(b3.hash, b4.hash)
 
     # TODO: make pickle great again
