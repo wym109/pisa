@@ -22,11 +22,6 @@ class DistributionMaker(object):
         are already-instantiated Pipelines and anything interpret-able by the
         Pipeline init method.
 
-    fluctuate : None or string
-        Apply fluctuations to outputs (as in the case of pseudo-data).
-        Specifying None disables fluctuations while e.g. 'poisson' applies
-        Poisson fluctuations. See `Map.fluctuate` for all valid strings.
-
     Notes
     -----
     Free params with the same name in two pipelines are updated at the same
@@ -40,12 +35,8 @@ class DistributionMaker(object):
     intervals are non-physical.
 
     """
-    def __init__(self, pipelines, fluctuate=None, label=None):
+    def __init__(self, pipelines, label=None):
         self.label = None
-        # TODO: make this a property so that input can be validated
-        self.fluctuate = fluctuate
-        """Whether the output of the distribution maker will be fluctuated (and
-        if so, by which method this is done)"""
 
         self._pipelines = []
         if isinstance(pipelines, (basestring, BetterConfigParser, OrderedDict,
@@ -60,13 +51,10 @@ class DistributionMaker(object):
     def __iter__(self):
         return iter(self._pipelines)
 
-    def get_outputs(self, seed=None, **kwargs):
+    def get_outputs(self, **kwargs):
         total_outputs = None
         outputs = [pipeline.get_outputs(**kwargs) for pipeline in self]
         total_outputs = reduce(lambda x,y: x+y, outputs)
-        if self.fluctuate is not None:
-            total_outputs = total_outputs.fluctuate(method=self.fluctuate,
-                                                    seed=seed)
         return total_outputs
 
     def update_params(self, params):
@@ -133,10 +121,7 @@ if __name__ == '__main__':
 
     set_verbosity(args.v)
 
-    distribution_maker = DistributionMaker(
-        pipelines=args.pipeline_settings,
-        fluctuate=False
-    )
+    distribution_maker = DistributionMaker(pipelines=args.pipeline_settings)
     outputs = distribution_maker.get_outputs()
     if args.outdir:
         my_plotter = plotter(
