@@ -28,7 +28,8 @@ class icc(Stage):
             'pid_remove',
             'use_def1',
             'sim_ver',
-            'livetime'
+            'livetime',
+            'bdt_cut',
         )
 
         output_names = ('trck', 'cscd')
@@ -54,6 +55,7 @@ class icc(Stage):
         pid_bound = self.params.pid_bound.m_as('dimensionless')
         pid_remove = self.params.pid_remove.m_as('dimensionless')
         use_def1 = self.params.use_def1.value
+        bdt_cut = self.params.bdt_cut.value.m_as('dimensionless')
 
         self.bin_names = self.output_binning.names
         self.bin_edges = []
@@ -82,10 +84,11 @@ class icc(Stage):
         l3 = bg_file['IC86_Dunkman_L3']['value']
         l4 = bg_file['IC86_Dunkman_L4']['result']
         l5 = bg_file['IC86_Dunkman_L5']['bdt_score']
-        if use_def1 == True:
+        l6 = bg_file['IC86_Dunkman_L6']
+        if use_def1:
             l4_pass = np.all(l4==1)
         else:
-            if sim_ver == 'dima' or sim_ver =='5digit':
+            if sim_ver in ['5digit', 'dima']:
                 l4_invVICH = bg_file['IC86_Dunkman_L4']['result_invertedVICH']
                 l4_pass = np.all(np.logical_or(l4==1, l4_invVICH==1))
             else:
@@ -96,6 +99,7 @@ class icc(Stage):
                 np.all(l5 >= 0.1))
         l6 = bg_file['IC86_Dunkman_L6']
         corridor_doms_over_threshold = l6['corridor_doms_over_threshold']
+
         inverted_corridor_cut = corridor_doms_over_threshold > 1
         assert (np.all(inverted_corridor_cut) and
                 np.all(l6['santa_direct_doms'] >= 3) and
@@ -120,33 +124,31 @@ class icc(Stage):
         else:
             raise ValueError('Only allow sim_ver  4digit, 5 digit or dima!')
 
-        # throw away delta LLH < pid_remove:
-        reco_energy_all = reco_energy_all[dLLH>=pid_remove]
-        reco_coszen_all = reco_coszen_all[dLLH>=pid_remove]
-        dLLH = dLLH[dLLH>=pid_remove]
+	# Cut1: throw away delta LLH < pid_remove:
+        #print "Cut1, removing event with LLH < pid_remove"
+        cut1 = dLLH>=pid_remove
+        reco_energy_cut1 = reco_energy_all[cut1]
+        reco_coszen_cut1 = reco_coszen_all[cut1]
+        dLLH_cut1 = dLLH[cut1]
+        l5_cut1 = l5[cut1]
         pid_cut = pid_bound 
         #print "pid_remove = ", pid_remove
         #print "pid_bound = ", pid_bound
 
-        # split in half for testing:
-        # the commented out section was just a test for using subsets of the MC
-        # files
-        #reco_energy_all = reco_energy_all[len(reco_energy_all)/2:] 
-        #reco_coszen_all = reco_coszen_all[len(reco_coszen_all)/2:]
-        #dLLH = dLLH[len(dLLH)/2:]
-        #reco_energy_all = reco_energy_all[1::2]
-        #reco_coszen_all = reco_coszen_all[1::2]
-        #dLLH = dLLH[::2]
+        cut2 = l5_cut1>=bdt_cut
+        reco_energy_cut2 = reco_energy_cut1[cut2]
+        reco_coszen_cut2 = reco_coszen_cut1[cut2]
+        dLLH_cut2 = dLLH_cut1[cut2]
 
         # write to dictionary
         for flavor in ['cscd', 'trck']:
             final_events= {}
             if flavor == 'cscd':
-                cut = dLLH < pid_cut 
+                cut = dLLH_cut2 < pid_cut 
             if flavor == 'trck':
-                cut = dLLH >= pid_cut 
-            final_events['reco_energy'] = reco_energy_all[cut]
-            final_events['reco_coszen'] = reco_coszen_all[cut]
+                cut = dLLH_cut2 >= pid_cut 
+            final_events['reco_energy'] = reco_energy_cut2[cut]
+            final_events['reco_coszen'] = reco_coszen_cut2[cut]
 
             logging.debug("Working on %s background"%flavor)
 

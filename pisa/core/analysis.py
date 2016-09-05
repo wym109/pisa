@@ -392,6 +392,7 @@ if __name__ == '__main__':
     from pisa.utils.format import append_results, ravel_results
 
     parser = ArgumentParser()
+<<<<<<< HEAD
     parser.add_argument(
         '-d', '--data-settings', type=str,
         metavar='configfile', default=None,
@@ -442,10 +443,8 @@ if __name__ == '__main__':
     data_maker = DistributionMaker(data_settings)
     template_maker = DistributionMaker(args.template_settings)
 
-    # select inverted hierarchy
-    #template_maker_settings.set('stage:osc', 'param_selector', 'ih')
-    #template_maker_configurator = parse_pipeline_config(template_maker_settings)
-    #template_maker_IO = DistributionMaker(template_maker_configurator)
+    if not args.fix_param == '':
+        template_maker.params.fix(args.fix_param)
 
     analysis = Analysis(data_maker=data_maker,
                         template_maker=template_maker,
@@ -457,17 +456,14 @@ if __name__ == '__main__':
     for i in range(args.num_trials):
         logging.info('Running trial %i'%i)
         np.random.seed()
-        #analysis.generate_psudodata('poisson')
-        analysis.generate_psudodata('asimov')
+        analysis.generate_psudodata(args.pseudo_data)
 
-        # LLR:
-        #append_results(results, analysis.llr(template_maker, template_maker_IO))
-
-        # profile LLH:
-        results.append(analysis.profile_llh(
-            'nutau_cc_norm', np.linspace(0, 2, 21)*ureg.dimensionless
-        ))
-        #results.append(analysis.profile_llh('nutau_cc_norm', [0.]*ureg.dimensionless))
+        if args.mode == 'H0':
+            results.append(analysis.profile_llh('nutau_cc_norm',[0.]*ureg.dimensionless))
+        elif args.mode == 'scan11':
+            results.append(analysis.profile_llh('nutau_cc_norm',np.linspace(0,2,11)*ureg.dimensionless))
+        elif args.mode == 'scan21':
+            results.append(analysis.profile_llh('nutau_cc_norm',np.linspace(0,2,21)*ureg.dimensionless))
 
     to_file(results, args.outfile)
     logging.info('Done.')
