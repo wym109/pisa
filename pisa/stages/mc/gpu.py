@@ -7,18 +7,17 @@ import time
 from pisa.core.stage import Stage
 from pisa.utils.resources import find_resource
 from pisa.utils.log import logging
-from pisa.stages.osc.prob3gpu import Prob3GPU
-from pisa.utils.GPUhist import GPUhist
+from pisa.stages.osc.prob3gpu import prob3gpu
+from pisa.utils.gpu_hist import GPUhist
 from pisa.stages.mc.GPUweight import GPUweight
 from pisa.utils.const import FTYPE
-from pisa.utils.events import Events
+from pisa.core.events import Events
 from pisa import ureg, Q_
 from pisa.core.binning import OneDimBinning, MultiDimBinning
 from pisa.core.map import Map, MapSet
 from pisa.utils.log import logging
 from pisa.utils.comparisons import normQuant
 from pisa.utils.hash import hash_obj
-import pisa.utils.systematicFunctions as sf
 
 
 def copy_dict_to_d(events):
