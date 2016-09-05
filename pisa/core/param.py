@@ -730,22 +730,32 @@ class ParamSelector(object):
         self._selector_params = {}
         if selector_param_sets is not None:
             for selector, params in selector_param_sets.items():
+                selector = selector.lower().strip()
                 params = ParamSet(params)
                 self._selector_params[selector] = params
 
-        self.select(selections)
+        self.select(selections=selections)
 
     def select(self, selections):
         if isinstance(selections, basestring):
             selections = [selections]
 
         for selection in selections:
+            assert isinstance(selection, basestring)
+            selection = selection.lower().strip()
             if selection not in self._selector_params:
                 raise ValueError(
-                    'No selection "%s" available; valid selections are: %s'
+                    'No selection "%s" available; valid selections are %s'
+                    ' (case-insensitive).'
                     %(selection, self._selector_params.keys())
                 )
             self._current_params.update(self._selector_params[selection])
+
+        return self._current_params
+
+    @property
+    def params(self):
+        return self._current_params
 
 
 def test_Param():
@@ -973,6 +983,73 @@ def test_ParamSet():
     print '<< PASSED : test_ParamSet >>'
 
 
+def test_ParamSelector():
+    p0 = Param(name='a', value=1.5, prior=None, range=[1,2],
+               is_fixed=False, is_discrete=False, tex=r'\int{\rm c}')
+    p1 = Param(name='b', value=2.5, prior=None, range=[1,5],
+               is_fixed=False, is_discrete=False, tex=r'{\rm a}')
+    p20 = Param(name='c', value=1.5, prior=None, range=[1,2],
+                is_fixed=False, is_discrete=False, tex=r'{\rm b}')
+    p21 = Param(name='c', value=2.0, prior=None, range=[1,2],
+                is_fixed=False, is_discrete=False, tex=r'{\rm b}')
+    p22 = Param(name='c', value=1.0, prior=None, range=[1,2],
+                is_fixed=False, is_discrete=False, tex=r'{\rm b}')
+    p30 = Param(name='d', value=-1.5, prior=None, range=[-1,-2],
+                is_fixed=False, is_discrete=False, tex=r'{\rm b}')
+    p31 = Param(name='d', value=-2.0, prior=None, range=[-1,-2],
+                is_fixed=False, is_discrete=False, tex=r'{\rm b}')
+    p40 = Param(name='e', value=-15, prior=None, range=[-10,-20],
+                is_fixed=False, is_discrete=False, tex=r'{\rm b}')
+    p41 = Param(name='e', value=-20, prior=None, range=[-10,-20],
+                is_fixed=False, is_discrete=False, tex=r'{\rm b}')
+    ps30_40 = ParamSet(p30, p40)
+    param_selector = ParamSelector(
+        regular_params=[p0, p1],
+        selector_param_sets={'p20': p20, 'p21': p21, 'p22': p22,
+                             'p30_40':ps30_40, 'p31_41': [p31, p41]},
+        selections=['p20', 'p30_40']
+    )
+    params = param_selector.params
+    assert params.a.value == 1.5
+    assert params.b.value == 2.5
+    assert params.c.value == 1.5
+    assert params.d.value == -1.5
+    assert params.e.value == -15
+
+    # Update a param's value from the selector's params
+    params.c = 1.8
+    # Make sure that took
+    assert params['c'].value == 1.8
+    # Make sure the original param was also modified (i.e., that it's the exact
+    # object that was populated to the param_selector's params)
+    assert p20.value == 1.8
+
+    param_selector.select('p21')
+    # Make sure 'c' is updated in all ways to access 'c'
+    assert param_selector.params.c.value == 2.0
+    assert param_selector.params['c'].value == 2.0
+    assert params['c'].value == 2.0
+    assert params.c.value == 2.0
+    # Make sure original params have values previous to selection
+    assert p20.value == 1.8
+    assert p21.value == 2.0
+
+    # Update the newly-selected param's value
+    params.c = 1.9
+    # Make sure that took
+    assert params['c'].value == 1.9
+    # Make sure the original param was also modified (i.e., that it's the exact
+    # object that was populated to the param_selector's params)
+    assert p21.value == 1.9
+
+    param_selector.select('p31_41')
+    assert params['d'].value == -2
+    assert params['e'].value == -20
+
+    print '<< PASSED : test_ParamSelector >>'
+
+
 if __name__ == "__main__":
     test_Param()
     test_ParamSet()
+    test_ParamSelector()
