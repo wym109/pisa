@@ -772,7 +772,13 @@ class ParamSelector(object):
         return iter(self._current_params)
 
     def update(self, p, selector=None):
-        p = ParamSet(p)
+        try:
+            p = ParamSet(p)
+        except:
+            logging.error('Could not instantiate a ParamSet with `p` of type'
+                          ' %s, value = %s' %(type(p), p))
+            raise
+
         if selector is None:
             self._regular_params.update(p)
             self._current_params.update(p)
@@ -1082,7 +1088,63 @@ def test_ParamSelector():
     assert p41.value == -19.9
 
     # Test the update method
-    #
+
+    p5 = Param(name='f', value=120, prior=None, range=[0,1000],
+               is_fixed=True, is_discrete=False, tex=r'{\rm b}')
+    p60 = Param(name='g', value=-1, prior=None, range=[-10,10],
+                is_fixed=False, is_discrete=False, tex=r'{\rm b}')
+    p61 = Param(name='g', value=-2, prior=None, range=[-10,10],
+                is_fixed=False, is_discrete=False, tex=r'{\rm b}')
+
+    # Update with a "regular" param
+    param_selector.update(p=p5, selector=None)
+    assert params.f.value == 120
+
+    # Update with a "selector" param that's currently selected
+    param_selector.update(p=p61, selector='p31_41')
+    assert params.g.value == -2
+    p = param_selector.get(name='g', selector='p31_41')
+    assert p.value == -2
+
+    # Update with a "selector" param that's _not_ currently selected
+    param_selector.update(p=p60, selector='p30_40')
+
+    # Selected param value shouldn't have changed
+    assert params.g.value == -2
+
+    # ... but the param should be in the object
+    p = param_selector.get(name='g', selector='p30_40')
+    assert p.value == -1
+
+    # ... and selecting it should now set current param to its value
+    param_selector.select('p30_40')
+    assert params.g.value == -1
+
+    # Double check that the other one didn't change
+    p = param_selector.get(name='g', selector='p31_41')
+    assert p.value == -2
+
+    # Use update to overwrite existing params...
+
+    p402 = Param(name='e', value=-11, prior=None, range=[0,-20],
+                 is_fixed=False, is_discrete=False, tex=r'{\rm b}')
+    p412 = Param(name='e', value=-22, prior=None, range=[0,-100],
+                 is_fixed=False, is_discrete=False, tex=r'{\rm b}')
+
+    # Update param that exists already and is selected
+    param_selector.update(p=p402, selector='p30_40')
+    assert params.e.value == -11
+
+    # Make sure original param wasn't overwritten (just not in param_selector)
+    assert p40.value == -15
+
+    # Update param that exists already but is not selected
+    param_selector.update(p=p412, selector='p31_41')
+    assert params.e.value == -11
+    p = param_selector.get('e', selector='p31_41')
+    assert p.value == -22
+    param_selector.select('p31_41')
+    assert params.e.value == -22
 
     print '<< PASSED : test_ParamSelector >>'
 
