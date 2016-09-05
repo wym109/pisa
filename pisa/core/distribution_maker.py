@@ -7,7 +7,7 @@ from collections import OrderedDict, Sequence
 
 from pisa.core.pipeline import Pipeline
 from pisa.core.param import ParamSet
-from pisa.utils.config_parser import BetterConfigParser
+from pisa.utils.betterConfigParser import BetterConfigParser
 from pisa.utils.log import logging, set_verbosity
 
 
@@ -59,6 +59,9 @@ class DistributionMaker(object):
 
     def update_params(self, params):
         [pipeline.params.update_existing(params) for pipeline in self]
+
+    def select_params(self, selection):
+        [pipeline.select_params(selection) for pipeline in self]
 
     @property
     def pipelines(self):

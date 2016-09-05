@@ -712,7 +712,7 @@ class ParamSelector(object):
         within `selector_param_sets cannot be in `regular_params`.
 
     selections : None, string, or sequence of strings
-        One string is required per 
+        One string is required per
 
     Notes
     -----
@@ -723,26 +723,31 @@ class ParamSelector(object):
     def __init__(self, regular_params=None, selector_param_sets=None,
                  selections=None):
         self._current_params = ParamSet()
-        if regular_params is not None:
-            regular_params = ParamSet(regular_params)
-            self._current_params.update(regular_params)
-
+        self._regular_params = ParamSet()
         self._selector_params = {}
+        self._selections = []
+
+        if regular_params is not None:
+            self.update(regular_params, selector=None)
+
         if selector_param_sets is not None:
             for selector, params in selector_param_sets.items():
-                selector = selector.lower().strip()
+                selector = selector.strip().lower()
                 params = ParamSet(params)
                 self._selector_params[selector] = params
 
-        self.select(selections=selections)
+        self.select(selections=selections, error_on_missing=False)
 
-    def select(self, selections):
+    def select(self, selections=None, error_on_missing=True):
+        if selections is None:
+            return self.select(self.selections)
+
         if isinstance(selections, basestring):
             selections = [selections]
 
         for selection in selections:
             assert isinstance(selection, basestring)
-            selection = selection.lower().strip()
+            selection = selection.strip().lower()
             if selection not in self._selector_params:
                 raise ValueError(
                     'No selection "%s" available; valid selections are %s'
@@ -751,11 +756,39 @@ class ParamSelector(object):
                 )
             self._current_params.update(self._selector_params[selection])
 
+        self._selections = selections
+
         return self._current_params
 
     @property
     def params(self):
         return self._current_params
+
+    @property
+    def selections(self):
+        return deepcopy(self._selections)
+
+    def __iter__(self):
+        return iter(self._current_params)
+
+    def update(self, p, selector=None):
+        p = ParamSet(p)
+        if selector is None:
+            self._regular_params.update(p)
+            self._current_params.update(p)
+        else:
+            assert isinstance(selector, basestring)
+            selector = selector.strip().lower()
+            if selector not in self._selector_params:
+                self._selector_params[selector] = ParamSet()
+            self._selector_params[selector].update(p)
+            # Re-select current selectiosn in case the update modifies these
+            self.select()
+
+    def get(self, name, selector=None):
+        if selector is None:
+            return self._regular_params[name]
+        return self._selector_params[selector][name]
 
 
 def test_Param():
@@ -1016,7 +1049,7 @@ def test_ParamSelector():
     assert params.d.value == -1.5
     assert params.e.value == -15
 
-    # Update a param's value from the selector's params
+    # Modify a param's value from the selector's params
     params.c = 1.8
     # Make sure that took
     assert params['c'].value == 1.8
@@ -1025,7 +1058,7 @@ def test_ParamSelector():
     assert p20.value == 1.8
 
     param_selector.select('p21')
-    # Make sure 'c' is updated in all ways to access 'c'
+    # Make sure 'c' is changed using all ways to access 'c'
     assert param_selector.params.c.value == 2.0
     assert param_selector.params['c'].value == 2.0
     assert params['c'].value == 2.0
@@ -1034,7 +1067,7 @@ def test_ParamSelector():
     assert p20.value == 1.8
     assert p21.value == 2.0
 
-    # Update the newly-selected param's value
+    # Change the newly-selected param's value
     params.c = 1.9
     # Make sure that took
     assert params['c'].value == 1.9
@@ -1045,6 +1078,11 @@ def test_ParamSelector():
     param_selector.select('p31_41')
     assert params['d'].value == -2
     assert params['e'].value == -20
+    params.e = -19.9
+    assert p41.value == -19.9
+
+    # Test the update method
+    #
 
     print '<< PASSED : test_ParamSelector >>'
 
