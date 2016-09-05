@@ -37,7 +37,12 @@ variation = {'deltam31': 0.2e-3*ureg.eV**2,
             'dom_eff': 0.1,
             'hole_ice': 10.,
             'hole_ice_fwd': -1.,
-            'atm_muon_scale': 0.0749*1.112
+            'atm_muon_scale': 0.0749*1.112,
+            'Barr_uphor_ratio': 1.0,
+            'Barr_nu_nubar_ratio': 1.0, 
+            'Genie_Ma_RES': 1.0,
+            'Genie_Ma_QE' : 1.0,
+
             }
 
 sys_jp_name = {'theta23': 'theta23',
@@ -52,10 +57,8 @@ sys_jp_name = {'theta23': 'theta23',
 	     'dom_eff': 'domeff',
 	     'hole_ice': 'hole_ice',
 	     'hole_ice_fwd': 'hi_fwd',
-	     'GENSYS_MaCCQE': 'axm_qe',
-	     'GENSYS_MaRES': 'axm_res',
-	     'axm_qe': 'axm_qe',
-	     'axm_res': 'axm_res',
+	     'Genie_Ma_QE': 'axm_qe',
+	     'Genie_Ma_RES': 'axm_res',
 	     'Barr_nu_nubar_ratio': 'nubar_ratio',
 	     'Barr_uphor_ratio': 'uphor_ratio'
 	     }
@@ -63,6 +66,7 @@ sys_jp_name = {'theta23': 'theta23',
 path = '/home/peller/oscfit_comparison_files/JP/'
 
 for sys, var in variation.items():
+    print sys
     template_maker.params.reset_free()
     p = template_maker.params[sys]
     p.value += var
