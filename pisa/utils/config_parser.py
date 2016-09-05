@@ -202,12 +202,14 @@ def split(string, sep=','):
 
 
 PARAM_RE = re.compile(
-    r'^param\.((?P<selector>[^.]+).){0,1}(?P<pname>[\S]+)',
+    r'^param\.(?P<subfields>(([^.\s]+)(\.|$))+)',
     re.IGNORECASE
 )
 
+PARAM_ATTRS = ['range', 'prior', 'fixed']
 
-def parse_param(config, section, selector, name, pname, value):
+
+def parse_param(config, section, selector, fullname, pname, value):
     # TODO: Are these defaults actually a good idea?
     kwargs = dict(name=pname, is_fixed=True, prior=None, range=None)
     try:
@@ -216,19 +218,19 @@ def parse_param(config, section, selector, name, pname, value):
     except ValueError:
         value = parse_string_literal(value)
         kwargs['value'] = value
-    
-    # search for explicit specifications
-    if config.has_option(section, name + '.fixed'):
-        kwargs['is_fixed'] = config.getboolean(section, name + '.fixed')
-    
-    if config.has_option(section, name + '.prior'):
-        if config.get(section, name + '.prior') == 'uniform':
+
+    # Search for explicit attr specifications
+    if config.has_option(section, fullname + '.fixed'):
+        kwargs['is_fixed'] = config.getboolean(section, fullname + '.fixed')
+
+    if config.has_option(section, fullname + '.prior'):
+        if config.get(section, fullname + '.prior') == 'uniform':
             kwargs['prior'] = Prior(kind='uniform')
-        elif config.get(section, name + '.prior') == 'spline':
+        elif config.get(section, fullname + '.prior') == 'spline':
             priorname = pname
             if selector is not None:
                 priorname += '_' + selector
-            data = config.get(section, name + '.prior.data')
+            data = config.get(section, fullname + '.prior.data')
             data = from_file(data)
             data = data[priorname]
             knots = ureg.Quantity(np.asarray(data['knots']), data['units'])
@@ -237,7 +239,7 @@ def parse_param(config, section, selector, name, pname, value):
             deg = data['deg']
             kwargs['prior'] = Prior(kind='spline', knots=knots, coeffs=coeffs,
                                     deg=deg)
-        elif 'gauss' in config.get(section, name + '.prior'):
+        elif 'gauss' in config.get(section, fullname + '.prior'):
             raise Exception('Please use new style +/- notation for gaussian'
                             ' priors in config')
         else:
@@ -246,9 +248,9 @@ def parse_param(config, section, selector, name, pname, value):
     elif hasattr(value, 's') and value.s != 0:
         kwargs['prior'] = Prior(kind='gaussian', mean=value.n * value.units,
                                 stddev=value.s * value.units)
-    
-    if config.has_option(section, name + '.range'):
-        range_ = config.get(section, name + '.range')
+
+    if config.has_option(section, fullname + '.range'):
+        range_ = config.get(section, fullname + '.range')
         if 'nominal' in range_:
             nominal = value.n * value.units
         if 'sigma' in range_:
@@ -320,8 +322,54 @@ def parse_pipeline_config(config):
             param_match = PARAM_RE.match(name)
             if param_match is not None:
                 param_match_dict = param_match.groupdict()
-                pname = param_match_dict['pname']
-                selector = param_match_dict['selector']
+                param_subfields = param_match_dict['subfields'].split('.')
+
+                # Figure out what the dotted fields represent...
+
+                # Must have at least one field
+                if len(param_subfields) == 0:
+                    raise ValueError('No dotted fields in config name "%s"' %name)
+
+                # If only one field, this must be the param's name
+                if len(param_subfields) == 1:
+                    pname = param_subfields.pop()
+                    selector = None
+                    attr = None
+                else:
+                    # Look for and remove attr field and any subsequent fields
+                    attr_idx = None
+                    attr = None
+                    for _attr in PARAM_ATTRS:
+                        if _attr in param_subfields:
+                            if attr_idx is not None:
+                                raise ValueError(
+                                    'Found multiple attrs in config name "%s"'
+                                    %name
+                                )
+                            attr_idx = param_subfields.index(_attr)
+                            attr = []
+                            # All fields from attr on pertain to the attr; remove
+                            for i in range(attr_idx, len(param_subfields)):
+                                a = param_subfields.pop(attr_idx)
+                                assert a not in PARAM_ATTRS
+                                attr.append(a)
+
+                    # Either "pname", "selector.pname", or invalid
+                    pname = param_subfields.pop()
+                    if len(param_subfields) == 0:
+                        selector = None
+                    elif len(param_subfields) == 1:
+                        selector = param_subfields.pop()
+                if len(param_subfields) > 0:
+                    raise ValueError('Too many dotted fields to parse in name'
+                                     ' "%s"' %name)
+
+                logging.trace('pname=%s, selector=%s, attr=%s'
+                              %(pname, selector, attr))
+
+                # If field is an attr, skip since these are located manually
+                if attr is not None:
+                    continue
 
                 # Check if this param already exists in a previous stage; if
                 # so, make sure there are no specs for this param, but just a
@@ -337,11 +385,11 @@ def parse_pipeline_config(config):
 
                     # Make sure there are no other specs for the param defined
                     # in the current section
-                    assert not config.has_option(section, name + '.range')
-                    assert not config.has_option(section, name + '.prior')
-                    assert not config.has_option(section, name + '.fixed')
+                    for attr_ in PARAM_ATTRS:
+                        assert not config.has_option(section, name + '.' + attr_)
+
                     param = kw['params'][pname]
-                    print 'p copy:', param
+                    #print 'p copy:', param
                     break
 
                 # Param *not* found in a previous stage (i.e., no explicit `break`
@@ -349,11 +397,14 @@ def parse_pipeline_config(config):
                 else:
                     param = parse_param(config, section, selector, name, pname,
                                         value)
-                    print 'p inst:', param
+                    #print 'p inst:', param
 
-                print 'ps before:', param_selector.params.names
-                param_selector.update(param, selector=selector)
-                print 'ps after:', param_selector.params.names
+                print 'p.name:', param.name
+                #print 'ps before:', param_selector.params.names
+                #param_selector.update(p=param, selector=selector)
+                #print 'ps after:', param_selector.params.names
+                #print 'ps param:', param_selector.get(name=param.name,
+                #                                      selector=selector).name
 
             elif 'binning' in name:
                 service_kwargs[name] = binning_dict[value]
