@@ -105,7 +105,7 @@ class gpu(Stage):
         prop_height = self.params.prop_height.value.m_as('km')
         detector_depth = self.params.detector_depth.value.m_as('km')
 
-        self.osc = Prob3GPU(detector_depth,
+        self.osc = prob3gpu(detector_depth,
                             earth_model,
                             prop_height,
                             YeI,
