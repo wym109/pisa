@@ -367,10 +367,18 @@ if __name__ == '__main__':
                         metavar='JSONFILE', required=True,
                         help='''Settings related to the optimizer used in the
                         LLR analysis.''')
+    parser.add_argument('-fp', '--fix-param', type=str, default='',
+                        help='''fix parameter''')
+    parser.add_argument('-pd', '--pseudo-data', type=str, default='poisson',
+                        choices=['poisson', 'asimov'], 
+                        help='''Mode for pseudo data sampling''')
     parser.add_argument('--metric', type=str,
                         choices=['llh', 'chi2', 'conv_llh'], required=True,
                         help='''Settings related to the optimizer used in the
                         LLR analysis.''')
+    parser.add_argument('--mode', type=str,
+                        choices=['H0', 'scan11', 'scan21'], default='H0',
+                        help='''just run significance or whole scan''')
     args = parser.parse_args()
 
     set_verbosity(args.v)
@@ -383,10 +391,8 @@ if __name__ == '__main__':
     data_maker = DistributionMaker(data_settings)
     template_maker = DistributionMaker(args.template_settings)
 
-    # select inverted hierarchy
-    #template_maker_settings.set('stage:osc', 'param_selector', 'ih')
-    #template_maker_configurator = parse_config(template_maker_settings)
-    #template_maker_IO = DistributionMaker(template_maker_configurator)
+    if not args.fix_param == '':
+        template_maker.params.fix(args.fix_param)
 
     analysis = Analysis(data_maker=data_maker,
                         template_maker=template_maker,
@@ -399,15 +405,14 @@ if __name__ == '__main__':
     for i in range(args.num_trials):
         logging.info('Running trial %i'%i)
         np.random.seed()
-        #analysis.generate_psudodata('poisson')
-        analysis.generate_psudodata('asimov')
+        analysis.generate_psudodata(args.pseudo_data)
 
-        # LLR:
-        #append_results(results, analysis.llr(template_maker, template_maker_IO))
-
-        # profile LLH:
-        #results.append(analysis.profile_llh('nutau_cc_norm',np.linspace(0,2,21)*ureg.dimensionless))
-        results.append(analysis.profile_llh('nutau_cc_norm',[0.]*ureg.dimensionless))
+        if args.mode == 'H0':
+            results.append(analysis.profile_llh('nutau_cc_norm',[0.]*ureg.dimensionless))
+        elif args.mode == 'scan11':
+            results.append(analysis.profile_llh('nutau_cc_norm',np.linspace(0,2,11)*ureg.dimensionless))
+        elif args.mode == 'scan21':
+            results.append(analysis.profile_llh('nutau_cc_norm',np.linspace(0,2,21)*ureg.dimensionless))
 
     to_file(results, args.outfile)
     logging.info('Done.')

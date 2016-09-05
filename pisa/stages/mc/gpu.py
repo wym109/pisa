@@ -49,7 +49,6 @@ class gpu(Stage):
             'no_nc_osc',
             )
 
-
         self.weight_params = (
             'nu_nubar_ratio',
             'nue_numu_ratio',
@@ -58,6 +57,10 @@ class gpu(Stage):
             'pid_bound',
             'pid_remove',
             'delta_index',
+            'Barr_uphor_ratio',
+            'Barr_nu_nubar_ratio',
+            'Genie_Ma_QE',
+            'Genie_Ma_RES',
         )
 
         self.other_params = (
@@ -69,7 +72,7 @@ class gpu(Stage):
             'reco_cz_res_raw'
         )
 
-        expected_params = self.osc_params + self.weight_params + self.other_params
+        expected_params = self.osc_params +  self.weight_params + self.other_params
 
         output_names = ('trck','cscd')
 
@@ -132,10 +135,16 @@ class gpu(Stage):
         # Load and copy events
         variables = ['true_energy', 'true_coszen', 'reco_energy', 'reco_coszen',
                     'neutrino_nue_flux', 'neutrino_numu_flux', 'neutrino_oppo_nue_flux',
-                    'neutrino_oppo_numu_flux', 'weighted_aeff', 'pid']
+                    'neutrino_oppo_numu_flux', 'weighted_aeff', 'pid',
+                    'linear_fit_MaCCQE', 'quad_fit_MaCCQE',
+                    'linear_fit_MaCCRES', 'quad_fit_MaCCRES',
+                    ]
+        # to allocate empty arrays on GPU
         empty = ['prob_e', 'prob_mu', 'weight_trck', 'weight_cscd']
         if self.error_method == 'sumw2':
             empty += ['sumw2_trck', 'sumw2_cscd']
+
+        # list of flav_ints to use and corresponding number used in several parts of the code
         self.flavs = ['nue_cc', 'numu_cc', 'nutau_cc', 'nue_nc', 'numu_nc', 'nutau_nc',
                 'nuebar_cc', 'numubar_cc', 'nutaubar_cc', 'nuebar_nc', 'numubar_nc', 'nutaubar_nc']
         kFlavs = [0, 1, 2] * 4
@@ -154,21 +163,10 @@ class gpu(Stage):
             # host arrays
             self.events_dict[flav]['host'] = {}
             for var in variables:
-                if var == 'reco_energy':
-                    # apply energy reco sys
-                    f = self.params.reco_e_res_raw.value.m_as('dimensionless')
-                    g = self.params.reco_e_scale_raw.value.m_as('dimensionless')
-                    self.events_dict[flav]['host']['reco_energy'] = (g * ((1.-f) * evts[flav]['true_energy'] + f * evts[flav]['reco_energy'])).astype(FTYPE)
-                elif var == 'reco_coszen':
-                    # apply coszen reco sys
-                    f = self.params.reco_cz_res_raw.value.m_as('dimensionless')
-                    reco_coszen = ((1.-f) * evts[flav]['true_coszen'] + f * evts[flav]['reco_coszen']).astype(FTYPE)
-                    while np.any(reco_coszen<-1) or np.any(reco_coszen>1):
-                        reco_coszen[reco_coszen>1] = 2-reco_coszen[reco_coszen>1]
-                        reco_coszen[reco_coszen<-1] = -2-reco_coszen[reco_coszen<-1]
-                    self.events_dict[flav]['host']['reco_coszen'] = reco_coszen 
-                else:
+                try:
                     self.events_dict[flav]['host'][var] = evts[flav][var].astype(FTYPE)
+                except KeyError:
+                    self.events_dict[flav]['host'][var] = np.ones_like(evts[flav]['true_energy']).astype(FTYPE)
             self.events_dict[flav]['n_evts'] = np.uint32(len(self.events_dict[flav]['host'][variables[0]]))
             for var in empty:
                 if self.params.no_nc_osc and ( (flav in ['nue_nc', 'nuebar_nc'] and var == 'prob_e') or (flav in ['numu_nc', 'numubar_nc'] and var == 'prob_mu') ):
@@ -187,13 +185,41 @@ class gpu(Stage):
         end_t = time.time()
         logging.debug('copy done in %.4f ms'%((end_t - start_t) * 1000))
 
+        # apply raw reco sys
+        self.apply_reco()
+
+    def apply_reco(self):
+        # applying raw reco systematics (to use as inputs to polyfit stage)
+        for flav in self.flavs:
+            # apply energy reco sys
+            f = self.params.reco_e_res_raw.value.m_as('dimensionless')
+            g = self.params.reco_e_scale_raw.value.m_as('dimensionless')
+            self.events_dict[flav]['host']['reco_energy'] = (g * ((1.-f) * self.events_dict[flav]['host']['true_energy'] + f * self.events_dict[flav]['host']['reco_energy'])).astype(FTYPE)
+
+            # apply coszen reco sys
+            f = self.params.reco_cz_res_raw.value.m_as('dimensionless')
+            self.events_dict[flav]['host']['reco_coszen'] = ((1.-f) * self.events_dict[flav]['host']['true_coszen'] + f * self.events_dict[flav]['host']['reco_coszen']).astype(FTYPE)
+            while np.any(self.events_dict[flav]['host']['reco_coszen']<-1) or np.any(self.events_dict[flav]['host']['reco_coszen']>1):
+                self.events_dict[flav]['host']['reco_coszen'][self.events_dict[flav]['host']['reco_coszen']>1] = 2-self.events_dict[flav]['host']['reco_coszen'][self.events_dict[flav]['host']['reco_coszen']>1]
+                self.events_dict[flav]['host']['reco_coszen'][self.events_dict[flav]['host']['reco_coszen']<-1] = -2-self.events_dict[flav]['host']['reco_coszen'][self.events_dict[flav]['host']['reco_coszen']<-1]
+
+            self.update_device(flav, 'reco_energy')
+            self.update_device(flav, 'reco_coszen')
+
+
+    def update_device(self, flav, var):
+        # update existing
+        self.events_dict[flav]['device'][var].free()
+        self.events_dict[flav]['device'][var] = cuda.mem_alloc(self.events_dict[flav]['host'][var].nbytes)
+        cuda.memcpy_htod(self.events_dict[flav]['device'][var], self.events_dict[flav]['host'][var])
+        
+
     def _compute_outputs(self, inputs=None):
         logging.info('retreive weighted histo')
-        # get hash to decide wether weight and/or osc needs to be racalculated
+        # get hash to decide wether expensive stuff needs to be recalculated 
         osc_hash = hash_obj(normQuant([self.params[name].value for name in self.osc_params]))
         weight_hash = hash_obj(normQuant([self.params[name].value for name in self.weight_params]))
         recalc_osc = not (osc_hash == self.osc_hash)
-        recalc_weight = not (weight_hash == self.weight_hash)
         recalc_weight = True
 
         if recalc_weight:
@@ -204,6 +230,10 @@ class gpu(Stage):
             nue_numu_ratio = self.params.nue_numu_ratio.value.m_as('dimensionless')
             nu_nubar_ratio = self.params.nu_nubar_ratio.value.m_as('dimensionless')
             delta_index = self.params.delta_index.value.m_as('dimensionless')
+            Barr_uphor_ratio = self.params.Barr_uphor_ratio.value.m_as('dimensionless')
+            Barr_nu_nubar_ratio = self.params.Barr_nu_nubar_ratio.value.m_as('dimensionless')
+            Genie_Ma_QE = self.params.Genie_Ma_QE.value.m_as('dimensionless')
+            Genie_Ma_RES = self.params.Genie_Ma_RES.value.m_as('dimensionless')
 
         if recalc_osc:
             theta12 = self.params.theta12.value.m_as('rad')
@@ -217,6 +247,7 @@ class gpu(Stage):
         tot = 0
         start_t = time.time()
         for flav in self.flavs:
+
             # calculate osc probs
             if recalc_osc and not (self.params.no_nc_osc and flav.endswith('_nc')):
                 self.osc.calc_probs(self.events_dict[flav]['kNuBar'], self.events_dict[flav]['kFlav'],
@@ -229,6 +260,8 @@ class gpu(Stage):
                                     aeff_scale=aeff_scale, nue_numu_ratio=nue_numu_ratio, 
                                     nu_nubar_ratio=nu_nubar_ratio, kNuBar=self.events_dict[flav]['kNuBar'],
                                     delta_index=delta_index,
+                                    Barr_uphor_ratio=Barr_uphor_ratio, Barr_nu_nubar_ratio=Barr_nu_nubar_ratio,
+                                    Genie_Ma_QE=Genie_Ma_QE, Genie_Ma_RES=Genie_Ma_RES,
                                     **self.events_dict[flav]['device'])
 
                 if self.error_method == 'sumw2':

@@ -808,7 +808,7 @@ class Map(object):
         return {
             #'name': "sqrt(%s)" % self.name,
             #'tex': r"\sqrt{%s}" % self.tex,
-            'hist': np.sqrt(self.hist),
+            'hist': unp.sqrt(self.hist),
         }
 
     @new_obj

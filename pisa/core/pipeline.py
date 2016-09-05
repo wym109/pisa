@@ -104,7 +104,6 @@ class Pipeline(object):
             stage_name = stage_name.lower()
             try:
                 logging.debug('instantiating stage %s' % stage_name)
-                print settings
                 service = settings['service'].lower()
                 # Import stage service
                 module = importlib.import_module('pisa.stages.%s.%s'
