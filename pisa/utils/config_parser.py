@@ -209,6 +209,42 @@ PARAM_RE = re.compile(
 PARAM_ATTRS = ['range', 'prior', 'fixed']
 
 
+def interpret_param_subfields(subfields, selector=None, pname=None, attr=None):
+    infodict = dict(subfields=subfields, selector=selector, pname=pname, attr=attr)
+
+    # Everything has been parsed
+    if len(infodict['subfields']) == 0:
+        return infodict
+
+    # If only one field, this must be the param's name, and we're done
+    if len(infodict['subfields']) == 1:
+        infodict['pname'] = infodict['subfields'].pop()
+        return interpret_param_subfields(**infodict)
+
+    # Look for and remove attr field and any subsequent fields
+    attr_indices = []
+    for n, field in enumerate(infodict['subfields']):
+        if field in PARAM_ATTRS:
+            attr_indices.append(n)
+
+    if len(attr_indices) == 1:
+        attr_idx = attr_indices[0]
+        infodict['attr'] = [infodict['subfields'].pop(attr_idx)
+                            for i in range(attr_idx, len(infodict['subfields']))]
+        return interpret_param_subfields(**infodict)
+
+    elif len(attr_indices) > 1:
+        raise ValueError('Found multiple attrs in config name "%s"' %name)
+
+    if len(infodict['subfields']) == 2:
+        infodict['pname'] = infodict['subfields'].pop()
+        infodict['selector'] = infodict['subfields'].pop()
+        return interpret_param_subfields(**infodict)
+
+    raise ValueError('Unable to parse param subfields %s'
+                     %infodict['subfields'])
+
+
 def parse_param(config, section, selector, fullname, pname, value):
     # TODO: Are these defaults actually a good idea?
     kwargs = dict(name=pname, is_fixed=True, prior=None, range=None)
@@ -316,59 +352,19 @@ def parse_pipeline_config(config):
         # Instantiate dict to store args to pass to this stage
         service_kwargs = dict()
 
-        param_selector = ParamSelector()
+        param_selector = ParamSelector(selections=param_selections)
 
-        for name, value in config.items(section):
-            param_match = PARAM_RE.match(name)
+        for fullname, value in config.items(section):
+            param_match = PARAM_RE.match(fullname)
             if param_match is not None:
                 param_match_dict = param_match.groupdict()
                 param_subfields = param_match_dict['subfields'].split('.')
 
                 # Figure out what the dotted fields represent...
-
-                # Must have at least one field
-                if len(param_subfields) == 0:
-                    raise ValueError('No dotted fields in config name "%s"' %name)
-
-                # If only one field, this must be the param's name
-                if len(param_subfields) == 1:
-                    pname = param_subfields.pop()
-                    selector = None
-                    attr = None
-                else:
-                    # Look for and remove attr field and any subsequent fields
-                    attr_idx = None
-                    attr = None
-                    for _attr in PARAM_ATTRS:
-                        if _attr in param_subfields:
-                            if attr_idx is not None:
-                                raise ValueError(
-                                    'Found multiple attrs in config name "%s"'
-                                    %name
-                                )
-                            attr_idx = param_subfields.index(_attr)
-                            attr = []
-                            # All fields from attr on pertain to the attr; remove
-                            for i in range(attr_idx, len(param_subfields)):
-                                a = param_subfields.pop(attr_idx)
-                                assert a not in PARAM_ATTRS
-                                attr.append(a)
-
-                    # Either "pname", "selector.pname", or invalid
-                    pname = param_subfields.pop()
-                    if len(param_subfields) == 0:
-                        selector = None
-                    elif len(param_subfields) == 1:
-                        selector = param_subfields.pop()
-                if len(param_subfields) > 0:
-                    raise ValueError('Too many dotted fields to parse in name'
-                                     ' "%s"' %name)
-
-                logging.trace('pname=%s, selector=%s, attr=%s'
-                              %(pname, selector, attr))
+                infodict = interpret_param_subfields(subfields=param_subfields)
 
                 # If field is an attr, skip since these are located manually
-                if attr is not None:
+                if infodict['attr'] is not None:
                     continue
 
                 # Check if this param already exists in a previous stage; if
@@ -379,38 +375,43 @@ def parse_pipeline_config(config):
                     if not kw.has_key('params'):
                         continue
                     try:
-                        param = kw['params'].get(name=pname, selector=selector)
+                        param = kw['params'].get(name=infodict['pname'],
+                                                 selector=infodict['selector'])
                     except KeyError:
                         continue
 
                     # Make sure there are no other specs for the param defined
                     # in the current section
                     for attr_ in PARAM_ATTRS:
-                        assert not config.has_option(section, name + '.' + attr_)
+                        assert not config.has_option(section, fullname + '.' + attr_)
 
-                    param = kw['params'][pname]
+                    param = kw['params'][infodict['pname']]
                     #print 'p copy:', param
                     break
 
                 # Param *not* found in a previous stage (i.e., no explicit `break`
                 # encountered in `for` loop above); instantiate the param.
                 else:
-                    param = parse_param(config, section, selector, name, pname,
-                                        value)
+                    param = parse_param(config=config,
+                                        section=section,
+                                        selector=infodict['selector'],
+                                        fullname=fullname,
+                                        pname=infodict['pname'],
+                                        value=value)
                     #print 'p inst:', param
 
                 print 'p.name:', param.name
                 #print 'ps before:', param_selector.params.names
-                #param_selector.update(p=param, selector=selector)
+                param_selector.update(p=param, selector=infodict['selector'])
                 #print 'ps after:', param_selector.params.names
                 #print 'ps param:', param_selector.get(name=param.name,
                 #                                      selector=selector).name
 
-            elif 'binning' in name:
-                service_kwargs[name] = binning_dict[value]
+            elif 'binning' in fullname:
+                service_kwargs[fullname] = binning_dict[value]
 
             else:
-                service_kwargs[name] = parse_string_literal(value)
+                service_kwargs[fullname] = parse_string_literal(value)
 
         service_kwargs['params'] = param_selector
 

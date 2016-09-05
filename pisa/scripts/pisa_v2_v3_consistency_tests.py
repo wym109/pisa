@@ -990,25 +990,25 @@ if __name__ == '__main__':
         it! In general, this will signify you have "changed" something, somehow
         in the basic functionality which you should understand!'''
     )
-    parser.add_argument('--flux', action='store_true', default=False,
+    parser.add_argument('--flux', action='store_true',
                         help='''Run flux tests i.e. the interpolation methods
                         and the flux systematics.''')
-    parser.add_argument('--osc-prob3cpu', action='store_true', default=False,
+    parser.add_argument('--osc-prob3cpu', action='store_true',
                         help='''Run osc tests i.e. the oscillograms with one
                         sigma deviations in the parameters.''')
-    parser.add_argument('--osc-prob3gpu', action='store_true', default=False,
+    parser.add_argument('--osc-prob3gpu', action='store_true',
                         help='''Run GPU-based osc tests i.e. the oscillograms
                         with one sigma deviations in the parameters.''')
-    parser.add_argument('--aeff', action='store_true', default=False,
+    parser.add_argument('--aeff', action='store_true',
                         help='''Run effective area tests i.e. the different
                         transforms with the aeff systematics.''')
-    parser.add_argument('--reco', action='store_true', default=False,
+    parser.add_argument('--reco', action='store_true',
                         help='''Run reco tests i.e. the different reco kernels
                         and their systematics.''')
-    parser.add_argument('--pid', action='store_true', default=False,
+    parser.add_argument('--pid', action='store_true',
                         help='''Run PID tests i.e. the different pid kernels
                         methods and their systematics.''')
-    parser.add_argument('--full', action='store_true', default=False,
+    parser.add_argument('--full', action='store_true',
                         help='''Run full pipeline tests for the baseline i.e.
                         all stages simultaneously rather than each in
                         isolation.''')
@@ -1020,10 +1020,14 @@ if __name__ == '__main__':
     parser.add_argument('--ratio_threshold', type=float, default=1E-8,
                         help='''Sets the agreement threshold on the ratio test
                         plots. If this is not reached the tests will fail.''')
-    parser.add_argument('--diff_threshold', type=float, default=1E-3,
+    parser.add_argument('--diff_threshold', type=float, default=2E-3,
                         help='''Sets the agreement threshold on the diff test
                         plots. If this is not reached the tests will fail. This
                         test is only important if any ratios return inf.''')
+    parser.add_argument('--ignore-cuda-errors', action='store_true',
+                        help='''Ignore errors if pycuda cannot be used. If
+                        pycuda can be used, however, errors will still be
+                        raised as exceptions.''')
     parser.add_argument('-v', action='count', default=None,
                         help='set verbosity level')
     args = parser.parse_args()

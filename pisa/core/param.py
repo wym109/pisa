@@ -740,7 +740,8 @@ class ParamSelector(object):
 
     def select(self, selections=None, error_on_missing=True):
         if selections is None:
-            return self.select(self.selections)
+            return self.select(selections=self.selections,
+                               error_on_missing=error_on_missing)
 
         if isinstance(selections, basestring):
             selections = [selections]
@@ -748,13 +749,17 @@ class ParamSelector(object):
         for selection in selections:
             assert isinstance(selection, basestring)
             selection = selection.strip().lower()
-            if selection not in self._selector_params:
-                raise ValueError(
-                    'No selection "%s" available; valid selections are %s'
-                    ' (case-insensitive).'
-                    %(selection, self._selector_params.keys())
-                )
-            self._current_params.update(self._selector_params[selection])
+            try:
+                if selection not in self._selector_params:
+                    raise KeyError(
+                        'No selection "%s" available; valid selections are %s'
+                        ' (case-insensitive).'
+                        %(selection, self._selector_params.keys())
+                    )
+                self._current_params.update(self._selector_params[selection])
+            except KeyError:
+                if error_on_missing:
+                    raise
 
         self._selections = selections
 
@@ -789,7 +794,7 @@ class ParamSelector(object):
                 self._selector_params[selector] = ParamSet()
             self._selector_params[selector].update(p)
             # Re-select current selectiosn in case the update modifies these
-            self.select()
+            self.select(error_on_missing=False)
 
     def get(self, name, selector=None):
         if selector is None:
