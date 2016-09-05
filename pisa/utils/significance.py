@@ -8,9 +8,18 @@ from pisa.utils.fileio import from_file
 
 parser = ArgumentParser()
 parser.add_argument('-d','--dir',metavar='dir',help='directory containg output json files', default='.') 
+parser.add_argument('-f','--file',metavar='dir',help='single json files', default='') 
 args = parser.parse_args()
 res = {}
-for filename in os.listdir(args.dir):
+
+
+if args.file is not '':
+    fnames = [args.file]
+else:
+    fnames = [os.path.join(args.dir, f) for f in os.listdir(args.dir)]
+    
+
+for filename in fnames:
     if filename.endswith('.json'):
         file = from_file(args.dir+'/'+filename)
         name,_ = filename.split('.')
@@ -24,5 +33,10 @@ for filename in os.listdir(args.dir):
 if res.has_key('nominal'):
     nominal = res['nominal']
     print 'sys\tdelta\tpercent'
-    for key, val in res.items():
+else:
+    nominal = None
+for key, val in res.items():
+    if nominal is not None:
         print '%s\t%.4f\t%.2f %%'%(key,val-nominal,(val-nominal)/nominal*100)
+    else:
+        print '%s\t%.4f sigma'%(key,val)
