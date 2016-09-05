@@ -392,7 +392,6 @@ if __name__ == '__main__':
     from pisa.utils.format import append_results, ravel_results
 
     parser = ArgumentParser()
-<<<<<<< HEAD
     parser.add_argument(
         '-d', '--data-settings', type=str,
         metavar='configfile', default=None,
