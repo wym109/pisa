@@ -18,7 +18,6 @@ from pisa.core.map import Map, MapSet
 from pisa.utils.log import logging
 from pisa.utils.comparisons import normQuant
 from pisa.utils.hash import hash_obj
-import pisa.utils.systematicFunctions as sf
 
 
 def copy_dict_to_d(events):
@@ -164,7 +163,10 @@ class gpu(Stage):
             # host arrays
             self.events_dict[flav]['host'] = {}
             for var in variables:
-                self.events_dict[flav]['host'][var] = evts[flav][var].astype(FTYPE)
+                try:
+                    self.events_dict[flav]['host'][var] = evts[flav][var].astype(FTYPE)
+                except KeyError:
+                    self.events_dict[flav]['host'][var] = np.ones_like(evts[flav]['true_energy']).astype(FTYPE)
             self.events_dict[flav]['n_evts'] = np.uint32(len(self.events_dict[flav]['host'][variables[0]]))
             for var in empty:
                 if self.params.no_nc_osc and ( (flav in ['nue_nc', 'nuebar_nc'] and var == 'prob_e') or (flav in ['numu_nc', 'numubar_nc'] and var == 'prob_mu') ):
