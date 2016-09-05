@@ -210,7 +210,8 @@ PARAM_ATTRS = ['range', 'prior', 'fixed']
 
 
 def interpret_param_subfields(subfields, selector=None, pname=None, attr=None):
-    infodict = dict(subfields=subfields, selector=selector, pname=pname, attr=attr)
+    infodict = dict(subfields=subfields, selector=selector, pname=pname,
+                    attr=attr)
 
     # Everything has been parsed
     if len(infodict['subfields']) == 0:
@@ -374,38 +375,39 @@ def parse_pipeline_config(config):
                 for kw in stage_dicts.values():
                     if not kw.has_key('params'):
                         continue
+
                     try:
-                        param = kw['params'].get(name=infodict['pname'],
-                                                 selector=infodict['selector'])
+                        param = kw['params'].get(
+                            name=infodict['pname'],
+                            selector=infodict['selector']
+                        )
                     except KeyError:
                         continue
 
-                    # Make sure there are no other specs for the param defined
-                    # in the current section
-                    for attr_ in PARAM_ATTRS:
-                        assert not config.has_option(section, fullname + '.' + attr_)
+                    # Make sure there are no other specs (in this section) for
+                    # the param defined defined in previous section
+                    for a in PARAM_ATTRS:
+                        assert not config.has_option(section,
+                                                     '%s.%s' %(fullname, a))
 
                     param = kw['params'][infodict['pname']]
-                    #print 'p copy:', param
+
                     break
 
-                # Param *not* found in a previous stage (i.e., no explicit `break`
-                # encountered in `for` loop above); instantiate the param.
+                # Param *not* found in a previous stage (i.e., no explicit     
+                # `break` encountered in `for` loop above); therefore must
+                # instantiate it.
                 else:
-                    param = parse_param(config=config,
-                                        section=section,
-                                        selector=infodict['selector'],
-                                        fullname=fullname,
-                                        pname=infodict['pname'],
-                                        value=value)
-                    #print 'p inst:', param
+                    param = parse_param(
+                        config=config,
+                        section=section,
+                        selector=infodict['selector'],
+                        fullname=fullname,
+                        pname=infodict['pname'],
+                        value=value
+                    )
 
-                print 'p.name:', param.name
-                #print 'ps before:', param_selector.params.names
-                param_selector.update(p=param, selector=infodict['selector'])
-                #print 'ps after:', param_selector.params.names
-                #print 'ps param:', param_selector.get(name=param.name,
-                #                                      selector=selector).name
+                param_selector.update(param, selector=infodict['selector'])
 
             elif 'binning' in fullname:
                 service_kwargs[fullname] = binning_dict[value]
@@ -416,7 +418,7 @@ def parse_pipeline_config(config):
         service_kwargs['params'] = param_selector
 
         # Append this dict to the OrderedDict with all stage dicts
-        stage_dicts[stage + '.' + service] = service_kwargs
+        stage_dicts[(stage, service)] = service_kwargs
 
     return stage_dicts
 

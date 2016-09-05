@@ -605,11 +605,13 @@ class Analysis(object):
         # Instantiate distribution makers only where necessry
         if not isinstance(data_maker, DistributionMaker):
             data_maker = DistributionMaker(data_maker)
+
         if not isinstance(null_hypo_maker, DistributionMaker):
             if null_maker_is_data_maker:
                 null_hypo_maker = deepcopy(data_maker)
             else:
                 null_hypo_maker = DistributionMaker(null_hypo_maker)
+
         if not isinstance(alt_hypo_maker, DistributionMaker):
             if alt_maker_is_data_maker:
                 alt_hypo_maker = deepcopy(data_maker)
@@ -624,7 +626,7 @@ class Analysis(object):
         # Generate (unfluctuated) data
         unfluctuated_data = data_maker.get_outputs()
 
-        for data_ind in xrange(data_start_ind, data_start_ind+n_data_trials):
+        for data_ind in xrange(data_start_ind, data_start_ind + n_data_trials):
             # random state is defined by:
             #   * trial-vs-supertrial = 0 : super-trial part (outer loop)
             #   * super-trial = data_ind : super-trial number

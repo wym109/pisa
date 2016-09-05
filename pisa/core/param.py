@@ -327,7 +327,7 @@ class Param(object):
 
 
 # TODO: temporary modification of parameters via "with" syntax?
-class ParamSet(object):
+class ParamSet(Sequence):
     """Container class for a set of parameters. Most methods are passed through
     to contained params.
 
@@ -496,6 +496,14 @@ class ParamSet(object):
         elif isinstance(i, basestring):
             self._by_name[i].value = val
 
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+        for k, v in self.__dict__.items():
+            setattr(result, k, deepcopy(v, memo))
+        return result
+
     def __getitem__(self, i):
         if isinstance(i, int):
             return self._params[i]
@@ -559,6 +567,16 @@ class ParamSet(object):
                     string += '%s' %p.value
             strings.append(string.strip())
         return ' '.join(strings)
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        #print '-'*80
+        #print self.state
+        #print '-'*80
+        #print other.state
+        #print '-'*80
+        return recursiveEquality(self.state, other.state)
 
     def priors_penalty(self, metric):
         return np.sum([obj.prior_penalty(metric=metric)
@@ -776,6 +794,38 @@ class ParamSelector(object):
     def __iter__(self):
         return iter(self._current_params)
 
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            print 'not same class'
+            return False
+        if not recursiveEquality(self._selections, other._selections):
+            print '_selections differ'
+            print '-'*80
+            print self._selections
+            print '-'*80
+            print other._selections
+            print '-'*80
+            return False
+        if not recursiveEquality(self._regular_params, other._regular_params):
+            print '_regular_params differ'
+            print '-'*80
+            print self._regular_params
+            print [str(p) for p in self._regular_params]
+            print '-'*80
+            print other._regular_params
+            print [str(p) for p in other._regular_params]
+            print '-'*80
+            return False
+        if not recursiveEquality(self._selector_params, other._selector_params):
+            print '_selector_params differ'
+            print '-'*80
+            print self._selector_params
+            print '-'*80
+            print other._selector_params
+            print '-'*80
+            return False
+        return True
+
     def update(self, p, selector=None):
         try:
             p = ParamSet(p)
@@ -902,7 +952,12 @@ def test_Param():
     assert p2.nominal_value == val1, \
             '%s should be %s' %(p2.nominal_value, val1)
 
+    # Test deepcopy
+    param2 = deepcopy(p2)
+    assert param2 == p2
+
     print '<< PASSED : test_Param >>'
+
 
 # TODO: add tests for reset() and reset_all() methods
 def test_ParamSet():
@@ -1023,6 +1078,12 @@ def test_ParamSet():
     assert param_set.reco_coszen.value == -1.0
     param_set.reco_coszen = -1
     assert param_set.reco_coszen.value == -1.0
+
+    # Test deepcopy
+    param_set2 = deepcopy(param_set)
+    print param_set
+    print param_set2
+    assert param_set2 == param_set
 
     print '<< PASSED : test_ParamSet >>'
 
@@ -1151,10 +1212,15 @@ def test_ParamSelector():
     param_selector.select('p31_41')
     assert params.e.value == -22
 
+    # Test deepcopy
+    param_selector2 = deepcopy(param_selector)
+    assert param_selector2 == param_selector
+
     print '<< PASSED : test_ParamSelector >>'
 
 
 if __name__ == "__main__":
+    set_verbosity(3)
     test_Param()
     test_ParamSet()
     test_ParamSelector()

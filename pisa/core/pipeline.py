@@ -112,8 +112,8 @@ class Pipeline(object):
 
         """
         self._stages = []
-        for stage_num, (name, settings) in enumerate(self.config.items()):
-            stage_name, service_name = name.split('.')
+        for stage_num, ((stage_name, service_name), settings) \
+                in enumerate(self.config.items()):
             try:
                 logging.debug('instantiating stage %s / service %s'
                               %(stage_name, service_name))
@@ -134,8 +134,10 @@ class Pipeline(object):
                 self._stages.append(service)
 
             except:
-                logging.error('Failed to initialize stage #%d (%s).'
-                              %(stage_num, stage_name))
+                logging.error(
+                    'Failed to initialize stage #%d (%s, service %s).'
+                    %(stage_num, stage_name, stage_name)
+                )
                 raise
 
     @profile
