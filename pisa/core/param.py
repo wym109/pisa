@@ -343,12 +343,12 @@ class ParamSet(object):
     >>> e_prior = Prior(kind='gaussian', mean=10*ureg.GeV, stddev=1*ureg.GeV)
     >>> cz_prior = Prior(kind='uniform', llh_offset=-5)
     >>> reco_energy = Param(name='reco_energy', value=12*ureg.GeV,
-                            prior=e_prior, range=[1, 80]*ureg.GeV,
-                            is_fixed=False, is_discrete=False,
-                            tex=r'E^{\rm reco}')
+    ...                     prior=e_prior, range=[1, 80]*ureg.GeV,
+    ...                     is_fixed=False, is_discrete=False,
+    ...                     tex=r'E^{\rm reco}')
     >>> reco_coszen = Param(name='reco_coszen', value=-0.2, prior=cz_prior,
-                            range=[-1, 1], is_fixed=True, is_discrete=False,
-                            tex=r'\cos\,\theta_Z^{\rm reco}')
+    ...                     range=[-1, 1], is_fixed=True, is_discrete=False,
+    ...                     tex=r'\cos\,\theta_Z^{\rm reco}')
     >>> param_set = ParamSet(reco_energy, reco_coszen)
     >>> print param_set
     reco_coszen=-2.0000e-01 reco_energy=+1.2000e+01 GeV
@@ -505,17 +505,32 @@ class ParamSet(object):
     def __getattr__(self, attr):
         try:
             return super(ParamSet, self).__getattr__(attr)
-        except AttributeError, exc:
+        except AttributeError:
             try:
                 return self[attr]
             except KeyError:
-                raise exc
+                raise
 
     def __setattr__(self, attr, val):
         try:
-            super(ParamSet, self).__setattr__(attr, val)
+            params = super(ParamSet, self).__getattribute__('_params')
+            param_names = [p.name for p in params]
         except AttributeError:
-            self._params[attr].value = val
+            params = []
+            param_names = []
+        try:
+            idx = param_names.index(attr)
+        except ValueError:
+            super(ParamSet, self).__setattr__(attr, val)
+        else:
+            param_name = attr
+            if isinstance(val, Param):
+                assert val.name == attr
+                self._params[idx] = val
+            elif isbarenumeric(val): #isinstance(val, (Number, pint.quantity._Quantity)):
+                self._params[idx].value = val
+            else:
+                raise ValueError('Cannot set param "%s" to `val`=%s' %(attr, val))
 
     def __iter__(self):
         return iter(self._params)
@@ -707,13 +722,30 @@ class ParamSelector(object):
     """
     def __init__(self, regular_params=None, selector_param_sets=None,
                  selections=None):
-        current_params = ParamSet()
+        self._current_params = ParamSet()
         if regular_params is not None:
             regular_params = ParamSet(regular_params)
-        else:
+            self._current_params.update(regular_params)
 
-    def select(self, selector):
-        pass
+        self._selector_params = {}
+        if selector_param_sets is not None:
+            for selector, params in selector_param_sets.items():
+                params = ParamSet(params)
+                self._selector_params[selector] = params
+
+        self.select(selections)
+
+    def select(self, selections):
+        if isinstance(selections, basestring):
+            selections = [selections]
+
+        for selection in selections:
+            if selection not in self._selector_params:
+                raise ValueError(
+                    'No selection "%s" available; valid selections are: %s'
+                    %(selection, self._selector_params.keys())
+                )
+            self._current_params.update(self._selector_params[selection])
 
 
 def test_Param():
@@ -820,6 +852,8 @@ def test_Param():
 
 # TODO: add tests for reset() and reset_all() methods
 def test_ParamSet():
+    from pisa.core.prior import Prior
+
     p0 = Param(name='c', value=1.5, prior=None, range=[1,2],
                is_fixed=False, is_discrete=False, tex=r'\int{\rm c}')
     p1 = Param(name='a', value=2.5, prior=None, range=[1,5],
@@ -893,6 +927,49 @@ def test_ParamSet():
 
     print param_set[0].prior_chi2
     print param_set.priors_chi2
+
+	# Test that setting attributes works
+    e_prior = Prior(kind='gaussian', mean=10*ureg.GeV, stddev=1*ureg.GeV)
+    cz_prior = Prior(kind='uniform', llh_offset=-5)
+    reco_energy = Param(name='reco_energy', value=12*ureg.GeV,
+                        prior=e_prior, range=[1, 80]*ureg.GeV,
+                        is_fixed=False, is_discrete=False,
+                        tex=r'E^{\rm reco}')
+    reco_coszen = Param(name='reco_coszen', value=-0.2, prior=cz_prior,
+                        range=[-1, 1], is_fixed=True, is_discrete=False,
+                        tex=r'\cos\,\theta_Z^{\rm reco}')
+    reco_coszen_fail = Param(name='reco_coszen_fail', value=-0.2,
+                             prior=cz_prior, range=[-1, 1], is_fixed=True,
+                             is_discrete=False,
+                             tex=r'\cos\,\theta_Z^{\rm reco}')
+    reco_coszen2 = Param(name='reco_coszen', value=-0.9, prior=cz_prior,
+                         range=[-1, 1], is_fixed=True, is_discrete=False,
+                         tex=r'\cos\,\theta_Z^{\rm reco}')
+    param_set = ParamSet([reco_energy, reco_coszen])
+    # Try setting a param with a differently-named param
+    try:
+        param_set.reco_coszen = reco_coszen_fail
+    except:
+        pass
+    else:
+        assert False
+
+    try:
+        param_set.reco_coszen = 30
+    except:
+        pass
+    else:
+        assert False
+
+    param_set.reco_coszen = reco_coszen2
+    assert param_set.reco_coszen is reco_coszen2
+    assert param_set['reco_coszen'] is reco_coszen2
+    assert param_set.reco_coszen.value == -0.9
+    param_set.reco_coszen = -1.0
+    assert param_set.reco_coszen.value == -1.0
+    param_set.reco_coszen = -1
+    assert param_set.reco_coszen.value == -1.0
+
     print '<< PASSED : test_ParamSet >>'
 
 
