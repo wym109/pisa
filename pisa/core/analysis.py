@@ -408,6 +408,11 @@ if __name__ == '__main__':
         this option to define multiple pipelines.'''
     )
     parser.add_argument(
+        '-pd', '--pseudo-data',
+        type=str, default='poisson',choices=['poisson', 'asimov'], 
+        help='''Mode for pseudo data sampling'''
+    )
+    parser.add_argument(
         '-o', '--outfile', metavar='FILE',
         type=str, action='store', default='out.json',
         help='file to store the output'
@@ -415,6 +420,16 @@ if __name__ == '__main__':
     parser.add_argument(
         '-n', '--num-trials', type=int, default=1,
         help='number of trials'
+    )
+    parser.add_argument(
+        '--mode',
+        type=str,choices=['H0', 'scan11', 'scan21'], default='H0',
+        help='''just run significance or whole scan'''
+    )
+    parser.add_argument(
+        '-fp', '--fix-param',
+        type=str, default='',
+        help='''fix parameter'''
     )
     parser.add_argument(
         '-m', '--minimizer-settings', type=str,
