@@ -15,6 +15,7 @@ from pisa.core.events import Events
 from pisa import ureg, Q_
 from pisa.core.binning import OneDimBinning, MultiDimBinning
 from pisa.core.map import Map, MapSet
+from pisa.core.param import ParamSet
 from pisa.utils.log import logging
 from pisa.utils.comparisons import normQuant
 from pisa.utils.hash import hash_obj
@@ -97,20 +98,15 @@ class gpu(Stage):
         self.osc_hash = None
         self.weight_hash = None
 
-        # initialize classes
-        earth_model = find_resource(self.params.earth_model.value)
-        YeI = self.params.YeI.value.m_as('dimensionless')
-        YeO = self.params.YeO.value.m_as('dimensionless')
-        YeM = self.params.YeM.value.m_as('dimensionless')
-        prop_height = self.params.prop_height.value.m_as('km')
-        detector_depth = self.params.detector_depth.value.m_as('km')
+        osc_params_subset = []
+        for param in self.params:
+            if param.name in self.osc_params:
+                osc_params_subset.append(param)
+        osc_params_subset = ParamSet(osc_params_subset)
 
-        self.osc = prob3gpu(detector_depth,
-                            earth_model,
-                            prop_height,
-                            YeI,
-                            YeO,
-                            YeM)
+        self.osc = prob3gpu(params=osc_params_subset, 
+                            input_binning=None, 
+                            output_binning=None)
 
         self.weight = GPUweight()
 
