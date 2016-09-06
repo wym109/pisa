@@ -11,7 +11,7 @@ import time
 import scipy.optimize as opt
 
 from pisa.core.distribution_maker import DistributionMaker
-from pisa.utils.fileio import from_file
+from pisa.utils.fileio import expandPath
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.random_numbers import get_random_state
 from pisa import ureg, Q_
@@ -51,29 +51,6 @@ class Analysis(object):
 
     def __init__(self):
         pass
-        #assert isinstance(data_maker, DistributionMaker)
-        #assert isinstance(template_maker, DistributionMaker)
-
-        #self.data_maker = data_maker
-        #"""DistributionMaker object for making data distributions"""
-
-        #self.template_maker = template_maker
-        #"""DistributionMaker object for making template distributions to be fit
-        #to the data distribution"""
-
-        #self.metric = metric
-        #if isinstance(minimizer_settings, basestring):
-        #    self.minimizer_settings = from_file(minimizer_settings)
-        #elif isinstance(minimizer_settings, Mapping):
-        #    self.minimizer_settings = minimizer_settings
-        #else:
-        #    raise ValueError('Minimizer settings expected either as path to '
-        #                     'file or as dictionary read from file')
-
-        ## Generate distribution
-        #self.asimov = self.data_maker.get_outputs()
-        #self.pseudodata = None
-        #self.n_minimizer_calls = 0
 
     @property
     def minimizer_settings(self):
@@ -479,6 +456,51 @@ class Analysis(object):
         delta_metric = alt_hypo_fit.metric - null_hypo_fit.metric
         return delta_metric, alt_hypo_fit, null_hypo_fit
 
+    # TODO: add references, usage, docstring correctness
+    def profile_llh(self, param_name, values):
+        """Run profile log likelihood for a single parameter.
+
+        Parameters
+        ----------
+        param_name : string
+            Parameter for which to run the profile log likelihood.
+
+        values : sequence of float (?)
+            Values at which to fix parameter in conditional llh
+
+        Returns
+        -------
+        list of [condMLEs, globMLE]
+
+        Notes
+        -----
+
+        Examples
+        --------
+
+        """
+        # run numerator (conditional MLE)
+        logging.info('fixing param %s'%param_name)
+        self.template_maker.params.fix(param_name)
+        condMLEs = {}
+        for value in values:
+            test = template_maker.params[param_name]
+            test.value = value
+            template_maker.update_params(test)
+            condMLE = self.find_best_fit()
+            condMLE[param_name] = self.template_maker.params[param_name].value
+            append_results(condMLEs, condMLE)
+            # report MLEs and LLH
+            # also add the fixed param
+        # run denominator (global MLE)
+        ravel_results(condMLEs)
+        logging.info('unfixing param %s'%param_name)
+        self.template_maker.params.unfix(param_name)
+        globMLE = self.find_best_fit()
+        # report MLEs and LLH
+        return [condMLEs, globMLE]
+
+
 
 class LLRAnalysis(Analysis):
     """LLR analysis to determine the significance for data to have come from
@@ -513,15 +535,15 @@ class LLRAnalysis(Analysis):
 
     fluctuate_fid_data : bool
 
-    n_data_trials : int >= 1
+    num_data_trials : int >= 1
 
-    n_fid_data_trials : int >= 1
+    num_fid_data_trials : int >= 1
 
     data_start_ind : int >= 0
 
     fid_data_start_ind : int >= 0
 
-    outdir
+    logdir
 
     alt_hypo_name : string
 
@@ -535,19 +557,20 @@ class LLRAnalysis(Analysis):
     LLR analysis is a very thorough (though computationally expensive) method
     to compare discrete hypotheses. In general, a total of
 
-        n_data_trials * (2 + 4*n_fid_data_trials)
+        num_data_trials * (2 + 4*num_fid_data_trials)
 
     fits must be performed (and note that for each fit, many templates
     (typically dozens or even hunreds) must be generated).
 
     If the "data" used in the analysis is pseudodata (i.e., `data_maker` uses
     Monte Carlo to produce its distributions, and these are then
-    Poisson-fluctuated--`fluctuate_data` is True), then `n_data_trials` should
-    be as large as is computationally feasible.
+    Poisson-fluctuated--`fluctuate_data` is True), then `num_data_trials`
+    should be as large as is computationally feasible.
 
     Likewise, if the fiducial-fit data is to be pseudodata (i.e.,
     `fluctuate_fid_data` is True--whether or not `data_maker` is uses Monte
-    Carlo), `n_fid_data_trials` should be as large as computationally feasible.
+    Carlo), `num_fid_data_trials` should be as large as computationally
+    feasible.
 
     Typical analyses include the following:
         * Asimov analysis of data: `data_maker` uses (actual, measured) data
@@ -566,21 +589,25 @@ class LLRAnalysis(Analysis):
     ----------
     TODO
 
+
+    Examples
+    --------
+
     """
-    def __init__(self, outdir, alt_hypo_maker, alt_hypo_param_selections=None,
+    def __init__(self, logdir, alt_hypo_maker, alt_hypo_param_selections=None,
                  null_hypo_maker=None, null_hypo_param_selections=None,
                  data_maker=None, data_param_selections=None, metric='llh',
                  fluctuate_data=False, fluctuate_fid_data=False,
-                 n_data_trials=1, n_fid_data_trials=1, data_start_ind=0,
+                 num_data_trials=1, num_fid_data_trials=1, data_start_ind=0,
                  fid_data_start_ind=0, alt_hypo_name='alt hypo',
                  null_hypo_name='null hypo', data_name='data'):
         # Identify duplicate `*_maker` specifications
         self.null_maker_is_alt_maker = False
-        if null_hypo_maker == alt_hypo_maker or null_hypo_maker is None:
+        if null_hypo_maker is None or null_hypo_maker == alt_hypo_maker:
             self.null_maker_is_alt_maker = True
 
         self.data_maker_is_alt_maker = False
-        if data_maker == alt_hypo_maker or data_maker is None:
+        if data_maker is None or data_maker == alt_hypo_maker:
             self.data_maker_is_alt_maker = True
 
         self.data_maker_is_null_maker = False
@@ -604,45 +631,50 @@ class LLRAnalysis(Analysis):
                 ' `null_hypo_param_selections`.'
             )
 
-        # Ensure n_{fid_}data_trials is one if fluctuate_{fid_}data is False
-        if not fluctuate_data and n_data_trials != 1:
+        # Ensure num_{fid_}data_trials is one if fluctuate_{fid_}data is False
+        if not fluctuate_data and num_data_trials != 1:
             logging.warn(
                 'More than one data trial is unnecessary because'
-                ' `fluctuate_data` is False (i.e., all `n_data_trials` data'
-                ' distributions will be identical). Forceing `n_data_trials`'
+                ' `fluctuate_data` is False (i.e., all `num_data_trials` data'
+                ' distributions will be identical). Forceing `num_data_trials`'
                 ' to 1.'
             )
-            n_data_trials = 1
+            num_data_trials = 1
 
-        if not fluctuate_fid_data and n_fid_data_trials != 1:
+        if not fluctuate_fid_data and num_fid_data_trials != 1:
             logging.warn(
                 'More than one data trial is unnecessary because'
                 ' `fluctuate_fid_data` is False (i.e., all'
-                ' `n_fid_data_trials` data distributions will be identical).'
-                ' Forceing `n_fid_data_trials` to 1.'
+                ' `num_fid_data_trials` data distributions will be identical).'
+                ' Forceing `num_fid_data_trials` to 1.'
             )
-            n_fid_data_trials = 1
+            num_fid_data_trials = 1
 
-        # Instantiate distribution makers only where necessry
+        # Instantiate distribution makers only where necessry (otherwise copy)
         if not isinstance(alt_hypo_maker, DistributionMaker):
             alt_hypo_maker = DistributionMaker(alt_hypo_maker)
 
         if not isinstance(null_hypo_maker, DistributionMaker):
             if null_maker_is_alt_maker:
-                null_hypo_maker = deepcopy(alt_hypo_maker)
+                null_hypo_maker = copy(alt_hypo_maker)
             else:
                 null_hypo_maker = DistributionMaker(null_hypo_maker)
 
         if not isinstance(data_maker, DistributionMaker):
             if data_maker_is_alt_maker:
-                data_maker = deepcopy(alt_hypo_maker)
+                data_maker = copy(alt_hypo_maker)
             elif data_maker_is_null_maker:
-                data_maker = deepcopy(null_hypo_maker)
+                data_maker = copy(null_hypo_maker)
             else:
                 data_maker = DistributionMaker(data_maker)
 
+        # Create directory for logging results
+        logdir = expandPath(logdir)
+        mkdir(logdir)
+        logging.info('Output will be saved to dir "%s"' %logdir)
+
         # Store variables to `self` for later access
-        self.outdir = outdir
+        self.logdir = logdir
 
         self.alt_hypo_maker = alt_hypo_maker
         self.alt_hypo_param_selections = alt_hypo_param_selections
@@ -657,8 +689,8 @@ class LLRAnalysis(Analysis):
         self.fluctuate_data = fluctuate_data
         self.fluctuate_fid_data = fluctuate_fid_data
 
-        self.n_data_trials = n_data_trials
-        self.n_fid_data_trials = n_fid_data_trials
+        self.num_data_trials = num_data_trials
+        self.num_fid_data_trials = num_fid_data_trials
         self.data_start_ind = data_start_ind
         self.fid_data_start_ind = fid_data_start_ind
 
@@ -692,6 +724,7 @@ class LLRAnalysis(Analysis):
         self.data_ind = data_start_ind
         self.fid_data_ind = fid_data_start_ind
 
+
     def produce_data(self):
         # Produce Asimov data if we don't already have it
         if self.asimov_data is None:
@@ -704,8 +737,8 @@ class LLRAnalysis(Analysis):
             #   * data trial = data_ind : data trial number (use same for data
             #                             and and fid data trials, since on the
             #                             same data trial)
-            #   * fid trial = 0         : always 0 since data stays the same for
-            #                             all fid trials in this data trial
+            #   * fid trial = 0         : always 0 since data stays the same
+            #                             for all fid trials in this data trial
             data_random_state = get_random_state([0, self.data_ind, 0])
             self.data = self.asimov_data.fluctuate(
                 method='poisson', random_state=data_random_state
@@ -763,11 +796,13 @@ class LLRAnalysis(Analysis):
                 method='poisson',
                 random_state=fid_data_random_state
             )
+
             # (Note that the state of `random_state` will be moved
             # forward now as compared to what it was upon definition above.
             # This is the desired behavior, so the *exact* same random
             # state isn't used to fluctuate alt as was used to fluctuate
             # null.)
+            #
             self.null_fid_data = self.null_fid_asimov_data.fluctuate(
                 method='poisson',
                 random_state=fid_data_random_state
@@ -775,19 +810,21 @@ class LLRAnalysis(Analysis):
         else:
             self.alt_fid_data = self.alt_fid_asimov_data
             self.null_fid_data = self.null_fid_asimov_data
+
         return self.alt_fid_data, self.null_fid_data
 
     def run_analysis(self):
         # Loop for multiple (fluctuated) data distributions
-        for data_ind in xrange(self.data_start_ind,
-                               self.data_start_ind + self.n_data_trials):
+        for self.data_ind in xrange(self.data_start_ind,
+                                    self.data_start_ind
+                                    + self.num_data_trials):
             # Produce a data distribution
             self.produce_data()
 
             # Loop for multiple (fluctuated) fiducial data distributions
             for self.fid_data_ind in xrange(self.fid_data_start_ind,
                                             self.fid_data_start_ind
-                                            + self.n_fid_data_trials):
+                                            + self.num_fid_data_trials):
                 # Fit hypotheses to data and produce fiducial data
                 # distributions from *each* of the hypotheses' best fits
                 # (i.e., two fits are performed here)
@@ -803,50 +840,8 @@ class LLRAnalysis(Analysis):
                         self.alt_hypo_fit_to_alt_fid = \
                         self.compare_hypos(data=self.alt_fid_data)
 
-    # TODO: add references, usage, docstring correctness
-    def profile_llh(self, param_name, values):
-        """Run profile log likelihood for a single parameter.
-
-        Parameters
-        ----------
-        param_name : string
-            Parameter for which to run the profile log likelihood.
-
-        values : sequence of float (?)
-            Values at which to fix parameter in conditional llh
-
-        Returns
-        -------
-        list of [condMLEs, globMLE]
-
-        Notes
-        -----
-
-        Examples
-        --------
-
-        """
-        # run numerator (conditional MLE)
-        logging.info('fixing param %s'%param_name)
-        self.template_maker.params.fix(param_name)
-        condMLEs = {}
-        for value in values:
-            test = template_maker.params[param_name]
-            test.value = value
-            template_maker.update_params(test)
-            condMLE = self.find_best_fit()
-            condMLE[param_name] = self.template_maker.params[param_name].value
-            append_results(condMLEs, condMLE)
-            # report MLEs and LLH
-            # also add the fixed param
-        # run denominator (global MLE)
-        ravel_results(condMLEs)
-        logging.info('unfixing param %s'%param_name)
-        self.template_maker.params.unfix(param_name)
-        globMLE = self.find_best_fit()
-        # report MLEs and LLH
-        return [condMLEs, globMLE]
-
+                # TODO: log trial results here...
+            # TODO: ... and/or here
 
 if __name__ == '__main__':
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
