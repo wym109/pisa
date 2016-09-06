@@ -13,6 +13,8 @@ from pisa.utils.log import logging
 from pkg_resources import resource_filename
 
 
+# TODO: make this work with Python package resources, not just file paths (so
+# we can distribute PISA as an egg).
 def find_resource(resourcename, fail=True):
     """Try to find a resource (file or directory).
 
@@ -77,6 +79,7 @@ def find_resource(resourcename, fail=True):
     if fail:
         raise IOError(msg)
     logging.debug(msg)
+    return None
 
 
 def open_resource(filename, mode='r'):
