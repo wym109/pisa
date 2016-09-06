@@ -120,7 +120,7 @@ def parse_quantity(string):
     Examples
     --------
     >>> print parse_quantity('1.2 +/- 0.7 * units.meter')
-    <?>
+    TODO
 
     """
     value = string.replace(' ', '')
@@ -210,6 +210,8 @@ PARAM_ATTRS = ['range', 'prior', 'fixed']
 
 
 def interpret_param_subfields(subfields, selector=None, pname=None, attr=None):
+    """
+    """
     infodict = dict(subfields=subfields, selector=selector, pname=pname,
                     attr=attr)
 
@@ -247,6 +249,8 @@ def interpret_param_subfields(subfields, selector=None, pname=None, attr=None):
 
 
 def parse_param(config, section, selector, fullname, pname, value):
+    """
+    """
     # TODO: Are these defaults actually a good idea?
     kwargs = dict(name=pname, is_fixed=True, prior=None, range=None)
     try:
@@ -311,11 +315,11 @@ def parse_pipeline_config(config):
 
     Parameters
     ----------
-    config : <?>
+    config : TODO
 
     Returns
     -------
-    <?>
+    TODO
 
     """
     # TODO: Why do we have to make sure it isn't a BetterConfigParser?

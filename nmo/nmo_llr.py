@@ -160,7 +160,7 @@ def nmo_analysis(truth, template_settings, minimizer_settings, trials=1,
 
 if __name__ == '__main__':
     parser = ArgumentParser(
-        description='''Performs the LLR analysis for calculating the NMO
+        description='''Perform the LLR analysis for calculating the NMO
         sensitivity of the distribution made from data-settings compared with
         hypotheses generated from template-settings.
 
@@ -168,33 +168,92 @@ if __name__ == '__main__':
         of best fit and likelihood values.'''
     )
     parser.add_argument(
-        '-d', '--data-settings',
-        type=str, metavar='configfile', default=None,
-        help='''Settings for the generation of "data" distributions; repeat
-        this argument to specify multiple pipelines. If omitted, the same
-        settings as specified for --template-settings are used to generate data
-        distributions.'''
+        '--alt-hypo-pipeline', required=True,
+        type=str, action='append', default=None, metavar='PIPELINE_CFG',
+        help='''Settings for the generation of alternate hypothesis
+        distributions; repeat this argument to specify multiple pipelines.'''
     )
     parser.add_argument(
-        '-t', '--template-settings',
-        type=str, metavar='CONFIGFILE', required=True,
-        help='''Settings for generating template distributions; repeat
-        this option to define multiple pipelines.'''
+        '--alt-hypo-param-selections',
+        type=str, default=None, metavar='PARAM_SELECTOR_LIST',
+        help='''Comma-separated (no spaces) list of param selectors to apply to
+        the alt hypothesis distribution maker's pipelines.'''
+    )
+    parser.add_argument(
+        '--null-hypo-pipeline',
+        type=str, action='append', default=None, metavar='PIPELINE_CFG',
+        help='''Settings for the generation of null hypothesis distributions;
+        repeat this argument to specify multiple pipelines. If omitted, the
+        same settings as specified for --alt-hypo-pipeline are used to generate
+        the null hypothesis distributions (and so you have to use the
+        --null-hypo-param-selections argument to generate a hypotheses distinct
+        from the alt hypothesis while using alt hypo's distribution maker).'''
+    )
+    parser.add_argument(
+        '--null-hypo-param-selections',
+        type=str, default=None, metavar='PARAM_SELECTOR_LIST',
+        help='''Comma-separated (no spaces) list of param selectors to apply to
+        the null hypothesis distribution maker's pipelines.'''
+    )
+    parser.add_argument(
+        '--data-pipeline',
+        type=str, action='append', default=None, metavar='PIPELINE_CFG',
+        help='''Settings for the generation of "data" distributions; repeat
+        this argument to specify multiple pipelines. If omitted, the same
+        settings as specified for --alt-hypo-pipeline are used to generate data
+        distributions (i.e., data is assumed to come from the alternate
+        hypothesis.'''
+    )
+    parser.add_argument(
+        '--data-param-selections',
+        type=str, default=None, metavar='PARAM_SELECTOR_LIST',
+        help='''Comma-separated list of param selectors to apply to the data
+        distribution maker's pipelines. If neither --data-pipeline nor
+        --data-param-selections are specified, *both* are copied from
+        --alt-hypo-pipeline and --alt-param-selections, respectively. However,
+        if --data-pipeline is specified while --data-param-selections is not,
+        then the param selections in the pipeline config file(s) specified are
+        used to produce data distributions.'''
     )
     parser.add_argument(
         '-m', '--minimizer-settings',
-        type=str, metavar='JSONFILE', required=True,
+        type=str, metavar='MINIMIZER_CFG', required=True,
         help='''Settings related to the optimizer used in the LLR analysis.'''
     )
     parser.add_argument(
-        '-n', '--num_trials',
+        '--fluctuate-data',
+        type=bool, action='store_true'
+        help='''Apply fluctuations to the data distribution. This should *not*
+        be set for analyzing "real" (measured) data, and it is common to not
+        use this feature even for Monte Carlo analysis. If this is not set,
+        --num-data-trials is forced to 1.'''
+    parser.add_argument(
+        '--num-data-trials',
         type=int, default=1,
-        help='''number of trials'''
+        help='''When performing Monte Carlo analysis, set to > 1 to produce
+        multiple pseudodata distributions from the data distribution maker's
+        Asimov data distribution. This is overridden if --fluctuate-data is not
+        set (since each data distribution will be identical if it is not
+        fluctuated). This is typically left at 1 (i.e., the Asimov distribution
+        is assumed to be representative.'''
     )
     parser.add_argument(
-        '-o', '--outfile',
-        metavar='FILE', required=True, type=str,
-        help='file to store the output'
+        '--fluctuate-fid-data',
+        type=bool, action='store_true'
+        help='''Apply fluctuations to the fiducaial data distributions. If this
+        is not set, --num-fid-data-trials is forced to 1.'''
+    parser.add_argument(
+        '-n', '--num-fid-data-trials',
+        type=int, default=1,
+        help='''Number of fiducial pseudodata trials to run. In our experience,
+        it takes ~10^3-10^5 fiducial psuedodata trials to achieve low
+        uncertainties on the resulting significance, though that exact number
+        will vary based upon the details of an analysis.'''
+    )
+    parser.add_argument(
+        '-o', '--outdir',
+        metavar='DIR', required=True, type=str,
+        help='Directory into which to store results.'
     )
     parser.add_argument(
         '-v', action='count', default=None,

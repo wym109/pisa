@@ -571,11 +571,6 @@ class ParamSet(Sequence):
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
-        #print '-'*80
-        #print self.state
-        #print '-'*80
-        #print other.state
-        #print '-'*80
         return recursiveEquality(self.state, other.state)
 
     def priors_penalty(self, metric):
@@ -756,7 +751,7 @@ class ParamSelector(object):
 
         self.select(selections=selections, error_on_missing=False)
 
-    def select(self, selections=None, error_on_missing=True):
+    def select(self, selections=None, error_on_missing=False):
         if selections is None:
             return self.select(selections=self.selections,
                                error_on_missing=error_on_missing)
@@ -796,33 +791,12 @@ class ParamSelector(object):
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
-            print 'not same class'
             return False
         if not recursiveEquality(self._selections, other._selections):
-            print '_selections differ'
-            print '-'*80
-            print self._selections
-            print '-'*80
-            print other._selections
-            print '-'*80
             return False
         if not recursiveEquality(self._regular_params, other._regular_params):
-            print '_regular_params differ'
-            print '-'*80
-            print self._regular_params
-            print [str(p) for p in self._regular_params]
-            print '-'*80
-            print other._regular_params
-            print [str(p) for p in other._regular_params]
-            print '-'*80
             return False
         if not recursiveEquality(self._selector_params, other._selector_params):
-            print '_selector_params differ'
-            print '-'*80
-            print self._selector_params
-            print '-'*80
-            print other._selector_params
-            print '-'*80
             return False
         return True
 
@@ -843,6 +817,7 @@ class ParamSelector(object):
             if selector not in self._selector_params:
                 self._selector_params[selector] = ParamSet()
             self._selector_params[selector].update(p)
+
             # Re-select current selectiosn in case the update modifies these
             self.select(error_on_missing=False)
 
