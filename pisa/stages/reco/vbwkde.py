@@ -425,24 +425,24 @@ class vbwkde(Stage):
             )
 
             # Adjust range of kde for future axis scaling
-            factor = self.params.e_res_scale.value
-            enu_median = np.median(enu_err)
+            e_factor = self.params.e_res_scale.value
+            #enu_median = np.median(enu_err)
 
-            low_lim_shift = egy_kde_lims[0] * (factor - 1) + enu_median * (1 - factor)
-            upp_lim_shift = egy_kde_lims[1] * (factor - 1) + enu_median * (1 - factor)
+            #low_lim_shift = egy_kde_lims[0] * (factor - 1) + enu_median * (1 - factor)
+            #upp_lim_shift = egy_kde_lims[1] * (factor - 1) + enu_median * (1 - factor)
             # the above is equiv. to (factor*(lim - median) + median) - lim
+            low_lim_shift = egy_kde_lims[0] * (e_factor - 1)
+            upp_lim_shift = egy_kde_lims[1] * (e_factor - 1)
 
-            egy_kde_lims_ext = np.array([0.]*2)
+            egy_kde_lims_ext = np.copy(egy_kde_lims)
             if low_lim_shift > 0:
-                egy_kde_lims_ext[0] = egy_kde_lims[0] - low_lim_shift * (1./factor)
+                egy_kde_lims_ext[0] = egy_kde_lims[0] - low_lim_shift * (1./e_factor)
             if upp_lim_shift < 0:
-                egy_kde_lims_ext[1] = egy_kde_lims[1] - upp_lim_shift * (1./factor)
+                egy_kde_lims_ext[1] = egy_kde_lims[1] - upp_lim_shift * (1./e_factor)
 
             # Adjust kde_num_points accordingly
-            (egy_kde_lims[1] - egy_kde_lims[0])
             kde_num_pts_ext = int(kde_num_pts * ((egy_kde_lims_ext[1] - egy_kde_lims_ext[0])
                                 / (egy_kde_lims[1] - egy_kde_lims[0])))
-
 
             # Compute variable-bandwidth KDEs
             enu_bw, enu_mesh, enu_pdf = kde.vbw_kde(
@@ -475,7 +475,7 @@ class vbwkde(Stage):
             # Scale distribution around median
             #enu_mesh_scaled = factor * (enu_mesh - enu_median) + enu_median
             #enu_mesh_scaled = factor * (enu_mesh - kde_mode) + kde_mode
-            enu_mesh_scaled = factor * enu_mesh
+            enu_mesh_scaled = e_factor * enu_mesh
 
             interp = interpolate.interp1d(
                         x=enu_mesh_scaled,
@@ -495,18 +495,18 @@ class vbwkde(Stage):
             # Re-normalize pdf
             enu_pdf_scaled /= np.trapz(x=enu_mesh, y=enu_pdf_scaled)
 
-            # CHECK SLOWER METHOD TOO
-            # Scale resolutions
-            enu_err_scaled = enu_err * self.params.e_res_scale.value
-            cz_err_scaled = cz_err * self.params.cz_res_scale.value
-            # Compute variable-bandwidth KDEs
-            enu_bw_slow, enu_mesh_slow, enu_pdf_slow = kde.vbw_kde(
-                data           = enu_err_scaled,
-                overfit_factor = OVERFIT_FACTOR,
-                MIN            = egy_kde_lims[0],
-                MAX            = egy_kde_lims[1],
-                N              = kde_num_pts
-            )
+            ## CHECK SLOWER METHOD TOO
+            ## Scale resolutions
+            #enu_err_scaled = enu_err * self.params.e_res_scale.value
+            #cz_err_scaled = cz_err * self.params.cz_res_scale.value
+            ## Compute variable-bandwidth KDEs
+            #enu_bw_slow, enu_mesh_slow, enu_pdf_slow = kde.vbw_kde(
+            #    data           = enu_err_scaled,
+            #    overfit_factor = OVERFIT_FACTOR,
+            #    MIN            = egy_kde_lims[0],
+            #    MAX            = egy_kde_lims[1],
+            #    N              = kde_num_pts
+            #)
 
 
             # Re-center distribution at the center of the energy bin for which
@@ -628,8 +628,8 @@ class vbwkde(Stage):
 
                 # Plot the VBWKDE
                 ax1.plot(full_enu_mesh, enu_pdf, label='no scaling')
-                ax1.plot(enu_mesh_slow, enu_pdf_slow, label='by scaling events')
-                #ax1.plot([kde_mode]*2, [0, np.max(enu_pdf_scaled)])
+                #ax1.plot(enu_mesh_slow, enu_pdf_slow, label='by scaling events')
+                ##ax1.plot([kde_mode]*2, [0, np.max(enu_pdf_scaled)])
                 ax1.plot(enu_mesh, enu_pdf_scaled, **DIFFUS_PP)
                 axlims = ax1.axis('tight')
                 ax1.set_xlim(xlims)
@@ -718,6 +718,23 @@ class vbwkde(Stage):
             cz_kde_min = -3
             cz_kde_max = +2
 
+            # Adjust range of kde for future axis scaling
+            cz_factor = self.params.cz_res_scale.value
+
+            low_lim_shift = cz_kde_min * (cz_factor - 1)
+            upp_lim_shift = cz_kde_max * (cz_factor - 1)
+
+            cz_kde_min_ext = cz_kde_min
+            cz_kde_max_ext = cz_kde_max
+            if low_lim_shift > 0:
+                cz_kde_min_ext = cz_kde_min - low_lim_shift * (1./cz_factor)
+            if upp_lim_shift < 0:
+                cz_kde_max_ext = cz_kde_max - upp_lim_shift * (1./cz_factor)
+
+            # Adjust kde_num_points accordingly
+            N_cz_mesh_ext = int(N_cz_mesh* ((cz_kde_max_ext - cz_kde_min_ext)
+                                / (cz_kde_max - cz_kde_min)))
+
             cz_kde_failed = False
             previous_fail = False
             for n in xrange(3):
@@ -726,9 +743,9 @@ class vbwkde(Stage):
                     cz_bw, cz_mesh, cz_pdf = kde.vbw_kde(
                         data           = cz_err,
                         overfit_factor = OVERFIT_FACTOR,
-                        MIN            = cz_kde_min,
-                        MAX            = cz_kde_max,
-                        N              = N_cz_mesh
+                        MIN            = cz_kde_min_ext.m,
+                        MAX            = cz_kde_max_ext.m,
+                        N              = N_cz_mesh_ext 
                     )
                 except:
                     cz_kde_failed = True
@@ -739,6 +756,20 @@ class vbwkde(Stage):
                     # takes into account; this usually helps
                     cz_kde_min -= 1
                     cz_kde_max += 1
+
+                    low_lim_shift = cz_kde_min * (cz_factor - 1)
+                    upp_lim_shift = cz_kde_max * (cz_factor - 1)
+        
+                    cz_kde_min_ext = cz_kde_min
+                    cz_kde_max_ext = cz_kde_max
+                    if low_lim_shift > 0:
+                        cz_kde_min_ext = cz_kde_min - low_lim_shift * (1./cz_factor)
+                    if upp_lim_shift < 0:
+                        cz_kde_max_ext = cz_kde_max - upp_lim_shift * (1./cz_factor)
+        
+                    # Adjust kde_num_points accordingly
+                    N_cz_mesh_ext = int(N_cz_mesh* ((cz_kde_max_ext - cz_kde_min_ext)
+                                        / (cz_kde_max - cz_kde_min)))
                 else:
                     if cz_kde_failed:
                         previous_fail = True
@@ -764,6 +795,29 @@ class vbwkde(Stage):
             assert np.min(cz_pdf) >= -EPSILON, \
                 str(np.min(cz_pdf))
 
+            #####
+            kde_area = np.trapz(y=cz_pdf, x=cz_mesh)
+
+            # Scale distribution around 0
+            cz_mesh_scaled = cz_factor * cz_mesh
+
+            interp = interpolate.interp1d(
+                        x=cz_mesh_scaled,
+                        y=cz_pdf,
+                        kind='linear',
+                        copy=True,
+                        bounds_error=True,
+                        fill_value=np.nan
+                        )
+            full_cz_mesh = np.copy(cz_mesh)
+            cz_mesh = cz_mesh[(cz_mesh >= cz_mesh_scaled[0]) & \
+                    (cz_mesh <= cz_mesh_scaled[-1])]
+            cz_pdf_scaled = interp(cz_mesh)
+
+            # Re-normalize pdf
+            cz_pdf_scaled /= np.trapz(x=cz_mesh, y=cz_pdf_scaled)
+
+
             # TODO: test and/or visualize the shifting & re-binning process
             for czbin_n in range(n_czbins):
                 czbin_mid = czbin_centers[czbin_n]
@@ -774,7 +828,7 @@ class vbwkde(Stage):
                 # Create interpolation object, used to fill in bin edge values
                 interp = interpolate.interp1d(
                     x             = offset_cz_mesh,
-                    y             = cz_pdf,
+                    y             = cz_pdf_scaled,
                     kind          = 'linear',
                     copy          = True,
                     bounds_error  = False,
@@ -844,15 +898,17 @@ class vbwkde(Stage):
                 edge_locs = sorted(edge_locs)
 
                 # Record the total area under the curve
-                int_val0 = np.trapz(y=cz_pdf, x=offset_cz_mesh)
+                int_val0 = np.trapz(y=cz_pdf_scaled, x=offset_cz_mesh)
 
                 # Insert the missing bin edge locations & pdf-values into
                 # the mesh & pdf, respectively
+                temp = np.copy(offset_cz_mesh)
+
                 edge_pdfs = interp(edge_locs)
                 insert_ind = np.searchsorted(offset_cz_mesh, edge_locs)
                 offset_cz_mesh = np.insert(offset_cz_mesh, insert_ind,
                                            edge_locs)
-                offset_cz_pdf = np.insert(cz_pdf, insert_ind, edge_pdfs)
+                offset_cz_pdf = np.insert(cz_pdf_scaled, insert_ind, edge_pdfs)
                 assert np.min(offset_cz_pdf) > -EPSILON
 
                 # Check that this total of all the bins is equal to the total
@@ -906,9 +962,9 @@ class vbwkde(Stage):
                 hbins = np.linspace(dmin-0.02*drange, dmax+0.02*drange, N_HBINS*3)
                 hvals, hbins, hpatches = ax2.hist(cz_err, bins=hbins,
                                                   normed=True, **HIST_PP)
-                ax2.plot(cz_mesh, cz_pdf, **DIFFUS_PP)
+                ax2.plot(cz_mesh, cz_pdf_scaled, **DIFFUS_PP)
                 fci = confInterval.MLConfInterval(x=cz_mesh,
-                                                  y=cz_pdf)
+                                                  y=cz_pdf_scaled)
                 lb, ub, yopt, r = fci.findCI_lin(conf=0.995)
                 axlims = ax2.axis('tight')
                 ax2.set_xlim(lb, ub)
@@ -955,6 +1011,8 @@ class vbwkde(Stage):
                 fig1.savefig(pdfpgs, format='pdf')
 
         check_areas = kernel4d.sum(axis=(2,3))
+        print "check_areas:"
+        print check_areas[np.where(check_areas>1.)]
 
         assert np.max(check_areas) < 1 + EPSILON, str(np.max(check_areas))
         assert np.min(check_areas) > 0 - EPSILON, str(np.min(check_areas))
@@ -1051,6 +1109,7 @@ class vbwkde(Stage):
             logging.debug("Working on %s reco kernels" %flav_int_group)
 
             repr_flav_int = flav_int_group.flavints()[0]
+            print repr_flav_int
             e_true = self.events[repr_flav_int]['true_energy']
             e_reco = self.events[repr_flav_int]['reco_energy']
             cz_true = self.events[repr_flav_int]['true_coszen']
