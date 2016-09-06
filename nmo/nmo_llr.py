@@ -169,7 +169,7 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         '--alt-hypo-pipeline', required=True,
-        type=str, action='append', default=None, metavar='PIPELINE_CFG',
+        type=str, action='append', metavar='PIPELINE_CFG',
         help='''Settings for the generation of alternate hypothesis
         distributions; repeat this argument to specify multiple pipelines.'''
     )
@@ -228,6 +228,11 @@ if __name__ == '__main__':
         use this feature even for Monte Carlo analysis. If this is not set,
         --num-data-trials is forced to 1.'''
     parser.add_argument(
+        '--fluctuate-fid-data',
+        type=bool, action='store_true'
+        help='''Apply fluctuations to the fiducaial data distributions. If this
+        is not set, --num-fid-data-trials is forced to 1.'''
+    parser.add_argument(
         '--num-data-trials',
         type=int, default=1,
         help='''When performing Monte Carlo analysis, set to > 1 to produce
@@ -238,11 +243,6 @@ if __name__ == '__main__':
         is assumed to be representative.'''
     )
     parser.add_argument(
-        '--fluctuate-fid-data',
-        type=bool, action='store_true'
-        help='''Apply fluctuations to the fiducaial data distributions. If this
-        is not set, --num-fid-data-trials is forced to 1.'''
-    parser.add_argument(
         '-n', '--num-fid-data-trials',
         type=int, default=1,
         help='''Number of fiducial pseudodata trials to run. In our experience,
@@ -251,9 +251,35 @@ if __name__ == '__main__':
         will vary based upon the details of an analysis.'''
     )
     parser.add_argument(
-        '-o', '--outdir',
-        metavar='DIR', required=True, type=str,
-        help='Directory into which to store results.'
+        '-o', '--outdir', required=True,
+        metavar='DIR', type=str,
+        help='Directory into which to store results and metadata.'
+    )
+    parser.add_argument(
+        '--alt-hypo-name',
+        type=str, metavar='NAME', default='alt hypo',
+        help='''Name for the alternate hypothesis. E.g., "NO" for normal
+        ordering in the neutrino mass ordering analysis. Note that the name
+        here has no bearing on the actual process, so it's important that you
+        be careful to use a name that appropriately identifies the
+        hypothesis.'''
+    )
+    parser.add_argument(
+        '--null-hypo-name',
+        type=str, metavar='NAME', default='null hypo',
+        help='''Name for the null hypothesis. E.g., "IO" for inverted
+        ordering in the neutrino mass ordering analysis. Note that the name
+        here has no bearing on the actual process, so it's important that you
+        be careful to use a name that appropriately identifies the
+        hypothesis.'''
+    )
+    parser.add_argument(
+        '--data-name',
+        type=str, metavar='NAME', default='data',
+        help='''Name for the data. E.g., "NO" for normal ordering in the
+        neutrino mass ordering analysis. Note that the name here has no bearing
+        on the actual process, so it's important that you be careful to use a
+        name that appropriately identifies the hypothesis.'''
     )
     parser.add_argument(
         '-v', action='count', default=None,
