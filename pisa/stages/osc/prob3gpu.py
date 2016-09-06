@@ -562,7 +562,7 @@ class prob3gpu(Stage):
         assert(self.binning == None)
         
         self.grid_prop  = GridPropagator(
-            self.params.earth_model.value,
+            find_resource(self.params.earth_model.value),
             self.FTYPE(coszen),
             self.params.detector_depth.m_as('km')
         )
@@ -638,7 +638,7 @@ class prob3gpu(Stage):
         dx, mx = divmod(n_evts, bdim[0])
         gdim = ((dx + (mx>0)) * bdim[0], 1)
 
-        self.propagateArray(prob_e,
+        self.propGrid(prob_e,
                       prob_mu,
                       self.d_dm_mat,
                       self.d_mix_mat,

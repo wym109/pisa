@@ -247,6 +247,7 @@ if __name__ == '__main__':
             'pisa.stages.pid',
             'pisa.stages.sys',
             'pisa.stages.xsec',
+	    'pisa.stages.mc',
             'pisa.utils',
             'pisa.resources'
         ],
