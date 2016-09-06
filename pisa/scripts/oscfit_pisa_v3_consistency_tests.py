@@ -9,24 +9,15 @@ A set of plots will be output in your output directory for you to check.
 """
 
 from argparse import ArgumentParser
-from collections import Sequence
 from copy import deepcopy
 import os
-import shutil
 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-plt.rcParams['text.usetex'] = True
-import numpy as np
-
-from pisa.core.map import Map, MapSet
 from pisa.core.pipeline import Pipeline
-from pisa.utils.fileio import mkdir, from_file
+from pisa.utils.fileio import from_file
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.resources import find_resource
 from pisa.utils.config_parser import parse_pipeline_config
-from pisa.utils.tests import has_cuda, check_agreement, plot_comparisons
+from pisa.utils.tests import has_cuda, print_agreement, plot_comparisons
 
 
 def compare_baseline(config, oscfitfile, outdir):
@@ -35,49 +26,37 @@ def compare_baseline(config, oscfitfile, outdir):
     logging.debug('>> Working on baseline comparisons between both fitters.')
 
     pipeline = Pipeline(config)
-    outputs = pipeline['mc'].outputs
+    outputs = pipeline.get_outputs()
     oscfit_comparisons = from_file(oscfitfile)
 
-    for nukey in pisa2_comparisons.keys():
-        if 'nu' not in nukey:
-            continue
+    for nukey in oscfit_comparisons.keys():
 
-        pisa_map_to_plot = pisa2_comparisons[nukey]
-
-        if '_' in nukey:
-            if nukey.split('_')[1] == 'bar':
-                new_nukey = ""
-                for substr in nukey.split('_'):
-                    new_nukey += substr
-                nukey = new_nukey
+        oscfit_map_to_plot = oscfit_comparisons[nukey]
 
         cake_map = outputs[nukey]
         cake_map_to_plot = {}
         cake_map_to_plot['ebins'] = \
-                cake_map.binning['true_energy'].bin_edges.magnitude
+                cake_map.binning['reco_energy'].bin_edges.magnitude
         cake_map_to_plot['czbins'] = \
-                cake_map.binning['true_coszen'].bin_edges.magnitude
+                cake_map.binning['reco_coszen'].bin_edges.magnitude
         cake_map_to_plot['map'] = cake_map.hist
 
         max_diff_ratio, max_diff = plot_comparisons(
-            ref_map=pisa_map_to_plot,
+            ref_map=oscfit_map_to_plot,
             new_map=cake_map_to_plot,
-            ref_abv='V2', new_abv='V3',
+            ref_abv='OscFit', new_abv='PISAV3',
             outdir=outdir,
-            subdir='flux',
-            stagename='flux',
-            servicename=servicename,
+            subdir='oscfit',
+            stagename='baseline',
+            servicename='full_mc',
             name=nukey,
             texname=outputs[nukey].tex
         )
 
-        check_agreement(
-            testname='V3-V2 flux:%s %s %s'
-                %(test_service, test_syst, nukey),
-            thresh_ratio=ratio_test_threshold,
-            ratio=max_diff_ratio,
-            thresh_diff=diff_test_threshold,
-            diff=max_diff
+        print_agreement(
+            testname='OscFit-V3:full_mc %s'
+                %(nukey),
+            ratio=max_diff_ratio
         )
 
     return pipeline
@@ -93,6 +72,11 @@ if __name__ == '__main__':
                         help='''Run baseline tests i.e. the output of PISA 3
                         event by event and OscFit with a set of parameters
                         agreed upon before the tests were started.''')
+    parser.add_argument('--outdir', metavar='DIR', type=str, required=True,
+                        help='''Store all output plots to this directory. If
+                        they don't exist, the script will make them, including
+                        all subdirectories. If none is supplied no plots will
+                        be saved.''')
     parser.add_argument('-v', action='count', default=None,
                         help='set verbosity level')
     args = parser.parse_args()
@@ -114,13 +98,13 @@ if __name__ == '__main__':
         pisa3_settings = os.path.join(
             'tests', 'settings', 'oscfit_test.ini'
         )
-        pisa3_config = parse_pipeline_config(flux_settings)
+        pisa3_config = parse_pipeline_config(pisa3_settings)
         oscfitfile = os.path.join(
             'tests', 'data', 'oscfit', 'OscFit1X600Baseline.json'
         )
-        oscfitfile = find_resource(pisa2file)
+        oscfitfile = find_resource(oscfitfile)
         pisa3_pipeline = compare_baseline(
-            config=deepcopy(flux_config),
+            config=deepcopy(pisa3_config),
             oscfitfile=oscfitfile,
             outdir=args.outdir
         )

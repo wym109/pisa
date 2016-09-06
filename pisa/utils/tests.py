@@ -2,8 +2,16 @@
 #
 # date   : September 06, 2016
 
+import os
 import numpy as np
 
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+plt.rcParams['text.usetex'] = True
+import numpy as np
+
+from pisa.utils.fileio import mkdir
 from pisa.utils.log import logging
 
 def has_cuda():
@@ -69,26 +77,38 @@ def check_agreement(testname, thresh_ratio, ratio, thresh_diff, diff):
         raise ValueError(s_diff)
 
 
-def validate_pisa2_maps(amap, bmap):
-    """Validate that two PISA 2 maps are compatible binning."""
+def print_agreement(testname, ratio):
+    ratio_ord_str = order_str(ratio)
+    s = '<< {testname:s}, {kind:s} >>' \
+        ' agreement to 10^{level:s}'
+
+    s_ratio = s.format(
+        testname=testname, kind='fract diff', level=ratio_ord_str
+    )
+
+    logging.info(s_ratio)
+
+
+def validate_maps(amap, bmap):
+    """Validate that two PISA 2 style maps are compatible binning."""
     if not (np.allclose(amap['ebins'], bmap['ebins']) and
             np.allclose(amap['czbins'], bmap['czbins'])):
         raise ValueError("Maps' binnings do not match!")
 
 
 def make_delta_map(amap, bmap):
-    """Get the difference between two PISA 2 maps (amap-bmap) and return as
-    another PISA 2 map."""
-    validate_pisa2_maps(amap, bmap)
+    """Get the difference between two PISA 2 style maps (amap-bmap) and return 
+    as another PISA 2 style map."""
+    validate_maps(amap, bmap)
     return {'ebins': amap['ebins'],
             'czbins': amap['czbins'],
             'map': amap['map'] - bmap['map']}
 
 
 def make_ratio_map(amap, bmap):
-    """Get the ratio of two PISA 2 maps (amap/bmap) and return as another PISA
-    2 map."""
-    validate_pisa2_maps(amap, bmap)
+    """Get the ratio of two PISA 2 style maps (amap/bmap) and return as another
+    PISA 2 style map."""
+    validate_maps(amap, bmap)
     with np.errstate(divide='ignore', invalid='ignore'):
         result = {'ebins': amap['ebins'],
                   'czbins': amap['czbins'],
@@ -146,7 +166,7 @@ def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
     if outdir is not None:
         mkdir(os.path.join(*path), warn=False)
 
-    fname = ['pisa_%s_%s_comparisons' %(ref_abv.lower(), new_abv.lower()),
+    fname = ['%s_%s_comparisons' %(ref_abv.lower(), new_abv.lower()),
              'stage_'+stagename]
     if servicename is not None:
         fname.append('service_'+servicename)
@@ -161,7 +181,6 @@ def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
         basetitle.append('%s' % stagename)
     if texname is not None:
         basetitle.append(r'$%s$' % texname)
-    basetitle.append('PISA')
     basetitle = ' '.join(basetitle)
 
     ratio_map = make_ratio_map(new_map, ref_map)

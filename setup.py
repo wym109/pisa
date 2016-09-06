@@ -166,7 +166,7 @@ if __name__ == '__main__':
         'tests/data/pid/*.json',
         'tests/data/reco/*.json',
         'tests/data/xsec/*.root',
-        'tests/data/oscfit/*.csv',
+        'tests/data/oscfit/*.json',
         'tests/settings/*.ini'
     ]
 

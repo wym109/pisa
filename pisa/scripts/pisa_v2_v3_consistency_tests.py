@@ -9,20 +9,14 @@ Agreement is expected to order 10^{-14} in the far right plots.
 """
 
 from argparse import ArgumentParser
-from collections import Sequence
 from copy import deepcopy
 import os
-import shutil
 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-plt.rcParams['text.usetex'] = True
 import numpy as np
 
 from pisa.core.map import Map, MapSet
 from pisa.core.pipeline import Pipeline
-from pisa.utils.fileio import mkdir, from_file
+from pisa.utils.fileio import from_file
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.resources import find_resource
 from pisa.utils.config_parser import parse_pipeline_config
@@ -85,7 +79,7 @@ def compare_flux(config, servicename, pisa2file, systname,
         max_diff_ratio, max_diff = plot_comparisons(
             ref_map=pisa_map_to_plot,
             new_map=cake_map_to_plot,
-            ref_abv='V2', new_abv='V3',
+            ref_abv='PISAV2', new_abv='PISAV3',
             outdir=outdir,
             subdir='flux',
             stagename='flux',
@@ -95,7 +89,7 @@ def compare_flux(config, servicename, pisa2file, systname,
         )
 
         check_agreement(
-            testname='V3-V2 flux:%s %s %s'
+            testname='PISAV3-PISAV2 flux:%s %s %s'
                 %(test_service, test_syst, nukey),
             thresh_ratio=ratio_test_threshold,
             ratio=max_diff_ratio,
@@ -175,7 +169,7 @@ def compare_osc(config, servicename, pisa2file, systname,
         max_diff_ratio, max_diff = plot_comparisons(
             ref_map=pisa_map_to_plot,
             new_map=cake_map_to_plot,
-            ref_abv='V2', new_abv='V3',
+            ref_abv='PISAV2', new_abv='PISAV3',
             outdir=outdir,
             subdir='osc',
             stagename='osc',
@@ -185,7 +179,7 @@ def compare_osc(config, servicename, pisa2file, systname,
         )
 
         check_agreement(
-            testname='V3-V2 osc:%s %s %s'
+            testname='PISAV3-PISAV2 osc:%s %s %s'
                 %(test_service, test_syst, nukey),
             thresh_ratio=ratio_test_threshold,
             ratio=max_diff_ratio,
@@ -262,7 +256,7 @@ def compare_aeff(config, servicename, pisa2file, systname,
             max_diff_ratio, max_diff = plot_comparisons(
                 ref_map=pisa_map_to_plot,
                 new_map=cake_map_to_plot,
-                ref_abv='V2', new_abv='V3',
+                ref_abv='PISAV2', new_abv='PISAV3',
                 outdir=outdir,
                 subdir='aeff',
                 stagename='aeff',
@@ -272,7 +266,7 @@ def compare_aeff(config, servicename, pisa2file, systname,
             )
 
             check_agreement(
-                testname='V3-V2 aeff:%s %s %s'
+                testname='PISAV3-PISAV2 aeff:%s %s %s'
                     %(test_service, test_syst, cakekey),
                 thresh_ratio=ratio_test_threshold,
                 ratio=max_diff_ratio,
@@ -352,7 +346,7 @@ def compare_reco(config, servicename, pisa2file, outdir, ratio_test_threshold, d
         max_diff_ratio, max_diff = plot_comparisons(
             ref_map=pisa_map_to_plot,
             new_map=cake_map_to_plot,
-            ref_abv='V2', new_abv='V3',
+            ref_abv='PISAV2', new_abv='PISAV3',
             outdir=outdir,
             subdir='reco',
             stagename='reco',
@@ -362,7 +356,7 @@ def compare_reco(config, servicename, pisa2file, outdir, ratio_test_threshold, d
         )
 
         check_agreement(
-            testname='V3-V2 reco:%s %s %s'
+            testname='PISAV3-PISAV2 reco:%s %s %s'
                 %(test_service, test_syst, nukey),
             thresh_ratio=ratio_test_threshold,
             ratio=max_diff_ratio,
@@ -415,7 +409,7 @@ def compare_pid(config, servicename, pisa2file, outdir, ratio_test_threshold, di
     max_diff_ratio, max_diff= plot_comparisons(
         ref_map=total_pisa_cscd_dict,
         new_map=total_cake_cscd_dict,
-        ref_abv='V2', new_abv='V3',
+        ref_abv='PISAV2', new_abv='PISAV3',
         outdir=outdir,
         subdir='pid',
         stagename='pid',
@@ -425,7 +419,7 @@ def compare_pid(config, servicename, pisa2file, outdir, ratio_test_threshold, di
     )
 
     check_agreement(
-        testname='V3-V2 pid:%s %s cscd'
+        testname='PISAV3-PISAV2 pid:%s %s cscd'
             %(test_service, test_syst),
         thresh_ratio=ratio_test_threshold,
         ratio=max_diff_ratio,
@@ -436,7 +430,7 @@ def compare_pid(config, servicename, pisa2file, outdir, ratio_test_threshold, di
     max_diff_ratio, max_diff = plot_comparisons(
         ref_map=total_pisa_trck_dict,
         new_map=total_cake_trck_dict,
-        ref_abv='V2', new_abv='V3',
+        ref_abv='PISAV2', new_abv='PISAV3',
         outdir=outdir,
         subdir='pid',
         stagename='pid',
@@ -446,7 +440,7 @@ def compare_pid(config, servicename, pisa2file, outdir, ratio_test_threshold, di
     )
 
     check_agreement(
-        testname='V3-V2 pid:%s %s trck'
+        testname='PISAV3-PISAV2 pid:%s %s trck'
             %(test_service, test_syst),
         thresh_ratio=ratio_test_threshold,
         ratio=max_diff_ratio,
@@ -490,7 +484,7 @@ def compare_flux_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_t
         max_diff_ratio, max_diff = plot_comparisons(
             ref_map=pisa_map_to_plot,
             new_map=cake_map_to_plot,
-            ref_abv='V2', new_abv='V3',
+            ref_abv='PISAV2', new_abv='PISAV3',
             outdir=outdir,
             subdir='fullpipeline',
             stagename='flux',
@@ -500,7 +494,7 @@ def compare_flux_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_t
         )
 
         check_agreement(
-            testname='V3-V2 flux:%s %s'
+            testname='PISAV3-PISAV2 full pipeline through flux:%s %s'
                 %(test_service, nukey),
             thresh_ratio=ratio_test_threshold,
             ratio=max_diff_ratio,
@@ -542,7 +536,7 @@ def compare_osc_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_te
         max_diff_ratio, max_diff = plot_comparisons(
             ref_map=pisa_map_to_plot,
             new_map=cake_map_to_plot,
-            ref_abv='V2', new_abv='V3',
+            ref_abv='PISAV2', new_abv='PISAV3',
             outdir=outdir,
             subdir='fullpipeline',
             stagename='osc',
@@ -552,7 +546,7 @@ def compare_osc_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_te
         )
 
         check_agreement(
-            testname='V3-V2 full pipeline through osc:%s %s'
+            testname='PISAV3-PISAV2 full pipeline through osc:%s %s'
                 %(test_service, nukey),
             thresh_ratio=ratio_test_threshold,
             ratio=max_diff_ratio,
@@ -596,7 +590,7 @@ def compare_aeff_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_t
             max_diff_ratio, max_diff = plot_comparisons(
                 ref_map=pisa_map_to_plot,
                 new_map=cake_map_to_plot,
-                ref_abv='V2', new_abv='V3',
+                ref_abv='PISAV2', new_abv='PISAV3',
                 outdir=outdir,
                 subdir='fullpipeline',
                 stagename='aeff',
@@ -606,7 +600,7 @@ def compare_aeff_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_t
             )
 
             check_agreement(
-                testname='V3-V2 full pipeline through aeff:hist %s' %nukey,
+                testname='PISAV3-PISAV2 full pipeline through aeff:hist %s' %nukey,
                 thresh_ratio=ratio_test_threshold,
                 ratio=max_diff_ratio,
                 thresh_diff=diff_test_threshold,
@@ -677,7 +671,7 @@ def compare_reco_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_t
         max_diff_ratio, max_diff = plot_comparisons(
             ref_map=pisa_map_to_plot,
             new_map=cake_map_to_plot,
-            ref_abv='V2', new_abv='V3',
+            ref_abv='PISAV2', new_abv='PISAV3',
             outdir=outdir,
             subdir='fullpipeline',
             stagename='reco',
@@ -687,7 +681,7 @@ def compare_reco_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_t
         )
 
         check_agreement(
-            testname='V3-V2 full pipeline through reco:%s %s'
+            testname='PISAV3-PISAV2 full pipeline through reco:%s %s'
                 %(test_service, nukey),
             thresh_ratio=ratio_test_threshold,
             ratio=max_diff_ratio,
@@ -724,7 +718,7 @@ def compare_pid_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_te
     max_diff_ratio, max_diff = plot_comparisons(
         ref_map=total_pisa_cscd_dict,
         new_map=total_cake_cscd_dict,
-        ref_abv='V2', new_abv='V3',
+        ref_abv='PISAV2', new_abv='PISAV3',
         outdir=outdir,
         subdir='fullpipeline',
         stagename='pid',
@@ -733,7 +727,7 @@ def compare_pid_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_te
         texname=r'{\rm cscd}'
     )
     check_agreement(
-        testname='V3-V2 full pipeline through pid:%s cscd'
+        testname='PISAV3-PISAV2 full pipeline through pid:%s cscd'
             %(test_service),
         thresh_ratio=ratio_test_threshold,
         ratio=max_diff_ratio,
@@ -744,7 +738,7 @@ def compare_pid_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_te
     max_diff_ratio, max_diff = plot_comparisons(
         ref_map=total_pisa_trck_dict,
         new_map=total_cake_trck_dict,
-        ref_abv='V2', new_abv='V3',
+        ref_abv='PISAV2', new_abv='PISAV3',
         outdir=outdir,
         subdir='fullpipeline',
         stagename='pid',
@@ -753,7 +747,7 @@ def compare_pid_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_te
         texname=r'{\rm trck}'
     )
     check_agreement(
-        testname='V3-V2 full pipeline through pid:%s trck'
+        testname='PISAV3-PISAV2 full pipeline through pid:%s trck'
             %(test_service),
         thresh_ratio=ratio_test_threshold,
         ratio=max_diff_ratio,
