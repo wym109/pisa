@@ -1,11 +1,13 @@
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import numpy as np
+import sys
 
 from pisa import ureg, Q_
 from pisa.core.distribution_maker import DistributionMaker
 from pisa.core.map import Map, MapSet
 from pisa.utils.log import set_verbosity
 from pisa.utils.plotter import plotter
+from pisa.utils.fileio import to_file
 
 import pandas as pd
 
@@ -23,6 +25,9 @@ my_plotter = plotter(stamp='nutau sys test', outdir='sys_plots/', fmt='pdf', log
 template_maker = DistributionMaker(args.template_settings)
 
 template_nominal = template_maker.get_outputs()
+
+to_file(template_nominal, 'nominal_pisa.json')
+
 my_plotter.plot_2d_array(template_nominal, fname='nominal',cmap='RdBu')
 
 variation = {'deltam31': 0.2e-3*ureg.eV**2,
@@ -64,6 +69,31 @@ sys_jp_name = {'theta23': 'theta23',
 	     }
 
 path = '/fastio/nutau/oscfit_comparison_files/JP/'
+
+#baseline
+# JP comp:
+maps = []
+for channel,channel_jp in zip(['cscd','trck'],['cascade','track']):
+    histo = None
+    for flav in ['nc','nue','numu','nutau']:
+        file_name = '1X600_diff_csv/sample_baseline_%s_%s_histo.csv'% (channel_jp, flav)
+        oscFit_data = pd.read_csv(path+file_name, sep=',',header=None)
+        oscFit_data_x = oscFit_data[0].values
+        oscFit_data_y = oscFit_data[1].values
+        oscFit_data_z = oscFit_data[2].values
+        oscFit_hist, x_edges, y_edges = np.histogram2d(oscFit_data_x, oscFit_data_y, weights = oscFit_data_z)
+        if histo is None:
+            histo = np.zeros_like(oscFit_hist)
+        histo += oscFit_hist
+    maps.append(Map(name=channel, hist=histo, binning=template_nominal[0].binning))
+oscfit = MapSet(maps, name='oscfit')
+my_plotter.plot_2d_array(oscfit, fname='nominal_oscfit',cmap='BrBG')
+my_plotter.label = r'$OscFit - PISA$'
+my_plotter.plot_2d_array(oscfit - template_nominal, fname='delta_nominal',cmap='PiYG')
+my_plotter.label = r'$(OscFit - PISA)/PISA$'
+my_plotter.plot_2d_array((oscfit - template_nominal)/template_nominal, fname='rel_diff_nominal',cmap='PiYG')
+
+sys.exit()
 
 for sys, var in variation.items():
     print sys
