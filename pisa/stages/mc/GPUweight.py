@@ -3,7 +3,7 @@ import pycuda.driver as cuda
 from pycuda.compiler import SourceModule
 import numpy as np
 from pisa.utils.const import FTYPE
-from pisa.utils.events import Events
+from pisa.core.events import Events
 
 class GPUweight(object):
     # This is as ugly as it gets, from copying python code from oscfit and c++-izing it

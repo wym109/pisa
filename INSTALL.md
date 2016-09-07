@@ -9,7 +9,7 @@ The other advantage to these distributions is that they easily install without s
 
 To install PISA, you'll need to have the following non-python requirements.
 Note that these are not installed automatically, and you must install them yourself prior to installing PISA.
-Also not that both SWIG and HDF5 support come pre-packaged in the Anaconda and Canopy Python distributions.
+Also note that both SWIG and HDF5 support come pre-packaged in the Anaconda and Canopy Python distributions.
 * [git](https://git-scm.com/)
 * [swig](http://www.swig.org/)
 * [hdf5](http://www.hdfgroup.org/HDF5/) — install with `--enable-cxx` option
@@ -28,11 +28,12 @@ The Python requirements that you must install manually:
 Required Python modules that are installed automatically when you use the pip command detailed later:
 * [cython](http://cython.org/)
 * [h5py](http://www.h5py.org/)
+* [matplotlib](http://matplotlib.org/)
 * [numpy](http://www.numpy.org/)
 * [pint](https://pint.readthedocs.org/en/0.7.2/)
-* [pytables](http://www.pytables.org/)
 * [scipy](http://www.scipy.org/) — version > 0.12 recommended
 * [simplejson](https://github.com/simplejson/simplejson)
+* [tables](http://www.pytables.org/)
 * [uncertainties](https://pythonhosted.org/uncertainties/)
 
 ### Optional dependencies
@@ -42,7 +43,9 @@ The features enabled by and the relevant install commands for optional dependenc
 * [openmp](http://www.openmp.org): parallelize certain routines on multi-core computers<br>
   *available from your compiler; gcc supports OpenMP, while Clang (OS X) might not*
 * [PyCUDA](https://mathema.tician.de/software/pycuda): run certain routines on Nvidia CUDA GPUs (must have compute 2.0 or greater capability)<br>
-  `pip install pycuda`
+  `pip install pycuda` (but note that support for CUDA 8 and Pascal architecture GPUs is currently only available in unreleased github version of pycuda)
+* [PyROOT](https://root.cern.ch/pyroot): read ROOT cross sections files; must install ROOT on your system in addition to PyROOT. Instructions here work for Ubuntu 15.x and 16.04.
+  `sudo apt-get install root-system libroot-bindings-python*`
 * [numba](http://numba.pydata.org): just-in-time compilation via LLVM to accelerate certain routines<br>
   * Anaconda:<br>
     `conda install numba`

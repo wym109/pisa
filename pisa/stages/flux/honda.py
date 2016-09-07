@@ -691,7 +691,9 @@ class honda(Stage):
 
             return_table = np.array(return_table)
 
-        if self.output_binning.names[0] == 'coszen':
+        if self.output_binning.names[0] == 'true_coszen':
+            # Current dimensionality is (E,cz)
+            # So need to transpose if desired is (cz,E)
             return_table = return_table.T
 
         # Flux is given per sr and GeV, so we need to multiply
@@ -706,11 +708,6 @@ class honda(Stage):
         # For 2D we also need to integrate over azimuth
         # There is no dependency, so this is a multiplication of 2pi
         return_table *= 2*np.pi
-
-        if self.output_binning.names[0] == 'energy':
-            # Current dimensionality is (cz,E)
-            # So need to transpose is desired is (E,cz)
-            return_table = return_table.T
 
         # Put the flux into a Map object, give it the output_name
         return_map = Map(name=prim,
