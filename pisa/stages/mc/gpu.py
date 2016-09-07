@@ -157,7 +157,10 @@ class gpu(Stage):
             l5_bdt_score = evts[flav]['dunkman_L5'].astype(FTYPE)
             cut = l5_bdt_score >= bdt_cut
             for var in variables:
-                evts[flav][var] = evts[flav][var][cut]
+                try:
+                    evts[flav][var] = evts[flav][var][cut]
+                except KeyError:
+                    evts[flav][var] = np.ones_like(evts[flav]['true_energy'])
 
         logging.info('read in events and copy to GPU')
         start_t = time.time()
