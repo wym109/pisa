@@ -20,10 +20,11 @@ from pisa.utils.config_parser import parse_pipeline_config
 from pisa.utils.tests import has_cuda, print_agreement, plot_comparisons
 
 
-def compare_baseline(config, oscfitfile, outdir):
+def compare_baseline(config, oscfitfile, testname, outdir):
     """Compare baseline output of PISA 3 and OscFit"""
 
     logging.debug('>> Working on baseline comparisons between both fitters.')
+    logging.debug('>>> Doing %s test.'%testname)
 
     pipeline = Pipeline(config)
     outputs = pipeline.get_outputs()
@@ -33,7 +34,15 @@ def compare_baseline(config, oscfitfile, outdir):
 
         oscfit_map_to_plot = oscfit_comparisons[nukey]
 
-        cake_map = outputs[nukey]
+        try:
+            cake_map = outputs[nukey]
+            texname = outputs[nukey].tex
+        except:
+            cake_map = outputs.combine_wildcard('*_%s'%nukey)
+            if nukey == 'trck':
+                texname = r'\rm{trck}'
+            elif nukey == 'cscd':
+                texname = r'\rm{cscd}'
         cake_map_to_plot = {}
         cake_map_to_plot['ebins'] = \
                 cake_map.binning['reco_energy'].bin_edges.magnitude
@@ -47,15 +56,15 @@ def compare_baseline(config, oscfitfile, outdir):
             ref_abv='OscFit', new_abv='PISAV3',
             outdir=outdir,
             subdir='oscfit',
-            stagename='baseline',
-            servicename='full_mc',
+            stagename=testname,
+            servicename='baseline',
             name=nukey,
-            texname=outputs[nukey].tex
+            texname=texname
         )
 
         print_agreement(
-            testname='OscFit-V3:full_mc %s'
-                %(nukey),
+            testname='OscFit-V3:%s %s'
+                %(testname, nukey),
             ratio=max_diff_ratio
         )
 
@@ -96,7 +105,7 @@ if __name__ == '__main__':
     # Perform baseline tests
     if args.baseline or test_all:
         pisa3_settings = os.path.join(
-            'tests', 'settings', 'oscfit_test.ini'
+            'tests', 'settings', 'oscfit_fullmc_test.ini'
         )
         pisa3_config = parse_pipeline_config(pisa3_settings)
         oscfitfile = os.path.join(
@@ -106,5 +115,20 @@ if __name__ == '__main__':
         pisa3_pipeline = compare_baseline(
             config=deepcopy(pisa3_config),
             oscfitfile=oscfitfile,
-            outdir=args.outdir
+            outdir=args.outdir,
+            testname='full-mc'
+        )
+        pisa3_settings = os.path.join(
+            'tests', 'settings', 'oscfit_standard_test.ini'
+        )
+        pisa3_config = parse_pipeline_config(pisa3_settings)
+        oscfitfile = os.path.join(
+            'tests', 'data', 'oscfit', 'OscFit1X600Baseline.json'
+        )
+        oscfitfile = find_resource(oscfitfile)
+        pisa3_pipeline = compare_baseline(
+            config=deepcopy(pisa3_config),
+            oscfitfile=oscfitfile,
+            outdir=args.outdir,
+            testname='standard'
         )

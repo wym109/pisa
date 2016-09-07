@@ -18,7 +18,7 @@ class icc(Stage):
     """TODO: document me, Philipp!"""
 
     def __init__(self, params, output_binning, disk_cache=None,
-                memcaching_enabled=True, error_method=None,
+                memcache_deepcopy=True, error_method=None,
                 outputs_cache_depth=20, debug_mode=None):
 
         expected_params = (
@@ -43,7 +43,7 @@ class icc(Stage):
             output_names=output_names,
             error_method=error_method,
             disk_cache=disk_cache,
-            memcaching_enabled=memcaching_enabled,
+            memcache_deepcopy=memcache_deepcopy,
             outputs_cache_depth=outputs_cache_depth,
             output_binning=output_binning,
             debug_mode=debug_mode

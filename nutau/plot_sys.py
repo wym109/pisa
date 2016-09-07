@@ -63,7 +63,7 @@ sys_jp_name = {'theta23': 'theta23',
 	     'Barr_uphor_ratio': 'uphor_ratio'
 	     }
 
-path = '/home/peller/oscfit_comparison_files/JP/'
+path = 'JP/'
 
 for sys, var in variation.items():
     print sys
