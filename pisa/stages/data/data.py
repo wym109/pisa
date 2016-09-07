@@ -23,6 +23,7 @@ class data(Stage):
             'pid_bound',
             'pid_remove',
             'sim_ver',
+            'bdt_cut'
         )
 
         output_names = ('trck','cscd')
@@ -47,6 +48,7 @@ class data(Stage):
         sim_version = self.params.sim_ver.value
         pid_bound = self.params.pid_bound.value.m_as('dimensionless')
         pid_remove = self.params.pid_remove.value.m_as('dimensionless')
+        bdt_cut = self.params.bdt_cut.value.m_as('dimensionless')
 
 	self.bin_names = self.output_binning.names
         self.bin_edges = []
@@ -78,10 +80,10 @@ class data(Stage):
 	#print "before L6 cut, no. of burn sample = ", len(reco_coszen_all)
 
 	# sanity check 
-	santa_doms = burn_sample_file['IC86_Dunkman_L6_SANTA_DirectDOMs']['value']
-	l3 = burn_sample_file['IC86_Dunkman_L3']['value']
-	l4 = burn_sample_file['IC86_Dunkman_L4']['result']
-	l5 = burn_sample_file['IC86_Dunkman_L5']['bdt_score']
+	santa_doms = data_file['IC86_Dunkman_L6_SANTA_DirectDOMs']['value']
+	l3 = data_file['IC86_Dunkman_L3']['value']
+	l4 = data_file['IC86_Dunkman_L4']['result']
+	l5 = data_file['IC86_Dunkman_L5']['bdt_score']
 	assert(np.all(santa_doms>=3) and np.all(l3 == 1) and np.all(l5 >= 0.1))
 
 	# l4==1 was not applied when i3 files were written to hdf5 files, so do it here
@@ -113,11 +115,11 @@ class data(Stage):
 	#l5_cut1 = l5
 
 	# Cut2: Only keep bdt score >= 0.2 (from MSU latest result, make data/MC agree much better); if use no
-	# such further cut, use further_bdt_cut = 0.1
-	print "Cut2, removing events with bdt_score < ", further_bdt_cut, " i.e. only keep bdt > ", further_bdt_cut
-	cut2 = l5_cut1>=further_bdt_cut
-	reco_energy_cut2 = reco_energy_L6_cut1[cut2]
-	reco_coszen_cut2 = reco_coszen_L6_cut1[cut2]
+	# such further cut, use bdt_cut = 0.1
+	print "Cut2, removing events with bdt_score < ", bdt_cut, " i.e. only keep bdt > ", bdt_cut
+	cut2 = l5_cut1>=bdt_cut
+	reco_energy_L6_cut2 = reco_energy_L6_cut1[cut2]
+	reco_coszen_L6_cut2 = reco_coszen_L6_cut1[cut2]
 	dLLH_cut2 = dLLH_L6_cut1[cut2]
 
 
