@@ -23,7 +23,7 @@ from operator import add, getitem, setitem
 import re
 
 import numpy as np
-from scipy.stats import poisson
+from scipy import stats
 import uncertainties
 from uncertainties import ufloat
 from uncertainties import unumpy as unp
@@ -33,7 +33,8 @@ from pisa.utils.comparisons import isbarenumeric, normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils import jsons
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils.stats import chi2, llh, conv_llh
+from pisa.utils.random_numbers import get_random_state
+from pisa.utils.stats import chi2, llh, conv_llh, mod_chi2
 from pisa.utils.profiler import line_profile, profile
 
 
@@ -241,7 +242,7 @@ class Map(object):
             new_state = OrderedDict()
             state_updates = original_function(self, *args, **kwargs)
             for slot in self._state_attrs:
-                if state_updates.has_key(slot):
+                if state_updates is not None and state_updates.has_key(slot):
                     new_state[slot] = state_updates[slot]
                 else:
                     new_state[slot] = deepcopy(self.__getattr__(slot))
@@ -344,16 +345,17 @@ class Map(object):
         return self.rebin(new_binning)
 
     @new_obj
-    def fluctuate(self, method, seed=None):
+    def fluctuate(self, method, random_state=None, jumpahead=0):
         orig = method
         method = str(method).lower()
-        if method in ['poisson']:
-            if seed is not None:
-                np.random.seed(seed)
-            return {'hist': unp.uarray(poisson.rvs(unp.nominal_values(self.hist)),
-                                       np.sqrt(unp.nominal_values(self.hist)))}
+        if method == 'poisson':
+            random_state = get_random_state(random_state, jumpahead=jumpahead)
+            hist_vals = stats.poisson.rvs(unp.nominal_values(self.hist),
+                                          random_state=random_state)
+            hist_errors = np.sqrt(unp.nominal_values(self.hist))
+            return {'hist': unp.uarray(hist_vals, hist_errors)}
         elif method in ['', 'none', 'false']:
-            return
+            return {}
         else:
             raise Exception('fluctuation method %s not implemented' %orig)
 
@@ -562,6 +564,26 @@ class Map(object):
         return np.sum(conv_llh(actual_values=self.hist,
                           expected_values=expected_values))
 
+    def mod_chi2(self, expected_values):
+        """Calculate the total modified chi2 value between this map and the map
+        described by `expected_values`; self is taken to be the "actual values"
+        (or (pseudo)data), and `expected_values` are the expectation values for
+        each bin.
+
+        Parameters
+        ----------
+        expected_values : numpy.ndarray or Map of same dimension as this
+
+        Returns
+        -------
+        total_mod_chi2 : float
+
+        """
+        if isinstance(expected_values, Map):
+            expected_values = expected_values.hist
+        return np.sum(mod_chi2(actual_values=self.hist,
+                          expected_values=expected_values))
+
     def chi2(self, expected_values):
         """Calculate the total chi-squared value between this map and the map
         described by `expected_values`; self is taken to be the "actual values"
@@ -643,27 +665,30 @@ class Map(object):
 
     @new_obj
     def __abs__(self):
-        return {#'name': "|%s|" % (self.name,),
-                #'tex': r"{\left| %s \right|}" % strip_outer_parens(self.tex),
-                'hist': np.abs(self.hist)}
+        state_updates = {
+            #'name': "|%s|" % (self.name,),
+            #'tex': r"{\left| %s \right|}" % strip_outer_parens(self.tex),
+            'hist': np.abs(self.hist)
+        }
+        return state_updates
 
     @new_obj
     def __add__(self, other):
         """Add `other` to self"""
         if np.isscalar(other) or type(other) is uncertainties.core.Variable:
-            dict = {
+            state_updates = {
                 #'name': "(%s + %s)" % (self.name, other),
                 #'tex': r"{(%s + %s)}" % (self.tex, other),
                 'hist': self.hist + other
             }
         elif isinstance(other, np.ndarray):
-            dict = {
+            state_updates = {
                 #'name': "(%s + array)" % self.name,
                 #'tex': r"{(%s + X)}" % self.tex,
                 'hist': self.hist + other
             }
         elif isinstance(other, Map):
-            dict = {
+            state_updates = {
                 #'name': "(%s + %s)" % (self.name, other.name),
                 #'tex': r"{(%s + %s)}" % (self.tex, other.tex),
                 'hist': self.hist + other.hist,
@@ -672,26 +697,26 @@ class Map(object):
             }
         else:
             type_error(other)
-        return dict
+        return state_updates
 
     #def __cmp__(self, other):
 
     @new_obj
     def __div__(self, other):
         if np.isscalar(other) or type(other) is uncertainties.core.Variable:
-            dict = {
+            state_updates = {
                 #'name': "(%s / %s)" % (self.name, other),
                 #'tex': r"{(%s / %s)}" % (self.tex, other),
                 'hist': self.hist / other
             }
         elif isinstance(other, np.ndarray):
-            dict = {
+            state_updates = {
                 #'name': "(%s / array)" % self.name,
                 #'tex': r"{(%s / X)}" % self.tex,
                 'hist': self.hist / other
             }
         elif isinstance(other, Map):
-            dict = {
+            state_updates = {
                 #'name': "(%s / %s)" % (self.name, other.name),
                 #'tex': r"{(%s / %s)}" % (self.tex, other.tex),
                 'hist': self.hist / other.hist,
@@ -700,7 +725,7 @@ class Map(object):
             }
         else:
             type_error(other)
-        return dict
+        return state_updates
 
     def __truediv__(self, other):
         return self.__div__(other)
@@ -741,36 +766,38 @@ class Map(object):
 
     @new_obj
     def log(self):
-        return {
+        state_updates = {
             #'name': "log(%s)" % self.name,
             #'tex': r"\ln\left( %s \right)" % self.tex,
             'hist': np.log(self.hist)
         }
+        return state_updates
 
     @new_obj
     def log10(self):
-        return {
+        state_updates = {
             #'name': "log10(%s)" % self.name,
             #'tex': r"\log_{10}\left( %s \right)" % self.tex,
             'hist': np.log10(self.hist)
         }
+        return state_updates
 
     @new_obj
     def __mul__(self, other):
         if np.isscalar(other) or type(other) is uncertainties.core.Variable:
-            dict = {
+            state_updates = {
                 #'name': "%s * %s" % (other, self.name),
                 #'tex': r"%s \cdot %s" % (other, self.tex),
                 'hist': self.hist * other
             }
         elif isinstance(other, np.ndarray):
-            dict = {
+            state_updates = {
                 #'name': "array * %s" % self.name,
                 #'tex': r"X \cdot %s" % self.tex,
                 'hist': self.hist * other,
             }
         elif isinstance(other, Map):
-            dict = {
+            state_updates = {
                 #'name': "%s * %s" % (self.name, other.name),
                 #'tex': r"%s \cdot %s" % (self.tex, other.tex),
                 'hist': self.hist * other.hist,
@@ -779,35 +806,36 @@ class Map(object):
             }
         else:
             type_error(other)
-        return dict
+        return state_updates
 
     def __ne__(self, other):
         return not self == other
 
     @new_obj
     def __neg__(self):
-        return {
+        state_updates = {
             #'name': "-%s" % self.name,
             #'tex': r"-%s" % self.tex,
             'hist': -self.hist,
         }
+        return state_updates
 
     @new_obj
     def __pow__(self, other):
         if np.isscalar(other) or type(other) is uncertainties.core.Variable:
-            dict = {
+            state_updates = {
                 #'name': "%s**%s" % (self.name, other),
                 #'tex': "%s^{%s}" % (self.tex, other),
                 'hist': np.power(self.hist, other)
             }
         elif isinstance(other, np.ndarray):
-            dict = {
+            state_updates = {
                 #'name': "%s**(array)" % self.name,
                 #'tex': r"%s^{X}" % self.tex,
                 'hist': np.power(self.hist, other),
             }
         elif isinstance(other, Map):
-            dict = {
+            state_updates = {
                 #'name': "%s**(%s)" % (self.name, strip_outer_parens(other.name)),
                 #'tex': r"%s^{%s}" % (self.tex, strip_outer_parens(other.tex)),
                 'hist': np.power(self.hist, other.hist),
@@ -816,7 +844,7 @@ class Map(object):
             }
         else:
             type_error(other)
-        return dict
+        return state_updates
 
     def __radd__(self, other):
         return self + other
@@ -830,20 +858,20 @@ class Map(object):
     @new_obj
     def __rdiv(self,oher):
         if np.isscalar(other) or type(other) is uncertainties.core.Variable:
-            dict = {
+            state_updates = {
                 #'name': "(%s / %s)" % (other, self.name),
                 #'tex': "{(%s / %s)}" % (other, self.tex),
                 'hist': other / self.hist,
             }
         elif isinstance(other, np.ndarray):
-            dict = {
+            state_updates = {
                 #'name': "array / %s" % self.name,
                 #'tex': "{(X / %s)}" % self.tex,
                 'hist': other / self.hist,
             }
         else:
             type_error(other)
-        return dict
+        return state_updates
 
     def __rmul__(self, other):
         return self * other
@@ -857,45 +885,46 @@ class Map(object):
     @new_obj
     def __rsub(self, other):
         if np.isscalar(other) or type(other) is uncertainties.core.Variable:
-            dict = {
+            state_updates = {
                 #'name': "(%s - %s)" % (other, self.name),
                 #'tex': "{(%s - %s)}" % (other, self.tex),
                 'hist': other - self.hist,
             }
         elif isinstance(other, np.ndarray):
-            dict = {
+            state_updates = {
                 #'name': "(array - %s)" % self.name,
                 #'tex': "{(X - %s)}" % self.tex,
                 'hist': other - self.hist,
             }
         else:
             type_error(other)
-        return dict
+        return state_updates
 
     @new_obj
     def sqrt(self):
-        return {
+        state_updates = {
             #'name': "sqrt(%s)" % self.name,
             #'tex': r"\sqrt{%s}" % self.tex,
-            'hist': np.sqrt(self.hist),
+            'hist': unp.sqrt(self.hist),
         }
+        return state_updates
 
     @new_obj
     def __sub__(self, other):
         if np.isscalar(other) or type(other) is uncertainties.core.Variable:
-            dict = {
+            state_updates = {
                 #'name': "(%s - %s)" % (self.name, other),
                 #'tex': "{(%s - %s)}" % (self.tex, other),
                 'hist': self.hist - other,
             }
         elif isinstance(other, np.ndarray):
-            dict = {
+            state_updates = {
                 #'name': "(%s - array)" % self.name,
                 #'tex': "{(%s - X)}" % self.tex,
                 'hist': self.hist - other,
             }
         elif isinstance(other, Map):
-            dict = {
+            state_updates = {
                 #'name': "%s - %s" % (self.name, other.name),
                 #'tex': "{(%s - %s)}" % (self.tex, other.tex),
                 'hist': self.hist - other.hist,
@@ -904,7 +933,7 @@ class Map(object):
             }
         else:
             type_error(other)
-        return dict
+        return state_updates
 
 # TODO: instantiate individual maps from dicts if passed as such, so user
 # doesn't have to instantiate each map. Also, check for name collisions with
@@ -1317,10 +1346,12 @@ class MapSet(object):
 
         # Retrieve the corresponding callables from contained maps
         val_per_map = [getattr(mp, attr) for mp in self]
+
         if not all([hasattr(meth, '__call__') for meth in val_per_map]):
             # If all results are maps, populate a new map set & return that
             if all([isinstance(r, Map) for r in val_per_map]):
                 return MapSet(val_per_map)
+
             # Otherwise put in an ordered dict with <name>: <val> pairs ordered
             # according to the map ordering in this map set
             return self.collate_with_names(val_per_map)
@@ -1490,11 +1521,11 @@ class MapSet(object):
     def metric_per_map(self, expected_values, metric):
         assert isinstance(metric, basestring)
         metric = metric.lower()
-        if metric in ['chi2', 'llh', 'conv_llh']:
+        if metric in ['chi2', 'llh', 'conv_llh', 'mod_chi2']:
             return self.apply_to_maps(metric, expected_values)
         else:
             raise ValueError('`metric` "%s" not recognized; use either'
-                             ' "chi2", "conv_llh" or "llh".' %metric)
+                             ' "chi2", "conv_llh", "mod_chi2", or "llh".' %metric)
 
     def metric_total(self, expected_values, metric):
         return np.sum(self.metric_per_map(expected_values, metric).values())
@@ -1505,8 +1536,23 @@ class MapSet(object):
     def chi2_total(self, expected_values):
         return np.sum(self.chi2_per_map(expected_values))
 
-    def fluctuate(self, method):
-        return self.apply_to_maps('fluctuate', method)
+    def fluctuate(self, method, random_state=None, jumpahead=0):
+        """Add fluctuations to the maps in the set and return as a new MapSet.
+
+        Parameters
+        ----------
+        method : None or string
+        random_stae : None, numpy.random.RandomState, or seed spec
+
+        """
+        random_state = get_random_state(random_state=random_state,
+                                        jumpahead=jumpahead)
+        fluctuated_maps = self.apply_to_maps(
+            'fluctuate',
+            method=method,
+            random_state=random_state
+        )
+        return fluctuated_maps
 
     def llh_per_map(self, expected_values):
         return self.apply_to_maps('llh', expected_values)

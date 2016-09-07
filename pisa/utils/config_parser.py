@@ -3,10 +3,9 @@
 #
 # date:   2016-04-28
 """
-Parse a ConfigFile object into a dict containing an item for every analysis stage,
-that itself contains all necessary instantiation arguments/objects for that
-stage.
-for en example config file, please consider
+Parse a ConfigFile object into a dict containing an item for every analysis
+stage, that itself contains all necessary instantiation arguments/objects for
+that stage. for en example config file, please consider
 `$PISA/pisa.utils/settings/pipeline_settings/pipeline_settings_example.ini`
 
 Config File Structure:
@@ -35,15 +34,16 @@ The config file is expected to contain the following sections::
     [stage:stageB]
     ...
 
-* `pipeline` is the top most section that defines the hierarchy of stages and what
-    services to be instatiated.
+* `pipeline` is the top most section that defines the hierarchy of stages and
+    what services to be instatiated.
 
 * `binning` can contain different binning definitions, that are then later
     referred to from within the stage sections.
 
-* `stage` one such section per stage:service is necessary. It cotains some options
-    that are common for all stages (`binning`, `error_method` and `debug_mode`) as
-    well as all the necessary arguments and parameters for a given stage.
+* `stage` one such section per stage:service is necessary. It cotains some
+    options that are common for all stages (`binning`, `error_method` and
+    `debug_mode`) as well as all the necessary arguments and parameters for a
+    given stage.
 
 
 Param definitions:
@@ -51,14 +51,14 @@ Param definitions:
 
 Every key in a stage section that starts with `param.name` is interpreted and
 parsed into a PISA param object. These can be strings (e.g. a filename - don't
-use any quotation marks) or
-quantities. The later case expects an expression that can be converted by the
-`parse_quantity` function. The `+/-` notation will be interpreted as a gaussian
-prior for the quantity. Units can be added by `* unit.soandso`.
+use any quotation marks) or quantities. The later case expects an expression
+that can be converted by the `parse_quantity` function. The `+/-` notation will
+be interpreted as a gaussian prior for the quantity. Units can be added by `*
+unit.soandso`.
 
 Additional arguments to a parameter are passed in with the `.` notation, for
-example `param.name.fixed = False`, which makes it a free parameter in the fit (by
-default a parameter is fixed unless specified like this).
+example `param.name.fixed = False`, which makes it a free parameter in the fit
+(by default a parameter is fixed unless specified like this).
 
 A range must be given for a free parameter. Either as absolute range `[x,y]` or
 in conjuction with the keywords `nominal` (= nominal parameter value) and
@@ -75,9 +75,10 @@ instantiated as references to a single param in memory, so updating one updates
 all of them.
 
 Note that this mechanism of synchronizing parameters holds only within the
-scope of a single pipeline; synchronization of parameters across pipelines
-is done by adding the pipelines to a single DistributionMaker object and
-updating params through the DistributionMaker's update_params method.
+scope of a single pipeline; synchronization of parameters across pipelines is
+done by adding the pipelines to a single DistributionMaker object and updating
+params through the DistributionMaker's update_params method.
+
 """
 
 # TODO: add try: except: blocks around class instantiation calls to give
@@ -85,6 +86,8 @@ updating params through the DistributionMaker's update_params method.
 # re-raise the exception)
 
 from collections import OrderedDict
+import ConfigParser
+import re
 
 import numpy as np
 import uncertainties
@@ -93,14 +96,17 @@ from uncertainties import unumpy as unp
 
 from pisa import ureg, Q_
 from pisa.core.binning import MultiDimBinning, OneDimBinning
-from pisa.core.param import Param, ParamSet
+from pisa.core.param import Param, ParamSelector, ParamSet
 from pisa.core.prior import Prior
+from pisa.utils.betterConfigParser import BetterConfigParser
 from pisa.utils.fileio import from_file
 from pisa.utils.log import logging
 
-# Config files use "uinits.xyz" to denote that "xyz" is a unit; therefore,
+
+# Config files use "units.xyz" to denote that "xyz" is a unit; therefore,
 # ureg is also referred to as "units" in this context.
 units = ureg
+
 
 # TODO: document code, add comments, docstrings, abide by PISA coding
 # conventions
@@ -114,7 +120,7 @@ def parse_quantity(string):
     Examples
     --------
     >>> print parse_quantity('1.2 +/- 0.7 * units.meter')
-    <?>
+    TODO
 
     """
     value = string.replace(' ', '')
@@ -157,22 +163,27 @@ def parse_string_literal(string):
     'something else'
 
     """
-    if string.lower().strip() == 'true':
+    if string.strip().lower() == 'true':
         return True
-    if string.lower().strip() == 'false':
+    if string.strip().lower() == 'false':
         return False
-    if string.lower().strip() == 'none':
+    if string.strip().lower() == 'none':
         return None
     return string
 
 
-def split_list(string):
+def split(string, sep=','):
     """Parse a string containing a comma-separated list as a Python list of
-    strings.
+    strings. Each resulting string is forced to be lower-case and surrounding
+    whitespace is stripped.
 
     Parameters
     ----------
     string : string
+        The string to be split
+
+    sep : string
+        Separator to look for
 
     Returns
     -------
@@ -180,12 +191,123 @@ def split_list(string):
 
     Examples
     --------
-    >>> print split_list('one, two, three')
+    >>> print split(' One, TWO, three ')
+    ['one', 'two', 'three']
+
+    >>> print split('one:two:three', sep=':')
     ['one', 'two', 'three']
 
     """
-    l = string.split(',')
-    return [x.strip() for x in l]
+    return [x.strip().lower() for x in str.split(string, sep)]
+
+
+PARAM_RE = re.compile(
+    r'^param\.(?P<subfields>(([^.\s]+)(\.|$))+)',
+    re.IGNORECASE
+)
+
+PARAM_ATTRS = ['range', 'prior', 'fixed']
+
+
+def interpret_param_subfields(subfields, selector=None, pname=None, attr=None):
+    """
+    """
+    infodict = dict(subfields=subfields, selector=selector, pname=pname,
+                    attr=attr)
+
+    # Everything has been parsed
+    if len(infodict['subfields']) == 0:
+        return infodict
+
+    # If only one field, this must be the param's name, and we're done
+    if len(infodict['subfields']) == 1:
+        infodict['pname'] = infodict['subfields'].pop()
+        return interpret_param_subfields(**infodict)
+
+    # Look for and remove attr field and any subsequent fields
+    attr_indices = []
+    for n, field in enumerate(infodict['subfields']):
+        if field in PARAM_ATTRS:
+            attr_indices.append(n)
+
+    if len(attr_indices) == 1:
+        attr_idx = attr_indices[0]
+        infodict['attr'] = [infodict['subfields'].pop(attr_idx)
+                            for i in range(attr_idx, len(infodict['subfields']))]
+        return interpret_param_subfields(**infodict)
+
+    elif len(attr_indices) > 1:
+        raise ValueError('Found multiple attrs in config name "%s"' %name)
+
+    if len(infodict['subfields']) == 2:
+        infodict['pname'] = infodict['subfields'].pop()
+        infodict['selector'] = infodict['subfields'].pop()
+        return interpret_param_subfields(**infodict)
+
+    raise ValueError('Unable to parse param subfields %s'
+                     %infodict['subfields'])
+
+
+def parse_param(config, section, selector, fullname, pname, value):
+    """
+    """
+    # TODO: Are these defaults actually a good idea?
+    kwargs = dict(name=pname, is_fixed=True, prior=None, range=None)
+    try:
+        value = parse_quantity(value)
+        kwargs['value'] = value.n * value.units
+    except ValueError:
+        value = parse_string_literal(value)
+        kwargs['value'] = value
+
+    # Search for explicit attr specifications
+    if config.has_option(section, fullname + '.fixed'):
+        kwargs['is_fixed'] = config.getboolean(section, fullname + '.fixed')
+
+    if config.has_option(section, fullname + '.prior'):
+        if config.get(section, fullname + '.prior') == 'uniform':
+            kwargs['prior'] = Prior(kind='uniform')
+        elif config.get(section, fullname + '.prior') == 'spline':
+            priorname = pname
+            if selector is not None:
+                priorname += '_' + selector
+            data = config.get(section, fullname + '.prior.data')
+            data = from_file(data)
+            data = data[priorname]
+            knots = ureg.Quantity(np.asarray(data['knots']), data['units'])
+            knots = knots.to(value.units)
+            coeffs = np.asarray(data['coeffs'])
+            deg = data['deg']
+            kwargs['prior'] = Prior(kind='spline', knots=knots, coeffs=coeffs,
+                                    deg=deg)
+        elif 'gauss' in config.get(section, fullname + '.prior'):
+            raise Exception('Please use new style +/- notation for gaussian'
+                            ' priors in config')
+        else:
+            raise Exception('Prior type unknown')
+
+    elif hasattr(value, 's') and value.s != 0:
+        kwargs['prior'] = Prior(kind='gaussian', mean=value.n * value.units,
+                                stddev=value.s * value.units)
+
+    if config.has_option(section, fullname + '.range'):
+        range_ = config.get(section, fullname + '.range')
+        if 'nominal' in range_:
+            nominal = value.n * value.units
+        if 'sigma' in range_:
+            sigma = value.s * value.units
+        range_ = range_.replace('[', 'np.array([')
+        range_ = range_.replace(']', '])')
+        kwargs['range'] = eval(range_).to(value.units)
+
+    try:
+        param = Param(**kwargs)
+    except:
+        logging.error('Failed to instantiate new Param object with kwargs %s'
+                      %param_kwargs)
+        raise
+
+    return param
 
 
 def parse_pipeline_config(config):
@@ -193,137 +315,128 @@ def parse_pipeline_config(config):
 
     Parameters
     ----------
-    config : <?>
+    config : TODO
 
     Returns
     -------
-    <?>
+    TODO
 
     """
-    if isinstance(config, basestring):
+    # TODO: Why do we have to make sure it isn't a BetterConfigParser?
+    if isinstance(config, basestring) \
+            and not isinstance(config, BetterConfigParser):
         config = from_file(config)
-    # create binning objects
+
+    # Create binning objects
     binning_dict = {}
     for name, value in config.items('binning'):
         if name.endswith('.order'):
-            order = split_list(config.get('binning', name))
-            binning, _ = name.split('.')
+            order = split(config.get('binning', name))
+            binning, _ = split(name, sep='.')
             bins = []
             for bin_name in order:
                 kwargs = eval(config.get('binning', binning + '.' + bin_name))
                 bins.append(OneDimBinning(bin_name, **kwargs))
             binning_dict[binning] = MultiDimBinning(bins)
 
-    stage_dicts = OrderedDict()
-    # find pipline setting
-    pipeline_order = split_list(config.get('pipeline', 'order'))
-    for item in pipeline_order:
-        stage, service = item.split(':')
-        section = 'stage:' + stage
-        # get infos for stages
-        stage_dicts[stage] = {}
-        stage_dicts[stage]['service'] = service
-        params = []
-        if config.has_option(section, 'param_selector'):
-            param_selector = config.get(section, 'param_selector')
-        else:
-            param_selector = ''
+    # Pipeline section
+    section = 'pipeline'
 
-        for name, value in config.items(section):
-            if name.startswith('param.'):
-                # find parameter root
-                if name.startswith('param.'+ param_selector + '.') and \
-                        name.count('.') == 2:
-                    _, _, pname = name.split('.')
-                elif name.startswith('param.') and name.count('.') == 1:
-                    _, pname = name.split('.')
-                else:
+    # Get and parse the order of the stages (and which services implement them)
+    order = [split(x, ':') for x in split(config.get(section, 'order'))]
+
+    param_selections = []
+    if config.has_option(section, 'param_selections'):
+        param_selections = split(config.get(section, 'param_selections'))
+
+    # Parse [stage:<stage_name>] sections and store to stage_dicts
+    stage_dicts = OrderedDict()
+    for stage, service in order:
+        section = 'stage:%s' %stage
+
+        # Instantiate dict to store args to pass to this stage
+        service_kwargs = dict()
+
+        param_selector = ParamSelector(selections=param_selections)
+
+        for fullname, value in config.items(section):
+            param_match = PARAM_RE.match(fullname)
+            if param_match is not None:
+                param_match_dict = param_match.groupdict()
+                param_subfields = param_match_dict['subfields'].split('.')
+
+                # Figure out what the dotted fields represent...
+                infodict = interpret_param_subfields(subfields=param_subfields)
+
+                # If field is an attr, skip since these are located manually
+                if infodict['attr'] is not None:
                     continue
 
-                # check if that param already exists from a stage before, and if
-                # yes, make sure there are no specs, and just link to previous
-                # param object that already is instantiated
-                for _,stage_dict in stage_dicts.items():
-                    if stage_dict.has_key('params') and \
-                            pname in stage_dict['params'].names:
-                        # make sure there are no other specs
-                        assert config.has_option(section, name + '.range') == \
-                                False
-                        assert config.has_option(section, name + '.prior') == \
-                                False
-                        assert config.has_option(section, name + '.fixed') == \
-                                False
-                        params.append(stage_dict['params'][pname])
-                        break
+                # Check if this param already exists in a previous stage; if
+                # so, make sure there are no specs for this param, but just a
+                # link to previous the param object that is already
+                # instantiated.
+                for kw in stage_dicts.values():
+                    if not kw.has_key('params'):
+                        continue
+
+                    try:
+                        param = kw['params'].get(
+                            name=infodict['pname'],
+                            selector=infodict['selector']
+                        )
+                    except KeyError:
+                        continue
+
+                    # Make sure there are no other specs (in this section) for
+                    # the param defined defined in previous section
+                    for a in PARAM_ATTRS:
+                        assert not config.has_option(section,
+                                                     '%s.%s' %(fullname, a))
+
+                    param = kw['params'][infodict['pname']]
+
+                    break
+
+                # Param *not* found in a previous stage (i.e., no explicit     
+                # `break` encountered in `for` loop above); therefore must
+                # instantiate it.
                 else:
-                    # defaults
-                    kwargs = {'name': pname, 'is_fixed': True, 'prior': None,
-                              'range': None}
-                    try:
-                        value = parse_quantity(value)
-                        kwargs['value'] = value.n * value.units
-                    except ValueError:
-                        value = parse_string_literal(value)
-                        kwargs['value'] = value
-                    # search for explicit specifications
-                    if config.has_option(section, name + '.fixed'):
-                        kwargs['is_fixed'] = config.getboolean(section,
-                                                               name + '.fixed')
+                    param = parse_param(
+                        config=config,
+                        section=section,
+                        selector=infodict['selector'],
+                        fullname=fullname,
+                        pname=infodict['pname'],
+                        value=value
+                    )
 
-                    if config.has_option(section, name + '.prior'):
-                        if config.get(section, name + '.prior') == 'uniform':
-                            kwargs['prior'] = Prior(kind='uniform')
-                        elif config.get(section, name + '.prior') == 'spline':
-                            priorname = pname
-                            if param_selector:
-                                priorname += '_' + param_selector
-                            data = config.get(section, name + '.prior.data')
-                            data = from_file(data)
-                            data = data[priorname]
-                            knots = ureg.Quantity(np.asarray(data['knots']),
-                                                  data['units'])
-                            knots = knots.to(value.units)
-                            coeffs = np.asarray(data['coeffs'])
-                            deg = data['deg']
-                            kwargs['prior'] = Prior(kind='spline',
-                                                    knots=knots,
-                                                    coeffs=coeffs,
-                                                    deg=deg)
-                        elif 'gauss' in config.get(section, name + '.prior'):
-                            raise Exception(
-                                'Please use new style +/- notation for'
-                                ' gaussian priors in config'
-                            )
-                        else:
-                            raise Exception('Prior type unknown')
-                    elif hasattr(value, 's') and value.s != 0:
-                        kwargs['prior'] = Prior(kind='gaussian',
-                                                mean=value.n * value.units,
-                                                stddev=value.s * value.units)
+                param_selector.update(param, selector=infodict['selector'])
 
-                    if config.has_option(section, name + '.range'):
-                        range = config.get(section, name + '.range')
-                        if 'nominal' in range:
-                            nominal = value.n * value.units
-                        if 'sigma' in range:
-                            sigma = value.s * value.units
-                        range = range.replace('[', 'np.array([')
-                        range = range.replace(']', '])')
-                        kwargs['range'] = eval(range).to(value.units)
-                    try:
-                        params.append(Param(**kwargs))
-                    except:
-                        logging.error('Failed to instantiate new Param object'
-                                      ' with kwargs %s' %kwargs)
-                        raise
+            elif 'binning' in fullname:
+                service_kwargs[fullname] = binning_dict[value]
 
-            elif 'binning' in name:
-                stage_dicts[stage][name] = binning_dict[value]
+            else:
+                service_kwargs[fullname] = parse_string_literal(value)
 
-            elif not name == 'param_selector':
-                stage_dicts[stage][name] = parse_string_literal(value)
+        service_kwargs['params'] = param_selector
 
-        if len(params) > 0:
-            stage_dicts[stage]['params'] = ParamSet(*params)
+        # Append this dict to the OrderedDict with all stage dicts
+        stage_dicts[(stage, service)] = service_kwargs
 
     return stage_dicts
+
+#if __name__ == '__main__':
+#    from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+#    parser = ArgumentParser()
+#    parser.add_argument(
+#        '-p', '--pipeline-settings', metavar='CONFIGFILE', type=str,
+#        required=True,
+#        help='File containing settings for the pipeline.'
+#    )
+#    args = parser.parse_args()
+#    config = BetterConfigParser()
+#    config.read(args.pipeline_settings)
+#    cfg =  parse_pipeline_config(config)
+#    for key,vals in cfg.items():
+#        print key, vals

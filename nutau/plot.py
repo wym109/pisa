@@ -20,14 +20,17 @@ parser.add_argument('--livetime', type=float, default=None)
 args = parser.parse_args()
 set_verbosity(args.v)
 
-my_plotter = plotter(stamp=r'$\nu_\tau$ appearance'+'\nBurnsample comparison'+'\nPrefit Distributions', outdir='.', fmt='pdf', log=False, annotate=True, symmetric=False, ratio=True)
 
 if args.data_settings is not None:
     data_maker = DistributionMaker(args.data_settings)
     data = data_maker.get_outputs()
     data.set_poisson_errors()
+    stamp=r'$\nu_\tau$ appearance'+'\nBurnsample comparison'+'\nPrefit Distributions'
 else:
     data = None
+    stamp=r'$\nu_\tau$ appearance'+'\nMC'
+
+my_plotter = plotter(stamp=stamp, outdir='.', fmt='pdf', log=False, annotate=True, symmetric=False, ratio=True)
 
 template_maker = DistributionMaker(args.template_settings)
 if args.livetime is not None:
@@ -38,13 +41,13 @@ if args.livetime is not None:
 template_nominal = template_maker.get_outputs()
 for map in template_nominal: map.tex = 'MC'
 
-nutau_cc_norm = template_maker.params['nutau_cc_norm']
-nutau_cc_norm.value = 0.0 * ureg.dimensionless
-template_maker.update_params(nutau_cc_norm) 
-template_notau = template_maker.get_outputs()
-for map in template_notau: map.tex = r'MC\ (\nu_\tau^{CC}=0)'
+#nutau_cc_norm = template_maker.params['nutau_cc_norm']
+#nutau_cc_norm.value = 0.0 * ureg.dimensionless
+#template_maker.update_params(nutau_cc_norm) 
+#template_notau = template_maker.get_outputs()
+#for map in template_notau: map.tex = r'MC\ (\nu_\tau^{CC}=0)'
 
-#my_plotter.plot_1d_array(template_nominal, 'reco_coszen', fname='p_coszen')
-#my_plotter.plot_1d_array(template_nominal, 'reco_energy', fname='p_energy')
-my_plotter.plot_1d_cmp(mapsets=[template_nominal,template_notau, data], plot_axis='reco_energy', fname='p_energy')
-my_plotter.plot_1d_cmp(mapsets=[template_nominal,template_notau, data], plot_axis='reco_coszen', fname='p_coszen')
+my_plotter.plot_1d_array(template_nominal, 'reco_coszen', fname='p_coszen')
+my_plotter.plot_1d_array(template_nominal, 'reco_energy', fname='p_energy')
+#my_plotter.plot_1d_cmp(mapsets=[template_nominal,template_notau, data], plot_axis='reco_energy', fname='p_energy')
+#my_plotter.plot_1d_cmp(mapsets=[template_nominal,template_notau, data], plot_axis='reco_coszen', fname='p_coszen')

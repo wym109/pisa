@@ -165,3 +165,10 @@ def conv_llh(actual_values, expected_values):
     for i in xrange(len(triplets)):
         sum += np.log(max(SMALL_POS,conv_poisson(*triplets[i])))
     return sum
+
+def mod_chi2(actual_values, expected_values):
+    actual_values = unp.nominal_values(actual_values).ravel()
+    sigma = unp.std_devs(expected_values).ravel()
+    expected_values = unp.nominal_values(expected_values).ravel()
+    chi2 = np.square(actual_values - expected_values)/(np.square(sigma)+expected_values)
+    return np.sum(chi2)

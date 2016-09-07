@@ -266,7 +266,7 @@ class Param(object):
             logging.trace('self.value: %s' %self.value)
             logging.trace('self.prior: %s' %self.prior)
             return self.prior.llh(self.value)
-        elif metric in ['chi2']:
+        elif metric in ['chi2', 'mod_chi2']:
             return self.prior.chi2(self.value)
         else:
             raise ValueError('Unrecognized `metric` "%s"' %str(metric))
@@ -327,7 +327,7 @@ class Param(object):
 
 
 # TODO: temporary modification of parameters via "with" syntax?
-class ParamSet(object):
+class ParamSet(Sequence):
     """Container class for a set of parameters. Most methods are passed through
     to contained params.
 
@@ -343,12 +343,12 @@ class ParamSet(object):
     >>> e_prior = Prior(kind='gaussian', mean=10*ureg.GeV, stddev=1*ureg.GeV)
     >>> cz_prior = Prior(kind='uniform', llh_offset=-5)
     >>> reco_energy = Param(name='reco_energy', value=12*ureg.GeV,
-                            prior=e_prior, range=[1, 80]*ureg.GeV,
-                            is_fixed=False, is_discrete=False,
-                            tex=r'E^{\rm reco}')
+    ...                     prior=e_prior, range=[1, 80]*ureg.GeV,
+    ...                     is_fixed=False, is_discrete=False,
+    ...                     tex=r'E^{\rm reco}')
     >>> reco_coszen = Param(name='reco_coszen', value=-0.2, prior=cz_prior,
-                            range=[-1, 1], is_fixed=True, is_discrete=False,
-                            tex=r'\cos\,\theta_Z^{\rm reco}')
+    ...                     range=[-1, 1], is_fixed=True, is_discrete=False,
+    ...                     tex=r'\cos\,\theta_Z^{\rm reco}')
     >>> param_set = ParamSet(reco_energy, reco_coszen)
     >>> print param_set
     reco_coszen=-2.0000e-01 reco_energy=+1.2000e+01 GeV
@@ -496,6 +496,14 @@ class ParamSet(object):
         elif isinstance(i, basestring):
             self._by_name[i].value = val
 
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+        for k, v in self.__dict__.items():
+            setattr(result, k, deepcopy(v, memo))
+        return result
+
     def __getitem__(self, i):
         if isinstance(i, int):
             return self._params[i]
@@ -504,7 +512,7 @@ class ParamSet(object):
 
     def __getattr__(self, attr):
         try:
-            return super(ParamSet, self).__getattr__(attr)
+            return super(self.__class__, self).__getattr__(attr)
         except AttributeError, exc:
             try:
                 return self[attr]
@@ -513,9 +521,24 @@ class ParamSet(object):
 
     def __setattr__(self, attr, val):
         try:
-            super(ParamSet, self).__setattr__(attr, val)
+            params = super(self.__class__, self).__getattribute__('_params')
+            param_names = [p.name for p in params]
         except AttributeError:
-            self._params[attr].value = val
+            params = []
+            param_names = []
+        try:
+            idx = param_names.index(attr)
+        except ValueError:
+            super(self.__class__, self).__setattr__(attr, val)
+        else:
+            param_name = attr
+            if isinstance(val, Param):
+                assert val.name == attr
+                self._params[idx] = val
+            elif isbarenumeric(val): #isinstance(val, (Number, pint.quantity._Quantity)):
+                self._params[idx].value = val
+            else:
+                raise ValueError('Cannot set param "%s" to `val`=%s' %(attr, val))
 
     def __iter__(self):
         return iter(self._params)
@@ -544,6 +567,11 @@ class ParamSet(object):
                     string += '%s' %p.value
             strings.append(string.strip())
         return ' '.join(strings)
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        return recursiveEquality(self.state, other.state)
 
     def priors_penalty(self, metric):
         return np.sum([obj.prior_penalty(metric=metric)
@@ -615,6 +643,13 @@ class ParamSet(object):
         [setattr(self._params[i], 'value', val) for i,val in enumerate(values)]
 
     @property
+    def name_val_dict(self):
+        d = OrderedDict()
+        for name, val in izip(self.names, self.values):
+            d[name] = val
+        return d
+
+    @property
     def is_nominal(self):
         return np.all([(v0==v1)
                        for v0, v1 in izip(self.values, self.nominal_values)])
@@ -670,6 +705,130 @@ class ParamSet(object):
     @property
     def state_hash(self):
         return hash_obj(normQuant(self.state))
+
+
+class ParamSelector(object):
+    """
+    Parameters
+    ----------
+    regular_params : ParamSet or instantiable thereto
+
+    selector_param_sets : None, dict, or sequence of dict
+        Dict(s) format:
+            {
+              '<name1>': <ParamSet or instantiable thereto>,
+              '<name2>': <ParamSet or instantiable thereto>,
+              ...
+            }
+        The names are what must be specified in `selections` to select the
+        corresponding ParamSets. Params specified in any of the ParamSets
+        within `selector_param_sets cannot be in `regular_params`.
+
+    selections : None, string, or sequence of strings
+        One string is required per
+
+    Notes
+    -----
+    Params specified in `regular_params` are enforced to be mutually exclusive
+    with params in the param sets specified by `selector_param_sets`.
+
+    """
+    def __init__(self, regular_params=None, selector_param_sets=None,
+                 selections=None):
+        self._current_params = ParamSet()
+        self._regular_params = ParamSet()
+        self._selector_params = {}
+        self._selections = []
+
+        if regular_params is not None:
+            self.update(regular_params, selector=None)
+
+        if selector_param_sets is not None:
+            for selector, params in selector_param_sets.items():
+                selector = selector.strip().lower()
+                params = ParamSet(params)
+                self._selector_params[selector] = params
+
+        self.select_params(selections=selections, error_on_missing=False)
+
+    def select_params(self, selections=None, error_on_missing=False):
+        if selections is None:
+            return self.select_params(selections=self._selections,
+                                      error_on_missing=error_on_missing)
+
+        if isinstance(selections, basestring):
+            selections = selections.split(',')
+
+        assert isinstance(selections, Sequence)
+
+        distilled_selections = []
+        for selection in selections:
+            assert isinstance(selection, basestring)
+            selection = selection.strip().lower()
+            try:
+                if selection not in self._selector_params:
+                    raise KeyError(
+                        'No selection "%s" available; valid selections are %s'
+                        ' (case-insensitive).'
+                        %(selection, self._selector_params.keys())
+                    )
+                self._current_params.update(self._selector_params[selection])
+            except KeyError:
+                if error_on_missing:
+                    raise
+            distilled_selections.append(selection)
+
+        self._selections = distilled_selections
+
+        return self._current_params
+
+    @property
+    def params(self):
+        return self._current_params
+
+    @property
+    def param_selections(self):
+        return deepcopy(self._selections)
+
+    def __iter__(self):
+        return iter(self._current_params)
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        if not recursiveEquality(self._selections, other._selections):
+            return False
+        if not recursiveEquality(self._regular_params, other._regular_params):
+            return False
+        if not recursiveEquality(self._selector_params, other._selector_params):
+            return False
+        return True
+
+    def update(self, p, selector=None):
+        try:
+            p = ParamSet(p)
+        except:
+            logging.error('Could not instantiate a ParamSet with `p` of type'
+                          ' %s, value = %s' %(type(p), p))
+            raise
+
+        if selector is None:
+            self._regular_params.update(p)
+            self._current_params.update(p)
+        else:
+            assert isinstance(selector, basestring)
+            selector = selector.strip().lower()
+            if selector not in self._selector_params:
+                self._selector_params[selector] = ParamSet()
+            self._selector_params[selector].update(p)
+
+            # Re-select current selectiosn in case the update modifies these
+            self.select_params(error_on_missing=False)
+
+    def get(self, name, selector=None):
+        if selector is None:
+            return self._regular_params[name]
+        return self._selector_params[selector][name]
 
 
 def test_Param():
@@ -772,10 +931,17 @@ def test_Param():
     assert p2.nominal_value == val1, \
             '%s should be %s' %(p2.nominal_value, val1)
 
+    # Test deepcopy
+    param2 = deepcopy(p2)
+    assert param2 == p2
+
     print '<< PASSED : test_Param >>'
+
 
 # TODO: add tests for reset() and reset_all() methods
 def test_ParamSet():
+    from pisa.core.prior import Prior
+
     p0 = Param(name='c', value=1.5, prior=None, range=[1,2],
                is_fixed=False, is_discrete=False, tex=r'\int{\rm c}')
     p1 = Param(name='a', value=2.5, prior=None, range=[1,5],
@@ -849,9 +1015,191 @@ def test_ParamSet():
 
     print param_set[0].prior_chi2
     print param_set.priors_chi2
+
+	# Test that setting attributes works
+    e_prior = Prior(kind='gaussian', mean=10*ureg.GeV, stddev=1*ureg.GeV)
+    cz_prior = Prior(kind='uniform', llh_offset=-5)
+    reco_energy = Param(name='reco_energy', value=12*ureg.GeV,
+                        prior=e_prior, range=[1, 80]*ureg.GeV,
+                        is_fixed=False, is_discrete=False,
+                        tex=r'E^{\rm reco}')
+    reco_coszen = Param(name='reco_coszen', value=-0.2, prior=cz_prior,
+                        range=[-1, 1], is_fixed=True, is_discrete=False,
+                        tex=r'\cos\,\theta_Z^{\rm reco}')
+    reco_coszen_fail = Param(name='reco_coszen_fail', value=-0.2,
+                             prior=cz_prior, range=[-1, 1], is_fixed=True,
+                             is_discrete=False,
+                             tex=r'\cos\,\theta_Z^{\rm reco}')
+    reco_coszen2 = Param(name='reco_coszen', value=-0.9, prior=cz_prior,
+                         range=[-1, 1], is_fixed=True, is_discrete=False,
+                         tex=r'\cos\,\theta_Z^{\rm reco}')
+    param_set = ParamSet([reco_energy, reco_coszen])
+    # Try setting a param with a differently-named param
+    try:
+        param_set.reco_coszen = reco_coszen_fail
+    except:
+        pass
+    else:
+        assert False
+
+    try:
+        param_set.reco_coszen = 30
+    except:
+        pass
+    else:
+        assert False
+
+    param_set.reco_coszen = reco_coszen2
+    assert param_set.reco_coszen is reco_coszen2
+    assert param_set['reco_coszen'] is reco_coszen2
+    assert param_set.reco_coszen.value == -0.9
+    param_set.reco_coszen = -1.0
+    assert param_set.reco_coszen.value == -1.0
+    param_set.reco_coszen = -1
+    assert param_set.reco_coszen.value == -1.0
+
+    # Test deepcopy
+    param_set2 = deepcopy(param_set)
+    print param_set
+    print param_set2
+    assert param_set2 == param_set
+
     print '<< PASSED : test_ParamSet >>'
 
 
+def test_ParamSelector():
+    p0 = Param(name='a', value=1.5, prior=None, range=[1,2],
+               is_fixed=False, is_discrete=False, tex=r'\int{\rm c}')
+    p1 = Param(name='b', value=2.5, prior=None, range=[1,5],
+               is_fixed=False, is_discrete=False, tex=r'{\rm a}')
+    p20 = Param(name='c', value=1.5, prior=None, range=[1,2],
+                is_fixed=False, is_discrete=False, tex=r'{\rm b}')
+    p21 = Param(name='c', value=2.0, prior=None, range=[1,2],
+                is_fixed=False, is_discrete=False, tex=r'{\rm b}')
+    p22 = Param(name='c', value=1.0, prior=None, range=[1,2],
+                is_fixed=False, is_discrete=False, tex=r'{\rm b}')
+    p30 = Param(name='d', value=-1.5, prior=None, range=[-1,-2],
+                is_fixed=False, is_discrete=False, tex=r'{\rm b}')
+    p31 = Param(name='d', value=-2.0, prior=None, range=[-1,-2],
+                is_fixed=False, is_discrete=False, tex=r'{\rm b}')
+    p40 = Param(name='e', value=-15, prior=None, range=[-10,-20],
+                is_fixed=False, is_discrete=False, tex=r'{\rm b}')
+    p41 = Param(name='e', value=-20, prior=None, range=[-10,-20],
+                is_fixed=False, is_discrete=False, tex=r'{\rm b}')
+    ps30_40 = ParamSet(p30, p40)
+    param_selector = ParamSelector(
+        regular_params=[p0, p1],
+        selector_param_sets={'p20': p20, 'p21': p21, 'p22': p22,
+                             'p30_40':ps30_40, 'p31_41': [p31, p41]},
+        selections=['p20', 'p30_40']
+    )
+    params = param_selector.params
+    assert params.a.value == 1.5
+    assert params.b.value == 2.5
+    assert params.c.value == 1.5
+    assert params.d.value == -1.5
+    assert params.e.value == -15
+
+    # Modify a param's value from the selector's params
+    params.c = 1.8
+    # Make sure that took
+    assert params['c'].value == 1.8
+    # Make sure the original param was also modified (i.e., that it's the exact
+    # object that was populated to the param_selector's params)
+    assert p20.value == 1.8
+
+    param_selector.select_params('p21')
+    # Make sure 'c' is changed using all ways to access 'c'
+    assert param_selector.params.c.value == 2.0
+    assert param_selector.params['c'].value == 2.0
+    assert params['c'].value == 2.0
+    assert params.c.value == 2.0
+    # Make sure original params have values previous to selection
+    assert p20.value == 1.8
+    assert p21.value == 2.0
+
+    # Change the newly-selected param's value
+    params.c = 1.9
+    # Make sure that took
+    assert params['c'].value == 1.9
+    # Make sure the original param was also modified (i.e., that it's the exact
+    # object that was populated to the param_selector's params)
+    assert p21.value == 1.9
+
+    param_selector.select_params('p31_41')
+    assert params['d'].value == -2
+    assert params['e'].value == -20
+    params.e = -19.9
+    assert p41.value == -19.9
+
+    # Test the update method
+
+    p5 = Param(name='f', value=120, prior=None, range=[0,1000],
+               is_fixed=True, is_discrete=False, tex=r'{\rm b}')
+    p60 = Param(name='g', value=-1, prior=None, range=[-10,10],
+                is_fixed=False, is_discrete=False, tex=r'{\rm b}')
+    p61 = Param(name='g', value=-2, prior=None, range=[-10,10],
+                is_fixed=False, is_discrete=False, tex=r'{\rm b}')
+
+    # Update with a "regular" param
+    param_selector.update(p=p5, selector=None)
+    assert params.f.value == 120
+
+    # Update with a "selector" param that's currently selected
+    param_selector.update(p=p61, selector='p31_41')
+    assert params.g.value == -2
+    p = param_selector.get(name='g', selector='p31_41')
+    assert p.value == -2
+
+    # Update with a "selector" param that's _not_ currently selected
+    param_selector.update(p=p60, selector='p30_40')
+
+    # Selected param value shouldn't have changed
+    assert params.g.value == -2
+
+    # ... but the param should be in the object
+    p = param_selector.get(name='g', selector='p30_40')
+    assert p.value == -1
+
+    # ... and selecting it should now set current param to its value
+    param_selector.select_params('p30_40')
+    assert params.g.value == -1
+
+    # Double check that the other one didn't change
+    p = param_selector.get(name='g', selector='p31_41')
+    assert p.value == -2
+
+    # Use update to overwrite existing params...
+
+    p402 = Param(name='e', value=-11, prior=None, range=[0,-20],
+                 is_fixed=False, is_discrete=False, tex=r'{\rm b}')
+    p412 = Param(name='e', value=-22, prior=None, range=[0,-100],
+                 is_fixed=False, is_discrete=False, tex=r'{\rm b}')
+
+    # Update param that exists already and is selected
+    param_selector.update(p=p402, selector='p30_40')
+    assert params.e.value == -11
+
+    # Make sure original param wasn't overwritten (just not in param_selector)
+    assert p40.value == -15
+
+    # Update param that exists already but is not selected
+    param_selector.update(p=p412, selector='p31_41')
+    assert params.e.value == -11
+    p = param_selector.get('e', selector='p31_41')
+    assert p.value == -22
+    param_selector.select_params('p31_41')
+    assert params.e.value == -22
+
+    # Test deepcopy
+    param_selector2 = deepcopy(param_selector)
+    assert param_selector2 == param_selector
+
+    print '<< PASSED : test_ParamSelector >>'
+
+
 if __name__ == "__main__":
+    set_verbosity(3)
     test_Param()
     test_ParamSet()
+    test_ParamSelector()

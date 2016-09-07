@@ -15,6 +15,7 @@ import sys
 from pisa.core.param import ParamSet
 from pisa.core.stage import Stage
 from pisa.utils.config_parser import parse_pipeline_config
+from pisa.utils.betterConfigParser import BetterConfigParser
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile
@@ -42,9 +43,10 @@ class Pipeline(object):
 
     Parameters
     ----------
-    config : string or OrderedDict
+    config : string, OrderedDict, or BetterConfigParser
         If string, interpret as resource location; send to the
-          config_parser.parse_pipeline_config() function to get a config OrderedDict.
+          config_parser.parse_pipeline_config() function to get a config
+          OrderedDict.
         If OrderedDict, use directly as pipeline configuration.
 
     Methods
@@ -68,7 +70,7 @@ class Pipeline(object):
     @profile
     def __init__(self, config):
         self._stages = []
-        if isinstance(config, basestring):
+        if isinstance(config, (basestring, BetterConfigParser)):
             config = parse_pipeline_config(config=config)
         assert isinstance(config, OrderedDict)
         self._config = config
@@ -100,35 +102,43 @@ class Pipeline(object):
         raise AttributeError('Stage or attribute "%s" not in pipeline.' %attr)
 
     def _init_stages(self):
-        """Stage factory: Instantiate stages specified by self.config."""
+        """Stage factory: Instantiate stages specified by self.config.
 
+        Conventions required for this to work:
+            * Stage and service names must be lower-case
+            * Service implementations must be found at Python path
+              `pisa.stages.<stage_name>.<service_name>`
+            * `service` cannot be an instantiation argument for a service
+
+        """
         self._stages = []
-        for stage_num, (stage_name, settings) in enumerate(self.config.items()):
-            stage_name = stage_name.lower()
+        for stage_num, ((stage_name, service_name), settings) \
+                in enumerate(self.config.items()):
             try:
-                logging.debug('instantiating stage %s' % stage_name)
-                service = settings['service'].lower()
-                # Import stage service
-                module = importlib.import_module('pisa.stages.%s.%s'
-                                                 %(stage_name, service))
-                # Get class
-                cls = getattr(module, service)
+                logging.debug('instantiating stage %s / service %s'
+                              %(stage_name, service_name))
 
-                # Instantiate object, do basic type check
-                # NOTE: the `service` kwarg is not for the class, so leave it
-                # out!
-                stage = cls(**{k:v for k,v in settings.items() if k!='service'})
-                assert isinstance(stage, Stage)
+                # Import service's module
+                module = importlib.import_module(
+                    'pisa.stages.%s.%s' %(stage_name, service_name)
+                )
 
-                # Append stage to pipeline
-                self._stages.append(stage)
+                # Get service class from module
+                cls = getattr(module, service_name)
+
+                # Instantiate service
+                service = cls(**settings)
+                assert isinstance(service, Stage)
+
+                # Append service to pipeline
+                self._stages.append(service)
 
             except:
-                logging.error('Failed to initialize stage #%d (%s).'
-                              %(stage_num, stage_name))
+                logging.error(
+                    'Failed to initialize stage #%d (%s, service %s).'
+                    %(stage_num, stage_name, stage_name)
+                )
                 raise
-
-        logging.debug(str(self.params))
 
     @profile
     def get_outputs(self, inputs=None, idx=None,
@@ -190,11 +200,22 @@ class Pipeline(object):
     def update_params(self, params):
         [stage.params.update_existing(params) for stage in self]
 
+    def select_params(self, selections):
+        [stage.select_params(selections) for stage in self]
+
     @property
     def params(self):
         params = ParamSet()
         [params.extend(stage.params) for stage in self]
         return params
+
+    @property
+    def param_selections(self):
+        selections = set()
+        [selections.add(stage.selections) for stage in self]
+        for stage in self:
+            assert set(stage.selections) == selections
+        return sorted(selections)
 
     @property
     def stages(self):

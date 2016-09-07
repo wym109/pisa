@@ -261,21 +261,21 @@ def compare_flux(config, servicename, pisa2file, systname,
     logging.debug('>>> Checking %s service'%servicename)
     test_service = servicename
 
+    k = [k for k in config.keys() if k[0] == 'flux'][0]
+    params = config[k]['params'].params
+
     if systname is not None:
         logging.debug('>>> Checking %s systematic'%systname)
         test_syst = systname
         try:
-            config['flux']['params'][systname] = \
-                    config['flux']['params'][systname].value + \
-                    config['flux']['params'][systname].prior.stddev
+            params[systname] = params[systname].value + \
+                    params[systname].prior.stddev
         except:
-            config['flux']['params'][systname] = \
-                    1.25*config['flux']['params'][systname].value
+            params[systname] = 1.25*params[systname].value
 
-        pisa2file = (pisa2file.split('.json')[0] + '-%s%.2f.json'
-                     %(systname, config['flux']['params'][systname].value))
-        servicename += ('-%s%.2f'
-                        %(systname, config['flux']['params'][systname].value))
+        pisa2file = (pisa2file.split('.json')[0]
+                     + '-%s%.2f.json' %(systname, params[systname].value))
+        servicename += ('-%s%.2f' %(systname, params[systname].value))
     else:
         logging.debug('>>> Checking baseline')
         test_syst = 'baseline'
@@ -338,22 +338,25 @@ def compare_osc(config, servicename, pisa2file, systname,
     logging.debug('>>> Checking %s service'%servicename)
     test_service = servicename
 
+    k = [k for k in config.keys() if k[0] == 'osc'][0]
+    params = config[k]['params'].params
+
     if systname is not None:
         logging.debug('>>> Checking %s systematic'%systname)
         test_syst = systname
         try:
-            config['osc']['params'][systname] = \
-                    config['osc']['params'][systname].value + \
-                    config['osc']['params'][systname].prior.stddev
+            params[systname] = \
+                    params[systname].value + \
+                    params[systname].prior.stddev
         except:
-            config['osc']['params'][systname] = \
-                    1.25*config['osc']['params'][systname].value
+            params[systname] = \
+                    1.25*params[systname].value
 
-        if config['osc']['params'][systname].magnitude < 0.01:
-            systval = '%e'%config['osc']['params'][systname].magnitude
+        if params[systname].magnitude < 0.01:
+            systval = '%e'%params[systname].magnitude
             systval = systval[0:4]
         else:
-            systval = '%.2f'%config['osc']['params'][systname].magnitude
+            systval = '%.2f'%params[systname].magnitude
 
         pisa2file = pisa2file.split('.json')[0] + \
                 '-%s%s.json' %(systname, systval)
@@ -428,22 +431,25 @@ def compare_aeff(config, servicename, pisa2file, systname,
     logging.debug('>>> Checking %s service'%servicename)
     test_service = servicename
 
+    k = [k for k in config.keys() if k[0] == 'aeff'][0]
+    params = config[k]['params'].params
+
     if systname is not None:
         logging.debug('>>> Checking %s systematic'%systname)
         test_syst = systname
         try:
-            config['aeff']['params'][systname] = \
-                    config['aeff']['params'][systname].value + \
-                    config['aeff']['params'][systname].prior.stddev
+            params[systname] = \
+                    params[systname].value + \
+                    params[systname].prior.stddev
         except:
-            config['aeff']['params'][systname] = \
-                    1.25*config['aeff']['params'][systname].value
+            params[systname] = \
+                    1.25*params[systname].value
 
         pisa2file = pisa2file.split('.json')[0] + \
                 '-%s%.2f.json' \
-                %(systname, config['aeff']['params'][systname].value)
+                %(systname, params[systname].value)
         servicename += '-%s%.2f' \
-                %(systname, config['aeff']['params'][systname].value)
+                %(systname, params[systname].value)
     else:
         logging.debug('>>> Checking baseline')
         test_syst = 'baseline'
@@ -999,25 +1005,25 @@ if __name__ == '__main__':
         it! In general, this will signify you have "changed" something, somehow
         in the basic functionality which you should understand!'''
     )
-    parser.add_argument('--flux', action='store_true', default=False,
+    parser.add_argument('--flux', action='store_true',
                         help='''Run flux tests i.e. the interpolation methods
                         and the flux systematics.''')
-    parser.add_argument('--osc-prob3cpu', action='store_true', default=False,
+    parser.add_argument('--osc-prob3cpu', action='store_true',
                         help='''Run osc tests i.e. the oscillograms with one
                         sigma deviations in the parameters.''')
-    parser.add_argument('--osc-prob3gpu', action='store_true', default=False,
+    parser.add_argument('--osc-prob3gpu', action='store_true',
                         help='''Run GPU-based osc tests i.e. the oscillograms
                         with one sigma deviations in the parameters.''')
-    parser.add_argument('--aeff', action='store_true', default=False,
+    parser.add_argument('--aeff', action='store_true',
                         help='''Run effective area tests i.e. the different
                         transforms with the aeff systematics.''')
-    parser.add_argument('--reco', action='store_true', default=False,
+    parser.add_argument('--reco', action='store_true',
                         help='''Run reco tests i.e. the different reco kernels
                         and their systematics.''')
-    parser.add_argument('--pid', action='store_true', default=False,
+    parser.add_argument('--pid', action='store_true',
                         help='''Run PID tests i.e. the different pid kernels
                         methods and their systematics.''')
-    parser.add_argument('--full', action='store_true', default=False,
+    parser.add_argument('--full', action='store_true',
                         help='''Run full pipeline tests for the baseline i.e.
                         all stages simultaneously rather than each in
                         isolation.''')
@@ -1029,10 +1035,14 @@ if __name__ == '__main__':
     parser.add_argument('--ratio_threshold', type=float, default=1E-8,
                         help='''Sets the agreement threshold on the ratio test
                         plots. If this is not reached the tests will fail.''')
-    parser.add_argument('--diff_threshold', type=float, default=1E-3,
+    parser.add_argument('--diff_threshold', type=float, default=2E-3,
                         help='''Sets the agreement threshold on the diff test
                         plots. If this is not reached the tests will fail. This
                         test is only important if any ratios return inf.''')
+    parser.add_argument('--ignore-cuda-errors', action='store_true',
+                        help='''Ignore errors if pycuda cannot be used. If
+                        pycuda can be used, however, errors will still be
+                        raised as exceptions.''')
     parser.add_argument('-v', action='count', default=None,
                         help='set verbosity level')
     args = parser.parse_args()
@@ -1050,10 +1060,12 @@ if __name__ == '__main__':
             'tests', 'settings', 'flux_test.ini'
         )
         flux_config = parse_pipeline_config(flux_settings)
-        flux_config['flux']['params']['flux_file'] = \
-                'flux/honda-2015-spl-solmax-aa.d'
-        flux_config['flux']['params']['flux_mode'] = \
-                'integral-preserving'
+
+        k = [k for k in flux_config.keys() if k[0] == 'flux'][0]
+        params = flux_config[k]['params'].params
+
+        params.flux_file.value = 'flux/honda-2015-spl-solmax-aa.d'
+        params.flux_mode.value = 'integral-preserving'
 
         for syst in [None, 'atm_delta_index', 'nue_numu_ratio',
                      'nu_nubar_ratio', 'energy_scale']:
@@ -1071,7 +1083,7 @@ if __name__ == '__main__':
                 diff_test_threshold=args.diff_threshold
             )
 
-        flux_config['flux']['params']['flux_mode'] = 'bisplrep'
+        params.flux_mode.value = 'bisplrep'
         pisa2file = os.path.join(
             'tests', 'data', 'flux', 'PISAV2bisplrepHonda2015SPLSolMaxFlux.json'
         )
@@ -1143,7 +1155,11 @@ if __name__ == '__main__':
             'tests', 'settings', 'aeff_test.ini'
         )
         aeff_config = parse_pipeline_config(aeff_settings)
-        aeff_config['aeff']['params']['aeff_weight_file'] = os.path.join(
+
+        k = [k for k in aeff_config.keys() if k[0] == 'aeff'][0]
+        params = aeff_config[k]['params'].params
+
+        params.aeff_weight_file.value = os.path.join(
             'events', 'deepcore_ic86', 'MSU', '1XXXX', 'UnJoined',
             'DC_MSU_1X585_unjoined_events_mc.hdf5'
         )
@@ -1168,8 +1184,12 @@ if __name__ == '__main__':
             'tests', 'settings', 'reco_test.ini'
         )
         reco_config = parse_pipeline_config(reco_settings)
-        reco_config['reco']['params']['reco_weights_name'] = None
-        reco_config['reco']['params']['reco_weight_file'] = os.path.join(
+
+        k = [k for k in reco_config.keys() if k[0] == 'reco'][0]
+        params = reco_config[k]['params'].params
+
+        params.reco_weights_name.value = None
+        params.reco_weight_file.value = os.path.join(
             'events', 'deepcore_ic86', 'MSU', '1XXXX', 'Joined',
             'DC_MSU_1X585_joined_nu_nubar_events_mc.hdf5'
         )
@@ -1186,7 +1206,7 @@ if __name__ == '__main__':
             diff_test_threshold=args.diff_threshold
         )
 
-        reco_config['reco']['params']['reco_weight_file'] = os.path.join(
+        params.reco_weight_file.value = os.path.join(
             'events', 'deepcore_ic86', 'MSU', '1XXX', 'Joined',
             'DC_MSU_1X60_joined_nu_nubar_events_mc.hdf5'
         )
@@ -1209,6 +1229,10 @@ if __name__ == '__main__':
             'tests', 'settings', 'pid_test.ini'
         )
         pid_config = parse_pipeline_config(pid_settings)
+
+        k = [k for k in pid_config.keys() if k[0] == 'pid'][0]
+        params = pid_config[k]['params'].params
+
         pisa2file = os.path.join(
             'tests', 'data', 'pid', 'PISAV2PIDStageHistV39Service.json'
         )
@@ -1221,12 +1245,12 @@ if __name__ == '__main__':
             ratio_test_threshold=args.ratio_threshold,
             diff_test_threshold=args.diff_threshold
         )
-        pid_config['pid']['params']['pid_events'] = os.path.join(
+        params.pid_events.value = os.path.join(
             'events', 'deepcore_ic86', 'MSU', '1XXXX', 'Joined',
             'DC_MSU_1X585_joined_nu_nubar_events_mc.hdf5'
         )
-        pid_config['pid']['params']['pid_weights_name'] = 'weighted_aeff'
-        pid_config['pid']['params']['pid_ver'] = 'msu_mn8d-mn7d'
+        params.pid_weights_name.value = 'weighted_aeff'
+        params.pid_ver.value = 'msu_mn8d-mn7d'
         pisa2file = os.path.join(
             'tests', 'data', 'pid', 'PISAV2PIDStageHist1X585Service.json'
         )

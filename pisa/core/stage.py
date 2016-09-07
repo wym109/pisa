@@ -1,10 +1,11 @@
 # Authors
 
-from collections import Iterable, Sequence
+from collections import Iterable, Mapping, Sequence
+from copy import deepcopy
 import inspect
 
 from pisa.core.map import MapSet
-from pisa.core.param import Param, ParamSet
+from pisa.core.param import Param, ParamSelector, ParamSet
 from pisa.core.transform import TransformSet
 from pisa.utils.cache import MemoryCache
 from pisa.utils.comparisons import normQuant
@@ -65,11 +66,7 @@ class Stage(object):
 
     service_name : string
 
-    params : ParamSet, or object(s) to instantiate a ParamSet
-        Parameters with which to instantiate the class.
-        If str, interpret as resource location and load params from resource.
-        If dict, set contained params. Format expected is
-            {'<param_name>': <Param object or passable to Param()>}.
+    params : ParamSelector, dict ParamSelector kwargs, ParamSet, or object instantiable to ParamSet
 
     expected_params : list of strings
         List containing required `params` names.
@@ -222,8 +219,23 @@ class Stage(object):
         self.disk_cache = disk_cache
         """Disk cache object"""
 
-        self.params = params
-        """All stage parameters, in alphabetical order by param name."""
+        param_selector_params = set([
+            'regular_params', 'selector_param_sets', 'selections'
+        ])
+        if isinstance(params, Mapping) \
+                and set(params.keys()) == param_selector_params:
+            self._param_selector = ParamSelector(**params)
+        else:
+            self._param_selector = ParamSelector(regular_params=params)
+
+        # Get the params from the ParamSelector, validate, and set as the
+        # params object for this stage
+        p = self._param_selector.params
+        print 'p =', p
+        print 'p.names =', p.names
+        self._check_params(p)
+        self.validate_params(p)
+        self._params = p
 
         if bool(debug_mode) == False:
             self._debug_mode = None
@@ -235,17 +247,19 @@ class Stage(object):
         else:
             self._error_method = error_method
 
-        self._attrs_to_hash = set([])
         # Include each attribute here for hashing if it is defined and its
         # value is not None
-        for attr_name in ['input_names', 'output_names', 'input_binning', 'output_binning']:
-            if not hasattr(self, attr_name):
+        default_attrs_to_hash = ['input_names', 'output_names',
+                                 'input_binning', 'output_binning']
+        self._attrs_to_hash = set([])
+        for attr in default_attrs_to_hash:
+            if not hasattr(self, attr):
                 continue
-            val = getattr(self, attr_name)
+            val = getattr(self, attr)
             if val is None:
                 continue
             try:
-                self.include_attrs_for_hashes(attr_name)
+                self.include_attrs_for_hashes(attr)
             except ValueError():
                 pass
 
@@ -333,7 +347,8 @@ class Stage(object):
                 self.nominal_transforms_loaded_from_cache = 'disk'
                 recompute = False
                 # Save to memory cache
-                self.nominal_transforms_cache[nominal_transforms_hash] = nominal_transforms
+                self.nominal_transforms_cache[nominal_transforms_hash] = \
+                        nominal_transforms
 
         if recompute:
             self.nominal_transforms_computed = True
@@ -346,7 +361,8 @@ class Stage(object):
                 self.nominal_transforms_cache[nominal_transforms_hash] = \
                         nominal_transforms
                 if self.disk_cache is not None:
-                    self.disk_cache[nominal_transforms_hash] = nominal_transforms
+                    self.disk_cache[nominal_transforms_hash] = \
+                            nominal_transforms
 
         self.nominal_transforms = nominal_transforms
         self.nominal_transforms_hash = nominal_transforms_hash
@@ -540,10 +556,10 @@ class Stage(object):
 
         return augmented_outputs
 
-    def check_params(self, params):
+    def _check_params(self, params):
         """Make sure that `expected_params` is defined and that exactly the
         params specified in self.expected_params are present.
-        
+
         """
         assert self.expected_params is not None
         exp_p, got_p = set(self.expected_params), set(params.names)
@@ -588,25 +604,24 @@ class Stage(object):
                 "Outputs: " + str(outputs.names) + \
                 "\nStage outputs: " + str(self.output_names)
 
+    def select_params(self, selections):
+        self._param_selector.select_params(selections)
+
     @property
     def params(self):
         return self._params
 
-    @params.setter
-    def params(self, p):
-        if not isinstance(p, ParamSet):
-            p = ParamSet(p)
-        self.check_params(p)
-        self.validate_params(p)
-        self._params = p
+    @property
+    def param_selections(self):
+        return deepcopy(self._selections)
 
     @property
     def input_names(self):
-        return self._input_names
+        return deepcopy(self._input_names)
 
     @property
     def output_names(self):
-        return self._output_names
+        return deepcopy(self._output_names)
 
     @property
     def source_code_hash(self):
@@ -625,36 +640,37 @@ class Stage(object):
         provenance of persisted (on-disk) objects."""
         return hash_obj([self.source_code_hash, self.params.state_hash])
 
-    def include_attrs_for_hashes(self, attr_names):
+    def include_attrs_for_hashes(self, attrs):
         """Include a class attribute or attributes to be included when
         computing hashes (for all that apply: nominal transforms, transforms,
         and/or outputs).
 
-        Allows some customization of hashing (and hence caching) behavior
-        without having to override the hash-computation methods
-        (`_derive_nominal_transforms_hash`, `_derive_transforms_hash`, and
-        `_derive_outputs_hash`).
+        This is a convenience that allows some customization of hashing (and
+        hence caching) behavior without having to override the hash-computation
+        methods (`_derive_nominal_transforms_hash`, `_derive_transforms_hash`,
+        and `_derive_outputs_hash`).
 
         Parameters
         ----------
-        attr_name : string or sequence thereof
+        attrs : string or sequence thereof
             Name of the attribute(s) to include for hashes. Each must be an
             existing attribute of the object at the time this method is
             invoked.
 
         """
-        if isinstance(attr_names, basestring):
-            attr_names = [attr_names]
+        if isinstance(attrs, basestring):
+            attrs = [attrs]
 
         # Validate that all are actually attrs before setting any
-        for attr_name in attr_names:
-            assert isinstance(attr_name, basestring)
-            if not hasattr(self, attr_name):
+        for attr in attrs:
+            assert isinstance(attr, basestring)
+            if not hasattr(self, attr):
                 raise ValueError('"%s" not an attribute of the class; not'
-                                 ' adding *any* of the passed attributes to'
-                                 ' attrs to hash.')
+                                 ' adding *any* of the passed attributes %s to'
+                                 ' attrs to hash.' %(attr, attrs))
+
         # Include the attribute names
-        [self._attrs_to_hash.add(a) for a in attr_names]
+        [self._attrs_to_hash.add(attr) for attr in attrs]
 
     @property
     def debug_mode(self):

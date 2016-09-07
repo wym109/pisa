@@ -13,6 +13,8 @@ from pisa.utils.log import logging
 from pkg_resources import resource_filename
 
 
+# TODO: make this work with Python package resources, not just file paths (so
+# we can distribute PISA as an egg).
 def find_resource(resourcename, fail=True):
     """Try to find a resource (file or directory).
 
@@ -41,15 +43,17 @@ def find_resource(resourcename, fail=True):
     IOError if `resource` is not found and `fail` is True.
 
     """
+    logging.trace('Attempting to locate `resourcename` "%s"' %resourcename)
     # 1) Check for absolute path or path relative to current working
     #    directory
+    logging.trace('Checking absolute or path relative to cwd...')
     rsrc_path = os.path.expandvars(os.path.expanduser(resourcename))
     if os.path.isfile(rsrc_path) or os.path.isdir(rsrc_path):
         logging.debug('Found %s at %s' % (resourcename, rsrc_path))
         return rsrc_path
 
     # 2) Check if $PISA is set in environment, and look relative to that
-    logging.trace("Checking environment for $PISA...")
+    logging.trace('Checking environment for $PISA...')
     if 'PISA' in os.environ:
         rpath = os.path.expandvars(os.path.expanduser(os.environ['PISA']))
         logging.trace('Searching resource path PISA=%s' % rpath)
@@ -75,6 +79,7 @@ def find_resource(resourcename, fail=True):
     if fail:
         raise IOError(msg)
     logging.debug(msg)
+    return None
 
 
 def open_resource(filename, mode='r'):
