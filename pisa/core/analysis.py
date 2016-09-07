@@ -407,6 +407,10 @@ if __name__ == '__main__':
 
     set_verbosity(args.v)
 
+    if args.blind:
+        assert(args.function == 'fit')
+        assert(args.pseudo_data == 'data')
+
     if args.data_settings is None:
         data_settings = args.template_settings
     else:
