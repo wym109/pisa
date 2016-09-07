@@ -255,7 +255,9 @@ if __name__ == '__main__':
             'pisa/analysis/profile_llh_analysis.py',
             'pisa/core/distribution_maker.py',
             'pisa/core/pipeline.py',
+            'pisa/scripts/make_events_file.py'
             'pisa/scripts/pisa_v2_v3_consistency_tests.py'
+            'pisa/scripts/postprocess.py'
         ],
         ext_modules=cythonize(ext_modules),
         package_data=package_data
