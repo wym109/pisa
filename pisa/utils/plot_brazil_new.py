@@ -74,8 +74,8 @@ def plot(name,data,hypos,trials):
         best_p2s = np.interp(4,median[best_idx:],hypos[best_idx:])
         print best_m2s,best_ms,best,best_ps,best_p2s
         ax2 = plt.subplot2grid((6,1), (5,0),sharex=ax)
-        ax2.errorbar(np.array([1.42]),np.array([1.]),xerr=np.array([[0.47],[0.49]]),fmt='.',color='forestgreen')
-        ax2.text(0.05,0.75,r'Super-K 2013 (68%)',size=8)
+        ax2.errorbar(np.array([1.47]),np.array([1.]),xerr=np.array([[0.32],[0.32]]),fmt='.',color='forestgreen')
+        ax2.text(0.05,0.75,r'Super-K 2016 (68%)',size=8)
         ax2.errorbar(np.array([1.8]),np.array([2.]),xerr=np.array([[1.1],[1.8]]),fmt='.',color='sienna')
         ax2.text(0.05,1.75,r'Opera 2015 (90%)',size=8)
         ax2.errorbar(np.array([best]),np.array([3.]),xerr=np.array([[best-best_ms],[best_ps-best]]),fmt='.',color='mediumblue')
@@ -87,7 +87,7 @@ def plot(name,data,hypos,trials):
         fig.subplots_adjust(hspace=0)
         plt.setp(ax.get_xticklabels(), visible=False)
         plt.setp(ax2.get_yticklabels(), visible=False)
-        ax2.set_xlabel(r'$\nu_{\tau}$ normalization')
+        ax2.set_xlabel(r'$\nu_{\tau}$ CC normalization')
         for i in [0.5,1,1.5]:
             ax2.axvline(i,color='k', linestyle='-',alpha=0.2)
     if name == 'llh':
