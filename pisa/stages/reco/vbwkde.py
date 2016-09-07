@@ -962,9 +962,10 @@ class vbwkde(Stage):
                 hbins = np.linspace(dmin-0.02*drange, dmax+0.02*drange, N_HBINS*3)
                 hvals, hbins, hpatches = ax2.hist(cz_err, bins=hbins,
                                                   normed=True, **HIST_PP)
+                ax2.plot(full_cz_mesh, cz_pdf, label="no scaling")
                 ax2.plot(cz_mesh, cz_pdf_scaled, **DIFFUS_PP)
-                fci = confInterval.MLConfInterval(x=cz_mesh,
-                                                  y=cz_pdf_scaled)
+                fci = confInterval.MLConfInterval(x=full_cz_mesh,
+                                                  y=cz_pdf)
                 lb, ub, yopt, r = fci.findCI_lin(conf=0.995)
                 axlims = ax2.axis('tight')
                 ax2.set_xlim(lb, ub)
