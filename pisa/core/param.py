@@ -512,16 +512,16 @@ class ParamSet(Sequence):
 
     def __getattr__(self, attr):
         try:
-            return super(ParamSet, self).__getattr__(attr)
-        except AttributeError:
+            return super(self.__class__, self).__getattr__(attr)
+        except AttributeError, exc:
             try:
                 return self[attr]
             except KeyError:
-                raise
+                raise exc
 
     def __setattr__(self, attr, val):
         try:
-            params = super(ParamSet, self).__getattribute__('_params')
+            params = super(self.__class__, self).__getattribute__('_params')
             param_names = [p.name for p in params]
         except AttributeError:
             params = []
@@ -529,7 +529,7 @@ class ParamSet(Sequence):
         try:
             idx = param_names.index(attr)
         except ValueError:
-            super(ParamSet, self).__setattr__(attr, val)
+            super(self.__class__, self).__setattr__(attr, val)
         else:
             param_name = attr
             if isinstance(val, Param):
