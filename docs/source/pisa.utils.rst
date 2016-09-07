@@ -4,6 +4,14 @@ pisa.utils package
 Submodules
 ----------
 
+pisa.utils.betterConfigParser
+-----------------------------
+
+.. automodule:: pisa.utils.betterConfigParser
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 pisa.utils.config_parser
 ------------------------
 

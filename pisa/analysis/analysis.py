@@ -398,8 +398,8 @@ class Analysis(object):
     #   params
     # * set (some free or fixed) params, then check metric
     # where the setting of the params is done for some number of values.
-    def scan(self, param_names=None, steps=None, values=None,
-             outer=False):
+    def scan(self, data, template_maker, metric, param_names=None, steps=None,
+             values=None, outer=False):
         """Set template maker parameters named by `param_names` according to
         either values specified by `values` or number of steps specified by
         `steps`, and return the `metric` indicating how well each template
@@ -470,13 +470,13 @@ class Analysis(object):
 
         metric_vals = []
         for val in values:
-            fp = self.template_maker.params.free
+            fp = template_maker.params.free
             fp[param_names].value = val
-            self.template_maker.update_params(fp)
-            template = self.template_maker.get_outputs()
+            template_maker.update_params(fp)
+            template = template_maker.get_outputs()
             metric_vals.append(
-                self.pseudodata.metric_total(
-                    expected_values=template, metric=self.metric
+                data.metric_total(
+                    expected_values=template, metric=metric
                 )
             )
         return metric_vals
