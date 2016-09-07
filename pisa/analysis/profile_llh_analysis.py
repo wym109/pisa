@@ -8,7 +8,6 @@ Profile LLH Analysis
 
 """
 
-import numpy as np
 
 from pisa.analysis.analysis import Analysis
 from pisa.core.distribution_maker import DistributionMaker
