@@ -66,16 +66,16 @@ class Analysis(object):
         self.blind = blind
 
         # Generate distribution
-        self.asimov = self.data_maker.get_outputs()
+        self.data = self.data_maker.get_outputs()
         self.pseudodata_method = None
         self.pseudodata = None
         self.n_minimizer_calls = 0
 
     def generate_psudodata(self):
-        if self.pseudodata_method == 'asimov':
-            self.pseudodata = self.asimov
+        if self.pseudodata_method in ['asimov', 'data']:
+            self.pseudodata = self.data
         elif self.pseudodata_method == 'poisson':
-            self.pseudodata = self.asimov.fluctuate('poisson')
+            self.pseudodata = self.data.fluctuate('poisson')
         else:
             raise Exception('unknown method %s'%method)
 
@@ -389,7 +389,7 @@ if __name__ == '__main__':
     parser.add_argument('-fp', '--fix-param', type=str, default='',
                         help='''fix parameter''')
     parser.add_argument('-pd', '--pseudo-data', type=str, default='poisson',
-                        choices=['poisson', 'asimov'], 
+                        choices=['poisson', 'asimov', 'data'], 
                         help='''Mode for pseudo data sampling''')
     parser.add_argument('--metric', type=str,
                         choices=['llh', 'chi2', 'conv_llh', 'mod_chi2'], required=True,
@@ -398,6 +398,9 @@ if __name__ == '__main__':
     parser.add_argument('--mode', type=str,
                         choices=['H0', 'scan11', 'scan21'], default='H0',
                         help='''just run significance or whole scan''')
+    parser.add_argument('-f','--function', type=str,
+                        choices=['profile','fit'], default='profile',
+                        help='''what shpuld be executed''')
     args = parser.parse_args()
 
     set_verbosity(args.v)
@@ -427,13 +430,17 @@ if __name__ == '__main__':
         logging.info('Running trial %i'%i)
         np.random.seed()
         analysis.generate_psudodata()
+        
+        if args.function == 'profile':
+            if args.mode == 'H0':
+                results.append(analysis.profile('nutau_cc_norm',[0.]*ureg.dimensionless))
+            elif args.mode == 'scan11':
+                results.append(analysis.profile('nutau_cc_norm',np.linspace(0,2,11)*ureg.dimensionless))
+            elif args.mode == 'scan21':
+                results.append(analysis.profile('nutau_cc_norm',np.linspace(0,2,21)*ureg.dimensionless))
 
-        if args.mode == 'H0':
-            results.append(analysis.profile('nutau_cc_norm',[0.]*ureg.dimensionless))
-        elif args.mode == 'scan11':
-            results.append(analysis.profile('nutau_cc_norm',np.linspace(0,2,11)*ureg.dimensionless))
-        elif args.mode == 'scan21':
-            results.append(analysis.profile('nutau_cc_norm',np.linspace(0,2,21)*ureg.dimensionless))
+        elif args.function == 'fit':
+            results.append(analysis.find_best_fit())
 
     to_file(results, args.outfile)
     logging.info('Done.')

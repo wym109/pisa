@@ -101,7 +101,7 @@ class data(Stage):
 	#print "after L6 cut, no. of burn sample = ", len(reco_coszen_L6)
        
 	# Cut1: throw away dLLH < -3
-	print "Cut1, removing event with LLH < pid_remove"
+	logging.info("Cut1, removing event with LLH < pid_remove")
 	cut1 = dLLH_L6>=pid_remove
 	reco_energy_L6_cut1 = reco_energy_L6[cut1]
 	reco_coszen_L6_cut1 = reco_coszen_L6[cut1]
@@ -116,7 +116,7 @@ class data(Stage):
 
 	# Cut2: Only keep bdt score >= 0.2 (from MSU latest result, make data/MC agree much better); if use no
 	# such further cut, use bdt_cut = 0.1
-	print "Cut2, removing events with bdt_score < ", bdt_cut, " i.e. only keep bdt > ", bdt_cut
+	logging.info("Cut2, removing events with bdt_score < ", bdt_cut, " i.e. only keep bdt > ", bdt_cut)
 	cut2 = l5_cut1>=bdt_cut
 	reco_energy_L6_cut2 = reco_energy_L6_cut1[cut2]
 	reco_coszen_L6_cut2 = reco_coszen_L6_cut1[cut2]
