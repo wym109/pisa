@@ -749,16 +749,19 @@ class ParamSelector(object):
                 params = ParamSet(params)
                 self._selector_params[selector] = params
 
-        self.select(selections=selections, error_on_missing=False)
+        self.select_params(selections=selections, error_on_missing=False)
 
-    def select(self, selections=None, error_on_missing=False):
+    def select_params(self, selections=None, error_on_missing=False):
         if selections is None:
-            return self.select(selections=self.selections,
-                               error_on_missing=error_on_missing)
+            return self.select_params(selections=self._selections,
+                                      error_on_missing=error_on_missing)
 
         if isinstance(selections, basestring):
-            selection = [x.strip().lower() for x in selection.split(',')]
+            selections = selections.split(',')
 
+        assert isinstance(selections, Sequence)
+
+        distilled_selections = []
         for selection in selections:
             assert isinstance(selection, basestring)
             selection = selection.strip().lower()
@@ -773,8 +776,9 @@ class ParamSelector(object):
             except KeyError:
                 if error_on_missing:
                     raise
+            distilled_selections.append(selection)
 
-        self._selections = selections
+        self._selections = distilled_selections
 
         return self._current_params
 
@@ -783,7 +787,7 @@ class ParamSelector(object):
         return self._current_params
 
     @property
-    def selections(self):
+    def param_selections(self):
         return deepcopy(self._selections)
 
     def __iter__(self):
@@ -819,7 +823,7 @@ class ParamSelector(object):
             self._selector_params[selector].update(p)
 
             # Re-select current selectiosn in case the update modifies these
-            self.select(error_on_missing=False)
+            self.select_params(error_on_missing=False)
 
     def get(self, name, selector=None):
         if selector is None:
@@ -1104,7 +1108,7 @@ def test_ParamSelector():
     # object that was populated to the param_selector's params)
     assert p20.value == 1.8
 
-    param_selector.select('p21')
+    param_selector.select_params('p21')
     # Make sure 'c' is changed using all ways to access 'c'
     assert param_selector.params.c.value == 2.0
     assert param_selector.params['c'].value == 2.0
@@ -1122,7 +1126,7 @@ def test_ParamSelector():
     # object that was populated to the param_selector's params)
     assert p21.value == 1.9
 
-    param_selector.select('p31_41')
+    param_selector.select_params('p31_41')
     assert params['d'].value == -2
     assert params['e'].value == -20
     params.e = -19.9
@@ -1158,7 +1162,7 @@ def test_ParamSelector():
     assert p.value == -1
 
     # ... and selecting it should now set current param to its value
-    param_selector.select('p30_40')
+    param_selector.select_params('p30_40')
     assert params.g.value == -1
 
     # Double check that the other one didn't change
@@ -1184,7 +1188,7 @@ def test_ParamSelector():
     assert params.e.value == -11
     p = param_selector.get('e', selector='p31_41')
     assert p.value == -22
-    param_selector.select('p31_41')
+    param_selector.select_params('p31_41')
     assert params.e.value == -22
 
     # Test deepcopy

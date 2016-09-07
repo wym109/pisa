@@ -200,11 +200,22 @@ class Pipeline(object):
     def update_params(self, params):
         [stage.params.update_existing(params) for stage in self]
 
+    def select_params(self, selections):
+        [stage.select_params(selections) for stage in self]
+
     @property
     def params(self):
         params = ParamSet()
         [params.extend(stage.params) for stage in self]
         return params
+
+    @property
+    def param_selections(self):
+        selections = set()
+        [selections.add(stage.selections) for stage in self]
+        for stage in self:
+            assert set(stage.selections) == selections
+        return sorted(selections)
 
     @property
     def stages(self):

@@ -1,6 +1,7 @@
 # Authors
 
 from collections import Iterable, Mapping, Sequence
+from copy import deepcopy
 import inspect
 
 from pisa.core.map import MapSet
@@ -66,10 +67,6 @@ class Stage(object):
     service_name : string
 
     params : ParamSelector, dict ParamSelector kwargs, ParamSet, or object instantiable to ParamSet
-
-    ?? selector_param_sets : ParamSet or instantiable thereto
-
-    ?? param_selections : None, string, or list of strings
 
     expected_params : list of strings
         List containing required `params` names.
@@ -350,7 +347,8 @@ class Stage(object):
                 self.nominal_transforms_loaded_from_cache = 'disk'
                 recompute = False
                 # Save to memory cache
-                self.nominal_transforms_cache[nominal_transforms_hash] = nominal_transforms
+                self.nominal_transforms_cache[nominal_transforms_hash] = \
+                        nominal_transforms
 
         if recompute:
             self.nominal_transforms_computed = True
@@ -363,7 +361,8 @@ class Stage(object):
                 self.nominal_transforms_cache[nominal_transforms_hash] = \
                         nominal_transforms
                 if self.disk_cache is not None:
-                    self.disk_cache[nominal_transforms_hash] = nominal_transforms
+                    self.disk_cache[nominal_transforms_hash] = \
+                            nominal_transforms
 
         self.nominal_transforms = nominal_transforms
         self.nominal_transforms_hash = nominal_transforms_hash
@@ -605,20 +604,24 @@ class Stage(object):
                 "Outputs: " + str(outputs.names) + \
                 "\nStage outputs: " + str(self.output_names)
 
+    def select_params(self, selections):
+        self._param_selector.select_params(selections)
+
     @property
     def params(self):
         return self._params
 
-    def select_params(self, selection):
-        self._param_selector.select(selection)
+    @property
+    def param_selections(self):
+        return deepcopy(self._selections)
 
     @property
     def input_names(self):
-        return self._input_names
+        return deepcopy(self._input_names)
 
     @property
     def output_names(self):
-        return self._output_names
+        return deepcopy(self._output_names)
 
     @property
     def source_code_hash(self):

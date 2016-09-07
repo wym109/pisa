@@ -9,12 +9,13 @@ Log-Likelihood-Ratio (LLR) Analysis
 """
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from collections import Mapping
 from copy import copy, deepcopy
 import os
 
 from pisa.analysis.analysis import Analysis
 from pisa.core.distribution_maker import DistributionMaker
-from pisa.utils.fileio import mkdir, to_file
+from pisa.utils.fileio import from_file, mkdir, to_file
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.resources import find_resource
 
@@ -194,9 +195,15 @@ class LLRAnalysis(Analysis):
         logdir = find_resource(logdir)
         logging.info('Output will be saved to dir "%s"' %logdir)
 
+        # Read in minimizer settings
+        if isinstance(minimizer_settings, basestring):
+            minimizer_settings = from_file(minimizer_settings)
+        assert isinstance(minimizer_settings, Mapping)
+
         # Store variables to `self` for later access
 
         self.logdir = logdir
+        self.minimizer_settings = minimizer_settings
 
         self.alt_hypo_maker = alt_hypo_maker
         self.alt_hypo_param_selections = alt_hypo_param_selections

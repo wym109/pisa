@@ -19,7 +19,7 @@ from pisa.utils.log import logging
 
 class Counter(object):
     def __init__(self, i=0):
-        self._i = c0
+        self._i = i
 
     def __str__(self):
         return str(self._i)
@@ -240,6 +240,9 @@ class Analysis(object):
         # TODO: does this break if not using bfgs?
 
         # bfgs steps outside of given bounds by 1 epsilon to evaluate gradients
+        print '\n\n'
+        print minimizer_settings
+        print '\n\n'
         minimizer_kind = minimizer_settings['options']['value']
         try:
             epsilon = minimizer_kind['eps']
@@ -455,3 +458,7 @@ class Analysis(object):
         counter += 1
 
         return sign*metric_val
+
+
+def test_Counter():
+    pass

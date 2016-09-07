@@ -2,6 +2,7 @@
 # authors: J.Lanfranchi/P.Eller
 # date:   March 20, 2016
 
+
 import importlib
 from collections import OrderedDict, Sequence
 
@@ -72,6 +73,14 @@ class DistributionMaker(object):
         params = ParamSet()
         [params.extend(pipeline.params) for pipeline in self.pipelines]
         return params
+
+    @property
+    def param_selections(self):
+        selections = set()
+        [selections.add(pipeline.selections) for pipeline in self]
+        for pipeline in self:
+            assert set(pipeline.selections) == selections
+        return sorted(selections)
 
     def set_free_params(self, values):
         """Set free parameters' values.
