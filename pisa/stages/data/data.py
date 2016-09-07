@@ -75,36 +75,63 @@ class data(Stage):
 	reco_energy_all = np.array(data_file[Reco_Neutrino_Name]['energy'])
 	reco_coszen_all = np.array(np.cos(data_file[Reco_Neutrino_Name]['zenith']))
 	reco_trck_len_all = np.array(data_file[Reco_Track_Name]['length'])
-	data_file.close()
 	#print "before L6 cut, no. of burn sample = ", len(reco_coszen_all)
 
+	# sanity check 
+	santa_doms = burn_sample_file['IC86_Dunkman_L6_SANTA_DirectDOMs']['value']
+	l3 = burn_sample_file['IC86_Dunkman_L3']['value']
+	l4 = burn_sample_file['IC86_Dunkman_L4']['result']
+	l5 = burn_sample_file['IC86_Dunkman_L5']['bdt_score']
+	assert(np.all(santa_doms>=3) and np.all(l3 == 1) and np.all(l5 >= 0.1))
+
+	# l4==1 was not applied when i3 files were written to hdf5 files, so do it here
+	dLLH = dLLH[l4==1]
+	reco_energy_all = reco_energy_all[l4==1]
+	reco_coszen_all = reco_coszen_all[l4==1]
+	l5 = l5[l4==1]
+	L6_result = L6_result[l4==1]
+	data_file.close()
+
 	dLLH_L6 = dLLH[L6_result==1]
+	l5 = l5[L6_result==1]
 	reco_energy_L6 = reco_energy_all[L6_result==1]
 	reco_coszen_L6 = reco_coszen_all[L6_result==1]
-
 	#print "after L6 cut, no. of burn sample = ", len(reco_coszen_L6)
        
-	# throw away dLLH < -3
-	reco_energy_L6_cut1 = reco_energy_L6[dLLH_L6>=pid_remove]
-	reco_coszen_L6_cut1 = reco_coszen_L6[dLLH_L6>=pid_remove]
-	dLLH_L6_cut1 = dLLH_L6[dLLH_L6>=pid_remove]
+	# Cut1: throw away dLLH < -3
+	print "Cut1, removing event with LLH < pid_remove"
+	cut1 = dLLH_L6>=pid_remove
+	reco_energy_L6_cut1 = reco_energy_L6[cut1]
+	reco_coszen_L6_cut1 = reco_coszen_L6[cut1]
+	dLLH_L6_cut1 = dLLH_L6[cut1]
+	l5_cut1 = l5[cut1]
 
 	# don't throw away dLLH < -3, only use this when using param service for PID in PISA
 	#reco_energy_L6_cut1 = reco_energy_L6
 	#reco_coszen_L6_cut1 = reco_coszen_L6
 	#dLLH_L6_cut1 = dLLH_L6
+	#l5_cut1 = l5
+
+	# Cut2: Only keep bdt score >= 0.2 (from MSU latest result, make data/MC agree much better); if use no
+	# such further cut, use further_bdt_cut = 0.1
+	print "Cut2, removing events with bdt_score < ", further_bdt_cut, " i.e. only keep bdt > ", further_bdt_cut
+	cut2 = l5_cut1>=further_bdt_cut
+	reco_energy_cut2 = reco_energy_L6_cut1[cut2]
+	reco_coszen_cut2 = reco_coszen_L6_cut1[cut2]
+	dLLH_cut2 = dLLH_L6_cut1[cut2]
+
 
 	# write burn sample data to dictionary
 	self.data_dict = {}
 	for flav in ['cscd','trck']:
             final_events = {}
 	    if flav == 'cscd':
-		cut_pid = dLLH_L6_cut1 < pid_bound 
+		cut_pid = dLLH_cut2 < pid_bound 
 	    if flav == 'trck':
-		cut_pid = dLLH_L6_cut1 >= pid_bound 
+		cut_pid = dLLH_cut2 >= pid_bound 
 
-            final_events['reco_energy'] = reco_energy_L6_cut1[cut_pid]
-            final_events['reco_coszen'] = reco_coszen_L6_cut1[cut_pid]
+            final_events['reco_energy'] = reco_energy_L6_cut2[cut_pid]
+            final_events['reco_coszen'] = reco_coszen_L6_cut2[cut_pid]
 
             data_hist,_,_ = np.histogram2d(final_events[self.bin_names[0]], final_events[self.bin_names[1]], bins=self.bin_edges)
 

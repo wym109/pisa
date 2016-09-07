@@ -41,13 +41,16 @@ if args.livetime is not None:
 template_nominal = template_maker.get_outputs()
 for map in template_nominal: map.tex = 'MC'
 
-#nutau_cc_norm = template_maker.params['nutau_cc_norm']
-#nutau_cc_norm.value = 0.0 * ureg.dimensionless
-#template_maker.update_params(nutau_cc_norm) 
-#template_notau = template_maker.get_outputs()
-#for map in template_notau: map.tex = r'MC\ (\nu_\tau^{CC}=0)'
-
 my_plotter.plot_1d_array(template_nominal, 'reco_coszen', fname='p_coszen')
 my_plotter.plot_1d_array(template_nominal, 'reco_energy', fname='p_energy')
-#my_plotter.plot_1d_cmp(mapsets=[template_nominal,template_notau, data], plot_axis='reco_energy', fname='p_energy')
-#my_plotter.plot_1d_cmp(mapsets=[template_nominal,template_notau, data], plot_axis='reco_coszen', fname='p_coszen')
+
+if args.data_settings is not None:
+
+    nutau_cc_norm = template_maker.params['nutau_cc_norm']
+    nutau_cc_norm.value = 0.0 * ureg.dimensionless
+    template_maker.update_params(nutau_cc_norm) 
+    template_notau = template_maker.get_outputs()
+    for map in template_notau: map.tex = r'MC\ (\nu_\tau^{CC}=0)'
+
+    my_plotter.plot_1d_cmp(mapsets=[template_nominal,template_notau, data], plot_axis='reco_energy', fname='p_energy')
+    my_plotter.plot_1d_cmp(mapsets=[template_nominal,template_notau, data], plot_axis='reco_coszen', fname='p_coszen')

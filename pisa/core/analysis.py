@@ -55,7 +55,7 @@ class Analysis(object):
     _minimizer_callable : private method indended to be called by a minimizer
 
     """
-    def __init__(self, data_maker, template_maker, metric):
+    def __init__(self, data_maker, template_maker, metric, blind=False):
         assert isinstance(data_maker, DistributionMaker)
         assert isinstance(template_maker, DistributionMaker)
         self.data_maker = data_maker
@@ -63,6 +63,7 @@ class Analysis(object):
         assert isinstance(metric, basestring)
         self.metric = metric.lower()
         self.minimizer_settings = None
+        self.blind = blind
 
         # Generate distribution
         self.asimov = self.data_maker.get_outputs()
@@ -204,8 +205,11 @@ class Analysis(object):
         )
 
         # Report status of metric & params
-        msg = '%s=%.6e | %s' %(self.metric, metric_val,
-                               self.template_maker.params.free)
+        if self.blind:
+            msg = '%s=%.6e | %s blinded parameters' %(self.metric, metric_val, len(self.template_maker.params.free))
+        else:
+            msg = '%s=%.6e | %s' %(self.metric, metric_val,
+                                   self.template_maker.params.free)
         if pprint:
             sys.stdout.write(msg)
             sys.stdout.flush()
@@ -275,8 +279,9 @@ class Analysis(object):
         best_fit = {}
         best_fit[self.metric] = metric_val
         best_fit['warnflag'] = dict_flags['warnflag']
-        for pname in self.template_maker.params.free.names:
-            best_fit[pname] = self.template_maker.params[pname].value
+        if not self.blind:
+            for pname in self.template_maker.params.free.names:
+                best_fit[pname] = self.template_maker.params[pname].value
 
         # decide wether fit for second octant is necessary
         if 'theta23' in self.template_maker.params.free.names and not skip:
@@ -296,8 +301,9 @@ class Analysis(object):
                     logging.info('Accepting other octant fit')
                     best_fit[self.metric] = metric_val
                     best_fit['warnflag'] = dict_flags['warnflag']
-                    for pname in self.template_maker.params.free.names:
-                        best_fit[pname] = self.template_maker.params[pname].value
+                    if not self.blind:
+                        for pname in self.template_maker.params.free.names:
+                            best_fit[pname] = self.template_maker.params[pname].value
                     
                 else:
                     logging.info('Accepting initial octant fit')
@@ -374,6 +380,8 @@ if __name__ == '__main__':
                         help='set verbosity level')
     parser.add_argument('-n', '--num-trials', type=int, default=1,
                         help='number of trials')
+    parser.add_argument('-b', '--blind', action='store_true',
+                        help='run blindly i.e. only reporting goodness of fit, no parameter values')
     parser.add_argument('-m', '--minimizer-settings', type=str,
                         metavar='JSONFILE', required=True,
                         help='''Settings related to the optimizer used in the
@@ -407,7 +415,8 @@ if __name__ == '__main__':
 
     analysis = Analysis(data_maker=data_maker,
                         template_maker=template_maker,
-                        metric=args.metric)
+                        metric=args.metric,
+                        blind=args.blind)
 
     analysis.minimizer_settings = from_file(args.minimizer_settings)
     analysis.pseudodata_method = args.pseudo_data
