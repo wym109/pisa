@@ -16,7 +16,7 @@ res = {}
 if args.file is not '':
     fnames = [args.file]
 else:
-    fnames = [os.path.join(args.dir, f) for f in os.listdir(args.dir)]
+    fnames =  os.listdir(args.dir)
     
 
 for filename in fnames:
@@ -24,19 +24,29 @@ for filename in fnames:
         file = from_file(args.dir+'/'+filename)
         name,_ = filename.split('.')
         assert(not file[0][0]['warnflag'][0] and not file[0][1]['warnflag'])
-        cond_llh = file[0][0]['llh'][0]
-        glob_llh = file[0][1]['llh']
-        signif = np.sqrt(2*(cond_llh - glob_llh))
+        if file[0][0].has_key('llh'): metric = 'llh'
+        elif file[0][0].has_key('conv_llh'): metric = 'conv_llh'
+        elif file[0][0].has_key('chi2'): metric = 'chi2'
+        elif file[0][0].has_key('mod_chi2'): metric = 'mod_chi2'
+        else: continue
+
+        cond_llh = file[0][0][metric][0]
+        glob_llh = file[0][1][metric]
+        if 'chi2' in metric:
+            signif = np.sqrt(cond_llh - glob_llh)
+        else:
+            signif = np.sqrt(2*(cond_llh - glob_llh))
         res[name] = signif
         #print '%s\t%.4f'%(name,signif)
 
 if res.has_key('nominal'):
     nominal = res['nominal']
-    print 'sys\tdelta\tpercent'
+    print '%i systematics'%(len(res)-1)
+    print '%-20s\tsign\tdelta\tpercent'%'sys'
 else:
     nominal = None
-for key, val in res.items():
+for key, val in sorted(res.items(),key=lambda s: s[1], reverse=True):
     if nominal is not None:
-        print '%s\t%.4f\t%.2f %%'%(key,val-nominal,(val-nominal)/nominal*100)
+        print '%-20s\t%.3f\t%.4f\t%.2f %%'%(key,val,val-nominal,(val-nominal)/nominal*100)
     else:
         print '%s\t%.4f sigma'%(key,val)

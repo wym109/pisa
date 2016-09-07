@@ -51,7 +51,7 @@ class Analysis(object):
     -------
     optimize
     scan
-    profile_llh : run profile LLH for a given param
+    profile : profile a given param (profile LLH)
     _minimizer_callable : private method indended to be called by a minimizer
 
     """
@@ -66,13 +66,14 @@ class Analysis(object):
 
         # Generate distribution
         self.asimov = self.data_maker.get_outputs()
+        self.pseudodata_method = None
         self.pseudodata = None
         self.n_minimizer_calls = 0
 
-    def generate_psudodata(self, method):
-        if method == 'asimov':
+    def generate_psudodata(self):
+        if self.pseudodata_method == 'asimov':
             self.pseudodata = self.asimov
-        elif method == 'poisson':
+        elif self.pseudodata_method == 'poisson':
             self.pseudodata = self.asimov.fluctuate('poisson')
         else:
             raise Exception('unknown method %s'%method)
@@ -215,7 +216,7 @@ class Analysis(object):
         self.n_minimizer_calls += 1
         return sign*metric_val
 
-    def run_minimizer(self, pprint=True):
+    def run_minimizer(self, pprint=True, skip=False):
         # Get initial values
         x0 = self.template_maker.params.free._rescaled_values
 
@@ -230,34 +231,39 @@ class Analysis(object):
         # Using scipy.opt.minimize allows a whole host of minimisers to be used
         # This set by the method value in your minimiser settings file
         self.n_minimizer_calls = 0
-        start_t = time.time()
-        minim_result = opt.minimize(fun=self._minimizer_callable,
-                                    x0=x0,
-                                    args=(pprint,),
-                                    bounds=bounds,
-                                    method = self.minimizer_settings['method']['value'],
-                                    options = self.minimizer_settings['options']['value'])
-        
-        end_t = time.time()
-        if pprint:
-            # clear the line
-            print ''
-        print '\naverage template generation time during minimizer run: %.4f ms'%((end_t - start_t) * 1000./self.n_minimizer_calls)
-        best_fit_vals = minim_result.x
-        metric_val = minim_result.fun
-        dict_flags = {}
-        dict_flags['warnflag'] = minim_result.status
-        dict_flags['task'] = minim_result.message
-        if minim_result.has_key('jac'):
-            dict_flags['grad'] = minim_result.jac
-        dict_flags['funcalls'] = minim_result.nfev
-        dict_flags['nit'] = minim_result.nit
-        if dict_flags['warnflag'] > 0:
-            logging.warning(str(dict_flags))
+        if skip:
+            best_fit_vals = x0
+            metric_val = self._minimizer_callable(x0, False)
+            dict_flags = {'warnflag':0, 'task':'skip', 'funcalls':0, 'nit':0}
+        else:
+            start_t = time.time()
+            minim_result = opt.minimize(fun=self._minimizer_callable,
+                                        x0=x0,
+                                        args=(pprint,),
+                                        bounds=bounds,
+                                        method = self.minimizer_settings['method']['value'],
+                                        options = self.minimizer_settings['options']['value'])
+            
+            end_t = time.time()
+            if pprint:
+                # clear the line
+                print ''
+            print '\naverage template generation time during minimizer run: %.4f ms'%((end_t - start_t) * 1000./self.n_minimizer_calls)
+            best_fit_vals = minim_result.x
+            metric_val = minim_result.fun
+            dict_flags = {}
+            dict_flags['warnflag'] = minim_result.status
+            dict_flags['task'] = minim_result.message
+            if minim_result.has_key('jac'):
+                dict_flags['grad'] = minim_result.jac
+            dict_flags['funcalls'] = minim_result.nfev
+            dict_flags['nit'] = minim_result.nit
+            if dict_flags['warnflag'] > 0:
+                logging.warning(str(dict_flags))
 
         return best_fit_vals, metric_val, dict_flags
 
-    def find_best_fit(self, check_octant=True, pprint=True):
+    def find_best_fit(self, check_octant=True, pprint=True, skip=False):
         """ find best fit points (max likelihood) for the free parameters and
             return likelihood + found parameter values.
         """
@@ -265,15 +271,15 @@ class Analysis(object):
         logging.info('resetting params')
         self.template_maker.params.reset_free()
 
-        best_fit_vals, metric_val, dict_flags = self.run_minimizer(pprint=pprint)
+        best_fit_vals, metric_val, dict_flags = self.run_minimizer(pprint=pprint, skip=skip)
         best_fit = {}
-        best_fit['llh'] = metric_val
+        best_fit[self.metric] = metric_val
         best_fit['warnflag'] = dict_flags['warnflag']
         for pname in self.template_maker.params.free.names:
             best_fit[pname] = self.template_maker.params[pname].value
 
         # decide wether fit for second octant is necessary
-        if 'theta23' in self.template_maker.params.free.names:
+        if 'theta23' in self.template_maker.params.free.names and not skip:
             if check_octant:
                 logging.info('checking other octant of theta23')
                 self.template_maker.params.reset_free()
@@ -285,10 +291,10 @@ class Analysis(object):
                 best_fit_vals, metric_val, dict_flags = self.run_minimizer(pprint=pprint)
 
                 # compare results a and b, take one with lower llh
-                if metric_val < best_fit['llh']:
+                if metric_val < best_fit[self.metric]:
                     # accept these values
                     logging.info('Accepting other octant fit')
-                    best_fit['llh'] = metric_val
+                    best_fit[self.metric] = metric_val
                     best_fit['warnflag'] = dict_flags['warnflag']
                     for pname in self.template_maker.params.free.names:
                         best_fit[pname] = self.template_maker.params[pname].value
@@ -298,7 +304,7 @@ class Analysis(object):
 
         return best_fit
 
-    def profile_llh(self, p_name, values):
+    def profile(self, p_name, values):
         """Run profile log likelihood method for param `p_name`.
 
         Parameters
@@ -320,11 +326,16 @@ class Analysis(object):
             append_results(condMLEs,condMLE)
             # report MLEs and LLH
             # also add the fixed param
-        # run denominator (global MLE)
         ravel_results(condMLEs)
+        # run denominator (global MLE)
         logging.info('unfixing param %s'%p_name)
         self.template_maker.params.unfix(p_name)
-        globMLE = self.find_best_fit()
+        if self.pseudodata_method == 'asimov' and self.metric in ['llh', 'chi2', 'mod_chi2']:
+            # in these cases we can skip minimization
+            skip = True
+        else:
+            skip = False
+        globMLE = self.find_best_fit(skip=skip)
         # report MLEs and LLH
         return [condMLEs, globMLE]
 
@@ -373,7 +384,7 @@ if __name__ == '__main__':
                         choices=['poisson', 'asimov'], 
                         help='''Mode for pseudo data sampling''')
     parser.add_argument('--metric', type=str,
-                        choices=['llh', 'chi2', 'conv_llh'], required=True,
+                        choices=['llh', 'chi2', 'conv_llh', 'mod_chi2'], required=True,
                         help='''Settings related to the optimizer used in the
                         LLR analysis.''')
     parser.add_argument('--mode', type=str,
@@ -399,20 +410,21 @@ if __name__ == '__main__':
                         metric=args.metric)
 
     analysis.minimizer_settings = from_file(args.minimizer_settings)
+    analysis.pseudodata_method = args.pseudo_data
 
     results = []
 
     for i in range(args.num_trials):
         logging.info('Running trial %i'%i)
         np.random.seed()
-        analysis.generate_psudodata(args.pseudo_data)
+        analysis.generate_psudodata()
 
         if args.mode == 'H0':
-            results.append(analysis.profile_llh('nutau_cc_norm',[0.]*ureg.dimensionless))
+            results.append(analysis.profile('nutau_cc_norm',[0.]*ureg.dimensionless))
         elif args.mode == 'scan11':
-            results.append(analysis.profile_llh('nutau_cc_norm',np.linspace(0,2,11)*ureg.dimensionless))
+            results.append(analysis.profile('nutau_cc_norm',np.linspace(0,2,11)*ureg.dimensionless))
         elif args.mode == 'scan21':
-            results.append(analysis.profile_llh('nutau_cc_norm',np.linspace(0,2,21)*ureg.dimensionless))
+            results.append(analysis.profile('nutau_cc_norm',np.linspace(0,2,21)*ureg.dimensionless))
 
     to_file(results, args.outfile)
     logging.info('Done.')

@@ -235,7 +235,7 @@ class Param(object):
             logging.trace('self.value: %s' %self.value)
             logging.trace('self.prior: %s' %self.prior)
             return self.prior.llh(self.value)
-        elif metric in ['chi2']:
+        elif metric in ['chi2', 'mod_chi2']:
             return self.prior.chi2(self.value)
         else:
             raise ValueError('Unrecognized `metric` "%s"' %str(metric))
