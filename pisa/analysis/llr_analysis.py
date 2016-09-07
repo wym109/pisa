@@ -9,11 +9,12 @@ Log-Likelihood-Ratio (LLR) Analysis
 """
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from copy import copy, deepcopy
 import os
 
 from pisa.analysis.analysis import Analysis
 from pisa.core.distribution_maker import DistributionMaker
-from pisa.utils.fileio import to_file, expandPath
+from pisa.utils.fileio import mkdir, to_file
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.resources import find_resource
 
@@ -72,12 +73,12 @@ class LLRAnalysis(Analysis):
 
     Notes
     -----
-    LLR analysis is a very thorough (though computationally expensive) method
-    to compare discrete hypotheses. In general, a total of
+    LLR analysis is a very thorough (and computationally expensive) method to
+    compare discrete hypotheses. In general, a total of
 
         num_data_trials * (2 + 4*num_fid_data_trials)
 
-    fits must be performed (and note that for each fit, many templates
+    fits must be performed (and note that for each fit, many distributions
     (typically dozens or even hunreds) must be generated).
 
     If the "data" used in the analysis is pseudodata (i.e., `data_maker` uses
@@ -175,22 +176,22 @@ class LLRAnalysis(Analysis):
             alt_hypo_maker = DistributionMaker(alt_hypo_maker)
 
         if not isinstance(null_hypo_maker, DistributionMaker):
-            if null_maker_is_alt_maker:
+            if self.null_maker_is_alt_maker:
                 null_hypo_maker = copy(alt_hypo_maker)
             else:
                 null_hypo_maker = DistributionMaker(null_hypo_maker)
 
         if not isinstance(data_maker, DistributionMaker):
-            if data_maker_is_alt_maker:
+            if self.data_maker_is_alt_maker:
                 data_maker = copy(alt_hypo_maker)
-            elif data_maker_is_null_maker:
+            elif self.data_maker_is_null_maker:
                 data_maker = copy(null_hypo_maker)
             else:
                 data_maker = DistributionMaker(data_maker)
 
         # Create directory for logging results
-        logdir = find_resource(logdir)
         mkdir(logdir)
+        logdir = find_resource(logdir)
         logging.info('Output will be saved to dir "%s"' %logdir)
 
         # Store variables to `self` for later access
@@ -365,13 +366,23 @@ class LLRAnalysis(Analysis):
 
 def parse_args():
     parser = ArgumentParser(
+        formatter_class=ArgumentDefaultsHelpFormatter,
         description='''Perform the LLR analysis for calculating the NMO
         sensitivity of the distribution made from data-settings compared with
         hypotheses generated from template-settings.
 
         Currently the output should be a json file containing the dictionary
-        of best fit and likelihood values.''',
-        formatter_class=ArgumentDefaultsHelpFormatter
+        of best fit and likelihood values.'''
+    )
+    parser.add_argument(
+        '-d', '--logdir', required=True,
+        metavar='DIR', type=str,
+        help='Directory into which to store results and metadata.'
+    )
+    parser.add_argument(
+        '-m', '--minimizer-settings',
+        type=str, metavar='MINIMIZER_CFG', required=True,
+        help='''Settings related to the optimizer used in the LLR analysis.'''
     )
     parser.add_argument(
         '--alt-hypo-pipeline', required=True,
@@ -422,13 +433,8 @@ def parse_args():
         used to produce data distributions.'''
     )
     parser.add_argument(
-        '-m', '--minimizer-settings',
-        type=str, metavar='MINIMIZER_CFG', required=True,
-        help='''Settings related to the optimizer used in the LLR analysis.'''
-    )
-    parser.add_argument(
         '--fluctuate-data',
-        type=bool, action='store_true'
+        action='store_true',
         help='''Apply fluctuations to the data distribution. This should *not*
         be set for analyzing "real" (measured) data, and it is common to not
         use this feature even for Monte Carlo analysis. If this is not set,
@@ -436,7 +442,7 @@ def parse_args():
     )
     parser.add_argument(
         '--fluctuate-fid-data',
-        type=bool, action='store_true'
+        action='store_true',
         help='''Apply fluctuations to the fiducaial data distributions. If this
         is not set, --num-fid-data-trials is forced to 1.'''
     )
@@ -457,11 +463,6 @@ def parse_args():
         it takes ~10^3-10^5 fiducial psuedodata trials to achieve low
         uncertainties on the resulting significance, though that exact number
         will vary based upon the details of an analysis.'''
-    )
-    parser.add_argument(
-        '-d', '--logdir', required=True,
-        metavar='DIR', type=str,
-        help='Directory into which to store results and metadata.'
     )
     parser.add_argument(
         '--alt-hypo-name',
@@ -491,7 +492,7 @@ def parse_args():
     )
     parser.add_argument(
         '--no-post-processing',
-        type=bool, action='store_true'
+        action='store_true',
         help='''Do not run post-processing for the trials run. This is useful
         if the analysis is divided and run in separate processes, whereby only
         after all processes are run should post-processing be performed
@@ -517,7 +518,7 @@ def normcheckpath(path, checkdir=False):
 
     if not check(path):
         raise IOError('Path "%s" which resolves to "%s" is not a %s.'
-                      %(path, newpath, %kind))
+                      %(path, normpath, kind))
     return normpath
 
 
@@ -537,9 +538,14 @@ if __name__ == '__main__':
         filenames = args_d.pop(maker + '_pipeline')
         if filenames is not None:
             filenames = sorted(
-                [normcheckpath(fname) for fname in pipeline_config_filenames]
+                [normcheckpath(fname) for fname in filenames]
             )
         args_d[maker + '_maker'] = filenames
+
+        ps_name = maker + '_param_selections'
+        ps_str = args_d[ps_name]
+        ps_list = [x.strip().lower() for x in ','.split(ps_str)]
+        args_d[ps_name] = ps_list
 
     # Instantiate the analysis object
     llr_analysis = LLRAnalysis(**args_d)

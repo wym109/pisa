@@ -609,7 +609,7 @@ class Stage(object):
     def params(self):
         return self._params
 
-    def select(self, selection):
+    def select_params(self, selection):
         self._param_selector.select(selection)
 
     @property

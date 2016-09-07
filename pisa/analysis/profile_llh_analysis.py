@@ -16,7 +16,7 @@ from pisa.utils.random_numbers import get_random_state
 
 
 class ProfileLLHAnalysis(Analysis):
-	"""
+    """
     Parameters
     ----------
     data_maker : DistributionMaker
@@ -52,7 +52,7 @@ class ProfileLLHAnalysis(Analysis):
         # Generate distribution
         self.asimov = self.data_maker.get_outputs()
         self.pseudodata = None
-		self.n_minimizer_calls = 0
+        self.n_minimizer_calls = 0
 
     def profile_llh(self, param_name, values):
         """Run profile log likelihood for a single parameter.

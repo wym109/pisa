@@ -234,23 +234,25 @@ if __name__ == '__main__':
         cmdclass = {'build': build},
         packages=[
             'pisa',
+            'pisa.analysis',
             'pisa.core',
+            'pisa.resources',
             'pisa.stages',
+            'pisa.stages.aeff',
             'pisa.stages.flux',
             'pisa.stages.osc',
-            'pisa.stages.osc.prob3',
-            'pisa.stages.osc.nuCraft',
             'pisa.stages.osc.grid_propagator',
-            'pisa.stages.aeff',
-            'pisa.stages.reco',
+            'pisa.stages.osc.nuCraft',
+            'pisa.stages.osc.prob3',
             'pisa.stages.pid',
+            'pisa.stages.reco',
             'pisa.stages.sys',
             'pisa.stages.xsec',
-            'pisa.utils',
-            'pisa.resources'
+            'pisa.utils'
         ],
         scripts=[
-            'pisa/core/analysis.py',
+            'pisa/analysis/llr_analysis.py',
+            'pisa/analysis/profile_llh_analysis.py',
             'pisa/core/distribution_maker.py',
             'pisa/core/pipeline.py',
             'pisa/scripts/pisa_v2_v3_consistency_tests.py'

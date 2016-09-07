@@ -757,7 +757,7 @@ class ParamSelector(object):
                                error_on_missing=error_on_missing)
 
         if isinstance(selections, basestring):
-            selections = [selections]
+            selection = [x.strip().lower() for x in selection.split(',')]
 
         for selection in selections:
             assert isinstance(selection, basestring)
