@@ -362,7 +362,7 @@ if __name__ == '__main__':
     from pisa import ureg, Q_
 
     from pisa.utils.fileio import from_file, to_file
-    from pisa.utils.parse_config import parse_config
+    from pisa.utils.parse_config import parse_config, parse_quantity
     from pisa.utils.format import append_results, ravel_results
 
     parser = ArgumentParser()
@@ -386,6 +386,8 @@ if __name__ == '__main__':
                         metavar='JSONFILE', required=True,
                         help='''Settings related to the optimizer used in the
                         LLR analysis.''')
+    parser.add_argument('-sp', '--set-param', type=str, default='',
+                        help='Set a param to a certain value.')
     parser.add_argument('-fp', '--fix-param', type=str, default='',
                         help='''fix parameter''')
     parser.add_argument('-pd', '--pseudo-data', type=str, default='poisson',
@@ -415,6 +417,20 @@ if __name__ == '__main__':
 
     if not args.fix_param == '':
         template_maker.params.fix(args.fix_param)
+    if not args.set_param == '':
+        p_name,value = args.set_param.split("=")
+        print "p_name,value= ", p_name, " ", value
+        value = parse_quantity(value)
+        value = value.n * value.units
+        print "value ", value
+        test = template_maker.params[p_name]
+        print "test.value = ", test.value
+        test.value = value
+        print "test.value = ", test.value
+        template_maker.update_params(test)
+        test = data_maker.params[p_name]
+        test.value = value
+        data_maker.update_params(test)
 
     analysis = Analysis(data_maker=data_maker,
                         template_maker=template_maker,
