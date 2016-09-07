@@ -69,7 +69,8 @@ class gpu(Stage):
             'nutau_cc_norm',
             'reco_e_res_raw',
             'reco_e_scale_raw',
-            'reco_cz_res_raw'
+            'reco_cz_res_raw',
+            'bdt_cut'
         )
 
         expected_params = self.osc_params +  self.weight_params + self.other_params
@@ -104,6 +105,7 @@ class gpu(Stage):
         YeM = self.params.YeM.value.m_as('dimensionless')
         prop_height = self.params.prop_height.value.m_as('km')
         detector_depth = self.params.detector_depth.value.m_as('km')
+        bdt_cut = self.params.bdt_cut.value.m_as('dimensionless')
 
         self.osc = Prob3GPU(detector_depth,
                             earth_model,
@@ -135,7 +137,7 @@ class gpu(Stage):
         # Load and copy events
         variables = ['true_energy', 'true_coszen', 'reco_energy', 'reco_coszen',
                     'neutrino_nue_flux', 'neutrino_numu_flux', 'neutrino_oppo_nue_flux',
-                    'neutrino_oppo_numu_flux', 'weighted_aeff', 'pid',
+                    'neutrino_oppo_numu_flux', 'weighted_aeff', 'pid', 'dunkman_L5',
                     'linear_fit_MaCCQE', 'quad_fit_MaCCQE',
                     'linear_fit_MaCCRES', 'quad_fit_MaCCRES',
                     ]

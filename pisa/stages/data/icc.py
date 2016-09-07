@@ -20,6 +20,7 @@ class icc(Stage):
 
         expected_params = (
             'atm_muon_scale',
+            'atmmu_f',
             'icc_bg_file',
             'pid_bound',
             'pid_remove',
