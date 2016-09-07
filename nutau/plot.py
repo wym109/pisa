@@ -43,6 +43,7 @@ for map in template_nominal: map.tex = 'MC'
 
 my_plotter.plot_1d_array(template_nominal, 'reco_coszen', fname='p_coszen')
 my_plotter.plot_1d_array(template_nominal, 'reco_energy', fname='p_energy')
+my_plotter.plot_2d_array(template_nominal, fname='nominal',cmap='PiYG')
 
 if args.data_settings is not None:
 
