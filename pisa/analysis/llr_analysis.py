@@ -127,6 +127,7 @@ class LLRAnalysis(Analysis):
                  data_start_ind=0, fid_data_start_ind=0,
                  alt_hypo_name='alt hypo', null_hypo_name='null hypo',
                  data_name='data', pprint=False, blind=False):
+        print alt_hypo_param_selections, null_hypo_param_selections, data_param_selections
         # Identify duplicate `*_maker` specifications
         self.null_maker_is_alt_maker = False
         if null_hypo_maker is None or null_hypo_maker == alt_hypo_maker:
@@ -182,15 +183,15 @@ class LLRAnalysis(Analysis):
 
         if not isinstance(null_hypo_maker, DistributionMaker):
             if self.null_maker_is_alt_maker:
-                null_hypo_maker = copy(alt_hypo_maker)
+                null_hypo_maker = alt_hypo_maker
             else:
                 null_hypo_maker = DistributionMaker(null_hypo_maker)
 
         if not isinstance(data_maker, DistributionMaker):
             if self.data_maker_is_alt_maker:
-                data_maker = copy(alt_hypo_maker)
+                data_maker = alt_hypo_maker
             elif self.data_maker_is_null_maker:
-                data_maker = copy(null_hypo_maker)
+                data_maker = null_hypo_maker
             else:
                 data_maker = DistributionMaker(data_maker)
 
@@ -218,6 +219,7 @@ class LLRAnalysis(Analysis):
         self.data_maker = data_maker
         self.data_param_selections = data_param_selections
 
+        print alt_hypo_param_selections, null_hypo_param_selections, data_param_selections
         self.metric = metric
         self.fluctuate_data = fluctuate_data
         self.fluctuate_fid_data = fluctuate_fid_data
@@ -598,7 +600,10 @@ if __name__ == '__main__':
 
         ps_name = maker + '_param_selections'
         ps_str = args_d[ps_name]
-        ps_list = [x.strip().lower() for x in ','.split(ps_str)]
+        if ps_str is None:
+            ps_list = None
+        else:
+            ps_list = [x.strip().lower() for x in ps_str.split(',')]
         args_d[ps_name] = ps_list
 
     # Instantiate the analysis object

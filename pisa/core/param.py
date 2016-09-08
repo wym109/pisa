@@ -752,6 +752,7 @@ class ParamSelector(object):
         self.select_params(selections=selections, error_on_missing=False)
 
     def select_params(self, selections=None, error_on_missing=False):
+        print 'selections = %s, type = %s' %(selections, type(selections))
         if selections is None:
             return self.select_params(selections=self._selections,
                                       error_on_missing=error_on_missing)
@@ -763,6 +764,8 @@ class ParamSelector(object):
 
         distilled_selections = []
         for selection in selections:
+            if selection is None:
+                continue
             assert isinstance(selection, basestring)
             selection = selection.strip().lower()
             try:
@@ -774,6 +777,7 @@ class ParamSelector(object):
                     )
                 self._current_params.update(self._selector_params[selection])
             except KeyError:
+                print self._selector_params
                 if error_on_missing:
                     raise
             distilled_selections.append(selection)
@@ -1141,17 +1145,19 @@ def test_ParamSelector():
     p61 = Param(name='g', value=-2, prior=None, range=[-10,10],
                 is_fixed=False, is_discrete=False, tex=r'{\rm b}')
 
-    # Update with a "regular" param
+    # Update with a "regular" param that doesn't exist yet
     param_selector.update(p=p5, selector=None)
     assert params.f.value == 120
 
-    # Update with a "selector" param that's currently selected
+    # Update with a new "selector" param with selector that's currently
+    # selected
     param_selector.update(p=p61, selector='p31_41')
     assert params.g.value == -2
     p = param_selector.get(name='g', selector='p31_41')
     assert p.value == -2
 
-    # Update with a "selector" param that's _not_ currently selected
+    # Update with a new "selector" param with selector that's _not_ currently
+    # selected
     param_selector.update(p=p60, selector='p30_40')
 
     # Selected param value shouldn't have changed

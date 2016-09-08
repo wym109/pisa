@@ -135,8 +135,8 @@ class Pipeline(object):
 
             except:
                 logging.error(
-                    'Failed to initialize stage #%d (%s, service %s).'
-                    %(stage_num, stage_name, stage_name)
+                    'Failed to initialize stage #%d (stage=%s, service=%s).'
+                    %(stage_num, stage_name, service_name)
                 )
                 raise
 
@@ -200,8 +200,21 @@ class Pipeline(object):
     def update_params(self, params):
         [stage.params.update_existing(params) for stage in self]
 
-    def select_params(self, selections):
-        [stage.select_params(selections) for stage in self]
+    def select_params(self, selections, error_on_missing=False):
+        successes = 0
+        for stage in self:
+            try:
+                stage.select_params(selections, error_on_missing=True)
+            except KeyError:
+                pass
+            else:
+                successes += 1
+
+        if error_on_missing and successes == 0:
+            raise KeyError(
+                'None of the selections %s was found in any stage in this'
+                ' pipeline.' %(selections,)
+            )
 
     @property
     def params(self):

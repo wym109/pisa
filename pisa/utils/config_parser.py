@@ -394,7 +394,7 @@ def parse_pipeline_config(config):
                         assert not config.has_option(section,
                                                      '%s.%s' %(fullname, a))
 
-                    param = kw['params'][infodict['pname']]
+                    #param = kw['params'][infodict['pname']]
 
                     break
 
