@@ -514,7 +514,7 @@ class prob3gpu(Stage):
         self.module = pycuda.compiler.SourceModule(
             self.KERNEL_TEMPLATE, include_dirs=[include_path], keep=True
         )
-        if self.calc_transforms:
+        if not self.calc_transforms:
             # We must define self.grid_prop later when we have a coszen
             # value to use
             self.grid_prop = None
