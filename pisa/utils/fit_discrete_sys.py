@@ -23,6 +23,8 @@ parser.add_argument('-t', '--template-settings', type=str,
 parser.add_argument('-f', '--fit-settings', type=str,
                     metavar='configfile', required=True,
                     help='settings for the generation of templates')
+parser.add_argument('-sp', '--set-param', type=str, default='',
+                    help='Set a param to a certain value.')
 parser.add_argument('-p', '--plot', action='store_true',
                     help='plot')
 parser.add_argument('-v', action='count', default=None,
@@ -70,6 +72,18 @@ for sys in sys_list:
     template_maker_settings = from_file(args.template_settings)
     template_maker_configurator = parse_config(template_maker_settings)
     template_maker = Pipeline(template_maker_configurator)
+
+    if not args.set_param == '':
+        p_name,value = args.set_param.split("=")
+        print "p_name,value= ", p_name, " ", value
+        value = parse_quantity(value)
+        value = value.n * value.units
+        print "value ", value
+        test = template_maker.params[p_name]
+        print "test.value = ", test.value
+        test.value = value
+        print "test.value = ", test.value
+        template_maker.update_params(test)
 
     inputs = {}
     for cat in categories:

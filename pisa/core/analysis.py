@@ -211,7 +211,10 @@ class Analysis(object):
 
         # Report status of metric & params
         if self.blind:
+            mod_chi2_val = (self.pseudodata.metric_total(expected_values=template, metric='mod_chi2')
+                + template_maker.params.priors_penalty(metric='mod_chi2'))
             msg = '%s=%.6e | %s blinded parameters' %(self.metric, metric_val, len(self.template_maker.params.free))
+            msg += '        mod_chi2 = %s ' % mod_chi2_val
         else:
             msg = '%s=%.6e | %s' %(self.metric, metric_val,
                                    self.template_maker.params.free)
@@ -431,15 +434,13 @@ if __name__ == '__main__':
         print "p_name,value= ", p_name, " ", value
         value = parse_quantity(value)
         value = value.n * value.units
-        print "value ", value
         test = template_maker.params[p_name]
-        print "test.value = ", test.value
         test.value = value
-        print "test.value = ", test.value
         template_maker.update_params(test)
-        test = data_maker.params[p_name]
-        test.value = value
-        data_maker.update_params(test)
+        if p_name in data_maker.params.names:
+            test = data_maker.params[p_name]
+            test.value = value
+            data_maker.update_params(test)
 
     analysis = Analysis(data_maker=data_maker,
                         template_maker=template_maker,
