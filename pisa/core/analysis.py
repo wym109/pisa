@@ -6,6 +6,7 @@ from collections import Sequence
 import sys
 import scipy.optimize as opt
 import time
+from uncertainties import unumpy as unp
 
 from pisa.core.distribution_maker import DistributionMaker
 from pisa.utils.fileio import from_file
@@ -78,6 +79,7 @@ class Analysis(object):
             self.pseudodata = self.data.fluctuate('poisson')
         else:
             raise Exception('unknown method %s'%method)
+        self.N_data = sum([unp.nominal_values(map.hist).sum() for map in self.pseudodata])
 
     # TODO: move the complexity of defining a scan into a class with various
     # factory methods, and just pass that class to the scan method; we will
@@ -196,11 +198,14 @@ class Analysis(object):
         self.template_maker.params.free._rescaled_values = scaled_param_vals
 
         template = self.template_maker.get_outputs()
+        N_mc = sum([unp.nominal_values(map.hist).sum() for map in template])
+        scale = self.N_data/N_mc
+        scale=1.
 
         # Assess the fit of the template to the data distribution, and negate
         # if necessary
         metric_val = (
-            self.pseudodata.metric_total(expected_values=template, metric=self.metric)
+            self.pseudodata.metric_total(expected_values=template*scale, metric=self.metric)
             + template_maker.params.priors_penalty(metric=self.metric)
         )
 
