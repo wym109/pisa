@@ -719,7 +719,7 @@ class vbwkde(Stage):
             cz_kde_max = +2
 
             # Adjust range of kde for future axis scaling
-            cz_factor = self.params.cz_res_scale.value
+            cz_factor = self.params.cz_res_scale.value.m
 
             low_lim_shift = cz_kde_min * (cz_factor - 1)
             upp_lim_shift = cz_kde_max * (cz_factor - 1)
@@ -743,8 +743,8 @@ class vbwkde(Stage):
                     cz_bw, cz_mesh, cz_pdf = kde.vbw_kde(
                         data           = cz_err,
                         overfit_factor = OVERFIT_FACTOR,
-                        MIN            = cz_kde_min_ext.m,
-                        MAX            = cz_kde_max_ext.m,
+                        MIN            = cz_kde_min_ext,
+                        MAX            = cz_kde_max_ext,
                         N              = N_cz_mesh_ext 
                     )
                 except:
