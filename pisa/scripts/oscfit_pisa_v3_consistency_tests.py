@@ -12,6 +12,7 @@ from argparse import ArgumentParser
 from copy import deepcopy
 import os
 
+from pisa import ureg, Q_
 from pisa.core.pipeline import Pipeline
 from pisa.core.map import MapSet
 from pisa.utils.fileio import from_file
@@ -121,6 +122,57 @@ def compare_baseline(config, testname, outdir, oscfitfile):
     return pipeline
 
 
+def compare_systematics(baseline_oscfit, config, testname, outdir, oscfitfile):
+    """
+    Compare systematic variations of PISA 3 and OscFit.
+    """
+    logging.debug('>> Working on systematic comparisons between both fitters.')
+    logging.debug('>>> Doing %s test.'%testname)
+    baseline_comparisons = from_file(baseline_oscfit)
+    systematic_comparisons = from_file(oscfitfile)
+    ref_abv='OscFit'
+
+    pipeline = Pipeline(config)
+    outputs = pipeline.get_outputs()
+
+    for nukey in systematic_comparisons.keys():
+
+        systematic_map_to_plot = systematic_comparisons[nukey]
+        systematic_map_to_plot['map'] = systematic_map_to_plot['map'] + baseline_comparisons[nukey]['map']
+
+        try:
+            cake_map = outputs[nukey]
+            texname = outputs[nukey].tex
+        except:
+            cake_map = outputs.combine_wildcard('*_%s'%nukey)
+            if nukey == 'trck':
+                texname = r'\rm{trck}'
+            elif nukey == 'cscd':
+                texname = r'\rm{cscd}'
+        cake_map_to_plot = {}
+        cake_map_to_plot['ebins'] = \
+                cake_map.binning['reco_energy'].bin_edges.magnitude
+        cake_map_to_plot['czbins'] = \
+                cake_map.binning['reco_coszen'].bin_edges.magnitude
+        cake_map_to_plot['map'] = cake_map.hist
+
+        max_diff_ratio, max_diff = plot_comparisons(
+            ref_map=systematic_map_to_plot,
+            new_map=cake_map_to_plot,
+            ref_abv=ref_abv, new_abv='PISAV3',
+            outdir=outdir,
+            subdir='oscfit',
+            stagename=testname,
+            servicename='systematic',
+            name=nukey,
+            texname=texname)
+
+        print_agreement(testname='OscFit-V3:%s %s'%(testname, nukey),
+                        ratio=max_diff_ratio)
+
+    return pipeline
+
+
 if __name__ == '__main__':
     parser = ArgumentParser(
         description='''Run a set of tests on the PISA 3 pipeline against
@@ -131,6 +183,13 @@ if __name__ == '__main__':
                         help='''Run baseline tests i.e. the output of PISA 3
                         event by event and OscFit with a set of parameters
                         agreed upon before the tests were started.''')
+    parser.add_argument('--continuous_systematics', action='store_true', 
+                        default=False,
+                        help='''Run continuous systematics tests i.e. the 
+                        output of PISA 3 event by event and OscFit with 
+                        variations on the NOT discrete systematics. The 
+                        fiducial model was agreed upon before the tests were 
+                        started.''')
     parser.add_argument('--outdir', metavar='DIR', type=str, required=True,
                         help='''Store all output plots to this directory. If
                         they don't exist, the script will make them, including
@@ -156,7 +215,7 @@ if __name__ == '__main__':
 
     # Figure out which tests to do
     test_all = True
-    if args.baseline:
+    if args.baseline or args.continuous_systematics:
         test_all = False
 
     # Perform baseline tests
@@ -205,4 +264,67 @@ if __name__ == '__main__':
             outdir=args.outdir,
             testname='standard'
         )
+    
+    # Perform continuous systematic tests
+    if args.continuous_systematics or test_all:
+        pisa3_settings = os.path.join(
+            'tests', 'settings', 'oscfit_fullmc_test.ini'
+        )
+        pisa3_config = parse_pipeline_config(pisa3_settings)
+        # Define names and variations of systematics expected
+        # Names are different between PISA and OscFit in some cases
+        continuous_systematics = {'Genie_Ma_QE': 'axm_qe',
+                                  'Genie_Ma_RES': 'axm_res',
+                                  'deltam31': 'dm31',
+                                  'theta13': 'theta13',
+                                  'theta23': 'theta23',
+                                  'delta_index': 'gamma',
+                                  'nutau_cc_norm': 'norm_tau',
+                                  'nu_nc_norm': 'norm_nc',
+                                  'nue_numu_ratio': 'norm_e',
+                                  'aeff_scale': 'norm_nu'}
+        variations = {'Genie_Ma_RES': 1.0,
+                      'Genie_Ma_QE' : 1.0,
+                      'deltam31': 0.2e-3*ureg.eV**2,
+                      'theta13': 0.008 * ureg.rad,
+                      'theta23': 0.1 * ureg.rad,
+                      'delta_index': 0.1,
+                      'nutau_cc_norm': 0.5,
+                      'nu_nc_norm': 0.2,
+                      'nue_numu_ratio': 0.05,
+                      'aeff_scale': 0.12}
+        texnames = {'Genie_Ma_QE': 'Genie-Ma-QE',
+                    'Genie_Ma_RES': 'Genie-Ma-RES',
+                    'deltam31': 'dm31',
+                    'theta13': 'theta13',
+                    'theta23': 'theta23',
+                    'delta_index': 'delta-index',
+                    'nutau_cc_norm': 'nutau-cc-norm',
+                    'nu_nc_norm': 'nu-nc-norm',
+                    'nue_numu_ratio': 'nue-numu-ratio',
+                    'aeff_scale': 'aeff-scale'}
+        baseline_oscfitfile = os.path.join(
+            'tests', 'data', 'oscfit', 'OscFit1X600Baseline.json'
+        )
+        baseline_oscfitfile = find_resource(baseline_oscfitfile)
+        for sys in continuous_systematics.keys():
+            config_to_modify = deepcopy(pisa3_config)
+            # Need the set of params so we can modify them
+            k = [k for k in config_to_modify.keys() if k[0] == 'mc'][0]
+            params = config_to_modify[k]['params'].params
+            params[sys] = params[sys].value + variations[sys]
+            
+            oscfitfile = os.path.join(
+                'tests', 'data', 'oscfit', 
+                'OscFit1X600Diff%s.json'%continuous_systematics[sys]
+            )
+            oscfitfile = find_resource(oscfitfile)
+            pisa3_pipeline = compare_systematics(
+                baseline_oscfit=baseline_oscfitfile,
+                config=deepcopy(config_to_modify),
+                oscfitfile=oscfitfile,
+                outdir=args.outdir,
+                testname='%s'%texnames[sys]
+            )
+    
         
