@@ -832,7 +832,10 @@ class ParamSelector(object):
     def get(self, name, selector=None):
         if selector is None:
             return self._regular_params[name]
-        return self._selector_params[selector][name]
+        try:
+            return self._selector_params[selector][name]
+        except KeyError:
+            return self._regular_params[name]
 
 
 def test_Param():
