@@ -301,12 +301,12 @@ class LLRAnalysis(Analysis):
 
         # Retrieve event-rate maps for best fit to data with each hypo
         self.alt_hypo_maker.select_params(self.alt_hypo_param_selections)
-        self.alt_hypo_maker.params.free = \
+        self.alt_hypo_maker.params.free.values = \
                 self.alt_hypo_fit_to_data['params'].free.values
         self.alt_fid_asimov_data = self.alt_hypo_maker.get_outputs()
 
         self.null_hypo_maker.select_params(self.null_hypo_param_selections)
-        self.null_hypo_maker.params.free = \
+        self.null_hypo_maker.params.free.values = \
                 self.null_hypo_fit_to_data['params'].free.values
         self.null_fid_asimov_data = self.null_hypo_maker.get_outputs()
 
@@ -344,10 +344,25 @@ class LLRAnalysis(Analysis):
         return self.alt_fid_data, self.null_fid_data
 
     def run_analysis(self):
+        logging.info('Running LLR analysis.')
+        data_label = 'pseudodata' if self.fluctuate_data else 'Asimov or true data'
+        fid_data_label = 'fiducial pseudodata' if self.fluctuate_data else 'fiducial Asimov data'
+
+
         # Loop for multiple (fluctuated) data distributions
         for self.data_ind in xrange(self.data_start_ind,
                                     self.data_start_ind
                                     + self.num_data_trials):
+            pct_data_complete = (
+                (self.data_ind - self.data_start_ind) / self.num_data_trials
+            )
+            logging.info(
+                r'%s set ID %d (will stop after %d). %0.2f%s of %s sets'
+                ' completed.' %(data_label, self.data_ind,
+                self.data_start_ind+self.num_data_trials-1, pct_data_complete,
+                '%', data_label)
+            )
+
             # Produce a data distribution
             self.generate_data()
 
@@ -355,6 +370,17 @@ class LLRAnalysis(Analysis):
             for self.fid_data_ind in xrange(self.fid_data_start_ind,
                                             self.fid_data_start_ind
                                             + self.num_fid_data_trials):
+                pct_fid_data_complete = (
+                    (self.fid_data_ind - self.fid_data_start_ind)
+                    / self.num_fid_data_trials
+                )
+                logging.info(
+                    r'%s set ID %d (will stop after %d). %0.2f%s of %s sets'
+                    ' completed.' %(fid_data_label, self.fid_data_ind,
+                    self.fid_data_start_ind+self.num_fid_data_trials-1,
+                    pct_fid_data_complete, '%', fid_data_label)
+                )
+
                 # Fit hypotheses to data and produce fiducial data
                 # distributions from *each* of the hypotheses' best fits
                 # (i.e., two fits are performed here)

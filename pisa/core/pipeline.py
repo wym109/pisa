@@ -173,8 +173,8 @@ class Pipeline(object):
         if idx is not None and idx <= 0:
             raise ValueError('Integer `idx` must be > 0')
         for stage in self.stages[:idx]:
-            logging.info('>> Working on stage "%s" service "%s"'
-                         %(stage.stage_name, stage.service_name))
+            logging.debug('>> Working on stage "%s" service "%s"'
+                          %(stage.stage_name, stage.service_name))
             try:
                 logging.trace('>>> BEGIN: get_outputs')
                 outputs = stage.get_outputs(inputs=inputs)

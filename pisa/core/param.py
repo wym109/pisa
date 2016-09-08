@@ -131,11 +131,11 @@ class Param(object):
     def validate_value(self, value):
         if self.range is not None:
             if self.is_discrete:
-                assert value in self.range, str(value) + ' ' + str(self.range)
+                assert value in self.range, 'value=%s ; range=%s' \
+                        %(value, self.range)
             else:
-                assert value >= min(self.range) and \
-                        value <= max(self.range), \
-                        'value=' + str(value) + '; range=' + str(self.range)
+                assert value >= min(self.range) and value <= max(self.range), \
+                        'value=%s ; range=%s' %(value, self.range)
 
     @property
     def value(self):

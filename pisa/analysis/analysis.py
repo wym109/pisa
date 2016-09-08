@@ -264,8 +264,8 @@ class Analysis(object):
             epsilon = minimizer_kind['epsilon']
         bounds = [(0+epsilon, 1-epsilon)]*len(x0)
 
-        logging.info('Running the %s minimizer.'
-                     %minimizer_settings['method']['value'])
+        logging.debug('Running the %s minimizer.'
+                      %minimizer_settings['method']['value'])
 
         # Using scipy.optimize.minimize allows a whole host of minimisers to be
         # used.

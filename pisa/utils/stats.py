@@ -16,14 +16,15 @@ SMALL_POS = 1e-10
 
 
 def maperror_logmsg(m):
-    msg = ''
-    msg += '    min val : %s\n' %np.nanmin(m)
-    msg += '    max val : %s\n' %np.nanmax(m)
-    msg += '    mean val: %s\n' %np.nanmean(m)
-    msg += '    num < 0 : %s\n' %np.sum(m < 0)
-    msg += '    num == 0: %s\n' %np.sum(m == 0)
-    msg += '    num > 0 : %s\n' %np.sum(m > 0)
-    msg += '    num nan : %s\n' %np.sum(np.isnan(m))
+    with np.errstate(invalid='ignore'):
+        msg = ''
+        msg += '    min val : %s\n' %np.nanmin(m)
+        msg += '    max val : %s\n' %np.nanmax(m)
+        msg += '    mean val: %s\n' %np.nanmean(m)
+        msg += '    num < 0 : %s\n' %np.sum(m < 0)
+        msg += '    num == 0: %s\n' %np.sum(m == 0)
+        msg += '    num > 0 : %s\n' %np.sum(m > 0)
+        msg += '    num nan : %s\n' %np.sum(np.isnan(m))
     return msg
 
 
@@ -104,29 +105,31 @@ def llh(actual_values, expected_values):
     if not isbarenumeric(expected_values):
         expected_values = unp.nominal_values(expected_values)
 
-    # Mask off any nan expected values (these are assumed to be ok)
-    actual_values = np.ma.masked_invalid(actual_values)
+    with np.errstate(invalid='ignore'):
+        # Mask off any nan expected values (these are assumed to be ok)
+        actual_values = np.ma.masked_invalid(actual_values)
+        expected_values = np.ma.masked_invalid(expected_values)
 
-    # Check that new array contains all valid entries
-    if not np.all(actual_values >= 0.0):
-        msg = '`actual_values` must all be >= 0...\n' \
-                + maperror_logmsg(actual_values)
-        raise ValueError(msg)
+        # Check that new array contains all valid entries
+        if not np.all(actual_values >= 0.0):
+            msg = '`actual_values` must all be >= 0...\n' \
+                    + maperror_logmsg(actual_values)
+            raise ValueError(msg)
 
-    ## Make sure actual values (aka "data") are valid -- no infs, no nans, etc.
-    #if not np.all((actual_values < 0) | ~np.isfinite(actual_values)):
-    #    msg = '`actual_values` must be >= 0 and neither inf nor nan...\n' \
-    #            + maperror_logmsg(actual_values)
-    #    raise ValueError(msg)
+        # TODO: How should we handle nan / masked values in the "data"
+        # (actual_values) distribution? How about negative numbers?
 
-    # Mask off any nan expected values (these are assumed to be ok)
-    expected_values = np.ma.masked_invalid(expected_values)
+        ## Make sure actual values (aka "data") are valid -- no infs, no nans, etc.
+        #if not np.all((actual_values < 0) | ~np.isfinite(actual_values)):
+        #    msg = '`actual_values` must be >= 0 and neither inf nor nan...\n' \
+        #            + maperror_logmsg(actual_values)
+        #    raise ValueError(msg)
 
-    # Check that new array contains all valid entries
-    if not np.all(expected_values >= 0.0):
-        msg = '`expected_values` must all be >= 0...\n' \
-                + maperror_logmsg(expected_values)
-        raise ValueError(msg)
+        # Check that new array contains all valid entries
+        if not np.all(expected_values >= 0.0):
+            msg = '`expected_values` must all be >= 0...\n' \
+                    + maperror_logmsg(expected_values)
+            raise ValueError(msg)
 
     # replace 0's with small positive numbers to avoid inf in log
     np.clip(expected_values, a_min=SMALL_POS, a_max=np.inf, out=expected_values)
