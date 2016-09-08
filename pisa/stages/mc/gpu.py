@@ -8,15 +8,16 @@ import pycuda.autoinit
 
 from pisa import ureg, Q_
 from pisa.core.stage import Stage
-from pisa.stages.osc.prob3gpu import Prob3GPU
+from pisa.core.param import ParamSet
+from pisa.core.events import Events
+from pisa.core.binning import OneDimBinning, MultiDimBinning
+from pisa.core.map import Map, MapSet
+from pisa.stages.osc.prob3gpu import prob3gpu
 from pisa.stages.mc.GPUweight import GPUweight
 from pisa.utils.GPUhist import GPUhist
 from pisa.utils.log import logging
 from pisa.utils.resources import find_resource
 from pisa.utils.const import FTYPE
-from pisa.core.events import Events
-from pisa.core.binning import OneDimBinning, MultiDimBinning
-from pisa.core.map import Map, MapSet
 from pisa.utils.log import logging
 from pisa.utils.comparisons import normQuant
 from pisa.utils.hash import hash_obj
@@ -73,7 +74,8 @@ class gpu(Stage):
             'nutau_cc_norm',
             'reco_e_res_raw',
             'reco_e_scale_raw',
-            'reco_cz_res_raw'
+            'reco_cz_res_raw',
+            'bdt_cut'
         )
 
         expected_params = (self.osc_params + self.weight_params +
@@ -101,20 +103,15 @@ class gpu(Stage):
         self.osc_hash = None
         self.weight_hash = None
 
-        # initialize classes
-        earth_model = find_resource(self.params.earth_model.value)
-        YeI = self.params.YeI.m_as('dimensionless')
-        YeO = self.params.YeO.m_as('dimensionless')
-        YeM = self.params.YeM.m_as('dimensionless')
-        prop_height = self.params.prop_height.m_as('km')
-        detector_depth = self.params.detector_depth.m_as('km')
-
-        self.osc = Prob3GPU(detector_depth,
-                            earth_model,
-                            prop_height,
-                            YeI,
-                            YeO,
-                            YeM)
+        osc_params_subset = []
+        for param in self.params:
+            if param.name in self.osc_params:
+                osc_params_subset.append(param)
+        osc_params_subset = ParamSet(osc_params_subset)
+ 
+        self.osc = prob3gpu(params=osc_params_subset, 
+                            input_binning=None, 
+                            output_binning=None)
 
         self.weight = GPUweight()
 
@@ -137,14 +134,12 @@ class gpu(Stage):
         evts = Events(self.params.events_file.value)
 
         # Load and copy events
-
-        variables = ['true_energy', 'true_coszen', 'reco_energy',
-                     'reco_coszen', 'neutrino_nue_flux', 'neutrino_numu_flux',
+        variables = ['true_energy', 'true_coszen', 'reco_energy', 'reco_coszen',
+                     'neutrino_nue_flux', 'neutrino_numu_flux',
                      'neutrino_oppo_nue_flux', 'neutrino_oppo_numu_flux',
-                     'weighted_aeff', 'pid', 'linear_fit_MaCCQE',
-                     'quad_fit_MaCCQE', 'linear_fit_MaCCRES',
-                     'quad_fit_MaCCRES', ]
-
+                     'weighted_aeff', 'pid', 'dunkman_L5',
+                     'linear_fit_MaCCQE', 'quad_fit_MaCCQE',
+                     'linear_fit_MaCCRES', 'quad_fit_MaCCRES']
         # to allocate empty arrays on GPU
         empty = ['prob_e', 'prob_mu', 'weight_trck', 'weight_cscd']
         if self.error_method == 'sumw2':
@@ -157,6 +152,16 @@ class gpu(Stage):
 
         kFlavs = [0, 1, 2] * 4
         kNuBars = [1] *6 + [-1] * 6
+
+        # only keep events using bdt_score > bdt_cut
+        for flav, kFlav, kNuBar in zip(self.flavs, kFlavs, kNuBars):
+            l5_bdt_score = evts[flav]['dunkman_L5'].astype(FTYPE)
+            cut = l5_bdt_score >= bdt_cut
+            for var in variables:
+                try:
+                    evts[flav][var] = evts[flav][var][cut]
+                except KeyError:
+                    evts[flav][var] = np.ones_like(evts[flav]['true_energy'])
 
         logging.info('read in events and copy to GPU')
         start_t = time.time()
