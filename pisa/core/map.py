@@ -74,6 +74,9 @@ def sanitize_name(name):
 # TODO: implement strategies for decreasing dimensionality (i.e.
 # projecting map onto subset of dimensions in the original map)
 
+# TODO: Should all calls to np.<...> be replaced with unp.<...> as is done for
+# unp.sqrt below?
+
 class Map(object):
     """Class to contain a multi-dimensional histogram, error, and metadata
     about the histogram. Also provides basic mathematical operations for the
