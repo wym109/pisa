@@ -58,7 +58,7 @@ class Analysis(object):
     def compare_hypos(self, data,
                       alt_hypo_maker, alt_hypo_param_selections,
                       null_hypo_maker, null_hypo_param_selections,
-                      metric, minimizer_settings, blind=False):
+                      metric, minimizer_settings, pprint=False, blind=False):
         """
         Parameters
         ----------
@@ -76,6 +76,10 @@ class Analysis(object):
 
         minimizer_settings : string
 
+        pprint : bool
+
+        blind : bool
+
 
         Returns
         -------
@@ -88,6 +92,7 @@ class Analysis(object):
             param_selections=alt_hypo_param_selections,
             metric=metric,
             minimizer_settings=minimizer_settings,
+            pprint=pprint,
             blind=blind
         )
 
@@ -97,6 +102,7 @@ class Analysis(object):
             param_selections=null_hypo_param_selections,
             metric=metric,
             minimizer_settings=minimizer_settings,
+            pprint=pprint,
             blind=blind
         )
 
@@ -104,8 +110,10 @@ class Analysis(object):
 
         return delta_metric, alt_hypo_fit, null_hypo_fit
 
+    # TODO: merge this into fit_template_outer
     def fit_hypo(self, data, hypo_maker, param_selections, metric,
-                 minimizer_settings, blind=False):
+                 minimizer_settings, check_octant=True, pprint=False,
+                 blind=False):
         """
         Parameters
         ----------
@@ -118,6 +126,10 @@ class Analysis(object):
         metric : None or string
 
         minimizer_settings : string
+
+        check_octant : bool
+
+        pprint : bool
 
         blind : bool
 
@@ -133,8 +145,8 @@ class Analysis(object):
             template_maker=hypo_maker,
             metric=metric,
             minimizer_settings=minimizer_settings,
-            check_octant=True,
-            pprint=True,
+            check_octant=check_octant,
+            pprint=pprint,
             blind=blind
         )
         return fit_info
@@ -295,6 +307,9 @@ class Analysis(object):
         rescaled_pvals = optimize_result.pop('x')
         template_maker.params.free._rescaled_values = rescaled_pvals
 
+        # Record the output maps with the optimal param values
+        maps = template_maker.get_outputs()
+
         # Get the best-fit metric value
         metric_val = optimize_result.pop('fun')
 
@@ -309,6 +324,7 @@ class Analysis(object):
         info = OrderedDict()
         info['metric'] = metric
         info['metric_val'] = metric_val
+        info['maps'] = maps
         if blind:
             template_maker.params.reset_free()
         else:
@@ -397,7 +413,7 @@ class Analysis(object):
 
         # Report status of metric & params (except if blinded)
         if blind:
-            msg = 'minimizer iteration #%7d' %counter
+            msg = 'minimizer iteration #%7d' %counter.count
         else:
             msg = '%s=%.6e | %s' %(metric, metric_val, template_maker.params.free)
 
@@ -406,7 +422,7 @@ class Analysis(object):
             sys.stdout.flush()
             sys.stdout.write('\b' * len(msg))
         else:
-            logging.debug(msg)
+            logging.trace(msg)
 
         counter += 1
 

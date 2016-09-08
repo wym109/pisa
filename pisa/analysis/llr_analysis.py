@@ -71,6 +71,10 @@ class LLRAnalysis(Analysis):
 
     data_name : string
 
+    pprint : bool
+
+    blind : bool
+
 
     Notes
     -----
@@ -122,7 +126,7 @@ class LLRAnalysis(Analysis):
                  num_data_trials=1, num_fid_data_trials=1,
                  data_start_ind=0, fid_data_start_ind=0,
                  alt_hypo_name='alt hypo', null_hypo_name='null hypo',
-                 data_name='data'):
+                 data_name='data', pprint=False, blind=False):
         # Identify duplicate `*_maker` specifications
         self.null_maker_is_alt_maker = False
         if null_hypo_maker is None or null_hypo_maker == alt_hypo_maker:
@@ -227,6 +231,9 @@ class LLRAnalysis(Analysis):
         self.null_hypo_name = null_hypo_name
         self.data_name = data_name
 
+        self.pprint = pprint
+        self.blind = blind
+
         # Storage for most recent Asimov (unfluctuated) data
         self.asimov_data = None
         self.alt_fid_asimov_data = None
@@ -266,7 +273,9 @@ class LLRAnalysis(Analysis):
             null_hypo_maker=self.null_hypo_maker,
             null_hypo_param_selections=self.null_hypo_param_selections,
             metric=self.metric,
-            minimizer_settings=self.minimizer_settings
+            minimizer_settings=self.minimizer_settings,
+            pprint=self.pprint,
+            blind=self.blind
         )
 
     def generate_data(self):
@@ -300,15 +309,8 @@ class LLRAnalysis(Analysis):
          self.null_hypo_fit_to_data) = self.compare_hypos(data=self.data)
 
         # Retrieve event-rate maps for best fit to data with each hypo
-        self.alt_hypo_maker.select_params(self.alt_hypo_param_selections)
-        self.alt_hypo_maker.params.free.values = \
-                self.alt_hypo_fit_to_data['params'].free.values
-        self.alt_fid_asimov_data = self.alt_hypo_maker.get_outputs()
-
-        self.null_hypo_maker.select_params(self.null_hypo_param_selections)
-        self.null_hypo_maker.params.free.values = \
-                self.null_hypo_fit_to_data['params'].free.values
-        self.null_fid_asimov_data = self.null_hypo_maker.get_outputs()
+        self.alt_fid_asimov_data = self.alt_hypo_fit_to_data['maps']
+        self.null_fid_asimov_data = self.null_hypo_fit_to_data['maps']
 
         if self.fluctuate_fid_data:
             # Random state for data trials is defined by:
@@ -537,6 +539,18 @@ def parse_args():
         if the analysis is divided and run in separate processes, whereby only
         after all processes are run should post-processing be performed
         (once).'''
+    )
+    parser.add_argument(
+        '--pprint',
+        action='store_true',
+        help='''Live-updating one-line vew of metric and parameter values. (The
+        latter are not displayed if --blind is specified.)'''
+    )
+    parser.add_argument(
+        '--blind',
+        action='store_true',
+        help='''Blinded analysis. Do not show parameter values or store to
+        logfiles.'''
     )
     parser.add_argument(
         '-v', action='count', default=None,
