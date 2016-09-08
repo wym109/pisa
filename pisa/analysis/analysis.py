@@ -7,6 +7,8 @@ Common tools for performing an analysis collected into a single class
 
 """
 
+from collections import OrderedDict
+from copy import deepcopy
 import sys
 import time
 
@@ -98,7 +100,7 @@ class Analysis(object):
             blind=blind
         )
 
-        delta_metric = alt_hypo_fit.metric - null_hypo_fit.metric
+        delta_metric = alt_hypo_fit['metric_val'] - null_hypo_fit['metric_val']
 
         return delta_metric, alt_hypo_fit, null_hypo_fit
 
@@ -272,7 +274,7 @@ class Analysis(object):
         optimize_result = optimize.minimize(
             fun=self._minimizer_callable,
             x0=x0,
-            args=(template_maker, data, metric, counter, pprint),
+            args=(template_maker, data, metric, counter, pprint, blind),
             bounds=bounds,
             method = minimizer_settings['method']['value'],
             options = minimizer_settings['options']['value']
@@ -291,7 +293,7 @@ class Analysis(object):
         # minimized state, so set the values now (also does conversion of
         # values from [0,1] back to physical range)
         rescaled_pvals = optimize_result.pop('x')
-        template_maker.params._rescaled_values = rescaled_pvals
+        template_maker.params.free._rescaled_values = rescaled_pvals
 
         # Get the best-fit metric value
         metric_val = optimize_result.pop('fun')
@@ -316,7 +318,7 @@ class Analysis(object):
         return info
 
     def _minimizer_callable(self, scaled_param_vals, template_maker, data,
-                            metric, counter, pprint):
+                            metric, counter, pprint, blind):
         """Simple callback for use by scipy.optimize minimizers.
 
         This should *not* in general be called by users, as `scaled_param_vals`
@@ -354,6 +356,8 @@ class Analysis(object):
             Displays a single-line that updates live (assuming the entire line
             fits the width of your TTY).
 
+        blind : bool
+
         """
         # Want to *maximize* e.g. log-likelihood but we're using a minimizer,
         # so flip sign of metric in those cases.
@@ -363,13 +367,30 @@ class Analysis(object):
         template_maker.params.free._rescaled_values = scaled_param_vals
 
         # Get the template map set
-        template = template_maker.get_outputs()
+        try:
+            template = template_maker.get_outputs()
+        except:
+            if not blind:
+                logging.error(
+                    'Failed when generating template with free params %s'
+                    %template_maker.params.free
+                )
+            raise
 
         # Assess the fit: whether the data came from the template
-        metric_val = (
-            data.metric_total(expected_values=template, metric=metric)
-            + template_maker.params.priors_penalty(metric=metric)
-        )
+        try:
+            metric_val = (
+                data.metric_total(expected_values=template, metric=metric)
+                + template_maker.params.priors_penalty(metric=metric)
+            )
+        except:
+            if not blind:
+                logging.error(
+                    'Failed when computing metric with free params %s'
+                    %template_maker.params.free
+                )
+            raise
+
 
         # TODO: make this into a header line with param names and values
         # beneath updated, to save horizontal space (and easier to read/follow)

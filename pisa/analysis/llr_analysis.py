@@ -300,8 +300,15 @@ class LLRAnalysis(Analysis):
          self.null_hypo_fit_to_data) = self.compare_hypos(data=self.data)
 
         # Retrieve event-rate maps for best fit to data with each hypo
-        self.alt_fid_asimov_data = self.alt_hypo_fit_to_data.maps
-        self.fid_null_asimov_data = self.null_hypo_fit_to_data.maps
+        self.alt_hypo_maker.select_params(self.alt_hypo_param_selections)
+        self.alt_hypo_maker.params.free = \
+                self.alt_hypo_fit_to_data['params'].free.values
+        self.alt_fid_asimov_data = self.alt_hypo_maker.get_outputs()
+
+        self.null_hypo_maker.select_params(self.null_hypo_param_selections)
+        self.null_hypo_maker.params.free = \
+                self.null_hypo_fit_to_data['params'].free.values
+        self.null_fid_asimov_data = self.null_hypo_maker.get_outputs()
 
         if self.fluctuate_fid_data:
             # Random state for data trials is defined by:
