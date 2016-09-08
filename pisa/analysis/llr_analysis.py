@@ -570,7 +570,7 @@ def normcheckpath(path, checkdir=False):
         kind = 'file'
         check = os.path.isfile
 
-    if not check(path):
+    if not check(normpath):
         raise IOError('Path "%s" which resolves to "%s" is not a %s.'
                       %(path, normpath, kind))
     return normpath
