@@ -200,7 +200,7 @@ def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
         # Then find the nanmax of this, will be our new test value
         max_diff_ratio = np.nanmax(diff_ratio_map['map'][FiniteMap])
         # Also find all the infinite elements
-        InfiniteMap = not FiniteMap
+        InfiniteMap = np.logical_not(FiniteMap)
         # This will be a second test value
         max_diff = np.nanmax(diff_map['map'][InfiniteMap])
     else:
