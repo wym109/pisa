@@ -752,7 +752,6 @@ class ParamSelector(object):
         self.select_params(selections=selections, error_on_missing=False)
 
     def select_params(self, selections=None, error_on_missing=False):
-        print 'selections = %s, type = %s' %(selections, type(selections))
         if selections is None:
             return self.select_params(selections=self._selections,
                                       error_on_missing=error_on_missing)
@@ -777,7 +776,6 @@ class ParamSelector(object):
                     )
                 self._current_params.update(self._selector_params[selection])
             except KeyError:
-                print self._selector_params
                 if error_on_missing:
                     raise
             distilled_selections.append(selection)

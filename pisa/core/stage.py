@@ -223,12 +223,6 @@ class Stage(object):
         param_selector_keys = set([
             'regular_params', 'selector_param_sets', 'selections'
         ])
-        print ''
-        print 'params =', params
-        print '_selector_params =', params._selector_params
-        print '_regular_params =', params._regular_params
-        print '_selections =', params._selections
-        print ''
         if isinstance(params, Mapping) \
                 and set(params.keys()) == param_selector_keys:
             self._param_selector = ParamSelector(**params)
@@ -243,12 +237,6 @@ class Stage(object):
         self._check_params(p)
         self.validate_params(p)
         self._params = p
-        #print ''
-        #print 'self.params =', self.params
-        #print '_selector_params =', self._param_selector._selector_params
-        #print '_regular_params =', self._param_selector._regular_params
-        #print '_selections =', self._param_selector._selections
-        #print ''
 
         if bool(debug_mode) == False:
             self._debug_mode = None
@@ -629,7 +617,6 @@ class Stage(object):
                 #logging.error(msg)
                 raise
             logging.trace(msg)
-            print msg
         else:
             logging.trace('`selections` = %s yielded `params` = %s'
                           %(selections, self.params))

@@ -172,6 +172,7 @@ class Pipeline(object):
             idx = self.stage_names.index(idx) + 1
         if idx is not None and idx <= 0:
             raise ValueError('Integer `idx` must be > 0')
+        assert len(self) > 0
         for stage in self.stages[:idx]:
             logging.debug('>> Working on stage "%s" service "%s"'
                           %(stage.stage_name, stage.service_name))

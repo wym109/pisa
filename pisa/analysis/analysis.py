@@ -60,6 +60,12 @@ class Analysis(object):
                       null_hypo_maker, null_hypo_param_selections,
                       metric, minimizer_settings, pprint=False, blind=False):
         """
+        Compare how well `data` is described by each of two hypotheses: the
+        alternative hypothesis (alt_hypo) and the null hypothesis (null_hypo).
+
+        Each hypothesis is represented by a distribtuion maker
+
+
         Parameters
         ----------
         data : MapSet

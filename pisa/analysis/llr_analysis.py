@@ -51,6 +51,8 @@ class LLRAnalysis(Analysis):
 
     data_param_selections : None, string, or sequence of strings
 
+    check_other_octant : bool
+
     metric : string
 
     fluctuate_data : bool
@@ -122,12 +124,12 @@ class LLRAnalysis(Analysis):
                  alt_hypo_maker, alt_hypo_param_selections=None,
                  null_hypo_maker=None, null_hypo_param_selections=None,
                  data_maker=None, data_param_selections=None,
+                 check_other_octant=True,
                  metric='llh', fluctuate_data=False, fluctuate_fid_data=False,
                  num_data_trials=1, num_fid_data_trials=1,
                  data_start_ind=0, fid_data_start_ind=0,
                  alt_hypo_name='alt hypo', null_hypo_name='null hypo',
                  data_name='data', pprint=False, blind=False):
-        print alt_hypo_param_selections, null_hypo_param_selections, data_param_selections
         # Identify duplicate `*_maker` specifications
         self.null_maker_is_alt_maker = False
         if null_hypo_maker is None or null_hypo_maker == alt_hypo_maker:
@@ -219,7 +221,6 @@ class LLRAnalysis(Analysis):
         self.data_maker = data_maker
         self.data_param_selections = data_param_selections
 
-        print alt_hypo_param_selections, null_hypo_param_selections, data_param_selections
         self.metric = metric
         self.fluctuate_data = fluctuate_data
         self.fluctuate_fid_data = fluctuate_fid_data
@@ -251,6 +252,68 @@ class LLRAnalysis(Analysis):
         # Counters
         self.data_ind = data_start_ind
         self.fid_data_ind = fid_data_start_ind
+
+    def run_analysis(self):
+        """Run the LLR analysis."""
+
+        logging.info('Running LLR analysis.')
+        data_label = 'pseudodata' if self.fluctuate_data \
+                else 'Asimov or true data'
+        fid_data_label = 'fiducial pseudodata' if self.fluctuate_data \
+                else 'fiducial Asimov data'
+
+        # Loop for multiple (if fluctuated) data distributions
+        for self.data_ind in xrange(self.data_start_ind,
+                                    self.data_start_ind
+                                    + self.num_data_trials):
+            pct_data_complete = (
+                (self.data_ind - self.data_start_ind) / self.num_data_trials
+            )
+            logging.info(
+                r'%s set ID %d (will stop after %d). %0.2f%s of %s sets'
+                ' completed.' %(data_label, self.data_ind,
+                self.data_start_ind+self.num_data_trials-1, pct_data_complete,
+                '%', data_label)
+            )
+
+            # Produce a data distribution
+            self.generate_data()
+
+            # Loop for multiple (fluctuated) fiducial data distributions
+            for self.fid_data_ind in xrange(self.fid_data_start_ind,
+                                            self.fid_data_start_ind
+                                            + self.num_fid_data_trials):
+                pct_fid_data_complete = (
+                    (self.fid_data_ind - self.fid_data_start_ind)
+                    / self.num_fid_data_trials
+                )
+                logging.info(
+                    r'%s set ID %d (will stop after %d). %0.2f%s of %s sets'
+                    ' completed.' %(fid_data_label, self.fid_data_ind,
+                    self.fid_data_start_ind+self.num_fid_data_trials-1,
+                    pct_fid_data_complete, '%', fid_data_label)
+                )
+
+                # Fit hypotheses to data and produce fiducial data
+                # distributions from *each* of the hypotheses' best fits
+                # (i.e., two fits are performed here)
+                self.generate_fid_data()
+
+                # Perform fits of the each of the two hypotheses to each of the
+                # two fiducial data distributions (i.e., four fits are
+                # performed here)
+                self.llr_fit_to_null_fid, self.null_hypo_fit_to_null_fid, \
+                        self.alt_hypo_fit_to_null_fid = \
+                        self.compare_hypos(data=self.null_fid_data)
+                if fluctuate_fid_data:
+                    self.llr_fit_to_alt_fid, self.null_hypo_fit_to_alt_fid, \
+                            self.alt_hypo_fit_to_alt_fid = \
+                            self.compare_hypos(data=self.alt_fid_data)
+                else:
+                    self.llr_fit_to_data
+
+                # TODO: log trial results here...
+            # TODO: ... and/or here
 
     def compare_hypos(self, data):
         """Override `compare_hypos` from Analysis to simplify arguments since
@@ -306,6 +369,11 @@ class LLRAnalysis(Analysis):
         return self.data
 
     def generate_fid_data(self):
+        """Fit both hypotheses to "data" and produce fiducial data
+        distributions from *each* of the hypotheses' best fits (i.e., two fits
+        are performed).
+
+        """
         # Fiducial fits: Perform fits of the two hypotheses to `data`
         (self.llr_fit_to_data, self.alt_hypo_fit_to_data,
          self.null_hypo_fit_to_data) = self.compare_hypos(data=self.data)
@@ -325,6 +393,7 @@ class LLRAnalysis(Analysis):
             #                                trial
             fid_data_random_state = get_random_state([1, self.data_ind,
                                                       self.fid_data_ind])
+
             self.alt_fid_data = self.alt_fid_asimov_data.fluctuate(
                 method='poisson',
                 random_state=fid_data_random_state
@@ -346,62 +415,6 @@ class LLRAnalysis(Analysis):
             self.null_fid_data = self.null_fid_asimov_data
 
         return self.alt_fid_data, self.null_fid_data
-
-    def run_analysis(self):
-        logging.info('Running LLR analysis.')
-        data_label = 'pseudodata' if self.fluctuate_data else 'Asimov or true data'
-        fid_data_label = 'fiducial pseudodata' if self.fluctuate_data else 'fiducial Asimov data'
-
-
-        # Loop for multiple (fluctuated) data distributions
-        for self.data_ind in xrange(self.data_start_ind,
-                                    self.data_start_ind
-                                    + self.num_data_trials):
-            pct_data_complete = (
-                (self.data_ind - self.data_start_ind) / self.num_data_trials
-            )
-            logging.info(
-                r'%s set ID %d (will stop after %d). %0.2f%s of %s sets'
-                ' completed.' %(data_label, self.data_ind,
-                self.data_start_ind+self.num_data_trials-1, pct_data_complete,
-                '%', data_label)
-            )
-
-            # Produce a data distribution
-            self.generate_data()
-
-            # Loop for multiple (fluctuated) fiducial data distributions
-            for self.fid_data_ind in xrange(self.fid_data_start_ind,
-                                            self.fid_data_start_ind
-                                            + self.num_fid_data_trials):
-                pct_fid_data_complete = (
-                    (self.fid_data_ind - self.fid_data_start_ind)
-                    / self.num_fid_data_trials
-                )
-                logging.info(
-                    r'%s set ID %d (will stop after %d). %0.2f%s of %s sets'
-                    ' completed.' %(fid_data_label, self.fid_data_ind,
-                    self.fid_data_start_ind+self.num_fid_data_trials-1,
-                    pct_fid_data_complete, '%', fid_data_label)
-                )
-
-                # Fit hypotheses to data and produce fiducial data
-                # distributions from *each* of the hypotheses' best fits
-                # (i.e., two fits are performed here)
-                self.generate_fid_data()
-
-                # Final fits: Perform fits of the each of the two hypotheses to
-                # each of the two fiducial data distributions (i.e., four fits
-                # are performed here)
-                self.llr_fit_to_null_fid, self.null_hypo_fit_to_null_fid, \
-                        self.alt_hypo_fit_to_null_fid = \
-                        self.compare_hypos(data=self.null_fid_data)
-                self.llr_fit_to_alt_fid, self.null_hypo_fit_to_alt_fid, \
-                        self.alt_hypo_fit_to_alt_fid = \
-                        self.compare_hypos(data=self.alt_fid_data)
-
-                # TODO: log trial results here...
-            # TODO: ... and/or here
 
     @staticmethod
     def post_process(logdir):
@@ -475,6 +488,17 @@ def parse_args():
         if --data-pipeline is specified while --data-param-selections is not,
         then the param selections in the pipeline config file(s) specified are
         used to produce data distributions.'''
+    )
+    parser.add_argument(
+        '--no-octant-check',
+        action='store_true',
+        help='''Disable fitting hypotheses in theta23 octant opposite initial
+        octant.'''
+    )
+    parser.add_argument(
+        '--metric',
+        type=str, default='llh', metavar='METRIC',
+        help='''Name of metric to use for evaluating a fit.'''
     )
     parser.add_argument(
         '--fluctuate-data',
@@ -587,6 +611,7 @@ if __name__ == '__main__':
 
     set_verbosity(args_d.pop('v'))
     post_process = not args_d.pop('no_post_processing')
+    args_d['check_other_octant'] = not args_d.pop('no_octant_check')
 
     # Normalize and convert `*_pipeline` filenames; store to `*_maker`
     # (which is argument naming convention that LLRAnalysis init accepts).
