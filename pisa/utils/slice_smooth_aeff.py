@@ -24,8 +24,8 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import numpy as np
 from scipy.interpolate import splrep, splev
 
+from pisa.core.events import Events
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils.events import Events
 from pisa.utils import flavInt
 from pisa.utils import hdf
 from pisa.utils import utils
@@ -186,6 +186,7 @@ def slice_smooth(events, n_ebins, n_czbins, e_smooth_factor, cz_smooth_factor,
 
 def plot_slice_smooth(smooth_store, metadata=None, save_basename=None):
     import matplotlib as mpl
+    mpl.use('pdf')
     mpl.rc('font', **{'family':'serif', 'weight':'normal', 'size': 10})
     import matplotlib.pyplot as plt
     from pisa.utils.plot import stepHist

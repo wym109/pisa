@@ -1,7 +1,9 @@
-import re,ConfigParser
+
+import ConfigParser
+import re
+
 
 class BetterConfigParser(ConfigParser.SafeConfigParser):
-
     def get(self, section, option):
         result = ConfigParser.SafeConfigParser.get(self, section, option, raw=True)
         result = self.__replaceSectionwideTemplates(result)
@@ -14,15 +16,11 @@ class BetterConfigParser(ConfigParser.SafeConfigParser):
         return result
 
     def optionxform(self, optionstr):
-        '''
-        enable case sensitive options in .ini files
-        '''
+        """Enable case sensitive options in .ini files."""
         return optionstr
 
     def __replaceSectionwideTemplates(self, data):
-        '''
-        replace <section|option> with get(section,option) recursivly
-        '''
+        """Replace <section|option> with get(section,option) recursivly."""
         result = data
         findExpression = re.compile(r"((.*)\<!(.*)\|(.*)\!>(.*))*")
         groups = findExpression.search(data).groups()

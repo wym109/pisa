@@ -1,7 +1,9 @@
-import struct
-import hashlib
 import cPickle as pickle
+import hashlib
 import numpy as np
+import struct
+
+from pisa.utils.log import logging, set_verbosity
 #from pisa.utils.profiler import profile
 
 
@@ -51,7 +53,13 @@ def hash_obj(obj, hash_to='int'):
     # Handle e.g. an open file specially
     if hasattr(obj, 'read'):
         return hash_obj(obj.read())
-    hash = hashlib.md5(pickle.dumps(obj, pickle.HIGHEST_PROTOCOL))
+    try:
+        pkl = pickle.dumps(obj, pickle.HIGHEST_PROTOCOL)
+    except:
+        logging.error('Failed to pickle `obj` "%s" of type "%s"'
+                      %(obj, type(obj)))
+        raise
+    hash = hashlib.md5(pkl)
     #hash = hashlib.md5(repr(obj))
     if hash_to in ['i', 'int', 'integer']:
         hash_val, = struct.unpack('<q', hash.digest()[:8])

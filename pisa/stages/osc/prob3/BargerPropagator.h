@@ -8,7 +8,8 @@
 #include "mosc.h"
 
 #include <iostream>
-#include <cstdlib>
+#include <stdlib.h>
+#include <string.h>
 
 // A neutrino propagator class based on the 1980 Barger paper
 // PRD.22.11, Dec. 1 1980.
@@ -121,6 +122,13 @@ class BargerPropagator : public NeutrinoPropagator
       //  value of Dm23 for oscillations in both hierarchies.
       void SetOneMassScaleMode( bool x = true )  { kOneDominantMass = x; }
 
+      virtual void fill_osc_prob_c(double *ecen, int ecen_length, double *czcen, 
+        int czcen_length, double energy_scale, double deltam21, double deltam31,
+        double deltacp, double prop_height, double YeI, double YeO, double YeM,
+        double *probList, int prop_length, double *evals, int evals_length, 
+        double *czvals, int czvals_length, double theta12, double theta13, 
+        double theta23);
+      
   protected:
       void init( );
 

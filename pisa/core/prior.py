@@ -24,6 +24,13 @@ from pisa.utils.log import logging
 # TODO: uniform prior should take a constant, such that e.g. discrete parameter
 # values when run separately will return valid comparisons across the
 # discretely-chosen values (with different uniform priors)
+
+# TODO: use units "natively" (not via strings) internal to the object; only
+# serializing to json should convert to strings (and deserializing should
+# convert from strings to Units objects)
+
+# TODO: add a "to" and/or "ito" method for converting units akin to those
+# methods in Pint quantities.
 class Prior(object):
     """Prior information for a parameter. Defines the penalty (in
     log-likelihood (llh)) for a parameter being at a given value (within the
@@ -184,7 +191,8 @@ class Prior(object):
         self.kind = 'gaussian'
         if isinstance(mean, pint.quantity._Quantity):
             self.units = str(mean.units)
-            assert isinstance(stddev, pint.quantity._Quantity), '%s' %type(stddev)
+            assert isinstance(stddev, pint.quantity._Quantity), \
+                    str(type(stddev))
             stddev = stddev.to(self.units)
         self.mean = mean
         self.stddev = stddev
@@ -317,6 +325,8 @@ def plot_prior(obj, param=None, x_xform=None, ax1=None, ax2=None, **plt_kwargs):
     ax1, ax2
         The axes onto which plots were drawn (ax1 = LLH, ax2 = chi^2)
     """
+    import matplotlib as mpl
+    mpl.use('pdf')
     import matplotlib.pyplot as plt
     if isinstance(obj, basestring):
         obj = fileio.from_file(obj)
@@ -482,6 +492,7 @@ def test_Prior():
 def test_Prior_plot(ts_fname, param_name='theta23'):
     """Produce plots roughly like NuFIT's 1D chi-squared projections"""
     import matplotlib as mpl
+    mpl.use('pdf')
     import matplotlib.pyplot as plt
     stddev = [1, 2, 3, 4, 5]
     chi2 =  [s**2 for s in stddev]

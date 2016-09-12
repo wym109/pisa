@@ -1,10 +1,11 @@
 
-import os
-import time
-import re
+import copy
 from collections import OrderedDict
-import sqlite3
 import cPickle as pickle
+import os
+import re
+import sqlite3
+import time
 
 from pisa.utils.log import logging, set_verbosity
 
@@ -24,26 +25,16 @@ class MemoryCache(object):
         Whether to implement LRU logic (True) or FIFO logic (False). LRU logic
         adds a small computational cost.
 
+    deepcopy : bool
+        Whether to make deep copies of objects as they are stored to and
+        returned from the cache. This can guard aganst an object in the cache
+        being modifed after it has been stored to the cache.
+
     Class attributes
     ----------------
     GLOBAL_MEMCACHE_DEPTH_OVERRIDE : None or int >= 0
         Set to an integer to override the cache depth for *all* memory caches.
         E.g., set this to 0 to disable caching everywhere.
-
-    Methods
-    -------
-    __getitem__
-    __setitem__
-    __contains__
-    __delitem__
-    clear
-    get
-    has_key
-    keys
-    pop
-    popitem
-    setdefault
-    values
 
     Notes
     -----
@@ -51,10 +42,11 @@ class MemoryCache(object):
 
     """
     GLOBAL_MEMCACHE_DEPTH_OVERRIDE = None
-    def __init__(self, max_depth, is_lru=True):
+    def __init__(self, max_depth, is_lru=True, deepcopy=True):
         self.__cache = OrderedDict()
         self.__max_depth = max_depth
         self.__is_lru = is_lru
+        self.__deepcopy = deepcopy
         if self.GLOBAL_MEMCACHE_DEPTH_OVERRIDE is not None:
             self.__max_depth = self.GLOBAL_MEMCACHE_DEPTH_OVERRIDE
         assert isinstance(self.__max_depth, int), \
@@ -79,6 +71,8 @@ class MemoryCache(object):
         if self.__is_lru:
             del self.__cache[key]
             self.__cache[key] = value
+        if self.__deepcopy:
+            value = copy.deepcopy(value)
         return value
 
     def __setitem__(self, key, value):
@@ -94,6 +88,8 @@ class MemoryCache(object):
         except KeyError:
             if len(self) >= self.__max_depth:
                 self.__cache.popitem(last=False)
+        if self.__deepcopy:
+            value = copy.deepcopy(value)
         self.__cache[key] = value
 
     def __contains__(self, key):
@@ -126,10 +122,13 @@ class MemoryCache(object):
         return self.__cache.keys()
 
     def pop(self, k):
-        return self.__cache.pop(k)
+        value = self.__cache.pop(k)
+        if self.__deepcopy:
+            value = copy.deepcopy(value)
+        return value
 
     def popitem(self, last=True):
-        return self.__cache.pop(last)
+        return self.pop(last)
 
     def setdefault(self, key, default=None):
         if not key in self:
@@ -137,7 +136,10 @@ class MemoryCache(object):
         return self[key]
 
     def values(self):
-        return self.__cache.values()
+        vals = self.__cache.values()
+        if self.__deepcopy:
+            vals = [copy.deepcopy(v) for v in vals]
+        return vals
 
 
 class DiskCache(object):
@@ -444,6 +446,17 @@ def test_MemoryCache():
     mc[3] = 'three'
     assert 0 not in mc
     assert mc[3] == 'three'
+
+    # Test if objects modified outside of cache are modified inside cache
+    for deepcopy in [True, False]:
+        mc = MemoryCache(max_depth=3, is_lru=True, deepcopy=deepcopy)
+        x_ref = {'k0': 'abc'}
+        x = copy.deepcopy(x_ref)
+        mc[4] = x
+        x['k1'] = 'xyz'
+        y = mc[4]
+        assert (y == x_ref) == deepcopy
+
     print '<< PASSED : test_MemoryCache >>'
 
 
