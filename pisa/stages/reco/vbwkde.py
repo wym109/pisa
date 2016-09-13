@@ -51,7 +51,7 @@ class vbwkde(Stage):
     (true_energy, true_coszen) with be reconstructed as (reco_energy,
     reco_coszen).
 
-    From these histograms and the true event rate maps, calculates
+    From these transforms and the true event rate maps, calculates
     the reconstructed even rate templates.
 
     Parameters
@@ -134,7 +134,6 @@ class vbwkde(Stage):
         # `params` argument.
         expected_params = (
             'reco_weight_file', 'e_res_scale', 'cz_res_scale'
-            # NOT IMPLEMENTED: 'e_reco_scale', 'cz_reco_scale'
         )
 
         if isinstance(input_names, basestring):
@@ -454,7 +453,6 @@ class vbwkde(Stage):
                 MAX            = egy_kde_lims_ext[1],
                 N              = kde_num_pts_ext
             )
-            # TODO change number of points according to `factor`
 
             if np.min(enu_pdf) < 0:
                 # Only issue warning if the most-negative value is negative
