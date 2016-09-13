@@ -197,7 +197,8 @@ for sys in sys_list:
         fig.subplots_adjust(hspace=0)
         fig.subplots_adjust(wspace=0)
         plt.show()
-        plt.savefig('%s_sysfits_%s.pdf'%(sys,smooth))
+        plt.savefig('pisa/resources/sys/%s_sysfits_%s.pdf'%(sys,smooth))
+        #plt.savefig('%s_sysfits_%s.pdf'%(sys,smooth))
         plt.clf()
 
         if not smooth == 'raw':
