@@ -376,7 +376,7 @@ class honda(Stage):
         """
 
         flux_file = self.params['flux_file'].value
-        logging.info("Loading atmospheric flux table %s" % flux_file)
+        logging.debug("Loading atmospheric flux table %s" % flux_file)
 
         # columns in Honda files are in the same order
         cols = ['energy'] + self.primaries
@@ -475,7 +475,7 @@ class honda(Stage):
             The integral-preserving has a fixed smoothing of 0.
         """
         flux_file = self.params['flux_file'].value
-        logging.info("Loading atmospheric flux table %s" %flux_file)
+        logging.debug("Loading atmospheric flux table %s" %flux_file)
 
         # columns in Honda files are in the same order
         cols = ['energy'] + self.primaries

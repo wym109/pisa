@@ -700,7 +700,6 @@ class Stage(object):
         on inputs are propagated regardless of this setting."""
         return self._error_method
 
-    @profile
     def _derive_outputs_hash(self):
         """Derive a hash value that unique identifies the outputs that will be
         generated based upon the current state of the stage.
@@ -763,7 +762,6 @@ class Stage(object):
 
         return outputs_hash, transforms_hash, nominal_transforms_hash
 
-    @profile
     def _derive_transforms_hash(self, nominal_transforms_hash=None):
         """Compute a hash that uniquely identifies the transforms that will be
         produced from the current configuration. Note that this hash needs only
@@ -801,7 +799,6 @@ class Stage(object):
 
         return transforms_hash, nominal_transforms_hash
 
-    @profile
     def _derive_nominal_transforms_hash(self):
         """Derive a hash to uniquely identify the nominal transform. This
         should be unique across processes and invocations bacuase the nominal

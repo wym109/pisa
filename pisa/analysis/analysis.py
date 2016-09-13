@@ -44,7 +44,7 @@ class Analysis(object):
     """Major tools for performing "canonical" IceCube/DeepCore/PINGU analyses.
 
     * "Data" distribution creation (via passed `data_maker` object)
-    * Template distribution creation (via passed `distribution_maker` object)
+    * Asimov distribution creation (via passed `distribution_maker` object)
     * Minimizer Interface (via method `_minimizer_callable`)
         Interfaces to a minimizer for modifying the free parameters of the
         `distribution_maker` to fit its output (as closely as possible) to the
@@ -56,12 +56,12 @@ class Analysis(object):
         pass
 
     def compare_hypos(self, data,
-                      alt_hypo_maker, alt_hypo_param_selections,
-                      null_hypo_maker, null_hypo_param_selections,
+                      h0_maker, h0_param_selections,
+                      h1_maker, h1_param_selections,
                       metric, minimizer_settings, pprint=False, blind=False):
         """
-        Compare how well `data` is described by each of two hypotheses: the
-        alternative hypothesis (alt_hypo) and the null hypothesis (null_hypo).
+        Compare how well `data` is described by each of two hypotheses: h0 and
+        h1.
 
         Each hypothesis is represented by a distribtuion maker
 
@@ -70,13 +70,13 @@ class Analysis(object):
         ----------
         data : MapSet
 
-        alt_hypo_maker : DistributionMaker
+        h0_maker : DistributionMaker
 
-        alt_hypo_param_selections : None, string, or sequence of strings
+        h0_param_selections : None, string, or sequence of strings
 
-        null_hypo_maker : DistributionMaker
+        h1_maker : DistributionMaker
 
-        null_hypo_param_selections : None, string, or sequence of strings
+        h1_param_selections : None, string, or sequence of strings
 
         metric : None or string
 
@@ -89,34 +89,30 @@ class Analysis(object):
 
         Returns
         -------
-        delta_metric, alt_hypo_fit, null_hypo_fit
+        delta_metric, h0_fit, h1_fit
 
         """
-        alt_hypo_fit = self.fit_hypo(
+        h0_fit = self.fit_hypo(
             data=data,
-            hypo_maker=alt_hypo_maker,
-            param_selections=alt_hypo_param_selections,
+            hypo_maker=h0_maker,
+            param_selections=h0_param_selections,
             metric=metric,
             minimizer_settings=minimizer_settings,
             pprint=pprint,
             blind=blind
         )
-
-        null_hypo_fit = self.fit_hypo(
+        h1_fit = self.fit_hypo(
             data=data,
-            hypo_maker=null_hypo_maker,
-            param_selections=null_hypo_param_selections,
+            hypo_maker=h1_maker,
+            param_selections=h1_param_selections,
             metric=metric,
             minimizer_settings=minimizer_settings,
             pprint=pprint,
             blind=blind
         )
+        delta_metric = h0_fit['metric_val'] - h1_fit['metric_val']
+        return delta_metric, h0_fit, h1_fit
 
-        delta_metric = alt_hypo_fit['metric_val'] - null_hypo_fit['metric_val']
-
-        return delta_metric, alt_hypo_fit, null_hypo_fit
-
-    # TODO: merge this into fit_template_outer
     def fit_hypo(self, data, hypo_maker, param_selections, metric,
                  minimizer_settings, check_octant=True, pprint=False,
                  blind=False):
@@ -148,7 +144,7 @@ class Analysis(object):
         hypo_maker.select_params(param_selections)
         fit_info = self.fit_template_outer(
             data=data,
-            template_maker=hypo_maker,
+            hypo_maker=hypo_maker,
             metric=metric,
             minimizer_settings=minimizer_settings,
             check_octant=check_octant,
@@ -157,12 +153,12 @@ class Analysis(object):
         )
         return fit_info
 
-    def fit_template_outer(self, data, template_maker, metric,
-                           minimizer_settings, check_octant=True, pprint=True,
-                           blind=False):
+    def fit_hypo(self, data, hypo_maker, param_selections, metric,
+                 minimizer_settings, check_octant=True, pprint=True,
+                 blind=False):
         """Fitter "outer" loop: If `check_octant` is True, run
         `fit_template_inner` starting in each octant of theta23 (assuming that
-        is a param in the `template_maker`). Otherwise, just run the inner
+        is a param in the `hypo_maker`). Otherwise, just run the inner
         method once.
 
         Parameters
@@ -170,11 +166,15 @@ class Analysis(object):
         data : MapSet
             Data events distribution(s)
 
-        template_maker : DistributionMaker or convertible thereto
+        hypo_maker : DistributionMaker or convertible thereto
+
+        param_selections : None, string, or sequence of strings
 
         metric : string
 
         minimizer_settings : string or dict
+
+        check_octant : bool
 
         pprint : bool
             Whether to show live-update of minimizer progress.
@@ -187,11 +187,12 @@ class Analysis(object):
 
         """
         # Reset free parameters to nominal values
-        logging.trace('resetting params')
-        template_maker.params.reset_free()
+        logging.trace('Selecting and resetting params')
+        hypo_maker.select_params(param_selections)
+        hypo_maker.params.reset_free()
 
-        best_fit_info = self.fit_template_inner(
-            template_maker=template_maker,
+        best_fit_info = self.fit_hypo_inner(
+            hypo_maker=hypo_maker,
             data=data,
             metric=metric,
             minimizer_settings=minimizer_settings,
@@ -200,19 +201,19 @@ class Analysis(object):
         )
 
         # Decide whether fit for other octant is necessary
-        if 'theta23' in template_maker.params.free and check_octant:
+        if 'theta23' in hypo_maker.params.free and check_octant:
             logging.debug('checking other octant of theta23')
-            template_maker.params.reset_free()
+            hypo_maker.params.reset_free()
 
             # Hop to other octant by reflecting about 45 deg
-            theta23 = template_maker.params.theta23
+            theta23 = hypo_maker.params.theta23
             inflection_point = (45*ureg.deg).to(theta23.units)
             theta23.value = 2*inflection_point - theta23.value
-            template_maker.update_params(theta23)
+            hypo_maker.update_params(theta23)
 
             # Re-run minimizer starting at new point
-            new_fit_info = self.fit_template_inner(
-                template_maker=template_maker,
+            new_fit_info = self.fit_hypo_inner(
+                hypo_maker=hypo_maker,
                 data=data,
                 metric=metric,
                 minimizer_settings=minimizer_settings,
@@ -237,23 +238,24 @@ class Analysis(object):
 
         return best_fit_info
 
-    # TODO: make this generic to any minimizer
-    def fit_template_inner(self, data, template_maker, metric,
-                           minimizer_settings, pprint=True, blind=False):
+    def fit_hypo_inner(self, data, hypo_maker, metric, minimizer_settings,
+                       pprint=True, blind=False):
         """Fitter "inner" loop: Run an arbitrary scipy minimizer to modify
-        template until the data distribution is most likely to have come from
-        that templated distribution.
+        hypo dist maker's free params until the data is most likely to have
+        come from this hypothesis.
 
         Note that an "outer" loop can handle discrete scanning over e.g. the
         octant for theta23; for each discrete point the "outer" loop can make a
-        call to this "inner" loop.
+        call to this "inner" loop. One such "outer" loop is implemented in the
+        `fit_hypo` method.
+
 
         Parameters
         ----------
         data : MapSet
             Data events distribution(s)
 
-        template_maker : DistributionMaker or convertible thereto
+        hypo_maker : DistributionMaker or convertible thereto
 
         metric : string
 
@@ -270,7 +272,7 @@ class Analysis(object):
 
         """
         # Get starting free parameter values
-        x0 = template_maker.params.free._rescaled_values
+        x0 = hypo_maker.params.free._rescaled_values
 
         # TODO: does this break if not using bfgs?
 
@@ -292,7 +294,7 @@ class Analysis(object):
         optimize_result = optimize.minimize(
             fun=self._minimizer_callable,
             x0=x0,
-            args=(template_maker, data, metric, counter, pprint, blind),
+            args=(hypo_maker, data, metric, counter, pprint, blind),
             bounds=bounds,
             method = minimizer_settings['method']['value'],
             options = minimizer_settings['options']['value']
@@ -307,14 +309,14 @@ class Analysis(object):
             %((end_t - start_t) * 1000./counter.count)
         )
 
-        # Will not assume that the minimizer left the template maker in the
+        # Will not assume that the minimizer left the hypo maker in the
         # minimized state, so set the values now (also does conversion of
         # values from [0,1] back to physical range)
         rescaled_pvals = optimize_result.pop('x')
-        template_maker.params.free._rescaled_values = rescaled_pvals
+        hypo_maker.params.free._rescaled_values = rescaled_pvals
 
         # Record the output maps with the optimal param values
-        maps = template_maker.get_outputs()
+        maps = hypo_maker.get_outputs()
 
         # Get the best-fit metric value
         metric_val = optimize_result.pop('fun')
@@ -332,14 +334,14 @@ class Analysis(object):
         info['metric_val'] = metric_val
         info['maps'] = maps
         if blind:
-            template_maker.params.reset_free()
+            hypo_maker.params.reset_free()
         else:
-            info['params'] = deepcopy(template_maker.params)
+            info['params'] = deepcopy(hypo_maker.params)
         info['metadata'] = metadata
 
         return info
 
-    def _minimizer_callable(self, scaled_param_vals, template_maker, data,
+    def _minimizer_callable(self, scaled_param_vals, hypo_maker, data,
                             metric, counter, pprint, blind):
         """Simple callback for use by scipy.optimize minimizers.
 
@@ -357,10 +359,10 @@ class Analysis(object):
             their original (physical) ranges (including units) is handled
             within this method.
 
-        template_maker : DistributionMaker
-            Creates the per-bin expectation values per map (aka template) based
-            on its param values. Free params in the `template_maker` are
-            modified by the minimizer to achieve a "best" fit.
+        hypo_maker : DistributionMaker
+            Creates the per-bin expectation values per map (aka Asimov
+            distribution) based on its param values. Free params in the
+            `hypo_maker` are modified by the minimizer to achieve a "best" fit.
 
         data : MapSet
             Data distribution to be fit. Can be an actual-, Asimov-, or
@@ -386,30 +388,30 @@ class Analysis(object):
         sign = -1 if metric in self.METRICS_TO_MAXIMIZE else +1
 
         # Set param values from the scaled versions the minimizer works with
-        template_maker.params.free._rescaled_values = scaled_param_vals
+        hypo_maker.params.free._rescaled_values = scaled_param_vals
 
-        # Get the template map set
+        # Get the Asimov map set
         try:
-            template = template_maker.get_outputs()
+            asimov_dist = hypo_maker.get_outputs()
         except:
             if not blind:
                 logging.error(
-                    'Failed when generating template with free params %s'
-                    %template_maker.params.free
+                    'Failed when generating asimov_dist with free params %s'
+                    %hypo_maker.params.free
                 )
             raise
 
-        # Assess the fit: whether the data came from the template
+        # Assess the fit: whether the data came from the asimov_dist
         try:
             metric_val = (
-                data.metric_total(expected_values=template, metric=metric)
-                + template_maker.params.priors_penalty(metric=metric)
+                data.metric_total(expected_values=asimov_dist, metric=metric)
+                + hypo_maker.params.priors_penalty(metric=metric)
             )
         except:
             if not blind:
                 logging.error(
                     'Failed when computing metric with free params %s'
-                    %template_maker.params.free
+                    %hypo_maker.params.free
                 )
             raise
 
@@ -421,7 +423,7 @@ class Analysis(object):
         if blind:
             msg = 'minimizer iteration #%7d' %counter.count
         else:
-            msg = '%s=%.6e | %s' %(metric, metric_val, template_maker.params.free)
+            msg = '%s=%.6e | %s' %(metric, metric_val, hypo_maker.params.free)
 
         if pprint:
             sys.stdout.write(msg)
@@ -441,12 +443,12 @@ class Analysis(object):
     #   params
     # * set (some free or fixed) params, then check metric
     # where the setting of the params is done for some number of values.
-    def scan(self, data, template_maker, metric, param_names=None, steps=None,
+    def scan(self, data, hypo_maker, metric, param_names=None, steps=None,
              values=None, outer=False):
-        """Set template maker parameters named by `param_names` according to
+        """Set hypo maker parameters named by `param_names` according to
         either values specified by `values` or number of steps specified by
-        `steps`, and return the `metric` indicating how well each template
-        matches the data distribution.
+        `steps`, and return the `metric` indicating how well the data
+        distribution is described by each Asimov distribution.
 
         Some flexibility in how the user can specify `values` is allowed, based
         upon the shapes of `param_names` and `values` and how the `outer` flag
@@ -484,18 +486,20 @@ class Analysis(object):
               * Each param name corresponds to one of the inner sequences, in
                 the order that the param names are specified.
               * If `outer` is False, all inner sequences must have the same
-                length, and there will be one template generated for each set
-                of values across the inner sequences. In other words, there
-                will be a total of len(inner sequence) templates generated.
+                length, and there will be one Asimov distribution generated for
+                each set of values across the inner sequences. In other words,
+                there will be a total of len(inner sequence) Asimov
+                distribution generated.
               * If `outer` is True, the lengths of inner sequences needn't be
                 the same. This takes the outer product of the passed sequences
                 to arrive at the permutations of the parameter values that will
-                be used to produce templates (essentially nested loops over
-                each parameter). E.g., if two params are scanned, for each
-                value of the first param's inner sequence, a template is
-                produced for every value of the second param's inner sequence.
-                In total, there will be len(inner seq0) * len(inner seq1) * ...
-                templates produced.
+                be used to produce Asimov distributions (essentially nested
+                loops over each parameter). E.g., if two params are scanned,
+                for each value of the first param's inner sequence, an Asimov
+                distribution is produced for every value of the second param's
+                inner sequence. In total, there will be
+                  len(inner seq0) * len(inner seq1) * ...
+                Asimov distributions produced.
 
         outer : bool
             If set to True and a sequence of sequences is passed for `values`,
@@ -513,13 +517,13 @@ class Analysis(object):
 
         metric_vals = []
         for val in values:
-            fp = template_maker.params.free
+            fp = hypo_maker.params.free
             fp[param_names].value = val
-            template_maker.update_params(fp)
-            template = template_maker.get_outputs()
+            hypo_maker.update_params(fp)
+            asimov_dist = hypo_maker.get_outputs()
             metric_vals.append(
                 data.metric_total(
-                    expected_values=template, metric=metric
+                    expected_values=asimov_dist, metric=metric
                 )
             )
         return metric_vals

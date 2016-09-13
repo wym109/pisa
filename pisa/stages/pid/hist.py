@@ -272,7 +272,7 @@ class hist(Stage):
     @profile
     def _compute_nominal_transforms(self):
         """Compute new PID transforms."""
-        logging.info('Updating pid.hist PID histograms...')
+        logging.debug('Updating pid.hist PID histograms...')
 
         # TODO(shivesh): As of now, events do not have units as far as PISA
         # is concerned
@@ -339,7 +339,7 @@ class hist(Stage):
 
         # TODO: add importance weights, error computation
 
-        logging.info("Separating events by PID...")
+        logging.debug("Separating events by PID...")
         var_names = self.input_binning.names
         if self.params['pid_weights_name'].value is not None:
             var_names += [self.params['pid_weights_name'].value]

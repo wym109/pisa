@@ -267,7 +267,6 @@ class Map(object):
         )
         return {'hist': new_hist, 'binning': new_binning}
 
-    @profile
     @new_obj
     def rebin(self, new_binning):
         """Rebin the map with bin edge lodations and names according to those

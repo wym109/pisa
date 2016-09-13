@@ -67,7 +67,7 @@ def get_random_state(random_state, jumpahead=0):
 
     elif isinstance(random_state, int):
         new_random_state = np.random.RandomState(seed=random_state)
-        
+
     elif isinstance(random_state, Sequence):
         new_random_state = np.random.RandomState()
         if all([isinstance(x, int) for x in random_state]):
