@@ -208,7 +208,6 @@ class Analysis(object):
         if self.metric in ['llh', 'conv_llh']:
             # Want to *maximize* log-likelihood but we're using a minimizer
             sign = -1
-
         self.template_maker.params.free._rescaled_values = scaled_param_vals
 
         template = self.template_maker.get_outputs()
@@ -282,7 +281,11 @@ class Analysis(object):
             print '\naverage template generation time during minimizer run: %.4f ms'%((end_t - start_t) * 1000./self.n_minimizer_calls)
             best_fit_vals = minim_result.x
             metric_val = minim_result.fun
+            template = self.template_maker.get_outputs()
             dict_flags = {}
+            mod_chi2_val = (self.pseudodata.metric_total(expected_values=template, metric='mod_chi2')
+                + template_maker.params.priors_penalty(metric='mod_chi2'))
+            dict_flags['agreement_mod_chi2'] = mod_chi2_val
             dict_flags['warnflag'] = minim_result.status
             dict_flags['task'] = minim_result.message
             if minim_result.has_key('jac'):

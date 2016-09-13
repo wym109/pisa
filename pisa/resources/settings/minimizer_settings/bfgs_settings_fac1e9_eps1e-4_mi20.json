@@ -1,6 +1,6 @@
 {
   "method": {
-    "value": "L-BFGS-B",
+    "value": "SLSQP",
     "desc": "The string to pass to scipy.optimize.minimize so it knows what to use"
   },
   "options":{
