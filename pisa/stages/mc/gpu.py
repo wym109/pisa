@@ -205,6 +205,20 @@ class gpu(Stage):
         # apply raw reco sys
         self.apply_reco()
 
+    def get_device_arrays(self):
+        ''' Copy back a dictionary with event by event information'''
+        return_events = {}
+        variables = ['true_energy', 'true_coszen', 'reco_energy', 'reco_coszen',
+                        'weight_trck', 'weight_cscd']
+        for flav in self.flavs:
+            return_events[flav] = {}
+            for var in variables:
+                buff = np.ones(self.events_dict[flav]['n_evts'])
+                cuda.memcpy_dtoh(buff, self.events_dict[flav]['device'][var])
+                return_events[flav][var] = buff
+        return return_events
+
+
     def apply_reco(self):
         # applying raw reco systematics (to use as inputs to polyfit stage)
         for flav in self.flavs:

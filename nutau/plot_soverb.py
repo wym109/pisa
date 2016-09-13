@@ -33,4 +33,5 @@ template_nutau = template_nominal - template_bkgd
 my_plotter.label = r'$S/\sqrt{B}$'
 my_plotter.plot_2d_array(template_nutau/template_bkgd.sqrt(), fname='soverb',cmap='YlOrRd')
 
-
+device_arrays = template_maker.pipelines[0].stages[0].get_device_arrays()
+print device_arrays
