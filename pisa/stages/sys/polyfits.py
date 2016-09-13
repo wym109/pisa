@@ -104,6 +104,8 @@ class polyfits(Stage):
                             if transform is None:
                                 transform = np.ones((nx, ny))
                             for i, j in np.ndindex((nx,ny)):
+                                #if (pname =='dom_eff' or pname=='hole_ice' or pname=='hole_ice_fwd') and len(fit_params[i,j,:])==2:
+                                #    fit_params[i,j,0] = 1.0
                                 transform[i,j] *= fit_fun(p_value,
                                         *fit_params[i,j,:])
 
