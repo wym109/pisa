@@ -1,3 +1,6 @@
+import numpy as np
+import uncertainties as unc
+from uncertainties import unumpy as unp
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import math
 
@@ -11,9 +14,9 @@ mpl.rcParams['mathtext.it'] = 'Bitstream Vera Sans:italic'
 mpl.rcParams['mathtext.bf'] = 'Bitstream Vera Sans:bold'
 from matplotlib import pyplot as plt
 from matplotlib.offsetbox import AnchoredText
-import numpy as np
-from uncertainties import unumpy as unp
 
+from pisa.core.map import Map, MapSet
+from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.utils.log import logging
 
 
@@ -48,6 +51,8 @@ class plotter(object):
         self.fig.patch.set_facecolor('none')
 
     def add_stamp(self, text=None):
+        # NOTE add_stamp cannot be used on a subplot that has been
+        # de-selected and then re-selected. It will write over existing text.
         ''' ad common stamp with text '''
         if text is not None:
             a_text = AnchoredText(self.stamp + '\n' + r'$%s$'%text, loc=2, frameon=False)
@@ -75,7 +80,7 @@ class plotter(object):
 
     def plot_2d_array(self, mapset, n_rows=None, n_cols=None, fname=None,
             **kwargs):
-        ''' plot all maps in a single plot '''
+        ''' plot all maps or transforms in a single plot '''
         if fname is None:
             fname = 'test2d'
         self.plot_array(mapset, 'plot_2d_map', n_rows=n_rows, n_cols=n_cols,
@@ -144,7 +149,10 @@ class plotter(object):
         n_rows = kwargs.pop('n_rows', None)
         n_cols = kwargs.pop('n_cols', None)
         ''' plot mapset in array using a function fun '''
-        n = len(mapset)
+        if isinstance(mapset, MapSet):
+            n = len(mapset)
+        elif isinstance(mapset, TransformSet):
+            n = len([x for x in mapset])
         if n_rows is None and n_cols is None:
             # TODO: auto row/cols
             n_rows = math.floor(math.sqrt(n))
@@ -164,22 +172,29 @@ class plotter(object):
             self.add_stamp(map.tex)
 
     def plot_2d_map(self, map, cmap='rainbow', **kwargs):
-        ''' plot map on current axis in 2d'''
+        ''' plot map or transform on current axis in 2d'''
         axis = plt.gca()
-        bins = [map.binning[name] for name in map.binning.names]
-        bin_edges = map.binning.bin_edges
-        bin_centers = map.binning.weighted_centers
-        zmap = np.log10(unp.nominal_values(map.hist)) if self.log else unp.nominal_values(map.hist)
+        if isinstance(map, BinnedTensorTransform):
+            bins = [map.input_binning[name] for name in map.input_binning.names]
+            bin_edges = map.input_binning.bin_edges
+            bin_centers = map.input_binning.weighted_centers
+            xform_array = unp.nominal_values(map.xform_array)
+            zmap = np.log10(unp.nominal_values(map.xform_array)) if self.log else unp.nominal_values(map.xform_array)
+        elif isinstance(map, Map):
+            bins = [map.binning[name] for name in map.binning.names]
+            bin_edges = map.binning.bin_edges
+            bin_centers = map.binning.weighted_centers
+            zmap = np.log10(unp.nominal_values(map.hist)) if self.log else unp.nominal_values(map.hist)
         if self.symmetric:
             vmax = max(zmap.max(), - zmap.min())
             vmin = -vmax
         else:
-            vmax = zmap.max()
-            vmin = zmap.min()
+            vmax = np.max(zmap[np.isfinite(zmap)])
+            vmin = np.min(zmap[np.isfinite(zmap)])
         extent = [np.min(bin_edges[0].m), np.max(bin_edges[0].m), np.min(bin_edges[1].m), np.max(bin_edges[1].m)]
-        # needs to be flipped for imshow
+        # needs to be transposed for imshow
         img = plt.imshow(zmap.T,origin='lower',interpolation='nearest',extent=extent,aspect='auto',
-            cmap=cmap, vmax=vmax, vmin=vmin, **kwargs)
+            cmap=cmap, **kwargs)
         if self.annotate:
             counts = img.get_array().T
             for i in range(len(bin_centers[0])):
@@ -187,6 +202,7 @@ class plotter(object):
                     bin_x = bin_centers[0][i].m
                     bin_y = bin_centers[1][j].m
                     plt.annotate('%.1f'%(counts[i,j]), xy=(bin_x, bin_y), xycoords=('data', 'data'), xytext=(bin_x, bin_y), textcoords='data', va='top', ha='center', size=7)
+
         axis.set_xlabel(bins[0].label)
         axis.set_ylabel(bins[1].label)
         if bins[0].is_log:
