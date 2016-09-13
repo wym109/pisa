@@ -251,7 +251,7 @@ if __name__ == '__main__':
             'pisa.utils'
         ],
         scripts=[
-            'pisa/analysis/llr_analysis.py',
+            'pisa/analysis/hypo_testing.py',
             'pisa/analysis/profile_llh_analysis.py',
             'pisa/core/distribution_maker.py',
             'pisa/core/pipeline.py',

@@ -352,10 +352,21 @@ class Map(object):
         method = str(method).lower()
         if method == 'poisson':
             random_state = get_random_state(random_state, jumpahead=jumpahead)
-            hist_vals = stats.poisson.rvs(unp.nominal_values(self.hist),
-                                          random_state=random_state)
-            hist_errors = np.sqrt(unp.nominal_values(self.hist))
-            return {'hist': unp.uarray(hist_vals, hist_errors)}
+            try:
+                orig_hist = unp.nominal_values(self.hist)
+                masked_hist = np.ma.masked_invalid(orig_hist, copy=False)
+                masked_hist.fill_value = np.nan
+                mask = masked_hist.mask
+                hist_vals = np.ma.masked_where(
+                    mask,
+                    stats.poisson.rvs(masked_hist, random_state=random_state)
+                )
+                hist_errors = np.sqrt(masked_hist)
+            except:
+                print unp.nominal_values(self.hist)
+                raise
+            return {'hist': unp.uarray(hist_vals.filled(),
+                                       hist_errors.filled())}
         elif method in ['', 'none', 'false']:
             return {}
         else:
@@ -951,7 +962,7 @@ class MapSet(object):
 
     Parameters
     ----------
-    maps : one Map or a sequence of Map
+    maps : Map or sequence of Map
 
     name : string
 
@@ -1338,7 +1349,9 @@ class MapSet(object):
         do_not_have_attr = np.array([(not hasattr(mp, attrname))
                                      for mp in self.maps])
         if np.any(do_not_have_attr):
-            missing_in_names = ', '.join(np.array(self.names)[do_not_have_attr])
+            missing_in_names = ', '.join(
+                np.array(self.names)[do_not_have_attr]
+            )
             num_missing = np.sum(do_not_have_attr)
             num_total = len(do_not_have_attr)
             raise AttributeError(
@@ -1527,7 +1540,8 @@ class MapSet(object):
             return self.apply_to_maps(metric, expected_values)
         else:
             raise ValueError('`metric` "%s" not recognized; use either'
-                             ' "chi2", "conv_llh", "mod_chi2", or "llh".' %metric)
+                             ' "chi2", "conv_llh", "mod_chi2", or "llh".'
+                             %metric)
 
     def metric_total(self, expected_values, metric):
         return np.sum(self.metric_per_map(expected_values, metric).values())
@@ -1549,12 +1563,10 @@ class MapSet(object):
         """
         random_state = get_random_state(random_state=random_state,
                                         jumpahead=jumpahead)
-        fluctuated_maps = self.apply_to_maps(
-            'fluctuate',
-            method=method,
-            random_state=random_state
-        )
-        return fluctuated_maps
+        new_maps = [m.fluctuate(method=method, random_state=random_state)
+                    for m in self]
+        return MapSet(maps=new_maps, name=self.name, tex=self.tex, hash=None,
+                      collate_by_name=self.collate_by_name)
 
     def llh_per_map(self, expected_values):
         return self.apply_to_maps('llh', expected_values)

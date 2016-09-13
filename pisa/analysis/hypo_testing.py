@@ -8,8 +8,11 @@ Log-Likelihood-Ratio (LLR) Analysis
 
 """
 
+
+from __future__ import division
+
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-from collections import Mapping
+from collections import Mapping, OrderedDict
 from copy import copy, deepcopy
 import os
 
@@ -17,6 +20,7 @@ from pisa.analysis.analysis import Analysis
 from pisa.core.distribution_maker import DistributionMaker
 from pisa.utils.fileio import from_file, mkdir, to_file
 from pisa.utils.log import logging, set_verbosity
+from pisa.utils.random_numbers import get_random_state
 from pisa.utils.resources import find_resource
 
 
@@ -66,7 +70,7 @@ class HypoTesting(Analysis):
 
     h1_fid_asimov_dist : None, MapSet or instantiable thereto
 
-    check_other_octant : bool
+    check_octant : bool
 
     metric : string
 
@@ -78,7 +82,7 @@ class HypoTesting(Analysis):
     LLR analysis is a very thorough (and computationally expensive) method to
     compare discrete hypotheses. In general, a total of
 
-        num_data_trials * (2 + 4*num_fid_data_trials)
+        num_data_trials * (2 + 4*num_fid_trials)
 
     fits must be performed (and note that for each fit, many distributions
     (typically dozens or even hundreds) must be generated).
@@ -89,21 +93,21 @@ class HypoTesting(Analysis):
     should be as large as is computationally feasible.
 
     Likewise, if the fiducial-fit data is to be pseudodata (i.e.,
-    `fluctuate_fid_data` is True--whether or not `data_maker` is uses Monte
-    Carlo), `num_fid_data_trials` should be as large as computationally
+    `fluctuate_fid` is True--whether or not `data_maker` is uses Monte
+    Carlo), `num_fid_trials` should be as large as computationally
     feasible.
 
     Typical analyses include the following:
         * Asimov analysis of data: `data_maker` uses (actual, measured) data
-          and both `fluctuate_data` and `fluctuate_fid_data` are False.
+          and both `fluctuate_data` and `fluctuate_fid` are False.
         * Pseudodata analysis of data: `data_maker` uses (actual, measured)
-          data, `fluctuate_data` is False, and `fluctuate_fid_data` is True.
+          data, `fluctuate_data` is False, and `fluctuate_fid` is True.
         * Asimov analysis of Monte Carlo: `data_maker` uses Monte Carlo to
           produce its distributions and both `fluctuate_data` and
-          `fluctuate_fid_data` are False.
+          `fluctuate_fid` are False.
         * Pseudodata analysis of Monte Carlo: `data_maker` uses Monte Carlo to
           produce its distributions and both `fluctuate_data` and
-          `fluctuate_fid_data` are False.
+          `fluctuate_fid` are False.
 
 
     References
@@ -117,14 +121,51 @@ class HypoTesting(Analysis):
     """
     def __init__(self, logdir, minimizer_settings,
                  data_is_data,
-                 fluctuate_data, fluctuate_fid_data,
+                 fluctuate_data, fluctuate_fid,
                  h0_name='hypo0', h0_maker=None,
                  h0_param_selections=None, h0_fid_asimov_dist=None,
                  h1_name='hypo1', h1_maker=None,
                  h1_param_selections=None, h1_fid_asimov_dist=None,
                  data_name='data', data_maker=None,
                  data_param_selections=None, data=None,
-                 check_other_octant=True, metric='llh', blind=False):
+                 num_data_trials=1, num_fid_trials=1,
+                 data_start_ind=0, fid_start_ind=0,
+                 check_octant=True, metric='llh', blind=False,
+                 pprint=False):
+        assert num_data_trials >= 1
+        assert num_fid_trials >= 1
+        assert data_start_ind >= 0
+        assert fid_start_ind >= 0
+        # Cannot specify either of `data_maker` or `data_param_selections` if
+        # `data` is supplied.
+        if data is not None:
+            assert data_maker is None
+            assert data_param_selections is None
+            assert num_data_trials == 1
+            if isinstance(data, basestring):
+                data = from_file(data)
+            if not isinstance(data, MapSet):
+                data = MapSet(data)
+
+        # Ensure num_{fid_}data_trials is one if fluctuate_{fid_}data is False
+        if not fluctuate_data and num_data_trials != 1:
+            logging.warn(
+                'More than one data trial is unnecessary because'
+                ' `fluctuate_data` is False (i.e., all `num_data_trials` data'
+                ' distributions will be identical). Forcing `num_data_trials`'
+                ' to 1.'
+            )
+            num_data_trials = 1
+
+        if not fluctuate_fid and num_fid_trials != 1:
+            logging.warn(
+                'More than one fid trial is unnecessary because'
+                ' `fluctuate_fid` is False (i.e., all'
+                ' `num_fid_trials` data distributions will be identical).'
+                ' Forcing `num_fid_trials` to 1.'
+            )
+            num_fid_trials = 1
+
         # Identify duplicate `*_maker` specifications
         self.h1_maker_is_h0_maker = False
         if h1_maker is None or h1_maker == h0_maker:
@@ -156,9 +197,9 @@ class HypoTesting(Analysis):
             )
 
         # If analyzing actual data, fluctuations should not be applied to the
-        # data (fluctuating fiducial-fits Asimov data is still fine, though).
+        # data (fluctuating fiducial-fits Asimov dist is still fine, though).
         if data_is_data and fluctuate_data:
-            raise ValueError('Fluctuating actual data is invalid.')
+            raise ValueError('Adding fluctuations to actual data is invalid.')
 
         # Instantiate distribution makers only where necessary (otherwise copy)
         if not isinstance(h0_maker, DistributionMaker):
@@ -170,13 +211,21 @@ class HypoTesting(Analysis):
             else:
                 h1_maker = DistributionMaker(h1_maker)
 
-        if not isinstance(data_maker, DistributionMaker):
-            if self.data_maker_is_h0_maker:
-                data_maker = h0_maker
-            elif self.data_maker_is_h1_maker:
-                data_maker = h1_maker
-            else:
-                data_maker = DistributionMaker(data_maker)
+        # Cannot know if data came from same dist maker if we're just handed
+        # the data
+        if data is not None:
+            self.data_maker_is_h0_maker = False
+            self.data_maker_is_h1_maker = False
+
+        # Otherwise instantiate or copy the data dist maker
+        else:
+            if not isinstance(data_maker, DistributionMaker):
+                if self.data_maker_is_h0_maker:
+                    data_maker = h0_maker
+                elif self.data_maker_is_h1_maker:
+                    data_maker = h1_maker
+                else:
+                    data_maker = DistributionMaker(data_maker)
 
         # Create directory for logging results
         mkdir(logdir)
@@ -192,29 +241,34 @@ class HypoTesting(Analysis):
 
         self.logdir = logdir
         self.minimizer_settings = minimizer_settings
+        self.check_octant = check_octant
 
+        self.h0_name = h0_name
         self.h0_maker = h0_maker
         self.h0_param_selections = h0_param_selections
 
+        self.h1_name = h1_name
         self.h1_maker = h1_maker
         self.h1_param_selections = h1_param_selections
 
+        self.data_name = data_name
         self.data_is_data = data_is_data
         self.data_maker = data_maker
         self.data_param_selections = data_param_selections
 
         self.metric = metric
         self.fluctuate_data = fluctuate_data
-        self.fluctuate_fid_data = fluctuate_fid_data
+        self.fluctuate_fid = fluctuate_fid
 
-        self.h0_name = h0_name
-        self.h1_name = h1_name
-        self.data_name = data_name
+        self.num_data_trials = num_data_trials
+        self.num_fid_trials = num_fid_trials
+        self.data_start_ind = data_start_ind
+        self.fid_start_ind = fid_start_ind
 
         self.blind = blind
-        self.pprint = False
+        self.pprint = pprint
 
-        # Storage for most recent Asimov (un-fluctuated) data
+        # Storage for most recent Asimov (un-fluctuated) distributions
         self.asimov_dist = None
         self.h0_fid_asimov_dist = None
         self.h1_fid_asimov_dist = None
@@ -222,90 +276,58 @@ class HypoTesting(Analysis):
         # Storage for most recent "data" (either un-fluctuated--if Asimov
         # analysis being run or if actual data is being used--or fluctuated--if
         # pseudodata is being generated) data
-        self.data = None
-        self.h0_fid_data = None
-        self.h1_fid_data = None
+        self.data_dist = data
+        self.h0_fid_dist = None
+        self.h1_fid_dist = None
 
-    def run_analysis(self, num_data_trials=1, num_fid_data_trials=1,
-                     data_start_ind=0, fid_data_start_ind=0, pprint=False):
+    def run_analysis(self):
         """Run the LLR analysis."""
-        self.pprint = pprint
         logging.info('Running LLR analysis.')
 
         # Names for purposes of stdout/stderr logging messages
         data_disp = 'pseudodata' if self.fluctuate_data \
-                else 'Asimov or true data'
-        fid_data_disp = 'fiducial pseudodata' if self.fluctuate_data \
-                else 'fiducial Asimov data'
-
-        # Ensure num_{fid_}data_trials is one if fluctuate_{fid_}data is False
-        if not self.fluctuate_data and num_data_trials != 1:
-            logging.warn(
-                'More than one data trial is unnecessary because'
-                ' `fluctuate_data` is False (i.e., all `num_data_trials` data'
-                ' distributions will be identical). Forcing `num_data_trials`'
-                ' to 1.'
-            )
-            num_data_trials = 1
-
-        if not self.fluctuate_fid_data and num_fid_data_trials != 1:
-            logging.warn(
-                'More than one data trial is unnecessary because'
-                ' `fluctuate_fid_data` is False (i.e., all'
-                ' `num_fid_data_trials` data distributions will be identical).'
-                ' Forcing `num_fid_data_trials` to 1.'
-            )
-            num_fid_data_trials = 1
+                else 'Asimov or true data dist'
+        fid_dist_disp = 'fiducial pseudodata' if self.fluctuate_data \
+                else 'fiducial Asimov dist'
 
         # Loop for multiple (if fluctuated) data distributions
-        for data_ind in xrange(data_start_ind,
-                               data_start_ind+num_data_trials):
+        for self.data_ind in xrange(self.data_start_ind,
+                                    self.data_start_ind+self.num_data_trials):
             pct_data_complete = (
-                (data_ind - data_start_ind) / num_data_trials
+                100.*(self.data_ind-self.data_start_ind)/self.num_data_trials
             )
             logging.info(
-                r'%s set ID %d (will stop after %d). %0.2f%s of %s sets'
-                ' completed.' %(data_disp, data_ind,
-                data_start_ind+num_data_trials-1, pct_data_complete,
-                '%', data_disp)
+                'Working on %s set ID %d (will stop after ID %d).'
+                ' %0.2f%s of %s sets completed.'
+                %(data_disp,
+                  self.data_ind,
+                  self.data_start_ind+self.num_data_trials-1,
+                  pct_data_complete,
+                  '%',
+                  data_disp)
             )
+            self.generate_data()
+            self.do_fid_fits_to_data()
 
-            # Produce a data distribution
-            self.generate_data(data_ind=data_ind)
-
-            # Loop for multiple (fluctuated) fiducial data distributions
-            for fid_data_ind in xrange(fid_data_start_ind,
-                                       fid_data_start_ind+num_fid_data_trials):
-                pct_fid_data_complete = (
-                    (fid_data_ind - fid_data_start_ind)
-                    / num_fid_data_trials
+            # Loop for multiple (if fluctuated) fiducial data distributions
+            for self.fid_ind in xrange(self.fid_start_ind,
+                                       self.fid_start_ind+self.num_fid_trials):
+                pct_fid_dist_complete = (
+                    100*(self.fid_ind-self.fid_start_ind)/self.num_fid_trials
                 )
                 logging.info(
-                    r'%s set ID %d (will stop after %d). %0.2f%s of %s sets'
-                    ' completed.' %(fid_data_disp, fid_data_ind,
-                    fid_data_start_ind+num_fid_data_trials-1,
-                    pct_fid_data_complete, '%', fid_data_disp)
+                    r'Working on %s set ID %d (will stop after ID %d).'
+                    ' %0.2f%s of %s sets completed.'
+                    %(fid_dist_disp,
+                      self.fid_ind,
+                      self.fid_start_ind+self.num_fid_trials-1,
+                      pct_fid_dist_complete,
+                      '%',
+                      fid_dist_disp)
                 )
 
-                # Fit hypotheses to data and produce fiducial data
-                # distributions from *each* of the hypotheses' best fits
-                # (i.e., two fits are performed here)
-                self.generate_fid_data(data_ind=data_ind,
-                                       fid_data_ind=fid_data_ind)
-
-                # Perform fits of the each of the two hypotheses to each of the
-                # two fiducial data distributions (i.e., four fits are
-                # performed here)
-                self.llr_fit_to_h0_fid, self.h0_fit_to_h0_fid, \
-                        self.h1_fit_to_h0_fid = \
-                        self.compare_hypos(data=self.h0_fid_data)
-                if self.fluctuate_fid_data:
-                    self.llr_fit_to_h0_fid, self.h1_fit_to_h0_fid, \
-                            self.h0_fit_to_h0_fid = \
-                            self.compare_hypos(data=self.h0_fid_data)
-                else:
-                    self.llr_fit_to_data
-
+                self.produce_fid_data()
+                self.do_final_fits_to_fid()
                 # TODO: log trial results here...
             # TODO: ... and/or here
 
@@ -338,78 +360,222 @@ class HypoTesting(Analysis):
             blind=self.blind
         )
 
-    def generate_data(self, data_ind):
-        # Produce Asimov data if we don't already have it
+    def generate_data(self):
+        # Ambiguous whether we're dealing with Asimov or regular data if the
+        # data set is provided for us, so just return it.
+        if self.num_data_trials == 1 and self.data_dist is not None:
+            return self.data_dist
+
+        # No such thing as Asimov data if we're dealing with actual data
+        if self.data_is_data:
+            if self.data_dist is None:
+                self.data_maker.select_params(self.data_param_selections)
+                self.data_dist = self.data_maker.get_outputs()
+                self.h0_fit_to_data = None
+                self.h1_fit_to_data = None
+            return self.data_dist
+
+        # Produce Asimov dist if we don't already have it
         if self.asimov_dist is None:
             self.data_maker.select_params(self.data_param_selections)
             self.asimov_dist = self.data_maker.get_outputs()
+            self.h0_fit_to_data = None
+            self.h1_fit_to_data = None
 
         if self.fluctuate_data:
+            assert self.data_ind is not None
             # Random state for data trials is defined by:
-            #   * data vs fid-data = 0  : data part (outer loop)
+            #   * data vs fid-dist = 0  : data part (outer loop)
             #   * data trial = data_ind : data trial number (use same for data
             #                             and and fid data trials, since on the
             #                             same data trial)
             #   * fid trial = 0         : always 0 since data stays the same
             #                             for all fid trials in this data trial
-            data_random_state = get_random_state([0, data_ind, 0])
+            data_random_state = get_random_state([0, self.data_ind, 0])
 
-            self.data = self.asimov_dist.fluctuate(
+            self.data_dist = self.asimov_dist.fluctuate(
                 method='poisson', random_state=data_random_state
             )
 
         else:
-            self.data = self.asimov_dist
+            self.data_dist = self.asimov_dist
 
-        return self.data
+        return self.data_dist
 
-    def generate_fid_data(self, data_ind, fid_data_ind):
-        """Fit both hypotheses to "data" and produce fiducial data
-        distributions from *each* of the hypotheses' best fits (i.e., two fits
-        are performed).
+    def get_nofit_fit_info(self, data_maker, data_param_selections, data,
+                           asimov_dist):
+        fit_info = OrderedDict()
+        fit_info['metric'] = self.metric
+        fit_info['metric_val'] = data.metric_total(
+            expected_values=asimov_dist,
+            metric=self.metric
+        )
+        data_maker.select_params(data_param_selections)
+        params = deepcopy(data_maker.params)
+        fit_info['params'] = params
+        fit_info['asimov_dist'] = asimov_dist
+        fit_info['metadata'] = OrderedDict()
+        return fit_info
+
+    # TODO: use hashes to ensure fits aren't repeated that don't have to be?
+    def do_fid_fits_to_data(self):
+        """Fit both hypotheses to "data" to produce fiducial Asimov data
+        distributions from *each* of the hypotheses. (i.e., two fits are
+        performed unless redundancies are detected).
 
         """
-        # Fiducial fits: Perform fits of the two hypotheses to `data`
-        (self.llr_fit_to_data, self.h0_fit_to_data,
-         self.h1_fit_to_data) = self.compare_hypos(data=self.data)
+        if self.data_maker_is_h0_maker \
+                and self.h0_param_selections == self.data_param_selections \
+                and not self.fluctuate_data:
+            self.h0_fit_to_data = self.get_nofit_fit_info(
+                data_maker=self.data_maker,
+                data_param_selections=self.data_param_selections,
+                data=self.data_dist,
+                asimov_dist=self.asimov_dist
+            )
+        else:
+            logging.info('Fitting h0 to data distribution.')
+            self.h0_fit_to_data = self.fit_hypo(
+                data=self.data_dist,
+                hypo_maker=self.h0_maker,
+                param_selections=self.h0_param_selections,
+                metric=self.metric,
+                minimizer_settings=self.minimizer_settings,
+                check_octant=self.check_octant,
+                pprint=self.pprint,
+                blind=self.blind
+            )
+        self.h0_fid_asimov_dist = self.h0_fit_to_data['asimov_dist']
 
+        if self.data_maker_is_h1_maker \
+                and self.h1_param_selections == self.data_param_selections \
+                and not self.fluctuate_data:
+            self.h1_fit_to_data = self.get_nofit_fit_info(
+                data_maker=self.data_maker,
+                data_param_selections=self.data_param_selections,
+                data=self.data_dist,
+                asimov_dist=self.asimov_dist
+            )
+        elif self.h1_maker_is_h0_maker \
+                and self.h1_param_selections == self.h0_param_selections:
+            self.h1_fit_to_data = self.h0_fit_to_data
+        else:
+            logging.info('Fitting h1 to data distribution.')
+            self.h1_fit_to_data = self.fit_hypo(
+                data=self.data_dist,
+                hypo_maker=self.h1_maker,
+                param_selections=self.h1_param_selections,
+                metric=self.metric,
+                minimizer_settings=self.minimizer_settings,
+                check_octant=self.check_octant,
+                pprint=self.pprint,
+                blind=self.blind
+            )
+        self.h1_fid_asimov_dist = self.h1_fit_to_data['asimov_dist']
+
+    def produce_fid_data(self):
         # Retrieve event-rate maps for best fit to data with each hypo
-        self.h0_fid_asimov_dist = self.h0_fit_to_data['maps']
-        self.h1_fid_asimov_dist = self.h1_fit_to_data['maps']
 
-        if self.fluctuate_fid_data:
+        if self.fluctuate_fid:
             # Random state for data trials is defined by:
-            #   * data vs fid-data = 1     : fid data part (inner loop)
+            #   * data vs fid-dist = 1     : fid data part (inner loop)
             #   * data trial = data_ind    : data trial number (use same for
             #                                data and and fid data trials,
             #                                since on the same data trial)
-            #   * fid trial = fid_data_ind : always 0 since data stays the same
+            #   * fid trial = fid_ind      : always 0 since data stays the same
             #                                for all fid trials in this data
             #                                trial
-            fid_data_random_state = get_random_state([1, data_ind,
-                                                      fid_data_ind])
+            fid_random_state = get_random_state([1, self.data_ind,
+                                                 self.fid_ind])
 
-            self.h1_fid_data = self.h1_fid_asimov_dist.fluctuate(
+            # Fluctuate h0 fid Asimov
+            self.h0_fid_dist = self.h0_fid_asimov_dist.fluctuate(
                 method='poisson',
-                random_state=fid_data_random_state
+                random_state=fid_random_state
             )
-
-            # (Note that the state of `random_state` will be moved
-            # forward now as compared to what it was upon definition above.
-            # This is the desired behavior, so the *exact* same random
-            # state isn't used to fluctuate h1 as was used to fluctuate
-            # h0.)
-
-            self.h0_fid_data = self.h0_fid_asimov_dist.fluctuate(
+            # The state of `random_state` will be moved forward now as compared
+            # to what it was upon definition above. This is the desired
+            # behavior, so the *exact* same random state isn't used to
+            # fluctuate h1 as was used to fluctuate h0.
+            self.h1_fid_dist = self.h1_fid_asimov_dist.fluctuate(
                 method='poisson',
-                random_state=fid_data_random_state
+                random_state=fid_random_state
             )
-
         else:
-            self.h0_fid_data = self.h0_fid_asimov_dist
-            self.h1_fid_data = self.h1_fid_asimov_dist
+            self.h0_fid_dist = self.h0_fid_asimov_dist
+            self.h1_fid_dist = self.h1_fid_asimov_dist
 
-        return self.h1_fid_data, self.h0_fid_data
+        return self.h1_fid_dist, self.h0_fid_dist
+
+    def do_final_fits_to_fid(self):
+        # If fid isn't fluctuated, it's redundant to fit a hypo to a dist it
+        # generated
+        if not self.fluctuate_fid:
+            self.h0_fit_to_h0_fid = self.get_nofit_fit_info(
+                data_maker=self.h0_maker,
+                data_param_selections=self.h0_param_selections,
+                data=self.h0_fid_dist,
+                asimov_dist=self.h0_fid_asimov_dist
+            )
+            self.h1_fit_to_h1_fid = self.get_nofit_fit_info(
+                data_maker=self.h1_maker,
+                data_param_selections=self.h1_param_selections,
+                data=self.h1_fid_dist,
+                asimov_dist=self.h1_fid_asimov_dist
+            )
+        else:
+            logging.info('Fitting h0 to h0 fiducial data distribution.')
+            self.h0_fit_to_h0_fid = self.fit_hypo(
+                data=self.h0_fid_dist,
+                hypo_maker=self.h0_maker,
+                param_selections=self.h0_param_selections,
+                metric=self.metric,
+                minimizer_settings=self.minimizer_settings,
+                check_octant=self.check_octant,
+                pprint=self.pprint,
+                blind=self.blind
+            )
+            logging.info('Fitting h1 to h1 fiducial data distribution.')
+            self.h1_fit_to_h1_fid = self.fit_hypo(
+                data=self.h1_fid_dist,
+                hypo_maker=self.h1_maker,
+                param_selections=self.h1_param_selections,
+                metric=self.metric,
+                minimizer_settings=self.minimizer_settings,
+                check_octant=self.check_octant,
+                pprint=self.pprint,
+                blind=self.blind
+            )
+
+        # TODO: remove redundancy if h0 and h1 are identical
+        #if self.h1_maker_is_h0_maker \
+        #        and self.h1_param_selections == self.h0_param_selections:
+        #    self.h0_fit_to_h1_fid = 
+
+        # Always have to perform fits of one hypo to fid dist produced
+        # by other hypo
+        logging.info('Fitting h0 to h1 fiducial data distribution.')
+        self.h0_fit_to_h1_fid = self.fit_hypo(
+            data=self.h1_fid_dist,
+            hypo_maker=self.h0_maker,
+            param_selections=self.h0_param_selections,
+            metric=self.metric,
+            minimizer_settings=self.minimizer_settings,
+            check_octant=self.check_octant,
+            pprint=self.pprint,
+            blind=self.blind
+        )
+        logging.info('Fitting h1 to h0 fiducial data distribution.')
+        self.h1_fit_to_h0_fid = self.fit_hypo(
+            data=self.h0_fid_dist,
+            hypo_maker=self.h1_maker,
+            param_selections=self.h1_param_selections,
+            metric=self.metric,
+            minimizer_settings=self.minimizer_settings,
+            check_octant=self.check_octant,
+            pprint=self.pprint,
+            blind=self.blind
+        )
 
     @staticmethod
     def post_process(logdir):
@@ -536,10 +702,10 @@ def parse_args():
         not set, --num-data-trials is forced to 1.'''
     )
     parser.add_argument(
-        '--fluctuate-fid-data',
+        '--fluctuate-fid',
         action='store_true',
-        help='''Apply fluctuations to the fiducaial data distributions. If this
-        is not set, --num-fid-data-trials is forced to 1.'''
+        help='''Apply fluctuations to the fiducaial distributions. If this flag
+        is not set, --num-fid-trials is forced to 1.'''
     )
     parser.add_argument(
         '--metric',
@@ -551,7 +717,7 @@ def parse_args():
         type=int, default=1,
         help='''When performing Monte Carlo analysis, set to > 1 to produce
         multiple pseudodata distributions from the data distribution maker's
-        Asimov data distribution. This is overridden if --fluctuate-data is not
+        Asimov distribution. This is overridden if --fluctuate-data is not
         set (since each data distribution will be identical if it is not
         fluctuated). This is typically left at 1 (i.e., the Asimov distribution
         is assumed to be representative.'''
@@ -562,7 +728,7 @@ def parse_args():
         help='''Fluctated data set index.'''
     )
     parser.add_argument(
-        '-n', '--num-fid-data-trials',
+        '-n', '--num-fid-trials',
         type=int, default=1,
         help='''Number of fiducial pseudodata trials to run. In our experience,
         it takes ~10^3-10^5 fiducial psuedodata trials to achieve low
@@ -570,7 +736,7 @@ def parse_args():
         will vary based upon the details of an analysis.'''
     )
     parser.add_argument(
-        '--fid-data-start-ind',
+        '--fid-start-ind',
         type=int, default=0,
         help='''Fluctated fiducial data index.'''
     )
@@ -627,7 +793,7 @@ if __name__ == '__main__':
 
     set_verbosity(init_args_d.pop('v'))
     post_process = not init_args_d.pop('no_post_processing')
-    init_args_d['check_other_octant'] = not init_args_d.pop('no_octant_check')
+    init_args_d['check_octant'] = not init_args_d.pop('no_octant_check')
 
     init_args_d['data_is_data'] = not init_args_d.pop('data_is_mc')
 
@@ -649,16 +815,11 @@ if __name__ == '__main__':
             ps_list = [x.strip().lower() for x in ps_str.split(',')]
         init_args_d[ps_name] = ps_list
 
-    # Extract args needed by the `run_analysis` method
-    run_args = ['num_data_trials', 'num_fid_data_trials', 'data_start_ind',
-                'fid_data_start_ind', 'pprint']
-    run_args_d = {arg:init_args_d.pop(arg) for arg in run_args}
-
     # Instantiate the analysis object
     hypo_testing = HypoTesting(**init_args_d)
 
     # Run the analysis
-    hypo_testing.run_analysis(**run_args_d)
+    hypo_testing.run_analysis()
 
     # TODO: this.
     # Run postprocessing if called to do so

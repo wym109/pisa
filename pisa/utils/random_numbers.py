@@ -30,9 +30,9 @@ def get_random_state(random_state, jumpahead=0):
         * If sequence of two integers: first must be in [0, 32768): 15
           most-significant bits. Second must be in [0, 131072): 17
           least-significant bits.
-        * If sequence of three integers: first must be in [0, 32): 4
-          most-significant bits. Second must be in [0, 2048): next 11
-          less-significant bits. Third must be in [0, 131072): 17
+        * If sequence of three integers: first must be in [0, 4): 2
+          most-significant bits. Second must be in [0, 8192): next 13
+          (less-significant) bits. Third must be in [0, 131072): 17
           least-significant bits.
         * If a "state vector" (sequence of length five usable by
           `numpy.random.RandomState.set_state`), set the random state using
@@ -73,18 +73,22 @@ def get_random_state(random_state, jumpahead=0):
         if all([isinstance(x, int) for x in random_state]):
             if len(random_state) == 1:
                 seed = random_state[0]
-                assert seed >= 0 and seed_spec < 2**32
-            elif len(seed_spec) == 2:
-                s0, s1 = seed_spec
-                assert s0 >= 0 and s0 < 2**15
-                assert s1 >= 0 and s1 < 2**17
-                seed = (s0 << 17) + s1
-            elif len(seed_spec) == 3:
-                s0, s1, s2 = seed_spec
-                assert s0 >= 0 and s0 < 2**4
-                assert s1 >= 0 and s1 < 2**11
-                assert s2 >= 0 and s2 < 2**17
-                seed = (s0 << 11+17) + (s1 << 17) + s2
+                assert seed >= 0 and seed < 2**32
+            elif len(random_state) == 2:
+                b0, b1 = 15, 17
+                assert b0 + b1 == 32
+                s0, s1 = random_state
+                assert s0 >= 0 and s0 < 2**b0
+                assert s1 >= 0 and s1 < 2**b1
+                seed = (s0 << b1) + s1
+            elif len(random_state) == 3:
+                b0, b1, b2 = 2, 13, 17
+                assert b0 + b1 + b2 == 32
+                s0, s1, s2 = random_state
+                assert s0 >= 0 and s0 < 2**b0
+                assert s1 >= 0 and s1 < 2**b1
+                assert s2 >= 0 and s2 < 2**b2
+                seed = (s0 << b1+b2) + (s1 << b2) + s2
             else:
                 raise ValueError(
                     '`random_state` sequence of int must be length 1-3'

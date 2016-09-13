@@ -7,6 +7,9 @@ Common tools for performing an analysis collected into a single class
 
 """
 
+
+from __future__ import division
+
 from collections import OrderedDict
 from copy import deepcopy
 import sys
@@ -16,6 +19,7 @@ import numpy as np
 import scipy.optimize as optimize
 
 from pisa import ureg, Q_
+from pisa.core.param import ParamSet
 from pisa.utils.log import logging
 
 
@@ -114,50 +118,10 @@ class Analysis(object):
         return delta_metric, h0_fit, h1_fit
 
     def fit_hypo(self, data, hypo_maker, param_selections, metric,
-                 minimizer_settings, check_octant=True, pprint=False,
-                 blind=False):
-        """
-        Parameters
-        ----------
-        data : MapSet
-
-        hypo_maker : DistributionMaker
-
-        param_selections : None, string, or sequence of strings
-
-        metric : None or string
-
-        minimizer_settings : string
-
-        check_octant : bool
-
-        pprint : bool
-
-        blind : bool
-
-
-        Returns
-        -------
-        FitObj containing metric and params set to best-fit values
-
-        """
-        hypo_maker.select_params(param_selections)
-        fit_info = self.fit_template_outer(
-            data=data,
-            hypo_maker=hypo_maker,
-            metric=metric,
-            minimizer_settings=minimizer_settings,
-            check_octant=check_octant,
-            pprint=pprint,
-            blind=blind
-        )
-        return fit_info
-
-    def fit_hypo(self, data, hypo_maker, param_selections, metric,
                  minimizer_settings, check_octant=True, pprint=True,
                  blind=False):
         """Fitter "outer" loop: If `check_octant` is True, run
-        `fit_template_inner` starting in each octant of theta23 (assuming that
+        `fit_hypo_inner` starting in each octant of theta23 (assuming that
         is a param in the `hypo_maker`). Otherwise, just run the inner
         method once.
 
@@ -184,6 +148,8 @@ class Analysis(object):
 
         Returns
         -------
+        OrderedDict fit_info with keys 'metric', 'metric_val', 'params',
+        'asimov_dist', and 'metadata'
 
         """
         # Reset free parameters to nominal values
@@ -304,10 +270,13 @@ class Analysis(object):
             # clear the line
             sys.stdout.write('\n')
             sys.stdout.flush()
-        logging.debug(
-            'Average template generation time during minimizer run: %.4f ms'
-            %((end_t - start_t) * 1000./counter.count)
-        )
+
+        logging.debug('Total time to optimize: %8.4f s;'
+                      ' # of dists generated: %6d;'
+                      ' avg dist gen time: %10.4f ms'
+                      %(end_t-start_t,
+                        counter.count,
+                        (end_t - start_t)*1000./counter.count))
 
         # Will not assume that the minimizer left the hypo maker in the
         # minimized state, so set the values now (also does conversion of
@@ -315,8 +284,8 @@ class Analysis(object):
         rescaled_pvals = optimize_result.pop('x')
         hypo_maker.params.free._rescaled_values = rescaled_pvals
 
-        # Record the output maps with the optimal param values
-        maps = hypo_maker.get_outputs()
+        # Record the Asimov distribution with the optimal param values
+        asimov_dist = hypo_maker.get_outputs()
 
         # Get the best-fit metric value
         metric_val = optimize_result.pop('fun')
@@ -329,17 +298,18 @@ class Analysis(object):
                 continue
             metadata[k] = optimize_result[k]
 
-        info = OrderedDict()
-        info['metric'] = metric
-        info['metric_val'] = metric_val
-        info['maps'] = maps
+        fit_info = OrderedDict()
+        fit_info['metric'] = metric
+        fit_info['metric_val'] = metric_val
+        fit_info['asimov_dist'] = asimov_dist
         if blind:
             hypo_maker.params.reset_free()
+            fit_info['params'] = ParamSet()
         else:
-            info['params'] = deepcopy(hypo_maker.params)
-        info['metadata'] = metadata
+            fit_info['params'] = deepcopy(hypo_maker.params)
+        fit_info['metadata'] = metadata
 
-        return info
+        return fit_info
 
     def _minimizer_callable(self, scaled_param_vals, hypo_maker, data,
                             metric, counter, pprint, blind):
