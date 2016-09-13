@@ -1,18 +1,20 @@
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+import copy
+import itertools
+from uncertainties import unumpy as unp
+
 import numpy as np
 from scipy.optimize import curve_fit
 from scipy.ndimage.filters import gaussian_filter
 from scipy import interpolate
-import copy
-import itertools
 
 from pisa import ureg, Q_
+from pisa.core.map import Map, MapSet
 from pisa.core.pipeline import Pipeline
 from pisa.utils.fileio import from_file, to_file
 from pisa.utils.log import set_verbosity
-from pisa.utils.parse_config import parse_config
+from pisa.utils.config_parser import parse_pipeline_config, parse_quantity, parse_string_literal
 from pisa.utils.plotter import plotter
-from pisa.core.map import Map, MapSet
 
 parser = ArgumentParser()
 parser.add_argument('-t', '--template-settings', type=str,
@@ -29,6 +31,8 @@ args = parser.parse_args()
 set_verbosity(args.v)
 
 if args.plot: 
+    import matplotlib as mpl
+    mpl.use('pdf')
     import matplotlib.pyplot as plt
     from pisa.utils.plotter import plotter
 
@@ -64,7 +68,9 @@ for sys in sys_list:
 
     # instantiate template maker
     template_maker_settings = from_file(args.template_settings)
-    template_maker_configurator = parse_config(template_maker_settings)
+    template_maker_configurator = parse_pipeline_config(
+        template_maker_settings
+    )
     template_maker = Pipeline(template_maker_configurator)
 
     inputs = {}
@@ -77,7 +83,12 @@ for sys in sys_list:
             if key.startswith('param.'):
                 _,pname = key.split('.')
                 param = template_maker.params[pname]
-                param.value = val
+                try:
+                    value = parse_quantity(val)
+                    param.value = value.n * value.units
+                except ValueError:
+                    value = parse_string_literal(val)
+                    param.value = value
                 param.set_nominal_to_current_value()
                 template_maker.update_params(param)
         # retreive maps
@@ -94,7 +105,7 @@ for sys in sys_list:
     for cat in categories:
         arrays[cat] = []
         for x in x_values:
-            arrays[cat].append(inputs[cat][x]/inputs[cat][nominal])
+            arrays[cat].append(inputs[cat][x]/unp.nominal_values(inputs[cat][nominal]))
         arrays[cat] = np.array(arrays[cat]).transpose(1,2,0)
 
     nx, ny = inputs[categories[0]][nominal].shape
@@ -117,9 +128,10 @@ for sys in sys_list:
 
         for i, j in np.ndindex((nx,ny)):
         #for i, j in np.ndindex(inputs[cat][nominal].shape):
-            y_values = arrays[cat][i,j,:]
+            y_values = unp.nominal_values(arrays[cat][i,j,:])
+            y_sigma = unp.std_devs(arrays[cat][i,j,:])
             popt, pcov = curve_fit(fit_fun, x_values,
-                    y_values, p0=np.ones(degree))
+                    y_values, sigma=y_sigma, p0=np.ones(degree))
             for k, p in enumerate(popt):
                 outputs[cat][i,j,k] = p
 
@@ -130,13 +142,14 @@ for sys in sys_list:
                     fig = plt.figure(num=1, figsize=( 4*nx, 4*ny))
                 subplot_idx = nx*(ny-1-j)+ i + 1
                 plt.subplot(ny, nx, subplot_idx)
-                plt.scatter(x_values, y_values, color=plt_colors[cat])
+                #plt.scatter(x_values, y_values, color=plt_colors[cat])
+                plt.gca().errorbar(x_values, y_values, yerr=y_sigma, fmt='o', color=plt_colors[cat], ecolor=plt_colors[cat], mec=plt_colors[cat])
                 # plot nominal point again in black
                 plt.scatter([0.0], [1.0], color='k')
                 f_values = fit_fun(x_values, *popt)
                 fun_plot, = plt.plot(x_values, f_values,
                         color=plt_colors[cat])
-                plt.ylim(np.min(arrays[cat])*0.9, np.max(arrays[cat])*1.1)
+                plt.ylim(np.min(unp.nominal_values(arrays[cat]))*0.9, np.max(unp.nominal_values(arrays[cat]))*1.1)
                 if i > 0:
                     plt.setp(plt.gca().get_yticklabels(), visible=False)
                 if j > 0:
@@ -197,4 +210,4 @@ for sys in sys_list:
     outputs['function'] = function
     outputs['categories'] = categories
     #outputs['binning'] = binning
-    to_file(outputs, 'pisa.utils/sys/%s_sysfits_%s.json'%(sys,smooth))
+    to_file(outputs, 'pisa/resources/sys/%s_sysfits_%s.json'%(sys,smooth))

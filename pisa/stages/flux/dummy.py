@@ -64,7 +64,7 @@ class dummy(Stage):
 
         # Convert a parameter that the user can specify in any (compatible)
         # units to the units used for compuation
-        height = self.params['test'].value.to('meter').magnitude
+        height = self.params['test'].to('meter').magnitude
 
         output_maps = []
         for output_name in self.output_names:
@@ -89,4 +89,4 @@ class dummy(Stage):
         # do some checks on the parameters
         assert (params['test'].value.dimensionality ==
                 ureg.meter.dimensionality)
-        assert params['test'].value.magnitude >= 0
+        assert params['test'].magnitude >= 0
