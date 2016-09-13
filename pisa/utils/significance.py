@@ -27,7 +27,7 @@ for filename in fnames:
     if filename.endswith('.json'):
         file = from_file(args.dir+'/'+filename)
         name,_ = filename.split('.json')
-        if 'chi2' in metric:
+        if args.plot:
             name = name.split('_')[2]
         assert(not file[0][0]['warnflag'][0] and not file[0][1]['warnflag'])
         if file[0][0].has_key('llh'): metric = 'llh'

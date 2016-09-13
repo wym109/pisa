@@ -180,6 +180,11 @@ class gpu(Stage):
                 except KeyError:
                     self.events_dict[flav]['host'][var] = np.ones_like(evts[flav]['true_energy']).astype(FTYPE)
             self.events_dict[flav]['n_evts'] = np.uint32(len(self.events_dict[flav]['host'][variables[0]]))
+            #select even 50%
+            #self.events_dict[flav]['host']['weighted_aeff'][::2] = 0
+            #select odd 50%
+            #self.events_dict[flav]['host']['weighted_aeff'][1::2] = 0
+            #self.events_dict[flav]['host']['weighted_aeff'][9::10] = 0
             for var in empty:
                 if self.params.no_nc_osc and ( (flav in ['nue_nc', 'nuebar_nc'] and var == 'prob_e') or (flav in ['numu_nc', 'numubar_nc'] and var == 'prob_mu') ):
                     self.events_dict[flav]['host'][var] = np.ones(self.events_dict[flav]['n_evts'], dtype=FTYPE)
@@ -199,6 +204,20 @@ class gpu(Stage):
 
         # apply raw reco sys
         self.apply_reco()
+
+    def get_device_arrays(self):
+        ''' Copy back a dictionary with event by event information'''
+        return_events = {}
+        variables = ['true_energy', 'true_coszen', 'reco_energy', 'reco_coszen',
+                        'weight_trck', 'weight_cscd']
+        for flav in self.flavs:
+            return_events[flav] = {}
+            for var in variables:
+                buff = np.ones(self.events_dict[flav]['n_evts'])
+                cuda.memcpy_dtoh(buff, self.events_dict[flav]['device'][var])
+                return_events[flav][var] = buff
+        return return_events
+
 
     def apply_reco(self):
         # applying raw reco systematics (to use as inputs to polyfit stage)
