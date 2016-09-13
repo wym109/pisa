@@ -152,7 +152,7 @@ class plotter(object):
         if isinstance(mapset, MapSet):
             n = len(mapset)
         elif isinstance(mapset, TransformSet):
-            n = len(mapset.transforms)
+            n = len([x for x in mapset])
         if n_rows is None and n_cols is None:
             # TODO: auto row/cols
             n_rows = math.floor(math.sqrt(n))
@@ -179,22 +179,22 @@ class plotter(object):
             bin_edges = map.input_binning.bin_edges
             bin_centers = map.input_binning.weighted_centers
             xform_array = unp.nominal_values(map.xform_array)
-            zmap = np.log10(unp.nominal_values(map.hist)) if self.log else unp.nominal_values(map.hist)
+            zmap = np.log10(unp.nominal_values(map.xform_array)) if self.log else unp.nominal_values(map.xform_array)
         elif isinstance(map, Map):
             bins = [map.binning[name] for name in map.binning.names]
             bin_edges = map.binning.bin_edges
-            bin_centers = map.input_binning.weighted_centers
+            bin_centers = map.binning.weighted_centers
             zmap = np.log10(unp.nominal_values(map.hist)) if self.log else unp.nominal_values(map.hist)
         if self.symmetric:
             vmax = max(zmap.max(), - zmap.min())
             vmin = -vmax
         else:
-            vmax = zmap.max()
-            vmin = zmap.min()
+            vmax = np.max(zmap[np.isfinite(zmap)])
+            vmin = np.min(zmap[np.isfinite(zmap)])
         extent = [np.min(bin_edges[0].m), np.max(bin_edges[0].m), np.min(bin_edges[1].m), np.max(bin_edges[1].m)]
         # needs to be transposed for imshow
         img = plt.imshow(zmap.T,origin='lower',interpolation='nearest',extent=extent,aspect='auto',
-            cmap=cmap, vmax=vmax, vmin=vmin, **kwargs)
+            cmap=cmap, **kwargs)
         if self.annotate:
             counts = img.get_array().T
             for i in range(len(bin_centers[0])):

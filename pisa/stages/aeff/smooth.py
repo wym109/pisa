@@ -83,9 +83,10 @@ class smooth(Stage):
 
     """
     def __init__(self, params, particles, transform_groups,
-                 combine_grouped_flavints, input_binning, output_binning,
-                 error_method=None, disk_cache=None, transforms_cache_depth=20,
-                 outputs_cache_depth=20, debug_mode=None):
+                 sum_grouped_flavints, input_binning, output_binning,
+                 input_names=None, error_method=None, disk_cache=None,
+                 transforms_cache_depth=20, outputs_cache_depth=20,
+                 memcache_deepcopy=True, debug_mode=None):
         self.events_hash = None
         """Hash of events file or Events object used"""
 
@@ -110,7 +111,7 @@ class smooth(Stage):
             input_names = (
                 'nue', 'numu', 'nutau', 'nuebar', 'numubar', 'nutaubar'
             )
-            if combine_grouped_flavints:
+            if sum_grouped_flavints:
                 output_names = tuple([str(g) for g in self.transform_groups])
 
             else:
@@ -478,9 +479,9 @@ class smooth(Stage):
         interp_transforms = TransformSet(transforms=interp_transforms)
 
         # Clip negative values
-        for xform in smooth_transforms.transforms:
+        for xform in smooth_transforms:
             xform.xform_array = xform.xform_array.clip(0)
-        for xform in interp_transforms.transforms:
+        for xform in interp_transforms:
             xform.xform_array = xform.xform_array.clip(0)
 
 
@@ -593,8 +594,8 @@ class smooth(Stage):
                 i_cz : int
                     Index of the cz slice
                     """
-                raw_xform = raw_transforms.transforms[i_xform]
-                smooth_xform = smooth_transforms.transforms[i_xform]
+                raw_xform = raw_transforms[i_xform]
+                smooth_xform = smooth_transforms[i_xform]
 
                 assert raw_xform.input_binning == smooth_xform.input_binning
                 ebins = raw_xform.input_binning.true_energy
