@@ -85,6 +85,9 @@ class TransformSet(object):
     def __iter__(self):
         return iter(self._transforms)
 
+    def __len__(self):
+        return len(self._transforms)
+
     def __eq__(self, other):
         if not isinstance(other, TransformSet):
             return False
