@@ -118,7 +118,8 @@ class vbwkde(Stage):
     def __init__(self, params, particles, input_names, transform_groups,
                  input_binning, output_binning, error_method=None,
                  disk_cache=None, transforms_cache_depth=20,
-                 outputs_cache_depth=20, debug_mode=None):
+                 outputs_cache_depth=20, memcache_deepcopy=True,
+                 debug_mode=None):
         self.events_hash = None
         """Hash of events file or Events object used"""
 
@@ -158,6 +159,7 @@ class vbwkde(Stage):
             disk_cache=disk_cache,
             outputs_cache_depth=outputs_cache_depth,
             transforms_cache_depth=transforms_cache_depth,
+            memcache_deepcopy=memcache_deepcopy,
             input_binning=input_binning,
             output_binning=output_binning,
             debug_mode=debug_mode
@@ -1012,8 +1014,6 @@ class vbwkde(Stage):
                 fig1.savefig(pdfpgs, format='pdf')
 
         check_areas = kernel4d.sum(axis=(2,3))
-        print "check_areas:"
-        print check_areas[np.where(check_areas>1.)]
 
         assert np.max(check_areas) < 1 + EPSILON, str(np.max(check_areas))
         assert np.min(check_areas) > 0 - EPSILON, str(np.min(check_areas))
@@ -1110,7 +1110,6 @@ class vbwkde(Stage):
             logging.debug("Working on %s reco kernels" %flav_int_group)
 
             repr_flav_int = flav_int_group.flavints()[0]
-            print repr_flav_int
             e_true = self.events[repr_flav_int]['true_energy']
             e_reco = self.events[repr_flav_int]['reco_energy']
             cz_true = self.events[repr_flav_int]['true_coszen']
@@ -1140,7 +1139,13 @@ class vbwkde(Stage):
                 e_true=e_true, cz_true=cz_true, e_reco=e_reco, cz_reco=cz_reco,
                 flav=flav, int_type=int_type, ebins=ebins, czbins=czbins,
                 make_plots=self.debug_mode, out_dir=None
-            )
+            ) # NOTE dimensions are (true_e, true_cz, reco_e, reco_cz)
+
+            # Swap axes according to specified binning order
+            if self.input_binning.names[0] == 'true_coszen':
+                reco_kernel = np.swapaxes(reco_kernel, 0, 1)
+            if self.output_binning.names[0] == 'reco_coszen':
+                reco_kernel = np.swapaxes(reco_kernel, 2, 3)
 
             for input_name in self.input_names:
                 if input_name not in flav_int_group:
