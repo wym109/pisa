@@ -180,6 +180,11 @@ class gpu(Stage):
                 except KeyError:
                     self.events_dict[flav]['host'][var] = np.ones_like(evts[flav]['true_energy']).astype(FTYPE)
             self.events_dict[flav]['n_evts'] = np.uint32(len(self.events_dict[flav]['host'][variables[0]]))
+            #select even 50%
+            #self.events_dict[flav]['host']['weighted_aeff'][::2] = 0
+            #select odd 50%
+            #self.events_dict[flav]['host']['weighted_aeff'][1::2] = 0
+            #self.events_dict[flav]['host']['weighted_aeff'][9::10] = 0
             for var in empty:
                 if self.params.no_nc_osc and ( (flav in ['nue_nc', 'nuebar_nc'] and var == 'prob_e') or (flav in ['numu_nc', 'numubar_nc'] and var == 'prob_mu') ):
                     self.events_dict[flav]['host'][var] = np.ones(self.events_dict[flav]['n_evts'], dtype=FTYPE)

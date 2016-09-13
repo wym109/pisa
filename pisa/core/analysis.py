@@ -5,6 +5,7 @@
 from collections import Sequence
 import sys
 import scipy.optimize as opt
+from scipy.stats import chisqprob
 import time
 from uncertainties import unumpy as unp
 
@@ -65,6 +66,14 @@ class Analysis(object):
         self.metric = metric.lower()
         self.minimizer_settings = None
         self.blind = blind
+
+        # DOF as n_bins - n_free_params + n_gauss_priors
+        n_bins = sum(map.binning.tot_num_bins for map in self.template_maker.get_outputs())
+        self.n_free_params = len(self.template_maker.params.free)
+        n_gauss_priors = 0
+        for param in self.template_maker.params.free:
+            if param.prior.kind == 'gaussian': n_gauss_priors +=1
+        self.dof = n_bins - self.n_free_params + n_gauss_priors
 
         # Generate distribution
         self.data = self.data_maker.get_outputs()
@@ -167,6 +176,11 @@ class Analysis(object):
                                                       metric=self.metric))
         return metric_vals
 
+    def randomize_free_params(self):
+        n = len(self.template_maker.params.free)
+        rand = np.random.rand(n)
+        self.template_maker.params.free._rescaled_values = rand
+
     def _minimizer_callable(self, scaled_param_vals, pprint=True):
         """The callable interface to provide to simple minimzers e.g. those in
         scipy.optimize.
@@ -198,8 +212,8 @@ class Analysis(object):
         self.template_maker.params.free._rescaled_values = scaled_param_vals
 
         template = self.template_maker.get_outputs()
-        N_mc = sum([unp.nominal_values(map.hist).sum() for map in template])
-        scale = self.N_data/N_mc
+        #N_mc = sum([unp.nominal_values(map.hist).sum() for map in template])
+        #scale = self.N_data/N_mc
         scale=1.
 
         # Assess the fit of the template to the data distribution, and negate
@@ -209,15 +223,20 @@ class Analysis(object):
             + template_maker.params.priors_penalty(metric=self.metric)
         )
 
+        mod_chi2_val = (self.pseudodata.metric_total(expected_values=template*scale, metric='mod_chi2')
+            + template_maker.params.priors_penalty(metric='mod_chi2'))
+        chi2_val = (self.pseudodata.metric_total(expected_values=template*scale, metric='chi2')
+            + template_maker.params.priors_penalty(metric='chi2'))
         # Report status of metric & params
         if self.blind:
-            mod_chi2_val = (self.pseudodata.metric_total(expected_values=template, metric='mod_chi2')
-                + template_maker.params.priors_penalty(metric='mod_chi2'))
-            msg = '%s=%.6e | %s blinded parameters' %(self.metric, metric_val, len(self.template_maker.params.free))
-            msg += '        mod_chi2 = %s ' % mod_chi2_val
+            msg = '%s=%.6e | %s blinded parameters' %(self.metric, metric_val, self.n_free_params)
+            msg += '    mod_chi2 = %.6e / %i DOF, p = %.4f' %(mod_chi2_val, self.dof, chisqprob(mod_chi2_val, self.dof))
+            msg += '    chi2 = %.6e / %i DOF, p = %.4f' %(chi2_val, self.dof, chisqprob(chi2_val,self.dof))
         else:
-            msg = '%s=%.6e | %s' %(self.metric, metric_val,
-                                   self.template_maker.params.free)
+            msg = '%s=%.6e , mod_chi2 = %.6e / %i DOF, p = %.4f, chi2 = %.6e / %i DOF, p = %.4f | %s' %(self.metric, metric_val,
+                                    mod_chi2_val, self.dof, chisqprob(mod_chi2_val, self.dof),
+                                    chi2_val, self.dof, chisqprob(chi2_val,self.dof),
+                                    self.template_maker.params.free)
         if pprint:
             sys.stdout.write(msg)
             sys.stdout.flush()
@@ -406,7 +425,7 @@ if __name__ == '__main__':
                         help='''Settings related to the optimizer used in the
                         LLR analysis.''')
     parser.add_argument('--mode', type=str,
-                        choices=['H0', 'scan11', 'scan21'], default='H0',
+                        choices=['H0', 'scan11', 'scan21', 'scancp'], default='H0',
                         help='''just run significance or whole scan''')
     parser.add_argument('-f','--function', type=str,
                         choices=['profile','fit'], default='profile',
@@ -442,6 +461,7 @@ if __name__ == '__main__':
             test.value = value
             data_maker.update_params(test)
 
+
     analysis = Analysis(data_maker=data_maker,
                         template_maker=template_maker,
                         metric=args.metric,
@@ -449,6 +469,8 @@ if __name__ == '__main__':
 
     analysis.minimizer_settings = from_file(args.minimizer_settings)
     analysis.pseudodata_method = args.pseudo_data
+    
+    #analysis.randomize_free_params()
 
     results = []
 
@@ -464,6 +486,8 @@ if __name__ == '__main__':
                 results.append(analysis.profile('nutau_cc_norm',np.linspace(0,2,11)*ureg.dimensionless))
             elif args.mode == 'scan21':
                 results.append(analysis.profile('nutau_cc_norm',np.linspace(0,2,21)*ureg.dimensionless))
+            elif args.mode == 'scancp':
+                results.append(analysis.profile('deltacp',np.linspace(0,360,13)*ureg.degree))
 
         elif args.function == 'fit':
             results.append(analysis.find_best_fit())

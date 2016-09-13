@@ -171,4 +171,6 @@ def mod_chi2(actual_values, expected_values):
     sigma = unp.std_devs(expected_values).ravel()
     expected_values = unp.nominal_values(expected_values).ravel()
     chi2 = np.square(actual_values - expected_values)/(np.square(sigma)+expected_values)
+    # wrong def.
+    #chi2 = np.square(actual_values - expected_values)/(np.square(sigma)+actual_values)
     return np.sum(chi2)
