@@ -2,6 +2,7 @@ cython
 h5py
 line_profiler
 matplotlib
+enum34
 numba
 numpy >= 1.11.0
 pint

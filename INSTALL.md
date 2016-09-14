@@ -13,10 +13,11 @@ Also note that both SWIG and HDF5 support come pre-packaged in the Anaconda and 
 * [git](https://git-scm.com/)
 * [swig](http://www.swig.org/)
 * [hdf5](http://www.hdfgroup.org/HDF5/) — install with `--enable-cxx` option
+* [llvm](http://llvm.org/)
 
 If you are *not* using Anaconda or Canopy, you can install the above via:
 * In Ubuntu,<br>
-  'sudo apt-get install git swig hdf5`
+  'sudo apt-get install git swig hdf5 llvm`
 
 The Python requirements that you must install manually:
 * [python](http://www.python.org) — version 2.7.x required (tested with 2.7.11)
@@ -47,6 +48,8 @@ The Python requirements that you must install manually:
 Required Python modules that are installed automatically when you use the pip command detailed later:
 * [h5py](http://www.h5py.org/)
 * [matplotlib](http://matplotlib.org/)
+* [enum34](http://numba.pydata.org/) (required for numba)
+* [numba](http://numba.pydata.org/)
 * [pint](https://pint.readthedocs.org/en/0.7.2/)
 * [scipy](http://www.scipy.org/) — version > 0.12 recommended
 * [simplejson](https://github.com/simplejson/simplejson)
