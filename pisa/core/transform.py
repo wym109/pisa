@@ -696,6 +696,7 @@ class BinnedTensorTransform(Transform):
     # given the (concatenated) input dimension and the dimension of the
     # transform kernel
 
+    @profile
     def _apply(self, inputs):
         """Apply transforms to input maps to compute output maps.
 
@@ -753,28 +754,20 @@ class BinnedTensorTransform(Transform):
 
         names = self.input_names
         in0 = inputs[names[0]]
-        do_rebinning = in0.binning.hash != self.input_binning.hash
 
-        # Rebin if necessary so inputs have `input_binning`
         if self.num_inputs == 1:
-            if do_rebinning:
-                input_array = (in0.rebin(self.input_binning)).hist
-            else:
-                input_array = in0.hist
+            input_array = (in0.rebin(self.input_binning)).hist
 
         # Stack inputs, sum inputs, *then* rebin (if necessary)
         elif self.sum_inputs:
             input_array = np.sum([inputs[n].hist for n in names], axis=0)
-            if do_rebinning:
-                input_array = rebin(input_array, orig_binning=in0.binning,
-                                    new_binning=self.input_binning)
+            input_array = rebin(input_array, orig_binning=in0.binning,
+                                new_binning=self.input_binning)
 
         # Rebin (if necessary) then stack
         else:
-            if do_rebinning:
-                input_array = [(inputs[n].rebin(self.input_binning)).hist for n in names]
-            else:
-                input_array = [inputs[n].hist for n in names]
+            input_array = [(inputs[n].rebin(self.input_binning)).hist
+                           for n in names]
             input_array = np.stack(input_array, axis=0)
 
         # Transform same shape: element-by-element multiplication

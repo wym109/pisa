@@ -440,7 +440,8 @@ class OneDimBinning(object):
 
         """
         if self._hash is None:
-            self._hash = hash_obj(self._hashable_state)
+            s = self._hashable_state
+            self._hash = hash_obj(s)
         return self._hash
 
     @property
@@ -1392,7 +1393,8 @@ def test_OneDimBinning():
               normQuant(b4.bin_edges, HASH_SIGFIGS))
 
     # And the hashes should be equal, reflecting the latter result
-    assert b3.hash == b4.hash, '\nb3=%s\nb4=%s' %(b3._hashable_state, b4._hashable_state)
+    assert b3.hash == b4.hash, \
+            '\nb3=%s\nb4=%s' %(b3._hashable_state, b4._hashable_state)
     assert b3.hash == b4.hash, 'b3.hash=%s; b4.hash=%s' %(b3.hash, b4.hash)
 
     # TODO: make pickle great again

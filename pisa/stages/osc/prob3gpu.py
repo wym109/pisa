@@ -14,7 +14,7 @@ from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.stages.osc.grid_propagator.GridPropagator import GridPropagator
 from pisa.utils.log import logging
 from pisa.utils.comparisons import normQuant
-from pisa.utils.profiler import profile
+from pisa.utils.profiler import line_profile, profile
 from pisa.utils.resources import find_resource
 
 
@@ -282,6 +282,7 @@ class prob3gpu(Stage):
         """No nominal transforms implemented for this service."""
         return None
 
+    @profile
     def _compute_transforms(self):
         """Compute oscillation transforms using grid_propagator GPU code."""
 

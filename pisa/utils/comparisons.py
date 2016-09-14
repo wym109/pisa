@@ -36,6 +36,7 @@ import pint
 
 from pisa import ureg, Q_
 from pisa.utils.log import logging, set_verbosity
+from pisa.utils.profiler import line_profile, profile
 
 
 PREC = np.finfo(float).eps
