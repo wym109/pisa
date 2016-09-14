@@ -18,7 +18,7 @@ class icc(Stage):
     """TODO: document me, Philipp!"""
 
     def __init__(self, params, output_binning, disk_cache=None,
-                memcaching_enabled=True, error_method=None,
+                memcache_deepcopy=True, error_method=None,
                 outputs_cache_depth=20, debug_mode=None):
 
         expected_params = (
@@ -44,7 +44,7 @@ class icc(Stage):
             output_names=output_names,
             error_method=error_method,
             disk_cache=disk_cache,
-            memcaching_enabled=memcaching_enabled,
+            memcache_deepcopy=memcache_deepcopy,
             outputs_cache_depth=outputs_cache_depth,
             output_binning=output_binning,
             debug_mode=debug_mode
@@ -100,7 +100,9 @@ class icc(Stage):
                 print ('For the old simulation, def.2 background not done yet,'
                        ' so still use def1 for it.')
                 l4_pass = np.all(l4==1)
-        assert(np.all(santa_doms>=3) and np.all(l3 == 1) and l4_pass and np.all(l5 >= 0.1))
+        assert (np.all(santa_doms>=3) and np.all(l3 == 1) and l4_pass and
+                np.all(l5 >= 0.1))
+        l6 = bg_file['IC86_Dunkman_L6']
         corridor_doms_over_threshold = l6['corridor_doms_over_threshold']
 
         inverted_corridor_cut = corridor_doms_over_threshold > 1
@@ -111,9 +113,19 @@ class icc(Stage):
 
         #load events
         if sim_ver == '4digit':
-            variable ='IC86_Dunkman_L6_MultiNest8D_PDG_Neutrino'
-        elif sim_ver in ['5digit', 'dima']:
-            variable = 'IC86_Dunkman_L6_PegLeg_MultiNest8D_NumuCC' 
+            reco_energy_all = np.array(
+                bg_file['IC86_Dunkman_L6_MultiNest8D_PDG_Neutrino']['energy']
+            )
+            reco_coszen_all = np.array(np.cos(
+                bg_file['IC86_Dunkman_L6_MultiNest8D_PDG_Neutrino']['zenith']
+            ))
+        elif sim_ver == '5digit' or 'dima':
+            reco_energy_all = np.array(
+                bg_file['IC86_Dunkman_L6_PegLeg_MultiNest8D_NumuCC']['energy']
+            )
+            reco_coszen_all = np.array(np.cos(
+                bg_file['IC86_Dunkman_L6_PegLeg_MultiNest8D_NumuCC']['zenith']
+            ))
         else:
             raise ValueError('Only allow sim_ver  4digit, 5 digit or dima!')
         reco_energy_all = np.array(bg_file[variable]['energy'])
@@ -133,6 +145,10 @@ class icc(Stage):
         l5_cut1 = l5[cut1]
 
         # Cut2: Only keep bdt score >= 0.2 (from MSU latest result, make data/MC agree much better)
+        pid_cut = pid_bound 
+        #print "pid_remove = ", pid_remove
+        #print "pid_bound = ", pid_bound
+
         cut2 = l5_cut1>=bdt_cut
         reco_energy_cut2 = reco_energy_cut1[cut2]
         reco_coszen_cut2 = reco_coszen_cut1[cut2]
