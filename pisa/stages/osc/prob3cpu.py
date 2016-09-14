@@ -119,8 +119,10 @@ class prob3cpu(Stage):
         # Only works if energy and coszen are in input_binning
         if 'true_energy' not in self.input_binning \
                 or 'true_coszen' not in self.input_binning:
-            raise ValueError('Input binning must contain both "true_energy" and'
-                             ' "true_coszen" dimensions.')
+            raise ValueError(
+                'Input binning must contain both "true_energy" and'
+                ' "true_coszen" dimensions.'
+            )
 
         # Not handling rebinning (or oversampling)
         assert self.input_binning == self.output_binning
@@ -159,7 +161,8 @@ class prob3cpu(Stage):
             and hasattr(self, '_barger_earth_model')
             and hasattr(self, '_barger_detector_depth')
             and normQuant(self._barger_detector_depth, sigfigs=SIGFIGS)
-                == normQuant(self.params.detector_depth.m_as('km'), sigfigs=SIGFIGS)
+                == normQuant(self.params.detector_depth.m_as('km'),
+                             sigfigs=SIGFIGS)
             and self.params.earth_model.value == self._barger_earth_model):
             return
 
@@ -207,45 +210,67 @@ class prob3cpu(Stage):
         total_bins = int(len(self.e_centers)*len(self.cz_centers))
         evals = np.empty(total_bins, "double")
         czvals = np.empty(total_bins, "double")
-        # We use 18 since we have each 3*3 possible oscillations for neutrinos
-        # and antineutrinos.
-        probList = np.empty(total_bins*18,"double")
+        # We use 18 since we have 3*3 possible oscillations for each of
+        # neutrinos and antineutrinos.
+        prob_list = np.empty(total_bins*18,"double")
         # The 1.0 was energyscale from earlier versions. Perhaps delete this
         # if we no longer want energyscale.
-        probList, evals, czvals = self.barger_propagator.fill_osc_prob_c(
-                self.e_centers, self.cz_centers, 1.0,
-                deltam21, deltam31, deltacp, prop_height, YeI,
-                YeO, YeM, total_bins*18, total_bins, total_bins,
-                theta12, theta13, theta23)
+        prob_list, evals, czvals = self.barger_propagator.fill_osc_prob_c(
+            self.e_centers, self.cz_centers, 1.0,
+            deltam21, deltam31, deltacp, prop_height, YeI,
+            YeO, YeM, total_bins*18, total_bins, total_bins,
+            theta12, theta13, theta23
+        )
 
         # Slice up the transform arrays into views to populate each transform
         transforms = []
         xShape = [2] + list(self.input_binning.shape)
+
+        # TODO: populate explicitly by flavor, don't assume any particular
+        # ordering of the outputs names!
         for out_idx, output_name in enumerate(self.output_names):
             xform = np.empty(xShape)
             if out_idx < 3:
                 # Neutrinos
-                xform[0] = np.array([probList[out_idx+i*18*self.num_czbins:out_idx
-                            +18*(i+1)*self.num_czbins:18]
-                            for i in range(0, self.num_ebins)])
-                xform[1] = np.array([probList[out_idx+3+i*18*self.num_czbins:out_idx
-                            +18*(i+1)*self.num_czbins:18]
-                            for i in range(0, self.num_ebins)])
+                xform[0] = np.array([
+                    prob_list[out_idx + i*18*self.num_czbins
+                              : out_idx + 18*(i+1)*self.num_czbins
+                              : 18]
+                    for i in range(0, self.num_ebins)
+                ])
+                xform[1] = np.array([
+                    prob_list[out_idx+3 + i*18*self.num_czbins
+                              : out_idx + 18*(i+1)*self.num_czbins
+                              : 18]
+                    for i in range(0, self.num_ebins)
+                ])
                 input_names = self.input_names[0:2]
+
             else:
                 # Antineutrinos
-                xform[0] = np.array([probList[out_idx+6+i*18*self.num_czbins:out_idx
-                            +6+18*(i+1)*self.num_czbins:18]
-                            for i in range(0, self.num_ebins)])
-                xform[1] = np.array([probList[out_idx+9+i*18*self.num_czbins:out_idx
-                            +9+18*(i+1)*self.num_czbins:18]
-                            for i in range(0, self.num_ebins)])
+                xform[0] = np.array([
+                    prob_list[out_idx+6 + i*18*self.num_czbins
+                              : out_idx+6 + 18*(i+1)*self.num_czbins
+                              : 18]
+                    for i in range(0, self.num_ebins)
+                ])
+                xform[1] = np.array([
+                    prob_list[out_idx+9 + i*18*self.num_czbins
+                              : out_idx+9 + 18*(i+1)*self.num_czbins
+                              : 18]
+                    for i in range(0, self.num_ebins)
+                ])
                 input_names = self.input_names[2:4]
-            transforms.append(BinnedTensorTransform(input_names=input_names,
-                              output_name=output_name,
-                              input_binning=self.input_binning,
-                              output_binning=self.output_binning,
-                              xform_array=xform))
+
+            transforms.append(
+                BinnedTensorTransform(
+                    input_names=input_names,
+                    output_name=output_name,
+                    input_binning=self.input_binning,
+                    output_binning=self.output_binning,
+                    xform_array=xform
+                )
+            )
 
         return TransformSet(transforms=transforms)
 

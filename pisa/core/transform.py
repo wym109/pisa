@@ -12,7 +12,7 @@ import numpy as np
 from uncertainties import unumpy as unp
 
 from pisa.core.binning import MultiDimBinning
-from pisa.core.map import Map, MapSet
+from pisa.core.map import Map, MapSet, rebin
 from pisa.utils.comparisons import normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils import jsons
@@ -714,9 +714,6 @@ class BinnedTensorTransform(Transform):
         """
         self.validate_input(inputs)
 
-        # Rebin if necessary so inputs have `input_binning`
-        inputs = inputs.rebin(self.input_binning)
-
         # TODO: In the multiple inputs / single output case and depending upon
         # the dimensions of the transform, for efficiency purposes we should
         # make sure that an operation is not carried out like
@@ -752,17 +749,28 @@ class BinnedTensorTransform(Transform):
         # by a factor of the number of inputs being "combined" (the number of
         # adds stays the same).
 
-        # TODO: make (sure) all of these operations compatible with
+        # TODO: make sure all of these operations are compatible with
         # uncertainties module!
 
-        if self.num_inputs == 1:
-            input_array = inputs[self.input_names[0]].hist
-        else:
-            input_array = np.stack([inputs[name].hist
-                                    for name in self.input_names], axis=0)
-            if self.sum_inputs:
-                input_array = np.sum(input_array, axis=0)
+        names = self.input_names
+        in0 = inputs[names[0]]
 
+        if self.num_inputs == 1:
+            input_array = (in0.rebin(self.input_binning)).hist
+
+        # Stack inputs, sum inputs, *then* rebin (if necessary)
+        elif self.sum_inputs:
+            input_array = np.sum([inputs[n].hist for n in names], axis=0)
+            input_array = rebin(input_array, orig_binning=in0.binning,
+                                new_binning=self.input_binning)
+
+        # Rebin (if necessary) then stack
+        else:
+            input_array = [(inputs[n].rebin(self.input_binning)).hist
+                           for n in names]
+            input_array = np.stack(input_array, axis=0)
+
+        # Transform same shape: element-by-element multiplication
         if self.xform_array.shape == input_array.shape:
             output = input_array * self.xform_array
 

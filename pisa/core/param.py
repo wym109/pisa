@@ -763,6 +763,8 @@ class ParamSelector(object):
 
         distilled_selections = []
         for selection in selections:
+            if selection is None:
+                continue
             assert isinstance(selection, basestring)
             selection = selection.strip().lower()
             try:
@@ -828,7 +830,10 @@ class ParamSelector(object):
     def get(self, name, selector=None):
         if selector is None:
             return self._regular_params[name]
-        return self._selector_params[selector][name]
+        try:
+            return self._selector_params[selector][name]
+        except KeyError:
+            return self._regular_params[name]
 
 
 def test_Param():
@@ -1141,17 +1146,19 @@ def test_ParamSelector():
     p61 = Param(name='g', value=-2, prior=None, range=[-10,10],
                 is_fixed=False, is_discrete=False, tex=r'{\rm b}')
 
-    # Update with a "regular" param
+    # Update with a "regular" param that doesn't exist yet
     param_selector.update(p=p5, selector=None)
     assert params.f.value == 120
 
-    # Update with a "selector" param that's currently selected
+    # Update with a new "selector" param with selector that's currently
+    # selected
     param_selector.update(p=p61, selector='p31_41')
     assert params.g.value == -2
     p = param_selector.get(name='g', selector='p31_41')
     assert p.value == -2
 
-    # Update with a "selector" param that's _not_ currently selected
+    # Update with a new "selector" param with selector that's _not_ currently
+    # selected
     param_selector.update(p=p60, selector='p30_40')
 
     # Selected param value shouldn't have changed

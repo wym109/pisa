@@ -68,7 +68,7 @@ sys_jp_name = {'theta23': 'theta23',
 	     'Barr_uphor_ratio': 'uphor_ratio'
 	     }
 
-path = '/fastio/nutau/oscfit_comparison_files/JP/'
+path = 'JP/'
 
 #baseline
 # JP comp:

@@ -46,7 +46,7 @@ class GPUweight(object):
 	    }
 
         __device__ fType spectral_index_scale(fType true_energy,
-                                              ftype egy_pivot,
+                                              fType egy_pivot,
                                               fType delta_index) {
             fType scale = pow((true_energy/egy_pivot),delta_index);
             return scale;

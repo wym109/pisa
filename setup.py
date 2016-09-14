@@ -146,6 +146,7 @@ if __name__ == '__main__':
         'events/deepcore_ic86/MSU/1XXX/UnJoined/*.hdf5',
         'events/deepcore_ic86/MSU/1XXXX/Joined/*.hdf5',
         'events/deepcore_ic86/MSU/1XXXX/UnJoined/*.hdf5',
+	'events/deepcore_ic86/MSU/icc/*.hdf5',
         'events/pingu_v36/*.hdf5',
         'events/pingu_v39/*.hdf5',
         'flux/*.d',
@@ -166,6 +167,7 @@ if __name__ == '__main__':
         'tests/data/pid/*.json',
         'tests/data/reco/*.json',
         'tests/data/xsec/*.root',
+        'tests/data/oscfit/*.json',
         'tests/settings/*.ini'
     ]
 
@@ -248,10 +250,13 @@ if __name__ == '__main__':
             'pisa.stages.reco',
             'pisa.stages.sys',
             'pisa.stages.xsec',
-            'pisa.utils'
+	    'pisa.stages.mc',
+	    'pisa.stages.data',
+            'pisa.utils',
+            'pisa.resources'
         ],
         scripts=[
-            'pisa/analysis/llr_analysis.py',
+            'pisa/analysis/hypo_testing.py',
             'pisa/analysis/profile_llh_analysis.py',
             'pisa/core/distribution_maker.py',
             'pisa/core/pipeline.py',

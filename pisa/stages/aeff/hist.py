@@ -116,10 +116,10 @@ class hist(Stage):
         # outputs
         if self.particles == 'neutrinos':
             if self.sum_grouped_flavints:
-                output_names = tuple([str(g) for g in self.transform_groups])
+                output_names = [str(g) for g in self.transform_groups]
             else:
                 input_flavints = NuFlavIntGroup(input_names)
-                output_names = tuple([str(fi) for fi in input_flavints])
+                output_names = [str(fi) for fi in input_flavints]
 
         logging.trace('transform_groups = %s' %self.transform_groups)
         logging.trace('output_names = %s' %' :: '.join(output_names))
@@ -157,7 +157,6 @@ class hist(Stage):
         self.events = Events(evts)
         self.events_hash = this_hash
 
-    @profile
     def _compute_nominal_transforms(self):
         self.load_events()
         # Units must be the following for correctly converting a sum-of-
@@ -274,7 +273,6 @@ class hist(Stage):
 
         return TransformSet(transforms=nominal_transforms)
 
-    @profile
     def _compute_transforms(self):
         """Compute new oscillation transforms"""
         # Read parameters in in the units used for computation

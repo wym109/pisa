@@ -127,7 +127,8 @@ class Stage(object):
             the effect of modifying the nominal transform, rather than
             requiring a complete recomputation of the transform.
         _compute_nominal_outputs
-            same as nominal transforms, but for outputs (e.g. used for non-input stages)
+            same as nominal transforms, but for outputs (e.g. used for
+            non-input stages)
         _compute_transforms
             Do the actual work to produce the stage's transforms. For stages
             that specify use_transforms=False, this method is never called.
@@ -219,20 +220,20 @@ class Stage(object):
         self.disk_cache = disk_cache
         """Disk cache object"""
 
-        param_selector_params = set([
+        param_selector_keys = set([
             'regular_params', 'selector_param_sets', 'selections'
         ])
         if isinstance(params, Mapping) \
-                and set(params.keys()) == param_selector_params:
+                and set(params.keys()) == param_selector_keys:
             self._param_selector = ParamSelector(**params)
+        elif isinstance(params, ParamSelector):
+            self._param_selector = params
         else:
             self._param_selector = ParamSelector(regular_params=params)
 
         # Get the params from the ParamSelector, validate, and set as the
         # params object for this stage
         p = self._param_selector.params
-        print 'p =', p
-        print 'p.names =', p.names
         self._check_params(p)
         self.validate_params(p)
         self._params = p
@@ -604,8 +605,21 @@ class Stage(object):
                 "Outputs: " + str(outputs.names) + \
                 "\nStage outputs: " + str(self.output_names)
 
-    def select_params(self, selections):
-        self._param_selector.select_params(selections)
+    def select_params(self, selections, error_on_missing=False):
+        try:
+            self._param_selector.select_params(
+                selections, error_on_missing=True
+            )
+        except KeyError:
+            msg = 'None of the selections %s found in this pipeline.' \
+                    %(selections,)
+            if error_on_missing:
+                #logging.error(msg)
+                raise
+            logging.trace(msg)
+        else:
+            logging.trace('`selections` = %s yielded `params` = %s'
+                          %(selections, self.params))
 
     @property
     def params(self):
@@ -686,7 +700,6 @@ class Stage(object):
         on inputs are propagated regardless of this setting."""
         return self._error_method
 
-    @profile
     def _derive_outputs_hash(self):
         """Derive a hash value that unique identifies the outputs that will be
         generated based upon the current state of the stage.
@@ -749,7 +762,6 @@ class Stage(object):
 
         return outputs_hash, transforms_hash, nominal_transforms_hash
 
-    @profile
     def _derive_transforms_hash(self, nominal_transforms_hash=None):
         """Compute a hash that uniquely identifies the transforms that will be
         produced from the current configuration. Note that this hash needs only
@@ -787,7 +799,6 @@ class Stage(object):
 
         return transforms_hash, nominal_transforms_hash
 
-    @profile
     def _derive_nominal_transforms_hash(self):
         """Derive a hash to uniquely identify the nominal transform. This
         should be unique across processes and invocations bacuase the nominal

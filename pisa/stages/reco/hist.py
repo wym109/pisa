@@ -22,7 +22,7 @@ from pisa.core.binning import MultiDimBinning
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.core.events import Events
-from pisa.utils.flavInt import flavintGroupsFromString
+from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 
@@ -66,6 +66,8 @@ class hist(Stage):
         computing the transforms. See Notes section for more details on how
         to specify this string
 
+    sum_grouped_flavints : bool
+
     input_binning : MultiDimBinning or convertible thereto
         Input binning is in true variables, with names prefixed by "true_".
         Each must match a corresponding dimension in `output_binning`.
@@ -100,8 +102,8 @@ class hist(Stage):
 
     """
     def __init__(self, params, particles, input_names, transform_groups,
-                 input_binning, output_binning, error_method=None,
-                 disk_cache=None, transforms_cache_depth=20,
+                 sum_grouped_flavints, input_binning, output_binning,
+                 error_method=None, disk_cache=None, transforms_cache_depth=20,
                  outputs_cache_depth=20, memcache_deepcopy=True,
                  debug_mode=None):
         self.events_hash = None
@@ -114,6 +116,8 @@ class hist(Stage):
         self.transform_groups = flavintGroupsFromString(transform_groups)
         """Particle/interaction types to group for computing transforms"""
 
+        self.sum_grouped_flavints = sum_grouped_flavints
+
         # All of the following params (and no more) must be passed via the
         # `params` argument.
         expected_params = (
@@ -124,10 +128,13 @@ class hist(Stage):
         if isinstance(input_names, basestring):
             input_names = (''.join(input_names.split(' '))).split(',')
 
-        # Define the names of objects that get produced by this stage
-        # The output combines nu and nubar together (just called nu)
-        # All of the NC events are joined (they look the same in the detector).
-        output_names = input_names
+        # Define the names of objects expected in inputs and produced as
+        # outputs
+        if self.particles == 'neutrinos':
+            if self.sum_grouped_flavints:
+                output_names = [str(g) for g in self.transform_groups]
+            else:
+                output_names = input_names
 
         # Invoke the init method from the parent class, which does a lot of
         # work for you.
@@ -153,6 +160,7 @@ class hist(Stage):
         self.validate_binning()
         self.include_attrs_for_hashes('particles')
         self.include_attrs_for_hashes('transform_groups')
+        self.include_attrs_for_hashes('sum_grouped_flavints')
 
     def validate_binning(self):
         assert self.input_binning.num_dims == self.output_binning.num_dims
@@ -218,13 +226,13 @@ class hist(Stage):
         true_only_binning_cols = input_binning.names
 
         nominal_transforms = []
-        for flav_int_group in self.transform_groups:
-            logging.debug("Working on %s reco kernels" %flav_int_group)
+        for xform_flavints in self.transform_groups:
+            logging.debug("Working on %s reco kernels" %xform_flavints)
 
             # True+reco (2N-dimensional) histogram is the basis for the
             # transformation
             reco_kernel = self.events.histogram(
-                kinds=flav_int_group,
+                kinds=xform_flavints,
                 binning=true_and_reco_bin_edges,
                 binning_cols=true_and_reco_binning_cols,
                 #TODO rename reco_weights_name reco_weights_col
@@ -246,7 +254,7 @@ class hist(Stage):
             # normalization (so transform is in terms of fraction-of-events in
             # input--i.e. truth--bin).
             true_event_counts = self.events.histogram(
-                kinds=flav_int_group,
+                kinds=xform_flavints,
                 binning=true_only_bin_edges,
                 binning_cols=true_only_binning_cols,
                 weights_col=self.params['reco_weights_name'].value
@@ -278,23 +286,44 @@ class hist(Stage):
 
             # Now populate this transform to each input for which it applies.
 
-            # NOTES:
-            # * Output name is same as input name
-            # * Use `self.input_binning` and `self.output_binning` so maps are
-            #   returned in user-defined units (rather than computational
-            #   units, which are attached to the non-`self` versions of these
-            #   binnings).
-            for input_name in self.input_names:
-                if input_name not in flav_int_group:
-                    continue
-                xform = BinnedTensorTransform(
-                    input_names=input_name,
-                    output_name=input_name,
-                    input_binning=self.input_binning,
-                    output_binning=self.output_binning,
-                    xform_array=reco_kernel,
-                )
-                nominal_transforms.append(xform)
+            if self.sum_grouped_flavints:
+                xform_input_names = []
+                for input_name in self.input_names:
+                    input_flavs = NuFlavIntGroup(input_name)
+                    if len(set(xform_flavints).intersection(input_flavs)) > 0:
+                        xform_input_names.append(input_name)
+
+                for output_name in self.output_names:
+                    if not output_name in xform_flavints:
+                        continue
+                    xform = BinnedTensorTransform(
+                        input_names=xform_input_names,
+                        output_name=output_name,
+                        input_binning=self.input_binning,
+                        output_binning=self.output_binning,
+                        xform_array=reco_kernel,
+                        sum_inputs=self.sum_grouped_flavints
+                    )
+                    nominal_transforms.append(xform)
+
+            else:
+                # NOTES:
+                # * Output name is same as input name
+                # * Use `self.input_binning` and `self.output_binning` so maps are
+                #   returned in user-defined units (rather than computational
+                #   units, which are attached to the non-`self` versions of these
+                #   binnings).
+                for input_name in self.input_names:
+                    if input_name not in xform_flavints:
+                        continue
+                    xform = BinnedTensorTransform(
+                        input_names=input_name,
+                        output_name=input_name,
+                        input_binning=self.input_binning,
+                        output_binning=self.output_binning,
+                        xform_array=reco_kernel,
+                    )
+                    nominal_transforms.append(xform)
 
         return TransformSet(transforms=nominal_transforms)
 

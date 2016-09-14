@@ -61,8 +61,21 @@ class DistributionMaker(object):
     def update_params(self, params):
         [pipeline.params.update_existing(params) for pipeline in self]
 
-    def select_params(self, selection):
-        [pipeline.select_params(selection) for pipeline in self]
+    def select_params(self, selections, error_on_missing=True):
+        successes = 0
+        for pipeline in self:
+            try:
+                pipeline.select_params(selections, error_on_missing=True)
+            except KeyError:
+                pass
+            else:
+                successes += 1
+
+        if error_on_missing and successes == 0:
+            raise KeyError(
+                'None of the selections %s found in any pipeline in this'
+                ' distribution maker' %(selections,)
+            )
 
     @property
     def pipelines(self):
@@ -119,7 +132,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '-p', '--pipeline-settings', type=str, required=True,
         metavar='CONFIGFILE', action='append',
-        help='''Settings file for each pipeline'''
+        help='''Settings file for each pipeline (repeat for multiple).'''
     )
     parser.add_argument(
         '--outdir', type=str, action='store',

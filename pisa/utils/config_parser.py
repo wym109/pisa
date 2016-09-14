@@ -96,7 +96,7 @@ from uncertainties import unumpy as unp
 
 from pisa import ureg, Q_
 from pisa.core.binning import MultiDimBinning, OneDimBinning
-from pisa.core.param import Param, ParamSelector, ParamSet
+from pisa.core.param import Param, ParamSelector
 from pisa.core.prior import Prior
 from pisa.utils.betterConfigParser import BetterConfigParser
 from pisa.utils.fileio import from_file
@@ -138,7 +138,10 @@ def parse_quantity(string):
 
 
 def parse_string_literal(string):
-    """Evaluate a string with special values, or return the string.
+    """Evaluate a string with certain special values, or return the string. Any
+    further parsing must be done outside this module, as this is as specialized
+    as we're willing to be in assuming/interpreting what a string is supposed
+    to mean.
 
     Parameters
     ----------
@@ -355,13 +358,18 @@ def parse_pipeline_config(config):
         section = 'stage:%s' %stage
 
         # Instantiate dict to store args to pass to this stage
-        service_kwargs = dict()
+        service_kwargs = OrderedDict()
 
         param_selector = ParamSelector(selections=param_selections)
+        service_kwargs['params'] = param_selector
 
+        n_params = 0
         for fullname, value in config.items(section):
+            # See if this matches a param specification
             param_match = PARAM_RE.match(fullname)
             if param_match is not None:
+                n_params += 1
+
                 param_match_dict = param_match.groupdict()
                 param_subfields = param_match_dict['subfields'].split('.')
 
@@ -377,9 +385,11 @@ def parse_pipeline_config(config):
                 # link to previous the param object that is already
                 # instantiated.
                 for kw in stage_dicts.values():
+                    # Stage did not get a `params` argument from config
                     if not kw.has_key('params'):
                         continue
 
+                    # Retrieve the param from the ParamSelector
                     try:
                         param = kw['params'].get(
                             name=infodict['pname'],
@@ -393,8 +403,6 @@ def parse_pipeline_config(config):
                     for a in PARAM_ATTRS:
                         assert not config.has_option(section,
                                                      '%s.%s' %(fullname, a))
-
-                    param = kw['params'][infodict['pname']]
 
                     break
 
@@ -413,15 +421,28 @@ def parse_pipeline_config(config):
 
                 param_selector.update(param, selector=infodict['selector'])
 
+            # If it's not a param spec but contains 'binning', assume it's a
+            # binning spec
             elif 'binning' in fullname:
                 service_kwargs[fullname] = binning_dict[value]
 
+            # Otherwise it's some other stage instantiation argument; identify
+            # this by its full name and try to interpret and instantiate a
+            # Python object using the string
             else:
-                service_kwargs[fullname] = parse_string_literal(value)
+                try:
+                    value = parse_quantity(value)
+                    value = value.n * value.units
+                except ValueError:
+                    value = parse_string_literal(value)
+                service_kwargs[fullname] = value
 
-        service_kwargs['params'] = param_selector
+        # If no params actually specified in config, remove 'params' from the
+        # service's keyword args
+        if n_params == 0:
+            service_kwargs.pop('params')
 
-        # Append this dict to the OrderedDict with all stage dicts
+        # Store the service's kwargs to the stage_dicts
         stage_dicts[(stage, service)] = service_kwargs
 
     return stage_dicts
