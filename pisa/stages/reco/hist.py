@@ -235,6 +235,7 @@ class hist(Stage):
                 kinds=xform_flavints,
                 binning=true_and_reco_bin_edges,
                 binning_cols=true_and_reco_binning_cols,
+                #TODO rename reco_weights_name reco_weights_col
                 weights_col=self.params['reco_weights_name'].value
             )
 
