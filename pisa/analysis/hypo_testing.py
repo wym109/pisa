@@ -122,9 +122,9 @@ class HypoTesting(Analysis):
     def __init__(self, logdir, minimizer_settings,
                  data_is_data,
                  fluctuate_data, fluctuate_fid,
-                 h0_name='hypo0', h0_maker=None,
+                 h0_name='h0', h0_maker=None,
                  h0_param_selections=None, h0_fid_asimov_dist=None,
-                 h1_name='hypo1', h1_maker=None,
+                 h1_name='h1', h1_maker=None,
                  h1_param_selections=None, h1_fid_asimov_dist=None,
                  data_name='data', data_maker=None,
                  data_param_selections=None, data=None,
@@ -280,15 +280,22 @@ class HypoTesting(Analysis):
         self.h0_fid_dist = None
         self.h1_fid_dist = None
 
+        # Names for purposes of stdout/stderr logging messages
+        if self.data_is_data:
+            self.data_disp = self.data_name
+        elif self.fluctuate_data:
+            self.data_disp = self.data_name + ' (toy pseudodata)'
+        else:
+            self.data_disp = self.data_name + ' (toy Asimov data)'
+
+        if self.fluctuate_fid:
+            self.fid_disp = 'fiducial pseudodata'
+        else:
+            self.fid_disp = 'fiducial Asimov data'
+
     def run_analysis(self):
         """Run the LLR analysis."""
         logging.info('Running LLR analysis.')
-
-        # Names for purposes of stdout/stderr logging messages
-        data_disp = 'pseudodata' if self.fluctuate_data \
-                else 'Asimov or true data dist'
-        fid_dist_disp = 'fiducial pseudodata' if self.fluctuate_data \
-                else 'fiducial Asimov dist'
 
         # Loop for multiple (if fluctuated) data distributions
         for self.data_ind in xrange(self.data_start_ind,
@@ -299,12 +306,12 @@ class HypoTesting(Analysis):
             logging.info(
                 'Working on %s set ID %d (will stop after ID %d).'
                 ' %0.2f%s of %s sets completed.'
-                %(data_disp,
+                %(self.data_disp,
                   self.data_ind,
                   self.data_start_ind+self.num_data_trials-1,
                   pct_data_complete,
                   '%',
-                  data_disp)
+                  self.data_disp)
             )
             self.generate_data()
             self.do_fid_fits_to_data()
@@ -318,20 +325,21 @@ class HypoTesting(Analysis):
                 logging.info(
                     r'Working on %s set ID %d (will stop after ID %d).'
                     ' %0.2f%s of %s sets completed.'
-                    %(fid_dist_disp,
+                    %(self.fid_disp,
                       self.fid_ind,
                       self.fid_start_ind+self.num_fid_trials-1,
                       pct_fid_dist_complete,
                       '%',
-                      fid_dist_disp)
+                      self.fid_disp)
                 )
 
                 self.produce_fid_data()
-                self.do_final_fits_to_fid()
+                self.do_fits_to_fid()
                 # TODO: log trial results here...
             # TODO: ... and/or here
 
     def generate_data(self):
+        logging.info('Generating %s distributions.' %self.data_disp)
         # Ambiguous whether we're dealing with Asimov or regular data if the
         # data set is provided for us, so just return it.
         if self.num_data_trials == 1 and self.data_dist is not None:
@@ -373,7 +381,7 @@ class HypoTesting(Analysis):
 
         return self.data_dist
 
-    def get_nofit_fit_info(self, data_maker, data_param_selections, data,
+    def get_nofit_fit_info(self, data, hypo_maker, hypo_param_selections,
                            asimov_dist):
         fit_info = OrderedDict()
         fit_info['metric'] = self.metric
@@ -381,9 +389,8 @@ class HypoTesting(Analysis):
             expected_values=asimov_dist,
             metric=self.metric
         )
-        data_maker.select_params(data_param_selections)
-        params = deepcopy(data_maker.params)
-        fit_info['params'] = params
+        hypo_maker.select_params(hypo_param_selections)
+        fit_info['params'] = deepcopy(hypo_maker.params)
         fit_info['asimov_dist'] = asimov_dist
         fit_info['metadata'] = OrderedDict()
         return fit_info
@@ -395,19 +402,23 @@ class HypoTesting(Analysis):
         performed unless redundancies are detected).
 
         """
+        self.h0_maker.select_params(self.h0_param_selections)
+        self.h0_maker.params.reset_free()
         if self.data_maker_is_h0_maker \
                 and self.h0_param_selections == self.data_param_selections \
                 and not self.fluctuate_data:
+            logging.info('Hypo %s will reproduce exactly %s distributions; not'
+                         ' running corresponding fit.'
+                         %(self.h0_name, self.data_disp))
             self.h0_fit_to_data = self.get_nofit_fit_info(
-                data_maker=self.data_maker,
-                data_param_selections=self.data_param_selections,
                 data=self.data_dist,
+                hypo_maker=self.h0_maker,
+                hypo_param_selections=self.h0_param_selections,
                 asimov_dist=self.asimov_dist
             )
         else:
-            logging.info('Fitting h0 to data distribution.')
-            self.h0_maker.select_params(self.h0_param_selections)
-            self.h0_maker.params.reset_free()
+            logging.info('Fitting hypo %s to %s distributions.'
+                         %(self.h0_name, self.data_disp))
             self.h0_fit_to_data = self.fit_hypo(
                 data=self.data_dist,
                 hypo_maker=self.h0_maker,
@@ -420,22 +431,26 @@ class HypoTesting(Analysis):
             )
         self.h0_fid_asimov_dist = self.h0_fit_to_data['asimov_dist']
 
+        self.h1_maker.select_params(self.h1_param_selections)
+        self.h1_maker.params.reset_free()
         if self.data_maker_is_h1_maker \
                 and self.h1_param_selections == self.data_param_selections \
                 and not self.fluctuate_data:
+            logging.info('Hypo %s will reproduce exactly %s distributions; not'
+                         ' running corresponding fit.'
+                         %(self.h1_name, self.data_disp))
             self.h1_fit_to_data = self.get_nofit_fit_info(
-                data_maker=self.data_maker,
-                data_param_selections=self.data_param_selections,
                 data=self.data_dist,
+                hypo_maker=self.h1_maker,
+                hypo_param_selections=self.h1_param_selections,
                 asimov_dist=self.asimov_dist
             )
         elif self.h1_maker_is_h0_maker \
                 and self.h1_param_selections == self.h0_param_selections:
-            self.h1_fit_to_data = self.h0_fit_to_data
+            self.h1_fit_to_data = copy(self.h0_fit_to_data)
         else:
-            logging.info('Fitting h1 to data distribution.')
-            self.h1_maker.select_params(self.h1_param_selections)
-            self.h1_maker.params.reset_free()
+            logging.info('Fitting hypo %s to %s distributions.'
+                         %(self.h1_name, self.data_disp))
             self.h1_fit_to_data = self.fit_hypo(
                 data=self.data_dist,
                 hypo_maker=self.h1_maker,
@@ -449,6 +464,7 @@ class HypoTesting(Analysis):
         self.h1_fid_asimov_dist = self.h1_fit_to_data['asimov_dist']
 
     def produce_fid_data(self):
+        logging.info('Generating %s distributions.' %self.fid_disp)
         # Retrieve event-rate maps for best fit to data with each hypo
 
         if self.fluctuate_fid:
@@ -482,27 +498,24 @@ class HypoTesting(Analysis):
 
         return self.h1_fid_dist, self.h0_fid_dist
 
-    def do_final_fits_to_fid(self):
+    def do_fits_to_fid(self):
         # If fid isn't fluctuated, it's redundant to fit a hypo to a dist it
         # generated
+        self.h0_maker.select_params(self.h0_param_selections)
+        self.h0_maker.params.reset_free()
         if not self.fluctuate_fid:
+            logging.info('Hypo %s %s is not fluctuated; fitting this hypo to'
+                         ' its own %s distributions is unnecessary.'
+                         %(self.h0_name, self.fid_disp, self.fid_disp))
             self.h0_fit_to_h0_fid = self.get_nofit_fit_info(
-                data_maker=self.h0_maker,
-                data_param_selections=self.h0_param_selections,
                 data=self.h0_fid_dist,
+                hypo_maker=self.h0_maker,
+                hypo_param_selections=self.h0_param_selections,
                 asimov_dist=self.h0_fid_asimov_dist
             )
-            self.h1_fit_to_h1_fid = self.get_nofit_fit_info(
-                data_maker=self.h1_maker,
-                data_param_selections=self.h1_param_selections,
-                data=self.h1_fid_dist,
-                asimov_dist=self.h1_fid_asimov_dist
-            )
         else:
-            logging.info('Fitting h0 to h0 fiducial Asimov or pseudodata'
-                         ' distribution.')
-            self.h0_maker.select_params(self.h0_param_selections)
-            self.h0_maker.params.reset_free()
+            logging.info('Fitting hypo %s to its own %s distributions.'
+                         %(self.h0_name, self.fid_disp))
             self.h0_fit_to_h0_fid = self.fit_hypo(
                 data=self.h0_fid_dist,
                 hypo_maker=self.h0_maker,
@@ -513,10 +526,22 @@ class HypoTesting(Analysis):
                 pprint=self.pprint,
                 blind=self.blind
             )
-            logging.info('Fitting h1 to h1 fiducial Asimov or pseudodata'
-                         ' distribution.')
-            self.h1_maker.select_params(self.h1_param_selections)
-            self.h1_maker.params.reset_free()
+
+        self.h1_maker.select_params(self.h1_param_selections)
+        self.h1_maker.params.reset_free()
+        if not self.fluctuate_fid:
+            logging.info('Hypo %s %s is not fluctuated; fitting this hypo to'
+                         ' its own %s distributions is unnecessary.'
+                         %(self.h1_name, self.fid_disp, self.fid_disp))
+            self.h1_fit_to_h1_fid = self.get_nofit_fit_info(
+                data=self.h1_fid_dist,
+                hypo_maker=self.h1_maker,
+                hypo_param_selections=self.h1_param_selections,
+                asimov_dist=self.h1_fid_asimov_dist
+            )
+        else:
+            logging.info('Fitting hypo %s to its own %s distributions.'
+                         %(self.h1_name, self.fid_disp))
             self.h1_fit_to_h1_fid = self.fit_hypo(
                 data=self.h1_fid_dist,
                 hypo_maker=self.h1_maker,
@@ -533,36 +558,55 @@ class HypoTesting(Analysis):
         #        and self.h1_param_selections == self.h0_param_selections:
         #    self.h0_fit_to_h1_fid = 
 
-        # Always have to perform fits of one hypo to fid dist produced
-        # by other hypo
-        logging.info('Fitting h1 to h0 fiducial Asimov or pseudodata'
-                     ' distribution.')
-        self.h1_maker.select_params(self.h1_param_selections)
-        self.h1_maker.params.reset_free()
-        self.h1_fit_to_h0_fid = self.fit_hypo(
-            data=self.h0_fid_dist,
-            hypo_maker=self.h1_maker,
-            param_selections=self.h1_param_selections,
-            metric=self.metric,
-            minimizer_settings=self.minimizer_settings,
-            check_octant=self.check_octant,
-            pprint=self.pprint,
-            blind=self.blind
-        )
-        logging.info('Fitting h0 to h1 fiducial Asimov or pseudodata'
-                     ' distribution.')
-        self.h0_maker.select_params(self.h0_param_selections)
-        self.h0_maker.params.reset_free()
-        self.h0_fit_to_h1_fid = self.fit_hypo(
-            data=self.h1_fid_dist,
-            hypo_maker=self.h0_maker,
-            param_selections=self.h0_param_selections,
-            metric=self.metric,
-            minimizer_settings=self.minimizer_settings,
-            check_octant=self.check_octant,
-            pprint=self.pprint,
-            blind=self.blind
-        )
+        # Perform fits of one hypo to fid dist produced by other hypo
+        if (not self.fluctuate_data) and (not self.fluctuate_fid) \
+           and self.data_maker_is_h0_maker \
+           and self.h0_param_selections == self.data_param_selections:
+            logging.info('Fitting hypo %s to hypo %s %s distributions is'
+                         ' unnecessary since former was already fit to %s'
+                         ' distributions, which are identical distributions.'
+                         %(self.h1_name, self.h0_name, self.fid_disp,
+                           self.data_disp))
+            self.h1_fit_to_h0_fid = copy(self.h1_fit_to_data)
+        else:
+            logging.info('Fitting hypo %s to hypo %s %s distributions.'
+                         %(self.h1_name, self.h0_name, self.fid_disp))
+            self.h1_maker.select_params(self.h1_param_selections)
+            self.h1_maker.params.reset_free()
+            self.h1_fit_to_h0_fid = self.fit_hypo(
+                data=self.h0_fid_dist,
+                hypo_maker=self.h1_maker,
+                param_selections=self.h1_param_selections,
+                metric=self.metric,
+                minimizer_settings=self.minimizer_settings,
+                check_octant=self.check_octant,
+                pprint=self.pprint,
+                blind=self.blind
+            )
+        if (not self.fluctuate_data) and (not self.fluctuate_fid) \
+           and self.data_maker_is_h1_maker \
+           and self.h1_param_selections == self.data_param_selections:
+            logging.info('Fitting hypo %s to hypo %s %s distributions is'
+                         ' unnecessary since former was already fit to %s'
+                         ' distributions, which are identical distributions.'
+                         %(self.h0_name, self.h1_name, self.fid_disp,
+                           self.data_disp))
+            self.h0_fit_to_h1_fid = copy(self.h0_fit_to_data)
+        else:
+            logging.info('Fitting hypo %s to hypo %s %s distributions.'
+                         %(self.h0_name, self.h1_name, self.fid_disp))
+            self.h0_maker.select_params(self.h0_param_selections)
+            self.h0_maker.params.reset_free()
+            self.h0_fit_to_h1_fid = self.fit_hypo(
+                data=self.h1_fid_dist,
+                hypo_maker=self.h0_maker,
+                param_selections=self.h0_param_selections,
+                metric=self.metric,
+                minimizer_settings=self.minimizer_settings,
+                check_octant=self.check_octant,
+                pprint=self.pprint,
+                blind=self.blind
+            )
 
     @staticmethod
     def post_process(logdir):
@@ -621,7 +665,7 @@ def parse_args():
     )
     parser.add_argument(
         '--h0-name',
-        type=str, metavar='NAME', default='hypo0',
+        type=str, metavar='NAME', default='h0',
         help='''Name for hypothesis h0. E.g., "NO" for normal
         ordering in the neutrino mass ordering analysis. Note that the name
         here has no bearing on the actual process, so it's important that you
@@ -646,7 +690,7 @@ def parse_args():
     )
     parser.add_argument(
         '--h1-name',
-        type=str, metavar='NAME', default='hypo1',
+        type=str, metavar='NAME', default='h1',
         help='''Name for hypothesis h1. E.g., "IO" for inverted
         ordering in the neutrino mass ordering analysis. Note that the name
         here has no bearing on the actual process, so it's important that you

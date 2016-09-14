@@ -96,7 +96,7 @@ def rebin(hist0, orig_binning, new_binning):
 
         orig_edges = normQuant(orig_dim.bin_edges, sigfigs=HASH_SIGFIGS)
         new_edges = normQuant(new_dim.bin_edges, sigfigs=HASH_SIGFIGS)
-        if new_edges != orig_edges:
+        if not np.all(new_edges == orig_edges):
             orig_edge_idx = np.array([np.where(orig_edges == n)
                                       for n in new_edges]).ravel()
             hist0 = np.add.reduceat(hist0, orig_edge_idx[:-1],
@@ -1707,6 +1707,8 @@ def test_Map():
         assert m_orig[0,:,0].binning[dim] == m_new[0,0,:].binning[dim]
         assert m_orig[0,0,:].binning[dim] == m_new[:,0,0].binning[dim]
 
+    deepcopy(m_orig)
+
     print '<< PASSED : test_Map >>'
 
 
@@ -1855,6 +1857,8 @@ def test_MapSet():
             assert ms_ == ms, 'ms=\n%s\nms_=\n%s' %(ms, ms_)
     finally:
         shutil.rmtree(testdir, ignore_errors=True)
+
+    deepcopy(ms01)
 
     # Test reorder_dimensions (this just tests that it succeeds on the map set;
     # correctness of the reordering is tested in the unit test for Map)

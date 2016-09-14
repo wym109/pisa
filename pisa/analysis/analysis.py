@@ -237,6 +237,8 @@ class Analysis(object):
         -------
 
         """
+        sign = -1 if metric in self.METRICS_TO_MAXIMIZE else +1
+
         # Get starting free parameter values
         x0 = hypo_maker.params.free._rescaled_values
 
@@ -288,7 +290,7 @@ class Analysis(object):
         asimov_dist = hypo_maker.get_outputs()
 
         # Get the best-fit metric value
-        metric_val = optimize_result.pop('fun')
+        metric_val = sign * optimize_result.pop('fun')
 
         # Record minimizer metadata (all info besides 'x' and 'fun'; also do
         # not record some attributes if performing blinded analysis)
