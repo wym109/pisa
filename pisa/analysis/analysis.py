@@ -271,12 +271,12 @@ class Analysis(object):
             sys.stdout.write('\n')
             sys.stdout.flush()
 
-        logging.debug('Total time to optimize: %8.4f s;'
-                      ' # of dists generated: %6d;'
-                      ' avg dist gen time: %10.4f ms'
-                      %(end_t-start_t,
-                        counter.count,
-                        (end_t - start_t)*1000./counter.count))
+        logging.info('Total time to optimize: %8.4f s;'
+                     ' # of dists generated: %6d;'
+                     ' avg dist gen time: %10.4f ms'
+                     %(end_t-start_t,
+                       counter.count,
+                       (end_t - start_t)*1000./counter.count))
 
         # Will not assume that the minimizer left the hypo maker in the
         # minimized state, so set the values now (also does conversion of

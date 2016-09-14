@@ -1,8 +1,11 @@
+
+from collections import Sequence
 import os # Needed to get the absolute path to mosc3.cu and mosc.cu or else nvcc fails
 
 import numpy as np
 import pycuda.compiler
 import pycuda.driver as cuda
+import pycuda.autoinit
 
 from pisa import ureg, Q_
 from pisa.core.binning import MultiDimBinning
@@ -191,7 +194,7 @@ class prob3gpu(Stage):
 
     def __init__(self, params, input_binning, output_binning,
                  error_method=None, transforms_cache_depth=20,
-                 outputs_cache_depth=20, debug_mode=None, gpu_id=0):
+                 outputs_cache_depth=20, debug_mode=None, gpu_id=None):
         expected_params = (
             'earth_model', 'YeI', 'YeM', 'YeO',
             'detector_depth', 'prop_height',
@@ -211,13 +214,10 @@ class prob3gpu(Stage):
         )
 
         self.gpu_id = gpu_id
-        try:
-            import pycuda.autoinit
-            self.context = cuda.Device(self.gpu_id).make_context()
-            logging.debug('Initializing PyCUDA using gpu id: %d' %self.gpu_id)
-        except:
-            import pycuda.autoinit
-            logging.debug('Auto initializing PyCUDA...')
+
+        #if self.gpu_id is None:
+        #    self.gpu_id = cuda.Context.get_device()
+        #self.context = cuda.Device(self.gpu_id).make_context()
 
         # Invoke the init method from the parent class (Stage), which does a
         # lot of work (caching, providing public interfaces, etc.)
@@ -244,8 +244,8 @@ class prob3gpu(Stage):
         # Only works if energy and coszen are in input_binning
         if 'true_energy' not in self.input_binning \
                 or 'true_coszen' not in self.input_binning:
-            raise ValueError('Input binning must contain both "true_energy" and'
-                             ' "true_coszen" dimensions.')
+            raise ValueError('Input binning must contain both "true_energy"'
+                             ' and "true_coszen" dimensions.')
 
         # TODO: Check for single precision
         self.FTYPE = np.float64
@@ -282,7 +282,6 @@ class prob3gpu(Stage):
         """No nominal transforms implemented for this service."""
         return None
 
-    @profile
     def _compute_transforms(self):
         """Compute oscillation transforms using grid_propagator GPU code."""
 
@@ -325,20 +324,13 @@ class prob3gpu(Stage):
         mix_mat = np.zeros((3,3,2), dtype=self.FTYPE)
         self.grid_prop.Get_mix_mat(mix_mat)
 
-        logging.debug('dm_mat: \n %s' %str(dm_mat))
-        logging.debug('mix[re]: \n %s' %str(mix_mat[:,:,0]))
+        logging.trace('dm_mat: \n %s' %str(dm_mat))
+        logging.trace('mix[re]: \n %s' %str(mix_mat[:,:,0]))
 
         d_dm_mat = cuda.mem_alloc(dm_mat.nbytes)
         d_mix_mat = cuda.mem_alloc(mix_mat.nbytes)
         cuda.memcpy_htod(d_dm_mat, dm_mat)
         cuda.memcpy_htod(d_mix_mat, mix_mat)
-
-        # NEXT: set up smooth maps to give to kernel, and then use
-        # PyCUDA to launch kernel...
-        logging.debug('Initialize smooth maps...')
-        smoothed_maps = {}
-        smoothed_maps['ebins'] = self.input_binning
-        smoothed_maps['czbins'] = self.input_binning
 
         nebins_fine = np.uint32(len(self.ecen_fine))
         nczbins_fine = np.uint32(len(self.czcen_fine))
@@ -351,8 +343,6 @@ class prob3gpu(Stage):
         d_smooth_maps = cuda.mem_alloc(smooth_maps.nbytes)
         cuda.memcpy_htod(d_smooth_maps, smooth_maps)
 
-        # Block sizes is limited due to the amount of arguments and
-        # limited register. (32,32,1) requests too many resources.
         block_size = (16,16,1)
         grid_size = (nczbins_fine/block_size[0] + 1, nebins_fine/block_size[1] + 1, 2)
         self.propGrid(d_smooth_maps,
@@ -367,12 +357,12 @@ class prob3gpu(Stage):
                       #shared=16384)
 
         cuda.memcpy_dtoh(smooth_maps, d_smooth_maps)
-        self.free_device_memory()
-        d_smooth_maps.free()
-        d_dm_mat.free()
-        d_mix_mat.free()
-        # Finish this context cleanly since we don't need it anymore
-        self.context.pop()
+        #self.free_device_memory()
+        #d_smooth_maps.free()
+        #d_dm_mat.free()
+        #d_mix_mat.free()
+        ## Finish this context cleanly since we don't need it anymore
+        #self.context.pop()
 
         # Return TransformSet
         smooth_maps = np.reshape(smooth_maps, (12, nebins_fine, nczbins_fine))
@@ -430,8 +420,10 @@ class prob3gpu(Stage):
         self.maxLayers = self.grid_prop.GetMaxLayers()
         nczbins_fine = len(self.czcen_fine)
         numLayers = np.zeros(nczbins_fine, dtype=np.int32)
-        densityInLayer = np.zeros((nczbins_fine*self.maxLayers), dtype=self.FTYPE)
-        distanceInLayer = np.zeros((nczbins_fine*self.maxLayers), dtype=self.FTYPE)
+        densityInLayer = np.zeros((nczbins_fine*self.maxLayers),
+                                  dtype=self.FTYPE)
+        distanceInLayer = np.zeros((nczbins_fine*self.maxLayers),
+                                   dtype=self.FTYPE)
 
         self.grid_prop.GetNumberOfLayers(numLayers)
         self.grid_prop.GetDensityInLayer(densityInLayer)

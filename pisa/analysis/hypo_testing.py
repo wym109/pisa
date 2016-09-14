@@ -331,35 +331,6 @@ class HypoTesting(Analysis):
                 # TODO: log trial results here...
             # TODO: ... and/or here
 
-    def compare_hypos(self, data):
-        """Convenience method overriding `compare_hypos` from superclass to
-        simplify arguments since this object knows almost all arguments already
-        (except `data`).
-
-        See `Analysis.compare_hypos` for more detail on the functionality of
-        this method.
-
-        Parameters
-        ----------
-        data : MapSet
-
-        Returns
-        -------
-        delta_metric, h1_fit, h0_fit
-
-        """
-        return super(self.__class__, self).compare_hypos(
-            data=data,
-            h1_maker=self.h1_maker,
-            h1_param_selections=self.h1_param_selections,
-            h0_maker=self.h0_maker,
-            h0_param_selections=self.h0_param_selections,
-            metric=self.metric,
-            minimizer_settings=self.minimizer_settings,
-            pprint=self.pprint,
-            blind=self.blind
-        )
-
     def generate_data(self):
         # Ambiguous whether we're dealing with Asimov or regular data if the
         # data set is provided for us, so just return it.
@@ -419,7 +390,7 @@ class HypoTesting(Analysis):
 
     # TODO: use hashes to ensure fits aren't repeated that don't have to be?
     def do_fid_fits_to_data(self):
-        """Fit both hypotheses to "data" to produce fiducial Asimov data
+        """Fit both hypotheses to "data" to produce fiducial Asimov
         distributions from *each* of the hypotheses. (i.e., two fits are
         performed unless redundancies are detected).
 
@@ -435,6 +406,8 @@ class HypoTesting(Analysis):
             )
         else:
             logging.info('Fitting h0 to data distribution.')
+            self.h0_maker.select_params(self.h0_param_selections)
+            self.h0_maker.params.reset_free()
             self.h0_fit_to_data = self.fit_hypo(
                 data=self.data_dist,
                 hypo_maker=self.h0_maker,
@@ -461,6 +434,8 @@ class HypoTesting(Analysis):
             self.h1_fit_to_data = self.h0_fit_to_data
         else:
             logging.info('Fitting h1 to data distribution.')
+            self.h1_maker.select_params(self.h1_param_selections)
+            self.h1_maker.params.reset_free()
             self.h1_fit_to_data = self.fit_hypo(
                 data=self.data_dist,
                 hypo_maker=self.h1_maker,
@@ -524,7 +499,10 @@ class HypoTesting(Analysis):
                 asimov_dist=self.h1_fid_asimov_dist
             )
         else:
-            logging.info('Fitting h0 to h0 fiducial data distribution.')
+            logging.info('Fitting h0 to h0 fiducial Asimov or pseudodata'
+                         ' distribution.')
+            self.h0_maker.select_params(self.h0_param_selections)
+            self.h0_maker.params.reset_free()
             self.h0_fit_to_h0_fid = self.fit_hypo(
                 data=self.h0_fid_dist,
                 hypo_maker=self.h0_maker,
@@ -535,7 +513,10 @@ class HypoTesting(Analysis):
                 pprint=self.pprint,
                 blind=self.blind
             )
-            logging.info('Fitting h1 to h1 fiducial data distribution.')
+            logging.info('Fitting h1 to h1 fiducial Asimov or pseudodata'
+                         ' distribution.')
+            self.h1_maker.select_params(self.h1_param_selections)
+            self.h1_maker.params.reset_free()
             self.h1_fit_to_h1_fid = self.fit_hypo(
                 data=self.h1_fid_dist,
                 hypo_maker=self.h1_maker,
@@ -554,22 +535,28 @@ class HypoTesting(Analysis):
 
         # Always have to perform fits of one hypo to fid dist produced
         # by other hypo
-        logging.info('Fitting h0 to h1 fiducial data distribution.')
-        self.h0_fit_to_h1_fid = self.fit_hypo(
-            data=self.h1_fid_dist,
-            hypo_maker=self.h0_maker,
-            param_selections=self.h0_param_selections,
+        logging.info('Fitting h1 to h0 fiducial Asimov or pseudodata'
+                     ' distribution.')
+        self.h1_maker.select_params(self.h1_param_selections)
+        self.h1_maker.params.reset_free()
+        self.h1_fit_to_h0_fid = self.fit_hypo(
+            data=self.h0_fid_dist,
+            hypo_maker=self.h1_maker,
+            param_selections=self.h1_param_selections,
             metric=self.metric,
             minimizer_settings=self.minimizer_settings,
             check_octant=self.check_octant,
             pprint=self.pprint,
             blind=self.blind
         )
-        logging.info('Fitting h1 to h0 fiducial data distribution.')
-        self.h1_fit_to_h0_fid = self.fit_hypo(
-            data=self.h0_fid_dist,
-            hypo_maker=self.h1_maker,
-            param_selections=self.h1_param_selections,
+        logging.info('Fitting h0 to h1 fiducial Asimov or pseudodata'
+                     ' distribution.')
+        self.h0_maker.select_params(self.h0_param_selections)
+        self.h0_maker.params.reset_free()
+        self.h0_fit_to_h1_fid = self.fit_hypo(
+            data=self.h1_fid_dist,
+            hypo_maker=self.h0_maker,
+            param_selections=self.h0_param_selections,
             metric=self.metric,
             minimizer_settings=self.minimizer_settings,
             check_octant=self.check_octant,

@@ -71,6 +71,35 @@ def sanitize_name(name):
     return name
 
 
+def rebin(hist0, orig_binning, new_binning):
+    if orig_binning.edges_hash == new_binning.edges_hash:
+        return hist0
+
+    assert set(new_binning.names) == set(orig_binning.names)
+
+    orig_dim_indices = []
+    new_dim_indices = []
+    for new_dim_idx, new_dim in enumerate(new_binning):
+        orig_dim_idx = orig_binning.index(new_dim.name)
+
+        new_dim_indices.append(new_dim_idx)
+        orig_dim_indices.append(orig_dim_idx)
+
+        orig_dim = orig_binning.dimensions[orig_dim_idx]
+
+        orig_edges = normQuant(orig_dim.bin_edges, sigfigs=HASH_SIGFIGS)
+        new_edges = normQuant(new_dim.bin_edges, sigfigs=HASH_SIGFIGS)
+
+        orig_edge_idx = np.array([np.where(orig_edges == n) for n in new_edges]).ravel()
+        hist0 = np.add.reduceat(hist0, orig_edge_idx[:-1], axis=orig_dim_idx)
+
+    new_hist = np.moveaxis(hist0,
+                           source=orig_dim_indices,
+                           destination=new_dim_indices)
+
+    return new_hist
+
+
 # TODO: implement strategies for decreasing dimensionality (i.e.
 # projecting map onto subset of dimensions in the original map)
 
@@ -256,15 +285,10 @@ class Map(object):
     def reorder_dimensions(self, order):
         new_binning = self.binning.reorder_dimensions(order)
         orig_order = range(len(self.binning))
-        new_order = [self.binning.index(b, use_basenames=True)
-                     for b in new_binning]
+        new_order = [self.binning.index(b, use_basenames=True) for b in new_binning]
         # TODO: should this be a deepcopy rather than a simple veiw of the
         # original hist (the result of np.moveaxis)?
-        new_hist = np.moveaxis(
-            self.hist,
-            source=new_order,
-            destination=orig_order
-        )
+        new_hist = np.moveaxis(self.hist, source=new_order, destination=orig_order)
         return {'hist': new_hist, 'binning': new_binning}
 
     @new_obj
@@ -283,59 +307,55 @@ class Map(object):
         Map binned according to `new_binning`.
 
         """
-        current_binning = self.binning
-        if set(new_binning.basenames) != set(current_binning.basenames):
-            raise ValueError(
-                "`new_binning` dimensions' basenames %s do not have 1:1"
-                " correspondence (modulo pre/suffixes) to current binning"
-                " dimensions' basenames %s"
-                %(new_binning.basenames, self.binning.basenames)
-            )
-
-        # TODO: if dimensionality reduction is implemented, this is the place
-        # where extra dimensions not specified in `new_binning` would need to
-        # be removed.
-        # ...
-
-        # Reorder dimensions according to specification in `new_binning`
-        new_map = self.reorder_dimensions(new_binning)
-
-        # Cheap test to see if nothing substantive (besides prefixed/suffixed
-        # names) has changed about the # binning spec's; if that's the case,
-        # just return current hist but with new names.
-        if current_binning.edges_hash == new_binning.edges_hash:
-            return {'hist': new_map.hist, 'binning': new_binning}
-
-        # Update the units that are specified in new_binning (but don't augment
-        # dimensionality; shouldn't need this `if` statement if we get past
-        # `assert` above, but just in case...)
-        current_units = {d.name: d.units for d in new_map.binning.dimensions
-                         if d.name in new_binning}
-        new_units = {d.name: d.units for d in new_binning.dimensions}
-        if new_units != current_units:
-            rescaled_binning = new_map.binning.to(**new_units)
-        else:
-            rescaled_binning = new_map.binning
-        coords = rescaled_binning.meshgrid(entity='midpoints',
-                                           attach_units=False)
-        # Flatten each dim for histogramming; only take dims that exist in
-        # `new_binning`
-        coords = [c.flatten() for n, c in izip(new_map.binning.names, coords)
-                  if n in new_binning]
-
-        weights = new_map.hist.flatten()
-        # TODO: is this a sufficient test for whether it's a unp.uarray?
-        if not isbarenumeric(new_map.hist):
-            weights = unp.nominal_values(weights)
-
-        # Perform the histogramming, weighting by the current bins' values
-        new_hist, _ = np.histogramdd(
-            sample=coords,
-            bins=new_binning.bin_edges,
-            weights=weights
-        )
-        # TODO: put uncertainties in
+        new_hist = rebin(self.hist, self.binning, new_binning)
         return {'hist': new_hist, 'binning': new_binning}
+        #current_binning = self.binning
+        #if set(new_binning.basenames) != set(current_binning.basenames):
+        #    raise ValueError(
+        #        "`new_binning` dimensions' basenames %s do not have 1:1"
+        #        " correspondence (modulo pre/suffixes) to current binning"
+        #        " dimensions' basenames %s"
+        #        %(new_binning.basenames, self.binning.basenames)
+        #    )
+
+        ## TODO: if dimensionality reduction is implemented, this is the place
+        ## where extra dimensions not specified in `new_binning` would need to
+        ## be removed.
+        ## ...
+
+        ## Reorder dimensions according to specification in `new_binning`
+        #new_map = self.reorder_dimensions(new_binning)
+
+        ## Cheap test to see if nothing substantive (besides prefixed/suffixed
+        ## names) has changed about the # binning spec's; if that's the case,
+        ## just return current hist but with new names.
+        #if current_binning.edges_hash == new_binning.edges_hash:
+        #    return {'hist': new_map.hist, 'binning': new_binning}
+
+        ## Update the units that are specified in new_binning (but don't augment
+        ## dimensionality; shouldn't need this `if` statement if we get past
+        ## `assert` above, but just in case...)
+        #current_units = {d.name: d.units for d in new_map.binning.dimensions if d.name in new_binning}
+        #new_units = {d.name: d.units for d in new_binning}
+        #if new_units != current_units:
+        #    rescaled_binning = new_map.binning.to(**new_units)
+        #else:
+        #    rescaled_binning = new_map.binning
+        #coords = rescaled_binning.meshgrid(entity='midpoints', attach_units=False)
+        ## Flatten each dim for histogramming; only take dims that exist in
+        ## `new_binning`
+        #coords = [c.flatten() for n, c in izip(new_map.binning.names, coords) if n in new_binning]
+
+        #weights = new_map.hist.flatten()
+        ## TODO: is this a sufficient test for whether it's a unp.uarray?
+        #if not isbarenumeric(new_map.hist):
+        #    weights = unp.nominal_values(weights)
+
+        ## Perform the histogramming, weighting by the current bins' values
+        #edges = new_binning.bin_edges
+        #new_hist, _ = np.histogramdd(sample=coords, bins=edges, weights=weights)
+        ## TODO: put uncertainties in
+        #return {'hist': new_hist, 'binning': new_binning}
 
     def downsample(self, *args, **kwargs):
         """Downsample by integer factors.
@@ -363,7 +383,6 @@ class Map(object):
                 )
                 hist_errors = np.sqrt(masked_hist)
             except:
-                print unp.nominal_values(self.hist)
                 raise
             return {'hist': unp.uarray(hist_vals.filled(),
                                        hist_errors.filled())}

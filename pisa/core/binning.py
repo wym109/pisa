@@ -1100,7 +1100,7 @@ class MultiDimBinning(object):
         """
         factors = self._args_kwargs_to_list(*args, **kwargs)
         new_binning = [dim.oversample(f)
-                       for dim, f in izip(self.dimensions, factors)]
+                       for dim, f in izip(self._dimensions, factors)]
         return MultiDimBinning(new_binning)
 
     def downsample(self, *args, **kwargs):
@@ -1126,7 +1126,7 @@ class MultiDimBinning(object):
         """
         factors = self._args_kwargs_to_list(*args, **kwargs)
         new_binning = [dim.downsample(f)
-                       for dim, f in izip(self.dimensions, factors)]
+                       for dim, f in izip(self._dimensions, factors)]
         return MultiDimBinning(new_binning)
 
     def assert_array_fits(self, array):
@@ -1194,7 +1194,7 @@ class MultiDimBinning(object):
     def ito(self, *args, **kwargs):
         """Convert units in-place. Cf. Pint's `ito` method."""
         units_list = self._args_kwargs_to_list(*args, **kwargs)
-        [dim.ito(units) for dim, units in izip(self.dimensions, units_list)]
+        [dim.ito(units) for dim, units in izip(self._dimensions, units_list)]
 
     def to(self, *args, **kwargs):
         """Convert the contained dimensions to the passed units. Unspecified
@@ -1203,7 +1203,7 @@ class MultiDimBinning(object):
         """
         units_list = self._args_kwargs_to_list(*args, **kwargs)
         new_binnings = [dim.to(units)
-                        for dim, units in izip(self.dimensions, units_list)]
+                        for dim, units in izip(self._dimensions, units_list)]
         return MultiDimBinning(new_binnings)
 
     # TODO: magnitude method that replicates Pint version's behavior (???)
@@ -1232,25 +1232,25 @@ class MultiDimBinning(object):
 
         """
         entity = entity.lower().strip()
-        units = [d.units for d in self.dimensions]
+        units = [d.units for d in self._dimensions]
         #stripped = self.stripped()
         if entity == 'midpoints':
-            mg = np.meshgrid(*[d.midpoints for d in self.dimensions],
+            mg = np.meshgrid(*[d.midpoints for d in self._dimensions],
                              indexing='ij')
         elif entity == 'weighted_centers':
-            mg = np.meshgrid(*[d.weighted_centers for d in self.dimensions],
+            mg = np.meshgrid(*[d.weighted_centers for d in self._dimensions],
                              indexing='ij')
         elif entity == 'bin_edges':
-            mg = np.meshgrid(*[d.bin_edges for d in self.dimensions],
+            mg = np.meshgrid(*[d.bin_edges for d in self._dimensions],
                              indexing='ij')
         elif entity == 'bin_widths':
-            mg = np.meshgrid(*[d.bin_widths for d in self.dimensions],
+            mg = np.meshgrid(*[d.bin_widths for d in self._dimensions],
                              indexing='ij')
         else:
             raise ValueError('Unrecognized `entity`: "%s"' %entity)
 
         if attach_units:
-            return [m*dim.units for m, dim in izip(mg, self.dimensions)]
+            return [m*dim.units for m, dim in izip(mg, self._dimensions)]
         return mg
 
     # TODO: modify technique depending upon grid size for memory concerns, or
@@ -1260,8 +1260,11 @@ class MultiDimBinning(object):
         volumes = reduce(lambda x,y: x*y, meshgrid)
         if attach_units:
             return volumes * reduce(lambda x,y:x*y, [ureg(str(d.units))
-                                                     for d in self.dimensions])
+                                                     for d in self._dimensions])
         return volumes
+
+    def empty(self, **kwargs):
+        np.empty(self.shape, **kwargs)
 
     def __contains__(self, name):
         return name in self.names
@@ -1272,7 +1275,7 @@ class MultiDimBinning(object):
         return recursiveEquality(self._hashable_state, other._hashable_state)
 
     def __getattr__(self, attr):
-        for d in self.dimensions:
+        for d in self._dimensions:
             if d.name == attr:
                 return d
         return super(self.__class__, self).__getattribute__(attr)
@@ -1284,7 +1287,8 @@ class MultiDimBinning(object):
 
         Parameters
         ----------
-        index : int, len-N-sequence of ints, or len-N-sequence of slices
+        index : str, int, len-N-sequence of ints, or len-N-sequence of slices
+            If str is passed: Return the binning corresponding to the name
             If an integer is passed:
               * If num_dims is 1, `index` indexes into the bins of the sole
                 OneDimBinning. The bin is returned.
@@ -1306,7 +1310,7 @@ class MultiDimBinning(object):
         # TODO: implement a "linearization" like np.flatten() to iterate
         # through each bin individually without hassle for the user...
         #if self.num_dims == 1 and np.isscalar(index):
-        #    return self.dimensions[0]
+        #    return self._dimensions[0]
 
         if not isinstance(index, Sequence):
             index = [index]
@@ -1317,12 +1321,12 @@ class MultiDimBinning(object):
                              %(self.num_dims, input_dim))
 
         new_binning = {'dimensions': [dim[idx] for dim, idx in
-                                      zip(self.dimensions, index)]}
+                                      zip(self._dimensions, index)]}
 
         return MultiDimBinning(**new_binning)
 
     def __iter__(self):
-        return iter(self.dimensions)
+        return iter(self._dimensions)
 
     def __len__(self):
         return self.num_dims
@@ -1334,7 +1338,7 @@ class MultiDimBinning(object):
         return str(self)
 
     def __str__(self):
-        return '\n'.join([str(dim) for dim in self.dimensions])
+        return '\n'.join([str(dim) for dim in self._dimensions])
 
 
 def test_OneDimBinning():

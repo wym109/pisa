@@ -12,6 +12,7 @@ import importlib
 import os
 import sys
 
+from pisa import ureg, Q_
 from pisa.core.param import ParamSet
 from pisa.core.stage import Stage
 from pisa.utils.config_parser import parse_pipeline_config
@@ -335,6 +336,11 @@ if __name__ == '__main__':
         logging.info('')
         logging.info('## STARTING RUN %d ............' % run)
         logging.info('')
+        #t23 = pipeline.params.theta23
+        #x0, x1 = t23.range
+        #dx = x1 - x0
+        #pipeline.params.theta23.value = x0 + np.random.rand()*dx
+        #print pipeline.params.theta23.value
         if args.only_stage is None:
             idx = slice(0, args.stop_after_stage)
             outputs = pipeline.get_outputs(idx=args.stop_after_stage)
