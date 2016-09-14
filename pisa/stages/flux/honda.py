@@ -36,6 +36,24 @@ from pisa.utils.log import logging
 from pisa.utils.profiler import line_profile, profile
 
 
+try:
+    import numba
+    @numba.jit("(float64[:,:], float64[:,:], float64, float64[:,:], float64[:,:])",
+               nopython=True, nogil=True, cache=True)
+    def apply_ratio_scale_2d(h1, h2, ratio_scale, out1, out2):
+        I = h1.shape[0]
+        J = h1.shape[1]
+        for i in range(I):
+            for j in range(J):
+                orig_map_sum = h1[i,j] + h2[i,j]
+                orig_map_ratio = h1[i,j] / h2[i,j]
+                out2[i,j] = orig_map_sum / (1 + ratio_scale * orig_map_ratio)
+                out1[i,j] = ratio_scale * orig_map_ratio * out2[i,j]
+        return out1, out2
+except:
+    apply_ratio_scale_2d = None
+
+
 class honda(Stage):
     """
     Flux Service for performing interpolation on the Honda tables.
@@ -361,6 +379,8 @@ class honda(Stage):
                 %self.output_binning
             )
 
+        self.previous_energy_scale = None
+
     def load_2D_table(self, smooth=0.05):
         """Manipulate 2 dimensional flux tables.
 
@@ -377,7 +397,7 @@ class honda(Stage):
 
         """
 
-        flux_file = self.params['flux_file'].value
+        flux_file = self.params.flux_file.value
         logging.debug("Loading atmospheric flux table %s" % flux_file)
 
         # columns in Honda files are in the same order
@@ -403,7 +423,7 @@ class honda(Stage):
         # Now get a spline representation of the flux table.
         logging.debug('Make spline representation of flux')
 
-        flux_mode = self.params['flux_mode'].value
+        flux_mode = self.params.flux_mode.value
 
         if flux_mode == 'bisplrep':
             logging.debug('Doing quick bivariate spline interpolation')
@@ -476,7 +496,7 @@ class honda(Stage):
             Not changing from 0.05 is strongly recommended
             The integral-preserving has a fixed smoothing of 0.
         """
-        flux_file = self.params['flux_file'].value
+        flux_file = self.params.flux_file.value
         logging.debug("Loading atmospheric flux table %s" %flux_file)
 
         # columns in Honda files are in the same order
@@ -508,7 +528,7 @@ class honda(Stage):
         # Now get a spline representation of the flux table.
         logging.debug('Make spline representation of flux')
 
-        flux_mode = self.params['flux_mode'].value
+        flux_mode = self.params.flux_mode.value
 
         if flux_mode == 'bisplrep':
 
@@ -575,6 +595,7 @@ class honda(Stage):
 
                 self.spline_dict[nutype] = az_splines
 
+    @profile
     def _compute_outputs(self, inputs=None):
         """Method for computing both 2D and 3D fluxes.
 
@@ -586,21 +607,23 @@ class honda(Stage):
         """
         output_maps = []
 
-        for prim in self.primaries:
-            if set(self.output_binning.names) == set(['true_energy',
-                                                      'true_coszen',
-                                                      'true_azimuth']):
-                output_maps.append(self.compute_3D_outputs(prim))
-            elif set(self.output_binning.names) == set(['true_energy',
-                                                        'true_coszen']):
-                output_maps.append(self.compute_2D_outputs(prim))
-            else:
-                raise ValueError(
-                    'Incompatible `output_binning` for either 2D (requires'
-                    ' "energy" and "coszen") or 3D (additionally requires'
-                    ' "azimuth"). Faulty `output_binning`=%s'
-                    %self.output_binning
-                )
+        if self.params.energy_scale.value != self.previous_energy_scale:
+            for prim in self.primaries:
+                outbnames = set(self.output_binning.names)
+                if outbnames == set(['true_energy', 'true_coszen',
+                                     'true_azimuth']):
+                    output_maps.append(self.compute_3D_outputs(prim))
+                elif outbnames == set(['true_energy', 'true_coszen']):
+                    output_maps.append(self.compute_2D_outputs(prim))
+                else:
+                    raise ValueError(
+                        'Incompatible `output_binning` for either 2D (requires'
+                        ' "energy" and "coszen") or 3D (additionally requires'
+                        ' "azimuth"). Faulty `output_binning`=%s'
+                        %self.output_binning
+                    )
+            self.previous_energy_scale = self.params.energy_scale.value
+
         # Combine the output maps into a single MapSet object to return.
         # The MapSet contains the varous things that are necessary to make
         # caching work and also provides a nice interface for the user to all
@@ -608,9 +631,9 @@ class honda(Stage):
 
         # Now apply systematics if needed
         # First check what needs doing
-        nuenumuratio_toapply = self.params['nue_numu_ratio'].value != 1.0
-        nunubarratio_toapply = self.params['nu_nubar_ratio'].value != 1.0
-        atmdeltaindex_toapply = self.params['atm_delta_index'].value != 0.0
+        nuenumuratio_toapply = self.params.nue_numu_ratio.value != 1.0
+        nunubarratio_toapply = self.params.nu_nubar_ratio.value != 1.0
+        atmdeltaindex_toapply = self.params.atm_delta_index.value != 0.0
 
         # If any
         if nuenumuratio_toapply or nunubarratio_toapply \
@@ -645,6 +668,7 @@ class honda(Stage):
             ['true_energy', 'true_coszen']
         )
 
+    @profile
     def compute_2D_outputs(self, prim):
         """
         Method for computing 2 dimensional fluxes.
@@ -666,9 +690,12 @@ class honda(Stage):
         """
         # Energy scale systematic says to read in flux to bin E at
         # energy_scale*E
-        evals = self.evals * self.params['energy_scale'].magnitude
+        evals = self.evals * self.params.energy_scale.magnitude
+        logevals = np.log10(evals)
         czvals = self.czvals
-        flux_mode = self.params['flux_mode'].value
+        czkeys = ['%.2f'%x for x in np.linspace(-0.95, 0.95, 20)]
+        cz_spline_points = np.linspace(-1, 1, 21)
+        flux_mode = self.params.flux_mode.value
 
         if flux_mode == 'bisplrep':
             # Assert that spline dict matches what is expected
@@ -677,8 +704,7 @@ class honda(Stage):
 
             # Get the spline interpolation, which is in
             # log(flux) as function of log(E), cos(zenith)
-            return_table = interpolate.bisplev(np.log10(evals), czvals,
-                                               self.spline_dict[prim])
+            return_table = interpolate.bisplev(np.log10(evals), czvals, self.spline_dict[prim])
             return_table = np.power(10., return_table)
 
         elif flux_mode == 'integral-preserving':
@@ -686,30 +712,28 @@ class honda(Stage):
             # i.e. One spline for every table cosZenith value
             #      0.95 is used for no particular reason
             #      These keys are strings, despite being numbers
-            assert not isinstance(self.spline_dict[self.primaries[0]]['0.95'],
-                                  Mapping)
-            czkeys = ['%.2f'%x for x in np.linspace(-0.95, 0.95, 20)]
-            cz_spline_points = np.linspace(-1, 1, 21)
+            assert not isinstance(self.spline_dict[self.primaries[0]]['0.95'], Mapping)
             return_table = []
-            for energyval in evals:
-                logenergyval = np.log10(energyval)
-                spline_vals = [0]
-                for czkey in czkeys:
-                    # Have to multiply by bin widths to get correct derivatives
-                    # Here the bin width is in log energy, is 0.05
-                    spline_vals.append(
-                        interpolate.splev(logenergyval,
-                                          self.spline_dict[prim][czkey],
-                                          der=1)*0.05
-                    )
-                int_spline_vals = np.cumsum(spline_vals)
-                spline = interpolate.splrep(cz_spline_points, int_spline_vals,
-                                            s=0)
+
+            # 1st derivatives of one spline for each coszen (splines are
+            # functions of energy)
+            all_spline_vals = [np.zeros_like(logevals)]
+            for czkey in czkeys:
+                # Have to multiply by bin widths to get correct derivatives
+                # Here the bin width is 0.05 (in log energy)
+                spvals = interpolate.splev(logevals, self.spline_dict[prim][czkey], der=1)*0.05
+                all_spline_vals.append(spvals)
+            all_spline_vals = np.array(all_spline_vals)
+
+            # Cumulative sum over coszen to get "integrated" spline values
+            int_spline_vals = np.cumsum(all_spline_vals, axis=0)
+
+            for n, energyval in enumerate(evals):
+                spline = interpolate.splrep(cz_spline_points, int_spline_vals[:,n], s=0)
 
                 # Have to multiply by bin widths to get correct derivatives
                 # Here the bin width is in cosZenith, is 0.1
-                czfluxes = (interpolate.splev(czvals, spline, der=1) *
-                            0.1/energyval)
+                czfluxes = (interpolate.splev(czvals, spline, der=1) * 0.1/energyval)
                 return_table.append(czfluxes)
 
             return_table = np.array(return_table)
@@ -728,8 +752,8 @@ class honda(Stage):
         #   come in the bin volume
         # * For 2D we also need to integrate over azimuth
         #   There is no dependency, so this is a multiplication of 2pi
-        return_map *= (self.bin_volumes *
-                       (self.params['energy_scale'].magnitude * 2*np.pi))
+        return_map *= (self.bin_volumes*2*np.pi *
+                       self.params.energy_scale.magnitude)
 
         return return_map
 
@@ -767,9 +791,9 @@ class honda(Stage):
 
         # Energy scale systematic says to read in flux to bin E at
         # energy_scale*E
-        evals *= self.params['energy_scale'].magnitude
+        evals *= self.params.energy_scale.magnitude
 
-        flux_mode = self.params['flux_mode'].value
+        flux_mode = self.params.flux_mode.value
 
         if flux_mode == 'bisplrep':
             # Assert that spline dict matches what is expected
@@ -908,111 +932,12 @@ class honda(Stage):
 
         # Energy scale systematic must be applied again here since it should
         # come in the bin volume
-        return_map *= self.params['energy_scale'].magnitude
+        return_map *= self.params.energy_scale.magnitude
 
         return return_map
 
-    def apply_nue_numu_ratio(self, flux_maps):
-        """
-        Method for applying the nue/numu ratio systematic.
-        The actual calculation is done by apply_ratio_scale.
-
-        Parameters
-        ----------
-        flux_maps : MapSet
-            The set of maps returned by the Honda interpolation.
-
-        Returns
-        -------
-        scaled_map_set : map set containing rescaled maps
-
-        """
-        scaled_nue_flux, scaled_numu_flux = self.apply_ratio_scale(
-            map1 = flux_maps['nue'],
-            map2 = flux_maps['numu'],
-            ratio_scale = self.params['nue_numu_ratio'].magnitude
-        )
-
-        scaled_nuebar_flux, scaled_numubar_flux = self.apply_ratio_scale(
-            map1 = flux_maps['nuebar'],
-            map2 = flux_maps['numubar'],
-            ratio_scale = self.params['nue_numu_ratio'].magnitude
-        )
-
-        # Names of maps get messed up by apply_ratio_scale function
-        # Just redefine them correctly now to be sure
-        scaled_numu_flux = Map(name='numu',
-                               hist=scaled_numu_flux.hist,
-                               binning=self.output_binning)
-        scaled_numubar_flux = Map(name='numubar',
-                                  hist=scaled_numubar_flux.hist,
-                                  binning=self.output_binning)
-        scaled_nue_flux = Map(name='nue',
-                              hist=scaled_nue_flux.hist,
-                              binning=self.output_binning)
-        scaled_nuebar_flux = Map(name='nuebar',
-                                 hist=scaled_nuebar_flux.hist,
-                                 binning=self.output_binning)
-
-        scaled_flux_maps = []
-        scaled_flux_maps.append(scaled_numu_flux)
-        scaled_flux_maps.append(scaled_numubar_flux)
-        scaled_flux_maps.append(scaled_nue_flux)
-        scaled_flux_maps.append(scaled_nuebar_flux)
-
-        return MapSet(maps=scaled_flux_maps, name='flux maps')
-
-    def apply_nu_nubar_ratio(self, flux_maps):
-        """Apply the nue/nubar ratio systematic.
-
-        The actual calculation is done by apply_ratio_scale.
-
-        Parameters
-        ----------
-        flux_maps : MapSet
-            The set of maps returned by the Honda interpolation.
-
-        Returns
-        -------
-        scaled_map_set : map set containing rescaled maps
-
-        """
-        scaled_nue_flux, scaled_nuebar_flux = self.apply_ratio_scale(
-            map1 = flux_maps['nue'],
-            map2 = flux_maps['nuebar'],
-            ratio_scale = self.params['nu_nubar_ratio'].magnitude
-        )
-
-        scaled_numu_flux, scaled_numubar_flux = self.apply_ratio_scale(
-            map1 = flux_maps['numu'],
-            map2 = flux_maps['numubar'],
-            ratio_scale = self.params['nu_nubar_ratio'].magnitude
-        )
-
-        # Names of maps get messed up by apply_ratio_scale function
-        # Just redefine them correctly now to be sure
-        scaled_numu_flux = Map(name='numu',
-                               hist=scaled_numu_flux.hist,
-                               binning=self.output_binning)
-        scaled_numubar_flux = Map(name='numubar',
-                                  hist=scaled_numubar_flux.hist,
-                                  binning=self.output_binning)
-        scaled_nue_flux = Map(name='nue',
-                              hist=scaled_nue_flux.hist,
-                              binning=self.output_binning)
-        scaled_nuebar_flux = Map(name='nuebar',
-                                 hist=scaled_nuebar_flux.hist,
-                                 binning=self.output_binning)
-
-        scaled_flux_maps = []
-        scaled_flux_maps.append(scaled_numu_flux)
-        scaled_flux_maps.append(scaled_numubar_flux)
-        scaled_flux_maps.append(scaled_nue_flux)
-        scaled_flux_maps.append(scaled_nuebar_flux)
-
-        return MapSet(maps=scaled_flux_maps, name='flux maps')
-
     @staticmethod
+    @profile
     def apply_ratio_scale(map1, map2, ratio_scale):
         """Apply an arbitrary ratio systematic.
 
@@ -1043,22 +968,133 @@ class honda(Stage):
         scaled_map1, scaled_map2 : re-scaled maps
 
         """
-        # We require S1/S2 = O1/O2 * R and S1 + S2 = O1 + O2
-        # This trivially tells us S1 = S2*R*O1/O2
-        # The second can then be used to derive the form of S2
-        # S1 + S2 = S2*R*O1/O2 + S2 = S2(1+R*O1/O2) = O1 + O2
-        # Gives S2 = (O1 + O2) / (1+R*O1/O2)
-
-        orig_map_sum = map1 + map2
-        orig_map_ratio = map1/map2
-        orig_total1 = map1.hist.sum()
-        orig_total2 = map2.hist.sum()
-
-        scaled_map2 = orig_map_sum / (1 + ratio_scale * orig_map_ratio)
-        scaled_map1 = ratio_scale * orig_map_ratio * scaled_map2
+        if apply_ratio_scale_2d is None:
+            # We require S1/S2 = O1/O2 * R and S1 + S2 = O1 + O2
+            # This trivially tells us S1 = S2*R*O1/O2
+            # The second can then be used to derive the form of S2
+            # S1 + S2 = S2*R*O1/O2 + S2 = S2(1+R*O1/O2) = O1 + O2
+            # Gives S2 = (O1 + O2) / (1+R*O1/O2)
+            orig_map_sum = map1 + map2
+            orig_map_ratio = map1/map2
+            scaled_map2 = orig_map_sum / (1 + ratio_scale * orig_map_ratio)
+            scaled_map1 = ratio_scale * orig_map_ratio * scaled_map2
+        else:
+            out1 = np.empty_like(map1.hist)
+            out2 = np.empty_like(map2.hist)
+            sh1, sh2 = apply_ratio_scale_2d(map1.hist, map2.hist, ratio_scale,
+                                            out1, out2)
+            scaled_map1 = Map(name=map1.name, hist=sh1, binning=map1.binning,
+                              tex=map1.tex,
+                              full_comparison=map1.full_comparison)
+            scaled_map2 = Map(name=map2.name, hist=sh2, binning=map2.binning,
+                              tex=map2.tex,
+                              full_comparison=map2.full_comparison)
 
         return scaled_map1, scaled_map2
 
+    @profile
+    def apply_nue_numu_ratio(self, flux_maps):
+        """
+        Method for applying the nue/numu ratio systematic.
+        The actual calculation is done by apply_ratio_scale.
+
+        Parameters
+        ----------
+        flux_maps : MapSet
+            The set of maps returned by the Honda interpolation.
+
+        Returns
+        -------
+        scaled_map_set : map set containing rescaled maps
+
+        """
+        scaled_nue_flux, scaled_numu_flux = self.apply_ratio_scale(
+            map1 = flux_maps['nue'],
+            map2 = flux_maps['numu'],
+            ratio_scale = self.params.nue_numu_ratio.magnitude
+        )
+
+        scaled_nuebar_flux, scaled_numubar_flux = self.apply_ratio_scale(
+            map1 = flux_maps['nuebar'],
+            map2 = flux_maps['numubar'],
+            ratio_scale = self.params.nue_numu_ratio.magnitude
+        )
+
+        # Names of maps get messed up by apply_ratio_scale function
+        # Just redefine them correctly now to be sure
+        scaled_numu_flux = Map(name='numu',
+                               hist=scaled_numu_flux.hist,
+                               binning=self.output_binning)
+        scaled_numubar_flux = Map(name='numubar',
+                                  hist=scaled_numubar_flux.hist,
+                                  binning=self.output_binning)
+        scaled_nue_flux = Map(name='nue',
+                              hist=scaled_nue_flux.hist,
+                              binning=self.output_binning)
+        scaled_nuebar_flux = Map(name='nuebar',
+                                 hist=scaled_nuebar_flux.hist,
+                                 binning=self.output_binning)
+
+        scaled_flux_maps = []
+        scaled_flux_maps.append(scaled_numu_flux)
+        scaled_flux_maps.append(scaled_numubar_flux)
+        scaled_flux_maps.append(scaled_nue_flux)
+        scaled_flux_maps.append(scaled_nuebar_flux)
+
+        return MapSet(maps=scaled_flux_maps, name='flux maps')
+
+    @profile
+    def apply_nu_nubar_ratio(self, flux_maps):
+        """Apply the nue/nubar ratio systematic.
+
+        The actual calculation is done by apply_ratio_scale.
+
+        Parameters
+        ----------
+        flux_maps : MapSet
+            The set of maps returned by the Honda interpolation.
+
+        Returns
+        -------
+        scaled_map_set : map set containing rescaled maps
+
+        """
+        scaled_nue_flux, scaled_nuebar_flux = self.apply_ratio_scale(
+            map1 = flux_maps['nue'],
+            map2 = flux_maps['nuebar'],
+            ratio_scale = self.params.nu_nubar_ratio.magnitude
+        )
+
+        scaled_numu_flux, scaled_numubar_flux = self.apply_ratio_scale(
+            map1 = flux_maps['numu'],
+            map2 = flux_maps['numubar'],
+            ratio_scale = self.params.nu_nubar_ratio.magnitude
+        )
+
+        # Names of maps get messed up by apply_ratio_scale function
+        # Just redefine them correctly now to be sure
+        scaled_numu_flux = Map(name='numu',
+                               hist=scaled_numu_flux.hist,
+                               binning=self.output_binning)
+        scaled_numubar_flux = Map(name='numubar',
+                                  hist=scaled_numubar_flux.hist,
+                                  binning=self.output_binning)
+        scaled_nue_flux = Map(name='nue',
+                              hist=scaled_nue_flux.hist,
+                              binning=self.output_binning)
+        scaled_nuebar_flux = Map(name='nuebar',
+                                 hist=scaled_nuebar_flux.hist,
+                                 binning=self.output_binning)
+
+        scaled_flux_maps = []
+        scaled_flux_maps.append(scaled_numu_flux)
+        scaled_flux_maps.append(scaled_numubar_flux)
+        scaled_flux_maps.append(scaled_nue_flux)
+        scaled_flux_maps.append(scaled_nuebar_flux)
+
+        return MapSet(maps=scaled_flux_maps, name='flux maps')
+
+    @profile
     def apply_delta_index(self, flux_maps):
         """Apply the atmospheric index systematic.
 
@@ -1096,7 +1132,7 @@ class honda(Stage):
 
             # This pivoting will give an energy-dependent scale factor
             scale = np.power(evals/median_energy,
-                             self.params['atm_delta_index'].value)
+                             self.params.atm_delta_index.value)
 
             flux_map = flux_maps[flav]
 
@@ -1131,29 +1167,29 @@ class honda(Stage):
         # do some checks on the parameters
 
         # Currently, these are the only interpolation methods supported
-        assert (params['flux_mode'].value in ['integral-preserving',
+        assert (params.flux_mode.value in ['integral-preserving',
                                               'bisplrep'])
 
         # This is the Honda service after all...
-        assert ('honda' in params['flux_file'].value)
+        assert ('honda' in params.flux_file.value)
 
         # Flux file should have aa (for azimuth-averaged) if binning
         # is energy and cosZenith
         if set(self.output_binning.names) == set(['true_energy',
                                                   'true_coszen']):
-            assert ('aa' in params['flux_file'].value )
+            assert ('aa' in params.flux_file.value )
 
         # Flux file should not have aa (for azimuth-averaged) if binning
         # is energy, cosZenith and azimuth
         elif set(self.output_binning.names) == set(['true_energy',
                                                     'true_coszen',
                                                     'true_azimuth']):
-            assert ('aa' not in params['flux_file'].value)
+            assert ('aa' not in params.flux_file.value)
 
         # Ratio systematics should not be negative.
         # This makes no sense after all
-        assert (params['nue_numu_ratio'].value > 0.0)
-        assert (params['nu_nubar_ratio'].value > 0.0)
+        assert (params.nue_numu_ratio.value > 0.0)
+        assert (params.nu_nubar_ratio.value > 0.0)
 
         # Neither should energy scale for that matter
-        assert (params['energy_scale'].value > 0.0)
+        assert (params.energy_scale.value > 0.0)

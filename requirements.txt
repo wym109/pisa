@@ -2,6 +2,7 @@ cython
 h5py
 line_profiler
 matplotlib
+numba
 numpy >= 1.11.0
 pint
 pip > 1.2

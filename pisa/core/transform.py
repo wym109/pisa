@@ -213,6 +213,7 @@ class TransformSet(object):
                and output_name == transform.output_name:
                 return transform
 
+    @profile
     def apply(self, inputs):
         """Apply each transform to `inputs`; return computed outputs.
 
@@ -696,7 +697,6 @@ class BinnedTensorTransform(Transform):
     # given the (concatenated) input dimension and the dimension of the
     # transform kernel
 
-    @profile
     def _apply(self, inputs):
         """Apply transforms to input maps to compute output maps.
 

@@ -332,14 +332,14 @@ if __name__ == '__main__':
     # Instantiate the pipeline
     pipeline = Pipeline(args.pipeline_settings)
 
-    for run in xrange(1):
+    for run in xrange(2):
         logging.info('')
         logging.info('## STARTING RUN %d ............' % run)
         logging.info('')
         #t23 = pipeline.params.theta23
         #x0, x1 = t23.range
         #dx = x1 - x0
-        #pipeline.params.theta23.value = x0 + np.random.rand()*dx
+        pipeline.params.free.values = [p.value*1.01 for p in pipeline.params.free]
         #print pipeline.params.theta23.value
         if args.only_stage is None:
             idx = slice(0, args.stop_after_stage)
