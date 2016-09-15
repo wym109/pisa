@@ -184,7 +184,10 @@ class gpu(Stage):
             #self.events_dict[flav]['host']['weighted_aeff'][::2] = 0
             #select odd 50%
             #self.events_dict[flav]['host']['weighted_aeff'][1::2] = 0
-            #self.events_dict[flav]['host']['weighted_aeff'][9::10] = 0
+            #every 10th event only
+            #cut = np.zeros_like(self.events_dict[flav]['host']['weighted_aeff'])
+            #cut[9::10] = 1
+            #self.events_dict[flav]['host']['weighted_aeff']*=cut
             for var in empty:
                 if self.params.no_nc_osc and ( (flav in ['nue_nc', 'nuebar_nc'] and var == 'prob_e') or (flav in ['numu_nc', 'numubar_nc'] and var == 'prob_mu') ):
                     self.events_dict[flav]['host'][var] = np.ones(self.events_dict[flav]['n_evts'], dtype=FTYPE)
@@ -280,9 +283,10 @@ class gpu(Stage):
         for flav in self.flavs:
 
             # calculate osc probs
-            if recalc_osc and not (self.params.no_nc_osc and flav.endswith('_nc')):
-                self.osc.calc_probs(self.events_dict[flav]['kNuBar'], self.events_dict[flav]['kFlav'],
-                                self.events_dict[flav]['n_evts'], **self.events_dict[flav]['device'])
+            if recalc_osc:
+                if not (self.params.no_nc_osc.value and flav.endswith('_nc')):
+                    self.osc.calc_probs(self.events_dict[flav]['kNuBar'], self.events_dict[flav]['kFlav'],
+                                    self.events_dict[flav]['n_evts'], **self.events_dict[flav]['device'])
 
             # calculate weights
             if recalc_weight:
@@ -337,6 +341,7 @@ class gpu(Stage):
         maps = []
         # apply scales, add up all cscds and tracks, and pack them up in final PISA MapSet
         for i,flav in enumerate(self.flavs):
+            #if 'nutau' in flav:
             if flav in ['nutau_cc','nutaubar_cc']:
                 f = self.params.nutau_cc_norm.value.m_as('dimensionless')
             elif flav.endswith('_nc'):
