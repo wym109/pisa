@@ -68,7 +68,6 @@ class Pipeline(object):
         All stages in the pipeline
 
     """
-    @profile
     def __init__(self, config):
         self._stages = []
         if isinstance(config, (basestring, BetterConfigParser)):
@@ -171,8 +170,10 @@ class Pipeline(object):
         i = 0
         if isinstance(idx, basestring):
             idx = self.stage_names.index(idx) + 1
-        if idx is not None and idx <= 0:
-            raise ValueError('Integer `idx` must be > 0')
+        if idx is not None:
+            if idx < 0:
+                raise ValueError('Integer `idx` must be >= 0')
+            idx += 1
         assert len(self) > 0
         for stage in self.stages[:idx]:
             logging.debug('>> Working on stage "%s" service "%s"'
@@ -336,13 +337,12 @@ if __name__ == '__main__':
         logging.info('')
         logging.info('## STARTING RUN %d ............' % run)
         logging.info('')
-        #t23 = pipeline.params.theta23
-        #x0, x1 = t23.range
-        #dx = x1 - x0
         pipeline.params.free.values = [p.value*1.01 for p in pipeline.params.free]
-        #print pipeline.params.theta23.value
         if args.only_stage is None:
-            idx = slice(0, args.stop_after_stage)
+            stop_idx = args.stop_after_stage
+            if stop_idx is not None:
+                stop_idx += 1
+            idx = slice(0, stop_idx)
             outputs = pipeline.get_outputs(idx=args.stop_after_stage)
         else:
             assert args.stop_after_stage is None

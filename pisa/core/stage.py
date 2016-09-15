@@ -195,15 +195,14 @@ class Stage(object):
         self.nominal_transforms_cache = None
         """Memory cache object for storing nominal transforms"""
 
-        if self.transforms_cache_depth > 0:
-            self.transforms_cache = MemoryCache(
-                max_depth=self.transforms_cache_depth, is_lru=True,
-                deepcopy=self.memcache_deepcopy
-            )
-            self.nominal_transforms_cache = MemoryCache(
-                max_depth=self.transforms_cache_depth, is_lru=True,
-                deepcopy=self.memcache_deepcopy
-            )
+        self.transforms_cache = MemoryCache(
+            max_depth=self.transforms_cache_depth, is_lru=True,
+            deepcopy=self.memcache_deepcopy
+        )
+        self.nominal_transforms_cache = MemoryCache(
+            max_depth=self.transforms_cache_depth, is_lru=True,
+            deepcopy=self.memcache_deepcopy
+        )
 
         self.outputs_cache_depth = int(outputs_cache_depth)
 
@@ -211,11 +210,10 @@ class Stage(object):
         """Memory cache object for storing outputs (excludes sideband
         objects)."""
 
-        if self.outputs_cache_depth > 0:
-            self.outputs_cache = MemoryCache(
-                max_depth=self.outputs_cache_depth, is_lru=True,
-                deepcopy=self.memcache_deepcopy
-            )
+        self.outputs_cache = MemoryCache(
+            max_depth=self.outputs_cache_depth, is_lru=True,
+            deepcopy=self.memcache_deepcopy
+        )
 
         self.disk_cache = disk_cache
         """Disk cache object"""
@@ -557,6 +555,7 @@ class Stage(object):
 
         return augmented_outputs
 
+    @profile
     def _check_params(self, params):
         """Make sure that `expected_params` is defined and that exactly the
         params specified in self.expected_params are present.
@@ -579,6 +578,7 @@ class Stage(object):
                          %', '.join(sorted(exp_p))
                          + ';\n'.join(err_strs))
 
+    @profile
     def check_transforms(self, transforms):
         """Check that transforms' inputs and outputs match those specified
         for this service.
@@ -600,6 +600,7 @@ class Stage(object):
                 "Transforms' outputs: " + str(transforms.output_names) + \
                 "\nStage outputs: " + str(self.output_names)
 
+    @profile
     def check_outputs(self, outputs):
         assert set(outputs.names) == set(self.output_names), \
                 "Outputs: " + str(outputs.names) + \

@@ -84,9 +84,9 @@ class hist(Stage):
     """
     def __init__(self, params, particles, transform_groups,
                  sum_grouped_flavints, input_binning, output_binning,
-                 input_names=None, error_method=None, disk_cache=None,
-                 transforms_cache_depth=20, outputs_cache_depth=20,
-                 memcache_deepcopy=True, debug_mode=None):
+                 memcache_deepcopy, transforms_cache_depth,
+                 outputs_cache_depth, input_names=None, error_method=None,
+                 disk_cache=None, debug_mode=None):
         self.events_hash = None
         """Hash of events file or Events object used"""
 

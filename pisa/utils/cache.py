@@ -42,7 +42,7 @@ class MemoryCache(object):
 
     """
     GLOBAL_MEMCACHE_DEPTH_OVERRIDE = None
-    def __init__(self, max_depth, is_lru=True, deepcopy=True):
+    def __init__(self, max_depth, is_lru=True, deepcopy=False):
         self.__cache = OrderedDict()
         self.__max_depth = max_depth
         self.__is_lru = is_lru

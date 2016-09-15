@@ -39,7 +39,22 @@ HASH_SIGFIGS = 12
 # TODO: dtype arg to BinnedTensorTransform (or a global def like HASH_SIGFIGS?)
 # to allow for single precision and hence any associated speedups
 
-# TODO: numba implementation of BinnedTensorTransform
+## TODO: numba implementation of BinnedTensorTransform faster or not?
+#import numba
+#@numba.jit("float64[:,:] (float64[:,:], float64[:,:,:,:])",
+#           nopython=True, nogil=True, cache=True)
+#def map2d_kernel4d(x, xform):
+#    I = x.shape[0]
+#    J = x.shape[1]
+#    out = np.empty((I,J))
+#    for i1 in range(I):
+#        for j1 in range(J):
+#            out[i1,j1] = 0.0
+#            for i0 in range(I):
+#                for j0 in range(J):
+#                    out[i1,j1] += x[i1,j1] * xform[i0,j0,i1,j1]
+#    return out
+
 
 # TODO: Add Sequence capabilities to TransformSet (e.g. it'd be nice to have at
 # least append, extend, ...)
@@ -213,7 +228,6 @@ class TransformSet(object):
                and output_name == transform.output_name:
                 return transform
 
-    @profile
     def apply(self, inputs):
         """Apply each transform to `inputs`; return computed outputs.
 
@@ -788,6 +802,11 @@ class BinnedTensorTransform(Transform):
         # and then check that
         #   xform.shape == (input_array.shape, input_array.shape) (roughly)
         # and then apply tensordot appropriately for this generic case...
+
+        # TODO: why does this fail for different input/output binning, but
+        # below tensordot works?
+        #elif len(self.xform_array.shape) == 4 and len(input_array.shape) == 2:
+        #    output = map2d_kernel4d(input_array, self.xform_array)
 
         elif len(self.xform_array.shape) == 2*len(input_array.shape):
             output = np.tensordot(input_array, self.xform_array,

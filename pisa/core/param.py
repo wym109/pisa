@@ -212,6 +212,9 @@ class Param(object):
         if self.is_discrete:
             val = self.value
         else:
+            if self.range is None:
+                raise ValueError('Cannot rescale without a range specified'
+                                 ' for parameter %s' %self)
             val = (self._value.m - self.range[0].m) \
                     / (self.range[1].m-self.range[0].m)
         if hasattr(val, 'magnitude'):
@@ -393,7 +396,7 @@ class ParamSet(Sequence):
         assert all([isinstance(x, Param) for x in param_sequence]), \
                 'All params must be of type "Param"'
 
-        self._params = sorted(param_sequence)
+        self._params = param_sequence
 
     @property
     def _by_name(self):

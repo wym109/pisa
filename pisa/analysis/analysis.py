@@ -368,8 +368,8 @@ class Analysis(object):
         except:
             if not blind:
                 logging.error(
-                    'Failed when generating asimov_dist with free params %s'
-                    %hypo_maker.params.free
+                    'Failed to generate Asimov distribution with free'
+                    ' params %s' %(hypo_maker.params.free,)
                 )
             raise
 

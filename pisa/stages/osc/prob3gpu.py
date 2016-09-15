@@ -265,9 +265,10 @@ class prob3gpu(Stage):
     }
     '''
 
-    def __init__(self, params, input_binning, output_binning,
-                 error_method=None, transforms_cache_depth=20,
-                 outputs_cache_depth=20, debug_mode=None, gpu_id=None):
+    def __init__(self, params, input_binning, output_binning, error_method,
+                 memcache_deepcopy, transforms_cache_depth,
+                 outputs_cache_depth, debug_mode=None,
+                 gpu_id=None):
         # If no binning provided then we want to use this to calculate
         # probabilities for events instead of transforms for maps.
         # Set up this self.calc_transforms to use as an assert on the
@@ -328,6 +329,7 @@ class prob3gpu(Stage):
             error_method=error_method,
             disk_cache=None,
             outputs_cache_depth=outputs_cache_depth,
+            memcache_deepcopy=memcache_deepcopy,
             transforms_cache_depth=transforms_cache_depth,
             input_binning=input_binning,
             output_binning=output_binning,
