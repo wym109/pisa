@@ -15,6 +15,8 @@ parser.add_argument('-t', '--template-settings',
 parser.add_argument('-d', '--data-settings', type=str,
 		    metavar='configfile', default=None,
 		    help='settings for the generation of "data"')
+parser.add_argument('-sp', '--set-param', type=str, default='',
+                    help='Set a param to a certain value.')
 parser.add_argument('-f', '--fit', type=str,
 		    metavar='fit file', default=None,
 		    help='settings for the generation of "data"')
@@ -42,6 +44,19 @@ if args.data_settings is not None:
 else:
     data = None
     stamp=r'$\nu_\tau$ appearance'+'\nMC'
+
+if not args.set_param == '':
+    p_name,value = args.set_param.split("=")
+    print "p_name,value= ", p_name, " ", value
+    value = parse_quantity(value)
+    value = value.n * value.units
+    test = template_maker.params[p_name]
+    test.value = value
+    template_maker.update_params(test)
+    if args.data_settings is not None and p_name in data_maker.params.names:
+        test = data_maker.params[p_name]
+        test.value = value
+        data_maker.update_params(test)
 
 my_plotter = plotter(stamp=stamp, outdir='plots', fmt='pdf', log=False, annotate=True, symmetric=False, ratio=True)
 
@@ -80,6 +95,8 @@ template_nominal = template_maker.get_outputs()
 for map in template_nominal: map.tex = 'MC'
 template_notau = template_maker_H0.get_outputs()
 for map in template_notau: map.tex = r'MC\ (\nu_\tau^{CC}=0)'
+
+#print "template_nominal = ", template_nominal['cscd'].hist
 
 #my_plotter.plot_1d_array(template_nominal, 'reco_coszen', fname='p_coszen')
 #my_plotter.plot_1d_array(template_nominal, 'reco_energy', fname='p_energy')
