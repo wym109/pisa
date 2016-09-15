@@ -26,7 +26,7 @@ def cythonize(module):
     return cythonize_(module)
 
 
-def get_numpy_includes():
+def get_numpy_include():
     """Obtain the numpy include directory. This logic works across numpy
     versions."""
     import numpy
@@ -34,6 +34,7 @@ def get_numpy_includes():
         numpy_include = numpy.get_include()
     except AttributeError:
         numpy_include = numpy.get_numpy_include()
+    return numpy_include
 
 
 def setup_cc():
@@ -192,7 +193,7 @@ if __name__ == '__main__':
                 'pisa/stages/osc/grid_propagator/GridPropagator.i'
             ],
             include_dirs=[
-                numpy_include,
+                get_numpy_include(),
                 'pisa/stages/osc/prob3/'
             ],
             extra_compile_args=[
