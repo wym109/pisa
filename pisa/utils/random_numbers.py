@@ -82,7 +82,7 @@ def get_random_state(random_state, jumpahead=0):
                 assert s1 >= 0 and s1 < 2**b1
                 seed = (s0 << b1) + s1
             elif len(random_state) == 3:
-                b0, b1, b2 = 2, 13, 17
+                b0, b1, b2 = 1, 12, 19
                 assert b0 + b1 + b2 == 32
                 s0, s1, s2 = random_state
                 assert s0 >= 0 and s0 < 2**b0

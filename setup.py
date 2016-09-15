@@ -20,8 +20,20 @@ import subprocess
 import sys
 import tempfile
 
-from Cython.Build import cythonize
-import numpy
+
+def cythonize(module):
+    from Cython.Build import cythonize as cythonize_
+    return cythonize_(module)
+
+
+def get_numpy_includes():
+    """Obtain the numpy include directory. This logic works across numpy
+    versions."""
+    import numpy
+    try:
+        numpy_include = numpy.get_include()
+    except AttributeError:
+        numpy_include = numpy.get_numpy_include()
 
 
 def setup_cc():
@@ -90,7 +102,13 @@ class build(_build):
         ('build_clib',    _build.has_c_libraries),
         ('build_scripts', _build.has_scripts)
     ]
-
+# python_requires
+# setup_requires
+# install_requires
+# package_data
+# include_package_data
+# zip_safe
+# eager_resources
 
 if __name__ == '__main__':
     setup_cc()
@@ -103,16 +121,10 @@ if __name__ == '__main__':
 
     OPENMP = has_openmp()
     if not OPENMP:
-        sys.stderr.write('WARNING: Could not compile test program with'
-                         ' -fopenmp; installing PISA without OpenMP'
-                         ' support.\n')
-
-    # Obtain the numpy include directory. This logic works across numpy
-    # versions.
-    try:
-        numpy_include = numpy.get_include()
-    except AttributeError:
-        numpy_include = numpy.get_numpy_include()
+        sys.stderr.write(
+            'WARNING: Could not compile test program with -fopenmp;'
+            ' installing PISA without OpenMP support.\n'
+        )
 
     # Collect (build-able) external modules and package_data
     ext_modules = []
@@ -146,7 +158,7 @@ if __name__ == '__main__':
         'events/deepcore_ic86/MSU/1XXX/UnJoined/*.hdf5',
         'events/deepcore_ic86/MSU/1XXXX/Joined/*.hdf5',
         'events/deepcore_ic86/MSU/1XXXX/UnJoined/*.hdf5',
-	'events/deepcore_ic86/MSU/icc/*.hdf5',
+        'events/deepcore_ic86/MSU/icc/*.hdf5',
         'events/pingu_v36/*.hdf5',
         'events/pingu_v39/*.hdf5',
         'flux/*.d',
@@ -233,6 +245,22 @@ if __name__ == '__main__':
         author='The IceCube/PINGU Collaboration',
         author_email='sboeser@uni-mainz.de',
         url='http://github.com/WIPACrepo/pisa',
+        setup_requires=[
+            'cython',
+            'numpy'
+        ],
+        install_requires=[
+            'cython',
+            'h5py',
+            'line_profiler',
+            'matplotlib',
+            'numpy',
+            'pint',
+            'scipy',
+            'simplejson',
+            'tables',
+            'uncertainties'
+        ],
         cmdclass = {'build': build},
         packages=[
             'pisa',
@@ -250,8 +278,8 @@ if __name__ == '__main__':
             'pisa.stages.reco',
             'pisa.stages.sys',
             'pisa.stages.xsec',
-	    'pisa.stages.mc',
-	    'pisa.stages.data',
+            'pisa.stages.mc',
+            'pisa.stages.data',
             'pisa.utils',
             'pisa.resources'
         ],
