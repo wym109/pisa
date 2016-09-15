@@ -608,6 +608,27 @@ class HypoTesting(Analysis):
                 blind=self.blind
             )
 
+    def setup_logging(self):
+        """
+        Directory structure:
+            logdir/h0_<h0_name>__h1_<h1_name>/data<data_ind>/fid<fid_ind>/
+
+        Create or update the files:
+            logdir/h0_<h0_name>__h1_<h1_name>/runs_info.txt
+            logdir/h0_<h0_name>__h1_<h1_name>/reservations.sqlite
+
+        """
+        pass
+
+    def log_data_result(self):
+        """
+
+        """
+        pass
+
+    def log_fid_result(self, cmp0):
+        pass
+
     @staticmethod
     def post_process(logdir):
         pass
