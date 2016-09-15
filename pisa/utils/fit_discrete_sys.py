@@ -57,7 +57,7 @@ for sys in sys_list:
     degree = cfg.getint(sys, 'degree')
     force_through_nominal = cfg.getboolean(sys, 'force_through_nominal')
     runs = eval(cfg.get(sys,'runs'))
-    smooths = cfg.get(sys, 'smooth').strip().split(',')
+    smooth = cfg.get(sys, 'smooth')
 
     x_values = np.array(sorted(runs))
 
@@ -169,56 +169,39 @@ for sys in sys_list:
                 if j > 0:
                     plt.setp(plt.gca().get_xticklabels(), visible=False)
 
-    for smooth in smooths:
-        # smoothing
-        if not smooth == 'raw':
-            raw_outputs = copy.deepcopy(outputs)
-            errors = {}
-            for cat in categories:
-                for d in range(degree):
-                    if smooth == 'spline':
-                        spline = interpolate.SmoothBivariateSpline(grid_x, grid_y,
-                                np.ravel(outputs[cat][:,:,d]), kx=2, ky=2)
-                        outputs[cat][:,:,d] = spline(bins_x, bins_y)
-                    elif smooth == 'gauss':
-                        outputs[cat][:,:,d] = gaussian_filter(outputs[cat][:,:,d],
-                                sigma=1)
+    # save the raw ones anyway
+    outputs['pname'] = sys
+    outputs['nominal'] = nominal
+    outputs['function'] = function
+    outputs['categories'] = categories
+    #outputs['binning'] = binning
+    to_file(outputs, '%s/%s_sysfits_raw.json'%(args.out_dir,sys))
 
-                if args.plot:
-                    for i, j in np.ndindex((nx,ny)):
-                        fig_num = i + nx * j
-                        if fig_num == 0:
-                            fig = plt.figure(num=1, figsize=( 4*nx, 4*ny))
-                        subplot_idx = nx*(ny-1-j)+ i + 1
-                        plt.subplot(ny, nx, subplot_idx)
-                        p_smooth = outputs[cat][i,j,:]
-                        f_values = fit_fun(x_values, *p_smooth)
-                        fun_plot, = plt.plot(x_values, f_values,
-                                color=plt_colors[cat], linestyle='--')
+    # smoothing
+    if not smooth == 'raw':
+        raw_outputs = copy.deepcopy(outputs)
+        errors = {}
+        for cat in categories:
+            for d in range(degree):
+                if smooth == 'spline':
+                    spline = interpolate.SmoothBivariateSpline(grid_x, grid_y,
+                            np.ravel(outputs[cat][:,:,d]), kx=2, ky=2)
+                    outputs[cat][:,:,d] = spline(bins_x, bins_y)
+                elif smooth == 'gauss':
+                    outputs[cat][:,:,d] = gaussian_filter(outputs[cat][:,:,d],
+                            sigma=1)
 
-        if args.plot:
-            fig.subplots_adjust(hspace=0)
-            fig.subplots_adjust(wspace=0)
-            plt.show()
-            plt.savefig('%s_sysfits_%s.pdf'%(sys,smooth))
-            plt.clf()
-
-            if not smooth == 'raw':
-                for d in range(degree):
-                    maps = []
-                    for cat in categories:
-                        maps.append(Map(name='%s_raw'%cat, hist=raw_outputs[cat][:,:,d],
-                                    binning=binning))
-                        maps.append(Map(name='%s_smooth'%cat, hist=outputs[cat][:,:,d],
-                                    binning=binning))
-                        maps.append(Map(name='%s_diff'%cat,
-                                    hist=raw_outputs[cat][:,:,0] - outputs[cat][:,:,d],
-                                    binning=binning))
-                    maps = MapSet(maps)
-                    my_plotter = plotter(stamp='PISA cake test', outdir='.',
-                        fmt='pdf',log=False, label='')
-                    my_plotter.plot_2d_array(maps, fname='%s_smooth_%s_p%s'%(sys,smooth,d))
-
+            if args.plot:
+                for i, j in np.ndindex((nx,ny)):
+                    fig_num = i + nx * j
+                    if fig_num == 0:
+                        fig = plt.figure(num=1, figsize=( 4*nx, 4*ny))
+                    subplot_idx = nx*(ny-1-j)+ i + 1
+                    plt.subplot(ny, nx, subplot_idx)
+                    p_smooth = outputs[cat][i,j,:]
+                    f_values = fit_fun(x_values, *p_smooth)
+                    fun_plot, = plt.plot(x_values, f_values,
+                            color=plt_colors[cat], linestyle='--')
 
         outputs['pname'] = sys
         outputs['nominal'] = nominal
@@ -226,3 +209,28 @@ for sys in sys_list:
         outputs['categories'] = categories
         #outputs['binning'] = binning
         to_file(outputs, '%s/%s_sysfits_%s.json'%(args.out_dir,sys,smooth))
+
+    if args.plot:
+        fig.subplots_adjust(hspace=0)
+        fig.subplots_adjust(wspace=0)
+        plt.show()
+        plt.savefig('%s_sysfits_%s.pdf'%(sys,smooth))
+        plt.clf()
+
+        if not smooth == 'raw':
+            for d in range(degree):
+                maps = []
+                for cat in categories:
+                    maps.append(Map(name='%s_raw'%cat, hist=raw_outputs[cat][:,:,d],
+                                binning=binning))
+                    maps.append(Map(name='%s_smooth'%cat, hist=outputs[cat][:,:,d],
+                                binning=binning))
+                    maps.append(Map(name='%s_diff'%cat,
+                                hist=raw_outputs[cat][:,:,0] - outputs[cat][:,:,d],
+                                binning=binning))
+                maps = MapSet(maps)
+                my_plotter = plotter(stamp='PISA cake test', outdir='.',
+                    fmt='pdf',log=False, label='')
+                my_plotter.plot_2d_array(maps, fname='%s_smooth_%s_p%s'%(sys,smooth,d))
+
+

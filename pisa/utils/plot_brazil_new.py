@@ -20,7 +20,7 @@ from cycler import cycler
 import collections
 from pisa.utils.fileio import from_file
 
-def plot(name,data,hypos,trials,x_var='nutau_cc_norm'):
+def plot(name,data,hypos,trials,x_var='nutau_cc_norm',dir='.'):
     
     median = np.array([])
     sigmam = np.array([])
@@ -127,8 +127,8 @@ def plot(name,data,hypos,trials,x_var='nutau_cc_norm'):
     for i in [0.5,1,1.5]:
         ax.axvline(i,color='k', linestyle='-',alpha=0.2)
     plt.show()
-    plt.savefig('q1_%s.png'%name, facecolor=fig.get_facecolor(), edgecolor='none')
-    plt.savefig('q1_%s.pdf'%name, facecolor=fig.get_facecolor(), edgecolor='none')
+    plt.savefig('%s/q1_%s.png'%(dir,name), facecolor=fig.get_facecolor(), edgecolor='none')
+    plt.savefig('%s/q1_%s.pdf'%(dir,name), facecolor=fig.get_facecolor(), edgecolor='none')
 
 def dist(data,name,hypos, asimov_hypos, params,trials):
 
@@ -220,7 +220,7 @@ if __name__ == '__main__':
             #        total += 1
 
     for key,val in data.items():
-        plot(key,val,hypos,total,args.x_var)
+        plot(key,val,hypos,total,args.x_var,args.dir)
     #if args.dist:
     #    for s in syslist:
     #        dist(results, asimov_results,hypos, asimov_hypos, params, total)
