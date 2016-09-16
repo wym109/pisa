@@ -142,7 +142,7 @@ if __name__ == '__main__':
             'pisa/stages/osc/prob3/mosc3.c'
         ],
         include_dirs=[
-            numpy_include,
+            get_numpy_include(),
             'pisa/stages/osc/prob3/'
         ],
         extra_compile_args=['-Wall', '-O3', '-fPIC'],
