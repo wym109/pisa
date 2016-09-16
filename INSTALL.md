@@ -25,7 +25,7 @@ pip install -e my_virtual_env/src/pisa/[cuda,numba,docbuild] \
     -r my_virtual_env/src/pisa/requirements.txt
 
 # Run the physics tests
-pisa_v2_v3_consistency_tests.py -v
+test_consistency_with_pisa2.py -v
 
 # Run the Asimov NMO analysis
 hypo_testing.py --logdir /tmp/test \
@@ -39,7 +39,7 @@ hypo_testing.py --logdir /tmp/test \
     --pprint -v
 
 # Leave the virtual environment (run the `source...` command above to re-enter
-# the virtual environment)
+# the virtual environment at a later time)
 deactivate
 ```
 
