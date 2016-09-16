@@ -1,12 +1,10 @@
-numpy >= 1.11.0
-scipy >= 0.17.0
+pip>=1.8
+numpy>=1.11.0
+scipy>=0.17.0
+simplejson>=3.2.0
+git+https://github.com/hgrecco/pint.git@c5925bfdab09c75a26bb70cd29fb3d34eed56a5f#egg=pint
 cython
 h5py
-line_profiler
 matplotlib
-numba
-git+https://github.com/hgrecco/pint.git@c5925bfdab09c75a26bb70cd29fb3d34eed56a5f#egg=pint
-pip > 1.2
-simplejson >= 3.2.0
 tables
 uncertainties

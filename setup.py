@@ -13,6 +13,7 @@
 
 
 from distutils.command.build import build as _build
+from distutils.command.build_ext import build_ext as _build_ext
 from distutils.core import setup, Extension
 import os
 import shutil
@@ -26,15 +27,15 @@ def cythonize(module):
     return cythonize_(module)
 
 
-def get_numpy_include():
-    """Obtain the numpy include directory. This logic works across numpy
-    versions."""
-    import numpy
-    try:
-        numpy_include = numpy.get_include()
-    except AttributeError:
-        numpy_include = numpy.get_numpy_include()
-    return numpy_include
+#def get_numpy_include():
+#    """Obtain the numpy include directory. This logic works across numpy
+#    versions."""
+#    import numpy
+#    try:
+#        numpy_include = numpy.get_include()
+#    except AttributeError:
+#        numpy_include = numpy.get_numpy_include()
+#    return numpy_include
 
 
 def setup_cc():
@@ -103,6 +104,22 @@ class build(_build):
         ('build_clib',    _build.has_c_libraries),
         ('build_scripts', _build.has_scripts)
     ]
+
+
+class build_ext(_build_ext):
+    """Replace default build_ext to allow for numpy install before setup.py
+    needs it to include its dir.
+
+    Code copied from coldfix / http://stackoverflow.com/a/21621689
+
+    """
+    def finalize_options(self):
+        _build_ext.finalize_options(self)
+        __builtins__.__NUMPY_SETUP__ = False
+        import numpy
+        self.include_dirs.append(numpy.get_include())
+
+
 # python_requires
 # setup_requires
 # install_requires
@@ -142,7 +159,7 @@ if __name__ == '__main__':
             'pisa/stages/osc/prob3/mosc3.c'
         ],
         include_dirs=[
-            get_numpy_include(),
+            #get_numpy_include(),
             'pisa/stages/osc/prob3/'
         ],
         extra_compile_args=['-Wall', '-O3', '-fPIC'],
@@ -246,23 +263,29 @@ if __name__ == '__main__':
         author='The IceCube/PINGU Collaboration',
         author_email='sboeser@uni-mainz.de',
         url='http://github.com/WIPACrepo/pisa',
+        cmdclass = {
+            'build': build,
+            'build_ext': build_ext
+        },
         setup_requires=[
+            'pip>=1.8',
+            'numpy>=1.11.0'
             'cython',
-            'numpy'
         ],
         install_requires=[
-            'cython',
+            'scipy>=0.17.0',
             'h5py',
-            'line_profiler',
             'matplotlib',
-            'numpy',
             'pint',
-            'scipy',
-            'simplejson',
+            'simplejson>=3.2.0',
             'tables',
             'uncertainties'
         ],
-        cmdclass = {'build': build},
+        extras_require = {
+            'cuda':  ['pycuda'],
+            'numba':  ['enum34', 'numba'],
+            'dev': ['line_profiler', 'sphinx>1.3', 'recommonmark'],
+        },
         packages=[
             'pisa',
             'pisa.analysis',

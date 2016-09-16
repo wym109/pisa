@@ -24,12 +24,12 @@ The Python requirements that you must install manually:
   * Anaconda: built in
   * Otherwise, if on Linux:<br>
     `sudo apt-get install python-2.7`
-* [pip](https://pip.pypa.io/)
+* [pip](https://pip.pypa.io/) version >= 1.8 required
   * Anaconda:<br>
     `conda install pip`
   * Otherwise, if on Linux:<br>
     `sudo apt-get install pip`
-* [numpy](http://www.numpy.org/)
+* [numpy](http://www.numpy.org/) version >= 1.11.0 required
   * Anaconda:<br>
     `conda install numpy`
   * Otherwise:<br>
@@ -48,11 +48,9 @@ The Python requirements that you must install manually:
 Required Python modules that are installed automatically when you use the pip command detailed later:
 * [h5py](http://www.h5py.org/)
 * [matplotlib](http://matplotlib.org/)
-* [enum34](http://numba.pydata.org/) (required for numba)
-* [numba](http://numba.pydata.org/)
-* [pint](https://pint.readthedocs.org/en/0.7.2/)
-* [scipy](http://www.scipy.org/) — version > 0.12 recommended
-* [simplejson](https://github.com/simplejson/simplejson)
+* [pint](https://pint.readthedocs.org); at present this must be installed from its github source, as there is a bug not yet fixed in a release. Specifying "-r requirements.txt" will automatically install pint from the correct source (https://github.com/hgrecco/pint.git@c5925bfdab09c75a26bb70cd29fb3d34eed56a5f#egg=pint)
+* [scipy](http://www.scipy.org/) — version >= 0.17 required
+* [simplejson](https://github.com/simplejson/simplejson) version >= 3.2.0 required
 * [tables](http://www.pytables.org/)
 * [uncertainties](https://pythonhosted.org/uncertainties/)
 
@@ -61,15 +59,16 @@ Required Python modules that are installed automatically when you use the pip co
 Optional dependencies, on the other hand, ***must be installed manually prior to installing PISA*** if you want the functionality they provide.
 The features enabled by and the relevant install commands for optional dependencies are listed below.
 * [openmp](http://www.openmp.org): parallelize certain routines on multi-core computers<br>
-  *available from your compiler; gcc supports OpenMP, while Clang (OS X) might not*
+  *available from your compiler: gcc supports OpenMP 4.0 and Clang > 3.8.0 supports OpenMP 3.1 (either version of OpenMP should work, but Clang has yet to be tested for this)*
 * [PyCUDA](https://mathema.tician.de/software/pycuda): run certain routines on Nvidia CUDA GPUs (must have compute 2.0 or greater capability)<br>
   `pip install pycuda` (but note that support for CUDA 8 and Pascal architecture GPUs is currently only available in unreleased github version of pycuda)
 * [PyROOT](https://root.cern.ch/pyroot): read ROOT cross sections files; must install ROOT on your system in addition to PyROOT. Instructions here work for Ubuntu 15.x and 16.04.
   `sudo apt-get install root-system libroot-bindings-python*`
-* [numba](http://numba.pydata.org): just-in-time compilation via LLVM to accelerate certain routines<br>
+* [numba](http://numba.pydata.org): just-in-time compilation to native machine code via LLVM to accelerate certain routines. If not using Anaconda to install, you must have LLVM installed already on your system.<br>
   * Anaconda:<br>
     `conda install numba`
   * pip:<br>
+    `pip install enum34`<br>
     `pip install numba`
 * [Sphinx](http://www.sphinx-doc.org/en/stable/) - version > 1.3 and [recommonmark](http://recommonmark.readthedocs.io/en/latest/) are required to compile PISA's documentation<br>
     * Anaconda:<br>
