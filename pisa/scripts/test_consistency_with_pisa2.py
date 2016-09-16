@@ -24,6 +24,10 @@ from pisa.utils.config_parser import parse_pipeline_config
 from pisa.utils.tests import has_cuda, check_agreement, plot_comparisons
 
 
+# TODO: names shouldn't indicate that this is PISA 3; it is whatever the
+# current PISA is. The only version that is fixed is PISA 2, against which
+# we're comparing the current PISA version.
+
 def compare_flux(config, servicename, pisa2file, systname,
                  outdir, ratio_test_threshold, diff_test_threshold):
     """Compare flux stages run in isolation with dummy inputs"""
@@ -765,7 +769,7 @@ def compare_pid_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_te
 
 if __name__ == '__main__':
     parser = ArgumentParser(
-        description='''Run a set of tests on the PISA 3 pipeline against
+        description='''Run a set of tests on the PISA pipeline against
         benchmark PISA 2 data. If no test flags are specified, *all* tests will
         be run.
 

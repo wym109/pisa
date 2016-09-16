@@ -6,7 +6,9 @@ Subpackages
 
 .. toctree::
 
+    pisa.analysis
     pisa.core
+    pisa.scripts
     pisa.stages
     pisa.utils
 

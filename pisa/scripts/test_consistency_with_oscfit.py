@@ -8,23 +8,25 @@ Test data for comparing against should be in the tests/data directory.
 A set of plots will be output in your output directory for you to check.
 """
 
+
 from argparse import ArgumentParser
 from copy import deepcopy
 import os
 
 from pisa import ureg, Q_
-from pisa.core.pipeline import Pipeline
 from pisa.core.map import MapSet
+from pisa.core.pipeline import Pipeline
+from pisa.utils.config_parser import parse_pipeline_config
 from pisa.utils.fileio import from_file
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.resources import find_resource
-from pisa.utils.config_parser import parse_pipeline_config
 from pisa.utils.tests import has_cuda, print_agreement, check_agreement, plot_comparisons
 
-def consistency_test(config, testname, outdir, pisa3file, 
+
+def consistency_test(config, testname, outdir, pisa3file,
                      ratio_test_threshold, diff_test_threshold):
     """
-    Compare baseline output of PISA 3 with an older version of itself 
+    Compare baseline output of PISA 3 with an older version of itself
     (for self-consistency checks).
     """
     logging.debug('>> Doing PISA self-consistency test for %s'%testname)
@@ -71,7 +73,7 @@ def consistency_test(config, testname, outdir, pisa3file,
                         diff=max_diff)
 
     return pipeline
-    
+
 
 def compare_baseline(config, testname, outdir, oscfitfile):
     """
@@ -183,12 +185,12 @@ if __name__ == '__main__':
                         help='''Run baseline tests i.e. the output of PISA 3
                         event by event and OscFit with a set of parameters
                         agreed upon before the tests were started.''')
-    parser.add_argument('--continuous_systematics', action='store_true', 
+    parser.add_argument('--continuous_systematics', action='store_true',
                         default=False,
-                        help='''Run continuous systematics tests i.e. the 
-                        output of PISA 3 event by event and OscFit with 
-                        variations on the NOT discrete systematics. The 
-                        fiducial model was agreed upon before the tests were 
+                        help='''Run continuous systematics tests i.e. the
+                        output of PISA 3 event by event and OscFit with
+                        variations on the NOT discrete systematics. The
+                        fiducial model was agreed upon before the tests were
                         started.''')
     parser.add_argument('--outdir', metavar='DIR', type=str, required=True,
                         help='''Store all output plots to this directory. If
@@ -224,7 +226,7 @@ if __name__ == '__main__':
             'tests', 'settings', 'oscfit_fullmc_test.ini'
         )
         pisa3_config = parse_pipeline_config(pisa3_settings)
-        # First ensure that we still agree with Philipp's original 
+        # First ensure that we still agree with Philipp's original
         # implementation of the event by event method. Here we can expect
         # agreement to machine precision.
         pisa3file = os.path.join(
@@ -232,11 +234,11 @@ if __name__ == '__main__':
         )
         pisa3file = find_resource(pisa3file)
         pisa3_pipeline = consistency_test(
-            config=deepcopy(pisa3_config), 
-            testname='full-mc', 
-            outdir=args.outdir, 
-            pisa3file=pisa3file, 
-            ratio_test_threshold=args.ratio_threshold, 
+            config=deepcopy(pisa3_config),
+            testname='full-mc',
+            outdir=args.outdir,
+            pisa3file=pisa3file,
+            ratio_test_threshold=args.ratio_threshold,
             diff_test_threshold=args.diff_threshold)
         # If the above was passed we can now compare with OscFit. Agreement
         # is expected to better than 1 part in 1000.
@@ -264,7 +266,7 @@ if __name__ == '__main__':
             outdir=args.outdir,
             testname='standard'
         )
-    
+
     # Perform continuous systematic tests
     if args.continuous_systematics or test_all:
         pisa3_settings = os.path.join(
@@ -313,9 +315,9 @@ if __name__ == '__main__':
             k = [k for k in config_to_modify.keys() if k[0] == 'mc'][0]
             params = config_to_modify[k]['params'].params
             params[sys] = params[sys].value + variations[sys]
-            
+
             oscfitfile = os.path.join(
-                'tests', 'data', 'oscfit', 
+                'tests', 'data', 'oscfit',
                 'OscFit1X600Diff%s.json'%continuous_systematics[sys]
             )
             oscfitfile = find_resource(oscfitfile)
@@ -326,5 +328,3 @@ if __name__ == '__main__':
                 outdir=args.outdir,
                 testname='%s'%texnames[sys]
             )
-    
-        

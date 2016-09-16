@@ -29,6 +29,14 @@ pisa.stages.osc.prob3cpu module
     :undoc-members:
     :show-inheritance:
 
+pisa.stages.osc.prob3gpu module
+-------------------------------
+
+.. automodule:: pisa.stages.osc.prob3gpu
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 
 Module contents
 ---------------

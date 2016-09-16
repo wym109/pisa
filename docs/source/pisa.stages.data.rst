@@ -1,21 +1,21 @@
-pisa.stages.aeff package
+pisa.stages.data package
 ========================
 
 Submodules
 ----------
 
-pisa.stages.aeff.hist module
+pisa.stages.data.data module
 ----------------------------
 
-.. automodule:: pisa.stages.aeff.hist
+.. automodule:: pisa.stages.data.data
     :members:
     :undoc-members:
     :show-inheritance:
 
-pisa.stages.aeff.smooth module
-------------------------------
+pisa.stages.data.icc module
+---------------------------
 
-.. automodule:: pisa.stages.aeff.smooth
+.. automodule:: pisa.stages.data.icc
     :members:
     :undoc-members:
     :show-inheritance:
@@ -24,7 +24,7 @@ pisa.stages.aeff.smooth module
 Module contents
 ---------------
 
-.. automodule:: pisa.stages.aeff
+.. automodule:: pisa.stages.data
     :members:
     :undoc-members:
     :show-inheritance:

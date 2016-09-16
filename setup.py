@@ -1,10 +1,28 @@
 #!/usr/bin/env python
-# authors: Sebastian Boeser, J.L. Lanfranchi, P. Eller
-
+# authors: Sebastian Boeser, J.L. Lanfranchi, P. Eller, M. Hieronymus
 """
-Allow PISA to be distributed via distutils, i.e the user can just
+Allows for PISA installation. Tested with `pip`. Use the environment variable
+`CC` to pass a custom compiler to the instller. (GCC and Clang should both
+work; OpenMP support--an optional dependency--is only available for recent
+versions of the latter).
 
-    pip install git+https://github.com/jllanfranchi/pisa#egg=pisa
+Checkout the source code tree in the current directory via
+
+    $ git clone https://github.com/jllanfranchi/pisa.git --branch cake \
+        --single-branch
+
+and install basic PISA package (in editable mode via -e flag) via
+
+    $ pip install -e ./pisa -r ./pisa/requirements.txt
+
+or include optional dependencies by specifying them in brackets
+
+    $ pip install -e ./pisa[cuda,numba,docbuild] -r ./pisa/requirements.txt
+
+If not installed in editable mode and you wish to upgrade:
+
+    $ pip install ./pisa[cuda,numba,docbuild] -r ./pisa/requirements.txt \
+        --upgrade
 
 """
 
@@ -20,7 +38,8 @@ import tempfile
 
 
 # TODO: Compile CUDA kernel(s) here (since no need for dynamic install yet...
-# unless datatype becomes optional)!
+# unless e.g. datatype becomes optional and therefore compilation of the kernel
+# needs to be done at run-time).
 
 # TODO: address some/all of the following in the `setup()` method?
 # * entry_points
