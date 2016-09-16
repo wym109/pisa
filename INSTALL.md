@@ -315,3 +315,18 @@ One example is the script that checks consistency of the results in the current 
 ```bash
 test_consistency_with_pisa2.py -v
 ```
+
+### Running a Basic Analysis
+
+To make sure that an analysis can run, you can run the Asimov analysis of neutrion mass ordering (NMO) with the following command:
+```bash
+hypo_testing.py --logdir /tmp/test \
+    --h0-pipeline settings/pipeline_settings/pipeline_settings_example_gpu.ini \
+    --h0-param-selections="ih" \
+    --h1-param-selections="nh" \
+    --data-param-selections="nh" \
+    --data-is-mc \
+    --minimizer-settings settings/minimizer_settings/bfgs_settings_fac1e11_eps1e-4_mi20.json \
+    --metric="chi2" \
+    --pprint -v
+```

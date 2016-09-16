@@ -311,11 +311,12 @@ if __name__ == '__main__':
         scripts=[
             'pisa/analysis/hypo_testing.py',
             'pisa/analysis/profile_llh_analysis.py',
+            'pisa/analysis/profile_llh_postprocess.py',
             'pisa/core/distribution_maker.py',
             'pisa/core/pipeline.py',
             'pisa/scripts/make_events_file.py',
-            'pisa/scripts/pisa_v2_v3_consistency_tests.py',
-            'pisa/scripts/postprocess.py'
+            'pisa/scripts/test_consistency_with_pisa2.py',
+            'pisa/scripts/test_consistency_with_oscfit.py'
         ],
         ext_modules=ext_modules,
         package_data=package_data,
