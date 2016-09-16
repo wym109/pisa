@@ -51,28 +51,36 @@ def chi2(actual_values, expected_values):
     """
     assert actual_values.shape == expected_values.shape
 
-    # TODO: Check isinstance before doing this?
-    actual_values = unp.nominal_values(actual_values)
-    expected_values = unp.nominal_values(expected_values)
+    # Convert to simple numpy arrays containing floats
+    if not isbarenumeric(actual_values):
+        actual_values = unp.nominal_values(actual_values)
+    if not isbarenumeric(expected_values):
+        expected_values = unp.nominal_values(expected_values)
 
-    # TODO: this check (and the same for `actual_values`) should probably be done
-    # elsewhere... maybe?
-    if not np.all(actual_values >= 0.0):
-        msg = '`actual_values` must all be >= 0...\n' \
-                + maperror_logmsg(actual_values)
-        raise ValueError(msg)
+    with np.errstate(invalid='ignore'):
+        # Mask off any nan expected values (these are assumed to be ok)
+        actual_values = np.ma.masked_invalid(actual_values)
+        expected_values = np.ma.masked_invalid(expected_values)
 
-    if not np.all(expected_values >= 0.0):
-        msg = '`expected_values` must all be >= 0...\n' \
-                + maperror_logmsg(expected_values)
-        raise ValueError(msg)
+        # TODO: this check (and the same for `actual_values`) should probably
+        # be done elsewhere... maybe?
+        if not np.all(actual_values >= 0.0):
+            msg = '`actual_values` must all be >= 0...\n' \
+                    + maperror_logmsg(actual_values)
+            raise ValueError(msg)
 
-    # TODO: is this okay to do?
-    # replace 0's with small positive numbers to avoid inf in division
-    np.clip(actual_values, a_min=SMALL_POS, a_max=np.inf, out=actual_values)
-    np.clip(expected_values, a_min=SMALL_POS, a_max=np.inf, out=expected_values)
+        if not np.all(expected_values >= 0.0):
+            msg = '`expected_values` must all be >= 0...\n' \
+                    + maperror_logmsg(expected_values)
+            raise ValueError(msg)
 
-    delta = actual_values - expected_values
+        # TODO: is this okay to do?
+        # replace 0's with small positive numbers to avoid inf in division
+        np.clip(actual_values, a_min=SMALL_POS, a_max=np.inf, out=actual_values)
+        np.clip(expected_values, a_min=SMALL_POS, a_max=np.inf, out=expected_values)
+
+        delta = actual_values - expected_values
+
     return (delta * delta) / actual_values
 
 
@@ -119,11 +127,11 @@ def llh(actual_values, expected_values):
         # TODO: How should we handle nan / masked values in the "data"
         # (actual_values) distribution? How about negative numbers?
 
-        ## Make sure actual values (aka "data") are valid -- no infs, no nans, etc.
-        #if not np.all((actual_values < 0) | ~np.isfinite(actual_values)):
-        #    msg = '`actual_values` must be >= 0 and neither inf nor nan...\n' \
-        #            + maperror_logmsg(actual_values)
-        #    raise ValueError(msg)
+        # Make sure actual values (aka "data") are valid -- no infs, no nans, etc.
+        if np.any((actual_values < 0) | ~np.isfinite(actual_values)):
+            msg = '`actual_values` must be >= 0 and neither inf nor nan...\n' \
+                    + maperror_logmsg(actual_values)
+            raise ValueError(msg)
 
         # Check that new array contains all valid entries
         if not np.all(expected_values >= 0.0):
@@ -131,8 +139,9 @@ def llh(actual_values, expected_values):
                     + maperror_logmsg(expected_values)
             raise ValueError(msg)
 
-    # replace 0's with small positive numbers to avoid inf in log
-    np.clip(expected_values, a_min=SMALL_POS, a_max=np.inf, out=expected_values)
+        # replace 0's with small positive numbers to avoid inf in log
+        np.clip(expected_values, a_min=SMALL_POS, a_max=np.inf,
+                out=expected_values)
 
     return (actual_values*np.log(expected_values) - expected_values -
             gammaln(actual_values + 1))
