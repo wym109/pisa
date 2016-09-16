@@ -28,7 +28,7 @@ If not installed in editable mode and you wish to upgrade:
 
 
 from distutils.command.build import build as _build
-from distutils.command.build_ext import build_ext as _build_ext
+from setuptools.command.build_ext import build_ext as _build_ext
 import os
 from setuptools import setup, Extension
 import shutil
@@ -269,8 +269,8 @@ if __name__ == '__main__':
         setup_requires=[
             'pip>=1.8',
             'setuptools>=18.0',
-            'numpy>=1.11.0'
             'cython',
+            'numpy>=1.11.0'
         ],
         install_requires=[
             'scipy>=0.17.0',
