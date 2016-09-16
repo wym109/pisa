@@ -8,6 +8,7 @@ A set of plots will be output in your output directory for you to check.
 Agreement is expected to order 10^{-14} in the far right plots.
 """
 
+
 from argparse import ArgumentParser
 from copy import deepcopy
 import os
@@ -890,14 +891,17 @@ if __name__ == '__main__':
                 diff_test_threshold=args.diff_threshold
             )
 
-    # Perform GPU-based oscillations tests
+    # Test for CUDA being present
     cuda_present = has_cuda()
     if not cuda_present:
-        msg = 'No GPU present, so GPU tests cannot be performed.'
-        if args.osc_prob3gpu:
-            raise ImportError(msg)
-        if test_all:
-            logging.warn(msg)
+        msg = 'No CUDA support found, so GPU-based services cannot run.'
+        if args.osc_prob3gpu or test_all:
+            if args.ignore_cuda_errors:
+                logging.warn(msg)
+            else:
+                raise ImportError(msg)
+
+    # Perform GPU-based oscillations tests
     if (args.osc_prob3gpu or test_all) and cuda_present:
         osc_settings = os.path.join(
             'tests', 'settings', 'osc_prob3gpu_test.ini'

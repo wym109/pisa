@@ -1,41 +1,32 @@
 #!/usr/bin/env python
-#
-# Allow PISA to be distributed via distutils, i.e the user can just
-#
-# TODO: does the following work with requirements.txt file?
-# --> some version of cython and numpy must already be installed, since they
-#     are imported here
-#
-#   pip install git+https://github.com/sboeser/pisa#egg=pisa
-#
-# author: Sebastian Boeser
-#         sboeser@physik.uni-bonn.de
+# authors: Sebastian Boeser, J.L. Lanfranchi, P. Eller
+
+"""
+Allow PISA to be distributed via distutils, i.e the user can just
+
+    pip install git+https://github.com/jllanfranchi/pisa#egg=pisa
+
+"""
 
 
 from distutils.command.build import build as _build
 from distutils.command.build_ext import build_ext as _build_ext
-from distutils.core import setup, Extension
 import os
+from setuptools import setup, Extension
 import shutil
 import subprocess
 import sys
 import tempfile
 
 
-def cythonize(module):
-    from Cython.Build import cythonize as cythonize_
-    return cythonize_(module)
+# TODO: Compile CUDA kernel(s) here (since no need for dynamic install yet...
+# unless datatype becomes optional)!
 
-
-#def get_numpy_include():
-#    """Obtain the numpy include directory. This logic works across numpy
-#    versions."""
-#    import numpy
-#    try:
-#        numpy_include = numpy.get_include()
-#    except AttributeError:
-#        numpy_include = numpy.get_numpy_include()
-#    return numpy_include
+# TODO: address some/all of the following in the `setup()` method?
+# * entry_points
+# * package_data
+# * include_package_data
+# * eager_resources
 
 
 def setup_cc():
@@ -120,14 +111,6 @@ class build_ext(_build_ext):
         self.include_dirs.append(numpy.get_include())
 
 
-# python_requires
-# setup_requires
-# install_requires
-# package_data
-# include_package_data
-# zip_safe
-# eager_resources
-
 if __name__ == '__main__':
     setup_cc()
     sys.stdout.write('Using compiler %s\n' %os.environ['CC'])
@@ -159,7 +142,6 @@ if __name__ == '__main__':
             'pisa/stages/osc/prob3/mosc3.c'
         ],
         include_dirs=[
-            #get_numpy_include(),
             'pisa/stages/osc/prob3/'
         ],
         extra_compile_args=['-Wall', '-O3', '-fPIC'],
@@ -210,7 +192,6 @@ if __name__ == '__main__':
                 'pisa/stages/osc/grid_propagator/GridPropagator.i'
             ],
             include_dirs=[
-                get_numpy_include(),
                 'pisa/stages/osc/prob3/'
             ],
             extra_compile_args=[
@@ -248,9 +229,7 @@ if __name__ == '__main__':
         gaussians_module = Extension(
             'pisa.utils.gaussians',
             ['pisa/utils/gaussians.pyx'],
-            extra_compile_args=[
-                '-O2'
-            ],
+            extra_compile_args=['-O2'],
             libraries=['m']
         )
     ext_modules.append(gaussians_module)
@@ -267,14 +246,17 @@ if __name__ == '__main__':
             'build': build,
             'build_ext': build_ext
         },
+        python_requires='>=2.7',
         setup_requires=[
             'pip>=1.8',
+            'setuptools>=18.0',
             'numpy>=1.11.0'
             'cython',
         ],
         install_requires=[
             'scipy>=0.17.0',
             'h5py',
+            'line_profiler',
             'matplotlib',
             'pint',
             'simplejson>=3.2.0',
@@ -284,7 +266,7 @@ if __name__ == '__main__':
         extras_require = {
             'cuda':  ['pycuda'],
             'numba':  ['enum34', 'numba'],
-            'dev': ['line_profiler', 'sphinx>1.3', 'recommonmark'],
+            'docbuild': ['sphinx>1.3', 'recommonmark'],
         },
         packages=[
             'pisa',
@@ -316,6 +298,8 @@ if __name__ == '__main__':
             'pisa/scripts/pisa_v2_v3_consistency_tests.py',
             'pisa/scripts/postprocess.py'
         ],
-        ext_modules=cythonize(ext_modules),
-        package_data=package_data
+        ext_modules=ext_modules,
+        package_data=package_data,
+        # Cannot be compressed due to c, pyx, and cu source files
+        zip_safe=False
     )

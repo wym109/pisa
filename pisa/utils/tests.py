@@ -2,6 +2,7 @@
 #
 # date   : September 06, 2016
 
+
 import os
 import numpy as np
 
@@ -13,6 +14,7 @@ import numpy as np
 
 from pisa.utils.fileio import mkdir
 from pisa.utils.log import logging
+
 
 def has_cuda():
     # pycuda is present if it can be imported
