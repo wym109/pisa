@@ -336,22 +336,55 @@ class Map(object):
         method = str(method).lower()
         if method == 'poisson':
             random_state = get_random_state(random_state, jumpahead=jumpahead)
-            try:
+            with np.errstate(invalid='ignore'):
                 orig_hist = unp.nominal_values(self.hist)
-                masked_hist = np.ma.masked_invalid(orig_hist, copy=False)
-                masked_hist.fill_value = np.nan
+                zeros_at = orig_hist == 0
+                #masked_hist = np.ma.masked_invalid(orig_hist, copy=True)
+                masked_hist = np.ma.masked_where(
+                    np.isnan(orig_hist) | zeros_at,
+                    orig_hist,
+                    copy=False
+                )
+                masked_hist.fill_value = 0
                 mask = masked_hist.mask
+                #print '-'*80
+                #print masked_hist
+                #print '-'*80
+                #print random_state
+                print '-'*80
+                print masked_hist
+                print 'max:   ', np.max(masked_hist)
+                print 'min:   ', np.min(masked_hist)
+                print 'nan:   ', np.sum(np.isnan(masked_hist))
+                print 'finite:', np.sum(np.isfinite(masked_hist))
+                print '> 0:   ', np.sum(masked_hist > 0)
+                print '== 0:  ', np.sum(masked_hist == 0)
+                print '< 0:   ', np.sum(masked_hist < 0)
+                print 'type:  ', type(masked_hist)
+                print 'dtype: ', masked_hist.dtype
+                print ''
+                rs = deepcopy(random_state)
+                for val in masked_hist.flat:
+                    print 'val =', val
+                    print 'rvs =', stats.poisson.rvs(val, random_state=random_state)
+                    print ''
+                #stats.poisson.rvs(masked_hist) #, random_state=random_state)
                 hist_vals = np.ma.masked_where(
                     mask,
-                    stats.poisson.rvs(masked_hist, random_state=random_state)
+                    np.float64(stats.poisson.rvs(masked_hist,
+                                                 random_state=rs))
                 )
                 hist_errors = np.sqrt(masked_hist)
-            except:
-                raise
-            return {'hist': unp.uarray(hist_vals.filled(),
-                                       hist_errors.filled())}
+                hist_vals.fill_value = np.nan
+                new_hist = hist_vals.filled()
+                new_hist[zeros_at] = 0.0
+                new_errors = hist_errors.filled()
+                new_errors[zeros_at] = 0.0
+            return {'hist': unp.uarray(new_hist, new_errors)}
+
         elif method in ['', 'none', 'false']:
             return {}
+
         else:
             raise Exception('fluctuation method %s not implemented' %orig)
 

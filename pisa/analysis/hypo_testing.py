@@ -357,7 +357,7 @@ class HypoTesting(Analysis):
                 )
 
                 self.generate_data()
-                self.do_fid_fits_to_data()
+                self.fit_hypos_to_data()
                 self.log_data_result()
 
                 # Loop for multiple (if fluctuated) fiducial data distributions
@@ -378,8 +378,8 @@ class HypoTesting(Analysis):
                     )
 
                     self.produce_fid_data()
-                    self.do_fits_to_fid()
-                    log_data_result()
+                    self.fit_hypos_to_fid()
+                    #self.log_fid_result()
         except:
             self.write_run_stop_info(sys.exc_info())
         else:
@@ -443,7 +443,7 @@ class HypoTesting(Analysis):
         return fit_info
 
     # TODO: use hashes to ensure fits aren't repeated that don't have to be?
-    def do_fid_fits_to_data(self):
+    def fit_hypos_to_data(self):
         """Fit both hypotheses to "data" to produce fiducial Asimov
         distributions from *each* of the hypotheses. (i.e., two fits are
         performed unless redundancies are detected).
@@ -545,7 +545,7 @@ class HypoTesting(Analysis):
 
         return self.h1_fid_dist, self.h0_fid_dist
 
-    def do_fits_to_fid(self):
+    def fit_hypos_to_fid(self):
         # If fid isn't fluctuated, it's redundant to fit a hypo to a dist it
         # generated
         self.h0_maker.select_params(self.h0_param_selections)
@@ -676,7 +676,7 @@ class HypoTesting(Analysis):
                 - stage name, service name, service source code hash
             * name of metric used for minimization
 
-        config_summary.txt : Human-readable metadata used to construct hash:
+        config_summary.info : Human-readable metadata used to construct hash:
             * config_hash : str
             * source_provenance : dict
                 - git_commit_sha256 : str
@@ -708,7 +708,7 @@ class HypoTesting(Analysis):
 
         mininimzer_settings.ini : copy of the minimzer settings used
 
-        run_info_<datetime in microseconds, UTC>_<hostname>.txt
+        run_info_<datetime in microseconds, UTC>_<hostname>.info
             * fluctuate_data : bool
             * fluctuate_fid : bool
             * data_start_ind (if toy pseudodata)
@@ -760,7 +760,7 @@ class HypoTesting(Analysis):
 
         Create or update the files:
             logdir/h0_<h0_name>__h1_<h1_name>/reservations.sqlite
-            logdir/h0_<h0_name>__h1_<h1_name>/run_info_<datetime>_<hostname>.txt
+            logdir/h0_<h0_name>__h1_<h1_name>/run_info_<datetime>_<hostname>.info
 
         run_id comes from (??? hostname and microsecond timestamp??? settings???)
 
@@ -877,13 +877,13 @@ class HypoTesting(Analysis):
         self.config_summary_fpath = os.path.join(self.logroot,
                                                  self.config_summary_fname)
         self.invocation_datetime = timestamp(utc=True, winsafe=True)
-        self.hostname = socket.getfqdn()
+        self.hostname = socket.gethostname()
         chars = string.ascii_lowercase + string.digits
         self.random_suffix = ''.join([random.choice(chars) for i in range(8)])
         self.run_info_fname = (
-            'run_info_%s_%s_%s.txt' %(self.invocation_datetime,
-                                      self.hostname,
-                                      self.random_suffix)
+            'run_%s_%s_%s.info' %(self.invocation_datetime,
+                                       self.hostname,
+                                       self.random_suffix)
         )
         self.run_info_fpath = os.path.join(self.logroot, self.run_info_fname)
 
@@ -955,7 +955,7 @@ class HypoTesting(Analysis):
             run_info.append('num_fid_trials = %d' %self.num_fid_trials)
 
         with file(self.run_info_fpath, 'w') as f:
-            f.write('\n'.join(run_info))
+            f.write('\n'.join(run_info) + '\n')
 
     def write_run_stop_info(self, exc=None):
         self.stop_datetime = timestamp(utc=True, winsafe=True)
@@ -973,7 +973,7 @@ class HypoTesting(Analysis):
             run_info.append(format_exc())
 
         with file(self.run_info_fpath, 'a') as f:
-            f.write('\n'.join(run_info))
+            f.write('\n'.join(run_info) + '\n')
 
         if exc is not None:
             raise
@@ -982,17 +982,35 @@ class HypoTesting(Analysis):
         """
 
         """
-        self.random_state
-        self.code_hash
-        self.asimov_dist
-        #self.data_dist
-        self.data_maker
-        self.data_param_selections
-        self.data_is_data
-        pass
+        self.thisdata_dirpath = self.data_dirpath
+        if self.fluctuate_data:
+            self.thisdata_dirpath += format(self.data_ind, 'd')
+        mkdir(self.thisdata_dirpath)
+        self.log_fit(fit_info=self.h0_fit_to_data,
+                     dirpath=self.thisdata_dirpath, label=self.h0_flabel)
+        self.log_fit(fit_info=self.h1_fit_to_data,
+                     dirpath=self.thisdata_dirpath, label=self.h1_flabel)
 
     def log_fid_result(self, cmp0):
         pass
+
+    def log_fit(self, fit_info, dirpath, label):
+        serialize = ['metric', 'metric_val', 'params', 'metadata']
+
+        info = OrderedDict()
+        for k, v in fit_info.iteritems():
+            if k not in serialize:
+                continue
+            if k == 'params':
+                d = OrderedDict()
+                for param in v.free:
+                    d[param.name] = str(param.value)
+                v = d
+            if k == 'metadata':
+                if 'hess_inv' in v:
+                    v['hess_inv'] = v['hess_inv'].todense()
+            info[k] = v
+        to_file(info, os.path.join(dirpath, label + '.json'))
 
     @staticmethod
     def post_process(logdir):
