@@ -155,7 +155,7 @@ class Analysis(object):
         # Reset free parameters to nominal values
         logging.trace('Selecting and resetting params')
         hypo_maker.select_params(param_selections)
-        hypo_maker.params.reset_free()
+        hypo_maker.reset_free()
 
         best_fit_info = self.fit_hypo_inner(
             hypo_maker=hypo_maker,
@@ -167,9 +167,9 @@ class Analysis(object):
         )
 
         # Decide whether fit for other octant is necessary
-        if 'theta23' in hypo_maker.params.free and check_octant:
+        if check_octant and 'theta23' in hypo_maker.params.free:
             logging.debug('checking other octant of theta23')
-            hypo_maker.params.reset_free()
+            hypo_maker.reset_free()
 
             # Hop to other octant by reflecting about 45 deg
             theta23 = hypo_maker.params.theta23
@@ -284,7 +284,7 @@ class Analysis(object):
         # minimized state, so set the values now (also does conversion of
         # values from [0,1] back to physical range)
         rescaled_pvals = optimize_result.pop('x')
-        hypo_maker.params.free._rescaled_values = rescaled_pvals
+        hypo_maker._set_rescaled_free_params(rescaled_pvals)
 
         # Record the Asimov distribution with the optimal param values
         asimov_dist = hypo_maker.get_outputs()
@@ -305,7 +305,7 @@ class Analysis(object):
         fit_info['metric_val'] = metric_val
         fit_info['asimov_dist'] = asimov_dist
         if blind:
-            hypo_maker.params.reset_free()
+            hypo_maker.reset_free()
             fit_info['params'] = ParamSet()
         else:
             fit_info['params'] = deepcopy(hypo_maker.params)
@@ -360,7 +360,7 @@ class Analysis(object):
         sign = -1 if metric in self.METRICS_TO_MAXIMIZE else +1
 
         # Set param values from the scaled versions the minimizer works with
-        hypo_maker.params.free._rescaled_values = scaled_param_vals
+        hypo_maker._set_rescaled_free_params(scaled_param_vals)
 
         # Get the Asimov map set
         try:

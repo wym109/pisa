@@ -26,8 +26,11 @@ class DistributionMaker(object):
     Notes
     -----
     Free params with the same name in two pipelines are updated at the same
-    time using the `update_params`, `set_free_params`, and
-    `_set_rescaled_free_params` methods.
+    time so long as you use the `update_params`, `set_free_params`, or
+    `_set_rescaled_free_params` methods. Also use `select_params` to select
+    params across all pipelines (if a pipeline does not have one or more of
+    the param selectors specified, those param selectors have no effect in
+    that pipeline).
 
     `_*_rescaled_*` properties and methods are for interfacing with a
     minimizer, where values are linearly mapped onto the interval [0, 1]
@@ -103,10 +106,22 @@ class DistributionMaker(object):
         values : list of quantities
 
         """
-        for name, value in zip(self.free_params_names, values):
+        for name, value in zip(self.params.free.names, values):
             for pipeline in self.pipeline:
                 if name in [p.name for p in pipeline.params.free]:
                     pipeline.params.free.value = value
+
+    def reset_all(self):
+        """Reset both free and fixed parameters to their nominal values."""
+        [p.params.reset_all() for p in self]
+
+    def reset_free(self):
+        """Reset only free parameters to their nominal values."""
+        [p.params.reset_free() for p in self]
+
+    def set_nominal_by_current_values(self):
+        """Define the nominal values as the parameters' current values."""
+        [p.params.set_nominal_by_current_values() for p in self]
 
     def _set_rescaled_free_params(self, rvalues):
         """Set free param values given a simple list of (0,1) rescaled,
@@ -115,7 +130,7 @@ class DistributionMaker(object):
         """
         for pipeline in self.pipelines:
             fp = pipeline.params.free
-            for name, rvalue in zip(self.free_params_names, rvalues):
+            for name, rvalue in zip(self.params.free.names, rvalues):
                 if name in [p.name for p in fp]:
                     fp[name]._rescaled_value = rvalue
             pipeline.update_params(fp)

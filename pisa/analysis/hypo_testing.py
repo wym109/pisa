@@ -15,14 +15,21 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from collections import Mapping, OrderedDict, Sequence
 from copy import copy, deepcopy
 import os
+import random
+import socket
+import string
+import sys
+from traceback import format_exc
 
 from pisa import ureg, _version, __version__
 from pisa.analysis.analysis import Analysis
 from pisa.core.distribution_maker import DistributionMaker
 from pisa.utils.fileio import from_file, get_valid_filename, mkdir, to_file
+from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.random_numbers import get_random_state
 from pisa.utils.resources import find_resource
+from pisa.utils.timing import timestamp
 
 
 class HypoTesting(Analysis):
@@ -70,6 +77,14 @@ class HypoTesting(Analysis):
     h1_param_selections : None, string, or sequence of strings
 
     h1_fid_asimov_dist : None, MapSet or instantiable thereto
+
+    num_data_trials : int > 0
+
+    num_fid_trials : int > 0
+
+    data_start_ind : int >= 0
+
+    fid_start_ind : int >= 0
 
     check_octant : bool
 
@@ -316,6 +331,440 @@ class HypoTesting(Analysis):
         self.h0_fid_dist = None
         self.h1_fid_dist = None
 
+    def run_analysis(self):
+        """Run the LLR analysis."""
+        logging.info('Running LLR analysis.')
+
+        self.setup_logging()
+        self.write_config_summary()
+        self.write_run_info()
+        try:
+            # Loop for multiple (if fluctuated) data distributions
+            for self.data_ind in xrange(self.data_start_ind,
+                                        self.data_start_ind+self.num_data_trials):
+                pct_data_complete = (
+                    100.*(self.data_ind-self.data_start_ind)/self.num_data_trials
+                )
+                logging.info(
+                    'Working on %s set ID %d (will stop after ID %d).'
+                    ' %0.2f%s of %s sets completed.'
+                    %(self.data_disp,
+                      self.data_ind,
+                      self.data_start_ind+self.num_data_trials-1,
+                      pct_data_complete,
+                      '%',
+                      self.data_disp)
+                )
+
+                self.generate_data()
+                self.do_fid_fits_to_data()
+                self.log_data_result()
+
+                # Loop for multiple (if fluctuated) fiducial data distributions
+                for self.fid_ind in xrange(self.fid_start_ind,
+                                           self.fid_start_ind+self.num_fid_trials):
+                    pct_fid_dist_complete = (
+                        100*(self.fid_ind-self.fid_start_ind)/self.num_fid_trials
+                    )
+                    logging.info(
+                        r'Working on %s set ID %d (will stop after ID %d).'
+                        ' %0.2f%s of %s sets completed.'
+                        %(self.fid_disp,
+                          self.fid_ind,
+                          self.fid_start_ind+self.num_fid_trials-1,
+                          pct_fid_dist_complete,
+                          '%',
+                          self.fid_disp)
+                    )
+
+                    self.produce_fid_data()
+                    self.do_fits_to_fid()
+                    log_data_result()
+        except:
+            self.write_run_stop_info(sys.exc_info())
+        else:
+            self.write_run_stop_info()
+
+    def generate_data(self):
+        logging.info('Generating %s distributions.' %self.data_disp)
+        # Ambiguous whether we're dealing with Asimov or regular data if the
+        # data set is provided for us, so just return it.
+        if self.num_data_trials == 1 and self.data_dist is not None:
+            return self.data_dist
+
+        # No such thing as Asimov data if we're dealing with actual data
+        if self.data_is_data:
+            if self.data_dist is None:
+                self.data_maker.select_params(self.data_param_selections)
+                self.data_dist = self.data_maker.get_outputs()
+                self.h0_fit_to_data = None
+                self.h1_fit_to_data = None
+            return self.data_dist
+
+        # Produce Asimov dist if we don't already have it
+        if self.asimov_dist is None:
+            self.data_maker.select_params(self.data_param_selections)
+            self.asimov_dist = self.data_maker.get_outputs()
+            self.h0_fit_to_data = None
+            self.h1_fit_to_data = None
+
+        if self.fluctuate_data:
+            assert self.data_ind is not None
+            # Random state for data trials is defined by:
+            #   * data vs fid-dist = 0  : data part (outer loop)
+            #   * data trial = data_ind : data trial number (use same for data
+            #                             and and fid data trials, since on the
+            #                             same data trial)
+            #   * fid trial = 0         : always 0 since data stays the same
+            #                             for all fid trials in this data trial
+            data_random_state = get_random_state([0, self.data_ind, 0])
+
+            self.data_dist = self.asimov_dist.fluctuate(
+                method='poisson', random_state=data_random_state
+            )
+
+        else:
+            self.data_dist = self.asimov_dist
+
+        return self.data_dist
+
+    def get_nofit_fit_info(self, data, hypo_maker, hypo_param_selections,
+                           asimov_dist):
+        fit_info = OrderedDict()
+        fit_info['metric'] = self.metric
+        fit_info['metric_val'] = data.metric_total(
+            expected_values=asimov_dist,
+            metric=self.metric
+        )
+        hypo_maker.select_params(hypo_param_selections)
+        fit_info['params'] = deepcopy(hypo_maker.params)
+        fit_info['asimov_dist'] = asimov_dist
+        fit_info['metadata'] = OrderedDict()
+        return fit_info
+
+    # TODO: use hashes to ensure fits aren't repeated that don't have to be?
+    def do_fid_fits_to_data(self):
+        """Fit both hypotheses to "data" to produce fiducial Asimov
+        distributions from *each* of the hypotheses. (i.e., two fits are
+        performed unless redundancies are detected).
+
+        """
+        self.h0_maker.select_params(self.h0_param_selections)
+        self.h0_maker.reset_free()
+        if (self.data_maker_is_h0_maker
+            and self.h0_param_selections == self.data_param_selections
+            and not self.fluctuate_data):
+            logging.info('Hypo %s will reproduce exactly %s distributions; not'
+                         ' running corresponding fit.'
+                         %(self.h0_name, self.data_disp))
+            self.h0_fit_to_data = self.get_nofit_fit_info(
+                data=self.data_dist,
+                hypo_maker=self.h0_maker,
+                hypo_param_selections=self.h0_param_selections,
+                asimov_dist=self.asimov_dist
+            )
+        else:
+            logging.info('Fitting hypo %s to %s distributions.'
+                         %(self.h0_name, self.data_disp))
+            self.h0_fit_to_data = self.fit_hypo(
+                data=self.data_dist,
+                hypo_maker=self.h0_maker,
+                param_selections=self.h0_param_selections,
+                metric=self.metric,
+                minimizer_settings=self.minimizer_settings,
+                check_octant=self.check_octant,
+                pprint=self.pprint,
+                blind=self.blind
+            )
+        self.h0_fid_asimov_dist = self.h0_fit_to_data['asimov_dist']
+
+        self.h1_maker.select_params(self.h1_param_selections)
+        self.h1_maker.reset_free()
+        if (self.data_maker_is_h1_maker
+            and self.h1_param_selections == self.data_param_selections
+            and not self.fluctuate_data):
+            logging.info('Hypo %s will reproduce exactly %s distributions; not'
+                         ' running corresponding fit.'
+                         %(self.h1_name, self.data_disp))
+            self.h1_fit_to_data = self.get_nofit_fit_info(
+                data=self.data_dist,
+                hypo_maker=self.h1_maker,
+                hypo_param_selections=self.h1_param_selections,
+                asimov_dist=self.asimov_dist
+            )
+        elif (self.h1_maker_is_h0_maker
+              and self.h1_param_selections == self.h0_param_selections):
+            self.h1_fit_to_data = copy(self.h0_fit_to_data)
+        else:
+            logging.info('Fitting hypo %s to %s distributions.'
+                         %(self.h1_name, self.data_disp))
+            self.h1_fit_to_data = self.fit_hypo(
+                data=self.data_dist,
+                hypo_maker=self.h1_maker,
+                param_selections=self.h1_param_selections,
+                metric=self.metric,
+                minimizer_settings=self.minimizer_settings,
+                check_octant=self.check_octant,
+                pprint=self.pprint,
+                blind=self.blind
+            )
+        self.h1_fid_asimov_dist = self.h1_fit_to_data['asimov_dist']
+
+    def produce_fid_data(self):
+        logging.info('Generating %s distributions.' %self.fid_disp)
+        # Retrieve event-rate maps for best fit to data with each hypo
+
+        if self.fluctuate_fid:
+            # Random state for data trials is defined by:
+            #   * data vs fid-dist = 1     : fid data part (inner loop)
+            #   * data trial = data_ind    : data trial number (use same for
+            #                                data and and fid data trials,
+            #                                since on the same data trial)
+            #   * fid trial = fid_ind      : always 0 since data stays the same
+            #                                for all fid trials in this data
+            #                                trial
+            fid_random_state = get_random_state([1, self.data_ind,
+                                                 self.fid_ind])
+
+            # Fluctuate h0 fid Asimov
+            self.h0_fid_dist = self.h0_fid_asimov_dist.fluctuate(
+                method='poisson',
+                random_state=fid_random_state
+            )
+            # The state of `random_state` will be moved forward now as compared
+            # to what it was upon definition above. This is the desired
+            # behavior, so the *exact* same random state isn't used to
+            # fluctuate h1 as was used to fluctuate h0.
+            self.h1_fid_dist = self.h1_fid_asimov_dist.fluctuate(
+                method='poisson',
+                random_state=fid_random_state
+            )
+        else:
+            self.h0_fid_dist = self.h0_fid_asimov_dist
+            self.h1_fid_dist = self.h1_fid_asimov_dist
+
+        return self.h1_fid_dist, self.h0_fid_dist
+
+    def do_fits_to_fid(self):
+        # If fid isn't fluctuated, it's redundant to fit a hypo to a dist it
+        # generated
+        self.h0_maker.select_params(self.h0_param_selections)
+        self.h0_maker.reset_free()
+        if not self.fluctuate_fid:
+            logging.info('Hypo %s %s is not fluctuated; fitting this hypo to'
+                         ' its own %s distributions is unnecessary.'
+                         %(self.h0_name, self.fid_disp, self.fid_disp))
+            self.h0_fit_to_h0_fid = self.get_nofit_fit_info(
+                data=self.h0_fid_dist,
+                hypo_maker=self.h0_maker,
+                hypo_param_selections=self.h0_param_selections,
+                asimov_dist=self.h0_fid_asimov_dist
+            )
+        else:
+            logging.info('Fitting hypo %s to its own %s distributions.'
+                         %(self.h0_name, self.fid_disp))
+            self.h0_fit_to_h0_fid = self.fit_hypo(
+                data=self.h0_fid_dist,
+                hypo_maker=self.h0_maker,
+                param_selections=self.h0_param_selections,
+                metric=self.metric,
+                minimizer_settings=self.minimizer_settings,
+                check_octant=self.check_octant,
+                pprint=self.pprint,
+                blind=self.blind
+            )
+
+        self.h1_maker.select_params(self.h1_param_selections)
+        self.h1_maker.reset_free()
+        if not self.fluctuate_fid:
+            logging.info('Hypo %s %s is not fluctuated; fitting this hypo to'
+                         ' its own %s distributions is unnecessary.'
+                         %(self.h1_name, self.fid_disp, self.fid_disp))
+            self.h1_fit_to_h1_fid = self.get_nofit_fit_info(
+                data=self.h1_fid_dist,
+                hypo_maker=self.h1_maker,
+                hypo_param_selections=self.h1_param_selections,
+                asimov_dist=self.h1_fid_asimov_dist
+            )
+        else:
+            logging.info('Fitting hypo %s to its own %s distributions.'
+                         %(self.h1_name, self.fid_disp))
+            self.h1_fit_to_h1_fid = self.fit_hypo(
+                data=self.h1_fid_dist,
+                hypo_maker=self.h1_maker,
+                param_selections=self.h1_param_selections,
+                metric=self.metric,
+                minimizer_settings=self.minimizer_settings,
+                check_octant=self.check_octant,
+                pprint=self.pprint,
+                blind=self.blind
+            )
+
+        # TODO: remove redundancy if h0 and h1 are identical
+        #if (self.h1_maker_is_h0_maker
+        #    and self.h1_param_selections == self.h0_param_selections):
+        #    self.h0_fit_to_h1_fid =
+
+        # Perform fits of one hypo to fid dist produced by other hypo
+        if ((not self.fluctuate_data) and (not self.fluctuate_fid)
+            and self.data_maker_is_h0_maker
+            and self.h0_param_selections == self.data_param_selections):
+            logging.info('Fitting hypo %s to hypo %s %s distributions is'
+                         ' unnecessary since former was already fit to %s'
+                         ' distributions, which are identical distributions.'
+                         %(self.h1_name, self.h0_name, self.fid_disp,
+                           self.data_disp))
+            self.h1_fit_to_h0_fid = copy(self.h1_fit_to_data)
+        else:
+            logging.info('Fitting hypo %s to hypo %s %s distributions.'
+                         %(self.h1_name, self.h0_name, self.fid_disp))
+            self.h1_maker.select_params(self.h1_param_selections)
+            self.h1_maker.reset_free()
+            self.h1_fit_to_h0_fid = self.fit_hypo(
+                data=self.h0_fid_dist,
+                hypo_maker=self.h1_maker,
+                param_selections=self.h1_param_selections,
+                metric=self.metric,
+                minimizer_settings=self.minimizer_settings,
+                check_octant=self.check_octant,
+                pprint=self.pprint,
+                blind=self.blind
+            )
+        if ((not self.fluctuate_data) and (not self.fluctuate_fid)
+            and self.data_maker_is_h1_maker
+            and self.h1_param_selections == self.data_param_selections):
+            logging.info('Fitting hypo %s to hypo %s %s distributions is'
+                         ' unnecessary since former was already fit to %s'
+                         ' distributions, which are identical distributions.'
+                         %(self.h0_name, self.h1_name, self.fid_disp,
+                           self.data_disp))
+            self.h0_fit_to_h1_fid = copy(self.h0_fit_to_data)
+        else:
+            logging.info('Fitting hypo %s to hypo %s %s distributions.'
+                         %(self.h0_name, self.h1_name, self.fid_disp))
+            self.h0_maker.select_params(self.h0_param_selections)
+            self.h0_maker.reset_free()
+            self.h0_fit_to_h1_fid = self.fit_hypo(
+                data=self.h1_fid_dist,
+                hypo_maker=self.h0_maker,
+                param_selections=self.h0_param_selections,
+                metric=self.metric,
+                minimizer_settings=self.minimizer_settings,
+                check_octant=self.check_octant,
+                pprint=self.pprint,
+                blind=self.blind
+            )
+
+    def setup_logging(self):
+        """
+        Should store enough information for the following two purposes:
+            1. Be able to completely reproduce the results, assuming access to
+               the same git repository.
+            2. Be able to easily identify (as a human) the important / salient
+               features of this config that might make it different from
+               another.
+
+        `config_hash` is generated by creating a list of the following and
+        hashing that list:
+            * git sha256 for latest commit (will not run if this info isn't
+              present or cannot be ascertained or if code is updated since last
+              commit and `unsafe_run` is True)
+            * hash of instantiated `minimizer_settings` object (sent through
+              normQuant)
+            * `check_octant`
+            * pipelines info for each used for each hypo:
+                - stage name, service name, service source code hash
+            * name of metric used for minimization
+
+        config_summary.txt : Human-readable metadata used to construct hash:
+            * config_hash : str
+            * source_provenance : dict
+                - git_commit_sha256 : str
+                - git_repo (?) : str
+                - git_branch : str
+                - git_remote_url : str
+                - git_tag : str
+            * minimizer_info : dict
+                - minimizer_config_hash : str
+                - minimizer_name : str
+                - metric_minimized : str
+                - check_octant : bool
+            * data_is_data : bool
+            * data_pipelines : list
+                - p0 : list
+                    - s0 : dict
+                        - stage name : str
+                        - service name : str
+                        - service source code hash : str
+                    - s1 : dict
+                    ...
+                - p1 : list
+                ...
+            * data_param_selections
+            * h0_pipelines (similarly to data pipelines)
+            * h0_param_selections
+            * h1_pipelines (list containing list per pipeline)
+            * h1_param_selections
+
+        mininimzer_settings.ini : copy of the minimzer settings used
+
+        run_info_<datetime in microseconds, UTC>_<hostname>.txt
+            * fluctuate_data : bool
+            * fluctuate_fid : bool
+            * data_start_ind (if toy pseudodata)
+            * num_data_trials (if toy pseudodata)
+            * fid_start_ind (if fid fits to pseudodata)
+            * num_fid_trials (if fid fits to pseudodata)
+
+        h0_pipeline0.ini
+        h0_pipeline1.ini
+        ...
+        h1_pipeline0.ini
+        h1_pipeline1.ini
+        ...
+
+        Directory Structure
+        -------------------
+        The base directory for storing data unique to this configuration is
+
+            basedir = logdir/hypo_<h0_name>__hypo_<h1_name>_<config_hash>
+
+        where `config_hash` is derived from the full configuration and is
+        independent of `h0_name` and `h1_name` since the latter two entities
+        are user-provided and can vary while yielding the same configuration.
+
+        Within the base directory, if we're actually working with data
+        (`data_is_data` is True), the following directory is created:
+
+            <basedir>/data_fits
+
+        If "data" actually comes from MC (i.e., `data_is_data` is False), a
+        directory
+
+            <basedir>/toy_pseudodata_fits<data_ind>
+
+        is created for each `data_ind` if fluctuations are applied to produce
+        pseudodata for fitting to. Otherwise if no fluctuations are applied to
+        the toy data distribtuion for fitting to, the directory
+
+            <basedir>/toy_asimov_fits
+
+        is created.
+
+        Files
+        -----
+        In order to record the full configuration
+
+            /fid<fid_ind>/
+            {toy_}data_fits{<data_ind>}/fid<fid_ind>/
+
+        Create or update the files:
+            logdir/h0_<h0_name>__h1_<h1_name>/reservations.sqlite
+            logdir/h0_<h0_name>__h1_<h1_name>/run_info_<datetime>_<hostname>.txt
+
+        run_id comes from (??? hostname and microsecond timestamp??? settings???)
+
+        """
         # Names for purposes of stdout/stderr and result logging
         if self.h0_name is None:
             if self.h0_param_selections is not None:
@@ -411,431 +860,123 @@ class HypoTesting(Analysis):
         else:
             self.fid_disp = 'fiducial Asimov data'
 
-    def run_analysis(self):
-        """Run the LLR analysis."""
-        logging.info('Running LLR analysis.')
-
-        # Loop for multiple (if fluctuated) data distributions
-        for self.data_ind in xrange(self.data_start_ind,
-                                    self.data_start_ind+self.num_data_trials):
-            pct_data_complete = (
-                100.*(self.data_ind-self.data_start_ind)/self.num_data_trials
-            )
-            logging.info(
-                'Working on %s set ID %d (will stop after ID %d).'
-                ' %0.2f%s of %s sets completed.'
-                %(self.data_disp,
-                  self.data_ind,
-                  self.data_start_ind+self.num_data_trials-1,
-                  pct_data_complete,
-                  '%',
-                  self.data_disp)
-            )
-
-            self.generate_data()
-            self.do_fid_fits_to_data()
-            log_data_result()
-
-            # Loop for multiple (if fluctuated) fiducial data distributions
-            for self.fid_ind in xrange(self.fid_start_ind,
-                                       self.fid_start_ind+self.num_fid_trials):
-                pct_fid_dist_complete = (
-                    100*(self.fid_ind-self.fid_start_ind)/self.num_fid_trials
-                )
-                logging.info(
-                    r'Working on %s set ID %d (will stop after ID %d).'
-                    ' %0.2f%s of %s sets completed.'
-                    %(self.fid_disp,
-                      self.fid_ind,
-                      self.fid_start_ind+self.num_fid_trials-1,
-                      pct_fid_dist_complete,
-                      '%',
-                      self.fid_disp)
-                )
-
-                self.produce_fid_data()
-                self.do_fits_to_fid()
-                log_data_result()
-
-    def generate_data(self):
-        logging.info('Generating %s distributions.' %self.data_disp)
-        # Ambiguous whether we're dealing with Asimov or regular data if the
-        # data set is provided for us, so just return it.
-        if self.num_data_trials == 1 and self.data_dist is not None:
-            return self.data_dist
-
-        # No such thing as Asimov data if we're dealing with actual data
+        # Data directory is named according to whether it's actually data
+        # (data) or if it comes from Monte Carlo (toy_{pseudodata|asimov}).
+        # `toy_pseudodata` directories will have `data_index` appended.
         if self.data_is_data:
-            if self.data_dist is None:
-                self.data_maker.select_params(self.data_param_selections)
-                self.data_dist = self.data_maker.get_outputs()
-                self.h0_fit_to_data = None
-                self.h1_fit_to_data = None
-            return self.data_dist
-
-        # Produce Asimov dist if we don't already have it
-        if self.asimov_dist is None:
-            self.data_maker.select_params(self.data_param_selections)
-            self.asimov_dist = self.data_maker.get_outputs()
-            self.h0_fit_to_data = None
-            self.h1_fit_to_data = None
-
-        if self.fluctuate_data:
-            assert self.data_ind is not None
-            # Random state for data trials is defined by:
-            #   * data vs fid-dist = 0  : data part (outer loop)
-            #   * data trial = data_ind : data trial number (use same for data
-            #                             and and fid data trials, since on the
-            #                             same data trial)
-            #   * fid trial = 0         : always 0 since data stays the same
-            #                             for all fid trials in this data trial
-            data_random_state = get_random_state([0, self.data_ind, 0])
-
-            self.data_dist = self.asimov_dist.fluctuate(
-                method='poisson', random_state=data_random_state
-            )
-
+            self.data_dirname = 'data'
         else:
-            self.data_dist = self.asimov_dist
+            if self.fluctuate_data:
+                self.data_dirname = 'toy_pseudodata'
+            else:
+                self.data_dirname = 'toy_asimov'
+        self.data_dirpath = os.path.join(self.logroot, self.data_dirname)
 
-        return self.data_dist
-
-    def get_nofit_fit_info(self, data, hypo_maker, hypo_param_selections,
-                           asimov_dist):
-        fit_info = OrderedDict()
-        fit_info['metric'] = self.metric
-        fit_info['metric_val'] = data.metric_total(
-            expected_values=asimov_dist,
-            metric=self.metric
+        # Filenames and paths
+        self.config_summary_fname = 'config_summary.json'
+        self.config_summary_fpath = os.path.join(self.logroot,
+                                                 self.config_summary_fname)
+        self.invocation_datetime = timestamp(utc=True, winsafe=True)
+        self.hostname = socket.getfqdn()
+        chars = string.ascii_lowercase + string.digits
+        self.random_suffix = ''.join([random.choice(chars) for i in range(8)])
+        self.run_info_fname = (
+            'run_info_%s_%s_%s.txt' %(self.invocation_datetime,
+                                      self.hostname,
+                                      self.random_suffix)
         )
-        hypo_maker.select_params(hypo_param_selections)
-        fit_info['params'] = deepcopy(hypo_maker.params)
-        fit_info['asimov_dist'] = asimov_dist
-        fit_info['metadata'] = OrderedDict()
-        return fit_info
+        self.run_info_fpath = os.path.join(self.logroot, self.run_info_fname)
 
-    # TODO: use hashes to ensure fits aren't repeated that don't have to be?
-    def do_fid_fits_to_data(self):
-        """Fit both hypotheses to "data" to produce fiducial Asimov
-        distributions from *each* of the hypotheses. (i.e., two fits are
-        performed unless redundancies are detected).
+    def write_config_summary(self):
+        if os.path.isfile(self.config_summary_fpath):
+            return
+        summary = OrderedDict()
+        d = OrderedDict()
+        d['version'] = self.version_info['version']
+        d['git_revision_sha256'] = self.version_info['full-revisionid']
+        d['git_dirty'] = self.version_info['dirty']
+        d['git_error'] = self.version_info['error']
+        summary['source_provenance'] = d
 
-        """
+        d = OrderedDict()
+        d['minimizer_config_md5'] = hash_obj(self.minimizer_settings,
+                                             hash_to='hex')
+        #d['minimizer_name'] =
+        d['metric_optimized'] = self.metric
+        summary['minimizer_info'] = d
+
+        self.data_maker.select_params(self.data_param_selections)
+        self.data_maker.reset_free()
+        summary['data_is_data'] = self.data_is_data
+        summary['data_param_selections'] = self.data_param_selections
+        summary['data_params_state_hash'] = self.data_maker.params.state_hash
+        summary['data_params'] = [str(p) for p in self.data_maker.params]
+        summary['data_pipelines'] = self.summarize_dist_maker(self.data_maker)
+
         self.h0_maker.select_params(self.h0_param_selections)
-        self.h0_maker.params.reset_free()
-        if (self.data_maker_is_h0_maker
-            and self.h0_param_selections == self.data_param_selections
-            and not self.fluctuate_data):
-            logging.info('Hypo %s will reproduce exactly %s distributions; not'
-                         ' running corresponding fit.'
-                         %(self.h0_name, self.data_disp))
-            self.h0_fit_to_data = self.get_nofit_fit_info(
-                data=self.data_dist,
-                hypo_maker=self.h0_maker,
-                hypo_param_selections=self.h0_param_selections,
-                asimov_dist=self.asimov_dist
-            )
-        else:
-            logging.info('Fitting hypo %s to %s distributions.'
-                         %(self.h0_name, self.data_disp))
-            self.h0_fit_to_data = self.fit_hypo(
-                data=self.data_dist,
-                hypo_maker=self.h0_maker,
-                param_selections=self.h0_param_selections,
-                metric=self.metric,
-                minimizer_settings=self.minimizer_settings,
-                check_octant=self.check_octant,
-                pprint=self.pprint,
-                blind=self.blind
-            )
-        self.h0_fid_asimov_dist = self.h0_fit_to_data['asimov_dist']
+        self.h0_maker.reset_free()
+        summary['h0_param_selections'] = self.h0_param_selections
+        summary['h0_params_state_hash'] = self.h0_maker.params.state_hash
+        summary['h0_params'] = [str(p) for p in self.h0_maker.params]
+        summary['h0_pipelines'] = self.summarize_dist_maker(self.h0_maker)
 
         self.h1_maker.select_params(self.h1_param_selections)
-        self.h1_maker.params.reset_free()
-        if (self.data_maker_is_h1_maker
-            and self.h1_param_selections == self.data_param_selections
-            and not self.fluctuate_data):
-            logging.info('Hypo %s will reproduce exactly %s distributions; not'
-                         ' running corresponding fit.'
-                         %(self.h1_name, self.data_disp))
-            self.h1_fit_to_data = self.get_nofit_fit_info(
-                data=self.data_dist,
-                hypo_maker=self.h1_maker,
-                hypo_param_selections=self.h1_param_selections,
-                asimov_dist=self.asimov_dist
-            )
-        elif (self.h1_maker_is_h0_maker
-              and self.h1_param_selections == self.h0_param_selections):
-            self.h1_fit_to_data = copy(self.h0_fit_to_data)
-        else:
-            logging.info('Fitting hypo %s to %s distributions.'
-                         %(self.h1_name, self.data_disp))
-            self.h1_fit_to_data = self.fit_hypo(
-                data=self.data_dist,
-                hypo_maker=self.h1_maker,
-                param_selections=self.h1_param_selections,
-                metric=self.metric,
-                minimizer_settings=self.minimizer_settings,
-                check_octant=self.check_octant,
-                pprint=self.pprint,
-                blind=self.blind
-            )
-        self.h1_fid_asimov_dist = self.h1_fit_to_data['asimov_dist']
+        self.h1_maker.reset_free()
+        summary['h1_param_selections'] = self.h1_param_selections
+        summary['h1_params_state_hash'] = self.h1_maker.params.state_hash
+        summary['h1_params'] = [str(p) for p in self.h1_maker.params]
+        summary['h1_pipelines'] = self.summarize_dist_maker(self.h1_maker)
 
-    def produce_fid_data(self):
-        logging.info('Generating %s distributions.' %self.fid_disp)
-        # Retrieve event-rate maps for best fit to data with each hypo
+        to_file(summary, self.config_summary_fpath)
 
+    @staticmethod
+    def summarize_dist_maker(dist_maker):
+        pipeline_info = []
+        for pipeline in dist_maker:
+            stage_info = []
+            for stage in pipeline:
+                stage_info.append(stage.stage_name + ':' + stage.service_name)
+            pipeline_info.append(stage_info)
+        return pipeline_info
+
+    def write_run_info(self):
+        run_info = []
+        run_info.append('invocation_datetime = %s' %self.invocation_datetime)
+        run_info.append('hostname = %s' %self.hostname)
+        run_info.append('random_suffix = %s' %self.random_suffix)
+
+        run_info.append('fluctuate_data = %s' %self.fluctuate_data)
+        run_info.append('fluctuate_fid = %s' %self.fluctuate_fid)
+        if self.fluctuate_data:
+            run_info.append('data_start_ind = %d' %self.data_start_ind)
+            run_info.append('num_data_trials = %d' %self.num_data_trials)
         if self.fluctuate_fid:
-            # Random state for data trials is defined by:
-            #   * data vs fid-dist = 1     : fid data part (inner loop)
-            #   * data trial = data_ind    : data trial number (use same for
-            #                                data and and fid data trials,
-            #                                since on the same data trial)
-            #   * fid trial = fid_ind      : always 0 since data stays the same
-            #                                for all fid trials in this data
-            #                                trial
-            fid_random_state = get_random_state([1, self.data_ind,
-                                                 self.fid_ind])
+            run_info.append('fid_start_ind = %d' %self.fid_start_ind)
+            run_info.append('num_fid_trials = %d' %self.num_fid_trials)
 
-            # Fluctuate h0 fid Asimov
-            self.h0_fid_dist = self.h0_fid_asimov_dist.fluctuate(
-                method='poisson',
-                random_state=fid_random_state
-            )
-            # The state of `random_state` will be moved forward now as compared
-            # to what it was upon definition above. This is the desired
-            # behavior, so the *exact* same random state isn't used to
-            # fluctuate h1 as was used to fluctuate h0.
-            self.h1_fid_dist = self.h1_fid_asimov_dist.fluctuate(
-                method='poisson',
-                random_state=fid_random_state
-            )
+        with file(self.run_info_fpath, 'w') as f:
+            f.write('\n'.join(run_info))
+
+    def write_run_stop_info(self, exc=None):
+        self.stop_datetime = timestamp(utc=True, winsafe=True)
+
+        run_info = []
+        run_info.append('stop_datetime = %s' %self.stop_datetime)
+        if self.fluctuate_data:
+            run_info.append('data_stop_ind = %d' %self.data_ind)
+        if self.fluctuate_fid:
+            run_info.append('fid_start_ind = %d' %self.fid_ind)
+        if exc is None:
+            run_info.append('exception = None')
         else:
-            self.h0_fid_dist = self.h0_fid_asimov_dist
-            self.h1_fid_dist = self.h1_fid_asimov_dist
+            run_info.append('exception = ' + str((exc[0], exc[1])))
+            run_info.append(format_exc())
 
-        return self.h1_fid_dist, self.h0_fid_dist
+        with file(self.run_info_fpath, 'a') as f:
+            f.write('\n'.join(run_info))
 
-    def do_fits_to_fid(self):
-        # If fid isn't fluctuated, it's redundant to fit a hypo to a dist it
-        # generated
-        self.h0_maker.select_params(self.h0_param_selections)
-        self.h0_maker.params.reset_free()
-        if not self.fluctuate_fid:
-            logging.info('Hypo %s %s is not fluctuated; fitting this hypo to'
-                         ' its own %s distributions is unnecessary.'
-                         %(self.h0_name, self.fid_disp, self.fid_disp))
-            self.h0_fit_to_h0_fid = self.get_nofit_fit_info(
-                data=self.h0_fid_dist,
-                hypo_maker=self.h0_maker,
-                hypo_param_selections=self.h0_param_selections,
-                asimov_dist=self.h0_fid_asimov_dist
-            )
-        else:
-            logging.info('Fitting hypo %s to its own %s distributions.'
-                         %(self.h0_name, self.fid_disp))
-            self.h0_fit_to_h0_fid = self.fit_hypo(
-                data=self.h0_fid_dist,
-                hypo_maker=self.h0_maker,
-                param_selections=self.h0_param_selections,
-                metric=self.metric,
-                minimizer_settings=self.minimizer_settings,
-                check_octant=self.check_octant,
-                pprint=self.pprint,
-                blind=self.blind
-            )
-
-        self.h1_maker.select_params(self.h1_param_selections)
-        self.h1_maker.params.reset_free()
-        if not self.fluctuate_fid:
-            logging.info('Hypo %s %s is not fluctuated; fitting this hypo to'
-                         ' its own %s distributions is unnecessary.'
-                         %(self.h1_name, self.fid_disp, self.fid_disp))
-            self.h1_fit_to_h1_fid = self.get_nofit_fit_info(
-                data=self.h1_fid_dist,
-                hypo_maker=self.h1_maker,
-                hypo_param_selections=self.h1_param_selections,
-                asimov_dist=self.h1_fid_asimov_dist
-            )
-        else:
-            logging.info('Fitting hypo %s to its own %s distributions.'
-                         %(self.h1_name, self.fid_disp))
-            self.h1_fit_to_h1_fid = self.fit_hypo(
-                data=self.h1_fid_dist,
-                hypo_maker=self.h1_maker,
-                param_selections=self.h1_param_selections,
-                metric=self.metric,
-                minimizer_settings=self.minimizer_settings,
-                check_octant=self.check_octant,
-                pprint=self.pprint,
-                blind=self.blind
-            )
-
-        # TODO: remove redundancy if h0 and h1 are identical
-        #if (self.h1_maker_is_h0_maker
-        #    and self.h1_param_selections == self.h0_param_selections):
-        #    self.h0_fit_to_h1_fid = 
-
-        # Perform fits of one hypo to fid dist produced by other hypo
-        if ((not self.fluctuate_data) and (not self.fluctuate_fid)
-            and self.data_maker_is_h0_maker
-            and self.h0_param_selections == self.data_param_selections):
-            logging.info('Fitting hypo %s to hypo %s %s distributions is'
-                         ' unnecessary since former was already fit to %s'
-                         ' distributions, which are identical distributions.'
-                         %(self.h1_name, self.h0_name, self.fid_disp,
-                           self.data_disp))
-            self.h1_fit_to_h0_fid = copy(self.h1_fit_to_data)
-        else:
-            logging.info('Fitting hypo %s to hypo %s %s distributions.'
-                         %(self.h1_name, self.h0_name, self.fid_disp))
-            self.h1_maker.select_params(self.h1_param_selections)
-            self.h1_maker.params.reset_free()
-            self.h1_fit_to_h0_fid = self.fit_hypo(
-                data=self.h0_fid_dist,
-                hypo_maker=self.h1_maker,
-                param_selections=self.h1_param_selections,
-                metric=self.metric,
-                minimizer_settings=self.minimizer_settings,
-                check_octant=self.check_octant,
-                pprint=self.pprint,
-                blind=self.blind
-            )
-        if ((not self.fluctuate_data) and (not self.fluctuate_fid)
-            and self.data_maker_is_h1_maker
-            and self.h1_param_selections == self.data_param_selections):
-            logging.info('Fitting hypo %s to hypo %s %s distributions is'
-                         ' unnecessary since former was already fit to %s'
-                         ' distributions, which are identical distributions.'
-                         %(self.h0_name, self.h1_name, self.fid_disp,
-                           self.data_disp))
-            self.h0_fit_to_h1_fid = copy(self.h0_fit_to_data)
-        else:
-            logging.info('Fitting hypo %s to hypo %s %s distributions.'
-                         %(self.h0_name, self.h1_name, self.fid_disp))
-            self.h0_maker.select_params(self.h0_param_selections)
-            self.h0_maker.params.reset_free()
-            self.h0_fit_to_h1_fid = self.fit_hypo(
-                data=self.h1_fid_dist,
-                hypo_maker=self.h0_maker,
-                param_selections=self.h0_param_selections,
-                metric=self.metric,
-                minimizer_settings=self.minimizer_settings,
-                check_octant=self.check_octant,
-                pprint=self.pprint,
-                blind=self.blind
-            )
-
-    def setup_logging(self):
-        """
-        Should store enough information for the following two purposes:
-            1. Be able to completely reproduce the results, assuming access to
-               the same git repository.
-            2. Be able to easily identify (as a human) the important / salient
-               features of this config that might make it different from
-               another.
-
-        `config_hash` is generated by creating a list of the following and
-        hashing that list:
-            * git sha256 for latest commit (will not run if this info isn't
-              present or cannot be ascertained or if code is updated since last
-              commit and `unsafe_run` is True)
-            * hash of instantiated `minimizer_settings` object (sent through
-              normQuant)
-            * `check_octant`
-            * pipelines info for each used for each hypo:
-                - stage name, service name, service source code hash
-            * name of metric used for minimization
-
-        config_summary.txt : Human-readable metadata used to construct hash:
-            * config_hash : str
-            * source_provenance : dict
-                - git_commit_sha256 : str
-                - git_repo (?) : str
-                - git_branch : str
-                - git_remote_url : str
-                - git_tag : str
-            * minimizer_info : dict
-                - minimizer_config_hash : str
-                - minimizer_name : str
-                - metric_minimized : str
-                - check_octant : bool
-            * data_is_data : bool
-            * data_pipelines : list
-                - p0 : list
-                    - s0 : dict
-                        - stage name : str
-                        - service name : str
-                        - service source code hash : str
-                    - s1 : dict
-                    ...
-                - p1 : list
-                ...
-            * data_param_selections
-            * h0_pipelines (similarly to data pipelines)
-            * h0_param_selections
-            * h1_pipelines (list containing list per pipeline)
-            * h1_param_selections
-
-        mininimzer_settings.ini : copy of the minimzer settings used
-
-        run_info_<datetime in microseconds, UTC>_<hostname>.txt
-            * data_start_ind (if toy pseudodata)
-            * num_data_trials (if toy pseudodata)
-            * fid_start_ind (if fid fits to pseudodata)
-            * num_fid_trials (if fid fits to pseudodata)
-
-        h0_pipeline0.ini
-        h0_pipeline1.ini
-        ...
-        h1_pipeline0.ini
-        h1_pipeline1.ini
-        ...
-
-        Directory Structure
-        -------------------
-        The base directory for storing data unique to this configuration is
-
-            basedir = logdir/hypo_<h0_name>__hypo_<h1_name>_<config_hash>
-
-        where `config_hash` is derived from the full configuration and is
-        independent of `h0_name` and `h1_name` since the latter two entities
-        are user-provided and can vary while yielding the same configuration.
-
-        Within the base directory, if we're actually working with data
-        (`data_is_data` is True), the following directory is created:
-
-            <basedir>/data_fits
-
-        If "data" actually comes from MC (i.e., `data_is_data` is False), a
-        directory
-
-            <basedir>/toy_pseudodata_fits<data_ind>
-
-        is created for each `data_ind` if fluctuations are applied to produce
-        pseudodata for fitting to. Otherwise if no fluctuations are applied to
-        the toy data distribtuion for fitting to, the directory
-
-            <basedir>/toy_asimov_fits
-
-        is created.
-
-        Files
-        -----
-        In order to record the full configuration
-            
-            /fid<fid_ind>/
-            {toy_}data_fits{<data_ind>}/fid<fid_ind>/
-
-        Create or update the files:
-            logdir/h0_<h0_name>__h1_<h1_name>/reservations.sqlite
-            logdir/h0_<h0_name>__h1_<h1_name>/run_info_<datetime>_<hostname>.txt
-
-        run_id comes from (??? hostname and microsecond timestamp??? settings???)
-
-        """
-        pass
+        if exc is not None:
+            raise
 
     def log_data_result(self):
         """

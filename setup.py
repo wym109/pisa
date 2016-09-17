@@ -270,7 +270,7 @@ if __name__ == '__main__':
         python_requires='>=2.7',
         setup_requires=[
             'pip>=1.8',
-            'setuptools>18.5', # versioneer; 18.0 for other dependency
+            'setuptools>18.5', # versioneer requires >18.5; 18.0 req from (?)
             'cython',
             'numpy>=1.11.0',
         ],
@@ -285,9 +285,18 @@ if __name__ == '__main__':
             'uncertainties'
         ],
         extras_require = {
-            'cuda':  ['pycuda'],
-            'numba':  ['enum34', 'numba'],
-            'develop': ['sphinx>1.3', 'recommonmark', 'versioneer']
+            'cuda':  [
+                'pycuda'
+            ],
+            'numba':  [
+                'enum34',
+                'numba'
+            ],
+            'develop': [
+                'sphinx>1.3',
+                'recommonmark',
+                'versioneer'
+            ]
         },
         packages=[
             'pisa',
