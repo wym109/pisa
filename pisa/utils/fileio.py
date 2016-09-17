@@ -8,6 +8,7 @@
 import cPickle
 import os
 import re
+import unicodedata
 
 from pisa.utils.betterConfigParser import BetterConfigParser
 from pisa.utils import hdf
@@ -57,6 +58,25 @@ def mkdir(d, mode=0750, warn=True):
             raise err
     else:
         logging.info('Created directory "%s"' %d)
+
+
+def get_valid_filename(s):
+    """Sanitize string to make it reasonable to use as a filename.
+
+    From https://github.com/django/django/blob/master/django/utils/text.py
+
+    Parameters
+    ----------
+    s : string
+
+    Examples
+    --------
+    >>> print get_valid_filename(r'A,bCd $%#^#*!()"\' .ext ')
+    'a_bcd__.ext'
+
+    """
+    s = re.sub(r'[ ,;\t]', '_', s.strip().lower())
+    return re.sub(r'(?u)[^-\w.]', '', s)
 
 
 NSORT_RE = re.compile("(\\d+)")

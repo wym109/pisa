@@ -12,13 +12,14 @@ Log-Likelihood-Ratio (LLR) Analysis
 from __future__ import division
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-from collections import Mapping, OrderedDict
+from collections import Mapping, OrderedDict, Sequence
 from copy import copy, deepcopy
 import os
 
+from pisa import ureg, _version, __version__
 from pisa.analysis.analysis import Analysis
 from pisa.core.distribution_maker import DistributionMaker
-from pisa.utils.fileio import from_file, mkdir, to_file
+from pisa.utils.fileio import from_file, get_valid_filename, mkdir, to_file
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.random_numbers import get_random_state
 from pisa.utils.resources import find_resource
@@ -76,6 +77,10 @@ class HypoTesting(Analysis):
 
     blind : bool
 
+    allow_dirty_run : bool
+
+    pprint : bool
+
 
     Notes
     -----
@@ -122,20 +127,50 @@ class HypoTesting(Analysis):
     def __init__(self, logdir, minimizer_settings,
                  data_is_data,
                  fluctuate_data, fluctuate_fid,
-                 h0_name='h0', h0_maker=None,
+                 h0_name=None, h0_maker=None,
                  h0_param_selections=None, h0_fid_asimov_dist=None,
-                 h1_name='h1', h1_maker=None,
+                 h1_name=None, h1_maker=None,
                  h1_param_selections=None, h1_fid_asimov_dist=None,
-                 data_name='data', data_maker=None,
+                 data_name=None, data_maker=None,
                  data_param_selections=None, data=None,
                  num_data_trials=1, num_fid_trials=1,
                  data_start_ind=0, fid_start_ind=0,
-                 check_octant=True, metric='llh', blind=False,
-                 pprint=False):
+                 check_octant=True, metric='llh',
+                 allow_dirty_run=False, blind=False, pprint=False):
         assert num_data_trials >= 1
         assert num_fid_trials >= 1
         assert data_start_ind >= 0
         assert fid_start_ind >= 0
+
+        if isinstance(h0_param_selections, basestring):
+            h0_param_selections = h0_param_selections.strip().lower()
+            if h0_param_selections == '':
+                h0_param_selections = None
+            else:
+                h0_param_selections = [h0_param_selections]
+        if isinstance(h1_param_selections, basestring):
+            h1_param_selections = h1_param_selections.strip().lower()
+            if h1_param_selections == '':
+                h1_param_selections = None
+            else:
+                h1_param_selections = [h1_param_selections]
+        if isinstance(data_param_selections, basestring):
+            data_param_selections = data_param_selections.strip().lower()
+            if data_param_selections == '':
+                data_param_selections = None
+            else:
+                data_param_selections = [h0_param_selections]
+
+        if (isinstance(h0_param_selections, Sequence)
+            and len(h0_param_selections) == 0):
+            h0_param_selections = None
+        if (isinstance(h1_param_selections, Sequence)
+            and len(h1_param_selections) == 0):
+            h1_param_selections = None
+        if (isinstance(data_param_selections, Sequence)
+            and len(data_param_selections) == 0):
+            data_param_selections = None
+
         # Cannot specify either of `data_maker` or `data_param_selections` if
         # `data` is supplied.
         if data is not None:
@@ -216,7 +251,8 @@ class HypoTesting(Analysis):
         if data is not None:
             self.data_maker_is_h0_maker = False
             self.data_maker_is_h1_maker = False
-
+            if self.data_name is None:
+                self.data_name = ''
         # Otherwise instantiate or copy the data dist maker
         else:
             if not isinstance(data_maker, DistributionMaker):
@@ -226,11 +262,6 @@ class HypoTesting(Analysis):
                     data_maker = h1_maker
                 else:
                     data_maker = DistributionMaker(data_maker)
-
-        # Create directory for logging results
-        mkdir(logdir)
-        logdir = find_resource(logdir)
-        logging.info('Output will be saved to dir "%s"' %logdir)
 
         # Read in minimizer settings
         if isinstance(minimizer_settings, basestring):
@@ -265,6 +296,7 @@ class HypoTesting(Analysis):
         self.data_start_ind = data_start_ind
         self.fid_start_ind = fid_start_ind
 
+        self.allow_dirty_run = allow_dirty_run
         self.blind = blind
         self.pprint = pprint
 
@@ -280,13 +312,90 @@ class HypoTesting(Analysis):
         self.h0_fid_dist = None
         self.h1_fid_dist = None
 
-        # Names for purposes of stdout/stderr logging messages
+        # Names for purposes of stdout/stderr and result logging
+        if self.h0_name is None:
+            if self.h0_param_selections is not None:
+                self.h0_name = ','.join(self.h0_param_selections)
+            else:
+                self.h0_name = 'h0'
+
+        if self.h1_name is None:
+            if (self.h1_maker == self.h0_maker
+                and self.h1_param_selections == self.h0_param_selections):
+                self.h1_name = self.h0_name
+            elif self.h1_param_selections is not None:
+                self.h1_name = ','.join(self.h1_param_selections)
+            else:
+                self.h1_name = 'h1'
+
+        if self.data_name is None:
+            if (self.data_maker == self.h0_maker
+                and self.data_param_selections == self.h0_param_selections):
+                self.data_name = self.h0_name
+            elif (self.data_maker == self.h1_maker
+                  and self.data_param_selections == self.h1_param_selections):
+                self.data_name = self.h1_name
+            elif self.data_param_selections is not None:
+                self.data_name = ','.join(self.data_param_selections)
+            else:
+                self.data_name = ''
+
         if self.data_is_data:
             self.data_disp = self.data_name
-        elif self.fluctuate_data:
-            self.data_disp = self.data_name + ' (toy pseudodata)'
+            self.data_dir_prefix = 'data'
         else:
-            self.data_disp = self.data_name + ' (toy Asimov data)'
+            self.data_dir_prefix = 'toy_data'
+            if self.fluctuate_data:
+                self.data_disp = self.data_name + ' (toy pseudodata)'
+                self.data_subdir_prefix = 'toy_pseudodata_set'
+            else:
+                self.data_disp = self.data_name + ' (toy Asimov data)'
+                self.data_subdir_prefix = 'toy_asimov'
+
+        self.hypo_dir_prefix = 'hypo'
+        if self.h0_name == '':
+            self.h0_flabel = self.hypo_dir_prefix
+        else:
+            self.h0_flabel = ('%s_%s' %(self.hypo_dir_prefix,
+                                        get_valid_filename(self.h0_name)))
+
+        if self.h1_name == '':
+            self.h1_flabel = self.hypo_dir_prefix
+        else:
+            self.h1_flabel = ('%s_%s' %(self.hypo_dir_prefix,
+                                        get_valid_filename(self.h1_name)))
+
+        if self.data_name == '':
+            self.data_flabel = self.data_dir_prefix
+        else:
+            self.data_flabel = ('%s_%s' %(self.data_dir_prefix,
+                                          get_valid_filename(self.data_name)))
+
+        # Code versioning
+        self.__version__ = __version__
+        self.version_info = _version.get_versions()
+
+        cannot_determine_code_ver = (self.version_info['dirty']
+                                     or self.version_info['error'] is not None)
+        if self.allow_dirty_run:
+            logging.warn('Dirty git repo or unable to determine code commit.'
+                         ' Version info: %s' %self.version_info)
+        else:
+            raise ValueError(
+                'Refusing to run due to dirty git repo or inability to'
+                ' determine code commit. Version info:\n%s'
+                %self.version_info
+            )
+        logging.info('Code version: %s' %self.__version__)
+
+        # Construct root dir name and create dir if necessary
+        dirname = '__'.join([self.h0_flabel, self.h1_flabel, self.data_flabel,
+                             self.__version__])
+        dirpath = os.path.join(self.logdir, dirname)
+        mkdir(dirpath)
+        normpath = find_resource(dirpath)
+        self.logroot = normpath
+        logging.info('Output will be saved to dir "%s"' %self.logroot)
 
         if self.fluctuate_fid:
             self.fid_disp = 'fiducial pseudodata'
@@ -405,9 +514,9 @@ class HypoTesting(Analysis):
         """
         self.h0_maker.select_params(self.h0_param_selections)
         self.h0_maker.params.reset_free()
-        if self.data_maker_is_h0_maker \
-                and self.h0_param_selections == self.data_param_selections \
-                and not self.fluctuate_data:
+        if (self.data_maker_is_h0_maker
+            and self.h0_param_selections == self.data_param_selections
+            and not self.fluctuate_data):
             logging.info('Hypo %s will reproduce exactly %s distributions; not'
                          ' running corresponding fit.'
                          %(self.h0_name, self.data_disp))
@@ -434,9 +543,9 @@ class HypoTesting(Analysis):
 
         self.h1_maker.select_params(self.h1_param_selections)
         self.h1_maker.params.reset_free()
-        if self.data_maker_is_h1_maker \
-                and self.h1_param_selections == self.data_param_selections \
-                and not self.fluctuate_data:
+        if (self.data_maker_is_h1_maker
+            and self.h1_param_selections == self.data_param_selections
+            and not self.fluctuate_data):
             logging.info('Hypo %s will reproduce exactly %s distributions; not'
                          ' running corresponding fit.'
                          %(self.h1_name, self.data_disp))
@@ -446,8 +555,8 @@ class HypoTesting(Analysis):
                 hypo_param_selections=self.h1_param_selections,
                 asimov_dist=self.asimov_dist
             )
-        elif self.h1_maker_is_h0_maker \
-                and self.h1_param_selections == self.h0_param_selections:
+        elif (self.h1_maker_is_h0_maker
+              and self.h1_param_selections == self.h0_param_selections):
             self.h1_fit_to_data = copy(self.h0_fit_to_data)
         else:
             logging.info('Fitting hypo %s to %s distributions.'
@@ -555,14 +664,14 @@ class HypoTesting(Analysis):
             )
 
         # TODO: remove redundancy if h0 and h1 are identical
-        #if self.h1_maker_is_h0_maker \
-        #        and self.h1_param_selections == self.h0_param_selections:
+        #if (self.h1_maker_is_h0_maker
+        #    and self.h1_param_selections == self.h0_param_selections):
         #    self.h0_fit_to_h1_fid = 
 
         # Perform fits of one hypo to fid dist produced by other hypo
-        if (not self.fluctuate_data) and (not self.fluctuate_fid) \
-           and self.data_maker_is_h0_maker \
-           and self.h0_param_selections == self.data_param_selections:
+        if ((not self.fluctuate_data) and (not self.fluctuate_fid)
+            and self.data_maker_is_h0_maker
+            and self.h0_param_selections == self.data_param_selections):
             logging.info('Fitting hypo %s to hypo %s %s distributions is'
                          ' unnecessary since former was already fit to %s'
                          ' distributions, which are identical distributions.'
@@ -584,9 +693,9 @@ class HypoTesting(Analysis):
                 pprint=self.pprint,
                 blind=self.blind
             )
-        if (not self.fluctuate_data) and (not self.fluctuate_fid) \
-           and self.data_maker_is_h1_maker \
-           and self.h1_param_selections == self.data_param_selections:
+        if ((not self.fluctuate_data) and (not self.fluctuate_fid)
+            and self.data_maker_is_h1_maker
+            and self.h1_param_selections == self.data_param_selections):
             logging.info('Fitting hypo %s to hypo %s %s distributions is'
                          ' unnecessary since former was already fit to %s'
                          ' distributions, which are identical distributions.'
@@ -630,7 +739,7 @@ class HypoTesting(Analysis):
                 - stage name, service name, service source code hash
             * name of metric used for minimization
 
-        config_info.txt : Human-readable metadata used to construct hash:
+        config_summary.txt : Human-readable metadata used to construct hash:
             * config_hash : str
             * source_provenance : dict
                 - git_commit_sha256 : str
@@ -638,7 +747,7 @@ class HypoTesting(Analysis):
                 - git_branch : str
                 - git_remote_url : str
                 - git_tag : str
-            * minimizer_config : dict
+            * minimizer_info : dict
                 - minimizer_config_hash : str
                 - minimizer_name : str
                 - metric_minimized : str
@@ -656,14 +765,8 @@ class HypoTesting(Analysis):
                 ...
             * data_param_selections
             * h0_pipelines (similarly to data pipelines)
-               - stage name, service name, service source code hash
-               - stage name, service name, service source code hash
-               - stage name, service name, service source code hash
             * h0_param_selections
             * h1_pipelines (list containing list per pipeline)
-               - stage name, service name, service source code hash
-               - stage name, service name, service source code hash
-               - stage name, service name, service source code hash
             * h1_param_selections
 
         mininimzer_settings.ini : copy of the minimzer settings used
@@ -798,7 +901,7 @@ def parse_args():
     )
     parser.add_argument(
         '--h0-name',
-        type=str, metavar='NAME', default='h0',
+        type=str, metavar='NAME', default=None,
         help='''Name for hypothesis h0. E.g., "NO" for normal
         ordering in the neutrino mass ordering analysis. Note that the name
         here has no bearing on the actual process, so it's important that you
@@ -823,7 +926,7 @@ def parse_args():
     )
     parser.add_argument(
         '--h1-name',
-        type=str, metavar='NAME', default='h1',
+        type=str, metavar='NAME', default=None,
         help='''Name for hypothesis h1. E.g., "IO" for inverted
         ordering in the neutrino mass ordering analysis. Note that the name
         here has no bearing on the actual process, so it's important that you
@@ -851,7 +954,7 @@ def parse_args():
     )
     parser.add_argument(
         '--data-name',
-        type=str, metavar='NAME', default='data',
+        type=str, metavar='NAME', default=None,
         help='''Name for the data. E.g., "NO" for normal ordering in the
         neutrino mass ordering analysis. Note that the name here has no bearing
         on the actual process, so it's important that you be careful to use a
@@ -917,6 +1020,12 @@ def parse_args():
         action='store_true',
         help='''Live-updating one-line vew of metric and parameter values. (The
         latter are not displayed if --blind is specified.)'''
+    )
+    parser.add_argument(
+        '--allow-dirty-run',
+        action='store_true',
+        help='''*** DANGER! Use with caution! (Allow for run despite
+        inability to track provenance of code.)'''
     )
     parser.add_argument(
         '--blind',
