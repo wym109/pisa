@@ -77,7 +77,9 @@ class HypoTesting(Analysis):
 
     blind : bool
 
-    allow_dirty_run : bool
+    allow_dirty : bool
+
+    allow_no_git_info : bool
 
     pprint : bool
 
@@ -136,7 +138,8 @@ class HypoTesting(Analysis):
                  num_data_trials=1, num_fid_trials=1,
                  data_start_ind=0, fid_start_ind=0,
                  check_octant=True, metric='llh',
-                 allow_dirty_run=False, blind=False, pprint=False):
+                 allow_dirty=False, allow_no_git_info=False,
+                 blind=False, pprint=False):
         assert num_data_trials >= 1
         assert num_fid_trials >= 1
         assert data_start_ind >= 0
@@ -296,7 +299,8 @@ class HypoTesting(Analysis):
         self.data_start_ind = data_start_ind
         self.fid_start_ind = fid_start_ind
 
-        self.allow_dirty_run = allow_dirty_run
+        self.allow_dirty = allow_dirty
+        self.allow_no_git_info = allow_no_git_info
         self.blind = blind
         self.pprint = pprint
 
@@ -375,18 +379,23 @@ class HypoTesting(Analysis):
         self.__version__ = __version__
         self.version_info = _version.get_versions()
 
-        cannot_determine_code_ver = (self.version_info['dirty']
-                                     or self.version_info['error'] is not None)
-        if self.allow_dirty_run:
-            logging.warn('Dirty git repo or unable to determine code commit.'
-                         ' Version info: %s' %self.version_info)
-        else:
-            raise ValueError(
-                'Refusing to run due to dirty git repo or inability to'
-                ' determine code commit. Version info:\n%s'
-                %self.version_info
-            )
-        logging.info('Code version: %s' %self.__version__)
+        no_git_info = self.version_info['error'] is not None
+        if no_git_info:
+            msg = 'No info about git repo. Version info: %s' %self.version_info
+            if self.allow_no_git_info:
+                logging.warn(msg)
+            else:
+                raise Exception(msg)
+
+        dirty_git_repo = self.version_info['dirty']
+        if dirty_git_repo:
+            msg = 'Dirty git repo. Version info: %s' %self.version_info
+            if self.allow_dirty:
+                logging.warn(msg)
+            else:
+                raise Exception(msg)
+
+        logging.debug('Code version: %s' %self.__version__)
 
         # Construct root dir name and create dir if necessary
         dirname = '__'.join([self.h0_flabel, self.h1_flabel, self.data_flabel,
@@ -1022,10 +1031,16 @@ def parse_args():
         latter are not displayed if --blind is specified.)'''
     )
     parser.add_argument(
-        '--allow-dirty-run',
+        '--allow-dirty',
         action='store_true',
-        help='''*** DANGER! Use with caution! (Allow for run despite
-        inability to track provenance of code.)'''
+        help='''Warning: Use with caution. (Allow for run despite dirty
+        repository.)'''
+    )
+    parser.add_argument(
+        '--allow-no-git-info',
+        action='store_true',
+        help='''*** DANGER! Use with extreme caution! (Allow for run despite
+        complete inability to track provenance of code.)'''
     )
     parser.add_argument(
         '--blind',
