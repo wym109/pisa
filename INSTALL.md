@@ -21,7 +21,7 @@ git clone https://github.com/jllanfranchi/pisa.git --branch cake \
 
 # Install PISA and its python package dependencies (optional dependency
 # categories are in brackets)
-pip install -e my_virtual_env/src/pisa/[cuda,numba,docbuild] \
+pip install -e my_virtual_env/src/pisa/[cuda,numba,develop] \
     -r my_virtual_env/src/pisa/requirements.txt
 
 # Run the physics tests
@@ -117,9 +117,11 @@ Optional dependencies ***must be installed manually prior to installing PISA*** 
 * [PyCUDA](https://mathema.tician.de/software/pycuda): run certain routines on Nvidia CUDA GPUs (must have compute 2.0 or greater capability)<br>
   * Installed alongside PISA if you specify option `['cuda']` to `pip`
 * [Sphinx](http://www.sphinx-doc.org/en/stable/) version > 1.3
-  * Installed alongside PISA if you specify option `['docbuild']` to `pip`
+  * Installed alongside PISA if you specify option `['develop']` to `pip`
 * [recommonmark](http://recommonmark.readthedocs.io/en/latest/) Translator to allow markdown docs/docstrings to be used; plugin for Sphinx. (Required to compile PISA's documentation.)
-  * Installed alongside PISA if you specify option `['docbuild']` to `pip`
+  * Installed alongside PISA if you specify option `['develop']` to `pip`
+* [versioneer](https://github.com/warner/python-versioneer) Automatically get versions from git and make these embeddable and usable in code. Note that the install process is unique since it first places `versioneer.py` in the PISA root directory, and then updates source files within the repository to provide static and dynamic version info.
+  * Installed alongside PISA if you specify option `['develop']` to `pip`
 
 
 ### Set up your environment
@@ -184,9 +186,7 @@ You can freely create your own *branch*, modify the code, and then *add* and *co
 When you want to share your changes with `jllanfranchi/pisa`, you can then submit a *pull request* to `jllanfranchi/pisa` which can be merged by the PISA administrator (after the code is reviewed and tested, of course).
 
 * Navigate to the [PISA github page](https://github.com/jllanfranchi/pisa) and fork the repository by clicking on the ![fork](images/ForkButton.png) button.
-* From a terminal, change into the "parent" directory.<br>
-`cd <parent dir>`
-* Clone the repository via one of the following commands (`<github username>` is your Github username):
+* Clone the repository into the `$PISA` directory via one of the following commands (`<github username>` is your Github username):
   * either SSH access to repo:<br>
 `git clone git@github.com:<github username>/pisa.git --branch <brnnchname> --single-branch $PISA
 `
@@ -198,9 +198,7 @@ When you want to share your changes with `jllanfranchi/pisa`, you can then submi
 
 If you just wish to pull changes from github (and not submit any changes back), you can just clone the sourcecode without creating a fork of the project.
 
-* From a terminal, change into the "parent" directory.<br>
-`cd <parent dir>`
-* Clone the jllanfranchi/pisa repository via one of the following commands:
+* Clone the repository into the `$PISA` directory via one of the following commands:
   * either SSH access to repo:<br>
 `git clone git@github.com:jllanfranchi/pisa.git --branch cake --single-branch $PISA`
   * or HTTPS access to repo:<br>
@@ -252,13 +250,13 @@ rm -rf my_virtual_env
 ### Install PISA
 
 ```bash
-pip install -e $PISA[cuda,numba,docbuild] -r $PISA/requirements.txt
+pip install -e $PISA[cuda,numba,develop] -r $PISA/requirements.txt
 ```
 Explanation of the above command:
 * First, note that this is ***not run as administrator***. It is discouraged to do so (and has not been tested this way).
 * `-e $PISA` or `--editable $PISA`: Installs from source located at `$PISA` and  allows for changes to the source code within to be immediately propagated to your Python installation.
 Within the Python library tree, all files under `pisa` are glorified links to the corresponding files in your source directory, so changes within your source are seen directly by the Python installation.
-* `[cuda,numba,docbuild]` Specify optional dependency groups. You can omit any or all of these if your system does not support them or if you do not need them.
+* `[cuda,numba,develop]` Specify optional dependency groups. You can omit any or all of these if your system does not support them or if you do not need them.
 * `-r $PISA/requirements.txt`: Specifies the file containing PISA's dependencies for `pip` to install prior to installing PISA.
 This file lives at `$PISA/requirements.txt`.
 * If a specific compiler is set by the `CC` environment variable, it will be used, otherwise the `cc` command will be invoked on the system. Note that there have been some problems using `clang` under OSX, since versions of Clang older than 3.8.0 do not support `OpenMP`. Upgrade Clang or use `gcc` (if installed) and specify its executable with `CC` environment variable.

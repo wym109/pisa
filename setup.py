@@ -36,6 +36,8 @@ import subprocess
 import sys
 import tempfile
 
+import versioneer
+
 
 # TODO: Compile CUDA kernel(s) here (since no need for dynamic install yet...
 # unless e.g. datatype becomes optional and therefore compilation of the kernel
@@ -253,24 +255,24 @@ if __name__ == '__main__':
         )
     ext_modules.append(gaussians_module)
 
+    cmdclasses = {'build': build, 'build_ext': build_ext}
+    cmdclasses.update(versioneer.get_cmdclass())
+
     # Now do the actual work
     setup(
         name='pisa',
-        version='3.0.0',
+        version=versioneer.get_version(),
         description='PINGU Simulation and Analysis',
         author='The IceCube/PINGU Collaboration',
         author_email='sboeser@uni-mainz.de',
         url='http://github.com/WIPACrepo/pisa',
-        cmdclass = {
-            'build': build,
-            'build_ext': build_ext
-        },
+        cmdclass=cmdclasses,
         python_requires='>=2.7',
         setup_requires=[
             'pip>=1.8',
-            'setuptools>=18.0',
+            'setuptools>18.5', # versioneer; 18.0 for other dependency
             'cython',
-            'numpy>=1.11.0'
+            'numpy>=1.11.0',
         ],
         install_requires=[
             'scipy>=0.17.0',
@@ -285,7 +287,7 @@ if __name__ == '__main__':
         extras_require = {
             'cuda':  ['pycuda'],
             'numba':  ['enum34', 'numba'],
-            'docbuild': ['sphinx>1.3', 'recommonmark'],
+            'develop': ['sphinx>1.3', 'recommonmark', 'versioneer']
         },
         packages=[
             'pisa',
