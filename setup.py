@@ -17,11 +17,11 @@ and install basic PISA package (in editable mode via -e flag) via
 
 or include optional dependencies by specifying them in brackets
 
-    $ pip install -e ./pisa[cuda,numba,docbuild] -r ./pisa/requirements.txt
+    $ pip install -e ./pisa[cuda,numba,develop] -r ./pisa/requirements.txt
 
-If not installed in editable mode and you wish to upgrade:
+If you wish to upgrade PISA and/or its dependencies:
 
-    $ pip install ./pisa[cuda,numba,docbuild] -r ./pisa/requirements.txt \
+    $ pip install ./pisa[cuda,numba,develop] -r ./pisa/requirements.txt \
         --upgrade
 
 """

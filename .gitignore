@@ -1,6 +1,8 @@
 # Ignore precompiled packages
 *.py[cod]
 
+# Ignore cached
+
 # OSX finder files
 .DS_Store
 
@@ -13,12 +15,7 @@ GridPropagator.py
 *.o
 gaussians.c
 gaussians.so
-MANIFEST
-
-# Ignore test files in src dir
-pisa/flux/*.json
-pisa/oscillations/*.json
-pisa/aeff/*.json
+__pycache__
 
 # Packages
 dist
@@ -38,10 +35,3 @@ pisa.egg-info
 
 # IPython notebook backups
 .ipynb_checkpoints
-
-# sqlite databases
-*.db
-
-# Serialized objects
-*.pkl
-*.dill
