@@ -59,64 +59,6 @@ class Analysis(object):
     def __init__(self):
         pass
 
-    def compare_hypos(self, data,
-                      h0_maker, h0_param_selections,
-                      h1_maker, h1_param_selections,
-                      metric, minimizer_settings, pprint=False, blind=False):
-        """
-        Compare how well `data` is described by each of two hypotheses: h0 and
-        h1.
-
-        Each hypothesis is represented by a distribtuion maker
-
-
-        Parameters
-        ----------
-        data : MapSet
-
-        h0_maker : DistributionMaker
-
-        h0_param_selections : None, string, or sequence of strings
-
-        h1_maker : DistributionMaker
-
-        h1_param_selections : None, string, or sequence of strings
-
-        metric : None or string
-
-        minimizer_settings : string
-
-        pprint : bool
-
-        blind : bool
-
-
-        Returns
-        -------
-        delta_metric, h0_fit, h1_fit
-
-        """
-        h0_fit = self.fit_hypo(
-            data=data,
-            hypo_maker=h0_maker,
-            param_selections=h0_param_selections,
-            metric=metric,
-            minimizer_settings=minimizer_settings,
-            pprint=pprint,
-            blind=blind
-        )
-        h1_fit = self.fit_hypo(
-            data=data,
-            hypo_maker=h1_maker,
-            param_selections=h1_param_selections,
-            metric=metric,
-            minimizer_settings=minimizer_settings,
-            pprint=pprint,
-            blind=blind
-        )
-        delta_metric = h0_fit['metric_val'] - h1_fit['metric_val']
-        return delta_metric, h0_fit, h1_fit
-
     def fit_hypo(self, data, hypo_maker, param_selections, metric,
                  minimizer_settings, check_octant=True, pprint=True,
                  blind=False):
@@ -148,14 +90,16 @@ class Analysis(object):
 
         Returns
         -------
-        OrderedDict fit_info with keys 'metric', 'metric_val', 'params',
-        'asimov_dist', and 'metadata'
+        best_fit_info : OrderedDict (see fit_hypo_inner method for details of
+            `fit_info` dict)
+        alternate_fits : list of `fit_info` from other fits run
 
         """
         # Reset free parameters to nominal values
-        logging.trace('Selecting and resetting params')
         hypo_maker.select_params(param_selections)
         hypo_maker.reset_free()
+
+        alternate_fits = []
 
         best_fit_info = self.fit_hypo_inner(
             hypo_maker=hypo_maker,
@@ -196,13 +140,16 @@ class Analysis(object):
                         best_fit_info['metric_val']
 
             if it_got_better:
+                alternate_fits.append(best_fit_info)
                 best_fit_info = new_fit_info
                 if not blind:
                     logging.debug('Accepting other-octant fit')
-            elif not blind:
-                logging.debug('Accepting initial-octant fit')
+            else:
+                alternate_fits.append(new_fit_info)
+                if not blind:
+                    logging.debug('Accepting initial-octant fit')
 
-        return best_fit_info
+        return best_fit_info, alternate_fits
 
     def fit_hypo_inner(self, data, hypo_maker, metric, minimizer_settings,
                        pprint=True, blind=False):
@@ -235,6 +182,8 @@ class Analysis(object):
 
         Returns
         -------
+        fit_info : OrderedDict with details of the fit with keys 'metric',
+            'metric_val', 'params', 'hypo_asimov_dist', and 'metadata'
 
         """
         sign = -1 if metric in self.METRICS_TO_MAXIMIZE else +1
@@ -258,11 +207,13 @@ class Analysis(object):
         # Using scipy.optimize.minimize allows a whole host of minimisers to be
         # used.
         counter = Counter()
+        fit_history = []
         start_t = time.time()
         optimize_result = optimize.minimize(
             fun=self._minimizer_callable,
             x0=x0,
-            args=(hypo_maker, data, metric, counter, pprint, blind),
+            args=(hypo_maker, data, metric, counter, fit_history, pprint,
+                  blind),
             bounds=bounds,
             method = minimizer_settings['method']['value'],
             options = minimizer_settings['options']['value']
@@ -273,12 +224,13 @@ class Analysis(object):
             sys.stdout.write('\n')
             sys.stdout.flush()
 
+        minimizer_time = end_t - start_t
+
         logging.info('Total time to optimize: %8.4f s;'
                      ' # of dists generated: %6d;'
                      ' avg dist gen time: %10.4f ms'
-                     %(end_t-start_t,
-                       counter.count,
-                       (end_t - start_t)*1000./counter.count))
+                     %(minimizer_time, counter.count,
+                       minimizer_time*1000./counter.count))
 
         # Will not assume that the minimizer left the hypo maker in the
         # minimized state, so set the values now (also does conversion of
@@ -287,7 +239,7 @@ class Analysis(object):
         hypo_maker._set_rescaled_free_params(rescaled_pvals)
 
         # Record the Asimov distribution with the optimal param values
-        asimov_dist = hypo_maker.get_outputs()
+        hypo_asimov_dist = hypo_maker.get_outputs()
 
         # Get the best-fit metric value
         metric_val = sign * optimize_result.pop('fun')
@@ -303,18 +255,20 @@ class Analysis(object):
         fit_info = OrderedDict()
         fit_info['metric'] = metric
         fit_info['metric_val'] = metric_val
-        fit_info['asimov_dist'] = asimov_dist
         if blind:
             hypo_maker.reset_free()
             fit_info['params'] = ParamSet()
         else:
             fit_info['params'] = deepcopy(hypo_maker.params)
+        fit_info['minimizer_time'] = minimizer_time
         fit_info['metadata'] = metadata
+        fit_info['fit_history'] = fit_history
+        fit_info['hypo_asimov_dist'] = hypo_asimov_dist
 
         return fit_info
 
     def _minimizer_callable(self, scaled_param_vals, hypo_maker, data,
-                            metric, counter, pprint, blind):
+                            metric, counter, fit_history, pprint, blind):
         """Simple callback for use by scipy.optimize minimizers.
 
         This should *not* in general be called by users, as `scaled_param_vals`
@@ -364,7 +318,7 @@ class Analysis(object):
 
         # Get the Asimov map set
         try:
-            asimov_dist = hypo_maker.get_outputs()
+            hypo_asimov_dist = hypo_maker.get_outputs()
         except:
             if not blind:
                 logging.error(
@@ -373,10 +327,11 @@ class Analysis(object):
                 )
             raise
 
-        # Assess the fit: whether the data came from the asimov_dist
+        # Assess the fit: whether the data came from the hypo_asimov_dist
         try:
             metric_val = (
-                data.metric_total(expected_values=asimov_dist, metric=metric)
+                data.metric_total(expected_values=hypo_asimov_dist,
+                                  metric=metric)
                 + hypo_maker.params.priors_penalty(metric=metric)
             )
         except:
@@ -405,6 +360,11 @@ class Analysis(object):
             logging.trace(msg)
 
         counter += 1
+
+        if not blind:
+            fit_history.append(
+                [metric_val] + [v.m for v in hypo_maker.params.free.values]
+            )
 
         return sign*metric_val
 
@@ -492,10 +452,10 @@ class Analysis(object):
             fp = hypo_maker.params.free
             fp[param_names].value = val
             hypo_maker.update_params(fp)
-            asimov_dist = hypo_maker.get_outputs()
+            hypo_asimov_dist = hypo_maker.get_outputs()
             metric_vals.append(
                 data.metric_total(
-                    expected_values=asimov_dist, metric=metric
+                    expected_values=hypo_asimov_dist, metric=metric
                 )
             )
         return metric_vals

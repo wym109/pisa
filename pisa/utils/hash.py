@@ -18,6 +18,9 @@ def hash_obj(obj, hash_to='int'):
     (which is serialized to a string), an open file (which has its contents
     read), or any pickle-able Python object.
 
+    Note that only the first most-significant 8 bytes (64 bits) from the MD5
+    sum are used in the hash.
+
     Parameters
     ----------
     obj : object
@@ -25,14 +28,17 @@ def hash_obj(obj, hash_to='int'):
         hash.
 
     hash_to : string
-        'i', 'int', or 'integer': Hash is derived from the first 8 bytes of the
-            MD5 sum, interpreted as an integer.
-        'b', 'bin', or 'binary': MD5 sum digest
-        'h', 'x', 'hex': MD5 sum hexdigest
+        'i', 'int', or 'integer': First 8 bytes of the MD5 sum are interpreted
+            as an integer.
+        'b', 'bin', or 'binary': MD5 sum digest; returns an 8-character string 
+        'h', 'x', 'hex': MD5 sum hexdigest, (string of 16 characters)
+        'b64', 'base64': first 8 bytes of MD5 sum are base64 encoded (with '+'
+            and '-' as final two characters of encoding). Returns string of 11
+            characters.
 
     Returns
     -------
-    hash
+    hash_val : int or string
 
     See also
     --------
@@ -59,14 +65,16 @@ def hash_obj(obj, hash_to='int'):
         logging.error('Failed to pickle `obj` "%s" of type "%s"'
                       %(obj, type(obj)))
         raise
-    hash = hashlib.md5(pkl)
-    #hash = hashlib.md5(repr(obj))
+    md5hash = hashlib.md5(pkl)
+    #md5hash = hashlib.md5(repr(obj))
     if hash_to in ['i', 'int', 'integer']:
-        hash_val, = struct.unpack('<q', hash.digest()[:8])
+        hash_val, = struct.unpack('<q', md5hash.digest()[:8])
     elif hash_to in ['b', 'bin', 'binary']:
-        hash_val = hash.digest()
+        hash_val = md5hash.digest()[:8]
     elif hash_to in ['h', 'x', 'hex', 'hexadecimal']:
-        hash_val = hash.hexdigest()
+        hash_val = md5hash.hexdigest()[:16]
+    elif hash_to in ['b64', 'base64']:
+        hash_val = base64.b64encode(md5hash.digest()[:8], '+-')
     else:
         raise ValueError('Unrecognized `hash_to`: "%s"' % (hash_to,))
     return hash_val
