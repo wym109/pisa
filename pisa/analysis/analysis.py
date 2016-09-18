@@ -92,8 +92,8 @@ class Analysis(object):
 
         metric : string
             The metric to use for optimization. Valid metrics are found in
-            `pisa.map.VALID_METRICS`. Note that the optimized hypothesis also
-            has this metric evaluated and reported for each of its output maps.
+            `VALID_METRICS`. Note that the optimized hypothesis also has this
+            metric evaluated and reported for each of its output maps.
 
         minimizer_settings : string or dict
 
@@ -104,8 +104,10 @@ class Analysis(object):
 
         other_metrics : None, string, or list of strings
             After finding the best fit, these other metrics will be evaluated
-            for each map of the MapSets being compared. All must be valid
-            metrics, as per `pisa.map.VALID_METRICS`.
+            for each output that contributes to the overall fit. All strings
+            must be valid metrics, as per `VALID_METRICS`, or the
+            special string 'all' can be specified to evaluate all
+            VALID_METRICS..
 
         pprint : bool
             Whether to show live-update of minimizer progress.
@@ -284,7 +286,7 @@ class Analysis(object):
         elif isinstance(other_metrics, basestring):
             other_metrics = [other_metrics]
         all_metrics = sorted(set([metric] + other_metrics))
-        metric_breakdown = OrderedDict()
+        detailed_metric_info = OrderedDict()
         for metric in all_metrics:
             name_vals_d = data.metric_per_map(
                 expected_values=hypo_asimov_dist, metric=metric
@@ -292,7 +294,7 @@ class Analysis(object):
             name_vals_d['total'] = data.metric_total(
                 expected_values=hypo_asimov_dist, metric=metric
             )
-            metric_breakdown[metric] = name_vals_d
+            detailed_metric_info[metric] = name_vals_d
 
         # Record minimizer metadata (all info besides 'x' and 'fun'; also do
         # not record some attributes if performing blinded analysis)
@@ -310,9 +312,9 @@ class Analysis(object):
             fit_info['params'] = ParamSet()
         else:
             fit_info['params'] = deepcopy(hypo_maker.params)
+        fit_info['detailed_metric_info'] = detailed_metric_info
         fit_info['minimizer_time'] = minimizer_time * ureg.sec
         fit_info['metadata'] = metadata
-        fit_info['metric_breakdown'] = metric_breakdown
         fit_info['fit_history'] = fit_history
         fit_info['hypo_asimov_dist'] = hypo_asimov_dist
 

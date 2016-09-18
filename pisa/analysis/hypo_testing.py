@@ -27,6 +27,7 @@ import pint
 from pisa import ureg, _version, __version__
 from pisa.analysis.analysis import Analysis
 from pisa.core.distribution_maker import DistributionMaker
+from pisa.core.map import VALID_METRICS
 from pisa.utils.comparisons import normQuant
 from pisa.utils.fileio import from_file, get_valid_filename, mkdir, to_file
 from pisa.utils.hash import hash_obj
@@ -94,6 +95,8 @@ class HypoTesting(Analysis):
 
     metric : string
 
+    other_metrics : None, string, or sequence of strings
+
     blind : bool
 
     allow_dirty : bool
@@ -147,7 +150,7 @@ class HypoTesting(Analysis):
     """
     def __init__(self, logdir, minimizer_settings,
                  data_is_data,
-                 fluctuate_data, fluctuate_fid, metric,
+                 fluctuate_data, fluctuate_fid, metric, other_metrics=None,
                  h0_name=None, h0_maker=None,
                  h0_param_selections=None, h0_fid_asimov_dist=None,
                  h1_name=None, h1_maker=None,
@@ -311,6 +314,7 @@ class HypoTesting(Analysis):
         self.data_param_selections = data_param_selections
 
         self.metric = metric
+        self.other_metrics = other_metrics
         self.fluctuate_data = fluctuate_data
         self.fluctuate_fid = fluctuate_fid
 
@@ -499,6 +503,7 @@ class HypoTesting(Analysis):
                 hypo_maker=self.h0_maker,
                 param_selections=self.h0_param_selections,
                 metric=self.metric,
+                other_metrics=self.other_metrics,
                 minimizer_settings=self.minimizer_settings,
                 check_octant=self.check_octant,
                 pprint=self.pprint,
@@ -536,6 +541,7 @@ class HypoTesting(Analysis):
                 hypo_maker=self.h1_maker,
                 param_selections=self.h1_param_selections,
                 metric=self.metric,
+                other_metrics=self.other_metrics,
                 minimizer_settings=self.minimizer_settings,
                 check_octant=self.check_octant,
                 pprint=self.pprint,
@@ -619,6 +625,7 @@ class HypoTesting(Analysis):
                 hypo_maker=self.h0_maker,
                 param_selections=self.h0_param_selections,
                 metric=self.metric,
+                other_metrics=self.other_metrics,
                 minimizer_settings=self.minimizer_settings,
                 check_octant=self.check_octant,
                 pprint=self.pprint,
@@ -649,6 +656,7 @@ class HypoTesting(Analysis):
                 hypo_maker=self.h1_maker,
                 param_selections=self.h1_param_selections,
                 metric=self.metric,
+                other_metrics=self.other_metrics,
                 minimizer_settings=self.minimizer_settings,
                 check_octant=self.check_octant,
                 pprint=self.pprint,
@@ -684,6 +692,7 @@ class HypoTesting(Analysis):
                 hypo_maker=self.h1_maker,
                 param_selections=self.h1_param_selections,
                 metric=self.metric,
+                other_metrics=self.other_metrics,
                 minimizer_settings=self.minimizer_settings,
                 check_octant=self.check_octant,
                 pprint=self.pprint,
@@ -713,6 +722,7 @@ class HypoTesting(Analysis):
                 hypo_maker=self.h0_maker,
                 param_selections=self.h0_param_selections,
                 metric=self.metric,
+                other_metrics=self.other_metrics,
                 minimizer_settings=self.minimizer_settings,
                 check_octant=self.check_octant,
                 pprint=self.pprint,
@@ -1082,6 +1092,7 @@ class HypoTesting(Analysis):
         if self.fluctuate_fid:
             run_info.append('fid_start_ind = %d' %self.fid_start_ind)
             run_info.append('num_fid_trials = %d' %self.num_fid_trials)
+        run_info.append('other_metrics = %s' %self.other_metrics)
         run_info.append('blind = %s' %self.blind)
         run_info.append('allow_dirty = %s' %self.allow_dirty)
         run_info.append('allow_no_git_info = %s' %self.allow_no_git_info)
@@ -1120,7 +1131,7 @@ class HypoTesting(Analysis):
 
     def log_fit(self, fit_info, dirpath, label):
         serialize = ['metric', 'metric_val', 'params', 'minimizer_time',
-                     'metadata', 'metric_details']
+                     'detailed_metric_info', 'metadata']
         if self.store_minimizer_history:
             serialize.append('fit_history')
 
@@ -1275,7 +1286,15 @@ def parse_args():
     parser.add_argument(
         '--metric',
         type=str, default=None, metavar='METRIC',
-        help='''Name of metric to use for evaluating a fit.'''
+        help='''Name of metric to use for optimizing the fit.'''
+    )
+    parser.add_argument(
+        '--other-metric',
+        type=str, default=None, metavar='METRIC', action='append',
+        choices=['all'] + sorted(VALID_METRICS),
+        help='''Name of another metric to evaluate at the best-fit point. Must
+        be either "all" or a metric specified in VALID_METRICS. Repeat this
+        argument (or use "all") to specify multiple metrics.'''
     )
     parser.add_argument(
         '--num-data-trials',
@@ -1374,6 +1393,19 @@ if __name__ == '__main__':
     init_args_d['store_minimizer_history'] = (
         not init_args_d.pop('no_minimizer_history')
     )
+
+    other_metrics = init_args_d.pop('other_metric')
+    if other_metrics is not None:
+        other_metrics = [s.strip().lower() for s in other_metrics]
+        if 'all' in other_metrics:
+            other_metrics = sorted(VALID_METRICS)
+        if init_args_d['metric'] in other_metrics:
+            other_metrics.remove(init_args_d['metric'])
+        if len(other_metrics) == 0:
+            other_metrics = None
+        else:
+            logging.info('Will evaluate other metrics %s' %other_metrics)
+        init_args_d['other_metrics'] = other_metrics
 
     # Normalize and convert `*_pipeline` filenames; store to `*_maker`
     # (which is argument naming convention that HypoTesting init accepts).
