@@ -962,7 +962,7 @@ def test_ParamSet():
     param_set[0].value = 1
     print param_set.values
 
-    param_set.values = [3, 2, 1]
+    param_set.values = [1.5, 5, 1]
     print param_set.values
     print param_set.values[0]
     print param_set[0].value

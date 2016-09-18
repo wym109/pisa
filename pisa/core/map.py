@@ -336,22 +336,26 @@ class Map(object):
         method = str(method).lower()
         if method == 'poisson':
             random_state = get_random_state(random_state, jumpahead=jumpahead)
-            try:
+            with np.errstate(invalid='ignore'):
                 orig_hist = unp.nominal_values(self.hist)
-                masked_hist = np.ma.masked_invalid(orig_hist, copy=False)
-                masked_hist.fill_value = np.nan
-                mask = masked_hist.mask
-                hist_vals = np.ma.masked_where(
-                    mask,
-                    stats.poisson.rvs(masked_hist, random_state=random_state)
+                nan_at = np.isnan(orig_hist)
+                valid_mask = ~nan_at
+
+                hist_vals = np.empty_like(orig_hist, dtype=np.float64)
+                hist_vals[valid_mask] = stats.poisson.rvs(
+                    orig_hist[valid_mask],
+                    random_state=random_state
                 )
-                hist_errors = np.sqrt(masked_hist)
-            except:
-                raise
-            return {'hist': unp.uarray(hist_vals.filled(),
-                                       hist_errors.filled())}
+                hist_vals[nan_at] = np.nan
+
+                error_vals = np.empty_like(orig_hist, dtype=np.float64)
+                error_vals[valid_mask] = np.sqrt(orig_hist[valid_mask])
+                error_vals[nan_at] = np.nan
+            return {'hist': unp.uarray(hist_vals, error_vals)}
+
         elif method in ['', 'none', 'false']:
             return {}
+
         else:
             raise Exception('fluctuation method %s not implemented' %orig)
 
@@ -541,10 +545,10 @@ class Map(object):
                           expected_values=expected_values))
 
     def conv_llh(self, expected_values):
-        """Calculate the total convoluted log-likelihood value between this map and the map
-        described by `expected_values`; self is taken to be the "actual values"
-        (or (pseudo)data), and `expected_values` are the expectation values for
-        each bin.
+        """Calculate the total convoluted log-likelihood value between this map
+        and the map described by `expected_values`; self is taken to be the
+        "actual values" (or (pseudo)data), and `expected_values` are the
+        expectation values for each bin.
 
         Parameters
         ----------
@@ -558,7 +562,7 @@ class Map(object):
         if isinstance(expected_values, Map):
             expected_values = expected_values.hist
         return np.sum(conv_llh(actual_values=self.hist,
-                          expected_values=expected_values))
+                               expected_values=expected_values))
 
     def mod_chi2(self, expected_values):
         """Calculate the total modified chi2 value between this map and the map

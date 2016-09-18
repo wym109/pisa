@@ -47,7 +47,7 @@ def from_json(filename):
         raise e
 
 
-def to_json(content, filename, indent=2, overwrite=True):
+def to_json(content, filename, indent=2, overwrite=True, sort_keys=True):
     """Write content to a JSON file using a custom parser that automatically
     converts numpy arrays to lists.
 
@@ -69,7 +69,7 @@ def to_json(content, filename, indent=2, overwrite=True):
 
     with open(filename, 'w') as outfile:
         json.dump(content, outfile, indent=indent, cls=NumpyEncoder,
-                  sort_keys=True, allow_nan=True, ignore_nan=False)
+                  sort_keys=sort_keys, allow_nan=True, ignore_nan=False)
         logging.debug('Wrote %.2f kB to %s' % (outfile.tell()/1024., filename))
 
 

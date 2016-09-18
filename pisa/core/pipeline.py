@@ -9,6 +9,7 @@ run a pipeline.
 
 from collections import OrderedDict
 import importlib
+import inspect
 import os
 import sys
 
@@ -75,6 +76,7 @@ class Pipeline(object):
         assert isinstance(config, OrderedDict)
         self._config = config
         self._init_stages()
+        self._source_code_hash = None
 
     def __len__(self):
         return len(self._stages)
@@ -244,6 +246,21 @@ class Pipeline(object):
     @property
     def config(self):
         return self._config
+
+    @property
+    def source_code_hash(self):
+        """Hash for the source code of this object's class.
+
+        Not meant to be perfect, but should suffice for tracking provenance of
+        an object stored to disk that were produced by a Stage.
+        """
+        if self._source_code_hash is None:
+            self._source_code_hash = hash_obj(inspect.getsource(self.__class__))
+        return self._source_code_hash
+
+    @property
+    def state_hash(self):
+        return hash_obj([self.source_code_hash] + [s.state_hash for s in self])
 
 
 if __name__ == '__main__':

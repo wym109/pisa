@@ -3,12 +3,14 @@
 # date:   March 20, 2016
 
 
-import importlib
 from collections import OrderedDict, Sequence
+import importlib
+import inspect
 
 from pisa.core.pipeline import Pipeline
 from pisa.core.param import ParamSet
 from pisa.utils.betterConfigParser import BetterConfigParser
+from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 
 
@@ -41,6 +43,7 @@ class DistributionMaker(object):
     """
     def __init__(self, pipelines, label=None):
         self.label = None
+        self._source_code_hash = None
 
         self._pipelines = []
         if isinstance(pipelines, (basestring, BetterConfigParser, OrderedDict,
@@ -97,6 +100,21 @@ class DistributionMaker(object):
         for pipeline in self:
             assert set(pipeline.selections) == selections
         return sorted(selections)
+
+    @property
+    def source_code_hash(self):
+        """Hash for the source code of this object's class.
+
+        Not meant to be perfect, but should suffice for tracking provenance of
+        an object stored to disk that were produced by a Stage.
+        """
+        if self._source_code_hash is None:
+            self._source_code_hash = hash_obj(inspect.getsource(self.__class__))
+        return self._source_code_hash
+
+    @property
+    def state_hash(self):
+        return hash_obj([self.source_code_hash] + [s.state_hash for s in self])
 
     def set_free_params(self, values):
         """Set free parameters' values.
