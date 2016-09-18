@@ -4,9 +4,9 @@ import itertools
 from uncertainties import unumpy as unp
 
 import numpy as np
-from scipy.optimize import curve_fit
+import scipy.interpolate as interpolate
 from scipy.ndimage.filters import gaussian_filter
-from scipy import interpolate
+from scipy.optimize import curve_fit
 
 from pisa import ureg, Q_
 from pisa.core.map import Map, MapSet

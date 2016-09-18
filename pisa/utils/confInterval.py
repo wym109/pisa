@@ -20,7 +20,7 @@
 from __future__ import division
 
 import numpy as np
-import scipy as sp
+import scipy.optimize as optimize
 
 
 class MLConfInterval:
@@ -114,7 +114,7 @@ class MLConfInterval:
         '''
         target_area = self.total_area * conf
 
-        y, r = sp.optimize.brentq(self.area, 1e-5,
+        y, r = optimize.brentq(self.area, 1e-5,
                                   self.max_y, args=(target_area,),
                                   maxiter=maxiter, full_output=True)
         return self.ci_lower_bound, self.ci_upper_bound, self.ci_prob, r

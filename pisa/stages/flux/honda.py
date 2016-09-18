@@ -25,7 +25,7 @@ Most of the functionality will be ported from PISA with any necessary changes/im
 from collections import Mapping
 
 import numpy as np
-from scipy import interpolate
+import scipy.interpolate as interpolate
 
 from pisa import ureg, Q_
 from pisa.core.map import Map, MapSet

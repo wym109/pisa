@@ -24,7 +24,7 @@ from copy import deepcopy
 from string import ascii_lowercase
 
 import numpy as np
-from scipy import interpolate
+import scipy.interpolate as interpolate
 
 from pisa.core.binning import MultiDimBinning
 from pisa.core.stage import Stage

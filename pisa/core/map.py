@@ -23,7 +23,7 @@ from operator import add, getitem, setitem
 import re
 
 import numpy as np
-from scipy import stats
+import scipy.stats as stats
 import uncertainties
 from uncertainties import ufloat
 from uncertainties import unumpy as unp
