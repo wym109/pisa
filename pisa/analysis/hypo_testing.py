@@ -14,6 +14,7 @@ from __future__ import division
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from collections import Mapping, OrderedDict, Sequence
 from copy import copy, deepcopy
+import getpass
 import os
 import random
 import socket
@@ -972,6 +973,7 @@ class HypoTesting(Analysis):
         self.hostname = socket.gethostname()
         chars = string.ascii_lowercase + string.digits
         self.random_suffix = ''.join([random.choice(chars) for i in range(8)])
+        self.user = getpass.getuser()
         self.minimizer_settings_fpath = os.path.join(
             self.logroot, 'minimizer_settings.json'
         )
@@ -1061,6 +1063,7 @@ class HypoTesting(Analysis):
         run_info.append('invocation_datetime = %s' %self.invocation_datetime)
         run_info.append('hostname = %s' %self.hostname)
         run_info.append('random_suffix = %s' %self.random_suffix)
+        run_info.append('user = %s' %self.user)
         
         run_info.append('logdir = %s' %self.logdir)
 
