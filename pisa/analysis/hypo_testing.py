@@ -22,6 +22,8 @@ import string
 import sys
 from traceback import format_exc
 
+import pint
+
 from pisa import ureg, _version, __version__
 from pisa.analysis.analysis import Analysis
 from pisa.core.distribution_maker import DistributionMaker
@@ -161,6 +163,7 @@ class HypoTesting(Analysis):
         assert num_fid_trials >= 1
         assert data_start_ind >= 0
         assert fid_start_ind >= 0
+        assert metric is not None
 
         if isinstance(h0_param_selections, basestring):
             h0_param_selections = h0_param_selections.strip().lower()
@@ -1009,7 +1012,7 @@ class HypoTesting(Analysis):
         summary['data_name'] = self.data_name
         summary['data_is_data'] = self.data_is_data
         summary['data_hash'] = self.data_hash
-        summary['data_param_selections'] = self.data_param_selections
+        summary['data_param_selections'] = ','.join(self.data_param_selections)
         summary['data_params_state_hash'] = self.data_maker.params.state_hash
         summary['data_params'] = [str(p) for p in self.data_maker.params]
         summary['data_pipelines'] = self.summarize_dist_maker(self.data_maker)
@@ -1018,7 +1021,7 @@ class HypoTesting(Analysis):
         self.h0_maker.reset_free()
         summary['h0_name'] = self.h0_name
         summary['h0_hash'] = self.h0_hash
-        summary['h0_param_selections'] = self.h0_param_selections
+        summary['h0_param_selections'] = ','.join(self.h0_param_selections)
         summary['h0_params_state_hash'] = self.h0_maker.params.state_hash
         summary['h0_params'] = [str(p) for p in self.h0_maker.params]
         summary['h0_pipelines'] = self.summarize_dist_maker(self.h0_maker)
@@ -1027,7 +1030,7 @@ class HypoTesting(Analysis):
         self.h1_maker.reset_free()
         summary['h1_name'] = self.h1_name
         summary['h1_hash'] = self.h1_hash
-        summary['h1_param_selections'] = self.h1_param_selections
+        summary['h1_param_selections'] = ','.join(self.h1_param_selections)
         summary['h1_params_state_hash'] = self.h1_maker.params.state_hash
         summary['h1_params'] = [str(p) for p in self.h1_maker.params]
         summary['h1_pipelines'] = self.summarize_dist_maker(self.h1_maker)
@@ -1050,11 +1053,15 @@ class HypoTesting(Analysis):
     def summarize_dist_maker(dist_maker):
         pipeline_info = []
         for pipeline in dist_maker:
-            stage_info = []
+            stage_info = OrderedDict()
             for stage in pipeline:
-                stage_info.append(':'.join([stage.stage_name,
-                                            stage.service_name,
-                                            str(stage.state_hash)]))
+                k = ':'.join([stage.stage_name, stage.service_name,
+                              str(stage.state_hash)])
+                d = OrderedDict()
+                for attr in ['input_binning', 'output_binning']:
+                    if hasattr(stage, attr) and getattr(stage, attr) is not None:
+                        d[attr] = str(getattr(stage, attr))
+                stage_info[k] = d
             pipeline_info.append(stage_info)
         return pipeline_info
 
@@ -1132,12 +1139,10 @@ class HypoTesting(Analysis):
                         v['hess_inv'] = v['hess_inv'].todense()
                     except AttributeError:
                         v['hess_inv'] = v['hess_inv']
+            if isinstance(v, pint.quantity._Quantity):
+                v = str(v)
             info[k] = v
         to_file(info, os.path.join(dirpath, label + '.json'), sort_keys=False)
-
-    @staticmethod
-    def post_process(logdir):
-        pass
 
 
 def parse_args():
@@ -1301,14 +1306,6 @@ def parse_args():
         help='''Fluctated fiducial data index.'''
     )
     parser.add_argument(
-        '--no-post-processing',
-        action='store_true',
-        help='''Do not run post-processing for the trials run. This is useful
-        if the analysis is divided and run in separate processes, whereby only
-        after all processes are run should post-processing be performed
-        (once).'''
-    )
-    parser.add_argument(
         '--blind',
         action='store_true',
         help='''Blinded analysis. Do not show parameter values or store to
@@ -1370,7 +1367,6 @@ if __name__ == '__main__':
     # HypoTesting object via dictionary's `pop()` method.
 
     set_verbosity(init_args_d.pop('v'))
-    post_process = not init_args_d.pop('no_post_processing')
     init_args_d['check_octant'] = not init_args_d.pop('no_octant_check')
 
     init_args_d['data_is_data'] = not init_args_d.pop('data_is_mc')
@@ -1402,8 +1398,3 @@ if __name__ == '__main__':
 
     # Run the analysis
     hypo_testing.run_analysis()
-
-    # TODO: this.
-    # Run postprocessing if called to do so
-    if post_process:
-        hypo_testing.post_process(args.logdir)

@@ -545,10 +545,10 @@ class Map(object):
                           expected_values=expected_values))
 
     def conv_llh(self, expected_values):
-        """Calculate the total convoluted log-likelihood value between this map and the map
-        described by `expected_values`; self is taken to be the "actual values"
-        (or (pseudo)data), and `expected_values` are the expectation values for
-        each bin.
+        """Calculate the total convoluted log-likelihood value between this map
+        and the map described by `expected_values`; self is taken to be the
+        "actual values" (or (pseudo)data), and `expected_values` are the
+        expectation values for each bin.
 
         Parameters
         ----------
@@ -562,7 +562,7 @@ class Map(object):
         if isinstance(expected_values, Map):
             expected_values = expected_values.hist
         return np.sum(conv_llh(actual_values=self.hist,
-                          expected_values=expected_values))
+                               expected_values=expected_values))
 
     def mod_chi2(self, expected_values):
         """Calculate the total modified chi2 value between this map and the map

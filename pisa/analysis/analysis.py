@@ -260,7 +260,7 @@ class Analysis(object):
             fit_info['params'] = ParamSet()
         else:
             fit_info['params'] = deepcopy(hypo_maker.params)
-        fit_info['minimizer_time'] = minimizer_time
+        fit_info['minimizer_time'] = minimizer_time * ureg.sec
         fit_info['metadata'] = metadata
         fit_info['fit_history'] = fit_history
         fit_info['hypo_asimov_dist'] = hypo_asimov_dist
