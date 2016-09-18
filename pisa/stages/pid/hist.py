@@ -9,9 +9,9 @@
 #
 # date:    2016-05-13
 """
-The purpose of this stage is to simulate the event classification of PINGU,
-sorting the reconstructed nue CC, numu CC, nutau CC, and NC events into the
-track and cascade channels.
+The purpose of this stage is to simulate event classification like that used
+for PINGU, sorting the reconstructed nue CC, numu CC, nutau CC, and NC events
+into the track and cascade channels.
 
 This service in particular takes in events from a PISA HDF5 file to transform
 a set of input map into a set of track and cascade maps.
