@@ -1120,7 +1120,7 @@ class HypoTesting(Analysis):
 
     def log_fit(self, fit_info, dirpath, label):
         serialize = ['metric', 'metric_val', 'params', 'minimizer_time',
-                     'metadata']
+                     'metadata', 'metric_details']
         if self.store_minimizer_history:
             serialize.append('fit_history')
 

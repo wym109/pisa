@@ -39,6 +39,9 @@ from pisa.utils.profiler import line_profile, profile
 
 
 HASH_SIGFIGS = 12
+VALID_METRICS = ('chi2', 'llh', 'conv_llh', 'mod_chi2')
+METRICS_TO_MAXIMIZE = ['llh', 'conv_llh']
+
 
 # TODO: CUDA and numba implementations of rebin if these libs are available
 
@@ -1395,7 +1398,7 @@ class MapSet(object):
 
         # If None returned by all, return a single None
         if all([(r is None) for r in returned_vals]):
-            return
+            return None
 
         # Otherwise put into an ordered dict with name: val pairs
         return self.collate_with_names(returned_vals)
@@ -1522,14 +1525,12 @@ class MapSet(object):
         return MapSet([m.downsample(*args, **kwargs) for m in self.maps])
 
     def metric_per_map(self, expected_values, metric):
-        assert isinstance(metric, basestring)
-        metric = metric.lower()
-        if metric in ['chi2', 'llh', 'conv_llh', 'mod_chi2']:
+        metric = metric.lower() if isinstance(metric, basestring) else metric
+        if metric in VALID_METRICS:
             return self.apply_to_maps(metric, expected_values)
         else:
-            raise ValueError('`metric` "%s" not recognized; use either'
-                             ' "chi2", "conv_llh", "mod_chi2", or "llh".'
-                             %metric)
+            raise ValueError('`metric` "%s" not recognized; use one of %s.'
+                             %(metric, VALID_METRICS))
 
     def metric_total(self, expected_values, metric):
         return np.sum(self.metric_per_map(expected_values, metric).values())
