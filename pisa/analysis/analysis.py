@@ -59,7 +59,7 @@ class Analysis(object):
     def __init__(self):
         pass
 
-    def fit_hypo(self, data, hypo_maker, param_selections, metric,
+    def fit_hypo(self, data_dist, hypo_maker, hypo_param_selections, metric,
                  minimizer_settings, check_octant=True, other_metrics=None,
                  blind=False, pprint=True):
         """Fitter "outer" loop: If `check_octant` is True, run
@@ -68,14 +68,14 @@ class Analysis(object):
         method once.
 
         Note that prior to running the fit, the `hypo_maker` has
-        `param_selections` applied and its free parameters are reset to their
-        nominal values.
+        `hypo_param_selections` applied and its free parameters are reset to
+        their nominal values.
 
         Parameters
         ----------
-        data : MapSet
-            Data events distribution(s). These are what the hypothesis is
-            tasked to best describe during the optimization process.
+        data_dist : MapSet
+            Data distribution(s). These are what the hypothesis is tasked to
+            best describe during the optimization process.
 
         hypo_maker : DistributionMaker or instantiable thereto
             Generates the expectation distribution under a particular
@@ -83,7 +83,7 @@ class Analysis(object):
             free parameters which can be modified by the minimizer to optimize
             the `metric`.
 
-        param_selections : None, string, or sequence of strings
+        hypo_param_selections : None, string, or sequence of strings
             A pipeline configuration can have param selectors that allow
             switching a parameter among two or more values by specifying the
             corresponding param selector(s) here. This also allows for a single
@@ -100,7 +100,7 @@ class Analysis(object):
         check_octant : bool
             If theta23 is a parameter to be used in the optimization (i.e.,
             free), the fit will be re-run in the second (first) octant if
-            theta23 is initialized in the first (second) octant. 
+            theta23 is initialized in the first (second) octant.
 
         other_metrics : None, string, or list of strings
             After finding the best fit, these other metrics will be evaluated
@@ -126,7 +126,7 @@ class Analysis(object):
 
         """
         # Select the version of the parameters used for this hypothesis
-        hypo_maker.select_params(param_selections)
+        hypo_maker.select_params(hypo_param_selections)
         # Reset free parameters to nominal values
         hypo_maker.reset_free()
 
@@ -134,7 +134,7 @@ class Analysis(object):
 
         best_fit_info = self.fit_hypo_inner(
             hypo_maker=hypo_maker,
-            data=data,
+            data_dist=data_dist,
             metric=metric,
             minimizer_settings=minimizer_settings,
             other_metrics=other_metrics,
@@ -156,7 +156,7 @@ class Analysis(object):
             # Re-run minimizer starting at new point
             new_fit_info = self.fit_hypo_inner(
                 hypo_maker=hypo_maker,
-                data=data,
+                data_dist=data_dist,
                 metric=metric,
                 minimizer_settings=minimizer_settings,
                 other_metrics=other_metrics,
@@ -184,10 +184,10 @@ class Analysis(object):
 
         return best_fit_info, alternate_fits
 
-    def fit_hypo_inner(self, data, hypo_maker, metric, minimizer_settings,
+    def fit_hypo_inner(self, data_dist, hypo_maker, metric, minimizer_settings,
                        other_metrics=None, pprint=True, blind=False):
         """Fitter "inner" loop: Run an arbitrary scipy minimizer to modify
-        hypo dist maker's free params until the data is most likely to have
+        hypo dist maker's free params until the data_dist is most likely to have
         come from this hypothesis.
 
         Note that an "outer" loop can handle discrete scanning over e.g. the
@@ -198,8 +198,8 @@ class Analysis(object):
 
         Parameters
         ----------
-        data : MapSet
-            Data events distribution(s)
+        data_dist : MapSet
+            Data distribution(s)
 
         hypo_maker : DistributionMaker or convertible thereto
 
@@ -218,7 +218,8 @@ class Analysis(object):
         Returns
         -------
         fit_info : OrderedDict with details of the fit with keys 'metric',
-            'metric_val', 'params', 'hypo_asimov_dist', and 'metadata'
+            'metric_val', 'params', 'hypo_asimov_dist', and
+            'minimizer_metadata'
 
         """
         sign = -1 if metric in METRICS_TO_MAXIMIZE else +1
@@ -247,7 +248,7 @@ class Analysis(object):
         optimize_result = optimize.minimize(
             fun=self._minimizer_callable,
             x0=x0,
-            args=(hypo_maker, data, metric, counter, fit_history, pprint,
+            args=(hypo_maker, data_dist, metric, counter, fit_history, pprint,
                   blind),
             bounds=bounds,
             method=minimizer_settings['method']['value'],
@@ -279,23 +280,6 @@ class Analysis(object):
         # Get the best-fit metric value
         metric_val = sign * optimize_result.pop('fun')
 
-        # Get the best-fit metric value for each of the output distributions
-        # and for each of the `other_metrics` specified.
-        if other_metrics is None:
-            other_metrics = []
-        elif isinstance(other_metrics, basestring):
-            other_metrics = [other_metrics]
-        all_metrics = sorted(set([metric] + other_metrics))
-        detailed_metric_info = OrderedDict()
-        for metric in all_metrics:
-            name_vals_d = data.metric_per_map(
-                expected_values=hypo_asimov_dist, metric=metric
-            )
-            name_vals_d['total'] = data.metric_total(
-                expected_values=hypo_asimov_dist, metric=metric
-            )
-            detailed_metric_info[metric] = name_vals_d
-
         # Record minimizer metadata (all info besides 'x' and 'fun'; also do
         # not record some attributes if performing blinded analysis)
         metadata = OrderedDict()
@@ -312,15 +296,84 @@ class Analysis(object):
             fit_info['params'] = ParamSet()
         else:
             fit_info['params'] = deepcopy(hypo_maker.params)
-        fit_info['detailed_metric_info'] = detailed_metric_info
+        fit_info['detailed_metric_info'] = self.get_detailed_metric_info(
+            data_dist=data_dist, hypo_asimov_dist=hypo_asimov_dist,
+            metric=metric, other_metrics=other_metrics
+        )
         fit_info['minimizer_time'] = minimizer_time * ureg.sec
-        fit_info['metadata'] = metadata
+        fit_info['minimizer_metadata'] = metadata
         fit_info['fit_history'] = fit_history
         fit_info['hypo_asimov_dist'] = hypo_asimov_dist
 
         return fit_info
 
-    def _minimizer_callable(self, scaled_param_vals, hypo_maker, data,
+    def nofit_hypo(self, data_dist, hypo_maker, hypo_param_selections,
+                   hypo_asimov_dist, metric, other_metrics=None, blind=False):
+        """Fitting a hypo to Asimov distribution generated by its own
+        distribution maker is unnecessary. In such a case, use this method
+        (instead of `fit_hypo`) to still retrieve meaningful information for
+        e.g. the match metrics.
+
+        Parameters
+        ----------
+        data_dist : MapSet
+        hypo_maker : DistributionMaker
+        hypo_param_selections : None, string, or sequence of strings
+        hypo_asimov_dist : MapSet
+        metric : string
+        other_metrics : None, string, or sequence of strings
+        blind : bool
+
+        """
+        fit_info = OrderedDict()
+        fit_info['metric'] = self.metric
+        fit_info['metric_val'] = data_dist.metric_total(
+            expected_values=hypo_asimov_dist,
+            metric=self.metric
+        )
+
+        # NOTE: Select params but *do not* reset to nominal values to record
+        # the current (presumably already optimal) param values
+        hypo_maker.select_params(hypo_param_selections)
+
+        if blind:
+            # Okay, if blind analysis is being performed, reset the values so
+            # the user can't find them in the object
+            hypo_maker.reset_free()
+            fit_info['params'] = ParamSet()
+        else:
+            fit_info['params'] = deepcopy(hypo_maker.params)
+        fit_info['detailed_metric_info'] = self.get_detailed_metric_info(
+            data_dist=data_dist, hypo_asimov_dist=hypo_asimov_dist,
+            metric=metric, other_metrics=other_metrics
+        )
+        fit_info['minimizer_time'] = 0 * ureg.sec
+        fit_info['minimizer_metadata'] = OrderedDict()
+        fit_info['hypo_asimov_dist'] = hypo_asimov_dist
+        return fit_info
+
+    @staticmethod
+    def get_detailed_metric_info(data_dist, hypo_asimov_dist, metric,
+                                 other_metrics=None):
+        # Get the best-fit metric value for each of the output distributions
+        # and for each of the `other_metrics` specified.
+        if other_metrics is None:
+            other_metrics = []
+        elif isinstance(other_metrics, basestring):
+            other_metrics = [other_metrics]
+        all_metrics = sorted(set([metric] + other_metrics))
+        detailed_metric_info = OrderedDict()
+        for m in all_metrics:
+            name_vals_d = data_dist.metric_per_map(
+                expected_values=hypo_asimov_dist, metric=m
+            )
+            name_vals_d['total'] = data_dist.metric_total(
+                expected_values=hypo_asimov_dist, metric=m
+            )
+            detailed_metric_info[m] = name_vals_d
+        return detailed_metric_info
+
+    def _minimizer_callable(self, scaled_param_vals, hypo_maker, data_dist,
                             metric, counter, fit_history, pprint, blind):
         """Simple callback for use by scipy.optimize minimizers.
 
@@ -343,7 +396,7 @@ class Analysis(object):
             distribution) based on its param values. Free params in the
             `hypo_maker` are modified by the minimizer to achieve a "best" fit.
 
-        data : MapSet
+        data_dist : MapSet
             Data distribution to be fit. Can be an actual-, Asimov-, or
             pseudo-data distribution (where the latter two are derived from
             simulation and so aren't technically "data").
@@ -383,7 +436,7 @@ class Analysis(object):
         # Assess the fit: whether the data came from the hypo_asimov_dist
         try:
             metric_val = (
-                data.metric_total(expected_values=hypo_asimov_dist,
+                data_dist.metric_total(expected_values=hypo_asimov_dist,
                                   metric=metric)
                 + hypo_maker.params.priors_penalty(metric=metric)
             )
@@ -428,7 +481,7 @@ class Analysis(object):
     #   params
     # * set (some free or fixed) params, then check metric
     # where the setting of the params is done for some number of values.
-    def scan(self, data, hypo_maker, metric, param_names=None, steps=None,
+    def scan(self, data_dist, hypo_maker, metric, param_names=None, steps=None,
              values=None, outer=False):
         """Set hypo maker parameters named by `param_names` according to
         either values specified by `values` or number of steps specified by
@@ -507,7 +560,7 @@ class Analysis(object):
             hypo_maker.update_params(fp)
             hypo_asimov_dist = hypo_maker.get_outputs()
             metric_vals.append(
-                data.metric_total(
+                data_dist.metric_total(
                     expected_values=hypo_asimov_dist, metric=metric
                 )
             )

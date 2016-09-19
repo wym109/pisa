@@ -65,7 +65,7 @@ class HypoTesting(Analysis):
 
     data_name : string
 
-    data : None, MapSet or instantiable thereto
+    data_dist : None, MapSet or instantiable thereto
 
     h0_name : string
 
@@ -156,7 +156,7 @@ class HypoTesting(Analysis):
                  h1_name=None, h1_maker=None,
                  h1_param_selections=None, h1_fid_asimov_dist=None,
                  data_name=None, data_maker=None,
-                 data_param_selections=None, data=None,
+                 data_param_selections=None, data_dist=None,
                  num_data_trials=1, num_fid_trials=1,
                  data_start_ind=0, fid_start_ind=0,
                  check_octant=True,
@@ -166,7 +166,7 @@ class HypoTesting(Analysis):
         assert num_fid_trials >= 1
         assert data_start_ind >= 0
         assert fid_start_ind >= 0
-        assert metric is not None
+        assert metric in VALID_METRICS
 
         if isinstance(h0_param_selections, basestring):
             h0_param_selections = h0_param_selections.strip().lower()
@@ -198,15 +198,15 @@ class HypoTesting(Analysis):
             data_param_selections = None
 
         # Cannot specify either of `data_maker` or `data_param_selections` if
-        # `data` is supplied.
-        if data is not None:
+        # `data_dist` is supplied.
+        if data_dist is not None:
             assert data_maker is None
             assert data_param_selections is None
             assert num_data_trials == 1
-            if isinstance(data, basestring):
-                data = from_file(data)
-            if not isinstance(data, MapSet):
-                data = MapSet(data)
+            if isinstance(data_dist, basestring):
+                data_dist = from_file(data_dist)
+            if not isinstance(data_dist, MapSet):
+                data_dist = MapSet(data_dist)
 
         # Ensure num_{fid_}data_trials is one if fluctuate_{fid_}data is False
         if not fluctuate_data and num_data_trials != 1:
@@ -258,9 +258,11 @@ class HypoTesting(Analysis):
             )
 
         # If analyzing actual data, fluctuations should not be applied to the
-        # data (fluctuating fiducial-fits Asimov dist is still fine, though).
+        # data_dist (fluctuating fiducial-fits Asimov dist is still fine,
+        # though).
         if data_is_data and fluctuate_data:
-            raise ValueError('Adding fluctuations to actual data is invalid.')
+            raise ValueError('Adding fluctuations to actual data distribution'
+                             ' is invalid.')
 
         # Instantiate distribution makers only where necessary (otherwise copy)
         if not isinstance(h0_maker, DistributionMaker):
@@ -274,7 +276,7 @@ class HypoTesting(Analysis):
 
         # Cannot know if data came from same dist maker if we're just handed
         # the data
-        if data is not None:
+        if data_dist is not None:
             self.data_maker_is_h0_maker = False
             self.data_maker_is_h1_maker = False
             if self.data_name is None:
@@ -341,7 +343,7 @@ class HypoTesting(Analysis):
         # Storage for most recent "data" (either un-fluctuated--if Asimov
         # analysis being run or if actual data is being used--or fluctuated--if
         # pseudodata is being generated) data
-        self.data_dist = data
+        self.data_dist = data_dist
         self.h0_fid_dist = None
         self.h1_fid_dist = None
 
@@ -443,20 +445,6 @@ class HypoTesting(Analysis):
 
         return self.data_dist
 
-    def get_nofit_fit_info(self, data, hypo_maker, hypo_param_selections,
-                           hypo_asimov_dist):
-        fit_info = OrderedDict()
-        fit_info['metric'] = self.metric
-        fit_info['metric_val'] = data.metric_total(
-            expected_values=hypo_asimov_dist,
-            metric=self.metric
-        )
-        hypo_maker.select_params(hypo_param_selections)
-        fit_info['params'] = deepcopy(hypo_maker.params)
-        fit_info['hypo_asimov_dist'] = hypo_asimov_dist
-        fit_info['metadata'] = OrderedDict()
-        return fit_info
-
     # TODO: use hashes to ensure fits aren't repeated that don't have to be?
     def fit_hypos_to_data(self):
         """Fit both hypotheses to "data" to produce fiducial Asimov
@@ -486,11 +474,13 @@ class HypoTesting(Analysis):
             self.data_maker.select_params(self.data_param_selections)
             self.data_maker.reset_free()
 
-            self.h0_fit_to_data = self.get_nofit_fit_info(
-                data=self.data_dist,
+            self.h0_fit_to_data = self.nofit_hypo(
+                data_dist=self.data_dist,
                 hypo_maker=self.data_maker,
                 hypo_param_selections=self.data_param_selections,
-                hypo_asimov_dist=self.toy_data_asimov_dist
+                hypo_asimov_dist=self.toy_data_asimov_dist,
+                metric=self.metric, other_metrics=self.other_metrics,
+                blind=self.blind
             )
 
         # Otherwise, we do have to do the fit.
@@ -499,9 +489,9 @@ class HypoTesting(Analysis):
             logging.info('Fitting hypo %s to %s distributions.'
                          %(self.h0_name, self.data_disp))
             self.h0_fit_to_data, alternate_fits = self.fit_hypo(
-                data=self.data_dist,
+                data_dist=self.data_dist,
                 hypo_maker=self.h0_maker,
-                param_selections=self.h0_param_selections,
+                hypo_param_selections=self.h0_param_selections,
                 metric=self.metric,
                 other_metrics=self.other_metrics,
                 minimizer_settings=self.minimizer_settings,
@@ -524,11 +514,13 @@ class HypoTesting(Analysis):
             self.data_maker.select_params(self.data_param_selections)
             self.data_maker.reset_free()
 
-            self.h1_fit_to_data = self.get_nofit_fit_info(
-                data=self.data_dist,
+            self.h1_fit_to_data = self.nofit_hypo(
+                data_dist=self.data_dist,
                 hypo_maker=self.data_maker,
                 hypo_param_selections=self.data_param_selections,
-                hypo_asimov_dist=self.toy_data_asimov_dist
+                hypo_asimov_dist=self.toy_data_asimov_dist,
+                metric=self.metric, other_metrics=self.other_metrics,
+                blind=self.blind
             )
         elif (self.h1_maker_is_h0_maker
               and self.h1_param_selections == self.h0_param_selections):
@@ -537,9 +529,9 @@ class HypoTesting(Analysis):
             logging.info('Fitting hypo %s to %s distributions.'
                          %(self.h1_name, self.data_disp))
             self.h1_fit_to_data, alternate_fits = self.fit_hypo(
-                data=self.data_dist,
+                data_dist=self.data_dist,
                 hypo_maker=self.h1_maker,
-                param_selections=self.h1_param_selections,
+                hypo_param_selections=self.h1_param_selections,
                 metric=self.metric,
                 other_metrics=self.other_metrics,
                 minimizer_settings=self.minimizer_settings,
@@ -611,19 +603,21 @@ class HypoTesting(Analysis):
             logging.info('Hypo %s %s is not fluctuated; fitting this hypo to'
                          ' its own %s distributions is unnecessary.'
                          %(self.h0_name, self.fid_disp, self.fid_disp))
-            self.h0_fit_to_h0_fid = self.get_nofit_fit_info(
-                data=self.h0_fid_dist,
+            self.h0_fit_to_h0_fid = self.nofit_hypo(
+                data_dist=self.h0_fid_dist,
                 hypo_maker=self.h0_maker,
                 hypo_param_selections=self.h0_param_selections,
-                hypo_asimov_dist=self.h0_fid_asimov_dist
+                hypo_asimov_dist=self.h0_fid_asimov_dist,
+                metric=self.metric, other_metrics=self.other_metrics,
+                blind=self.blind
             )
         else:
             logging.info('Fitting hypo %s to its own %s distributions.'
                          %(self.h0_name, self.fid_disp))
             self.h0_fit_to_h0_fid, alternate_fits = self.fit_hypo(
-                data=self.h0_fid_dist,
+                data_dist=self.h0_fid_dist,
                 hypo_maker=self.h0_maker,
-                param_selections=self.h0_param_selections,
+                hypo_param_selections=self.h0_param_selections,
                 metric=self.metric,
                 other_metrics=self.other_metrics,
                 minimizer_settings=self.minimizer_settings,
@@ -642,19 +636,21 @@ class HypoTesting(Analysis):
             logging.info('Hypo %s %s is not fluctuated; fitting this hypo to'
                          ' its own %s distributions is unnecessary.'
                          %(self.h1_name, self.fid_disp, self.fid_disp))
-            self.h1_fit_to_h1_fid = self.get_nofit_fit_info(
-                data=self.h1_fid_dist,
+            self.h1_fit_to_h1_fid = self.nofit_hypo(
+                data_dist=self.h1_fid_dist,
                 hypo_maker=self.h1_maker,
                 hypo_param_selections=self.h1_param_selections,
-                hypo_asimov_dist=self.h1_fid_asimov_dist
+                hypo_asimov_dist=self.h1_fid_asimov_dist,
+                metric=self.metric, other_metrics=self.other_metrics,
+                blind=self.blind
             )
         else:
             logging.info('Fitting hypo %s to its own %s distributions.'
                          %(self.h1_name, self.fid_disp))
             self.h1_fit_to_h1_fid, alternate_fits = self.fit_hypo(
-                data=self.h1_fid_dist,
+                data_dist=self.h1_fid_dist,
                 hypo_maker=self.h1_maker,
-                param_selections=self.h1_param_selections,
+                hypo_param_selections=self.h1_param_selections,
                 metric=self.metric,
                 other_metrics=self.other_metrics,
                 minimizer_settings=self.minimizer_settings,
@@ -688,9 +684,9 @@ class HypoTesting(Analysis):
             self.h1_maker.select_params(self.h1_param_selections)
             self.h1_maker.reset_free()
             self.h1_fit_to_h0_fid, alternate_fits = self.fit_hypo(
-                data=self.h0_fid_dist,
+                data_dist=self.h0_fid_dist,
                 hypo_maker=self.h1_maker,
-                param_selections=self.h1_param_selections,
+                hypo_param_selections=self.h1_param_selections,
                 metric=self.metric,
                 other_metrics=self.other_metrics,
                 minimizer_settings=self.minimizer_settings,
@@ -718,9 +714,9 @@ class HypoTesting(Analysis):
             self.h0_maker.select_params(self.h0_param_selections)
             self.h0_maker.reset_free()
             self.h0_fit_to_h1_fid, alternate_fits = self.fit_hypo(
-                data=self.h1_fid_dist,
+                data_dist=self.h1_fid_dist,
                 hypo_maker=self.h0_maker,
-                param_selections=self.h0_param_selections,
+                hypo_param_selections=self.h0_param_selections,
                 metric=self.metric,
                 other_metrics=self.other_metrics,
                 minimizer_settings=self.minimizer_settings,
@@ -1081,7 +1077,7 @@ class HypoTesting(Analysis):
         run_info.append('hostname = %s' %self.hostname)
         run_info.append('random_suffix = %s' %self.random_suffix)
         run_info.append('user = %s' %self.user)
-        
+
         run_info.append('logdir = %s' %self.logdir)
 
         run_info.append('fluctuate_data = %s' %self.fluctuate_data)
@@ -1131,7 +1127,7 @@ class HypoTesting(Analysis):
 
     def log_fit(self, fit_info, dirpath, label):
         serialize = ['metric', 'metric_val', 'params', 'minimizer_time',
-                     'detailed_metric_info', 'metadata']
+                     'detailed_metric_info', 'minimizer_metadata']
         if self.store_minimizer_history:
             serialize.append('fit_history')
 
@@ -1144,7 +1140,7 @@ class HypoTesting(Analysis):
                 for param in v.free:
                     d[param.name] = str(param.value)
                 v = d
-            if k == 'metadata':
+            if k == 'minimizer_metadata':
                 if 'hess_inv' in v:
                     try:
                         v['hess_inv'] = v['hess_inv'].todense()
