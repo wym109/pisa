@@ -19,6 +19,7 @@ import numpy as np
 import scipy.optimize as optimize
 
 from pisa import ureg, Q_
+from pisa.core.map import METRICS_TO_MAXIMIZE, VALID_METRICS
 from pisa.core.param import ParamSet
 from pisa.utils.log import logging
 
@@ -55,37 +56,66 @@ class Analysis(object):
         data distribution is provided. See [minimizer_settings] for
 
     """
-    METRICS_TO_MAXIMIZE = ['llh', 'conv_llh']
     def __init__(self):
         pass
 
     def fit_hypo(self, data, hypo_maker, param_selections, metric,
-                 minimizer_settings, check_octant=True, pprint=True,
-                 blind=False):
+                 minimizer_settings, check_octant=True, other_metrics=None,
+                 blind=False, pprint=True):
         """Fitter "outer" loop: If `check_octant` is True, run
         `fit_hypo_inner` starting in each octant of theta23 (assuming that
         is a param in the `hypo_maker`). Otherwise, just run the inner
         method once.
 
+        Note that prior to running the fit, the `hypo_maker` has
+        `param_selections` applied and its free parameters are reset to their
+        nominal values.
+
         Parameters
         ----------
         data : MapSet
-            Data events distribution(s)
+            Data events distribution(s). These are what the hypothesis is
+            tasked to best describe during the optimization process.
 
-        hypo_maker : DistributionMaker or convertible thereto
+        hypo_maker : DistributionMaker or instantiable thereto
+            Generates the expectation distribution under a particular
+            hypothesis. This typically has (but is not required to have) some
+            free parameters which can be modified by the minimizer to optimize
+            the `metric`.
 
         param_selections : None, string, or sequence of strings
+            A pipeline configuration can have param selectors that allow
+            switching a parameter among two or more values by specifying the
+            corresponding param selector(s) here. This also allows for a single
+            instance of a DistributionMaker to generate distributions from
+            different hypotheses.
 
         metric : string
+            The metric to use for optimization. Valid metrics are found in
+            `VALID_METRICS`. Note that the optimized hypothesis also has this
+            metric evaluated and reported for each of its output maps.
 
         minimizer_settings : string or dict
 
         check_octant : bool
+            If theta23 is a parameter to be used in the optimization (i.e.,
+            free), the fit will be re-run in the second (first) octant if
+            theta23 is initialized in the first (second) octant. 
+
+        other_metrics : None, string, or list of strings
+            After finding the best fit, these other metrics will be evaluated
+            for each output that contributes to the overall fit. All strings
+            must be valid metrics, as per `VALID_METRICS`, or the
+            special string 'all' can be specified to evaluate all
+            VALID_METRICS..
 
         pprint : bool
             Whether to show live-update of minimizer progress.
 
         blind : bool
+            Whether to carry out a blind analysis. This hides actual parameter
+            values from display and disallows these (as well as Jacobian,
+            Hessian, etc.) from ending up in logfiles.
 
 
         Returns
@@ -95,8 +125,9 @@ class Analysis(object):
         alternate_fits : list of `fit_info` from other fits run
 
         """
-        # Reset free parameters to nominal values
+        # Select the version of the parameters used for this hypothesis
         hypo_maker.select_params(param_selections)
+        # Reset free parameters to nominal values
         hypo_maker.reset_free()
 
         alternate_fits = []
@@ -106,6 +137,7 @@ class Analysis(object):
             data=data,
             metric=metric,
             minimizer_settings=minimizer_settings,
+            other_metrics=other_metrics,
             pprint=pprint,
             blind=blind
         )
@@ -127,12 +159,13 @@ class Analysis(object):
                 data=data,
                 metric=metric,
                 minimizer_settings=minimizer_settings,
+                other_metrics=other_metrics,
                 pprint=pprint,
                 blind=blind
             )
 
             # Take the one with the best fit
-            if metric in self.METRICS_TO_MAXIMIZE:
+            if metric in METRICS_TO_MAXIMIZE:
                 it_got_better = new_fit_info['metric_val'] > \
                         best_fit_info['metric_val']
             else:
@@ -152,7 +185,7 @@ class Analysis(object):
         return best_fit_info, alternate_fits
 
     def fit_hypo_inner(self, data, hypo_maker, metric, minimizer_settings,
-                       pprint=True, blind=False):
+                       other_metrics=None, pprint=True, blind=False):
         """Fitter "inner" loop: Run an arbitrary scipy minimizer to modify
         hypo dist maker's free params until the data is most likely to have
         come from this hypothesis.
@@ -174,6 +207,8 @@ class Analysis(object):
 
         minimizer_settings : string
 
+        other_metrics : None, string, or sequence of strings
+
         pprint : bool
             Whether to show live-update of minimizer progress.
 
@@ -186,7 +221,7 @@ class Analysis(object):
             'metric_val', 'params', 'hypo_asimov_dist', and 'metadata'
 
         """
-        sign = -1 if metric in self.METRICS_TO_MAXIMIZE else +1
+        sign = -1 if metric in METRICS_TO_MAXIMIZE else +1
 
         # Get starting free parameter values
         x0 = hypo_maker.params.free._rescaled_values
@@ -215,8 +250,8 @@ class Analysis(object):
             args=(hypo_maker, data, metric, counter, fit_history, pprint,
                   blind),
             bounds=bounds,
-            method = minimizer_settings['method']['value'],
-            options = minimizer_settings['options']['value']
+            method=minimizer_settings['method']['value'],
+            options=minimizer_settings['options']['value']
         )
         end_t = time.time()
         if pprint:
@@ -244,6 +279,23 @@ class Analysis(object):
         # Get the best-fit metric value
         metric_val = sign * optimize_result.pop('fun')
 
+        # Get the best-fit metric value for each of the output distributions
+        # and for each of the `other_metrics` specified.
+        if other_metrics is None:
+            other_metrics = []
+        elif isinstance(other_metrics, basestring):
+            other_metrics = [other_metrics]
+        all_metrics = sorted(set([metric] + other_metrics))
+        detailed_metric_info = OrderedDict()
+        for metric in all_metrics:
+            name_vals_d = data.metric_per_map(
+                expected_values=hypo_asimov_dist, metric=metric
+            )
+            name_vals_d['total'] = data.metric_total(
+                expected_values=hypo_asimov_dist, metric=metric
+            )
+            detailed_metric_info[metric] = name_vals_d
+
         # Record minimizer metadata (all info besides 'x' and 'fun'; also do
         # not record some attributes if performing blinded analysis)
         metadata = OrderedDict()
@@ -260,6 +312,7 @@ class Analysis(object):
             fit_info['params'] = ParamSet()
         else:
             fit_info['params'] = deepcopy(hypo_maker.params)
+        fit_info['detailed_metric_info'] = detailed_metric_info
         fit_info['minimizer_time'] = minimizer_time * ureg.sec
         fit_info['metadata'] = metadata
         fit_info['fit_history'] = fit_history
@@ -311,7 +364,7 @@ class Analysis(object):
         """
         # Want to *maximize* e.g. log-likelihood but we're using a minimizer,
         # so flip sign of metric in those cases.
-        sign = -1 if metric in self.METRICS_TO_MAXIMIZE else +1
+        sign = -1 if metric in METRICS_TO_MAXIMIZE else +1
 
         # Set param values from the scaled versions the minimizer works with
         hypo_maker._set_rescaled_free_params(scaled_param_vals)

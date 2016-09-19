@@ -83,9 +83,9 @@ from __future__ import division
 import os
 
 import numpy as np
-from scipy import fftpack
-from scipy import optimize
-from scipy import interpolate
+import scipy.fftpack as fftpack
+import scipy.optimize as optimize
+import scipy.interpolate as interpolate
 
 from pisa.utils.log import logging
 
