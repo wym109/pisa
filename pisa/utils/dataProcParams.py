@@ -416,7 +416,7 @@ class DataProcParams(dict):
         Parameters
         ----------
         data : single-level dict or FlavIntData object
-        cuts : string, dict, or sequence thereof
+        cuts : string or dict, or sequence thereof
         boolean_op : string
         return_fields : string or sequence thereof
         """

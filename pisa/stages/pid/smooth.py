@@ -1,18 +1,20 @@
-# authors: J.L. Lanfranchi
-#          jll1062+pisa@phys.psu.edu
-#          Shivesh Mandalia
+# authors: Shivesh Mandalia
 #          s.p.mandalia@qmul.ac.uk
+#          J.L. Lanfranchi
+#          jll1062+pisa@phys.psu.edu
 #
 # date:    2016-09-18
 """
-The purpose of this stage is to simulate the event classification of PINGU,
-sorting the reconstructed nue CC, numu CC, nutau CC, and NC events into the
-track and cascade channels.
+The purpose of this stage is to simulate the classification of events seen by a detector into different PID "channels."
+
+For example, in PINGU, this separates reconstructed nue CC (+ nuebar CC),
+numu CC (+ numubar CC), nutau CC (+ nutaubar CC), and all NC events into
+separate 'trck' and 'cscd' distributions.
 
 This service in particular takes in events from a PISA HDF5 file to transform
-a set of input map into a set of track and cascade maps.
+a set of input maps into a set of maps, one each per PID signature.
 
-For each particle "signature", a histogram in the input binning dimensions is
+For each particle "signature," a histogram in the input binning dimensions is
 created, which gives the PID probabilities in each bin. The input maps are
 transformed according to these probabilities to provide an output containing a
 map for track-like events ('trck') and shower-like events ('cscd'), which is
@@ -34,18 +36,22 @@ from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
 from pisa.utils.PIDSpec import PIDSpec
 from pisa.utils.profiler import profile
+from pisa.utils.resources import find_resource
 
 
 class smooth(Stage):
     """Parameterised and smoothed PID from Monte Carlo events.
 
     Transforms an input map of the specified particle "signature" (aka ID) into
-    a map of the track-like events ('trck') and a map of the shower-like events
-    ('cscd').
+    a map for each signature specified in `pid_specs`.
+
+    Example signatures used in PINGU are track-like events ('trck') and
+    shower-like events ('cscd').
+
 
     Parameters
     ----------
-    params : ParamSet or sequence with which to instantiate a ParamSet
+    params : ParamSet or instantiable thereto
 
         Parameters which set everything besides the binning.
 
@@ -57,27 +63,32 @@ class smooth(Stage):
             * pid_events : Events or filepath
                 Events object or file path to HDF5 file containing events
 
-            * pid_ver : string
-                Version of PID to use (as defined for this
-                detector/geometry/processing)
-
-            * pid_remove_true_downgoing : bool
-                Remove MC-true-downgoing events
-
-            TODO(shivesh): Either `pid_spec` or `pid_spec_source` can be used
-            to define the PID specifications. Implement this behaviour and for
-            the case when `pid_spec` is used, do a check to confirm that the
-            pid_events object has the matching PID spec metadata
-            * pid_spec : PIDSpec
-                PIDSpec object which specifies the PID specifications
-
-            * pid_spec_source : filepath
-                Resource for loading PID specifications
+            * pid_specs : Mapping, preferably OrderedDict
+                Mapping (OrderedDict) has following format:
+                    {'<pid sig0 name>': '<criteria str>',
+                     '<pid sig1 name>': '<criteria str>', ...}
+                The order of signatures is important only for smoothing, where
+                the first N-1 are smoothed but the final signature's value in a
+                given bin is the difference between 1 and the sum of all other
+                signatures' values in that bin.
 
             * pid_weights_name: str or NoneType
                 Specify the name of the node whose data will be used as weights
                 to create the reco and pid variables histogram. If NoneType is
                 given then events will not be weighted.
+
+            * pid_smooth_n_ebins : int >= 0
+                Number of bins to use for subdividing the energy range for
+                purposes of smoothing. The technique used for PINGU relied on
+                300 bins for MC spanning [1, 80] GeV range. Set to 0 to disable
+                smoothing in the `reco_energy` dimension.
+
+            * pid_smooth_n_czbins : int >= 0
+                Number of bins to use for subdividing the coszen range for
+                purposes of smoothing. This was disabled for PINGU (except to
+                verify that PID did not vary much as a function of
+                `reco_coszen`). Set to 0 to disable smoothing in the
+                `reco_coszen` dimension
 
     particles
 
@@ -93,6 +104,14 @@ class smooth(Stage):
         of given binning(s) must match to a reco variable in `pid_events`.
 
     output_binning : MultiDimBinning
+
+    reco_input_binning : MultiDimBinning
+        What binning is used at the input of the reconstructions stage? (I.e.,
+        what are the limits of the MC-true variables that enter into reco?)
+        This is necessary such that the same "cuts" (binning true variables
+        effectively cuts out any events that do not fall within the binning)
+        are applied to true variables so the same events are used to compute
+        the PID transforms.
 
     error_method : None, bool, or string
 
@@ -119,6 +138,9 @@ class smooth(Stage):
 
     Notes
     ----------
+    If smoothing is enabled for multiple dimensions, smoothing is combined as
+    an outer product.
+
     This service takes in events from a **joined** PISA HDF5 file. The current
     implementation of this service requires that the nodes on these file match
     a certain flavour/interaction combination or "particle signature", which is
@@ -163,9 +185,12 @@ class smooth(Stage):
     """
     # TODO: add sum_grouped_flavints instantiation arg
     def __init__(self, params, particles, input_names, transform_groups,
-                 input_binning, output_binning, memcache_deepcopy,
-                 transforms_cache_depth, outputs_cache_depth, disk_cache=None,
-                 error_method=None, debug_mode=None):
+                 input_binning, output_binning, reco_input_binning,
+                 smoothing_method, memcache_deepcopy, transforms_cache_depth,
+                 outputs_cache_depth,
+                 #smooth_emin=1*ureg.GeV, smooth_emax=80*ureg.GeV,
+                 #smooth_n_ebins=300, smooth_n_czbins=200,
+                 disk_cache=None, error_method=None, debug_mode=None):
         self.events_hash = None
         """Hash of events file or Events object used"""
 
@@ -179,8 +204,7 @@ class smooth(Stage):
         # All of the following params (and no more) must be passed via
         # the `params` argument.
         expected_params = (
-            'pid_events', 'pid_ver', 'pid_remove_true_downgoing', 'pid_spec',
-            'pid_spec_source', 'pid_weights_name'
+            'pid_events', 'pid_ver', 'pid_specs', 'pid_weights_name'
         )
 
         if isinstance(input_names, basestring):
@@ -212,15 +236,32 @@ class smooth(Stage):
         # Can do these now that binning has been set up in call to Stage's init
         self.include_attrs_for_hashes('particles')
         self.include_attrs_for_hashes('transform_groups')
+        self.include_attrs_for_hashes('reco_input_binning')
 
     def load_events(self):
         evts = self.params['pid_events'].value
+
+        # "Normalize" the path by passing through find_resource (also makes
+        # sure the file exists)
+        if isinstance(evts, basestring):
+            evts = find_resource(evts)
+
         this_hash = hash_obj(evts)
         if this_hash == self.events_hash:
             return
         logging.debug('Extracting events from Events obj or file: %s' %evts)
+
+        # Load the events
         self.events = Events(evts)
+
+        # Keep only events as used for reconstructions
+        evts.keepInbounds(self.reco_input_binning)
+
         self.events_hash = this_hash
+        self.data_proc_params = DataProcParams(
+            detector=self.events.metadata['detector'],
+            proc_ver=self.events.metadata['proc_ver']
+        )
 
     @profile
     def _compute_nominal_transforms(self):
@@ -231,8 +272,8 @@ class smooth(Stage):
         # is concerned
 
         # Works only if either energy, coszen or azimuth is in input_binning
-        bin_names = ('reco_energy', 'reco_coszen', 'reco_azimuth')
-        if set(self.input_binning.names).isdisjoint(bin_names):
+        dim_names = ('reco_energy', 'reco_coszen', 'reco_azimuth')
+        if set(self.input_binning.names).isdisjoint(dim_names):
             raise ValueError(
                 'Input binning must contain either one or a combination of'
                 ' "reco_energy", "reco_coszen" or "reco_azimuth" dimensions.'
@@ -264,14 +305,9 @@ class smooth(Stage):
         # runs. Parameters can include which groupings to use to formulate an
         # output.
 
-        data_proc_params = DataProcParams(
-            detector=self.events.metadata['detector'],
-            proc_ver=self.events.metadata['proc_ver']
-        )
-
         if self.params['pid_remove_true_downgoing'].value:
             # TODO(shivesh): more options for cuts?
-            cut_events = data_proc_params.applyCuts(
+            cut_events = self.data_proc_params.applyCuts(
                 self.events, cuts='true_upgoing_coszen'
             )
         else:
@@ -338,6 +374,7 @@ class smooth(Stage):
                 total_histo += raw_histo[sig]
 
             for sig in self.output_channels:
+                # Get fraction of each PID per bin
                 with np.errstate(divide='ignore', invalid='ignore'):
                     xform_array = raw_histo[sig] / total_histo
 

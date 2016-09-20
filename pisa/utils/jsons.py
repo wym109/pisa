@@ -12,6 +12,7 @@ just use from_json, to_json) for... faster JSON serdes?
 # TODO: why the second line above?
 
 
+from collections import OrderedDict
 import os
 
 import numpy as np
@@ -29,7 +30,8 @@ def json_string(string):
 
 
 def dumps(content, indent=2):
-     return json.dumps(content, cls=NumpyEncoder, indent=indent, sort_keys=True)
+     return json.dumps(content, cls=NumpyEncoder, indent=indent,
+                       sort_keys=False)
 
 
 def loads(s):
@@ -39,7 +41,8 @@ def loads(s):
 def from_json(filename):
     """Open a file in JSON format an parse the content"""
     try:
-        content = json.load(open_resource(filename), cls=NumpyDecoder)
+        content = json.load(open_resource(filename), cls=NumpyDecoder,
+                            object_pairs_hook=OrderedDict)
         return content
     except (IOError, json.JSONDecodeError), e:
         logging.error('Unable to read JSON file "%s"' %filename)
@@ -47,7 +50,7 @@ def from_json(filename):
         raise e
 
 
-def to_json(content, filename, indent=2, overwrite=True, sort_keys=True):
+def to_json(content, filename, indent=2, overwrite=True, sort_keys=False):
     """Write content to a JSON file using a custom parser that automatically
     converts numpy arrays to lists.
 
@@ -95,10 +98,12 @@ class NumpyDecoder(json.JSONDecoder):
     def __init__(self, encoding=None, object_hook=None, parse_float=None,
                  parse_int=None, parse_constant=None, strict=True,
                  object_pairs_hook=None):
-
-        super(NumpyDecoder, self).__init__(encoding, object_hook, parse_float,
-                                           parse_int, parse_constant, strict,
-                                           object_pairs_hook)
+        super(NumpyDecoder, self).__init__(
+            encoding=encoding, object_hook=object_hook,
+            parse_float=parse_float, parse_int=parse_int,
+            parse_constant=parse_constant, strict=strict,
+            object_pairs_hook=object_pairs_hook
+        )
         # Only need to override the default array handler
         self.parse_array = self.json_array_numpy
         self.parse_string = self.json_python_string

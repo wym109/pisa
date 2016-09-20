@@ -5,7 +5,7 @@ At the end of the stage, the oscillated neutrino flux for each flavour is given.
 
 ## Services
 
-Only one service is currently supported in PISA for calculating the oscillation probabilties: `prob3cpu`.
+Currently, only Prob3 is supported for calculating neutrino oscillations. This is implemented, though, as two different stages: `prob3cpu` and `prob3gpu`, where the latter is accelerated if the `cuda` dependency is installed (see the Install Guide for more info.)
 
 ### prob3cpu
 

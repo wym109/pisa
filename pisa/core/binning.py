@@ -480,6 +480,25 @@ class OneDimBinning(object):
     def bin_widths(self):
         return np.abs(np.diff(self.bin_edges))
 
+    @property
+    def inbounds_criteria(self):
+        """Return string boolean criteria indicating e.g. an event falls within
+        the limits of the defined binning.
+
+        This can be used for e.g. applying cuts to events.
+
+        See Also
+        --------
+        pisa.core.events.keepEventsInBins
+
+        """
+        be = self.bin_edges
+        crit = '((%s >= %.14e) & (%s <= %.14e))' %(self.name,
+                                                   min(be.magnitude),
+                                                   self.name,
+                                                   max(be.magnitude))
+        return crit
+
     def new_obj(original_function):
         """Decorator to deepcopy unaltered states into new object."""
         @wraps(original_function)
@@ -982,6 +1001,21 @@ class MultiDimBinning(object):
         logarithmic; otherwise linear). Access `midpoints` attribute for
         always-linear alternative."""
         return [d.weighted_centers for d in self]
+
+    @property
+    def inbounds_criteria(self):
+        """Return string boolean criteria indicating e.g. an event falls within
+        the limits of the defined binning.
+
+        This can be used for e.g. applying cuts to events.
+
+        See Also
+        --------
+        pisa.core.events.keepEventsInBins
+
+        """
+        crit = '(%s)' %(' & '.join([dim.inbounds_criteria for dim in self]))
+        return crit
 
     def index(self, dim, use_basenames=False):
         """Find dimension `dim` and return its integer index.

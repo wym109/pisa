@@ -2,7 +2,7 @@
 
 ### Quickstart
 
-In Ubuntu you can peform the following steps to perform a clean, full (all optional dependencies included), editable install of PISA on your local PC.
+In Ubuntu you can peform the following steps to perform a clean, full (all optional dependencies included), editable install of PISA on your local PC; test the installation; and run a quick analysis.
 
 ```bash
 # Install required and optional system packages
@@ -24,10 +24,14 @@ git clone https://github.com/jllanfranchi/pisa.git --branch cake \
 pip install -e my_virtual_env/src/pisa/[cuda,numba,develop] \
     -r my_virtual_env/src/pisa/requirements.txt
 
-# Run the physics tests
+# Run the physics tests (append --ignore-cuda-errors if no CUDA support)
 test_consistency_with_pisa2.py -v
 
-# Run the Asimov NMO analysis
+# Run a Monte Carlo pipeline to produce and plot its expected distributions at
+# the output of each stage
+pipeline.py --settings settings/pipeline_settings/pipeline_settings_example.ini -v --dir /tmp/pipeline_output --pdf 
+
+# Run the Asimov NMO analysis; leave off "_gpu" to run CPU-only version
 hypo_testing.py --logdir /tmp/test \
     --h0-pipeline settings/pipeline_settings/pipeline_settings_example_gpu.ini \
     --h0-param-selections="ih" \

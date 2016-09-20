@@ -272,7 +272,7 @@ if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument(
-        '-p', '--pipeline-settings', metavar='CONFIGFILE', type=str,
+        '--settings', metavar='CONFIGFILE', type=str,
         required=True,
         help='File containing settings for the pipeline.'
     )
@@ -292,10 +292,10 @@ if __name__ == '__main__':
         STAGE, but stop there.'''
     )
     parser.add_argument(
-        '-d', '--outdir', metavar='DIR', type=str,
+        '-d', '--dir', metavar='DIR', type=str,
         help='''Store all output files (data and plots) to this directory.
         Directory will be created (including missing parent directories) if it
-        does not exist already. If no outdir is provided, no outputs will be
+        does not exist already. If no dir is provided, no outputs will be
         saved.'''
     )
     #parser.add_argument(
@@ -341,20 +341,20 @@ if __name__ == '__main__':
     args = parser.parse_args()
     set_verbosity(args.v)
 
-    if args.outdir:
-        mkdir(args.outdir)
+    if args.dir:
+        mkdir(args.dir)
     else:
         if args.pdf or args.png:
-            raise ValueError('No --outdir provided, so cannot save images.')
+            raise ValueError('No --dir provided, so cannot save images.')
 
     # Instantiate the pipeline
-    pipeline = Pipeline(args.pipeline_settings)
+    pipeline = Pipeline(args.settings)
 
-    for run in xrange(2):
+    for run in xrange(1):
         logging.info('')
         logging.info('## STARTING RUN %d ............' % run)
         logging.info('')
-        pipeline.params.free.values = [p.value*1.01 for p in pipeline.params.free]
+        #pipeline.params.free.values = [p.value*1.01 for p in pipeline.params.free]
         if args.only_stage is None:
             stop_idx = args.stop_after_stage
             if stop_idx is not None:
@@ -383,10 +383,10 @@ if __name__ == '__main__':
         logging.info('')
 
     for stage in pipeline.stages[idx]:
-        if not args.outdir:
+        if not args.dir:
             break
         stg_svc = stage.stage_name + '__' + stage.service_name
-        fbase = os.path.join(args.outdir, stg_svc)
+        fbase = os.path.join(args.dir, stg_svc)
         if args.intermediate or stage == pipeline.stages[-1]:
             stage.outputs.to_json(fbase + '__output.json')
         if args.transforms and stage.use_transforms:
@@ -397,8 +397,9 @@ if __name__ == '__main__':
             if not enabled:
                 continue
             my_plotter = plotter(stamp='PISA cake test',
-                                 outdir=args.outdir,
+                                 outdir=args.dir,
                                  fmt=fmt, log=False,
                                  annotate=args.annotate)
             my_plotter.ratio = True
-            my_plotter.plot_2d_array(stage.outputs, fname=stg_svc + '__output', cmap='OrRd')
+            my_plotter.plot_2d_array(stage.outputs, fname=stg_svc+'__output',
+                                     cmap='OrRd')

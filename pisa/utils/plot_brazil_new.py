@@ -12,7 +12,7 @@ from matplotlib import pyplot as plt
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import os, sys
 from scipy.stats import chi2
-from scipy.optimize as optimize
+import scipy.optimize as optimize
 from matplotlib.offsetbox import AnchoredText
 import matplotlib.cm as cm
 from scipy.ndimage import zoom
