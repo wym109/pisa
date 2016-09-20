@@ -12,6 +12,7 @@ from __future__ import division
 
 from collections import OrderedDict
 from copy import deepcopy
+import re
 import sys
 import time
 
@@ -245,6 +246,21 @@ class Analysis(object):
         counter = Counter()
         fit_history = []
         start_t = time.time()
+
+        if pprint:
+            free_p = hypo_maker.params.free
+            # Display any units on top
+            r = re.compile(r'(^[+0-9.eE-]* )|(^[+0-9.eE-]*$)')
+            hdr = ' '*(6+1+12+3)
+            hdr += ' '.join([r.sub('', format(p.value, '~')).replace(' ','').center(12)
+                             for p in free_p])
+            hdr += '\n'
+            # Header names
+            hdr += 'iter'.center(6) + ' ' + metric[0:12].center(12) + ' | '
+            hdr += ' '.join([p.name[0:12].center(12) for p in free_p])
+            hdr += '\n'
+            sys.stdout.write(hdr)
+
         optimize_result = optimize.minimize(
             fun=self._minimizer_callable,
             x0=x0,
@@ -448,15 +464,15 @@ class Analysis(object):
                 )
             raise
 
-
-        # TODO: make this into a header line with param names and values
-        # beneath updated, to save horizontal space (and easier to read/follow)
-
         # Report status of metric & params (except if blinded)
         if blind:
-            msg = 'minimizer iteration #%7d' %counter.count
+            msg = 'minimizer iteration #%6d' %counter.count
         else:
-            msg = '%s=%.6e | %s' %(metric, metric_val, hypo_maker.params.free)
+            #msg = '%s=%.6e | %s' %(metric, metric_val, hypo_maker.params.free)
+            msg = '%s %s | ' %(('%d'%counter.count).center(6),
+                                format(metric_val, '0.5e').rjust(12))
+            msg += ' '.join([('%0.5e'%p.value.m).rjust(12)
+                             for p in hypo_maker.params.free])
 
         if pprint:
             sys.stdout.write(msg)
@@ -469,7 +485,7 @@ class Analysis(object):
 
         if not blind:
             fit_history.append(
-                [metric_val] + [v.m for v in hypo_maker.params.free.values]
+                [metric_val] + [v.value.m for v in hypo_maker.params.free]
             )
 
         return sign*metric_val

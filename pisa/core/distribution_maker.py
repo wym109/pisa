@@ -130,7 +130,7 @@ class DistributionMaker(object):
                 if name in [p.name for p in pipeline.params.free]:
                     pipeline.params.free.value = value
 
-     def randomize_free_params(self, random_state=None):
+    def randomize_free_params(self, random_state=None):
         if random_state is None:
             random = np.random
         else:
@@ -156,12 +156,14 @@ class DistributionMaker(object):
         dimensionless values
 
         """
+        names = self.params.free.names
         for pipeline in self.pipelines:
             fp = pipeline.params.free
-            for name, rvalue in zip(self.params.free.names, rvalues):
-                if name in [p.name for p in fp]:
-                    fp[name]._rescaled_value = rvalue
-            pipeline.update_params(fp)
+            fp_names = fp.names
+            for name, rvalue in zip(names, rvalues):
+                if name in fp_names:
+                    pipeline.params[name]._rescaled_value = rvalue
+            #pipeline.update_params(fp)
 
 
 if __name__ == '__main__':
