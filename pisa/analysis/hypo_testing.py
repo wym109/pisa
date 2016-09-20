@@ -351,11 +351,13 @@ class HypoTesting(Analysis):
     def run_analysis(self):
         """Run the LLR analysis."""
         logging.info('Running LLR analysis.')
+        self.analysis_start_time = time.time()
 
         self.setup_logging()
         self.write_config_summary()
         self.write_minimizer_settings()
         self.write_run_info()
+
         t0 = time.time()
         try:
             # Loop for multiple (if fluctuated) data distributions
@@ -1131,16 +1133,23 @@ class HypoTesting(Analysis):
 
     def write_run_stop_info(self, exc=None):
         self.stop_datetime = timestamp(utc=True, winsafe=True)
+        self.stop_time = time.time()
+        self.analysis_runtime = self.stop_time - self.analysis_start_time
+        dt_stamp = timediffstamp(self.analysis_runtime, hms_always=True,
+                                 sec_decimals=0)
 
         run_info = []
         run_info.append('stop_datetime = %s' %self.stop_datetime)
+        run_info.append('analysis_runtime = %s' %dt_stamp)
         if self.fluctuate_data:
             run_info.append('data_stop_ind = %d' %self.data_ind)
         if self.fluctuate_fid:
             run_info.append('fid_stop_ind = %d' %self.fid_ind)
         if exc is None:
+            run_info.append('completed = True')
             run_info.append('exception = None')
         else:
+            run_info.append('completed = False')
             run_info.append('exception = ' + str((exc[0], exc[1])))
             run_info.append(format_exc())
 

@@ -13,6 +13,8 @@ import re
 import numpy as np
 import pint
 
+from pisa import ureg, Q_
+
 # TODO: allow for scientific notation input to hr*2list, etc.
 
 def hrlist_formatter(start, end, step):
