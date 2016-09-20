@@ -56,12 +56,19 @@ class DistributionMaker(object):
     def get_outputs(self, seed=None, **kwargs):
         total_outputs = None
         outputs = [pipeline.get_outputs(**kwargs) for pipeline in self]
+        if self.fluctuate is not None:
+            outputs = outputs.fluctuate(method=self.fluctuate,
+                                                    seed=seed)
+        return outputs
+
+    def get_total_outputs(self, seed=None, **kwargs):
+        total_outputs = None
+        outputs = [pipeline.get_outputs(**kwargs) for pipeline in self]
         total_outputs = reduce(lambda x,y: x+y, outputs)
         if self.fluctuate is not None:
             total_outputs = total_outputs.fluctuate(method=self.fluctuate,
                                                     seed=seed)
         return total_outputs
-
     def update_params(self, params):
         [pipeline.update_params(params) for pipeline in self]
 
