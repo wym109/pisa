@@ -5,8 +5,9 @@ from uncertainties import unumpy as unp
 
 import numpy as np
 from scipy.optimize import curve_fit
-from scipy.ndimage.filters import gaussian_filter
+from scipy.ndimage.filters import gaussian_filter, generic_filter
 from scipy import interpolate
+from scipy.stats import chi2
 
 from pisa import ureg, Q_
 from pisa.core.map import Map, MapSet
@@ -135,10 +136,12 @@ for sys in sys_list:
 
     # array to store params
     outputs = {}
+    errors = {}
 
     # now actualy perform some fits
     for cat in categories:
         outputs[cat] = np.ones((nx, ny, degree))
+        errors[cat] = np.ones((nx, ny, degree))
 
         for i, j in np.ndindex((nx,ny)):
         #for i, j in np.ndindex(inputs[cat][nominal].shape):
@@ -146,8 +149,10 @@ for sys in sys_list:
             y_sigma = unp.std_devs(arrays[cat][i,j,:])
             popt, pcov = curve_fit(fit_fun, x_values,
                     y_values, sigma=y_sigma, p0=np.ones(degree))
+            perr = np.sqrt(np.diag(pcov))
             for k, p in enumerate(popt):
                 outputs[cat][i,j,k] = p
+                errors[cat][i,j,k] = perr[k]
 
             # maybe plot
             if args.plot:
@@ -180,7 +185,6 @@ for sys in sys_list:
     # smoothing
     if not smooth == 'raw':
         raw_outputs = copy.deepcopy(outputs)
-        errors = {}
         for cat in categories:
             for d in range(degree):
                 if smooth == 'spline':
@@ -190,6 +194,28 @@ for sys in sys_list:
                 elif smooth == 'gauss':
                     outputs[cat][:,:,d] = gaussian_filter(outputs[cat][:,:,d],
                             sigma=1)
+                elif smooth == 'smart':
+                    values = outputs[cat][:,:,d]
+                    sigmas = errors[cat][:,:,d]
+                    for (x,y), sig in np.ndenumerate(sigmas):
+                        n = 0.
+                        o = 0.
+                        val = values[x,y]
+                        nx, ny = sigmas.shape
+                        width = 1.
+                        f = 8.
+                        for dx in [-2,-1,0,1,2]:
+                            for dy in [-2,-1,0,1,2]:
+                                if not (x+dx < 0 or x+dx >= nx) and not (y+dy < 0 or y+dy >= ny):
+                                    v = values[x+dx,y+dy]
+                                    s = sigmas[x+dx,y+dy]
+                                    #dist = np.sqrt(dx**2 + dy**2)
+                                    dist = np.exp(-(dx**2+dy**2)/(2.*width**2))/(2.*np.pi*width**2)
+                                    dist_v = np.exp(-(val-v)**2/(2*(sig*f)**2))/(np.sqrt(2*np.pi)*sig*f)
+                                    w = dist*dist_v*(sig/s)
+                                    o += w*v
+                                    n += w
+                        outputs[cat][x,y,d] = o/n
 
             if args.plot:
                 for i, j in np.ndindex((nx,ny)):
@@ -225,12 +251,27 @@ for sys in sys_list:
                                 binning=binning))
                     maps.append(Map(name='%s_smooth'%cat, hist=outputs[cat][:,:,d],
                                 binning=binning))
-                    maps.append(Map(name='%s_diff'%cat,
-                                hist=raw_outputs[cat][:,:,0] - outputs[cat][:,:,d],
+                    maps.append(Map(name='%s_dfff'%cat,
+                                hist=(raw_outputs[cat][:,:,d] - outputs[cat][:,:,d]),
+                                binning=binning))
+                    maps.append(Map(name='%s_chi2'%cat,
+                                hist=np.square(raw_outputs[cat][:,:,d] - outputs[cat][:,:,d])/np.square(errors[cat][:,:,d]),
                                 binning=binning))
                 maps = MapSet(maps)
                 my_plotter = plotter(stamp='PISA cake test', outdir='.',
                     fmt='pdf',log=False, label='')
-                my_plotter.plot_2d_array(maps, fname='%s_smooth_%s_p%s'%(sys,smooth,d))
+                my_plotter.plot_2d_array(maps, fname='%s_smooth_%s_p%s'%(sys,smooth,d),cmap='RdBu')
+                for cat in categories:
+                    data = (raw_outputs[cat][:,:,d] - outputs[cat][:,:,d]).ravel()
+                    fig = plt.figure()
+                    ax = fig.add_subplot(111)
+                    h,b,p = ax.hist(data,20, linewidth=2, histtype='step', color='k',normed=True)
+                    ax.ticklabel_format(useOffset=False)
+                    #p = chi2.fit(data,floc=0, scale=1)
+                    #print p
+                    #x = np.linspace(b[0], b[-1], 100)
+                    #f = chi2.pdf(x, *p)
+                    #ax.plot(x,f, color='r')
+                    plt.savefig('diff_%s_%s.png'%(sys,cat))
 
 
