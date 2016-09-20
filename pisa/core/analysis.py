@@ -68,7 +68,7 @@ class Analysis(object):
         self.blind = blind
 
         # DOF as n_bins - n_free_params + n_gauss_priors
-        n_bins = sum(map.binning.tot_num_bins for map in self.template_maker.get_outputs())
+        n_bins = sum(map.binning.tot_num_bins for map in self.template_maker.get_total_outputs())
         self.n_free_params = len(self.template_maker.params.free)
         n_gauss_priors = 0
         for param in self.template_maker.params.free:
@@ -76,7 +76,7 @@ class Analysis(object):
         self.dof = n_bins - self.n_free_params + n_gauss_priors
 
         # Generate distribution
-        self.data = self.data_maker.get_outputs()
+        self.data = self.data_maker.get_total_outputs()
         self.pseudodata_method = None
         self.pseudodata = None
         self.n_minimizer_calls = 0
@@ -205,7 +205,7 @@ class Analysis(object):
 
         """
         sign = +1
-        if self.metric in ['llh', 'conv_llh']:
+        if self.metric in ['llh', 'conv_llh', 'barlow_llh']:
             # Want to *maximize* log-likelihood but we're using a minimizer
             sign = -1
         self.template_maker.params.free._rescaled_values = scaled_param_vals
@@ -213,18 +213,18 @@ class Analysis(object):
         template = self.template_maker.get_outputs()
         #N_mc = sum([unp.nominal_values(map.hist).sum() for map in template])
         #scale = self.N_data/N_mc
-        scale=1.
+        #scale=1.
 
         # Assess the fit of the template to the data distribution, and negate
         # if necessary
         metric_val = (
-            self.pseudodata.metric_total(expected_values=template*scale, metric=self.metric)
+            self.pseudodata.metric_total(expected_values=template, metric=self.metric)
             + template_maker.params.priors_penalty(metric=self.metric)
         )
 
-        mod_chi2_val = (self.pseudodata.metric_total(expected_values=template*scale, metric='mod_chi2')
+        mod_chi2_val = (self.pseudodata.metric_total(expected_values=template, metric='mod_chi2')
             + template_maker.params.priors_penalty(metric='mod_chi2'))
-        chi2_val = (self.pseudodata.metric_total(expected_values=template*scale, metric='chi2')
+        chi2_val = (self.pseudodata.metric_total(expected_values=template, metric='chi2')
             + template_maker.params.priors_penalty(metric='chi2'))
         # Report status of metric & params
         if self.blind:
@@ -274,6 +274,11 @@ class Analysis(object):
                                         method = self.minimizer_settings['method']['value'],
                                         options = self.minimizer_settings['options']['value'])
             
+            # get aditional metrics:
+            all_metrics = {}
+            template = self.template_maker.get_outputs()
+            for metric in ['llh', 'conv_llh', 'barlow_llh','chi2', 'mod_chi2']:
+                all_metrics[metric] = self.pseudodata.metric_total(expected_values=template, metric=metric) + template_maker.params.priors_penalty(metric=metric) 
             end_t = time.time()
             if pprint:
                 # clear the line
@@ -295,7 +300,7 @@ class Analysis(object):
             if dict_flags['warnflag'] > 0:
                 logging.warning(str(dict_flags))
 
-        return best_fit_vals, metric_val, dict_flags
+        return best_fit_vals, metric_val, all_metrics, dict_flags
 
     def find_best_fit(self, check_octant=True, pprint=True, skip=False):
         """ find best fit points (max likelihood) for the free parameters and
@@ -305,10 +310,11 @@ class Analysis(object):
         logging.info('resetting params')
         self.template_maker.params.reset_free()
 
-        best_fit_vals, metric_val, dict_flags = self.run_minimizer(pprint=pprint, skip=skip)
+        best_fit_vals, metric_val, all_metrics, dict_flags = self.run_minimizer(pprint=pprint, skip=skip)
         best_fit = {}
         best_fit[self.metric] = metric_val
         best_fit['warnflag'] = dict_flags['warnflag']
+        best_fit['all_metrics'] = all_metrics
         if not self.blind:
             for pname in self.template_maker.params.free.names:
                 best_fit[pname] = self.template_maker.params[pname].value
@@ -323,7 +329,7 @@ class Analysis(object):
                 inflection_point = 45 * ureg.degree
                 theta23.value = 2*inflection_point.to(theta23.value.units) - theta23.value
                 self.template_maker.update_params(theta23)
-                best_fit_vals, metric_val, dict_flags = self.run_minimizer(pprint=pprint)
+                best_fit_vals, metric_val, all_metrics, dict_flags = self.run_minimizer(pprint=pprint)
 
                 # compare results a and b, take one with lower llh
                 if metric_val < best_fit[self.metric]:
@@ -331,6 +337,7 @@ class Analysis(object):
                     logging.info('Accepting other octant fit')
                     best_fit[self.metric] = metric_val
                     best_fit['warnflag'] = dict_flags['warnflag']
+                    best_fit['all_metrics'] = all_metrics
                     if not self.blind:
                         for pname in self.template_maker.params.free.names:
                             best_fit[pname] = self.template_maker.params[pname].value
@@ -366,7 +373,7 @@ class Analysis(object):
         # run denominator (global MLE)
         logging.info('unfixing param %s'%p_name)
         self.template_maker.params.unfix(p_name)
-        if self.pseudodata_method == 'asimov' and self.metric in ['llh', 'chi2', 'mod_chi2']:
+        if self.pseudodata_method == 'asimov': #and self.metric in ['llh', 'chi2', 'mod_chi2']:
             # in these cases we can skip minimization
             skip = True
         else:
@@ -424,7 +431,7 @@ if __name__ == '__main__':
                         choices=['poisson', 'asimov', 'data'], 
                         help='''Mode for pseudo data sampling''')
     parser.add_argument('--metric', type=str,
-                        choices=['llh', 'chi2', 'conv_llh', 'mod_chi2'], required=True,
+                        choices=['llh', 'chi2', 'conv_llh', 'mod_chi2', 'barlow_llh'], required=True,
                         help='''Settings related to the optimizer used in the
                         LLR analysis.''')
     parser.add_argument('--mode', type=str,
