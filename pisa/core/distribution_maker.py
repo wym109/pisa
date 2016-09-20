@@ -12,6 +12,7 @@ from pisa.core.param import ParamSet
 from pisa.utils.betterConfigParser import BetterConfigParser
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
+from pisa.utils.random_numbers import get_random_state
 
 
 class DistributionMaker(object):
@@ -128,6 +129,15 @@ class DistributionMaker(object):
             for pipeline in self.pipeline:
                 if name in [p.name for p in pipeline.params.free]:
                     pipeline.params.free.value = value
+
+     def randomize_free_params(self, random_state=None):
+        if random_state is None:
+            random = np.random
+        else:
+            random = get_random_state(random_state)
+        n = len(self.params.free)
+        rand = random.rand(n)
+        self._set_rescaled_free_params(rand)
 
     def reset_all(self):
         """Reset both free and fixed parameters to their nominal values."""

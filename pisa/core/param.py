@@ -20,6 +20,7 @@ from pisa.utils.comparisons import isbarenumeric, normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile
+from pisa.utils.random_numbers import get_random_state
 
 # TODO: Make property "frozen" or "read_only" so params in param set e.g.
 # returned by a template maker -- which updating the values of will NOT have
@@ -260,6 +261,14 @@ class Param(object):
     def set_nominal_to_current_value(self):
         """Define the nominal value to the parameter's current value."""
         self.nominal_value = self.value
+
+    def randomize(self, random_state=None):
+        if random_state is None:
+            random = np.random
+        else:
+            random = get_random_state(random_state)
+        rand = random.rand()
+        self._rescaled_value = rand
 
     def prior_penalty(self, metric):
         if self.prior is None:
@@ -591,6 +600,15 @@ class ParamSet(Sequence):
     def set_nominal_by_current_values(self):
         """Define the nominal values as the parameters' current values."""
         self.nominal_values = self.values
+
+    def randomize_free(self, random_state=None):
+        if random_state is None:
+            random = np.random
+        else:
+            random = get_random_state(random_state)
+        n = len(self.free)
+        rand = random.rand(n)
+        self.free._rescaled_values = rand
 
     @property
     def _rescaled_values(self):

@@ -987,7 +987,7 @@ class MultiDimBinning(object):
     @property
     def tot_num_bins(self):
         """Return total number of bins."""
-        return np.sum(self.num_bins)
+        return np.product(self.num_bins)
 
     @property
     def units(self):
