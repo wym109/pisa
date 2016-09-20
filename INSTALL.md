@@ -27,9 +27,10 @@ pip install -e my_virtual_env/src/pisa/[cuda,numba,develop] \
 # Run the physics tests (append --ignore-cuda-errors if no CUDA support)
 test_consistency_with_pisa2.py -v
 
-# Run a Monte Carlo pipeline to produce and plot its expected distributions at
-# the output of each stage
-pipeline.py --settings settings/pipeline_settings/pipeline_settings_example.ini -v --dir /tmp/pipeline_output --pdf 
+# Run a Monte Carlo pipeline to produce, store, and plot its expected
+# distributions at the output of each stage
+pipeline.py --settings settings/pipeline_settings/pipeline_settings_example.ini \
+    --dir /tmp/pipeline_output --intermediate --pdf -v
 
 # Run the Asimov NMO analysis; leave off "_gpu" to run CPU-only version
 hypo_testing.py --logdir /tmp/test \

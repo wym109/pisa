@@ -84,8 +84,10 @@ def timediffstamp(dt_sec, hms_always=False, sec_decimals=3):
         if len(strdt) == 0:
             s_fmt = '.%df' %sec_decimals
         else:
-            s_fmt = '0%d.%df' %(3+sec_decimals, sec_decimals)
-        print 's_fmt:', s_fmt
+            if sec_decimals == 0:
+                s_fmt = '02.0f'
+            else:
+                s_fmt = '0%d.%df' %(3+sec_decimals, sec_decimals)
     if len(strdt) > 0:
         strdt += format(s, s_fmt)
     else:

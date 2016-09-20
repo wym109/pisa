@@ -249,16 +249,25 @@ class Analysis(object):
 
         if pprint:
             free_p = hypo_maker.params.free
+
             # Display any units on top
             r = re.compile(r'(^[+0-9.eE-]* )|(^[+0-9.eE-]*$)')
             hdr = ' '*(6+1+12+3)
-            hdr += ' '.join([r.sub('', format(p.value, '~')).replace(' ','').center(12)
-                             for p in free_p])
+            hdr += ' '.join([
+                r.sub('', format(p.value, '~')).replace(' ','').center(12)
+                for p in free_p
+            ])
             hdr += '\n'
+
             # Header names
             hdr += 'iter'.center(6) + ' ' + metric[0:12].center(12) + ' | '
             hdr += ' '.join([p.name[0:12].center(12) for p in free_p])
             hdr += '\n'
+
+            # Underscores
+            hdr += ' '.join(['-'*6, '-'*12, '+'] + ['-'*12]*len(free_p))
+            hdr += '\n'
+
             sys.stdout.write(hdr)
 
         optimize_result = optimize.minimize(
@@ -273,7 +282,7 @@ class Analysis(object):
         end_t = time.time()
         if pprint:
             # clear the line
-            sys.stdout.write('\n')
+            sys.stdout.write('\n\n')
             sys.stdout.flush()
 
         minimizer_time = end_t - start_t

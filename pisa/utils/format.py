@@ -11,6 +11,7 @@ import numbers
 import re
 
 import numpy as np
+import pint
 
 # TODO: allow for scientific notation input to hr*2list, etc.
 

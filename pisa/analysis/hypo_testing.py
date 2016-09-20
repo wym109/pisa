@@ -20,6 +20,7 @@ import random
 import socket
 import string
 import sys
+import time
 from traceback import format_exc
 
 import pint
@@ -34,7 +35,7 @@ from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.random_numbers import get_random_state
 from pisa.utils.resources import find_resource
-from pisa.utils.timing import timestamp
+from pisa.utils.timing import timediffstamp, timestamp
 
 
 class HypoTesting(Analysis):
@@ -355,12 +356,14 @@ class HypoTesting(Analysis):
         self.write_config_summary()
         self.write_minimizer_settings()
         self.write_run_info()
+        t0 = time.time()
         try:
             # Loop for multiple (if fluctuated) data distributions
             for self.data_ind in xrange(self.data_start_ind,
                                         self.data_start_ind+self.num_data_trials):
+                data_trials_complete = self.data_ind-self.data_start_ind
                 pct_data_complete = (
-                    100.*(self.data_ind-self.data_start_ind)/self.num_data_trials
+                    100.*(data_trials_complete)/self.num_data_trials
                 )
                 logging.info(
                     'Working on %s set ID %d (will stop after ID %d).'
@@ -379,19 +382,28 @@ class HypoTesting(Analysis):
                 # Loop for multiple (if fluctuated) fiducial data distributions
                 for self.fid_ind in xrange(self.fid_start_ind,
                                            self.fid_start_ind+self.num_fid_trials):
+                    fid_trials_complete = self.fid_ind-self.fid_start_ind
                     pct_fid_dist_complete = (
-                        100*(self.fid_ind-self.fid_start_ind)/self.num_fid_trials
+                        100*(fid_trials_complete)/self.num_fid_trials
                     )
-                    logging.info(
-                        r'Working on %s set ID %d (will stop after ID %d).'
-                        ' %0.2f%s of %s sets completed.'
-                        %(self.fid_disp,
-                          self.fid_ind,
-                          self.fid_start_ind+self.num_fid_trials-1,
-                          pct_fid_dist_complete,
-                          '%',
-                          self.fid_disp)
-                    )
+
+                    dt = time.time() - t0
+                    total_complete = (self.num_fid_trials*data_trials_complete
+                                      + fid_trials_complete)
+                    trials_to_go = (self.num_data_trials*self.num_fid_trials
+                                    - total_complete)
+
+                    ts_remaining = '???'
+                    if total_complete > 0:
+                        sec_per_fid = dt / total_complete
+                        time_to_go = sec_per_fid * trials_to_go
+                        ts_remaining = timediffstamp(time_to_go, sec_decimals=0)
+
+                    logging.info('Working on %s set ID %d / %s set ID %d.'
+                                 ' %d trials to go, est time remaining: %s'
+                                 %(self.data_disp, self.data_ind,
+                                   self.fid_disp, self.fid_ind,
+                                   trials_to_go, ts_remaining))
 
                     self.produce_fid_data()
                     self.fit_hypos_to_fid()
@@ -1095,6 +1107,19 @@ class HypoTesting(Analysis):
         run_info.append('store_minimizer_history = %s'
                         %self.store_minimizer_history)
         run_info.append('pprint = %s' %self.pprint)
+        for env_var in ['MKL_NUM_THREADS', 'OMP_NUM_THREADS',
+                        'CUDA_VISIBLE_DEVICES', 'PATH', 'LD_LIBRARY_PATH',
+                        'PYTHONPATH']:
+            if env_var in os.environ:
+                val = os.environ[env_var]
+            else:
+                val = ''
+            run_info.append('%s = %s' %(env_var, val))
+
+        for prefix in ['PBS_']:
+            [run_info.append('%s = %s' %(env_var, val))
+             for env_var, val in os.environ.iteritems()
+             if env_var.startswith(prefix)]
 
         with file(self.run_info_fpath, 'w') as f:
             f.write('\n'.join(run_info) + '\n')
