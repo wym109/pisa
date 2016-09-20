@@ -31,6 +31,7 @@ for filename in fnames:
             name = name.split('_')[2]
         assert(not file[0][0]['warnflag'][0] and not file[0][1]['warnflag'])
         if file[0][0].has_key('llh'): metric = 'llh'
+        elif file[0][0].has_key('barlow_llh'): metric = 'barlow_llh'
         elif file[0][0].has_key('conv_llh'): metric = 'conv_llh'
         elif file[0][0].has_key('chi2'): metric = 'chi2'
         elif file[0][0].has_key('mod_chi2'): metric = 'mod_chi2'
