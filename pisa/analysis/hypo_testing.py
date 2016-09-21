@@ -100,6 +100,7 @@ class Labels(object):
             self.fid_disp = 'fiducial Asimov'
             self.fid = 'fid_asimov'
 
+        # Fits to data
         self.h0_fit_to_data = '{h0}_fit_to_{data}'.format(**self.dict)
         self.h1_fit_to_data = '{h1}_fit_to_{data}'.format(**self.dict)
 
@@ -108,13 +109,18 @@ class Labels(object):
             basestr = ('{h%s}_fit_to_{h%s}_{fid}'%(x,y)).format(**self.dict)
             self.dict[varname+'base'] = basestr
             if self.fluctuate_fid:
-                self.dict[varname+'re'] = re.compile(basestr + r'([0-9]+)')
+                self.dict[varname+'re'] = re.compile(basestr + '_' +
+                                                     r'(?P<fid_ind>[0-9]+)')
             else:
                 self.dict[varname+'re'] = re.compile(basestr)
 
+            # There're *always* fits performed to fid asimov
+            self.
+
+
         # Directory naming pattern
         if self.fluctuate_data:
-            self.subdir_re = re.compile(self.data + '_([0-9]+)')
+            self.subdir_re = re.compile(self.data + '_(?P<data_ind>[0-9]+)')
         else:
             self.subdir_re = re.compile(self.data)
 
@@ -141,6 +147,7 @@ class HypoTesting(Analysis):
     to determine the significance for data to
     have come from
     physics described by hypothesis h0 versus physics described by hypothesis
+        label =
     h1
 
     Note that duplicated `*_maker` specifications are _not_ instantiated
@@ -478,7 +485,12 @@ class HypoTesting(Analysis):
         )
 
     def run_analysis(self):
-        """Run the LLR analysis."""
+        """Run the defined analysis.
+
+        Progress and estimated time remaining is written to stdout/stderr, and
+        results are logged to an appropriate directory within `self.logdir`.
+
+        """
         logging.info('Running LLR analysis.')
         self.analysis_start_time = time.time()
 
@@ -530,7 +542,8 @@ class HypoTesting(Analysis):
                     if total_complete > 0:
                         sec_per_fid = dt / total_complete
                         time_to_go = sec_per_fid * trials_to_go
-                        ts_remaining = timediffstamp(time_to_go, sec_decimals=0)
+                        ts_remaining = timediffstamp(time_to_go, sec_decimals=0,
+                                                     hms_always=True)
 
                     logging.info(
                         ('Working on {data_disp} set ID %d / {fid_disp} set ID'
