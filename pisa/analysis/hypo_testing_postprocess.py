@@ -27,13 +27,14 @@ import time
 from traceback import format_exc
 
 import numpy as np
+import pandas
 import pint
 
 from pisa import ureg, _version, __version__
 from pisa.analysis.hypo_testing import Labels
 #from pisa.core.map import VALID_METRICS
 #from pisa.utils.comparisons import normQuant
-#from pisa.utils.fileio import from_file, get_valid_filename, mkdir, to_file
+from pisa.utils.fileio import from_file, get_valid_filename, mkdir, to_file, nsort
 #from pisa.utils.hash import hash_obj
 #from pisa.utils.log import logging, set_verbosity
 #from pisa.utils.random_numbers import get_random_state
@@ -41,53 +42,53 @@ from pisa.analysis.hypo_testing import Labels
 #from pisa.utils.timing import timediffstamp, timestamp
 
 
-def get_config(logdir):
-    config_summary_fpath = os.path.join(logdir, 'config_summary.json')
-    summary = from_file(config_summary_fpath, sort_keys=False)
-    return summary
-
-    d['metric_optimized'] = self.metric
-    summary['minimizer_info'] = d
-
-    summary['data_name'] = self.data_name
-    summary['data_is_data'] = self.data_is_data
-    summary['data_hash'] = self.data_hash
-    summary['data_param_selections'] = ','.join(self.data_param_selections)
-    summary['data_params_state_hash'] = self.data_maker.params.state_hash
-    summary['data_params'] = [str(p) for p in self.data_maker.params]
-    summary['data_pipelines'] = self.summarize_dist_maker(self.data_maker)
-
-    self.h0_maker.select_params(self.h0_param_selections)
-    self.h0_maker.reset_free()
-    summary['h0_name'] = self.h0_name
-    summary['h0_hash'] = self.h0_hash
-    summary['h0_param_selections'] = ','.join(self.h0_param_selections)
-    summary['h0_params_state_hash'] = self.h0_maker.params.state_hash
-    summary['h0_params'] = [str(p) for p in self.h0_maker.params]
-    summary['h0_pipelines'] = self.summarize_dist_maker(self.h0_maker)
-
-    self.h1_maker.select_params(self.h1_param_selections)
-    self.h1_maker.reset_free()
-    summary['h1_name'] = self.h1_name
-    summary['h1_hash'] = self.h1_hash
-    summary['h1_param_selections'] = ','.join(self.h1_param_selections)
-    summary['h1_params_state_hash'] = self.h1_maker.params.state_hash
-    summary['h1_params'] = [str(p) for p in self.h1_maker.params]
-    summary['h1_pipelines'] = self.summarize_dist_maker(self.h1_maker)
-
-    # Reverse the order so it serializes to a file as intended
-    # (want top-to-bottom file convention vs. fifo streaming data
-    # convention)
-    od = OrderedDict()
-    for ok, ov in (summary.items()):
-        if isinstance(ov, OrderedDict):
-            od1 = OrderedDict()
-            for ik, iv in (ov.items()):
-                od1[ik] = iv
-            ov = od1
-        od[ok] = ov
-
-    to_file(od, self.config_summary_fpath, sort_keys=False)
+#def get_config(logdir):
+#    config_summary_fpath = os.path.join(logdir, 'config_summary.json')
+#    summary = from_file(config_summary_fpath, sort_keys=False)
+#    return summary
+#
+#    d['metric_optimized'] = self.metric
+#    summary['minimizer_info'] = d
+#
+#    summary['data_name'] = self.data_name
+#    summary['data_is_data'] = self.data_is_data
+#    summary['data_hash'] = self.data_hash
+#    summary['data_param_selections'] = ','.join(self.data_param_selections)
+#    summary['data_params_state_hash'] = self.data_maker.params.state_hash
+#    summary['data_params'] = [str(p) for p in self.data_maker.params]
+#    summary['data_pipelines'] = self.summarize_dist_maker(self.data_maker)
+#
+#    self.h0_maker.select_params(self.h0_param_selections)
+#    self.h0_maker.reset_free()
+#    summary['h0_name'] = self.h0_name
+#    summary['h0_hash'] = self.h0_hash
+#    summary['h0_param_selections'] = ','.join(self.h0_param_selections)
+#    summary['h0_params_state_hash'] = self.h0_maker.params.state_hash
+#    summary['h0_params'] = [str(p) for p in self.h0_maker.params]
+#    summary['h0_pipelines'] = self.summarize_dist_maker(self.h0_maker)
+#
+#    self.h1_maker.select_params(self.h1_param_selections)
+#    self.h1_maker.reset_free()
+#    summary['h1_name'] = self.h1_name
+#    summary['h1_hash'] = self.h1_hash
+#    summary['h1_param_selections'] = ','.join(self.h1_param_selections)
+#    summary['h1_params_state_hash'] = self.h1_maker.params.state_hash
+#    summary['h1_params'] = [str(p) for p in self.h1_maker.params]
+#    summary['h1_pipelines'] = self.summarize_dist_maker(self.h1_maker)
+#
+#    # Reverse the order so it serializes to a file as intended
+#    # (want top-to-bottom file convention vs. fifo streaming data
+#    # convention)
+#    od = OrderedDict()
+#    for ok, ov in (summary.items()):
+#        if isinstance(ov, OrderedDict):
+#            od1 = OrderedDict()
+#            for ik, iv in (ov.items()):
+#                od1[ik] = iv
+#            ov = od1
+#        od[ok] = ov
+#
+#    to_file(od, self.config_summary_fpath, sort_keys=False)
 
 
 def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
@@ -114,8 +115,9 @@ def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
     these to be separated from one another.
 
     """
+    logdir = os.path.expanduser(os.path.expandvars(logdir))
     config_summary_fpath = os.path.join(logdir, 'config_summary.json')
-    cfg = from_file(config_summary_fpath, sort_keys=False)
+    cfg = from_file(config_summary_fpath)
 
     data_is_data = cfg['data_is_data']
     if data_is_data and fluctuate_data:
@@ -125,20 +127,82 @@ def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
     # Get naming scheme 
     labels = Labels(
         h0_name=cfg['h0_name'], h1_name=cfg['h1_name'],
-        data_name=cfg['data_name'], data_is_data=self.data_is_data,
-        fluctuate_data=self.fluctuate_data, fluctuate_fid=self.fluctuate_fid
+        data_name=cfg['data_name'], data_is_data=data_is_data,
+        fluctuate_data=fluctuate_data, fluctuate_fid=fluctuate_fid
     )
+    print labels.data
+
+    # Find all relevant data dirs, and from each extract the fiducial fit(s)
+    # information contained
+    data_sets = OrderedDict()
+    for basename in nsort(os.listdir(logdir)):
+        m = labels.subdir_re.match(basename)
+        if m is None:
+            continue
+
+        if fluctuate_data:
+            data_ind = int(m.groupdict()['data_ind'])
+            dset_label = data_ind
+        else:
+            dset_label = labels.data_prefix
+            if not labels.data_suffix in [None, '']:
+                dset_label += '_' + labels.data_suffix
+
+        lvl2_fits = OrderedDict()
+        lvl2_fits['h0_fit_to_data'] = None
+        lvl2_fits['h1_fit_to_data'] = None
+
+        subdir = os.path.join(logdir, basename)
+        for fnum, fname in enumerate(nsort(os.listdir(subdir))):
+            fpath = os.path.join(subdir, fname)
+            for x in ['0', '1']:
+                k = 'h{x}_fit_to_data'.format(x=x)
+                if fname == labels.dict[k]:
+                    lvl2_fits[k] = extract_fit(fpath, 'metric_val')
+                    break
+                for y in ['0','1']:
+                    k = 'h{x}_fit_to_h{y}_fid'.format(x=x, y=y)
+                    r = labels.dict[k + '_re']
+                    #print r.pattern
+                    #return labels
+                    m = r.match(fname)
+                    if m is None:
+                        continue
+                    #sys.stdout.write('.')
+                    if fluctuate_fid:
+                        fid_label = int(m.groupdict()['fid_ind'])
+                    else:
+                        fid_label = labels.fid
+                    if k not in lvl2_fits:
+                        lvl2_fits[k] = OrderedDict()
+                    lvl2_fits[k][fid_label] = extract_fit(fpath, 'metric_val')
+                    break
+        data_sets[dset_label] = lvl2_fits
+    return data_sets
 
 
+def extract_fit(fpath, keys=None):
+    """Extract fit info from a file.
 
-def extract_data_asimov_trials(logdirs):
-    pass
-def extract_data_llr_trials(logdirs):
-    pass
-def extract_mc_asimov_trials(logdirs):
-    pass
-def extract_mc_llr_trials(logdirs):
-    pass
+    Parameters
+    ----------
+    fpath : string
+        Path to the file
+
+    keys : None, string, or sequence of strings
+        Keys to extract. If None, all keys are extracted.
+
+    """
+    info = from_file(fpath)
+    if keys is None:
+        return info
+    if isinstance(keys, basestring):
+        keys = [keys]
+    for key in info.keys():
+        if key not in keys:
+            info.pop(key)
+    return info
+
 
 def parse_args():
     parser = ArgumentParser(
