@@ -491,7 +491,8 @@ class HypoTesting(Analysis):
         try:
             # Loop for multiple (if fluctuated) data distributions
             for self.data_ind in xrange(self.data_start_ind,
-                                        self.data_start_ind+self.num_data_trials):
+                                        self.data_start_ind
+                                        + self.num_data_trials):
                 data_trials_complete = self.data_ind-self.data_start_ind
                 pct_data_complete = (
                     100.*(data_trials_complete)/self.num_data_trials
@@ -512,7 +513,8 @@ class HypoTesting(Analysis):
 
                 # Loop for multiple (if fluctuated) fiducial data distributions
                 for self.fid_ind in xrange(self.fid_start_ind,
-                                           self.fid_start_ind+self.num_fid_trials):
+                                           self.fid_start_ind
+                                           + self.num_fid_trials):
                     fid_trials_complete = self.fid_ind-self.fid_start_ind
                     pct_fid_dist_complete = (
                         100*(fid_trials_complete)/self.num_fid_trials
@@ -624,7 +626,6 @@ class HypoTesting(Analysis):
             )
 
         # Otherwise, we do have to do the fit.
-
         else:
             logging.info('Fitting hypo %s to %s distributions.'
                          %(self.labels.h0_name, self.labels.data_disp))
@@ -642,7 +643,8 @@ class HypoTesting(Analysis):
         self.h0_fid_asimov_dist = self.h0_fit_to_data['hypo_asimov_dist']
 
         self.log_fit(fit_info=self.h0_fit_to_data,
-                     dirpath=self.thisdata_dirpath, label=self.labels.h0_fit_to_data)
+                     dirpath=self.thisdata_dirpath,
+                     label=self.labels.h0_fit_to_data)
 
         if (not self.data_is_data and self.data_maker_is_h1_maker
             and self.h1_param_selections == self.data_param_selections
@@ -682,7 +684,8 @@ class HypoTesting(Analysis):
         self.h1_fid_asimov_dist = self.h1_fit_to_data['hypo_asimov_dist']
 
         self.log_fit(fit_info=self.h1_fit_to_data,
-                     dirpath=self.thisdata_dirpath, label=self.labels.h1_fit_to_data)
+                     dirpath=self.thisdata_dirpath,
+                     label=self.labels.h1_fit_to_data)
 
     def produce_fid_data(self):
         logging.info('Generating %s distributions.' %self.labels.fid_disp)
@@ -722,75 +725,85 @@ class HypoTesting(Analysis):
     def fit_hypos_to_fid(self):
         self.labels.derive_fid_fits_names(fid_ind=self.fid_ind)
 
-        # If fid isn't fluctuated, it's redundant to fit a hypo to a dist it
-        # generated
-        self.h0_maker.select_params(self.h0_param_selections)
-        self.h0_maker.reset_free()
-        if not self.fluctuate_fid:
-            logging.info('Hypo %s %s is not fluctuated; fitting this hypo to'
-                         ' its own %s distributions is unnecessary.'
-                         %(self.labels.h0_name, self.labels.fid_disp,
-                           self.labels.fid_disp))
-            self.h0_fit_to_h0_fid = self.nofit_hypo(
-                data_dist=self.h0_fid_dist,
-                hypo_maker=self.h0_maker,
-                hypo_param_selections=self.h0_param_selections,
-                hypo_asimov_dist=self.h0_fid_asimov_dist,
-                metric=self.metric, other_metrics=self.other_metrics,
-                blind=self.blind
-            )
-        else:
-            logging.info('Fitting hypo %s to its own %s distributions.'
-                         %(self.labels.h0_name, self.labels.fid_disp))
-            self.h0_fit_to_h0_fid, alternate_fits = self.fit_hypo(
-                data_dist=self.h0_fid_dist,
-                hypo_maker=self.h0_maker,
-                hypo_param_selections=self.h0_param_selections,
-                metric=self.metric,
-                other_metrics=self.other_metrics,
-                minimizer_settings=self.minimizer_settings,
-                check_octant=self.check_octant,
-                pprint=self.pprint,
-                blind=self.blind
-            )
+        fpath = os.path.join(self.thisdata_dirpath,
+                             self.labels.h0_fit_to_h0_fid + '.json')
+        if not os.path.isfile(fpath):
+            # If fid isn't fluctuated, it's redundant to fit a hypo to a dist
+            # it generated
+            self.h0_maker.select_params(self.h0_param_selections)
+            self.h0_maker.reset_free()
+            if not self.fluctuate_fid:
+                logging.info(
+                    'Hypo %s %s is not fluctuated; fitting this hypo to its'
+                    ' own %s distributions is unnecessary.'
+                    %(self.labels.h0_name, self.labels.fid_disp,
+                      self.labels.fid_disp)
+                )
+                self.h0_fit_to_h0_fid = self.nofit_hypo(
+                    data_dist=self.h0_fid_dist,
+                    hypo_maker=self.h0_maker,
+                    hypo_param_selections=self.h0_param_selections,
+                    hypo_asimov_dist=self.h0_fid_asimov_dist,
+                    metric=self.metric, other_metrics=self.other_metrics,
+                    blind=self.blind
+                )
+            else:
+                logging.info('Fitting hypo %s to its own %s distributions.'
+                             %(self.labels.h0_name, self.labels.fid_disp))
+                self.h0_fit_to_h0_fid, alternate_fits = self.fit_hypo(
+                    data_dist=self.h0_fid_dist,
+                    hypo_maker=self.h0_maker,
+                    hypo_param_selections=self.h0_param_selections,
+                    metric=self.metric,
+                    other_metrics=self.other_metrics,
+                    minimizer_settings=self.minimizer_settings,
+                    check_octant=self.check_octant,
+                    pprint=self.pprint,
+                    blind=self.blind
+                )
 
-        self.log_fit(fit_info=self.h0_fit_to_h0_fid,
-                     dirpath=self.thisdata_dirpath,
-                     label=self.labels.h0_fit_to_h0_fid)
+            self.log_fit(fit_info=self.h0_fit_to_h0_fid,
+                         dirpath=self.thisdata_dirpath,
+                         label=self.labels.h0_fit_to_h0_fid)
 
-        self.h1_maker.select_params(self.h1_param_selections)
-        self.h1_maker.reset_free()
-        if not self.fluctuate_fid:
-            logging.info('Hypo %s %s is not fluctuated; fitting this hypo to'
-                         ' its own %s distributions is unnecessary.'
-                         %(self.labels.h1_name, self.labels.fid_disp,
-                           self.labels.fid_disp))
-            self.h1_fit_to_h1_fid = self.nofit_hypo(
-                data_dist=self.h1_fid_dist,
-                hypo_maker=self.h1_maker,
-                hypo_param_selections=self.h1_param_selections,
-                hypo_asimov_dist=self.h1_fid_asimov_dist,
-                metric=self.metric, other_metrics=self.other_metrics,
-                blind=self.blind
-            )
-        else:
-            logging.info('Fitting hypo %s to its own %s distributions.'
-                         %(self.labels.h1_name, self.labels.fid_disp))
-            self.h1_fit_to_h1_fid, alternate_fits = self.fit_hypo(
-                data_dist=self.h1_fid_dist,
-                hypo_maker=self.h1_maker,
-                hypo_param_selections=self.h1_param_selections,
-                metric=self.metric,
-                other_metrics=self.other_metrics,
-                minimizer_settings=self.minimizer_settings,
-                check_octant=self.check_octant,
-                pprint=self.pprint,
-                blind=self.blind
-            )
+        fpath = os.path.join(self.thisdata_dirpath,
+                             self.labels.h1_fit_to_h1_fid + '.json')
+        if not os.path.isfile(fpath):
+            self.h1_maker.select_params(self.h1_param_selections)
+            self.h1_maker.reset_free()
+            if not self.fluctuate_fid:
+                logging.info(
+                    'Hypo %s %s is not fluctuated; fitting this hypo to its'
+                    ' own %s distributions is unnecessary.'
+                    %(self.labels.h1_name, self.labels.fid_disp,
+                      self.labels.fid_disp)
+                )
+                self.h1_fit_to_h1_fid = self.nofit_hypo(
+                    data_dist=self.h1_fid_dist,
+                    hypo_maker=self.h1_maker,
+                    hypo_param_selections=self.h1_param_selections,
+                    hypo_asimov_dist=self.h1_fid_asimov_dist,
+                    metric=self.metric, other_metrics=self.other_metrics,
+                    blind=self.blind
+                )
+            else:
+                logging.info('Fitting hypo %s to its own %s distributions.'
+                             %(self.labels.h1_name, self.labels.fid_disp))
+                self.h1_fit_to_h1_fid, alternate_fits = self.fit_hypo(
+                    data_dist=self.h1_fid_dist,
+                    hypo_maker=self.h1_maker,
+                    hypo_param_selections=self.h1_param_selections,
+                    metric=self.metric,
+                    other_metrics=self.other_metrics,
+                    minimizer_settings=self.minimizer_settings,
+                    check_octant=self.check_octant,
+                    pprint=self.pprint,
+                    blind=self.blind
+                )
 
-        self.log_fit(fit_info=self.h1_fit_to_h1_fid,
-                     dirpath=self.thisdata_dirpath,
-                     label=self.labels.h1_fit_to_h1_fid)
+            self.log_fit(fit_info=self.h1_fit_to_h1_fid,
+                         dirpath=self.thisdata_dirpath,
+                         label=self.labels.h1_fit_to_h1_fid)
 
         # TODO: remove redundancy if h0 and h1 are identical
         #if (self.h1_maker_is_h0_maker
@@ -798,67 +811,78 @@ class HypoTesting(Analysis):
         #    self.h0_fit_to_h1_fid =
 
         # Perform fits of one hypo to fid dist produced by other hypo
-        if ((not self.fluctuate_data) and (not self.fluctuate_fid)
-            and self.data_maker_is_h0_maker
-            and self.h0_param_selections == self.data_param_selections):
-            logging.info('Fitting hypo %s to hypo %s %s distributions is'
-                         ' unnecessary since former was already fit to %s'
-                         ' distributions, which are identical distributions.'
-                         %(self.labels.h1_name, self.labels.h0_name,
-                           self.labels.fid_disp, self.labels.data_disp))
-            self.h1_fit_to_h0_fid = copy(self.h1_fit_to_data)
-        else:
-            logging.info('Fitting hypo %s to hypo %s %s distributions.'
-                         %(self.labels.h1_name, self.labels.h0_name,
-                           self.labels.fid_disp))
-            self.h1_maker.select_params(self.h1_param_selections)
-            self.h1_maker.reset_free()
-            self.h1_fit_to_h0_fid, alternate_fits = self.fit_hypo(
-                data_dist=self.h0_fid_dist,
-                hypo_maker=self.h1_maker,
-                hypo_param_selections=self.h1_param_selections,
-                metric=self.metric,
-                other_metrics=self.other_metrics,
-                minimizer_settings=self.minimizer_settings,
-                check_octant=self.check_octant,
-                pprint=self.pprint,
-                blind=self.blind
-            )
 
-        self.log_fit(fit_info=self.h1_fit_to_h0_fid,
-                     dirpath=self.thisdata_dirpath,
-                     label=self.labels.h1_fit_to_h0_fid)
+        fpath = os.path.join(self.thisdata_dirpath,
+                             self.labels.h1_fit_to_h0_fid + '.json')
+        if not os.path.isfile(fpath):
+            if ((not self.fluctuate_data) and (not self.fluctuate_fid)
+                and self.data_maker_is_h0_maker
+                and self.h0_param_selections == self.data_param_selections):
+                logging.info(
+                    'Fitting hypo %s to hypo %s %s distributions is'
+                    ' unnecessary since former was already fit to %s'
+                    ' distributions, which are identical distributions.'
+                    %(self.labels.h1_name, self.labels.h0_name,
+                      self.labels.fid_disp, self.labels.data_disp)
+                )
+                self.h1_fit_to_h0_fid = copy(self.h1_fit_to_data)
+            else:
+                logging.info('Fitting hypo %s to hypo %s %s distributions.'
+                             %(self.labels.h1_name, self.labels.h0_name,
+                               self.labels.fid_disp))
+                self.h1_maker.select_params(self.h1_param_selections)
+                self.h1_maker.reset_free()
+                self.h1_fit_to_h0_fid, alternate_fits = self.fit_hypo(
+                    data_dist=self.h0_fid_dist,
+                    hypo_maker=self.h1_maker,
+                    hypo_param_selections=self.h1_param_selections,
+                    metric=self.metric,
+                    other_metrics=self.other_metrics,
+                    minimizer_settings=self.minimizer_settings,
+                    check_octant=self.check_octant,
+                    pprint=self.pprint,
+                    blind=self.blind
+                )
 
-        if ((not self.fluctuate_data) and (not self.fluctuate_fid)
-            and self.data_maker_is_h1_maker
-            and self.h1_param_selections == self.data_param_selections):
-            logging.info('Fitting hypo %s to hypo %s %s distributions is'
-                         ' unnecessary since former was already fit to %s'
-                         ' distributions, which are identical distributions.'
-                         %(self.labels.h0_name, self.labels.h1_name,
-                           self.labels.fid_disp, self.labels.data_disp))
-            self.h0_fit_to_h1_fid = copy(self.h0_fit_to_data)
-        else:
-            logging.info('Fitting hypo %s to hypo %s %s distributions.'
-                         %(self.labels.h0_name, self.labels.h1_name,
-                           self.labels.fid_disp))
-            self.h0_maker.select_params(self.h0_param_selections)
-            self.h0_maker.reset_free()
-            self.h0_fit_to_h1_fid, alternate_fits = self.fit_hypo(
-                data_dist=self.h1_fid_dist,
-                hypo_maker=self.h0_maker,
-                hypo_param_selections=self.h0_param_selections,
-                metric=self.metric,
-                other_metrics=self.other_metrics,
-                minimizer_settings=self.minimizer_settings,
-                check_octant=self.check_octant,
-                pprint=self.pprint,
-                blind=self.blind
-            )
+            self.log_fit(fit_info=self.h1_fit_to_h0_fid,
+                         dirpath=self.thisdata_dirpath,
+                         label=self.labels.h1_fit_to_h0_fid)
 
-        self.log_fit(fit_info=self.h0_fit_to_h1_fid,
-                     dirpath=self.thisdata_dirpath,
-                     label=self.labels.h0_fit_to_h1_fid)
+        fpath = os.path.join(self.thisdata_dirpath,
+                             self.labels.h0_fit_to_h1_fid + '.json')
+        if not os.path.isfile(fpath):
+            if ((not self.fluctuate_data) and (not self.fluctuate_fid)
+                and self.data_maker_is_h1_maker
+                and self.h1_param_selections == self.data_param_selections):
+                logging.info(
+                    'Fitting hypo %s to hypo %s %s distributions is'
+                    ' unnecessary since former was already fit to %s'
+                    ' distributions, which are identical distributions.'
+                    %(self.labels.h0_name, self.labels.h1_name,
+                      self.labels.fid_disp, self.labels.data_disp)
+                )
+                self.h0_fit_to_h1_fid = copy(self.h0_fit_to_data)
+            else:
+                logging.info('Fitting hypo %s to hypo %s %s distributions.'
+                             %(self.labels.h0_name, self.labels.h1_name,
+                               self.labels.fid_disp))
+                self.h0_maker.select_params(self.h0_param_selections)
+                self.h0_maker.reset_free()
+                self.h0_fit_to_h1_fid, alternate_fits = self.fit_hypo(
+                    data_dist=self.h1_fid_dist,
+                    hypo_maker=self.h0_maker,
+                    hypo_param_selections=self.h0_param_selections,
+                    metric=self.metric,
+                    other_metrics=self.other_metrics,
+                    minimizer_settings=self.minimizer_settings,
+                    check_octant=self.check_octant,
+                    pprint=self.pprint,
+                    blind=self.blind
+                )
+
+            self.log_fit(fit_info=self.h0_fit_to_h1_fid,
+                         dirpath=self.thisdata_dirpath,
+                         label=self.labels.h0_fit_to_h1_fid)
 
     def setup_logging(self):
         """
@@ -1038,6 +1062,7 @@ class HypoTesting(Analysis):
         self.hostname = socket.gethostname()
         chars = string.ascii_lowercase + string.digits
         self.random_suffix = ''.join([random.choice(chars) for i in range(8)])
+        self.pid = os.getpid()
         self.user = getpass.getuser()
         self.minimizer_settings_fpath = os.path.join(
             self.logroot, 'minimizer_settings.json'
@@ -1121,7 +1146,8 @@ class HypoTesting(Analysis):
                               str(stage.state_hash)])
                 d = OrderedDict()
                 for attr in ['input_binning', 'output_binning']:
-                    if hasattr(stage, attr) and getattr(stage, attr) is not None:
+                    if (hasattr(stage, attr)
+                        and getattr(stage, attr) is not None):
                         d[attr] = str(getattr(stage, attr))
                 stage_info[k] = d
             pipeline_info.append(stage_info)
@@ -1132,6 +1158,7 @@ class HypoTesting(Analysis):
         run_info.append('invocation_datetime = %s' %self.invocation_datetime)
         run_info.append('hostname = %s' %self.hostname)
         run_info.append('random_suffix = %s' %self.random_suffix)
+        run_info.append('pid = %s' %self.pid)
         run_info.append('user = %s' %self.user)
 
         run_info.append('logdir = %s' %self.logdir)

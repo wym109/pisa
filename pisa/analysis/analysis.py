@@ -253,10 +253,13 @@ class Analysis(object):
             # Display any units on top
             r = re.compile(r'(^[+0-9.eE-]* )|(^[+0-9.eE-]*$)')
             hdr = ' '*(6+1+12+3)
-            hdr += ' '.join([
-                r.sub('', format(p.value, '~')).replace(' ','').center(12)
-                for p in free_p
-            ])
+            unt = []
+            for p in free_p:
+                u = r.sub('', format(p.value, '~')).replace(' ','')[0:10]
+                if len(u) > 0:
+                    u = '(' + u + ')'
+                unt.append(u.center(12))
+            hdr += ' '.join(unt)
             hdr += '\n'
 
             # Header names
