@@ -466,10 +466,13 @@ class prob3gpu(Stage):
         # Return TransformSet
         smooth_maps = np.reshape(smooth_maps, (12, nebins_fine, nczbins_fine))
         # Slice up the transform arrays into views to populate each transform
+        dims = ['true_energy', 'true_coszen']
+        xform_dim_indices = [0, 1]
+        users_dim_indices = [self.input_binning.index(d) for d in dims]
+        xform_shape = [2] + [self.input_binning[d].num_bins for d in dims]
         transforms = []
-        x_shape = [2] + list(self.input_binning.shape)
         for out_idx, output_name in enumerate(self.output_names):
-            xform = np.empty(x_shape)
+            xform = np.empty(xform_shape)
             if out_idx < 3:
                 # Neutrinos
                 xform[0] = smooth_maps[out_idx]
@@ -480,13 +483,22 @@ class prob3gpu(Stage):
                 xform[0] = smooth_maps[out_idx+3]
                 xform[1] = smooth_maps[out_idx+6]
                 input_names = self.input_names[2:4]
-            transforms.append(
-                BinnedTensorTransform(input_names=input_names,
-                output_name=output_name,
-                input_binning=self.input_binning,
-                output_binning=self.output_binning,
-                xform_array=xform)
+
+            xform = np.moveaxis(
+                xform,
+                source=[0] + [i+1 for i in xform_dim_indices],
+                destination=[0] + [i+1 for i in users_dim_indices]
             )
+            transforms.append(
+                BinnedTensorTransform(
+                    input_names=input_names,
+                    output_name=output_name,
+                    input_binning=self.input_binning,
+                    output_binning=self.output_binning,
+                    xform_array=xform
+                )
+            )
+
         return TransformSet(transforms=transforms)
 
     def validate_params(self, params):

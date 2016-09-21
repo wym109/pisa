@@ -84,7 +84,7 @@ class prob3cpu(Stage):
         )
 
         # Define the names of objects that are required by this stage (objects
-        # will have the attribute "name": i.e., obj.name)
+        # will have the attribute `name`: i.e., obj.name)
         input_names = (
             'nue', 'numu', 'nuebar', 'numubar'
         )
@@ -224,13 +224,16 @@ class prob3cpu(Stage):
         )
 
         # Slice up the transform arrays into views to populate each transform
-        transforms = []
-        xShape = [2] + list(self.input_binning.shape)
+        dims = ['true_energy', 'true_coszen']
+        xform_dim_indices = [0, 1]
+        users_dim_indices = [self.input_binning.index(d) for d in dims]
+        xform_shape = [2] + [self.input_binning[d].num_bins for d in dims]
 
         # TODO: populate explicitly by flavor, don't assume any particular
         # ordering of the outputs names!
+        transforms = []
         for out_idx, output_name in enumerate(self.output_names):
-            xform = np.empty(xShape)
+            xform = np.empty(xform_shape)
             if out_idx < 3:
                 # Neutrinos
                 xform[0] = np.array([
@@ -263,6 +266,11 @@ class prob3cpu(Stage):
                 ])
                 input_names = self.input_names[2:4]
 
+            xform = np.moveaxis(
+                xform,
+                source=[0] + [i+1 for i in xform_dim_indices],
+                destination=[0] + [i+1 for i in users_dim_indices]
+            )
             transforms.append(
                 BinnedTensorTransform(
                     input_names=input_names,

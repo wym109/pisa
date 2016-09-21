@@ -714,7 +714,8 @@ class honda(Stage):
             # i.e. One spline for every table cosZenith value
             #      0.95 is used for no particular reason
             #      These keys are strings, despite being numbers
-            assert not isinstance(self.spline_dict[self.primaries[0]]['0.95'], Mapping)
+            assert not isinstance(self.spline_dict[self.primaries[0]]['0.95'],
+                                  Mapping)
             # 1st derivatives of one spline for each coszen (splines are
             # functions of energy)
             all_spline_vals = [np.zeros_like(logevals)]
@@ -761,7 +762,7 @@ class honda(Stage):
         # * For 2D we also need to integrate over azimuth
         #   There is no dependency, so this is a multiplication of 2pi
         hist = mmc2d(return_map.hist, self.bin_volumes, 2*np.pi*energy_scale)
-        return_map = Map(name=prim, hist=hist, binning=self.proxy_binning)
+        return_map = Map(name=prim, hist=hist, binning=return_map.binning)
         #return_map *= self.bin_volumes*(2*np.pi*self.params.energy_scale.m)
         return return_map
 

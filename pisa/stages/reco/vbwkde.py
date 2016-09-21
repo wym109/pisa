@@ -27,10 +27,10 @@ import numpy as np
 import scipy.interpolate as interpolate
 
 from pisa.core.binning import MultiDimBinning
+from pisa.core.events import Events
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.utils import kde, confInterval
-from pisa.utils.events import Events
 from pisa.utils.flavInt import flavintGroupsFromString
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
@@ -84,6 +84,8 @@ class vbwkde(Stage):
         computing the transforms. See Notes section for more details on how
         to specify this string
 
+    sum_grouped_flavints : bool
+
     input_binning : MultiDimBinning or convertible thereto
         Input binning is in true variables, with names prefixed by "true_".
         Each must match a corresponding dimension in `output_binning`.
@@ -116,8 +118,8 @@ class vbwkde(Stage):
 
     """
     def __init__(self, params, particles, input_names, transform_groups,
-                 input_binning, output_binning, error_method=None,
-                 disk_cache=None, transforms_cache_depth=20,
+                 sum_grouped_flavints, input_binning, output_binning,
+                 error_method=None, disk_cache=None, transforms_cache_depth=20,
                  outputs_cache_depth=20, memcache_deepcopy=True,
                  debug_mode=None):
         self.events_hash = None
@@ -130,6 +132,10 @@ class vbwkde(Stage):
         self.transform_groups = flavintGroupsFromString(transform_groups)
         """Particle/interaction types to group for computing transforms"""
 
+        if sum_grouped_flavints:
+            raise NotImplementedError('`sum_grouped_flavints` must be False.')
+        self.sum_grouped_flavints = sum_grouped_flavints
+
         # All of the following params (and no more) must be passed via the
         # `params` argument.
         expected_params = (
@@ -139,10 +145,13 @@ class vbwkde(Stage):
         if isinstance(input_names, basestring):
             input_names = (''.join(input_names.split(' '))).split(',')
 
-        # Define the names of objects that get produced by this stage
-        # The output combines nu and nubar together (just called nu)
-        # All of the NC events are joined (they look the same in the detector).
-        output_names = input_names
+        # Define the names of objects expected in inputs and produced as
+        # outputs
+        if self.particles == 'neutrinos':
+            if self.sum_grouped_flavints:
+                output_names = [str(g) for g in self.transform_groups]
+            else:
+                output_names = input_names
 
         # Invoke the init method from the parent class, which does a lot of
         # work for you.
@@ -168,6 +177,7 @@ class vbwkde(Stage):
         self.validate_binning()
         self.include_attrs_for_hashes('particles')
         self.include_attrs_for_hashes('transform_groups')
+        self.include_attrs_for_hashes('sum_grouped_flavints')
 
     def validate_binning(self):
         assert self.input_binning.num_dims == self.output_binning.num_dims
@@ -1104,10 +1114,10 @@ class vbwkde(Stage):
         output_binning = self.output_binning.to(**out_units)
 
         nominal_transforms = []
-        for flav_int_group in self.transform_groups:
-            logging.debug("Working on %s reco kernels" %flav_int_group)
+        for xform_flavints in self.transform_groups:
+            logging.debug("Working on %s reco kernels" %xform_flavints)
 
-            repr_flav_int = flav_int_group.flavints()[0]
+            repr_flav_int = xform_flavints.flavints()[0]
             e_true = self.events[repr_flav_int]['true_energy']
             e_reco = self.events[repr_flav_int]['reco_energy']
             cz_true = self.events[repr_flav_int]['true_coszen']
@@ -1146,7 +1156,7 @@ class vbwkde(Stage):
                 reco_kernel = np.swapaxes(reco_kernel, 2, 3)
 
             for input_name in self.input_names:
-                if input_name not in flav_int_group:
+                if input_name not in xform_flavints:
                     continue
                 xform = BinnedTensorTransform(
                     input_names=input_name,

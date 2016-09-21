@@ -1103,6 +1103,7 @@ class MapSet(object):
                              %len(args))
         return m
 
+    # TODO: add different aggregation options OR rename to sum_{wildcard|re}
     def combine_re(self, regexes):
         """For each regex passed, add contained maps whose names match.
 

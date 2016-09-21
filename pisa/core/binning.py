@@ -909,6 +909,10 @@ class MultiDimBinning(object):
         return self._dimensions
 
     @property
+    def dims(self):
+        return self._dimensions
+
+    @property
     def num_dims(self):
         return self._num_dims
 

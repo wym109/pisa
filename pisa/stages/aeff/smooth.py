@@ -11,10 +11,10 @@ from uncertainties import unumpy as unp
 
 from pisa import ureg, Q_
 from pisa.core.binning import OneDimBinning, MultiDimBinning
+from pisa.core.events import Events
 from pisa.core.map import Map
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
-from pisa.utils.events import Events
 from pisa.utils.flavInt import flavintGroupsFromString
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
@@ -25,6 +25,9 @@ from pisa.utils.profiler import profile
 # (rather than requiring an almost-identical version just for muons). For
 # example, an input arg can dictate neutrino or muon, which then sets the
 # input_names and output_names.
+
+# TODO: remove the input_names instantiation arg since these are computed
+# from the `particles` arg?
 
 class smooth(Stage):
     """Smooth each effective area transform by fitting splines
@@ -37,6 +40,10 @@ class smooth(Stage):
         aeff_weight_file
         livetime
         aeff_scale
+        aeff_e_smooth_factor
+        aeff_cz_smooth_factor
+        interp_kind
+        nutau_cc_norm
 
     particles : string
         Must be one of 'neutrinos' or 'muons' (though only neutrinos are
@@ -101,7 +108,7 @@ class smooth(Stage):
         # `params` argument.
         expected_params = (
             'aeff_weight_file', 'livetime', 'aeff_scale',
-            'e_smooth_factor', 'cz_smooth_factor',
+            'aeff_e_smooth_factor', 'aeff_cz_smooth_factor',
             'interp_kind', 'nutau_cc_norm'
         )
 
@@ -131,7 +138,7 @@ class smooth(Stage):
         super(self.__class__, self).__init__(
             use_transforms=True,
             stage_name='aeff',
-            service_name='hist',
+            service_name='smooth',
             params=params,
             expected_params=expected_params,
             input_names=input_names,
@@ -181,32 +188,41 @@ class smooth(Stage):
         A transform with a smoothed xform.array
 
         '''
+        # Dimensions and order used for computation
+        dims = ['true_coszen', 'true_energy'] #, 'true_azimuth']
+        # Order is simple for computation
+        comp_dim_indices = range(len(dims))
+        # Find order in the transform
+        users_dim_indices = [xform.input_binning.index(d) for d in dims]
+
         hist = xform.xform_array
-        hist_binning = xform.input_binning
+        xform_binning = xform.input_binning
 
         # Swap hist dim order to be [true_coszen, true_energy, true_azimuth]
-        names = hist_binning.names
-        cz_i = names.index('true_coszen')
-        #e_i = names.index('true_energy')
-        #az_i = names.index('true_azimuth')     # No azimuth yet
-
-        if cz_i != 0:
-            hist = np.swapaxes(hist, 0, cz_i)
-        #if e_i != 1:
-        #    hist = np.swapaxes(hist, 1, e_i)
+        if comp_dim_indices != users_dim_indices:
+            hist = np.moveaxis(
+                hist,
+                source=users_dim_indices,
+                destination=comp_dim_indices
+            )
+            comp_binning = xform_binning.reorder_dimensions(xform.input_binning)
+        else:
+            comp_binning = xform_binning
 
         # Get smooth factors from stage parameters
-        e_smooth_factor = self.params.e_smooth_factor.value.m_as('dimensionless')
-        cz_smooth_factor = self.params.cz_smooth_factor.value.m_as('dimensionless')
+        e_smooth_factor = \
+                self.params.aeff_e_smooth_factor.value.m_as('dimensionless')
+        cz_smooth_factor = \
+                self.params.aeff_cz_smooth_factor.value.m_as('dimensionless')
 
         # Separate binning dimensions
-        czbins = hist_binning.true_coszen
-        ebins = hist_binning.true_energy
+        czbins = comp_binning.true_coszen
+        ebins = comp_binning.true_energy
 
         # Set spline weights
         # If hist has uncertainties
         if isinstance(hist.flat.next(), (unc.core.AffineScalarFunc,
-                                     unc.core.Variable)):
+                                         unc.core.Variable)):
             error = unp.std_devs(hist)
             hist = unp.nominal_values(hist)
         # If no uncertainties
@@ -274,19 +290,22 @@ class smooth(Stage):
         # Convert list of e-slices to array with cz as first index
         smoothed_hist = np.array(smoothed_e_slices).T
 
-        # Un-swap axes
-        if cz_i != 0:
-            smoothed_hist = np.swapaxes(smoothed_hist, 0, cz_i)
-#        if e_i != 1:
-#            smoothed_hist = np.swapaxes(smoothed_hist, 1, e_i)
+        # Reorder dimensions to restore user's original ordering
+        if comp_dim_indices != users_dim_indices:
+            smoothed_hist = np.moveaxis(
+                smoothed_hist,
+                source=comp_dim_indices,
+                destination=users_dim_indices
+            )
 
+        # Reorder dims to original
         smooth_xform = BinnedTensorTransform(
             input_names=xform.input_names,
             output_name=xform.output_name,
             input_binning=xform.input_binning,
             output_binning=xform.output_binning,
             xform_array=smoothed_hist
-            )
+        )
 
         return smooth_xform
 
@@ -315,19 +334,31 @@ class smooth(Stage):
         Use np.clip to remove these if necessary.
 
         """
+        if xform.input_binning.names != new_binning.names:
+            raise ValueError(
+                'At present it is required that interplation be carried out'
+                ' in the same dimensions/order of dimensions as those exist in'
+                ' the original trnsform. xform.input_binning.names: %s;'
+                ' new_binning.names: %s' %(xform.input_binning.names,
+                                           new_binning.names)
+            )
+
         hist = xform.xform_array
-        hist_binning = xform.input_binning
+        xform_binning = xform.input_binning
 
         interp_kind = self.params.interp_kind.value
 
+        # Interpolation treats x as first axis and y as second (i.e., like i-j
+        # axes), so compute accordingly by specifying the second binning
+        # dimension first, and vice versa
         interpolant = interp2d(
-            x=hist_binning.true_energy.midpoints,
-            y=hist_binning.true_coszen.midpoints,
+            x=xform_binning.dims[1].midpoints,
+            y=xform_binning.dims[0].midpoints,
             z=hist,
-            kind=interp_kind, copy=True, fill_value=None)
-
-        interp = interpolant(new_binning.true_energy.midpoints,
-                             new_binning.true_coszen.midpoints)
+            kind=interp_kind, copy=True, fill_value=None
+        )
+        interp = interpolant(new_binning.dims[1].midpoints,
+                             new_binning.dims[0].midpoints)
 
         interp_xform = BinnedTensorTransform(
             input_names=xform.input_names,
@@ -335,7 +366,7 @@ class smooth(Stage):
             input_binning=new_binning,
             output_binning=new_binning,
             xform_array=interp
-            )
+        )
 
         return interp_xform
 
@@ -408,25 +439,18 @@ class smooth(Stage):
         s_czbins = OneDimBinning(name='true_coszen',
                                  tex=r'\cos\theta_\nu', is_lin=True, num_bins=40,
                                  domain=[-1,1]*ureg(None))
-        smoothing_dims = []
-        smoothing_dims.append(s_ebins)
-        smoothing_dims.insert(input_binning.names.index('true_coszen'), s_czbins)
-        smoothing_binning = MultiDimBinning(smoothing_dims)
-
-        # This gets used in innermost loop, so produce it just once here
-        all_bin_edges = [dim.bin_edges.magnitude
-                         for dim in smoothing_binning.dimensions]
+        smoothing_binning = MultiDimBinning([s_ebins, s_czbins])
+        smoothing_binning = smoothing_binning.reorder_dimensions(self.input_binning)
 
         raw_transforms = []
         smooth_transforms = []
         interp_transforms = []
-        for flav_int_group in self.transform_groups:
-            logging.debug("Working on %s effective areas" %flav_int_group)
+        for xform_flavints in self.transform_groups:
+            logging.debug("Working on %s effective areas" %xform_flavints)
 
             aeff_transform = self.events.histogram(
-                kinds=flav_int_group,
-                binning=all_bin_edges,
-                binning_cols=self.input_binning.names,
+                kinds=xform_flavints,
+                binning=smoothing_binning,
                 weights_col='weighted_aeff',
                 errors=None
             )
@@ -440,24 +464,23 @@ class smooth(Stage):
             aeff_transform /= (bin_volumes * missing_dims_vol)
 
             bin_counts = self.events.histogram(
-                kinds=flav_int_group,
-                binning=all_bin_edges,
-                binning_cols=self.input_binning.names,
+                kinds=xform_flavints,
+                binning=smoothing_binning,
                 weights_col=None,
                 errors=None
-                )
+            )
             aeff_err = aeff_transform / np.sqrt(bin_counts)
 
             aeff_transform = unp.uarray(aeff_transform, aeff_err)
 
             # For each member of the group, save the raw aeff transform and
             # its smoothed and interpolated versions
-            flav_names = [str(flav) for flav in flav_int_group.flavs()]
+            flav_names = [str(flav) for flav in xform_flavints.flavs()]
             for input_name in self.input_names:
                 if input_name not in flav_names:
                     continue
                 for output_name in self.output_names:
-                    if output_name not in flav_int_group:
+                    if output_name not in xform_flavints:
                         continue
                     xform = BinnedTensorTransform(
                         input_names=input_name,
@@ -468,8 +491,8 @@ class smooth(Stage):
                     )
                     smooth_transform = self.slice_smooth(xform)
                     interp_transform = self.interpolate_transform(
-                        smooth_transform, new_binning=self.input_binning)
-
+                        smooth_transform, new_binning=self.input_binning
+                    )
                     raw_transforms.append(xform)
                     smooth_transforms.append(smooth_transform)
                     interp_transforms.append(interp_transform)
@@ -483,7 +506,6 @@ class smooth(Stage):
             xform.xform_array = xform.xform_array.clip(0)
         for xform in interp_transforms:
             xform.xform_array = xform.xform_array.clip(0)
-
 
         #
         # DEBUG MODE
@@ -637,13 +659,13 @@ class smooth(Stage):
                       %(self.params.livetime.value, livetime_s))
 
         new_transforms = []
-        for flav_int_group in self.transform_groups:
-            repr_flav_int = flav_int_group[0]
-            flav_names = [str(flav) for flav in flav_int_group.flavs()]
+        for xform_flavints in self.transform_groups:
+            repr_flav_int = xform_flavints[0]
+            flav_names = [str(flav) for flav in xform_flavints.flavs()]
             aeff_transform = None
             for transform in self.nominal_transforms:
                 if transform.input_names[0] in flav_names \
-                        and transform.output_name in flav_int_group:
+                        and transform.output_name in xform_flavints:
                     if aeff_transform is None:
                         aeff_transform = transform.xform_array * (aeff_scale *
                                                                   livetime_s)
