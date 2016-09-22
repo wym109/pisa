@@ -47,13 +47,15 @@ class hist(Stage):
     params : ParamSet
         Must exclusively have parameter:
 
-        reco_weight_file : string or Events
+        reco_events : string or Events
             PISA events file to use to derive transforms, or a string
             specifying the resource location of the same.
 
-        reco_weights_col : None or string
+        reco_weights_name : None or string
             Column in the events file to use for Monte Carlo weighting of the
             events
+
+        transform_events_keep_criteria : None, string, or sequence of strings
 
     particles : string
         Must be one of 'neutrinos' or 'muons' (though only neutrinos are
@@ -110,9 +112,6 @@ class hist(Stage):
                  error_method=None, disk_cache=None, transforms_cache_depth=20,
                  outputs_cache_depth=20, memcache_deepcopy=True,
                  debug_mode=None):
-        self.events_hash = None
-        """Hash of events file or Events object used"""
-
         assert particles in ['neutrinos', 'muons']
         self.particles = particles
         """Whether stage is instantiated to process neutrinos or muons"""
@@ -125,7 +124,8 @@ class hist(Stage):
         # All of the following params (and no more) must be passed via the
         # `params` argument.
         expected_params = (
-            'reco_events', 'reco_weights_col'
+            'reco_events', 'reco_weights_name',
+            'transform_events_keep_criteria'
             # NOT IMPLEMENTED: 'e_reco_scale', 'cz_reco_scale'
         )
 
@@ -144,8 +144,6 @@ class hist(Stage):
         # work for you.
         super(self.__class__, self).__init__(
             use_transforms=True,
-            stage_name='reco',
-            service_name='hist',
             params=params,
             expected_params=expected_params,
             input_names=input_names,
@@ -169,15 +167,6 @@ class hist(Stage):
     def validate_binning(self):
         assert self.input_binning.num_dims == self.output_binning.num_dims
 
-    def load_events(self):
-        evts = self.params.reco_events.value
-        this_hash = hash_obj(evts)
-        if this_hash == self.events_hash:
-            return
-        logging.debug('Extracting events from Events obj or file: %s' %evts)
-        self.events = Events(evts)
-        self.events_hash = this_hash
-
     def _compute_nominal_transforms(self):
         """Generate reconstruction "smearing kernels" by histogramming true and
         reconstructed variables from a Monte Carlo events file.
@@ -197,7 +186,8 @@ class hist(Stage):
         **UN**weighted. This is probably quite wrong...
 
         """
-        self.load_events()
+        self.load_events(self.params.reco_events)
+        self.cut_events(self.params.transform_events_keep_criteria)
 
         # Computational units must be the following for compatibility with
         # events file
@@ -235,11 +225,11 @@ class hist(Stage):
 
             # True+reco (2N-dimensional) histogram is the basis for the
             # transformation
-            reco_kernel = self.events.histogram(
+            reco_kernel = self.remaining_events.histogram(
                 kinds=xform_flavints,
                 binning=true_and_reco_bin_edges,
                 binning_cols=true_and_reco_binning_cols,
-                weights_col=self.params.reco_weights_col.value
+                weights_col=self.params.reco_weights_name.value
             )
 
             # This takes into account the correct kernel normalization:
@@ -256,11 +246,11 @@ class hist(Stage):
             # Truth-only (N-dimensional) histogram will be used for
             # normalization (so transform is in terms of fraction-of-events in
             # input--i.e. truth--bin).
-            true_event_counts = self.events.histogram(
+            true_event_counts = self.remaining_events.histogram(
                 kinds=xform_flavints,
                 binning=true_only_bin_edges,
                 binning_cols=true_only_binning_cols,
-                weights_col=self.params.reco_weights_col.value
+                weights_col=self.params.reco_weights_name.value
             )
 
             # If there weren't any events in the input (true_*) bin, make this

@@ -65,7 +65,7 @@ class hist(Stage):
                 Version of PID to use (as defined for this
                 detector/geometry/processing)
 
-            * pid_remove_true_downgoing : bool
+            * transform_events_keep_criteria : None, string, or sequence of strings
                 Remove MC-true-downgoing events
 
             TODO(shivesh): Either `pid_spec` or `pid_spec_source` can be used
@@ -206,13 +206,9 @@ class hist(Stage):
     """
     # TODO: add sum_grouped_flavints instantiation arg
     def __init__(self, params, particles, input_names, transform_groups,
-                 input_binning, output_binning, error_method=None,
-                 disk_cache=None, transforms_cache_depth=20,
-                 outputs_cache_depth=20, memcache_deepcopy=True,
-                 debug_mode=None):
-        self.events_hash = None
-        """Hash of events file or Events object used"""
-
+                 input_binning, output_binning, memcache_deepcopy,
+                 error_method=None, disk_cache=None, transforms_cache_depth=20,
+                 outputs_cache_depth=20, debug_mode=None):
         assert particles in ['neutrinos', 'muons']
         self.particles = particles
         """Whether stage is instantiated to process neutrinos or muons"""
@@ -226,7 +222,7 @@ class hist(Stage):
         # All of the following params (and no more) must be passed via
         # the `params` argument.
         expected_params = (
-            'pid_events', 'pid_ver', 'pid_remove_true_downgoing', 'pid_spec',
+            'pid_events', 'pid_ver', 'transform_events_keep_criteria', 'pid_spec',
             'pid_spec_source', 'pid_weights_name'
         )
 
@@ -240,8 +236,6 @@ class hist(Stage):
 
         super(self.__class__, self).__init__(
             use_transforms=True,
-            stage_name='pid',
-            service_name='hist',
             params=params,
             expected_params=expected_params,
             input_names=input_names,
@@ -259,15 +253,6 @@ class hist(Stage):
         # Can do these now that binning has been set up in call to Stage's init
         self.include_attrs_for_hashes('particles')
         self.include_attrs_for_hashes('transform_groups')
-
-    def load_events(self):
-        evts = self.params['pid_events'].value
-        this_hash = hash_obj(evts)
-        if this_hash == self.events_hash:
-            return
-        logging.debug('Extracting events from Events obj or file: %s' %evts)
-        self.events = Events(evts)
-        self.events_hash = this_hash
 
     @profile
     def _compute_nominal_transforms(self):
@@ -289,47 +274,32 @@ class hist(Stage):
         # objects; implement this! (and then this assert statement can go away)
         assert self.input_binning == self.output_binning
 
-        self.load_events()
+        self.load_events(self.params.pid_events)
+        self.cut_events(self.params.transform_events_keep_criteria)
 
         # TODO: in future, the events file will not have these combined
         # already, and it should be done here (or in a nominal transform,
         # etc.). See below about taking this step when we move to directly
         # using the I3-HDF5 files.
         events_file_combined_flavints = tuple([
-            NuFlavIntGroup(s) for s in self.events.metadata['flavints_joined']
+            NuFlavIntGroup(s)
+            for s in self.remaining_events.metadata['flavints_joined']
         ])
 
         # TODO: take events object as an input instead of as a param that
         # specifies a file? Or handle both cases?
 
-        # TODO: include here the logic from the make_events_file.py script so
-        # we can go directly from a (reasonably populated) icetray-converted
-        # HDF5 file (or files) to a nominal transform, rather than having to
-        # rely on the intermediate step of converting that HDF5 file (or files)
-        # to a PISA HDF5 file that has additional column(s) in it to account
-        # for the combinations of flavors, interaction types, and/or simulation
-        # runs. Parameters can include which groupings to use to formulate an
-        # output.
-
         data_proc_params = DataProcParams(
-            detector=self.events.metadata['detector'],
-            proc_ver=self.events.metadata['proc_ver']
+            detector=self.remaining_events.metadata['detector'],
+            proc_ver=self.remaining_events.metadata['proc_ver']
         )
 
-        if self.params['pid_remove_true_downgoing'].value:
-            # TODO(shivesh): more options for cuts?
-            cut_events = data_proc_params.applyCuts(
-                self.events, cuts='true_upgoing_coszen'
-            )
-        else:
-            cut_events = self.events
-
         pid_spec = PIDSpec(
-            detector=self.events.metadata['detector'],
-            geom=self.events.metadata['geom'],
-            proc_ver=self.events.metadata['proc_ver'],
-            pid_spec_ver=self.params['pid_ver'].value,
-            pid_specs=self.params['pid_spec_source'].value
+            detector=self.remaining_events.metadata['detector'],
+            geom=self.remaining_events.metadata['geom'],
+            proc_ver=self.remaining_events.metadata['proc_ver'],
+            pid_spec_ver=self.params.pid_ver.value,
+            pid_specs=self.params.pid_spec_source.value
         )
         u_out_names = map(unicode, self.output_channels)
         if set(u_out_names) != set(pid_spec.get_signatures()):
@@ -341,10 +311,10 @@ class hist(Stage):
 
         logging.debug("Separating events by PID...")
         var_names = self.input_binning.names
-        if self.params['pid_weights_name'].value is not None:
-            var_names += [self.params['pid_weights_name'].value]
+        if self.params.pid_weights_name.value is not None:
+            var_names += [self.params.pid_weights_name.value]
         separated_events = pid_spec.applyPID(
-            events=cut_events,
+            events=self.remaining_events,
             return_fields=var_names
         )
 
@@ -372,8 +342,8 @@ class hist(Stage):
                 reco_params = [flav_sigdata[n]
                                for n in self.output_binning.names]
 
-                if self.params['pid_weights_name'].value is not None:
-                    weights = flav_sigdata[self.params['pid_weights_name'].value]
+                if self.params.pid_weights_name.value is not None:
+                    weights = flav_sigdata[self.params.pid_weights_name.value]
                 else:
                     weights = None
 
@@ -436,17 +406,14 @@ class hist(Stage):
         # do some checks on the parameters
 
         # Check type of pid_events
-        assert isinstance(params['pid_events'].value, (basestring, Events))
-
-        # Check type of pid_remove_true_downgoing
-        assert isinstance(params['pid_remove_true_downgoing'].value, bool)
+        assert isinstance(params.pid_events.value, (basestring, Events))
 
         # Check type of pid_ver, pid_spec_source
-        assert isinstance(params['pid_ver'].value, basestring)
-        assert isinstance(params['pid_spec_source'].value, basestring)
+        assert isinstance(params.pid_ver.value, basestring)
+        assert isinstance(params.pid_spec_source.value, basestring)
 
         # Check the groupings of the pid_events file
-        events = Events(params['pid_events'].value)
+        events = Events(params.pid_events.value)
         should_be_joined = sorted([
             NuFlavIntGroup('nue_cc + nuebar_cc'),
             NuFlavIntGroup('numu_cc + numubar_cc'),

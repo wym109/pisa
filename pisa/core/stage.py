@@ -4,6 +4,7 @@ from collections import Iterable, Mapping, Sequence
 from copy import deepcopy
 import inspect
 
+from pisa.core.events import Events
 from pisa.core.map import MapSet
 from pisa.core.param import Param, ParamSelector, ParamSet
 from pisa.core.transform import TransformSet
@@ -12,12 +13,11 @@ from pisa.utils.comparisons import normQuant
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import line_profile, profile
+from pisa.utils.resources import find_resource
+
 
 # TODO: mode for not propagating errors. Probably needs hooks here, but meat of
 # implementation would live inside map.py and/or transform.py.
-
-# TODO: make service_name dynamically found from class name, rather than as arg
-
 
 def arg_str_seq_none(inputs, name):
     """Simple input handler.
@@ -61,10 +61,6 @@ class Stage(object):
     use_transforms : bool (required)
         Whether or not this stage takes inputs to be transformed (and hence
         implements transforms).
-
-    stage_name : string
-
-    service_name : string
 
     params : ParamSelector, dict ParamSelector kwargs, ParamSet, or object instantiable to ParamSet
 
@@ -141,7 +137,7 @@ class Stage(object):
             Perform validation on any parameters.
 
     """
-    def __init__(self, use_transforms, stage_name='', service_name='',
+    def __init__(self, use_transforms,
                  params=None, expected_params=None, input_names=None,
                  output_names=None, error_method=None, disk_cache=None,
                  memcache_deepcopy=True, transforms_cache_depth=10,
@@ -157,15 +153,19 @@ class Stage(object):
         self.use_transforms = use_transforms
         """Whether or not stage uses transforms"""
 
-        self.stage_name = stage_name
+        module_path = self.__module__.split('.')
+
+        self.stage_name = module_path[-2]
         """Name of the stage (e.g. flux, osc, aeff, reco, pid, etc."""
 
-        self.service_name = service_name
+        self.service_name = module_path[-1]
         """Name of the specific service implementing the stage."""
 
         self.expected_params = expected_params
         """The full set of parameters (by name) that must be present in
         `params`"""
+
+        self._events_hash = None
 
         self._input_names = [] if input_names is None else input_names
         self._output_names = [] if output_names is None else output_names
@@ -621,6 +621,27 @@ class Stage(object):
         else:
             logging.trace('`selections` = %s yielded `params` = %s'
                           %(selections, self.params))
+
+    def load_events(self, events):
+        if isinstance(events, Param):
+            events = events.value
+        elif isinstance(events, basestring):
+            events = find_resource(events)
+        this_hash = hash_obj(events)
+        if self._events_hash is not None and this_hash == self._events_hash:
+            return
+        logging.debug('Extracting events from Events obj or file: %s' %events)
+        self.events = Events(events)
+        self._events_hash = this_hash
+
+    def cut_events(self, keep_criteria):
+        if isinstance(keep_criteria, Param):
+            keep_criteria = keep_criteria.value
+        if keep_criteria is not None:
+            self.remaining_events = deepcopy(self.events)
+            self.remaining_events.applyCut(keep_criteria=keep_criteria)
+        else:
+            self.remaining_events = self.events
 
     @property
     def params(self):

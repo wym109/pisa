@@ -90,7 +90,7 @@ class smooth(Stage):
                 `reco_coszen`). Set to 0 to disable smoothing in the
                 `reco_coszen` dimension
 
-            * transform_events_cuts : None, string, or sequence of strings
+            * transform_events_keep_criteria : None or string
                 Additional cuts that are applied to events prior to computing
                 transforms with them. E.g., "true_coszen <= 0" removes all
                 MC-true downgoing events. See `pisa.core.events.Events` class
@@ -197,9 +197,6 @@ class smooth(Stage):
                  #smooth_emin=1*ureg.GeV, smooth_emax=80*ureg.GeV,
                  #smooth_n_ebins=300, smooth_n_czbins=200,
                  disk_cache=None, error_method=None, debug_mode=None):
-        self.events_hash = None
-        """Hash of events file or Events object used"""
-
         assert particles in ['muons', 'neutrinos']
         self.particles = particles
         """Whether stage is instantiated to process neutrinos or muons"""
@@ -210,7 +207,8 @@ class smooth(Stage):
         # All of the following params (and no more) must be passed via
         # the `params` argument.
         expected_params = (
-            'pid_events', 'pid_ver', 'pid_specs', 'pid_weights_name'
+            'pid_events', 'pid_ver', 'pid_specs', 'pid_weights_name',
+            'transform_events_keep_criteria'
         )
 
         if isinstance(input_names, basestring):
@@ -223,8 +221,6 @@ class smooth(Stage):
 
         super(self.__class__, self).__init__(
             use_transforms=True,
-            stage_name='pid',
-            service_name='hist',
             params=params,
             expected_params=expected_params,
             input_names=input_names,
@@ -242,31 +238,6 @@ class smooth(Stage):
         # Can do these now that binning has been set up in call to Stage's init
         self.include_attrs_for_hashes('particles')
         self.include_attrs_for_hashes('transform_groups')
-
-    def load_events(self):
-        evts = self.params['pid_events'].value
-
-        # "Normalize" the path by passing through find_resource (also makes
-        # sure the file exists)
-        if isinstance(evts, basestring):
-            evts = find_resource(evts)
-
-        this_hash = hash_obj(evts)
-        if this_hash == self.events_hash:
-            return
-        logging.debug('Extracting events from Events obj or file: %s' %evts)
-
-        # Load the events
-        self.events = Events(evts)
-
-        # Keep only events as used for reconstructions
-        evts.keepInbounds(self.reco_input_binning)
-
-        self.events_hash = this_hash
-        self.data_proc_params = DataProcParams(
-            detector=self.events.metadata['detector'],
-            proc_ver=self.events.metadata['proc_ver']
-        )
 
     @profile
     def _compute_nominal_transforms(self):
@@ -288,14 +259,16 @@ class smooth(Stage):
         # objects; implement this! (and then this assert statement can go away)
         assert self.input_binning == self.output_binning
 
-        self.load_events()
+        self.load_events(self.params.pid_events)
+        self.cut_events(self.params.transform_events_keep_criteria
 
         # TODO: in future, the events file will not have these combined
         # already, and it should be done here (or in a nominal transform,
         # etc.). See below about taking this step when we move to directly
         # using the I3-HDF5 files.
         events_file_combined_flavints = tuple([
-            NuFlavIntGroup(s) for s in self.events.metadata['flavints_joined']
+            NuFlavIntGroup(s)
+            for s in self.remaining_events.metadata['flavints_joined']
         ])
 
         # TODO: take events object as an input instead of as a param that
@@ -310,18 +283,10 @@ class smooth(Stage):
         # runs. Parameters can include which groupings to use to formulate an
         # output.
 
-        if self.params['pid_remove_true_downgoing'].value:
-            # TODO(shivesh): more options for cuts?
-            cut_events = self.data_proc_params.applyCuts(
-                self.events, cuts='true_upgoing_coszen'
-            )
-        else:
-            cut_events = self.events
-
         pid_spec = PIDSpec(
-            detector=self.events.metadata['detector'],
-            geom=self.events.metadata['geom'],
-            proc_ver=self.events.metadata['proc_ver'],
+            detector=self.remaining_events.metadata['detector'],
+            geom=self.remaining_events.metadata['geom'],
+            proc_ver=self.remaining_events.metadata['proc_ver'],
             pid_spec_ver=self.params['pid_ver'].value,
             pid_specs=self.params['pid_spec_source'].value
         )
@@ -335,10 +300,10 @@ class smooth(Stage):
 
         logging.debug("Separating events by PID...")
         var_names = self.input_binning.names
-        if self.params['pid_weights_name'].value is not None:
-            var_names += [self.params['pid_weights_name'].value]
+        if self.params.pid_weights_name.value is not None:
+            var_names += [self.params.pid_weights_name.value]
         separated_events = pid_spec.applyPID(
-            events=cut_events,
+            events=self.remaining_events,
             return_fields=var_names
         )
 
@@ -432,9 +397,6 @@ class smooth(Stage):
 
         # Check type of pid_events
         assert isinstance(params['pid_events'].value, (basestring, Events))
-
-        # Check type of pid_remove_true_downgoing
-        assert isinstance(params['pid_remove_true_downgoing'].value, bool)
 
         # Check type of pid_ver, pid_spec_source
         assert isinstance(params['pid_ver'].value, basestring)

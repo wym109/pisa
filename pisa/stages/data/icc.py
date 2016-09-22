@@ -37,8 +37,6 @@ class icc(Stage):
 
         super(self.__class__, self).__init__(
             use_transforms=False,
-            stage_name='data',
-            service_name='icc',
             params=params,
             expected_params=expected_params,
             output_names=output_names,

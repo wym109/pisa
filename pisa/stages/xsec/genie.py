@@ -156,8 +156,6 @@ class genie(Stage):
 
         super(self.__class__, self).__init__(
             use_transforms=True,
-            stage_name='xsec',
-            service_name='genie',
             params=params,
             expected_params=expected_params,
             input_names=input_names,

@@ -69,7 +69,7 @@ class vbwkde(Stage):
         cz_res_scale : float
             A scaling factor for coszen resolutions.
 
-        transform_events_cuts : None, string, or sequence of strings
+        transform_events_keep_criteria : None or string
             Additional cuts that are applied to events prior to computing
             transforms with them. E.g., "true_coszen <= 0" removes all MC-true
             downgoing events. See `pisa.core.events.Events` class for details
@@ -128,9 +128,6 @@ class vbwkde(Stage):
                  error_method=None, disk_cache=None, transforms_cache_depth=20,
                  outputs_cache_depth=20, memcache_deepcopy=True,
                  debug_mode=None):
-        self.events_hash = None
-        """Hash of events file or Events object used"""
-
         assert particles in ['neutrinos', 'muons']
         self.particles = particles
         """Whether stage is instantiated to process neutrinos or muons"""
@@ -145,7 +142,8 @@ class vbwkde(Stage):
         # All of the following params (and no more) must be passed via the
         # `params` argument.
         expected_params = (
-            'reco_events', 'e_res_scale', 'cz_res_scale'
+            'reco_events', 'e_res_scale', 'cz_res_scale',
+            'transform_events_keep_criteria'
         )
 
         if isinstance(input_names, basestring):
@@ -163,8 +161,6 @@ class vbwkde(Stage):
         # work for you.
         super(self.__class__, self).__init__(
             use_transforms=True,
-            stage_name='reco',
-            service_name='hist',
             params=params,
             expected_params=expected_params,
             input_names=input_names,
@@ -187,15 +183,6 @@ class vbwkde(Stage):
 
     def validate_binning(self):
         assert self.input_binning.num_dims == self.output_binning.num_dims
-
-    def load_events(self):
-        evts = self.params.reco_events.value
-        this_hash = hash_obj(evts)
-        if this_hash == self.events_hash:
-            return
-        logging.debug('Extracting events from Events obj or file: %s' %evts)
-        self.events = Events(evts)
-        self.events_hash = this_hash
 
     def reflect1d(self, x, refl):
         """Reflect a point x in 1D about another point, refl"""
@@ -1443,7 +1430,8 @@ class vbwkde(Stage):
         the total number of events in truth bin i.
 
         """
-        self.load_events()
+        self.load_events(self.params.reco_events)
+        self.cut_events(self.params.transform_events_keep_criteria)
 
         # Computational units must be the following for compatibility with
         # events file
@@ -1473,15 +1461,10 @@ class vbwkde(Stage):
             # change, and then this has to change, too.
             repr_flav_int = xform_flavints.flavints()[0]
 
-            if REMOVE_SIM_DOWNGOING:
-                logging.info('Removing simulated downgoing ' +
-                             'events in KDE construction.')
-                self.events.cut(keep_where='true_coszen <= 0')
-
-            e_true = self.events[repr_flav_int]['true_energy']
-            e_reco = self.events[repr_flav_int]['reco_energy']
-            cz_true = self.events[repr_flav_int]['true_coszen']
-            cz_reco = self.events[repr_flav_int]['reco_coszen']
+            e_true = self.remaining_events[repr_flav_int]['true_energy']
+            e_reco = self.remaining_events[repr_flav_int]['reco_energy']
+            cz_true = self.remaining_events[repr_flav_int]['true_coszen']
+            cz_reco = self.remaining_events[repr_flav_int]['reco_coszen']
 
             # NOTE RecoServiceVBWKDE uses hashes here to avoid redundant kernel
             # set calculations, which is more general than

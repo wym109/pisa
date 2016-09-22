@@ -320,8 +320,6 @@ class prob3gpu(Stage):
         # lot of work (caching, providing public interfaces, etc.)
         super(self.__class__, self).__init__(
             use_transforms=True,
-            stage_name='osc',
-            service_name='prob3gpu',
             params=params,
             expected_params=expected_params,
             input_names=input_names,

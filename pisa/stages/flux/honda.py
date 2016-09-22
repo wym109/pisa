@@ -338,8 +338,6 @@ class honda(Stage):
         # and transformed directly by this stage to produce its output.)
         super(self.__class__, self).__init__(
             use_transforms=False,
-            stage_name='flux',
-            service_name='honda',
             params=params,
             expected_params=expected_params,
             output_names=output_names,

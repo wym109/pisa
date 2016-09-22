@@ -37,13 +37,14 @@ class smooth(Stage):
     params : ParamSet
         Must exclusively have parameters:
 
-        aeff_weight_file
+        aeff_events
         livetime
         aeff_scale
         aeff_e_smooth_factor
         aeff_cz_smooth_factor
         interp_kind
         nutau_cc_norm
+        transform_events_keep_criteria
 
     particles : string
         Must be one of 'neutrinos' or 'muons' (though only neutrinos are
@@ -94,9 +95,6 @@ class smooth(Stage):
                  input_names=None, error_method=None, disk_cache=None,
                  transforms_cache_depth=20, outputs_cache_depth=20,
                  memcache_deepcopy=True, debug_mode=None):
-        self.events_hash = None
-        """Hash of events file or Events object used"""
-
         assert particles in ['neutrinos', 'muons']
         self.particles = particles
         """Whether stage is instantiated to process neutrinos or muons"""
@@ -107,9 +105,9 @@ class smooth(Stage):
         # All of the following params (and no more) must be passed via the
         # `params` argument.
         expected_params = (
-            'aeff_weight_file', 'livetime', 'aeff_scale',
+            'aeff_events', 'livetime', 'aeff_scale',
             'aeff_e_smooth_factor', 'aeff_cz_smooth_factor',
-            'interp_kind', 'nutau_cc_norm'
+            'interp_kind', 'nutau_cc_norm', 'transform_events_keep_criteria'
         )
 
         # Define the names of objects expected in inputs and produced as
@@ -137,8 +135,6 @@ class smooth(Stage):
         # work for you.
         super(self.__class__, self).__init__(
             use_transforms=True,
-            stage_name='aeff',
-            service_name='smooth',
             params=params,
             expected_params=expected_params,
             input_names=input_names,
@@ -155,15 +151,6 @@ class smooth(Stage):
         # Can do these now that binning has been set up in call to Stage's init
         self.include_attrs_for_hashes('particles')
         self.include_attrs_for_hashes('transform_groups')
-
-    def load_events(self):
-        evts = self.params.aeff_weight_file.value
-        this_hash = hash_obj(evts)
-        if this_hash == self.events_hash:
-            return
-        logging.debug('Extracting events from Events obj or file: %s' %evts)
-        self.events = Events(evts)
-        self.events_hash = this_hash
 
     def slice_smooth(self, xform):
         '''Returns a smoothed version of `xform`.
@@ -372,7 +359,9 @@ class smooth(Stage):
 
     @profile
     def _compute_nominal_transforms(self):
-        self.load_events()
+        self.load_events(self.params.aeff_events)
+        self.cut_events(self.params.transform_events_keep_criteria)
+
         # Units must be the following for correctly converting a sum-of-
         # OneWeights-in-bin to an average effective area across the bin.
         comp_units = dict(true_energy='GeV', true_coszen=None,
@@ -448,7 +437,7 @@ class smooth(Stage):
         for xform_flavints in self.transform_groups:
             logging.debug("Working on %s effective areas" %xform_flavints)
 
-            aeff_transform = self.events.histogram(
+            aeff_transform = self.remaining_events.histogram(
                 kinds=xform_flavints,
                 binning=smoothing_binning,
                 weights_col='weighted_aeff',
@@ -463,7 +452,7 @@ class smooth(Stage):
             bin_volumes = smoothing_binning.bin_volumes(attach_units=False)
             aeff_transform /= (bin_volumes * missing_dims_vol)
 
-            bin_counts = self.events.histogram(
+            bin_counts = self.remaining_events.histogram(
                 kinds=xform_flavints,
                 binning=smoothing_binning,
                 weights_col=None,

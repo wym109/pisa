@@ -24,7 +24,7 @@ from pisa.utils.fileio import from_file
 
 class polyfits(Stage):
     """TODO: documentme"""
-    def __init__(self, params, input_binning, output_binning,
+    def __init__(self, params, input_names, input_binning, output_binning,
                  disk_cache=None,
                  transforms_cache_depth=20, outputs_cache_depth=20):
 
@@ -53,15 +53,13 @@ class polyfits(Stage):
         #               'nutau_cc_trck','nutau_cc_cscd',
         #               'nutaubar_cc_trck','nutaubar_cc_cscd',
         #)
-        input_names = ('cscd', 'trck')
+        #input_names = ('cscd', 'trck')
         output_names = input_names
 
         # Invoke the init method from the parent class, which does a lot of
         # work for you.
         super(self.__class__, self).__init__(
             use_transforms=True,
-            stage_name='sys',
-            service_name='polyfits',
             params=params,
             expected_params=expected_params,
             input_names=input_names,

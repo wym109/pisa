@@ -31,9 +31,10 @@ class hist(Stage):
     params : ParamSet
         Must exclusively have parameters:
 
-        aeff_weight_file
+        aeff_events
         livetime
         aeff_scale
+        transform_events_keep_criteria
 
     particles : string
         Must be one of 'neutrinos' or 'muons' (though only neutrinos are
@@ -87,9 +88,6 @@ class hist(Stage):
                  memcache_deepcopy, transforms_cache_depth,
                  outputs_cache_depth, input_names=None, error_method=None,
                  disk_cache=None, debug_mode=None):
-        self.events_hash = None
-        """Hash of events file or Events object used"""
-
         assert particles in ['neutrinos', 'muons']
         self.particles = particles
         """Whether stage is instantiated to process neutrinos or muons"""
@@ -102,7 +100,8 @@ class hist(Stage):
         # All of the following params (and no more) must be passed via the
         # `params` argument.
         expected_params = (
-            'aeff_weight_file', 'livetime', 'aeff_scale', 'nutau_cc_norm'
+            'aeff_events', 'livetime', 'aeff_scale', 'nutau_cc_norm',
+            'transform_events_keep_criteria'
         )
 
         if isinstance(input_names, basestring):
@@ -128,8 +127,6 @@ class hist(Stage):
         # work for you.
         super(self.__class__, self).__init__(
             use_transforms=True,
-            stage_name='aeff',
-            service_name='hist',
             params=params,
             expected_params=expected_params,
             input_names=input_names,
@@ -148,17 +145,10 @@ class hist(Stage):
         self.include_attrs_for_hashes('particles')
         self.include_attrs_for_hashes('transform_groups')
 
-    def load_events(self):
-        evts = self.params.aeff_weight_file.value
-        this_hash = hash_obj(evts)
-        if this_hash == self.events_hash:
-            return
-        logging.debug('Extracting events from Events obj or file: %s' %evts)
-        self.events = Events(evts)
-        self.events_hash = this_hash
-
     def _compute_nominal_transforms(self):
-        self.load_events()
+        self.load_events(self.params.aeff_events)
+        self.cut_events(self.params.transform_events_keep_criteria)
+
         # Units must be the following for correctly converting a sum-of-
         # OneWeights-in-bin to an average effective area across the bin.
         comp_units = dict(true_energy='GeV', true_coszen=None,
@@ -205,7 +195,7 @@ class hist(Stage):
         for xform_flavints in self.transform_groups:
             logging.debug("Computing aeff xform for %s..." %xform_flavints)
 
-            aeff_transform = self.events.histogram(
+            aeff_transform = self.remaining_events.histogram(
                 kinds=xform_flavints,
                 binning=all_bin_edges,
                 binning_cols=self.input_binning.names,

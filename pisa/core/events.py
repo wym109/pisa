@@ -176,7 +176,7 @@ class Events(FlavIntData):
 
         return hist
 
-    def applyCut(self, keep_crit):
+    def applyCut(self, keep_criteria):
         """Apply a cut by specifying criteria for keeping events. The cut must
         be successfully applied to all flav/ints in the events object before
         the changes are kept, otherwise the cuts are reverted.
@@ -184,7 +184,7 @@ class Events(FlavIntData):
 
         Parameters
         ----------
-        keep_crit : string
+        keep_criteria : string
             Any string interpretable as numpy boolean expression.
 
 
@@ -201,10 +201,10 @@ class Events(FlavIntData):
         >>> applyCut("np.log10(true_energy) >= 0")
 
         """
-        if keep_crit in self.metadata['cuts']:
+        if keep_criteria in self.metadata['cuts']:
             return
 
-        assert isinstance(keep_crit, basestring)
+        assert isinstance(keep_criteria, basestring)
 
         flavints_to_process = self.flavints()
         flavints_processed = []
@@ -222,7 +222,7 @@ class Events(FlavIntData):
 
                 # Replace simple field names with full paths into the data that
                 # lives in this object
-                crit_str = (keep_crit)
+                crit_str = (keep_criteria)
                 for field_name in field_names:
                     crit_str = crit_str.replace(
                         field_name, 'self["%s"]["%s"]' %(flav_int, field_name)
@@ -241,7 +241,7 @@ class Events(FlavIntData):
             for flav_int in flavints_to_process:
                 self[flav_int] = new_data[flav_int]
                 new_data[flav_int] = None
-            self.metadata['cuts'].append(keep_crit)
+            self.metadata['cuts'].append(keep_criteria)
 
     def keepInbounds(self, binning):
         """Cut out any events that fall outside `binning`. Note that events
@@ -260,7 +260,7 @@ class Events(FlavIntData):
         new_cuts = [dim.inbounds_criteria for dim in binning]
         unapplied_cuts = [c for c in new_cuts if c not in current_cuts]
         for cut in unapplied_cuts:
-            self.applyCut(keep_crit=cut)
+            self.applyCut(keep_criteria=cut)
 
 def test_Events():
     from pisa.utils.flavInt import NuFlavInt

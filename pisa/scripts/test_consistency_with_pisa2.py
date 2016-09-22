@@ -937,7 +937,7 @@ if __name__ == '__main__':
         k = [k for k in aeff_config.keys() if k[0] == 'aeff'][0]
         params = aeff_config[k]['params'].params
 
-        params.aeff_weight_file.value = os.path.join(
+        params.aeff_events.value = os.path.join(
             'events', 'deepcore_ic86', 'MSU', '1XXXX', 'UnJoined',
             'DC_MSU_1X585_unjoined_events_mc.hdf5'
         )
@@ -967,7 +967,7 @@ if __name__ == '__main__':
         params = reco_config[k]['params'].params
 
         params.reco_weights_name.value = None
-        params.reco_weight_file.value = os.path.join(
+        params.reco_events.value = os.path.join(
             'events', 'deepcore_ic86', 'MSU', '1XXXX', 'Joined',
             'DC_MSU_1X585_joined_nu_nubar_events_mc.hdf5'
         )
@@ -984,7 +984,7 @@ if __name__ == '__main__':
             diff_test_threshold=args.diff_threshold
         )
 
-        params.reco_weight_file.value = os.path.join(
+        params.reco_events.value = os.path.join(
             'events', 'deepcore_ic86', 'MSU', '1XXX', 'Joined',
             'DC_MSU_1X60_joined_nu_nubar_events_mc.hdf5'
         )

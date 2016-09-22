@@ -31,8 +31,8 @@ def copy_dict_to_d(events):
 class gpu(Stage):
 
     def __init__(self, params, output_binning, disk_cache=None,
-                memcache_deepcopy=True, error_method=None,
-                outputs_cache_depth=20, debug_mode=None):
+                 memcache_deepcopy=True, error_method=None,
+                 outputs_cache_depth=20, debug_mode=None):
 
         self.osc_params = (
             'detector_depth',
@@ -78,8 +78,6 @@ class gpu(Stage):
 
         super(self.__class__, self).__init__(
             use_transforms=False,
-            stage_name='mc',
-            service_name='gpu',
             params=params,
             expected_params=expected_params,
             output_names=output_names,

@@ -32,8 +32,6 @@ class data(Stage):
 
         super(self.__class__, self).__init__(
             use_transforms=False,
-            stage_name='data',
-            service_name='data',
             params=params,
             expected_params=expected_params,
             output_names=output_names,
