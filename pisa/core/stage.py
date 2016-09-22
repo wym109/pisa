@@ -3,13 +3,15 @@
 from collections import Iterable, Mapping, Sequence
 from copy import deepcopy
 import inspect
+import os
 
 from pisa.core.events import Events
 from pisa.core.map import MapSet
 from pisa.core.param import Param, ParamSelector, ParamSet
 from pisa.core.transform import TransformSet
-from pisa.utils.cache import MemoryCache
+from pisa.utils.cache import DiskCache, MemoryCache
 from pisa.utils.comparisons import normQuant
+from pisa.utils.fileio import mkdir
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import line_profile, profile
@@ -217,6 +219,9 @@ class Stage(object):
 
         self.disk_cache = disk_cache
         """Disk cache object"""
+
+        self.disk_cache_path = None
+        """Path to disk cache file for this stage/service."""
 
         param_selector_keys = set([
             'regular_params', 'selector_param_sets', 'selections'
@@ -642,6 +647,27 @@ class Stage(object):
             self.remaining_events.applyCut(keep_criteria=keep_criteria)
         else:
             self.remaining_events = self.events
+
+    def instantiate_disk_cache(self):
+        if isinstance(self.disk_cache, DiskCache):
+            return
+        if isinstance(self.disk_cache, basestring):
+            self.disk_cache_path = self.disk_cache
+        elif self.disk_cache is None:
+            cache_root_dir = find_resource('cache')
+            dirs = [cache_root_dir, self.stage_name]
+            dirpath = os.path.join(*dirs)
+            if self.service_name is not None and self.service_name != '':
+                filename = self.service_name + '.sqlite'
+            else:
+                filename = 'geeric.sqlite'
+            mkdir(dirpath)
+            self.disk_cache_path = os.path.join(dirpath, filename)
+        else:
+            raise ValueError("Don't know what to do with a %s."
+                             %type(self.disk_cache))
+        self.disk_cache = DiskCache(self.disk_cache_path, max_depth=100,
+                                    is_lru=False)
 
     @property
     def params(self):

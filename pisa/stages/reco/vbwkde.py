@@ -20,6 +20,9 @@ These transforms are used to produce reco event rate maps.
 # In PISA v2, e_reco_scale and cz_reco_scale where only allowed to be 1.
 # Enforce this in _compute_nominal_transforms.
 
+from __future__ import division
+
+from collections import OrderedDict
 from copy import deepcopy
 from string import ascii_lowercase
 
@@ -36,75 +39,91 @@ from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 
 
-def rel2abs(rel_coord, abs_bin_midpoint, rel_scale_ref, rel_to_abs_scale,
-            obj_abs_shift):
-    """Convert coordinates in a space relative to a bin center to the
-    equivalent coordinate in absolute coordinate space, allowing for shifting
-    and scaling after the transformation.
+# NOTE: If we want to scale the resolutions about some reference point
+# (x_r) and then shift them by `shift`:
+#
+#   x1 = x_r + (x - x_r)*scale + shift
+#
+# but we should take the sample points as fixed, and instead sample
+# from locations we desire but transformed to the correct locatons on
+# the original curve
+#
+#    x = (x1 - x_r - shift)/scale + x_r
+#
 
-
-    Parameters
-    ----------
-    rel_coord
-        Relative coordinate
-    abs_bin_midpoint
-        Midpoint (in *absolute* coordinate space) of the bin about which the
-        relative coordinates are defined
-    rel_scale_ref
-        Coordinate (in *relative* coordinate space) about which scaling will be
-        performed
-    rel_to_abs_scale
-        Scaling factor; >1 implies coordinates in the absolute space are closer
-        together--i.e., a shape in the absolute coordinate shape is wider than
-        in the relative coordinate space
-    obj_abs_shift
-        Shift. This is the amount (in *absolute coordinates*) that a shape
-        is shifted after it is scaled and transformed to absolute
-        coordinates.
-
-    """
-    assert rel_to_abs_scale > 0
+## TODO: move these functions elsewhere in the codebase (utils.something)
+def abs2rel(abs_coords, abs_bin_midpoint, rel_scale_ref, scale, abs_obj_shift):
+    """Viewing an object that is defined in a relative coordinate space, """
     return (
-        rel_scale_ref + (rel_coord - rel_scale_ref)/rel_to_abs_scale
-        + abs_bin_midpoint
-        - obj_abs_shift
+        (abs_coords - abs_bin_midpoint - abs_obj_shift + rel_scale_ref)/scale
     )
 
 
-def abs2rel(abs_coord, abs_bin_midpoint, abs_scale_ref, rel_to_abs_scale,
-            obj_abs_shift):
-    """Convert coordinates in absolute coordinate spaceto the equivalent
-    coordinate in coordinate space relative about a bin's midpoint.
-    Additionally, coordinates can be shifted and/or scaled before the
-    transformation to relative coordinate space.
-
-
-    Parameters
-    ----------
-    abs_coord
-        Absolute coordinate
-    abs_bin_midpoint
-        Midpoint (in *absolute* coordinate space) of the bin about which the
-        relative coordinates are to be defined
-    abs_scale_ref
-        Coordinate (in *absolute* coordinate space) about which scaling will be
-        performed
-    rel_to_abs_scale
-        Scaling factor; >1 implies coordinates in the absolute space are closer
-        together--i.e., a shape in the absolute coordinate shape is wider than
-        in the relative coordinate space
-    obj_abs_shift
-        Shift. This is the amount (in *absolute coordinates*) that a shape
-        will be shifted after it is scaled but *prior to* translation to the
-        relative coordinate space.
+def rel2abs(rel_coords, abs_bin_midpoint, rel_scale_ref, scale, abs_obj_shift):
+    """Convert coordinates defined relative to a bin to absolute
+    coordinates.
 
     """
-    assert scale > 0
     return (
-        abs_scale_ref + (abs_coord - abs_scale_ref)*rel_to_abs_scale
-        - abs_bin_midpoint
-        + obj_abs_shift
+        rel_coords*scale - rel_scale_ref + abs_bin_midpoint + abs_obj_shift
     )
+    #return (
+    #    (rel_coords - rel_scale_ref)*scale + rel_scale_ref
+    #    + abs_bin_midpoint + abs_obj_shift
+    #)
+
+def test_abs2rel():
+    xabs = np.array([-2, -1, 0, 1, 2])
+
+    # The identity transform
+    xrel = abs2rel(abs_coords=xabs, abs_bin_midpoint=0, rel_scale_ref=0,
+                   scale=1, abs_obj_shift=0)
+    assert np.all(xrel == xabs)
+
+    # Absolute bin midpoint: if the bin is centered at 2, then the relative
+    # coordinates should range from -4 to 0
+    xrel = abs2rel(abs_coords=xabs, abs_bin_midpoint=2, rel_scale_ref=0,
+                   scale=1, abs_obj_shift=0)
+    assert xrel[0] == -4 and xrel[-1] == 0
+
+    # Scale: an object that is 4 units wide absolute space scaled by 2
+    # should appear to be 2 units wide in relative space... or in other words,
+    # the relative coordinates should be spaced more narrowly to one another by
+    # a factor of 2 than coordinates in the absolute space
+    xrel = abs2rel(abs_coords=xabs, abs_bin_midpoint=0, rel_scale_ref=0,
+                   scale=2, abs_obj_shift=0)
+    assert (xabs[1]-xabs[0]) == 2*(xrel[1]-xrel[0])
+
+    # Relative scale reference point: If an object living in relative space is
+    # centered at 1 and scaled by 2 with rel_scale_ref=1, then it should still
+    # be centered at 1 but be wider by a factor of 2. This means that all
+    # coordinates must scale relative to 1: 2 gets 2x closer to 1, 0 gets 2x
+    # closer to 1, etc
+    # if stuff stuff
+    xrel = abs2rel(abs_coords=xabs, abs_bin_midpoint=0, rel_scale_ref=1,
+                   scale=2, abs_obj_shift=0)
+    assert (xabs[1]-xabs[0]) == 2*(xrel[1]-xrel[0])
+    assert np.all(xrel == np.array([-0.5, 0, 0.5, 1, 1.5]))
+    xrel = abs2rel(abs_coords=xabs, abs_bin_midpoint=0, rel_scale_ref=-2,
+                   scale=2, abs_obj_shift=0)
+    assert np.all(xrel == np.array([-2, -1.5, -1, -0.5, 0]))
+
+    # Shift: an object that lives in the relative space centered at 0 should
+    # now be centered at 1 in absolute space. Relative coordinates should be
+    # shifted to the left such that object appears to be shifted to the right.
+    xrel = abs2rel(abs_coords=xabs, abs_bin_midpoint=0, rel_scale_ref=0,
+                   scale=1, abs_obj_shift=1)
+    assert xrel[0] == -3 and xrel[-1] == 1
+
+    logging.info('<< PASSED : test_abs2rel >>')
+
+def test_rel2abs():
+    xabs = np.array([-2, -1, 0, 1, 2])
+    kwargs = dict(abs_bin_midpoint=12, rel_scale_ref=-3.3, scale=5.4,
+                  abs_obj_shift=19)
+    xrel = abs2rel(xabs, **kwargs)
+    assert np.allclose(rel2abs(abs2rel(xabs, **kwargs), **kwargs), xabs)
+    logging.info('<< PASSED : test_rel2abs >>')
 
 
 # TODO: the below logic does not generalize to muons, but probably should
@@ -134,17 +153,24 @@ class vbwkde(Stage):
             PISA Events object or filename/path to use to derive transforms, or
             a string specifying the resource location of the same.
 
-        e_res_scale : float
-            A scaling factor for energy resolutions.
-
-        cz_res_scale : float
-            A scaling factor for coszen resolutions.
+        reco_weights_name : None or string
+            Field to use in MC events to apply MC weighting for the computation
 
         transform_events_keep_criteria : None or string
             Additional cuts that are applied to events prior to computing
             transforms with them. E.g., "true_coszen <= 0" removes all MC-true
             downgoing events. See `pisa.core.events.Events` class for details
             on cut specifications.
+
+        e_res_scale : float
+            A scaling factor for energy resolutions.
+
+        cz_res_scale : float
+            A scaling factor for coszen resolutions.
+
+        e_reco_bias : float
+
+        cz_reco_bias : float
 
     particles : string
         Must be one of 'neutrinos' or 'muons' (though only neutrinos are
@@ -161,7 +187,7 @@ class vbwkde(Stage):
         computing the transforms. See Notes section for more details on how
         to specify this string
 
-    # TODO: sum_grouped_flavints : bool
+    sum_grouped_flavints : bool
 
     input_binning : MultiDimBinning or convertible thereto
         Input binning is in true variables, with names prefixed by "true_".
@@ -206,15 +232,15 @@ class vbwkde(Stage):
         self.transform_groups = flavintGroupsFromString(transform_groups)
         """Particle/interaction types to group for computing transforms"""
 
-        if sum_grouped_flavints:
-            raise NotImplementedError('`sum_grouped_flavints` must be False.')
         self.sum_grouped_flavints = sum_grouped_flavints
 
         # All of the following params (and no more) must be passed via the
         # `params` argument.
         expected_params = (
-            'reco_events', 'e_res_scale', 'cz_res_scale',
-            'transform_events_keep_criteria'
+            'reco_events', 'reco_weights_name',
+            'transform_events_keep_criteria',
+            'e_res_scale', 'cz_res_scale',
+            'e_reco_bias', 'cz_reco_bias'
         )
 
         if isinstance(input_names, basestring):
@@ -252,16 +278,118 @@ class vbwkde(Stage):
         self.include_attrs_for_hashes('transform_groups')
         self.include_attrs_for_hashes('sum_grouped_flavints')
 
+        self._kde_hash = None
+        self.instantiate_disk_cache()
+
     def validate_binning(self):
-        assert self.input_binning == self.output_binning
-        #assert self.input_binning.num_dims == self.output_binning.num_dims
+        assert set(['energy', 'coszen']) == set(self.input_binning.basenames)
+        assert self.input_binning.basenames  == self.output_binning.basenames
+        #print self.input_binning.bin_edges
+        #print self.output_binning.bin_edges
+        #assert np.all(self.input_binning.bin_edges == self.output_binning.bin_edges)
 
-    def reflect1d(self, x, refl):
-        """Reflect a point x in 1D about another point, refl"""
-        return 2*refl - x
+    def _compute_transforms(self):
+        """Generate reconstruction "smearing kernels" by estimating the
+        distribution of reconstructed events corresponding to each bin of true
+        events using VBWKDE.
 
-    @staticmethod
-    def compute_kdes(events, binning):
+        The resulting transform is a 2N-dimensional histogram, where N is the
+        dimensionality of the input binning. The transform maps the truth bin
+        counts to the reconstructed bin counts.
+
+        I.e., for the case of 1D input binning, the ith element of the
+        reconstruction kernel will be a map showing the distribution of events
+        over all the reco space from truth bin i. This will be normalised to
+        the total number of events in truth bin i.
+
+        """
+        self.load_events(self.params.reco_events)
+        self.cut_events(self.params.transform_events_keep_criteria)
+
+        # Computational units must be the following for compatibility with
+        # events file
+        comp_units = dict(
+            true_energy='GeV', true_coszen=None, true_azimuth='rad',
+            reco_energy='GeV', reco_coszen=None, reco_azimuth='rad'
+        )
+
+        # Select only the units in the input/output binning for conversion
+        # (can't pass more than what's actually there)
+        in_units = {dim: unit for dim, unit in comp_units.items()
+                    if dim in self.input_binning}
+        out_units = {dim: unit for dim, unit in comp_units.items()
+                     if dim in self.output_binning}
+
+        # These binnings will be in the computational units defined above
+        input_binning = self.input_binning.to(**in_units)
+        output_binning = self.output_binning.to(**out_units)
+
+        self.get_all_kde_info()
+
+        # Apply scaling factors and figure out the area per bin for each KDE
+        trnsforms = []
+        for xform_flavints in self.transform_groups:
+            reco_kernel = self.compute_kernel(
+                kde_info=self.all_kde_info[xform_flavints],
+                binning=self.input_binning,
+                e_res_scale=self.params.e_res_scale,
+                cz_res_scale=self.params.cz_res_scale,
+                e_shift=0, cz_shift=0, ref_point='mode'
+            )
+
+            if self.sum_grouped_flavints:
+                xform_input_names = []
+                for input_name in self.input_names:
+                    input_flavs = NuFlavIntGroup(input_name)
+                    if len(set(xform_flavints).intersection(input_flavs)) > 0:
+                        xform_input_names.append(input_name)
+            else:
+                for input_name in self.input_names:
+                    if input_name not in xform_flavints:
+                        continue
+                    xform = BinnedTensorTransform(
+                        input_names=input_name,
+                        output_name=input_name,
+                        input_binning=self.input_binning,
+                        output_binning=self.output_binning,
+                        xform_array=reco_kernel,
+                    )
+                    nominal_transforms.append(xform)
+
+        return TransformSet(transforms=nominal_transforms)
+
+    def get_all_kde_info(self):
+        """Load from cache or recompute."""
+        kde_hash = hash_obj([self.source_code_hash,
+                             self.input_binning.hash,
+                             self.params.reco_events.value,
+                             self.params.transform_events_keep_criteria,
+                             self.transform_groups,
+                             self.sum_grouped_flavints])
+
+        if (self._kde_hash is not None and kde_hash == self._kde_hash
+            and hasattr(self, 'all_kde_info')):
+            return
+
+        try:
+            self.all_kde_info = self.disk_cache[kde_hash]
+        except KeyError:
+            pass
+        else:
+            self._kde_hash = kde_hash
+            return
+
+        self.all_kde_info = OrderedDict()
+        for xform_flavints in self.transform_groups:
+            logging.debug("Working on %s reco kernels" %xform_flavints)
+            repr_flav_int = xform_flavints.flavints()[0]
+            self.all_kde_info[xform_flavints] = self.compute_kdes(
+                events=self.remaining_events[repr_flav_int],
+                binning=self.output_binning
+            )
+        self._kde_hash = kde_hash
+
+    def compute_kdes(self, events, binning):
         """Construct a 4D kernel set from MC events using VBWKDE.
 
         Given a set of MC events and binning (which serves as both input and
@@ -296,18 +424,18 @@ class vbwkde(Stage):
         ENERGY_RANGE = [0, 501] # GeV
 
         # TODO: handle units consistency here when Events object gets units
-        e_true = events[repr_flav_int]['true_energy']
-        e_reco = events[repr_flav_int]['reco_energy']
-        cz_true = events[repr_flav_int]['true_coszen']
-        cz_reco = events[repr_flav_int]['reco_coszen']
-        ebins = binning.true_energy.bin_edges.m_as('GeV')
-        czbins = binning.true_coszen.bin_edges.m_as('dimensionless')
+        e_true = events['true_energy']
+        e_reco = events['reco_energy']
+        cz_true = events['true_coszen']
+        cz_reco = events['reco_coszen']
+        ebins = binning.reco_energy.bin_edges.m_as('GeV')
+        czbins = binning.reco_coszen.bin_edges.m_as('dimensionless')
 
         # NOTE: below defines bin centers on linear scale; other logic
         # in this method assumes this to be the case, so
         # **DO NOT USE** utils.utils.get_bin_centers in this method, which
         # may return logarithmically-defined centers instead.
-        bin_edges = ebins
+        ebin_edges = ebins
         left_ebin_edges = ebin_edges[0:-1]
         right_ebin_edges = ebin_edges[1:]
         ebin_centers = (left_ebin_edges+right_ebin_edges)/2.0
@@ -456,11 +584,9 @@ class vbwkde(Stage):
 
             assert np.min(enu_pdf) >= 0, str(np.min(enu_pdf))
 
-            offset_enu_mesh = enu_mesh + ebin_mid
-
-            # Create linear interpolator for the PDF
+            # Create linear interpolator for the PDF (relative to bin midpoint)
             e_interp = interp1d(
-                x=offset_enu_mesh, y=enu_pdf, kind='linear',
+                x=enu_mesh, y=enu_pdf, kind='linear',
                 copy=True, bounds_error=True, fill_value=np.nan
             )
 
@@ -579,8 +705,8 @@ class vbwkde(Stage):
 
             assert np.min(cz_pdf) >= -EPSILON, str(np.min(cz_pdf))
 
-            # coszen interpolant is centered about "0-error"--i.e., the bin
-            # center
+            # coszen interpolant is centered about the 0-error point--i.e., the
+            # bin's midpoint
             cz_interp = interp1d(
                 x=cz_mesh, y=cz_pdf, kind='linear',
                 copy=True, bounds_error=True, fill_value=np.nan
@@ -592,10 +718,10 @@ class vbwkde(Stage):
 
         return kde_info
 
-    def compute_kernels_from_kdes(self, kde_info, binning, e_res_scale=1,
-                                  cz_res_scale=1, e_shift=None, cz_shift=None,
-                                  ref_point='mode'):
-        """Construct a 4D kernel set from linear interpolants describing the
+    def compute_kernel(self, kde_info, binning, e_res_scale=1,
+                       cz_res_scale=1, e_shift=None, cz_shift=None,
+                       ref_point='mode'):
+        """Construct a 4D kernel from linear interpolants describing the
         density of reconstructed events.
 
         The resulting 4D array can be indexed for clarity using
@@ -622,23 +748,11 @@ class vbwkde(Stage):
             Mapping from the number of events in each bin of the 2D
             MC-true-events histogram to the number of events reconstructed in
             each bin of the 2D reconstructed-events histogram. Dimensions are
-              len(self.ebins)-1 x len(self.czbins)-1 x len(self.ebins)-1 x
-              len(self.czbins)-1
+              len(ebins)-1 x len(czbins)-1 x len(ebins)-1 x
+              len(czbins)-1
             since ebins and czbins define the histograms' bin edges.
 
         """
-        # NOTE: If we want to scale the resolutions about some reference point
-        # (x_r) and then shift them by `shift`:
-        #
-        #   x1 = x_r + (x - x_r)*scale + shift
-        #
-        # but we should take the sample points as fixed, and instead sample
-        # from locations we desire but transformed to the correct locatons on
-        # the original curve
-        #
-        #    x = (x1 - x_r - shift)/scale + x_r
-        #
-
         SAMPLES_PER_BIN = 50
         """Number of samples for computing area in a bin (via np.trapz)."""
 
@@ -660,43 +774,53 @@ class vbwkde(Stage):
         ebins = binning.dims[e_dim_num]
         czbins = binning.dims[cz_dim_num]
 
-        e_oversamp = ebins.oversample(SAMPLES_PER_BIN-1)
-        cz_oversamp = czbins.oversample(SAMPLES_PER_BIN-1)
-
-        # Convert to computational units
-        e_oversamp = e_oversamp.bin_edges.m_as('GeV')
-        cz_oversamp = cz_oversamp.bin_edges.m_as('dimensionless')
+        # Upsample to get coordinates at which to evaluate trapezoidal-rule
+        # integral for each bin; convert to scalars in compuational units
+        e_oversamp = ebins.oversample(SAMPLES_PER_BIN-1).bin_edges.m_as('GeV')
+        cz_oversamp = czbins.oversample(SAMPLES_PER_BIN-1).bin_edges.m_as('dimensionless')
 
         # Object in which to store the 4D kernels: np 4D array
         kernel4d = np.zeros(binning.shape * 2)
 
-        for ebin_n, (k, v) in enumerate(kde_info.iteritems()):
+        for ebin_n, (ebinpoints, interpolants) in enumerate(kde_info.iteritems()):
             ebin = ebins[ebin_n]
-            recorded_emin, recorded_emid, recorded_emax = k
-            e_interp, cz_interp = v
+            emin, emid, emax = binpoints
+            e_interp, cz_interp = interpolants
 
             if ref_point in [0, 'zero']:
-                e_ref = recorded_emid
-            elif ref_point == 'mean':
-                cum = np.cumsum(e_interp.y)
-                cdf = cum / cum[-1]
-                # Find the mean: locate where CDF is 0.5
-                quantile_func = interp1d(cdf, e_interp.x)
-                e_ref = quantile_func(0.5)
-            elif ref_point == 'mode':
-                e_ref = e_interp.x[e_interp.y == np.max(e_interp.y)][0]
+                rel_e_ref = 0
 
-            e_scale_shift = \
-                    (e_oversamp - e_ref - e_reco_shift)/e_res_scale + e_ref
+            elif ref_point == 'mean':
+                # Find the mean by locating where the CDF is equal to 0.5,
+                # i.e., by evaluating the quantile func at 0.5.
+                cum_sum = np.cumsum(e_interp.y)
+                cdf = cum_sum / cum_sum[-1]
+                quantile_func = interp1d(cdf, e_interp.x)
+                rel_e_ref = quantile_func(0.5)
+
+            elif ref_point == 'mode':
+                # Approximate the mode by the highest point in the (sampled)
+                # PDF
+                rel_e_ref = e_interp.x[e_interp.y == np.max(e_interp.y)][0]
+
+            # Figure out what points we need to sample in the relative space
+            # (this is where the interpolant is defined) given our dense
+            # sampling in absolute coordinate space and our desire to scale and
+            # shift the resolutions by some amount.
+            rel_e_points = abs2rel(
+                abs_coords=e_oversamp, abs_bin_midpoint=emid,
+                rel_scale_ref=rel_e_ref, scale=e_res_scale,
+                abs_obj_shift=e_reco_shift
+            )
 
             # NOTE: We don't need to account for area lost in tail below 0 GeV
             # so long as our analysis doesn't go to 0: We can just assume all
             # events below our lower threshold end up below the threshold but
             # above 0, and then we have no "missing" area.
 
-            # Divide by e_res_scale to keep the PDF area normalized to 1.0
-            # when we make it wider/narrower.
-            e_pdf = e_interp(e_scale_shift) / e_res_scale
+            # Divide by e_res_scale to keep the PDF area normalized to one when
+            # we make it wider/narrower.
+            e_pdf = e_interp(rel_e_points) / e_res_scale
 
             ebin_areas = []
             for n in xrange(ebins.num_bins):
@@ -715,129 +839,73 @@ class vbwkde(Stage):
                 czbin_min, czbin_max = czbin.bin_edges.m_as('dimensionless')
                 czbin_mid = czbin.midpoints[0].m_as('dimensionless')
 
-                # Figure out the limits of the interpolant in absolute cz-space
-                # (whereas the interpolant is relative to a cz bin's
-                # midpoint)
-                cz_interp_min = np.min(cz_interp.x)
-                cz_interp_max = np.max(cz_interp.x)
+                if ref_point in [0, 'zero']:
+                    rel_cz_ref = 0
 
-                # Figure out where all bin edges lie in this re-centered
-                # distribution (some bins may be repeated since bins in [-1,0]
-                # and err in [-2,1]:
-                #
-                # 1. Find limits of mesh values..
-                mmin = offset_cz_mesh[0]
-                mmax = offset_cz_mesh[-1]
+                elif ref_point == 'mean':
+                    # Find the mean by locating where the CDF is equal to 0.5,
+                    # i.e., by evaluating the quantile func at 0.5.
+                    cum_sum = np.cumsum(cz_interp.y)
+                    cdf = cum_sum / cum_sum[-1]
+                    quantile_func = interp1d(cdf, cz_interp.x)
+                    rel_cz_ref = quantile_func(0.5)
 
-                # 2. Map all bin edges into the full mesh-value range,
-                # reflecting about -1 and +1. If the reflected edge is outside
-                # the mesh range, use the exceeded limit of the mesh range as
-                # the bin edge instead.
-                #
-                # This maps every bin edge {i} to 3 new edges, indexed
-                # new_edges[i][{0,1,2}]. Bins are formed by adjacent indices
-                # and same-subindices, so what started as, e.g., bin 3 now is
-                # described by (left, right) edges at
-                #   (new_edges[3][0], new_edges[4][0]),
-                #   (new_edges[3][1], new_edges[4][1]), and
-                #   (new_edges[3][2], new_edges[4][2]).
+                elif ref_point == 'mode':
+                    # Approximate the mode by the highest point in the (sampled)
+                    # PDF
+                    rel_cz_ref = cz_interp.x[cz_interp.y == np.max(cz_interp.y)][0]
 
-                # NOTE / TODO: It's tempting to dynamically set the number of
-                # reflections to minimize computation time, but I think it
-                # breaks the code. Just set to a reasonably large number for
-                # now and accept the performance penalty. ALSO: if you change
-                # the parity of the number of reflections, the code below that
-                # has either (wrap_n % 2 == 0) or (wrap_n+1 % 2 == 0) must be
-                # swapped!!!
-                n_left_reflections = 4
-                n_right_reflections = 4
+                # Interpolant was defined in relative space (to bin center);
+                # translate this to absolute CZ coords, taking this bin's
+                # center as the one about which it is defined (and take into
+                # account any resoltuions scaling / bias shifting we are
+                # applying).
+                cz_interpolant_limits = rel2abs(
+                    rel_coords=cz_interp.x[0::len(cz_interp.x)-1],
+                    abs_bin_midpoint=czbin_mid,
+                    rel_scale_ref=rel_cz_ref,
+                    scale=cz_res_scale,
+                    abs_obj_shift=cz_shift
+                )
 
-                new_czbin_edges = []
-                for edge in czbin_edges:
-                    edges_refl_left = []
-                    for n in xrange(n_left_reflections):
-                        edge_refl_left = self.reflect1d(edge, -1-(2*n))
-                        if edge_refl_left < mmin:
-                            edge_refl_left = mmin
-                        edges_refl_left.append(edge_refl_left)
-                    edges_refl_right = []
-                    for n in xrange(n_right_reflections):
-                        edge_refl_right = self.reflect1d(edge, +1+(2*n))
-                        if edge_refl_right > mmax:
-                            edge_refl_right = mmax
-                        edges_refl_right.append(edge_refl_right)
-                    # Include all left-reflected versions of this bin edge, in
-                    # increasing-x order + this bin edge + right-reflected
-                    # versions of this bin edge
-                    new_czbin_edges.append(edges_refl_left[::-1] + [edge]
-                                           + edges_refl_right)
+                # Account for all area, including area under aliased PDF
+                negative_aliases = 0
+                positive_aliases = 0
+                if cz_interpolant_limits[0] < -1:
+                    negative_aliases = int(np.abs(np.floor(
+                        (cz_interpolant_limits[0] + 1) / 2.0
+                    )))
+                if cz_interpolant_limits[1] > +1:
+                    positive_aliases = int(np.abs(np.ceil(
+                        (cz_interpolant_limits[1] - 1) / 2.0
+                    )))
 
-                # Record all unique bin edges
-                edge_locs = set()
-                [edge_locs.update(edges) for edges in new_czbin_edges]
-
-                # Throw away bin edges that are already in the mesh
-                [edge_locs.remove(edge) for edge in list(edge_locs)
-                 if edge in offset_cz_mesh]
-
-                # Make into sorted list
-                edge_locs = sorted(edge_locs)
-
-                # Record the total area under the curve
-                int_val0 = np.trapz(y=cz_pdf_scaled, x=offset_cz_mesh)
-
-                # Insert the missing bin edge locations & pdf-values into
-                # the mesh & pdf, respectively
-                temp = np.copy(offset_cz_mesh)
-
-                edge_pdfs = interp(edge_locs)
-                insert_ind = np.searchsorted(offset_cz_mesh, edge_locs)
-                offset_cz_mesh = np.insert(offset_cz_mesh, insert_ind,
-                                           edge_locs)
-                offset_cz_pdf = np.insert(cz_pdf_scaled, insert_ind, edge_pdfs)
-                assert np.min(offset_cz_pdf) > -EPSILON
-
-                # Check that this total of all the bins is equal to the total
-                # area under the curve (i.e., check there is no overlap between
-                # or gaps between bins)
-                int_val = np.trapz(y=offset_cz_pdf, x=offset_cz_mesh)
-                assert np.abs(int_val-1) < EPSILON
-
-                # Renormalize if it's not exactly 1
-                if int_val != 1.0:
-                    offset_cz_pdf = offset_cz_pdf / int_val
-
-                # Add up the area in the bin and areas that are "reflected"
-                # into this bin
-                new_czbin_edges = np.array(new_czbin_edges)
-                czbin_areas = np.zeros(np.shape(new_czbin_edges)[0]-1)
-                for wrap_n in range(np.shape(new_czbin_edges)[1]):
-                    bin_edge_inds = np.searchsorted(offset_cz_mesh,
-                                                    new_czbin_edges[:,wrap_n])
-                    lbinds = bin_edge_inds[0:-1]
-                    rbinds = bin_edge_inds[1:]
-                    # Make sure indices that appear first are less than indices
-                    # that appear second in a pair of bin indices
-                    if (wrap_n+1) % 2 == 0:
-                        bininds = zip(rbinds, lbinds)
+                czbin_areas = np.zeros(czbins.num_bins)
+                for alias_n in range(-negative_aliases, 1 + positive_aliases):
+                    if alias_n == 0:
+                        abs_cz_coords = cz_oversamp
+                    elif alias_n % 2 == 0:
+                        abs_cz_coords = cz_oversamp + alias_n
                     else:
-                        bininds = zip(lbinds, rbinds)
-                    tmp_areas = []
-                    for (binind_left_edge, binind_right_edge) in bininds:
-                        if binind_left_edge == binind_right_edge:
-                            tmp_areas.append(0)
-                            continue
-                        this_bin_area = np.array(np.trapz(
-                            y=offset_cz_pdf[binind_left_edge:binind_right_edge+1],
-                            x=offset_cz_mesh[binind_left_edge:binind_right_edge+1]
-                        ))
-                        tmp_areas.append(this_bin_area)
-                    czbin_areas += np.array(tmp_areas)
+                        abs_cz_coords = -cz_oversamp + 1+alias_n
 
-                assert np.min(czbin_areas) > -EPSILON
+                    rel_cz_coords = abs2rel(
+                        abs_coords=abs_cz_coords,
+                        abs_bin_midpoint=czbin_mid,
+                        rel_scale_ref=rel_cz_ref,
+                        scale=cz_res_scale,
+                        abs_obj_shift=cz_shift
+                    )
+                    cz_pdf = cz_interp(rel_cz_points) / cze_res_scale
+
+                    areas = []
+                    for n in xrange(czbins.num_bins):
+                        sl = slice(n*SAMPLES_PER_BIN, (n+1)*SAMPLES_PER_BIN+1)
+                        areas.append(np.trapz(x=rel_cz_coords[sl], y=cz_pdf[sl]))
+
+                    czbin_areas += areas
 
                 tot_czbin_area = np.sum(czbin_areas)
-                assert tot_czbin_area < int_val + EPSILON
 
                 if energy_first:
                     x, y = ebin_n, czbin_n
@@ -847,7 +915,7 @@ class vbwkde(Stage):
                     kernel4d[x, y] = np.outer(czbin_areas, ebin_areas)
 
                 d = (np.sum(kernel4d[x,y])-tot_ebin_area*tot_czbin_area)
-                assert (d < EPSILON), d, epsilon
+                assert (d < EPSILON), 'd: %s, epsilon: $s' %(d, epsilon)
 
         check_areas = kernel4d.sum(axis=(2,3))
 
@@ -856,86 +924,8 @@ class vbwkde(Stage):
 
         return kernel4d
 
-    # TODO arbitrary dimensions (currently must be energy and coszen)
-    def _compute_transforms(self):
-        """Generate reconstruction "smearing kernels" by estimating the
-        distribution of reconstructed events corresponding to each bin of true
-        events using VBWKDE.
 
-        The resulting transform is a 2N-dimensional histogram, where N is the
-        dimensionality of the input binning. The transform maps the truth bin
-        counts to the reconstructed bin counts.
-
-        I.e., for the case of 1D input binning, the ith element of the
-        reconstruction kernel will be a map showing the distribution of events
-        over all the reco space from truth bin i. This will be normalised to
-        the total number of events in truth bin i.
-
-        """
-        self.load_events(self.params.reco_events)
-        self.cut_events(self.params.transform_events_keep_criteria)
-
-        # Computational units must be the following for compatibility with
-        # events file
-        comp_units = dict(
-            true_energy='GeV', true_coszen=None, true_azimuth='rad',
-            reco_energy='GeV', reco_coszen=None, reco_azimuth='rad'
-        )
-
-        # Select only the units in the input/output binning for conversion
-        # (can't pass more than what's actually there)
-        in_units = {dim: unit for dim, unit in comp_units.items()
-                    if dim in self.input_binning}
-        out_units = {dim: unit for dim, unit in comp_units.items()
-                     if dim in self.output_binning}
-
-        # These binnings will be in the computational units defined above
-        input_binning = self.input_binning.to(**in_units)
-        output_binning = self.output_binning.to(**out_units)
-
-        # TODO: attempt to load kde_info from disk cache or store new to disk;
-        # hash value from relevant params: `reco_events` and
-        # `transform_events_keep_criteria`...
-
-        self.all_kde_info = OrderedDict()
-        for xform_flavints in self.transform_groups:
-            logging.debug("Working on %s reco kernels" %xform_flavints)
-
-            # TODO: `repr_flav_int` is due to repetition of flavors/interaction
-            # types in events files that are "grouped" together. Someday that
-            # will change, and then this has to change, too.
-            repr_flav_int = xform_flavints.flavints()[0]
-            self.all_kde_info[xform_flavints] = compute_kdes(
-                events=self.remaining_events, binning=self.output_binning
-            )
-
-        # Apply scaling factors and figure out the area per bin for each KDE
-        trnsforms = []
-        for xform_flavints in self.transform_groups:
-            reco_kernel = self.kernels_from_kdes(kde_info=kde_info,
-                                                 binning=input_binning)
-
-            # Swap axes according to specified binning order
-            if self.input_binning.names[0] == 'true_coszen':
-                reco_kernel = np.swapaxes(reco_kernel, 0, 1)
-            if self.output_binning.names[0] == 'reco_coszen':
-                reco_kernel = np.swapaxes(reco_kernel, 2, 3)
-
-            for input_name in self.input_names:
-                if input_name not in xform_flavints:
-                    continue
-                xform = BinnedTensorTransform(
-                    input_names=input_name,
-                    output_name=input_name,
-                    input_binning=self.input_binning,
-                    output_binning=self.output_binning,
-                    xform_array=reco_kernel,
-                )
-                nominal_transforms.append(xform)
-
-        return TransformSet(transforms=nominal_transforms)
-
-    def scale_resolutions(self):
-        """Apply scaling factors to the nominal resolutions."""
-        e_res_scale = self.params.e_res_scale.value.m_as('dimensionless')
-        cz_res_scale = self.params.cz_res_scale.value.m_as('dimensionless')
+if __name__ == '__main__':
+    set_verbosity(3)
+    test_abs2rel()
+    test_rel2abs()

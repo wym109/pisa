@@ -160,7 +160,7 @@ class DiskCache(object):
     is_lru : bool
         If True, implement least-recently-used (LRU) logic for removing items
         beyond `max_depth`. This adds an additional ~400 ms to item retrieval
-        time.
+        time. Otherwise, behaves as a first-in-first-out (FIFO) cache.
 
     Notes
     -----
