@@ -90,6 +90,12 @@ class smooth(Stage):
                 `reco_coszen`). Set to 0 to disable smoothing in the
                 `reco_coszen` dimension
 
+            * transform_events_cuts : None, string, or sequence of strings
+                Additional cuts that are applied to events prior to computing
+                transforms with them. E.g., "true_coszen <= 0" removes all
+                MC-true downgoing events. See `pisa.core.events.Events` class
+                for details on cut specifications.
+
     particles
 
     input_names
@@ -236,7 +242,6 @@ class smooth(Stage):
         # Can do these now that binning has been set up in call to Stage's init
         self.include_attrs_for_hashes('particles')
         self.include_attrs_for_hashes('transform_groups')
-        self.include_attrs_for_hashes('reco_input_binning')
 
     def load_events(self):
         evts = self.params['pid_events'].value

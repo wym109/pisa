@@ -51,6 +51,10 @@ class hist(Stage):
             PISA events file to use to derive transforms, or a string
             specifying the resource location of the same.
 
+        reco_weights_col : None or string
+            Column in the events file to use for Monte Carlo weighting of the
+            events
+
     particles : string
         Must be one of 'neutrinos' or 'muons' (though only neutrinos are
         supported at this time).
@@ -121,7 +125,7 @@ class hist(Stage):
         # All of the following params (and no more) must be passed via the
         # `params` argument.
         expected_params = (
-            'reco_weight_file', 'reco_weights_name'
+            'reco_events', 'reco_weights_col'
             # NOT IMPLEMENTED: 'e_reco_scale', 'cz_reco_scale'
         )
 
@@ -166,7 +170,7 @@ class hist(Stage):
         assert self.input_binning.num_dims == self.output_binning.num_dims
 
     def load_events(self):
-        evts = self.params.reco_weight_file.value
+        evts = self.params.reco_events.value
         this_hash = hash_obj(evts)
         if this_hash == self.events_hash:
             return
@@ -235,8 +239,7 @@ class hist(Stage):
                 kinds=xform_flavints,
                 binning=true_and_reco_bin_edges,
                 binning_cols=true_and_reco_binning_cols,
-                #TODO rename reco_weights_name reco_weights_col
-                weights_col=self.params['reco_weights_name'].value
+                weights_col=self.params.reco_weights_col.value
             )
 
             # This takes into account the correct kernel normalization:
@@ -257,7 +260,7 @@ class hist(Stage):
                 kinds=xform_flavints,
                 binning=true_only_bin_edges,
                 binning_cols=true_only_binning_cols,
-                weights_col=self.params['reco_weights_name'].value
+                weights_col=self.params.reco_weights_col.value
             )
 
             # If there weren't any events in the input (true_*) bin, make this
