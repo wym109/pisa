@@ -412,8 +412,7 @@ class vbwkde(Stage):
                 binning=self.output_binning
             )
             self.all_kde_info[str(xform_flavints)] = kde_info
-            if self.debug_mode:
-                self.all_extra_info[str(xform_flavints)] = extra_info
+            self.all_extra_info[str(xform_flavints)] = extra_info
         self.disk_cache[kde_hash] = self.all_kde_info
         self._kde_hash = kde_hash
 
