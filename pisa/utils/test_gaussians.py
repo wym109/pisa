@@ -106,6 +106,12 @@ def speed_test_gaussians(num_gaussians, num_points):
     # Place to store result of `scipy.stats.norm`
     refbuf = np.zeros_like(outbuf, dtype=np.float64)
 
+    # Check default beahvior (possibly controlled by environment var
+    # OMP_NUM_THREADS, if this is set)
+    t0 = time.time()
+    gaussians(outbuf, x, mu, sigma)
+    T = time.time() - t0
+
     # Try out the threads functionality for each result; reset the accumulation
     # buffer each time.
     timings = []
