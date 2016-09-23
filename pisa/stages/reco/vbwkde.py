@@ -403,13 +403,17 @@ class vbwkde(Stage):
             pass
 
         self.all_kde_info = OrderedDict()
+        self.all_extra_info = OrderedDict()
         for xform_flavints in self.transform_groups:
             logging.debug("Working on %s reco kernels" %xform_flavints)
             repr_flav_int = xform_flavints.flavints()[0]
-            self.all_kde_info[str(xform_flavints)] = self.compute_kdes(
+            kde_info, extra_info = self.compute_kdes(
                 events=self.remaining_events[repr_flav_int],
                 binning=self.output_binning
             )
+            self.all_kde_info[str(xform_flavints)] = kde_info
+            if self.debug_mode:
+                self.all_extra_info[str(xform_flavints)] = extra_info
         self.disk_cache[kde_hash] = self.all_kde_info
         self._kde_hash = kde_hash
 
@@ -473,6 +477,7 @@ class vbwkde(Stage):
             TGT_NUM_EVENTS = n_events
 
         kde_info = OrderedDict()
+        extra_info = OrderedDict()
         for ebin_n in range(ebins.num_bins):
             ebin_min = left_ebin_edges[ebin_n]
             ebin_max = right_ebin_edges[ebin_n]
@@ -535,9 +540,20 @@ class vbwkde(Stage):
             e_err_max = max(enu_err)
             e_err_range = e_err_max-e_err_min
 
-            # Want the lower bin edge to be at least 
-            e_lowerlim = min(ENERGY_RANGE[0]-ebin_mid*1.5, e_err_min-e_err_range*0.5)
-            e_upperlim = max((np.max(ebin_edges)-ebin_mid)*1.5, e_err_max+e_err_range*0.5)
+            # Want the lower limit of KDE evaluation to be located at the most
+            # negative of
+            # * 2x the distance between the bin midpoint to the reco with
+            #   most-negative error
+            # * 4x the bin width to the left of the midpoint
+            e_lowerlim = min([
+                e_err_min*4,
+                -ebin_wid*4
+            ])
+            e_upperlim = max([
+                e_err_max*4,
+                ebin_wid*4
+            ])
+            #e_upperlim = max((np.max(ebin_edges)-ebin_mid)*1.5, e_err_max+e_err_range*0.5)
             egy_kde_lims = np.array([e_lowerlim, e_upperlim])
 
             # Use at least min_num_pts points and at most the next-highest
@@ -562,7 +578,7 @@ class vbwkde(Stage):
             #low_lim_shift = egy_kde_lims[0] * (e_factor - 1)
             #upp_lim_shift = egy_kde_lims[1] * (e_factor - 1)
 
-            egy_kde_lims_ext = np.copy(egy_kde_lims)
+            #egy_kde_lims_ext = np.copy(egy_kde_lims)
             #if low_lim_shift > 0:
             #    egy_kde_lims_ext[0] = (
             #        egy_kde_lims[0] - low_lim_shift * (1./e_factor)
@@ -572,11 +588,11 @@ class vbwkde(Stage):
             #        egy_kde_lims[1] - upp_lim_shift * (1./e_factor)
             #    )
 
-            # Adjust kde_num_points accordingly
-            kde_num_pts_ext = int(
-                kde_num_pts*((egy_kde_lims_ext[1] - egy_kde_lims_ext[0])
-                / (egy_kde_lims[1] - egy_kde_lims[0]))
-            )
+            ## Adjust kde_num_points accordingly
+            #e_kde_num_pts_ext = int(
+            #    kde_num_pts*((egy_kde_lims_ext[1] - egy_kde_lims_ext[0])
+            #    / (egy_kde_lims[1] - egy_kde_lims[0]))
+            #)
 
             logging.trace('MIN/MAX = %s' %egy_kde_lims_ext)
 
@@ -584,9 +600,9 @@ class vbwkde(Stage):
             enu_bw, enu_mesh, enu_pdf = kde.vbw_kde(
                 data=enu_err,
                 overfit_factor=OVERFIT_FACTOR,
-                MIN=egy_kde_lims_ext[0],
-                MAX=egy_kde_lims_ext[1],
-                N=kde_num_pts_ext
+                MIN=egy_kde_lims[0],
+                MAX=egy_kde_lims[1],
+                N=e_kde_num_pts
             )
 
             if np.min(enu_pdf) < 0:
@@ -658,8 +674,11 @@ class vbwkde(Stage):
                 cz_kde_max_ext = cz_kde_max - upp_lim_shift * (1./cz_factor)
 
             # Adjust kde_num_points accordingly
-            N_cz_mesh_ext = int(N_cz_mesh * ((cz_kde_max_ext - cz_kde_min_ext)
-                                             / (cz_kde_max - cz_kde_min)))
+            N_cz_mesh_ext = int(
+                N_cz_mesh * (
+                    (cz_kde_max_ext - cz_kde_min_ext) / (cz_kde_max - cz_kde_min)
+                )
+            )
 
             cz_kde_failed = False
             previous_fail = False
@@ -734,12 +753,27 @@ class vbwkde(Stage):
                 copy=True, bounds_error=False, fill_value=0
             )
 
-            kde_info[(ebin_min, ebin_mid, ebin_max)] = dict(
+            thisbin_kde_info = dict(
                 e_interp=e_interp, cz_interp=cz_interp,
-                enu_bw
+                enu_err=enu_err, cz_err=cz_err
             )
 
-        return kde_info
+            thisbin_extra_info = dict(
+                enu_err=enu_err,
+                cz_err=cz_err,
+                enu_bw=enu_bw,
+                cz_bw=cz_bw,
+                e_kde_min=e_kde_min,
+                e_kde_max=e_kde_max,
+                cz_kde_min_ext=cz_kde_min_ext,
+                cz_kde_max_ext=cz_kde_max_ext
+            )
+
+            thisbin_key = (ebin_min, ebin_mid, ebin_max)
+            kde_info[thisbin_key] = thisbin_kde_info
+            extra_info[thisbin_key] = thisbin_extra_info
+
+        return kde_info, extra_info
 
     @profile
     def compute_kernel(self, kde_info, binning, e_res_scale,
