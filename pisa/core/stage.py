@@ -666,7 +666,7 @@ class Stage(object):
         else:
             raise ValueError("Don't know what to do with a %s."
                              %type(self.disk_cache))
-        self.disk_cache = DiskCache(self.disk_cache_path, max_depth=100,
+        self.disk_cache = DiskCache(self.disk_cache_path, max_depth=10,
                                     is_lru=False)
 
     @property
@@ -700,7 +700,10 @@ class Stage(object):
     def state_hash(self):
         """Combines source_code_hash and params.hash for checking/tagging
         provenance of persisted (on-disk) objects."""
-        return hash_obj([self.source_code_hash, self.params.state_hash])
+        objects_to_hash = [self.source_code_hash, self.params.state_hash]
+        for attr in self._attrs_to_hash:
+            objects_to_hash.append(hash_obj(getattr(self, attr)))
+        return hash_obj(objects_to_hash)
 
     def include_attrs_for_hashes(self, attrs):
         """Include a class attribute or attributes to be included when

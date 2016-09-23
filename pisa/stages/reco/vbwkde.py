@@ -35,6 +35,7 @@ from pisa.utils import kde, confInterval
 from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
+from pisa.utils.profiler import profile, line_profile
 
 EPSILON = 1e-9
 
@@ -161,6 +162,12 @@ class vbwkde(Stage):
             downgoing events. See `pisa.core.events.Events` class for details
             on cut specifications.
 
+        res_scale_ref : string
+            One of 'mean', 'mode', or 'zero'. This is the reference point about
+            which resolutions are scaled. 'zero' scales about the zero-error
+            point (i.e., the bin midpoint), 'mean' scales about the mean of the
+            KDE, and 'mode' scales about the peak of the KDE.
+
         e_res_scale : float
             A scaling factor for energy resolutions.
 
@@ -238,7 +245,7 @@ class vbwkde(Stage):
         expected_params = (
             'reco_events', 'reco_weights_name',
             'transform_events_keep_criteria',
-            'e_res_scale', 'cz_res_scale',
+            'res_scale_ref', 'e_res_scale', 'cz_res_scale',
             'e_reco_bias', 'cz_reco_bias'
         )
 
@@ -284,6 +291,7 @@ class vbwkde(Stage):
         assert set(['energy', 'coszen']) == set(self.input_binning.basenames)
         assert self.input_binning.basenames  == self.output_binning.basenames
 
+    @profile
     def _compute_transforms(self):
         """Generate reconstruction "smearing kernels" by estimating the
         distribution of reconstructed events corresponding to each bin of true
@@ -332,7 +340,7 @@ class vbwkde(Stage):
                 cz_res_scale=self.params.cz_res_scale,
                 e_reco_bias=self.params.e_reco_bias,
                 cz_reco_bias=self.params.cz_reco_bias,
-                ref_point='mode'
+                res_scale_ref='mode'
             )
 
             if self.sum_grouped_flavints:
@@ -368,6 +376,7 @@ class vbwkde(Stage):
 
         return TransformSet(transforms=transforms)
 
+    @profile
     def get_all_kde_info(self):
         """Load from cache or recompute."""
         kde_hash = hash_obj([self.source_code_hash,
@@ -376,10 +385,15 @@ class vbwkde(Stage):
                              self.params.transform_events_keep_criteria,
                              self.transform_groups,
                              self.sum_grouped_flavints])
-        logging.trace('kde_hash = %s' %kde_hash)
+        logging.debug('kde_hash = %s' %kde_hash)
         if (self._kde_hash is not None and kde_hash == self._kde_hash
             and hasattr(self, 'all_kde_info')):
             return
+
+        logging.trace('no match')
+        logging.trace('self._kde_hash: %s' % self._kde_hash)
+        logging.trace('kde_hash: %s' % kde_hash)
+        logging.trace('hasattr: %s' % hasattr(self, 'all_kde_info'))
 
         try:
             self.all_kde_info = self.disk_cache[kde_hash]
@@ -399,6 +413,7 @@ class vbwkde(Stage):
         self.disk_cache[kde_hash] = self.all_kde_info
         self._kde_hash = kde_hash
 
+    @profile
     def compute_kdes(self, events, binning):
         """Construct a 4D kernel set from MC events using VBWKDE.
 
@@ -516,18 +531,19 @@ class vbwkde(Stage):
             #==================================================================
             # Neutrino energy resolution for events in this energy bin
             #==================================================================
-            dmin = min(enu_err)
-            dmax = max(enu_err)
-            drange = dmax-dmin
+            e_err_min = min(enu_err)
+            e_err_max = max(enu_err)
+            e_err_range = e_err_max-e_err_min
 
-            e_lowerlim = min(ENERGY_RANGE[0]-ebin_mid*1.5, dmin-drange*0.5)
-            e_upperlim = max((np.max(ebin_edges)-ebin_mid)*1.5, dmax+drange*0.5)
+            # Want the lower bin edge to be at least 
+            e_lowerlim = min(ENERGY_RANGE[0]-ebin_mid*1.5, e_err_min-e_err_range*0.5)
+            e_upperlim = max((np.max(ebin_edges)-ebin_mid)*1.5, e_err_max+e_err_range*0.5)
             egy_kde_lims = np.array([e_lowerlim, e_upperlim])
 
             # Use at least min_num_pts points and at most the next-highest
             # integer-power-of-two that allows for at least 10 points in the
             # smallest energy bin
-            min_num_pts = 2**12
+            min_num_pts = 2**14
             min_bin_width = np.min(ebin_edges[1:]-ebin_edges[:-1])
             min_pts_smallest_bin = 5.0
             kde_range = np.diff(egy_kde_lims)
@@ -540,27 +556,29 @@ class vbwkde(Stage):
                 str(egy_kde_lims) + ', VBWKDE_N: ' + str(kde_num_pts)
             )
 
-            # Exapnd range of sample points for future axis scaling
-            e_factor = 4
+            ## Exapnd range of sample points for future axis scaling
+            #e_factor = 1
 
-            low_lim_shift = egy_kde_lims[0] * (e_factor - 1)
-            upp_lim_shift = egy_kde_lims[1] * (e_factor - 1)
+            #low_lim_shift = egy_kde_lims[0] * (e_factor - 1)
+            #upp_lim_shift = egy_kde_lims[1] * (e_factor - 1)
 
             egy_kde_lims_ext = np.copy(egy_kde_lims)
-            if low_lim_shift > 0:
-                egy_kde_lims_ext[0] = (
-                    egy_kde_lims[0] - low_lim_shift * (1./e_factor)
-                )
-            if upp_lim_shift < 0:
-                egy_kde_lims_ext[1] = (
-                    egy_kde_lims[1] - upp_lim_shift * (1./e_factor)
-                )
+            #if low_lim_shift > 0:
+            #    egy_kde_lims_ext[0] = (
+            #        egy_kde_lims[0] - low_lim_shift * (1./e_factor)
+            #    )
+            #if upp_lim_shift < 0:
+            #    egy_kde_lims_ext[1] = (
+            #        egy_kde_lims[1] - upp_lim_shift * (1./e_factor)
+            #    )
 
             # Adjust kde_num_points accordingly
             kde_num_pts_ext = int(
                 kde_num_pts*((egy_kde_lims_ext[1] - egy_kde_lims_ext[0])
                 / (egy_kde_lims[1] - egy_kde_lims[0]))
             )
+
+            logging.trace('MIN/MAX = %s' %egy_kde_lims_ext)
 
             # Compute variable-bandwidth KDEs
             enu_bw, enu_mesh, enu_pdf = kde.vbw_kde(
@@ -596,9 +614,9 @@ class vbwkde(Stage):
             #==================================================================
             # Neutrino coszen resolution for events in this energy bin
             #==================================================================
-            dmin = min(cz_err)
-            dmax = max(cz_err)
-            drange = dmax-dmin
+            cz_err_min = min(cz_err)
+            cz_err_max = max(cz_err)
+            cz_err_range = cz_err_max-cz_err_min
 
             # NOTE the limits are 1 less than / 1 greater than the limits that
             # the error will actually take on, so as to allow for any smooth
@@ -717,14 +735,16 @@ class vbwkde(Stage):
             )
 
             kde_info[(ebin_min, ebin_mid, ebin_max)] = dict(
-                e_interp=e_interp, cz_interp=cz_interp
+                e_interp=e_interp, cz_interp=cz_interp,
+                enu_bw
             )
 
         return kde_info
 
+    @profile
     def compute_kernel(self, kde_info, binning, e_res_scale,
                        cz_res_scale, e_reco_bias, cz_reco_bias,
-                       ref_point='mode'):
+                       res_scale_ref='mode'):
         """Construct a 4D kernel from linear interpolants describing the
         density of reconstructed events.
 
@@ -743,7 +763,7 @@ class vbwkde(Stage):
         cz_res_scale : scalar
         e_reco_bias : scalar Quantity
         cz_reco_bias : scalar Quantity
-        ref_point : string
+        res_scale_ref : string
 
 
         Returns
@@ -757,7 +777,7 @@ class vbwkde(Stage):
             since ebins and czbins define the histograms' bin edges.
 
         """
-        SAMPLES_PER_BIN = 50
+        SAMPLES_PER_BIN = 500
         """Number of samples for computing area in a bin (via np.trapz)."""
 
         if isinstance(e_res_scale, Param):
@@ -768,9 +788,9 @@ class vbwkde(Stage):
             e_reco_bias = e_reco_bias.value.m_as('GeV')
         if isinstance(cz_reco_bias, Param):
             cz_reco_bias = cz_reco_bias.value.m_as('dimensionless')
-        if isinstance(ref_point, basestring):
-            ref_point = ref_point.strip().lower()
-        assert ref_point in [0, 'zero', 'mean', 'mode']
+        if isinstance(res_scale_ref, Param):
+            res_scale_ref = res_scale_ref.value.strip().lower()
+        assert res_scale_ref in ['zero', 'mean', 'mode']
 
         e_dim_num = binning.index('energy', use_basenames=True)
         cz_dim_num = binning.index('coszen', use_basenames=True)
@@ -794,10 +814,10 @@ class vbwkde(Stage):
             e_interp = interpolants['e_interp']
             cz_interp = interpolants['cz_interp']
 
-            if ref_point in [0, 'zero']:
+            if res_scale_ref in ['zero']:
                 rel_e_ref = 0
 
-            elif ref_point == 'mean':
+            elif res_scale_ref == 'mean':
                 # Find the mean by locating where the CDF is equal to 0.5,
                 # i.e., by evaluating the quantile func at 0.5.
                 cum_sum = np.cumsum(e_interp.y)
@@ -805,7 +825,7 @@ class vbwkde(Stage):
                 quantile_func = interp1d(cdf, e_interp.x)
                 rel_e_ref = quantile_func(0.5)
 
-            elif ref_point == 'mode':
+            elif res_scale_ref == 'mode':
                 # Approximate the mode by the highest point in the (sampled)
                 # PDF
                 rel_e_ref = e_interp.x[e_interp.y == np.max(e_interp.y)][0]
@@ -848,10 +868,10 @@ class vbwkde(Stage):
                 czbin_min, czbin_max = czbin.bin_edges.m_as('dimensionless')
                 czbin_mid = czbin.midpoints[0].m_as('dimensionless')
 
-                if ref_point in [0, 'zero']:
+                if res_scale_ref in ['zero']:
                     rel_cz_ref = 0
 
-                elif ref_point == 'mean':
+                elif res_scale_ref == 'mean':
                     # Find the mean by locating where the CDF is equal to 0.5,
                     # i.e., by evaluating the quantile func at 0.5.
                     cum_sum = np.cumsum(cz_interp.y)
@@ -859,7 +879,7 @@ class vbwkde(Stage):
                     quantile_func = interp1d(cdf, cz_interp.x)
                     rel_cz_ref = quantile_func(0.5)
 
-                elif ref_point == 'mode':
+                elif res_scale_ref == 'mode':
                     # Approximate the mode by the highest point in the (sampled)
                     # PDF
                     rel_cz_ref = cz_interp.x[cz_interp.y == np.max(cz_interp.y)][0]
@@ -941,7 +961,7 @@ class vbwkde(Stage):
 
         check_areas = kernel4d.sum(axis=(2,3))
 
-        assert np.max(check_areas) < 1 + EPSILON, str(np.max(check_areas))
+        #assert np.max(check_areas) < 1 + EPSILON, str(np.max(check_areas))
         assert np.min(check_areas) > 0 - EPSILON, str(np.min(check_areas))
 
         return kernel4d

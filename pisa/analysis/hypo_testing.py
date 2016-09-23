@@ -115,7 +115,7 @@ class Labels(object):
                 self.dict[varname+'re'] = re.compile(basestr)
 
             # There're *always* fits performed to fid asimov
-            self.
+            #self.
 
 
         # Directory naming pattern

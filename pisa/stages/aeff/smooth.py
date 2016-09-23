@@ -228,7 +228,7 @@ class smooth(Stage):
             s_cz_slice = np.squeeze(cz_slice)
 
             # Deal with problematic bin values in error
-            if error is not None:
+            if False: #error is not None:
                 s_cz_slice_err = np.squeeze(cz_slice_err)
 
                 zero_and_nan_indices = np.squeeze(
