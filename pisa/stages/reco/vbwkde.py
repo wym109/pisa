@@ -32,7 +32,7 @@ from pisa.core.param import Param, ParamSet
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.utils import kde, confInterval
-from pisa.utils.flavInt import flavintGroupsFromString
+from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 
@@ -323,7 +323,7 @@ class vbwkde(Stage):
         self.get_all_kde_info()
 
         # Apply scaling factors and figure out the area per bin for each KDE
-        trnsforms = []
+        transforms = []
         for xform_flavints in self.transform_groups:
             reco_kernel = self.compute_kernel(
                 kde_info=self.all_kde_info[str(xform_flavints)],
@@ -341,6 +341,18 @@ class vbwkde(Stage):
                     input_flavs = NuFlavIntGroup(input_name)
                     if len(set(xform_flavints).intersection(input_flavs)) > 0:
                         xform_input_names.append(input_name)
+                for output_name in self.output_names:
+                    if not output_name in xform_flavints:
+                        continue
+                    xform = BinnedTensorTransform(
+                        input_names=xform_input_names,
+                        output_name=output_name,
+                        input_binning=self.input_binning,
+                        output_binning=self.output_binning,
+                        xform_array=reco_kernel,
+                        sum_inputs=self.sum_grouped_flavints
+                    )
+                    transforms.append(xform)
             else:
                 for input_name in self.input_names:
                     if input_name not in xform_flavints:
@@ -352,9 +364,9 @@ class vbwkde(Stage):
                         output_binning=self.output_binning,
                         xform_array=reco_kernel,
                     )
-                    nominal_transforms.append(xform)
+                    transforms.append(xform)
 
-        return TransformSet(transforms=nominal_transforms)
+        return TransformSet(transforms=transforms)
 
     def get_all_kde_info(self):
         """Load from cache or recompute."""
@@ -884,7 +896,9 @@ class vbwkde(Stage):
                     elif alias_n % 2 == 0:
                         abs_cz_coords = cz_oversamp + alias_n
                     else:
-                        abs_cz_coords = -cz_oversamp + 1+alias_n
+                        # NOTE: need to flip order such that it's monotonically
+                        # increasing (else trapz returns negative areas)
+                        abs_cz_coords = (-cz_oversamp + 1+alias_n)[::-1]
 
                     rel_cz_coords = abs2rel(
                         abs_coords=abs_cz_coords,
@@ -903,7 +917,11 @@ class vbwkde(Stage):
                         #if n < 0:
                         #    area = -area
                         if area <= -EPSILON:
-                            loggin.error('alias %d czbin %d area=%e' %(alias_n, n, area))
+                            logging.error('x  = %s' %rel_cz_coords[sl])
+                            logging.error('y  = %s' %cz_pdf[sl])
+                            logging.error('sl = %s' %sl)
+                            logging.error('alias %d czbin %d area=%e' %(alias_n, n, area))
+                            raise ValueError()
 
                         areas.append(area)
 

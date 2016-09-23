@@ -276,6 +276,7 @@ if __name__ == '__main__':
         ],
         install_requires=[
             'scipy>=0.17.0',
+            'dill',
             'h5py',
             'line_profiler',
             'matplotlib',

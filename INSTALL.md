@@ -86,6 +86,7 @@ Also note that Python, SWIG, HDF5, and pip support come pre-packaged or as `cond
 
 Required Python modules that are installed automatically when you use the pip command detailed later:
 * [cython](http://cython.org)
+* [dill](http://trac.mystic.cacr.caltech.edu/project/pathos/wiki/dill.html)
 * [h5py](http://www.h5py.org)
 * [line_profiler](https://pypi.python.org/pypi/line_profiler): detailed profiling output<br>
 * [matplotlib](http://matplotlib.org)
@@ -100,7 +101,7 @@ Required Python modules that are installed automatically when you use the pip co
 
 ### Optional Dependencies
 
-Optional dependencies ***must be installed manually prior to installing PISA*** (unless otherwise noted) if you want the functionality they provide.
+Optional dependencies. Some of these must be installed manually prior to installing PISA, and some will be installed automatically by pip, and this seems to vary from system to system. Therefore you can first try to run the installation, and just install whatever pip says it needed, or just use apt, pip, and/or conda to install the below before running the PISA installation.
 
 * [llvm](http://llvm.org) Compiler needed by Numba. This is automatically installed in Anaconda alongside `numba`, but must be installed manually on your system otherwise.
   * Anaconda<br>
@@ -117,6 +118,7 @@ Optional dependencies ***must be installed manually prior to installing PISA*** 
 * [PyROOT](https://root.cern.ch/pyroot) Necessary to read ROOT cross sections files; must install ROOT on your system in addition to PyROOT. There is no `pip` package for either.
   * Ubuntu 15.x and 16.04:<br>
     `sudo apt-get install root-system libroot-bindings-python*`
+* [enum34](https://pypi.python.org/pypi/enum34) Required for numba, and for some reason pip is not installing this as a dependency automatically, so it must be installed manually.
 * [numba](http://numba.pydata.org) Just-in-time compilation of decorated Python functions to native machine code via LLVM. This can accelerate certain routines significantly. If not using Anaconda to install, you must have LLVM installed already on your system (see above).
   * Installed alongside PISA if you specify option `['numba']` to `pip`
 * [PyCUDA](https://mathema.tician.de/software/pycuda): run certain routines on Nvidia CUDA GPUs (must have compute 2.0 or greater capability)<br>
