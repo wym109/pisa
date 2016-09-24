@@ -12,26 +12,18 @@ pisa.scripts.make_events_file module
     :undoc-members:
     :show-inheritance:
 
-pisa.scripts.oscfit_pisa_v3_consistency_tests module
-----------------------------------------------------
-
-.. automodule:: pisa.scripts.oscfit_pisa_v3_consistency_tests
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-pisa.scripts.pisa_v2_v3_consistency_tests module
+pisa.scripts.test_consistency_with_oscfit module
 ------------------------------------------------
 
-.. automodule:: pisa.scripts.pisa_v2_v3_consistency_tests
+.. automodule:: pisa.scripts.test_consistency_with_oscfit
     :members:
     :undoc-members:
     :show-inheritance:
 
-pisa.scripts.postprocess module
--------------------------------
+pisa.scripts.test_consistency_with_pisa2 module
+-----------------------------------------------
 
-.. automodule:: pisa.scripts.postprocess
+.. automodule:: pisa.scripts.test_consistency_with_pisa2
     :members:
     :undoc-members:
     :show-inheritance:

@@ -12,6 +12,14 @@ pisa.stages.pid.hist module
     :undoc-members:
     :show-inheritance:
 
+pisa.stages.pid.smooth module
+-----------------------------
+
+.. automodule:: pisa.stages.pid.smooth
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 
 Module contents
 ---------------
