@@ -21,6 +21,7 @@ from __future__ import division
 
 from collections import OrderedDict
 from copy import deepcopy
+import os
 from string import ascii_lowercase
 
 import numpy as np
@@ -32,10 +33,12 @@ from pisa.core.param import Param, ParamSet
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.utils import kde, confInterval
+from pisa.utils.fileio import mkdir
 from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile, line_profile
+from pisa.utils.resources import find_resource
 
 EPSILON = 1e-9
 
@@ -163,10 +166,10 @@ class vbwkde(Stage):
             on cut specifications.
 
         res_scale_ref : string
-            One of 'mean', 'mode', or 'zero'. This is the reference point about
-            which resolutions are scaled. 'zero' scales about the zero-error
-            point (i.e., the bin midpoint), 'mean' scales about the mean of the
-            KDE, and 'mode' scales about the peak of the KDE.
+            One of "mean", "mode", or "zero". This is the reference point about
+            which resolutions are scaled. "zero" scales about the zero-error
+            point (i.e., the bin midpoint), "mean" scales about the mean of the
+            KDE, and "mode" scales about the peak of the KDE.
 
         e_res_scale : float
             A scaling factor for energy resolutions.
@@ -395,12 +398,13 @@ class vbwkde(Stage):
         logging.trace('kde_hash: %s' % kde_hash)
         logging.trace('hasattr: %s' % hasattr(self, 'all_kde_info'))
 
-        try:
-            self.all_kde_info = self.disk_cache[kde_hash]
-            self._kde_hash = kde_hash
-            return
-        except KeyError:
-            pass
+        if not self.debug_mode:
+            try:
+                self.all_kde_info = self.disk_cache[kde_hash]
+                self._kde_hash = kde_hash
+                return
+            except KeyError:
+                pass
 
         self.all_kde_info = OrderedDict()
         self.all_extra_info = OrderedDict()
@@ -413,6 +417,17 @@ class vbwkde(Stage):
             )
             self.all_kde_info[str(xform_flavints)] = kde_info
             self.all_extra_info[str(xform_flavints)] = extra_info
+
+            if self.debug_mode:
+                outdir = os.path.join(find_resource('debug'),
+                                      self.stage_name,
+                                      self.service_name)
+                mkdir(outdir)
+                plot_kde_detail(flavints=xform_flavints,
+                                kde_info=kde_info,
+                                extra_info=extra_info,
+                                binning=self.output_binning,
+                                outdir=outdir)
 
         self.disk_cache[kde_hash] = self.all_kde_info
         self._kde_hash = kde_hash
@@ -427,7 +442,7 @@ class vbwkde(Stage):
         energy and one coszen interpolant genreated for each energy bin.
 
         NOTE: Actual limits in energy used to group events into a single "true"
-        bin may be extended beyond the bin edges defined by self.ebins in order
+        bin may be extended beyond the bin edges defined by ebins in order
         to gather enough events to successfully apply VBWKDE.
 
 
@@ -531,7 +546,17 @@ class vbwkde(Stage):
             # Extract just the neutrino-energy/coszen error columns' values for
             # succinctness
             enu_err = e_reco[in_ebin_ind] - e_true[in_ebin_ind]
+
+            # TODO: figure out zenith angle error here, and then map this to
+            # coszen error for each bin when we compute the actual kernels
             cz_err = cz_reco[in_ebin_ind] - cz_true[in_ebin_ind]
+
+            # NOTE: the following is a bad idea. The spike at 0 (error) screws
+            # up KDE in the bins where we're having issues, and we continue to
+            # have 0 event reco-ing inbounds from these bins (or it gets even
+            # worse).
+            ## Clip enu error to imply reco >= 0 GeV 
+            #np.clip(enu_err, a_min=-ebin_mid, a_max=np.inf, out=enu_err)
 
             #==================================================================
             # Neutrino energy resolution for events in this energy bin
@@ -553,55 +578,55 @@ class vbwkde(Stage):
                 e_err_max*4,
                 ebin_wid*4
             ])
-            #e_upperlim = max((np.max(ebin_edges)-ebin_mid)*1.5, e_err_max+e_err_range*0.5)
-            egy_kde_lims = np.array([e_lowerlim, e_upperlim])
+            e_kde_lims = np.array([e_lowerlim, e_upperlim])
 
             # Use at least min_num_pts points and at most the next-highest
             # integer-power-of-two that allows for at least 10 points in the
             # smallest energy bin
-            min_num_pts = 2**14
+            min_num_pts = 2**15
             min_bin_width = np.min(ebin_edges[1:]-ebin_edges[:-1])
             min_pts_smallest_bin = 5.0
-            kde_range = np.diff(egy_kde_lims)
+            kde_range = np.diff(e_kde_lims)
             num_pts0 = kde_range/(min_bin_width/min_pts_smallest_bin)
             kde_num_pts = int(max(min_num_pts, 2**np.ceil(np.log2(num_pts0))))
             logging.debug(
                 '  N_evts=' + str(n_in_bin) + ', taken from [' +
                 format(actual_left_ebin_edge, '0.3f') + ', ' +
                 format(actual_right_ebin_edge, '0.3f') + ']' + ', VBWKDE lims=' +
-                str(egy_kde_lims) + ', VBWKDE_N: ' + str(kde_num_pts)
+                str(e_kde_lims) + ', VBWKDE_N: ' + str(kde_num_pts)
             )
 
             ## Exapnd range of sample points for future axis scaling
             #e_factor = 1
 
-            #low_lim_shift = egy_kde_lims[0] * (e_factor - 1)
-            #upp_lim_shift = egy_kde_lims[1] * (e_factor - 1)
+            #low_lim_shift = e_kde_lims[0] * (e_factor - 1)
+            #upp_lim_shift = e_kde_lims[1] * (e_factor - 1)
 
-            #egy_kde_lims_ext = np.copy(egy_kde_lims)
+            #e_kde_lims_ext = np.copy(e_kde_lims)
             #if low_lim_shift > 0:
-            #    egy_kde_lims_ext[0] = (
-            #        egy_kde_lims[0] - low_lim_shift * (1./e_factor)
+            #    e_kde_lims_ext[0] = (
+            #        e_kde_lims[0] - low_lim_shift * (1./e_factor)
             #    )
             #if upp_lim_shift < 0:
-            #    egy_kde_lims_ext[1] = (
-            #        egy_kde_lims[1] - upp_lim_shift * (1./e_factor)
+            #    e_kde_lims_ext[1] = (
+            #        e_kde_lims[1] - upp_lim_shift * (1./e_factor)
             #    )
 
-            ## Adjust kde_num_points accordingly
-            #e_kde_num_pts_ext = int(
-            #    kde_num_pts*((egy_kde_lims_ext[1] - egy_kde_lims_ext[0])
-            #    / (egy_kde_lims[1] - egy_kde_lims[0]))
-            #)
+            # Adjust kde_num_points accordingly
+            e_kde_num_pts = int(
+                kde_num_pts*((e_kde_lims[1] - e_kde_lims[0])
+                / (e_kde_lims[1] - e_kde_lims[0]))
+            )
 
-            logging.trace('MIN/MAX = %s' %egy_kde_lims_ext)
+            logging.trace('e_kde_num_pts = %s; MIN/MAX = %s' %(e_kde_num_pts,
+                                                               e_kde_lims))
 
             # Compute variable-bandwidth KDEs
             enu_bw, enu_mesh, enu_pdf = kde.vbw_kde(
                 data=enu_err,
                 overfit_factor=OVERFIT_FACTOR,
-                MIN=egy_kde_lims[0],
-                MAX=egy_kde_lims[1],
+                MIN=e_kde_lims[0],
+                MAX=e_kde_lims[1],
                 N=e_kde_num_pts
             )
 
@@ -654,7 +679,7 @@ class vbwkde(Stage):
             # number, the longer it takes to compute the densities at all the
             # points. Here, just choosing a fixed number regardless of the data
             # or binning
-            N_cz_mesh = 2**10
+            N_cz_mesh = 2**13
 
             # Data range for VBWKDE to consider
             cz_kde_min = -3
@@ -730,6 +755,7 @@ class vbwkde(Stage):
                     if previous_fail:
                         logging.trace(')')
                     previous_fail = False
+                    cz_kde_lims = np.array([cz_kde_min, cz_kde_max])
                     if not cz_kde_failed:
                         break
 
@@ -760,14 +786,14 @@ class vbwkde(Stage):
             thisbin_extra_info = dict(
                 enu_err=enu_err,
                 cz_err=cz_err,
+                actual_ebin_edges=[actual_left_ebin_edge,
+                                   actual_right_ebin_edge],
                 enu_bw=enu_bw,
                 cz_bw=cz_bw,
                 enu_mesh=enu_mesh,
                 cz_mesh=cz_mesh,
-                e_kde_min=e_kde_min,
-                e_kde_max=e_kde_max,
-                cz_kde_min_ext=cz_kde_min_ext,
-                cz_kde_max_ext=cz_kde_max_ext
+                e_kde_lims=e_kde_lims,
+                cz_kde_lims=cz_kde_lims,
             )
 
             thisbin_key = (ebin_min, ebin_mid, ebin_max)
@@ -845,7 +871,7 @@ class vbwkde(Stage):
 
         for ebin_n, (ebinpoints, interpolants) in enumerate(kde_info.iteritems()):
             ebin = ebins[ebin_n]
-            emin, emid, emax = ebinpoints
+            ebin_min, ebin_mid, ebin_max = ebinpoints
             e_interp = interpolants['e_interp']
             cz_interp = interpolants['cz_interp']
 
@@ -870,7 +896,7 @@ class vbwkde(Stage):
             # sampling in absolute coordinate space and our desire to scale and
             # shift the resolutions by some amount.
             rel_e_coords = abs2rel(
-                abs_coords=e_oversamp, abs_bin_midpoint=emid,
+                abs_coords=e_oversamp, abs_bin_midpoint=ebin_mid,
                 rel_scale_ref=rel_e_ref, scale=e_res_scale,
                 abs_obj_shift=e_reco_bias
             )
@@ -884,10 +910,66 @@ class vbwkde(Stage):
             # we make it wider/narrower.
             e_pdf = e_interp(rel_e_coords) / e_res_scale
 
+            total_area = np.abs(np.trapz(x=e_oversamp, y=e_pdf))
+            logging.trace('Bin %04d total area before artificial renorm = %e'
+                          %(ebin_n, total_area))
+
+            e_pdf /= total_area
+
+            # Now figure out the "invalid" area under the curve. Since we draw
+            # events that are > than the bin midpoint, but we effectively
+            # interpret their reco as coming from an event with true-energy at
+            # the bin center, the reco can be < 0 GeV. While this gives the KDE
+            # a better shape (compared to e.g. not using these events at all),
+            # it does leave us with a tail that extends more or less (but
+            # always some amont) below the valid range.
+            #
+            # Proposed solution: Add up this area, and rescale the PDF to be
+            # larger to compensate for this "wasted" non-physical area.
+            invalid_rel_e_min = abs2rel(
+                abs_coords=0, abs_bin_midpoint=ebin_mid,
+                rel_scale_ref=rel_e_ref, scale=e_res_scale,
+                abs_obj_shift=e_reco_bias
+            )
+            # A good point to start the integration is the lower limit of the
+            # energy intpolant as we can (rightly or wrongly) assume we covered
+            # the complete range of where there might be any appreciable area
+            # under the curve.
+            abs_e_samp_min = rel2abs(
+                rel_coords=np.min(e_interp.x),
+                abs_bin_midpoint=ebin_mid,
+                rel_scale_ref=rel_e_ref,
+                scale=e_res_scale,
+                abs_obj_shift=e_reco_bias
+            )
+
+            if abs_e_samp_min < 0:
+                de_samp_step_size = 0.01 # GeV
+                abs_e_samp_points = np.arange(abs_e_samp_min, 0,
+                                              de_samp_step_size)
+                abs_e_samp_points = np.concatenate([abs_e_samp_points, [0]])
+                rel_e_samp_points = abs2rel(
+                    abs_coords=abs_e_samp_points, abs_bin_midpoint=ebin_mid,
+                    rel_scale_ref=rel_e_ref, scale=e_res_scale,
+                    abs_obj_shift=e_reco_bias
+                )
+                invalid_e_pdf = e_interp(rel_e_samp_points) / e_res_scale
+                invalid_e_area = np.trapz(abs_e_samp_points, invalid_e_pdf) / total_area
+                logging.trace('Invalid e-abs samp points 0,-1, bin %4d = %s'
+                              %(ebin_n, (abs_e_samp_points[0], abs_e_samp_points[-1])))
+                logging.trace('Invalid e-pdf lims, bin %4d = %s'
+                              %(ebin_n, (np.min(invalid_e_pdf), np.max(invalid_e_pdf))))
+                logging.trace('Invalid e-area, bin %4d = %0.4e'
+                              %(ebin_n, invalid_e_area))
+                e_pdf = e_pdf / (1 - np.abs(invalid_e_area))
+            else:
+                logging.trace('abs_e_samp_min, bin %d = %s' %(ebin_n,
+                                                              abs_e_samp_min))
+
             ebin_areas = []
             for n in xrange(ebins.num_bins):
                 sl = slice(n*SAMPLES_PER_BIN, (n+1)*SAMPLES_PER_BIN + 1)
-                ebin_area = np.trapz(x=rel_e_coords[sl], y=e_pdf[sl])
+                ebin_area = np.trapz(x=e_oversamp[sl], y=e_pdf[sl])
                 assert ebin_area > -EPSILON, 'bin %d ebin_area=%e' %(n, ebin_area)
                 ebin_areas.append(ebin_area)
 
@@ -968,14 +1050,15 @@ class vbwkde(Stage):
                     areas = []
                     for n in xrange(czbins.num_bins):
                         sl = slice(n*SAMPLES_PER_BIN, (n+1)*SAMPLES_PER_BIN+1)
-                        area = np.trapz(x=rel_cz_coords[sl], y=cz_pdf[sl])
+                        area = np.trapz(x=abs_cz_coords[sl], y=cz_pdf[sl])
                         #if n < 0:
                         #    area = -area
                         if area <= -EPSILON:
                             logging.error('x  = %s' %rel_cz_coords[sl])
                             logging.error('y  = %s' %cz_pdf[sl])
                             logging.error('sl = %s' %sl)
-                            logging.error('alias %d czbin %d area=%e' %(alias_n, n, area))
+                            logging.error('alias %d czbin %d area=%e'
+                                          %(alias_n, n, area))
                             raise ValueError()
 
                         areas.append(area)
@@ -1002,7 +1085,8 @@ class vbwkde(Stage):
         return kernel4d
 
 
-def plot_kde_detail(kde_info, extra_info, ebin_n=None):
+def plot_kde_detail(flavints, kde_info, extra_info, binning, outdir,
+                    ebin_n=None):
     """
 
     Parameters
@@ -1026,14 +1110,19 @@ def plot_kde_detail(kde_info, extra_info, ebin_n=None):
     from matplotlib.backends.backend_pdf import PdfPages
     from matplotlib.patches import Rectangle
 
+    def rugplot(a, y0, dy, ax, **kwargs):
+        return ax.plot([a,a], [y0, y0+dy], **kwargs)
+
+    label = str(flavints)
+    flavint_tex = flavints.tex()
+
+    ebins = binning.reco_energy
+    ebin_edges = ebins.bin_edges.m_as('GeV')
+
     plt.close(1)
     plt.close(2)
     plt.close(3)
-    def rugplot(a, y0, dy, ax, **kwargs):
-        return ax.plot([a,a], [y0, y0+dy], **kwargs)
-    plot_fname = '_'.join(['resolutions', 'vbwkde', flav, int_type]) + '.pdf'
-    if out_dir is not None:
-        plot_fname = os.path.join(out_dir, plot_fname)
+    #plot_fname = os.path.join(outdir, label + '.pdf')
     TOP = 0.925
     BOTTOM = 0.05
     RIGHT = 0.97
@@ -1057,7 +1146,7 @@ def plot_kde_detail(kde_info, extra_info, ebin_n=None):
     LEGFNTCOL = (1,1,1)
     LEGFACECOL = (0.2,0.2,0.2)
     GRIDCOL = (0.4, 0.4, 0.4)
-    pdfpgs = PdfPages(plot_fname)
+    #pdfpgs = PdfPages(plot_fname)
 
     if ebin_n is None:
         idx = slice(0, None)
@@ -1068,21 +1157,43 @@ def plot_kde_detail(kde_info, extra_info, ebin_n=None):
     else:
         raise ValueError('Unhadled type for `ebin_n`: %s' %type(ebin_n))
 
-    kinfos = kde_info.items()
-    einfos = extra_info.items()
-    for (kde_info, extra_info) in zip(kinfos[idx], einfos[idx]):
+    bin_numbers = range(len(kde_info))
+    binfos = kde_info.keys()
+    kinfos = kde_info.values()
+    einfos = extra_info.values()
+    for (bin_n, bin_info, kde_info, extra_info) in zip(bin_numbers[idx],
+                                                       binfos[idx],
+                                                       kinfos[idx],
+                                                       einfos[idx]):
+        plot_fname = os.path.join(outdir, label + format(bin_n, '03d') + '.pdf')
+
+        ebin_min, ebin_mid, ebin_max = bin_info
+        ebin_wid = ebin_max - ebin_min
+
         e_interp = kde_info['e_interp']
         cz_interp = kde_info['cz_interp']
+
         enu_err = extra_info['enu_err']
         cz_err = extra_info['cz_err']
+        n_in_bin = len(enu_err)
+
+        actual_left_ebin_edge, actual_right_ebin_edge = \
+                extra_info['actual_ebin_edges']
+
+        e_err_min, e_err_max = min(enu_err), max(enu_err)
+        e_err_range = e_err_max - e_err_min
+
+        cz_err_min, cz_err_max = min(cz_err), max(cz_err)
+        cz_err_range = cz_err_max - cz_err_min
+
         enu_bw = extra_info['enu_bw']
         cz_bw = extra_info['cz_bw']
+
         enu_mesh = extra_info['enu_mesh']
         cz_mesh = extra_info['cz_mesh']
-        e_kde_min = extra_info['e_kde_min']
-        e_kde_max = extra_info['e_kde_max']
-        cz_kde_min_ext = extra_info['cz_kde_min_ext']
-        cz_kde_max_ext = extra_info['cz_kde_max_ext']
+
+        e_kde_lims = extra_info['e_kde_lims']
+        cz_kde_lims = extra_info['cz_kde_lims']
 
         enu_pdf = e_interp(enu_mesh)
         cz_pdf = cz_interp(cz_mesh)
@@ -1114,12 +1225,14 @@ def plot_kde_detail(kde_info, extra_info, ebin_n=None):
         #)
 
         # Histogram of events' reco error
-        #hbins = np.linspace(dmin-0.02*drange, dmax+0.02*drange,
-        #                    N_HBINS*np.round(drange/ebin_centers[ebin_n]))
-        hvals, hbins, hpatches = ax1.hist(enu_err,
-                                          bins=N_HBINS, #hbins,
-                                          normed=True,
-                                          **HIST_PP)
+        e_hbins = np.linspace(
+            e_err_min-0.02*e_err_range,
+            e_err_max+0.02*e_err_range,
+            N_HBINS*np.round(e_err_range/ebin_mid)
+        )
+        hvals, e_hbins, hpatches = ax1.hist(
+            enu_err, bins=e_hbins, normed=True, **HIST_PP
+        )
 
         # Plot the VBWKDE
         ax1.plot(enu_mesh, enu_pdf, **DIFFUS_PP)
@@ -1183,9 +1296,14 @@ def plot_kde_detail(kde_info, extra_info, ebin_n=None):
         #
 
         ax2 = fig1.add_subplot(212, axisbg=AXISBG)
-        hbins = np.linspace(dmin-0.02*drange, dmax+0.02*drange, N_HBINS*3)
-        hvals, hbins, hpatches = ax2.hist(cz_err, bins=hbins,
-                                          normed=True, **HIST_PP)
+        cz_hbins = np.linspace(
+            cz_err_min-0.02*cz_err_range,
+            cz_err_max+0.02*cz_err_range,
+            N_HBINS*3
+        )
+        hvals, cz_hbins, hpatches = ax2.hist(
+            cz_err, bins=cz_hbins, normed=True, **HIST_PP
+        )
         ax2.plot(cz_mesh, cz_pdf, **DIFFUS_PP)
         fci = confInterval.MLConfInterval(x=cz_mesh,
                                           y=cz_pdf)
@@ -1218,13 +1336,13 @@ def plot_kde_detail(kde_info, extra_info, ebin_n=None):
         frame.set_edgecolor(None)
 
         actual_bin_tex = ''
-        if (actual_left_ebin_edge != ebin_min) or (actual_right_ebin_edge != ebin_max):
+        if ((actual_left_ebin_edge != ebin_min)
+            or (actual_right_ebin_edge != ebin_max)):
             actual_bin_tex = r'E_{\nu,\mathrm{true}}\in [' + \
                     format(actual_left_ebin_edge, '0.2f') + r',\,' + \
                     format(actual_right_ebin_edge, '0.2f') + r'] \mapsto '
-        stt = r'$\mathrm{Resolutions,\,' + flav_tex(flav) + r'\,' + \
-                int_tex(int_type) + r'}$' + '\n' + \
-                r'$' + actual_bin_tex + r'\mathrm{Bin}_{' + format(ebin_n, 'd') + r'}\equiv E_{\nu,\mathrm{true}}\in [' + format(ebin_min, '0.2f') + \
+        stt = r'$\mathrm{Resolutions,\,' + flavint_tex + r'}$' + '\n' + \
+                r'$' + actual_bin_tex + r'\mathrm{Bin}_{' + format(bin_n, 'd') + r'}\equiv E_{\nu,\mathrm{true}}\in [' + format(ebin_min, '0.2f') + \
                 r',\,' + format(ebin_max, '0.2f') + r']\,\mathrm{GeV}' + \
                 r',\,N_\mathrm{events}=' + format(n_in_bin, 'd') + r'$'
 
@@ -1232,7 +1350,8 @@ def plot_kde_detail(kde_info, extra_info, ebin_n=None):
         suptitle = fig1.suptitle(stt)
         suptitle.set_fontsize(16)
         suptitle.set_position((0.5,0.98))
-        fig1.savefig(pdfpgs, format='pdf')
+        logging.trace('plot_fname = %s' %plot_fname)
+        fig1.savefig(plot_fname, format='pdf')
 
 
 if __name__ == '__main__':
