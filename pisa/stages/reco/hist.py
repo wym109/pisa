@@ -55,6 +55,23 @@ class hist(Stage):
             Column in the events file to use for Monte Carlo weighting of the
             events
 
+        res_scale_ref : string
+            One of "mean", "median", or "zero". This is the reference point
+            about which resolutions are scaled. "zero" scales about the
+            zero-error point (i.e., the bin midpoint), "mean" scales about the
+            mean of the events in the bin, and "median" scales about the median
+            of the events in the bin.
+
+        e_res_scale : float
+            A scaling factor for energy resolutions.
+
+        cz_res_scale : float
+            A scaling factor for coszen resolutions.
+
+        e_reco_bias : float
+
+        cz_reco_bias : float
+
         transform_events_keep_criteria : None, string, or sequence of strings
 
     particles : string
@@ -125,8 +142,9 @@ class hist(Stage):
         # `params` argument.
         expected_params = (
             'reco_events', 'reco_weights_name',
-            'transform_events_keep_criteria'
-            # NOT IMPLEMENTED: 'e_reco_scale', 'cz_reco_scale'
+            'transform_events_keep_criteria',
+            'res_scale_ref', 'e_res_scale', 'cz_res_scale',
+            'e_reco_bias', 'cz_reco_bias'
         )
 
         if isinstance(input_names, basestring):
@@ -167,7 +185,7 @@ class hist(Stage):
     def validate_binning(self):
         assert self.input_binning.num_dims == self.output_binning.num_dims
 
-    def _compute_nominal_transforms(self):
+    def _compute_transforms(self):
         """Generate reconstruction "smearing kernels" by histogramming true and
         reconstructed variables from a Monte Carlo events file.
 
@@ -186,6 +204,13 @@ class hist(Stage):
         **UN**weighted. This is probably quite wrong...
 
         """
+        e_res_scale = self.params.e_res_scale.value.m_as('dimensionless')
+        cz_res_scale = self.params.cz_res_scale.value.m_as('dimensionless')
+        e_reco_bias = self.params.e_reco_bias.value.m_as('GeV')
+        cz_reco_bias = self.params.cz_reco_bias.value.m_as('dimensionless')
+        res_scale_ref = self.params.res_scale_ref.value.strip().lower()
+        assert res_scale_ref in ['zero'] # TODO: , 'mean', 'median']
+
         self.load_events(self.params.reco_events)
         self.cut_events(self.params.transform_events_keep_criteria)
 
@@ -219,13 +244,32 @@ class hist(Stage):
                                for dim in input_binning.dimensions]
         true_only_binning_cols = input_binning.names
 
+        tmp_events = deepcopy(self.remaining_events)
+
         nominal_transforms = []
         for xform_flavints in self.transform_groups:
             logging.debug("Working on %s reco kernels" %xform_flavints)
 
+            repr_flavint = xform_flavints[0]
+
+            true_energy = tmp_events[repr_flavint]['true_energy']
+            true_coszen = tmp_events[repr_flavint]['true_coszen']
+            reco_energy = tmp_events[repr_flavint]['reco_energy']
+            reco_coszen = tmp_events[repr_flavint]['reco_coszen']
+            e_reco_err = reco_energy - true_energy
+            cz_reco_err = reco_coszen - true_coszen
+
+            if self.params.res_scale_ref.value.strip().lower() == 'zero':
+                tmp_events[repr_flavint]['reco_energy'] = (
+                    true_energy + e_reco_err * e_res_scale + e_reco_bias
+                )
+                tmp_events[repr_flavint]['reco_coszen'] = (
+                    true_coszen + cz_reco_err * cz_res_scale + cz_reco_bias
+                )
+
             # True+reco (2N-dimensional) histogram is the basis for the
             # transformation
-            reco_kernel = self.remaining_events.histogram(
+            reco_kernel = tmp_events.histogram(
                 kinds=xform_flavints,
                 binning=true_and_reco_bin_edges,
                 binning_cols=true_and_reco_binning_cols,
@@ -319,11 +363,3 @@ class hist(Stage):
                     nominal_transforms.append(xform)
 
         return TransformSet(transforms=nominal_transforms)
-
-    def _compute_transforms(self):
-        """There are no systematics in this stage, so the transforms are just
-        the nominal transforms. Thus, this function just returns the nominal
-        transforms, computed by `_compute_nominal_transforms`..
-
-        """
-        return self.nominal_transforms

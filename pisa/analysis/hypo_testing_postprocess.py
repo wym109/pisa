@@ -32,63 +32,10 @@ import pint
 
 from pisa import ureg, _version, __version__
 from pisa.analysis.hypo_testing import Labels
-#from pisa.core.map import VALID_METRICS
-#from pisa.utils.comparisons import normQuant
 from pisa.utils.fileio import from_file, get_valid_filename, mkdir, to_file, nsort
-#from pisa.utils.hash import hash_obj
-#from pisa.utils.log import logging, set_verbosity
-#from pisa.utils.random_numbers import get_random_state
-#from pisa.utils.resources import find_resource
-#from pisa.utils.timing import timediffstamp, timestamp
-
-
-#def get_config(logdir):
-#    config_summary_fpath = os.path.join(logdir, 'config_summary.json')
-#    summary = from_file(config_summary_fpath, sort_keys=False)
-#    return summary
-#
-#    d['metric_optimized'] = self.metric
-#    summary['minimizer_info'] = d
-#
-#    summary['data_name'] = self.data_name
-#    summary['data_is_data'] = self.data_is_data
-#    summary['data_hash'] = self.data_hash
-#    summary['data_param_selections'] = ','.join(self.data_param_selections)
-#    summary['data_params_state_hash'] = self.data_maker.params.state_hash
-#    summary['data_params'] = [str(p) for p in self.data_maker.params]
-#    summary['data_pipelines'] = self.summarize_dist_maker(self.data_maker)
-#
-#    self.h0_maker.select_params(self.h0_param_selections)
-#    self.h0_maker.reset_free()
-#    summary['h0_name'] = self.h0_name
-#    summary['h0_hash'] = self.h0_hash
-#    summary['h0_param_selections'] = ','.join(self.h0_param_selections)
-#    summary['h0_params_state_hash'] = self.h0_maker.params.state_hash
-#    summary['h0_params'] = [str(p) for p in self.h0_maker.params]
-#    summary['h0_pipelines'] = self.summarize_dist_maker(self.h0_maker)
-#
-#    self.h1_maker.select_params(self.h1_param_selections)
-#    self.h1_maker.reset_free()
-#    summary['h1_name'] = self.h1_name
-#    summary['h1_hash'] = self.h1_hash
-#    summary['h1_param_selections'] = ','.join(self.h1_param_selections)
-#    summary['h1_params_state_hash'] = self.h1_maker.params.state_hash
-#    summary['h1_params'] = [str(p) for p in self.h1_maker.params]
-#    summary['h1_pipelines'] = self.summarize_dist_maker(self.h1_maker)
-#
-#    # Reverse the order so it serializes to a file as intended
-#    # (want top-to-bottom file convention vs. fifo streaming data
-#    # convention)
-#    od = OrderedDict()
-#    for ok, ov in (summary.items()):
-#        if isinstance(ov, OrderedDict):
-#            od1 = OrderedDict()
-#            for ik, iv in (ov.items()):
-#                od1[ik] = iv
-#            ov = od1
-#        od[ok] = ov
-#
-#    to_file(od, self.config_summary_fpath, sort_keys=False)
+from pisa.utils.log import logging, set_verbosity
+from pisa.utils.resources import find_resource
+from pisa.utils.timing import timediffstamp, timestamp
 
 
 def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
@@ -130,7 +77,6 @@ def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
         data_name=cfg['data_name'], data_is_data=data_is_data,
         fluctuate_data=fluctuate_data, fluctuate_fid=fluctuate_fid
     )
-    print labels.data
 
     # Find all relevant data dirs, and from each extract the fiducial fit(s)
     # information contained
@@ -211,33 +157,21 @@ def parse_args():
         script.'''
     )
     parser.add_argument(
-        '-d', '--logdir', required=True,
+        '-d', '--dir', required=True,
         metavar='DIR', type=str,
         help='Directory into which to store results and metadata.'
     )
 
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(
-        '--asimov-analysis', action='store_true',
+        '--asimov', action='store_true',
         help='''Analyze the Asimov trials in the specified directories.'''
     )
     group.add_argument(
-        '--llr-analysis', action='store_true',
+        '--llr', action='store_true',
         help='''Analyze the LLR trials in the specified directories.'''
     )
 
-    parser.add_argument(
-        '--allow-dirty',
-        action='store_true',
-        help='''Warning: Use with caution. (Allow for run despite dirty
-        repository.)'''
-    )
-    parser.add_argument(
-        '--allow-no-git-info',
-        action='store_true',
-        help='''*** DANGER! Use with extreme caution! (Allow for run despite
-        complete inability to track provenance of code.)'''
-    )
     parser.add_argument(
         '-v', action='count', default=None,
         help='set verbosity level'
@@ -253,47 +187,14 @@ if __name__ == '__main__':
     # HypoTesting object via dictionary's `pop()` method.
 
     set_verbosity(init_args_d.pop('v'))
-    init_args_d['check_octant'] = not init_args_d.pop('no_octant_check')
 
-    init_args_d['data_is_data'] = not init_args_d.pop('data_is_mc')
+    if args.asimov:
+        data_sets = extract_trials(logdir=args.dir, fluctuate_fid=False,
+                                   fluctuate_data=False)
+        od = data_sets.values()[0]
+        #if od['h1_fit_to_h0_fid']['fid_asimov']['metric_val'] > od['h0_fit_to_h1_fid']['fid_asimov']['metric_val']:
+        print np.sqrt(np.abs(od['h1_fit_to_h0_fid']['fid_asimov']['metric_val'] - od['h0_fit_to_h1_fid']['fid_asimov']['metric_val']))
 
-    init_args_d['store_minimizer_history'] = (
-        not init_args_d.pop('no_minimizer_history')
-    )
+    else:
+        raise NotImplementedError('llr-analysis')
 
-    other_metrics = init_args_d.pop('other_metric')
-    if other_metrics is not None:
-        other_metrics = [s.strip().lower() for s in other_metrics]
-        if 'all' in other_metrics:
-            other_metrics = sorted(VALID_METRICS)
-        if init_args_d['metric'] in other_metrics:
-            other_metrics.remove(init_args_d['metric'])
-        if len(other_metrics) == 0:
-            other_metrics = None
-        else:
-            logging.info('Will evaluate other metrics %s' %other_metrics)
-        init_args_d['other_metrics'] = other_metrics
-
-    # Normalize and convert `*_pipeline` filenames; store to `*_maker`
-    # (which is argument naming convention that HypoTesting init accepts).
-    for maker in ['h0', 'h1', 'data']:
-        filenames = init_args_d.pop(maker + '_pipeline')
-        if filenames is not None:
-            filenames = sorted(
-                [normcheckpath(fname) for fname in filenames]
-            )
-        init_args_d[maker + '_maker'] = filenames
-
-        ps_name = maker + '_param_selections'
-        ps_str = init_args_d[ps_name]
-        if ps_str is None:
-            ps_list = None
-        else:
-            ps_list = [x.strip().lower() for x in ps_str.split(',')]
-        init_args_d[ps_name] = ps_list
-
-    # Instantiate the analysis object
-    hypo_testing = HypoTesting(**init_args_d)
-
-    # Run the analysis
-    hypo_testing.run_analysis()

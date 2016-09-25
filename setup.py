@@ -322,6 +322,7 @@ if __name__ == '__main__':
         ],
         scripts=[
             'pisa/analysis/hypo_testing.py',
+            'pisa/analysis/hypo_testing_postprocess.py',
             'pisa/analysis/profile_llh_analysis.py',
             'pisa/analysis/profile_llh_postprocess.py',
             'pisa/core/distribution_maker.py',
