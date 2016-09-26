@@ -362,7 +362,7 @@ def ravel_results(results):
 
 
 def text2tex(txt):
-    txt.replace('_', r'\_')
+    return txt.replace('_', r'\_')
 
 
 if __name__ == '__main__':
