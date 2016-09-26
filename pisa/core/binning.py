@@ -24,7 +24,7 @@ import numpy as np
 import pint
 from pisa import ureg, Q_
 
-from pisa.utils.comparisons import normQuant, recursiveEquality
+from pisa.utils.comparisons import isbarenumeric, normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils import jsons
 from pisa.utils.log import logging, set_verbosity
@@ -518,8 +518,27 @@ class OneDimBinning(object):
         return self.num_bins
 
     @new_obj
+    def __mul__(self, other):
+        return {'bin_edges': self.bin_edges * other}
+
+    def __add__(self, other):
+        if isinstance(other, OneDimBinning):
+            return MultiDimBinning([self, other])
+        elif isinstance(other, MultiDimBinning):
+            return MultiDimBinning([self] + [d for d in other])
+        elif isbarenumeric(other):
+            other = other * ureg.dimensionless
+
+        if isinstance(other, pint.quantity._Quantity):
+            new_bin_edges = self.bin_edges + other
+            return OneDimBinning(name=self.name, tex=self.tex,
+                                 bin_edges=new_bin_edges)
+        else:
+            raise TypeError('Unhandled type %s for __add__' %type(other))
+
+    @new_obj
     def __deepcopy__(self, memo):
-        """ explicit deepcopy constructor """
+        """Explicit deepcopy constructor"""
         return {}
 
     @staticmethod
@@ -544,7 +563,8 @@ class OneDimBinning(object):
             raise ValueError('%d bin edge(s) passed; require at least 3 to'
                              ' determine nature of bin spacing.'
                              %len(bin_edges))
-        log_spacing = bin_edges[1:] / bin_edges[:-1]
+        with np.errstate(divide='ignore', invalid='ignore'):
+            log_spacing = bin_edges[1:] / bin_edges[:-1]
         if np.allclose(log_spacing, log_spacing[0]):
             return True
         return False
@@ -1312,6 +1332,10 @@ class MultiDimBinning(object):
         if not isinstance(other, MultiDimBinning):
             return False
         return recursiveEquality(self._hashable_state, other._hashable_state)
+
+    def __add__(self, other):
+        other = MultiDimBinning(other)
+        return MultiDimBinning([d for d in self] + [d for d in other])
 
     def __getattr__(self, attr):
         for d in self._dimensions:
