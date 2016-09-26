@@ -1517,6 +1517,36 @@ class MapSet(object):
         return self.apply_to_maps('__sub__', val)
 
     def reorder_dimensions(self, order):
+        """Return a new MultiDimBinning object with dimensions ordered
+        according to `order`.
+
+        Parameters
+        ----------
+        order : MultiDimBinning or sequence of string, int, or OneDimBinning
+            Order of dimensions to use. Strings are interpreted as dimension
+            basenames, integers are interpreted as dimension indices, and
+            OneDimBinning objects are interpreted by their `basename`
+            attributes (so e.g. the exact binnings in `order` do not have to
+            match this object's exact binnings; only their basenames). Note
+            that a MultiDimBinning object is a valid sequence type to use for
+            `order`.
+
+        Notes
+        -----
+        Dimensions specified in `order` that are not in this object are
+        ignored, but dimensions in this object that are missing in `order`
+        result in an error.
+
+        Returns
+        -------
+        MultiDimBinning object with reordred dimensions.
+
+        Raises
+        ------
+        ValueError if dimensions present in this object are missing from
+        `order`.
+
+        """
         return MapSet([m.reorder_dimensions(order=order) for m in self.maps])
 
     def rebin(self, *args, **kwargs):

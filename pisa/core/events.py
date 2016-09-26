@@ -24,6 +24,7 @@ from pisa.core.map import Map
 from pisa.utils import resources
 from pisa.utils.comparisons import normQuant, recursiveEquality
 from pisa.utils.flavInt import FlavIntData, NuFlavIntGroup
+from pisa.utils.format import text2tex
 from pisa.utils.hash import hash_obj
 from pisa.utils import hdf
 from pisa.utils.log import logging, set_verbosity
@@ -216,14 +217,14 @@ class Events(FlavIntData):
             if tex is None:
                 tex = kinds.tex()
                 if weights_col is not None:
-                    tex += r'\,\;{\rm weights=' + weights_col + r'}'
+                    tex += r', \; {\rm weights=' + text2tex(weights_col) + r'}'
 
             name = str(kinds)
             if weights_col is not None:
                 name += ', weights=' + weights_col
 
         if tex is None:
-            tex = r'{\rm ' + name + r'}'
+            tex = r'{\rm ' + text2tex(name) + r'}'
 
         return Map(name=name, hist=hist, binning=binning, tex=tex)
 

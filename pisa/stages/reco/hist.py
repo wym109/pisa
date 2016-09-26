@@ -24,7 +24,6 @@ from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.core.events import Events
 from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup
 from pisa.utils.hash import hash_obj
-from pisa.utils.log import logging, set_verbosity
 
 
 # TODO: the below logic does not generalize to muons, but probably should

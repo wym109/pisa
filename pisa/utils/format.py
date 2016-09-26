@@ -346,6 +346,7 @@ def engfmt(n, sigfigs=3, decimals=None, sign_always=False):
     #if units.dimensionless:
     return  '{0:s} {1:s}'.format(num_str, prefixes[pfx_mag])
 
+
 def append_results(results_dict, result_dict):
     for key, val in result_dict.items():
         if results_dict.has_key(key):
@@ -353,10 +354,15 @@ def append_results(results_dict, result_dict):
         else:
             results_dict[key] = [val]
 
+
 def ravel_results(results):
     for key, val in results.items():
         if hasattr(val[0],'m'):
             results[key] = np.array([v.m for v in val]) * val[0].u
+
+
+def text2tex(txt):
+    txt.replace('_', r'\_')
 
 
 if __name__ == '__main__':

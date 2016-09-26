@@ -1086,7 +1086,7 @@ class MultiDimBinning(object):
 
         Parameters
         ----------
-        order : sequence of (string, int, or OneDimBinning)
+        order : MultiDimBinning or sequence of string, int, or OneDimBinning
             Order of dimensions to use. Strings are interpreted as dimension
             basenames, integers are interpreted as dimension indices, and
             OneDimBinning objects are interpreted by their `basename`
@@ -1118,8 +1118,11 @@ class MultiDimBinning(object):
         >>> print b2.binning.names
 
         """
-        if isinstance(order, MultiDimBinning):
-            order = order.dimensions
+        if hasattr(order, 'binning') and isinstance(order.binning,
+                                                    MultiDimBinning):
+            order = order.binning.dims
+        elif isinstance(order, MultiDimBinning):
+            order = order.dims
 
         indices = []
         for dim in order:
@@ -1338,6 +1341,10 @@ class MultiDimBinning(object):
         return recursiveEquality(self._hashable_state, other._hashable_state)
 
     def __add__(self, other):
+        other = MultiDimBinning(other)
+        return MultiDimBinning([d for d in self] + [d for d in other])
+
+    def __mul__(self, other):
         other = MultiDimBinning(other)
         return MultiDimBinning([d for d in self] + [d for d in other])
 
