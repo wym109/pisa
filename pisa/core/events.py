@@ -88,6 +88,10 @@ class Events(FlavIntData):
         self.update(data)
         self._hash = hash_obj(normQuant(self.metadata))
 
+    def __str__(self):
+        return '\n'.join([(str(k) + ' : ' + str(v))
+                          for k,v in self.metadata.items()])
+
     @property
     def hash(self):
         return self._hash
