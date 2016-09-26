@@ -53,6 +53,10 @@ MAP_TYPES = (Mapping,)
 COMPLEX_TYPES = tuple(list(NP_TYPES) + list(SEQ_TYPES) + list(MAP_TYPES))
 
 
+def isvalidname(x):
+    return re.compile(r'\W|^(?=\d)').match(x) is None
+
+
 def isscalar(x):
     """Check if input is a scalar object.
 

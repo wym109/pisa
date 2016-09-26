@@ -68,8 +68,6 @@ class hist(Stage):
     debug_mode : None, bool, or string
         Whether to store extra debug info for this service.
 
-    disk_cache
-
     transforms_cache_depth : int >= 0
 
     outputs_cache_depth : int >= 0
@@ -87,7 +85,7 @@ class hist(Stage):
                  sum_grouped_flavints, input_binning, output_binning,
                  memcache_deepcopy, transforms_cache_depth,
                  outputs_cache_depth, input_names=None, error_method=None,
-                 disk_cache=None, debug_mode=None):
+                 debug_mode=None):
         assert particles in ['neutrinos', 'muons']
         self.particles = particles
         """Whether stage is instantiated to process neutrinos or muons"""
@@ -133,7 +131,6 @@ class hist(Stage):
             output_names=output_names,
             error_method=error_method,
             memcache_deepcopy=memcache_deepcopy,
-            disk_cache=disk_cache,
             outputs_cache_depth=outputs_cache_depth,
             transforms_cache_depth=transforms_cache_depth,
             input_binning=input_binning,
@@ -188,20 +185,17 @@ class hist(Stage):
         if 'true_coszen' not in input_binning:
             missing_dims_vol *= 2
 
-        # This gets used in innermost loop, so produce it just once here
-        all_bin_edges = [edges.magnitude for edges in output_binning.bin_edges]
-
         nominal_transforms = []
         for xform_flavints in self.transform_groups:
             logging.debug("Computing aeff xform for %s..." %xform_flavints)
 
             aeff_transform = self.remaining_events.histogram(
                 kinds=xform_flavints,
-                binning=all_bin_edges,
-                binning_cols=self.input_binning.names,
+                binning=input_binning,
                 weights_col='weighted_aeff',
-                errors=(self.error_method is not None)
+                errors=(self.error_method not in [None, False])
             )
+            aeff_transform = aeff_transform.hist
 
             # Divide histogram by
             #   (energy bin width x coszen bin width x azimuth bin width)

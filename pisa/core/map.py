@@ -742,7 +742,7 @@ class Map(object):
     def __eq__(self, other):
         """Check if full state of maps are equal. *Not* element-by-element
         equality as for a numpy array. Call this.hist == other.hist for the
-        nominal value and the error
+        element-by-element nominal value and the error.
 
         If `full_comparison` is true for *both* maps, or if either map lacks a
         hash, performs a full comparison of the contents of each map.
@@ -859,7 +859,7 @@ class Map(object):
             return self.__rdiv(other)
 
     @new_obj
-    def __rdiv(self,oher):
+    def __rdiv(self, other):
         if np.isscalar(other) or type(other) is uncertainties.core.Variable:
             state_updates = {
                 #'name': "(%s / %s)" % (other, self.name),

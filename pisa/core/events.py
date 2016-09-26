@@ -20,6 +20,7 @@ from uncertainties import unumpy as unp
 
 from pisa import ureg, Q_
 from pisa.core.binning import MultiDimBinning, OneDimBinning
+from pisa.core.map import Map
 from pisa.utils import resources
 from pisa.utils.comparisons import normQuant, recursiveEquality
 from pisa.utils.flavInt import FlavIntData, NuFlavIntGroup
@@ -31,7 +32,7 @@ from pisa.utils.log import logging, set_verbosity
 # TODO: test hash function (attr)
 class Events(FlavIntData):
     """Container for storing events, including metadata about the events.
-    
+
     Examples
     --------
     >>> from pisa.core.binning import OneDimBinning, MultiDimBinning
@@ -63,7 +64,7 @@ class Events(FlavIntData):
       ('geom', 'v39'),
       ('proc_ver', '5.1'),
       ('runs', [620, 621, 622])]
-   
+
 	"""
     def __init__(self, val=None):
         self.metadata = {
@@ -89,8 +90,9 @@ class Events(FlavIntData):
         self._hash = hash_obj(normQuant(self.metadata))
 
     def __str__(self):
-        return '\n'.join([(str(k) + ' : ' + str(v))
-                          for k,v in self.metadata.items()])
+        meta = [(str(k) + ' : ' + str(v)) for k,v in self.metadata.items()]
+        #fields =
+        return '\n'.join(meta)
 
     @property
     def hash(self):
@@ -122,7 +124,7 @@ class Events(FlavIntData):
         hdf.to_hdf(self, fname, attrs=self.metadata, **kwargs)
 
     def histogram(self, kinds, binning, binning_cols=None, weights_col=None,
-            errors=False):
+                  errors=False, name=None, tex=None):
         """Histogram the events of all `kinds` specified, with `binning` and
         optionally applying `weights`.
 
@@ -130,55 +132,100 @@ class Events(FlavIntData):
         ----------
         kinds : string, sequence of NuFlavInt, or NuFlavIntGroup
         binning : OneDimBinning, MultiDimBinning or sequence of arrays (one array per binning dimension)
-        weights_col : string
+        binning_cols : string or sequence of strings
+            Bin only these dimensions, ignoring other dimensions in `binning`
+        weights_col : None or string
+            Column to use for weighting the events
+        errors : bool
+            Whether to attach errors to the resulting Map
+        name : None or string
+            Name to give to resulting Map. If None, a default is derived from
+            `kinds` and `weights_col`.
+        tex : None or string
+            TeX label to give to the resulting Map. If None, default is
+            dereived from the `name` specified or the derived default.
 
         Returns
         -------
-        hist : numpy ndarray with as many dimensions as specified by `binning`
-        argument
+        Map : numpy ndarray with as many dimensions as specified by `binning`
+            argument
 
         """
+        # TODO: make able to take integer for `binning` and--in combination
+        # with units in the Events columns--generate an appropriate
+        # MultiDimBinning object, attach this and return the package as a Map.
+
         if not isinstance(kinds, NuFlavIntGroup):
             kinds = NuFlavIntGroup(kinds)
-        #if not isinstance(binning, (OneDimBinning, MultiDimBinning, Sequence)):
-        #    binning = MultiDimBinning(binning)
         if isinstance(binning_cols, basestring):
             binning_cols = [binning_cols]
         assert weights_col is None or isinstance(weights_col, basestring)
 
         # TODO: units of columns, and convert bin edges if necessary
         if isinstance(binning, OneDimBinning):
-            bin_edges = [binning.magnitude]
-            if binning_cols is None:
-                binning_cols = [binning.name]
-            else:
-                assert len(binning_cols) == 1 and binning_cols[0] == binning.name
+            binning = MultiDimBinning([binning])
+            #bin_edges = [binning.magnitude]
+            #if binning_cols is None:
+            #    binning_cols = [binning.name]
+            #else:
+            #    assert len(binning_cols) == 1 and binning_cols[0] == binning.name
         elif isinstance(binning, MultiDimBinning):
-            bin_edges = [edges.magnitude for edges in binning.bin_edges]
-            if binning_cols is None:
-                binning_cols = binning.names
-            else:
-                assert set(binning_cols).issubset(set(binning.names))
-        elif isinstance(binning, (Sequence, Iterable)):
-            assert len(binning_cols) == len(binning)
-            bin_edges = binning
+            pass
+        elif isinstance(binning, Iterable) and not isinstance(binning, Sequence):
+            binning = [b for b in binning]
+        elif isinstance(binning, Sequence):
+            pass
+        else:
+            raise TypeError('Unhandled type %s for `binning`.' %type(binning))
+
+        if isinstance(binning, Sequence):
+            raise NotImplementedError(
+                'Simle sequences not handled at this time. Please specify a'
+                ' OneDimBinning or MultiDimBinning object for `binning`.'
+            )
+            #assert len(binning_cols) == len(binning)
+            #bin_edges = binning
+
+        # TODO: units support for Events will mean we can do `m_as(...)` here!
+        bin_edges = [edges.magnitude for edges in binning.bin_edges]
+        if binning_cols is None:
+            binning_cols = binning.names
+        else:
+            assert set(binning_cols).issubset(set(binning.names))
 
         # Extract the columns' data into a list of array(s) for histogramming
         repr_flav_int = kinds[0]
         sample = [self[repr_flav_int][colname] for colname in binning_cols]
         if weights_col is not None:
-            weights = self[repr_flav_int][weights_col]
+            hist_weights = self[repr_flav_int][weights_col]
+            err_weights = np.square(hist_weights)
         else:
-            weights = None
+            hist_weights = None
+            err_weights = None
 
-        hist, _ = np.histogramdd(sample=sample, weights=weights, bins=bin_edges)
+        hist, edges = np.histogramdd(sample=sample,
+                                     weights=hist_weights,
+                                     bins=bin_edges)
         if errors:
-            sumw2, _ = np.histogramdd(sample=sample,
-                                      weights=np.square(weights),
-                                      bins=bin_edges)
+            sumw2, edges = np.histogramdd(sample=sample,
+                                          weights=err_weights,
+                                          bins=bin_edges)
             hist = unp.uarray(hist, np.sqrt(sumw2))
 
-        return hist
+        if name is None:
+            if tex is None:
+                tex = kinds.tex()
+                if weights_col is not None:
+                    tex += r'\,\;{\rm weights=' + weights_col + r'}'
+
+            name = str(kinds)
+            if weights_col is not None:
+                name += ', weights=' + weights_col
+
+        if tex is None:
+            tex = r'{\rm ' + name + r'}'
+
+        return Map(name=name, hist=hist, binning=binning, tex=tex)
 
     def applyCut(self, keep_criteria):
         """Apply a cut by specifying criteria for keeping events. The cut must

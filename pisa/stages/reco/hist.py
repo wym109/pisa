@@ -100,8 +100,6 @@ class hist(Stage):
         in PISA but not necessarily) prefixed by "reco_". Each must match a
         corresponding dimension in `input_binning`.
 
-    disk_cache
-
     transforms_cache_depth : int >= 0
 
     outputs_cache_depth : int >= 0
@@ -126,7 +124,7 @@ class hist(Stage):
     """
     def __init__(self, params, particles, input_names, transform_groups,
                  sum_grouped_flavints, input_binning, output_binning,
-                 error_method=None, disk_cache=None, transforms_cache_depth=20,
+                 error_method=None, transforms_cache_depth=20,
                  outputs_cache_depth=20, memcache_deepcopy=True,
                  debug_mode=None):
         assert particles in ['neutrinos', 'muons']
@@ -167,7 +165,6 @@ class hist(Stage):
             input_names=input_names,
             output_names=output_names,
             error_method=error_method,
-            disk_cache=disk_cache,
             outputs_cache_depth=outputs_cache_depth,
             transforms_cache_depth=transforms_cache_depth,
             memcache_deepcopy=memcache_deepcopy,
@@ -232,49 +229,36 @@ class hist(Stage):
         input_binning = self.input_binning.to(**in_units)
         output_binning = self.output_binning.to(**out_units)
 
-        # First N dimensions of the transform are the input dimensions; last N
-        # dimensions are the output dimensions. So concatenate the two into a
-        # single 2N-dimensional binning object to work with.
-        transform_binning = MultiDimBinning(input_binning.dimensions
-                                            + output_binning.dimensions)
-        true_and_reco_bin_edges = [dim.bin_edges.magnitude
-                                   for dim in transform_binning.dimensions]
-        true_and_reco_binning_cols = transform_binning.names
-        true_only_bin_edges = [dim.bin_edges.magnitude
-                               for dim in input_binning.dimensions]
-        true_only_binning_cols = input_binning.names
-
-        tmp_events = deepcopy(self.remaining_events)
-
         nominal_transforms = []
         for xform_flavints in self.transform_groups:
             logging.debug("Working on %s reco kernels" %xform_flavints)
 
             repr_flavint = xform_flavints[0]
 
-            true_energy = tmp_events[repr_flavint]['true_energy']
-            true_coszen = tmp_events[repr_flavint]['true_coszen']
-            reco_energy = tmp_events[repr_flavint]['reco_energy']
-            reco_coszen = tmp_events[repr_flavint]['reco_coszen']
+            true_energy = self.remaining_events[repr_flavint]['true_energy']
+            true_coszen = self.remaining_events[repr_flavint]['true_coszen']
+            reco_energy = self.remaining_events[repr_flavint]['reco_energy']
+            reco_coszen = self.remaining_events[repr_flavint]['reco_coszen']
             e_reco_err = reco_energy - true_energy
             cz_reco_err = reco_coszen - true_coszen
 
             if self.params.res_scale_ref.value.strip().lower() == 'zero':
-                tmp_events[repr_flavint]['reco_energy'] = (
+                self.remaining_events[repr_flavint]['reco_energy'] = (
                     true_energy + e_reco_err * e_res_scale + e_reco_bias
                 )
-                tmp_events[repr_flavint]['reco_coszen'] = (
+                self.remaining_events[repr_flavint]['reco_coszen'] = (
                     true_coszen + cz_reco_err * cz_res_scale + cz_reco_bias
                 )
 
             # True+reco (2N-dimensional) histogram is the basis for the
             # transformation
-            reco_kernel = tmp_events.histogram(
+            reco_kernel = self.remaining_events.histogram(
                 kinds=xform_flavints,
-                binning=true_and_reco_bin_edges,
-                binning_cols=true_and_reco_binning_cols,
-                weights_col=self.params.reco_weights_name.value
+                binning=input_binning + output_binning,
+                weights_col=self.params.reco_weights_name.value,
+                errors=(self.error_method not in [None, False])
             )
+            reco_kernel = reco_kernel.hist
 
             # This takes into account the correct kernel normalization:
             # What this means is that we have to normalise the reco map
@@ -289,18 +273,20 @@ class hist(Stage):
 
             # Truth-only (N-dimensional) histogram will be used for
             # normalization (so transform is in terms of fraction-of-events in
-            # input--i.e. truth--bin).
+            # input--i.e. truth--bin). Sum over the input dimensions.
             true_event_counts = self.remaining_events.histogram(
                 kinds=xform_flavints,
-                binning=true_only_bin_edges,
-                binning_cols=true_only_binning_cols,
-                weights_col=self.params.reco_weights_name.value
+                binning=input_binning,
+                weights_col=self.params.reco_weights_name.value,
+                errors=(self.error_method not in [None, False])
             )
+            true_event_counts = true_event_counts.hist
 
             # If there weren't any events in the input (true_*) bin, make this
             # bin have no effect -- i.e., populate all output bins
             # corresponding to the input bin with zeros via `nan_to_num`.
             with np.errstate(divide='ignore', invalid='ignore'):
+                true_event_counts[true_event_counts == 0] = np.nan # = np.nan_to_num(1.0 / true_event_counts)
                 norm_factors = np.nan_to_num(1.0 / true_event_counts)
 
             # Numpy broadcasts lower-dimensional things to higher dimensions
@@ -309,8 +295,8 @@ class hist(Stage):
             # __output__ dimensions rather than the input dimensions. Add
             # "dummy" dimensions to norm_factors where we want the "extra
             # dimensions": at the end.
-            for dim in self.output_binning.dimensions:
-                norm_factors = np.expand_dims(norm_factors, axis=-1)
+            for dim in self.output_binning.dims:
+				norm_factors = np.expand_dims(norm_factors, axis=-1)
 
             # Apply the normalization to the kernels
             reco_kernel *= norm_factors
@@ -342,7 +328,6 @@ class hist(Stage):
                         sum_inputs=self.sum_grouped_flavints
                     )
                     nominal_transforms.append(xform)
-
             else:
                 # NOTES:
                 # * Output name is same as input name

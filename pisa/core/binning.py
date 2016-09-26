@@ -519,6 +519,10 @@ class OneDimBinning(object):
 
     @new_obj
     def __mul__(self, other):
+        if isinstance(other, OneDimBinning):
+            return MultiDimBinning([self, other])
+        elif isinstance(other, MultiDimBinning):
+            return MultiDimBinning([self] + [d for d in other])
         return {'bin_edges': self.bin_edges * other}
 
     def __add__(self, other):
@@ -526,9 +530,9 @@ class OneDimBinning(object):
             return MultiDimBinning([self, other])
         elif isinstance(other, MultiDimBinning):
             return MultiDimBinning([self] + [d for d in other])
-        elif isbarenumeric(other):
-            other = other * ureg.dimensionless
 
+        if isbarenumeric(other):
+            other = other * ureg.dimensionless
         if isinstance(other, pint.quantity._Quantity):
             new_bin_edges = self.bin_edges + other
             return OneDimBinning(name=self.name, tex=self.tex,
@@ -1024,7 +1028,7 @@ class MultiDimBinning(object):
         equidistant from bin edges on logarithmic scale, if the binning is
         logarithmic; otherwise linear). Access `midpoints` attribute for
         always-linear alternative."""
-        return [d.weighted_centers for d in self]
+        return np.array([d.weighted_centers for d in self])
 
     @property
     def inbounds_criteria(self):
