@@ -597,6 +597,9 @@ class OneDimBinning(object):
         if len(bin_edges) == 1:
             raise ValueError('Single bin edge passed; require at least 3 to'
                              ' determine nature of bin spacing.')
+        if not np.all(np.isfinite(bin_edges)):
+            raise ValueError('Linear behavior of bin edges cannot be'
+                             ' determined if any are not finite.')
         if len(bin_edges) == 2:
             return True
         lin_spacing = np.diff(bin_edges)

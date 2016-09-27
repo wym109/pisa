@@ -12,7 +12,7 @@ Events class for working with PISA events files
 """
 
 
-from collections import Iterable, Sequence
+from collections import Iterable, OrderedDict, Sequence
 
 import h5py
 import numpy as np
@@ -68,14 +68,14 @@ class Events(FlavIntData):
 
 	"""
     def __init__(self, val=None):
-        self.metadata = {
-            'detector': '',
-            'geom': '',
-            'runs': [],
-            'proc_ver': '',
-            'cuts': [],
-            'flavints_joined': [],
-        }
+        self.metadata = OrderedDict([
+            ('detector', ''),
+            ('geom', ''),
+            ('runs', []),
+            ('proc_ver', ''),
+            ('cuts', []),
+            ('flavints_joined', []),
+        ])
         meta = {}
         data = FlavIntData()
         if isinstance(val, basestring) or isinstance(val, h5py.Group):
