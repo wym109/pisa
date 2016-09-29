@@ -1500,7 +1500,7 @@ def xlateGroupsStr(val):
     enforced through set operations upon return.
     """
     # What flavints to group together
-    grouped = [NuFlavIntGroup(s) for s in val.split(';')]
+    grouped = [NuFlavIntGroup(s) for s in val.split(',')]
 
     # Find any flavints not included in the above groupings
     all_flavints = set(ALL_NUFLAVINTS)
