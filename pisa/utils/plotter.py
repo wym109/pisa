@@ -20,8 +20,7 @@ from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.utils.log import logging
 
 
-class plotter(object):
-
+class Plotter(object):
     def __init__(self, outdir='.', stamp='PISA cake test', size=(8,8), fmt='pdf', log=True, label='# events', grid=True, ratio=False, annotate=False, symmetric=False):
         self.outdir = outdir
         self.stamp = stamp
@@ -72,6 +71,8 @@ class plotter(object):
 
     def plot_2d_single(self, mapset, **kwargs):
         ''' plot all maps in individual plots '''
+        if isinstance(mapset, Map):
+            mapset = [mapset]
         for map in mapset:
             self.init_fig()
             self.plot_2d_map(map, **kwargs)
@@ -149,6 +150,8 @@ class plotter(object):
         n_rows = kwargs.pop('n_rows', None)
         n_cols = kwargs.pop('n_cols', None)
         ''' plot mapset in array using a function fun '''
+        if isinstance(mapset, Map):
+            mapset = MapSet([mapset])
         if isinstance(mapset, MapSet):
             n = len(mapset)
         elif isinstance(mapset, TransformSet):

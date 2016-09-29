@@ -95,6 +95,9 @@ class Events(FlavIntData):
         #fields =
         return '\n'.join(meta)
 
+    def __repr__(self):
+        return str(self)
+
     @property
     def hash(self):
         return self._hash

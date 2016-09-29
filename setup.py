@@ -138,8 +138,8 @@ if __name__ == '__main__':
 
     CUDA = has_cuda()
     if not CUDA:
-        sys.stderr.write('WARNING: Could not import pycuda; installing PISA'
-                         ' without CUDA (GPU) support.\n')
+        sys.stderr.write('WARNING: Could not import pycuda; PISA may not be'
+                         ' able to support CUDA (GPU) accelerations.\n')
 
     OPENMP = has_openmp()
     if not OPENMP:
@@ -264,7 +264,7 @@ if __name__ == '__main__':
         version=versioneer.get_version(),
         description='PINGU Simulation and Analysis',
         author='The IceCube/PINGU Collaboration',
-        author_email='sboeser@uni-mainz.de',
+        author_email='jll1062+pisa@phys.psu.edu',
         url='http://github.com/WIPACrepo/pisa',
         cmdclass=cmdclasses,
         python_requires='>=2.7',
@@ -285,7 +285,7 @@ if __name__ == '__main__':
             'tables',
             'uncertainties'
         ],
-        extras_require = {
+        extras_require={
             'cuda':  [
                 'pycuda'
             ],
@@ -306,7 +306,9 @@ if __name__ == '__main__':
             'pisa.resources',
             'pisa.stages',
             'pisa.stages.aeff',
+            'pisa.stages.data',
             'pisa.stages.flux',
+            'pisa.stages.mc',
             'pisa.stages.osc',
             'pisa.stages.osc.grid_propagator',
             'pisa.stages.osc.nuCraft',
@@ -315,10 +317,8 @@ if __name__ == '__main__':
             'pisa.stages.reco',
             'pisa.stages.sys',
             'pisa.stages.xsec',
-            'pisa.stages.mc',
-            'pisa.stages.data',
-            'pisa.utils',
-            'pisa.resources'
+            'pisa.resources',
+            'pisa.utils'
         ],
         scripts=[
             'pisa/analysis/hypo_testing.py',
@@ -333,6 +333,7 @@ if __name__ == '__main__':
         ],
         ext_modules=ext_modules,
         package_data=package_data,
-        # Cannot be compressed due to c, pyx, and cu source files
+        # Cannot be compressed due to c, pyx, and cu source files that need to
+        # be compiled and are inaccessible in zip
         zip_safe=False
     )
