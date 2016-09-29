@@ -212,6 +212,16 @@ def parse_config(config):
                         kwargs['is_fixed'] = config.getboolean(section,
                                                                name + '.fixed')
 
+                    if config.has_option(section, name + '.range'):
+                        range = config.get(section, name + '.range')
+                        if 'nominal' in range:
+                            nominal = value.n * value.units
+                        if 'sigma' in range:
+                            sigma = value.s * value.units
+                        range = range.replace('[', 'np.array([')
+                        range = range.replace(']', '])')
+                        kwargs['range'] = eval(range).to(value.units)
+
                     if config.has_option(section, name + '.prior'):
                         if config.get(section, name + '.prior') == 'uniform':
                             kwargs['prior'] = Prior(kind='uniform')
@@ -231,6 +241,11 @@ def parse_config(config):
                                                     knots=knots,
                                                     coeffs=coeffs,
                                                     deg=deg)
+                        elif config.get(section, name + '.prior') == 'jeffreys':
+                            kwargs['prior'] = Prior(kind='jeffreys',
+                                                    A=kwargs['range'][0],
+                                                    B=kwargs['range'][1],
+                                                    m=value.n * value.units)
                         elif 'gauss' in config.get(section, name + '.prior'):
                             raise Exception(
                                 'Please use new style +/- notation for'
@@ -243,15 +258,6 @@ def parse_config(config):
                                                 mean=value.n * value.units,
                                                 stddev=value.s * value.units)
 
-                    if config.has_option(section, name + '.range'):
-                        range = config.get(section, name + '.range')
-                        if 'nominal' in range:
-                            nominal = value.n * value.units
-                        if 'sigma' in range:
-                            sigma = value.s * value.units
-                        range = range.replace('[', 'np.array([')
-                        range = range.replace(']', '])')
-                        kwargs['range'] = eval(range).to(value.units)
                     try:
                         params.append(Param(**kwargs))
                     except:
