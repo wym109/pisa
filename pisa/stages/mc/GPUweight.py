@@ -14,6 +14,26 @@ class GPUweight(object):
           #include "utils.h"
           #include "math.h"
 
+          #define N_THREAD 256
+
+          __global__ void sum_array(const int n_evts, fType *X,  fType *out) 
+          {
+            //__shared__ fType temp_sum;
+            // zero out
+            //if (threadIdx.x == 0) temp_sum = 0;
+            //__syncthreads();
+            fType temp_sum = 0.;
+            int idx = N_THREAD * (threadIdx.x + blockDim.x * blockIdx.x);
+            for (int i = 0; i < N_THREAD; i++){
+                if (idx < n_evts) temp_sum += X[idx];
+                idx++;
+            }
+            //__syncthreads();
+            //if (threadIdx.x == 0) atomicAdd_custom( &out[0], temp_sum );
+            atomicAdd_custom( &(out[0]), temp_sum );
+
+              }
+
 	    __device__ void apply_ratio_scale(fType flux1, fType flux2,
                                             fType ratio_scale, bool sum_const,
                                             fType &scaled_flux1, fType &scaled_flux2){
@@ -83,6 +103,11 @@ class GPUweight(object):
                 return A/sqrt(2*M_PI*pow(sigma,2)) * exp(-pow(x,2)/(2*pow(sigma,2)));
             }
 
+            __device__ fType shape(fType x){
+                // a sinpme cosine to model up/hor shape
+                return cos(x * M_PI);
+            }
+
             __device__ fType ModNuMuFlux(fType energy, fType czenith, fType e1, fType e2, fType z1, fType z2){
 		fType A_ave = LogLogParam(energy, e1max_mu*e1, e2max_mu*e2, x1e, x2e, false, 0);
 		fType A_shape = 2.5*LogLogParam(energy, z1max_mu*z1, z2max_mu*z2, x1z, x2z, true, numu_cutoff);
@@ -104,6 +129,7 @@ class GPUweight(object):
                     A_shape = 1.*abs(uphor)*LogLogParam(true_energy, z1max_mu, z2max_mu, x1z, x2z, true, numu_cutoff);
                 }
                 return 1-3.5*sign(uphor)*norm_fcn(true_coszen, A_shape, 0.35);
+                //return 1+0.5*3.5*1.14*sign(uphor)*A_shape*shape(true_coszen);
             }
 
             __device__ fType modRatioNuBar(const int kNuBar, const int kFlav, fType true_e, fType true_cz, fType nu_nubar, fType nubar_sys){
@@ -117,24 +143,23 @@ class GPUweight(object):
 		    modfactor = nubar_sys * ModNuMuFlux(true_e, true_cz, 1.0, 1.0,1.0,1.0);
                 }
 		if (kNuBar < 0){
-		    return 1./(1+(1-nu_nubar)*modfactor);
+		    //return 1./(1+(1-nu_nubar)*modfactor);
+		    return max(0.,1./(1+0.5*modfactor));
                 }
 		if (kNuBar > 0){
-		    return 1. + modfactor*nu_nubar;
+		    //return 1. + modfactor*nu_nubar;
+		    return max(0.,1. + 0.5*modfactor);
                 }
             }
 
  
-            __global__ void weights(const int n_evts, fType *weighted_aeff, fType *true_energy, fType *true_coszen,
+                __global__ void flux(const int n_evts, fType *weighted_aeff, fType *true_energy, fType *true_coszen,
                                     fType *neutrino_nue_flux, fType *neutrino_numu_flux,
                                     fType *neutrino_oppo_nue_flux, fType *neutrino_oppo_numu_flux,
-                                    fType *linear_fit_MaCCQE, fType *quad_fit_MaCCQE,
-                                    fType *linear_fit_MaCCRES, fType *quad_fit_MaCCRES,
-                                    fType *prob_e, fType *prob_mu, fType *pid, fType *weight_cscd, fType *weight_trck,
-                                    fType livetime, fType pid_bound, fType pid_remove, fType aeff_scale,
+                                    fType *scaled_nue_flux, fType *scaled_numu_flux,
+                                    fType *scaled_nue_flux_shape, fType *scaled_numu_flux_shape,
                                     fType nue_numu_ratio, fType nu_nubar_ratio, const int kNuBar, fType delta_index,
-                                    fType Barr_uphor_ratio, fType Barr_nu_nubar_ratio,
-                                    fType Genie_Ma_QE, fType Genie_Ma_RES
+                                    fType Barr_uphor_ratio, fType Barr_nu_nubar_ratio
                                     )
                 {
                     int idx = threadIdx.x + blockDim.x * blockIdx.x;
@@ -145,41 +170,72 @@ class GPUweight(object):
                         // for neutrinos
                         fType idx_scale = spectral_index_scale(true_energy[idx], 24.0900951261, delta_index);
                         
-                        fType scaled_nue_flux, scaled_numu_flux;
-                        apply_ratio_scale(neutrino_nue_flux[idx], neutrino_numu_flux[idx], nue_numu_ratio, false,
-                                            scaled_nue_flux, scaled_numu_flux);
+                        fType new_nue_flux, new_numu_flux;
+                        apply_ratio_scale(neutrino_nue_flux[idx], neutrino_numu_flux[idx], nue_numu_ratio, true,
+                                            new_nue_flux, new_numu_flux);
                         // and the opposite (bar) type
-                        fType scaled_nue_oppo_flux, scaled_numu_oppo_flux;
-                        apply_ratio_scale(neutrino_oppo_nue_flux[idx], neutrino_oppo_numu_flux[idx], nue_numu_ratio, false,
-                                            scaled_nue_oppo_flux, scaled_numu_oppo_flux);
+                        fType new_nue_oppo_flux, new_numu_oppo_flux;
+                        apply_ratio_scale(neutrino_oppo_nue_flux[idx], neutrino_oppo_numu_flux[idx], nue_numu_ratio, true,
+                                            new_nue_oppo_flux, new_numu_oppo_flux);
                         // nu/nubar ratio
-                        fType scaled_nue_flux2, scaled_nue_oppo_flux2;
-                        fType scaled_numu_flux2, scaled_numu_oppo_flux2;
+                        fType new_nue_flux2, new_nue_oppo_flux2;
+                        fType new_numu_flux2, new_numu_oppo_flux2;
                         if (kNuBar < 0){
-                            apply_ratio_scale(scaled_nue_oppo_flux, scaled_nue_flux, nu_nubar_ratio, false,
-                                                scaled_nue_oppo_flux2, scaled_nue_flux2);
-                            apply_ratio_scale(scaled_numu_oppo_flux, scaled_numu_flux, nu_nubar_ratio, false,
-                                                scaled_numu_oppo_flux2, scaled_numu_flux2);
+                            apply_ratio_scale(new_nue_oppo_flux, new_nue_flux, nu_nubar_ratio, true,
+                                                new_nue_oppo_flux2, new_nue_flux2);
+                            apply_ratio_scale(new_numu_oppo_flux, new_numu_flux, nu_nubar_ratio, true,
+                                                new_numu_oppo_flux2, new_numu_flux2);
                         }
                         else {
-                            apply_ratio_scale(scaled_nue_flux, scaled_nue_oppo_flux, nu_nubar_ratio, false,
-                                                scaled_nue_flux2, scaled_nue_oppo_flux2);
-                            apply_ratio_scale(scaled_numu_flux, scaled_numu_oppo_flux, nu_nubar_ratio, false,
-                                                scaled_numu_flux2, scaled_numu_oppo_flux2);
+                            apply_ratio_scale(new_nue_flux, new_nue_oppo_flux, nu_nubar_ratio, true,
+                                                new_nue_flux2, new_nue_oppo_flux2);
+                            apply_ratio_scale(new_numu_flux, new_numu_oppo_flux, nu_nubar_ratio, true,
+                                                new_numu_flux2, new_numu_oppo_flux2);
                         }
+                        // idx scale
+                        //new_nue_flux2 *= idx_scale * weighted_aeff[idx];
+                        //new_nue_flux2 *= idx_scale; 
+                        //new_numu_flux2 *= idx_scale * weighted_aeff[idx];
+                        //new_numu_flux2 *= idx_scale;
+                        //new_nue_flux2 *= weighted_aeff[idx];
+                        //new_numu_flux2 *= weighted_aeff[idx];
                         // Barr flux
-                        scaled_nue_flux2 *= modRatioNuBar(kNuBar, 0, true_energy[idx], true_coszen[idx], 1.0, Barr_nu_nubar_ratio);
-                        scaled_nue_flux2 *= modRatioUpHor(0, true_energy[idx], true_coszen[idx], Barr_uphor_ratio);
-                        scaled_numu_flux2 *= modRatioNuBar(kNuBar, 1, true_energy[idx], true_coszen[idx], 1.0, Barr_nu_nubar_ratio);
-                        scaled_numu_flux2 *= modRatioUpHor(1, true_energy[idx], true_coszen[idx], Barr_uphor_ratio);
+                        new_nue_flux2 *= modRatioNuBar(kNuBar, 0, true_energy[idx], true_coszen[idx], 1.0, Barr_nu_nubar_ratio);
+                        new_numu_flux2 *= modRatioNuBar(kNuBar, 1, true_energy[idx], true_coszen[idx], 1.0, Barr_nu_nubar_ratio);
+                        // out
+                        scaled_nue_flux[idx] = new_nue_flux2;
+                        scaled_numu_flux[idx] = new_numu_flux2;
+                        scaled_nue_flux_shape[idx] = new_nue_flux2 * idx_scale * modRatioUpHor(0, true_energy[idx], true_coszen[idx], Barr_uphor_ratio);
+                        //scaled_nue_flux_shape[idx] = new_nue_flux2 * modRatioUpHor(0, true_energy[idx], true_coszen[idx], Barr_uphor_ratio);
+                        scaled_numu_flux_shape[idx] = new_numu_flux2 * idx_scale * modRatioUpHor(1, true_energy[idx], true_coszen[idx], Barr_uphor_ratio);
+                        //scaled_numu_flux_shape[idx] = new_numu_flux2 * modRatioUpHor(1, true_energy[idx], true_coszen[idx], Barr_uphor_ratio);
+                    }
+                }
+
+            __global__ void weights(const int n_evts, fType *weighted_aeff, fType *true_energy, fType *true_coszen,
+                                    fType *scaled_nue_flux_shape, fType *scaled_numu_flux_shape,
+                                    fType nue_flux_norm, fType numu_flux_norm,
+                                    fType *linear_fit_MaCCQE, fType *quad_fit_MaCCQE,
+                                    fType *linear_fit_MaCCRES, fType *quad_fit_MaCCRES,
+                                    fType *prob_e, fType *prob_mu, fType *pid, fType *weight_cscd, fType *weight_trck,
+                                    fType livetime, fType pid_bound, fType pid_remove, fType aeff_scale,
+                                    fType Genie_Ma_QE, fType Genie_Ma_RES
+                                    )
+                {
+                    int idx = threadIdx.x + blockDim.x * blockIdx.x;
+                    if (idx < n_evts) {
+
+                        fType nue_flux = scaled_nue_flux_shape[idx] * nue_flux_norm;
+                        fType numu_flux = scaled_numu_flux_shape[idx] * numu_flux_norm;
 
                         // GENIE axial mass sys
                         fType aeff_QE =  1. + quad_fit_MaCCQE[idx]*pow(Genie_Ma_QE,2) + linear_fit_MaCCQE[idx]*Genie_Ma_QE;
                         fType aeff_RES =  1. + quad_fit_MaCCRES[idx]*pow(Genie_Ma_RES,2) + linear_fit_MaCCRES[idx]*Genie_Ma_RES;
                         
                         // calc weight
-                        fType w = idx_scale * aeff_scale * livetime * weighted_aeff[idx] * aeff_QE * aeff_RES *
-                                 ((scaled_nue_flux2 * prob_e[idx]) + (scaled_numu_flux2 * prob_mu[idx]));
+                        fType w = aeff_scale * livetime * weighted_aeff[idx] * aeff_QE * aeff_RES *
+                        //fType w = aeff_scale * livetime * aeff_QE * aeff_RES *
+                                 ((nue_flux * prob_e[idx]) + (numu_flux * prob_mu[idx]));
                         // distinguish between PID classes
                         weight_cscd[idx] = ((pid[idx] < pid_bound) && (pid[idx] >= pid_remove)) * w;
                         weight_trck[idx] = (pid[idx] >= pid_bound) * w;
@@ -198,18 +254,39 @@ class GPUweight(object):
         include_path = os.path.expandvars('$PISA/pisa/stages/osc/grid_propagator/')
         module = SourceModule(kernel_template, include_dirs=[include_path], keep=True)
         self.weights_fun = module.get_function("weights")
+        self.flux_fun = module.get_function("flux")
         self.sumw2_fun = module.get_function("sumw2")
+        self.sum_array = module.get_function("sum_array")
 
 
-    def calc_weight(self, n_evts, weighted_aeff, true_energy, true_coszen,
+    def calc_flux(self, n_evts, weighted_aeff, true_energy, true_coszen,
                     neutrino_nue_flux, neutrino_numu_flux,
                     neutrino_oppo_nue_flux, neutrino_oppo_numu_flux,
+                    scaled_nue_flux, scaled_numu_flux,
+                    scaled_nue_flux_shape, scaled_numu_flux_shape,
+                    nue_numu_ratio, nu_nubar_ratio, kNuBar, delta_index,
+                    Barr_uphor_ratio, Barr_nu_nubar_ratio,
+                    **kwargs):
+        # block and grid dimensions
+        bdim = (256,1,1)
+        dx, mx = divmod(n_evts, bdim[0])
+        gdim = ((dx + (mx>0)) * bdim[0], 1)
+        self.flux_fun(n_evts, weighted_aeff, true_energy, true_coszen,
+                            neutrino_nue_flux, neutrino_numu_flux,
+                            neutrino_oppo_nue_flux, neutrino_oppo_numu_flux,
+                            scaled_nue_flux, scaled_numu_flux,
+                            scaled_nue_flux_shape, scaled_numu_flux_shape,
+                            FTYPE(nue_numu_ratio), FTYPE(nu_nubar_ratio), np.int32(kNuBar), FTYPE(delta_index),  
+                            FTYPE(Barr_uphor_ratio), FTYPE(Barr_nu_nubar_ratio),
+                            block=bdim, grid=gdim)
+
+    def calc_weight(self, n_evts, weighted_aeff, true_energy, true_coszen,
+                    scaled_nue_flux_shape, scaled_numu_flux_shape,
+                    nue_flux_norm, numu_flux_norm,
                     linear_fit_MaCCQE, quad_fit_MaCCQE,
                     linear_fit_MaCCRES, quad_fit_MaCCRES,
                     prob_e, prob_mu, pid, weight_cscd, weight_trck,
                     livetime, pid_bound, pid_remove, aeff_scale,
-                    nue_numu_ratio, nu_nubar_ratio, kNuBar, delta_index,
-                    Barr_uphor_ratio, Barr_nu_nubar_ratio,
                     Genie_Ma_QE, Genie_Ma_RES,
                     **kwargs):
         # block and grid dimensions
@@ -217,14 +294,12 @@ class GPUweight(object):
         dx, mx = divmod(n_evts, bdim[0])
         gdim = ((dx + (mx>0)) * bdim[0], 1)
         self.weights_fun(n_evts, weighted_aeff, true_energy, true_coszen,
-                            neutrino_nue_flux, neutrino_numu_flux,
-                            neutrino_oppo_nue_flux, neutrino_oppo_numu_flux,
+                            scaled_nue_flux_shape, scaled_numu_flux_shape,
+                            FTYPE(nue_flux_norm), FTYPE(numu_flux_norm),
                             linear_fit_MaCCQE, quad_fit_MaCCQE,
                             linear_fit_MaCCRES, quad_fit_MaCCRES,
                             prob_e, prob_mu, pid, weight_cscd, weight_trck,
                             FTYPE(livetime), FTYPE(pid_bound), FTYPE(pid_remove), FTYPE(aeff_scale),
-                            FTYPE(nue_numu_ratio), FTYPE(nu_nubar_ratio), np.int32(kNuBar), FTYPE(delta_index),  
-                            FTYPE(Barr_uphor_ratio), FTYPE(Barr_nu_nubar_ratio),
                             FTYPE(Genie_Ma_QE), FTYPE(Genie_Ma_RES),
                             block=bdim, grid=gdim)
 
@@ -234,3 +309,8 @@ class GPUweight(object):
         gdim = ((dx + (mx>0)) * bdim[0], 1)
         self.sumw2_fun(n_evts, weight_cscd, weight_trck, sumw2_cscd, sumw2_trck, block=bdim, grid=gdim)
 
+    def calc_sum(self, n_evts, x, out):
+        bdim = (256,1,1)
+        dx, mx = divmod(n_evts/256+1, bdim[0])
+        gdim = ((dx + (mx>0)) * bdim[0], 1)
+        self.sum_array(n_evts, x, out, block=bdim, grid=gdim)

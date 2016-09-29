@@ -49,7 +49,7 @@ class icc(Stage):
 
         # get params
         icc_bg_file = self.params.icc_bg_file.value
-        if self.error_method == 'sumw2+shape':
+        if self.error_method in ['sumw2+shape', 'fixed_sumw2+shape']:
             alt_icc_bg_file = self.params.alt_icc_bg_file.value
         else:
             alt_icc_bg_file = None
@@ -178,7 +178,9 @@ class icc(Stage):
     def _compute_outputs(self, inputs=None):
 
         scale = self.params.atm_muon_scale.value.m_as('dimensionless')
+        fixed_scale = self.params.atm_muon_scale.nominal_value.m_as('dimensionless')
         scale *= self.params.livetime.value.m_as('common_year')
+        fixed_scale *= self.params.livetime.value.m_as('common_year')
 
         maps = []
         for flavor in ['cscd','trck']:
@@ -187,6 +189,9 @@ class icc(Stage):
                 maps.append(Map(name=flavor, hist=(self.icc_bg_dict[flavor] * scale), error_hist=(np.sqrt(self.icc_bg_dict[flavor]) * scale) ,binning=self.output_binning))
             elif self.error_method == 'sumw2+shape':
                 error = scale * np.sqrt(self.icc_bg_dict[flavor] + (self.icc_bg_dict[flavor] - self.alt_icc_bg_dict[flavor])**2 ) 
+                maps.append(Map(name=flavor, hist=(self.icc_bg_dict[flavor] * scale), error_hist=error ,binning=self.output_binning))
+            elif self.error_method == 'fixed_sumw2+shape':
+                error = fixed_scale * np.sqrt(self.icc_bg_dict[flavor] + (self.icc_bg_dict[flavor] - self.alt_icc_bg_dict[flavor])**2 ) 
                 maps.append(Map(name=flavor, hist=(self.icc_bg_dict[flavor] * scale), error_hist=error ,binning=self.output_binning))
             else:
                 maps.append(Map(name=flavor, hist=(self.icc_bg_dict[flavor] * scale), binning=self.output_binning))

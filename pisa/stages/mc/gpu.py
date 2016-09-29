@@ -27,6 +27,7 @@ def copy_dict_to_d(events):
         cuda.memcpy_htod(d_events[key], val)
     return d_events
 
+
 class gpu(Stage):
 
     def __init__(self, params, output_binning, disk_cache=None,
@@ -92,11 +93,21 @@ class gpu(Stage):
             debug_mode=debug_mode
         )
 
+    def sum(self, x, n_evts):
+	out = np.array([0.]).astype(FTYPE)
+        d_out = cuda.mem_alloc(out.nbytes)
+        cuda.memcpy_htod(d_out, out)
+	self.weight.calc_sum(n_evts, x, d_out)
+	cuda.memcpy_dtoh(out, d_out)
+	return out[0]
 
     def _compute_nominal_outputs(self):
 
         self.osc_hash = None
         self.weight_hash = None
+
+        # reset fixed errors
+        self.fixed_error = None
 
         # initialize classes
         earth_model = find_resource(self.params.earth_model.value)
@@ -142,8 +153,8 @@ class gpu(Stage):
                     'linear_fit_MaCCRES', 'quad_fit_MaCCRES',
                     ]
         # to allocate empty arrays on GPU
-        empty = ['prob_e', 'prob_mu', 'weight_trck', 'weight_cscd']
-        if self.error_method == 'sumw2':
+        empty = ['prob_e', 'prob_mu', 'weight_trck', 'weight_cscd', 'scaled_nue_flux', 'scaled_numu_flux', 'scaled_nue_flux_shape', 'scaled_numu_flux_shape']
+        if self.error_method in ['sumw2', 'fixed_sumw2']:
             empty += ['sumw2_trck', 'sumw2_cscd']
 
         # list of flav_ints to use and corresponding number used in several parts of the code
@@ -290,16 +301,32 @@ class gpu(Stage):
 
             # calculate weights
             if recalc_weight:
-                self.weight.calc_weight(self.events_dict[flav]['n_evts'], livetime=livetime,
-                                    pid_bound=pid_bound, pid_remove=pid_remove,
-                                    aeff_scale=aeff_scale, nue_numu_ratio=nue_numu_ratio, 
+                self.weight.calc_flux(self.events_dict[flav]['n_evts'],
+                                    nue_numu_ratio=nue_numu_ratio, 
                                     nu_nubar_ratio=nu_nubar_ratio, kNuBar=self.events_dict[flav]['kNuBar'],
                                     delta_index=delta_index,
                                     Barr_uphor_ratio=Barr_uphor_ratio, Barr_nu_nubar_ratio=Barr_nu_nubar_ratio,
+                                    **self.events_dict[flav]['device'])
+
+                # calculate global scales
+                #nue_flux_norm_n = self.sum(self.events_dict[flav]['device']['scaled_nue_flux'], self.events_dict[flav]['n_evts'])
+                #nue_flux_norm_d = self.sum(self.events_dict[flav]['device']['scaled_nue_flux_shape'], self.events_dict[flav]['n_evts'])
+                #nue_flux_norm = nue_flux_norm_n / nue_flux_norm_d
+                nue_flux_norm = 1.
+                #numu_flux_norm_n = self.sum(self.events_dict[flav]['device']['scaled_numu_flux'], self.events_dict[flav]['n_evts'])
+                #numu_flux_norm_d = self.sum(self.events_dict[flav]['device']['scaled_numu_flux_shape'], self.events_dict[flav]['n_evts'])
+                #numu_flux_norm = numu_flux_norm_n / numu_flux_norm_d
+                numu_flux_norm = 1.
+
+                self.weight.calc_weight(self.events_dict[flav]['n_evts'], livetime=livetime,
+                                    pid_bound=pid_bound, pid_remove=pid_remove,
+                                    nue_flux_norm=nue_flux_norm, numu_flux_norm=numu_flux_norm,
+                                    aeff_scale=aeff_scale, kNuBar=self.events_dict[flav]['kNuBar'],
                                     Genie_Ma_QE=Genie_Ma_QE, Genie_Ma_RES=Genie_Ma_RES,
                                     **self.events_dict[flav]['device'])
 
-                if self.error_method == 'sumw2':
+
+                if self.error_method in ['sumw2', 'fixed_sumw2']:
                     self.weight.calc_sumw2(self.events_dict[flav]['n_evts'], **self.events_dict[flav]['device'])
 
             tot += self.events_dict[flav]['n_evts']
@@ -320,7 +347,7 @@ class gpu(Stage):
                                                                         self.events_dict[flav]['device'][self.bin_names[1]],
                                                                         self.events_dict[flav]['device']['weight_trck'])
 
-                if self.error_method == 'sumw2':
+                if self.error_method in ['sumw2', 'fixed_sumw2']:
                     self.events_dict[flav]['sumw2_cscd'] = self.histogrammer.get_hist(self.events_dict[flav]['n_evts'],
                                                                             self.events_dict[flav]['device'][self.bin_names[0]],
                                                                             self.events_dict[flav]['device'][self.bin_names[1]],
@@ -352,19 +379,26 @@ class gpu(Stage):
             if i == 0:
                 hist_cscd = np.copy(self.events_dict[flav]['hist_cscd']) * f
                 hist_trck = np.copy(self.events_dict[flav]['hist_trck']) * f
-                if self.error_method == 'sumw2':
+                if self.error_method in ['sumw2', 'fixed_sumw2']:
                     sumw2_cscd = np.copy(self.events_dict[flav]['sumw2_cscd']) * f * f
                     sumw2_trck = np.copy(self.events_dict[flav]['sumw2_trck']) * f * f
             else:
                 hist_cscd += self.events_dict[flav]['hist_cscd'] * f
                 hist_trck += self.events_dict[flav]['hist_trck'] * f
-                if self.error_method == 'sumw2':
+                if self.error_method in ['sumw2', 'fixed_sumw2']:
                     sumw2_cscd += self.events_dict[flav]['sumw2_cscd'] * f * f
                     sumw2_trck += self.events_dict[flav]['sumw2_trck'] * f * f
 
         if self.error_method == 'sumw2':
             maps.append(Map(name='cscd', hist=hist_cscd, error_hist=np.sqrt(sumw2_cscd), binning=self.output_binning))
             maps.append(Map(name='trck', hist=hist_trck, error_hist=np.sqrt(sumw2_trck), binning=self.output_binning))
+        elif self.error_method == 'fixed_sumw2':
+            if self.fixed_error == None:
+                self.fixed_error = {}
+                self.fixed_error['cscd'] = np.sqrt(sumw2_cscd)
+                self.fixed_error['trck'] = np.sqrt(sumw2_trck)
+            maps.append(Map(name='cscd', hist=hist_cscd, error_hist=self.fixed_error['cscd'], binning=self.output_binning))
+            maps.append(Map(name='trck', hist=hist_trck, error_hist=self.fixed_error['trck'], binning=self.output_binning))
         else:
             maps.append(Map(name='cscd', hist=hist_cscd, binning=self.output_binning))
             maps.append(Map(name='trck', hist=hist_trck, binning=self.output_binning))
