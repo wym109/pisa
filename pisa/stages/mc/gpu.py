@@ -1,3 +1,6 @@
+# authors: P.Eller (pde3@psu.edu)
+# date:   September 2016
+
 import sys, os
 import numpy as np
 import pycuda.driver as cuda

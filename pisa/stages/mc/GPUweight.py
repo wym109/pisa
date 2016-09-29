@@ -1,3 +1,6 @@
+# authors: P.Eller (pde3@psu.edu)
+# date:   September 2016
+
 import os
 import pycuda.driver as cuda
 from pycuda.compiler import SourceModule
@@ -6,18 +9,23 @@ from pisa.utils.const import FTYPE
 from pisa.core.events import Events
 
 class GPUweight(object):
-    # This is as ugly as it gets, from copying python code from oscfit and c++-izing it
-    
+    '''
+    This is a collection of CUDA functions to calculate event weights on GPU
+    some code is from copying PISAv2 nad oscfit python code and c++-izing it
+    '''
+
     def __init__(self):
         kernel_template = """//CUDA//
           #include "constants.h"
           #include "utils.h"
           #include "math.h"
 
+          // number of operations per thread for summing function 
           #define N_THREAD 256
 
           __global__ void sum_array(const int n_evts, fType *X,  fType *out) 
           {
+            // sum up array X and write the output in out[0]
             //__shared__ fType temp_sum;
             // zero out
             //if (threadIdx.x == 0) temp_sum = 0;
@@ -62,9 +70,10 @@ class GPUweight(object):
 	    } 
 
             __device__ fType spectral_index_scale(fType true_energy, fType egy_pivot, fType delta_index){
-                    fType scale = pow((true_energy/egy_pivot),delta_index);
-                    return scale;
-                }
+                // calculate spectral index scale
+                fType scale = pow((true_energy/egy_pivot),delta_index);
+                return scale;
+            }
 
 	    // These parameters are obtained from fits to the paper of Barr
 	    // E dependent ratios, max differences per flavor (Fig.7)
@@ -90,6 +99,7 @@ class GPUweight(object):
 	    __device__ fType x2z = 2.;
 
             __device__ fType LogLogParam(fType energy, fType y1, fType y2, fType x1, fType x2, bool use_cutoff, fType cutoff_value){
+                // oscfit function
                 fType nu_nubar = sign(y2);
                 if (nu_nubar == 0.0) nu_nubar = 1.;
                 y1 = sign(y1)*log10(abs(y1)+0.0001);
@@ -100,6 +110,7 @@ class GPUweight(object):
             }
 
             __device__ fType norm_fcn(fType x, fType A, fType sigma){
+                // oscfit function
                 return A/sqrt(2*M_PI*pow(sigma,2)) * exp(-pow(x,2)/(2*pow(sigma,2)));
             }
 
@@ -109,18 +120,21 @@ class GPUweight(object):
             }
 
             __device__ fType ModNuMuFlux(fType energy, fType czenith, fType e1, fType e2, fType z1, fType z2){
+                // oscfit function
 		fType A_ave = LogLogParam(energy, e1max_mu*e1, e2max_mu*e2, x1e, x2e, false, 0);
 		fType A_shape = 2.5*LogLogParam(energy, z1max_mu*z1, z2max_mu*z2, x1z, x2z, true, numu_cutoff);
 		return A_ave - (norm_fcn(czenith, A_shape, 0.32) - 0.75*A_shape);
             }
 
             __device__ fType ModNuEFlux(fType energy, fType czenith, fType e1mu, fType e2mu, fType z1mu, fType z2mu, fType e1e, fType e2e, fType z1e, fType z2e){
+                // oscfit function
 		fType A_ave = LogLogParam(energy, e1max_mu*e1mu + e1max_e*e1e, e2max_mu*e2mu + e2max_e*e2e, x1e, x2e, false, 0);
 		fType A_shape = 1.*LogLogParam(energy, z1max_mu*z1mu + z1max_e*z1e, z2max_mu*z2mu + z2max_e*z2e, x1z, x2z, true, nue_cutoff);
 		return A_ave - (1.5*norm_fcn(czenith, A_shape, 0.4) - 0.7*A_shape);
             }
 
             __device__ fType modRatioUpHor(const int kFlav, fType true_energy, fType true_coszen, fType uphor) {
+                // oscfit function
                 fType A_shape;
                 if (kFlav == 0){
                     A_shape = 1.*abs(uphor)*LogLogParam(true_energy, (z1max_e+z1max_mu),(z2max_e+z2max_mu),x1z, x2z, true, nue_cutoff);
@@ -133,6 +147,7 @@ class GPUweight(object):
             }
 
             __device__ fType modRatioNuBar(const int kNuBar, const int kFlav, fType true_e, fType true_cz, fType nu_nubar, fType nubar_sys){
+                // oscfit function
 		//not sure what nu_nubar is, only found this line in the documentation:
 		// +1 applies the change to neutrinos, 0 to antineutrinos. Anything in between is shared
                 fType modfactor;
@@ -162,6 +177,7 @@ class GPUweight(object):
                                     fType Barr_uphor_ratio, fType Barr_nu_nubar_ratio
                                     )
                 {
+                    // calculate the reweighted flux weights for every event
                     int idx = threadIdx.x + blockDim.x * blockIdx.x;
                     if (idx < n_evts) {
 
@@ -222,6 +238,8 @@ class GPUweight(object):
                                     fType Genie_Ma_QE, fType Genie_Ma_RES
                                     )
                 {
+                    // calculate the event weights, given the flux weights and osc. probs
+                    // also apply Genie sys, aeff_scale, and devide into cscd and trck categories
                     int idx = threadIdx.x + blockDim.x * blockIdx.x;
                     if (idx < n_evts) {
 
@@ -244,6 +262,7 @@ class GPUweight(object):
 
             __global__ void sumw2(const int n_evts, fType *weight_cscd, fType *weight_trck,
                                     fType *sumw2_cscd, fType *sumw2_trck) {
+                    // fill arrays with weights squared (for error calculation)
                     int idx = threadIdx.x + blockDim.x * blockIdx.x;
                     if (idx < n_evts) {
                         sumw2_cscd[idx] = weight_cscd[idx] * weight_cscd[idx];
@@ -251,6 +270,7 @@ class GPUweight(object):
                     }
                 }
           """
+        # compile
         include_path = os.path.expandvars('$PISA/pisa/stages/osc/grid_propagator/')
         module = SourceModule(kernel_template, include_dirs=[include_path], keep=True)
         self.weights_fun = module.get_function("weights")
@@ -258,6 +278,8 @@ class GPUweight(object):
         self.sumw2_fun = module.get_function("sumw2")
         self.sum_array = module.get_function("sum_array")
 
+
+    # python wrappers for CUDA functions
 
     def calc_flux(self, n_evts, weighted_aeff, true_energy, true_coszen,
                     neutrino_nue_flux, neutrino_numu_flux,
