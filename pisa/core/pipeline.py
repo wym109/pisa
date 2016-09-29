@@ -121,6 +121,8 @@ class Pipeline(object):
                               %(stage_name, service_name))
 
                 # Import service's module
+                logging.trace('Importing: pisa.stages.%s.%s' %(stage_name,
+                                                               service_name))
                 module = importlib.import_module(
                     'pisa.stages.%s.%s' %(stage_name, service_name)
                 )
@@ -396,7 +398,7 @@ if __name__ == '__main__':
         for fmt, enabled in formats.items():
             if not enabled:
                 continue
-            my_plotter = plotter(stamp='PISA cake test',
+            my_plotter = plotter(stamp='PISA Cake test',
                                  outdir=args.dir,
                                  fmt=fmt, log=False,
                                  annotate=args.annotate)
