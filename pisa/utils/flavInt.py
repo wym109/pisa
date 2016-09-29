@@ -150,12 +150,12 @@ class NuFlav(object):
             assert self.__barnobar in self.barnobar2code.values()
         except (AssertionError, ValueError, AttributeError):
             exc_type, exc_value, exc_traceback = sys.exc_info()
-            raise ValueError('Could not interpret value "' + orig_val
-                             + '":\n' + '\n'.join(
-                                 traceback.format_exception(exc_type,
-                                                            exc_value,
-                                                            exc_traceback)
-                             ))
+            raise ValueError(
+                'Could not interpret value "' + orig_val + '":\n' + '\n'.join(
+                    traceback.format_exception(exc_type, exc_value,
+                                               exc_traceback)
+                )
+            )
 
     def __str__(self):
         global __BAR_SSEP__
@@ -1744,7 +1744,7 @@ def test_FlavIntData():
     oddball_sep = 'xyz'
     set_bar_ssep(oddball_sep)
     ref_pisa_dict = {f:{it:None for it in ['cc', 'nc']} for f in
-                     ['nue', 'nue_bar', 'numu','numu_bar', 'nutau',
+                     ['nue', 'nue_bar', 'numu', 'numu_bar', 'nutau',
                       'nutau_bar']}
     fi_cont = FlavIntData()
     for f in ['nue', 'nue_bar', 'numu', 'numu_bar', 'nutau', 'nutau_bar']:

@@ -270,7 +270,7 @@ if __name__ == '__main__':
     import numpy as np
     from pisa.core.map import Map, MapSet
     from pisa.utils.fileio import mkdir, to_file
-    from pisa.utils.plotter import plotter
+    from pisa.utils.plotter import Plotter
 
     parser = ArgumentParser()
     parser.add_argument(
@@ -398,7 +398,7 @@ if __name__ == '__main__':
         for fmt, enabled in formats.items():
             if not enabled:
                 continue
-            my_plotter = plotter(stamp='PISA Cake test',
+            my_plotter = Plotter(stamp='PISA Cake test',
                                  outdir=args.dir,
                                  fmt=fmt, log=False,
                                  annotate=args.annotate)

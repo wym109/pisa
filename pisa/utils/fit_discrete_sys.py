@@ -14,7 +14,7 @@ from pisa.core.pipeline import Pipeline
 from pisa.utils.fileio import from_file, to_file
 from pisa.utils.log import set_verbosity
 from pisa.utils.config_parser import parse_pipeline_config, parse_quantity, parse_string_literal
-from pisa.utils.plotter import plotter
+from pisa.utils.plotter import Plotter
 
 
 if __name__ == '__main__':
@@ -38,7 +38,7 @@ if __name__ == '__main__':
         import matplotlib as mpl
         mpl.use('pdf')
         import matplotlib.pyplot as plt
-        from pisa.utils.plotter import plotter
+        from pisa.utils.plotter import Plotter
 
     cfg = from_file(args.fit_settings)
     sys_list = cfg.get('general','sys_list').replace(' ','').split(',')
@@ -216,7 +216,7 @@ if __name__ == '__main__':
                                     hist=raw_outputs[cat][:,:,0] - outputs[cat][:,:,d],
                                     binning=binning))
                     maps = MapSet(maps)
-                    my_plotter = plotter(stamp='PISA cake test', outdir='.',
+                    my_plotter = Plotter(stamp='PISA cake test', outdir='.',
                         fmt='pdf',log=False, label='')
                     my_plotter.plot_2d_array(maps, fname='%s_smooth_%s_p%s'%(sys,smooth,d))
 
