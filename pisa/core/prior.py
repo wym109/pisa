@@ -133,6 +133,8 @@ class Prior(object):
             self.__init_linterp(**kwargs)
         elif kind == 'spline':
             self.__init_spline(**kwargs)
+        elif kind == 'jeffreys':
+            self.__init_jeffreys(**kwargs)
         else:
             raise TypeError('Unknown Prior kind `' + str(kind) + '`')
 
@@ -173,6 +175,36 @@ class Prior(object):
         self.max_at = np.nan
         self.max_at_str = 'no maximum'
         self._str = lambda s: 'uniform prior, llh_offset=%s' %self.llh_offset
+
+    def __init_jeffreys(self, A, B, m):
+        self.kind = 'jeffreys'
+        if isinstance(A, Number):
+            A = A * ureg.dimensionless
+        if isinstance(B, Number):
+            B = B * ureg.dimensionless
+        if isinstance(m, Number):
+            m = m * ureg.dimensionless
+        assert A.dimensionality == B.dimensionality
+        assert A.dimensionality == m.dimensionality
+        self._state_attrs.extend(['A', 'B', 'm'])
+        if isinstance(A, pint.quantity._Quantity):
+            self.units = str(A.units)
+            assert isinstance(B, pint.quantity._Quantity), '%s' %type(B)
+            B = B.to(self.units)
+            m = m.to(self.units)
+        self.A = A
+        self.B = B
+        self.m = m
+        def llh(x):
+            x = self.__strip(self.__convert(x))
+            A = self.__strip(self.A)
+            B = self.__strip(self.B)
+            m = self.__strip(self.m)
+            return - np.log(x) + np.log(m)
+        self.llh = llh
+        self.max_at = self.A
+        self.max_at_str = self.__stringify(self.max_at)
+        self._str = lambda s: "jeffreys' prior, range [%s,%s]"%(self.A, self.B)
 
     def __init_gaussian(self, mean, stddev):
         if isinstance(mean, Number):

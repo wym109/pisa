@@ -23,6 +23,7 @@ import re
 
 import numpy as np
 from scipy.stats import poisson
+from scipy.stats import norm
 import uncertainties
 from uncertainties import ufloat
 from uncertainties import unumpy as unp
@@ -289,6 +290,14 @@ class Map(object):
                 np.random.seed(seed)
             return {'hist': unp.uarray(poisson.rvs(unp.nominal_values(self.hist)),
                                        np.sqrt(unp.nominal_values(self.hist)))}
+        elif method in ['gauss+poisson']:
+            if seed is not None:
+                np.random.seed(seed)
+            nominal = unp.nominal_values(self.hist)
+            sigma = unp.std_devs(self.hist)
+            gauss = norm.rvs(loc=nominal, scale=sigma)
+            return {'hist': unp.uarray(poisson.rvs(gauss),
+                                       np.sqrt(gauss))}
         elif method in ['', 'none', 'false']:
             return
         else:
