@@ -95,7 +95,9 @@ sqrtpi = np.sqrt(pi)
 sqrt2pi = np.sqrt(2*pi)
 pisq = pi**2
 
-openmp_num_threads = 1
+omp_num_threads = 1
+"""Number of threads OpenMP is allocated"""
+
 try:
     import pisa.utils.gaussians as GAUS
 except:
@@ -109,7 +111,7 @@ else:
     gaussian = GAUS.gaussian
     gaussians = GAUS.gaussians
     if os.environ.has_key('OMP_NUM_THREADS'):
-        openmp_num_threads = os.environ['OMP_NUM_THREADS']
+        omp_num_threads = os.environ['OMP_NUM_THREADS']
 
 
 def fbw_kde(data, N=None, MIN=None, MAX=None, overfit_factor=1.0):
@@ -244,6 +246,7 @@ def vbw_kde(data, N=None, MIN=None, MAX=None, evaluate_dens=True,
         the "normalization" of the variable-bandwidth bit that I use which
         forces it to have a bandwidth at the peak matching that found by the
         ISJ-FBW part
+
     """
     # Parameters to set up the mesh on which to calculate
     if N is None:
@@ -328,12 +331,13 @@ def vbw_kde(data, N=None, MIN=None, MAX=None, evaluate_dens=True,
 
     if not evaluate_dens:
         return kernel_bandwidths, evaluate_at, None
+
     vbw_dens_est = np.zeros_like(evaluate_at, dtype=np.double)
     gaussians(outbuf=vbw_dens_est,
               x=evaluate_at.astype(np.double),
               mu=data.astype(np.double),
               sigma=kernel_bandwidths.astype(np.double),
-              threads=int(openmp_num_threads))
+              threads=int(omp_num_threads))
 
     # TODO: simply divide by number of points (since using normalized
     # gaussians, each point will contribute an area of 1--or area of the
@@ -379,5 +383,5 @@ def speedTest():
 
 
 if __name__ == "__main__":
-    print 'OMP_NUM_THREADS =', openmp_num_threads
+    print 'OMP_NUM_THREADS =', omp_num_threads
     speedTest()
