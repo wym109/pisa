@@ -19,16 +19,48 @@ from pisa.utils.log import logging
 from pisa.utils.comparisons import normQuant
 from pisa.utils.hash import hash_obj
 
-
-def copy_dict_to_d(events):
-    d_events = {}
-    for key, val in events.items():
-        d_events[key] = cuda.mem_alloc(val.nbytes)
-        cuda.memcpy_htod(d_events[key], val)
-    return d_events
-
-
 class gpu(Stage):
+    '''
+    GPU accelerated (pyCUDA) service to compute histograms based on reweighted MC events.
+
+    Parameters
+    ----------
+    params : ParamSet or sequence with which to instantiate a ParamSet.
+        Expected params are:
+
+            detector_depth : float
+            earth_model : PREM file path
+            prop_height : quantity (dimensionless)
+            YeI : quantity (dimensionless)
+            YeO : quantity (dimensionless)
+            YeM : quantity (dimensionless)
+            theta12 : quantity (angle)
+            theta13 : quantity (angle)
+            theta23 : quantity (angle)
+            deltam21 : quantity (mass^2)
+            deltam31 : quantity (mass^2)
+            deltacp : quantity (angle)
+            no_nc_osc : bool
+            nu_nubar_ratio : quantity (dimensionless)
+            nue_numu_ratio : quantity (dimensionless)
+            livetime : quantity (time)
+            aeff_scale : quantity (dimensionless)
+            pid_bound : quantity (dimensionless)
+            pid_remove : quantity (dimensionless)
+            delta_index : quantity (dimensionless)
+            Barr_uphor_ratio : quantity (dimensionless)
+            Barr_nu_nubar_ratio : quantity (dimensionless)
+            Genie_Ma_QE : quantity (dimensionless)
+            Genie_Ma_RES : quantity (dimensionless)
+            events_file : hdf5 file path (output from make_events), including flux weights and Genie systematics coefficients
+            nu_nc_norm : quantity (dimensionless)
+            nutau_cc_norm : quantity (dimensionless)
+            reco_e_res_raw : quantity (dimensionless)
+            reco_e_scale_raw : quantity (dimensionless)
+            reco_cz_res_raw :quantity (dimensionless)
+            bdt_cut : quantity (dimensionless)
+        
+    '''
 
     def __init__(self, params, output_binning, disk_cache=None,
                 memcaching_enabled=True, error_method=None,
@@ -93,14 +125,6 @@ class gpu(Stage):
             debug_mode=debug_mode
         )
 
-    def sum(self, x, n_evts):
-	out = np.array([0.]).astype(FTYPE)
-        d_out = cuda.mem_alloc(out.nbytes)
-        cuda.memcpy_htod(d_out, out)
-	self.weight.calc_sum(n_evts, x, d_out)
-	cuda.memcpy_dtoh(out, d_out)
-	return out[0]
-
     def _compute_nominal_outputs(self):
 
         self.osc_hash = None
@@ -116,7 +140,6 @@ class gpu(Stage):
         YeM = self.params.YeM.value.m_as('dimensionless')
         prop_height = self.params.prop_height.value.m_as('km')
         detector_depth = self.params.detector_depth.value.m_as('km')
-        bdt_cut = self.params.bdt_cut.value.m_as('dimensionless')
 
         self.osc = Prob3GPU(detector_depth,
                             earth_model,
@@ -131,6 +154,7 @@ class gpu(Stage):
         self.cz_dim_num = self.output_binning.names.index('reco_coszen')
         self.bin_names = self.output_binning.names
         self.bin_edges = []
+
         for name in self.bin_names:
             if 'energy' in  name:
                 bin_edges = self.output_binning[name].bin_edges.to('GeV').magnitude.astype(FTYPE)
@@ -138,12 +162,16 @@ class gpu(Stage):
                 bin_edges = self.output_binning[name].bin_edges.magnitude.astype(FTYPE)
             self.bin_edges.append(bin_edges)
             
-
         self.histogrammer = GPUhist(*self.bin_edges)
 
+        # load events
+        self.load_events()
+
+    def load_events(self):
         # --- Load events
         # open Events file
         evts = Events(self.params.events_file.value)
+        bdt_cut = self.params.bdt_cut.value.m_as('dimensionless')
 
         # Load and copy events
         variables = ['true_energy', 'true_coszen', 'reco_energy', 'reco_coszen',
@@ -212,29 +240,19 @@ class gpu(Stage):
         # copy arrays to GPU
         start_t = time.time()
         for flav in self.flavs:
-            self.events_dict[flav]['device'] = copy_dict_to_d(self.events_dict[flav]['host'])
+            self.events_dict[flav]['device'] = {}
+            for key, val in self.events_dict[flav]['host'].items():
+                self.events_dict[flav]['device'][key] = cuda.mem_alloc(val.nbytes)
+                cuda.memcpy_htod(self.events_dict[flav]['device'][key], val)
         end_t = time.time()
         logging.debug('copy done in %.4f ms'%((end_t - start_t) * 1000))
 
         # apply raw reco sys
         self.apply_reco()
 
-    def get_device_arrays(self):
-        ''' Copy back a dictionary with event by event information'''
-        return_events = {}
-        variables = ['true_energy', 'true_coszen', 'reco_energy', 'reco_coszen',
-                        'weight_trck', 'weight_cscd']
-        for flav in self.flavs:
-            return_events[flav] = {}
-            for var in variables:
-                buff = np.ones(self.events_dict[flav]['n_evts'])
-                cuda.memcpy_dtoh(buff, self.events_dict[flav]['device'][var])
-                return_events[flav][var] = buff
-        return return_events
-
 
     def apply_reco(self):
-        # applying raw reco systematics (to use as inputs to polyfit stage)
+        ''' applying raw reco systematics (to use as inputs to polyfit stage) '''
         for flav in self.flavs:
             # apply energy reco sys
             f = self.params.reco_e_res_raw.value.m_as('dimensionless')
@@ -248,16 +266,40 @@ class gpu(Stage):
                 self.events_dict[flav]['host']['reco_coszen'][self.events_dict[flav]['host']['reco_coszen']>1] = 2-self.events_dict[flav]['host']['reco_coszen'][self.events_dict[flav]['host']['reco_coszen']>1]
                 self.events_dict[flav]['host']['reco_coszen'][self.events_dict[flav]['host']['reco_coszen']<-1] = -2-self.events_dict[flav]['host']['reco_coszen'][self.events_dict[flav]['host']['reco_coszen']<-1]
 
-            self.update_device(flav, 'reco_energy')
-            self.update_device(flav, 'reco_coszen')
+            self.update_device_arrays(flav, 'reco_energy')
+            self.update_device_arrays(flav, 'reco_coszen')
 
 
-    def update_device(self, flav, var):
-        # update existing
+    def update_device_arrays(self, flav, var):
+        ''' helper function to update device arrays '''
         self.events_dict[flav]['device'][var].free()
         self.events_dict[flav]['device'][var] = cuda.mem_alloc(self.events_dict[flav]['host'][var].nbytes)
         cuda.memcpy_htod(self.events_dict[flav]['device'][var], self.events_dict[flav]['host'][var])
         
+    def get_device_arrays(self):
+        ''' Copy back a dictionary with event by event information'''
+        return_events = {}
+        variables = ['true_energy', 'true_coszen', 'reco_energy', 'reco_coszen',
+                        'weight_trck', 'weight_cscd']
+        for flav in self.flavs:
+            return_events[flav] = {}
+            for var in variables:
+                buff = np.ones(self.events_dict[flav]['n_evts'])
+                cuda.memcpy_dtoh(buff, self.events_dict[flav]['device'][var])
+                return_events[flav][var] = buff
+        return return_events
+
+    def sum_array(self, x, n_evts):
+        '''
+        helper function to compute the sum over a device array
+        '''
+	out = np.array([0.]).astype(FTYPE)
+        d_out = cuda.mem_alloc(out.nbytes)
+        cuda.memcpy_htod(d_out, out)
+	self.weight.calc_sum(n_evts, x, d_out)
+	cuda.memcpy_dtoh(out, d_out)
+	return out[0]
+
 
     def _compute_outputs(self, inputs=None):
         logging.info('retreive weighted histo')
@@ -309,12 +351,12 @@ class gpu(Stage):
                                     **self.events_dict[flav]['device'])
 
                 # calculate global scales
-                #nue_flux_norm_n = self.sum(self.events_dict[flav]['device']['scaled_nue_flux'], self.events_dict[flav]['n_evts'])
-                #nue_flux_norm_d = self.sum(self.events_dict[flav]['device']['scaled_nue_flux_shape'], self.events_dict[flav]['n_evts'])
+                #nue_flux_norm_n = self.sum_array(self.events_dict[flav]['device']['scaled_nue_flux'], self.events_dict[flav]['n_evts'])
+                #nue_flux_norm_d = self.sum_array(self.events_dict[flav]['device']['scaled_nue_flux_shape'], self.events_dict[flav]['n_evts'])
                 #nue_flux_norm = nue_flux_norm_n / nue_flux_norm_d
                 nue_flux_norm = 1.
-                #numu_flux_norm_n = self.sum(self.events_dict[flav]['device']['scaled_numu_flux'], self.events_dict[flav]['n_evts'])
-                #numu_flux_norm_d = self.sum(self.events_dict[flav]['device']['scaled_numu_flux_shape'], self.events_dict[flav]['n_evts'])
+                #numu_flux_norm_n = self.sum_array(self.events_dict[flav]['device']['scaled_numu_flux'], self.events_dict[flav]['n_evts'])
+                #numu_flux_norm_d = self.sum_array(self.events_dict[flav]['device']['scaled_numu_flux_shape'], self.events_dict[flav]['n_evts'])
                 #numu_flux_norm = numu_flux_norm_n / numu_flux_norm_d
                 numu_flux_norm = 1.
 
@@ -375,6 +417,7 @@ class gpu(Stage):
                 f = self.params.nu_nc_norm.value.m_as('dimensionless')
             else:
                 f = 1.0
+
             # add up
             if i == 0:
                 hist_cscd = np.copy(self.events_dict[flav]['hist_cscd']) * f
