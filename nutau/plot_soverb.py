@@ -22,11 +22,11 @@ set_verbosity(args.v)
 my_plotter = plotter(stamp='nutau', outdir='.', fmt='pdf', log=False, annotate=True, symmetric=False)
 template_maker = DistributionMaker(args.template_settings)
 
-template_nominal = template_maker.get_outputs()
+template_nominal = template_maker.get_total_outputs()
 p = template_maker.params['nutau_cc_norm']
 p.value = 0. * ureg.dimensionless
 template_maker.update_params(p)
-template_bkgd = template_maker.get_outputs()
+template_bkgd = template_maker.get_total_outputs()
 
 template_nutau = template_nominal - template_bkgd
 

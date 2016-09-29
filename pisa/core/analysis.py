@@ -86,6 +86,8 @@ class Analysis(object):
             self.pseudodata = self.data
         elif self.pseudodata_method == 'poisson':
             self.pseudodata = self.data.fluctuate('poisson')
+        elif self.pseudodata_method == 'gauss+poisson':
+            self.pseudodata = self.data.fluctuate('gauss+poisson')
         else:
             raise Exception('unknown method %s'%method)
         self.N_data = sum([unp.nominal_values(map.hist).sum() for map in self.pseudodata])
@@ -275,10 +277,6 @@ class Analysis(object):
                                         options = self.minimizer_settings['options']['value'])
             
             # get aditional metrics:
-            all_metrics = {}
-            template = self.template_maker.get_outputs()
-            for metric in ['llh', 'conv_llh', 'barlow_llh','chi2', 'mod_chi2']:
-                all_metrics[metric] = self.pseudodata.metric_total(expected_values=template, metric=metric) + template_maker.params.priors_penalty(metric=metric) 
             end_t = time.time()
             if pprint:
                 # clear the line
@@ -299,6 +297,11 @@ class Analysis(object):
             dict_flags['nit'] = minim_result.nit
             if dict_flags['warnflag'] > 0:
                 logging.warning(str(dict_flags))
+
+        all_metrics = {}
+        template = self.template_maker.get_outputs()
+        for metric in ['llh', 'conv_llh', 'barlow_llh','chi2', 'mod_chi2']
+            all_metrics[metric] = self.pseudodata.metric_total(expected_values=template, metric=metric) + template_maker.params.priors_penalty(metric=metric) 
 
         return best_fit_vals, metric_val, all_metrics, dict_flags
 
@@ -428,7 +431,7 @@ if __name__ == '__main__':
     parser.add_argument('-fp', '--fix-param', type=str, default='',
                         help='''fix parameter''')
     parser.add_argument('-pd', '--pseudo-data', type=str, default='poisson',
-                        choices=['poisson', 'asimov', 'data'], 
+                        choices=['poisson', 'gauss+poisson', 'asimov', 'data'], 
                         help='''Mode for pseudo data sampling''')
     parser.add_argument('--metric', type=str,
                         choices=['llh', 'chi2', 'conv_llh', 'mod_chi2', 'barlow_llh'], required=True,
