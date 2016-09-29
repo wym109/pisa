@@ -1236,6 +1236,17 @@ class MultiDimBinning(object):
                 return False
         return True
 
+    def squeeze(self):
+        """Remove any singleton dimensions (i.e. that have only a single bin).
+        Analagous to `numpy.squeeze`.
+
+        Returns
+        -------
+        MultiDimBinning with only non-singleton dimensions
+
+        """
+        return MultiDimBinning([d for d in self if len(d) > 1])
+
     def _args_kwargs_to_list(self, *args, **kwargs):
         """Take either args or kwargs (but not both) and convert into a simple
         sequence of values. Broadcasts a single arg to all dimensions."""

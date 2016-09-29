@@ -305,6 +305,20 @@ class Map(object):
         return {'hist': new_hist, 'binning': new_binning}
 
     @new_obj
+    def squeeze(self):
+        """Remove any singleton dimensions (i.e. that have only a single bin).
+        Analagous to `numpy.squeeze`.
+
+        Returns
+        -------
+        Map with equivalent values but singleton dimensions removed
+
+        """
+        new_binning = self.binning.squeeze()
+        new_hist = self.hist.squeeze()
+        return {'hist': new_hist, 'binning': new_binning}
+
+    @new_obj
     def rebin(self, new_binning):
         """Rebin the map with bin edge lodations and names according to those
         specified in `new_binning`.
@@ -998,7 +1012,7 @@ class MapSet(object):
     @property
     def _serializable_state(self):
         state = OrderedDict()
-        state['maps'] = [m._serializable_state for m in self.maps]
+        state['maps'] = [m._serializable_state for m in self]
         state['name'] = self.name
         state['tex'] = self.tex
         state['collate_by_name'] = self.collate_by_name
@@ -1180,7 +1194,7 @@ class MapSet(object):
             else:
                 pattern = regex
             maps_to_combine = []
-            for m in self.maps:
+            for m in self:
                 if re.match(regex, m.name) is not None:
                     logging.debug('Map "%s" will be added...' %m.name)
                     maps_to_combine.append(m)
@@ -1242,7 +1256,7 @@ class MapSet(object):
         resulting_maps = []
         for expr in expressions:
             maps_to_combine = []
-            for m in self.maps:
+            for m in self:
                 if fnmatch(m.name, expr):
                     logging.debug('Map "%s" will be added...' %m.name)
                     maps_to_combine.append(m)
@@ -1294,7 +1308,7 @@ class MapSet(object):
         """Setting a hash to `val` for the map set sets the hash values of all
         contained maps to `val`."""
         if val is not None:
-            [setattr(m, 'hash', val) for m in self.maps]
+            [setattr(m, 'hash', val) for m in self]
 
     @property
     def names(self):
@@ -1547,13 +1561,24 @@ class MapSet(object):
         `order`.
 
         """
-        return MapSet([m.reorder_dimensions(order=order) for m in self.maps])
+        return MapSet([m.reorder_dimensions(order=order) for m in self])
+
+    def squeeze(self):
+        """Remove any singleton dimensions (i.e. that have only a single bin)
+        from all contained maps. Analagous to `numpy.squeeze`.
+
+        Returns
+        -------
+        MapSet with equivalent values but singleton Map dimensions removed
+
+        """
+        return MapSet([m.squeeze() for m in self])
 
     def rebin(self, *args, **kwargs):
-        return MapSet([m.rebin(*args, **kwargs) for m in self.maps])
+        return MapSet([m.rebin(*args, **kwargs) for m in self])
 
     def downsample(self, *args, **kwargs):
-        return MapSet([m.downsample(*args, **kwargs) for m in self.maps])
+        return MapSet([m.downsample(*args, **kwargs) for m in self])
 
     def metric_per_map(self, expected_values, metric):
         metric = metric.lower() if isinstance(metric, basestring) else metric
