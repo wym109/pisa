@@ -367,8 +367,8 @@ def compare_reco(config, servicename, pisa2file, outdir, ratio_test_threshold, d
         )
 
         check_agreement(
-            testname='PISAV3-PISAV2 reco:%s %s %s'
-                %(test_service, test_syst, nukey),
+            testname='PISAV3-PISAV2 reco:%s %s %s' %(test_service, test_syst,
+                                                     nukey),
             thresh_ratio=ratio_test_threshold,
             ratio=max_diff_ratio,
             thresh_diff=diff_test_threshold,
@@ -378,7 +378,8 @@ def compare_reco(config, servicename, pisa2file, outdir, ratio_test_threshold, d
     return pipeline
 
 
-def compare_pid(config, servicename, pisa2file, outdir, ratio_test_threshold, diff_test_threshold):
+def compare_pid(config, servicename, pisa2file, outdir, ratio_test_threshold,
+                diff_test_threshold):
     """Compare pid stages run in isolation with dummy inputs"""
     logging.debug('>> Working on pid stage comparisons')
     logging.debug('>>> Checking %s service'%servicename)

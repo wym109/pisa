@@ -129,11 +129,7 @@ class hist(Stage):
                  debug_mode=None):
         assert particles in ['neutrinos', 'muons']
         self.particles = particles
-        """Whether stage is instantiated to process neutrinos or muons"""
-
         self.transform_groups = flavintGroupsFromString(transform_groups)
-        """Particle/interaction types to group for computing transforms"""
-
         self.sum_grouped_flavints = sum_grouped_flavints
 
         # All of the following params (and no more) must be passed via the
@@ -180,7 +176,8 @@ class hist(Stage):
         self.include_attrs_for_hashes('sum_grouped_flavints')
 
     def validate_binning(self):
-        assert self.input_binning.num_dims == self.output_binning.num_dims
+        #assert self.input_binning.num_dims == self.output_binning.num_dims
+        pass
 
     def _compute_transforms(self):
         """Generate reconstruction "smearing kernels" by histogramming true and
@@ -215,7 +212,7 @@ class hist(Stage):
         # events file
         comp_units = dict(
             true_energy='GeV', true_coszen=None, true_azimuth='rad',
-            reco_energy='GeV', reco_coszen=None, reco_azimuth='rad'
+            reco_energy='GeV', reco_coszen=None, reco_azimuth='rad', pid=None
         )
 
         # Select only the units in the input/output binning for conversion
@@ -250,14 +247,15 @@ class hist(Stage):
                     true_coszen + cz_reco_err * cz_res_scale + cz_reco_bias
                 )
 
-            # True+reco (2N-dimensional) histogram is the basis for the
-            # transformation
+            # True (input) + reco {+ PID} (output)-dimensional histogram
+            # is the basis for the transformation
             reco_kernel = self.remaining_events.histogram(
                 kinds=xform_flavints,
-                binning=input_binning + output_binning,
+                binning=input_binning * output_binning,
                 weights_col=self.params.reco_weights_name.value,
                 errors=(self.error_method not in [None, False])
             )
+            # Extract just the numpy array to work with
             reco_kernel = reco_kernel.hist
 
             # This takes into account the correct kernel normalization:
@@ -280,14 +278,16 @@ class hist(Stage):
                 weights_col=self.params.reco_weights_name.value,
                 errors=(self.error_method not in [None, False])
             )
+            # Extract just the numpy array to work with
             true_event_counts = true_event_counts.hist
 
             # If there weren't any events in the input (true_*) bin, make this
             # bin have no effect -- i.e., populate all output bins
             # corresponding to the input bin with zeros via `nan_to_num`.
             with np.errstate(divide='ignore', invalid='ignore'):
-                true_event_counts[true_event_counts == 0] = np.nan # = np.nan_to_num(1.0 / true_event_counts)
-                norm_factors = np.nan_to_num(1.0 / true_event_counts)
+                true_event_counts[true_event_counts == 0] = np.nan
+                norm_factors = 1.0 / true_event_counts
+                norm_factors = np.nan_to_num(norm_factors)
 
             # Numpy broadcasts lower-dimensional things to higher dimensions
             # from last dimension to first; if we simply mult the reco_kernel
@@ -295,7 +295,7 @@ class hist(Stage):
             # __output__ dimensions rather than the input dimensions. Add
             # "dummy" dimensions to norm_factors where we want the "extra
             # dimensions": at the end.
-            for dim in self.output_binning.dims:
+            for dim in self.output_binning:
 				norm_factors = np.expand_dims(norm_factors, axis=-1)
 
             # Apply the normalization to the kernels
@@ -331,10 +331,10 @@ class hist(Stage):
             else:
                 # NOTES:
                 # * Output name is same as input name
-                # * Use `self.input_binning` and `self.output_binning` so maps are
-                #   returned in user-defined units (rather than computational
-                #   units, which are attached to the non-`self` versions of these
-                #   binnings).
+                # * Use `self.input_binning` and `self.output_binning` so maps
+                #   are returned in user-defined units (rather than
+                #   computational units, which are attached to the non-`self`
+                #   versions of these binnings).
                 for input_name in self.input_names:
                     if input_name not in xform_flavints:
                         continue
