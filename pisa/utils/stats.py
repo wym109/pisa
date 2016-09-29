@@ -177,8 +177,8 @@ def conv_llh(actual_values, expected_values):
     norm_triplets = np.array([actual_values, actual_values, sigma]).T
     sum = 0
     for i in xrange(len(triplets)):
-        sum += np.log(max(SMALL_POS,conv_poisson(*triplets[i])))
-        sum -= np.log(max(SMALL_POS,conv_poisson(*norm_triplets[i])))
+        sum += np.log(max(SMALL_POS,norm_conv_poisson(*triplets[i])))
+        sum -= np.log(max(SMALL_POS,norm_conv_poisson(*norm_triplets[i])))
     return sum
 
 def barlow_llh(actual_values, expected_values):
