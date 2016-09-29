@@ -63,7 +63,6 @@ def plot(name,data,hypos,asimov,trials,x_var='nutau_cc_norm',dir='.'):
     ax.set_xlim(min(hypos),max(hypos))
     if name in ['llh', 'conv_llh', 'chi2', 'mod_chi2'] and x_var == 'nutau_cc_norm' and len(data)>0:
         tex= r'$H_0$ at %s $\sigma ^{+%s}_{-%s}$'%(h0, h0_up, h0_down)
-        print tex
         a_text = AnchoredText(r'$\nu_\tau$ appearance'+'\n%s years, %s trials\n'%(2.5,trials)+'Rejection of '+ tex, loc=2, frameon=False)
     else:
         a_text = AnchoredText(r'$\nu_\tau$ appearance'+'\n%s years, %s trials\n'%(2.5,trials)+'nuisnace pulls', loc=2, frameon=False)
@@ -78,7 +77,6 @@ def plot(name,data,hypos,asimov,trials,x_var='nutau_cc_norm',dir='.'):
         best_m2s = np.interp(4,median[best_idx::-1],hypos[best_idx::-1])
         best_ps = np.interp(1,median[best_idx:],hypos[best_idx:])
         best_p2s = np.interp(4,median[best_idx:],hypos[best_idx:])
-        print best_m2s,best_ms,best,best_ps,best_p2s
         if x_var == 'nutau_cc_norm':
             ax2 = plt.subplot2grid((6,1), (5,0),sharex=ax)
             ax2.errorbar(np.array([1.47]),np.array([1.]),xerr=np.array([[0.32],[0.32]]),fmt='.',color='forestgreen')
@@ -131,9 +129,10 @@ def dist(name,data, asimov, params, trials, dir):
     median = np.median(data)
     mean = np.mean(data)
     std = np.std(data)
+    uncert = std/np.sqrt(trials)
     ax.axvline(median,color='r',linewidth=2, label='median')
     ax.axvline(mean,color='b',linewidth=2, label='mean')
-    ax.axvspan(mean-std, mean+std, alpha=0.2, color='b', linewidth=0, label='std dev')
+    ax.axvspan(mean-uncert, mean+uncert, alpha=0.2, color='b', linewidth=0, label='uncert. on mean')
     ax.patch.set_facecolor('white')
     if name in params.names:
         params_value = params[name].value.m
@@ -142,21 +141,19 @@ def dist(name,data, asimov, params, trials, dir):
             sigma = params[name].prior.stddev.m
         ax.axvline(params_value, color='g',linewidth=2, label='injected')
         if sigma > 0:
-            print name, params_value, sigma
             ax.axvline(params_value - sigma, color='g',linewidth=2, linestyle='--', label = r'prior $\pm \sigma$' )
             ax.axvline(params_value + sigma, color='g',linewidth=2, linestyle='--')
-        a_text = AnchoredText(r'$\nu_\tau$ appearance'+'\n%s trials\ninjected = %.2f\nmedian = %.2f\nmean = %.2f +/- %.2f'%(trials, params_value, median, mean, std), loc=2, frameon=False)
+        a_text = AnchoredText(r'$\nu_\tau$ appearance'+'\n%s trials\ninjected = %.2f\nmedian = %.2f\nmean = %.2f +/- %.2f'%(trials, params_value, median, mean, uncert), loc=2, frameon=False)
         if sigma > 0:
             ax.set_xlim(params_value - 1.2*sigma, params_value + 1.2*sigma)
     else:
-        a_text = AnchoredText(r'$\nu_\tau$ appearance'+'\n%s trials\nmedian = %.2f\nmean = %.2f +/- %.2f'%(trials, median, np.mean(data), np.std(data)), loc=2, frameon=False)
-    if name in ['llh','conv_llh','barlow_llh', 'chi2', 'mod_chi2']:
+        a_text = AnchoredText(r'$\nu_\tau$ appearance'+'\n%s trials\nmedian = %.2f\nmean = %.2f +/- %.2f'%(trials, median, np.mean(data), uncert), loc=2, frameon=False)
+    if name in ['llh','conv_llh','barlow_llh', 'chi2', 'mod_chi2', 'funny_llh']:
         p = chi2.fit(data,floc=0, scale=1)
-        print p
         x = np.linspace(b[0], b[-1], 100)
         f = chi2.pdf(x, *p)
         ax.plot(x,f, color='r')
-        a_text = AnchoredText(r'$\nu_\tau$ appearance'+'\n%s trials\nmedian = %.2f\nmean = %.2f +/- %.2f\nd.o.f. = %.1f'%(trials, median, np.mean(data), np.std(data), p[0]), loc=2, frameon=False)
+        a_text = AnchoredText(r'$\nu_\tau$ appearance'+'\n%s trials\nmedian = %.2f\nmean = %.2f +/- %.2f\nd.o.f. = %.1f'%(trials, median, np.mean(data), uncert, p[0]), loc=2, frameon=False)
     ax.add_artist(a_text)
     ax.set_xlabel(name)
     ax.set_ylim(ax.get_ylim()[0], ax.get_ylim()[1]*1.2)
@@ -233,6 +230,8 @@ if __name__ == '__main__':
                         data[key].append(val)
                     else:
                         data[key] = [val]
+    for key,val in data.items():
+        data[key] = np.array(val)
 
     if args.dist:
         if len(data) > 0:
@@ -250,26 +249,107 @@ if __name__ == '__main__':
         # pairplot
         #columns = []
         columns = {}
-        columns['norm'] = ['atm_muon_scale', 'aeff_scale', 'nu_nc_norm', 'nutau_cc_norm']
-        columns['osc'] = ['theta23', 'theta13', 'deltam31', 'deltacp', 'nutau_cc_norm']
-        columns['flux'] = ['Barr_uphor_ratio', 'Barr_nu_nubar_ratio', 'delta_index', 'nue_numu_ratio', 'nutau_cc_norm']
-        columns['det'] = ['dom_eff', 'hole_ice', 'hole_ice_fwd', 'reco_cz_res', 'nutau_cc_norm']
+        #columns['norm'] = ['atm_muon_scale', 'aeff_scale', 'nu_nc_norm', 'nutau_cc_norm']
+        #columns['osc'] = ['sin2(2theta23)', 'theta13', 'deltam31', 'deltacp', 'nutau_cc_norm']
+        columns['flux'] = list(set(data.keys()).intersection(['Barr_uphor_ratio', 'Barr_nu_nubar_ratio', 'delta_index', 'nue_numu_ratio', 'nutau_cc_norm']))
+        columns['det'] =  list(set(data.keys()).intersection(['dom_eff', 'hole_ice', 'hole_ice_fwd', 'reco_cz_res', 'nutau_cc_norm']))
+        columns['pull'] = list(set(data.keys()).intersection(['aeff_scale', 'atm_muon_scale', 'Barr_uphor_ratio', 'nutau_cc_norm']))
         #for key,val in data.items():
         #    if key not in ['llh','conv_llh','barlow_llh', 'chi2', 'mod_chi2']:
         #        columns.append(key)
+        if data.has_key('theta23'):
+            data['sin2(2theta23)'] = np.square(np.sin(2*data['theta23']* np.pi / 180.))
+        if data.has_key('deltam31'):
+            data['deltam31'] = 1000*data['deltam31']
         df = pd.DataFrame(data)
+
 	def corrfunc(x, y, **kws):
 	    r, p = stats.pearsonr(x, y)
 	    ax = plt.gca()
 	    ax.annotate("r = %.2f\np0 = %.1e"%(r,p),
 			xy=(.1, .8), xycoords=ax.transAxes)
+        def add_lines(*args, **kwargs):
+	    ax = plt.gca()
+            nominal = []
+            mean = []
+            median = []
+            uncert = []
+            prior = []
+            for d in args:
+                sigma = 0
+                if d.name in params.names:
+                    nom = params[d.name].value.m
+                    if d.name == 'deltam31':
+                        nom*=1000
+                    if params[d.name].prior.kind == 'gaussian':
+                        sigma = params[d.name].prior.stddev.m
+                elif d.name == 'sin2(2theta23)':
+                    nom = np.square(np.sin(2*params['theta23'].value.m* np.pi / 180.)) 
+                m = np.mean(d)
+                med = np.median(d)
+                unc = np.std(d)/np.sqrt(len(d))
+                nominal.append(nom)
+                median.append(med)
+                prior.append(sigma)
+                uncert.append(unc)
+                mean.append(m)
+            for i in range(len(nominal)):
+                if i == 0:
+                    ax.axvline(nominal[0], color='r', linewidth=1)
+                    if prior[0] > 0:
+                        ax.axvline(nominal[0] - prior[0], color='r', linewidth=1, linestyle='--')
+                        ax.axvline(nominal[0] + prior[0], color='r', linewidth=1, linestyle='--')
+                        xmin, xmax = ax.get_xlim()
+                        if xmin > nominal[0] - 1.2*prior[0]:
+                            xmin = nominal[0] - 1.2*prior[0]
+                        if xmax < nominal[0] + 1.2*prior[0]:
+                            xmax = nominal[0] + 1.2*prior[0]
+                        ax.set_xlim((xmin, xmax))
+                    ax.axvline(median[0], color='b', linewidth=1)
+                    ax.axvline(mean[0], color='g', linewidth=1)
+                    ax.axvspan(mean[0]-uncert[0], mean[0]+uncert[0], alpha=0.2, color='g', linewidth=0)
+                elif i == 1:
+                    ax.axhline(nominal[1], color='r', linewidth=1)
+                    if prior[1] > 0:
+                        ax.axhline(nominal[1] - prior[1], color='r', linewidth=1, linestyle='--')
+                        ax.axhline(nominal[1] + prior[1], color='r', linewidth=1, linestyle='--')
+                        ymin, ymax = ax.get_ylim()
+                        if ymin > nominal[1] - 1.2*prior[1]:
+                            ymin = nominal[1] - 1.2*prior[1]
+                        if ymax < nominal[1] + 1.2*prior[1]:
+                            ymax = nominal[1] + 1.2*prior[1]
+                        ax.set_ylim((ymin, ymax))
+                    ax.axhline(median[1], color='b', linewidth=1)
+                    ax.axhline(mean[1], color='g', linewidth=1)
+                    ax.axhspan(mean[1]-uncert[1], mean[1]+uncert[1], alpha=0.2, color='g', linewidth=0)
 
+        def add_text(x,**kwargs):
+	    ax = plt.gca()
+            m = np.mean(x)
+            med = np.median(x)
+            unc = np.std(x)/np.sqrt(len(x))
+            if x.name in params.names:
+                nom = params[x.name].value.m
+                if x.name == 'deltam31':
+                    nom*=1000
+                if params[x.name].prior.kind == 'gaussian':
+                    sigma = params[x.name].prior.stddev.m
+            elif x.name == 'sin2(2theta23)':
+                nom = np.square(np.sin(2*params['theta23'].value.m* np.pi / 180.)) 
+            a_text = AnchoredText('injected = %.2f\nmedian = %.2f\nmean = %.2f +/- %.2f'%(nom, med, m, unc), loc=2, frameon=False)
+            ax.add_artist(a_text)
+
+        dot_size = max(min(7,int(1000/len(df.index))),1)
         for key, val in columns.items():
-            g = sns.PairGrid(df[val])
-            g.map_upper(sns.regplot, scatter_kws={'s':1})
-            g.map_lower(sns.kdeplot, shade=True, cmap='Blues', shade_lowest=False)
-	    g.map_upper(corrfunc)
-	    g.map_diag(plt.hist)
-            #sns_plot = sns.pairplot(df[val],kind="reg", markers=',',plot_kws={"s": 1})
-            g.savefig('%s/%s_corr.pdf'%(args.dir,key))
-            g.savefig('%s/%s_corr.png'%(args.dir,key))
+            cols = [col for col in val if col in data.keys()]
+            if len(cols) > 0:
+                g = sns.PairGrid(df[cols])
+                g.map_upper(sns.regplot, scatter_kws={'s':dot_size})
+                g.map_lower(sns.kdeplot, shade=True, cmap='Blues', shade_lowest=False)
+                g.map_upper(corrfunc)
+                g.map_lower(add_lines)
+                g.map_diag(plt.hist)
+                g.map_diag(add_lines)
+                g.map_diag(add_text)
+                g.savefig('%s/%s_corr.pdf'%(args.dir,key))
+                g.savefig('%s/%s_corr.png'%(args.dir,key))
