@@ -192,7 +192,7 @@ if __name__ == '__main__':
         'settings/discrete_sys_settings/*.ini',
         'settings/minimizer_settings/*.json',
         'settings/pipeline_settings/*.ini',
-        'sys/*.json',
+        'discr_sys/*.json',
         'tests/data/aeff/*.json',
         'tests/data/flux/*.json',
         'tests/data/full/*.json',
@@ -315,7 +315,7 @@ if __name__ == '__main__':
             'pisa.stages.osc.prob3',
             'pisa.stages.pid',
             'pisa.stages.reco',
-            'pisa.stages.sys',
+            'pisa.stages.discr_sys',
             'pisa.stages.xsec',
             'pisa.resources',
             'pisa.utils'
