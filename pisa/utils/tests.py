@@ -29,7 +29,7 @@ def has_cuda():
 
 def order(x):
     with np.errstate(divide='ignore', invalid='ignore'):
-        o = np.ceil(np.log10(x))
+        o = np.ceil(np.log10(np.abs(x)))
     return o
 
 
