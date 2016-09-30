@@ -337,7 +337,9 @@ class gpu(Stage):
             # apply energy reco sys
             f = self.params.reco_e_res_raw.value.m_as('dimensionless')
             g = self.params.reco_e_scale_raw.value.m_as('dimensionless')
-            self.events_dict[flav]['host']['reco_energy'] = (g * ((1.-f) * self.events_dict[flav]['host']['true_energy'] + f * self.events_dict[flav]['host']['reco_energy'])).astype(FTYPE)
+            self.events_dict[flav]['host']['reco_energy'] = \
+                (g * ((1.-f) * self.events_dict[flav]['host']['true_energy'] + \
+                f * self.events_dict[flav]['host']['reco_energy'])).astype(FTYPE)
 
             # apply coszen reco sys
             f = self.params.reco_cz_res_raw.value.m_as('dimensionless')
@@ -345,7 +347,8 @@ class gpu(Stage):
                 ((1.-f) * self.events_dict[flav]['host']['true_coszen'] + \
                 f * self.events_dict[flav]['host']['reco_coszen']).astype(FTYPE)
             # make sure everything is within -1 <= coszen <= 1, otherwise reflect
-            while np.any(self.events_dict[flav]['host']['reco_coszen']<-1) or np.any(self.events_dict[flav]['host']['reco_coszen']>1):
+            while np.any(self.events_dict[flav]['host']['reco_coszen']<-1) or \
+                np.any(self.events_dict[flav]['host']['reco_coszen']>1):
                 self.events_dict[flav]['host']['reco_coszen'][self.events_dict[flav]['host']['reco_coszen']>1] = \
                     2-self.events_dict[flav]['host']['reco_coszen'][self.events_dict[flav]['host']['reco_coszen']>1]
                 self.events_dict[flav]['host']['reco_coszen'][self.events_dict[flav]['host']['reco_coszen']<-1] = \
