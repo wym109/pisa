@@ -298,14 +298,17 @@ class hist(Stage):
             for dim in self.output_binning:
 				norm_factors = np.expand_dims(norm_factors, axis=-1)
 
+            print 'norm_factors.shape:', norm_factors.shape
+            print 'total norm_factors:', np.sum(norm_factors.flatten())
+
             # Apply the normalization to the kernels
             reco_kernel *= norm_factors
 
-            #assert np.all(reco_kernel >= 0), 'number of elements less than 0 = %d' % np.sum(reco_kernel < 0)
+            assert np.all(reco_kernel >= 0), 'number of elements less than 0 = %d' % np.sum(reco_kernel < 0)
             #ndims = len(reco_kernel.shape)
-            #sum_over_axes = tuple(range(-int(ndims/2),0))
-            #totals = np.sum(reco_kernel, axis=sum_over_axes)
-            #assert np.all(totals <= 1+1e-14), 'max = ' + str(np.max(totals)-1)
+            sum_over_axes = tuple(range(-len(self.output_binning), 0))
+            totals = np.sum(reco_kernel, axis=sum_over_axes)
+            assert np.all(totals <= 1+1e-14), 'max = ' + str(np.max(totals)-1)
 
             # Now populate this transform to each input for which it applies.
 
