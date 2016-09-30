@@ -298,8 +298,9 @@ class hist(Stage):
             for dim in self.output_binning:
 				norm_factors = np.expand_dims(norm_factors, axis=-1)
 
-            print 'norm_factors.shape:', norm_factors.shape
-            print 'total norm_factors:', np.sum(norm_factors.flatten())
+            #print 'norm_factors:', norm_factors
+            #print 'norm_factors.shape:', norm_factors.shape
+            #print 'total norm_factors:', np.sum(norm_factors.flatten())
 
             # Apply the normalization to the kernels
             reco_kernel *= norm_factors

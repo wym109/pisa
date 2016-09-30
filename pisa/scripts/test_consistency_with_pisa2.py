@@ -288,7 +288,8 @@ def compare_aeff(config, servicename, pisa2file, systname,
     return pipeline
 
 
-def compare_reco(config, servicename, pisa2file, outdir, ratio_test_threshold, diff_test_threshold):
+def compare_reco(config, servicename, pisa2file, outdir, ratio_test_threshold,
+                 diff_test_threshold):
     """Compare reco stages run in isolation with dummy inputs"""
     logging.debug('>> Working on reco stage comparisons')
     logging.debug('>>> Checking %s service'%servicename)
@@ -463,7 +464,8 @@ def compare_pid(config, servicename, pisa2file, outdir, ratio_test_threshold,
     return pipeline
 
 
-def compare_flux_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_test_threshold):
+def compare_flux_full(cake_maps, pisa_maps, outdir, ratio_test_threshold,
+                      diff_test_threshold):
     """Compare a fully configured pipeline (with stages flux, osc, aeff, reco,
     and pid) through the flux stage.
 
@@ -515,7 +517,8 @@ def compare_flux_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_t
         )
 
 
-def compare_osc_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_test_threshold):
+def compare_osc_full(cake_maps, pisa_maps, outdir, ratio_test_threshold,
+                     diff_test_threshold):
     """Compare a fully configured pipeline (with stages flux, osc, aeff, reco,
     and pid) through the osc stage.
 
@@ -567,7 +570,8 @@ def compare_osc_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_te
         )
 
 
-def compare_aeff_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_test_threshold):
+def compare_aeff_full(cake_maps, pisa_maps, outdir, ratio_test_threshold,
+                      diff_test_threshold):
     """Compare a fully configured pipeline (with stages flux, osc, aeff, reco,
     and pid) through the aeff stage.
 
@@ -620,7 +624,8 @@ def compare_aeff_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_t
             )
 
 
-def compare_reco_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_test_threshold):
+def compare_reco_full(cake_maps, pisa_maps, outdir, ratio_test_threshold,
+                      diff_test_threshold):
     """Compare a fully configured pipeline (with stages flux, osc, aeff, reco,
     and pid) through the reco stage.
 
@@ -629,10 +634,15 @@ def compare_reco_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_t
     logging.debug('>>> Checking to end of reco stage')
     test_service = 'hist_1X585'
 
-    nue_nuebar_cc = cake_maps.combine_re(r'nue(bar){0,1}_cc')
-    numu_numubar_cc = cake_maps.combine_re(r'numu(bar){0,1}_cc')
-    nutau_nutaubar_cc = cake_maps.combine_re(r'nutau(bar){0,1}_cc')
-    nuall_nuallbar_nc = cake_maps.combine_re(r'nu.*_nc')
+    nue_nuebar_cc = cake_maps.combine_wildcard(r'nue*cc')
+    numu_numubar_cc = cake_maps.combine_wildcard(r'numu*cc')
+    nutau_nutaubar_cc = cake_maps.combine_wildcard(r'nutau*cc')
+    nuall_nuallbar_nc = cake_maps.combine_wildcard(r'nu*nc')
+    if 'pid' in nue_nuebar_cc.binning:
+        nue_nuebar_cc = nue_nuebar_cc.sum('pid', keepdims=False)
+        numu_numubar_cc = numu_numubar_cc.sum('pid', keepdims=False)
+        nutau_nutaubar_cc = nutau_nutaubar_cc.sum('pid', keepdims=False)
+        nuall_nuallbar_nc = nuall_nuallbar_nc.sum('pid', keepdims=False)
 
     modified_cake_outputs = {
         'nue_cc': {
@@ -702,7 +712,8 @@ def compare_reco_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_t
         )
 
 
-def compare_pid_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_test_threshold):
+def compare_pid_full(cake_maps, pisa_maps, outdir, ratio_test_threshold,
+                     diff_test_threshold):
     """Compare a fully configured pipeline (with stages flux, osc, aeff, reco,
     and pid) through the pid stage.
 
@@ -711,8 +722,14 @@ def compare_pid_full(cake_maps, pisa_maps, outdir, ratio_test_threshold, diff_te
     logging.debug('>>> Checking to end of pid stage')
     test_service = 'hist_1X585'
 
-    cake_trck = cake_maps.combine_wildcard('*_trck')
-    cake_cscd = cake_maps.combine_wildcard('*_cscd')
+    try:
+        cake_trck = cake_maps.combine_wildcard('*_trck')
+        cake_cscd = cake_maps.combine_wildcard('*_cscd')
+    except ValueError:
+        total = cake_maps.combine_wildcard('*')
+        cake_cscd = total[0,:,:]
+        cake_trck = total[1,:,:]
+
     total_cake_trck_dict = {
         'map': cake_trck.hist,
         'ebins': cake_trck.binning.reco_energy.bin_edges.magnitude,
@@ -1043,6 +1060,47 @@ if __name__ == '__main__':
             diff_test_threshold=args.diff_threshold
         )
 
+    ## Perform reco+PID tests
+    #if args.recopid or test_all:
+    #    pid_settings = os.path.join(
+    #        'tests', 'settings', 'recopid_test.cfg'
+    #    )
+    #    recopid_config = parse_pipeline_config(pid_settings)
+
+    #    k = [k for k in recopid_config.keys() if k[0] == 'pid'][0]
+    #    params = recopid_config[k]['params'].params
+
+    #    pisa2file = os.path.join(
+    #        'tests', 'data', 'pid', 'PISAV2PIDStageHistV39Service.json'
+    #    )
+    #    pisa2file = find_resource(pisa2file)
+    #    pid_pipeline = compare_pid(
+    #        config=deepcopy(recopid_config),
+    #        servicename='hist_V39',
+    #        pisa2file=pisa2file,
+    #        outdir=args.outdir,
+    #        ratio_test_threshold=args.ratio_threshold,
+    #        diff_test_threshold=args.diff_threshold
+    #    )
+    #    params.pid_events.value = os.path.join(
+    #        'events', 'deepcore_ic86', 'MSU', '1XXXX', 'Joined',
+    #        'DC_MSU_1X585_joined_nu_nubar_events_mc.hdf5'
+    #    )
+    #    params.pid_weights_name.value = 'weighted_aeff'
+    #    params.pid_ver.value = 'msu_mn8d-mn7d'
+    #    pisa2file = os.path.join(
+    #        'tests', 'data', 'pid', 'PISAV2PIDStageHist1X585Service.json'
+    #    )
+    #    pisa2file = find_resource(pisa2file)
+    #    pid_pipeline = compare_pid(
+    #        config=deepcopy(recopid_config),
+    #        servicename='hist_1X585',
+    #        pisa2file=pisa2file,
+    #        outdir=args.outdir,
+    #        ratio_test_threshold=args.ratio_threshold,
+    #        diff_test_threshold=args.diff_threshold
+    #    )
+
     # Perform full-pipeline tests
     if args.full or test_all:
         full_settings = os.path.join(
@@ -1092,7 +1150,7 @@ if __name__ == '__main__':
         # Up to PID stage comparisons
         compare_pid_full(
             pisa_maps=pisa2_comparisons[4],
-            cake_maps=pipeline['pid'].outputs,
+            cake_maps=pipeline['pid'].outputs, # use reco here
             outdir=args.outdir,
             ratio_test_threshold=args.ratio_threshold,
             diff_test_threshold=args.diff_threshold
