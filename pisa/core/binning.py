@@ -499,7 +499,7 @@ class OneDimBinning(object):
                                                    max(be.magnitude))
         return crit
 
-    def new_obj(original_function):
+    def _new_obj(original_function):
         """Decorator to deepcopy unaltered states into new object."""
         @wraps(original_function)
         def new_function(self, *args, **kwargs):
@@ -540,7 +540,7 @@ class OneDimBinning(object):
         else:
             raise TypeError('Unhandled type %s for __add__' %type(other))
 
-    @new_obj
+    @_new_obj
     def __deepcopy__(self, memo):
         """Explicit deepcopy constructor"""
         return {}
@@ -668,7 +668,7 @@ class OneDimBinning(object):
             return True
         return False
 
-    @new_obj
+    @_new_obj
     def oversample(self, factor):
         """Return a OneDimBinning object oversampled relative to this object's
         binning.
@@ -708,7 +708,7 @@ class OneDimBinning(object):
 
         return {'bin_edges': np.array(bin_edges)*self.units}
 
-    @new_obj
+    @_new_obj
     def downsample(self, factor):
         assert int(factor) == float(factor)
         factor = int(factor)
@@ -723,7 +723,7 @@ class OneDimBinning(object):
         for attr in ['bin_edges', 'domain', 'midpoints', 'weighted_centers']:
             getattr(self, attr).ito(units)
 
-    @new_obj
+    @_new_obj
     def to(self, units):
         if units is None:
             units = 'dimensionless'
@@ -768,7 +768,7 @@ class OneDimBinning(object):
     # to uneven (or if it stays lin or log, keep that attribute for the
     # subselection). Granted, a OneDimBinning object right now requires
     # monotonically-increasing and adjacent bins.
-    @new_obj
+    @_new_obj
     def __getitem__(self, index):
         """Return a new OneDimBinning, sub-selected by `index`.
 

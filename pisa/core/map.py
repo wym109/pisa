@@ -278,7 +278,7 @@ class Map(object):
         super(Map, self).__setattr__('_hist', unp.uarray(self._hist,
                                                          error_hist))
 
-    def new_obj(original_function):
+    def _new_obj(original_function):
         """Decorator to deepcopy unaltered states into new object."""
         @wraps(original_function)
         def new_function(self, *args, **kwargs):
@@ -292,7 +292,7 @@ class Map(object):
             return Map(**new_state)
         return new_function
 
-    @new_obj
+    @_new_obj
     def reorder_dimensions(self, order):
         new_binning = self.binning.reorder_dimensions(order)
         orig_order = range(len(self.binning))
@@ -304,7 +304,7 @@ class Map(object):
                                destination=orig_order)
         return {'hist': new_hist, 'binning': new_binning}
 
-    @new_obj
+    @_new_obj
     def squeeze(self):
         """Remove any singleton dimensions (i.e. that have only a single bin).
         Analagous to `numpy.squeeze`.
@@ -318,7 +318,7 @@ class Map(object):
         new_hist = self.hist.squeeze()
         return {'hist': new_hist, 'binning': new_binning}
 
-    @new_obj
+    @_new_obj
     def rebin(self, new_binning):
         """Rebin the map with bin edge lodations and names according to those
         specified in `new_binning`.
@@ -347,7 +347,7 @@ class Map(object):
         new_binning = self.binning.downsample(*args, **kwargs)
         return self.rebin(new_binning)
 
-    @new_obj
+    @_new_obj
     def fluctuate(self, method, random_state=None, jumpahead=0):
         orig = method
         method = str(method).lower()
@@ -525,7 +525,7 @@ class Map(object):
     def __getattr__(self, attr):
         return super(Map, self).__getattribute__(attr)
 
-    @new_obj
+    @_new_obj
     def _slice_or_index(self, idx):
         """Slice or index into the map. Indexing single element in self.hist
         e.g. hist[1,3] returns a 0D array while hist[1,3:8] returns a 1D array,
@@ -680,7 +680,7 @@ class Map(object):
 
     # Common mathematical operators
 
-    @new_obj
+    @_new_obj
     def __abs__(self):
         state_updates = {
             #'name': "|%s|" % (self.name,),
@@ -689,7 +689,7 @@ class Map(object):
         }
         return state_updates
 
-    @new_obj
+    @_new_obj
     def __add__(self, other):
         """Add `other` to self"""
         if np.isscalar(other) or type(other) is uncertainties.core.Variable:
@@ -718,7 +718,7 @@ class Map(object):
 
     #def __cmp__(self, other):
 
-    @new_obj
+    @_new_obj
     def __div__(self, other):
         if np.isscalar(other) or type(other) is uncertainties.core.Variable:
             state_updates = {
@@ -781,7 +781,7 @@ class Map(object):
         else:
             type_error(other)
 
-    @new_obj
+    @_new_obj
     def log(self):
         state_updates = {
             #'name': "log(%s)" % self.name,
@@ -790,7 +790,7 @@ class Map(object):
         }
         return state_updates
 
-    @new_obj
+    @_new_obj
     def log10(self):
         state_updates = {
             #'name': "log10(%s)" % self.name,
@@ -799,7 +799,7 @@ class Map(object):
         }
         return state_updates
 
-    @new_obj
+    @_new_obj
     def __mul__(self, other):
         if np.isscalar(other) or type(other) is uncertainties.core.Variable:
             state_updates = {
@@ -828,7 +828,7 @@ class Map(object):
     def __ne__(self, other):
         return not self == other
 
-    @new_obj
+    @_new_obj
     def __neg__(self):
         state_updates = {
             #'name': "-%s" % self.name,
@@ -837,7 +837,7 @@ class Map(object):
         }
         return state_updates
 
-    @new_obj
+    @_new_obj
     def __pow__(self, other):
         if np.isscalar(other) or type(other) is uncertainties.core.Variable:
             state_updates = {
@@ -872,7 +872,7 @@ class Map(object):
         else:
             return self.__rdiv(other)
 
-    @new_obj
+    @_new_obj
     def __rdiv(self, other):
         if np.isscalar(other) or type(other) is uncertainties.core.Variable:
             state_updates = {
@@ -899,7 +899,7 @@ class Map(object):
         else:
             return self.__rsub(other)
 
-    @new_obj
+    @_new_obj
     def __rsub(self, other):
         if np.isscalar(other) or type(other) is uncertainties.core.Variable:
             state_updates = {
@@ -917,7 +917,7 @@ class Map(object):
             type_error(other)
         return state_updates
 
-    @new_obj
+    @_new_obj
     def sqrt(self):
         state_updates = {
             #'name': "sqrt(%s)" % self.name,
@@ -926,7 +926,7 @@ class Map(object):
         }
         return state_updates
 
-    @new_obj
+    @_new_obj
     def __sub__(self, other):
         if np.isscalar(other) or type(other) is uncertainties.core.Variable:
             state_updates = {

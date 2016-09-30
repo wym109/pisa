@@ -589,7 +589,7 @@ class BinnedTensorTransform(Transform):
         self.validate_transform(self.input_binning, self.output_binning, x)
         self._xform_array = x
 
-    def new_obj(original_function):
+    def _new_obj(original_function):
         """Decorator to deepcopy unaltered states into new object"""
         @wraps(original_function)
         def new_function(self, *args, **kwargs):
@@ -603,17 +603,17 @@ class BinnedTensorTransform(Transform):
             return self.__class__(**new_state)
         return new_function
 
-    @new_obj
+    @_new_obj
     def __abs__(self):
         return dict(xform_array=np.abs(self.xform_array))
 
-    @new_obj
+    @_new_obj
     def __add__(self, other):
         if isinstance(other, BinnedTensorTransform):
             return dict(xform_array=self.xform_array + other.xform_array)
         return dict(xform_array=self.xform_array + other)
 
-    @new_obj
+    @_new_obj
     def __div__(self, other):
         if isinstance(other, BinnedTensorTransform):
             return dict(xform_array=self.xform_array / other.xform_array)
@@ -624,53 +624,53 @@ class BinnedTensorTransform(Transform):
             return False
         return recursiveEquality(self._hashable_state, other._hashable_state)
 
-    @new_obj
+    @_new_obj
     def __mul__(self, other):
         if isinstance(other, BinnedTensorTransform):
             return dict(xform_array=self.xform_array * other.xform_array)
         return dict(xform_array=self.xform_array * other)
 
-    @new_obj
+    @_new_obj
     def __ne__(self, other):
         return not self == other
 
-    @new_obj
+    @_new_obj
     def __neg__(self, other):
         return dict(xform_array=-self.xform_array)
 
-    @new_obj
+    @_new_obj
     def __pow__(self, other):
         if isinstance(other, BinnedTensorTransform):
             return dict(xform_array=self.xform_array ** other.xform_array)
         return dict(xform_array=self.xform_array ** other)
 
-    @new_obj
+    @_new_obj
     def __radd__(self, other):
         return self + other
 
-    @new_obj
+    @_new_obj
     def __rdiv__(self, other):
         if isinstance(other, BinnedTensorTransform):
             return dict(xform_array=other.xform_array / self.xform_array)
         return dict(xform_array=other / self.xform_array)
 
-    @new_obj
+    @_new_obj
     def __rmul__(self, other):
         if isinstance(other, BinnedTensorTransform):
             return dict(xform_array=other.xform_array * self.xform_array)
         return dict(xform_array=other * self.xform_array)
 
-    @new_obj
+    @_new_obj
     def __rsub__(self, other):
         if isinstance(other, BinnedTensorTransform):
             return dict(xform_array=other.xform_array - self.xform_array)
         return dict(xform_array=other - self.xform_array)
 
-    @new_obj
+    @_new_obj
     def sqrt(self):
         return dict(xform_array=np.sqrt(self.xform_array))
 
-    @new_obj
+    @_new_obj
     def __sub__(self, other):
         if isinstance(other, BinnedTensorTransform):
             return dict(xform_array=self.xform_array - other.xform_array)
