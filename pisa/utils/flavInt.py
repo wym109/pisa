@@ -1196,9 +1196,9 @@ def flavintGroupsFromString(groups):
     # Find any flavints not included in the above groupings
     flavint_groups = grouped + ungrouped
     logging.trace('flav/int in the following group(s) will be joined together:'
-                  + '; '.join([str(k) for k in grouped]))
+                  + ', '.join([str(k) for k in grouped]))
     logging.trace('flav/ints treated individually:'
-                  + '; '.join([str(k) for k in ungrouped]))
+                  + ', '.join([str(k) for k in ungrouped]))
 
     # Enforce that flavints composing groups are mutually exclusive
     for grp_n, flavintgrp0 in enumerate(flavint_groups[:-1]):
@@ -1256,7 +1256,7 @@ class CombinedFlavIntData(FlavIntData):
         elif isinstance(flavint_groupings, basestring):
             grouped, ungrouped = self.xlateGroupsStr(flavint_groupings)
         elif hasattr(flavint_groupings, '__iter__'):
-            strkgs = ';'.join([str(x) for x in flavint_groupings])
+            strkgs = ','.join([str(x) for x in flavint_groupings])
             grouped, ungrouped = self.xlateGroupsStr(strkgs)
         else:
             raise TypeError('Incomprehensible `flavint_groupings`: "%s"' %
@@ -1302,7 +1302,7 @@ class CombinedFlavIntData(FlavIntData):
                     nfig = NuFlavIntGroup(top_key)
                 groupings_found.append(nfig)
 
-            named_g, named_ung = self.xlateGroupsStr(';'.join(val.keys()))
+            named_g, named_ung = self.xlateGroupsStr(','.join(val.keys()))
             #print 'named_g:', named_g
             #print 'named_ung:', named_ung
             # Force keys to standard naming convention (be liberal on input,
@@ -1421,7 +1421,7 @@ class CombinedFlavIntData(FlavIntData):
         raise ValueError(
             'Could not set data for NuFlavInt(Group) %s; valid'
             ' NuFlavInt(Group)s for this object are: %s' %
-            (str(tgt_grp), '; '.join([str(nfig) for nfig in
+            (str(tgt_grp), '. '.join([str(nfig) for nfig in
                                       self.grouped]))
         )
 
@@ -1476,11 +1476,11 @@ class CombinedFlavIntData(FlavIntData):
         raise ValueError('Could not locate data for group %s' % str(tgt_grp))
 
 def xlateGroupsStr(val):
-    """Translate a ";"-separated string into separate `NuFlavIntGroup`s.
+    """Translate a ","-separated string into separate `NuFlavIntGroup`s.
 
     val
-        ";"-delimited list of valid NuFlavIntGroup strings, e.g.:
-            "nuall_nc;nue;numu_cc+numubar_cc"
+        ","-delimited list of valid NuFlavIntGroup strings, e.g.:
+            "nuall_nc,nue,numu_cc+numubar_cc"
         Note that specifying NO interaction type results in both interaction
         types being selected, e.g. "nue" implies "nue_cc+nue_nc". For other
         details of how the substrings are interpreted, see docs for
@@ -1500,7 +1500,7 @@ def xlateGroupsStr(val):
     enforced through set operations upon return.
     """
     # What flavints to group together
-    grouped = [NuFlavIntGroup(s) for s in val.split(',')]
+    grouped = [NuFlavIntGroup(s) for s in re.split('[,;]', val)]
 
     # Find any flavints not included in the above groupings
     all_flavints = set(ALL_NUFLAVINTS)
@@ -1842,7 +1842,7 @@ def test_CombinedFlavIntData():
     #==========================================================================
     # Test string parsing for flavor groupings
     gp1, ug1 = xlateGroupsStr(
-        'nuall_nc; nuallbar_nc; nue;numu_cc+numubar_cc; nutau_cc'
+        'nuall_nc, nuallbar_nc, nue, numu_cc+numubar_cc, nutau_cc'
     )
     logging.info(str(([kg.simpleStr() for kg in gp1], ug1)))
     gp2, ug2 = xlateGroupsStr('nue,numu')
@@ -1850,7 +1850,7 @@ def test_CombinedFlavIntData():
     gp3, ug3 = xlateGroupsStr('nuall_nc')
     logging.info(str(([kg.simpleStr() for kg in gp3], ug3)))
     gp4, ug4 = xlateGroupsStr(
-        'nuall_nc+nuallbar_nc;nuall_cc+nuallbar_cc'
+        'nuall_nc+nuallbar_nc,nuall_cc+nuallbar_cc'
     )
     logging.info(str(([kg.simpleStr() for kg in gp4], ug4)))
 
@@ -1862,7 +1862,7 @@ def test_CombinedFlavIntData():
     # Empty container with no groupings
     CombinedFlavIntData()
     # Empty container with groupings
-    CombinedFlavIntData(flavint_groupings='nuall;nuallbar')
+    CombinedFlavIntData(flavint_groupings='nuall,nuallbar')
     # Instantiate with non-standard key names
     cfid = CombinedFlavIntData(val={'nuall':np.arange(0,100),
                                     'nu all bar CC':np.arange(100,200),
@@ -1931,10 +1931,10 @@ def test_CombinedFlavIntData():
     assert cfid1 == cfid7
 
     cfidat = CombinedFlavIntData(
-        flavint_groupings='nuecc+nuebarcc;'
-                          'numucc+numubarcc;'
-                          'nutaucc+nutaubarcc;'
-                          'nuallnc;'
+        flavint_groupings='nuecc+nuebarcc,'
+                          'numucc+numubarcc,'
+                          'nutaucc+nutaubarcc,'
+                          'nuallnc,'
                           'nuallbarnc'
     )
 

@@ -223,7 +223,7 @@ if __name__ == '__main__':
     # Perform baseline tests
     if args.baseline or test_all:
         pisa3_settings = os.path.join(
-            'tests', 'settings', 'oscfit_fullmc_test.ini'
+            'tests', 'settings', 'oscfit_fullmc_test.cfg'
         )
         pisa3_config = parse_pipeline_config(pisa3_settings)
         # First ensure that we still agree with Philipp's original
@@ -253,7 +253,7 @@ if __name__ == '__main__':
             testname='full-mc'
         )
         pisa3_settings = os.path.join(
-            'tests', 'settings', 'oscfit_standard_test.ini'
+            'tests', 'settings', 'oscfit_standard_test.cfg'
         )
         pisa3_config = parse_pipeline_config(pisa3_settings)
         oscfitfile = os.path.join(
@@ -270,7 +270,7 @@ if __name__ == '__main__':
     # Perform continuous systematic tests
     if args.continuous_systematics or test_all:
         pisa3_settings = os.path.join(
-            'tests', 'settings', 'oscfit_fullmc_test.ini'
+            'tests', 'settings', 'oscfit_fullmc_test.cfg'
         )
         pisa3_config = parse_pipeline_config(pisa3_settings)
         # Define names and variations of systematics expected
