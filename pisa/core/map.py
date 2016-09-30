@@ -319,6 +319,39 @@ class Map(object):
         return {'hist': new_hist, 'binning': new_binning}
 
     @_new_obj
+    def sum(self, dims, keepdims=False):
+        """Sum over dimensions.
+
+        Parameters
+        ----------
+        dims : str, int, or sequence thereof
+            Dimensions to be summed over.
+        keepdims : bool
+            If True, marginalizes out (removes) the specified dimensions. If
+            False, the binning in the summed dimension(s) is expanded to the
+            full range of the binning for each dimension over which the sum is
+            performed.
+
+        Returns
+        -------
+        Map
+
+        """
+        if isinstance(dims, (basestring, int)):
+            dims = [dims]
+        sum_indices = tuple([self.binning.index(dim) for dim in dims])
+        new_hist = self.hist.sum(axis=sum_indices, keepdims=keepdims)
+
+        new_binning = []
+        for idx, dim in enumerate(self.binning.dims):
+            if idx in sum_indices:
+                if keepdims:
+                    new_binning.append(dim.downsample(len(dim)))
+            else:
+                new_binning.append(dim)
+        return {'hist': new_hist, 'binning': new_binning}
+
+    @_new_obj
     def rebin(self, new_binning):
         """Rebin the map with bin edge lodations and names according to those
         specified in `new_binning`.
@@ -1666,6 +1699,26 @@ def test_Map():
     # set directly unumpy array with errors
     #m1 = Map(name='x', hist=unp.uarray(np.ones((40,20)),np.sqrt(np.ones((40,20)))), binning=(e_binning, cz_binning))
     # or call init poisson error afterwards
+    m1 = Map(name='x', hist=np.ones((n_ebins, n_czbins)), hash=23,
+             binning=(e_binning, cz_binning))
+
+    # Test sum()
+    m1 = Map(
+        name='x',
+        hist=np.arange(0, n_ebins*n_czbins).reshape((n_ebins, n_czbins)),
+        binning=(e_binning, cz_binning)
+    )
+    s1 = m1.sum('energy', keepdims=True)
+    assert np.all(s1.hist == np.array([[225, 235, 245, 255, 265]]))
+    assert s1.shape == (1, 5)
+    assert 'energy' in s1.binning
+    assert 'coszen' in s1.binning
+    s2 = m1.sum('energy', keepdims=False)
+    assert np.all(s2.hist == np.array([225, 235, 245, 255, 265]))
+    assert s2.shape == (5,)
+    assert 'energy' not in s2.binning
+    assert 'coszen' in s2.binning
+
     m1 = Map(name='x', hist=np.ones((n_ebins, n_czbins)), hash=23,
              binning=(e_binning, cz_binning))
     print "downsampling ====================="
