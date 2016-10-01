@@ -16,6 +16,7 @@ GridPropagator.py
 gaussians.c
 gaussians.so
 __pycache__
+.eggs
 
 # Packages
 dist

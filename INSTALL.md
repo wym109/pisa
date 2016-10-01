@@ -6,7 +6,7 @@ In Ubuntu you can peform the following steps to perform a clean, full (all optio
 
 ```bash
 # Install required and optional system packages
-sudo apt-get install git swig hdf5 llvm python2.7 virtualenv
+sudo apt-get install git swig libhdf5-10 llvm-dev python2.7 python-pip virtualenv
 
 # Create and activate a virtual environment: so fresh and so clean
 virtualenv my_virtual_env
@@ -29,12 +29,12 @@ test_consistency_with_pisa2.py -v
 
 # Run a Monte Carlo pipeline to produce, store, and plot its expected
 # distributions at the output of each stage
-pipeline.py --settings settings/pipeline_settings/pipeline_settings_example.ini \
+pipeline.py --settings settings/pipeline_settings/example.cfg \
     --dir /tmp/pipeline_output --intermediate --pdf -v
 
 # Run the Asimov NMO analysis; leave off "_gpu" to run CPU-only version
 hypo_testing.py --logdir /tmp/test \
-    --h0-pipeline settings/pipeline_settings/pipeline_settings_example_gpu.ini \
+    --h0-pipeline settings/pipeline_settings/example_gpu.cfg \
     --h0-param-selections="ih" \
     --h1-param-selections="nh" \
     --data-param-selections="nh" \
@@ -69,6 +69,11 @@ Also note that Python, SWIG, HDF5, and pip support come pre-packaged or as `cond
   * Anaconda: built in
   * Otherwise, if on Linux it will be pre-packaged; in Ubuntu:<br>
     `sudo apt-get install python2.7`
+* [pip](https://pip.pypa.io) version >= 1.8 required
+  * Anaconda:<br>
+    `conda install pip`
+  * In Ubuntu:<br>
+    `sudo apt-get install python-pip`
 * [git](https://git-scm.com)
   * In Ubuntu,<br>
     `sudo apt-get install git`
@@ -77,12 +82,7 @@ Also note that Python, SWIG, HDF5, and pip support come pre-packaged or as `cond
     `sudo apt-get install swig`
 * [hdf5](http://www.hdfgroup.org/HDF5) — install with `--enable-cxx` option
   * In Ubuntu,<br>
-    `sudo apt-get install hdf5`
-* [pip](https://pip.pypa.io) version >= 1.8 required
-  * Anaconda:<br>
-    `conda install pip`
-  * Otherwise, e.g. in Ubuntu:<br>
-    `sudo apt-get install pip`
+    `sudo apt-get install libhdf5-10`
 
 Required Python modules that are installed automatically when you use the pip command detailed later:
 * [cython](http://cython.org)
@@ -107,7 +107,7 @@ Optional dependencies. Some of these must be installed manually prior to install
   * Anaconda<br>
     `conda install numba`
   * In Ubuntu,<br>
-    `sudo apt-get install llvm`
+    `sudo apt-get install llvm-dev`
 * [virtualenv](https://virtualenv.pypa.io/en/stable/) Use virtual environments to e.g. create a "clean" installation and/or to have multiple multiple versions installed, one version per virtual environment. To speed up installation (at the cost of a less "clean" environment), you can specify the `--system-site-packages` option to `virtualenv` to make use of already-installed Python packages.
   * Anaconda<br>
     `conda install virtualenv`
@@ -326,7 +326,7 @@ test_consistency_with_pisa2.py -v
 To make sure that an analysis can run, you can run the Asimov analysis of neutrion mass ordering (NMO) with the following command:
 ```bash
 hypo_testing.py --logdir /tmp/test \
-    --h0-pipeline settings/pipeline_settings/pipeline_settings_example_gpu.ini \
+    --h0-pipeline settings/pipeline_settings/pipeline_settings_example_gpu.cfg \
     --h0-param-selections="ih" \
     --h1-param-selections="nh" \
     --data-param-selections="nh" \

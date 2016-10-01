@@ -8,5 +8,4 @@ git+https://github.com/hgrecco/pint.git@c5925bfdab09c75a26bb70cd29fb3d34eed56a5f
 h5py
 line_profiler
 matplotlib
-tables
 uncertainties
