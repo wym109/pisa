@@ -29,17 +29,17 @@ test_consistency_with_pisa2.py -v
 
 # Run a Monte Carlo pipeline to produce, store, and plot its expected
 # distributions at the output of each stage
-pipeline.py --settings settings/pipeline_settings/example.cfg \
+pipeline.py --settings settings/pipeline/example.cfg \
     --dir /tmp/pipeline_output --intermediate --pdf -v
 
 # Run the Asimov NMO analysis; leave off "_gpu" to run CPU-only version
 hypo_testing.py --logdir /tmp/test \
-    --h0-pipeline settings/pipeline_settings/example_gpu.cfg \
+    --h0-pipeline settings/pipeline/example_gpu.cfg \
     --h0-param-selections="ih" \
     --h1-param-selections="nh" \
     --data-param-selections="nh" \
     --data-is-mc \
-    --minimizer-settings settings/minimizer_settings/bfgs_settings_fac1e11_eps1e-4_mi20.json \
+    --minimizer-settings settings/minimizer/bfgs_settings_fac1e11_eps1e-4_mi20.json \
     --metric="chi2" \
     --pprint -v
 
@@ -326,12 +326,12 @@ test_consistency_with_pisa2.py -v
 To make sure that an analysis can run, you can run the Asimov analysis of neutrion mass ordering (NMO) with the following command:
 ```bash
 hypo_testing.py --logdir /tmp/test \
-    --h0-pipeline settings/pipeline_settings/pipeline_settings_example_gpu.cfg \
+    --h0-pipeline settings/pipeline/example_gpu.cfg \
     --h0-param-selections="ih" \
     --h1-param-selections="nh" \
     --data-param-selections="nh" \
     --data-is-mc \
-    --minimizer-settings settings/minimizer_settings/bfgs_settings_fac1e11_eps1e-4_mi20.json \
+    --minimizer-settings settings/minimizer/bfgs_settings_fac1e11_eps1e-4_mi20.json \
     --metric="chi2" \
     --pprint -v
 ```

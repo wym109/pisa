@@ -6,7 +6,7 @@
 Parse a ConfigFile object into a dict containing an item for every analysis
 stage, that itself contains all necessary instantiation arguments/objects for
 that stage. for en example config file, please consider
-`$PISA/pisa.utils/settings/pipeline_settings/pipeline_settings_example.ini`
+`$PISA/pisa.utils/settings/pipeline/example.cfg`
 
 Config File Structure:
 ===============

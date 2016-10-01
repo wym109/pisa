@@ -296,7 +296,7 @@ class hist(Stage):
             # "dummy" dimensions to norm_factors where we want the "extra
             # dimensions": at the end.
             for dim in self.output_binning:
-				norm_factors = np.expand_dims(norm_factors, axis=-1)
+                norm_factors = np.expand_dims(norm_factors, axis=-1)
 
             #print 'norm_factors:', norm_factors
             #print 'norm_factors.shape:', norm_factors.shape

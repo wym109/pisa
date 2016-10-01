@@ -175,7 +175,7 @@ if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument(
-        '-p', '--pipeline-settings', type=str, required=True,
+        '-p', '--pipeline', type=str, required=True,
         metavar='CONFIGFILE', action='append',
         help='''Settings file for each pipeline (repeat for multiple).'''
     )
@@ -191,7 +191,7 @@ if __name__ == '__main__':
 
     set_verbosity(args.v)
 
-    distribution_maker = DistributionMaker(pipelines=args.pipeline_settings)
+    distribution_maker = DistributionMaker(pipelines=args.pipeline)
     outputs = distribution_maker.get_outputs()
     if args.outdir:
         my_plotter = Plotter(
