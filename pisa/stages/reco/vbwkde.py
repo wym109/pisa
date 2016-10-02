@@ -1,13 +1,13 @@
-# PISA author: Timothy C. Arlen
-#              tca3@psu.edu
+# PISA author: J.L. Lanfranchi
+#              jll1062+pisa@phys.psu.edu
 #
-# CAKE author: Steven Wren
-#              steven.wren@icecube.wisc.edu
+# CAKE author: Matthew Weiss
 #
-# date:   2016-05-27
+# date:        2016-10-01
 
-"""This reco service produces a set of transforms mapping true
-events values (energy and coszen) onto reconstructed values.
+"""
+Produce a set of transforms mapping true events values (energy and coszen) onto
+reconstructed values.
 
 For each bin in true energy and true coszen, a corresponding distribution of
 reconstructed energy and coszen values is estimated using a variable-bandwidth
@@ -22,112 +22,23 @@ from __future__ import division
 from collections import OrderedDict
 from copy import deepcopy
 import os
-from string import ascii_lowercase
 
 import numpy as np
 from scipy.interpolate import interp1d
 
-from pisa.core.binning import MultiDimBinning
-from pisa.core.events import Events
-from pisa.core.param import Param, ParamSet
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
-from pisa.utils import kde, confInterval
+from pisa.utils.confInterval import MLConfInterval
+from pisa.utils.coords import abs2rel, rel2abs
 from pisa.utils.fileio import mkdir
 from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup
 from pisa.utils.hash import hash_obj
+from pisa.utils.kde import vbw_kde
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile, line_profile
 from pisa.utils.resources import find_resource
 
 EPSILON = 1e-9
-
-# NOTE: If we want to scale the resolutions about some reference point
-# (x_r) and then shift them by `shift`:
-#
-#   x1 = x_r + (x - x_r)*scale + shift
-#
-# but we should take the sample points as fixed, and instead sample
-# from locations we desire but transformed to the correct locatons on
-# the original curve
-#
-#    x = (x1 - x_r - shift)/scale + x_r
-#
-
-## TODO: move these functions elsewhere in the codebase (utils.something)
-def abs2rel(abs_coords, abs_bin_midpoint, rel_scale_ref, scale, abs_obj_shift):
-    """Viewing an object that is defined in a relative coordinate space, """
-    return (
-        (abs_coords - abs_bin_midpoint - abs_obj_shift + rel_scale_ref)/scale
-    )
-
-
-def rel2abs(rel_coords, abs_bin_midpoint, rel_scale_ref, scale, abs_obj_shift):
-    """Convert coordinates defined relative to a bin to absolute
-    coordinates.
-
-    """
-    return (
-        rel_coords*scale - rel_scale_ref + abs_bin_midpoint + abs_obj_shift
-    )
-    #return (
-    #    (rel_coords - rel_scale_ref)*scale + rel_scale_ref
-    #    + abs_bin_midpoint + abs_obj_shift
-    #)
-
-def test_abs2rel():
-    xabs = np.array([-2, -1, 0, 1, 2])
-
-    # The identity transform
-    xrel = abs2rel(abs_coords=xabs, abs_bin_midpoint=0, rel_scale_ref=0,
-                   scale=1, abs_obj_shift=0)
-    assert np.all(xrel == xabs)
-
-    # Absolute bin midpoint: if the bin is centered at 2, then the relative
-    # coordinates should range from -4 to 0
-    xrel = abs2rel(abs_coords=xabs, abs_bin_midpoint=2, rel_scale_ref=0,
-                   scale=1, abs_obj_shift=0)
-    assert xrel[0] == -4 and xrel[-1] == 0
-
-    # Scale: an object that is 4 units wide absolute space scaled by 2
-    # should appear to be 2 units wide in relative space... or in other words,
-    # the relative coordinates should be spaced more narrowly to one another by
-    # a factor of 2 than coordinates in the absolute space
-    xrel = abs2rel(abs_coords=xabs, abs_bin_midpoint=0, rel_scale_ref=0,
-                   scale=2, abs_obj_shift=0)
-    assert (xabs[1]-xabs[0]) == 2*(xrel[1]-xrel[0])
-
-    # Relative scale reference point: If an object living in relative space is
-    # centered at 1 and scaled by 2 with rel_scale_ref=1, then it should still
-    # be centered at 1 but be wider by a factor of 2. This means that all
-    # coordinates must scale relative to 1: 2 gets 2x closer to 1, 0 gets 2x
-    # closer to 1, etc
-    # if stuff stuff
-    xrel = abs2rel(abs_coords=xabs, abs_bin_midpoint=0, rel_scale_ref=1,
-                   scale=2, abs_obj_shift=0)
-    assert (xabs[1]-xabs[0]) == 2*(xrel[1]-xrel[0])
-    assert np.all(xrel == np.array([-0.5, 0, 0.5, 1, 1.5]))
-    xrel = abs2rel(abs_coords=xabs, abs_bin_midpoint=0, rel_scale_ref=-2,
-                   scale=2, abs_obj_shift=0)
-    assert np.all(xrel == np.array([-2, -1.5, -1, -0.5, 0]))
-
-    # Shift: an object that lives in the relative space centered at 0 should
-    # now be centered at 1 in absolute space. Relative coordinates should be
-    # shifted to the left such that object appears to be shifted to the right.
-    xrel = abs2rel(abs_coords=xabs, abs_bin_midpoint=0, rel_scale_ref=0,
-                   scale=1, abs_obj_shift=1)
-    assert xrel[0] == -3 and xrel[-1] == 1
-
-    logging.info('<< PASSED : test_abs2rel >>')
-
-def test_rel2abs():
-    xabs = np.array([-2, -1, 0, 1, 2])
-    kwargs = dict(abs_bin_midpoint=12, rel_scale_ref=-3.3, scale=5.4,
-                  abs_obj_shift=19)
-    xrel = abs2rel(xabs, **kwargs)
-    assert np.allclose(rel2abs(abs2rel(xabs, **kwargs), **kwargs), xabs)
-    logging.info('<< PASSED : test_rel2abs >>')
-
 
 # TODO: the below logic does not generalize to muons, but probably should
 # (rather than requiring an almost-identical version just for muons). For
@@ -150,7 +61,7 @@ class vbwkde(Stage):
     Parameters
     ----------
     params : ParamSet
-        Must exclusively have parameter:
+        Must exclusively have parameters:
 
         reco_events : string or Events
             PISA Events object or filename/path to use to derive transforms, or
@@ -181,6 +92,8 @@ class vbwkde(Stage):
 
         cz_reco_bias : float
 
+        transform_events_keep_criteria : None, string, or sequence of strings
+
     particles : string
         Must be one of 'neutrinos' or 'muons' (though only neutrinos are
         supported at this time).
@@ -207,11 +120,11 @@ class vbwkde(Stage):
         in PISA but not necessarily) prefixed by "reco_". Each must match a
         corresponding dimension in `input_binning`.
 
-    disk_cache
+    transforms_cache_depth : int >= 0
 
-    transforms_cache_depth
+    outputs_cache_depth : int >= 0
 
-    outputs_cache_depth
+    memcache_deepcopy : bool
 
     debug_mode : None, bool, or string
         Whether to store extra debug info for this service.
@@ -231,16 +144,12 @@ class vbwkde(Stage):
     """
     def __init__(self, params, particles, input_names, transform_groups,
                  sum_grouped_flavints, input_binning, output_binning,
-                 error_method=None, disk_cache=None, transforms_cache_depth=20,
+                 error_method=None, transforms_cache_depth=20,
                  outputs_cache_depth=20, memcache_deepcopy=True,
                  debug_mode=None):
         assert particles in ['neutrinos', 'muons']
         self.particles = particles
-        """Whether stage is instantiated to process neutrinos or muons"""
-
         self.transform_groups = flavintGroupsFromString(transform_groups)
-        """Particle/interaction types to group for computing transforms"""
-
         self.sum_grouped_flavints = sum_grouped_flavints
 
         # All of the following params (and no more) must be passed via the
@@ -272,7 +181,6 @@ class vbwkde(Stage):
             input_names=input_names,
             output_names=output_names,
             error_method=error_method,
-            disk_cache=disk_cache,
             outputs_cache_depth=outputs_cache_depth,
             transforms_cache_depth=transforms_cache_depth,
             memcache_deepcopy=memcache_deepcopy,
@@ -291,8 +199,25 @@ class vbwkde(Stage):
         self.instantiate_disk_cache()
 
     def validate_binning(self):
-        assert set(['energy', 'coszen']) == set(self.input_binning.basenames)
-        assert self.input_binning.basenames  == self.output_binning.basenames
+        """Require input dimensions of "true_energy" and "true_coszen" (in any
+        order).
+
+        Require output dimensions of "reco_energy" and "reco_coszen", and
+        optionally allow output dimension of "pid"; can be in any order.
+
+        """
+        input_names = set(self.output_binning.names)
+        assert input_names == set(['true_energy', 'true_coszen'])
+
+        output_names = set(self.output_binning.names)
+        outs1 = set(['reco_energy', 'reco_coszen'])
+        outs2 = set(['reco_energy', 'reco_coszen', 'pid'])
+        assert output_names == outs1 or output_names == outs2
+
+        input_basenames = set(self.input_binning.basenames)
+        output_basenames = set(self.output_binning.basenames)
+        for base_d in input_basenames:
+            assert base_d in output_basenames
 
     @profile
     def _compute_transforms(self):
@@ -317,7 +242,7 @@ class vbwkde(Stage):
         # events file
         comp_units = dict(
             true_energy='GeV', true_coszen=None, true_azimuth='rad',
-            reco_energy='GeV', reco_coszen=None, reco_azimuth='rad'
+            reco_energy='GeV', reco_coszen=None, reco_azimuth='rad', pid=None
         )
 
         # Select only the units in the input/output binning for conversion
@@ -334,7 +259,7 @@ class vbwkde(Stage):
         self.get_all_kde_info()
 
         # Apply scaling factors and figure out the area per bin for each KDE
-        transforms = []
+        xforms = []
         for xform_flavints in self.transform_groups:
             reco_kernel = self.compute_kernel(
                 kde_info=self.all_kde_info[str(xform_flavints)],
@@ -352,6 +277,7 @@ class vbwkde(Stage):
                     input_flavs = NuFlavIntGroup(input_name)
                     if len(set(xform_flavints).intersection(input_flavs)) > 0:
                         xform_input_names.append(input_name)
+
                 for output_name in self.output_names:
                     if not output_name in xform_flavints:
                         continue
@@ -363,7 +289,7 @@ class vbwkde(Stage):
                         xform_array=reco_kernel,
                         sum_inputs=self.sum_grouped_flavints
                     )
-                    transforms.append(xform)
+                    xforms.append(xform)
             else:
                 for input_name in self.input_names:
                     if input_name not in xform_flavints:
@@ -375,9 +301,9 @@ class vbwkde(Stage):
                         output_binning=self.output_binning,
                         xform_array=reco_kernel,
                     )
-                    transforms.append(xform)
+                    xforms.append(xform)
 
-        return TransformSet(transforms=transforms)
+        return TransformSet(transforms=xforms)
 
     @profile
     def get_all_kde_info(self):
@@ -434,7 +360,7 @@ class vbwkde(Stage):
 
     @profile
     def compute_kdes(self, events, binning):
-        """Construct a 4D kernel set from MC events using VBWKDE.
+        """Construct a 4D kernel set from MC events using VBW-KDE.
 
         Given a set of MC events and binning (which serves as both input and
         output binning), construct a KDE estimate and draw samples from this.
@@ -443,7 +369,7 @@ class vbwkde(Stage):
 
         NOTE: Actual limits in energy used to group events into a single "true"
         bin may be extended beyond the bin edges defined by ebins in order
-        to gather enough events to successfully apply VBWKDE.
+        to gather enough events to successfully apply VBW-KDE.
 
 
         Parameters
@@ -555,7 +481,7 @@ class vbwkde(Stage):
             # up KDE in the bins where we're having issues, and we continue to
             # have 0 event reco-ing inbounds from these bins (or it gets even
             # worse).
-            ## Clip enu error to imply reco >= 0 GeV 
+            ## Clip enu error to imply reco >= 0 GeV
             #np.clip(enu_err, a_min=-ebin_mid, a_max=np.inf, out=enu_err)
 
             #==================================================================
@@ -674,14 +600,14 @@ class vbwkde(Stage):
             # them into account. Normalization is based upon *all* events,
             # whether or not they fall within a bin specified above.
 
-            # Number of points in the mesh used for VBWKDE; must be large
+            # Number of points in the mesh used for VBW-KDE; must be large
             # enough to capture fast changes in the data but the larger the
             # number, the longer it takes to compute the densities at all the
             # points. Here, just choosing a fixed number regardless of the data
             # or binning
             N_cz_mesh = 2**13
 
-            # Data range for VBWKDE to consider
+            # Data range for VBW-KDE to consider
             cz_kde_min = -3
             cz_kde_max = +2
 
@@ -760,7 +686,7 @@ class vbwkde(Stage):
                         break
 
             if cz_kde_failed:
-                logging.warn('Failed to fit VBWKDE!')
+                logging.warn('Failed to fit VBW-KDE!')
                 continue
 
             if np.min(cz_pdf) < 0:
@@ -803,7 +729,7 @@ class vbwkde(Stage):
         return kde_info, extra_info
 
     @profile
-    def compute_kernel(self, kde_info, binning, e_res_scale,
+    def compute_kernel(self, e_cz_kde_info, binning, e_res_scale,
                        cz_res_scale, e_reco_bias, cz_reco_bias,
                        res_scale_ref='mode'):
         """Construct a 4D kernel from linear interpolants describing the
@@ -818,7 +744,7 @@ class vbwkde(Stage):
 
         Parameters
         ----------
-        kde_info : OrderedDict
+        e_cz_kde_info : OrderedDict
         binning : MultiDimBinning
         e_res_scale : scalar
         cz_res_scale : scalar
@@ -833,13 +759,12 @@ class vbwkde(Stage):
             Mapping from the number of events in each bin of the 2D
             MC-true-events histogram to the number of events reconstructed in
             each bin of the 2D reconstructed-events histogram. Dimensions are
-              len(ebins)-1 x len(czbins)-1 x len(ebins)-1 x
-              len(czbins)-1
-            since ebins and czbins define the histograms' bin edges.
+              len(ebins) x len(czbins) x len(ebins) x len(czbins).
 
         """
         SAMPLES_PER_BIN = 500
-        """Number of samples for computing area in a bin (via np.trapz)."""
+        """Number of samples for computing each 1D area in a bin (using
+        np.trapz)."""
 
         if isinstance(e_res_scale, Param):
             e_res_scale = e_res_scale.value.m_as('dimensionless')
@@ -853,23 +778,27 @@ class vbwkde(Stage):
             res_scale_ref = res_scale_ref.value.strip().lower()
         assert res_scale_ref in ['zero', 'mean', 'mode']
 
-        e_dim_num = binning.index('energy', use_basenames=True)
-        cz_dim_num = binning.index('coszen', use_basenames=True)
+        e_dim_num = binning.index('true_energy')
+        cz_dim_num = binning.index('true_coszen')
 
-        energy_first = True if e_dim_num == 0 else False
+        energy_first = True if e_dim_num < cz_dim_num else False
 
-        ebins = binning.dims[e_dim_num]
-        czbins = binning.dims[cz_dim_num]
+        ebins = binning['true_energy']
+        czbins = binning['true_coszen']
 
         # Upsample to get coordinates at which to evaluate trapezoidal-rule
         # integral for each bin; convert to scalars in compuational units
-        e_oversamp = ebins.oversample(SAMPLES_PER_BIN-1).bin_edges.m_as('GeV')
-        cz_oversamp = czbins.oversample(SAMPLES_PER_BIN-1).bin_edges.m_as('dimensionless')
+        e_oversamp = ebins.oversample(SAMPLES_PER_BIN-1)
+        cz_oversamp = czbins.oversample(SAMPLES_PER_BIN-1)
+
+        e_oversamp = e_oversamp.bin_edges.m_as('GeV')
+        cz_oversamp = cz_oversamp.bin_edges.m_as('dimensionless')
 
         # Object in which to store the 4D kernels: np 4D array
         kernel4d = np.zeros(binning.shape * 2)
 
-        for ebin_n, (ebinpoints, interpolants) in enumerate(kde_info.iteritems()):
+        for ebin_n, item in enumerate(e_cz_kde_info.iteritems()):
+            ebinpoints, interpolants = item
             ebin = ebins[ebin_n]
             ebin_min, ebin_mid, ebin_max = ebinpoints
             e_interp = interpolants['e_interp']
@@ -1085,17 +1014,18 @@ class vbwkde(Stage):
         return kernel4d
 
 
-def plot_kde_detail(flavints, kde_info, extra_info, binning, outdir,
+def plot_kde_detail(flavints, e_cz_kde_info, extra_info, binning, outdir,
                     ebin_n=None):
     """
 
     Parameters
     ----------
-    kde_info : OrderedDict
+    e_cz_kde_info : OrderedDict
         KDE info recorded for a single flav/int
 
     extra_info : OrderedDict
-        Extra info (in same order as `kde_info` recorded for a single flav/int
+        Extra info (in same order as `e_cz_kde_info` recorded for a single
+        flav/int
 
     ebin_n : None, int, or slice
         Index used to pick out a particular energy bin (or bins) to plot. Default
@@ -1157,9 +1087,9 @@ def plot_kde_detail(flavints, kde_info, extra_info, binning, outdir,
     else:
         raise ValueError('Unhadled type for `ebin_n`: %s' %type(ebin_n))
 
-    bin_numbers = range(len(kde_info))
-    binfos = kde_info.keys()
-    kinfos = kde_info.values()
+    bin_numbers = range(len(e_cz_kde_info))
+    binfos = e_cz_kde_info.keys()
+    kinfos = e_cz_kde_info.values()
     einfos = extra_info.values()
     for (bin_n, bin_info, kde_info, extra_info) in zip(bin_numbers[idx],
                                                        binfos[idx],
@@ -1203,7 +1133,7 @@ def plot_kde_detail(flavints, kde_info, extra_info, binning, outdir,
         ax1 = fig1.add_subplot(211, axisbg=AXISBG)
 
         # Retrieve region where VBWKDE lives
-        ml_ci = confInterval.MLConfInterval(x=enu_mesh, y=enu_pdf)
+        ml_ci = MLConfInterval(x=enu_mesh, y=enu_pdf)
         #for conf in np.logspace(np.log10(0.999), np.log10(0.95), 50):
         #    try:
         #        lb, ub, yopt, r = ml_ci.findCI_lin(conf=conf)
@@ -1305,8 +1235,7 @@ def plot_kde_detail(flavints, kde_info, extra_info, binning, outdir,
             cz_err, bins=cz_hbins, normed=True, **HIST_PP
         )
         ax2.plot(cz_mesh, cz_pdf, **DIFFUS_PP)
-        fci = confInterval.MLConfInterval(x=cz_mesh,
-                                          y=cz_pdf)
+        fci = MLConfInterval(x=cz_mesh, y=cz_pdf)
         lb, ub, yopt, r = fci.findCI_lin(conf=0.995)
         axlims = ax2.axis('tight')
         ax2.set_xlim(lb, ub)
@@ -1353,8 +1282,3 @@ def plot_kde_detail(flavints, kde_info, extra_info, binning, outdir,
         logging.trace('plot_fname = %s' %plot_fname)
         fig1.savefig(plot_fname, format='pdf')
 
-
-if __name__ == '__main__':
-    set_verbosity(3)
-    test_abs2rel()
-    test_rel2abs()
