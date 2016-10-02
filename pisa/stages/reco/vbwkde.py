@@ -263,12 +263,6 @@ class vbwkde(Stage):
         for xform_flavints in self.transform_groups:
             reco_kernel = self.compute_kernel(
                 kde_info=self.all_kde_info[str(xform_flavints)],
-                binning=self.input_binning,
-                e_res_scale=self.params.e_res_scale,
-                cz_res_scale=self.params.cz_res_scale,
-                e_reco_bias=self.params.e_reco_bias,
-                cz_reco_bias=self.params.cz_reco_bias,
-                res_scale_ref='mode'
             )
 
             if self.sum_grouped_flavints:
@@ -766,40 +760,33 @@ class vbwkde(Stage):
         """Number of samples for computing each 1D area in a bin (using
         np.trapz)."""
 
-        if isinstance(e_res_scale, Param):
-            e_res_scale = e_res_scale.value.m_as('dimensionless')
-        if isinstance(cz_res_scale, Param):
-            cz_res_scale = cz_res_scale.value.m_as('dimensionless')
-        if isinstance(e_reco_bias, Param):
-            e_reco_bias = e_reco_bias.value.m_as('GeV')
-        if isinstance(cz_reco_bias, Param):
-            cz_reco_bias = cz_reco_bias.value.m_as('dimensionless')
-        if isinstance(res_scale_ref, Param):
-            res_scale_ref = res_scale_ref.value.strip().lower()
-        assert res_scale_ref in ['zero', 'mean', 'mode']
+        e_res_scale = self.params.e_res_scale.value.m_as('dimensionless')
+        cz_res_scale = self.params.cz_res_scale.value.m_as('dimensionless')
+        e_reco_bias = self.params.e_reco_bias.value.m_as('GeV')
+        cz_reco_bias = self.params.cz_reco_bias.value.m_as('dimensionless')
+        res_scale_ref = self.params.res_scale_ref.value.strip().lower()
 
-        e_dim_num = binning.index('true_energy')
-        cz_dim_num = binning.index('true_coszen')
+        e_dim_num = self.input_binning.index('true_energy')
+        cz_dim_num = self.input_binning.index('true_coszen')
 
         energy_first = True if e_dim_num < cz_dim_num else False
 
-        ebins = binning['true_energy']
-        czbins = binning['true_coszen']
+        ebins = self.input_binning['true_energy']
+        czbins = self.input_binning['true_coszen']
 
         # Upsample to get coordinates at which to evaluate trapezoidal-rule
         # integral for each bin; convert to scalars in compuational units
-        e_oversamp = ebins.oversample(SAMPLES_PER_BIN-1)
-        cz_oversamp = czbins.oversample(SAMPLES_PER_BIN-1)
+        e_oversamp_binned = ebins.oversample(SAMPLES_PER_BIN-1)
+        cz_oversamp_binned = czbins.oversample(SAMPLES_PER_BIN-1)
 
-        e_oversamp = e_oversamp.bin_edges.m_as('GeV')
-        cz_oversamp = cz_oversamp.bin_edges.m_as('dimensionless')
+        e_oversamp_binned = e_oversamp_binned.bin_edges.m_as('GeV')
+        cz_oversamp_binned = cz_oversamp_binned.bin_edges.m_as('dimensionless')
 
         # Object in which to store the 4D kernels: np 4D array
-        kernel4d = np.zeros(binning.shape * 2)
+        kernel4d = np.zeros((self.input_binning * self.output_binning).shape)
 
         for ebin_n, item in enumerate(e_cz_kde_info.iteritems()):
             ebinpoints, interpolants = item
-            ebin = ebins[ebin_n]
             ebin_min, ebin_mid, ebin_max = ebinpoints
             e_interp = interpolants['e_interp']
             cz_interp = interpolants['cz_interp']
@@ -824,46 +811,64 @@ class vbwkde(Stage):
             # (this is where the interpolant is defined) given our dense
             # sampling in absolute coordinate space and our desire to scale and
             # shift the resolutions by some amount.
-            rel_e_coords = abs2rel(
-                abs_coords=e_oversamp, abs_bin_midpoint=ebin_mid,
+            rel_e_coords_binned = abs2rel(
+                abs_coords=e_oversamp_binned, abs_bin_midpoint=ebin_mid,
                 rel_scale_ref=rel_e_ref, scale=e_res_scale,
                 abs_obj_shift=e_reco_bias
             )
 
-            # NOTE: We don't need to account for area lost in tail below 0 GeV
-            # so long as our analysis doesn't go to 0: We can just assume all
-            # events below our lower threshold end up below the threshold but
-            # above 0, and then we have no "missing" area.
-
             # Divide by e_res_scale to keep the PDF area normalized to one when
-            # we make it wider/narrower.
-            e_pdf = e_interp(rel_e_coords) / e_res_scale
+            # we make it wider/narrower (i.e., while interpolant lives in
+            # relative-space, e_pdf_binned lives in absolute-space, so the latter
+            # needs to be scaled vertically since it is rescaled horizontally).
+            e_pdf_binned = e_interp(rel_e_coords_binned) / e_res_scale
 
-            total_area = np.abs(np.trapz(x=e_oversamp, y=e_pdf))
-            logging.trace('Bin %04d total area before artificial renorm = %e'
-                          %(ebin_n, total_area))
+            binned_area = np.abs(np.trapz(x=e_oversamp_binned, y=e_pdf_binned))
+            logging.trace('Bin %4d binned area before any renorm = %e'
+                          %(ebin_n, binned_area))
 
-            e_pdf /= total_area
+            # Compute total area under curve (since KDE is a sum of normalized
+            # Gaussians divided by the number of Gaussians, the area should be
+            # exactly 1. Only deviations should be due to finite sampling of
+            # the curve and the use of linear interpolation between these
+            # samples (and note that since we're doing so, trapz gives the
+            # "correct" area under this curve).
+            total_trapz_area = np.trapz(x=e_interp.x, y=e_interp.y)
+            logging.trace('Bin %4d total trapz area = %e'
+                          %(ebin_n, binned_area))
 
-            # Now figure out the "invalid" area under the curve. Since we draw
+            # Normalize e_pdf_binned so that the entire PDF (including
+            # points outside of those that are binned) will have area of 1.
+            # (Necessitated due to finite sampling; see notes above.)
+            e_pdf_binned /= total_trapz_area
+            binned_area /= total_trapz_area
+            logging.trace('Bin %4d binned area after trapz renorm = %e'
+                          %(ebin_n, binned_area))
+
+            # Now figure out the "invalid" area under the PDF. Since we draw
             # events that are > than the bin midpoint, but we effectively
             # interpret their reco as coming from an event with true-energy at
             # the bin center, the reco can be < 0 GeV. While this gives the KDE
-            # a better shape (compared to e.g. not using these events at all),
-            # it does leave us with a tail that extends more or less (but
-            # always some amont) below the valid range.
+            # a "better" shape (compared to e.g. not using these events at
+            # all), it does leave us with a tail that extends more or less (but
+            # always some) below the valid range--i.e., below 0 GeV.
             #
             # Proposed solution: Add up this area, and rescale the PDF to be
-            # larger to compensate for this "wasted" non-physical area.
-            invalid_rel_e_min = abs2rel(
+            # larger to compensate for this "wasted," non-physical area.
+
+            # Figure out relative coordinate corresponding to 0 GeV
+            zero_in_rel_coords = abs2rel(
                 abs_coords=0, abs_bin_midpoint=ebin_mid,
                 rel_scale_ref=rel_e_ref, scale=e_res_scale,
                 abs_obj_shift=e_reco_bias
             )
-            # A good point to start the integration is the lower limit of the
-            # energy intpolant as we can (rightly or wrongly) assume we covered
-            # the complete range of where there might be any appreciable area
-            # under the curve.
+
+            # The only point we can use to start the integration is the lower
+            # limit of the energy intpolant as we must assume (rightly or
+            # wrongly) tht we covered the complete range of where there might
+            # be any appreciable area under the curve.
+
+            # Find the absolute coordinate of this lowest-energy sample point
             abs_e_samp_min = rel2abs(
                 rel_coords=np.min(e_interp.x),
                 abs_bin_midpoint=ebin_mid,
@@ -872,37 +877,41 @@ class vbwkde(Stage):
                 abs_obj_shift=e_reco_bias
             )
 
-            if abs_e_samp_min < 0:
-                de_samp_step_size = 0.01 # GeV
-                abs_e_samp_points = np.arange(abs_e_samp_min, 0,
-                                              de_samp_step_size)
-                abs_e_samp_points = np.concatenate([abs_e_samp_points, [0]])
-                rel_e_samp_points = abs2rel(
-                    abs_coords=abs_e_samp_points, abs_bin_midpoint=ebin_mid,
-                    rel_scale_ref=rel_e_ref, scale=e_res_scale,
-                    abs_obj_shift=e_reco_bias
+            if np.min(e_interp.x) < zero_in_rel_coords:
+                # Identify all interpolant x-coords that are less than 0 GeV in
+                # absolute space
+                lt_zero_mask = e_interp.x < zero_in_rel_coords
+
+                # Integrate the area including the points less than zero and
+                # the 0 GeV point; normalize by the same total_trapz_area that
+                # we had to normalize by above.
+                x = np.concatenate(
+                    (e_interp.x[lt_zero_mask], [zero_in_rel_coords])
                 )
-                invalid_e_pdf = e_interp(rel_e_samp_points) / e_res_scale
-                invalid_e_area = np.trapz(abs_e_samp_points, invalid_e_pdf) / total_area
-                logging.trace('Invalid e-abs samp points 0,-1, bin %4d = %s'
-                              %(ebin_n, (abs_e_samp_points[0], abs_e_samp_points[-1])))
-                logging.trace('Invalid e-pdf lims, bin %4d = %s'
-                              %(ebin_n, (np.min(invalid_e_pdf), np.max(invalid_e_pdf))))
-                logging.trace('Invalid e-area, bin %4d = %0.4e'
+                y = np.concatenate(
+                    (e_interp.y[lt_zero_mask], [e_interp(zero_in_rel_coords)])
+                )
+                invalid_e_area = np.trapz(x=x, y=y) / total_trapz_area
+
+                logging.trace('Bin %4d invalid e-area = %0.4e'
                               %(ebin_n, invalid_e_area))
-                e_pdf = e_pdf / (1 - np.abs(invalid_e_area))
+                e_pdf_binned /= 1 - invalid_e_area
+                binned_area /= 1 - invalid_e_area
             else:
-                logging.trace('abs_e_samp_min, bin %d = %s' %(ebin_n,
-                                                              abs_e_samp_min))
+                logging.trace('Bin %4d abs_e_samp_min = %s'
+                              %(ebin_n, abs_e_samp_min))
+
+            logging.trace('Bin %4d binned area after invalid renorm = %e'
+                          %(ebin_n, binned_area))
 
             ebin_areas = []
             for n in xrange(ebins.num_bins):
                 sl = slice(n*SAMPLES_PER_BIN, (n+1)*SAMPLES_PER_BIN + 1)
-                ebin_area = np.trapz(x=e_oversamp[sl], y=e_pdf[sl])
+                ebin_area = np.trapz(x=e_oversamp_binned[sl], y=e_pdf_binned[sl])
                 assert ebin_area > -EPSILON, 'bin %d ebin_area=%e' %(n, ebin_area)
                 ebin_areas.append(ebin_area)
 
-            # Sum the individual bins' areas
+            # Sum the area in each bin
             tot_ebin_area = np.sum(ebin_areas)
 
             #==================================================================
@@ -958,13 +967,13 @@ class vbwkde(Stage):
                 czbin_areas = np.zeros(czbins.num_bins)
                 for alias_n in range(-negative_aliases, 1 + positive_aliases):
                     if alias_n == 0:
-                        abs_cz_coords = cz_oversamp
+                        abs_cz_coords = cz_oversamp_binned
                     elif alias_n % 2 == 0:
-                        abs_cz_coords = cz_oversamp + alias_n
+                        abs_cz_coords = cz_oversamp_binned + alias_n
                     else:
                         # NOTE: need to flip order such that it's monotonically
                         # increasing (else trapz returns negative areas)
-                        abs_cz_coords = (-cz_oversamp + 1+alias_n)[::-1]
+                        abs_cz_coords = (-cz_oversamp_binned + 1+alias_n)[::-1]
 
                     rel_cz_coords = abs2rel(
                         abs_coords=abs_cz_coords,
