@@ -388,10 +388,10 @@ class vbwkde(Stage):
         ENERGY_RANGE = [0, 501] # GeV
 
         # TODO: handle units consistency here when Events object gets units
-        e_true = events['true_energy']
-        e_reco = events['reco_energy']
-        cz_true = events['true_coszen']
-        cz_reco = events['reco_coszen']
+        true_energy = events['true_energy']
+        reco_energy = events['reco_energy']
+        true_coszen = events['true_coszen']
+        reco_coszen = events['reco_coszen']
         ebins = binning.reco_energy
         ebin_edges = ebins.bin_edges.m_as('GeV')
         czbins = binning.reco_coszen
@@ -404,7 +404,7 @@ class vbwkde(Stage):
         left_ebin_edges = ebin_edges[0:-1]
         right_ebin_edges = ebin_edges[1:]
 
-        n_events = len(e_true)
+        n_events = len(true_energy)
 
         if MIN_NUM_EVENTS > n_events:
             MIN_NUM_EVENTS = n_events
@@ -428,7 +428,7 @@ class vbwkde(Stage):
 
             # Absolute distance from these events' re-centered reco energies to
             # the center of this energy bin; sort in ascending-distance order
-            abs_enu_dist = np.abs(e_true - ebin_mid)
+            abs_enu_dist = np.abs(true_energy - ebin_mid)
             sorted_abs_enu_dist = np.sort(abs_enu_dist)
 
             # Grab the distance the number-"TGT_NUM_EVENTS" event is from the
@@ -460,16 +460,16 @@ class vbwkde(Stage):
             n_in_bin = len(in_ebin_ind)
 
             # Record lowest/highest energies that are included in the bin
-            actual_left_ebin_edge = min(ebin_min, min(e_true[in_ebin_ind]))
-            actual_right_ebin_edge = max(ebin_max, max(e_true[in_ebin_ind]))
+            actual_left_ebin_edge = min(ebin_min, min(true_energy[in_ebin_ind]))
+            actual_right_ebin_edge = max(ebin_max, max(true_energy[in_ebin_ind]))
 
             # Extract just the neutrino-energy/coszen error columns' values for
             # succinctness
-            enu_err = e_reco[in_ebin_ind] - e_true[in_ebin_ind]
+            enu_err = reco_energy[in_ebin_ind] - true_energy[in_ebin_ind]
 
             # TODO: figure out zenith angle error here, and then map this to
             # coszen error for each bin when we compute the actual kernels
-            cz_err = cz_reco[in_ebin_ind] - cz_true[in_ebin_ind]
+            cz_err = reco_coszen[in_ebin_ind] - true_coszen[in_ebin_ind]
 
             # NOTE: the following is a bad idea. The spike at 0 (error) screws
             # up KDE in the bins where we're having issues, and we continue to
@@ -723,33 +723,30 @@ class vbwkde(Stage):
         return kde_info, extra_info
 
     @profile
-    def compute_kernel(self, e_cz_kde_info, binning, e_res_scale,
-                       cz_res_scale, e_reco_bias, cz_reco_bias,
-                       res_scale_ref='mode'):
-        """Construct a 4D kernel from linear interpolants describing the
-        density of reconstructed events.
+    def compute_kernel(self, e_cz_kde_info):
+        """Construct a kernel from linear interpolants describing the
+        normalized density of reconstructed events.
 
-        The resulting 4D array can be indexed for clarity using
-           kernel4d[e_true_i, cz_true_j][e_reco_k, cz_reco_l]
-        where the 4 indices point from a single MC-true histogram bin (i,j) to
-        a single reco histogram bin (k,l). (Or flip e with cz if the `binning`
-        specifies them in this order.)
+        The resulting array can be indexed for clarity using two indexes,
+        one for input and one for output dimensions. E.g.:
+           kernel[true_energy_i, true_coszen_j][reco_energy_k, reco_coszen_l]
+        or if PID is included,
+           kernel[true_energy_i, true_coszen_j][reco_energy_k, reco_coszen_l, pid_m]
+        where ordering within the two sets of brackets is arbitrary.
+
+        In other words, the indices point from a single MC-true histogram bin
+        indexed by (i,j) to a single reco histogram bin indexed by (k,l{,m}).
 
 
         Parameters
         ----------
         e_cz_kde_info : OrderedDict
-        binning : MultiDimBinning
-        e_res_scale : scalar
-        cz_res_scale : scalar
-        e_reco_bias : scalar Quantity
-        cz_reco_bias : scalar Quantity
-        res_scale_ref : string
+            Object returned by method `compute_kernel`.
 
 
         Returns
         -------
-        kernel4d : 4D array of float
+        kernel : 4D array of float
             Mapping from the number of events in each bin of the 2D
             MC-true-events histogram to the number of events reconstructed in
             each bin of the 2D reconstructed-events histogram. Dimensions are
@@ -783,7 +780,7 @@ class vbwkde(Stage):
         cz_oversamp_binned = cz_oversamp_binned.bin_edges.m_as('dimensionless')
 
         # Object in which to store the 4D kernels: np 4D array
-        kernel4d = np.zeros((self.input_binning * self.output_binning).shape)
+        kernel = np.zeros((self.input_binning * self.output_binning).shape)
 
         for ebin_n, item in enumerate(e_cz_kde_info.iteritems()):
             ebinpoints, interpolants = item
@@ -963,7 +960,9 @@ class vbwkde(Stage):
                     positive_aliases = int(np.abs(np.ceil(
                         (cz_interpolant_limits[1] - 1) / 2.0
                     )))
-
+###########   TODO    ######################
+# make sure cz area normalization is correct
+############################################
                 czbin_areas = np.zeros(czbins.num_bins)
                 for alias_n in range(-negative_aliases, 1 + positive_aliases):
                     if alias_n == 0:
@@ -1007,20 +1006,20 @@ class vbwkde(Stage):
 
                 if energy_first:
                     x, y = ebin_n, czbin_n
-                    kernel4d[x, y, :, :] = np.outer(ebin_areas, czbin_areas)
+                    kernel[x, y, :, :] = np.outer(ebin_areas, czbin_areas)
                 else:
                     x, y = czbin_n, ybin_n
-                    kernel4d[x, y, :, :] = np.outer(czbin_areas, ebin_areas)
+                    kernel[x, y, :, :] = np.outer(czbin_areas, ebin_areas)
 
-                d = (np.sum(kernel4d[x,y])-tot_ebin_area*tot_czbin_area)
+                d = (np.sum(kernel[x,y])-tot_ebin_area*tot_czbin_area)
                 assert (d < EPSILON), 'd: %s, epsilon: $s' %(d, epsilon)
 
-        check_areas = kernel4d.sum(axis=(2,3))
+        check_areas = kernel.sum(axis=(2,3))
 
         #assert np.max(check_areas) < 1 + EPSILON, str(np.max(check_areas))
         assert np.min(check_areas) > 0 - EPSILON, str(np.min(check_areas))
 
-        return kernel4d
+        return kernel
 
 
 def plot_kde_detail(flavints, e_cz_kde_info, extra_info, binning, outdir,
