@@ -9,7 +9,6 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-plt.rcParams['text.usetex'] = True
 import numpy as np
 
 from pisa.utils.fileio import mkdir
@@ -213,16 +212,24 @@ def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
         gridspec_kw = dict(left=0.03, right=0.968, wspace=0.32)
         fig, axes = plt.subplots(nrows=1, ncols=5, gridspec_kw=gridspec_kw,
                                  sharex=False, sharey=False, figsize=(20,5))
-        baseplot(m=ref_map, title=basetitle+' '+ref_abv, evtrate=True,
+        baseplot(m=ref_map,
+                 title=basetitle+' '+ref_abv,
+                 evtrate=True,
                  ax=axes[0])
-        baseplot(m=new_map, title=basetitle+' '+new_abv, evtrate=True,
+        baseplot(m=new_map,
+                 title=basetitle+' '+new_abv,
+                 evtrate=True,
                  ax=axes[1])
-        baseplot(m=ratio_map, title=basetitle+' %s/%s' %(new_abv, ref_abv),
+        baseplot(m=ratio_map,
+                 title=basetitle+' %s/%s' %(new_abv, ref_abv),
                  ax=axes[2])
-        baseplot(m=diff_map, title=basetitle+' %s-%s' %(new_abv, ref_abv),
+        baseplot(m=diff_map,
+                 title=basetitle+' %s-%s' %(new_abv, ref_abv),
                  symm=True, ax=axes[3])
-        baseplot(m=diff_ratio_map, title=basetitle+' (%s-%s)/%s'
-             %(new_abv, ref_abv, ref_abv), symm=True, ax=axes[4])
+        baseplot(m=diff_ratio_map,
+                 title=basetitle+' (%s-%s)/%s' %(new_abv, ref_abv, ref_abv),
+                 symm=True,
+                 ax=axes[4])
         logging.debug('>>>> Plot for inspection saved at %s'
                       %os.path.join(*path))
         fig.savefig(os.path.join(*path))
