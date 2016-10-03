@@ -114,12 +114,11 @@ class hist(Stage):
     The `transform_groups` string is interpreted (and therefore defined) by
     pisa.utils.flavInt.flavint_groups_string. E.g. commonly one might use:
 
-    'nue_cc+nuebar_cc; numu_cc+numubar_cc; nutau_cc+nutaubar_cc; nuall_nc+nuallbar_nc'
+    'nue_cc+nuebar_cc, numu_cc+numubar_cc, nutau_cc+nutaubar_cc, nuall_nc+nuallbar_nc'
 
     Any particle type not explicitly mentioned is taken as a singleton group.
-    Commas and plus signs add types to a group, while groups are separated by
-    semicolons. Whitespace is ignored, so add whitespace to the string for
-    readability.
+    Plus signs add types to a group, while groups are separated by commas.
+    Whitespace is ignored, so add whitespace for readability.
 
     """
     def __init__(self, params, particles, input_names, transform_groups,

@@ -324,12 +324,6 @@ class vbwkde(Stage):
             except KeyError:
                 pass
 
-        if self.debug_mode:
-            outdir = os.path.join(find_resource('debug'),
-                                  self.stage_name,
-                                  self.service_name)
-            mkdir(outdir)
-
         self.all_kde_info = OrderedDict()
         self.all_extra_info = OrderedDict()
         for xform_flavints in self.transform_groups:
@@ -343,18 +337,18 @@ class vbwkde(Stage):
             self.all_extra_info[str(xform_flavints)] = extra_info
 
             if self.debug_mode:
+                outdir = os.path.join(find_resource('debug'),
+                                      self.stage_name,
+                                      self.service_name)
+                mkdir(outdir)
                 plot_kde_detail(flavints=xform_flavints,
                                 kde_info=kde_info,
                                 extra_info=extra_info,
                                 binning=self.output_binning,
                                 outdir=outdir)
 
-        self._kde_hash = kde_hash
-
-        if self.debug_mode and kde_hash in self.disk_cache:
-            del self.disk_cache[kde_hash]
-
         self.disk_cache[kde_hash] = self.all_kde_info
+        self._kde_hash = kde_hash
 
     @profile
     def compute_kdes(self, events, binning):
@@ -836,7 +830,7 @@ class vbwkde(Stage):
             # "correct" area under this curve).
             total_trapz_area = np.trapz(x=e_interp.x, y=e_interp.y)
             logging.trace('Bin %4d total trapz area = %e'
-                          %(ebin_n, total_trapz_area))
+                          %(ebin_n, binned_area))
 
             # Normalize e_pdf_binned so that the entire PDF (including
             # points outside of those that are binned) will have area of 1.
@@ -866,7 +860,7 @@ class vbwkde(Stage):
 
             # The only point we can use to start the integration is the lower
             # limit of the energy intpolant as we must assume (rightly or
-            # wrongly) that we covered the complete range of where there might
+            # wrongly) tht we covered the complete range of where there might
             # be any appreciable area under the curve.
 
             # Find the absolute coordinate of this lowest-energy sample point
@@ -1026,26 +1020,25 @@ class vbwkde(Stage):
         return kernel
 
 
-def plot_kde_detail(flavints, kde_info, extra_info, binning, outdir,
+def plot_kde_detail(flavints, e_cz_kde_info, extra_info, binning, outdir,
                     ebin_n=None):
     """
 
     Parameters
     ----------
-    kde_info : OrderedDict
+    e_cz_kde_info : OrderedDict
         KDE info recorded for a single flav/int
 
     extra_info : OrderedDict
-        Extra info (in same order as `kde_info` recorded for a single flav/int
-
-    binning
-
-    outdir
+        Extra info (in same order as `e_cz_kde_info` recorded for a single
+        flav/int
 
     ebin_n : None, int, or slice
         Index used to pick out a particular energy bin (or bins) to plot. Default
         (None) plots all energy bins.
 
+    Returns
+    -------
     """
     import matplotlib as mpl
     mpl.use('pdf')
@@ -1100,9 +1093,9 @@ def plot_kde_detail(flavints, kde_info, extra_info, binning, outdir,
     else:
         raise ValueError('Unhadled type for `ebin_n`: %s' %type(ebin_n))
 
-    bin_numbers = range(len(kde_info))
-    binfos = kde_info.keys()
-    kinfos = kde_info.values()
+    bin_numbers = range(len(e_cz_kde_info))
+    binfos = e_cz_kde_info.keys()
+    kinfos = e_cz_kde_info.values()
     einfos = extra_info.values()
     for (bin_n, bin_info, kde_info, extra_info) in zip(bin_numbers[idx],
                                                        binfos[idx],
