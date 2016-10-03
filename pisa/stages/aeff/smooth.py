@@ -18,7 +18,7 @@ from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.utils.flavInt import flavintGroupsFromString
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils.plotter import plotter
+from pisa.utils.plotter import Plotter
 from pisa.utils.profiler import profile
 
 # TODO: the below logic does not generalize to muons, but probably should
@@ -549,7 +549,7 @@ class smooth(Stage):
             #
             # Plot raw, smoothed, and interp transforms
             #
-            plots = plotter(stamp='Aeff Transforms')
+            plots = Plotter(stamp='Aeff Transforms')
 
             # Raw
             plots.init_fig()
@@ -574,7 +574,7 @@ class smooth(Stage):
             #
 
             # Fractional difference
-            plots = plotter(stamp='Comparison Between'+'\n'
+            plots = Plotter(stamp='Comparison Between'+'\n'
                             'Smoothed and Original Aeff'+'\n'
                             r'Plotted value: $\frac{smoothed - orig}{orig}$')
             plots.init_fig()
@@ -622,7 +622,7 @@ class smooth(Stage):
                 smth_cz_slice = Map(name='smooth coszen slice',
                                     hist=smth_cz_slice, binning=binning)
 
-                plots = plotter(stamp='Aeff transform smoothing comparison')
+                plots = Plotter(stamp='Aeff transform smoothing comparison')
                 plots.init_fig()
                 plots.plot_1d_projection(nom_cz_slice, 'true_energy')
                 plots.plot_1d_projection(smth_cz_slice, 'true_energy')

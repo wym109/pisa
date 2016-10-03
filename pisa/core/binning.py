@@ -499,7 +499,7 @@ class OneDimBinning(object):
                                                    max(be.magnitude))
         return crit
 
-    def new_obj(original_function):
+    def _new_obj(original_function):
         """Decorator to deepcopy unaltered states into new object."""
         @wraps(original_function)
         def new_function(self, *args, **kwargs):
@@ -525,6 +525,10 @@ class OneDimBinning(object):
         return OneDimBinning(name=self.name, tex=self.tex,
                              bin_edges=self.bin_edges * other)
 
+    # TODO: if same or contained dimension, modify the current binning OR
+    # create a smarter MultiDimBinning object that allows for multiple
+    # disconnected binning regions with arbitrary binning within each
+    # region
     def __add__(self, other):
         if isinstance(other, OneDimBinning):
             return MultiDimBinning([self, other])
@@ -540,7 +544,7 @@ class OneDimBinning(object):
         else:
             raise TypeError('Unhandled type %s for __add__' %type(other))
 
-    @new_obj
+    @_new_obj
     def __deepcopy__(self, memo):
         """Explicit deepcopy constructor"""
         return {}
@@ -668,7 +672,7 @@ class OneDimBinning(object):
             return True
         return False
 
-    @new_obj
+    @_new_obj
     def oversample(self, factor):
         """Return a OneDimBinning object oversampled relative to this object's
         binning.
@@ -708,7 +712,7 @@ class OneDimBinning(object):
 
         return {'bin_edges': np.array(bin_edges)*self.units}
 
-    @new_obj
+    @_new_obj
     def downsample(self, factor):
         assert int(factor) == float(factor)
         factor = int(factor)
@@ -723,7 +727,7 @@ class OneDimBinning(object):
         for attr in ['bin_edges', 'domain', 'midpoints', 'weighted_centers']:
             getattr(self, attr).ito(units)
 
-    @new_obj
+    @_new_obj
     def to(self, units):
         if units is None:
             units = 'dimensionless'
@@ -768,7 +772,7 @@ class OneDimBinning(object):
     # to uneven (or if it stays lin or log, keep that attribute for the
     # subselection). Granted, a OneDimBinning object right now requires
     # monotonically-increasing and adjacent bins.
-    @new_obj
+    @_new_obj
     def __getitem__(self, index):
         """Return a new OneDimBinning, sub-selected by `index`.
 
@@ -1081,6 +1085,30 @@ class MultiDimBinning(object):
         else:
             raise TypeError('Unhandled type for `dim`: "%s"' %type(dim))
         return idx
+
+    def remove(self, dims):
+        """Remove dimensions.
+
+        Parameters
+        ----------
+        dims : str, int, or sequence thereof
+            Dimensions to be removed
+
+        Returns
+        -------
+        MultiDimBinning : same as this, but with `dims` removed.
+
+        """
+        if isinstance(dims, (basestring, int)):
+            dims = [dims]
+
+        keep_idx = range(len(self))
+        for dim in dims:
+            idx = new_binning.index(dim)
+            keep_idx.remove(idx)
+
+        keep_dims = [deepcopy(self.dimensions[idx]) for idx in keep_idx]
+        return MultiDimBinning(keep_dims)
 
     # TODO: examples!
     def reorder_dimensions(self, order, use_deepcopy=False):

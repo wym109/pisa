@@ -22,6 +22,8 @@ from pisa.utils.resources import find_resource
 from pisa.utils.tests import has_cuda, print_agreement, check_agreement, plot_comparisons
 
 
+FMT = 'png'
+
 def compare_pisa(config1, config2, testname1, testname2, outdir):
     """
     Compare baseline output of PISA 3 with an older version of itself
@@ -66,7 +68,9 @@ def compare_pisa(config1, config2, testname1, testname2, outdir):
         stagename='baseline',
         servicename='recopid',
         name='trck',
-        texname=r'\rm{trck}')
+        texname=r'\rm{trck}',
+        ftype=FMT
+    )
 
     print_agreement(testname='PISAStandard-RecoPid: %s'%('trck'),
                     ratio=max_diff_ratio)
@@ -97,7 +101,9 @@ def compare_pisa(config1, config2, testname1, testname2, outdir):
         stagename='baseline',
         servicename='recopid',
         name='cscd',
-        texname=r'\rm{cscd}')
+        texname=r'\rm{cscd}',
+        ftype=FMT
+    )
 
     print_agreement(testname='PISAStandard-RecoPid: %s'%('cscd'),
                     ratio=max_diff_ratio)
@@ -146,7 +152,9 @@ def compare_baseline(config, testname, outdir, oscfitfile):
             stagename=testname,
             servicename='baseline',
             name=nukey,
-            texname=texname)
+            texname=texname,
+            ftype=FMT
+        )
 
         print_agreement(testname='OscFit-V3:%s %s'%(testname, nukey),
                         ratio=max_diff_ratio)
@@ -197,7 +205,9 @@ def compare_systematics(baseline_oscfit, config, testname, outdir, oscfitfile):
             stagename=testname,
             servicename='systematic',
             name=nukey,
-            texname=texname)
+            texname=texname,
+            ftype=FMT
+        )
 
         print_agreement(testname='OscFit-V3:%s %s'%(testname, nukey),
                         ratio=max_diff_ratio)
@@ -245,11 +255,11 @@ if __name__ == '__main__':
     # Perform internal tests
     if test_all:
         pisa_standard_settings = os.path.join(
-            'tests', 'settings', 'full_pipeline_test.ini'
+            'tests', 'settings', 'full_pipeline_test.cfg'
         )
         pisa_standard_config = parse_pipeline_config(pisa_standard_settings)
         pisa_recopid_settings = os.path.join(
-            'tests', 'settings', 'full_pipeline_recopid_test.ini'
+            'tests', 'settings', 'full_pipeline_recopid_test.cfg'
         )
         pisa_recopid_config = parse_pipeline_config(pisa_recopid_settings)
         pisa_recopid_pipeline = compare_pisa(

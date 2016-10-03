@@ -78,6 +78,30 @@ class Pipeline(object):
         self._init_stages()
         self._source_code_hash = None
 
+    def index(self, stage_id):
+        """Return the index in the pipeline of `stage_id`.
+
+        Parameters
+        ----------
+        stage_id : string or int
+            Name of the stage, or stage number (0-indexed)
+
+        Returns
+        -------
+        idx : integer stage number (0-indexed)
+
+        Raises
+        ------
+        ValueError : if `stage_id` not in pipeline.
+
+        """
+        assert isinstance(stage_id, (int, basestring))
+        idx = None
+        for stage_num, stage in enumerate(self):
+            if stage_id in [stage_num, stage.stage_name]:
+                return stage_num
+        raise ValueError('No stage named "%s".' %stage_name)
+
     def __len__(self):
         return len(self._stages)
 
@@ -86,10 +110,7 @@ class Pipeline(object):
 
     def __getitem__(self, idx):
         if isinstance(idx, basestring):
-            for stage_num, stage in enumerate(self):
-                if stage.stage_name == idx:
-                    idx = stage_num
-                    break
+            return self.stages[self.index(idx)]
 
         if isinstance(idx, (int, slice)):
             return self.stages[idx]
@@ -270,7 +291,7 @@ if __name__ == '__main__':
     import numpy as np
     from pisa.core.map import Map, MapSet
     from pisa.utils.fileio import mkdir, to_file
-    from pisa.utils.plotter import plotter
+    from pisa.utils.plotter import Plotter
 
     parser = ArgumentParser()
     parser.add_argument(
@@ -279,7 +300,7 @@ if __name__ == '__main__':
         help='File containing settings for the pipeline.'
     )
     parser.add_argument(
-        '--only-stage', metavar='STAGE', type=int,
+        '--only-stage', metavar='STAGE', type=str,
         help='''Test stage: Instantiate a single stage in the pipeline
         specification and run it in isolation (as the sole stage in a
         pipeline). If it is a stage that requires inputs, these can be
@@ -343,6 +364,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
     set_verbosity(args.v)
 
+    try:
+        args.only_stage = int(args.only_stage)
+    except ValueError:
+        pass
+
     if args.dir:
         mkdir(args.dir)
     else:
@@ -359,14 +385,17 @@ if __name__ == '__main__':
         #pipeline.params.free.values = [p.value*1.01 for p in pipeline.params.free]
         if args.only_stage is None:
             stop_idx = args.stop_after_stage
+            if isinstance(stop_idx, basestring):
+                stop_idx = pipeline.index(stop_idx)
             if stop_idx is not None:
                 stop_idx += 1
-            idx = slice(0, stop_idx)
+            indices = slice(0, stop_idx)
             outputs = pipeline.get_outputs(idx=args.stop_after_stage)
         else:
             assert args.stop_after_stage is None
-            idx = slice(args.only_stage, args.only_stage+1)
-            stage = pipeline.stages[args.only_stage]
+            idx = pipeline.index(args.only_stage)
+            stage = pipeline[idx]
+            indices = slice(idx, idx+1)
             # create dummy inputs
             if hasattr(stage, 'input_binning'):
                 logging.info('building dummy input')
@@ -384,12 +413,12 @@ if __name__ == '__main__':
         logging.info('## ............ finished RUN %d' % run)
         logging.info('')
 
-    for stage in pipeline.stages[idx]:
+    for stage in pipeline[indices]:
         if not args.dir:
             break
         stg_svc = stage.stage_name + '__' + stage.service_name
         fbase = os.path.join(args.dir, stg_svc)
-        if args.intermediate or stage == pipeline.stages[-1]:
+        if args.intermediate or stage == pipeline[-1]:
             stage.outputs.to_json(fbase + '__output.json')
         if args.transforms and stage.use_transforms:
             stage.transforms.to_json(fbase + '__transforms.json')
@@ -398,7 +427,7 @@ if __name__ == '__main__':
         for fmt, enabled in formats.items():
             if not enabled:
                 continue
-            my_plotter = plotter(stamp='PISA Cake test',
+            my_plotter = Plotter(stamp='PISA Cake test',
                                  outdir=args.dir,
                                  fmt=fmt, log=False,
                                  annotate=args.annotate)

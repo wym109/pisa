@@ -6,7 +6,7 @@ from pisa import ureg, Q_
 from pisa.core.distribution_maker import DistributionMaker
 from pisa.core.map import Map, MapSet
 from pisa.utils.log import set_verbosity
-from pisa.utils.plotter import plotter
+from pisa.utils.plotter import Plotter
 
 import pandas as pd
 
@@ -20,7 +20,7 @@ parser.add_argument('-v', action='count', default=None,
 args = parser.parse_args()
 set_verbosity(args.v)
 
-my_plotter = plotter(stamp='nutau sys test', outdir='chi2_plots/', fmt='pdf', log=False, annotate=True, symmetric=True)
+my_plotter = Plotter(stamp='nutau sys test', outdir='chi2_plots/', fmt='pdf', log=False, annotate=True, symmetric=True)
 
 variation = {
     'hole_ice':30*ureg.dimensionless,

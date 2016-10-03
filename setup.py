@@ -189,9 +189,9 @@ if __name__ == '__main__':
         'pid/*.json',
         'priors/*.json',
         'reco/*.json',
-        'settings/discrete_sys_settings/*.ini',
-        'settings/minimizer_settings/*.json',
-        'settings/pipeline_settings/*.ini',
+        'settings/discrete_sys/*.cfg',
+        'settings/minimizer/*.json',
+        'settings/pipeline/*.cfg',
         'discr_sys/*.json',
         'tests/data/aeff/*.json',
         'tests/data/flux/*.json',
@@ -201,7 +201,7 @@ if __name__ == '__main__':
         'tests/data/reco/*.json',
         'tests/data/xsec/*.root',
         'tests/data/oscfit/*.json',
-        'tests/settings/*.ini'
+        'tests/settings/*.cfg'
     ]
 
     if CUDA:
@@ -328,6 +328,7 @@ if __name__ == '__main__':
             'pisa/core/distribution_maker.py',
             'pisa/core/pipeline.py',
             'pisa/scripts/make_events_file.py',
+            'pisa/scripts/test_changes_with_combined_pidreco.py',
             'pisa/scripts/test_consistency_with_pisa2.py',
             'pisa/scripts/test_consistency_with_oscfit.py'
         ],
