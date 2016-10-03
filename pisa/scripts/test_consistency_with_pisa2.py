@@ -850,7 +850,7 @@ if __name__ == '__main__':
     # Perform flux tests
     if args.flux or test_all:
         flux_settings = os.path.join(
-            'tests', 'settings', 'flux_test.cfg'
+            'tests', 'settings', 'pisa2_flux_test.cfg'
         )
         flux_config = parse_pipeline_config(flux_settings)
 
@@ -894,7 +894,7 @@ if __name__ == '__main__':
     # Perform CPU-based oscillations tests
     if args.osc_prob3cpu or test_all:
         osc_settings = os.path.join(
-            'tests', 'settings', 'osc_prob3cpu_test.cfg'
+            'tests', 'settings', 'pisa2_osc_prob3cpu_test.cfg'
         )
         osc_config = parse_pipeline_config(osc_settings)
         for syst in [None, 'theta12', 'theta13', 'theta23', 'deltam21',
@@ -926,7 +926,7 @@ if __name__ == '__main__':
     # Perform GPU-based oscillations tests
     if (args.osc_prob3gpu or test_all) and cuda_present:
         osc_settings = os.path.join(
-            'tests', 'settings', 'osc_prob3gpu_test.cfg'
+            'tests', 'settings', 'pisa2_osc_prob3gpu_test.cfg'
         )
         osc_config = parse_pipeline_config(osc_settings)
         for syst in [None, 'theta12', 'theta13', 'theta23', 'deltam21',
@@ -948,7 +948,7 @@ if __name__ == '__main__':
     # Perform effective-area tests
     if args.aeff or test_all:
         aeff_settings = os.path.join(
-            'tests', 'settings', 'aeff_test.cfg'
+            'tests', 'settings', 'pisa2_aeff_test.cfg'
         )
         aeff_config = parse_pipeline_config(aeff_settings)
 
@@ -977,7 +977,7 @@ if __name__ == '__main__':
     # Perform reconstruction tests
     if args.reco or test_all:
         reco_settings = os.path.join(
-            'tests', 'settings', 'reco_test.cfg'
+            'tests', 'settings', 'pisa2_reco_test.cfg'
         )
         reco_config = parse_pipeline_config(reco_settings)
 
@@ -1022,7 +1022,7 @@ if __name__ == '__main__':
     # Perform PID tests
     if args.pid or test_all:
         pid_settings = os.path.join(
-            'tests', 'settings', 'pid_test.cfg'
+            'tests', 'settings', 'pisa2_pid_test.cfg'
         )
         pid_config = parse_pipeline_config(pid_settings)
 
@@ -1104,7 +1104,7 @@ if __name__ == '__main__':
     # Perform full-pipeline tests
     if args.full or test_all:
         full_settings = os.path.join(
-            'tests', 'settings', 'full_pipeline_test.cfg'
+            'tests', 'settings', 'pisa2_full_pipeline_test.cfg'
         )
         pipeline = Pipeline(full_settings)
         pipeline.get_outputs()
