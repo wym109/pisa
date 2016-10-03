@@ -366,7 +366,7 @@ if __name__ == '__main__':
 
     try:
         args.only_stage = int(args.only_stage)
-    except ValueError:
+    except (TypeError, ValueError):
         pass
 
     if args.dir:

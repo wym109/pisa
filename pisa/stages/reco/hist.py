@@ -8,20 +8,20 @@
 # date:   2016-05-27
 
 """
-This reco service creates the pdfs of the reconstructed energy and coszen
-from the true parameters. Provides reco event rate maps using these pdfs.
+Create the transforms that map from true energy and coszen
+to the reconstructed parameters. Provides reco event rate maps using these
+transforms.
 """
 
 
+from __future__ import division
+
 from copy import deepcopy
-from string import ascii_lowercase
 
 import numpy as np
 
-from pisa.core.binning import MultiDimBinning
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
-from pisa.core.events import Events
 from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
@@ -45,7 +45,7 @@ class hist(Stage):
     Parameters
     ----------
     params : ParamSet
-        Must exclusively have parameter:
+        Must exclusively have parameters:
 
         reco_events : string or Events
             PISA events file to use to derive transforms, or a string
@@ -114,12 +114,11 @@ class hist(Stage):
     The `transform_groups` string is interpreted (and therefore defined) by
     pisa.utils.flavInt.flavint_groups_string. E.g. commonly one might use:
 
-    'nue_cc+nuebar_cc; numu_cc+numubar_cc; nutau_cc+nutaubar_cc; nuall_nc+nuallbar_nc'
+    'nue_cc+nuebar_cc, numu_cc+numubar_cc, nutau_cc+nutaubar_cc, nuall_nc+nuallbar_nc'
 
     Any particle type not explicitly mentioned is taken as a singleton group.
-    Commas and plus signs add types to a group, while groups are separated by
-    semicolons. Whitespace is ignored, so add whitespace to the string for
-    readability.
+    Plus signs add types to a group, while groups are separated by commas.
+    Whitespace is ignored, so add whitespace for readability.
 
     """
     def __init__(self, params, particles, input_names, transform_groups,
@@ -176,8 +175,11 @@ class hist(Stage):
         self.include_attrs_for_hashes('sum_grouped_flavints')
 
     def validate_binning(self):
-        #assert self.input_binning.num_dims == self.output_binning.num_dims
-        pass
+        input_basenames = set(self.input_binning.basenames)
+        output_basenames = set(self.output_binning.basenames)
+        #assert set(['energy', 'coszen']) == input_basenames
+        for base_d in input_basenames:
+            assert base_d in output_basenames
 
     def _compute_transforms(self):
         """Generate reconstruction "smearing kernels" by histogramming true and
@@ -226,7 +228,7 @@ class hist(Stage):
         input_binning = self.input_binning.to(**in_units)
         output_binning = self.output_binning.to(**out_units)
 
-        nominal_transforms = []
+        xforms = []
         for xform_flavints in self.transform_groups:
             logging.debug("Working on %s reco kernels" %xform_flavints)
 
@@ -331,7 +333,7 @@ class hist(Stage):
                         xform_array=reco_kernel,
                         sum_inputs=self.sum_grouped_flavints
                     )
-                    nominal_transforms.append(xform)
+                    xforms.append(xform)
             else:
                 # NOTES:
                 # * Output name is same as input name
@@ -349,6 +351,6 @@ class hist(Stage):
                         output_binning=self.output_binning,
                         xform_array=reco_kernel,
                     )
-                    nominal_transforms.append(xform)
+                    xforms.append(xform)
 
-        return TransformSet(transforms=nominal_transforms)
+        return TransformSet(transforms=xforms)
