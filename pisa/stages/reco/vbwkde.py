@@ -1038,7 +1038,7 @@ class vbwkde(Stage):
                 # Coszen must reconstruct somewhere, so area must be 1 if
                 # binning includes all coszen; otherwise we can just say it
                 # must be less than or equal to 1.
-                assert tot_czbin_area <= 1, str(tot_czbin_area)
+                assert tot_czbin_area <= 1+EPSILON, str(tot_czbin_area)
 
                 if energy_first:
                     x, y = ebin_n, czbin_n
