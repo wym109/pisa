@@ -564,7 +564,7 @@ class vbwkde(Stage):
                         str(np.min(enu_pdf)) +
                         "; forcing all negative values to 0."
                     )
-                # Otherwise, just quietly clip any negative values at 0
+                # Otherwise, just quietly clip any negative values to 0
                 enu_pdf = np.clip(a=enu_pdf, a_min=0, a_max=np.inf)
 
             assert np.min(enu_pdf) >= 0, str(np.min(enu_pdf))
@@ -606,8 +606,8 @@ class vbwkde(Stage):
             N_cz_mesh = 2**13
 
             # Data range for VBW-KDE to consider
-            cz_kde_min = -3
-            cz_kde_max = +2
+            cz_kde_min = -9
+            cz_kde_max = +8
 
             # Adjust range of kde for future axis scaling
             cz_factor = 4
@@ -615,19 +615,19 @@ class vbwkde(Stage):
             low_lim_shift = cz_kde_min * (cz_factor - 1)
             upp_lim_shift = cz_kde_max * (cz_factor - 1)
 
-            cz_kde_min_ext = cz_kde_min
-            cz_kde_max_ext = cz_kde_max
-            if low_lim_shift > 0:
-                cz_kde_min_ext = cz_kde_min - low_lim_shift * (1./cz_factor)
-            if upp_lim_shift < 0:
-                cz_kde_max_ext = cz_kde_max - upp_lim_shift * (1./cz_factor)
+            #cz_kde_min_ext = cz_kde_min
+            #cz_kde_max_ext = cz_kde_max
+            #if low_lim_shift > 0:
+            #    cz_kde_min_ext = cz_kde_min - low_lim_shift * (1./cz_factor)
+            #if upp_lim_shift < 0:
+            #    cz_kde_max_ext = cz_kde_max - upp_lim_shift * (1./cz_factor)
 
-            # Adjust kde_num_points accordingly
-            N_cz_mesh_ext = int(
-                N_cz_mesh * (
-                    (cz_kde_max_ext - cz_kde_min_ext) / (cz_kde_max - cz_kde_min)
-                )
-            )
+            ## Adjust kde_num_points accordingly
+            #N_cz_mesh_ext = int(
+            #    N_cz_mesh * (
+            #        (cz_kde_max_ext - cz_kde_min_ext)/(cz_kde_max - cz_kde_min)
+            #    )
+            #)
 
             cz_kde_failed = False
             previous_fail = False
@@ -684,8 +684,8 @@ class vbwkde(Stage):
                         break
 
             if cz_kde_failed:
-                logging.warn('Failed to fit VBW-KDE!')
-                continue
+                logging.error('Failed to fit VBW-KDE!')
+                raise Exception('Failed to fit VBW-KDE!')
 
             if np.min(cz_pdf) < 0:
                 logging.warn("np.min(cz_pdf) < 0: Minimum value is " +
@@ -694,7 +694,21 @@ class vbwkde(Stage):
                 np.clip(a=cz_mesh, a_min=0, a_max=np.inf)
 
             assert np.min(cz_pdf) >= 0, str(np.min(cz_pdf))
-            #assert np.max(cz_pdf) < 1, str(np.max(cz_pdf))
+
+            print '='*80
+            print cz_mesh
+            print '='*80
+            print cz_pdf
+            print '='*80
+
+            total_area = np.trapz(cz_mesh[::-1], cz_pdf[::-1])
+            logging.trace('Bin #%4d cz trapz area = %e'
+                          %(ebin_n, total_area))
+            cz_pdf /= total_area
+            total_area /= total_area
+            logging.trace('Bin #%4d cz area after trapz renorm = %e'
+                          %(ebin_n, total_area))
+            assert np.min(cz_pdf) >= 0, str(np.min(cz_pdf))
 
             # coszen interpolant is centered about the 0-error point--i.e., the
             # bin's midpoint
@@ -967,9 +981,7 @@ class vbwkde(Stage):
                     positive_aliases = int(np.abs(np.ceil(
                         (cz_interpolant_limits[1] - 1) / 2.0
                     )))
-###########   TODO    ######################
-# make sure cz area normalization is correct
-############################################
+
                 czbin_areas = np.zeros(czbins.num_bins)
                 for alias_n in range(-negative_aliases, 1 + positive_aliases):
                     if alias_n == 0:
@@ -1009,7 +1021,24 @@ class vbwkde(Stage):
 
                     czbin_areas += np.array(areas)
 
+                # How much area is spread from this czbin across all others
                 tot_czbin_area = np.sum(czbin_areas)
+
+                logging.trace('Bin #%4d binned cz area = %e'
+                              %(ebin_n, tot_czbin_area))
+
+                # TODO: if full cz range [-1,1] is covered, then we can force
+                # renormalization to 1. Otherwise, all bets are off.
+
+                #czbin_areas /= tot_czbin_area
+                #tot_czbin_area /= tot_czbin_area
+                #logging.trace('Bin #%4d tot cz area after renorm = %e'
+                #              %(ebin_n, tot_czbin_area))
+
+                # Coszen must reconstruct somewhere, so area must be 1 if
+                # binning includes all coszen; otherwise we can just say it
+                # must be less than or equal to 1.
+                assert tot_czbin_area <= 1, str(tot_czbin_area)
 
                 if energy_first:
                     x, y = ebin_n, czbin_n
@@ -1018,8 +1047,8 @@ class vbwkde(Stage):
                     x, y = czbin_n, ybin_n
                     kernel[x, y, :, :] = np.outer(czbin_areas, ebin_areas)
 
-                d = (np.sum(kernel[x,y])-tot_ebin_area*tot_czbin_area)
-                assert (d < EPSILON), 'd: %s, epsilon: $s' %(d, epsilon)
+                d = np.sum(kernel[x,y]) - tot_ebin_area*tot_czbin_area
+                assert (np.abs(d) < EPSILON), 'd: %s, epsilon: $s' %(d, epsilon)
 
         check_areas = kernel.sum(axis=(2,3))
 
