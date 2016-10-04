@@ -304,3 +304,39 @@ class Plotter(object):
         # calculate nice scale:
         off = max(maximum-1, 1-minimum)
         axis.set_ylim(1 - 1.2 * off, 1 + 1.2 * off )
+
+    def plot_CFX_xsec(self, MapSet, ylim=None, logx=True):
+        from pisa.utils import fileio
+
+        zero_np_element = np.array([0])
+        for Map in MapSet:
+            bins = Map.binning
+            try:
+                energy_binning = bins.true_energy
+            except:
+                energy_binning = bins.reco_energy
+
+            fig = plt.figure(figsize=self.size)
+            fig.suptitle(Map.name, y=0.95)
+            ax = fig.add_subplot(111)
+            ax.grid(b=True, which='major')
+            ax.grid(b=True, which='minor', linestyle=':')
+            plt.xlabel(energy_binning.label, size=18)
+            plt.ylabel(self.label, size=18)
+            if self.log:
+                ax.set_yscale('log')
+            if logx:
+                ax.set_xscale('log')
+            if ylim:
+                ax.set_ylim(ylim)
+            ax.set_xlim(np.min(energy_binning.bin_edges.m),
+                        np.max(energy_binning.bin_edges.m))
+
+            hist = Map.hist
+            array_element = np.hstack((hist, zero_np_element))
+            ax.step(energy_binning.bin_edges.m, array_element, where='post')
+
+            fileio.mkdir(self.outdir)
+            fig.savefig(self.outdir+'/'+Map.name+'.png', bbox_inches='tight',
+                        dpi=150)
+

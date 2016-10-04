@@ -25,7 +25,7 @@ from pisa.utils.spline import Spline, CombinedSpline
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
-from pisa.resources.resources import find_resource
+from pisa.utils.resources import find_resource
 
 
 class genie(Stage):
@@ -339,7 +339,7 @@ class genie(Stage):
 
 
 def test_standard_plots(xsec_file, outdir='./'):
-    from CFXToy.utils.plotter import plotter
+    from pisa.utils.plotter import Plotter
     xsec = genie.get_combined_xsec(xsec_file)
 
     e_bins = MultiDimBinning(OneDimBinning(name='true_energy', tex=r'E$_\nu$',
@@ -348,15 +348,15 @@ def test_standard_plots(xsec_file, outdir='./'):
     xsec.compute_maps(e_bins)
 
     logging.info('Making plots for genie xsec_maps')
-    plot_obj = plotter(outdir=outdir, stamp='Cross-Section', fmt='png',
+    plot_obj = Plotter(outdir=outdir, stamp='Cross-Section', fmt='png',
                        log=True, size=(12, 8),
                        label=r'Cross-Section ($m^{2}$)')
     maps = xsec.return_mapset()
-    plot_obj.plot_CFX_xsec(maps, ylim=(1E-43, 1E-37))
+    plot_obj.plot_xsec(maps, ylim=(1E-43, 1E-37))
 
 
 def test_per_e_plot(xsec_file, outdir='./'):
-    from CFXToy.utils.plotter import plotter
+    from pisa.utils.plotter import Plotter
     xsec = genie.get_combined_xsec(xsec_file)
 
     e_bins = MultiDimBinning(OneDimBinning(name='true_energy', tex=r'E$_\nu$',
@@ -366,11 +366,11 @@ def test_per_e_plot(xsec_file, outdir='./'):
     xsec.scale_maps(1./e_bins.true_energy.bin_widths)
 
     logging.info('Making plots for genie xsec_maps per energy')
-    plot_obj = plotter(outdir=outdir, stamp='Cross-Section / Energy',
+    plot_obj = Plotter(outdir=outdir, stamp='Cross-Section / Energy',
                        fmt='png', log=False, size=(12, 8),
                        label=r'Cross-Section / Energy ($m^{2} GeV^{-1}$)')
     maps = xsec.return_mapset()
-    plot_obj.plot_CFX_xsec(maps, ylim=(3.5E-41, 3E-40))
+    plot_obj.plot_xsec(maps, ylim=(3.5E-41, 3E-40))
 
 if __name__ == '__main__':
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
