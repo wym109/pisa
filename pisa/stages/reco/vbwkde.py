@@ -846,70 +846,72 @@ class vbwkde(Stage):
             logging.trace('Bin %4d binned area after trapz renorm = %e'
                           %(ebin_n, binned_area))
 
-            # Now figure out the "invalid" area under the PDF. Since we draw
-            # events that are > than the bin midpoint, but we effectively
-            # interpret their reco as coming from an event with true-energy at
-            # the bin center, the reco can be < 0 GeV. While this gives the KDE
-            # a "better" shape (compared to e.g. not using these events at
-            # all), it does leave us with a tail that extends more or less (but
-            # always some) below the valid range--i.e., below 0 GeV.
-            #
-            # Proposed solution: Add up this area, and rescale the PDF to be
-            # larger to compensate for this "wasted," non-physical area.
+            ## Now figure out the "invalid" area under the PDF. Since we draw
+            ## events that are > than the bin midpoint, but we effectively
+            ## interpret their reco as coming from an event with true-energy at
+            ## the bin center, the reco can be < 0 GeV. While this gives the KDE
+            ## a "better" shape (compared to e.g. not using these events at
+            ## all), it does leave us with a tail that extends more or less (but
+            ## always some) below the valid range--i.e., below 0 GeV.
+            ##
+            ## Proposed solution: Add up this area, and rescale the PDF to be
+            ## larger to compensate for this "wasted," non-physical area.
 
-            # Figure out relative coordinate corresponding to 0 GeV
-            zero_in_rel_coords = abs2rel(
-                abs_coords=0, abs_bin_midpoint=ebin_mid,
-                rel_scale_ref=rel_e_ref, scale=e_res_scale,
-                abs_obj_shift=e_reco_bias
-            )
+            ## Figure out relative coordinate corresponding to 0 GeV
+            #zero_in_rel_coords = abs2rel(
+            #    abs_coords=0, abs_bin_midpoint=ebin_mid,
+            #    rel_scale_ref=rel_e_ref, scale=e_res_scale,
+            #    abs_obj_shift=e_reco_bias
+            #)
 
-            # The only point we can use to start the integration is the lower
-            # limit of the energy intpolant as we must assume (rightly or
-            # wrongly) that we covered the complete range of where there might
-            # be any appreciable area under the curve.
+            ## The only point we can use to start the integration is the lower
+            ## limit of the energy intpolant as we must assume (rightly or
+            ## wrongly) that we covered the complete range of where there might
+            ## be any appreciable area under the curve.
 
-            # Find the absolute coordinate of this lowest-energy sample point
-            abs_e_samp_min = rel2abs(
-                rel_coords=np.min(e_interp.x),
-                abs_bin_midpoint=ebin_mid,
-                rel_scale_ref=rel_e_ref,
-                scale=e_res_scale,
-                abs_obj_shift=e_reco_bias
-            )
+            ## Find the absolute coordinate of this lowest-energy sample point
+            #abs_e_samp_min = rel2abs(
+            #    rel_coords=np.min(e_interp.x),
+            #    abs_bin_midpoint=ebin_mid,
+            #    rel_scale_ref=rel_e_ref,
+            #    scale=e_res_scale,
+            #    abs_obj_shift=e_reco_bias
+            #)
 
-            if np.min(e_interp.x) < zero_in_rel_coords:
-                # Identify all interpolant x-coords that are less than 0 GeV in
-                # absolute space
-                lt_zero_mask = e_interp.x < zero_in_rel_coords
+            #if np.min(e_interp.x) < zero_in_rel_coords:
+            #    # Identify all interpolant x-coords that are less than 0 GeV in
+            #    # absolute space
+            #    lt_zero_mask = e_interp.x < zero_in_rel_coords
 
-                # Integrate the area including the points less than zero and
-                # the 0 GeV point; normalize by the same total_trapz_area that
-                # we had to normalize by above.
-                x = np.concatenate(
-                    (e_interp.x[lt_zero_mask], [zero_in_rel_coords])
-                )
-                y = np.concatenate(
-                    (e_interp.y[lt_zero_mask], [e_interp(zero_in_rel_coords)])
-                )
-                invalid_e_area = np.trapz(x=x, y=y) / total_trapz_area
+            #    # Integrate the area including the points less than zero and
+            #    # the 0 GeV point; normalize by the same total_trapz_area that
+            #    # we had to normalize by above.
+            #    x = np.concatenate(
+            #        (e_interp.x[lt_zero_mask], [zero_in_rel_coords])
+            #    )
+            #    y = np.concatenate(
+            #        (e_interp.y[lt_zero_mask], [e_interp(zero_in_rel_coords)])
+            #    )
+            #    invalid_e_area = np.trapz(x=x, y=y) / total_trapz_area
 
-                logging.trace('Bin %4d invalid e-area = %0.4e'
-                              %(ebin_n, invalid_e_area))
-                e_pdf_binned /= 1 - invalid_e_area
-                binned_area /= 1 - invalid_e_area
-            else:
-                logging.trace('Bin %4d abs_e_samp_min = %s'
-                              %(ebin_n, abs_e_samp_min))
+            #    logging.trace('Bin %4d invalid e-area = %0.4e'
+            #                  %(ebin_n, invalid_e_area))
+            #    e_pdf_binned /= 1 - invalid_e_area
+            #    binned_area /= 1 - invalid_e_area
+            #else:
+            #    logging.trace('Bin %4d abs_e_samp_min = %s'
+            #                  %(ebin_n, abs_e_samp_min))
 
-            logging.trace('Bin %4d binned area after invalid renorm = %e'
-                          %(ebin_n, binned_area))
+            #logging.trace('Bin %4d binned area after invalid renorm = %e'
+            #              %(ebin_n, binned_area))
 
             ebin_areas = []
             for n in xrange(ebins.num_bins):
                 sl = slice(n*SAMPLES_PER_BIN, (n+1)*SAMPLES_PER_BIN + 1)
-                ebin_area = np.trapz(x=e_oversamp_binned[sl], y=e_pdf_binned[sl])
-                assert ebin_area > -EPSILON, 'bin %d ebin_area=%e' %(n, ebin_area)
+                ebin_area = np.trapz(x=e_oversamp_binned[sl],
+                                     y=e_pdf_binned[sl])
+                assert ebin_area > -EPSILON, \
+                        'bin %d ebin_area=%e' %(n, ebin_area)
                 ebin_areas.append(ebin_area)
 
             # Sum the area in each bin
@@ -938,7 +940,8 @@ class vbwkde(Stage):
                 elif res_scale_ref == 'mode':
                     # Approximate the mode by the highest point in the (sampled)
                     # PDF
-                    rel_cz_ref = cz_interp.x[cz_interp.y == np.max(cz_interp.y)][0]
+                    idx = cz_interp.y == np.max(cz_interp.y)
+                    rel_cz_ref = cz_interp.x[idx][0]
 
                 # Interpolant was defined in relative space (to bin center);
                 # translate this to absolute CZ coords, taking this bin's
@@ -1050,7 +1053,7 @@ def plot_kde_detail(flavints, kde_info, extra_info, binning, outdir,
     import matplotlib as mpl
     mpl.use('pdf')
     import matplotlib.pyplot as plt
-    from matplotlib.backends.backend_pdf import PdfPages
+    #from matplotlib.backends.backend_pdf import PdfPages
     from matplotlib.patches import Rectangle
 
     def rugplot(a, y0, dy, ax, **kwargs):
