@@ -181,6 +181,7 @@ class gpu(Stage):
             if param.name in self.osc_params:
                 osc_params_subset.append(param)
         osc_params_subset = ParamSet(osc_params_subset)
+
         self.osc = prob3gpu(params=osc_params_subset, 
                             input_binning=None, 
                             output_binning=None,
@@ -189,8 +190,6 @@ class gpu(Stage):
                             transforms_cache_depth=0,
                             outputs_cache_depth=0,
                             )
-
-
 
         # Weight calculator
         self.weight = GPUweight()
