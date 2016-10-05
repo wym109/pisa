@@ -9,6 +9,7 @@ from scipy.special import gammaln
 
 from pisa.utils.comparisons import isbarenumeric
 from pisa.utils.log import logging
+from pisa.utils.barlow import likelihoods
 
 
 # A small positive number with which to replace numbers smaller than it
@@ -143,8 +144,11 @@ def llh(actual_values, expected_values):
         np.clip(expected_values, a_min=SMALL_POS, a_max=np.inf,
                 out=expected_values)
 
-    return (actual_values*np.log(expected_values) - expected_values -
-            gammaln(actual_values + 1))
+    llh = actual_values*np.log(expected_values) - expected_values 
+    # to center around 0
+    llh -= actual_values*np.log(actual_values) - actual_values
+    #return (actual_values*np.log(expected_values) - expected_values - gammaln(actual_values + 1))
+    return llh
 
 
 def log_poisson(k,l):
@@ -154,15 +158,16 @@ def log_poisson(k,l):
 def log_smear(x,sigma):
     return-np.log(sigma)-0.5*np.log(2*np.pi)-np.square(x)/(2*np.square(sigma))
 
-
-def conv_poisson(k,l,s,nsigma=3,steps=100.):
+def conv_poisson(k,l,s,nsigma=3,steps=50.):
     st = 2*(steps+1)
     conv_x = np.linspace(-nsigma*s,+nsigma*s,st)[:-1]+nsigma*s/(st-1.)
     conv_y = log_smear(conv_x,s)
     f_x = conv_x + l
+    #f_x = conv_x + k
     # avoid zero values for lambda
     idx = np.argmax(f_x>0)
     f_y = log_poisson(k,f_x[idx:])
+    #f_y = log_poisson(f_x[idx:],l)
     if np.isnan(f_y).any():
         logging.error('`NaN values`:')
         logging.error('idx = ', idx)
@@ -172,7 +177,14 @@ def conv_poisson(k,l,s,nsigma=3,steps=100.):
         logging.error('f_y = ', f_y)
     f_y = np.nan_to_num(f_y)
     conv = np.exp(conv_y[idx:] + f_y)
-    return conv.sum()*(conv_x[1]-conv_x[0])
+    norm = np.sum(np.exp(conv_y))
+    return conv.sum()/norm
+
+def norm_conv_poisson(k,l,s,nsigma=3,steps=50.):
+    cp = conv_poisson(k,l,s,nsigma=nsigma,steps=steps)
+    n1 = np.exp(log_poisson(l,l))
+    n2 = conv_poisson(l,l,s,nsigma=nsigma,steps=steps)
+    return cp*n1/n2
 
 
 def conv_llh(actual_values, expected_values):
@@ -184,15 +196,35 @@ def conv_llh(actual_values, expected_values):
     sigma = unp.std_devs(expected_values).ravel()
     expected_values = unp.nominal_values(expected_values).ravel()
     triplets = np.array([actual_values, expected_values, sigma]).T
+    norm_triplets = np.array([actual_values, actual_values, sigma]).T
     sum = 0
     for i in xrange(len(triplets)):
-        sum += np.log(max(SMALL_POS,conv_poisson(*triplets[i])))
+        sum += np.log(max(SMALL_POS,norm_conv_poisson(*triplets[i])))
+        sum -= np.log(max(SMALL_POS,norm_conv_poisson(*norm_triplets[i])))
     return sum
 
+def barlow_llh(actual_values, expected_values):
+    '''
+    compute the barlow LLH taking into account finite stats
+    '''
+    l = likelihoods()
+    actual_values = unp.nominal_values(actual_values).ravel()
+    sigmas = [unp.std_devs(ev.ravel()) for ev in expected_values]
+    expected_values = [unp.nominal_values(ev).ravel() for ev in expected_values]
+    uws = [np.square(ev)/np.square(s) for ev, s in zip(expected_values, sigmas)]
+    ws = [np.square(s)/ev for ev, s in zip(expected_values, sigmas)]
+    l.SetData(actual_values)
+    l.SetMC(np.array(ws))
+    l.SetUnweighted(np.array(uws))
+    llh =  l.GetLLH('barlow') 
+    del l
+    return -llh
 
 def mod_chi2(actual_values, expected_values):
     actual_values = unp.nominal_values(actual_values).ravel()
     sigma = unp.std_devs(expected_values).ravel()
     expected_values = unp.nominal_values(expected_values).ravel()
     chi2 = np.square(actual_values - expected_values)/(np.square(sigma)+expected_values)
+    # wrong def.
+    #chi2 = np.square(actual_values - expected_values)/(np.square(sigma)+actual_values)
     return np.sum(chi2)

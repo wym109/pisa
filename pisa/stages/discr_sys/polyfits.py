@@ -23,10 +23,10 @@ from pisa.utils.fileio import from_file
 # input_names and output_names.
 
 class polyfits(Stage):
-    """TODO: documentme"""
-    def __init__(self, params, input_names, input_binning, output_binning,
-                 disk_cache=None,
+    def __init__(self, params, input_binning, output_binning,
+                 disk_cache=None, error_method=None,
                  transforms_cache_depth=20, outputs_cache_depth=20):
+    """TODO: documentme"""
 
         # All of the following params (and no more) must be passed via the
         # `params` argument.
@@ -66,6 +66,7 @@ class polyfits(Stage):
             output_names=output_names,
             disk_cache=disk_cache,
             outputs_cache_depth=outputs_cache_depth,
+            error_method=error_method,
             transforms_cache_depth=transforms_cache_depth,
             input_binning=input_binning,
             output_binning=output_binning
@@ -105,6 +106,8 @@ class polyfits(Stage):
                             if transform is None:
                                 transform = np.ones((nx, ny))
                             for i, j in np.ndindex((nx,ny)):
+                                #if (pname =='dom_eff' or pname=='hole_ice' or pname=='hole_ice_fwd') and len(fit_params[i,j,:])==2:
+                                #    fit_params[i,j,0] = 1.0
                                 transform[i,j] *= fit_fun(p_value,
                                         *fit_params[i,j,:])
 
@@ -113,7 +116,8 @@ class polyfits(Stage):
                         output_name=name,
                         input_binning=self.input_binning,
                         output_binning=self.output_binning,
-                        xform_array=transform
+                        xform_array=transform,
+                        error_method=self.error_method,
                     )
                     transforms.append(xform)
         return TransformSet(transforms)

@@ -289,12 +289,12 @@ class Transform(object):
     # TODO: get rid of the tex attribute, or add back in the name attribute?
 
     # Attributes that __setattr__ will allow setting
-    _slots = ('_input_names', '_output_name', '_tex', '_hash', '_hash')
+    _slots = ('_input_names', '_output_name', '_tex', '_hash', '_hash', 'error_method')
     # Attributes that should be retrieved to fully describe state
-    _state_attrs = ('input_names', 'output_name', 'tex', 'hash')
+    _state_attrs = ('input_names', 'output_name', 'tex', 'hash', 'error_method')
 
     def __init__(self, input_names, output_name, input_binning=None,
-                 output_binning=None, tex=None, hash=None):
+                 output_binning=None, tex=None, hash=None, error_method=None):
         # Convert to sequence of single string if a single string was passed
         # for uniform interfacing
         if isinstance(input_names, basestring):
@@ -326,6 +326,10 @@ class Transform(object):
 
         self._tex = tex if tex is not None else output_name
         self._hash = hash
+        if bool(error_method) == False:
+            self._error_method = None
+        else:
+            self._error_method = error_method
 
     @property
     def _serializable_state(self):
@@ -335,6 +339,7 @@ class Transform(object):
         state['input_binning'] = self.input_binning._serializable_state
         state['output_binning'] = self.output_binning._serializable_state
         state['tex'] = self.tex
+        state['error_method'] = self.error_method
         state['hash'] = self.hash
         return state
 
@@ -346,6 +351,7 @@ class Transform(object):
         state['input_binning'] = self.input_binning._hashable_state
         state['output_binning'] = self.output_binning._hashable_state
         state['tex'] = self.tex
+        state['error_method'] = self.error_method
         return state
 
     def to_json(self, filename, **kwargs):
@@ -423,6 +429,10 @@ class Transform(object):
     def tex(self):
         return self._tex
 
+    @property
+    def error_method(self):
+        return self._error_method
+
     def apply(self, inputs):
         output = self._apply(inputs)
         # TODO: tex, etc.?
@@ -491,6 +501,9 @@ class BinnedTensorTransform(Transform):
     hash : immutable object (usually integer)
         A hash value the user can attach
 
+    error_method : string
+        Define the method for error propaation on unumpy arrays
+
     output_name : string
 
     input_binning : MultiDimBinning
@@ -500,8 +513,6 @@ class BinnedTensorTransform(Transform):
     xform_array : numpy ndarray
 
     error_array : None or numpy ndarray
-
-    tex : string
 
     params_hash : immutable object (usually integer)
 
@@ -530,12 +541,12 @@ class BinnedTensorTransform(Transform):
                          ['input_binning', 'output_binning', 'xform_array'])
 
     def __init__(self, input_names, output_name, input_binning, output_binning,
-                 xform_array, sum_inputs=False, error_array=None, tex=None,
+                 xform_array, sum_inputs=False, error_array=None, tex=None, error_method=None,
                  hash=None):
         super(BinnedTensorTransform, self).__init__(
             input_names=input_names, output_name=output_name,
             input_binning=input_binning, output_binning=output_binning,
-            tex=tex, hash=hash
+            tex=tex, hash=hash, error_method=error_method
         )
         self.xform_array = xform_array
         self.sum_inputs = sum_inputs
@@ -786,7 +797,11 @@ class BinnedTensorTransform(Transform):
 
         # Transform same shape: element-by-element multiplication
         if self.xform_array.shape == input_array.shape:
-            output = input_array * self.xform_array
+            if self.error_method == 'fixed':
+                # don't scale errors here
+                output = unp.uarray(unp.nominal_values(input_array) * self.xform_array, unp.std_devs(input_array))
+            else:
+                output = input_array * self.xform_array
 
             # If multiple inputs were concatenated together, and we did not sum
             # these inputs together, we need to sum the results together now.

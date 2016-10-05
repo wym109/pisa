@@ -20,24 +20,26 @@ from cycler import cycler
 import collections
 from pisa.utils.fileio import from_file
 
-def plot(name,data,hypos,trials):
-    
-    median = np.array([])
-    sigmam = np.array([])
-    sigmap = np.array([])
-    sigmam2 = np.array([])
-    sigmap2 = np.array([])
-    for datum in data:
-        median = np.append(median,np.percentile(datum,50))
-        sigmam = np.append(sigmam,np.percentile(datum,16))
-        sigmam2 = np.append(sigmam2,np.percentile(datum,5))
-        sigmap = np.append(sigmap,np.percentile(datum,84))
-        sigmap2 = np.append(sigmap2,np.percentile(datum,95))
-    if name == 'llh':
-        h0 = '%.2f'%(np.sqrt(median[0]))
-        h0_up = '%.2f'%(np.sqrt(sigmap[0])-np.sqrt(median[0]))
-        h0_down = '%.2f'%(np.sqrt(median[0])-np.sqrt(sigmam[0]))
-        print 'Significance for excluding H0: %s + %s - %s'%(h0, h0_up, h0_down) 
+def plot(name,data,hypos,asimov,trials,x_var='nutau_cc_norm',dir='.'):
+    print name
+   
+    if len(data) > 0: 
+        median = np.array([])
+        sigmam = np.array([])
+        sigmap = np.array([])
+        sigmam2 = np.array([])
+        sigmap2 = np.array([])
+        for datum in data:
+            median = np.append(median,np.percentile(datum,50))
+            sigmam = np.append(sigmam,np.percentile(datum,16))
+            sigmam2 = np.append(sigmam2,np.percentile(datum,5))
+            sigmap = np.append(sigmap,np.percentile(datum,84))
+            sigmap2 = np.append(sigmap2,np.percentile(datum,95))
+        if name in ['llh', 'conv_llh', 'chi2', 'mod_chi2']:
+            h0 = '%.2f'%(np.sqrt(median[0]))
+            h0_up = '%.2f'%(np.sqrt(sigmap[0])-np.sqrt(median[0]))
+            h0_down = '%.2f'%(np.sqrt(median[0])-np.sqrt(sigmam[0]))
+            print 'Significance for excluding H0: %s + %s - %s'%(h0, h0_up, h0_down) 
     
     plt.rc('axes', prop_cycle=(cycler('color', ['r', 'g', 'b', 'y','c','m','k']*2) +
                            cycler('linestyle', ['-']*7+['--']*7)))
@@ -45,27 +47,48 @@ def plot(name,data,hypos,trials):
 
     fig = plt.figure()
     fig.patch.set_facecolor('none')
-    if name == 'llh':
+    if name in ['llh', 'conv_llh', 'chi2', 'mod_chi2']:
         ax = plt.subplot2grid((6,1), (0,0), rowspan=5)
     else:
         ax = fig.add_subplot(111)
-    ax.fill_between(hypos,sigmam2,sigmap2,facecolor='b', linewidth=0, alpha=0.15, label='90% range')
-    ax.fill_between(hypos,sigmam,sigmap,facecolor='b', linewidth=0, alpha=0.3, label='68% range')
-    ax.plot(hypos,median, color='k', label='median')
+    if len(data) > 0: 
+        ax.fill_between(hypos,sigmam2,sigmap2,facecolor='b', linewidth=0, alpha=0.15, label='95% range')
+        ax.fill_between(hypos,sigmam,sigmap,facecolor='b', linewidth=0, alpha=0.3, label='68% range')
+        ax.plot(hypos,median, color='k', label='median')
+    for fname, asi in asimov.items():
+        ax.plot(asi['hypos'], asi[name], label=fname)
     ax.legend(loc='upper right',ncol=1, frameon=False,numpoints=1,fontsize=10)
-    ax.set_xlabel(r'$\nu_{\tau}$ normalization')
+    ax.set_xlabel(r'$\nu_{\tau}$ CC normalization')
     ax.set_xlim(min(hypos),max(hypos))
-    if name == 'llh':
+    if name in ['llh', 'conv_llh', 'chi2', 'mod_chi2'] and x_var == 'nutau_cc_norm' and len(data)>0:
         tex= r'$H_0$ at %s $\sigma ^{+%s}_{-%s}$'%(h0, h0_up, h0_down)
         print tex
         a_text = AnchoredText(r'$\nu_\tau$ appearance'+'\n%s years, %s trials\n'%(2.5,trials)+'Rejection of '+ tex, loc=2, frameon=False)
     else:
-        a_text = AnchoredText(r'$\nu_\tau$ appearance'+'\n%s years, %s trials\n'%(2.5,trials)+'nuisnace pulls', loc=2, frameon=False)
+        a_text = AnchoredText(r'$\nu_\tau$ appearance', loc=2, frameon=False)
     ax.add_artist(a_text)
     #ax.patch.set_facecolor('white')
     #ax.set_axis_bgcolor('white') 
     #ax.set_frame_on(False)
-    if name == 'llh':
+    if name in ['llh', 'conv_llh', 'chi2', 'mod_chi2']:
+        if x_var == 'nutau_cc_norm':
+            ax2 = plt.subplot2grid((6,1), (5,0),sharex=ax)
+            ax2.errorbar(np.array([1.47]),np.array([1.]),xerr=np.array([[0.32],[0.32]]),fmt='.',color='forestgreen')
+            ax2.text(0.05,0.75,r'Super-K 2016 (68%)',size=8)
+            ax2.errorbar(np.array([1.8]),np.array([2.]),xerr=np.array([[1.1],[1.8]]),fmt='.',color='sienna')
+            ax2.text(0.05,1.75,r'Opera 2015 (90%)',size=8)
+            ax2.set_ylim(0,4)
+            ax2.set_xlim(min(hypos),max(hypos))
+            ax2.get_yaxis().set_visible(False)
+            plt.setp(ax2.get_yticklabels(), visible=False)
+            fig.subplots_adjust(hspace=0)
+            plt.setp(ax.get_xticklabels(), visible=False)
+            ax2.set_xlabel(r'$\nu_{\tau}$ CC normalization')
+            for i in [0.5,1,1.5]:
+                ax2.axvline(i,color='k', linestyle='-',alpha=0.2)
+        elif x_var == 'deltacp':
+            ax.set_xlabel(r'$\Delta_{CP}$')
+    if name in ['llh', 'conv_llh', 'chi2', 'mod_chi2'] and len(data) > 0:
         best_idx = np.argmin(median)
         best = hypos[best_idx]
         best_ms = np.interp(1,median[best_idx::-1],hypos[best_idx::-1])
@@ -73,26 +96,20 @@ def plot(name,data,hypos,trials):
         best_ps = np.interp(1,median[best_idx:],hypos[best_idx:])
         best_p2s = np.interp(4,median[best_idx:],hypos[best_idx:])
         print best_m2s,best_ms,best,best_ps,best_p2s
-        ax2 = plt.subplot2grid((6,1), (5,0),sharex=ax)
-        ax2.errorbar(np.array([1.47]),np.array([1.]),xerr=np.array([[0.32],[0.32]]),fmt='.',color='forestgreen')
-        ax2.text(0.05,0.75,r'Super-K 2016 (68%)',size=8)
-        ax2.errorbar(np.array([1.8]),np.array([2.]),xerr=np.array([[1.1],[1.8]]),fmt='.',color='sienna')
-        ax2.text(0.05,1.75,r'Opera 2015 (90%)',size=8)
-        ax2.errorbar(np.array([best]),np.array([3.]),xerr=np.array([[best-best_ms],[best_ps-best]]),fmt='.',color='mediumblue')
-        ax2.errorbar(np.array([best]),np.array([3.]),xerr=np.array([[best-best_m2s],[best_p2s-best]]),fmt='.',color='mediumblue')
-        ax2.text(0.05,2.75,r'Expected (68%, 95%)',size=8)
-        ax2.set_ylim(0,4)
-        ax2.set_xlim(0,2)
-        ax2.get_yaxis().set_visible(False)
-        fig.subplots_adjust(hspace=0)
-        plt.setp(ax.get_xticklabels(), visible=False)
-        plt.setp(ax2.get_yticklabels(), visible=False)
-        ax2.set_xlabel(r'$\nu_{\tau}$ CC normalization')
-        for i in [0.5,1,1.5]:
-            ax2.axvline(i,color='k', linestyle='-',alpha=0.2)
-    if name == 'llh':
-        ax.set_ylabel(r'$-2\Delta LLH$')
-        ax.set_ylim([0,30])
+        if x_var == 'nutau_cc_norm':
+            ax2.errorbar(np.array([best]),np.array([3.]),xerr=np.array([[best-best_ms],[best_ps-best]]),color='mediumblue')
+            ax2.errorbar(np.array([best]),np.array([3.]),xerr=np.array([[best-best_m2s],[best_p2s-best]]),color='mediumblue')
+            ax2.text(0.05,2.75,r'Expected (68%, 90%)',size=8)
+    if name in ['llh', 'conv_llh', 'chi2', 'mod_chi2']:
+        if 'chi2' in name: 
+            ax.set_ylabel(r'$\Delta \chi^2$')
+        else:
+            ax.set_ylabel(r'$-2\Delta LLH$')
+        if x_var == 'nutau_cc_norm':
+            ax.set_ylim([0,25])
+            #ax.set_ylim([0,9])
+        elif x_var == 'deltacp':
+            ax.set_ylim([0,0.02])
         for i in [1,4,9,16,25,36]:
             ax.axhline(i,color='k', linestyle='-',alpha=0.2)
             ax.text(2.02,i-0.2,r'$%i\ \sigma$'%np.sqrt(i))
@@ -118,8 +135,8 @@ def plot(name,data,hypos,trials):
     for i in [0.5,1,1.5]:
         ax.axvline(i,color='k', linestyle='-',alpha=0.2)
     plt.show()
-    plt.savefig('q1_%s.png'%name, facecolor=fig.get_facecolor(), edgecolor='none')
-    plt.savefig('q1_%s.pdf'%name, facecolor=fig.get_facecolor(), edgecolor='none')
+    plt.savefig('%s/q1_%s.png'%(dir,name), facecolor=fig.get_facecolor(), edgecolor='none')
+    plt.savefig('%s/q1_%s.pdf'%(dir,name), facecolor=fig.get_facecolor(), edgecolor='none')
 
 def dist(data,name,hypos, asimov_hypos, params,trials):
 
@@ -145,14 +162,15 @@ if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument('-d','--dir',metavar='dir',help='directory containg output json files', default='.') 
+    parser.add_argument('-x','--x-var',help='variable to plot against', default='nutau_cc_norm') 
     parser.add_argument('--dist',action='store_true') 
+    parser.add_argument('--asimov',action='store_true') 
     args = parser.parse_args()
-
-    x_var = 'nutau_cc_norm'
 
     total = 0
     hypos = []
     data = {}
+    asimov = {}
 
     # get llh denominators for q for each seed
     for filename in os.listdir(args.dir):
@@ -160,19 +178,37 @@ if __name__ == '__main__':
             file = from_file(args.dir +'/'+filename)
             cond = file[0][0]
             glob = file[0][1]
+	    if file[0][0].has_key('llh'): metric = 'llh'
+	    elif file[0][0].has_key('conv_llh'): metric = 'conv_llh'
+	    elif file[0][0].has_key('chi2'): metric = 'chi2'
+	    elif file[0][0].has_key('mod_chi2'): metric = 'mod_chi2'
+	    elif file[0][0].has_key('barlow_llh'): metric = 'barlow_llh'
+	    else: continue
             plot_dict = {}
             flag = False
             for key,val in cond.items():
                 if key == 'warnflag':
                     flag = any(val)
-                elif key == 'llh':
-                    plot_dict[key] = 2*(np.array(val) - glob[key])
-                elif key == x_var:
+                elif key == metric:
+        	    if 'chi2' in metric:
+                    	plot_dict['llh'] = (np.array(val) - glob[metric])
+                    else:
+                    	plot_dict['llh'] = 2*(np.array(val) - glob[metric])
+                elif key == args.x_var:
                     hypos = val[0]
+                elif key == 'all_metrics':
+                     continue
                 else:
                     plot_dict[key] = val[0]
             if flag:
                 print 'skipping file %s'%filename
+            elif 'asimov' in filename or args.asimov:
+                name = filename.rstrip('.json')
+                asimov[name] = {}
+                asimov[name]['hypos'] = hypos
+                for key,val in plot_dict.items():
+                    asimov[name][key] = [[x] for x in val]
+                
             else:
                 total += 1
                 for key,val in plot_dict.items():
@@ -202,9 +238,14 @@ if __name__ == '__main__':
             #            else:
             #                data[key] = [[x] for x in val]
             #        total += 1
+    #asimov = sorted(asimov)
 
-    for key,val in data.items():
-        plot(key,val,hypos,total)
+    if len(data) > 0:
+        for key,val in data.items():
+            plot(key,val,hypos,asimov,total,args.x_var,args.dir)
+    elif len(asimov) > 0:
+        for key in sorted(asimov[asimov.keys()[0]].keys()):
+            plot(key,[],hypos,asimov,total,args.x_var,args.dir)
     #if args.dist:
     #    for s in syslist:
     #        dist(results, asimov_results,hypos, asimov_hypos, params, total)
