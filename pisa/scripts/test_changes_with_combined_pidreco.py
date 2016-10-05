@@ -346,48 +346,80 @@ if __name__ == '__main__':
         'tests', 'settings', 'recopid_full_pipeline_5stage_test.cfg'
     )
     pisa_standard_config = parse_pipeline_config(pisa_standard_settings)
+    pisa_standard_weighted_config = deepcopy(pisa_standard_config)
+    reco_k = [k for k in pisa_standard_weighted_config.keys() \
+              if k[0] == 'reco'][0]
+    standard_reco_params = \
+        pisa_standard_weighted_config[reco_k]['params'].params
+    standard_reco_params.reco_weights_name.value = 'weighted_aeff'
+    pid_k = [k for k in pisa_standard_weighted_config.keys() \
+             if k[0] == 'pid'][0]
+    standard_pid_params = \
+        pisa_standard_weighted_config[pid_k]['params'].params
+    standard_pid_params.pid_weights_name.value = 'weighted_aeff'
+    standard_configs = [pisa_standard_config,
+                        pisa_standard_weighted_config]
+    
     pisa_recopid_settings = os.path.join(
         'tests', 'settings', 'recopid_full_pipeline_4stage_test.cfg'
     )
     pisa_recopid_config = parse_pipeline_config(pisa_recopid_settings)
+    pisa_recopid_weighted_config = deepcopy(pisa_recopid_config)
+    recopid_k = [k for k in pisa_recopid_weighted_config.keys() \
+                 if k[0] == 'reco'][0]
+    recopid_reco_params = \
+        pisa_recopid_weighted_config[recopid_k]['params'].params
+    recopid_reco_params.reco_weights_name.value = 'weighted_aeff'
+    recopid_configs = [pisa_recopid_config,
+                       pisa_recopid_weighted_config]
+    
     oscfitfile = os.path.join(
         'tests', 'data', 'oscfit', 'OscFit1X600Baseline.json'
     )
 
-    # Perform baseline tests
-    if args.baseline or test_all:
-        logging.info("<< No oversampling >>")
-        do_comparisons(
-            config1=deepcopy(pisa_standard_config),
-            config2=deepcopy(pisa_recopid_config),
-            oscfitfile=oscfitfile,
-            testname1='5-stage',
-            testname2='4-stage',
-            outdir=args.outdir
-        )
+    weights_names = ['unweighted',
+                     'weighted_aeff']
+    short_weights_names = ['uw',
+                           'wa']
 
-    # Perform oversampled tests
-    if args.oversampling or test_all:
-        oversamples = [5,10,50,100]
-        for os in oversamples:
-
-            pisa_standard_os_config = oversample_config(
-                base_config=deepcopy(pisa_standard_config),
-                oversample=os
-            )
-            pisa_recopid_os_config = oversample_config(
-                base_config=deepcopy(pisa_recopid_config),
-                oversample=os
-            )
-            logging.info("<< Oversampling by %i >>"%(os))
+    for psc, prc, wn, swn in zip(standard_configs,
+                                 recopid_configs,
+                                 weights_names,
+                                 short_weights_names):
+        logging.info("<<<< %s reco/pid Transformations >>>>"%wn)
+        # Perform baseline tests
+        if args.baseline or test_all:
+            logging.info("<< No oversampling >>")
             do_comparisons(
-                config1=deepcopy(pisa_standard_os_config),
-                config2=deepcopy(pisa_recopid_os_config),
+                config1=deepcopy(psc),
+                config2=deepcopy(prc),
                 oscfitfile=oscfitfile,
-                testname1='5-stage%i'%os,
-                testname2='4-stage%i'%os,
+                testname1='5-stage%s'%swn,
+                testname2='4-stage%s'%swn,
                 outdir=args.outdir
             )
+
+        # Perform oversampled tests
+        if args.oversampling or test_all:
+            oversamples = [5,10,50]
+            for os in oversamples:
+                psosc = oversample_config(
+                    base_config=deepcopy(psc),
+                    oversample=os
+                )
+                prosc = oversample_config(
+                    base_config=deepcopy(prc),
+                    oversample=os
+                )
+                logging.info("<< Oversampling by %i >>"%(os))
+                do_comparisons(
+                    config1=deepcopy(psosc),
+                    config2=deepcopy(prosc),
+                    oscfitfile=oscfitfile,
+                    testname1='5-stage%s%i'%(swn,os),
+                    testname2='4-stage%s%i'%(swn,os),
+                    outdir=args.outdir
+                )
             
 
             
