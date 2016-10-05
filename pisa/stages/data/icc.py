@@ -58,7 +58,7 @@ class icc(Stage):
         pid_bound = self.params.pid_bound.m_as('dimensionless')
         pid_remove = self.params.pid_remove.m_as('dimensionless')
         use_def1 = self.params.use_def1.value
-        bdt_cut = self.params.bdt_cut.value.m_as('dimensionless')
+        bdt_cut = self.params.bdt_cut.m_as('dimensionless')
 
         self.bin_names = self.output_binning.names
         self.bin_edges = []
@@ -87,7 +87,6 @@ class icc(Stage):
         l3 = bg_file['IC86_Dunkman_L3']['value']
         l4 = bg_file['IC86_Dunkman_L4']['result']
         l5 = bg_file['IC86_Dunkman_L5']['bdt_score']
-        l6 = bg_file['IC86_Dunkman_L6']
         if use_def1:
             l4_pass = np.all(l4==1)
         else:
@@ -133,10 +132,6 @@ class icc(Stage):
         l5_cut1 = l5[cut1]
 
         # Cut2: Only keep bdt score >= 0.2 (from MSU latest result, make data/MC agree much better)
-        pid_cut = pid_bound 
-        #print "pid_remove = ", pid_remove
-        #print "pid_bound = ", pid_bound
-
         cut2 = l5_cut1>=bdt_cut
         reco_energy_cut2 = reco_energy_cut1[cut2]
         reco_coszen_cut2 = reco_coszen_cut1[cut2]
