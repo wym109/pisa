@@ -87,6 +87,7 @@ class icc(Stage):
         l3 = bg_file['IC86_Dunkman_L3']['value']
         l4 = bg_file['IC86_Dunkman_L4']['result']
         l5 = bg_file['IC86_Dunkman_L5']['bdt_score']
+        l6 = bg_file['IC86_Dunkman_L6']
         if use_def1:
             l4_pass = np.all(l4==1)
         else:
@@ -99,7 +100,6 @@ class icc(Stage):
                 l4_pass = np.all(l4==1)
         assert (np.all(santa_doms>=3) and np.all(l3 == 1) and l4_pass and
                 np.all(l5 >= 0.1))
-        l6 = bg_file['IC86_Dunkman_L6']
         corridor_doms_over_threshold = l6['corridor_doms_over_threshold']
 
         inverted_corridor_cut = corridor_doms_over_threshold > 1
