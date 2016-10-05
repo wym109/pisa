@@ -4,7 +4,7 @@ import numpy as np
 from pisa import ureg, Q_
 from pisa.core.distribution_maker import DistributionMaker
 from pisa.utils.log import set_verbosity
-from pisa.utils.plotter import plotter
+from pisa.utils.plotter import Plotter
 from pisa.utils.fileio import from_file
 
 parser = ArgumentParser()
@@ -32,7 +32,7 @@ set_verbosity(args.v)
 
 if args.data_settings is not None:
     data_maker = DistributionMaker(args.data_settings)
-    data = data_maker.get_outputs()
+    data = data_maker.get_total_outputs()
     data.set_poisson_errors()
     stamp=r'$\nu_\tau$ appearance'+'\nBurnsample comparison'
     if args.fit is None:
@@ -58,7 +58,7 @@ if not args.set_param == '':
         test.value = value
         data_maker.update_params(test)
 
-my_plotter = plotter(stamp=stamp, outdir='plots', fmt='pdf', log=False, annotate=True, symmetric=False, ratio=True)
+my_plotter = Plotter(stamp=stamp, outdir='plots', fmt='pdf', log=False, annotate=True, symmetric=False, ratio=True)
 
 template_maker = DistributionMaker(args.template_settings)
 template_maker_H0 = DistributionMaker(args.template_settings)
@@ -91,16 +91,16 @@ if args.livetime is not None:
         livetime.value = args.livetime * ureg.common_year
         tm.update_params(livetime) 
 
-template_nominal = template_maker.get_outputs()
+template_nominal = template_maker.get_total_outputs()
 for map in template_nominal: map.tex = 'MC'
-template_notau = template_maker_H0.get_outputs()
+template_notau = template_maker_H0.get_total_outputs()
 for map in template_notau: map.tex = r'MC\ (\nu_\tau^{CC}=0)'
 
 #print "template_nominal = ", template_nominal['cscd'].hist
 
 #my_plotter.plot_1d_array(template_nominal, 'reco_coszen', fname='p_coszen')
 #my_plotter.plot_1d_array(template_nominal, 'reco_energy', fname='p_energy')
-#my_plotter.plot_2d_array(template_nominal, fname='nominal',cmap='PiYG')
+my_plotter.plot_2d_array(template_nominal, fname='nominal',cmap='PiYG')
 
 if args.data_settings is not None:
 
