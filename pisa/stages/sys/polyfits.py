@@ -24,7 +24,7 @@ from pisa.utils.fileio import from_file
 
 class polyfits(Stage):
     def __init__(self, params, input_binning, output_binning,
-                 disk_cache=None,
+                 disk_cache=None, error_method=None,
                  transforms_cache_depth=20, outputs_cache_depth=20):
 
         # All of the following params (and no more) must be passed via the
@@ -68,6 +68,7 @@ class polyfits(Stage):
             output_names=output_names,
             disk_cache=disk_cache,
             outputs_cache_depth=outputs_cache_depth,
+            error_method=error_method,
             transforms_cache_depth=transforms_cache_depth,
             input_binning=input_binning,
             output_binning=output_binning
@@ -89,6 +90,7 @@ class polyfits(Stage):
         
     @profile
     def _compute_transforms(self):
+
 
         transforms = []
         for cat in self.categories:
@@ -114,7 +116,8 @@ class polyfits(Stage):
                         output_name=name,
                         input_binning=self.input_binning,
                         output_binning=self.output_binning,
-                        xform_array=transform
+                        xform_array=transform,
+                        error_method=self.error_method,
                     )
                     transforms.append(xform)
 
