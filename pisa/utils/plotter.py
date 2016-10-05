@@ -305,7 +305,7 @@ class Plotter(object):
         off = max(maximum-1, 1-minimum)
         axis.set_ylim(1 - 1.2 * off, 1 + 1.2 * off )
 
-    def plot_CFX_xsec(self, MapSet, ylim=None, logx=True):
+    def plot_xsec(self, MapSet, ylim=None, logx=True):
         from pisa.utils import fileio
 
         zero_np_element = np.array([0])
