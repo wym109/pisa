@@ -23,8 +23,7 @@ from operator import add, getitem, setitem
 import re
 
 import numpy as np
-from scipy.stats import poisson
-from scipy.stats import norm
+from scipy.stats import poisson, norm
 import uncertainties
 from uncertainties import ufloat
 from uncertainties import unumpy as unp
@@ -392,7 +391,7 @@ class Map(object):
                 valid_mask = ~nan_at
 
                 hist_vals = np.empty_like(orig_hist, dtype=np.float64)
-                hist_vals[valid_mask] = stats.poisson.rvs(
+                hist_vals[valid_mask] = poisson.rvs(
                     orig_hist[valid_mask],
                     random_state=random_state
                 )
@@ -414,7 +413,7 @@ class Map(object):
                 gauss[valid_mask] = norm.rvs(loc=orig_hist[valid_mask], scale=sigma[valid_mask])
 
                 hist_vals = np.empty_like(orig_hist, dtype=np.float64)
-                hist_vals[valid_mask] = stats.poisson.rvs(
+                hist_vals[valid_mask] = poisson.rvs(
                     gauss[valid_mask],
                     random_state=random_state
                 )

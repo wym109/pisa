@@ -110,20 +110,10 @@ class icc(Stage):
                 np.all(l6['mn_stop_contained'] == 1.))
 
         #load events
-        if sim_ver == '4digit':
-            reco_energy_all = np.array(
-                bg_file['IC86_Dunkman_L6_MultiNest8D_PDG_Neutrino']['energy']
-            )
-            reco_coszen_all = np.array(np.cos(
-                bg_file['IC86_Dunkman_L6_MultiNest8D_PDG_Neutrino']['zenith']
-            ))
-        elif sim_ver == '5digit' or 'dima':
-            reco_energy_all = np.array(
-                bg_file['IC86_Dunkman_L6_PegLeg_MultiNest8D_NumuCC']['energy']
-            )
-            reco_coszen_all = np.array(np.cos(
-                bg_file['IC86_Dunkman_L6_PegLeg_MultiNest8D_NumuCC']['zenith']
-            ))
+	if sim_ver == '4digit':
+            variable ='IC86_Dunkman_L6_MultiNest8D_PDG_Neutrino'
+        elif sim_ver in ['5digit', 'dima']:
+            variable = 'IC86_Dunkman_L6_PegLeg_MultiNest8D_NumuCC' 
         else:
             raise ValueError('Only allow sim_ver  4digit, 5 digit or dima!')
         reco_energy_all = np.array(bg_file[variable]['energy'])

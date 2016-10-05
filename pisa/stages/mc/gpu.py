@@ -176,12 +176,21 @@ class gpu(Stage):
         detector_depth = self.params.detector_depth.value.m_as('km')
 
         # Prob3 GPU oscialltions
-        self.osc = Prob3GPU(detector_depth,
-                            earth_model,
-                            prop_height,
-                            YeI,
-                            YeO,
-                            YeM)
+	osc_params_subset = []
+        for param in self.params:
+            if param.name in self.osc_params:
+                osc_params_subset.append(param)
+        osc_params_subset = ParamSet(osc_params_subset)
+        self.osc = prob3gpu(params=osc_params_subset, 
+                            input_binning=None, 
+                            output_binning=None,
+                            error_method=None,
+                            memcache_deepcopy=False,
+                            transforms_cache_depth=0,
+                            outputs_cache_depth=0,
+                            )
+
+
 
         # Weight calculator
         self.weight = GPUweight()

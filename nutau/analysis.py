@@ -8,10 +8,12 @@ import scipy.optimize as opt
 from scipy.stats import chisqprob
 import time
 from uncertainties import unumpy as unp
+import random
 
 from pisa.core.distribution_maker import DistributionMaker
 from pisa.utils.fileio import from_file
 from pisa.utils.log import logging, set_verbosity
+from pisa.utils.random_numbers import get_random_state
 from pisa import ureg, Q_
 
 class Analysis(object):
@@ -82,12 +84,14 @@ class Analysis(object):
         self.n_minimizer_calls = 0
 
     def generate_psudodata(self):
+        #just to make it work right now
+        data_random_state = get_random_state(random.randint(0,2**32))
         if self.pseudodata_method in ['asimov', 'data']:
             self.pseudodata = self.data
         elif self.pseudodata_method == 'poisson':
-            self.pseudodata = self.data.fluctuate('poisson')
+            self.pseudodata = self.data.fluctuate('poisson', random_state=data_random_state)
         elif self.pseudodata_method == 'gauss+poisson':
-            self.pseudodata = self.data.fluctuate('gauss+poisson')
+            self.pseudodata = self.data.fluctuate('gauss+poisson', random_state=data_random_state)
         else:
             raise Exception('unknown method %s'%method)
         self.N_data = sum([unp.nominal_values(map.hist).sum() for map in self.pseudodata])

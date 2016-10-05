@@ -333,6 +333,7 @@ class prob3gpu(Stage):
             output_binning=output_binning,
             debug_mode=debug_mode
         )
+
         # TODO: Check for single precision
         self.FTYPE = np.float64
         if self.calc_transforms:
