@@ -40,6 +40,14 @@ def compare_pisa(config1, config2, testname1, testname2, outdir):
 
     cake2_both_map = outputs2.combine_wildcard('*')
 
+    #print '-'*80
+    #print 'outputs2.names:', outputs2.names
+    #print 'outputs2.binning:', outputs2.binning
+    #print '-'*40
+    #print 'cake2_both_map.name:', cake2_both_map.name
+    #print 'cake2_both_map.binning:', cake2_both_map.binning
+    #print '-'*80
+
     cake1_trck_map_to_plot = {}
     cake1_trck_map_to_plot['ebins'] = \
             cake1_trck_map.binning['reco_energy'].bin_edges.magnitude
@@ -53,7 +61,7 @@ def compare_pisa(config1, config2, testname1, testname2, outdir):
             cake2_both_map.binning['reco_energy'].bin_edges.magnitude
     cake2_trck_map_to_plot['czbins'] = \
             cake2_both_map.binning['reco_coszen'].bin_edges.magnitude
-    cake2_trck_map_to_plot['map'] = cake2_both_map.hist[1]
+    cake2_trck_map_to_plot['map'] = cake2_both_map.hist[...,1]
     cake2_trck_map_to_plot['map'] = cake2_trck_map_to_plot['map']
 
     max_diff_ratio, max_diff = plot_comparisons(
@@ -84,7 +92,7 @@ def compare_pisa(config1, config2, testname1, testname2, outdir):
             cake2_both_map.binning['reco_energy'].bin_edges.magnitude
     cake2_cscd_map_to_plot['czbins'] = \
             cake2_both_map.binning['reco_coszen'].bin_edges.magnitude
-    cake2_cscd_map_to_plot['map'] = cake2_both_map.hist[0]
+    cake2_cscd_map_to_plot['map'] = cake2_both_map.hist[...,0]
     cake2_cscd_map_to_plot['map'] = cake2_cscd_map_to_plot['map']
 
     max_diff_ratio, max_diff = plot_comparisons(
@@ -97,7 +105,8 @@ def compare_pisa(config1, config2, testname1, testname2, outdir):
         stagename='baseline',
         servicename='recopid',
         name='cscd',
-        texname=r'\rm{cscd}')
+        texname=r'\rm{cscd}'
+    )
 
     print_agreement(testname='PISAStandard-RecoPid: %s'%('cscd'),
                     ratio=max_diff_ratio)
@@ -245,11 +254,11 @@ if __name__ == '__main__':
     # Perform internal tests
     if test_all:
         pisa_standard_settings = os.path.join(
-            'tests', 'settings', 'full_pipeline_test.ini'
+            'tests', 'settings', 'full_pipeline_test.cfg'
         )
         pisa_standard_config = parse_pipeline_config(pisa_standard_settings)
         pisa_recopid_settings = os.path.join(
-            'tests', 'settings', 'full_pipeline_recopid_test.ini'
+            'tests', 'settings', 'full_pipeline_recopid_test.cfg'
         )
         pisa_recopid_config = parse_pipeline_config(pisa_recopid_settings)
         pisa_recopid_pipeline = compare_pisa(

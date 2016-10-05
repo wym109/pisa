@@ -200,12 +200,12 @@ class Events(FlavIntData):
         # Extract the columns' data into a list of array(s) for histogramming
         repr_flav_int = kinds[0]
         sample = [self[repr_flav_int][colname] for colname in binning_cols]
+        err_weights = None
+        hist_weights = None
         if weights_col is not None:
             hist_weights = self[repr_flav_int][weights_col]
-            err_weights = np.square(hist_weights)
-        else:
-            hist_weights = None
-            err_weights = None
+            if errors:
+                err_weights = np.square(hist_weights)
 
         hist, edges = np.histogramdd(sample=sample,
                                      weights=hist_weights,
