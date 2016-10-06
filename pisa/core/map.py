@@ -310,7 +310,8 @@ class Map(object):
 
         # Handle cases where ratio returns infinite
         # This isn't necessarily a fail, since all it means is the referene was
-        # zero If the new value is sufficiently close to zero then it's still fine
+        # zero If the new value is sufficiently close to zero then it's still
+        # fine
         if max_diff_ratio == np.inf:
             # First find all the finite elements
             finite_mask = np.isfinite(fract_diff.hist)
@@ -323,10 +324,20 @@ class Map(object):
             max_diff = 0.0
 
         nanmatch = np.all(np.isnan(self.hist) == np.isnan(ref.hist))
-        infmatch = np.all(self.hist[np.isinf(self.hist)]
-                          == ref.hist[np.isinf(ref.hist)])
+        infmatch = np.all(
+            self.hist[np.isinf(self.hist)] == ref.hist[np.isinf(ref.hist)]
+        )
 
-        return diff, ratio, fract_diff, max_diff_ratio, max_diff, nanmatch, infmatch
+        comparisons = OrderedDict([
+            ('diff', diff),
+            ('ratio', ratio),
+            ('fract_diff', fract_diff),
+            ('max_diff_ratio', max_diff_ratio),
+            ('max_diff', max_diff),
+            ('nanmatch', nanmatch),
+            ('infmatch', infmatch)
+        ])
+        return comparisons
 
     def plot(self, evtrate=True, symm=False, logz=False, fig=None, ax=None,
              title=None, outdir=None, fname=None, backend='pdf', fmt='pdf',
