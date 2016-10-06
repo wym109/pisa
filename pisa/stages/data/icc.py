@@ -15,7 +15,39 @@ from pisa.utils.resources import find_resource
 
 # TODO: use logging in lieu of print!
 class icc(Stage):
-    """TODO: document me, Philipp!"""
+    """Data loader stage
+
+    Paramaters
+    ----------
+
+    params : ParamSet
+        icc_bg_file : string
+            path pointing to the hdf5 file containing the events
+        pid_bound : float
+            boundary between cascade and track channel
+        pid_remo : float
+            lower cutoff value, below which events get rejected
+        sim_ver: string
+            indicateing the sim version, wither 4digit, 5digit or dima
+        bdt_cut : float
+            futher cut apllied to events for the atm. muon rejections BDT
+	livetime : time quantity
+            livetime scale factor
+        alt_icc_bg_file : string
+            path pointing to an hdf5 file containing the events for an alternate selection/model,
+            used to generate shape unbcertainty terms
+        atm_muon_scale: float
+            scale factor to be apllied to outputs
+        use_def1 : bool
+            wether ICC definition 1 is used
+
+    Notes
+    -----
+
+    The curent versio of this code is a port from pisa v2 nutau branch.
+    It clearly needs to be cleand up properly at some point.
+
+    """
 
     def __init__(self, params, output_binning, disk_cache=None,
                 memcache_deepcopy=True, error_method=None,
@@ -48,6 +80,8 @@ class icc(Stage):
             debug_mode=debug_mode
         )
 
+
+    def _compute_nominal_outputs(self):
         # get params
         icc_bg_file = self.params.icc_bg_file.value
         if self.error_method in ['sumw2+shape', 'fixed_sumw2+shape']:
