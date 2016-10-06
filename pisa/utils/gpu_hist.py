@@ -9,7 +9,27 @@ from pisa.utils.log import set_verbosity
 #set_verbosity(3)
 
 class GPUhist(object):
-    ''' histogramming class for GPUs '''
+    ''' histogramming class for GPUs
+        
+    PARAMETERS
+    ---------
+
+    bin_edges_x : array
+    bin_edges_y : array
+
+    METHODS
+    -------
+
+    get_hist
+        retreive weighted histogram of given events
+        * n_evts : number of events
+        * d_x : CUDA device array of length n_evts with x-values
+        * d_y : CUDA device array of length n_evts with y-values
+        * d_w : CUDA device array of length n_evts with weights
+    clear
+        clear buffer
+
+    '''
     
     def __init__(self, bin_edges_x, bin_edges_y):
         ''' initialize 2d histogram, with given bin_edges '''
@@ -108,7 +128,7 @@ class GPUhist(object):
         cuda.memcpy_htod(self.d_hist2d, self.hist2d)
 
     def get_hist(self, n_evts, d_x, d_y, d_w):
-        ''' retrive 2d histogram, given device arrays for x&y as well as weights w '''
+        ''' retrive 2d histogram, given device arrays for x&y values as well as weights w '''
         # block and grid dimensions
         bdim = (256,1,1)
         dx, mx = divmod(n_evts/self.n_thread+1, bdim[0])
