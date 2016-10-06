@@ -12,6 +12,10 @@ This service generates histograms, given a set of MC events that also include no
 Weights are calculated for every event and flavour/interaction type (alpha) indicvidually, according to the following expression
 
 ![weights](images/weight.png)
+<!---
+w_\alpha(E,CZ) = p_\alpha(E,CZ) \cdot M_{RES}(E,CZ) \cdot M_{QE}(E,CZ) \cdot t_{live} \cdot w_{Aeff} \cdot A_{eff}^{scale}
+--->
+
 
 where:
   * `M_RES` and `M_QEare` precalculated GENIE systematics
@@ -21,21 +25,24 @@ where:
   * `p_alpha` the probability of observing the event in this flaveour/inttype calculates as:
 
 ![prob](images/prob.png)
+<!---
+p_\alpha(E,CZ) = P^{osc}_{e\rightarrow\alpha}(E,CZ) \cdot \widehat{flux}_e(E,CZ) + P^{osc}_{\mu\rightarrow\alpha}(E,CZ) \cdot \widehat{flux}_\mu(E,CZ)
+--->
 
 where:
   * `Posc` is the oscialltion probability (obtained from Prob3)
   * `flux_hat` the modified flux given by:
 
 ![flux](images/flux.png)
+<!---
+\widehat{flux}(E,CZ) = flux(E,CZ) \cdot Barr_{up/hor}(E,CZ) \cdot Barr_{\nu/\bar{\nu}}(E,CZ) \cdot R{\nu_e/\nu_\mu} \cdot S(E)
+--->
 
 where:
   * `flux` is the nominal flux that is obtainef for aexample from the Honda flux tables
   * `Barr up/hor`, `Barr nu/nubar` and `R nue/numu` are flux ratio uncertainties uncertainties
   * `S` the systematic uncertainty on the spectral index
 
-<!---
-latex
-w_\alpha(E,CZ) = p_\alpha(E,CZ) \cdot M_{RES}(E,CZ) \cdot M_{QE}(E,CZ) \cdot t_{live} \cdot w_{Aeff} \cdot A_{eff}^{scale}
-p_\alpha(E,CZ) = P^{osc}_{e\rightarrow\alpha}(E,CZ) \cdot \widehat{flux}_e(E,CZ) + P^{osc}_{\mu\rightarrow\alpha}(E,CZ) \cdot \widehat{flux}_\mu(E,CZ)
-\widehat{flux}(E,CZ) = flux(E,CZ) \cdot Barr_{up/hor}(E,CZ) \cdot Barr_{\nu/\bar{\nu}}(E,CZ) \cdot R{\nu_e/\nu_\mu} \cdot S(E)
---->
+The events get histogramed on GPU into the provided bin edges for reconstructed energy and cos(zenith), as well as PID (cscade or track). At the moment the division into PID classes is two separate histograms at the moment, not a real binning.
+
+In this implementation the histograms are added up for all flavour/inttypes in the end of the stage, while also applying additional scale factors for the tau neutrino and the NC histograms.
