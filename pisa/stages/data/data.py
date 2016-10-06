@@ -67,6 +67,9 @@ class data(Stage):
         )
 
     def _compute_nominal_outputs(self):
+        '''
+        load the evnts from file, perform sanity checks and histogram them (into final MapSet)
+        '''
         # get params
         data_file_name = self.params.data_file.value
         sim_version = self.params.sim_ver.value
@@ -179,5 +182,5 @@ class data(Stage):
         self.template = MapSet(maps, name='data')
 
     def _compute_outputs(self, inputs=None):
-        """TODO: document me, Philipp!"""
+        """return the precomputed MpSets, since this is data, the distributions don't change"""
         return self.template

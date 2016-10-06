@@ -82,6 +82,11 @@ class icc(Stage):
 
 
     def _compute_nominal_outputs(self):
+        '''
+        load events, perform sanity check and put them into histograms,
+        if alt_bg file is specified, also put these events into separate histograms,
+        that are normalized to the nominal ones (we are only interested in the shape difference)
+        '''
         # get params
         icc_bg_file = self.params.icc_bg_file.value
         if self.error_method in ['sumw2+shape', 'fixed_sumw2+shape']:
@@ -216,7 +221,13 @@ class icc(Stage):
                 self.alt_icc_bg_dict[flavor] = alt_icc_bg_hist * scale
 
     def _compute_outputs(self, inputs=None):
-        """TODO: document me, Philipp!"""
+        """
+        apply scales to histograms, put them into PISA MapSets
+        Also asign errors given a method:
+            * sumw2 : just sum of weights quared as error (the usual weighte histo error)
+            * sumw2+shae : including the shape difference
+            * fixed_sumw2+shape : errors estimated from nominal paramter values, i.e. scale-invariant
+        """
 
         scale = self.params.atm_muon_scale.value.m_as('dimensionless')
         fixed_scale = self.params.atm_muon_scale.nominal_value.m_as('dimensionless')
