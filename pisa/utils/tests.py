@@ -167,7 +167,7 @@ def baseplot2(map, title, ax, symm=False, evtrate=False):
         vmax = extr
         vmin = -extr
     else:
-        cmap = plt.cm.hot
+        cmap = plt.cm.afmhot
         if evtrate:
             vmin = 0
         else:
@@ -175,32 +175,32 @@ def baseplot2(map, title, ax, symm=False, evtrate=False):
         vmax = np.nanmax(hist)
     cmap.set_bad(color=(0,1,0), alpha=1)
 
-    x = hist.binning[0].bin_edges.magnitude
-    y = hist.binning[1].bin_edges.magnitude
+    x = map.binning.dims[0].bin_edges.magnitude
+    y = map.binning.dims[1].bin_edges.magnitude
 
-    if hist.binning[0].is_log:
+    if map.binning.dims[0].is_log:
         xticks = 2**(np.arange(np.ceil(np.log2(min(x))),
                                np.floor(np.log2(max(x)))+1))
         x = np.log10(x)
-    if hist.binning[1].is_log:
+    if map.binning.dims[1].is_log:
         yticks = 2**(np.arange(np.ceil(np.log2(min(y))),
                                np.floor(np.log2(max(y)))+1))
         y = np.log10(y)
 
     X, Y = np.meshgrid(x, y)
-    pcmesh = ax.pcolormesh(X, Y, hist, vmin=vmin, vmax=vmax, cmap=cmap)
+    pcmesh = ax.pcolormesh(X, Y, hist.T, vmin=vmin, vmax=vmax, cmap=cmap)
     cbar = plt.colorbar(mappable=pcmesh, ax=ax)
     cbar.ax.tick_params(labelsize='large')
-    ax.set_xlabel(map.binning[0].tex)
-    ax.set_ylabel(map.binning[1].tex)
+    ax.set_xlabel(map.binning.dims[0].tex)
+    ax.set_ylabel(map.binning.dims[1].tex)
     ax.set_title(title, y=1.03)
     ax.set_xlim(np.min(x), np.max(x))
     ax.set_ylim(np.min(y), np.max(y))
 
-    if hist.binning[0].is_log:
+    if map.binning.dims[0].is_log:
         ax.set_xticks(np.log10(xticks))
         ax.set_xticklabels([str(int(xt)) for xt in xticks])
-    if hist.binning[1].is_log:
+    if map.binning.dims[1].is_log:
         ax.set_yticks(np.log10(yticks))
         ax.set_yticklabels([str(int(yt)) for yt in yticks])
 
@@ -353,21 +353,21 @@ def plot_cmp(new, ref, new_label, ref_label, plot_label, file_label, outdir,
             gridspec_kw = dict(left=0.03, right=0.968, wspace=0.32)
             fig, axes = plt.subplots(nrows=1, ncols=5, gridspec_kw=gridspec_kw,
                                      sharex=False, sharey=False, figsize=(20,5))
-            baseplot2(m=ref_map,
-                      title=ref_abv,
+            baseplot2(map=ref,
+                      title=ref_label,
                       evtrate=True,
                       ax=axes[0])
-            baseplot2(m=new_map,
-                      title=new_abv,
+            baseplot2(map=new,
+                      title=new_label,
                       evtrate=True,
                       ax=axes[1])
-            baseplot2(m=ratio_map,
+            baseplot2(map=ratio,
                       title='%s/%s' %(new_label, ref_label),
                       ax=axes[2])
-            baseplot2(m=diff,
+            baseplot2(map=diff,
                       title='%s-%s' %(new_label, ref_label),
                       symm=True, ax=axes[3])
-            baseplot2(m=fract_diff,
+            baseplot2(map=fract_diff,
                       title='(%s-%s)/%s' %(new_label, ref_label, ref_label),
                       symm=True,
                       ax=axes[4])
