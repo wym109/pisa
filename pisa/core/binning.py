@@ -825,6 +825,11 @@ class OneDimBinning(object):
         # Retrieve current state; only bin_edges needs to be updated
         return {'bin_edges': np.array(sorted(new_edges))*units}
 
+    def __iter__(self):
+        indices = range(len(self))
+        for idx in indices:
+            yield self[idx]
+
     def __eq__(self, other):
         if not isinstance(other, OneDimBinning):
             return False

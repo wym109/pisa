@@ -10,6 +10,8 @@ parameters (e.g., PINGU's V5 processing).
 """
 
 
+from collections import OrderedDict, Sequence
+from itertools import izip
 import os
 import h5py
 
@@ -23,6 +25,12 @@ import pisa.utils.resources as resources
 from numpy import *
 import numpy as np
 
+
+MULTI_PART_FIELDS = [
+    'I3MCTree',
+]
+
+NU_PDG_CODES = [-12,12,-14,14,-16,16]
 
 class DataProcParams(dict):
     """Class for importing, working with, and storing data processing
@@ -363,8 +371,48 @@ class DataProcParams(dict):
                 myfile = True
                 h5 = h5py.File(os.path.expandvars(os.path.expanduser(h5)),
                                mode='r')
-            data = {name:self.retrieveNodeData(h5, path)
-                    for name, path in self['field_map'].items()}
+            data = OrderedDict()
+            for name, path in self['field_map'].iteritems():
+                datum = self.retrieveNodeData(h5, path)
+                path_parts = path.split('/')
+                if path_parts[0] == 'I3MCTree' and path_parts[-1] != 'Event':
+                    evts = self.retrieveNodeData(
+                        h5, '/'.join(path_parts[:-1] + ['Event'])
+                    )
+                    pdgs = self.retrieveNodeData(
+                        h5, '/'.join(path_parts[:-1] + ['pdg_encoding'])
+                    )
+                    energies = self.retrieveNodeData(
+                        h5, '/'.join(path_parts[:-1] + ['energy'])
+                    )
+
+                    # Looping here is ugly and slow, but people don't make the
+                    # Event field unique, so the only thing you can count on is
+                    # that if the event number changes in sequence, you're in a
+                    # different Event (for now, I think). The actual Event
+                    # number can be repeated elsewhere, though.
+                    #
+                    # This makes for wonderfully reproducible results.
+                    # </sardonic laughter>
+                    new_datum = []
+                    this_evt = np.nan
+                    this_d = None
+                    for d, evt, pdg, egy in izip(datum, evts, pdgs, energies): 
+                        if evt != this_evt:
+                            if this_d is not None:
+                                new_datum.append(this_d)
+                            this_egy = -np.inf
+                            this_d = None
+                            this_evt = evt
+                        if egy > this_egy and pdg in NU_PDG_CODES:
+                            this_egy = egy
+                            this_d = d
+                    if this_d is not None:
+                        new_datum.append(this_d)
+                    datum = new_datum
+
+                data[name] = np.array(datum)
+
         finally:
             if myfile and isinstance(h5, h5py.File):
                 try:
@@ -387,6 +435,10 @@ class DataProcParams(dict):
         Attach / reattach the translated/new fields to the `data` object passed
         into this methd.
         """
+        for k, v in data.iteritems():
+            if isinstance(v, Sequence):
+                data[k] = v[0]
+
         if self.trans_nu_code:
             data['nu_code'] = [
                 self.nu_code_to_pdg_map[code] for code in data['nu_code']
