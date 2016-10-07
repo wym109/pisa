@@ -192,9 +192,6 @@ class smooth(Stage):
                 source=users_dim_indices,
                 destination=comp_dim_indices
             )
-            comp_binning = xform_binning.reorder_dimensions(xform.input_binning)
-        else:
-            comp_binning = xform_binning
 
         # Get smooth factors from stage parameters
         e_smooth_factor = \
@@ -203,8 +200,8 @@ class smooth(Stage):
                 self.params.aeff_cz_smooth_factor.value.m_as('dimensionless')
 
         # Separate binning dimensions
-        czbins = comp_binning.true_coszen
-        ebins = comp_binning.true_energy
+        czbins = xform_binning.true_coszen
+        ebins = xform_binning.true_energy
 
         # Set spline weights
         # If hist has uncertainties
@@ -443,6 +440,7 @@ class smooth(Stage):
                 weights_col='weighted_aeff',
                 errors=None
             )
+            aeff_transform = aeff_transform.hist
 
             # Divide histogram by
             #   (energy bin width x coszen bin width x azimuth bin width)
@@ -458,9 +456,9 @@ class smooth(Stage):
                 weights_col=None,
                 errors=None
             )
-            aeff_err = aeff_transform / np.sqrt(bin_counts)
-
-            aeff_transform = unp.uarray(aeff_transform, aeff_err)
+            if self.error_method not in [None, False]:
+                aeff_err = aeff_transform / np.sqrt(bin_counts)
+                aeff_transform = unp.uarray(aeff_transform, aeff_err)
 
             # For each member of the group, save the raw aeff transform and
             # its smoothed and interpolated versions
