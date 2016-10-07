@@ -1,4 +1,4 @@
-# Stage X: reweighted MC
+# Stage: reweighted MC
 
 This stage generates event rate templates with 'traditional' MC reweighting (in contrast to the PISA histo mode)
 
@@ -18,11 +18,11 @@ w_\alpha(E,CZ) = p_\alpha(E,CZ) \cdot M_{RES}(E,CZ) \cdot M_{QE}(E,CZ) \cdot t_{
 
 
 where:
-  * `M_RES` and `M_QEare` precalculated GENIE systematics
-  * `t_live` the livetime
-  * `W_Aeff` the precalculated effective area weight (including oneweight and crosssection)
-  * `A_eff^scale` a global scaling paramter
-  * `p_alpha` the probability of observing the event in this flaveour/inttype calculates as:
+  * `M RES` and `M QE` are precalculated GENIE systematics
+  * `t live` the livetime
+  * `W Aeff` the precalculated effective area weight (including oneweight and crosssection)
+  * `A eff scale` a global scaling paramter
+  * `p alpha` the probability of observing the event in this flaveour/inttype calculates as:
 
 ![prob](images/prob.png)
 <!---
@@ -30,8 +30,8 @@ p_\alpha(E,CZ) = P^{osc}_{e\rightarrow\alpha}(E,CZ) \cdot \widehat{flux}_e(E,CZ)
 --->
 
 where:
-  * `Posc` is the oscialltion probability (obtained from Prob3)
-  * `flux_hat` the modified flux given by:
+  * `P osc` is the oscialltion probability (obtained from Prob3)
+  * `flux hat` the modified flux given by:
 
 ![flux](images/flux.png)
 <!---
@@ -39,8 +39,8 @@ where:
 --->
 
 where:
-  * `flux` is the nominal flux that is obtainef for aexample from the Honda flux tables
-  * `Barr up/hor`, `Barr nu/nubar` and `R nue/numu` are flux ratio uncertainties uncertainties
+  * `flux` is the nominal flux that is obtained for aexample from the Honda flux tables
+  * `Barr up/hor`, `Barr nu/nubar` and `R nue/numu` are flux ratio uncertainties
   * `S` the systematic uncertainty on the spectral index
 
 The events get histogramed on GPU into the provided bin edges for reconstructed energy and cos(zenith), as well as PID (cscade or track). At the moment the division into PID classes is two separate histograms at the moment, not a real binning.
