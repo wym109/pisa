@@ -345,11 +345,11 @@ def plot_cmp(new, ref, new_label, ref_label, plot_label, file_label, outdir,
         diff = new - ref
         fract_diff = diff / ref
 
-        finite_diff = np.isfinite(diff.hist)
+        finite_diff = diff.hist[np.isfinite(diff.hist)]
         diff_mean = np.mean(finite_diff)
         diff_median = np.median(finite_diff)
 
-        finite_fract_diff = np.isfinite(fract_diff.hist)
+        finite_fract_diff = fract_diff.hist[np.isfinite(fract_diff.hist)]
         fract_diff_mean = np.mean(finite_fract_diff)
         fract_diff_median = np.median(finite_fract_diff)
 
