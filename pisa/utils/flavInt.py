@@ -1191,7 +1191,7 @@ class FlavIntDataGroup(dict):
         if val is None:
             # Instantiate empty FlavIntDataGroup
             with BarSep('_'):
-                d = {str(group):None for group in self._flavint_groups}
+                d = {str(group):None for group in self.flavint_groups}
         else:
             if isinstance(val, basestring):
                 d = self.__load(val)
@@ -1206,11 +1206,11 @@ class FlavIntDataGroup(dict):
             if flavint_groups is None:
                 self._flavint_groups = fig
             else:
-                if set(fig) != set(self._flavint_groups):
+                if set(fig) != set(self.flavint_groups):
                     raise AssertionError(
                         'Specified `flavint_groups` does not match `val` '
                         'signature.\n`flavint_groups` - {0}\n`val groups` '
-                        '- {1}'.format(self._flavint_groups, fig)
+                        '- {1}'.format(self.flavint_groups, fig)
                     )
 
         self.validate(d)
@@ -1245,7 +1245,7 @@ class FlavIntDataGroup(dict):
                 raise ValueError('Invalid index: %s' %str(idx))
 
     def __basic_validate(self, fi_container):
-        for group in self._flavint_groups:
+        for group in self.flavint_groups:
             with BarSep('_'):
                 f = str(group)
             assert isinstance(fi_container, dict), "container must be of" \
