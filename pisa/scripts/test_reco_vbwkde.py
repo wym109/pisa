@@ -283,4 +283,3 @@ if __name__ == '__main__':
                          ref_label='reco.hist', plot_label=vmap.tex,
                          file_label=vmap.name, outdir=args.outdir,
                          ftype='png')
-
