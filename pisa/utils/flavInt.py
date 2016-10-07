@@ -1264,7 +1264,7 @@ class FlavIntDataGroup(dict):
         for key in b:
             if key in a:
                 if isinstance(a[key], dict) and isinstance(b[key], dict):
-                    merge(a[key], b[key], path + [str(key)])
+                    self._merge(a[key], b[key], path + [str(key)])
                 elif isinstance(a[key], np.ndarray) and \
                         isinstance(b[key], np.ndarray):
                     a[key] = np.concatenate((a[key], b[key]))
@@ -1279,7 +1279,6 @@ class FlavIntDataGroup(dict):
         d = self._merge(d, other)
         combined_flavint_groups = list(set(self.flavint_groups +
                                            other.flavint_groups))
-        print(combined_flavint_groups)
         return FlavIntDataGroup(val=d, flavint_groups=combined_flavint_groups)
 
     def __getitem__(self, arg):
@@ -1337,22 +1336,6 @@ def flavintGroupsFromString(groups):
 
     #flavintgrp_names = [str(flavintgrp) for flavintgrp in flavint_groups]
     return flavint_groups
-
-
-    def allclose(self, other, rtol=1e-05, atol=1e-08):
-        """Returns True if all data structures are equal and all numerical
-        values contained are within relative (rtol) and/or absolute (atol)
-        tolerance of one another.
-        """
-        return recursiveAllclose(self, other, rtol=rtol, atol=atol)
-
-    def validate(self, fi_container):
-        """Perform basic validation on the data structure"""
-        self.__basic_validate(fi_container)
-
-    def save(self, fname, **kwargs):
-        """Save data structure to a file; see fileio.to_file for details"""
-        fileio.to_file(self, fname, **kwargs)
 
 
 class CombinedFlavIntData(FlavIntData):
@@ -2169,11 +2152,11 @@ def test_CombinedFlavIntData():
 
 if __name__ == "__main__":
     set_verbosity(3)
-    # test_IntType()
-    # test_NuFlav()
-    # test_NuFlavInt()
-    # test_NuFlavIntGroup()
-    # test_FlavIntData()
+    test_IntType()
+    test_NuFlav()
+    test_NuFlavInt()
+    test_NuFlavIntGroup()
+    test_FlavIntData()
     test_FlavIntDataGroup()
     # Not implemented yet:
     #test_CombinedFlavIntData()
