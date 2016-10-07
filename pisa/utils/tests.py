@@ -156,7 +156,7 @@ def baseplot(m, title, ax, symm=False, evtrate=False):
     ax.set_yticklabels([str(int(yt)) for yt in lin_yticks])
 
 
-def baseplot2(map, title, ax, symm=False, evtrate=False):
+def baseplot2(map, title, ax, vmax=None, symm=False, evtrate=False):
     """Simple plotting of a 2D map.
 
     Parameters
@@ -186,7 +186,8 @@ def baseplot2(map, title, ax, symm=False, evtrate=False):
             vmin = 0
         else:
             vmin = np.nanmin(hist)
-        vmax = np.nanmax(hist)
+	if vmax is None:
+            vmax = np.nanmax(hist)
     cmap.set_bad(color=(0,1,0), alpha=1)
 
     x = map.binning.dims[0].bin_edges.magnitude
@@ -379,21 +380,28 @@ def plot_cmp(new, ref, new_label, ref_label, plot_label, file_label, outdir,
             gridspec_kw = dict(left=0.03, right=0.968, wspace=0.32)
             fig, axes = plt.subplots(nrows=1, ncols=5, gridspec_kw=gridspec_kw,
                                      sharex=False, sharey=False, figsize=(20,5))
+
+            refmax = np.nanmax(ref.hist)
+            newmax = np.nanmax(new.hist)
+            vmax = refmax if refmax > newmax else newmax
+
             baseplot2(map=ref,
                       title=ref_label,
+                      vmax=vmax,
                       evtrate=True,
                       ax=axes[0])
             baseplot2(map=new,
                       title=new_label,
+                      vmax=vmax,
                       evtrate=True,
                       ax=axes[1])
             ax, _, _ = baseplot2(map=ratio,
                                  title='%s/%s' %(new_label, ref_label),
                                  ax=axes[2])
             ax.text(0.95, 0.95, "Mean: %.6f"%ratio_mean, horizontalalignment='right',
-                    transform=ax.transAxes, color='g')
+                    transform=ax.transAxes, color=(0, 0.8, 0.8))
             ax.text(0.95, 0.91, "Median: %.6f"%ratio_median, horizontalalignment='right',
-                    transform=ax.transAxes, color='g')
+                    transform=ax.transAxes, color=(0, 0.8, 0.8))
 
             ax, _, _ = baseplot2(map=diff,
                                  title='%s-%s' %(new_label, ref_label),
