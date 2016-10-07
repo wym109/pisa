@@ -1279,7 +1279,6 @@ class FlavIntDataGroup(dict):
         d = self._merge(d, other)
         combined_flavint_groups = list(set(self.flavint_groups +
                                            other.flavint_groups))
-        print(combined_flavint_groups)
         return FlavIntDataGroup(val=d, flavint_groups=combined_flavint_groups)
 
     def __getitem__(self, arg):
