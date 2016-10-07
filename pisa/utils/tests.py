@@ -399,9 +399,9 @@ def plot_cmp(new, ref, new_label, ref_label, plot_label, file_label, outdir,
                                  title='%s/%s' %(new_label, ref_label),
                                  ax=axes[2])
             ax.text(0.95, 0.95, "Mean: %.6f"%ratio_mean, horizontalalignment='right',
-                    transform=ax.transAxes, color='g')
+                    transform=ax.transAxes, color=(0, 0.8, 0.8))
             ax.text(0.95, 0.91, "Median: %.6f"%ratio_median, horizontalalignment='right',
-                    transform=ax.transAxes, color='g')
+                    transform=ax.transAxes, color=(0, 0.8, 0.8))
 
             ax, _, _ = baseplot2(map=diff,
                                  title='%s-%s' %(new_label, ref_label),
