@@ -1264,7 +1264,7 @@ class FlavIntDataGroup(dict):
         for key in b:
             if key in a:
                 if isinstance(a[key], dict) and isinstance(b[key], dict):
-                    merge(a[key], b[key], path + [str(key)])
+                    self._merge(a[key], b[key], path + [str(key)])
                 elif isinstance(a[key], np.ndarray) and \
                         isinstance(b[key], np.ndarray):
                     a[key] = np.concatenate((a[key], b[key]))
