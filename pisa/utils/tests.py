@@ -345,6 +345,10 @@ def plot_cmp(new, ref, new_label, ref_label, plot_label, file_label, outdir,
         diff = new - ref
         fract_diff = diff / ref
 
+	finite_ratio = ratio.hist[np.isfinite(ratio.hist)]
+	ratio_mean = np.mean(finite_ratio)
+	ratio_median = np.median(finite_ratio)
+
         finite_diff = diff.hist[np.isfinite(diff.hist)]
         diff_mean = np.mean(finite_diff)
         diff_median = np.median(finite_diff)
@@ -383,9 +387,13 @@ def plot_cmp(new, ref, new_label, ref_label, plot_label, file_label, outdir,
                       title=new_label,
                       evtrate=True,
                       ax=axes[1])
-            baseplot2(map=ratio,
-                      title='%s/%s' %(new_label, ref_label),
-                      ax=axes[2])
+            ax, _, _ = baseplot2(map=ratio,
+                                 title='%s/%s' %(new_label, ref_label),
+                                 ax=axes[2])
+            ax.text(0.95, 0.95, "Mean: %.6f"%ratio_mean, horizontalalignment='right',
+                    transform=ax.transAxes, color='g')
+            ax.text(0.95, 0.91, "Median: %.6f"%ratio_median, horizontalalignment='right',
+                    transform=ax.transAxes, color='g')
 
             ax, _, _ = baseplot2(map=diff,
                                  title='%s-%s' %(new_label, ref_label),
