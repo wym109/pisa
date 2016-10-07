@@ -1339,22 +1339,6 @@ def flavintGroupsFromString(groups):
     return flavint_groups
 
 
-    def allclose(self, other, rtol=1e-05, atol=1e-08):
-        """Returns True if all data structures are equal and all numerical
-        values contained are within relative (rtol) and/or absolute (atol)
-        tolerance of one another.
-        """
-        return recursiveAllclose(self, other, rtol=rtol, atol=atol)
-
-    def validate(self, fi_container):
-        """Perform basic validation on the data structure"""
-        self.__basic_validate(fi_container)
-
-    def save(self, fname, **kwargs):
-        """Save data structure to a file; see fileio.to_file for details"""
-        fileio.to_file(self, fname, **kwargs)
-
-
 class CombinedFlavIntData(FlavIntData):
     """Container class for storing data redundant for some set(s) of NuFlavInts
     (cf. FlavIntData, which stores one datum for each NuFlavInt separately)
@@ -2169,11 +2153,11 @@ def test_CombinedFlavIntData():
 
 if __name__ == "__main__":
     set_verbosity(3)
-    # test_IntType()
-    # test_NuFlav()
-    # test_NuFlavInt()
-    # test_NuFlavIntGroup()
-    # test_FlavIntData()
+    test_IntType()
+    test_NuFlav()
+    test_NuFlavInt()
+    test_NuFlavIntGroup()
+    test_FlavIntData()
     test_FlavIntDataGroup()
     # Not implemented yet:
     #test_CombinedFlavIntData()
