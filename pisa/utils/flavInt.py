@@ -1199,7 +1199,8 @@ class FlavIntDataGroup(dict):
                 d = val
             else:
                 raise TypeError('Unrecognized `val` type %s' % type(val))
-            d = {str(NuFlavIntGroup(key)): d[key] for key in d.iterkeys()}
+            with BarSep('_'):
+                d = {str(NuFlavIntGroup(key)): d[key] for key in d.iterkeys()}
 
             fig = flavintGroupsFromString(','.join(d.keys()))
             if flavint_groups is None:
@@ -1256,11 +1257,11 @@ class FlavIntDataGroup(dict):
         d = fileio.from_file(fname, **kwargs)
         return d
 
-    @staticmethod
-    def _merge(a, b, path=None):
+    def _merge(self, a, b, path=None):
         """Merges b into a."""
         logging.trace('Merging NuFlavIntGroups with '
-                      'keys\n{0}\n{1}'.format(a.keys(), b.keys()))
+                      'keys {0} {1}'.format(a.keys(), b.keys()))
+        if path is None: path = []
         for key in b:
             if key in a:
                 if isinstance(a[key], dict) and isinstance(b[key], dict):
@@ -2006,6 +2007,33 @@ def test_FlavIntDataGroup():
         raise AssertionError
     except AssertionError:
         pass
+
+    d1 = {
+        'nue+nuebar': {
+            'energy' : np.arange(0,10)
+        },
+        'numu+numubar': {
+            'energy' : np.arange(0,10)
+        },
+        'nutau+nutaubar': {
+            'energy' : np.arange(0,10)
+        }
+    }
+    d2 = {
+        'nue+nuebar': {
+            'weights' : np.arange(0,10)
+        },
+        'numu+numubar': {
+            'weights' : np.arange(0,10)
+        },
+        'nutau+nutaubar': {
+            'weights' : np.arange(0,10)
+        }
+    }
+    d1 = FlavIntDataGroup(val=d1)
+    d2 = FlavIntDataGroup(val=d2)
+    d3 = d1 + d2
+    print d3
 
     logging.info('<< PASS >> : FlavIntDataGroup')
 
