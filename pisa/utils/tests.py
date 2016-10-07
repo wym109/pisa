@@ -157,7 +157,21 @@ def baseplot(m, title, ax, symm=False, evtrate=False):
 
 
 def baseplot2(map, title, ax, symm=False, evtrate=False):
-    """Simple plotting of a 2D map"""
+    """Simple plotting of a 2D map.
+
+    Parameters
+    ----------
+    map : Map
+    title : str
+    ax : axis
+    symm : bool
+    evtrate : bool
+
+    Returns
+    -------
+    ax, pcmesh, cbar
+
+    """
     assert len(map.binning) == 2
     hist = np.ma.masked_invalid(map.hist)
     islog = False
