@@ -39,6 +39,8 @@ from pisa.utils.profiler import profile, line_profile
 from pisa.utils.resources import find_resource
 
 EPSILON = 1e-9
+E_CONVOLUTION = True
+CZ_CONVOLUTION = True
 
 # TODO: the below logic does not generalize to muons, but probably should
 # (rather than requiring an almost-identical version just for muons). For
@@ -337,7 +339,7 @@ class vbwkde(Stage):
             repr_flav_int = xform_flavints.flavints()[0]
             kde_info, extra_info = self.compute_kdes(
                 events=self.remaining_events[repr_flav_int],
-                binning=self.output_binning
+                binning=self.input_binning
             )
             self.all_kde_info[str(xform_flavints)] = kde_info
             self.all_extra_info[str(xform_flavints)] = extra_info
@@ -396,9 +398,9 @@ class vbwkde(Stage):
         reco_energy = events['reco_energy']
         true_coszen = events['true_coszen']
         reco_coszen = events['reco_coszen']
-        ebins = binning.reco_energy
+        ebins = binning.true_energy
         ebin_edges = ebins.bin_edges.m_as('GeV')
-        czbins = binning.reco_coszen
+        czbins = binning.true_coszen
         czbin_edges = czbins.bin_edges.m_as('dimensionless')
 
         # NOTE: below defines bin centers on linear scale; other logic
@@ -847,39 +849,42 @@ class vbwkde(Stage):
             # Note that a function other than a boxcar might be appropriate as
             # well, but simplicity rules at the moment.
 
-            # 1. Determine bin width in relative coordinates (taking res
-            #    scaling into consideration)
-            input_ebin_rel_width = np.abs(np.diff(abs2rel(
-                abs_coords=np.array([input_ebin_min, input_ebin_max]),
-                abs_bin_midpoint=input_ebin_mid,
-                rel_scale_ref=rel_e_ref, scale=e_res_scale,
-                abs_obj_shift=e_reco_bias
-            ))[0])
+            if E_CONVOLUTION:
+                # 1. Determine bin width in relative coordinates (taking res
+                #    scaling into consideration)
+                input_ebin_rel_width = np.abs(np.diff(abs2rel(
+                    abs_coords=np.array([input_ebin_min, input_ebin_max]),
+                    abs_bin_midpoint=input_ebin_mid,
+                    rel_scale_ref=rel_e_ref, scale=e_res_scale,
+                    abs_obj_shift=e_reco_bias
+                ))[0])
 
-            # 2. Determine how many samples wide the bin is in relative coords;
-            #    clip to 2 or else normalization of the boxcar by ts "area"
-            #    (done below) is undefined
-            dx_e_interp = e_interp.x[1] - e_interp.x[0]
-            input_ebin_n_rel_samples = int(np.clip(
-                np.round(input_ebin_rel_width / dx_e_interp),
-                a_min=2, a_max=np.inf
-            ))
+                # 2. Determine how many samples wide the bin is in relative coords;
+                #    clip to 2 or else normalization of the boxcar by ts "area"
+                #    (done below) is undefined
+                dx_e_interp = e_interp.x[1] - e_interp.x[0]
+                input_ebin_n_rel_samples = int(np.clip(
+                    np.round(input_ebin_rel_width / dx_e_interp),
+                    a_min=2, a_max=np.inf
+                ))
 
-            # 3. Construct the boxcar func for the input bin width
-            input_ebin_pdf = np.full(
-                shape=(input_ebin_n_rel_samples,),
-                fill_value=1.0/(input_ebin_n_rel_samples))
+                # 3. Construct the boxcar func for the input bin width
+                input_ebin_pdf = np.full(
+                    shape=(input_ebin_n_rel_samples,),
+                    fill_value=1.0/(input_ebin_n_rel_samples))
 
-            # 4. Perform the convolution to smear the resolution function over
-            #    the extents of the bin
-            smeared_y = np.convolve(a=e_interp.y, v=input_ebin_pdf,
-                                    mode='same')
+                # 4. Perform the convolution to smear the resolution function over
+                #    the extents of the bin
+                smeared_y = np.convolve(a=e_interp.y, v=input_ebin_pdf,
+                                        mode='same')
 
-            # 5. Create an interpolant with the smeared resolution function
-            smeared_e_interp = interp1d(
-                x=e_interp.x, y=smeared_y, kind='linear',
-                copy=True, bounds_error=False, fill_value=0
-            )
+                # 5. Create an interpolant with the smeared resolution function
+                smeared_e_interp = interp1d(
+                    x=e_interp.x, y=smeared_y, kind='linear',
+                    copy=True, bounds_error=False, fill_value=0
+                )
+            else:
+                smeared_e_interp = e_interp
 
             # Figure out what points we need to sample in the relative space
             # (this is where the interpolant is defined) given our dense
@@ -1029,43 +1034,48 @@ class vbwkde(Stage):
                     raise ValueError('`res_scale_ref` unrecognized: "%s"'
                                      %res_scale_ref)
 
-                # 1. Determine bin width in relative coordinates (taking res
-                #    scaling into consideration)
-                input_czbin_rel_width = np.abs(np.diff(abs2rel(
-                    abs_coords=np.array([input_czbin_min, input_czbin_max]),
-                    abs_bin_midpoint=input_czbin_mid,
-                    rel_scale_ref=rel_e_ref, scale=e_res_scale,
-                    abs_obj_shift=e_reco_bias
-                ))[0])
+                if CZ_CONVOLUTION:
+                    # 1. Determine bin width in relative coordinates (taking res
+                    #    scaling into consideration)
+                    input_czbin_rel_width = np.abs(np.diff(abs2rel(
+                        abs_coords=np.array([input_czbin_min, input_czbin_max]),
+                        abs_bin_midpoint=input_czbin_mid,
+                        rel_scale_ref=rel_e_ref, scale=e_res_scale,
+                        abs_obj_shift=e_reco_bias
+                    ))[0])
 
-                # 2. Determine how many samples wide the bin is in relative
-                #    coords; clip to 2 or else normalization of the boxcar by
-                #    ts "area" (done below) is undefined
-                dx_cz_interp = cz_interp.x[1] - cz_interp.x[0]
-                input_czbin_n_rel_samples = int(np.clip(
-                    np.round(input_czbin_rel_width / dx_cz_interp),
-                    a_min=2, a_max=np.inf
-                ))
+                    # 2. Determine how many samples wide the bin is in relative
+                    #    coords; clip to 2 or else normalization of the boxcar by
+                    #    ts "area" (done below) is undefined
+                    dx_cz_interp = cz_interp.x[1] - cz_interp.x[0]
+                    input_czbin_n_rel_samples = int(np.clip(
+                        np.round(input_czbin_rel_width / dx_cz_interp),
+                        a_min=2, a_max=np.inf
+                    ))
 
-                # 3. Construct the boxcar func for the input bin width
-                input_czbin_pdf = np.full(
-                    shape=(input_czbin_n_rel_samples,),
-                    fill_value=1.0/(input_czbin_n_rel_samples))
+                    # 3. Construct the boxcar func for the input bin width
+                    input_czbin_pdf = np.full(
+                        shape=(input_czbin_n_rel_samples,),
+                        fill_value=1.0/(input_czbin_n_rel_samples))
 
-                # 4. Perform the convolution to smear the resolution function
-                #    over the extents of the bin
-                smeared_y = np.convolve(a=cz_interp.y, v=input_czbin_pdf,
-                                        mode='same')
+                    # 4. Perform the convolution to smear the resolution function
+                    #    over the extents of the bin
+                    smeared_y = np.convolve(a=cz_interp.y, v=input_czbin_pdf,
+                                            mode='same')
 
-                total_trapz_area = np.trapz(y=smeared_y, x=cz_interp.x)
-                #logging.trace('Input czbin %4d total trapz area = %e'
-                #              %(input_czbin_n, total_trapz_area))
+                    total_trapz_area = np.trapz(y=smeared_y, x=cz_interp.x)
+                    #logging.trace('Input czbin %4d total trapz area = %e'
+                    #              %(input_czbin_n, total_trapz_area))
 
-                # 5. Create an interpolant with the smeared resolution function
-                smeared_cz_interp = interp1d(
-                    x=cz_interp.x, y=smeared_y/total_trapz_area, kind='linear',
-                    copy=True, bounds_error=False, fill_value=0
-                )
+                    # 5. Create an interpolant with the smeared resolution function
+                    smeared_cz_interp = interp1d(
+                        x=cz_interp.x, y=smeared_y/total_trapz_area, kind='linear',
+                        copy=True, bounds_error=False, fill_value=0
+                    )
+                else:
+                    smeared_cz_interp = cz_interp
+                    total_trapz_area = np.trapz(y=smeared_cz_interp.y,
+                                                x=smeared_cz_interp.x)
 
                 # Interpolant was defined in relative space (to bin center);
                 # translate this to absolute CZ coords, taking this bin's
