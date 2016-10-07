@@ -994,7 +994,7 @@ class Map(object):
             state_updates = {
                 #'name': "(%s / %s)" % (self.name, other.name),
                 #'tex': r"{(%s / %s)}" % (self.tex, other.tex),
-                'hist': self.hist / other.hist,
+                'hist': np.divide(self.hist, other.hist),
                 'full_comparison': (self.full_comparison or
                                     other.full_comparison),
             }
@@ -1180,7 +1180,7 @@ class Map(object):
         state_updates = {
             #'name': "sqrt(%s)" % self.name,
             #'tex': r"\sqrt{%s}" % self.tex,
-            'hist': unp.sqrt(self.hist),
+            'hist': np.asarray(unp.sqrt(self.hist), dtype='float'),
         }
         return state_updates
 
