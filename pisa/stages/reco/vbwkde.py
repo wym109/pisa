@@ -337,7 +337,7 @@ class vbwkde(Stage):
             try:
                 self.all_kde_info = self.disk_cache[kde_hash]
                 self._kde_hash = kde_hash
-                return
+                return self.all_kde_info
             except KeyError:
                 pass
 
