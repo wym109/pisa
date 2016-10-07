@@ -11,6 +11,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 
+from pisa.core.map import Map
 from pisa.utils.fileio import get_valid_filename, mkdir
 from pisa.utils.log import logging
 
@@ -289,7 +290,7 @@ def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
     return max_diff_ratio, max_diff
 
 
-def plot_cmp(new, ref, new_label, ref_label, plot_label, outdir,
+def plot_cmp(new, ref, new_label, ref_label, plot_label, file_label, outdir,
              ftype='png'):
     """Plot comparisons between two (identically-binned) maps or map sets.
 
@@ -300,6 +301,7 @@ def plot_cmp(new, ref, new_label, ref_label, plot_label, outdir,
     new_label : str
     ref_label : str
     plot_label : str
+    file_label : str
     outdir : str
     ftype : str
 
@@ -318,9 +320,9 @@ def plot_cmp(new, ref, new_label, ref_label, plot_label, outdir,
         assert ref.binning == new.binning
         fname = get_valid_filename(
             '__'.join([
-                plot_label,
-                '%s_vs_%s' %(new_label.lower(), ref_label.lower()),
-                get_valid_filename(new.name)
+                get_valid_filename(file_label),
+                '%s_vs_%s' %(get_valid_filename(new_label.lower()),
+                             get_valid_filename(ref_label.lower()))
             ]) + '.' + ftype
         )
         path.append(fname)

@@ -16,10 +16,10 @@ from pisa import ureg, Q_
 from pisa.core.map import MapSet
 from pisa.core.pipeline import Pipeline
 from pisa.utils.config_parser import parse_pipeline_config
-from pisa.utils.fileio import from_file
+from pisa.utils.fileio import from_file, mkdir
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.resources import find_resource
-from pisa.utils.tests import has_cuda, print_agreement, check_agreement, plot_comparisons
+from pisa.utils.tests import has_cuda, print_agreement, check_agreement, plot_comparisons, plot_cmp
 
 FMT = 'png'
 
@@ -177,7 +177,9 @@ def compare_systematics(baseline_oscfit, config, testname, outdir, oscfitfile):
     for nukey in systematic_comparisons.keys():
 
         systematic_map_to_plot = systematic_comparisons[nukey]
-        systematic_map_to_plot['map'] = systematic_map_to_plot['map'] + baseline_comparisons[nukey]['map']
+        systematic_map_to_plot['map'] = (
+            systematic_map_to_plot['map'] + baseline_comparisons[nukey]['map']
+        )
 
         try:
             cake_map = outputs[nukey]
@@ -231,7 +233,8 @@ if __name__ == '__main__':
                         variations on the NOT discrete systematics. The
                         fiducial model was agreed upon before the tests were
                         started.''')
-    parser.add_argument('--outdir', metavar='DIR', type=str, required=False,
+    parser.add_argument('--outdir', metavar='DIR', type=str, default=None,
+                        required=False,
                         help='''Store all output plots to this directory. If
                         they don't exist, the script will make them, including
                         all subdirectories. If none is supplied no plots will
@@ -247,6 +250,9 @@ if __name__ == '__main__':
                         help='set verbosity level')
     args = parser.parse_args()
     set_verbosity(args.v)
+
+    if args.outdir is not None:
+        mkdir(args.outdir)
 
     hist_cfg = 'tests/settings/vbwkde_test_reco.hist.cfg'
     vbwkde_cfg = 'tests/settings/vbwkde_test_reco.vbwkde.cfg'
@@ -270,8 +276,11 @@ if __name__ == '__main__':
             hmap = hist_maps[map_name]
             comparisons = vmap.compare(hmap)
             for k in ['max_diff_ratio', 'max_diff', 'nanmatch', 'infmatch']:
-                print '%s: %s = %f' %(map_name, k, comparisons[k])
+                print '%s: %s = %s' %(map_name, k, comparisons[k])
 
+        plot_cmp(new=vmap, ref=hmap, new_label='reco.vbwkde', ref_label='reco.hist',
+                 plot_label=vmap.tex, file_label=vmap.name, outdir=args.outdir,
+                 ftype='png')
         #pisa_recopid_pipeline = compare_pisa(
         #    config1=deepcopy(pisa_standard_config),
         #    config2=deepcopy(pisa_recopid_config),

@@ -306,27 +306,27 @@ class Map(object):
         #fract_diff.name = '(' + self.name + '-' + ref.name + ')/' + ref.name
         #fract_diff.tex = '(' + self.tex + '-' + ref.tex + ')/' + ref.tex
 
-        max_diff_ratio = np.nanmax(fract_diff.hist)
+        max_diff_ratio = np.nanmax(np.abs(fract_diff.hist))
 
         # Handle cases where ratio returns infinite
         # This isn't necessarily a fail, since all it means is the referene was
-        # zero If the new value is sufficiently close to zero then it's still
-        # fine
-        if max_diff_ratio == np.inf:
+        # zero; if the new value is sufficiently close to zero then it's still
+        # fine.
+        if np.isinf(max_diff_ratio):
             # First find all the finite elements
             finite_mask = np.isfinite(fract_diff.hist)
             # Then find the nanmax of this, will be our new test value
-            max_diff_ratio = np.nanmax(fract_diff.hist[finite_mask])
+            max_diff_ratio = np.nanmax(np.abs(fract_diff.hist[finite_mask]))
             # Also find all the infinite elements; compute a second test value
-            max_diff = np.nanmax(diff.hist[~finite_mask])
+            max_diff = np.nanmax(np.abs(diff.hist[~finite_mask]))
         else:
             # Without any infinite elements we can ignore this second test
-            max_diff = 0.0
+            max_diff = np.nanmax(np.abs(diff.hist))
 
-        nanmatch = np.all(np.isnan(self.hist) == np.isnan(ref.hist))
-        infmatch = np.all(
+        nanmatch = bool(np.all(np.isnan(self.hist) == np.isnan(ref.hist)))
+        infmatch = bool(np.all(
             self.hist[np.isinf(self.hist)] == ref.hist[np.isinf(ref.hist)]
-        )
+        ))
 
         comparisons = OrderedDict([
             ('diff', diff),
