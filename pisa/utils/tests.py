@@ -331,6 +331,14 @@ def plot_cmp(new, ref, new_label, ref_label, plot_label, file_label, outdir,
         diff = new - ref
         fract_diff = diff / ref
 
+	finite_diff = np.isfinite(diff.hist)
+	diff_mean = np.mean(finite_diff)
+	diff_median = np.median(finite_diff)
+
+	finite_fract_diff = np.isfinite(fract_diff.hist)
+	fract_diff_mean = np.mean(finite_fract_diff)
+	fract_diff_median = np.median(finite_fract_diff)
+
         max_diff_ratio = np.nanmax(fract_diff.hist)
 
         # Handle cases where ratio returns infinite
@@ -364,13 +372,24 @@ def plot_cmp(new, ref, new_label, ref_label, plot_label, file_label, outdir,
             baseplot2(map=ratio,
                       title='%s/%s' %(new_label, ref_label),
                       ax=axes[2])
-            baseplot2(map=diff,
-                      title='%s-%s' %(new_label, ref_label),
-                      symm=True, ax=axes[3])
-            baseplot2(map=fract_diff,
-                      title='(%s-%s)/%s' %(new_label, ref_label, ref_label),
-                      symm=True,
-                      ax=axes[4])
+
+            ax, _, _ = baseplot2(map=diff,
+                                 title='%s-%s' %(new_label, ref_label),
+                                 symm=True, ax=axes[3])
+            ax.text(0.95, 0.95, "Mean: %.6f"%diff_mean, horizontalalignment='right',
+                    transform=ax.transAxes)
+            ax.text(0.95, 0.91, "Median: %.6f"%diff_median, horizontalalignment='right',
+                    transform=ax.transAxes)
+
+            ax, _, _ = baseplot2(map=fract_diff,
+                                 title='(%s-%s)/%s' %(new_label, ref_label, ref_label),
+                                 symm=True,
+                                 ax=axes[4])
+            ax.text(0.95, 0.95, "Mean: %.6f"%fract_diff_mean, horizontalalignment='right',
+                    transform=ax.transAxes)
+            ax.text(0.95, 0.91, "Median: %.6f"%fract_diff_median, horizontalalignment='right',
+                    transform=ax.transAxes)
+
             logging.debug('>>>> Plot for inspection saved at %s'
                           %os.path.join(*path))
             fig.savefig(os.path.join(*path))

@@ -278,9 +278,9 @@ if __name__ == '__main__':
             for k in ['max_diff_ratio', 'max_diff', 'nanmatch', 'infmatch']:
                 print '%s: %s = %s' %(map_name, k, comparisons[k])
 
-        if args.outdir is not None:
-            plot_cmp(new=vmap, ref=hmap, new_label='reco.vbwkde',
-                     ref_label='reco.hist', plot_label=vmap.tex,
-                     file_label=vmap.name, outdir=args.outdir,
-                     ftype='png')
-
+	        if args.outdir is not None:
+	            plot_cmp(new=vmap, ref=hmap, new_label='reco.vbwkde',
+	                     ref_label='reco.hist', plot_label=vmap.tex,
+	                     file_label=vmap.name, outdir=args.outdir,
+	                     ftype='png')
+	
