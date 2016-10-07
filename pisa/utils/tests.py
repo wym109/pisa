@@ -90,6 +90,20 @@ def print_agreement(testname, ratio):
 
     logging.info(s_ratio)
 
+def print_event_rates(testname1, testname2, kind, map1_events, map2_events):
+    s = '<< {testname:s} total {kind:s} events >>' \
+        ' {events:s}'
+
+    test1_events = s.format(
+        testname=testname1, kind=kind, events='%.2f'%(map1_events)
+    )
+    test2_events = s.format(
+        testname=testname2, kind=kind, events='%.2f'%(map2_events)
+    )
+
+    logging.info(test1_events)
+    logging.info(test2_events)
+
 
 def validate_maps(amap, bmap):
     """Validate that two PISA 2 style maps are compatible binning."""
