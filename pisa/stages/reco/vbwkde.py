@@ -39,8 +39,6 @@ from pisa.utils.profiler import profile, line_profile
 from pisa.utils.resources import find_resource
 
 EPSILON = 1e-9
-E_CONVOLUTION = True
-CZ_CONVOLUTION = True
 
 # TODO: the below logic does not generalize to muons, but probably should
 # (rather than requiring an almost-identical version just for muons). For
@@ -143,6 +141,9 @@ class vbwkde(Stage):
     Whitespace is ignored, so add whitespace for readability.
 
     """
+    E_CONVOLUTION = True
+    CZ_CONVOLUTION = True
+
     def __init__(self, params, particles, input_names, transform_groups,
                  sum_grouped_flavints, input_binning, output_binning,
                  error_method=None, transforms_cache_depth=20,
@@ -249,13 +250,13 @@ class vbwkde(Stage):
         # Compute the KDEs for each (pid, E) bin (this is then propagated to
         # each (pid, E, cz) bin, as the transform is assumed to not be
         # cz-dependent)
-        self.get_all_kde_info()
+        all_kde_info = self.get_all_kde_info()
 
         # Apply scaling factors and figure out the area per bin for each KDE
         xforms = []
         for xform_flavints in self.transform_groups:
-            reco_kernel = self.compute_kernel(
-                e_cz_kde_info=self.all_kde_info[str(xform_flavints)],
+            reco_kernel = self.compute_resolutions(
+                e_cz_kde_info=all_kde_info[str(xform_flavints)],
             )
 
             if self.sum_grouped_flavints:
@@ -287,6 +288,7 @@ class vbwkde(Stage):
                         input_binning=self.input_binning,
                         output_binning=self.output_binning,
                         xform_array=reco_kernel,
+                        sum_inputs=self.sum_grouped_flavints
                     )
                     xforms.append(xform)
 
@@ -301,17 +303,30 @@ class vbwkde(Stage):
         The results are cached to disk and simply loaded from that cache to
         avoid re-computation.
 
+        Returns
+        -------
+        all_kde_info
+
         """
+        # Only hash on the things that could be relevant to the KDE's:
+        # 1. source code: if the code changes at all
+        # 2. input_binning: only input binning matters for the KDE's (output
+        #       binning only comes into play when computing the actual
+        #       transform kernels)
+        # 3. reco_events: event used to compute the transforms, including any
+        #       cuts applied
+        # 4. transform_events_keep_criteria: redundant with the cuts registered
+        #       with the events? not sure... so using it anyway
+        # 5. transform_groups: which flav/ints are grouped for computing KDE
         kde_hash = hash_obj([self.source_code_hash,
                              self.input_binning.hash,
                              self.params.reco_events.value,
-                             self.params.transform_events_keep_criteria,
-                             self.transform_groups,
-                             self.sum_grouped_flavints])
+                             self.params.transform_events_keep_criteria.value,
+                             self.transform_groups])
         logging.trace('kde_hash = %s' %kde_hash)
         if (self._kde_hash is not None and kde_hash == self._kde_hash
             and hasattr(self, 'all_kde_info')):
-            return
+            return self.all_kde_info
 
         logging.trace('no match')
         logging.trace('self._kde_hash: %s' % self._kde_hash)
@@ -357,6 +372,8 @@ class vbwkde(Stage):
             del self.disk_cache[kde_hash]
 
         self.disk_cache[kde_hash] = self.all_kde_info
+
+        return self.all_kde_info
 
     @profile
     def compute_kdes(self, events, binning):
@@ -513,11 +530,12 @@ class vbwkde(Stage):
             # Use at least min_num_pts points and at most the next-highest
             # integer-power-of-two that allows for at least 10 points in the
             # smallest energy bin
-            min_num_pts = 2**15
+            min_num_pts = 2**12
             min_bin_width = np.min(ebin_edges[1:]-ebin_edges[:-1])
             min_pts_smallest_bin = 5.0
             kde_range = np.diff(e_kde_lims)
-            num_pts0 = kde_range/(min_bin_width/min_pts_smallest_bin)
+            #num_pts0 = kde_range/(min_bin_width/min_pts_smallest_bin)
+            num_pts0 = kde_range/(ebin_wid/min_pts_smallest_bin)
             kde_num_pts = int(max(min_num_pts, 2**np.ceil(np.log2(num_pts0))))
             logging.debug(
                 '  N_evts=' + str(n_in_bin) + ', taken from [' +
@@ -609,7 +627,7 @@ class vbwkde(Stage):
             # number, the longer it takes to compute the densities at all the
             # points. Here, just choosing a fixed number regardless of the data
             # or binning
-            N_cz_mesh = 2**13
+            N_cz_mesh = 2**12
 
             # Data range for VBW-KDE to consider
             cz_kde_min = -9
@@ -747,7 +765,7 @@ class vbwkde(Stage):
         return kde_info, extra_info
 
     @profile
-    def compute_kernel(self, e_cz_kde_info):
+    def compute_resolutions(self, e_cz_kde_info):
         """Construct a kernel from linear interpolants describing the
         normalized density of reconstructed events.
 
@@ -765,7 +783,7 @@ class vbwkde(Stage):
         Parameters
         ----------
         e_cz_kde_info : OrderedDict
-            Object returned by method `compute_kernel`.
+            Object returned by method `compute_kdes`.
 
 
         Returns
@@ -796,7 +814,7 @@ class vbwkde(Stage):
 
         output_ebins = self.output_binning.reco_energy
         output_czbins = self.output_binning.reco_coszen
-        
+
         input_czbins = self.input_binning.true_coszen
 
         # Upsample to get coordinates at which to evaluate trapezoidal-rule
@@ -849,7 +867,7 @@ class vbwkde(Stage):
             # Note that a function other than a boxcar might be appropriate as
             # well, but simplicity rules at the moment.
 
-            if E_CONVOLUTION:
+            if self.E_CONVOLUTION:
                 # 1. Determine bin width in relative coordinates (taking res
                 #    scaling into consideration)
                 input_ebin_rel_width = np.abs(np.diff(abs2rel(
@@ -1034,7 +1052,7 @@ class vbwkde(Stage):
                     raise ValueError('`res_scale_ref` unrecognized: "%s"'
                                      %res_scale_ref)
 
-                if CZ_CONVOLUTION:
+                if self.CZ_CONVOLUTION:
                     # 1. Determine bin width in relative coordinates (taking res
                     #    scaling into consideration)
                     input_czbin_rel_width = np.abs(np.diff(abs2rel(
@@ -1158,8 +1176,7 @@ class vbwkde(Stage):
                 # Coszen must reconstruct somewhere, so area must be 1 if
                 # binning includes all coszen; otherwise we can just say it
                 # must be less than or equal to 1.
-                assert tot_output_czbin_area <= 1+EPSILON, \
-                        str(tot_output_czbin_area)
+                assert tot_output_czbin_area <= 1+EPSILON, str(tot_output_czbin_area)
 
                 if energy_first:
                     i, j = input_ebin_n, input_czbin_n
