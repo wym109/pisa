@@ -10,15 +10,14 @@ from operator import add
 
 import numpy as np
 import pint; ureg = pint.UnitRegistry()
+from uncertainties import unumpy as unp
 
 from pisa.core.stage import Stage
-from pisa.core.map import Map
-from pisa.core.transform import BinnedTensorTransform, TransformSet
+from pisa.core.map import Map, MapSet
 from pisa.core.binning import OneDimBinning, MultiDimBinning
 from pisa.utils.fileio import from_file
 from pisa.utils.flavInt import NuFlavIntGroup, FlavIntDataGroup
-from pisa.utils.flavInt import flavintGroupsFromString
-from pisa.utils.hash import hash_obj
+from pisa.utils.flavInt import BarSep, flavintGroupsFromString
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
 
@@ -75,45 +74,83 @@ class greco(Stage):
         * 'noise'
 
     """
-    def __init__(self, params, output_binning, output_names, transform_groups,
-                 error_method=None, debug_mode=None, disk_cache=None,
-                 transforms_cache_depth=20, outputs_cache_depth=20):
+    def __init__(self, params, output_binning, output_names,
+                 error_method=None, debug_mode=None, disk_cache=None, 
+                 memcache_deepcopy=True, transforms_cache_depth=20,
+                 outputs_cache_depth=20):
         expected_params = (
-            'mc_sample_config', 'livetime', 'variables', 'weight'
+            'mc_sample_config', 'livetime', 'weight'
         )
 
-        self.output_groups = flavintGroupsFromString(transform_groups)
-        self.config = from_file(params['mc_sample_config'].value)
+        self.output_groups = flavintGroupsFromString(output_names)
+        with BarSep('_'):
+            output_names = [str(f) for f in self.output_groups]
 
         super(self.__class__, self).__init__(
-            use_transforms=True,
+            use_transforms=False,
             params=params,
             expected_params=expected_params,
             output_names=output_names,
             error_method=error_method,
+            debug_mode=debug_mode,
             disk_cache=disk_cache,
+            memcache_deepcopy=memcache_deepcopy,
             outputs_cache_depth=outputs_cache_depth,
             transforms_cache_depth=transforms_cache_depth,
-            output_binning=output_binning,
-            debug_mode=debug_mode
+            output_binning=output_binning
         )
 
+        self.config = from_file(self.params['mc_sample_config'].value)
         self.include_attrs_for_hashes('output_groups')
 
-    def _compute_nominal_outputs(self):
+    @staticmethod
+    def _histogram(events, binning, weights=None, errors=False, **kwargs):
+        """Histogram the events given the input binning."""
+        if isinstance(binning, OneDimBinning):
+            binning = MultiDimBinning([binning])
+        elif not isinstance(binning, MultiDimBinning):
+            raise TypeError('Unhandled type %s for `binning`.' %type(binning))
+        if not isinstance(events, dict):
+            raise TypeError('Unhandled type %s for `events`.' %type(events))
+
+        bin_names = binning.names
+        bin_edges = [edges.m for edges in binning.bin_edges]
+        for name in bin_names:
+            if not events.has_key(name):
+                if 'coszen' in name and events.has_key('zenith'):
+                    events[name] = np.cos(events['zenith'])
+                else:
+                    raise AssertionError('Input events object does not have '
+                                         'key {0}'.format(name))
+
+        sample = [events[colname] for colname in bin_names]
+        hist, edges = np.histogramdd(
+            sample=sample, weights=weights, bins=bin_edges
+        )
+        if errors:
+            hist2, edges = np.histogramdd(
+                sample=sample, weights=np.square(weights), bins=bin_edges
+            )
+            hist = unp.uarray(hist, np.sqrt(hist2))
+
+        return Map(hist=hist, binning=binning, **kwargs)
+
+    @profile
+    def _compute_outputs(self, inputs=None):
         """Compute nominal histograms for output channels."""
         def parse(string):
             return string.replace(' ', '').split(',')
         event_types = parse(self.config.get('general', 'event_type'))
 
+        # TODO(shivesh): some sort of hashing
         nu_fidg = []
         for ev_type in event_types:
             if 'neutrino' in ev_type:
                 flavours = parse(self.config.get(ev_type, 'flavours'))
                 sys_list = parse(self.config.get(ev_type, 'sys_list'))
-                base_suffix = parse(self.config.get(ev_type, 'base_suffix'))
+                base_suffix = parse(self.config.get(ev_type, 'basesuffix'))[0]
 
-                for flav in flavours:
+                for idx, flav in enumerate(flavours):
                     f = int(flav)
                     cc_grps = NuFlavIntGroup(NuFlavIntGroup(f,-f).ccFlavInts())
                     nc_grps = NuFlavIntGroup(NuFlavIntGroup(f,-f).ncFlavInts())
@@ -123,7 +160,7 @@ class greco(Stage):
                     prefixes = []
                     for sys in sys_list:
                         ev_sys = ev_type + ':' + sys
-                        nominal = float(self.config.get(ev_sys, 'nominal'))
+                        nominal = self.config.get(ev_sys, 'nominal')
                         ev_sys_nom = ev_sys + ':' + nominal
                         prefixes.append(self.config.get(ev_sys_nom,
                                                         'file_prefix'))
@@ -135,7 +172,8 @@ class greco(Stage):
                             '{0}'.format(prefixes)
                         )
                     file_prefix = flav + list(set(prefixes))[0]
-                    events_file = self.config.get(base_suffix + file_prefix)
+                    events_file = self.config.get('general', 'datadir') + \
+                            base_suffix + file_prefix
 
                     events = from_file(events_file)
                     cc_mask = events['ptype'] > 0
@@ -150,16 +188,24 @@ class greco(Stage):
 
         output_fidg = nu_fidg.transform_groups(self.output_groups)
 
-    def _histogram(events):
-        """Histogram the events given the input binning."""
+        livetime = self.params['livetime'].to(ureg.s).m
+        logging.info('Weighting with a livetime of {0} s'.format(livetime))
+        outputs = []
+        for fig in output_fidg.iterkeys():
+            if self.params['weight'].value:
+                weights = output_fidg[fig]['weight'] * livetime
+            else: weights = None
+            outputs.append(self._histogram(
+                events  = output_fidg[fig],
+                binning = self.output_binning,
+                weights = weights,
+                errors  = True,
+                name    = fig,
+            ))
 
-    @profile
-    def _compute_outputs(self, inputs=None):
-        """Compute histograms for output channels."""
-        # TODO(shivesh): this
-        return self._compute_nominal_outputs()
+        return MapSet(maps=outputs, name='greco maps')
 
     def validate_params(self, params):
         assert isinstance(params['mc_sample_config'].value, basestring)
-        assert isinstance(params['variables'].value, basestring)
-        assert isinstance(params['bool'].value, bool)
+        assert isinstance(params['weight'].value, bool)
+        assert isinstance(params['livetime'].value, pint.quantity._Quantity)
