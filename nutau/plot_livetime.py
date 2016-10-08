@@ -9,6 +9,7 @@ mpl.rcParams['mathtext.bf'] = 'Bitstream Vera Sans:bold'
 #mpl.rcParams['font.family'] = 'STIXGeneral'
 import numpy as np
 from matplotlib import pyplot as plt
+from matplotlib.ticker import MultipleLocator
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import os, sys
 from scipy.stats import chi2
@@ -25,10 +26,12 @@ def plot(name,hypos,asimovs,x_var='nutau_cc_norm',dir='.'):
     fig = plt.figure()
     fig.patch.set_facecolor('none')
     ax = fig.add_subplot(111)
-    a_text = AnchoredText(r'DeepCore $\nu_\tau$ appearance', loc=2, frameon=False)
+    #a_text = AnchoredText(r'DeepCore $\nu_\tau$ appearance', loc=2, frameon=False)
+    a_text = AnchoredText(r'PINGU v39 $\nu_\tau$ appearance', loc=2, frameon=False)
     ax.add_artist(a_text)
     sigmas = []
     years = []
+    minorLocator = MultipleLocator(0.1)
     for i,asimov in enumerate(asimovs): 
         years.append(sorted(asimov.keys()))
         times = []
@@ -49,16 +52,22 @@ def plot(name,hypos,asimovs,x_var='nutau_cc_norm',dir='.'):
             best_ps.append(np.interp(1,data[best_idx:],hypos[best_idx:]))
             best_p2s.append(np.interp(2.71,data[best_idx:],hypos[best_idx:]))
         if i == 0:
+            #ax.fill_between(years[-1],best_m2s,best_p2s,facecolor='g', linewidth=0, alpha=0.15, label='90% range improved sys')
+            #ax.fill_between(years[-1],best_ms,best_ps,facecolor='g', linewidth=0, alpha=0.3, label='68% range improved sys')
+            ax.fill_between(years[-1],best_m2s,best_p2s,facecolor='g', linewidth=0, alpha=0.15, label='90% range')
+            ax.fill_between(years[-1],best_ms,best_ps,facecolor='g', linewidth=0, alpha=0.3, label='68% range')
+        else:
             ax.plot(years[-1],best_m2s, color='k', linewidth=1, linestyle=':', label='90% range baseline')
             ax.plot(years[-1],best_p2s, color='k', linewidth=1, linestyle=':')
             ax.plot(years[-1],best_ms,  color='k', linewidth=1, label='68% range baseline')
             ax.plot(years[-1],best_ps,  color='k', linewidth=1)
-        else:
-            ax.fill_between(years[-1],best_m2s,best_p2s,facecolor='g', linewidth=0, alpha=0.15, label='90% range improved sys')
-            ax.fill_between(years[-1],best_ms,best_ps,facecolor='g', linewidth=0, alpha=0.3, label='68% range improved sys')
-        ax.set_xlabel('livetime (years)')
+        #ax.set_xlabel('livetime (years)')
+        ax.set_xlabel('livetime (months)')
         ax.set_ylabel(r'$\nu_\tau$ CC normalization precision')
         ax.set_ylim([0,2])
+        #ax.set_yticks(np.linspace(0,2,21))
+        ax.yaxis.set_minor_locator(minorLocator)
+
         ax.set_xlim([years[0][0],years[0][-1]])
         ax.plot(years[-1],best, color='g', linewidth=1)
     
@@ -72,11 +81,14 @@ def plot(name,hypos,asimovs,x_var='nutau_cc_norm',dir='.'):
     plt.clf()
     ax = fig.add_subplot(111)
     ax.set_xlim([years[0][0],years[0][-1]])
-    ax.plot(years[0],sigmas[0], color='b', label='baseline')
-    ax.plot(years[1],sigmas[1], color='g', label='improved sys')
-    ax.set_xlabel('livetime (years)')
+    ax.plot(years[0],sigmas[0], color='b', label='rejection H0')
+    #ax.plot(years[0],sigmas[0], color='b', label='baseline')
+    #ax.plot(years[1],sigmas[1], color='g', label='improved sys')
+    #ax.set_xlabel('livetime (years)')
+    ax.set_xlabel('livetime (months)')
     ax.set_ylabel(r'$\nu_\tau$ CC appearance significance $(\sigma)$')
-    a_text = AnchoredText(r'DeepCore $\nu_\tau$ appearance', loc=2, frameon=False)
+    #a_text = AnchoredText(r'DeepCore $\nu_\tau$ appearance', loc=2, frameon=False)
+    a_text = AnchoredText(r'PINGU v39 $\nu_\tau$ appearance', loc=2, frameon=False)
     ax.add_artist(a_text)
     ax.legend(loc='upper right',ncol=1, frameon=False,numpoints=1,fontsize=10)
 
@@ -94,9 +106,10 @@ if __name__ == '__main__':
     parser.add_argument('--asimov',action='store_true') 
     args = parser.parse_args()
 
-    asimovs = [{},{}]
+    #asimovs = [{},{}]
+    asimovs = [{}]
 
-    for i,dir in enumerate([args.dir, args.dir1]):
+    for i,dir in enumerate([args.dir]):
         # get llh denominators for q for each seed
         for filename in os.listdir(dir):
             if filename.endswith('.json'):
@@ -111,6 +124,9 @@ if __name__ == '__main__':
                 else: continue
                 plot_dict = {}
                 flag = False
+                name = filename.rstrip('.json')
+                year = int(name.split('_')[0])
+                asimovs[i][year] = {}
                 for key,val in cond.items():
                     if key == 'warnflag':
                         flag = any(val)
@@ -124,10 +140,6 @@ if __name__ == '__main__':
                         asimovs[i][year]['hypos'] = hypos
                     else:
                          continue
-                    name = filename.rstrip('.json')
-                    year = int(name.split('_')[0])
-                    asimovs[i][year] = {}
                     for key,val in plot_dict.items():
                         asimovs[i][year][key] = [x for x in val]
-
     plot('llh',hypos,asimovs,args.x_var,args.dir)

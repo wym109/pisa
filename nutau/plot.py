@@ -23,6 +23,9 @@ parser.add_argument('-f', '--fit', type=str,
 parser.add_argument('-f0', '--fit0', type=str,
 		    metavar='fit file for null hypo', default=None,
 		    help='settings for the generation of "data"')
+parser.add_argument('-o', '--outdir', type=str,
+		    default='plots',
+		    help='outdir')
 parser.add_argument('-v', action='count', default=None,
                     help='set verbosity level')
 parser.add_argument('--livetime', type=float, default=None)
@@ -58,7 +61,7 @@ if not args.set_param == '':
         test.value = value
         data_maker.update_params(test)
 
-my_plotter = Plotter(stamp=stamp, outdir='plots', fmt='pdf', log=False, annotate=True, symmetric=False, ratio=True)
+my_plotter = Plotter(stamp=stamp, outdir=args.outdir, fmt='pdf', log=False, annotate=True, symmetric=False, ratio=True)
 
 template_maker = DistributionMaker(args.template_settings)
 template_maker_H0 = DistributionMaker(args.template_settings)
@@ -100,7 +103,7 @@ for map in template_notau: map.tex = r'MC\ (\nu_\tau^{CC}=0)'
 
 #my_plotter.plot_1d_array(template_nominal, 'reco_coszen', fname='p_coszen')
 #my_plotter.plot_1d_array(template_nominal, 'reco_energy', fname='p_energy')
-my_plotter.plot_2d_array(template_nominal, fname='nominal',cmap='PiYG')
+my_plotter.plot_2d_array(template_nominal, fname='nominal')
 
 if args.data_settings is not None:
 

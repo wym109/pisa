@@ -256,15 +256,17 @@ class Plotter(object):
             vmin = np.min(zmap[np.isfinite(zmap)])
         extent = [np.min(bin_edges[0].m), np.max(bin_edges[0].m), np.min(bin_edges[1].m), np.max(bin_edges[1].m)]
         # needs to be transposed for imshow
-        img = plt.imshow(zmap.T,origin='lower',interpolation='nearest',extent=extent,aspect='auto',
-            cmap=cmap, **kwargs)
+        #img = plt.imshow(zmap.T,origin='lower',interpolation='nearest',extent=extent,aspect='auto',
+        #    cmap=cmap, **kwargs)
+        x,y = np.meshgrid(bin_edges[0],bin_edges[1])
+        img = plt.pcolormesh(x,y,zmap.T,vmin=vmin, vmax=vmax, cmap=cmap, **kwargs)
         if self.annotate:
-            counts = img.get_array().T
+            #counts = img.get_array().T
             for i in range(len(bin_centers[0])):
                 for j in range(len(bin_centers[1])):
                     bin_x = bin_centers[0][i].m
                     bin_y = bin_centers[1][j].m
-                    plt.annotate('%.1f'%(counts[i,j]), xy=(bin_x, bin_y), xycoords=('data', 'data'), xytext=(bin_x, bin_y), textcoords='data', va='top', ha='center', size=7)
+                    plt.annotate('%.1f'%(zmap[i,j]), xy=(bin_x, bin_y), xycoords=('data', 'data'), xytext=(bin_x, bin_y), textcoords='data', va='top', ha='center', size=7)
 
         axis.set_xlabel(bins[0].label)
         axis.set_ylabel(bins[1].label)

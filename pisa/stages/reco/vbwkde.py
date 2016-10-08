@@ -38,7 +38,9 @@ from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile, line_profile
 from pisa.utils.resources import find_resource
 
-EPSILON = 1e-9
+# this is later redfeined as 1e-10....why?
+#EPSILON = 1e-9
+EPSILON = 1e-6
 
 # TODO: the below logic does not generalize to muons, but probably should
 # (rather than requiring an almost-identical version just for muons). For
@@ -407,7 +409,8 @@ class vbwkde(Stage):
         OVERFIT_FACTOR = 1.0
         MIN_NUM_EVENTS = 100
         TGT_NUM_EVENTS = 300
-        EPSILON = 1e-10
+        #EPSILON = 1e-10
+        EPSILON = 1e-6
         ENERGY_RANGE = [0, 501] # GeV
 
         # TODO: handle units consistency here when Events object gets units

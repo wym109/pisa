@@ -304,7 +304,8 @@ class Analysis(object):
 
         all_metrics = {}
         template = self.template_maker.get_outputs()
-        for metric in ['llh', 'conv_llh', 'barlow_llh','chi2', 'mod_chi2']:
+        #for metric in ['llh', 'conv_llh', 'barlow_llh','chi2', 'mod_chi2']:
+        for metric in ['llh','chi2']:
             all_metrics[metric] = self.pseudodata.metric_total(expected_values=template, metric=metric) + template_maker.params.priors_penalty(metric=metric) 
 
         return best_fit_vals, metric_val, all_metrics, dict_flags
