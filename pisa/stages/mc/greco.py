@@ -14,7 +14,7 @@ from pisa.core.map import Map
 from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.core.binning import OneDimBinning, MultiDimBinning
 from pisa.utils.fileio import from_file
-from pisa.utils.flavInt import flavintGroupsFromString
+from pisa.utils.flavInt import NuFlavIntGroup, flavintGroupsFromString
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
@@ -76,7 +76,7 @@ class greco(Stage):
                  error_method=None, debug_mode=None, disk_cache=None,
                  transforms_cache_depth=20, outputs_cache_depth=20):
         expected_params = (
-            'mc_sample_config', 'livetime'
+            'mc_sample_config', 'livetime', 'variables', 'weight'
         )
 
         self.output_groups = flavintGroupsFromString(transform_groups)
@@ -103,8 +103,7 @@ class greco(Stage):
             return string.replace(' ', '').split(',')
         event_types = parse(self.config.get('general', 'event_type'))
 
-        cc_outputs = []
-        nc_outputs = []
+        nu_outputs = {}
         for ev_type in event_types:
             if 'neutrino' in ev_type:
                 flavours = parse(self.config.get(ev_type, 'flavours'))
@@ -128,7 +127,31 @@ class greco(Stage):
                     file_prefix = flav + list(set(prefixes))[0]
                     events_file = self.config.get(base_suffix + file_prefix)
 
-                    events = from_file(events_file)
+                    f = int(flav)
+                    nu_outputs[NuFlavIntGroup(f, -f)] = from_file(events_file)
+
+        nu_cc_outputs = {}
+        for flavint_group in nu_outputs.iterkeys():
+            cc_mask = nu_outputs[flavint_group]['ptype'] > 0
+
+            cc_group = flavint_group.ccFlavInts()
+            nu_cc_outputs[cc_group] = {}
+            for var in nu_outputs[flavint_group].iterkeys():
+                nu_outputs_perint[cc_group][var] = \
+                        nu_outputs[flavint_group][var][cc_mask]
+
+        nu_nc_outputs = {}
+        for flavint_group in nu_outputs_perint.iterkeys():
+            nc_mask = nu_outputs[flavint_group]['ptype'] < 0
+
+            for var in nu_outputs[flavint_group].iterkeys():
+                if nu_nc_outputs.has_key(var):
+                    nu_nc_outputs[var] = np.concatenate((
+                        nu_nc_outputs[var],
+                        nu_outputs_perint[flavint_group][var][nc_mask]
+                    ))
+                else:
+                    nu_nc_outputs[var] = nu_outputs_perint[flavint_group][var]
 
     def _histogram(events):
         """Histogram the events given the input binning."""
@@ -142,3 +165,5 @@ class greco(Stage):
 
     def validate_params(self, params):
         assert isinstance(params['mc_sample_config'].value, basestring)
+        assert isinstance(params['variables'].value, basestring)
+        assert isinstance(params['bool'].value, bool)
