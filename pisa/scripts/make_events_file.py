@@ -216,7 +216,7 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
     mkdir(outdir)
 
     detector_label = str(data_proc_params.detector)
-    proc_label = 'proc_v' + str(data_proc_params.proc_ver)
+    proc_label = 'proc_' + str(data_proc_params.proc_ver)
 
     # What flavints to group together
     if join is None or join == '':

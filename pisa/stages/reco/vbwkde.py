@@ -365,7 +365,7 @@ class vbwkde(Stage):
                 plot_kde_detail(flavints=xform_flavints,
                                 kde_info=kde_info,
                                 extra_info=extra_info,
-                                binning=self.output_binning,
+                                binning=self.input_binning,
                                 outdir=outdir)
 
         self._kde_hash = kde_hash
@@ -1248,7 +1248,8 @@ def plot_kde_detail(flavints, kde_info, extra_info, binning, outdir,
     LEFT = 0.07
     HSPACE = 0.12
     LABELPAD = 0.058
-    AXISBG = (0.5, 0.5, 0.5)
+    #AXISBG = (0.5, 0.5, 0.5)
+    AXISBG = (1.0, 1.0, 1.0)
     DARK_RED =  (0.7, 0.0, 0.0)
     HIST_PP = dict(
         facecolor=(1,0.5,0.5), edgecolor=DARK_RED,
@@ -1260,10 +1261,16 @@ def plot_kde_detail(flavints, kde_info, extra_info, binning, outdir,
         color=(0.0, 0.0, 0.0), linestyle='-', marker=None, alpha=0.6,
         linewidth=2.0, label=r'$\mathrm{VBWKDE}$'
     )
-    RUG_PP = dict(color=(1.0, 1.0, 1.0), linewidth=0.4, alpha=0.5)
+    TITLEFONTSIZE = 14
+    LEGTITLEFONTSIZE = 12
+    LEGFNTSIZE = 12
+    #RUG_PP = dict(color=(1.0, 1.0, 1.0), linewidth=0.4, alpha=0.5)
+    RUG_PP = dict(color=(0.8, 0.0, 0.0), linewidth=0.4, alpha=0.5)
     RUG_LAB =r'$\mathrm{Rug\,plot}$'
-    LEGFNTCOL = (1,1,1)
-    LEGFACECOL = (0.2,0.2,0.2)
+    LEGFNTCOL = (0,0,0)
+    #LEGFACECOL = (0.2,0.2,0.2)
+    LEGFACECOL = (0.8,0.8,0.8)
+    LEGALPHA = 0.5
     GRIDCOL = (0.4, 0.4, 0.4)
     #pdfpgs = PdfPages(plot_fname)
 
@@ -1390,22 +1397,23 @@ def plot_kde_detail(flavints, kde_info, extra_info, binning, outdir,
         ruglines[-1].set_label(RUG_LAB)
 
         # Legend
-        leg_title_tex = r'$\mathrm{Normalized}\,E_\nu\mathrm{-err.\,distr.}$'
+        leg_title_tex = r'$\mathrm{Normalized}\,E\mathrm{-err.\,distr.}$'
         x1lab = ax1.set_xlabel(
-            r'$E_{\nu,\mathrm{reco}}-E_{\nu,\mathrm{true}}\;' +
+            r'$E_{\mathrm{reco}}-E_{\mathrm{true}}\;' +
             r'(\mathrm{GeV})$', labelpad=LABELPAD
         )
         leg = ax1.legend(loc='upper right', title=leg_title_tex,
-                         frameon=True, framealpha=0.8,
+                         frameon=True, framealpha=LEGALPHA,
                          fancybox=True, bbox_to_anchor=[1,0.975])
 
         # Other plot details
         ax1.xaxis.set_label_coords(0.9, -LABELPAD)
         ax1.xaxis.grid(color=GRIDCOL)
         ax1.yaxis.grid(color=GRIDCOL)
-        leg.get_title().set_fontsize(16)
+        leg.get_title().set_fontsize(LEGTITLEFONTSIZE)
         leg.get_title().set_color(LEGFNTCOL)
         [t.set_color(LEGFNTCOL) for t in leg.get_texts()]
+        [t.set_fontsize(LEGFNTSIZE) for t in leg.get_texts()]
         frame = leg.get_frame()
         frame.set_facecolor(LEGFACECOL)
         frame.set_edgecolor(None)
@@ -1436,19 +1444,20 @@ def plot_kde_detail(flavints, kde_info, extra_info, binning, outdir,
         ruglines[-1].set_label(r'$\mathrm{Rug\,plot}$')
 
         x2lab = ax2.set_xlabel(
-            r'$\cos\vartheta_{\mathrm{track,reco}}-\cos\vartheta_{\nu,\mathrm{true}}$',
+            r'$\cos\,\theta_{\mathrm{reco}}-\cos\,\theta_{\,\mathrm{true}}$',
             labelpad=LABELPAD
         )
         ax2.xaxis.set_label_coords(0.9, -LABELPAD)
         ax2.xaxis.grid(color=GRIDCOL)
         ax2.yaxis.grid(color=GRIDCOL)
-        leg_title_tex = r'$\mathrm{Normalized}\,\cos\vartheta\mathrm{-err.\,distr.}$'
+        leg_title_tex = r'$\mathrm{Normalized}\,\cos\,\theta \mathrm{-err.\,distr.}$'
         leg = ax2.legend(loc='upper right', title=leg_title_tex,
-                         frameon=True, framealpha=0.8, fancybox=True,
+                         frameon=True, framealpha=LEGALPHA, fancybox=True,
                          bbox_to_anchor=[1,0.975])
-        leg.get_title().set_fontsize(16)
+        leg.get_title().set_fontsize(LEGTITLEFONTSIZE)
         leg.get_title().set_color(LEGFNTCOL)
         [t.set_color(LEGFNTCOL) for t in leg.get_texts()]
+        [t.set_fontsize(LEGFNTSIZE) for t in leg.get_texts()]
         frame = leg.get_frame()
         frame.set_facecolor(LEGFACECOL)
         frame.set_edgecolor(None)
@@ -1456,17 +1465,17 @@ def plot_kde_detail(flavints, kde_info, extra_info, binning, outdir,
         actual_bin_tex = ''
         if ((actual_left_ebin_edge != ebin_min)
             or (actual_right_ebin_edge != ebin_max)):
-            actual_bin_tex = r'E_{\nu,\mathrm{true}}\in [' + \
+            actual_bin_tex = r'E_{\mathrm{true}}\in [' + \
                     format(actual_left_ebin_edge, '0.2f') + r',\,' + \
                     format(actual_right_ebin_edge, '0.2f') + r'] \mapsto '
         stt = r'$\mathrm{Resolutions,\,' + flavint_tex + r'}$' + '\n' + \
-                r'$' + actual_bin_tex + r'\mathrm{Bin}_{' + format(bin_n, 'd') + r'}\equiv E_{\nu,\mathrm{true}}\in [' + format(ebin_min, '0.2f') + \
+                r'$' + actual_bin_tex + r'\mathrm{Bin}_{' + format(bin_n, 'd') + r'}\equiv E_{\mathrm{true}}\in [' + format(ebin_min, '0.2f') + \
                 r',\,' + format(ebin_max, '0.2f') + r']\,\mathrm{GeV}' + \
                 r',\,N_\mathrm{events}=' + format(n_in_bin, 'd') + r'$'
 
         fig1.subplots_adjust(top=TOP, bottom=BOTTOM, left=LEFT, right=RIGHT, hspace=HSPACE)
         suptitle = fig1.suptitle(stt)
-        suptitle.set_fontsize(16)
+        suptitle.set_fontsize(TITLEFONTSIZE)
         suptitle.set_position((0.5,0.98))
         logging.trace('plot_fname = %s' %plot_fname)
         fig1.savefig(plot_fname, format='pdf')

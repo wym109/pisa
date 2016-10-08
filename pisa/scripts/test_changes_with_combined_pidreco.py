@@ -58,7 +58,7 @@ def compare_pisa_self(config1, config2, testname1, testname2, outdir):
             cake2_both_map.binning['reco_energy'].bin_edges.magnitude
     cake2_trck_map_to_plot['czbins'] = \
             cake2_both_map.binning['reco_coszen'].bin_edges.magnitude
-    cake2_trck_map_to_plot['map'] = cake2_both_map.hist[...,1]
+    cake2_trck_map_to_plot['map'] = cake2_both_map.hist[1,:,:]
     cake2_trck_map_to_plot['map'] = cake2_trck_map_to_plot['map']
     cake2_trck_events = np.sum(cake2_trck_map_to_plot['map'])
 
@@ -90,7 +90,7 @@ def compare_pisa_self(config1, config2, testname1, testname2, outdir):
             cake2_both_map.binning['reco_energy'].bin_edges.magnitude
     cake2_cscd_map_to_plot['czbins'] = \
             cake2_both_map.binning['reco_coszen'].bin_edges.magnitude
-    cake2_cscd_map_to_plot['map'] = cake2_both_map.hist[...,0]
+    cake2_cscd_map_to_plot['map'] = cake2_both_map.hist[0,:,:]
     cake2_cscd_map_to_plot['map'] = cake2_cscd_map_to_plot['map']
     cake2_cscd_events = np.sum(cake2_cscd_map_to_plot['map'])
 
