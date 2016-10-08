@@ -6,6 +6,8 @@ This service in particular reads in from files belonging to the GRECO
 event sample. More information about this event sample can be found on
 https://wiki.icecube.wisc.edu/index.php/IC86_Tau_Appearance_Analysis
 """
+from operator import add
+
 import numpy as np
 import pint; ureg = pint.UnitRegistry()
 
@@ -14,7 +16,8 @@ from pisa.core.map import Map
 from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.core.binning import OneDimBinning, MultiDimBinning
 from pisa.utils.fileio import from_file
-from pisa.utils.flavInt import NuFlavIntGroup, flavintGroupsFromString
+from pisa.utils.flavInt import NuFlavIntGroup, FlavIntDataGroup
+from pisa.utils.flavInt import flavintGroupsFromString
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
@@ -103,13 +106,20 @@ class greco(Stage):
             return string.replace(' ', '').split(',')
         event_types = parse(self.config.get('general', 'event_type'))
 
-        nu_outputs = {}
+        nu_fidg = []
         for ev_type in event_types:
             if 'neutrino' in ev_type:
                 flavours = parse(self.config.get(ev_type, 'flavours'))
                 sys_list = parse(self.config.get(ev_type, 'sys_list'))
                 base_suffix = parse(self.config.get(ev_type, 'base_suffix'))
+
                 for flav in flavours:
+                    f = int(flav)
+                    cc_grps = NuFlavIntGroup(NuFlavIntGroup(f,-f).ccFlavInts())
+                    nc_grps = NuFlavIntGroup(NuFlavIntGroup(f,-f).ncFlavInts())
+                    flav_fidg = FlavIntDataGroup(
+                        flavint_groups=[cc_grps, nc_grps]
+                    )
                     prefixes = []
                     for sys in sys_list:
                         ev_sys = ev_type + ':' + sys
@@ -127,35 +137,21 @@ class greco(Stage):
                     file_prefix = flav + list(set(prefixes))[0]
                     events_file = self.config.get(base_suffix + file_prefix)
 
-                    f = int(flav)
-                    nu_outputs[NuFlavIntGroup(f, -f)] = from_file(events_file)
+                    events = from_file(events_file)
+                    cc_mask = events['ptype'] > 0
+                    nc_mask = events['ptype'] < 0
 
-        nu_cc_outputs = {}
-        for flavint_group in nu_outputs.iterkeys():
-            cc_mask = nu_outputs[flavint_group]['ptype'] > 0
+                    flav_fidg[cc_grps] = {var: events[var][cc_mask]
+                                          for var in events.iterkeys()}
+                    flav_fidg[nc_grps] = {var: events[var][nc_mask]
+                                          for var in events.iterkeys()}
+                    nu_fidg.append(flav_fidg)
+                nu_fidg = reduce(add, nu_fidg)
 
-            cc_group = flavint_group.ccFlavInts()
-            nu_cc_outputs[cc_group] = {}
-            for var in nu_outputs[flavint_group].iterkeys():
-                nu_outputs_perint[cc_group][var] = \
-                        nu_outputs[flavint_group][var][cc_mask]
-
-        nu_nc_outputs = {}
-        for flavint_group in nu_outputs_perint.iterkeys():
-            nc_mask = nu_outputs[flavint_group]['ptype'] < 0
-
-            for var in nu_outputs[flavint_group].iterkeys():
-                if nu_nc_outputs.has_key(var):
-                    nu_nc_outputs[var] = np.concatenate((
-                        nu_nc_outputs[var],
-                        nu_outputs_perint[flavint_group][var][nc_mask]
-                    ))
-                else:
-                    nu_nc_outputs[var] = nu_outputs_perint[flavint_group][var]
+        output_fidg = nu_fidg.transform_groups(self.output_groups)
 
     def _histogram(events):
         """Histogram the events given the input binning."""
-        #TODO(shivesh): reco or true?
 
     @profile
     def _compute_outputs(self, inputs=None):
