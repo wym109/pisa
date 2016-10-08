@@ -2,28 +2,31 @@
 The purpose of this stage is to load in events generated from Monte Carlo
 simulations.
 
-This service in particular reads in from files belonging to the GRECO
-event sample. More information about this event sample can be found on
+This service in particular reads in from files having a similar structure to
+the low energy event samples. More information about these event samples
+can be found on
 https://wiki.icecube.wisc.edu/index.php/IC86_Tau_Appearance_Analysis
+https://wiki.icecube.wisc.edu/index.php/IC86_oscillations_event_selection
 """
 from operator import add
 
 import numpy as np
-import pint; ureg = pint.UnitRegistry()
+import pint
 from uncertainties import unumpy as unp
 
+from pisa import ureg, Q_
 from pisa.core.stage import Stage
 from pisa.core.map import Map, MapSet
 from pisa.core.binning import OneDimBinning, MultiDimBinning
-from pisa.utils.fileio import from_file
 from pisa.utils.flavInt import NuFlavIntGroup, FlavIntDataGroup
-from pisa.utils.flavInt import BarSep, flavintGroupsFromString
+from pisa.utils.flavInt import flavintGroupsFromString
+from pisa.utils.fileio import from_file
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
 
 
-class greco(Stage):
-    """mc service to load in events from the GRECO event sample.
+class sample(Stage):
+    """mc service to load in events from an event sample.
 
     Parameters
     ----------
@@ -82,9 +85,23 @@ class greco(Stage):
             'mc_sample_config', 'livetime', 'weight'
         )
 
-        self.output_groups = flavintGroupsFromString(output_names)
-        with BarSep('_'):
-            output_names = [str(f) for f in self.output_groups]
+        self.muongun = False
+        self.noise = False
+
+        output_names = output_names.replace(' ','').split(',')
+        clean_outnames = []
+        self.output_groups = []
+        for name in output_names:
+            if 'muongun' in name:
+                self.muongun = True
+                clean_outnames.append(name)
+            elif 'noise' in name:
+                self.noise = True
+                clean_outnames.append(name)
+            else:
+                self.output_groups.append(NuFlavIntGroup(name))
+
+        clean_outnames += [str(f) for f in self.output_groups]
 
         super(self.__class__, self).__init__(
             use_transforms=False,
@@ -144,11 +161,13 @@ class greco(Stage):
 
         # TODO(shivesh): some sort of hashing
         nu_fidg = []
+        if self.muongun: muongun = {}
         for ev_type in event_types:
             if 'neutrino' in ev_type:
                 flavours = parse(self.config.get(ev_type, 'flavours'))
                 sys_list = parse(self.config.get(ev_type, 'sys_list'))
                 base_suffix = parse(self.config.get(ev_type, 'basesuffix'))[0]
+                if base_suffix == 'None': base_suffix = ''
 
                 for idx, flav in enumerate(flavours):
                     f = int(flav)
@@ -186,6 +205,29 @@ class greco(Stage):
                     nu_fidg.append(flav_fidg)
                 nu_fidg = reduce(add, nu_fidg)
 
+            if 'muongun' in ev_type and self.muongun:
+                sys_list = parse(self.config.get(ev_type, 'sys_list'))
+                base_suffix = parse(self.config.get(ev_type, 'basesuffix'))[0]
+                if base_suffix == 'None': base_suffix = ''
+
+                paths = []
+                for sys in sys_list:
+                    ev_sys = ev_type + ':' + sys
+                    nominal = self.config.get(ev_sys, 'nominal')
+                    ev_sys_nom = ev_sys + ':' + nominal
+                    paths.append(self.config.get(ev_sys_nom,
+                                                    'file_path'))
+                if len(set(paths)) > 1:
+                    raise AssertionError(
+                        'Choice of nominal file is ambigous. Nominal '
+                        'choice of systematic parameters must coincide '
+                        'with one and only one file. Options found are: '
+                        '{0}'.format(paths)
+                    )
+                file_path = paths[0]
+
+                muongun = from_file(file_path)
+
         output_fidg = nu_fidg.transform_groups(self.output_groups)
 
         livetime = self.params['livetime'].to(ureg.s).m
@@ -200,10 +242,23 @@ class greco(Stage):
                 binning = self.output_binning,
                 weights = weights,
                 errors  = True,
-                name    = fig,
+                name    = str(NuFlavIntGroup(fig)),
             ))
 
-        return MapSet(maps=outputs, name='greco maps')
+        if self.muongun:
+            if self.params['weight'].value:
+                weights = muongun['weight'] * livetime
+            else: weights = None
+            outputs.append(self._histogram(
+                events  = muongun,
+                binning = self.output_binning,
+                weights = weights,
+                errors  = True,
+                name    = 'muongun',
+            ))
+
+        name = parse(self.config.get('general', 'name'))[0]
+        return MapSet(maps=outputs, name=name)
 
     def validate_params(self, params):
         assert isinstance(params['mc_sample_config'].value, basestring)
