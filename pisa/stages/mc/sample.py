@@ -57,11 +57,6 @@ class sample(Stage):
         Otherwise, the stage runs in debug mode. This disables caching (forcing
         recomputation of any nominal transforms, transforms, and outputs).
 
-    disk_cache : None, str, or DiskCache
-        If None, no disk cache is available.
-        If str, represents a path with which to instantiate a utils.DiskCache
-        object. Must be concurrent-access-safe (across threads and processes).
-
     transforms_cache_depth
     outputs_cache_depth : int >= 0
 
@@ -135,13 +130,16 @@ class sample(Stage):
         logging.info('Weighting with a livetime of {0} s'.format(livetime))
         outputs = []
         if self.neutrino:
-            for fig in self._neutrino_events.iterkeys():
+            trans_nu_fidg = self._neutrino_events.transform_groups(
+                self._output_nu_groups
+            )
+            for fig in trans_nu_fidg.iterkeys():
                 if self.params['weight'].value:
-                    weights = self._neutrino_events[fig]['pisa_weight'] * \
+                    weights = trans_nu_fidg[fig]['pisa_weight'] * \
                             livetime
                 else: weights = None
                 outputs.append(self._histogram(
-                    events  = self._neutrino_events[fig],
+                    events  = trans_nu_fidg[fig],
                     binning = self.output_binning,
                     weights = weights,
                     errors  = True,
@@ -165,10 +163,9 @@ class sample(Stage):
 
     def load_sample_events(self):
         """Load the event sample given the configuration file and output
-        groups. Hash this object using both the configuration filename
-        and the output names."""
-        hash_property = [self.params['mc_sample_config'].value,
-                         self._clean_outnames]
+        groups. Hash this object using both the configuration file and
+        the output types."""
+        hash_property = [self.config, self.neutrino, self.muongun]
         this_hash = hash_obj(hash_property)
         if this_hash == self.sample_hash:
             return
@@ -190,7 +187,6 @@ class sample(Stage):
                                      'configuration file.')
             self._neutrino_events = self.load_neutrino_events(
                 config=self.config,
-                out_flavint_groups=self._output_nu_groups
             )
         if self.muongun:
             if 'muongun' not in event_types:
@@ -202,7 +198,7 @@ class sample(Stage):
         self.sample_hash = this_hash
 
     @staticmethod
-    def load_neutrino_events(config, out_flavint_groups):
+    def load_neutrino_events(config):
         def parse(string):
             return string.replace(' ', '').split(',')
         flavours = parse(config.get('neutrino', 'flavours'))
@@ -256,8 +252,7 @@ class sample(Stage):
             nu_fidg.append(flav_fidg)
         nu_fidg = reduce(add, nu_fidg)
 
-        output_fidg = nu_fidg.transform_groups(out_flavint_groups)
-        return output_fidg
+        return nu_fidg
 
     @staticmethod
     def load_moungun_events(config):
