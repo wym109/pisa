@@ -1181,10 +1181,12 @@ class FlavIntDataGroup(dict):
             If val != None, flavitn_groups are deduced from the data
         string
             If val is a string, it is expected to be a comma-separated
-            list, each field of which describes a NuFlavIntGroup
+            list, each field of which describes a NuFlavIntGroup. The
+            returned list of groups encompasses all possible flavor/int
+            types, but the groups are mutually exclusive. 
         iterable of strings or NuFlavIntGroup
             If val is an iterable, each member of the iterable is
-            interpreted as a NuFlavIntGroup
+            interpreted as a NuFlavIntGroup.
     """
     def __init__(self, val=None, flavint_groups=None):
         super(FlavIntDataGroup, self).__init__()
