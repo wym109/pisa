@@ -143,7 +143,9 @@ class gpu(Stage):
         expected_params = (self.osc_params + self.weight_params +
                            self.other_params)
 
-        output_names = ('trck','cscd')
+        #output_names = ('trck','cscd')
+        output_names = ('nue_cc+nuebar_cc_cscd', 'numu_cc+numubar_cc_cscd', 'nutau_cc+nutaubar_cc_cscd', 'nuall_nc+nuallbar_nc_cscd',
+                        'nue_cc+nuebar_cc_trck', 'numu_cc+numubar_cc_trck', 'nutau_cc+nutaubar_cc_trck', 'nuall_nc+nuallbar_nc_trck')
 
         super(self.__class__, self).__init__(
             use_transforms=False,
@@ -272,12 +274,17 @@ class gpu(Stage):
 
         # only keep events using bdt_score > bdt_cut
         for flav, kFlav, kNuBar in zip(self.flavs, kFlavs, kNuBars):
-            l5_bdt_score = evts[flav]['dunkman_L5'].astype(FTYPE)
-            cut = l5_bdt_score >= bdt_cut
+            if evts[flav].has_key('dunkman_L5'):
+                l5_bdt_score = evts[flav]['dunkman_L5'].astype(FTYPE)
+                cut = l5_bdt_score >= bdt_cut
+            else:
+                cut = None
             for var in variables:
                 try:
-                    evts[flav][var] = evts[flav][var][cut]
+                    if cut is not None:
+                        evts[flav][var] = evts[flav][var][cut]
                 except KeyError:
+                    # if variable doesn't exist (e.g. axial mass coeffs, just fill in ones)
                     evts[flav][var] = np.ones_like(evts[flav]['true_energy'])
 
         logging.info('read in events and copy to GPU')
@@ -500,44 +507,82 @@ class gpu(Stage):
         self.osc_hash = osc_hash
         self.weight_hash = weight_hash
 
-        # apply scales, add up all cscds and tracks
-        for i,flav in enumerate(self.flavs):
-            #if 'nutau' in flav:
-            if flav in ['nutau_cc','nutaubar_cc']:
-                f = self.params.nutau_cc_norm.value.m_as('dimensionless')
-            elif flav.endswith('_nc'):
-                f = self.params.nu_nc_norm.value.m_as('dimensionless')
-            else:
-                f = 1.0
 
-            # add up all cscd and trck events
-            if i == 0:
-                hist_cscd = np.copy(self.events_dict[flav]['hist_cscd']) * f
-                hist_trck = np.copy(self.events_dict[flav]['hist_trck']) * f
-                if self.error_method in ['sumw2', 'fixed_sumw2']:
-                    sumw2_cscd = np.copy(self.events_dict[flav]['sumw2_cscd']) * f * f
-                    sumw2_trck = np.copy(self.events_dict[flav]['sumw2_trck']) * f * f
-            else:
-                hist_cscd += self.events_dict[flav]['hist_cscd'] * f
-                hist_trck += self.events_dict[flav]['hist_trck'] * f
-                if self.error_method in ['sumw2', 'fixed_sumw2']:
-                    sumw2_cscd += self.events_dict[flav]['sumw2_cscd'] * f * f
-                    sumw2_trck += self.events_dict[flav]['sumw2_trck'] * f * f
+        # different output format now, to be consistent with staged pisa
+        out_hists = {}
+        out_sumw2 = {}
+        for name in self.output_names:
+            for flav in self.flavs:
+                if flav in ['nutau_cc','nutaubar_cc']:
+                    f = self.params.nutau_cc_norm.value.m_as('dimensionless')
+                else:
+                    f = 1.0
+
+                if ('bar_nc' in flav and 'allbar_nc' in name) or ('_nc' in flav and 'all_nc' in name) or (flav in name):
+                    # cscd or trck
+                    histname = 'hist_' + name[-4:]
+                    sumw2name = 'sumw2_' + name[-4:]
+                    if out_hists.has_key(name):
+                        out_hists[name] += self.events_dict[flav][histname] * f
+                        if self.error_method in ['sumw2', 'fixed_sumw2']:
+                            out_sumw2[name] += self.events_dict[flav][sumw2name] * f * f
+                    else:
+                        out_hists[name] = np.copy(self.events_dict[flav][histname]) * f
+                        if self.error_method in ['sumw2', 'fixed_sumw2']:
+                            out_sumw2[name] = np.copy(self.events_dict[flav][sumw2name]) * f * f
 
         maps = []
         # pack everything in final PISA MapSet
-        if self.error_method == 'sumw2':
-            maps.append(Map(name='cscd', hist=hist_cscd, error_hist=np.sqrt(sumw2_cscd), binning=self.output_binning))
-            maps.append(Map(name='trck', hist=hist_trck, error_hist=np.sqrt(sumw2_trck), binning=self.output_binning))
-        elif self.error_method == 'fixed_sumw2':
-            if self.fixed_error == None:
-                self.fixed_error = {}
-                self.fixed_error['cscd'] = np.sqrt(sumw2_cscd)
-                self.fixed_error['trck'] = np.sqrt(sumw2_trck)
-            maps.append(Map(name='cscd', hist=hist_cscd, error_hist=self.fixed_error['cscd'], binning=self.output_binning))
-            maps.append(Map(name='trck', hist=hist_trck, error_hist=self.fixed_error['trck'], binning=self.output_binning))
-        else:
-            maps.append(Map(name='cscd', hist=hist_cscd, binning=self.output_binning))
-            maps.append(Map(name='trck', hist=hist_trck, binning=self.output_binning))
+        for name, hist in out_hists.items():
+            if self.error_method == 'sumw2':
+                maps.append(Map(name=name, hist=hist, error_hist=np.sqrt(out_sumw2[name]), binning=self.output_binning))
+            elif self.error_method == 'fixed_sumw2':
+                if self.fixed_error == None:
+                    self.fixed_error = {}
+                    self.fixed_error[name] = np.sqrt(out_sumw2[name])
+                maps.append(Map(name=name, hist=hist, error_hist=self.fixed_error[name], binning=self.output_binning))
+            else:
+                maps.append(Map(name=name, hist=hist, binning=self.output_binning))
 
         return MapSet(maps,name='gpu_mc')
+        ## apply scales, add up all cscds and tracks
+        #for i,flav in enumerate(self.flavs):
+        #    #if 'nutau' in flav:
+        #    if flav in ['nutau_cc','nutaubar_cc']:
+        #        f = self.params.nutau_cc_norm.value.m_as('dimensionless')
+        #    elif flav.endswith('_nc'):
+        #        f = self.params.nu_nc_norm.value.m_as('dimensionless')
+        #    else:
+        #        f = 1.0
+
+        #    # add up all cscd and trck events
+        #    if i == 0:
+        #        hist_cscd = np.copy(self.events_dict[flav]['hist_cscd']) * f
+        #        hist_trck = np.copy(self.events_dict[flav]['hist_trck']) * f
+        #        if self.error_method in ['sumw2', 'fixed_sumw2']:
+        #            sumw2_cscd = np.copy(self.events_dict[flav]['sumw2_cscd']) * f * f
+        #            sumw2_trck = np.copy(self.events_dict[flav]['sumw2_trck']) * f * f
+        #    else:
+        #        hist_cscd += self.events_dict[flav]['hist_cscd'] * f
+        #        hist_trck += self.events_dict[flav]['hist_trck'] * f
+        #        if self.error_method in ['sumw2', 'fixed_sumw2']:
+        #            sumw2_cscd += self.events_dict[flav]['sumw2_cscd'] * f * f
+        #            sumw2_trck += self.events_dict[flav]['sumw2_trck'] * f * f
+
+        #maps = []
+        ## pack everything in final PISA MapSet
+        #if self.error_method == 'sumw2':
+        #    maps.append(Map(name='cscd', hist=hist_cscd, error_hist=np.sqrt(sumw2_cscd), binning=self.output_binning))
+        #    maps.append(Map(name='trck', hist=hist_trck, error_hist=np.sqrt(sumw2_trck), binning=self.output_binning))
+        #elif self.error_method == 'fixed_sumw2':
+        #    if self.fixed_error == None:
+        #        self.fixed_error = {}
+        #        self.fixed_error['cscd'] = np.sqrt(sumw2_cscd)
+        #        self.fixed_error['trck'] = np.sqrt(sumw2_trck)
+        #    maps.append(Map(name='cscd', hist=hist_cscd, error_hist=self.fixed_error['cscd'], binning=self.output_binning))
+        #    maps.append(Map(name='trck', hist=hist_trck, error_hist=self.fixed_error['trck'], binning=self.output_binning))
+        #else:
+        #    maps.append(Map(name='cscd', hist=hist_cscd, binning=self.output_binning))
+        #    maps.append(Map(name='trck', hist=hist_trck, binning=self.output_binning))
+
+        #return MapSet(maps,name='gpu_mc')
