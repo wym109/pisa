@@ -1170,9 +1170,11 @@ class FlavIntDataGroup(dict):
     """Container class for storing data for some set(s) of NuFlavIntGroups
     (cf. FlavIntData, which stores one datum for each NuFlavInt separately)
 
-    val
+    Parameters
+    ----------
+    val: None, str, or dict
         Data with which to populate the hierarchy
-    flavint_groups
+    flavint_groups: None, str, or iterable
         User-defined groupings of NuFlavIntGroups. These can be specified
         in several ways.
 
@@ -2152,7 +2154,7 @@ def test_FlavIntDataGroup():
     else:
         raise Exception
 
-    logging.info('<< PASS >> : FlavIntDataGroup')
+    logging.info('<< PASS : test_FlavIntDataGroup >>')
 
 
 def test_CombinedFlavIntData():
