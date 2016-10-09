@@ -1261,7 +1261,7 @@ class FlavIntDataGroup(dict):
                                          self.flavint_groups])
         inputted_flavints = reduce(add, [list(f.flavints()) for f in
                                          flavint_groups])
-        if set(original_flavints) != set(inputted_flavints):
+        if not set(inputted_flavints).issubset(set(original_flavints)):
             raise AssertionError(
                 'Mismatch between underlying group of flavints given as input '
                 'and original flavint_group.\nOriginal {0}\nInputted '
@@ -2300,7 +2300,7 @@ if __name__ == "__main__":
     test_IntType()
     test_NuFlav()
     test_NuFlavInt()
-    # test_NuFlavIntGroup()
+    test_NuFlavIntGroup()
     test_FlavIntData()
     test_FlavIntDataGroup()
     # Not implemented yet:
