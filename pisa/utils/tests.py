@@ -200,7 +200,7 @@ def baseplot2(map, title, ax, vmax=None, symm=False, evtrate=False):
             vmin = 0
         else:
             vmin = np.nanmin(hist)
-	if vmax is None:
+        if vmax is None:
             vmax = np.nanmax(hist)
     cmap.set_bad(color=(0,1,0), alpha=1)
 
@@ -360,9 +360,9 @@ def plot_cmp(new, ref, new_label, ref_label, plot_label, file_label, outdir,
         diff = new - ref
         fract_diff = diff / ref
 
-	finite_ratio = ratio.hist[np.isfinite(ratio.hist)]
-	ratio_mean = np.mean(finite_ratio)
-	ratio_median = np.median(finite_ratio)
+        finite_ratio = ratio.hist[np.isfinite(ratio.hist)]
+        ratio_mean = np.mean(finite_ratio)
+        ratio_median = np.median(finite_ratio)
 
         finite_diff = diff.hist[np.isfinite(diff.hist)]
         diff_mean = np.mean(finite_diff)
@@ -399,13 +399,13 @@ def plot_cmp(new, ref, new_label, ref_label, plot_label, file_label, outdir,
             newmax = np.nanmax(new.hist)
             vmax = refmax if refmax > newmax else newmax
 
-            baseplot2(map=ref,
-                      title=ref_label,
+            baseplot2(map=new,
+                      title=new_label,
                       vmax=vmax,
                       evtrate=True,
                       ax=axes[0])
-            baseplot2(map=new,
-                      title=new_label,
+            baseplot2(map=ref,
+                      title=ref_label,
                       vmax=vmax,
                       evtrate=True,
                       ax=axes[1])
