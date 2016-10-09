@@ -122,7 +122,7 @@ class MCSimRunSettings(dict):
         #        pass
         rsd = self.translateSourceDict(rsd) #{run:self.translateSourceDict(rs) for run,rs in rsd.iteritems()}
         if not detector is None:
-            detector = str(detector).lower()
+            detector = str(detector).strip()
         self.detector = detector
         self.run = run
         self.update(rsd)
@@ -268,7 +268,7 @@ class DetMCSimRunsSettings(dict):
                             type(run_settings))
 
         if detector:
-            detector = str(detector).lower()
+            detector = str(detector).strip()
         self.detector = detector
 
         # Determine how deeply nested runs are in the dict to allow for
@@ -284,7 +284,7 @@ class DetMCSimRunsSettings(dict):
                     raise ValueError('Must specify which detector; detectors '
                                      'found: ' + str(rsd.keys()))
             else:
-                runs_d = rsd[self.detector.lower()]
+                runs_d = rsd[self.detector.strip()]
         else:
             raise Exception('dict must either be 3 levels: '
                             '{DET:{RUN:{...}}}; or 2 levels: {RUN:{...}}')

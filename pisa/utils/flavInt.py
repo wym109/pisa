@@ -922,7 +922,7 @@ class NuFlavIntGroup(MutableSequence):
         return self.__simpleStr(flavsep=flavsep, intsep=intsep,
                                 flavintsep=flavintsep, addsep=addsep, func=str)
 
-    def simpleTex(self, flavsep=r', \, ', intsep=r' \, ',
+    def simpleTex(self, flavsep=r' + ', intsep=r' \, ',
                   flavintsep=r'; \; ', addsep=r'+'):
         """Simplified TeX string reperesentation of this group"""
         return self.__simpleStr(flavsep=flavsep, intsep=intsep,
@@ -932,7 +932,7 @@ class NuFlavIntGroup(MutableSequence):
         """TeX string representation for this group"""
         return self.simpleTex(*args, **kwargs)
 
-    def uniqueFlavsTex(self, flavsep=r', \, '):
+    def uniqueFlavsTex(self, flavsep=r' + '):
         """TeX string representation of the unique flavors present in this
         group"""
         return flavsep.join([f.tex() for f in self.flavs()])
