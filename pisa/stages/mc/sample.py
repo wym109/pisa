@@ -19,8 +19,8 @@ from pisa.core.stage import Stage
 from pisa.core.map import Map, MapSet
 from pisa.core.binning import OneDimBinning, MultiDimBinning
 from pisa.utils.flavInt import NuFlavIntGroup, FlavIntDataGroup
-from pisa.utils.flavInt import flavintGroupsFromString
 from pisa.utils.fileio import from_file
+from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
 
@@ -78,36 +78,42 @@ class sample(Stage):
 
     """
     def __init__(self, params, output_binning, output_names,
-                 error_method=None, debug_mode=None, disk_cache=None, 
+                 error_method=None, debug_mode=None, disk_cache=None,
                  memcache_deepcopy=True, transforms_cache_depth=20,
                  outputs_cache_depth=20):
+        self.sample_hash = None
+        """Hash of event sample"""
+
         expected_params = (
             'mc_sample_config', 'livetime', 'weight'
         )
 
+        self.neutrino = False
         self.muongun = False
         self.noise = False
 
         output_names = output_names.replace(' ','').split(',')
-        clean_outnames = []
-        self.output_groups = []
+        self._clean_outnames = []
+        self._output_nu_groups = []
         for name in output_names:
             if 'muongun' in name:
                 self.muongun = True
-                clean_outnames.append(name)
+                self._clean_outnames.append(name)
             elif 'noise' in name:
                 self.noise = True
-                clean_outnames.append(name)
+                self._clean_outnames.append(name)
             else:
-                self.output_groups.append(NuFlavIntGroup(name))
+                self.neutrino = True
+                self._output_nu_groups.append(NuFlavIntGroup(name))
 
-        clean_outnames += [str(f) for f in self.output_groups]
+        if self.neutrino:
+            self._clean_outnames += [str(f) for f in self._output_nu_groups]
 
         super(self.__class__, self).__init__(
             use_transforms=False,
             params=params,
             expected_params=expected_params,
-            output_names=output_names,
+            output_names=self._clean_outnames,
             error_method=error_method,
             debug_mode=debug_mode,
             disk_cache=disk_cache,
@@ -118,7 +124,176 @@ class sample(Stage):
         )
 
         self.config = from_file(self.params['mc_sample_config'].value)
-        self.include_attrs_for_hashes('output_groups')
+        self.include_attrs_for_hashes('sample_hash')
+
+    @profile
+    def _compute_outputs(self, inputs=None):
+        """Compute nominal histograms for output channels."""
+        self.load_sample_events()
+
+        livetime = self.params['livetime'].to(ureg.s).m
+        logging.info('Weighting with a livetime of {0} s'.format(livetime))
+        outputs = []
+        if self.neutrino:
+            for fig in self._neutrino_events.iterkeys():
+                if self.params['weight'].value:
+                    weights = self._neutrino_events[fig]['pisa_weight'] * \
+                            livetime
+                else: weights = None
+                outputs.append(self._histogram(
+                    events  = self._neutrino_events[fig],
+                    binning = self.output_binning,
+                    weights = weights,
+                    errors  = True,
+                    name    = str(NuFlavIntGroup(fig)),
+                ))
+
+        if self.muongun:
+            if self.params['weight'].value:
+                weights = self._muongun_events['pisa_weight'] * livetime
+            else: weights = None
+            outputs.append(self._histogram(
+                events  = self._muongun_events,
+                binning = self.output_binning,
+                weights = weights,
+                errors  = True,
+                name    = 'muongun',
+            ))
+
+        name = self.config.get('general', 'name')
+        return MapSet(maps=outputs, name=name)
+
+    def load_sample_events(self):
+        """Load the event sample given the configuration file and output
+        groups. Hash this object using both the configuration filename
+        and the output names."""
+        hash_property = [self.params['mc_sample_config'].value,
+                         self._clean_outnames]
+        this_hash = hash_obj(hash_property)
+        if this_hash == self.sample_hash:
+            return
+
+        logging.info(
+            'Extracting events using configuration file {0} and output names '
+            '{1}'.format(hash_property[0], hash_property[1])
+        )
+        def parse(string):
+            return string.replace(' ', '').split(',')
+        event_types = parse(self.config.get('general', 'event_type'))
+
+        # TODO(shivesh): when created, use a more generic Events object
+        # (that natively supports muons, noise etc.) to store the event
+        # sample
+        if self.neutrino:
+            if 'neutrino' not in event_types:
+                raise AssertionError('`neutrino` field not found in '
+                                     'configuration file.')
+            self._neutrino_events = self.load_neutrino_events(
+                config=self.config,
+                out_flavint_groups=self._output_nu_groups
+            )
+        if self.muongun:
+            if 'muongun' not in event_types:
+                raise AssertionError('`muongun` field not found in '
+                                     'configuration file.')
+            self._muongun_events = self.load_moungun_events(
+                config=self.config,
+            )
+        self.sample_hash = this_hash
+
+    @staticmethod
+    def load_neutrino_events(config, out_flavint_groups):
+        def parse(string):
+            return string.replace(' ', '').split(',')
+        flavours = parse(config.get('neutrino', 'flavours'))
+        weights = parse(config.get('neutrino', 'weights'))
+        sys_list = parse(config.get('neutrino', 'sys_list'))
+        base_suffix = config.get('neutrino', 'basesuffix')
+        if base_suffix == 'None': base_suffix = ''
+
+        nu_fidg = []
+        for idx, flav in enumerate(flavours):
+            f = int(flav)
+            cc_grps = NuFlavIntGroup(NuFlavIntGroup(f,-f).ccFlavInts())
+            nc_grps = NuFlavIntGroup(NuFlavIntGroup(f,-f).ncFlavInts())
+            flav_fidg = FlavIntDataGroup(
+                flavint_groups=[cc_grps, nc_grps]
+            )
+            prefixes = []
+            for sys in sys_list:
+                ev_sys = 'neutrino:' + sys
+                nominal = config.get(ev_sys, 'nominal')
+                ev_sys_nom = ev_sys + ':' + nominal
+                prefixes.append(config.get(ev_sys_nom, 'file_prefix'))
+            if len(set(prefixes)) > 1:
+                raise AssertionError(
+                    'Choice of nominal file is ambigous. Nominal '
+                    'choice of systematic parameters must coincide '
+                    'with one and only one file. Options found are: '
+                    '{0}'.format(prefixes)
+                )
+            file_prefix = flav + prefixes[0]
+            events_file = config.get('general', 'datadir') + \
+                    base_suffix + file_prefix
+
+            events = from_file(events_file)
+            cc_mask = events['ptype'] > 0
+            nc_mask = events['ptype'] < 0
+
+            if weights[idx] == 'None':
+                events['pisa_weight'] = \
+                        np.ones(events['ptype'].shape)
+            elif weights[idx] == '0':
+                events['pisa_weight'] = \
+                        np.zeros(events['ptype'].shape)
+            else:
+                events['pisa_weight'] = events[weights[idx]]
+
+            flav_fidg[cc_grps] = {var: events[var][cc_mask]
+                                  for var in events.iterkeys()}
+            flav_fidg[nc_grps] = {var: events[var][nc_mask]
+                                  for var in events.iterkeys()}
+            nu_fidg.append(flav_fidg)
+        nu_fidg = reduce(add, nu_fidg)
+
+        output_fidg = nu_fidg.transform_groups(out_flavint_groups)
+        return output_fidg
+
+    @staticmethod
+    def load_moungun_events(config):
+        def parse(string):
+            return string.replace(' ', '').split(',')
+        sys_list = parse(config.get('muongun', 'sys_list'))
+        weight = config.get('muongun', 'weight')
+        base_suffix = config.get('muongun', 'basesuffix')
+        if base_suffix == 'None': base_suffix = ''
+
+        paths = []
+        for sys in sys_list:
+            ev_sys = 'muongun:' + sys
+            nominal = config.get(ev_sys, 'nominal')
+            ev_sys_nom = ev_sys + ':' + nominal
+            paths.append(config.get(ev_sys_nom, 'file_path'))
+        if len(set(paths)) > 1:
+            raise AssertionError(
+                'Choice of nominal file is ambigous. Nominal '
+                'choice of systematic parameters must coincide '
+                'with one and only one file. Options found are: '
+                '{0}'.format(paths)
+            )
+        file_path = paths[0]
+
+        muongun = from_file(file_path)
+
+        if weight == 'None':
+            muongun['pisa_weight'] = \
+                    np.ones(muongun['weights'].shape)
+        elif weight == '0':
+            muongun['pisa_weight'] = \
+                    np.zeros(muongun['weights'].shape)
+        else:
+            muongun['pisa_weight'] = muongun[weight]
+        return muongun
 
     @staticmethod
     def _histogram(events, binning, weights=None, errors=False, **kwargs):
@@ -151,114 +326,6 @@ class sample(Stage):
             hist = unp.uarray(hist, np.sqrt(hist2))
 
         return Map(hist=hist, binning=binning, **kwargs)
-
-    @profile
-    def _compute_outputs(self, inputs=None):
-        """Compute nominal histograms for output channels."""
-        def parse(string):
-            return string.replace(' ', '').split(',')
-        event_types = parse(self.config.get('general', 'event_type'))
-
-        # TODO(shivesh): some sort of hashing
-        nu_fidg = []
-        if self.muongun: muongun = {}
-        for ev_type in event_types:
-            if 'neutrino' in ev_type:
-                flavours = parse(self.config.get(ev_type, 'flavours'))
-                sys_list = parse(self.config.get(ev_type, 'sys_list'))
-                base_suffix = parse(self.config.get(ev_type, 'basesuffix'))[0]
-                if base_suffix == 'None': base_suffix = ''
-
-                for idx, flav in enumerate(flavours):
-                    f = int(flav)
-                    cc_grps = NuFlavIntGroup(NuFlavIntGroup(f,-f).ccFlavInts())
-                    nc_grps = NuFlavIntGroup(NuFlavIntGroup(f,-f).ncFlavInts())
-                    flav_fidg = FlavIntDataGroup(
-                        flavint_groups=[cc_grps, nc_grps]
-                    )
-                    prefixes = []
-                    for sys in sys_list:
-                        ev_sys = ev_type + ':' + sys
-                        nominal = self.config.get(ev_sys, 'nominal')
-                        ev_sys_nom = ev_sys + ':' + nominal
-                        prefixes.append(self.config.get(ev_sys_nom,
-                                                        'file_prefix'))
-                    if len(set(prefixes)) > 1:
-                        raise AssertionError(
-                            'Choice of nominal file is ambigous. Nominal '
-                            'choice of systematic parameters must coincide '
-                            'with one and only one file. Options found are: '
-                            '{0}'.format(prefixes)
-                        )
-                    file_prefix = flav + list(set(prefixes))[0]
-                    events_file = self.config.get('general', 'datadir') + \
-                            base_suffix + file_prefix
-
-                    events = from_file(events_file)
-                    cc_mask = events['ptype'] > 0
-                    nc_mask = events['ptype'] < 0
-
-                    flav_fidg[cc_grps] = {var: events[var][cc_mask]
-                                          for var in events.iterkeys()}
-                    flav_fidg[nc_grps] = {var: events[var][nc_mask]
-                                          for var in events.iterkeys()}
-                    nu_fidg.append(flav_fidg)
-                nu_fidg = reduce(add, nu_fidg)
-
-            if 'muongun' in ev_type and self.muongun:
-                sys_list = parse(self.config.get(ev_type, 'sys_list'))
-                base_suffix = parse(self.config.get(ev_type, 'basesuffix'))[0]
-                if base_suffix == 'None': base_suffix = ''
-
-                paths = []
-                for sys in sys_list:
-                    ev_sys = ev_type + ':' + sys
-                    nominal = self.config.get(ev_sys, 'nominal')
-                    ev_sys_nom = ev_sys + ':' + nominal
-                    paths.append(self.config.get(ev_sys_nom,
-                                                    'file_path'))
-                if len(set(paths)) > 1:
-                    raise AssertionError(
-                        'Choice of nominal file is ambigous. Nominal '
-                        'choice of systematic parameters must coincide '
-                        'with one and only one file. Options found are: '
-                        '{0}'.format(paths)
-                    )
-                file_path = paths[0]
-
-                muongun = from_file(file_path)
-
-        output_fidg = nu_fidg.transform_groups(self.output_groups)
-
-        livetime = self.params['livetime'].to(ureg.s).m
-        logging.info('Weighting with a livetime of {0} s'.format(livetime))
-        outputs = []
-        for fig in output_fidg.iterkeys():
-            if self.params['weight'].value:
-                weights = output_fidg[fig]['weight'] * livetime
-            else: weights = None
-            outputs.append(self._histogram(
-                events  = output_fidg[fig],
-                binning = self.output_binning,
-                weights = weights,
-                errors  = True,
-                name    = str(NuFlavIntGroup(fig)),
-            ))
-
-        if self.muongun:
-            if self.params['weight'].value:
-                weights = muongun['weight'] * livetime
-            else: weights = None
-            outputs.append(self._histogram(
-                events  = muongun,
-                binning = self.output_binning,
-                weights = weights,
-                errors  = True,
-                name    = 'muongun',
-            ))
-
-        name = parse(self.config.get('general', 'name'))[0]
-        return MapSet(maps=outputs, name=name)
 
     def validate_params(self, params):
         assert isinstance(params['mc_sample_config'].value, basestring)
