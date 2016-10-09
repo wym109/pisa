@@ -1167,7 +1167,25 @@ class FlavIntData(dict):
 
 
 class FlavIntDataGroup(dict):
-    """TODO(shivesh): docstring"""
+    """Container class for storing data for some set(s) of NuFlavIntGroups
+    (cf. FlavIntData, which stores one datum for each NuFlavInt separately)
+
+    val
+        Data with which to populate the hierarchy
+    flavint_groups
+        User-defined groupings of NuFlavIntGroups. These can be specified
+        in several ways.
+
+        None
+            If val == None, flavint_groups must be specified
+            If val != None, flavitn_groups are deduced from the data
+        string
+            If val is a string, it is expected to be a comma-separated
+            list, each field of which describes a NuFlavIntGroup
+        iterable of strings or NuFlavIntGroup
+            If val is an iterable, each member of the iterable is
+            interpreted as a NuFlavIntGroup
+    """
     def __init__(self, val=None, flavint_groups=None):
         super(FlavIntDataGroup, self).__init__()
         if flavint_groups is None:
@@ -1222,6 +1240,19 @@ class FlavIntDataGroup(dict):
         self._flavint_groups = fig
 
     def transform_groups(self, flavint_groups):
+        """Transform FlavIntDataGroup into a structure given by the input
+        flavint_groups.
+
+        Parameters
+        ----------
+        flavint_groups : string, or sequence of strings or sequence of
+                         NuFlavIntGroups
+
+        Returns
+        -------
+        transformed_fidg : FlavIntDataGroup
+
+        """
         flavint_groups = self._parse_flavint_groups(flavint_groups)
 
         original_flavints = reduce(add, [list(f.flavints()) for f in
@@ -1290,7 +1321,11 @@ class FlavIntDataGroup(dict):
                             type(flavint_groups))
     @staticmethod
     def _merge(a, b, path=None):
-        """Merges b into a."""
+        """Merge dictionaries `a` and `b` by recursively iterating down
+        to the lowest level of the dictionary until coincident numpy
+        arrays are found, after which the appropriate sub-element is
+        made equal to the concatenation of the two arrays.
+        """
         logging.trace('Merging {0} with keys {1} '
                       '{2}'.format(type(a), a.keys(), b.keys()))
         if path is None: path = []
