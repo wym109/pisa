@@ -15,6 +15,7 @@ mpl.rcParams['mathtext.bf'] = 'Bitstream Vera Sans:bold'
 from matplotlib import pyplot as plt
 from matplotlib.offsetbox import AnchoredText
 from pisa.core.map import Map, MapSet
+from pisa.core.binning import MultiDimBinning
 from pisa.core.transform import BinnedTensorTransform, TransformSet
 import itertools
 from pisa.utils.log import logging
@@ -165,9 +166,21 @@ class Plotter(object):
         distributed over a grid '''
         n_rows = kwargs.pop('n_rows', None)
         n_cols = kwargs.pop('n_cols', None)
+        split_axis = kwargs.pop('split_axis', None)
         ''' plot mapset in array using a function fun '''
         if isinstance(mapset, Map):
             mapset = MapSet([mapset])
+
+        if split_axis is not None:
+            new_maps = []
+            for map in mapset:
+                split_idx = map.binning.names.index(split_axis)
+                new_binning = MultiDimBinning([binning for binning in map.binning if binning.name != split_axis])
+                for i in range(map.binning[split_axis].num_bins):
+                    newmap = Map(name=map.name+'_%s_%i'%(split_axis,i),tex=map.tex+' %s %i'%(split_axis,i), hist = np.rollaxis(map.hist, split_idx, 0)[i], binning=new_binning)
+                    new_maps.append(newmap)
+            mapset = MapSet(new_maps)
+
         if isinstance(mapset, MapSet):
             n = len(mapset)
         elif isinstance(mapset, TransformSet):
@@ -249,7 +262,7 @@ class Plotter(object):
             bin_centers = map.binning.weighted_centers
             zmap = np.log10(unp.nominal_values(map.hist)) if self.log else unp.nominal_values(map.hist)
         if self.symmetric:
-            vmax = max(zmap.max(), - zmap.min())
+            vmax = max(np.max(np.ma.masked_invalid(zmap)), - np.min(np.ma.masked_invalid(zmap)))
             vmin = -vmax
         else:
             vmax = np.max(zmap[np.isfinite(zmap)])
