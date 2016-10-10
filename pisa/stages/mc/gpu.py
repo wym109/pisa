@@ -77,12 +77,13 @@ class gpu(Stage):
         neutrino_oppo_numu_flux :flux weight for anti-nu_mu in case of neutrino, or nu_mu in case of anti-neutrino event
         weighted_aeff : effective are weight for event
         pid : pid value
+
+    and more optional:
         dunkman_l5 : BDT value
         linear_fit_maccqe : Genie CC quasi elastic linear coefficient
         quad_fit_maccqe : Genie CC quasi elastic quadratic coefficient
         linear_fit_maccres : Genie CC resonance linear coefficient
         quad_fit_maccres : Genie CC resonance quadratic coefficient
-
 
     the dictionary self.events_dict is the central object here:
     it contains two dictionaries for every flavour:
@@ -154,11 +155,12 @@ class gpu(Stage):
             debug_mode=debug_mode
         )
 
-    def _compute_nominal_outputs(self):
-       
-        if self.params.nutau_norm.value != 1.0 or self.params.nutau_norm.is_fixed == False:
-            assert (self.params.no_nc_osc.value == False), 'if you want NC tau events scaled, you should osciallte them -> set no_nc_osc to False!!!'
+    def validate_params(self, params):
+        # not a good idea to scale nutau norm, without the NC events being oscillated
+        if params.nutau_norm.value != 1.0 or params.nutau_norm.is_fixed == False:
+            assert (params.no_nc_osc.value == False), 'if you want NC tau events scaled, you should osciallte them -> set no_nc_osc to False!!!'
 
+    def _compute_nominal_outputs(self):
         # these are for storing hashes for caching that is done inside the stage
         self.osc_hash = None
         self.weight_hash = None
@@ -295,6 +297,7 @@ class gpu(Stage):
                 try:
                     self.events_dict[flav]['host'][var] = evts[flav][var].astype(FTYPE)
                 except KeyError:
+                    logging.warning('replacing variable %s by ones'%var)
                     self.events_dict[flav]['host'][var] = np.ones_like(evts[flav]['true_energy']).astype(FTYPE)
             self.events_dict[flav]['n_evts'] = np.uint32(len(self.events_dict[flav]['host'][variables[0]]))
             #select even 50%
@@ -425,7 +428,7 @@ class gpu(Stage):
         start_t = time.time()
         for flav in self.flavs:
 
-            # calculate osc probs
+            # calculate osc probs, filling the device arrays with probabilities
             if recalc_osc:
                 if not (self.params.no_nc_osc.value and flav.endswith('_nc')):
                     self.osc.calc_probs(self.events_dict[flav]['kNuBar'], self.events_dict[flav]['kFlav'],
@@ -433,6 +436,7 @@ class gpu(Stage):
 
             # calculate weights
             if recalc_weight:
+                # calcukate the flux weights
                 self.weight.calc_flux(self.events_dict[flav]['n_evts'],
                                     nue_numu_ratio=nue_numu_ratio, 
                                     nu_nubar_ratio=nu_nubar_ratio, kNuBar=self.events_dict[flav]['kNuBar'],
@@ -449,14 +453,17 @@ class gpu(Stage):
                 #numu_flux_norm_d = self.sum_array(self.events_dict[flav]['device']['scaled_numu_flux_shape'], self.events_dict[flav]['n_evts'])
                 #numu_flux_norm = numu_flux_norm_n / numu_flux_norm_d
                 numu_flux_norm = 1.
-
+                
+                # calculate the event weights, from osc. probs and flux weights
+                # global scaling factors for the nue and numu flux can be given, for normalization purposes
                 self.weight.calc_weight(self.events_dict[flav]['n_evts'], livetime=livetime,
                                     nue_flux_norm=nue_flux_norm, numu_flux_norm=numu_flux_norm,
                                     aeff_scale=aeff_scale, kNuBar=self.events_dict[flav]['kNuBar'],
                                     Genie_Ma_QE=Genie_Ma_QE, Genie_Ma_RES=Genie_Ma_RES,
                                     **self.events_dict[flav]['device'])
 
-
+                
+                # calculate weights squared, for error propagation
                 if self.error_method in ['sumw2', 'fixed_sumw2']:
                     self.weight.calc_sumw2(self.events_dict[flav]['n_evts'], **self.events_dict[flav]['device'])
 
@@ -488,7 +495,8 @@ class gpu(Stage):
         self.osc_hash = osc_hash
         self.weight_hash = weight_hash
 
-        # different output format now, to be consistent with staged pisa
+        # add histos together into output names, and apply nutau normalizations
+        # errors (sumw2) are also added, while scales are applied in quadrature of course
         out_hists = {}
         out_sumw2 = {}
         for name in self.output_names:
@@ -510,10 +518,12 @@ class gpu(Stage):
                             out_sumw2[name] = np.copy(self.events_dict[flav]['sumw2']) * f * f
 
         maps = []
-        # pack everything in final PISA MapSet
+        # pack everything in a final PISA MapSet
         for name, hist in out_hists.items():
             if self.error_method == 'sumw2':
                 maps.append(Map(name=name, hist=hist, error_hist=np.sqrt(out_sumw2[name]), binning=self.output_binning))
+            # this is a special case where we always want the error to be the same....so for the first Mapet it is taken from
+            # the calculation, and every following time it is just euqal to the first one
             elif self.error_method == 'fixed_sumw2':
                 if self.fixed_error == None:
                     self.fixed_error = {}
