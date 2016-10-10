@@ -105,7 +105,8 @@ for map in template_notau: map.tex = map.name
 
 #my_plotter.plot_1d_array(template_nominal, 'reco_coszen', fname='p_coszen')
 #my_plotter.plot_1d_array(template_nominal, 'reco_energy', fname='p_energy')
-my_plotter.plot_2d_array(template_nominal, fname='nominal', cmap='summer')
+#my_plotter.plot_2d_array(template_nominal, fname='nominal', cmap='summer')
+my_plotter.plot_2d_array(template_nominal, split_axis='pid', fname='nominal', cmap='summer')
 
 if args.data_settings is not None:
 

@@ -438,6 +438,8 @@ if __name__ == '__main__':
     parser.add_argument('-pd', '--pseudo-data', type=str, default='poisson',
                         choices=['poisson', 'gauss+poisson', 'asimov', 'data'], 
                         help='''Mode for pseudo data sampling''')
+    parser.add_argument('--var', type=str, default='args.var',
+                        help='''param to be profiled''')
     parser.add_argument('--metric', type=str,
                         choices=['llh', 'chi2', 'conv_llh', 'mod_chi2', 'barlow_llh'], required=True,
                         help='''Settings related to the optimizer used in the
@@ -499,11 +501,11 @@ if __name__ == '__main__':
         
         if args.function == 'profile':
             if args.mode == 'H0':
-                results.append(analysis.profile('nutau_cc_norm',[0.]*ureg.dimensionless))
+                results.append(analysis.profile(args.var,[0.]*ureg.dimensionless))
             elif args.mode == 'scan11':
-                results.append(analysis.profile('nutau_cc_norm',np.linspace(0,2,11)*ureg.dimensionless))
+                results.append(analysis.profile(args.var,np.linspace(0,2,11)*ureg.dimensionless))
             elif args.mode == 'scan21':
-                results.append(analysis.profile('nutau_cc_norm',np.linspace(0,2,21)*ureg.dimensionless))
+                results.append(analysis.profile(args.var,np.linspace(0,2,21)*ureg.dimensionless))
             elif args.mode == 'scancp':
                 results.append(analysis.profile('deltacp',np.linspace(0,360,13)*ureg.degree))
 

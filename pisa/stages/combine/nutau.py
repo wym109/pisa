@@ -37,9 +37,8 @@ class nutau(Stage):
             #'nutau_cc_norm',
             )
 
-        input_names = ('nue_cc+nuebar_cc_cscd', 'numu_cc+numubar_cc_cscd', 'nutau_cc+nutaubar_cc_cscd', 'nuall_nc+nuallbar_nc_cscd',
-                        'nue_cc+nuebar_cc_trck', 'numu_cc+numubar_cc_trck', 'nutau_cc+nutaubar_cc_trck', 'nuall_nc+nuallbar_nc_trck')
-        output_names = ('trck','cscd')
+        input_names = ('nue_cc+nuebar_cc', 'numu_cc+numubar_cc', 'nutau_cc+nutaubar_cc', 'nuall_nc+nuallbar_nc')
+        output_names = ('nu')
 
         super(self.__class__, self).__init__(
             use_transforms=True,
@@ -58,15 +57,15 @@ class nutau(Stage):
 
     def _compute_transforms(self):
     
-        dims = ['reco_energy', 'reco_coszen']
-        xform_shape = [4] + [self.input_binning[d].num_bins for d in dims]
+        dims = self.input_binning.names
+        xform_shape = [len(self.input_names)] + [self.input_binning[d].num_bins for d in dims]
 
         # TODO: populate explicitly by flavor, don't assume any particular
         # ordering of the outputs names!
         transforms = []
         for output_name in self.output_names:
             xform = np.ones(xform_shape)
-            input_names = [n for n in self.input_names if n.endswith(output_name)]
+            input_names = [n for n in self.input_names if output_name in n]
             for i,name in enumerate(input_names):
                 #if 'nutau' in name:
                 #    xform[i] *= self.params.nutau_cc_norm.value.m_as('dimensionless')

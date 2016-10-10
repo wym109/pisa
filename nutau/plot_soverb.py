@@ -26,16 +26,16 @@ my_plotter = Plotter(stamp='nutau', outdir=args.outdir, fmt='pdf', log=False, an
 template_maker = DistributionMaker(args.template_settings)
 
 template_nominal = template_maker.get_total_outputs()
-p = template_maker.params['nutau_cc_norm']
+p = template_maker.params['nutau_norm']
 p.value = 0. * ureg.dimensionless
 template_maker.update_params(p)
 template_bkgd = template_maker.get_total_outputs()
 
 template_nutau = template_nominal - template_bkgd
 
-for n in template_nominal: n.tex = n.name
-for n in template_nutau: n.tex = n.name
-for n in template_bkgd: n.tex = n.name
+#for n in template_nominal: n.tex = n.name
+#for n in template_nutau: n.tex = n.name
+#for n in template_bkgd: n.tex = n.name
 
 my_plotter.label = r'$S/\sqrt{B}$'
-my_plotter.plot_2d_array(template_nutau/template_bkgd.sqrt(), fname='soverb_cc',cmap='YlOrRd')
+my_plotter.plot_2d_array(template_nutau/template_bkgd.sqrt(), fname='soverb', split_axis='pid',cmap='YlOrRd')
