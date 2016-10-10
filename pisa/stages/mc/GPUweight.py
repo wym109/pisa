@@ -233,13 +233,13 @@ class GPUweight(object):
                                     fType nue_flux_norm, fType numu_flux_norm,
                                     fType *linear_fit_MaCCQE, fType *quad_fit_MaCCQE,
                                     fType *linear_fit_MaCCRES, fType *quad_fit_MaCCRES,
-                                    fType *prob_e, fType *prob_mu, fType *pid, fType *weight_cscd, fType *weight_trck,
-                                    fType livetime, fType pid_bound_upper, fType pid_bound_lower, fType pid_remove, fType aeff_scale,
+                                    fType *prob_e, fType *prob_mu, fType *pid, fType *weight,
+                                    fType livetime, fType aeff_scale,
                                     fType Genie_Ma_QE, fType Genie_Ma_RES
                                     )
                 {
                     // calculate the event weights, given the flux weights and osc. probs
-                    // also apply Genie sys, aeff_scale, and devide into cscd and trck categories
+                    // also apply Genie sys, aeff_scale
                     int idx = threadIdx.x + blockDim.x * blockIdx.x;
                     if (idx < n_evts) {
 
@@ -251,22 +251,18 @@ class GPUweight(object):
                         fType aeff_RES =  1. + quad_fit_MaCCRES[idx]*pow(Genie_Ma_RES,2) + linear_fit_MaCCRES[idx]*Genie_Ma_RES;
                         
                         // calc weight
-                        fType w = aeff_scale * livetime * weighted_aeff[idx] * aeff_QE * aeff_RES *
                         //fType w = aeff_scale * livetime * aeff_QE * aeff_RES *
+                        weight[idx] = aeff_scale * livetime * weighted_aeff[idx] * aeff_QE * aeff_RES *
                                  ((nue_flux * prob_e[idx]) + (numu_flux * prob_mu[idx]));
-                        // distinguish between PID classes
-                        weight_cscd[idx] = ((pid[idx] < pid_bound_lower) && (pid[idx] >= pid_remove)) * w;
-                        weight_trck[idx] = (pid[idx] >= pid_bound_upper) * w;
                     }
                 }
 
-            __global__ void sumw2(const int n_evts, fType *weight_cscd, fType *weight_trck,
-                                    fType *sumw2_cscd, fType *sumw2_trck) {
+            __global__ void sumw2(const int n_evts, fType *weight, 
+                                    fType *sumw2) {
                     // fill arrays with weights squared (for error calculation)
                     int idx = threadIdx.x + blockDim.x * blockIdx.x;
                     if (idx < n_evts) {
-                        sumw2_cscd[idx] = weight_cscd[idx] * weight_cscd[idx];
-                        sumw2_trck[idx] = weight_trck[idx] * weight_trck[idx];
+                        sumw2[idx] = weight[idx] * weight[idx];
                     }
                 }
           """
@@ -307,8 +303,8 @@ class GPUweight(object):
                     nue_flux_norm, numu_flux_norm,
                     linear_fit_MaCCQE, quad_fit_MaCCQE,
                     linear_fit_MaCCRES, quad_fit_MaCCRES,
-                    prob_e, prob_mu, pid, weight_cscd, weight_trck,
-                    livetime, pid_bound_upper, pid_bound_lower, pid_remove, aeff_scale,
+                    prob_e, prob_mu, pid, weight, 
+                    livetime, aeff_scale,
                     Genie_Ma_QE, Genie_Ma_RES,
                     **kwargs):
         # block and grid dimensions
@@ -320,16 +316,16 @@ class GPUweight(object):
                             FTYPE(nue_flux_norm), FTYPE(numu_flux_norm),
                             linear_fit_MaCCQE, quad_fit_MaCCQE,
                             linear_fit_MaCCRES, quad_fit_MaCCRES,
-                            prob_e, prob_mu, pid, weight_cscd, weight_trck,
-                            FTYPE(livetime), FTYPE(pid_bound_upper), FTYPE(pid_bound_lower), FTYPE(pid_remove), FTYPE(aeff_scale),
+                            prob_e, prob_mu, pid, weight,
+                            FTYPE(livetime), FTYPE(aeff_scale),
                             FTYPE(Genie_Ma_QE), FTYPE(Genie_Ma_RES),
                             block=bdim, grid=gdim)
 
-    def calc_sumw2(self, n_evts, weight_cscd, weight_trck, sumw2_cscd, sumw2_trck, **kwargs):
+    def calc_sumw2(self, n_evts, weight, sumw2, **kwargs):
         bdim = (256,1,1)
         dx, mx = divmod(n_evts, bdim[0])
         gdim = ((dx + (mx>0)) * bdim[0], 1)
-        self.sumw2_fun(n_evts, weight_cscd, weight_trck, sumw2_cscd, sumw2_trck, block=bdim, grid=gdim)
+        self.sumw2_fun(n_evts, weight, sumw2, block=bdim, grid=gdim)
 
     def calc_sum(self, n_evts, x, out):
         bdim = (256,1,1)

@@ -50,17 +50,14 @@ class gpu(Stage):
             nue_numu_ratio : quantity (dimensionless)
             livetime : quantity (time)
             aeff_scale : quantity (dimensionless)
-            pid_bound_upper : quantity (dimensionless)
-            pid_bound_lower : quantity (dimensionless)
-            pid_remove : quantity (dimensionless)
             delta_index : quantity (dimensionless)
             Barr_uphor_ratio : quantity (dimensionless)
             Barr_nu_nubar_ratio : quantity (dimensionless)
             Genie_Ma_QE : quantity (dimensionless)
             Genie_Ma_RES : quantity (dimensionless)
             events_file : hdf5 file path (output from make_events), including flux weights and Genie systematics coefficients
-            nu_nc_norm : quantity (dimensionless)
             nutau_cc_norm : quantity (dimensionless)
+            nutau_norm : quantity (dimensionless)
             reco_e_res_raw : quantity (dimensionless)
             reco_e_scale_raw : quantity (dimensionless)
             reco_cz_res_raw :quantity (dimensionless)
@@ -124,9 +121,6 @@ class gpu(Stage):
             'nue_numu_ratio',
             'livetime',
             'aeff_scale',
-            'pid_bound_upper',
-            'pid_bound_lower',
-            'pid_remove',
             'delta_index',
             'Barr_uphor_ratio',
             'Barr_nu_nubar_ratio',
@@ -135,8 +129,8 @@ class gpu(Stage):
 
         self.other_params = (
             'events_file',
-            'nu_nc_norm',
             'nutau_cc_norm',
+            'nutau_norm',
             'reco_e_res_raw',
             'reco_e_scale_raw',
             'reco_cz_res_raw',
@@ -145,11 +139,7 @@ class gpu(Stage):
         expected_params = (self.osc_params + self.weight_params +
                            self.other_params)
 
-        #output_names = ('trck','cscd')
-        output_names = ('nue_cc+nuebar_cc_cscd', 'numu_cc+numubar_cc_cscd', 'nutau_cc+nutaubar_cc_cscd', 'nuall_nc+nuallbar_nc_cscd',
-                        'nue_cc+nuebar_cc_trck', 'numu_cc+numubar_cc_trck', 'nutau_cc+nutaubar_cc_trck', 'nuall_nc+nuallbar_nc_trck')
-        #output_names = ('nue_cc+nuebar_cc+nue_nc+nuebar_nc_cscd', 'numu_cc+numubar_cc+numu_nc+numubar_nc_cscd', 'nutau_cc+nutaubar_cc+nutau_nc+nutaubar_nc_cscd',
-        #                'nue_cc+nuebar_cc+nue_nc+nuebar_nc_trck', 'numu_cc+numubar_cc+numu_nc+numubar_nc_trck', 'nutau_cc+nutaubar_cc+nutau_nc+nutaubar_nc_trck')
+        output_names = ('nue_cc+nuebar_cc', 'numu_cc+numubar_cc', 'nutau_cc+nutaubar_cc', 'nuall_nc+nuallbar_nc')
 
         super(self.__class__, self).__init__(
             use_transforms=False,
@@ -165,7 +155,10 @@ class gpu(Stage):
         )
 
     def _compute_nominal_outputs(self):
-        
+       
+        if self.params.nutau_norm.value != 1.0 or self.params.nutau_norm.is_fixed == False:
+            assert (self.params.no_nc_osc.value == False), 'if you want NC tau events scaled, you should osciallte them -> set no_nc_osc to False!!!'
+
         # these are for storing hashes for caching that is done inside the stage
         self.osc_hash = None
         self.weight_hash = None
@@ -200,8 +193,6 @@ class gpu(Stage):
         # Weight calculator
         self.weight = GPUweight()
 
-        self.e_dim_num = self.output_binning.names.index('reco_energy')
-        self.cz_dim_num = self.output_binning.names.index('reco_coszen')
         self.bin_names = self.output_binning.names
         self.bin_edges = []
 
@@ -244,8 +235,7 @@ class gpu(Stage):
         # allocate empty arrays (filled with 1s) on GPU
         empty = ['prob_e',
                     'prob_mu',
-                    'weight_trck',
-                    'weight_cscd',
+                    'weight',
                     'scaled_nue_flux',
                     'scaled_numu_flux',
                     'scaled_nue_flux_shape',
@@ -253,9 +243,7 @@ class gpu(Stage):
                 ]
 
         if self.error_method in ['sumw2', 'fixed_sumw2']:
-            empty += ['sumw2_trck',
-                        'sumw2_cscd'
-                    ]
+            empty += ['sumw2']
 
         # list of flav_ints to use and corresponding number used in several parts of the code
         self.flavs = ['nue_cc',
@@ -384,7 +372,7 @@ class gpu(Stage):
         ''' Copy back a dictionary with event by event information'''
         return_events = {}
         variables = ['true_energy', 'true_coszen', 'reco_energy', 'reco_coszen',
-                        'weight_trck', 'weight_cscd']
+                        'weight']
         for flav in self.flavs:
             return_events[flav] = {}
             for var in variables:
@@ -415,9 +403,6 @@ class gpu(Stage):
 
         if recalc_weight:
             livetime = self.params.livetime.value.m_as('seconds')
-            pid_bound_upper = self.params.pid_bound_upper.value.m_as('dimensionless')
-            pid_bound_lower = self.params.pid_bound_lower.value.m_as('dimensionless')
-            pid_remove = self.params.pid_remove.value.m_as('dimensionless')
             aeff_scale = self.params.aeff_scale.value.m_as('dimensionless')
             nue_numu_ratio = self.params.nue_numu_ratio.value.m_as('dimensionless')
             nu_nubar_ratio = self.params.nu_nubar_ratio.value.m_as('dimensionless')
@@ -466,7 +451,6 @@ class gpu(Stage):
                 numu_flux_norm = 1.
 
                 self.weight.calc_weight(self.events_dict[flav]['n_evts'], livetime=livetime,
-                                    pid_bound_upper=pid_bound_upper, pid_bound_lower=pid_bound_lower, pid_remove=pid_remove,
                                     nue_flux_norm=nue_flux_norm, numu_flux_norm=numu_flux_norm,
                                     aeff_scale=aeff_scale, kNuBar=self.events_dict[flav]['kNuBar'],
                                     Genie_Ma_QE=Genie_Ma_QE, Genie_Ma_RES=Genie_Ma_RES,
@@ -484,26 +468,18 @@ class gpu(Stage):
             start_t = time.time()
             # histogram events and download fromm GPU, if either weights or osc changed
             for flav in self.flavs:
-                self.events_dict[flav]['hist_cscd'] = self.histogrammer.get_hist(self.events_dict[flav]['n_evts'],
-                                                                        self.events_dict[flav]['device'][self.bin_names[0]],
-                                                                        self.events_dict[flav]['device'][self.bin_names[1]],
-                                                                        self.events_dict[flav]['device']['weight_cscd'])
-
-                self.events_dict[flav]['hist_trck'] = self.histogrammer.get_hist(self.events_dict[flav]['n_evts'],
-                                                                        self.events_dict[flav]['device'][self.bin_names[0]],
-                                                                        self.events_dict[flav]['device'][self.bin_names[1]],
-                                                                        self.events_dict[flav]['device']['weight_trck'])
+                self.events_dict[flav]['hist'] = self.histogrammer.get_hist(self.events_dict[flav]['n_evts'],
+                                                                        d_x = self.events_dict[flav]['device'][self.bin_names[0]],
+                                                                        d_y = self.events_dict[flav]['device'][self.bin_names[1]],
+                                                                        d_z = self.events_dict[flav]['device'][self.bin_names[2]],
+                                                                        d_w = self.events_dict[flav]['device']['weight'])
 
                 if self.error_method in ['sumw2', 'fixed_sumw2']:
-                    self.events_dict[flav]['sumw2_cscd'] = self.histogrammer.get_hist(self.events_dict[flav]['n_evts'],
-                                                                            self.events_dict[flav]['device'][self.bin_names[0]],
-                                                                            self.events_dict[flav]['device'][self.bin_names[1]],
-                                                                            self.events_dict[flav]['device']['sumw2_cscd'])
-
-                    self.events_dict[flav]['sumw2_trck'] = self.histogrammer.get_hist(self.events_dict[flav]['n_evts'],
-                                                                            self.events_dict[flav]['device'][self.bin_names[0]],
-                                                                            self.events_dict[flav]['device'][self.bin_names[1]],
-                                                                            self.events_dict[flav]['device']['sumw2_trck'])
+                    self.events_dict[flav]['sumw2'] = self.histogrammer.get_hist(self.events_dict[flav]['n_evts'],
+                                                                            d_x = self.events_dict[flav]['device'][self.bin_names[0]],
+                                                                            d_y = self.events_dict[flav]['device'][self.bin_names[1]],
+                                                                            d_z = self.events_dict[flav]['device'][self.bin_names[2]],
+                                                                            d_w = self.events_dict[flav]['device']['sumw2'])
             end_t = time.time()
             logging.debug('GPU hist done in %.4f ms for %s events'%(((end_t - start_t) * 1000),tot))
 
@@ -512,29 +488,26 @@ class gpu(Stage):
         self.osc_hash = osc_hash
         self.weight_hash = weight_hash
 
-
         # different output format now, to be consistent with staged pisa
         out_hists = {}
         out_sumw2 = {}
         for name in self.output_names:
             for flav in self.flavs:
+                f = 1.0
                 if flav in ['nutau_cc','nutaubar_cc']:
-                    f = self.params.nutau_cc_norm.value.m_as('dimensionless')
-                else:
-                    f = 1.0
+                    f *= self.params.nutau_cc_norm.value.m_as('dimensionless')
+                if 'nutau' in flav:
+                    f *= self.params.nutau_norm.value.m_as('dimensionless')
 
                 if ('bar_nc' in flav and 'allbar_nc' in name) or ('_nc' in flav and 'all_nc' in name) or (flav in name):
-                    # cscd or trck
-                    histname = 'hist_' + name[-4:]
-                    sumw2name = 'sumw2_' + name[-4:]
                     if out_hists.has_key(name):
-                        out_hists[name] += self.events_dict[flav][histname] * f
+                        out_hists[name] += self.events_dict[flav]['hist'] * f
                         if self.error_method in ['sumw2', 'fixed_sumw2']:
-                            out_sumw2[name] += self.events_dict[flav][sumw2name] * f * f
+                            out_sumw2[name] += self.events_dict[flav]['sumw2'] * f * f
                     else:
-                        out_hists[name] = np.copy(self.events_dict[flav][histname]) * f
+                        out_hists[name] = np.copy(self.events_dict[flav]['hist']) * f
                         if self.error_method in ['sumw2', 'fixed_sumw2']:
-                            out_sumw2[name] = np.copy(self.events_dict[flav][sumw2name]) * f * f
+                            out_sumw2[name] = np.copy(self.events_dict[flav]['sumw2']) * f * f
 
         maps = []
         # pack everything in final PISA MapSet
@@ -550,44 +523,3 @@ class gpu(Stage):
                 maps.append(Map(name=name, tex=name, hist=hist, binning=self.output_binning))
 
         return MapSet(maps,name='gpu_mc')
-        ## apply scales, add up all cscds and tracks
-        #for i,flav in enumerate(self.flavs):
-        #    #if 'nutau' in flav:
-        #    if flav in ['nutau_cc','nutaubar_cc']:
-        #        f = self.params.nutau_cc_norm.value.m_as('dimensionless')
-        #    elif flav.endswith('_nc'):
-        #        f = self.params.nu_nc_norm.value.m_as('dimensionless')
-        #    else:
-        #        f = 1.0
-
-        #    # add up all cscd and trck events
-        #    if i == 0:
-        #        hist_cscd = np.copy(self.events_dict[flav]['hist_cscd']) * f
-        #        hist_trck = np.copy(self.events_dict[flav]['hist_trck']) * f
-        #        if self.error_method in ['sumw2', 'fixed_sumw2']:
-        #            sumw2_cscd = np.copy(self.events_dict[flav]['sumw2_cscd']) * f * f
-        #            sumw2_trck = np.copy(self.events_dict[flav]['sumw2_trck']) * f * f
-        #    else:
-        #        hist_cscd += self.events_dict[flav]['hist_cscd'] * f
-        #        hist_trck += self.events_dict[flav]['hist_trck'] * f
-        #        if self.error_method in ['sumw2', 'fixed_sumw2']:
-        #            sumw2_cscd += self.events_dict[flav]['sumw2_cscd'] * f * f
-        #            sumw2_trck += self.events_dict[flav]['sumw2_trck'] * f * f
-
-        #maps = []
-        ## pack everything in final PISA MapSet
-        #if self.error_method == 'sumw2':
-        #    maps.append(Map(name='cscd', hist=hist_cscd, error_hist=np.sqrt(sumw2_cscd), binning=self.output_binning))
-        #    maps.append(Map(name='trck', hist=hist_trck, error_hist=np.sqrt(sumw2_trck), binning=self.output_binning))
-        #elif self.error_method == 'fixed_sumw2':
-        #    if self.fixed_error == None:
-        #        self.fixed_error = {}
-        #        self.fixed_error['cscd'] = np.sqrt(sumw2_cscd)
-        #        self.fixed_error['trck'] = np.sqrt(sumw2_trck)
-        #    maps.append(Map(name='cscd', hist=hist_cscd, error_hist=self.fixed_error['cscd'], binning=self.output_binning))
-        #    maps.append(Map(name='trck', hist=hist_trck, error_hist=self.fixed_error['trck'], binning=self.output_binning))
-        #else:
-        #    maps.append(Map(name='cscd', hist=hist_cscd, binning=self.output_binning))
-        #    maps.append(Map(name='trck', hist=hist_trck, binning=self.output_binning))
-
-        #return MapSet(maps,name='gpu_mc')
