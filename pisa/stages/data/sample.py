@@ -156,6 +156,7 @@ class sample(Stage):
                 weights = weights,
                 errors  = True,
                 name    = 'muongun',
+                tex     = r'\rm{muongun}'
             ))
 
         name = self.config.get('general', 'name')
