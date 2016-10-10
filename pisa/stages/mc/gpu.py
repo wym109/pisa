@@ -50,7 +50,8 @@ class gpu(Stage):
             nue_numu_ratio : quantity (dimensionless)
             livetime : quantity (time)
             aeff_scale : quantity (dimensionless)
-            pid_bound : quantity (dimensionless)
+            pid_bound_upper : quantity (dimensionless)
+            pid_bound_lower : quantity (dimensionless)
             pid_remove : quantity (dimensionless)
             delta_index : quantity (dimensionless)
             Barr_uphor_ratio : quantity (dimensionless)
@@ -123,7 +124,8 @@ class gpu(Stage):
             'nue_numu_ratio',
             'livetime',
             'aeff_scale',
-            'pid_bound',
+            'pid_bound_upper',
+            'pid_bound_lower',
             'pid_remove',
             'delta_index',
             'Barr_uphor_ratio',
@@ -146,6 +148,8 @@ class gpu(Stage):
         #output_names = ('trck','cscd')
         output_names = ('nue_cc+nuebar_cc_cscd', 'numu_cc+numubar_cc_cscd', 'nutau_cc+nutaubar_cc_cscd', 'nuall_nc+nuallbar_nc_cscd',
                         'nue_cc+nuebar_cc_trck', 'numu_cc+numubar_cc_trck', 'nutau_cc+nutaubar_cc_trck', 'nuall_nc+nuallbar_nc_trck')
+        #output_names = ('nue_cc+nuebar_cc+nue_nc+nuebar_nc_cscd', 'numu_cc+numubar_cc+numu_nc+numubar_nc_cscd', 'nutau_cc+nutaubar_cc+nutau_nc+nutaubar_nc_cscd',
+        #                'nue_cc+nuebar_cc+nue_nc+nuebar_nc_trck', 'numu_cc+numubar_cc+numu_nc+numubar_nc_trck', 'nutau_cc+nutaubar_cc+nutau_nc+nutaubar_nc_trck')
 
         super(self.__class__, self).__init__(
             use_transforms=False,
@@ -411,7 +415,8 @@ class gpu(Stage):
 
         if recalc_weight:
             livetime = self.params.livetime.value.m_as('seconds')
-            pid_bound = self.params.pid_bound.value.m_as('dimensionless')
+            pid_bound_upper = self.params.pid_bound_upper.value.m_as('dimensionless')
+            pid_bound_lower = self.params.pid_bound_lower.value.m_as('dimensionless')
             pid_remove = self.params.pid_remove.value.m_as('dimensionless')
             aeff_scale = self.params.aeff_scale.value.m_as('dimensionless')
             nue_numu_ratio = self.params.nue_numu_ratio.value.m_as('dimensionless')
@@ -461,7 +466,7 @@ class gpu(Stage):
                 numu_flux_norm = 1.
 
                 self.weight.calc_weight(self.events_dict[flav]['n_evts'], livetime=livetime,
-                                    pid_bound=pid_bound, pid_remove=pid_remove,
+                                    pid_bound_upper=pid_bound_upper, pid_bound_lower=pid_bound_lower, pid_remove=pid_remove,
                                     nue_flux_norm=nue_flux_norm, numu_flux_norm=numu_flux_norm,
                                     aeff_scale=aeff_scale, kNuBar=self.events_dict[flav]['kNuBar'],
                                     Genie_Ma_QE=Genie_Ma_QE, Genie_Ma_RES=Genie_Ma_RES,
@@ -542,7 +547,7 @@ class gpu(Stage):
                     self.fixed_error[name] = np.sqrt(out_sumw2[name])
                 maps.append(Map(name=name, hist=hist, error_hist=self.fixed_error[name], binning=self.output_binning))
             else:
-                maps.append(Map(name=name, hist=hist, binning=self.output_binning))
+                maps.append(Map(name=name, tex=name, hist=hist, binning=self.output_binning))
 
         return MapSet(maps,name='gpu_mc')
         ## apply scales, add up all cscds and tracks

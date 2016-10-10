@@ -234,7 +234,7 @@ class GPUweight(object):
                                     fType *linear_fit_MaCCQE, fType *quad_fit_MaCCQE,
                                     fType *linear_fit_MaCCRES, fType *quad_fit_MaCCRES,
                                     fType *prob_e, fType *prob_mu, fType *pid, fType *weight_cscd, fType *weight_trck,
-                                    fType livetime, fType pid_bound, fType pid_remove, fType aeff_scale,
+                                    fType livetime, fType pid_bound_upper, fType pid_bound_lower, fType pid_remove, fType aeff_scale,
                                     fType Genie_Ma_QE, fType Genie_Ma_RES
                                     )
                 {
@@ -255,8 +255,8 @@ class GPUweight(object):
                         //fType w = aeff_scale * livetime * aeff_QE * aeff_RES *
                                  ((nue_flux * prob_e[idx]) + (numu_flux * prob_mu[idx]));
                         // distinguish between PID classes
-                        weight_cscd[idx] = ((pid[idx] < pid_bound) && (pid[idx] >= pid_remove)) * w;
-                        weight_trck[idx] = (pid[idx] >= pid_bound) * w;
+                        weight_cscd[idx] = ((pid[idx] < pid_bound_lower) && (pid[idx] >= pid_remove)) * w;
+                        weight_trck[idx] = (pid[idx] >= pid_bound_upper) * w;
                     }
                 }
 
@@ -308,7 +308,7 @@ class GPUweight(object):
                     linear_fit_MaCCQE, quad_fit_MaCCQE,
                     linear_fit_MaCCRES, quad_fit_MaCCRES,
                     prob_e, prob_mu, pid, weight_cscd, weight_trck,
-                    livetime, pid_bound, pid_remove, aeff_scale,
+                    livetime, pid_bound_upper, pid_bound_lower, pid_remove, aeff_scale,
                     Genie_Ma_QE, Genie_Ma_RES,
                     **kwargs):
         # block and grid dimensions
@@ -321,7 +321,7 @@ class GPUweight(object):
                             linear_fit_MaCCQE, quad_fit_MaCCQE,
                             linear_fit_MaCCRES, quad_fit_MaCCRES,
                             prob_e, prob_mu, pid, weight_cscd, weight_trck,
-                            FTYPE(livetime), FTYPE(pid_bound), FTYPE(pid_remove), FTYPE(aeff_scale),
+                            FTYPE(livetime), FTYPE(pid_bound_upper), FTYPE(pid_bound_lower), FTYPE(pid_remove), FTYPE(aeff_scale),
                             FTYPE(Genie_Ma_QE), FTYPE(Genie_Ma_RES),
                             block=bdim, grid=gdim)
 

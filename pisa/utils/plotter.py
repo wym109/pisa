@@ -270,6 +270,8 @@ class Plotter(object):
 
         axis.set_xlabel(bins[0].label)
         axis.set_ylabel(bins[1].label)
+        axis.set_xlim(extent[0:2])
+        axis.set_ylim(extent[2:4])
         if bins[0].is_log:
             axis.set_xscale('log')
         if bins[1].is_log:
