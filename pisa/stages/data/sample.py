@@ -20,9 +20,18 @@ from pisa.core.map import Map, MapSet
 from pisa.core.binning import OneDimBinning, MultiDimBinning
 from pisa.utils.flavInt import NuFlavIntGroup, FlavIntDataGroup
 from pisa.utils.fileio import from_file
+from pisa.utils.comparisons import normQuant
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
+
+
+class sideband(object):
+    def __init__(self, side_obj, name, names, hash):
+        self.name = name
+        self.names = names
+        self.hash = hash
+        self.side_obj = side_obj
 
 
 class sample(Stage):
@@ -37,8 +46,9 @@ class sample(Stage):
             * mc_sample_config : filepath
                 Filepath to event sample configuration
 
-            * livetime : ureg.Quantity
-                Desired lifetime.
+            * output_events : bool
+                Flag to specify whether the service output returns a MapSet
+                or the Events
 
     output_binning : MultiDimBinning or convertible thereto
         The binning desired for the output maps.
@@ -72,15 +82,14 @@ class sample(Stage):
         * 'noise'
 
     """
-    def __init__(self, params, output_binning, output_names,
-                 error_method=None, debug_mode=None, disk_cache=None,
-                 memcache_deepcopy=True, transforms_cache_depth=20,
-                 outputs_cache_depth=20):
+    def __init__(self, params, output_binning, output_names, error_method=None,
+                 debug_mode=None, disk_cache=None, memcache_deepcopy=True,
+                 transforms_cache_depth=20, outputs_cache_depth=20):
         self.sample_hash = None
         """Hash of event sample"""
 
         expected_params = (
-            'mc_sample_config', 'livetime', 'weight'
+            'mc_sample_config', 'output_events'
         )
 
         self.neutrino = False
@@ -104,11 +113,16 @@ class sample(Stage):
         if self.neutrino:
             self._clean_outnames += [str(f) for f in self._output_nu_groups]
 
+        if params.get('output_events').value:
+            output_names = ['events']
+        else:
+            output_names = self._clean_outnames
+
         super(self.__class__, self).__init__(
             use_transforms=False,
             params=params,
             expected_params=expected_params,
-            output_names=self._clean_outnames,
+            output_names=output_names,
             error_method=error_method,
             debug_mode=debug_mode,
             disk_cache=disk_cache,
@@ -118,58 +132,60 @@ class sample(Stage):
             output_binning=output_binning
         )
 
-        self.config = from_file(self.params['mc_sample_config'].value)
         self.include_attrs_for_hashes('sample_hash')
+
+    def _compute_nominal_outputs(self):
+        """Load the baseline events specified by the config file."""
+        self.config = from_file(self.params['mc_sample_config'].value)
+        self.load_sample_events()
 
     @profile
     def _compute_outputs(self, inputs=None):
         """Compute nominal histograms for output channels."""
-        self.load_sample_events()
-
-        livetime = self.params['livetime'].to(ureg.s).m
-        logging.info('Weighting with a livetime of {0} s'.format(livetime))
         outputs = []
         if self.neutrino:
             trans_nu_fidg = self._neutrino_events.transform_groups(
                 self._output_nu_groups
             )
             for fig in trans_nu_fidg.iterkeys():
-                if self.params['weight'].value:
-                    weights = trans_nu_fidg[fig]['pisa_weight'] * \
-                            livetime
-                else: weights = None
                 outputs.append(self._histogram(
                     events  = trans_nu_fidg[fig],
                     binning = self.output_binning,
-                    weights = weights,
+                    weights = trans_nu_fidg[fig]['pisa_weight'],
                     errors  = True,
                     name    = str(NuFlavIntGroup(fig)),
                 ))
 
         if self.muongun:
-            if self.params['weight'].value:
-                weights = self._muongun_events['pisa_weight'] * livetime
-            else: weights = None
             outputs.append(self._histogram(
                 events  = self._muongun_events,
                 binning = self.output_binning,
-                weights = weights,
+                weights = self._muongun_events['pisa_weight'],
                 errors  = True,
                 name    = 'muongun',
                 tex     = r'\rm{muongun}'
             ))
 
         name = self.config.get('general', 'name')
-        return MapSet(maps=outputs, name=name)
+        if self.params['output_events']:
+            # TODO(shivesh): make this better
+            return sideband(self.load_sample_events(), name=name,
+                            names=['events'], hash=self.sample_hash)
+        else:
+            return MapSet(maps=outputs, name=name)
 
     def load_sample_events(self):
         """Load the event sample given the configuration file and output
         groups. Hash this object using both the configuration file and
         the output types."""
         hash_property = [self.config, self.neutrino, self.muongun]
-        this_hash = hash_obj(hash_property)
+        this_hash = hash_obj(normQuant(hash_property))
         if this_hash == self.sample_hash:
-            return
+            if self.neutrino:
+                if self.muongun: return [self._neutrino_events, self._muongun_events]
+                else: return [self._neutrino_events]
+            elif self.muongun:
+                return [self._muongun_events]
 
         logging.info(
             'Extracting events using configuration file {0} and output names '
@@ -182,6 +198,7 @@ class sample(Stage):
         # TODO(shivesh): when created, use a more generic Events object
         # (that natively supports muons, noise etc.) to store the event
         # sample
+        events = {}
         if self.neutrino:
             if 'neutrino' not in event_types:
                 raise AssertionError('`neutrino` field not found in '
@@ -189,6 +206,7 @@ class sample(Stage):
             self._neutrino_events = self.load_neutrino_events(
                 config=self.config,
             )
+            events['neutrino'] = self._neutrino_events
         if self.muongun:
             if 'muongun' not in event_types:
                 raise AssertionError('`muongun` field not found in '
@@ -196,7 +214,10 @@ class sample(Stage):
             self._muongun_events = self.load_moungun_events(
                 config=self.config,
             )
+            events['muongun'] = self._muon_events
         self.sample_hash = this_hash
+
+        return events
 
     @staticmethod
     def load_neutrino_events(config):
@@ -237,7 +258,7 @@ class sample(Stage):
             cc_mask = events['ptype'] > 0
             nc_mask = events['ptype'] < 0
 
-            if weights[idx] == 'None':
+            if weights[idx] == 'None' or weights[idx] == '1':
                 events['pisa_weight'] = \
                         np.ones(events['ptype'].shape)
             elif weights[idx] == '0':
@@ -281,7 +302,7 @@ class sample(Stage):
 
         muongun = from_file(file_path)
 
-        if weight == 'None':
+        if weight == 'None' or weight == '1':
             muongun['pisa_weight'] = \
                     np.ones(muongun['weights'].shape)
         elif weight == '0':
@@ -325,5 +346,4 @@ class sample(Stage):
 
     def validate_params(self, params):
         assert isinstance(params['mc_sample_config'].value, basestring)
-        assert isinstance(params['weight'].value, bool)
-        assert isinstance(params['livetime'].value, pint.quantity._Quantity)
+        assert isinstance(params['output_events'].value, bool)

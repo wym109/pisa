@@ -547,7 +547,8 @@ class Stage(object):
 
         # Attach sideband objects (i.e., inputs not specified in
         # `self.input_names`) to the "augmented" output object
-        names_in_inputs = set([i.name for i in self.inputs])
+        if self.inputs == dict(): names_in_inputs = set([])
+        else: names_in_inputs = set(self.inputs.names)
         unused_input_names = names_in_inputs.difference(self.input_names)
 
         if len(unused_input_names) == 0:
