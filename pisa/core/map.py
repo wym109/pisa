@@ -1180,7 +1180,8 @@ class Map(object):
         state_updates = {
             #'name': "sqrt(%s)" % self.name,
             #'tex': r"\sqrt{%s}" % self.tex,
-            'hist': np.asarray(unp.sqrt(self.hist), dtype='float'),
+            #'hist': np.asarray(unp.sqrt(self.hist), dtype='float'),
+            'hist': unp.sqrt(self.hist),
         }
         return state_updates
 

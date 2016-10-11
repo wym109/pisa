@@ -34,7 +34,7 @@ class polyfits(Stage):
             'dom_eff', 'dom_eff_file',
             'hole_ice_fwd', 'hole_ice_fwd_file',
             'hole_ice', 'hole_ice_file',
-            'reco_cz_res', 'reco_cz_res_file',
+            #'reco_cz_res', 'reco_cz_res_file',
         )
 
         if isinstance(input_names, basestring):
@@ -64,47 +64,36 @@ class polyfits(Stage):
         self.pnames = [pname for pname in self.params.names if not
             pname.endswith('_file')]
         self.fit_results = {}
-        self.categories = None
         for pname in self.pnames:
             self.fit_results[pname] = from_file(self.params[pname+'_file'].value)
-            #assert (input_binning == self.fit_results[pname]['binning']),\
-            #    'incompatible binning between fit results and provided maps'
-            if self.categories is None:
-                self.categories = self.fit_results[pname]['categories']
-            else:
-                assert (self.categories == self.fit_results[pname]['categories']), 'use of different categories not supported'
+            assert self.input_names == self.fit_results[pname]['map_names']
 
     @profile
     def _compute_transforms(self):
         """TODO: documentme"""
         # TODO: use iterators to collapse nested loops
         transforms = []
-        for cat in self.categories:
+        for name in self.input_names:
             transform = None
-            for name in self.input_names:
-                if name.endswith(cat):
-                    if transform is None:
-                        for pname in self.pnames:
-                            p_value = (self.params[pname].magnitude -
-                                       self.fit_results[pname]['nominal'])
-                            exec(self.fit_results[pname]['function'])
-                            fit_params  = self.fit_results[pname][cat]
-                            nx, ny, _ = fit_params.shape
-                            if transform is None:
-                                transform = np.ones((nx, ny))
-                            for i, j in np.ndindex((nx,ny)):
-                                #if (pname =='dom_eff' or pname=='hole_ice' or pname=='hole_ice_fwd') and len(fit_params[i,j,:])==2:
-                                #    fit_params[i,j,0] = 1.0
-                                transform[i,j] *= fit_fun(p_value,
-                                        *fit_params[i,j,:])
+            for pname in self.pnames:
+                p_value = (self.params[pname].magnitude -
+                           self.fit_results[pname]['nominal'])
+                exec(self.fit_results[pname]['function'])
+                fit_params = self.fit_results[pname][name]
+                small_shape = fit_params.shape[:-1]
+                if transform is None:
+                    transform = np.ones(small_shape)
+                for idx in np.ndindex(*small_shape):
+                    transform[idx] *= fit_fun(p_value,
+                            *fit_params[idx])
 
-                    xform = BinnedTensorTransform(
-                        input_names=(name),
-                        output_name=name,
-                        input_binning=self.input_binning,
-                        output_binning=self.output_binning,
-                        xform_array=transform,
-                        error_method=self.error_method,
-                    )
-                    transforms.append(xform)
+            xform = BinnedTensorTransform(
+                input_names=(name),
+                output_name=name,
+                input_binning=self.input_binning,
+                output_binning=self.output_binning,
+                xform_array=transform,
+                error_method=self.error_method,
+            )
+            transforms.append(xform)
         return TransformSet(transforms)
