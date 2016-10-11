@@ -39,7 +39,7 @@ EXTRACT_FIELDS = (
     'reco_coszen',
     'one_weight',
     'interaction_prob',
-    #'pid',
+    'pid',
 )
 
 # Default fields to output to destination PISA events HDF5 file
@@ -51,7 +51,7 @@ OUTPUT_FIELDS = (
     #'mc_weight',
     #'mc_weight_per_gev_per_sr',
     'weighted_aeff',
-    #'pid',
+    'pid',
 )
 
 
