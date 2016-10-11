@@ -278,8 +278,7 @@ class gpu(Stage):
                     if cut is not None:
                         evts[flav][var] = evts[flav][var][cut]
                 except KeyError:
-                    # if variable doesn't exist (e.g. axial mass coeffs, just fill in ones)
-                    evts[flav][var] = np.ones_like(evts[flav]['true_energy'])
+                    pass
 
         logging.info('read in events and copy to GPU')
         start_t = time.time()
@@ -297,6 +296,7 @@ class gpu(Stage):
                 try:
                     self.events_dict[flav]['host'][var] = evts[flav][var].astype(FTYPE)
                 except KeyError:
+                    # if variable doesn't exist (e.g. axial mass coeffs, just fill in ones)
                     logging.warning('replacing variable %s by ones'%var)
                     self.events_dict[flav]['host'][var] = np.ones_like(evts[flav]['true_energy']).astype(FTYPE)
             self.events_dict[flav]['n_evts'] = np.uint32(len(self.events_dict[flav]['host'][variables[0]]))
@@ -506,7 +506,6 @@ class gpu(Stage):
                     f *= self.params.nutau_cc_norm.value.m_as('dimensionless')
                 if 'nutau' in flav:
                     f *= self.params.nutau_norm.value.m_as('dimensionless')
-
                 if ('bar_nc' in flav and 'allbar_nc' in name) or ('_nc' in flav and 'all_nc' in name) or (flav in name):
                     if out_hists.has_key(name):
                         out_hists[name] += self.events_dict[flav]['hist'] * f
@@ -527,6 +526,7 @@ class gpu(Stage):
             elif self.error_method == 'fixed_sumw2':
                 if self.fixed_error == None:
                     self.fixed_error = {}
+                if not self.fixed_error.has_key(name):
                     self.fixed_error[name] = np.sqrt(out_sumw2[name])
                 maps.append(Map(name=name, hist=hist, error_hist=self.fixed_error[name], binning=self.output_binning))
             else:
