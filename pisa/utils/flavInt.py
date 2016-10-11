@@ -1313,6 +1313,8 @@ class FlavIntDataGroup(dict):
         elif isinstance(flavint_groups, Sequence):
             if all(isinstance(f, NuFlavIntGroup) for f in flavint_groups):
                 return flavint_groups
+            elif all(isinstance(f, NuFlavInt) for f in flavint_groups):
+                return [NuFlavIntGroup(f) for f in flavint_groups]
             elif all(isinstance(f, basestring) for f in flavint_groups):
                 return [NuFlavIntGroup(f) for f in flavint_groups]
             else:

@@ -180,12 +180,16 @@ class sample(Stage):
         the output types."""
         hash_property = [self.config, self.neutrino, self.muongun]
         this_hash = hash_obj(normQuant(hash_property))
+        events = {}
         if this_hash == self.sample_hash:
             if self.neutrino:
-                if self.muongun: return [self._neutrino_events, self._muongun_events]
-                else: return [self._neutrino_events]
+                events['neutrino'] = self._neutrino_events
+                if self.muongun:
+                    events['muons'] = self._muongun_events
+                return events
             elif self.muongun:
-                return [self._muongun_events]
+                events['muons'] = self._muongun_events
+                return events
 
         logging.info(
             'Extracting events using configuration file {0} and output names '
@@ -198,7 +202,6 @@ class sample(Stage):
         # TODO(shivesh): when created, use a more generic Events object
         # (that natively supports muons, noise etc.) to store the event
         # sample
-        events = {}
         if self.neutrino:
             if 'neutrino' not in event_types:
                 raise AssertionError('`neutrino` field not found in '
@@ -232,10 +235,9 @@ class sample(Stage):
         nu_fidg = []
         for idx, flav in enumerate(flavours):
             f = int(flav)
-            cc_grps = NuFlavIntGroup(NuFlavIntGroup(f,-f).ccFlavInts())
-            nc_grps = NuFlavIntGroup(NuFlavIntGroup(f,-f).ncFlavInts())
+            all_flavints = NuFlavIntGroup(f,-f).flavints()
             flav_fidg = FlavIntDataGroup(
-                flavint_groups=[cc_grps, nc_grps]
+                flavint_groups=all_flavints
             )
             prefixes = []
             for sys in sys_list:
@@ -257,6 +259,8 @@ class sample(Stage):
             events = from_file(events_file)
             cc_mask = events['ptype'] > 0
             nc_mask = events['ptype'] < 0
+            nu_mask = events['interaction'] == 1
+            nubar_mask = events['interaction'] == 2
 
             if weights[idx] == 'None' or weights[idx] == '1':
                 events['pisa_weight'] = \
@@ -267,10 +271,12 @@ class sample(Stage):
             else:
                 events['pisa_weight'] = events[weights[idx]]
 
-            flav_fidg[cc_grps] = {var: events[var][cc_mask]
-                                  for var in events.iterkeys()}
-            flav_fidg[nc_grps] = {var: events[var][nc_mask]
-                                  for var in events.iterkeys()}
+            for flavint in all_flavints:
+                i_mask = cc_mask if flavint.isCC() else nc_mask
+                t_mask = nu_mask if flavint.isParticle() else nubar_mask
+
+                flav_fidg[flavint] = {var: events[var][i_mask & t_mask]
+                                      for var in events.iterkeys()}
             nu_fidg.append(flav_fidg)
         nu_fidg = reduce(add, nu_fidg)
 
