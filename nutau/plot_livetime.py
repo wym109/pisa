@@ -24,6 +24,7 @@ from pisa.utils.fileio import from_file
 def plot(name,hypos,asimovs,x_var='nutau_cc_norm',dir='.'):
 
     fig = plt.figure()
+    plt.grid()
     fig.patch.set_facecolor('none')
     ax = fig.add_subplot(111)
     #a_text = AnchoredText(r'DeepCore $\nu_\tau$ appearance', loc=2, frameon=False)
@@ -40,30 +41,41 @@ def plot(name,hypos,asimovs,x_var='nutau_cc_norm',dir='.'):
         best_m2s = []
         best_ps = []
         best_p2s = []
+        #sigmas.append([[]]*len(hypos))
+        #print sigmas
         sigmas.append([])
-
         for time in years[-1]:
             data = np.array(asimov[time][name])
             best_idx = np.argmin(data)
-            sigmas[i].append(np.sqrt(data[0]))
+            sigmas[i].append(np.sqrt(data))
+            #for j,hypo in enumerate(hypos):
+            #    print hypo
+            #    print np.sqrt(data[j])
+            #    sigmas[i][j].append(np.sqrt(data[j]))
             best.append(hypos[best_idx])
             best_ms.append(np.interp(1,data[best_idx::-1],hypos[best_idx::-1]))
-            best_m2s.append(np.interp(2.71,data[best_idx::-1],hypos[best_idx::-1]))
+            best_m2s.append(np.interp(4.,data[best_idx::-1],hypos[best_idx::-1]))
+            #best_m2s.append(np.interp(2.71,data[best_idx::-1],hypos[best_idx::-1]))
             best_ps.append(np.interp(1,data[best_idx:],hypos[best_idx:]))
-            best_p2s.append(np.interp(2.71,data[best_idx:],hypos[best_idx:]))
+            #best_p2s.append(np.interp(2.71,data[best_idx:],hypos[best_idx:]))
+            best_p2s.append(np.interp(4.,data[best_idx:],hypos[best_idx:]))
         if i == 0:
             #ax.fill_between(years[-1],best_m2s,best_p2s,facecolor='g', linewidth=0, alpha=0.15, label='90% range improved sys')
             #ax.fill_between(years[-1],best_ms,best_ps,facecolor='g', linewidth=0, alpha=0.3, label='68% range improved sys')
-            ax.fill_between(years[-1],best_m2s,best_p2s,facecolor='g', linewidth=0, alpha=0.15, label='90% range')
+            ax.fill_between(years[-1],best_m2s,best_p2s,facecolor='g', linewidth=0, alpha=0.15, label='95% range')
             ax.fill_between(years[-1],best_ms,best_ps,facecolor='g', linewidth=0, alpha=0.3, label='68% range')
+            ax.text(max(years[-1])*1.01,0.98*best_ms[-1],' %.2f'%best_ms[-1],fontsize=10,color='g')
+            ax.text(max(years[-1])*1.01,0.98*best_ps[-1],' %.2f'%best_ps[-1],fontsize=10,color='g')
+            ax.text(max(years[-1])*1.01,0.98*best_m2s[-1],'(%.2f)'%best_m2s[-1],fontsize=10,color='g')
+            ax.text(max(years[-1])*1.01,0.98*best_p2s[-1],'(%.2f)'%best_p2s[-1],fontsize=10,color='g')
         else:
-            ax.plot(years[-1],best_m2s, color='k', linewidth=1, linestyle=':', label='90% range baseline')
+            ax.plot(years[-1],best_m2s, color='k', linewidth=1, linestyle=':', label='95% range baseline')
             ax.plot(years[-1],best_p2s, color='k', linewidth=1, linestyle=':')
             ax.plot(years[-1],best_ms,  color='k', linewidth=1, label='68% range baseline')
             ax.plot(years[-1],best_ps,  color='k', linewidth=1)
         #ax.set_xlabel('livetime (years)')
         ax.set_xlabel('livetime (months)')
-        ax.set_ylabel(r'$\nu_\tau$ CC normalization precision')
+        ax.set_ylabel(r'$\nu_\tau$ normalization')
         ax.set_ylim([0,2])
         #ax.set_yticks(np.linspace(0,2,21))
         ax.yaxis.set_minor_locator(minorLocator)
@@ -79,14 +91,20 @@ def plot(name,hypos,asimovs,x_var='nutau_cc_norm',dir='.'):
 
 
     plt.clf()
+    plt.grid()
     ax = fig.add_subplot(111)
+    num = 10
     ax.set_xlim([years[0][0],years[0][-1]])
-    ax.plot(years[0],sigmas[0], color='b', label='rejection H0')
+    sigma = np.array(sigmas[0]).T
+    colormap = plt.cm.Spectral 
+    colors = [colormap(i) for i in np.linspace(0, 1,num)]
+    for j,c in enumerate(colors):
+        ax.plot(years[0],sigma[j], color=c,label=r'rejection $\nu_\tau=$ %s'%hypos[j])
     #ax.plot(years[0],sigmas[0], color='b', label='baseline')
     #ax.plot(years[1],sigmas[1], color='g', label='improved sys')
     #ax.set_xlabel('livetime (years)')
     ax.set_xlabel('livetime (months)')
-    ax.set_ylabel(r'$\nu_\tau$ CC appearance significance $(\sigma)$')
+    ax.set_ylabel(r'$\nu_\tau$ appearance significance $(\sigma)$')
     #a_text = AnchoredText(r'DeepCore $\nu_\tau$ appearance', loc=2, frameon=False)
     a_text = AnchoredText(r'PINGU v39 $\nu_\tau$ appearance', loc=2, frameon=False)
     ax.add_artist(a_text)
