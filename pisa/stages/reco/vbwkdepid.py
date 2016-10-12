@@ -45,7 +45,7 @@ EPSILON = 1e-9
 # example, an input arg can dictate neutrino or muon, which then sets the
 # input_names and output_names.
 
-class vbwkde(Stage):
+class vbwkdepid(Stage):
     """
     From the simulation file, a set of 4D transforms are created which map
     bins of true events onto distributions of reconstructed events using
