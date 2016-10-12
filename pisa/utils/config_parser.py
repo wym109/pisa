@@ -12,6 +12,8 @@ Config File Structure:
 ===============
 
 The config file is expected to contain the following sections::
+    #include file_x.cfg
+    #include file_y.cfg
 
     [pipeline]
     order = stageA:serviceA, stageB:serviceB
@@ -33,6 +35,8 @@ The config file is expected to contain the following sections::
 
     [stage:stageB]
     ...
+
+* `#include` statements can be used to include other cfg files
 
 * `pipeline` is the top most section that defines the hierarchy of stages and
     what services to be instatiated.
