@@ -335,28 +335,44 @@ class hist(Stage):
             # TODO(shivesh): errors
             # TODO(shivesh): total histo check?
             raw_histo = {}
+            #total_histo = np.zeros(self.output_binning.shape)
             total_histo = np.zeros(self.output_binning.shape)
+            for repr_flav_int in flav_int_group:
+                sample = [self.remaining_events[repr_flav_int][n] for n in self.output_binning.names]
+                weights = self.remaining_events[repr_flav_int][self.params.pid_weights_name.value]
+                hist, _ = np.histogramdd(
+                                    sample=sample,
+                                    weights=weights,
+                                    bins=all_bin_edges
+                                    )
+                total_histo += hist
+            
             for sig in self.output_channels:
-                raw_histo[sig] = {}
-                flav_sigdata = separated_events[repr_flav_int][sig]
-                reco_params = [flav_sigdata[n]
-                               for n in self.output_binning.names]
+                raw_histo[sig] = np.zeros(self.output_binning.shape)
+                for repr_flav_int in flav_int_group:
+                    flav_sigdata = separated_events[repr_flav_int][sig]
+                    reco_params = [flav_sigdata[n]
+                                   for n in self.output_binning.names]
 
-                if self.params.pid_weights_name.value is not None:
-                    weights = flav_sigdata[self.params.pid_weights_name.value]
-                else:
-                    weights = None
+                    if self.params.pid_weights_name.value is not None:
+                        weights = flav_sigdata[self.params.pid_weights_name.value]
+                    else:
+                        weights = None
 
-                raw_histo[sig], _ = np.histogramdd(
-                    sample=reco_params,
-                    weights=weights,
-                    bins=all_bin_edges
-                )
-                total_histo += raw_histo[sig]
+                    raw_hist, _ = np.histogramdd(
+                        sample=reco_params,
+                        weights=weights,
+                        bins=all_bin_edges
+                    )
+                    raw_histo[sig] += raw_hist
+                    #total_histo += raw_hist
+
 
             for sig in self.output_channels:
                 with np.errstate(divide='ignore', invalid='ignore'):
                     xform_array = raw_histo[sig] / total_histo
+
+                #print xform_array
 
                 num_invalid = np.sum(~np.isfinite(xform_array))
                 if num_invalid > 0:
