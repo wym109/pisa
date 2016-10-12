@@ -22,6 +22,7 @@ from pisa.utils.const import FTYPE
 from pisa.utils.log import logging
 from pisa.utils.comparisons import normQuant
 from pisa.utils.hash import hash_obj
+from pisa.utils.parse_config import list_split
 
 class gpu(Stage):
     '''
@@ -99,7 +100,7 @@ class gpu(Stage):
     '''
 
     def __init__(self, params, output_binning, disk_cache=None,
-                 memcache_deepcopy=True, error_method=None,
+                 memcache_deepcopy=True, error_method=None, output_names=None,
                  outputs_cache_depth=20, debug_mode=None):
 
         self.osc_params = (
@@ -140,7 +141,7 @@ class gpu(Stage):
         expected_params = (self.osc_params + self.weight_params +
                            self.other_params)
 
-        output_names = ('nue_cc+nuebar_cc', 'numu_cc+numubar_cc', 'nutau_cc+nutaubar_cc', 'nuall_nc+nuallbar_nc')
+        output_names = list_split(output_names)
 
         super(self.__class__, self).__init__(
             use_transforms=False,
