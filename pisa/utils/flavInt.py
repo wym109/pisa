@@ -35,9 +35,10 @@ Define convenience tuples ALL_{x} for easy iteration
 # make the first interpret both a simplestr AND nue as nuecc+nuenc, and I
 # don't think there's a way to know "this is a simple str" vs not easily.)
 
-from collections import MutableSequence, MutableMapping, Mapping
+from collections import MutableSequence, MutableMapping, Mapping, Sequence
 from copy import deepcopy
 from itertools import product, combinations, izip
+from operator import add
 import re
 import sys
 import traceback
@@ -1165,6 +1166,228 @@ class FlavIntData(dict):
         return dupe_flavintgroups, dupe_flavintgroups_data
 
 
+class FlavIntDataGroup(dict):
+    """Container class for storing data for some set(s) of NuFlavIntGroups
+    (cf. FlavIntData, which stores one datum for each NuFlavInt separately)
+
+    Parameters
+    ----------
+    val: None, str, or dict
+        Data with which to populate the hierarchy
+    flavint_groups: None, str, or iterable
+        User-defined groupings of NuFlavIntGroups. These can be specified
+        in several ways.
+
+        None
+            If val == None, flavint_groups must be specified
+            If val != None, flavitn_groups are deduced from the data
+        string
+            If val is a string, it is expected to be a comma-separated
+            list, each field of which describes a NuFlavIntGroup. The
+            returned list of groups encompasses all possible flavor/int
+            types, but the groups are mutually exclusive. 
+        iterable of strings or NuFlavIntGroup
+            If val is an iterable, each member of the iterable is
+            interpreted as a NuFlavIntGroup.
+    """
+    def __init__(self, val=None, flavint_groups=None):
+        super(FlavIntDataGroup, self).__init__()
+        if flavint_groups is None:
+            if val is None:
+                raise ValueError('Error - must input at least one of '
+                                 '`flavint_groups` or `val`.')
+        else:
+            self.flavint_groups = flavint_groups
+
+        if val is None:
+            # Instantiate empty FlavIntDataGroup
+            with BarSep('_'):
+                d = {str(group):None for group in self.flavint_groups}
+        else:
+            if isinstance(val, basestring):
+                d = self.__load(val)
+            elif isinstance(val, dict):
+                d = val
+            else:
+                raise TypeError('Unrecognized `val` type %s' % type(val))
+            with BarSep('_'):
+                d = {str(NuFlavIntGroup(key)): d[key] for key in d.iterkeys()}
+
+            fig = [NuFlavIntGroup(fig) for fig in d.iterkeys()]
+            if flavint_groups is None:
+                self.flavint_groups = fig
+            else:
+                if set(fig) != set(self.flavint_groups):
+                    raise AssertionError(
+                        'Specified `flavint_groups` does not match `val` '
+                        'signature.\n`flavint_groups` - {0}\n`val groups` '
+                        '- {1}'.format(self.flavint_groups, fig)
+                    )
+
+        self.validate(d)
+        self.update(d)
+
+    @property
+    def flavint_groups(self):
+        return self._flavint_groups
+
+    @flavint_groups.setter
+    def flavint_groups(self, value):
+        fig = self._parse_flavint_groups(value)
+        all_flavints = reduce(add, [f.flavints() for f in fig])
+        for fi in set(all_flavints):
+            if all_flavints.count(fi) > 1:
+                raise AssertionError(
+                    'FlavInt {0} referred to multiple times in flavint_group '
+                    '{1}'.format(fi, fig)
+                )
+        self._flavint_groups = fig
+
+    def transform_groups(self, flavint_groups):
+        """Transform FlavIntDataGroup into a structure given by the input
+        flavint_groups.
+
+        Parameters
+        ----------
+        flavint_groups : string, or sequence of strings or sequence of
+                         NuFlavIntGroups
+
+        Returns
+        -------
+        transformed_fidg : FlavIntDataGroup
+
+        """
+        flavint_groups = self._parse_flavint_groups(flavint_groups)
+
+        original_flavints = reduce(add, [list(f.flavints()) for f in
+                                         self.flavint_groups])
+        inputted_flavints = reduce(add, [list(f.flavints()) for f in
+                                         flavint_groups])
+        if not set(inputted_flavints).issubset(set(original_flavints)):
+            raise AssertionError(
+                'Mismatch between underlying group of flavints given as input '
+                'and original flavint_group.\nOriginal {0}\nInputted '
+                '{1}'.format(set(original_flavints), set(inputted_flavints))
+            )
+
+        transformed_fidg = FlavIntDataGroup(flavint_groups=flavint_groups)
+        for in_fig in flavint_groups:
+            for or_fig in self.flavint_groups:
+                if or_fig in in_fig:
+                    if transformed_fidg[in_fig] is None:
+                        transformed_fidg[in_fig] = deepcopy(self[or_fig])
+                    else:
+                        transformed_fidg[in_fig] = \
+                                self._merge(transformed_fidg[in_fig],
+                                            self[or_fig])
+                elif in_fig in or_fig:
+                    raise AssertionError(
+                        'Cannot decouple original flavint_group {0} into input'
+                        'flavint_group {1}'.format(or_fig, in_fig)
+                    )
+        logging.trace('Transformed from\n{0}\nto '
+                      '{1}'.format(self.flavint_groups, flavint_groups))
+        return transformed_fidg
+
+    def allclose(self, other, rtol=1e-05, atol=1e-08):
+        """Returns True if all data structures are equal and all numerical
+        values contained are within relative (rtol) and/or absolute (atol)
+        tolerance of one another.
+        """
+        return recursiveAllclose(self, other, rtol=rtol, atol=atol)
+
+    def validate(self, fi_container):
+        """Perform basic validation on the data structure"""
+        self.__basic_validate(fi_container)
+
+    def save(self, fname, **kwargs):
+        """Save data structure to a file; see fileio.to_file for details"""
+        fileio.to_file(self, fname, **kwargs)
+
+    @staticmethod
+    def _parse_flavint_groups(flavint_groups):
+        if isinstance(flavint_groups, basestring):
+            return flavintGroupsFromString(flavint_groups)
+        elif isinstance(flavint_groups, NuFlavIntGroup):
+            return [flavint_groups]
+        elif isinstance(flavint_groups, Sequence):
+            if all(isinstance(f, NuFlavIntGroup) for f in flavint_groups):
+                return flavint_groups
+            elif all(isinstance(f, basestring) for f in flavint_groups):
+                return [NuFlavIntGroup(f) for f in flavint_groups]
+            else:
+                raise AssertionError(
+                    'Elements in `flavint_groups` not all type '
+                    'NuFlavIntGroup or string'.format(flavint_groups)
+                )
+        else:
+            raise TypeError('Unrecognized `flavint_groups` type %s' %
+                            type(flavint_groups))
+    @staticmethod
+    def _merge(a, b, path=None):
+        """Merge dictionaries `a` and `b` by recursively iterating down
+        to the lowest level of the dictionary until coincident numpy
+        arrays are found, after which the appropriate sub-element is
+        made equal to the concatenation of the two arrays.
+        """
+        logging.trace('Merging {0} with keys {1} '
+                      '{2}'.format(type(a), a.keys(), b.keys()))
+        if path is None: path = []
+        for key in b:
+            if key in a:
+                if isinstance(a[key], dict) and isinstance(b[key], dict):
+                    FlavIntDataGroup._merge(a[key], b[key], path + [str(key)])
+                elif isinstance(a[key], np.ndarray) and \
+                        isinstance(b[key], np.ndarray):
+                    a[key] = np.concatenate((a[key], b[key]))
+                else:
+                    raise Exception('Conflict at %s' % '.'.join(path + [str(key)]))
+            else:
+                a[key] = b[key]
+        return a
+
+    def __interpret_index(self, idx):
+        with BarSep('_'):
+            try:
+                nfi = NuFlavIntGroup(idx)
+                return str(nfi)
+            except:
+                raise ValueError('Invalid index: %s' %str(idx))
+
+    def __basic_validate(self, fi_container):
+        for group in self.flavint_groups:
+            with BarSep('_'):
+                f = str(group)
+            assert isinstance(fi_container, dict), "container must be of" \
+                    " type 'dict'; instead got %s" % type(fi_container)
+            assert fi_container.has_key(f), \
+                    "container missing flavint group '%s'" % f
+
+    def __load(self, fname, **kwargs):
+        d = fileio.from_file(fname, **kwargs)
+        return d
+
+    def __add__(self, other):
+        d = deepcopy(self)
+        d = self._merge(d, other)
+        combined_flavint_groups = list(
+            set(self.flavint_groups + other.flavint_groups)
+        )
+        return FlavIntDataGroup(val=d, flavint_groups=combined_flavint_groups)
+
+    def __getitem__(self, arg):
+        key = self.__interpret_index(arg)
+        tgt_obj = super(FlavIntDataGroup, self).__getitem__(key)
+        return tgt_obj
+
+    def __setitem__(self, arg, value):
+        key = self.__interpret_index(arg)
+        super(FlavIntDataGroup, self).__setitem__(key, value)
+
+    def __eq__(self, other):
+        """Recursive, exact equality"""
+        return recursiveEquality(self, other)
+
 def flavintGroupsFromString(groups):
     """Interpret `groups` to break into neutrino flavor/interaction type(s)
     that are to be grouped together; also form singleton groups as specified
@@ -1832,6 +2055,107 @@ def test_FlavIntData():
                  ' above outputs and generated file(s).')
 
 
+def test_FlavIntDataGroup():
+    flavint_group = 'nue, numu_cc+numubar_cc, nutau_cc'
+    FlavIntDataGroup(flavint_groups=flavint_group)
+    fidg1 = FlavIntDataGroup(flavint_groups='nuall, nu all bar CC, nuallbarnc',
+                            val = {'nuall':np.arange(0,100),
+                                   'nu all bar CC':np.arange(100,200),
+                                   'nuallbarnc':np.arange(200,300)})
+    fidg2 = FlavIntDataGroup(val = {'nuall':np.arange(0,100),
+                                   'nu all bar CC':np.arange(100,200),
+                                   'nuallbarnc':np.arange(200,300)})
+    assert fidg1 == fidg2
+
+    try:
+        fidg1 = FlavIntDataGroup(flavint_groups='nuall, nu all bar, nuallbar',
+                                val = {'nuall':np.arange(0,100),
+                                       'nu all bar CC':np.arange(100,200),
+                                       'nuallbarnc':np.arange(200,300)})
+    except AssertionError:
+        pass
+    else:
+        raise Exception
+
+    try:
+        fidg1 = FlavIntDataGroup(flavint_groups=['nuall', 'nue'])
+    except AssertionError:
+        pass
+    else:
+        raise Exception
+
+    assert set(fidg1.keys()) == set(('nuall', 'nuallbar_cc', 'nuallbar_nc'))
+    fidg1.save('/tmp/test_FlavIntDataGroup.json')
+    fidg1.save('/tmp/test_FlavIntDataGroup.hdf5')
+    fidg3 = FlavIntDataGroup(val='/tmp/test_FlavIntDataGroup.json')
+    fidg4 = FlavIntDataGroup(val='/tmp/test_FlavIntDataGroup.hdf5')
+    assert fidg3 == fidg1
+    assert fidg4 == fidg1
+
+    figroups='nuecc+nuebarcc,numucc+numubarcc,nutaucc+nutaubarcc,'\
+             'nuallnc,nuallbarnc'
+    cfidat = FlavIntDataGroup(flavint_groups=figroups)
+
+    for k in cfidat.flavint_groups:
+        cfidat[k] = np.arange(10)
+
+    cfidat[NuFlavIntGroup('nuecc+numucc')] = np.arange(10)
+
+    print fidg1 + fidg2
+    assert fidg1 == fidg2
+    try:
+        print fidg1 + cfidat
+    except AssertionError:
+        pass
+    else:
+        raise Exception
+
+    d1 = {
+        'numu+numubar': {
+            'energy' : np.arange(0,10)
+        },
+        'nutau+nutaubar': {
+            'energy' : np.arange(0,10)
+        }
+    }
+    d2 = {
+        'nue+nuebar': {
+            'weights' : np.arange(0,10)
+        },
+        'nutau+nutaubar': {
+            'weights' : np.arange(0,10)
+        }
+    }
+    d1 = FlavIntDataGroup(val=d1)
+    d2 = FlavIntDataGroup(val=d2)
+    d3 = d1 + d2
+    print d3
+
+    tr_d1 = d1.transform_groups(['numu+numubar+nutau+nutaubar'])
+    print tr_d1
+    tr_d3 = d3.transform_groups('nue+nuebar+numu+numubar, nutau+nutaubar')
+    tr_d3_1 = d3.transform_groups(['nue+nuebar+numu+numubar', 'nutau+nutaubar'])
+    tr_d3_2 = d3.transform_groups([NuFlavIntGroup('nue+nuebar+numu+numubar'),
+                                   NuFlavIntGroup('nutau+nutaubar')])
+    print tr_d3
+    assert tr_d3 == tr_d3_1 and tr_d3 == tr_d3_2
+
+    try:
+        tr_d3.transform_groups(['nue+nuebar'])
+    except AssertionError:
+        pass
+    else:
+        raise Exception
+
+    try:
+        tr_d3.transform_groups('nue+nuebar, numu+numubar, nutau+nutaubar')
+    except AssertionError:
+        pass
+    else:
+        raise Exception
+
+    logging.info('<< PASS : test_FlavIntDataGroup >>')
+
 
 def test_CombinedFlavIntData():
     all_f_codes = [12, -12, 14, -14, 16, -16]
@@ -1980,5 +2304,6 @@ if __name__ == "__main__":
     test_NuFlavInt()
     test_NuFlavIntGroup()
     test_FlavIntData()
+    test_FlavIntDataGroup()
     # Not implemented yet:
     #test_CombinedFlavIntData()

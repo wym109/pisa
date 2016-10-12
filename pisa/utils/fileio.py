@@ -19,7 +19,7 @@ from pisa.utils import resources
 
 JSON_EXTS = ['json']
 HDF5_EXTS = ['hdf', 'h5', 'hdf5']
-PKL_EXTS = ['pickle', 'pkl', 'p']
+PKL_EXTS = ['pickle', 'pckl', 'pkl', 'p']
 CFG_EXTS = ['ini', 'cfg']
 
 
