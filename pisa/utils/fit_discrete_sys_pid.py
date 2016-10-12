@@ -66,8 +66,6 @@ for sys in sys_list:
     exec(function)
 
     # instantiate template maker
-    #template_maker_settings = from_file(args.template_settings)
-    #template_maker_configurator = parse_config(template_maker_settings)
     template_maker = Pipeline(args.template_settings)
 
     if not args.set_param == '':

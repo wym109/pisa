@@ -38,6 +38,9 @@ class Param(object):
     ----------
     name : string
 
+    unique_id : string
+        set to name if None provided
+
     value : string or pint Quantity with units
 
     prior : pisa.prior.Prior
@@ -88,17 +91,18 @@ class Param(object):
 
 
     """
-    _slots = ('name', 'value', 'prior', 'range', 'is_fixed', 'is_discrete',
+    _slots = ('name', 'unique_id', 'value', 'prior', 'range', 'is_fixed', 'is_discrete',
               'nominal_value', '_rescaled_value',
               '_nominal_value', '_tex', 'help','_value', '_range', '_units')
-    _state_attrs = ('name', 'value', 'prior', 'range', 'is_fixed',
+    _state_attrs = ('name', 'unique_id', 'value', 'prior', 'range', 'is_fixed',
                      'is_discrete', 'nominal_value', 'tex', 'help')
 
-    def __init__(self, name, value, prior, range, is_fixed, is_discrete=False,
+    def __init__(self, name, value, prior, range, is_fixed, unique_id=None, is_discrete=False,
                  nominal_value=None, tex=None, help=''):
         self._value = None
         self.value = value
         self.name = name
+        self.unique_id = unique_id if unique_id is not None else name
         self._tex = tex if tex is not None else name
         self.help = help
         self.range = range

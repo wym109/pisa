@@ -22,7 +22,7 @@ from pisa.utils.const import FTYPE
 from pisa.utils.log import logging
 from pisa.utils.comparisons import normQuant
 from pisa.utils.hash import hash_obj
-from pisa.utils.parse_config import list_split
+from pisa.utils.config_parser import split
 
 class gpu(Stage):
     '''
@@ -141,7 +141,7 @@ class gpu(Stage):
         expected_params = (self.osc_params + self.weight_params +
                            self.other_params)
 
-        output_names = list_split(output_names)
+        output_names = split(output_names)
 
         super(self.__class__, self).__init__(
             use_transforms=False,

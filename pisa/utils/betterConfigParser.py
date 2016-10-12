@@ -17,10 +17,7 @@ class BetterConfigParser(ConfigParser.SafeConfigParser):
             if len(new_fnames) == 0:
                 break
         # call read with complete files list
-        print processed_fnames
         ConfigParser.SafeConfigParser.read(self, processed_fnames)
-
-        print self.sections()
 
     def recursive_fnames(self, fnames):
         new_fnames = []
