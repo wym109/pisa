@@ -504,7 +504,7 @@ class Stage(object):
         # usually be so)
 
         # Keep inputs for internal use and for inspection later
-        self.inputs = {} if inputs is None else inputs
+        self.inputs = inputs
 
         outputs_hash, transforms_hash, nominal_transforms_hash = \
                 self._derive_outputs_hash()
@@ -547,7 +547,7 @@ class Stage(object):
 
         # Attach sideband objects (i.e., inputs not specified in
         # `self.input_names`) to the "augmented" output object
-        if self.inputs == dict(): names_in_inputs = set([])
+        if self.inputs is None: names_in_inputs = set([])
         else: names_in_inputs = set(self.inputs.names)
         unused_input_names = names_in_inputs.difference(self.input_names)
 

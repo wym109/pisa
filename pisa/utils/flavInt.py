@@ -1201,8 +1201,7 @@ class FlavIntDataGroup(dict):
 
         if val is None:
             # Instantiate empty FlavIntDataGroup
-            with BarSep('_'):
-                d = {str(group):None for group in self.flavint_groups}
+            d = {str(group):None for group in self.flavint_groups}
         else:
             if isinstance(val, basestring):
                 d = self.__load(val)
@@ -1210,8 +1209,9 @@ class FlavIntDataGroup(dict):
                 d = val
             else:
                 raise TypeError('Unrecognized `val` type %s' % type(val))
-            with BarSep('_'):
-                d = {str(NuFlavIntGroup(key)): d[key] for key in d.iterkeys()}
+            d = {str(NuFlavIntGroup(key)): d[key] for key in d.iterkeys()}
+            if d.keys() == ['']:
+                raise AssertionError('NuFlavIntGroups not found in data keys')
 
             fig = [NuFlavIntGroup(fig) for fig in d.iterkeys()]
             if flavint_groups is None:
@@ -1349,17 +1349,15 @@ class FlavIntDataGroup(dict):
         return a
 
     def __interpret_index(self, idx):
-        with BarSep('_'):
-            try:
-                nfi = NuFlavIntGroup(idx)
-                return str(nfi)
-            except:
-                raise ValueError('Invalid index: %s' %str(idx))
+        try:
+            nfi = NuFlavIntGroup(idx)
+            return str(nfi)
+        except:
+            raise ValueError('Invalid index: %s' %str(idx))
 
     def __basic_validate(self, fi_container):
         for group in self.flavint_groups:
-            with BarSep('_'):
-                f = str(group)
+            f = str(group)
             assert isinstance(fi_container, dict), "container must be of" \
                     " type 'dict'; instead got %s" % type(fi_container)
             assert fi_container.has_key(f), \
