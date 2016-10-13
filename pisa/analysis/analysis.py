@@ -355,10 +355,10 @@ class Analysis(object):
 
         """
         fit_info = OrderedDict()
-        fit_info['metric'] = self.metric
+        fit_info['metric'] = metric
         fit_info['metric_val'] = data_dist.metric_total(
             expected_values=hypo_asimov_dist,
-            metric=self.metric
+            metric=metric
         )
 
         # NOTE: Select params but *do not* reset to nominal values to record
@@ -624,22 +624,23 @@ class Analysis(object):
         else:
             steplist = [(param_names[0], val) for val in values]
 
-        # fix the parameters to be scanned
         params = hypo_maker.params
+        # fix the parameters to be scanned if `profile` is set to True
         params.fix(param_names)
 
-        metric_vals = []
+        results = {'steps': [], 'results': []}
         for pos in product(*steplist):
             for (pname, val) in pos:
                 params[pname].value = val
+            results['steps'].append(pos)
             hypo_maker.update_params(params)
+
             if not profile:
-                hypo_asimov_dist = hypo_maker.get_outputs()
-                metric_vals.append(
-                    data_dist.metric_total(
-                        expected_values=hypo_asimov_dist, metric=metric
-                    )
-                )
+                bf = self.nofit_hypo(data_dist=data_dist,
+                                     hypo_maker=hypo_maker,
+                                     hypo_param_selections='nh',
+                                     hypo_asimov_dist=hypo_maker.get_outputs(),
+                                     metric=metric, **kwargs)
             else:
                 bf, af = self.fit_hypo(data_dist=data_dist,
                                        hypo_maker=hypo_maker,
@@ -647,8 +648,8 @@ class Analysis(object):
                                        metric=metric,
                                        minimizer_settings=minimizer_settings,
                                        **kwargs)
-                metric_vals.append(bf['metric_val'])
-        return metric_vals
+            results['results'].append(bf)
+        return results
 
 def test_Counter():
     pass
