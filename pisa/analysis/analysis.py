@@ -12,6 +12,7 @@ from __future__ import division
 
 from collections import OrderedDict
 from copy import deepcopy
+from itertools import product
 import re
 import sys
 import time
@@ -510,7 +511,8 @@ class Analysis(object):
     # * set (some free or fixed) params, then check metric
     # where the setting of the params is done for some number of values.
     def scan(self, data_dist, hypo_maker, metric, param_names=None, steps=None,
-             values=None, outer=False):
+             values=None, outer=True, profile=True, minimizer_settings=None,
+             **kwargs):
         """Set hypo maker parameters named by `param_names` according to
         either values specified by `values` or number of steps specified by
         `steps`, and return the `metric` indicating how well the data
@@ -528,7 +530,7 @@ class Analysis(object):
             If None, assume all parameters are to be scanned; otherwise,
             specifies only the name or names of parameters to be scanned.
 
-        steps : None, integer, or sequence of strings
+        steps : None, integer, or sequence of integers
             Number of steps to take within the allowed range of the parameter
             (or parameters). Value(s) specified for `steps` must be >= 2. Note
             that the endpoints of the range are always included, and numbers of
@@ -567,33 +569,86 @@ class Analysis(object):
                   len(inner seq0) * len(inner seq1) * ...
                 Asimov distributions produced.
 
-        outer : bool
+        outer : bool (Note: only `True` supported for now)
             If set to True and a sequence of sequences is passed for `values`,
             the points scanned are the *outer product* of the inner sequences.
             See `values` for a more detailed explanation.
 
+        profile : bool
+            If set to True, minimizes specified metric over all free parameters
+            at each scanned point. Otherwise keeps them at their nominal values
+            and only performs grid scan of the parameters specified in
+            `param_names`.
+
         """
         assert not (steps is not None and values is not None)
+        assert not (steps is None and values is None)
         if isinstance(param_names, basestring):
             param_names = [param_names]
 
-        if values is not None and np.isscalar(values):
-            values = np.array([values])
-            nparams = len(param_names)
+        if not outer:
+            # TODO
+            raise RuntimeError("Only `outer=True` supported currently!")
+
+        nparams = len(param_names)
+        if values is not None:
+            if np.isscalar(values):
+                values = np.array([values])
+                assert nparams == 1
+            for i,val in enumerate(values):
+                if not np.isscalar(val):
+                    # no scalar here, need a corresponding parameter name
+                    assert nparams >= i+1
+                else:
+                    # a scalar, can either have only one parameter or at least
+                    # this many
+                    assert (nparams == 1 or nparams >= i+1)
+                    if nparams > 1:
+                        values[i] = np.array([val])
+
+        else:
+            ranges = [hypo_maker.params[pname].range for pname in param_names]
+            if np.issubdtype(type(steps), int):
+                assert steps >= 2
+                values = [np.linspace(r[0], r[1], steps)*r[0].units
+                                                                for r in ranges]
+            else:
+                assert len(steps) == nparams
+                assert np.all(np.array(steps)>=2)
+                values = [np.linspace(r[0], r[1], steps[i])*r[0].units
+                                                   for i,r in enumerate(ranges)]
+
+        if nparams > 1:
+            steplist = [[(pname, val) for val in values[i]] for (i, pname) in
+                            enumerate(param_names)]
+        else:
+            steplist = [(param_names[0], val) for val in values]
+
+        # fix the parameters to be scanned
+        params = hypo_maker.params
+        params.fix(param_names)
 
         metric_vals = []
-        for val in values:
-            fp = hypo_maker.params.free
-            fp[param_names].value = val
-            hypo_maker.update_params(fp)
-            hypo_asimov_dist = hypo_maker.get_outputs()
-            metric_vals.append(
-                data_dist.metric_total(
-                    expected_values=hypo_asimov_dist, metric=metric
+        for pos in product(*steplist):
+            for (pname, val) in pos:
+                params[pname].value = val
+            hypo_maker.update_params(params)
+            if not profile:
+                hypo_asimov_dist = hypo_maker.get_outputs()
+                metric_vals.append(
+                    data_dist.metric_total(
+                        expected_values=hypo_asimov_dist, metric=metric
+                    )
                 )
-            )
+            else:
+                bf, af = self.fit_hypo(data_dist=data_dist,
+                                       hypo_maker=hypo_maker,
+                                       hypo_param_selections='nh',
+                                       metric=metric,
+                                       minimizer_settings=minimizer_settings,
+                                       **kwargs)
+                metric_vals.append(bf['metric_val'])
         return metric_vals
-
 
 def test_Counter():
     pass
