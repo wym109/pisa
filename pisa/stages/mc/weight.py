@@ -19,6 +19,7 @@ from pisa.core.stage import Stage
 from pisa.core.map import Map, MapSet
 from pisa.core.binning import OneDimBinning, MultiDimBinning
 from pisa.core.param import ParamSet
+from pisa.utils.flavInt import ALL_NUFLAVINTS
 from pisa.utils.flavInt import NuFlavInt, NuFlavIntGroup, FlavIntDataGroup
 from pisa.utils.comparisons import normQuant
 from pisa.utils.const import FTYPE
@@ -26,7 +27,7 @@ from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
 
-from pisa.stages.data.sample import sideband
+from pisa.stages.flux.honda import honda
 from pisa.stages.osc.prob3gpu import prob3gpu
 
 
@@ -36,9 +37,26 @@ class weight(Stage):
                 Desired lifetime.
 
     TODO(shivesh): docstring."""
-    def __init__(self, params, output_binning, output_names, error_method=None,
-                 debug_mode=None, disk_cache=None, memcache_deepcopy=True,
-                 transforms_cache_depth=20, outputs_cache_depth=20):
+    def __init__(self, params, output_binning, input_names, output_names,
+                 error_method=None, debug_mode=None, disk_cache=None,
+                 memcache_deepcopy=True, transforms_cache_depth=20,
+                 outputs_cache_depth=20):
+
+        self.weight_params = (
+            'livetime',
+            'oscillate',
+        )
+
+        self.flux_params = (
+            'atm_delta_index',
+            'energy_scale',
+            'nu_nubar_ratio',
+            'nue_numu_ratio',
+            'oversample_e',
+            'oversample_cz',
+            'flux_file',
+            'flux_mode'
+        )
 
         self.osc_params = (
             'detector_depth',
@@ -53,40 +71,59 @@ class weight(Stage):
             'deltam21',
             'deltam31',
             'deltacp',
-            'no_nc_osc'
+            'no_nc_osc',
         )
 
-        self.weight_params = (
-            'livetime',
-        )
+        expected_params = self.flux_params + self.osc_params + self.weight_params
 
-        expected_params = (self.osc_params + self.weight_params)
+        self.neutrino = False
+        self.muongun = False
+        self.noise = False
 
+        self.flux_hash = None
         self.osc_hash = None
 
+        input_names = input_names.replace(' ','').split(',')
+        clean_innames = []
+        for name in input_names:
+            if 'muongun' in name:
+                raise NotImplementedError
+                clean_innames.append(name)
+            elif 'noise' in name:
+                clean_innames.append(name)
+            elif 'all_nu' in name:
+                clean_innames = [str(NuFlavIntGroup(f)) for f in ALL_NUFLAVINTS]
+            else:
+                clean_innames.append(str(NuFlavIntGroup(name)))
+
         output_names = output_names.replace(' ','').split(',')
-        self._clean_outnames = []
+        clean_outnames = []
         self._output_nu_groups = []
         for name in output_names:
             if 'muongun' in name:
+                raise NotImplementedError
                 self.muongun = True
-                self._clean_outnames.append(name)
+                clean_outnames.append(name)
             elif 'noise' in name:
                 self.noise = True
-                self._clean_outnames.append(name)
+                clean_outnames.append(name)
+            elif 'all_nu' in name:
+                self.neutrino = True
+                self._output_nu_groups = \
+                        [NuFlavIntGroup(f) for f in ALL_NUFLAVINTS]
             else:
                 self.neutrino = True
                 self._output_nu_groups.append(NuFlavIntGroup(name))
 
         if self.neutrino:
-            self._clean_outnames += [str(f) for f in self._output_nu_groups]
+            clean_outnames += [str(f) for f in self._output_nu_groups]
 
         super(self.__class__, self).__init__(
             use_transforms=False,
             params=params,
             expected_params=expected_params,
-            input_names=['events'],
-            output_names=output_names,
+            input_names=clean_innames,
+            output_names=clean_outnames,
             error_method=error_method,
             debug_mode=debug_mode,
             disk_cache=disk_cache,
@@ -99,67 +136,132 @@ class weight(Stage):
     @profile
     def _compute_outputs(self, inputs=None):
         """Compute nominal histograms for output channels."""
-        if not isinstance(inputs, sideband):
-            raise ValueError('inputs unrecognised type '
-                             '{0}'.format(type(inputs)))
+        self.nu_data = inputs
+
         if self.neutrino:
-            nu_fidg = inputs.side_obj['neutrino']
-            osc_weights = self.compute_osc_weights(nu_fidg)
-            for fig in nu_fidg:
-                if 'nc' in fig and params['no_nc_osc'].value:
-                    continue
-                # TODO(shivesh): osc_nue = nue*pee + numu*pme
-                nu_fidg[fig]['pisa_weight'] *= osc_weights[fig]
-        if self.muongun:
-            muongun_events = inputs.sideband['muongun']
+            flux_weights = self.compute_flux_weights()
+            if not self.params['oscillate'].value:
+                # no oscillations
+                for fig in self.nu_data:
+                    flav_pdg = abs(NuFlavInt(fig).flavCode())
+                    if flav_pdg == 12:
+                        self.nu_data[fig]['pisa_weight'] *= \
+                                flux_weights[fig]['nue_flux']
+                    elif flav_pdg == 14:
+                        self.nu_data[fig]['pisa_weight'] *= \
+                                flux_weights[fig]['numu_flux']
+                    elif flav_pdg == 16:
+                        self.nu_data[fig]['pisa_weight'] *= 0.
+            else:
+                # oscillations
+                osc_weights = self.compute_osc_weights(flux_weights)
+                for fig in self.nu_data:
+                    self.nu_data[fig]['pisa_weight'] *= osc_weights[fig]
 
         outputs = []
         if self.neutrino:
-            trans_nu_fidg = nu_fidg(
+            trans_nu_data = self.nu_data.transform_groups(
                 self._output_nu_groups
             )
-            for fig in trans_nu_fidg.iterkeys():
-                outputs.append(self._histogram(
-                    events  = trans_nu_fidg[fig],
-                    binning = self.output_binning,
-                    weights = trans_nu_fidg[fig]['pisa_weight'],
-                    errors  = True,
-                    name    = str(NuFlavIntGroup(fig)),
+            for fig in trans_nu_data.iterkeys():
+                outputs.append(trans_nu_data.histogram(
+                    kinds       = fig,
+                    binning     = self.output_binning,
+                    weights_col = 'pisa_weight',
+                    errors      = True,
+                    name        = str(NuFlavIntGroup(fig)),
                 ))
 
-        if self.muongun:
-            outputs.append(self._histogram(
-                events  = muongun_events,
-                binning = self.output_binning,
-                weights = self._muongun_events['pisa_weight'],
-                errors  = True,
-                name    = 'muongun',
-                tex     = r'\rm{muongun}'
-            ))
+        return MapSet(maps=outputs, name=self.nu_data.metadata['name'])
 
-        name = sideband.name
-        return MapSet(maps=outputs, name=name)
+    def compute_flux_weights(self):
+        """Neutrino fluxes via `honda` service."""
+        this_hash = normQuant([self.params[name].value
+                               for name in self.flux_params])
+        if self.flux_hash == this_hash:
+            return self._flux_weights
+        data_contains_flux = all(['nue_flux' in fig and 'numu_flux' in fig
+                                  for fig in self.nu_data.itervalues()])
+        if data_contains_flux:
+            flux_weights = {}
+            for fig in self.nu_data.iterkeys():
+                flux_weights[fig] = {}
+                flux_weights[fig]['nue_flux'] = self.nu_data[fig]['nue_flux']
+                flux_weights[fig]['numu_flux'] = self.nu_data[fig]['numu_flux']
+        try:
+            flux_weights = self._flux_weights
+        except AttributeError:
+            flux_params = []
+            for param in self.params:
+                if param.name in self.flux_params:
+                    flux_params.append(param)
+            flux_weights = self._compute_flux_weights(
+                self.nu_data, ParamSet(flux_params)
+            )
+        # TODO(shivesh): flux systematics
 
+        self.flux_hash = this_hash
+        self._flux_weights = flux_weights
+        return flux_weights
 
-    def compute_osc_weights(self, events):
+    def compute_osc_weights(self, flux_weights):
         """Neutrino oscillations calculation via Prob3."""
         this_hash = normQuant([self.params[name].value
                                for name in self.osc_params])
-        if not events.has_key('neutrino') or self.osc_hash == this_hash:
-            return
+        if self.flux_hash == this_hash:
+            return self._osc_weights
         osc_params = []
         for param in self.params:
             if param.name in self.osc_params:
                 osc_params.append(param)
         osc_weights = self._compute_osc_weights(
-            events['neutrino'], ParamSet(osc_params)
+            self.nu_data, ParamSet(osc_params), flux_weights
         )
         self.osc_hash = this_hash
-        return osc_weights
+        self._osc_weights = osc_weights
+        return self._osc_weights
 
     @staticmethod
-    def _compute_osc_weights(nu_fidg, params):
+    def _compute_flux_weights(nu_data, params):
+        """Neutrino fluxes via integral preserving spline."""
+        logging.debug('Computing flux values')
+        fake_binning = MultiDimBinning((
+            OneDimBinning(name='true_energy', num_bins=2, is_log=True,
+                          domain=[1, 300]*ureg.GeV),
+            OneDimBinning(name='true_coszen', num_bins=2, is_lin=True,
+                          domain=[-1, 1])
+        ))
+
+        flux = honda(
+            params = params,
+            output_binning = fake_binning,
+            error_method = None,
+            outputs_cache_depth = 0,
+            memcache_deepcopy = False,
+        )
+
+        flux_weights = {}
+        for fig in nu_data.iterkeys():
+            flux_weights[fig] = {}
+            particle = NuFlavInt(fig).isParticle()
+            if particle: prefix = ''
+            else : prefix = 'bar'
+
+            logging.debug('Computing flux values for flavour {0}'.format(fig))
+            # TODO(shivesh): make faster
+            flux_weights[fig]['nue_flux'] = flux.calculate_flux_weights(
+                'nue'+prefix, nu_data[fig]['energy'], nu_data[fig]['coszen']
+            )
+            flux_weights[fig]['numu_flux'] = flux.calculate_flux_weights(
+                'numu'+prefix, nu_data[fig]['energy'], nu_data[fig]['coszen']
+            )
+
+        return flux_weights
+
+    @staticmethod
+    def _compute_osc_weights(nu_data, params, flux_weights):
         """Neutrino oscillations calculation via Prob3."""
+        logging.debug('Computing oscillation weights')
         # Read parameters in, convert to the units used internally for
         # computation, and then strip the units off. Note that this also
         # enforces compatible units (but does not sanity-check the numbers).
@@ -185,13 +287,13 @@ class weight(Stage):
         )
 
         osc_data = {}
-        for fig in nu_fidg.iterkeys():
+        for fig in nu_data.iterkeys():
             if 'nc' in fig and params['no_nc_osc'].value:
                 continue
             osc_data[fig] = {}
-            energy_array = nu_fidg[fig]['energy'].astype(FTYPE)
-            coszen_array = np.cos(nu_fidg[fig]['zenith']).astype(FTYPE)
-            pisa_weights = nu_fidg[fig]['pisa_weight'].astype(FTYPE)
+            energy_array = nu_data[fig]['energy'].astype(FTYPE)
+            coszen_array = nu_data[fig]['coszen'].astype(FTYPE)
+            pisa_weights = nu_data[fig]['pisa_weight'].astype(FTYPE)
             n_evts = np.uint32(len(energy_array))
             osc_data[fig]['n_evts'] = n_evts
 
@@ -211,67 +313,38 @@ class weight(Stage):
 
         osc.update_MNS(theta12, theta13, theta23, deltam21, deltam31, deltacp)
 
-        prob_tables = {}
-        for fig in nu_fidg.iterkeys():
-            if 'nc' in fig and params['no_nc_osc'].value:
-                continue
+        osc_weights = {}
+        for fig in nu_data.iterkeys():
             flavint = NuFlavInt(fig)
             pdg = abs(flavint.flavCode())
             kNuBar = 1 if flavint.isParticle() else -1
             if pdg == 12: kFlav = 0
             elif pdg == 14: kFlav = 1
             elif pdg == 16: kFlav = 2
+            if 'nc' in fig and params['no_nc_osc'].value:
+                if kFlav == 0: osc_weights[fig] = flux_weights[fig]['nue_flux']
+                elif kFlav == 1:
+                    osc_weights[fig] = flux_weights[fig]['numu_flux']
+                elif kFlav == 2: osc_weights[fig] = 0.
+                continue
 
             osc.calc_probs(
                 kNuBar, kFlav, osc_data[fig]['n_evts'], **osc_data[fig]['device']
             )
 
-            prob_tables[fig] = {}
-            prob_tables[fig]['prob_e'] = \
-                    np.zeros(osc_data[fig]['n_evts'], dtype=FTYPE)
-            prob_tables[fig]['prob_mu'] = \
-                    np.zeros(osc_data[fig]['n_evts'], dtype=FTYPE)
-            cuda.memcpy_dtoh(prob_tables[fig]['prob_e'],
-                             osc_data[fig]['device']['prob_e'])
-            cuda.memcpy_dtoh(prob_tables[fig]['prob_mu'],
-                             osc_data[fig]['device']['prob_mu'])
+            prob_e = np.zeros(osc_data[fig]['n_evts'], dtype=FTYPE)
+            prob_mu = np.zeros(osc_data[fig]['n_evts'], dtype=FTYPE)
+            cuda.memcpy_dtoh(prob_e, osc_data[fig]['device']['prob_e'])
+            cuda.memcpy_dtoh(prob_mu, osc_data[fig]['device']['prob_mu'])
 
-        return prob_tables
+            osc_weights[fig] = flux_weights[fig]['nue_flux']*prob_e + \
+                    flux_weights[fig]['numu_flux']*prob_mu
 
-    @staticmethod
-    def _histogram(events, binning, weights=None, errors=False, **kwargs):
-        """Histogram the events given the input binning."""
-        if isinstance(binning, OneDimBinning):
-            binning = MultiDimBinning([binning])
-        elif not isinstance(binning, MultiDimBinning):
-            raise TypeError('Unhandled type %s for `binning`.' %type(binning))
-        if not isinstance(events, dict):
-            raise TypeError('Unhandled type %s for `events`.' %type(events))
-
-        bin_names = binning.names
-        bin_edges = [edges.m for edges in binning.bin_edges]
-        for name in bin_names:
-            if not events.has_key(name):
-                if 'coszen' in name and events.has_key('zenith'):
-                    events[name] = np.cos(events['zenith'])
-                else:
-                    raise AssertionError('Input events object does not have '
-                                         'key {0}'.format(name))
-
-        sample = [events[colname] for colname in bin_names]
-        hist, edges = np.histogramdd(
-            sample=sample, weights=weights, bins=bin_edges
-        )
-        if errors:
-            hist2, edges = np.histogramdd(
-                sample=sample, weights=np.square(weights), bins=bin_edges
-            )
-            hist = unp.uarray(hist, np.sqrt(hist2))
-
-        return Map(hist=hist, binning=binning, **kwargs)
+        return osc_weights
 
     def validate_params(self, params):
         assert isinstance(params['livetime'].value, pint.quantity._Quantity)
+        assert isinstance(params['oscillate'].value, bool)
         assert isinstance(params['earth_model'].value, basestring)
         assert isinstance(params['detector_depth'].value, pint.quantity._Quantity)
         assert isinstance(params['theta12'].value, pint.quantity._Quantity)
@@ -284,3 +357,4 @@ class weight(Stage):
         assert isinstance(params['YeO'].value, pint.quantity._Quantity)
         assert isinstance(params['YeM'].value, pint.quantity._Quantity)
         assert isinstance(params['prop_height'].value, pint.quantity._Quantity)
+        assert isinstance(params['no_nc_osc'].value, bool)
