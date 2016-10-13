@@ -26,6 +26,8 @@ parser.add_argument('-f', '--fit-settings', type=str,
                     help='settings for the generation of templates')
 parser.add_argument('-sp', '--set-param', type=str, default='',
                     help='Set a param to a certain value.')
+parser.add_argument('--tag', type=str, default='deepcore',
+                    help='Tag for the filename')
 parser.add_argument('-o', '--out-dir', type=str, default='pisa/resources/discr_sys',
                     help='Set output directory')
 parser.add_argument('-p', '--plot', action='store_true',
@@ -170,8 +172,8 @@ for sys in sys_list:
     outputs['nominal'] = nominal
     outputs['function'] = function
     outputs['map_names'] = map_names
-    #outputs['binning'] = binning
-    to_file(outputs, '%s/%s_sysfits_new_%s.json'%(args.out_dir,sys, smooth))
+    outputs['binning_hash'] = binning.hash
+    to_file(outputs, '%s/%s_sysfits_%s_%s.json'%(args.out_dir,sys, args.tag, smooth))
 
     for d in range(degree):
         maps = []
@@ -181,7 +183,7 @@ for sys in sys_list:
         maps = MapSet(maps)
         my_plotter = Plotter(stamp='PISA cake test', outdir='.',
             fmt='pdf',log=False, label='')
-        my_plotter.plot_2d_array(maps, fname='%s_%s_%s'%(sys,d,smooth), split_axis='pid',cmap='RdBu')
+        my_plotter.plot_2d_array(maps, fname='%s_%s_%s_%s'%(sys,args.tag,d,smooth), split_axis='pid',cmap='RdBu')
         #for name in map_names:
         #    data = (raw_outputs[name][...,d] - outputs[name][...,d]).ravel()
         #    fig = plt.figure()
