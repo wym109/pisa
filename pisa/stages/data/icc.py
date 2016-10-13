@@ -56,8 +56,6 @@ class icc(Stage):
         expected_params = (
             'atm_muon_scale',
             'icc_bg_file',
-            'pid_bound',
-            'pid_remove',
             'use_def1',
             'sim_ver',
             'livetime',
@@ -65,7 +63,7 @@ class icc(Stage):
             'alt_icc_bg_file'
         )
 
-        output_names = ('trck', 'cscd')
+        output_names = ('evts')
 
         super(self.__class__, self).__init__(
             use_transforms=False,
@@ -94,8 +92,6 @@ class icc(Stage):
         else:
             alt_icc_bg_file = None
         sim_ver = self.params.sim_ver.value
-        pid_bound = self.params.pid_bound.m_as('dimensionless')
-        pid_remove = self.params.pid_remove.m_as('dimensionless')
         use_def1 = self.params.use_def1.value
         bdt_cut = self.params.bdt_cut.m_as('dimensionless')
 
@@ -156,69 +152,36 @@ class icc(Stage):
             raise ValueError('Only allow sim_ver  4digit, 5 digit or dima!')
         reco_energy_all = np.array(bg_file[variable]['energy'])
         reco_coszen_all = np.array(np.cos(bg_file[variable]['zenith']))
-        dLLH = np.array(bg_file['IC86_Dunkman_L6']['delta_LLH'])
+        pid_all = np.array(bg_file['IC86_Dunkman_L6']['delta_LLH'])
         if alt_icc_bg_file is not None:
             alt_reco_energy_all = np.array(alt_bg_file[variable]['energy'])
             alt_reco_coszen_all = np.array(np.cos(alt_bg_file[variable]['zenith']))
-            alt_dLLH = np.array(alt_bg_file['IC86_Dunkman_L6']['delta_LLH'])
+            alt_pid_all = np.array(alt_bg_file['IC86_Dunkman_L6']['delta_LLH'])
             alt_l5 = alt_bg_file['IC86_Dunkman_L5']['bdt_score']
         
-	# Cut1: throw away delta LLH < pid_remove:
-        cut1 = dLLH>=pid_remove
-        reco_energy_cut1 = reco_energy_all[cut1]
-        reco_coszen_cut1 = reco_coszen_all[cut1]
-        dLLH_cut1 = dLLH[cut1]
-        l5_cut1 = l5[cut1]
-
-        # Cut2: Only keep bdt score >= 0.2 (from MSU latest result, make data/MC agree much better)
-        cut2 = l5_cut1>=bdt_cut
-        reco_energy_cut2 = reco_energy_cut1[cut2]
-        reco_coszen_cut2 = reco_coszen_cut1[cut2]
-        dLLH_cut2 = dLLH_cut1[cut2]
+        # Cut: Only keep bdt score >= 0.2 (from MSU latest result, make data/MC agree much better)
+        cut_events = {}
+        cut = l5>=bdt_cut
+        cut_events['reco_energy'] = reco_energy_all[cut]
+        cut_events['reco_coszen'] = reco_coszen_all[cut]
+        cut_events['pid'] = pid_all[cut]
 
         if alt_icc_bg_file is not None:
-            # Cut1: throw away delta LLH < pid_remove:
-            alt_cut1 = alt_dLLH>=pid_remove
-            alt_reco_energy_cut1 = alt_reco_energy_all[alt_cut1]
-            alt_reco_coszen_cut1 = alt_reco_coszen_all[alt_cut1]
-            alt_dLLH_cut1 = alt_dLLH[alt_cut1]
-            alt_l5_cut1 = alt_l5[alt_cut1]
+            # Cut: Only keep bdt score >= 0.2 (from MSU latest result, make data/MC agree much better)
+            alt_cut_events = {}
+            alt_cut = alt_l5>=bdt_cut
+            alt_cut_events['reco_energy'] = alt_reco_energy_all[alt_cut]
+            alt_cut_events['reco_coszen'] = alt_reco_coszen_all[alt_cut]
+            alt_cut_events['pid'] = alt_pid_all[alt_cut]
 
-            # Cut2: Only keep bdt score >= 0.2 (from MSU latest result, make data/MC agree much better)
-            alt_cut2 = alt_l5_cut1>=bdt_cut
-            alt_reco_energy_cut2 = alt_reco_energy_cut1[alt_cut2]
-            alt_reco_coszen_cut2 = alt_reco_coszen_cut1[alt_cut2]
-            alt_dLLH_cut2 = alt_dLLH_cut1[alt_cut2]
-
-        self.icc_bg_dict = {}
-        logging.info("Creating a ICC background dict...")
-        # write to dictionary
-        for flavor in ['cscd', 'trck']:
-            final_events= {}
-            if flavor == 'cscd':
-                cut = dLLH_cut2 < pid_bound
-            if flavor == 'trck':
-                cut = dLLH_cut2 >= pid_bound
-            final_events['reco_energy'] = reco_energy_cut2[cut]
-            final_events['reco_coszen'] = reco_coszen_cut2[cut]
-            logging.debug("Working on %s background"%flavor)
-            icc_bg_hist,_,_ = np.histogram2d(final_events[self.bin_names[0]], final_events[self.bin_names[1]], bins=self.bin_edges)
-            self.icc_bg_dict[flavor] = icc_bg_hist
-
+        logging.info("Creating a ICC background hists...")
+        # make histo
+        self.icc_bg_hist,_ = np.histogramdd(sample = np.array([cut_events[bin_name] for bin_name in self.bin_names]).T, bins=self.bin_edges)
         if alt_icc_bg_file is not None:
-            self.alt_icc_bg_dict = {}
-            # write to dictionary
-            for flavor in ['cscd','trck']:
-                alt_events= {}
-                if flavor == 'cscd':
-                    cut = alt_dLLH_cut2 < pid_bound
-                if flavor == 'trck':
-                    cut = alt_dLLH_cut2 >= pid_bound
-                alt_events['reco_energy'] = alt_reco_energy_cut2[cut]
-                alt_events['reco_coszen'] = alt_reco_coszen_cut2[cut]
-                alt_icc_bg_hist,_,_ = np.histogram2d(alt_events[self.bin_names[0]], alt_events[self.bin_names[1]], bins=self.bin_edges)
-                scale = self.icc_bg_dict[flavor].sum()/alt_icc_bg_hist.sum()
-                self.alt_icc_bg_dict[flavor] = alt_icc_bg_hist * scale
+            self.alt_icc_bg_hist,_ = np.histogramdd(sample = np.array([alt_cut_events[bin_name] for bin_name in self.bin_names]).T, bins=self.bin_edges)
+            # only interested in shape difference, not rate
+            scale = self.icc_bg_hist.sum()/self.alt_icc_bg_hist.sum()
+            self.alt_icc_bg_hist *= scale
 
     def _compute_outputs(self, inputs=None):
         """
@@ -234,23 +197,15 @@ class icc(Stage):
         scale *= self.params.livetime.value.m_as('common_year')
         fixed_scale *= self.params.livetime.value.m_as('common_year')
 
-        maps = []
-        for flavor in ['cscd', 'trck']:
-            #print '%s %.4f'%(flavor, np.sum(self.icc_bg_dict[flavor] * scale))
-            if self.error_method == 'sumw2':
-                maps.append(Map(name=flavor, hist=(self.icc_bg_dict[flavor] * scale), error_hist=(np.sqrt(self.icc_bg_dict[flavor]) * scale) ,binning=self.output_binning))
-            elif self.error_method == 'sumw2+shape':
-                error = scale * np.sqrt(self.icc_bg_dict[flavor] + (self.icc_bg_dict[flavor] - self.alt_icc_bg_dict[flavor])**2 ) 
-                maps.append(Map(name=flavor, hist=(self.icc_bg_dict[flavor] * scale), error_hist=error ,binning=self.output_binning))
-            elif self.error_method == 'fixed_sumw2+shape':
-                error = fixed_scale * np.sqrt(self.icc_bg_dict[flavor] + (self.icc_bg_dict[flavor] - self.alt_icc_bg_dict[flavor])**2 ) 
-                maps.append(Map(name=flavor, hist=(self.icc_bg_dict[flavor] * scale), error_hist=error ,binning=self.output_binning))
-            else:
-                maps.append(Map(
-                    name=flavor, hist=(self.icc_bg_dict[flavor] * scale),
-                    binning=self.output_binning
-                ))
+        if self.error_method == 'sumw2':
+            maps = [Map(name=self.output_names[0], hist=(self.icc_bg_hist * scale), error_hist=(np.sqrt(self.icc_bg_hist) * scale) ,binning=self.output_binning)]
+        elif self.error_method == 'sumw2+shape':
+            error = scale * np.sqrt(self.icc_bg_hist + (self.icc_bg_hist - self.alt_icc_bg_hist)**2 ) 
+            maps = [Map(name=self.output_names[0], hist=(self.icc_bg_hist * scale), error_hist=error ,binning=self.output_binning)]
+        elif self.error_method == 'fixed_sumw2+shape':
+            error = fixed_scale * np.sqrt(self.icc_bg_hist + (self.icc_bg_hist - self.alt_icc_bg_hist)**2 ) 
+            maps = [Map(name=self.output_names[0], hist=(self.icc_bg_hist * scale), error_hist=error ,binning=self.output_binning)]
+        else:
+            maps = [Map(name=self.output_names[0], hist=(self.icc_bg_hist * scale), binning=self.output_binning)]
                 
-        template = MapSet(maps, name='icc')
-
-        return template
+        return MapSet(maps, name='icc')

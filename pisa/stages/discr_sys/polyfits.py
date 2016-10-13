@@ -15,6 +15,7 @@ from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile
 from pisa.utils.fileio import from_file
+from pisa.utils.config_parser import split
 
 
 # TODO: the below logic does not generalize to muons, but probably should
@@ -23,8 +24,8 @@ from pisa.utils.fileio import from_file
 # input_names and output_names.
 
 class polyfits(Stage):
-    def __init__(self, params, input_binning, output_binning,
-                 disk_cache=None, error_method=None, input_names=None,
+    def __init__(self, params, input_binning, output_binning, input_names,
+                 disk_cache=None, error_method=None,
                  transforms_cache_depth=20, outputs_cache_depth=20):
         """TODO: documentme"""
 
@@ -37,10 +38,7 @@ class polyfits(Stage):
             #'reco_cz_res', 'reco_cz_res_file',
         )
 
-        if isinstance(input_names, basestring):
-            input_names = input_names.replace(' ', '').split(',')
-        elif input_names is None:
-             input_names = ('trck','cscd')
+        input_names = split(input_names)
         output_names = input_names
 
         # Invoke the init method from the parent class, which does a lot of

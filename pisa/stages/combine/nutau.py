@@ -16,6 +16,7 @@ from pisa.utils.resources import find_resource
 from pisa.utils.log import logging
 from pisa.utils.comparisons import normQuant
 from pisa.utils.hash import hash_obj
+from pisa.utils.config_parser import split
 
 class nutau(Stage):
     '''
@@ -28,17 +29,16 @@ class nutau(Stage):
             nutau_cc_norm : quantity (dimensionless)
     '''
 
-    def __init__(self, params, input_binning, output_binning, disk_cache=None,
-                 memcache_deepcopy=True, error_method=None,
+    def __init__(self, params, input_binning, output_binning, input_names, output_names,
+                 disk_cache=None, memcache_deepcopy=True, error_method=None,
                  outputs_cache_depth=20, debug_mode=None):
 
         expected_params = (
             'nu_nc_norm',
-            #'nutau_cc_norm',
             )
 
-        input_names = ('nue_cc+nuebar_cc', 'numu_cc+numubar_cc', 'nutau_cc+nutaubar_cc', 'nuall_nc+nuallbar_nc')
-        output_names = ('nu')
+        input_names =  split(input_names)
+        output_names = split(output_names)
 
         super(self.__class__, self).__init__(
             use_transforms=True,
@@ -65,7 +65,7 @@ class nutau(Stage):
         transforms = []
         for output_name in self.output_names:
             xform = np.ones(xform_shape)
-            input_names = [n for n in self.input_names if output_name in n]
+            input_names = self.input_names
             for i,name in enumerate(input_names):
                 #if 'nutau' in name:
                 #    xform[i] *= self.params.nutau_cc_norm.value.m_as('dimensionless')
