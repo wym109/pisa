@@ -16,22 +16,15 @@ from uncertainties import unumpy as unp
 
 from pisa import ureg, Q_
 from pisa.core.stage import Stage
+from pisa.core.events import Data
 from pisa.core.map import Map, MapSet
 from pisa.core.binning import OneDimBinning, MultiDimBinning
-from pisa.utils.flavInt import NuFlavIntGroup, FlavIntDataGroup
+from pisa.utils.flavInt import ALL_NUFLAVINTS, NuFlavIntGroup, FlavIntDataGroup
 from pisa.utils.fileio import from_file
 from pisa.utils.comparisons import normQuant
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
-
-
-class sideband(object):
-    def __init__(self, side_obj, name, names, hash):
-        self.name = name
-        self.names = names
-        self.hash = hash
-        self.side_obj = side_obj
 
 
 class sample(Stage):
@@ -97,32 +90,31 @@ class sample(Stage):
         self.noise = False
 
         output_names = output_names.replace(' ','').split(',')
-        self._clean_outnames = []
+        clean_outnames = []
         self._output_nu_groups = []
         for name in output_names:
             if 'muongun' in name:
                 self.muongun = True
-                self._clean_outnames.append(name)
+                clean_outnames.append(name)
             elif 'noise' in name:
                 self.noise = True
-                self._clean_outnames.append(name)
+                clean_outnames.append(name)
+            elif 'all_nu' in name:
+                self.neutrino = True
+                self._output_nu_groups = \
+                        [NuFlavIntGroup(f) for f in ALL_NUFLAVINTS]
             else:
                 self.neutrino = True
                 self._output_nu_groups.append(NuFlavIntGroup(name))
 
         if self.neutrino:
-            self._clean_outnames += [str(f) for f in self._output_nu_groups]
-
-        if params.get('output_events').value:
-            output_names = ['events']
-        else:
-            output_names = self._clean_outnames
+            clean_outnames += [str(f) for f in self._output_nu_groups]
 
         super(self.__class__, self).__init__(
             use_transforms=False,
             params=params,
             expected_params=expected_params,
-            output_names=output_names,
+            output_names=clean_outnames,
             error_method=error_method,
             debug_mode=debug_mode,
             disk_cache=disk_cache,
@@ -134,6 +126,7 @@ class sample(Stage):
 
         self.include_attrs_for_hashes('sample_hash')
 
+    @profile
     def _compute_nominal_outputs(self):
         """Load the baseline events specified by the config file."""
         self.config = from_file(self.params['mc_sample_config'].value)
@@ -144,16 +137,16 @@ class sample(Stage):
         """Compute nominal histograms for output channels."""
         outputs = []
         if self.neutrino:
-            trans_nu_fidg = self._neutrino_events.transform_groups(
+            trans_nu_data = self.nu_data.transform_groups(
                 self._output_nu_groups
             )
-            for fig in trans_nu_fidg.iterkeys():
-                outputs.append(self._histogram(
-                    events  = trans_nu_fidg[fig],
-                    binning = self.output_binning,
-                    weights = trans_nu_fidg[fig]['pisa_weight'],
-                    errors  = True,
-                    name    = str(NuFlavIntGroup(fig)),
+            for fig in trans_nu_data.iterkeys():
+                outputs.append(trans_nu_data.histogram(
+                    kinds       = fig,
+                    binning     = self.output_binning,
+                    weights_col = 'pisa_weight',
+                    errors      = True,
+                    name        = str(NuFlavIntGroup(fig)),
                 ))
 
         if self.muongun:
@@ -166,12 +159,11 @@ class sample(Stage):
                 tex     = r'\rm{muongun}'
             ))
 
-        name = self.config.get('general', 'name')
-        if self.params['output_events']:
+        if self.params['output_events'].value:
             # TODO(shivesh): make this better
-            return sideband(self.load_sample_events(), name=name,
-                            names=['events'], hash=self.sample_hash)
+            return trans_nu_data
         else:
+            name = self.config.get('general', 'name')
             return MapSet(maps=outputs, name=name)
 
     def load_sample_events(self):
@@ -183,7 +175,7 @@ class sample(Stage):
         events = {}
         if this_hash == self.sample_hash:
             if self.neutrino:
-                events['neutrino'] = self._neutrino_events
+                events['neutrino'] = self.nu_data
                 if self.muongun:
                     events['muons'] = self._muongun_events
                 return events
@@ -206,10 +198,10 @@ class sample(Stage):
             if 'neutrino' not in event_types:
                 raise AssertionError('`neutrino` field not found in '
                                      'configuration file.')
-            self._neutrino_events = self.load_neutrino_events(
+            self.nu_data = self.load_neutrino_events(
                 config=self.config,
             )
-            events['neutrino'] = self._neutrino_events
+            events['neutrino'] = self.nu_data
         if self.muongun:
             if 'muongun' not in event_types:
                 raise AssertionError('`muongun` field not found in '
@@ -226,13 +218,14 @@ class sample(Stage):
     def load_neutrino_events(config):
         def parse(string):
             return string.replace(' ', '').split(',')
+        name = config.get('general', 'name')
         flavours = parse(config.get('neutrino', 'flavours'))
         weights = parse(config.get('neutrino', 'weights'))
         sys_list = parse(config.get('neutrino', 'sys_list'))
         base_suffix = config.get('neutrino', 'basesuffix')
         if base_suffix == 'None': base_suffix = ''
 
-        nu_fidg = []
+        nu_data = []
         for idx, flav in enumerate(flavours):
             f = int(flav)
             all_flavints = NuFlavIntGroup(f,-f).flavints()
@@ -271,16 +264,21 @@ class sample(Stage):
             else:
                 events['pisa_weight'] = events[weights[idx]]
 
+            if 'zenith' in events and 'coszen' not in events:
+                events['coszen'] = np.cos(events['zenith'])
+            if 'reco_zenith' in events and 'reco_coszen' not in events:
+                events['reco_coszen'] = np.cos(events['reco_zenith'])
+
             for flavint in all_flavints:
                 i_mask = cc_mask if flavint.isCC() else nc_mask
                 t_mask = nu_mask if flavint.isParticle() else nubar_mask
 
                 flav_fidg[flavint] = {var: events[var][i_mask & t_mask]
                                       for var in events.iterkeys()}
-            nu_fidg.append(flav_fidg)
-        nu_fidg = reduce(add, nu_fidg)
+            nu_data.append(flav_fidg)
+        nu_data = Data(reduce(add, nu_data), metadata={'name': name})
 
-        return nu_fidg
+        return nu_data
 
     @staticmethod
     def load_moungun_events(config):
@@ -327,6 +325,7 @@ class sample(Stage):
             raise TypeError('Unhandled type %s for `binning`.' %type(binning))
         if not isinstance(events, dict):
             raise TypeError('Unhandled type %s for `events`.' %type(events))
+        logging.debug('Histogramming')
 
         bin_names = binning.names
         bin_edges = [edges.m for edges in binning.bin_edges]
