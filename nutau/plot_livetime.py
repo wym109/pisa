@@ -28,7 +28,7 @@ def plot(name,hypos,asimovs,x_var='nutau_cc_norm',dir='.'):
     fig.patch.set_facecolor('none')
     ax = fig.add_subplot(111)
     #a_text = AnchoredText(r'DeepCore $\nu_\tau$ appearance', loc=2, frameon=False)
-    a_text = AnchoredText(r'PINGU v39 $\nu_\tau$ appearance', loc=2, frameon=False)
+    a_text = AnchoredText(r'PINGU v47 $\nu_\tau$ appearance', loc=2, frameon=False)
     ax.add_artist(a_text)
     sigmas = []
     years = []
