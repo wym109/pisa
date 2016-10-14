@@ -685,6 +685,9 @@ class Analysis(object):
                                        metric=metric,
                                        minimizer_settings=minimizer_settings,
                                        **kwargs)
+            bf['params'] = deepcopy(bf['params']._serializable_state)
+            bf['hypo_asimov_dist'] = \
+                        deepcopy(bf['hypo_asimov_dist']._serializable_state)
             results['results'].append(bf)
         return results
 
