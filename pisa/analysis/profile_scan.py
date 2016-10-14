@@ -89,7 +89,7 @@ if __name__ == '__main__':
     data_maker = DistributionMaker(data_settings)
     hypo_maker = DistributionMaker(args.template_settings)
 
-    data = data_maker.get_outputs()
+    data = data_maker.get_total_outputs()
 
     analysis = Analysis()
 

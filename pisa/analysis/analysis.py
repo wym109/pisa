@@ -304,7 +304,7 @@ class Analysis(object):
         hypo_maker._set_rescaled_free_params(rescaled_pvals)
 
         # Record the Asimov distribution with the optimal param values
-        hypo_asimov_dist = hypo_maker.get_outputs()
+        hypo_asimov_dist = hypo_maker.get_total_outputs()
 
         # Get the best-fit metric value
         metric_val = sign * optimize_result.pop('fun')
@@ -453,7 +453,7 @@ class Analysis(object):
 
         # Get the Asimov map set
         try:
-            hypo_asimov_dist = hypo_maker.get_outputs()
+            hypo_asimov_dist = hypo_maker.get_total_outputs()
         except:
             if not blind:
                 logging.error(
@@ -675,7 +675,7 @@ class Analysis(object):
                 bf = self.nofit_hypo(data_dist=data_dist,
                                      hypo_maker=hypo_maker,
                                      hypo_param_selections=hypo_param_selections,
-                                     hypo_asimov_dist=hypo_maker.get_outputs(),
+                                     hypo_asimov_dist=hypo_maker.get_total_outputs(),
                                      metric=metric, **kwargs)
             else:
                 logging.info("Starting optimization since `profile` requested.")
