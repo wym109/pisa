@@ -586,10 +586,6 @@ class Analysis(object):
         if isinstance(param_names, basestring):
             param_names = [param_names]
 
-        if not outer:
-            # TODO
-            raise RuntimeError("Only `outer=True` supported currently!")
-
         nparams = len(param_names)
         if values is not None:
             if np.isscalar(values):
@@ -624,12 +620,22 @@ class Analysis(object):
         else:
             steplist = [(param_names[0], val) for val in values]
 
+        # instead of introducing another multitude of tests above, check here
+        # whether the lists of steps all have the same length in case `outer`
+        # is set to False
+        if nparams > 1 and not outer:
+            assert np.all(len(steps) == len(steplist[0]) for steps in steplist)
+            loopfunc = zip
+        else:
+            # with single parameter, can use either `zip` or `product`
+            loopfunc = product
+
         params = hypo_maker.params
         # fix the parameters to be scanned if `profile` is set to True
         params.fix(param_names)
 
         results = {'steps': [], 'results': []}
-        for pos in product(*steplist):
+        for pos in loopfunc(*steplist):
             for (pname, val) in pos:
                 params[pname].value = val
             results['steps'].append(pos)
