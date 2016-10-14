@@ -569,7 +569,7 @@ class Analysis(object):
                   len(inner seq0) * len(inner seq1) * ...
                 Asimov distributions produced.
 
-        outer : bool (Note: only `True` supported for now)
+        outer : bool
             If set to True and a sequence of sequences is passed for `values`,
             the points scanned are the *outer product* of the inner sequences.
             See `values` for a more detailed explanation.
