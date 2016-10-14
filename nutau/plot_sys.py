@@ -93,11 +93,11 @@ my_plotter.plot_2d_array(oscfit - template_nominal, fname='delta_nominal',cmap='
 my_plotter.label = r'$(OscFit - PISA)/PISA$'
 my_plotter.plot_2d_array((oscfit - template_nominal)/template_nominal, fname='rel_diff_nominal',cmap='PiYG')
 
-sys.exit()
+#sys.exit()
 
 for sys, var in variation.items():
     print sys
-    template_maker.params.reset_free()
+    template_maker.params.reset_all()
     p = template_maker.params[sys]
     p.value += var
     template_maker.update_params(p)

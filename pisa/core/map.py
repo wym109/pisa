@@ -24,7 +24,7 @@ import os
 import re
 
 import numpy as np
-import scipy.stats as stats
+from scipy.stats import poisson, norm
 import uncertainties
 from uncertainties import ufloat
 from uncertainties import unumpy as unp
@@ -38,12 +38,11 @@ from pisa.utils.fileio import get_valid_filename, mkdir
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.flavInt import NuFlavIntGroup
 from pisa.utils.random_numbers import get_random_state
-from pisa.utils.stats import chi2, llh, conv_llh, mod_chi2
+from pisa.utils.stats import chi2, llh, conv_llh, mod_chi2, barlow_llh
 from pisa.utils.profiler import line_profile, profile
 
-
 HASH_SIGFIGS = 12
-VALID_METRICS = ('chi2', 'llh', 'conv_llh', 'mod_chi2')
+VALID_METRICS = ('chi2', 'llh', 'conv_llh', 'mod_chi2', 'barlow_llh')
 METRICS_TO_MAXIMIZE = ['llh', 'conv_llh']
 
 
@@ -560,8 +559,30 @@ class Map(object):
                 valid_mask = ~nan_at
 
                 hist_vals = np.empty_like(orig_hist, dtype=np.float64)
-                hist_vals[valid_mask] = stats.poisson.rvs(
+                hist_vals[valid_mask] = poisson.rvs(
                     orig_hist[valid_mask],
+                    random_state=random_state
+                )
+                hist_vals[nan_at] = np.nan
+
+                error_vals = np.empty_like(orig_hist, dtype=np.float64)
+                error_vals[valid_mask] = np.sqrt(orig_hist[valid_mask])
+                error_vals[nan_at] = np.nan
+            return {'hist': unp.uarray(hist_vals, error_vals)}
+
+        elif method == 'gauss+poisson':
+            random_state = get_random_state(random_state, jumpahead=jumpahead)
+            with np.errstate(invalid='ignore'):
+                orig_hist = unp.nominal_values(self.hist)
+                sigma = unp.std_devs(self.hist)
+                nan_at = np.isnan(orig_hist)
+                valid_mask = ~nan_at
+                gauss = np.empty_like(orig_hist, dtype=np.float64)
+                gauss[valid_mask] = norm.rvs(loc=orig_hist[valid_mask], scale=sigma[valid_mask])
+
+                hist_vals = np.empty_like(orig_hist, dtype=np.float64)
+                hist_vals[valid_mask] = poisson.rvs(
+                    gauss[valid_mask],
                     random_state=random_state
                 )
                 hist_vals[nan_at] = np.nan
@@ -759,6 +780,9 @@ class Map(object):
         """
         if isinstance(expected_values, Map):
             expected_values = expected_values.hist
+        elif isinstance(expected_values, list):
+            if isinstance(expected_values[0], Map):
+                expected_values = sum([ev.hist for ev in expected_values])
         return np.sum(llh(actual_values=self.hist,
                           expected_values=expected_values))
 
@@ -779,8 +803,35 @@ class Map(object):
         """
         if isinstance(expected_values, Map):
             expected_values = expected_values.hist
+        elif isinstance(expected_values, list):
+            if isinstance(expected_values[0], Map):
+                expected_values = sum([ev.hist for ev in expected_values])
         return np.sum(conv_llh(actual_values=self.hist,
                                expected_values=expected_values))
+
+    def barlow_llh(self, expected_values):
+        """Calculate the total barlow log-likelihood value between this map and the map
+        described by `expected_values`; self is taken to be the "actual values"
+        (or (pseudo)data), and `expected_values` are the expectation values for
+        each bin.
+        I assumes at the moment some things that are not true, namely that the weights are uniform
+
+        Parameters
+        ----------
+        expected_values : numpy.ndarray or Map of same dimension as this
+
+        Returns
+        -------
+        total_barlow_llh : float
+
+        """
+        if isinstance(expected_values, Map):
+            expected_values = expected_values.hist
+        elif isinstance(expected_values, list):
+            if isinstance(expected_values[0], Map):
+                expected_values = [ev.hist for ev in expected_values]
+        return np.sum(barlow_llh(actual_values=self.hist,
+                          expected_values=expected_values))
 
     def mod_chi2(self, expected_values):
         """Calculate the total modified chi2 value between this map and the map
@@ -799,6 +850,9 @@ class Map(object):
         """
         if isinstance(expected_values, Map):
             expected_values = expected_values.hist
+        elif isinstance(expected_values, list):
+            if isinstance(expected_values[0], Map):
+                expected_values = sum([ev.hist for ev in expected_values])
         return np.sum(mod_chi2(actual_values=self.hist,
                           expected_values=expected_values))
 
@@ -819,6 +873,9 @@ class Map(object):
         """
         if isinstance(expected_values, Map):
             expected_values = expected_values.hist
+        elif isinstance(expected_values, list):
+            if isinstance(expected_values[0], Map):
+                expected_values = sum([ev.hist for ev in expected_values])
         return np.sum(chi2(actual_values=self.hist,
                            expected_values=expected_values))
 
@@ -937,7 +994,7 @@ class Map(object):
             state_updates = {
                 #'name': "(%s / %s)" % (self.name, other.name),
                 #'tex': r"{(%s / %s)}" % (self.tex, other.tex),
-                'hist': self.hist / other.hist,
+                'hist': np.divide(self.hist, other.hist),
                 'full_comparison': (self.full_comparison or
                                     other.full_comparison),
             }
@@ -1123,6 +1180,7 @@ class Map(object):
         state_updates = {
             #'name': "sqrt(%s)" % self.name,
             #'tex': r"\sqrt{%s}" % self.tex,
+            #'hist': np.asarray(unp.sqrt(self.hist), dtype='float'),
             'hist': unp.sqrt(self.hist),
         }
         return state_updates
@@ -1607,6 +1665,15 @@ class MapSet(object):
                         this_map_args.append(arg[map_name])
                     elif self.collate_by_num:
                         this_map_args.append(arg[map_num])
+                elif isinstance(arg, list):
+                    list_arg = []
+                    for item in arg:
+                        if isinstance(item, MapSet):
+                            if self.collate_by_name:
+                                list_arg.append(item[map_name])
+                            elif self.collate_by_num:
+                                list_arg.append(item[map_num])
+                    this_map_args.append(list_arg)
                 else:
                     raise TypeError('Unhandled arg %s / type %s' %
                                     (arg, type(arg)))

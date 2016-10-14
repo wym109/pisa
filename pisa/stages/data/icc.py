@@ -15,7 +15,39 @@ from pisa.utils.resources import find_resource
 
 # TODO: use logging in lieu of print!
 class icc(Stage):
-    """TODO: document me, Philipp!"""
+    """Data loader stage
+
+    Paramaters
+    ----------
+
+    params : ParamSet
+        icc_bg_file : string
+            path pointing to the hdf5 file containing the events
+        pid_bound : float
+            boundary between cascade and track channel
+        pid_remo : float
+            lower cutoff value, below which events get rejected
+        sim_ver: string
+            indicateing the sim version, wither 4digit, 5digit or dima
+        bdt_cut : float
+            futher cut apllied to events for the atm. muon rejections BDT
+	livetime : time quantity
+            livetime scale factor
+        alt_icc_bg_file : string
+            path pointing to an hdf5 file containing the events for an alternate selection/model,
+            used to generate shape unbcertainty terms
+        atm_muon_scale: float
+            scale factor to be apllied to outputs
+        use_def1 : bool
+            wether ICC definition 1 is used
+
+    Notes
+    -----
+
+    The curent versio of this code is a port from pisa v2 nutau branch.
+    It clearly needs to be cleand up properly at some point.
+
+    """
 
     def __init__(self, params, output_binning, disk_cache=None,
                 memcache_deepcopy=True, error_method=None,
@@ -24,8 +56,6 @@ class icc(Stage):
         expected_params = (
             'atm_muon_scale',
             'icc_bg_file',
-            'pid_bound',
-            'pid_remove',
             'use_def1',
             'sim_ver',
             'livetime',
@@ -33,7 +63,7 @@ class icc(Stage):
             'alt_icc_bg_file'
         )
 
-        output_names = ('trck', 'cscd')
+        output_names = ('evts')
 
         super(self.__class__, self).__init__(
             use_transforms=False,
@@ -48,17 +78,22 @@ class icc(Stage):
             debug_mode=debug_mode
         )
 
+
+    def _compute_nominal_outputs(self):
+        '''
+        load events, perform sanity check and put them into histograms,
+        if alt_bg file is specified, also put these events into separate histograms,
+        that are normalized to the nominal ones (we are only interested in the shape difference)
+        '''
         # get params
         icc_bg_file = self.params.icc_bg_file.value
-        if self.error_method == 'sumw2+shape':
+        if self.error_method in ['sumw2+shape', 'fixed_sumw2+shape']:
             alt_icc_bg_file = self.params.alt_icc_bg_file.value
         else:
             alt_icc_bg_file = None
         sim_ver = self.params.sim_ver.value
-        pid_bound = self.params.pid_bound.m_as('dimensionless')
-        pid_remove = self.params.pid_remove.m_as('dimensionless')
         use_def1 = self.params.use_def1.value
-        bdt_cut = self.params.bdt_cut.value.m_as('dimensionless')
+        bdt_cut = self.params.bdt_cut.m_as('dimensionless')
 
         self.bin_names = self.output_binning.names
         self.bin_edges = []
@@ -100,7 +135,6 @@ class icc(Stage):
                 l4_pass = np.all(l4==1)
         assert (np.all(santa_doms>=3) and np.all(l3 == 1) and l4_pass and
                 np.all(l5 >= 0.1))
-        l6 = bg_file['IC86_Dunkman_L6']
         corridor_doms_over_threshold = l6['corridor_doms_over_threshold']
 
         inverted_corridor_cut = corridor_doms_over_threshold > 1
@@ -110,112 +144,68 @@ class icc(Stage):
                 np.all(l6['mn_stop_contained'] == 1.))
 
         #load events
-        if sim_ver == '4digit':
-            reco_energy_all = np.array(
-                bg_file['IC86_Dunkman_L6_MultiNest8D_PDG_Neutrino']['energy']
-            )
-            reco_coszen_all = np.array(np.cos(
-                bg_file['IC86_Dunkman_L6_MultiNest8D_PDG_Neutrino']['zenith']
-            ))
-        elif sim_ver == '5digit' or 'dima':
-            reco_energy_all = np.array(
-                bg_file['IC86_Dunkman_L6_PegLeg_MultiNest8D_NumuCC']['energy']
-            )
-            reco_coszen_all = np.array(np.cos(
-                bg_file['IC86_Dunkman_L6_PegLeg_MultiNest8D_NumuCC']['zenith']
-            ))
+	if sim_ver == '4digit':
+            variable ='IC86_Dunkman_L6_MultiNest8D_PDG_Neutrino'
+        elif sim_ver in ['5digit', 'dima']:
+            variable = 'IC86_Dunkman_L6_PegLeg_MultiNest8D_NumuCC' 
         else:
             raise ValueError('Only allow sim_ver  4digit, 5 digit or dima!')
         reco_energy_all = np.array(bg_file[variable]['energy'])
         reco_coszen_all = np.array(np.cos(bg_file[variable]['zenith']))
-        dLLH = np.array(bg_file['IC86_Dunkman_L6']['delta_LLH'])
+        pid_all = np.array(bg_file['IC86_Dunkman_L6']['delta_LLH'])
         if alt_icc_bg_file is not None:
             alt_reco_energy_all = np.array(alt_bg_file[variable]['energy'])
             alt_reco_coszen_all = np.array(np.cos(alt_bg_file[variable]['zenith']))
-            alt_dLLH = np.array(alt_bg_file['IC86_Dunkman_L6']['delta_LLH'])
+            alt_pid_all = np.array(alt_bg_file['IC86_Dunkman_L6']['delta_LLH'])
             alt_l5 = alt_bg_file['IC86_Dunkman_L5']['bdt_score']
         
-	# Cut1: throw away delta LLH < pid_remove:
-        cut1 = dLLH>=pid_remove
-        reco_energy_cut1 = reco_energy_all[cut1]
-        reco_coszen_cut1 = reco_coszen_all[cut1]
-        dLLH_cut1 = dLLH[cut1]
-        l5_cut1 = l5[cut1]
-
-        # Cut2: Only keep bdt score >= 0.2 (from MSU latest result, make data/MC agree much better)
-        pid_cut = pid_bound 
-        #print "pid_remove = ", pid_remove
-        #print "pid_bound = ", pid_bound
-
-        cut2 = l5_cut1>=bdt_cut
-        reco_energy_cut2 = reco_energy_cut1[cut2]
-        reco_coszen_cut2 = reco_coszen_cut1[cut2]
-        dLLH_cut2 = dLLH_cut1[cut2]
+        # Cut: Only keep bdt score >= 0.2 (from MSU latest result, make data/MC agree much better)
+        cut_events = {}
+        cut = l5>=bdt_cut
+        cut_events['reco_energy'] = reco_energy_all[cut]
+        cut_events['reco_coszen'] = reco_coszen_all[cut]
+        cut_events['pid'] = pid_all[cut]
 
         if alt_icc_bg_file is not None:
-            # Cut1: throw away delta LLH < pid_remove:
-            alt_cut1 = alt_dLLH>=pid_remove
-            alt_reco_energy_cut1 = alt_reco_energy_all[alt_cut1]
-            alt_reco_coszen_cut1 = alt_reco_coszen_all[alt_cut1]
-            alt_dLLH_cut1 = alt_dLLH[alt_cut1]
-            alt_l5_cut1 = alt_l5[alt_cut1]
+            # Cut: Only keep bdt score >= 0.2 (from MSU latest result, make data/MC agree much better)
+            alt_cut_events = {}
+            alt_cut = alt_l5>=bdt_cut
+            alt_cut_events['reco_energy'] = alt_reco_energy_all[alt_cut]
+            alt_cut_events['reco_coszen'] = alt_reco_coszen_all[alt_cut]
+            alt_cut_events['pid'] = alt_pid_all[alt_cut]
 
-            # Cut2: Only keep bdt score >= 0.2 (from MSU latest result, make data/MC agree much better)
-            alt_cut2 = alt_l5_cut1>=bdt_cut
-            alt_reco_energy_cut2 = alt_reco_energy_cut1[alt_cut2]
-            alt_reco_coszen_cut2 = alt_reco_coszen_cut1[alt_cut2]
-            alt_dLLH_cut2 = alt_dLLH_cut1[alt_cut2]
-
-        self.icc_bg_dict = {}
-        logging.info("Creating a ICC background dict...")
-        # write to dictionary
-        for flavor in ['cscd', 'trck']:
-            final_events= {}
-            if flavor == 'cscd':
-                cut = dLLH_cut2 < pid_bound
-            if flavor == 'trck':
-                cut = dLLH_cut2 >= pid_bound
-            final_events['reco_energy'] = reco_energy_cut2[cut]
-            final_events['reco_coszen'] = reco_coszen_cut2[cut]
-            logging.debug("Working on %s background"%flavor)
-            icc_bg_hist,_,_ = np.histogram2d(final_events[self.bin_names[0]], final_events[self.bin_names[1]], bins=self.bin_edges)
-            self.icc_bg_dict[flavor] = icc_bg_hist
-
+        logging.info("Creating a ICC background hists...")
+        # make histo
+        self.icc_bg_hist,_ = np.histogramdd(sample = np.array([cut_events[bin_name] for bin_name in self.bin_names]).T, bins=self.bin_edges)
         if alt_icc_bg_file is not None:
-            self.alt_icc_bg_dict = {}
-            # write to dictionary
-            for flavor in ['cscd','trck']:
-                alt_events= {}
-                if flavor == 'cscd':
-                    cut = alt_dLLH_cut2 < pid_bound
-                if flavor == 'trck':
-                    cut = alt_dLLH_cut2 >= pid_bound
-                alt_events['reco_energy'] = alt_reco_energy_cut2[cut]
-                alt_events['reco_coszen'] = alt_reco_coszen_cut2[cut]
-                alt_icc_bg_hist,_,_ = np.histogram2d(alt_events[self.bin_names[0]], alt_events[self.bin_names[1]], bins=self.bin_edges)
-                scale = self.icc_bg_dict[flavor].sum()/alt_icc_bg_hist.sum()
-                self.alt_icc_bg_dict[flavor] = alt_icc_bg_hist * scale
+            self.alt_icc_bg_hist,_ = np.histogramdd(sample = np.array([alt_cut_events[bin_name] for bin_name in self.bin_names]).T, bins=self.bin_edges)
+            # only interested in shape difference, not rate
+            scale = self.icc_bg_hist.sum()/self.alt_icc_bg_hist.sum()
+            self.alt_icc_bg_hist *= scale
 
     def _compute_outputs(self, inputs=None):
-        """TODO: document me, Philipp!"""
+        """
+        apply scales to histograms, put them into PISA MapSets
+        Also asign errors given a method:
+            * sumw2 : just sum of weights quared as error (the usual weighte histo error)
+            * sumw2+shae : including the shape difference
+            * fixed_sumw2+shape : errors estimated from nominal paramter values, i.e. scale-invariant
+        """
 
-        scale = self.params.atm_muon_scale.m_as('dimensionless')
-        scale *= self.params.livetime.m_as('common_year')
+        scale = self.params.atm_muon_scale.value.m_as('dimensionless')
+        fixed_scale = self.params.atm_muon_scale.nominal_value.m_as('dimensionless')
+        scale *= self.params.livetime.value.m_as('common_year')
+        fixed_scale *= self.params.livetime.value.m_as('common_year')
 
-        maps = []
-        for flavor in ['cscd', 'trck']:
-            #print '%s %.4f'%(flavor, np.sum(self.icc_bg_dict[flavor] * scale))
-            if self.error_method == 'sumw2':
-                maps.append(Map(name=flavor, hist=(self.icc_bg_dict[flavor] * scale), error_hist=(np.sqrt(self.icc_bg_dict[flavor]) * scale) ,binning=self.output_binning))
-            elif self.error_method == 'sumw2+shape':
-                error = scale * np.sqrt(self.icc_bg_dict[flavor] + (self.icc_bg_dict[flavor] - self.alt_icc_bg_dict[flavor])**2 ) 
-                maps.append(Map(name=flavor, hist=(self.icc_bg_dict[flavor] * scale), error_hist=error ,binning=self.output_binning))
-            else:
-                maps.append(Map(
-                    name=flavor, hist=(self.icc_bg_dict[flavor] * scale),
-                    binning=self.output_binning
-                ))
+        if self.error_method == 'sumw2':
+            maps = [Map(name=self.output_names[0], hist=(self.icc_bg_hist * scale), error_hist=(np.sqrt(self.icc_bg_hist) * scale) ,binning=self.output_binning)]
+        elif self.error_method == 'sumw2+shape':
+            error = scale * np.sqrt(self.icc_bg_hist + (self.icc_bg_hist - self.alt_icc_bg_hist)**2 ) 
+            maps = [Map(name=self.output_names[0], hist=(self.icc_bg_hist * scale), error_hist=error ,binning=self.output_binning)]
+        elif self.error_method == 'fixed_sumw2+shape':
+            error = fixed_scale * np.sqrt(self.icc_bg_hist + (self.icc_bg_hist - self.alt_icc_bg_hist)**2 ) 
+            maps = [Map(name=self.output_names[0], hist=(self.icc_bg_hist * scale), error_hist=error ,binning=self.output_binning)]
+        else:
+            maps = [Map(name=self.output_names[0], hist=(self.icc_bg_hist * scale), binning=self.output_binning)]
                 
-        template = MapSet(maps, name='icc')
-
-        return template
+        return MapSet(maps, name='icc')

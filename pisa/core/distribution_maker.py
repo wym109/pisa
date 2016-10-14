@@ -62,6 +62,11 @@ class DistributionMaker(object):
     def get_outputs(self, **kwargs):
         total_outputs = None
         outputs = [pipeline.get_outputs(**kwargs) for pipeline in self]
+        return outputs
+
+    def get_total_outputs(self, seed=None, **kwargs):
+        total_outputs = None
+        outputs = [pipeline.get_outputs(**kwargs) for pipeline in self]
         total_outputs = reduce(lambda x,y: x+y, outputs)
         return total_outputs
 

@@ -12,6 +12,8 @@ Config File Structure:
 ===============
 
 The config file is expected to contain the following sections::
+    #include file_x.cfg
+    #include file_y.cfg
 
     [pipeline]
     order = stageA:serviceA, stageB:serviceB
@@ -33,6 +35,8 @@ The config file is expected to contain the following sections::
 
     [stage:stageB]
     ...
+
+* `#include` statements can be used to include other cfg files
 
 * `pipeline` is the top most section that defines the hierarchy of stages and
     what services to be instatiated.
@@ -78,6 +82,9 @@ Note that this mechanism of synchronizing parameters holds only within the
 scope of a single pipeline; synchronization of parameters across pipelines is
 done by adding the pipelines to a single DistributionMaker object and updating
 params through the DistributionMaker's update_params method.
+
+If you DO NOT want parameters to be synchronized, provide a unique_id for them.
+This is imply done by setting `.unique_id`
 
 """
 
@@ -266,6 +273,9 @@ def parse_param(config, section, selector, fullname, pname, value):
     # Search for explicit attr specifications
     if config.has_option(section, fullname + '.fixed'):
         kwargs['is_fixed'] = config.getboolean(section, fullname + '.fixed')
+
+    if config.has_option(section, fullname + '.unique_id'):
+        kwargs['unique_id'] = config.get(section, fullname + '.unique_id')
 
     if config.has_option(section, fullname + '.prior'):
         if config.get(section, fullname + '.prior') == 'uniform':
