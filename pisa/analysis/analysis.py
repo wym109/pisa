@@ -510,9 +510,9 @@ class Analysis(object):
     #   params
     # * set (some free or fixed) params, then check metric
     # where the setting of the params is done for some number of values.
-    def scan(self, data_dist, hypo_maker, metric, param_names=None, steps=None,
-             values=None, outer=True, profile=True, minimizer_settings=None,
-             **kwargs):
+    def scan(self, data_dist, hypo_maker, hypo_param_selections, metric,
+             param_names=None, steps=None, values=None, outer=True,
+             profile=True, minimizer_settings=None, **kwargs):
         """Set hypo maker parameters named by `param_names` according to
         either values specified by `values` or number of steps specified by
         `steps`, and return the `metric` indicating how well the data
@@ -526,6 +526,28 @@ class Analysis(object):
 
         Parameters
         ----------
+        data_dist : MapSet
+            Data distribution(s). These are what the hypothesis is tasked to
+            best describe during the optimization/comparison process.
+
+        hypo_maker : DistributionMaker or instantiable thereto
+            Generates the expectation distribution under a particular
+            hypothesis. This typically has (but is not required to have) some
+            free parameters which will be modified by the minimizer to optimize
+            the `metric` in case `profile` is set to True.
+
+        hypo_param_selections : string, or sequence of strings
+            A pipeline configuration can have param selectors that allow
+            switching a parameter among two or more values by specifying the
+            corresponding param selector(s) here. This also allows for a single
+            instance of a DistributionMaker to generate distributions from
+            different hypotheses.
+
+        metric : string
+            The metric to use for optimization/comparison. Note that the
+            optimized hypothesis also has this metric evaluated and reported for
+            each of its output maps. Confer `pisa.core.map` for valid metrics.
+
         param_names : None, string, or sequence of strings
             If None, assume all parameters are to be scanned; otherwise,
             specifies only the name or names of parameters to be scanned.
@@ -579,6 +601,10 @@ class Analysis(object):
             at each scanned point. Otherwise keeps them at their nominal values
             and only performs grid scan of the parameters specified in
             `param_names`.
+
+        minimizer_settings : dict
+            Dictionary containing the settings for minimization, which are
+            only needed if `profile` is set to True.
 
         """
         assert not (steps is not None and values is not None)
@@ -634,23 +660,25 @@ class Analysis(object):
         # fix the parameters to be scanned if `profile` is set to True
         params.fix(param_names)
 
-        results = {'steps': [], 'results': []}
+        results = {'steps': {}, 'results': []}
+        results['steps'] = {pname: [] for pname in param_names}
         for pos in loopfunc(*steplist):
             for (pname, val) in pos:
                 params[pname].value = val
-            results['steps'].append(pos)
+                results['steps'][pname].append(val)
             hypo_maker.update_params(params)
-
+            # TODO: what happens if hypo_param_selections is sequence
+            # (minimize over all hypotheses simultaneously, separately?)
             if not profile:
                 bf = self.nofit_hypo(data_dist=data_dist,
                                      hypo_maker=hypo_maker,
-                                     hypo_param_selections='nh',
+                                     hypo_param_selections=hypo_param_selections,
                                      hypo_asimov_dist=hypo_maker.get_outputs(),
                                      metric=metric, **kwargs)
             else:
                 bf, af = self.fit_hypo(data_dist=data_dist,
                                        hypo_maker=hypo_maker,
-                                       hypo_param_selections='nh',
+                                       hypo_param_selections=hypo_param_selections,
                                        metric=metric,
                                        minimizer_settings=minimizer_settings,
                                        **kwargs)
