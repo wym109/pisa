@@ -669,7 +669,7 @@ class Analysis(object):
             hypo_maker.update_params(params)
             # TODO: what happens if hypo_param_selections is sequence
             # (minimize over all hypotheses simultaneously, separately?)
-            if not profile or len(hypo_maker.params.free)==0:
+            if not profile or len(hypo_maker.params.free) == 0:
                 logging.info("""Not optimizing since `profile` set to False or
                              no free parameters found...""")
                 bf = self.nofit_hypo(data_dist=data_dist,
