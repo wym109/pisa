@@ -66,7 +66,7 @@ class DistributionMaker(object):
         return total_outputs
 
     def update_params(self, params):
-        [pipeline.params.update_existing(params) for pipeline in self]
+        [pipeline.update_params(params) for pipeline in self]
 
     def select_params(self, selections, error_on_missing=True):
         successes = 0
