@@ -30,8 +30,9 @@ from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.utils.confInterval import MLConfInterval
 from pisa.utils.coords import abs2rel, rel2abs
-from pisa.utils.fileio import mkdir
+from pisa.utils.fileio import mkdir, to_file
 from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup
+from pisa.utils.format import hash2hex
 from pisa.utils.hash import hash_obj
 from pisa.utils.kde import vbw_kde
 from pisa.utils.log import logging, set_verbosity
@@ -306,7 +307,13 @@ class vbwkde(Stage):
 
         Returns
         -------
-        all_kde_info
+        all_kde_info : OrderedDict with format:
+            {
+                '<flavint group 1>': kde_info,
+                '<flavint group 2>': kde_info,
+                ...
+            }
+            where the format of kde_info is defined in `compute_kdes`
 
         """
         # Only hash on the things that could be relevant to the KDE's:
@@ -334,7 +341,7 @@ class vbwkde(Stage):
         logging.trace('kde_hash: %s' % kde_hash)
         logging.trace('hasattr: %s' % hasattr(self, 'all_kde_info'))
 
-        if not self.debug_mode:
+        if not bool(self.debug_mode):
             try:
                 self.all_kde_info = self.disk_cache[kde_hash]
                 self._kde_hash = kde_hash
@@ -342,11 +349,12 @@ class vbwkde(Stage):
             except KeyError:
                 pass
 
-        if self.debug_mode:
+        if bool(self.debug_mode):
             outdir = os.path.join(find_resource('debug'),
                                   self.stage_name,
                                   self.service_name)
             mkdir(outdir)
+            hex_kde_hash = hash2hex(kde_hash)
 
         self.all_kde_info = OrderedDict()
         self.all_extra_info = OrderedDict()
@@ -360,12 +368,14 @@ class vbwkde(Stage):
             self.all_kde_info[str(xform_flavints)] = kde_info
             self.all_extra_info[str(xform_flavints)] = extra_info
 
-            if self.debug_mode:
+            if isinstance(self.debug_mode, basestring) \
+                    and self.debug_mode.lower() == 'plot':
                 plot_kde_detail(flavints=xform_flavints,
                                 kde_info=kde_info,
                                 extra_info=extra_info,
                                 binning=self.input_binning,
-                                outdir=outdir)
+                                outdir=outdir,
+                                kde_hash=kde_hash)
 
         self._kde_hash = kde_hash
 
@@ -374,14 +384,25 @@ class vbwkde(Stage):
 
         self.disk_cache[kde_hash] = self.all_kde_info
 
+        if bool(self.debug_mode):
+            outfile = os.path.join(outdir,
+                                   hex_kde_hash + '_all_kde_info.dill')
+            to_file(self.all_kde_info, outfile)
+            outfile = os.path.join(outdir,
+                                   hex_kde_hash + '_all_extra_kde_info.dill')
+            to_file(self.all_extra_info, outfile)
+
         return self.all_kde_info
 
     @profile
-    def compute_kdes(self, events, binning):
-        """Construct a 4D kernel set from MC events using VBW-KDE.
+    @static_method
+    def compute_kdes(events, binning):
+        """Construct kernels for smearing an input (true variables) bin using
+        VBW-KDE.
+        
+        Note that the output (reco variables) binning is irrelevant to this
+        method.
 
-        Given a set of MC events and binning (which serves as both input and
-        output binning), construct a KDE estimate and draw samples from this.
         From the samples, a linear interpolant is generated. There are one
         energy and one coszen interpolant genreated for each energy bin.
 
@@ -403,6 +424,9 @@ class vbwkde(Stage):
         kde_info
 
         """
+        # Select out the dimensions we actually use
+        binning = MultiDimBinning([binning.true_energy, binning.true_coszen])
+
         # Constants. Can turn into stage args or params if that makes more
         # sense.
         OVERFIT_FACTOR = 1.0
@@ -1233,7 +1257,7 @@ class vbwkde(Stage):
 
 
 def plot_kde_detail(flavints, kde_info, extra_info, binning, outdir,
-                    ebin_n=None):
+                    ebin_n=None, kde_hash=None):
     """
 
     Parameters
@@ -1252,6 +1276,10 @@ def plot_kde_detail(flavints, kde_info, extra_info, binning, outdir,
         Index used to pick out a particular energy bin (or bins) to plot.
         Default (None) plots all energy bins.
 
+    kde_hash
+        If not None, hex string represenation of kde_hash is prepended to the
+        otuput filenames.
+
     """
     import matplotlib as mpl
     mpl.use('pdf')
@@ -1263,6 +1291,10 @@ def plot_kde_detail(flavints, kde_info, extra_info, binning, outdir,
         return ax.plot([a,a], [y0, y0+dy], **kwargs)
 
     label = str(flavints)
+    if kde_hash is not None:
+        hex_kde_hash = hash2hex(kde_hash)
+        label = hex_kde_hash + '_' + label
+
     flavint_tex = flavints.tex()
 
     ebins = binning.true_energy
@@ -1322,7 +1354,299 @@ def plot_kde_detail(flavints, kde_info, extra_info, binning, outdir,
                                                        kinfos[idx],
                                                        einfos[idx]):
         # TODO: prepend name with hash (or something) to distinguish plots
-        plot_fname = os.path.join(outdir, label + format(bin_n, '03d') + '.pdf')
+        plot_fname = os.path.join(outdir, label + format(bin_n, '03d') +
+                                  '.pdf')
+
+        ebin_min, ebin_mid, ebin_max = bin_info
+        ebin_wid = ebin_max - ebin_min
+
+        e_interp = kde_info['e_interp']
+        cz_interp = kde_info['cz_interp']
+
+        enu_err = extra_info['enu_err']
+        cz_err = extra_info['cz_err']
+        n_in_bin = len(enu_err)
+
+        actual_left_ebin_edge, actual_right_ebin_edge = \
+                extra_info['actual_ebin_edges']
+
+        e_err_min, e_err_max = min(enu_err), max(enu_err)
+        e_err_range = e_err_max - e_err_min
+
+        cz_err_min, cz_err_max = min(cz_err), max(cz_err)
+        cz_err_range = cz_err_max - cz_err_min
+
+        enu_bw = extra_info['enu_bw']
+        cz_bw = extra_info['cz_bw']
+
+        enu_mesh = extra_info['enu_mesh']
+        cz_mesh = extra_info['cz_mesh']
+
+        e_kde_lims = extra_info['e_kde_lims']
+        cz_kde_lims = extra_info['cz_kde_lims']
+
+        enu_pdf = e_interp(enu_mesh)
+        cz_pdf = cz_interp(cz_mesh)
+
+        fig1 = plt.figure(1, figsize=(8,10), dpi=90)
+        fig1.clf()
+        ax1 = fig1.add_subplot(211, axisbg=AXISBG)
+
+        # Retrieve region where VBWKDE lives
+        ml_ci = MLConfInterval(x=enu_mesh, y=enu_pdf)
+        #for conf in np.logspace(np.log10(0.999), np.log10(0.95), 50):
+        #    try:
+        #        lb, ub, yopt, r = ml_ci.findCI_lin(conf=conf)
+        #    except:
+        #        pass
+        #    else:
+        #        break
+        #xlims = (min(-ebin_mid*1.5, lb),
+        #         max(min(ub, 6*ebin_mid),2*ebin_mid))
+        lb, ub, yopt, r = ml_ci.findCI_lin(conf=0.98)
+        xlims = (lb, #min(-ebin_mid*1.5, lb),
+                 max(min(ub, 6*ebin_mid),2*ebin_wid))
+
+        #xlims = (
+        #    -ebin_wid*1.5,
+        #    ebin_wid*1.5
+        #)
+        #    min(ebin_mid*2, ebin_edges[-1]+(ebin_edges[-1]-ebin_edges[0])*0.1)
+        #)
+
+        # Histogram of events' reco error
+        e_hbins = np.linspace(
+            e_err_min-0.02*e_err_range,
+            e_err_max+0.02*e_err_range,
+            N_HBINS*np.round(e_err_range/ebin_mid)
+        )
+        hvals, e_hbins, hpatches = ax1.hist(
+            enu_err, bins=e_hbins, normed=True, **HIST_PP
+        )
+
+        # Plot the VBWKDE
+        ax1.plot(enu_mesh, enu_pdf, **DIFFUS_PP)
+        axlims = ax1.axis('tight')
+        ax1.set_xlim(xlims)
+        ymax = axlims[3]*1.05
+        ax1.set_ylim(0, ymax)
+
+        # Grey-out regions outside binned region, so it's clear what
+        # part of tail(s) will be thrown away
+        width = -ebin_mid+ebin_edges[0]-xlims[0]
+        unbinned_region_tex = r'$\mathrm{Unbinned}$'
+        if width > 0:
+            ax1.add_patch(Rectangle((xlims[0],0), width, ymax, #zorder=-1,
+                                    alpha=0.30, facecolor=(0.0 ,0.0, 0.0),
+                                    fill=True,
+                                    ec='none'))
+            ax1.text(xlims[0]+(xlims[1]-xlims[0])/40., ymax/10.,
+                     unbinned_region_tex, fontsize=14, ha='left',
+                     va='bottom', rotation=90, color='k')
+
+        width = xlims[1] - (ebin_edges[-1]-ebin_mid)
+        if width > 0:
+            ax1.add_patch(Rectangle((xlims[1]-width,0), width, ymax,
+                                    alpha=0.30, facecolor=(0, 0, 0),
+                                    fill=True, ec='none'))
+            ax1.text(xlims[1]-(xlims[1]-xlims[0])/40., ymax/10.,
+                     unbinned_region_tex, fontsize=14, ha='right',
+                     va='bottom', rotation=90, color='k')
+
+        # Rug plot of events' reco energy errors
+        ylim = ax1.get_ylim()
+        dy = ylim[1] - ylim[0]
+        ruglines = rugplot(enu_err, y0=ylim[1], dy=-dy/40., ax=ax1,
+                           **RUG_PP)
+        ruglines[-1].set_label(RUG_LAB)
+
+        # Legend
+        leg_title_tex = r'$\mathrm{Normalized}\,E\mathrm{-err.\,distr.}$'
+        x1lab = ax1.set_xlabel(
+            r'$E_{\mathrm{reco}}-E_{\mathrm{true}}\;' +
+            r'(\mathrm{GeV})$', labelpad=LABELPAD
+        )
+        leg = ax1.legend(loc='upper right', title=leg_title_tex,
+                         frameon=True, framealpha=LEGALPHA,
+                         fancybox=True, bbox_to_anchor=[1,0.975])
+
+        # Other plot details
+        ax1.xaxis.set_label_coords(0.9, -LABELPAD)
+        ax1.xaxis.grid(color=GRIDCOL)
+        ax1.yaxis.grid(color=GRIDCOL)
+        leg.get_title().set_fontsize(LEGTITLEFONTSIZE)
+        leg.get_title().set_color(LEGFNTCOL)
+        [t.set_color(LEGFNTCOL) for t in leg.get_texts()]
+        [t.set_fontsize(LEGFNTSIZE) for t in leg.get_texts()]
+        frame = leg.get_frame()
+        frame.set_facecolor(LEGFACECOL)
+        frame.set_edgecolor(None)
+
+        #
+        # Coszen plot
+        #
+
+        ax2 = fig1.add_subplot(212, axisbg=AXISBG)
+        cz_hbins = np.linspace(
+            cz_err_min-0.02*cz_err_range,
+            cz_err_max+0.02*cz_err_range,
+            N_HBINS*3
+        )
+        hvals, cz_hbins, hpatches = ax2.hist(
+            cz_err, bins=cz_hbins, normed=True, **HIST_PP
+        )
+        ax2.plot(cz_mesh, cz_pdf, **DIFFUS_PP)
+        fci = MLConfInterval(x=cz_mesh, y=cz_pdf)
+        lb, ub, yopt, r = fci.findCI_lin(conf=0.995)
+        axlims = ax2.axis('tight')
+        ax2.set_xlim(lb, ub)
+        ax2.set_ylim(0, axlims[3]*1.05)
+
+        ylim = ax2.get_ylim()
+        dy = ylim[1] - ylim[0]
+        ruglines = rugplot(cz_err, y0=ylim[1], dy=-dy/40., ax=ax2, **RUG_PP)
+        ruglines[-1].set_label(r'$\mathrm{Rug\,plot}$')
+
+        x2lab = ax2.set_xlabel(
+            r'$\cos\,\theta_{\mathrm{reco}}-\cos\,\theta_{\,\mathrm{true}}$',
+            labelpad=LABELPAD
+        )
+        ax2.xaxis.set_label_coords(0.9, -LABELPAD)
+        ax2.xaxis.grid(color=GRIDCOL)
+        ax2.yaxis.grid(color=GRIDCOL)
+        leg_title_tex = r'$\mathrm{Normalized}\,\cos\,\theta \mathrm{-err.\,distr.}$'
+        leg = ax2.legend(loc='upper right', title=leg_title_tex,
+                         frameon=True, framealpha=LEGALPHA, fancybox=True,
+                         bbox_to_anchor=[1,0.975])
+        leg.get_title().set_fontsize(LEGTITLEFONTSIZE)
+        leg.get_title().set_color(LEGFNTCOL)
+        [t.set_color(LEGFNTCOL) for t in leg.get_texts()]
+        [t.set_fontsize(LEGFNTSIZE) for t in leg.get_texts()]
+        frame = leg.get_frame()
+        frame.set_facecolor(LEGFACECOL)
+        frame.set_edgecolor(None)
+
+        actual_bin_tex = ''
+        if ((actual_left_ebin_edge != ebin_min)
+            or (actual_right_ebin_edge != ebin_max)):
+            actual_bin_tex = r'E_{\mathrm{true}}\in [' + \
+                    format(actual_left_ebin_edge, '0.2f') + r',\,' + \
+                    format(actual_right_ebin_edge, '0.2f') + r'] \mapsto '
+        stt = r'$\mathrm{Resolutions,\,' + flavint_tex + r'}$' + '\n' + \
+                r'$' + actual_bin_tex + r'\mathrm{Bin}_{' + format(bin_n, 'd') + r'}\equiv E_{\mathrm{true}}\in [' + format(ebin_min, '0.2f') + \
+                r',\,' + format(ebin_max, '0.2f') + r']\,\mathrm{GeV}' + \
+                r',\,N_\mathrm{events}=' + format(n_in_bin, 'd') + r'$'
+
+        fig1.subplots_adjust(top=TOP, bottom=BOTTOM, left=LEFT, right=RIGHT,
+                             hspace=HSPACE)
+        suptitle = fig1.suptitle(stt)
+        suptitle.set_fontsize(TITLEFONTSIZE)
+        suptitle.set_position((0.5,0.98))
+        logging.trace('plot_fname = %s' %plot_fname)
+        fig1.savefig(plot_fname, format='pdf')
+
+
+def plot_multiple(all_kde_info, labels, outdir):
+    """
+
+    Parameters
+    ----------
+    all_kde_info : OrderedDict, string, or sequence thereof
+        KDE info recorded for all flav/ints.
+
+    labels : string or sequence thereof
+        Must have same number of labels as number of all_kde_info
+
+    outdir : string
+
+    """
+    import matplotlib as mpl
+    mpl.use('pdf')
+    import matplotlib.pyplot as plt
+    #from matplotlib.backends.backend_pdf import PdfPages
+    from matplotlib.patches import Rectangle
+
+    if isinstance(all_kde_info, (basestring, OrderedDict)):
+        all_kde_info = [all_kde_info]
+
+    all_kde_info_ = []
+    for aki in all_kde_info:
+        if isinstance(aki, basestring):
+            aki = from_file(aki)
+        elif isinstance(aki, OrderedDict):
+            pass
+        else raise ValueError('Unhandled type for `all_kde_info`: %s'
+                              type(aki))
+        all_kde_info_.append(aki)
+    all_kde_info = all_kde_info_
+
+    if isinstance(labels, basestring):
+        labels = [labels]
+
+    for flavint_str in all_kde_info[0].keys():
+        flavints = NuFlavIntGroup(flavint_str)
+        flavint_tex = flavints.tex()
+        ebins = OneDimBinning(
+
+    ebins = binning.true_energy
+    ebin_edges = ebins.bin_edges.m_as('GeV')
+
+    plt.close(1)
+    plt.close(2)
+    plt.close(3)
+    #plot_fname = os.path.join(outdir, label + '.pdf')
+    TOP = 0.925
+    BOTTOM = 0.05
+    RIGHT = 0.97
+    LEFT = 0.07
+    HSPACE = 0.12
+    LABELPAD = 0.058
+    #AXISBG = (0.5, 0.5, 0.5)
+    AXISBG = (1.0, 1.0, 1.0)
+    DARK_RED =  (0.7, 0.0, 0.0)
+    HIST_PP = dict(
+        facecolor=(1,0.5,0.5), edgecolor=DARK_RED,
+        histtype='stepfilled', alpha=0.7, linewidth=2.0,
+        label=r'$\mathrm{Histogram}$'
+    )
+    N_HBINS = 25
+    DIFFUS_PP = dict(
+        color=(0.0, 0.0, 0.0), linestyle='-', marker=None, alpha=0.6,
+        linewidth=2.0, label=r'$\mathrm{VBWKDE}$'
+    )
+    TITLEFONTSIZE = 14
+    LEGTITLEFONTSIZE = 12
+    LEGFNTSIZE = 12
+    #RUG_PP = dict(color=(1.0, 1.0, 1.0), linewidth=0.4, alpha=0.5)
+    RUG_PP = dict(color=(0.8, 0.0, 0.0), linewidth=0.4, alpha=0.5)
+    RUG_LAB =r'$\mathrm{Rug\,plot}$'
+    LEGFNTCOL = (0,0,0)
+    #LEGFACECOL = (0.2,0.2,0.2)
+    LEGFACECOL = (0.8,0.8,0.8)
+    LEGALPHA = 0.5
+    GRIDCOL = (0.4, 0.4, 0.4)
+    #pdfpgs = PdfPages(plot_fname)
+
+    if ebin_n is None:
+        idx = slice(0, None)
+    elif isinstance(ebin_n, int):
+        idx = ebin_n
+    elif isinstance(ebin_n, slice):
+        idx = ebin_n
+    else:
+        raise ValueError('Unhadled type for `ebin_n`: %s' %type(ebin_n))
+
+    bin_numbers = range(len(kde_info))
+    binfos = kde_info.keys()
+    kinfos = kde_info.values()
+    einfos = extra_info.values()
+    for (bin_n, bin_info, kde_info, extra_info) in zip(bin_numbers[idx],
+                                                       binfos[idx],
+                                                       kinfos[idx],
+                                                       einfos[idx]):
+        # TODO: prepend name with hash (or something) to distinguish plots
+        plot_fname = os.path.join(outdir, label + format(bin_n, '03d') +
+                                  '.pdf')
 
         ebin_min, ebin_mid, ebin_max = bin_info
         ebin_wid = ebin_max - ebin_min

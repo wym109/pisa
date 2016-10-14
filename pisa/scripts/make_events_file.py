@@ -39,6 +39,7 @@ EXTRACT_FIELDS = (
     'reco_coszen',
     'one_weight',
     'interaction_prob',
+    'track_length',
     #'pid',
 )
 
@@ -50,6 +51,7 @@ OUTPUT_FIELDS = (
     'reco_coszen',
     #'mc_weight',
     #'mc_weight_per_gev_per_sr',
+    'track_length',
     'weighted_aeff',
     #'pid',
 )

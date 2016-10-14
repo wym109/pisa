@@ -357,7 +357,7 @@ if __name__ == '__main__':
     standard_pid_params = \
         pisa_standard_weighted_config[pid_k]['params'].params
     standard_pid_params.pid_weights_name.value = 'weighted_aeff'
-    standard_configs = [pisa_standard_config,
+    standard_configs = [#pisa_standard_config,
                         pisa_standard_weighted_config]
 
     pisa_recopid_settings = os.path.join(
@@ -370,16 +370,16 @@ if __name__ == '__main__':
     recopid_reco_params = \
         pisa_recopid_weighted_config[recopid_k]['params'].params
     recopid_reco_params.reco_weights_name.value = 'weighted_aeff'
-    recopid_configs = [pisa_recopid_config,
+    recopid_configs = [#pisa_recopid_config,
                        pisa_recopid_weighted_config]
 
     oscfitfile = os.path.join(
         'tests', 'data', 'oscfit', 'OscFit1X600Baseline.json'
     )
 
-    weights_names = ['unweighted',
+    weights_names = [#'unweighted',
                      'weighted_aeff']
-    short_weights_names = ['uw',
+    short_weights_names = [#'uw',
                            'wa']
 
     for psc, prc, wn, swn in zip(standard_configs,
@@ -401,7 +401,7 @@ if __name__ == '__main__':
 
         # Perform oversampled tests
         if args.oversampling or test_all:
-            oversamples = [5,10,50]
+            oversamples = [1]
             for os in oversamples:
                 psosc = oversample_config(
                     base_config=deepcopy(psc),
