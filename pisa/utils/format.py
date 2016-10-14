@@ -365,6 +365,50 @@ def text2tex(txt):
     return txt.replace('_', r'\_')
 
 
+def int2hex(i, bits, signed):
+    """Convert a signed or unsigned integer `bits` long to hexadecimal
+    representation. As many hex characters are returned to fully specify any
+    number `bits` in length regardless of the value of `i`.
+
+    Parameters
+    ----------
+    i : int
+        The integer to be converted. Signed integers have a range of
+        -2**(bits-1) to 2**(bits-1)-1), while unsigned integers have a range of
+        0 to 2**(bits-1).
+
+    bits : int
+        Number of bits long the representation is
+
+    signed : bool
+        Whether the number is a signed integer; this is dependent upon the
+        representation used for numbers, and _not_ whether the value `i` is
+        positive or negative.
+
+    Returns
+    -------
+    h : string of length ceil(bits/4.0) since it takes this many hex characters
+    to represent a number `bits` long.
+
+    """
+    if signed:
+        i = 2**63 + i
+    assert i >= 0
+    h = hex(i)[2:].replace('L', '')
+    return h.rjust(int(np.ceil(bits/4.0)), '0')
+
+
+def hash2hex(hash, bits=64):
+    if isinstance(hash, str):
+        assert len(hash) == int(np.ceil(bits/4.0))
+        hex_hash = hash
+    elif isinstance(hash, int):
+        hex_hash = int2hex(hash, bits=bits, signed=True)
+    else:
+        raise ValueError('Unhandled `hash` type %s' %type(hash))
+    return hex_hash
+
+
 if __name__ == '__main__':
     print hrlist_formatter(start=0, end=10, step=1)
     print hrlist_formatter(start=0, end=10, step=2)

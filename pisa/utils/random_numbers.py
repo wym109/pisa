@@ -15,7 +15,7 @@ def get_random_state(random_state, jumpahead=0):
 
     Parameters
     ----------
-    random_state : RandomState, string, int, state vector, or sequence of int
+    random_state : None, RandomState, string, int, state vector, or sequence of int
         Note for all of the below cases, `jumpahead` is applied _after_ the
         RansomState is initialized using the `random_state` (except for
         `random_state` indicating a truly-random number, in which case
@@ -51,7 +51,10 @@ def get_random_state(random_state, jumpahead=0):
     numpy.random.RandomState
 
     """
-    if isinstance(random_state, np.random.RandomState):
+    if random_state is None:
+        new_random_state = np.random
+
+    elif isinstance(random_state, np.random.RandomState):
         new_random_state = random_state
 
     elif isinstance(random_state, basestring):
