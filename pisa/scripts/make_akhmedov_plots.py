@@ -37,20 +37,22 @@ def do_akhmedov(h0_map, h0_name, h1_map, h1_name, fulltitle,
     akhmedov_to_plot = {}
     akhmedov_to_plot['ebins'] = h0_map['ebins']
     akhmedov_to_plot['czbins'] = h0_map['czbins']
-    akhmedov_to_plot['map'] = (h1_map['map']-h0_map['map'])/np.sqrt(h1_map['map'])
+    akhmedov_to_plot['map'] = (h1_map['map']-h0_map['map'])/np.sqrt(h0_map['map'])
 
-    akhmedovlabel = r'$\left(N_{\mathrm{%s}}-N_{\mathrm{%s}}\right)/\left(\sqrt{N_{\mathrm{%s}}}\right)$'%(h1_name,h0_name,h1_name)
+    akhmedovlabel = r'$\left(N_{\mathrm{%s}}-N_{\mathrm{%s}}\right)/\sqrt{N_{\mathrm{%s}}}$'%(h1_name,h0_name,h0_name)
 
     baseplot(m=h0_map,
              title='hypothesis 0 = %s'%h0_name,
              evtrate=True,
-             ax=axes[0])
+             ax=axes[0],
+             vmax = max(np.nanmax(h0_map['map']),np.nanmax(h1_map['map'])))
     baseplot(m=h1_map,
              title='hypothesis 1 = %s'%h1_name,
              evtrate=True,
-             ax=axes[1])
+             ax=axes[1],
+             vmax = max(np.nanmax(h0_map['map']),np.nanmax(h1_map['map'])))
     baseplot(m=akhmedov_to_plot,
-             title='Distinguishability Plot',
+             title='Asymmetry Plot',
              symm=True,
              clabel=akhmedovlabel,
              ax=axes[2])
