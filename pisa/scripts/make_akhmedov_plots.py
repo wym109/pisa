@@ -5,7 +5,7 @@
 # date:    October 16, 2016
 """
 Create an Akhmedov-style metric plot for showing significance between
-two hypotheses. Will be plotted in the style of h1-h0 / sqrt(h1).
+two hypotheses. Will be plotted in the style of h1-h0 / sqrt(h0).
 
 """
 
@@ -66,7 +66,7 @@ def parse_args():
         formatter_class=ArgumentDefaultsHelpFormatter,
         description='''Create Akhmedov-style plots showing the significance
         to distinguish the two hypotheses specified by h0 and h1. Current 
-        output will be a plot in the style of (h1-h0) / sqrt(h1)'''
+        output will be a plot in the style of (h1-h0) / sqrt(h0)'''
     )
     parser.add_argument(
         '-d', '--logdir', required=True,
