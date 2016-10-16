@@ -416,7 +416,8 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
                     'flavint %s **IS** in flavint_group %s, storing.' %
                     (flavint, flavint_group)
                 )
-            evts[flavint] = {f: extracted_data[grp_n][int_type][f] for f in output_fields}
+            evts[flavint] = {f: extracted_data[grp_n][int_type][f]
+                             for f in output_fields}
 
     # Generate file name
     numerical_runs = []

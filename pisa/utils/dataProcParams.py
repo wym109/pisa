@@ -13,17 +13,21 @@ parameters (e.g., PINGU's V5 processing).
 from collections import OrderedDict, Sequence
 from itertools import izip
 import os
+import re
+
 import h5py
-
-import pisa.utils.jsons as jsons
-from pisa.utils.flavInt import NuFlav, IntType, FlavIntData
-import pisa.utils.resources as resources
-
 # Note that the form of the numpy import is intentional, so that cuts -- which
 # are exectuted with `eval` -- will have access to numpy's namespace without
 # explicit reference to numpy. It's a hack, but it works well.
 from numpy import *
+import numpy
 import numpy as np
+
+from pisa.utils import jsons
+from pisa.utils.flavInt import NuFlav, IntType, FlavIntData
+from pisa.utils.log import logging, set_verbosity
+from pisa.utils import resources
+
 
 
 MULTI_PART_FIELDS = [
@@ -229,9 +233,9 @@ class DataProcParams(dict):
             if lk == lpv or ('v'+lk == lpv) or (lk == 'v'+lpv):
                 self.procver_key = key
                 # This works for PINGU
-            if ('msu_'+lk == lpv) or (lk == 'msu_'+lpv):
+            elif ('msu_'+lk == lpv) or (lk == 'msu_'+lpv):
                 self.procver_key = key
-            if ('nbi_'+lk == lpv) or (lk == 'nbi_'+lpv):
+            elif ('nbi_'+lk == lpv) or (lk == 'nbi_'+lpv):
                 self.procver_key = key
                 # Generalising for DeepCore and different selections
         ps = ps[self.det_key][self.procver_key]
@@ -317,6 +321,72 @@ class DataProcParams(dict):
             # 'criteria' contains a string
             assert isinstance(pidspec['criteria'], basestring)
 
+    # TODO: prefix the field names with e.g. "$" such that anything that is
+    # _not_ prefixed by this is not replaced. This allows for righer
+    # expresssions (but also dangerous things...).
+    @staticmethod
+    def retrieveExpression(h5group, expression):
+        """Retrieve data from an HDF5 group `h5group` according to
+        `expresssion`. This can apply expressions with simple mathematical
+        operators and numpy functions to multiple fields within the HDF5 file
+        to derive the output. Python keywords are _not_ allowed, since they
+        may alias with a name.
+
+        Refer to any numpy functions by prefixing with either "np.<func>" or
+        "numpy.<func>". In order to specify division, spaces must surround the
+        forward slash, such that it isn't interpreted as a path.
+
+        Nodes in the HDF5 hierarchy are separated by forward slashes ("/") in a
+        path spec. We restrict valid HDF5 node names to contain the characters
+        a-z, A-Z, 0-9, peroids ("."), and underscores ("_"). with the
+        additional restriction that the node name must not start with a period
+        or a number, and a path cannot start with a slash.
+
+
+        Parameters
+        ----------
+        h5group : h5py Group
+        expression : string
+            Expression to evaluate.
+
+        Returns
+        -------
+        result : result of evaluating `expression`
+
+        Examples
+        --------
+        >>> retrieveExpression('np.sqrt(MCneutrino/x**2 + MCneutrino/y**2)')
+
+        Indexing into the data arrays can also be performed, and numpy masks
+        used as usual:
+
+        >>> expr = 'I3MCTree/energy[I3MCTree/event == I3EventHeader[0]
+
+        """
+        h5path_re = re.compile(r'[a-zA-Z_]{1}[a-z0-9_./]*', re.IGNORECASE)
+        numpy_re = re.compile(r'^(np|numpy)\.[a-z_.]+', re.IGNORECASE)
+
+        eval_str = expression
+        intermediate_data = {}
+        for h5path in h5path_re.findall(expression):
+            if numpy_re.match(h5path):
+                continue
+            intermediate_data[h5path] = DataProcParams.retrieveNodeData(
+                h5group, h5path
+            )
+            eval_str = eval_str.replace(h5path,
+                                        "intermediate_data['%s']"%h5path)
+
+        try:
+            result = eval(eval_str)
+        except:
+            logging.error('`expression` "%s" was translated into `eval_str`'
+                          ' "%s" and failed to evaluate.'
+                          %(expression, eval_str))
+            raise
+
+        return result
+
     @staticmethod
     def retrieveNodeData(h5group, address):
         """Retrieve data from an HDF5 group `group` at address `address`.
@@ -335,27 +405,31 @@ class DataProcParams(dict):
         keys in `field_map` and values loaded from the `h5group` at addresses
         specified by the corresponding values in `field_map`.
         """
-        for var, address in field_map.items():
-            globals()[var] = DataProcParams.retrieveNodeData(h5group, address)
+        for var, h5path in field_map.items():
+            globals()[var] = DataProcParams.retrieveNodeData(h5group, h5path)
 
+    # TODO: make the following behave like `retrieveExpression` method which
+    # does not rely on populating globals (just a dict, the name of which gets
+    # substituted in where approprite to the expression) to work.
     @staticmethod
-    def cutBoolIdx(h5group, cut_fields, cut_pass_if):
+    def cutBoolIdx(h5group, cut_fields, keep_criteria):
         """Return numpy boolean indexing for data in `h5group` given a cut
         specified using `cut_fields` in the `h5group` and evaluation criteria
-        `cut_pass_if`
+        `keep_criteria`
 
         Parameters
         ----------
         h5group : h5py node/entity
         cut_fields : field_map dict
-        cut_pass_if : string
+        keep_criteria : string
 
         Returns
         -------
         bool_idx : numpy array (1=keep, 0=reject)
+
         """
         DataProcParams.populateGNS(h5group, cut_fields)
-        bool_idx = eval(cut_pass_if)
+        bool_idx = eval(keep_criteria)
         return bool_idx
 
     def getData(self, h5, run_settings=None, flav=None):
@@ -373,7 +447,7 @@ class DataProcParams(dict):
                                mode='r')
             data = OrderedDict()
             for name, path in self['field_map'].iteritems():
-                datum = self.retrieveNodeData(h5, path)
+                datum = self.retrieveExpression(h5, path)
                 path_parts = path.split('/')
                 if path_parts[0] == 'I3MCTree' and path_parts[-1] != 'Event':
                     evts = self.retrieveNodeData(
@@ -397,7 +471,7 @@ class DataProcParams(dict):
                     new_datum = []
                     this_evt = np.nan
                     this_d = None
-                    for d, evt, pdg, egy in izip(datum, evts, pdgs, energies): 
+                    for d, evt, pdg, egy in izip(datum, evts, pdgs, energies):
                         if evt != this_evt:
                             if this_d is not None:
                                 new_datum.append(this_d)
@@ -419,6 +493,7 @@ class DataProcParams(dict):
                     h5.close()
                 except: # TODO: specify exception type(s)!
                     pass
+
         self.interpretData(data)
         # TODO: enable consistency checks here & implement in run_settings
         #if run_settings is not None:
@@ -434,6 +509,7 @@ class DataProcParams(dict):
 
         Attach / reattach the translated/new fields to the `data` object passed
         into this methd.
+
         """
         for k, v in data.iteritems():
             if isinstance(v, Sequence):
@@ -512,7 +588,11 @@ class DataProcParams(dict):
             globals()[field] = data[field]
 
         # Evaluate cuts, returning a boolean array
-        bool_idx = eval(cut_string)
+        try:
+            bool_idx = eval(cut_string)
+        except:
+            logging.error('Failed to evaluate `cut_string` "%s"' %cut_string)
+            raise
 
         # Return specified (or all) fields, indexed by boolean array
         return {f:np.array(data[f])[bool_idx] for f in return_fields}
