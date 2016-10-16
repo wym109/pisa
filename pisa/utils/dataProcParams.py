@@ -369,7 +369,6 @@ class DataProcParams(dict):
         eval_str = expression
         intermediate_data = {}
         for h5path in h5path_re.findall(expression):
-            print h5path
             if numpy_re.match(h5path):
                 continue
             intermediate_data[h5path] = DataProcParams.retrieveNodeData(
