@@ -132,7 +132,7 @@ def make_ratio_map(amap, bmap):
     return result
 
 
-def baseplot(m, title, ax, symm=False, evtrate=False):
+def baseplot(m, title, ax, clabel=None, symm=False, evtrate=False):
     """Simple plotting of a 2D histogram (map)"""
     hist = np.ma.masked_invalid(m['map'])
     energy = m['ebins']
@@ -156,6 +156,8 @@ def baseplot(m, title, ax, symm=False, evtrate=False):
     X, Y = np.meshgrid(x, y)
     pcmesh = ax.pcolormesh(X, Y, hist, vmin=vmin, vmax=vmax, cmap=cmap)
     cbar = plt.colorbar(mappable=pcmesh, ax=ax)
+    if clabel is not None:
+        cbar.set_label(clabel)
     cbar.ax.tick_params(labelsize='large')
     ax.set_xlabel(r'$\cos\theta_Z$')
     ax.set_ylabel(r'Energy (GeV)')
