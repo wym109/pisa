@@ -50,7 +50,7 @@ def do_akhmedov(h0_map, h0_name, h1_map, h1_name, fulltitle,
              evtrate=True,
              ax=axes[1])
     baseplot(m=akhmedov_to_plot,
-             title='Akhmedov-Style Plot',
+             title='Distinguishability Plot',
              symm=True,
              clabel=akhmedovlabel,
              ax=axes[2])
