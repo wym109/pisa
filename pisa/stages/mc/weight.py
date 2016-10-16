@@ -45,6 +45,7 @@ class weight(Stage):
         self.weight_params = (
             'livetime',
             'oscillate',
+            'cache_flux',
         )
 
         self.flux_params = (
@@ -77,7 +78,7 @@ class weight(Stage):
         expected_params = self.flux_params + self.osc_params + self.weight_params
 
         self.neutrino = False
-        self.muongun = False
+        self.muons = False
         self.noise = False
 
         self.flux_hash = None
@@ -86,8 +87,7 @@ class weight(Stage):
         input_names = input_names.replace(' ','').split(',')
         clean_innames = []
         for name in input_names:
-            if 'muongun' in name:
-                raise NotImplementedError
+            if 'muons' in name:
                 clean_innames.append(name)
             elif 'noise' in name:
                 clean_innames.append(name)
@@ -100,9 +100,8 @@ class weight(Stage):
         clean_outnames = []
         self._output_nu_groups = []
         for name in output_names:
-            if 'muongun' in name:
-                raise NotImplementedError
-                self.muongun = True
+            if 'muons' in name:
+                self.muons = True
                 clean_outnames.append(name)
             elif 'noise' in name:
                 self.noise = True
@@ -133,34 +132,38 @@ class weight(Stage):
             output_binning=output_binning
         )
 
+        if disk_cache is not None and self.params['cache_flux'].value:
+            self.cache_hash = None
+            self.instantiate_disk_cache()
+
     @profile
     def _compute_outputs(self, inputs=None):
         """Compute nominal histograms for output channels."""
-        self.nu_data = inputs
+        self._data = inputs
 
         if self.neutrino:
             flux_weights = self.compute_flux_weights()
             if not self.params['oscillate'].value:
                 # no oscillations
-                for fig in self.nu_data:
+                for fig in self._data:
                     flav_pdg = abs(NuFlavInt(fig).flavCode())
                     if flav_pdg == 12:
-                        self.nu_data[fig]['pisa_weight'] *= \
+                        self._data[fig]['pisa_weight'] *= \
                                 flux_weights[fig]['nue_flux']
                     elif flav_pdg == 14:
-                        self.nu_data[fig]['pisa_weight'] *= \
+                        self._data[fig]['pisa_weight'] *= \
                                 flux_weights[fig]['numu_flux']
                     elif flav_pdg == 16:
-                        self.nu_data[fig]['pisa_weight'] *= 0.
+                        self._data[fig]['pisa_weight'] *= 0.
             else:
                 # oscillations
                 osc_weights = self.compute_osc_weights(flux_weights)
-                for fig in self.nu_data:
-                    self.nu_data[fig]['pisa_weight'] *= osc_weights[fig]
+                for fig in self._data:
+                    self._data[fig]['pisa_weight'] *= osc_weights[fig]
 
         outputs = []
         if self.neutrino:
-            trans_nu_data = self.nu_data.transform_groups(
+            trans_nu_data = self._data.transform_groups(
                 self._output_nu_groups
             )
             for fig in trans_nu_data.iterkeys():
@@ -172,7 +175,17 @@ class weight(Stage):
                     name        = str(NuFlavIntGroup(fig)),
                 ))
 
-        return MapSet(maps=outputs, name=self.nu_data.metadata['name'])
+        if self.muons:
+            outputs.append(self._data.histogram(
+                kinds       = 'muons',
+                binning     = self.output_binning,
+                weights_col = 'pisa_weight',
+                errors      = True,
+                name        = 'muons',
+                tex         = r'\rm{muons}'
+            ))
+
+        return MapSet(maps=outputs, name=self._data.metadata['name'])
 
     def compute_flux_weights(self):
         """Neutrino fluxes via `honda` service."""
@@ -180,24 +193,53 @@ class weight(Stage):
                                for name in self.flux_params])
         if self.flux_hash == this_hash:
             return self._flux_weights
+
         data_contains_flux = all(['nue_flux' in fig and 'numu_flux' in fig
-                                  for fig in self.nu_data.itervalues()])
+                                  for fig in self._data.itervalues()])
         if data_contains_flux:
+            logging.info('Loading flux values from data.')
             flux_weights = {}
-            for fig in self.nu_data.iterkeys():
+            for fig in self._data.iterkeys():
                 flux_weights[fig] = {}
-                flux_weights[fig]['nue_flux'] = self.nu_data[fig]['nue_flux']
-                flux_weights[fig]['numu_flux'] = self.nu_data[fig]['numu_flux']
-        try:
-            flux_weights = self._flux_weights
-        except AttributeError:
+                flux_weights[fig]['nue_flux'] = self._data[fig]['nue_flux']
+                flux_weights[fig]['numu_flux'] = self._data[fig]['numu_flux']
+        elif self.params['cache_flux'].value:
+            cache_flux_params = (
+                'energy_scale',
+                'flux_file',
+                'flux_mode'
+            )
+            this_cache_hash = [self.params[name].value
+                               for name in cache_flux_params]
+            # TODO(shivesh): caching with name is OK?
+            this_cache_hash = normQuant([self._data.metadata['name'],
+                                         this_cache_hash])
+            this_cache_hash = hash_obj(this_cache_hash)
+
+            if self.disk_cache.has_key(this_cache_hash):
+                logging.info('Loading flux values from cache.')
+                flux_weights = self.disk_cache[this_cache_hash]
+            else:
+                flux_params = []
+                for param in self.params:
+                    if param.name in self.flux_params:
+                        flux_params.append(param)
+                flux_weights = self._compute_flux_weights(
+                    self._data, ParamSet(flux_params)
+                )
+        else:
             flux_params = []
             for param in self.params:
                 if param.name in self.flux_params:
                     flux_params.append(param)
             flux_weights = self._compute_flux_weights(
-                self.nu_data, ParamSet(flux_params)
+                self._data, ParamSet(flux_params)
             )
+
+        if self.params['cache_flux'].value:
+            if not self.disk_cache.has_key(this_cache_hash):
+                logging.info('Caching flux values to disk.')
+                self.disk_cache[this_cache_hash] = flux_weights
         # TODO(shivesh): flux systematics
 
         self.flux_hash = this_hash
@@ -215,7 +257,7 @@ class weight(Stage):
             if param.name in self.osc_params:
                 osc_params.append(param)
         osc_weights = self._compute_osc_weights(
-            self.nu_data, ParamSet(osc_params), flux_weights
+            self._data, ParamSet(osc_params), flux_weights
         )
         self.osc_hash = this_hash
         self._osc_weights = osc_weights
@@ -336,6 +378,8 @@ class weight(Stage):
             prob_mu = np.zeros(osc_data[fig]['n_evts'], dtype=FTYPE)
             cuda.memcpy_dtoh(prob_e, osc_data[fig]['device']['prob_e'])
             cuda.memcpy_dtoh(prob_mu, osc_data[fig]['device']['prob_mu'])
+            osc_data[fig]['device']['prob_e'].free()
+            osc_data[fig]['device']['prob_mu'].free()
 
             osc_weights[fig] = flux_weights[fig]['nue_flux']*prob_e + \
                     flux_weights[fig]['numu_flux']*prob_mu
@@ -345,6 +389,7 @@ class weight(Stage):
     def validate_params(self, params):
         assert isinstance(params['livetime'].value, pint.quantity._Quantity)
         assert isinstance(params['oscillate'].value, bool)
+        assert isinstance(params['cache_flux'].value, bool)
         assert isinstance(params['earth_model'].value, basestring)
         assert isinstance(params['detector_depth'].value, pint.quantity._Quantity)
         assert isinstance(params['theta12'].value, pint.quantity._Quantity)

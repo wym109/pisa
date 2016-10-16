@@ -71,7 +71,7 @@ class sample(Stage):
         * 'numu_cc+numubar_cc'
         * 'nutau_cc+nutaubar_cc'
         * 'nuall_nc+nuallbar_nc'
-        * 'muongun'
+        * 'muons'
         * 'noise'
 
     """
@@ -86,15 +86,15 @@ class sample(Stage):
         )
 
         self.neutrino = False
-        self.muongun = False
+        self.muons = False
         self.noise = False
 
         output_names = output_names.replace(' ','').split(',')
         clean_outnames = []
         self._output_nu_groups = []
         for name in output_names:
-            if 'muongun' in name:
-                self.muongun = True
+            if 'muons' in name:
+                self.muons = True
                 clean_outnames.append(name)
             elif 'noise' in name:
                 self.noise = True
@@ -137,11 +137,11 @@ class sample(Stage):
         """Compute nominal histograms for output channels."""
         outputs = []
         if self.neutrino:
-            trans_nu_data = self.nu_data.transform_groups(
+            trans_nu_data = self._data.transform_groups(
                 self._output_nu_groups
             )
             for fig in trans_nu_data.iterkeys():
-                outputs.append(trans_nu_data.histogram(
+                outputs.append(self._data.histogram(
                     kinds       = fig,
                     binning     = self.output_binning,
                     weights_col = 'pisa_weight',
@@ -149,19 +149,18 @@ class sample(Stage):
                     name        = str(NuFlavIntGroup(fig)),
                 ))
 
-        if self.muongun:
-            outputs.append(self._histogram(
-                events  = self._muongun_events,
-                binning = self.output_binning,
-                weights = self._muongun_events['pisa_weight'],
-                errors  = True,
-                name    = 'muongun',
-                tex     = r'\rm{muongun}'
+        if self.muons:
+            outputs.append(self._data.histogram(
+                kinds       = 'muons',
+                binning     = self.output_binning,
+                weights_col = 'pisa_weight',
+                errors      = True,
+                name        = 'muons',
+                tex         = r'\rm{muons}'
             ))
 
         if self.params['output_events'].value:
-            # TODO(shivesh): make this better
-            return trans_nu_data
+            return self._data
         else:
             name = self.config.get('general', 'name')
             return MapSet(maps=outputs, name=name)
@@ -170,18 +169,10 @@ class sample(Stage):
         """Load the event sample given the configuration file and output
         groups. Hash this object using both the configuration file and
         the output types."""
-        hash_property = [self.config, self.neutrino, self.muongun]
+        hash_property = [self.config, self.neutrino, self.muons]
         this_hash = hash_obj(normQuant(hash_property))
-        events = {}
         if this_hash == self.sample_hash:
-            if self.neutrino:
-                events['neutrino'] = self.nu_data
-                if self.muongun:
-                    events['muons'] = self._muongun_events
-                return events
-            elif self.muongun:
-                events['muons'] = self._muongun_events
-                return events
+            return
 
         logging.info(
             'Extracting events using configuration file {0} and output names '
@@ -191,28 +182,25 @@ class sample(Stage):
             return string.replace(' ', '').split(',')
         event_types = parse(self.config.get('general', 'event_type'))
 
-        # TODO(shivesh): when created, use a more generic Events object
-        # (that natively supports muons, noise etc.) to store the event
-        # sample
+        events = []
         if self.neutrino:
             if 'neutrino' not in event_types:
                 raise AssertionError('`neutrino` field not found in '
                                      'configuration file.')
-            self.nu_data = self.load_neutrino_events(
+            nu_data = self.load_neutrino_events(
                 config=self.config,
             )
-            events['neutrino'] = self.nu_data
-        if self.muongun:
-            if 'muongun' not in event_types:
-                raise AssertionError('`muongun` field not found in '
+            events.append(nu_data)
+        if self.muons:
+            if 'muons' not in event_types:
+                raise AssertionError('`muons` field not found in '
                                      'configuration file.')
-            self._muongun_events = self.load_moungun_events(
+            muon_events = self.load_muon_events(
                 config=self.config,
             )
-            events['muongun'] = self._muon_events
+            events.append(muon_events)
+        self._data = reduce(add, events)
         self.sample_hash = this_hash
-
-        return events
 
     @staticmethod
     def load_neutrino_events(config):
@@ -281,17 +269,18 @@ class sample(Stage):
         return nu_data
 
     @staticmethod
-    def load_moungun_events(config):
+    def load_muon_events(config):
+        name = config.get('general', 'name')
         def parse(string):
             return string.replace(' ', '').split(',')
-        sys_list = parse(config.get('muongun', 'sys_list'))
-        weight = config.get('muongun', 'weight')
-        base_suffix = config.get('muongun', 'basesuffix')
+        sys_list = parse(config.get('muons', 'sys_list'))
+        weight = config.get('muons', 'weight')
+        base_suffix = config.get('muons', 'basesuffix')
         if base_suffix == 'None': base_suffix = ''
 
         paths = []
         for sys in sys_list:
-            ev_sys = 'muongun:' + sys
+            ev_sys = 'muons:' + sys
             nominal = config.get(ev_sys, 'nominal')
             ev_sys_nom = ev_sys + ':' + nominal
             paths.append(config.get(ev_sys_nom, 'file_path'))
@@ -304,50 +293,24 @@ class sample(Stage):
             )
         file_path = paths[0]
 
-        muongun = from_file(file_path)
+        muons = from_file(file_path)
 
         if weight == 'None' or weight == '1':
-            muongun['pisa_weight'] = \
-                    np.ones(muongun['weights'].shape)
+            muons['pisa_weight'] = \
+                    np.ones(muons['weights'].shape)
         elif weight == '0':
-            muongun['pisa_weight'] = \
-                    np.zeros(muongun['weights'].shape)
+            muons['pisa_weight'] = \
+                    np.zeros(muons['weights'].shape)
         else:
-            muongun['pisa_weight'] = muongun[weight]
-        return muongun
+            muons['pisa_weight'] = muons[weight]
 
-    @staticmethod
-    def _histogram(events, binning, weights=None, errors=False, **kwargs):
-        """Histogram the events given the input binning."""
-        if isinstance(binning, OneDimBinning):
-            binning = MultiDimBinning([binning])
-        elif not isinstance(binning, MultiDimBinning):
-            raise TypeError('Unhandled type %s for `binning`.' %type(binning))
-        if not isinstance(events, dict):
-            raise TypeError('Unhandled type %s for `events`.' %type(events))
-        logging.debug('Histogramming')
+        if 'zenith' in muons and 'coszen' not in muons:
+            muons['coszen'] = np.cos(muons['zenith'])
+        if 'reco_zenith' in muons and 'reco_coszen' not in muons:
+            muons['reco_coszen'] = np.cos(muons['reco_zenith'])
 
-        bin_names = binning.names
-        bin_edges = [edges.m for edges in binning.bin_edges]
-        for name in bin_names:
-            if not events.has_key(name):
-                if 'coszen' in name and events.has_key('zenith'):
-                    events[name] = np.cos(events['zenith'])
-                else:
-                    raise AssertionError('Input events object does not have '
-                                         'key {0}'.format(name))
-
-        sample = [events[colname] for colname in bin_names]
-        hist, edges = np.histogramdd(
-            sample=sample, weights=weights, bins=bin_edges
-        )
-        if errors:
-            hist2, edges = np.histogramdd(
-                sample=sample, weights=np.square(weights), bins=bin_edges
-            )
-            hist = unp.uarray(hist, np.sqrt(hist2))
-
-        return Map(hist=hist, binning=binning, **kwargs)
+        muon_dict = {'muons': muons}
+        return Data(muon_dict, metadata={'name': name})
 
     def validate_params(self, params):
         assert isinstance(params['mc_sample_config'].value, basestring)
