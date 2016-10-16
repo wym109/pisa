@@ -5,22 +5,19 @@ oscillation and various systematics.
 This service in particular is intended to follow a `data` service which takes
 advantage of the Events object being passed as a sideband in the Stage.
 """
-from copy import deepcopy
-
 import numpy as np
 import pint
-from uncertainties import unumpy as unp
 
 import pycuda.driver as cuda
 import pycuda.autoinit
 
 from pisa import ureg, Q_
 from pisa.core.stage import Stage
-from pisa.core.map import Map, MapSet
+from pisa.core.map import MapSet
 from pisa.core.binning import OneDimBinning, MultiDimBinning
 from pisa.core.param import ParamSet
 from pisa.utils.flavInt import ALL_NUFLAVINTS
-from pisa.utils.flavInt import NuFlavInt, NuFlavIntGroup, FlavIntDataGroup
+from pisa.utils.flavInt import NuFlavInt, NuFlavIntGroup
 from pisa.utils.comparisons import normQuant
 from pisa.utils.const import FTYPE
 from pisa.utils.hash import hash_obj
@@ -146,14 +143,20 @@ class weight(Stage):
             if not self.params['oscillate'].value:
                 # no oscillations
                 for fig in self._data:
-                    flav_pdg = abs(NuFlavInt(fig).flavCode())
+                    flav_pdg = NuFlavInt(fig).flavCode()
                     if flav_pdg == 12:
                         self._data[fig]['pisa_weight'] *= \
                                 flux_weights[fig]['nue_flux']
                     elif flav_pdg == 14:
                         self._data[fig]['pisa_weight'] *= \
                                 flux_weights[fig]['numu_flux']
-                    elif flav_pdg == 16:
+                    elif flav_pdg == -12:
+                        self._data[fig]['pisa_weight'] *= \
+                                flux_weights[fig]['nuebar_flux']
+                    elif flav_pdg == -14:
+                        self._data[fig]['pisa_weight'] *= \
+                                flux_weights[fig]['numubar_flux']
+                    elif abs(flav_pdg) == 16:
                         self._data[fig]['pisa_weight'] *= 0.
             else:
                 # oscillations
@@ -194,8 +197,10 @@ class weight(Stage):
         if self.flux_hash == this_hash:
             return self._flux_weights
 
-        data_contains_flux = all(['nue_flux' in fig and 'numu_flux' in fig
-                                  for fig in self._data.itervalues()])
+        data_contains_flux = all(
+            ['nue_flux' in fig and 'numu_flux' in fig and 'nuebar_flux' in fig
+             and 'numubar_flux' in fig for fig in self._data.itervalues()]
+        )
         if data_contains_flux:
             logging.info('Loading flux values from data.')
             flux_weights = {}
@@ -203,6 +208,8 @@ class weight(Stage):
                 flux_weights[fig] = {}
                 flux_weights[fig]['nue_flux'] = self._data[fig]['nue_flux']
                 flux_weights[fig]['numu_flux'] = self._data[fig]['numu_flux']
+                flux_weights[fig]['nuebar_flux'] = self._data[fig]['nuebar_flux']
+                flux_weights[fig]['numubar_flux'] = self._data[fig]['numubar_flux']
         elif self.params['cache_flux'].value:
             cache_flux_params = (
                 'energy_scale',
@@ -240,7 +247,26 @@ class weight(Stage):
             if not self.disk_cache.has_key(this_cache_hash):
                 logging.info('Caching flux values to disk.')
                 self.disk_cache[this_cache_hash] = flux_weights
-        # TODO(shivesh): flux systematics
+
+        # TODO(shivesh): more flux systematics
+        for fig in flux_weights:
+            nue_flux = flux_weights[fig]['nue_flux']
+            numu_flux = flux_weights[fig]['numu_flux']
+            nuebar_flux = flux_weights[fig]['nuebar_flux']
+            numubar_flux = flux_weights[fig]['numubar_flux']
+
+            nue_flux, nuebar_flux = self.apply_ratio_scale(
+                nue_flux, nuebar_flux, self.params['nu_nubar_ratio'].value
+            )
+            numu_flux, numubar_flux = self.apply_ratio_scale(
+                numu_flux, numubar_flux, self.params['nu_nubar_ratio'].value
+            )
+            nue_flux, numu_flux = self.apply_ratio_scale(
+                nue_flux, numu_flux, self.params['nue_numu_ratio'].value
+            )
+            nuebar_flux, numubar_flux = self.apply_ratio_scale(
+                nuebar_flux, numubar_flux, self.params['nue_numu_ratio'].value
+            )
 
         self.flux_hash = this_hash
         self._flux_weights = flux_weights
@@ -285,17 +311,19 @@ class weight(Stage):
         flux_weights = {}
         for fig in nu_data.iterkeys():
             flux_weights[fig] = {}
-            particle = NuFlavInt(fig).isParticle()
-            if particle: prefix = ''
-            else : prefix = 'bar'
 
             logging.debug('Computing flux values for flavour {0}'.format(fig))
-            # TODO(shivesh): make faster
             flux_weights[fig]['nue_flux'] = flux.calculate_flux_weights(
-                'nue'+prefix, nu_data[fig]['energy'], nu_data[fig]['coszen']
+                'nue', nu_data[fig]['energy'], nu_data[fig]['coszen']
             )
             flux_weights[fig]['numu_flux'] = flux.calculate_flux_weights(
-                'numu'+prefix, nu_data[fig]['energy'], nu_data[fig]['coszen']
+                'numu', nu_data[fig]['energy'], nu_data[fig]['coszen']
+            )
+            flux_weights[fig]['nuebar_flux'] = flux.calculate_flux_weights(
+                'nuebar', nu_data[fig]['energy'], nu_data[fig]['coszen']
+            )
+            flux_weights[fig]['numubar_flux'] = flux.calculate_flux_weights(
+                'numubar', nu_data[fig]['energy'], nu_data[fig]['coszen']
             )
 
         return flux_weights
@@ -313,10 +341,6 @@ class weight(Stage):
         deltam21 = params['deltam21'].m_as('eV**2')
         deltam31 = params['deltam31'].m_as('eV**2')
         deltacp = params['deltacp'].m_as('rad')
-        YeI = params['YeI'].m_as('dimensionless')
-        YeO = params['YeO'].m_as('dimensionless')
-        YeM = params['YeM'].m_as('dimensionless')
-        prop_height = params['prop_height'].m_as('km')
 
         osc = prob3gpu(
             params = params,
@@ -335,7 +359,6 @@ class weight(Stage):
             osc_data[fig] = {}
             energy_array = nu_data[fig]['energy'].astype(FTYPE)
             coszen_array = nu_data[fig]['coszen'].astype(FTYPE)
-            pisa_weights = nu_data[fig]['pisa_weight'].astype(FTYPE)
             n_evts = np.uint32(len(energy_array))
             osc_data[fig]['n_evts'] = n_evts
 
@@ -360,13 +383,16 @@ class weight(Stage):
             flavint = NuFlavInt(fig)
             pdg = abs(flavint.flavCode())
             kNuBar = 1 if flavint.isParticle() else -1
+            p = '' if flavint.isParticle() else 'bar'
             if pdg == 12: kFlav = 0
             elif pdg == 14: kFlav = 1
             elif pdg == 16: kFlav = 2
+
             if 'nc' in fig and params['no_nc_osc'].value:
-                if kFlav == 0: osc_weights[fig] = flux_weights[fig]['nue_flux']
+                if kFlav == 0:
+                    osc_weights[fig] = flux_weights[fig]['nue'+p+'_flux']
                 elif kFlav == 1:
-                    osc_weights[fig] = flux_weights[fig]['numu_flux']
+                    osc_weights[fig] = flux_weights[fig]['numu'+p+'_flux']
                 elif kFlav == 2: osc_weights[fig] = 0.
                 continue
 
@@ -378,13 +404,24 @@ class weight(Stage):
             prob_mu = np.zeros(osc_data[fig]['n_evts'], dtype=FTYPE)
             cuda.memcpy_dtoh(prob_e, osc_data[fig]['device']['prob_e'])
             cuda.memcpy_dtoh(prob_mu, osc_data[fig]['device']['prob_mu'])
-            osc_data[fig]['device']['prob_e'].free()
-            osc_data[fig]['device']['prob_mu'].free()
 
-            osc_weights[fig] = flux_weights[fig]['nue_flux']*prob_e + \
-                    flux_weights[fig]['numu_flux']*prob_mu
+            for key in osc_data[fig]['device']:
+                osc_data[fig]['device'][key].free()
+
+            osc_weights[fig] = flux_weights[fig]['nue'+p+'_flux']*prob_e + \
+                    flux_weights[fig]['numu'+p+'_flux']*prob_mu
 
         return osc_weights
+
+    @staticmethod
+    def apply_ratio_scale(flux_a, flux_b, ratio_scale):
+        """Apply a ratio systematic to the flux weights."""
+        orig_ratio = flux_a / flux_b
+        orig_sum = flux_a + flux_b
+
+        scaled_a = orig_sum / (1 + ratio_scale*orig_ratio)
+        scaled_b = ratio_scale*orig_ratio * scaled_a
+        return scaled_a, scaled_b
 
     def validate_params(self, params):
         assert isinstance(params['livetime'].value, pint.quantity._Quantity)

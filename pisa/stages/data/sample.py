@@ -11,14 +11,10 @@ https://wiki.icecube.wisc.edu/index.php/IC86_oscillations_event_selection
 from operator import add
 
 import numpy as np
-import pint
-from uncertainties import unumpy as unp
 
-from pisa import ureg, Q_
 from pisa.core.stage import Stage
 from pisa.core.events import Data
-from pisa.core.map import Map, MapSet
-from pisa.core.binning import OneDimBinning, MultiDimBinning
+from pisa.core.map import MapSet
 from pisa.utils.flavInt import ALL_NUFLAVINTS, NuFlavIntGroup, FlavIntDataGroup
 from pisa.utils.fileio import from_file
 from pisa.utils.comparisons import normQuant
@@ -38,6 +34,11 @@ class sample(Stage):
         Parameters required by this service are
             * mc_sample_config : filepath
                 Filepath to event sample configuration
+
+            * keep_criteria : None or string
+                Apply a cut such as the only events which satisfy
+                `keep_criteria` are kept.
+                Any string interpretable as numpy boolean expression.
 
             * output_events : bool
                 Flag to specify whether the service output returns a MapSet
@@ -82,7 +83,7 @@ class sample(Stage):
         """Hash of event sample"""
 
         expected_params = (
-            'mc_sample_config', 'output_events'
+            'mc_sample_config', 'keep_criteria', 'output_events'
         )
 
         self.neutrino = False
@@ -135,6 +136,9 @@ class sample(Stage):
     @profile
     def _compute_outputs(self, inputs=None):
         """Compute nominal histograms for output channels."""
+        if self.params['keep_criteria'].value is not None:
+            self._data.applyCut(self.params['keep_criteria'].value)
+
         outputs = []
         if self.neutrino:
             trans_nu_data = self._data.transform_groups(
@@ -314,4 +318,6 @@ class sample(Stage):
 
     def validate_params(self, params):
         assert isinstance(params['mc_sample_config'].value, basestring)
+        assert params['keep_criteria'].value is None or \
+                isinstance(params['keep_criteria'].value, basestring)
         assert isinstance(params['output_events'].value, bool)
