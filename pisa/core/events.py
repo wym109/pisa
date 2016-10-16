@@ -107,7 +107,7 @@ class Events(FlavIntData):
         return recursiveEquality(self.metadata, other.metadata)
 
     def data_eq(self, other):
-        """Test whether the data for this object matche that of `other`"""
+        """Test whether the data for this object matches that of `other`"""
         return recursiveEquality(self, other)
 
     def __eq__(self, other):
@@ -345,6 +345,7 @@ class Data(FlavIntDataGroup):
             ('cuts', []),
             ('flavints_joined', []),
         ])
+        self.are_muons = False
 
         meta = {}
         if isinstance(val, basestring) or isinstance(val, h5py.Group):
@@ -366,11 +367,31 @@ class Data(FlavIntDataGroup):
         elif metadata is not None:
             self.metadata.update(metadata)
 
-        super(Data, self).__init__(val=data, flavint_groups=flavint_groups)
+        if self.metadata['flavints_joined'] == list([]):
+            if 'muons' in data:
+                self.muons = deepcopy(data['muons'])
+                del(data['muons'])
+        elif 'muons' in self.metadata['flavints_joined']:
+            if 'muons' not in data:
+                raise AssertionError('Metadata has muons specified but '
+                                     'they are not found in the data')
+            else:
+                self.muons = deepcopy(data['muons'])
+                del(data['muons'])
+        elif 'muons' in data:
+            raise AssertionError('Found muons in data but not found in '
+                                 'metadata key `flavints_joined`')
+
+        if data == dict():
+            self._flavint_groups = []
+        else:
+            super(Data, self).__init__(val=data, flavint_groups=flavint_groups)
 
         if self.metadata['flavints_joined']:
+            self_flavint_groups = [str(f) for f in self.flavint_groups]
+            if self.are_muons: self_flavint_groups += ['muons']
             if set(self.metadata['flavints_joined']) != \
-               set([str(f) for f in self.flavint_groups]):
+               set(self_flavint_groups):
                 raise AssertionError(
                     '`flavint_groups` metadata does not match the '
                     'flavint_groups in the data\n{0} != '
@@ -378,18 +399,11 @@ class Data(FlavIntDataGroup):
                                  set([str(f) for f in self.flavint_groups]))
                 )
         else:
-            self.metadata['flavints_joined'] = \
-                    [str(f) for f in self.flavint_groups]
+            self.metadata['flavints_joined'] = [str(f)
+                                                for f in self.flavint_groups]
+            if self.are_muons: self.metadata['flavints_joined'] += ['muons']
 
         self._hash = hash_obj(normQuant(self.metadata))
-
-    def __str__(self):
-        meta = [(str(k) + ' : ' + str(v)) for k,v in self.metadata.items()]
-        #fields =
-        return '\n'.join(meta)
-
-    def __repr__(self):
-        return str(self)
 
     @property
     def hash(self):
@@ -398,6 +412,18 @@ class Data(FlavIntDataGroup):
     @hash.setter
     def hash(self, val):
         self._hash = val
+
+    @property
+    def muons(self):
+        if not self.are_muons:
+            raise AssertionError('No muons loaded in Data')
+        return self._muons
+
+    @muons.setter
+    def muons(self, val):
+        assert(isinstance(val, dict))
+        self.are_muons = True
+        self._muons = val
 
     @property
     def names(self):
@@ -410,121 +436,6 @@ class Data(FlavIntDataGroup):
     def data_eq(self, other):
         """Test whether the data for this object matche that of `other`"""
         return recursiveEquality(self, other)
-
-    def __eq__(self, other):
-        return self.meta_eq(other) and self.data_eq(other)
-
-    def __load(self, fname):
-        try:
-            data, meta = from_file(fname, return_attrs=True)
-        except TypeError:
-            data = from_file(fname)
-            meta = None
-        return data, meta
-
-    def histogram(self, kinds, binning, binning_cols=None, weights_col=None,
-                  errors=False, name=None, tex=None, **kwargs):
-        """Histogram the events of all `kinds` specified, with `binning` and
-        optionally applying `weights`.
-
-        Parameters
-        ----------
-        kinds : string, sequence of NuFlavInt, or NuFlavIntGroup
-        binning : OneDimBinning, MultiDimBinning or sequence of arrays (one array per binning dimension)
-        binning_cols : string or sequence of strings
-            Bin only these dimensions, ignoring other dimensions in `binning`
-        weights_col : None or string
-            Column to use for weighting the events
-        errors : bool
-            Whether to attach errors to the resulting Map
-        name : None or string
-            Name to give to resulting Map. If None, a default is derived from
-            `kinds` and `weights_col`.
-        tex : None or string
-            TeX label to give to the resulting Map. If None, default is
-            dereived from the `name` specified or the derived default.
-        **kwargs : Keyword args passed to Map object
-
-        Returns
-        -------
-        Map : numpy ndarray with as many dimensions as specified by `binning`
-            argument
-
-        """
-        # TODO: make able to take integer for `binning` and--in combination
-        # with units in the Data columns--generate an appropriate
-        # MultiDimBinning object, attach this and return the package as a Map.
-
-        kinds = self._parse_flavint_groups(kinds)
-        if isinstance(binning_cols, basestring):
-            binning_cols = [binning_cols]
-        assert weights_col is None or isinstance(weights_col, basestring)
-
-        # TODO: units of columns, and convert bin edges if necessary
-        if isinstance(binning, OneDimBinning):
-            binning = MultiDimBinning([binning])
-            #bin_edges = [binning.magnitude]
-            #if binning_cols is None:
-            #    binning_cols = [binning.name]
-            #else:
-            #    assert len(binning_cols) == 1 and binning_cols[0] == binning.name
-        elif isinstance(binning, MultiDimBinning):
-            pass
-        elif isinstance(binning, Iterable) and not isinstance(binning, Sequence):
-            binning = [b for b in binning]
-        elif isinstance(binning, Sequence):
-            pass
-        else:
-            raise TypeError('Unhandled type %s for `binning`.' %type(binning))
-
-        if isinstance(binning, Sequence):
-            raise NotImplementedError(
-                'Simle sequences not handled at this time. Please specify a'
-                ' OneDimBinning or MultiDimBinning object for `binning`.'
-            )
-            #assert len(binning_cols) == len(binning)
-            #bin_edges = binning
-
-        # TODO: units support for Data will mean we can do `m_as(...)` here!
-        bin_edges = [edges.magnitude for edges in binning.bin_edges]
-        if binning_cols is None:
-            binning_cols = binning.names
-        else:
-            assert set(binning_cols).issubset(set(binning.names))
-
-        # Extract the columns' data into a list of array(s) for histogramming
-        repr_flav_int = kinds[0]
-        sample = [self[repr_flav_int][colname] for colname in binning_cols]
-        err_weights = None
-        hist_weights = None
-        if weights_col is not None:
-            hist_weights = self[repr_flav_int][weights_col]
-            if errors:
-                err_weights = np.square(hist_weights)
-
-        hist, edges = np.histogramdd(sample=sample,
-                                     weights=hist_weights,
-                                     bins=bin_edges)
-        if errors:
-            sumw2, edges = np.histogramdd(sample=sample,
-                                          weights=err_weights,
-                                          bins=bin_edges)
-            hist = unp.uarray(hist, np.sqrt(sumw2))
-
-        if name is None:
-            if tex is None:
-                tex = kinds.tex()
-                if weights_col is not None:
-                    tex += r', \; {\rm weights=' + text2tex(weights_col) + r'}'
-
-            name = str(kinds)
-            if weights_col is not None:
-                name += ', weights=' + weights_col
-
-        if tex is None:
-            tex = r'{\rm ' + text2tex(name) + r'}'
-
-        return Map(name=name, hist=hist, binning=binning, tex=tex, **kwargs)
 
     def applyCut(self, keep_criteria):
         """Apply a cut by specifying criteria for keeping events. The cut must
@@ -556,7 +467,8 @@ class Data(FlavIntDataGroup):
 
         assert isinstance(keep_criteria, basestring)
 
-        fig_to_process = self.flavint_groups
+        fig_to_process = deepcopy(self.flavint_groups)
+        if self.are_muons: fig_to_process += ['muons']
         fig_processed = []
         new_data = {}
         try:
@@ -627,13 +539,190 @@ class Data(FlavIntDataGroup):
         t_fidg = super(Data, self).transform_groups(flavint_groups)
         metadata = deepcopy(self.metadata)
         metadata['flavints_joined'] = [str(f) for f in t_fidg.flavint_groups]
+        if self.are_muons:
+            metadata['flavints_joined'] += ['muons']
+            t_dict = dict(t_fidg)
+            t_dict['muons'] = self['muons']
+            t_fidg = t_dict
         return Data(t_fidg, metadata=metadata)
 
-    def __add__(self, other):
-        a_fidg = super(Data, self).__add__(other)
+    def histogram(self, kinds, binning, binning_cols=None, weights_col=None,
+                  errors=False, name=None, tex=None, **kwargs):
+        """Histogram the events of all `kinds` specified, with `binning` and
+        optionally applying `weights`.
+
+        Parameters
+        ----------
+        kinds : string, sequence of NuFlavInt, or NuFlavIntGroup
+        binning : OneDimBinning, MultiDimBinning or sequence of arrays (one array per binning dimension)
+        binning_cols : string or sequence of strings
+            Bin only these dimensions, ignoring other dimensions in `binning`
+        weights_col : None or string
+            Column to use for weighting the events
+        errors : bool
+            Whether to attach errors to the resulting Map
+        name : None or string
+            Name to give to resulting Map. If None, a default is derived from
+            `kinds` and `weights_col`.
+        tex : None or string
+            TeX label to give to the resulting Map. If None, default is
+            dereived from the `name` specified or the derived default.
+        **kwargs : Keyword args passed to Map object
+
+        Returns
+        -------
+        Map : numpy ndarray with as many dimensions as specified by `binning`
+            argument
+
+        """
+        # TODO: make able to take integer for `binning` and--in combination
+        # with units in the Data columns--generate an appropriate
+        # MultiDimBinning object, attach this and return the package as a Map.
+
+        if isinstance(kinds, basestring):
+            kinds = [kinds]
+        if 'muons' not in kinds:
+            kinds = self._parse_flavint_groups(kinds)
+        kinds = kinds[0]
+
+        if isinstance(binning_cols, basestring):
+            binning_cols = [binning_cols]
+        assert weights_col is None or isinstance(weights_col, basestring)
+
+        # TODO: units of columns, and convert bin edges if necessary
+        if isinstance(binning, OneDimBinning):
+            binning = MultiDimBinning([binning])
+            #bin_edges = [binning.magnitude]
+            #if binning_cols is None:
+            #    binning_cols = [binning.name]
+            #else:
+            #    assert len(binning_cols) == 1 and binning_cols[0] == binning.name
+        elif isinstance(binning, MultiDimBinning):
+            pass
+        elif isinstance(binning, Iterable) and not isinstance(binning, Sequence):
+            binning = [b for b in binning]
+        elif isinstance(binning, Sequence):
+            pass
+        else:
+            raise TypeError('Unhandled type %s for `binning`.' %type(binning))
+
+        if isinstance(binning, Sequence):
+            raise NotImplementedError(
+                'Simle sequences not handled at this time. Please specify a'
+                ' OneDimBinning or MultiDimBinning object for `binning`.'
+            )
+            #assert len(binning_cols) == len(binning)
+            #bin_edges = binning
+
+        # TODO: units support for Data will mean we can do `m_as(...)` here!
+        bin_edges = [edges.magnitude for edges in binning.bin_edges]
+        if binning_cols is None:
+            binning_cols = binning.names
+        else:
+            assert set(binning_cols).issubset(set(binning.names))
+
+        # Extract the columns' data into a list of array(s) for histogramming
+        sample = [self[kinds][colname] for colname in binning_cols]
+        err_weights = None
+        hist_weights = None
+        if weights_col is not None:
+            hist_weights = self[kinds][weights_col]
+            if errors:
+                err_weights = np.square(hist_weights)
+
+        hist, edges = np.histogramdd(sample=sample,
+                                     weights=hist_weights,
+                                     bins=bin_edges)
+        if errors:
+            sumw2, edges = np.histogramdd(sample=sample,
+                                          weights=err_weights,
+                                          bins=bin_edges)
+            hist = unp.uarray(hist, np.sqrt(sumw2))
+
+        if name is None:
+            if tex is None:
+                try: tex = kinds.tex()
+                except: tex = r'{0}'.format(kinds)
+                if weights_col is not None:
+                    tex += r', \; {\rm weights=' + text2tex(weights_col) + r'}'
+
+            name = str(kinds)
+            if weights_col is not None:
+                name += ', weights=' + weights_col
+
+        if tex is None:
+            tex = r'{\rm ' + text2tex(name) + r'}'
+
+        return Map(name=name, hist=hist, binning=binning, tex=tex, **kwargs)
+
+    def __load(self, fname):
+        try:
+            data, meta = from_file(fname, return_attrs=True)
+        except TypeError:
+            data = from_file(fname)
+            meta = None
+        return data, meta
+
+    def __getitem__(self, arg):
+        if arg == 'muons':
+            return self.muons
+        tgt_obj = super(Data, self).__getitem__(arg)
+        return tgt_obj
+
+    def __setitem__(self, arg, value):
+        if arg == 'muons':
+            self.muons = value
+            return
+        super(Data, self).__setitem__(arg, value)
+
+    def __add__(self, other, keep_self_metadata=False):
+        muons = None
+        assert isinstance(other, Data)
+
+        if not keep_self_metadata:
+            for key in self.metadata:
+                if key != 'flavints_joined' and \
+                   self.metadata[key] != other.metadata[key]:
+                    raise AssertionError(
+                        'Metadata mismatch, key {0}, {1} != '
+                        '{2}'.format(key, self.metadata[key],
+                                     other.metadata[key])
+                    )
         metadata = deepcopy(self.metadata)
+
+        if self.are_muons:
+            if other.are_muons:
+                muons = self._merge(deepcopy(self['muons']), other['muons'])
+            else:
+                muons = deepcopy(self['muons'])
+        elif other.are_muons:
+            muons = deepcopy(other['muons'])
+
+        if len(self.flavint_groups) == 0:
+            if len(other.flavint_groups) == 0:
+                a_fidg = FlavIntDataGroup(other)
+        elif len(other.flavint_groups) == 0:
+            a_fidg = FlavIntDataGroup(self)
+        else:
+            a_fidg = super(Data, self).__add__(other)
         metadata['flavints_joined'] = [str(f) for f in a_fidg.flavint_groups]
+
+        if muons is not None:
+            a_dict = dict(a_fidg)
+            metadata['flavints_joined'] += ['muons']
+            a_dict['muons'] = muons
+            a_fidg = a_dict
         return Data(a_fidg, metadata=metadata)
+
+    def __str__(self):
+        meta = [(str(k) + ' : ' + str(v)) for k,v in self.metadata.items()]
+        return '\n'.join(meta)
+
+    def __repr__(self):
+        return str(self)
+
+    def __eq__(self, other):
+        return self.meta_eq(other) and self.data_eq(other)
 
 
 def test_Events():
@@ -706,24 +795,33 @@ def test_Data():
     data2 = Data(d2)
     print data.keys()
 
+    muon_file = '/data/icecube/data/mlarson/level7_24Nov2015/current_pickle_files/Level7_muongun.12370_15.pckl'
+    m = {'muons': from_file(muon_file)}
+    m = Data(val=m)
+    print m
+    data = data + m
+    print data
+    if not data.are_muons:
+        raise Exception("data doesn't contain muons.")
+
     # Apply a simple cut
-    data.applyCut('(zenith <= 0.5) & (energy <= 70)')
+    data.applyCut('(zenith <= 1.1) & (energy <= 200)')
     for fi in data.flavint_groups:
-        assert np.max(data[fi]['zenith']) <= 0.5
-        assert np.max(data[fi]['energy']) <= 70
+        assert np.max(data[fi]['zenith']) <= 1.1
+        assert np.max(data[fi]['energy']) <= 200
 
     # Apply an "inbounds" cut via a OneDimBinning
     e_binning = OneDimBinning(
-        name='energy', num_bins=80, is_log=True, domain=[10, 60]*ureg.GeV
+        name='energy', num_bins=80, is_log=True, domain=[10, 200]*ureg.GeV
     )
     data.keepInbounds(e_binning)
     for fi in data.flavint_groups:
         assert np.min(data[fi]['energy']) >= 10
-        assert np.max(data[fi]['energy']) <= 60
+        assert np.max(data[fi]['energy']) <= 200
 
     # Apply an "inbounds" cut via a MultiDimBinning
     e_binning = OneDimBinning(
-        name='energy', num_bins=80, is_log=True, domain=[20, 50]*ureg.GeV
+        name='energy', num_bins=80, is_log=True, domain=[20, 210]*ureg.GeV
     )
     cz_binning = OneDimBinning(
         name='zenith', num_bins=40, is_lin=True, domain=[0.1, 1.8*np.pi]
@@ -732,7 +830,7 @@ def test_Data():
     data.keepInbounds(mdb)
     for fi in data.flavint_groups:
         assert np.min(data[fi]['energy']) >= 20
-        assert np.max(data[fi]['energy']) <= 50
+        assert np.max(data[fi]['energy']) <= 210
         assert np.min(data[fi]['zenith']) >= 0.1
         assert np.max(data[fi]['zenith']) <= 1.8*np.pi
 
@@ -758,7 +856,7 @@ def test_Data():
     data = Data('/tmp/test_FlavIntDataGroup.json')
     data = Data(val='/tmp/test_FlavIntDataGroup.hdf5')
 
-    d3 = data + data2
+    d3 = data + data2 + m
     print d3
     d3_com = d3.transform_groups(['nue+nuebar+numu+numubar'])
     print d3_com
