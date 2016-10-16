@@ -13,19 +13,21 @@ parameters (e.g., PINGU's V5 processing).
 from collections import OrderedDict, Sequence
 from itertools import izip
 import os
+import re
+
 import h5py
-
-from pisa.utils import jsons
-from pisa.utils.flavInt import NuFlav, IntType, FlavIntData
-from pisa.utils.log import logging, set_verbosity
-from pisa.utils import resources
-
 # Note that the form of the numpy import is intentional, so that cuts -- which
 # are exectuted with `eval` -- will have access to numpy's namespace without
 # explicit reference to numpy. It's a hack, but it works well.
 from numpy import *
 import numpy
 import numpy as np
+
+from pisa.utils import jsons
+from pisa.utils.flavInt import NuFlav, IntType, FlavIntData
+from pisa.utils.log import logging, set_verbosity
+from pisa.utils import resources
+
 
 
 MULTI_PART_FIELDS = [
@@ -231,9 +233,9 @@ class DataProcParams(dict):
             if lk == lpv or ('v'+lk == lpv) or (lk == 'v'+lpv):
                 self.procver_key = key
                 # This works for PINGU
-            if ('msu_'+lk == lpv) or (lk == 'msu_'+lpv):
+            elif ('msu_'+lk == lpv) or (lk == 'msu_'+lpv):
                 self.procver_key = key
-            if ('nbi_'+lk == lpv) or (lk == 'nbi_'+lpv):
+            elif ('nbi_'+lk == lpv) or (lk == 'nbi_'+lpv):
                 self.procver_key = key
                 # Generalising for DeepCore and different selections
         ps = ps[self.det_key][self.procver_key]
@@ -331,13 +333,15 @@ class DataProcParams(dict):
         may alias with a name.
 
         Refer to any numpy functions by prefixing with either "np.<func>" or
-        "numpy.<func>".
+        "numpy.<func>". In order to specify division, spaces must surround the
+        forward slash, such that it isn't interpreted as a path.
 
         Nodes in the HDF5 hierarchy are separated by forward slashes ("/") in a
         path spec. We restrict valid HDF5 node names to contain the characters
         a-z, A-Z, 0-9, peroids ("."), and underscores ("_"). with the
         additional restriction that the node name must not start with a period
-        or a number.
+        or a number, and a path cannot start with a slash.
+
 
         Parameters
         ----------
@@ -359,16 +363,20 @@ class DataProcParams(dict):
         >>> expr = 'I3MCTree/energy[I3MCTree/event == I3EventHeader[0]
 
         """
-        h5path_re = re.compile(r'[a-zA-Z_/]{1}[a-z0-9_./]*', re.IGNORECASE)
+        h5path_re = re.compile(r'[a-zA-Z_]{1}[a-z0-9_./]*', re.IGNORECASE)
         numpy_re = re.compile(r'^(np|numpy)\.[a-z_.]+', re.IGNORECASE)
 
         eval_str = expression
         intermediate_data = {}
         for h5path in h5path_re.findall(expression):
+            print h5path
             if numpy_re.match(h5path):
                 continue
-            intermediate_data[h5path] = self.retrieveNodeData(h5group, h5path)
-            eval_str.replace(h5path, 'intermediate_data[%s]'%h5path)
+            intermediate_data[h5path] = DataProcParams.retrieveNodeData(
+                h5group, h5path
+            )
+            eval_str = eval_str.replace(h5path,
+                                        "intermediate_data['%s']"%h5path)
 
         try:
             result = eval(eval_str)
@@ -581,7 +589,11 @@ class DataProcParams(dict):
             globals()[field] = data[field]
 
         # Evaluate cuts, returning a boolean array
-        bool_idx = eval(cut_string)
+        try:
+            bool_idx = eval(cut_string)
+        except:
+            logging.error('Failed to evaluate `cut_string` "%s"' %cut_string)
+            raise
 
         # Return specified (or all) fields, indexed by boolean array
         return {f:np.array(data[f])[bool_idx] for f in return_fields}
