@@ -1006,7 +1006,7 @@ class FlavIntData(dict):
         self.validate(d)
         self.update(d)
 
-    def __interpret_index(self, idx):
+    def _interpret_index(self, idx):
         if not isinstance(idx, basestring) and hasattr(idx, '__len__') \
                 and len(idx) == 1:
             idx = idx[0]
@@ -1022,7 +1022,7 @@ class FlavIntData(dict):
 
     def __getitem__(self, *args):
         assert len(args) <= 2
-        key_list = self.__interpret_index(args)
+        key_list = self._interpret_index(args)
         tgt_obj = super(FlavIntData, self).__getitem__(key_list[0])
         if len(key_list) == 2:
             tgt_obj = tgt_obj[key_list[1]]
@@ -1031,7 +1031,7 @@ class FlavIntData(dict):
     def __setitem__(self, *args):
         assert len(args) > 1
         item, value = args[:-1], args[-1]
-        key_list = self.__interpret_index(item)
+        key_list = self._interpret_index(item)
         if len(key_list) == 1:
             self.__validate_inttype_dict(value)
             value = self.__translate_inttype_dict(value)
@@ -1233,6 +1233,7 @@ class FlavIntDataGroup(dict):
 
     @flavint_groups.setter
     def flavint_groups(self, value):
+        if 'muons' in value: assert 0
         fig = self._parse_flavint_groups(value)
         all_flavints = reduce(add, [f.flavints() for f in fig])
         for fi in set(all_flavints):
@@ -1332,8 +1333,6 @@ class FlavIntDataGroup(dict):
         arrays are found, after which the appropriate sub-element is
         made equal to the concatenation of the two arrays.
         """
-        logging.trace('Merging {0} with keys {1} '
-                      '{2}'.format(type(a), a.keys(), b.keys()))
         if path is None: path = []
         for key in b:
             if key in a:
@@ -1348,7 +1347,7 @@ class FlavIntDataGroup(dict):
                 a[key] = b[key]
         return a
 
-    def __interpret_index(self, idx):
+    def _interpret_index(self, idx):
         try:
             nfi = NuFlavIntGroup(idx)
             return str(nfi)
@@ -1376,12 +1375,14 @@ class FlavIntDataGroup(dict):
         return FlavIntDataGroup(val=d, flavint_groups=combined_flavint_groups)
 
     def __getitem__(self, arg):
-        key = self.__interpret_index(arg)
+        key = self._interpret_index(arg)
         tgt_obj = super(FlavIntDataGroup, self).__getitem__(key)
         return tgt_obj
 
     def __setitem__(self, arg, value):
-        key = self.__interpret_index(arg)
+        key = self._interpret_index(arg)
+        if NuFlavIntGroup(key) not in self.flavint_groups:
+            self.flavint_groups += [NuFlavIntGroup(key)]
         super(FlavIntDataGroup, self).__setitem__(key, value)
 
     def __eq__(self, other):
@@ -2099,7 +2100,7 @@ def test_FlavIntDataGroup():
     for k in cfidat.flavint_groups:
         cfidat[k] = np.arange(10)
 
-    cfidat[NuFlavIntGroup('nuecc+numucc')] = np.arange(10)
+    cfidat[NuFlavIntGroup('nuecc+nuebarcc')] = np.arange(10)
 
     print fidg1 + fidg2
     assert fidg1 == fidg2
