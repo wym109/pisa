@@ -475,19 +475,32 @@ class gpu(Stage):
         if recalc_osc or recalc_weight:
             start_t = time.time()
             # histogram events and download fromm GPU, if either weights or osc changed
-            for flav in self.flavs:
-                self.events_dict[flav]['hist'] = self.histogrammer.get_hist(self.events_dict[flav]['n_evts'],
-                                                                        d_x = self.events_dict[flav]['device'][self.bin_names[0]],
-                                                                        d_y = self.events_dict[flav]['device'][self.bin_names[1]],
-                                                                        d_z = self.events_dict[flav]['device'][self.bin_names[2]],
-                                                                        d_w = self.events_dict[flav]['device']['weight'])
+            if len(self.bin_names) == 2:
+                for flav in self.flavs:
+                    self.events_dict[flav]['hist'] = self.histogrammer.get_hist(self.events_dict[flav]['n_evts'],
+                                                                            d_x = self.events_dict[flav]['device'][self.bin_names[0]],
+                                                                            d_y = self.events_dict[flav]['device'][self.bin_names[1]],
+                                                                            d_w = self.events_dict[flav]['device']['weight'])
 
-                if self.error_method in ['sumw2', 'fixed_sumw2']:
-                    self.events_dict[flav]['sumw2'] = self.histogrammer.get_hist(self.events_dict[flav]['n_evts'],
+                    if self.error_method in ['sumw2', 'fixed_sumw2']:
+                        self.events_dict[flav]['sumw2'] = self.histogrammer.get_hist(self.events_dict[flav]['n_evts'],
+                                                                                d_x = self.events_dict[flav]['device'][self.bin_names[0]],
+                                                                                d_y = self.events_dict[flav]['device'][self.bin_names[1]],
+                                                                                d_w = self.events_dict[flav]['device']['sumw2'])
+            else:
+                for flav in self.flavs:
+                    self.events_dict[flav]['hist'] = self.histogrammer.get_hist(self.events_dict[flav]['n_evts'],
                                                                             d_x = self.events_dict[flav]['device'][self.bin_names[0]],
                                                                             d_y = self.events_dict[flav]['device'][self.bin_names[1]],
                                                                             d_z = self.events_dict[flav]['device'][self.bin_names[2]],
-                                                                            d_w = self.events_dict[flav]['device']['sumw2'])
+                                                                            d_w = self.events_dict[flav]['device']['weight'])
+
+                    if self.error_method in ['sumw2', 'fixed_sumw2']:
+                        self.events_dict[flav]['sumw2'] = self.histogrammer.get_hist(self.events_dict[flav]['n_evts'],
+                                                                                d_x = self.events_dict[flav]['device'][self.bin_names[0]],
+                                                                                d_y = self.events_dict[flav]['device'][self.bin_names[1]],
+                                                                                d_z = self.events_dict[flav]['device'][self.bin_names[2]],
+                                                                                d_w = self.events_dict[flav]['device']['sumw2'])
             end_t = time.time()
             logging.debug('GPU hist done in %.4f ms for %s events'%(((end_t - start_t) * 1000),tot))
 
