@@ -240,7 +240,8 @@ class Map(object):
         # Do the work here to set read-only attributes
         super(Map, self).__setattr__('_binning', binning)
         binning.assert_array_fits(hist)
-        super(Map, self).__setattr__('_hist', hist)
+        super(Map, self).__setattr__('_hist', 
+                np.ascontiguousarray(hist))
         if error_hist is not None:
             self.set_errors(error_hist)
 
@@ -271,7 +272,7 @@ class Map(object):
             return
         self.assert_compat(error_hist)
         super(Map, self).__setattr__('_hist', unp.uarray(self._hist,
-                                                         error_hist))
+                                        np.ascontiguousarray(error_hist)))
 
     def compare(self, ref):
         """Compare this map with another.
