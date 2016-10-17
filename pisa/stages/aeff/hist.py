@@ -12,6 +12,7 @@ from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.core.events import Events
 from pisa.utils.flavInt import ALL_NUFLAVINTS, flavintGroupsFromString, \
         IntType, NuFlavIntGroup
+from pisa.utils.fileio import mkdir, to_file
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile
@@ -185,6 +186,13 @@ class hist(Stage):
         if 'true_coszen' not in input_binning:
             missing_dims_vol *= 2
 
+        if bool(self.debug_mode):
+            outdir = os.path.join(find_resource('debug'),
+                                  self.stage_name,
+                                  self.service_name)
+            mkdir(outdir)
+            #hex_hash = hash2hex(kde_hash)
+
         nominal_transforms = []
         for xform_flavints in self.transform_groups:
             logging.debug("Computing aeff xform for %s..." %xform_flavints)
@@ -204,6 +212,11 @@ class hist(Stage):
             # missing dimensions is applied here.
             bin_volumes = input_binning.bin_volumes(attach_units=False)
             aeff_transform /= (bin_volumes * missing_dims_vol)
+
+            if self.debug_mode:
+                outfile = os.path.join(outdir,
+                                       'aeff_' + str(xform_flavints) + '.dill')
+                to_file(aeff_transform, outfile)
 
             # If combining grouped flavints:
             # Create a single transform for each group and assign all flavors

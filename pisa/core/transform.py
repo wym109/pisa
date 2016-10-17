@@ -588,7 +588,8 @@ class BinnedTensorTransform(Transform):
             return
         assert error_array.shape == self.xform_array.shape
         super(BinnedTensorTransform, self).__setattr__(
-            '_xform_array', unp.uarray(self._xform_array, error_array)
+            '_xform_array', unp.uarray(self._xform_array, 
+                    np.ascontiguousarray(error_array))
         )
 
     @property
@@ -598,7 +599,7 @@ class BinnedTensorTransform(Transform):
     @xform_array.setter
     def xform_array(self, x):
         self.validate_transform(self.input_binning, self.output_binning, x)
-        self._xform_array = x
+        self._xform_array = np.ascontiguousarray(x)
 
     def _new_obj(original_function):
         """Decorator to deepcopy unaltered states into new object"""

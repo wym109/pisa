@@ -399,7 +399,7 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
         logging.info('Files read, run %s: %d' % (run, count))
         ref_num_i3_files = run_settings[run]['num_i3_files']
         if count != ref_num_i3_files:
-            logging.warn('Run %d, Number of files read (%d) != number of '
+            logging.warn('Run %s, Number of files read (%d) != number of '
                          'source I3 files (%d), which may indicate an error.' %
                          (run, count, ref_num_i3_files))
 
@@ -416,7 +416,8 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
                     'flavint %s **IS** in flavint_group %s, storing.' %
                     (flavint, flavint_group)
                 )
-            evts[flavint] = {f: extracted_data[grp_n][int_type][f] for f in output_fields}
+            evts[flavint] = {f: extracted_data[grp_n][int_type][f]
+                             for f in output_fields}
 
     # Generate file name
     numerical_runs = []

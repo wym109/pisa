@@ -239,10 +239,8 @@ class Map(object):
         # Do the work here to set read-only attributes
         super(Map, self).__setattr__('_binning', binning)
         binning.assert_array_fits(hist)
-        #print hist.flags
-        #print hist.strides
-        #print hist.ndim
-        super(Map, self).__setattr__('_hist', np.ascontiguousarray(hist))
+        super(Map, self).__setattr__('_hist', 
+                np.ascontiguousarray(hist))
         if error_hist is not None:
             self.set_errors(error_hist)
 
@@ -273,7 +271,7 @@ class Map(object):
             return
         self.assert_compat(error_hist)
         super(Map, self).__setattr__('_hist', unp.uarray(self._hist,
-                                                         np.ascontiguousarray(error_hist)))
+                                        np.ascontiguousarray(error_hist)))
 
     def compare(self, ref):
         """Compare this map with another.
@@ -765,6 +763,46 @@ class Map(object):
 
     def __getitem__(self, idx):
         return self._slice_or_index(idx)
+
+    def slice_map_by_name(self, dim_name, bin_name):
+        """
+        Slice the existing map by selecting the bin defined by bin_name
+        along the dimension defined by dim_name
+
+        Parameters
+        ----------
+        dim_name : string corresponding to one of the dimension names
+        bin_name : string corresponding to one of the bin names along t
+                   his dimension.
+
+        Returns
+        -------
+        Map corresponding to the requested slice. Dimensionality should 
+        otherwise be preserved. 
+
+        """
+        assert isinstance(dim_name, basestring)
+        assert isinstance(bin_name, basestring)
+        if dim_name not in self.binning.names:
+            raise ValueError('`%s` must be in binning. Found %s'
+                             %(dim_name,self.binning.names))
+        if bin_name not in self.binning[dim_name].bin_names:
+            raise ValueError('Unknown %s classification %s.'
+                             %(dim_name,bin_name))
+        dim_index = self.binning.names.index(dim_name)
+        bin_index = self.binning[dim_name].bin_names.index(bin_name)
+        idx = []
+        other_bins = []
+        for i, name in enumerate(self.binning.names):
+            if i != dim_index:
+                idx.append(slice(None))
+                other_bins.append(self.binning[name])
+            else:
+                idx.append(bin_index)
+        idx = tuple(idx)
+        binning = MultiDimBinning(other_bins)
+        hist = self.hist[idx]
+        return Map(name=bin_name, hist=hist, binning=binning)
 
     def llh(self, expected_values):
         """Calculate the total log-likelihood value between this map and the map

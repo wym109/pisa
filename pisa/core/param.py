@@ -267,10 +267,7 @@ class Param(object):
         self.nominal_value = self.value
 
     def randomize(self, random_state=None):
-        if random_state is None:
-            random = np.random
-        else:
-            random = get_random_state(random_state)
+        random = get_random_state(random_state)
         rand = random.rand()
         self._rescaled_value = rand
 
@@ -606,10 +603,7 @@ class ParamSet(Sequence):
         self.nominal_values = self.values
 
     def randomize_free(self, random_state=None):
-        if random_state is None:
-            random = np.random
-        else:
-            random = get_random_state(random_state)
+        random = get_random_state(random_state)
         n = len(self.free)
         rand = random.rand(n)
         self.free._rescaled_values = rand
