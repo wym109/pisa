@@ -16,6 +16,7 @@ import numpy as np
 import pint
 from pisa import ureg, Q_
 
+from pisa.utils import jsons
 from pisa.utils.comparisons import isbarenumeric, normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
@@ -409,6 +410,13 @@ class ParamSet(Sequence):
         self._params = param_sequence
 
     @property
+    def _serializable_state(self):
+        state = OrderedDict()
+        for p in self._params:
+            state[p.name] = p.state
+        return state
+
+    @property
     def _by_name(self):
         return {obj.name: obj for obj in self._params}
 
@@ -725,6 +733,11 @@ class ParamSet(Sequence):
     def state_hash(self):
         return hash_obj(normQuant(self.state))
 
+    def to_json(self, filename, **kwargs):
+        """Serialize the state to a JSON file that can be instantiated as a new
+        object later.
+        """
+        jsons.to_json(self._serializable_state, filename=filename, **kwargs)
 
 class ParamSelector(object):
     """
