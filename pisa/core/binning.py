@@ -124,6 +124,12 @@ class OneDimBinning(object):
 
     num_bins : int
 
+    bin_names : None or sequence of strings
+        Strings by which each bin can be identified. This is expected to be
+        useful when one needs to easily identify bins by name where the actual
+        numerical values can be non-obvious e.g. the PID dimension.
+        None is also acceptable if there is no reason to name the bins.
+
 
     Notes
     -----
@@ -155,10 +161,10 @@ class OneDimBinning(object):
     # `is_log` and `is_lin` are required for state alongsize bin_edges so that
     # a sub-sampling down to a single bin that is then resampled to > 1 bin
     # will retain the log/linear property of the original OneDimBinning.
-    _hash_attrs = ('name', 'tex', 'bin_edges', 'is_log', 'is_lin')
+    _hash_attrs = ('name', 'tex', 'bin_edges', 'is_log', 'is_lin', 'bin_names')
 
     def __init__(self, name, tex=None, bin_edges=None, units=None, domain=None,
-                 num_bins=None, is_lin=None, is_log=None):
+                 num_bins=None, is_lin=None, is_log=None, bin_names=None):
         if not isinstance(name, basestring):
             raise TypeError('`name` must be basestring; got "%s".' %type(name))
         if domain is not None:
@@ -302,6 +308,24 @@ class OneDimBinning(object):
         else:
             self._weighted_centers = self.midpoints
 
+        if bin_names is not None:
+            if not isinstance(bin_names, Iterable):
+                raise ValueError('bin_names object needs to be iterable.')
+            if not isinstance(bin_names, Sequence):
+                # Converting bin_names to a list so it can be indexed.
+                # Needed by future operations.
+                bin_names = [name for name in bin_names]    
+            if len(set(bin_names)) != len(bin_names):
+                raise ValueError('All bin names should be unique!')
+            if len(bin_names) != num_bins:
+                raise ValueError('Each bin should have a name!')
+            for bin_name in bin_names:
+                if not isinstance(bin_name, basestring):
+                    raise ValueError('%s is not a valid name. '
+                                     'It must be a string'%bin_name)
+
+        self._bin_names = bin_names
+
         # TODO: define hash based upon conversion of things to base units (such
         # that a valid comparison can be made between indentical binnings but
         # that use different units). Be careful to round to just less than
@@ -363,6 +387,7 @@ class OneDimBinning(object):
         state['units'] = str(self.units)
         state['is_log'] = self.is_log
         state['is_lin'] = self.is_lin
+        state['bin_names'] = self.bin_names
         return state
 
     @property
@@ -373,6 +398,7 @@ class OneDimBinning(object):
         state['bin_edges'] = bin_edges
         state['is_log'] = self.is_log
         state['is_lin'] = self.is_lin
+        state['bin_names'] = self.bin_names
         return state
 
     @property
@@ -394,6 +420,10 @@ class OneDimBinning(object):
     @property
     def bin_edges(self):
         return self._bin_edges
+
+    @property
+    def bin_names(self):
+        return self._bin_names
 
     @property
     def domain(self):
@@ -778,9 +808,10 @@ class OneDimBinning(object):
 
         Parameters
         ----------
-        index : int, slice, or length-one Sequence
+        index : int, slice, str, or length-one Sequence
             The *bin indices* (not bin-edge indices) to return. Generated
             OneDimBinning object must obey the usual rules (monotonic, etc.).
+            If a str is supplied it must match a name in bin_names
 
         Returns
         -------
@@ -790,6 +821,14 @@ class OneDimBinning(object):
         magnitude = self.bin_edges.magnitude
         units = self.bin_edges.units
         orig_index = index
+
+        # Deal with indexing by name first as to not break anything else
+        if isinstance(index, basestring):
+            assert self.bin_names is not None
+            if index in self.bin_names:
+                index = [self.binning[dim_name].bin_names.index(bin_name)]
+            else:
+                raise ValueError('`index` "%s" not found in bin names'%index)
 
         # Simple to get all but final bin edge
         bin_edges = magnitude[index].tolist()
@@ -805,6 +844,9 @@ class OneDimBinning(object):
         if isinstance(index, int):
             index = [index]
         if isinstance(index, Sequence):
+            for bin_index in index:
+                if isinstance(bin_index, str):
+                    raise ValueError('Slicing by name currently not supported')
             if len(index) == 0:
                 raise ValueError('`index` "%s" results in no bins being'
                                  ' specified.' %orig_index)
