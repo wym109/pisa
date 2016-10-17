@@ -58,7 +58,12 @@ if __name__ == '__main__':
         product of inner sequences.'''
     )
     parser.add_argument(
-        '--param-selection', type=str, required=False,
+        '--data-param-selection', type=str, required=False,
+        help='''Selection of params to use in order to generate the data
+        distributions.'''
+    )
+    parser.add_argument(
+        '--hypo-param-selections', type=str, nargs='+', required=False,
         help='''Selection of params to use in order to generate the hypothesised
         Asimov distributions.'''
     )
@@ -89,14 +94,11 @@ if __name__ == '__main__':
 
     set_verbosity(args.v)
 
-    if args.data_settings is None:
-        data_settings = args.template_settings
-    else:
-        data_settings = args.data_settings
-
-    data_maker = DistributionMaker(data_settings)
     hypo_maker = DistributionMaker(args.template_settings)
+    data_maker = hypo_maker if args.data_settings is None else \
+                                        DistributionMaker(args.data_settings)
 
+    data_maker.select_params(args.data_param_selection)
     data = data_maker.get_total_outputs()
 
     analysis = Analysis()
@@ -104,7 +106,7 @@ if __name__ == '__main__':
     minimizer_settings = from_file(args.minimizer_settings)
 
     res = analysis.scan(data_dist=data, hypo_maker=hypo_maker,
-                        hypo_param_selections=args.param_selection,
+                        hypo_param_selections=args.hypo_param_selections,
                         metric=args.metric, param_names=args.param_names,
                         steps=args.steps, only_points=args.only_points,
                         outer=not args.no_outer, profile=args.profile,

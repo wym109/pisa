@@ -619,6 +619,8 @@ class Analysis(object):
             param_names = [param_names]
 
         nparams = len(param_names)
+        hypo_maker.select_params(hypo_param_selections)
+
         if values is not None:
             if np.isscalar(values):
                 values = np.array([values])
@@ -683,18 +685,17 @@ class Analysis(object):
                 params[pname].value = val
                 results['steps'][pname].append(val)
             hypo_maker.update_params(params)
-            # TODO: what happens if hypo_param_selections is sequence
-            # (minimize over all hypotheses simultaneously, separately?)
+            # TODO: consistent treatment of hypo_param_selections and scanning
             if not profile or len(hypo_maker.params.free) == 0:
-                logging.info("""Not optimizing since `profile` set to False or"""
-                             """ no free parameters found...""")
+                logging.info('Not optimizing since `profile` set to False or'
+                             ' no free parameters found...')
                 bf = self.nofit_hypo(data_dist=data_dist,
                                      hypo_maker=hypo_maker,
                                      hypo_param_selections=hypo_param_selections,
                                      hypo_asimov_dist=hypo_maker.get_total_outputs(),
                                      metric=metric, **kwargs)
             else:
-                logging.info("Starting optimization since `profile` requested.")
+                logging.info('Starting optimization since `profile` requested.')
                 bf, af = self.fit_hypo(data_dist=data_dist,
                                        hypo_maker=hypo_maker,
                                        hypo_param_selections=hypo_param_selections,
