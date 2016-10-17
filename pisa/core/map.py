@@ -742,7 +742,7 @@ class Map(object):
     def __getitem__(self, idx):
         return self._slice_or_index(idx)
 
-    def slice_hist_by_name(self, dim_name, bin_name):
+    def slice_map_by_name(self, dim_name, bin_name):
         assert isinstance(dim_name, basestring)
         assert isinstance(bin_name, basestring)
         if dim_name not in self.binning.names:
@@ -751,16 +751,22 @@ class Map(object):
         if bin_name not in self.binning[dim_name].bin_names:
             raise ValueError('Unknown %s classification %s.'
                              %(dim_name,bin_name))
-        bin_index = self.binning[dim_name].bin_names.index(bin_name)
         dim_index = self.binning.names.index(dim_name)
+        bin_index = self.binning[dim_name].bin_names.index(bin_name)
         idx = []
-        for i in range(0,len(self.binning.names)):
+        other_bins = []
+        for i, name in enumerate(self.binning.names):
             if i != dim_index:
                 idx.append(slice(None))
+                other_bins.append(self.binning[name])
             else:
                 idx.append(bin_index)
         idx = tuple(idx)
-        return self.hist[idx]
+        binning = MultiDimBinning(other_bins)
+        hist = self.hist[idx]
+        logging.info('Returning new map sliced on %s dimension by %s name.'
+                     %(dim_name,bin_name))
+        return Map(name=bin_name, hist=hist, binning=binning)
 
     def llh(self, expected_values):
         """Calculate the total log-likelihood value between this map and the map

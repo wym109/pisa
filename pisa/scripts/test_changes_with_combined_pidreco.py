@@ -14,8 +14,6 @@ import os
 import numpy as np
 
 from pisa import ureg, Q_
-from pisa.core.binning import OneDimBinning, MultiDimBinning
-from pisa.core.map import MapSet
 from pisa.core.pipeline import Pipeline
 from pisa.utils.config_parser import parse_pipeline_config
 from pisa.utils.fileio import from_file
@@ -62,10 +60,10 @@ def compare_pisa_self(config1, config2, testname1, testname2, outdir):
         cake1_trck_map_to_plot['czbins'] = \
             cake1_both_map.binning['reco_coszen'].bin_edges.magnitude
         cake1_trck_map_to_plot['map'] = \
-            cake1_both_map.slice_hist_by_name(
+            cake1_both_map.slice_map_by_name(
                 dim_name='pid',
                 bin_name='trck'
-            )
+            ).hist
         cake1_trck_events = np.sum(cake1_trck_map_to_plot['map'])
         cake1_cscd_map_to_plot = {}
         cake1_cscd_map_to_plot['ebins'] = \
@@ -73,10 +71,10 @@ def compare_pisa_self(config1, config2, testname1, testname2, outdir):
         cake1_cscd_map_to_plot['czbins'] = \
             cake1_both_map.binning['reco_coszen'].bin_edges.magnitude
         cake1_cscd_map_to_plot['map'] = \
-            cake1_both_map.slice_hist_by_name(
+            cake1_both_map.slice_map_by_name(
                 dim_name='pid',
                 bin_name='cscd'
-            )
+            ).hist
         cake1_cscd_events = np.sum(cake1_cscd_map_to_plot['map'])
     else:
         raise ValueError("Should be comparing 4-stage or 5-stage PISAs.")
@@ -106,10 +104,10 @@ def compare_pisa_self(config1, config2, testname1, testname2, outdir):
         cake2_trck_map_to_plot['czbins'] = \
             cake2_both_map.binning['reco_coszen'].bin_edges.magnitude
         cake2_trck_map_to_plot['map'] = \
-            cake2_both_map.slice_hist_by_name(
+            cake2_both_map.slice_map_by_name(
                 dim_name='pid',
                 bin_name='trck'
-            )
+            ).hist
         cake2_trck_events = np.sum(cake2_trck_map_to_plot['map'])
         cake2_cscd_map_to_plot = {}
         cake2_cscd_map_to_plot['ebins'] = \
@@ -117,10 +115,10 @@ def compare_pisa_self(config1, config2, testname1, testname2, outdir):
         cake2_cscd_map_to_plot['czbins'] = \
             cake2_both_map.binning['reco_coszen'].bin_edges.magnitude
         cake2_cscd_map_to_plot['map'] = \
-            cake2_both_map.slice_hist_by_name(
+            cake2_both_map.slice_map_by_name(
                 dim_name='pid',
                 bin_name='cscd'
-            )
+            ).hist
         cake2_cscd_events = np.sum(cake2_cscd_map_to_plot['map'])
     else:
         raise ValueError("Should be comparing 4-stage or 5-stage PISAs.")
@@ -276,10 +274,18 @@ def compare_4stage(config, testname, outdir, oscfitfile):
                 cake_map.binning['reco_coszen'].bin_edges.magnitude
         if nukey == 'trck':
             texname = r'\rm{trck}'
-            cake_map_to_plot['map'] = cake_map.hist[1]
+            cake_map_to_plot['map'] = \
+                cake_map.slice_map_by_name(
+                    dim_name='pid',
+                    bin_name='trck'
+                ).hist
         elif nukey == 'cscd':
             texname = r'\rm{cscd}'
-            cake_map_to_plot['map'] = cake_map.hist[0]
+            cake_map_to_plot['map'] = \
+                cake_map.slice_map_by_name(
+                    dim_name='pid',
+                    bin_name='cscd'
+                ).hist
         pisa_events = np.sum(cake_map_to_plot['map'])
 
         max_diff_ratio, max_diff = plot_comparisons(

@@ -124,9 +124,11 @@ class OneDimBinning(object):
 
     num_bins : int
 
-    bin_names : sequence
+    bin_names : None or sequence of strings
         Strings by which each bin can be identified. This is expected to be
-        useful for the PID dimension and make it simpler to identify the bins.
+        useful when one needs to easily identify bins by name where the actual
+        numerical values can be non-obvious e.g. the PID dimension.
+        None is also acceptable if there is no reason to name the bins.
 
 
     Notes
@@ -308,9 +310,14 @@ class OneDimBinning(object):
 
         if bin_names is not None:
             assert isinstance(bin_names, Iterable)
-            assert len(bin_names) == num_bins
+            if len(set(bin_names)) != len(bin_names):
+                raise ValueError('All bin names should be unique!')
+            if len(bin_names) != num_bins:
+                raise ValueError('Each bin should have a name!')
             for bin_name in bin_names:
-                assert isinstance(bin_name, basestring)
+                if not isinstance(bin_name, basestring):
+                    raise ValueError('%s is not a valid name. '
+                                     'It must be a string'%bin_name)
 
         self._bin_names = bin_names
 
@@ -810,6 +817,14 @@ class OneDimBinning(object):
         units = self.bin_edges.units
         orig_index = index
 
+        # Deal with indexing by name first as to not break anything else
+        if isinstance(index, basestring):
+            assert self.bin_names is not None
+            if index in self.bin_names:
+                index = [self.binning[dim_name].bin_names.index(bin_name)]
+            else:
+                raise ValueError('`index` "%s" not found in bin names'%index)
+
         # Simple to get all but final bin edge
         bin_edges = magnitude[index].tolist()
 
@@ -817,14 +832,6 @@ class OneDimBinning(object):
             bin_edges = [bin_edges]
         else:
             bin_edges = list(bin_edges)
-
-        # Deal with indexing by name
-        if isinstance(index, basestring):
-            assert self.bin_names is not None
-            if index in self.bin_names:
-                index = [self.binning[dim_name].bin_names.index(bin_name)]
-            else:
-                raise ValueError('`index` "%s" not found in bin names'%index)
 
         # Convert index/indices to positive-number sequence
         if isinstance(index, slice):
