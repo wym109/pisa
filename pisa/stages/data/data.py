@@ -22,10 +22,6 @@ class data(Stage):
     params : ParamSet
         data_file : string
             path pointing to the hdf5 file containing the events
-        pid_bound : float
-            boundary between cascade and track channel
-        pid_remo : float
-            lower cutoff value, below which events get rejected
         sim_ver: string
             indicateing the sim version, wither 4digit, 5digit or dima
         bdt_cut : float
@@ -40,18 +36,16 @@ class data(Stage):
     """
 
     def __init__(self, params, output_binning, disk_cache=None,
-                memcaching_enabled=True, error_method=None,
+                memcache_deepcopy=True, error_method=None,
                 outputs_cache_depth=20, debug_mode=None):
 
         expected_params = (
             'data_file',
-            'pid_bound',
-            'pid_remove',
             'sim_ver',
             'bdt_cut'
         )
 
-        output_names = ('trck', 'cscd')
+        output_names = ('evts')
 
         super(self.__class__, self).__init__(
             use_transforms=False,
@@ -60,7 +54,7 @@ class data(Stage):
             output_names=output_names,
             error_method=error_method,
             disk_cache=disk_cache,
-            memcaching_enabled=memcaching_enabled,
+            memcache_deepcopy=memcache_deepcopy,
             outputs_cache_depth=outputs_cache_depth,
             output_binning=output_binning,
             debug_mode=debug_mode
@@ -73,8 +67,6 @@ class data(Stage):
         # get params
         data_file_name = self.params.data_file.value
         sim_version = self.params.sim_ver.value
-        pid_bound = self.params.pid_bound.value.m_as('dimensionless')
-        pid_remove = self.params.pid_remove.value.m_as('dimensionless')
         bdt_cut = self.params.bdt_cut.value.m_as('dimensionless')
 
 	self.bin_names = self.output_binning.names
@@ -96,7 +88,7 @@ class data(Stage):
 	    Reco_Neutrino_Name = 'IC86_Dunkman_L6_PegLeg_MultiNest8D_NumuCC'
 	    Reco_Track_Name = 'IC86_Dunkman_L6_PegLeg_MultiNest8D_Track'
 	else:
-        raise ValueError('only allow 4digit, 5digit(H2 model for hole ice) or'
+            raise ValueError('only allow 4digit, 5digit(H2 model for hole ice) or'\
                          ' dima (dima p1 and p2 for hole ice)!') 
 
 	data_file = h5py.File(find_resource(data_file_name), 'r')
@@ -128,57 +120,18 @@ class data(Stage):
 	reco_coszen_L6 = reco_coszen_all[L6_result==1]
 	#print "after L6 cut, no. of burn sample = ", len(reco_coszen_L6)
        
-	# Cut1: throw away dLLH < -3
-	logging.info("Cut1, removing event with LLH < pid_remove")
-	cut1 = dLLH_L6>=pid_remove
-	reco_energy_L6_cut1 = reco_energy_L6[cut1]
-	reco_coszen_L6_cut1 = reco_coszen_L6[cut1]
-	dLLH_L6_cut1 = dLLH_L6[cut1]
-	l5_cut1 = l5[cut1]
-
-    # don't throw away dLLH < -3, only use this when using param service for
-    # PID in PISA
-	#reco_energy_L6_cut1 = reco_energy_L6
-	#reco_coszen_L6_cut1 = reco_coszen_L6
-	#dLLH_L6_cut1 = dLLH_L6
-	#l5_cut1 = l5
-
-	# Cut2: Only keep bdt score >= 0.2 (from MSU latest result, make data/MC agree much better); if use no
+	# Cut: Only keep bdt score >= 0.2 (from MSU latest result, make data/MC agree much better); if use no
 	# such further cut, use bdt_cut = 0.1
 	logging.info("Cut2, removing events with bdt_score < ", bdt_cut, " i.e. only keep bdt > ", bdt_cut)
-	cut2 = l5_cut1>=bdt_cut
-	reco_energy_L6_cut2 = reco_energy_L6_cut1[cut2]
-	reco_coszen_L6_cut2 = reco_coszen_L6_cut1[cut2]
-	dLLH_cut2 = dLLH_L6_cut1[cut2]
+        cut_events = {}
+	cut = l5>=bdt_cut
+        cut_events['reco_energy'] = reco_energy_L6[cut]
+        cut_events['reco_coszen'] = reco_coszen_L6[cut]
+        cut_events['pid'] = dLLH_L6[cut]
 
+        hist,_ = np.histogramdd(sample = np.array([cut_events[bin_name] for bin_name in self.bin_names]).T, bins=self.bin_edges)
 
-	# write burn sample data to dictionary
-	self.data_dict = {}
-	for flav in ['cscd', 'trck']:
-            final_events = {}
-	    if flav == 'cscd':
-		cut_pid = dLLH_cut2 < pid_bound 
-	    if flav == 'trck':
-		cut_pid = dLLH_cut2 >= pid_bound 
-
-            final_events['reco_energy'] = reco_energy_L6_cut2[cut_pid]
-            final_events['reco_coszen'] = reco_coszen_L6_cut2[cut_pid]
-
-            data_hist,_,_ = np.histogram2d(
-                final_events[self.bin_names[0]],
-                final_events[self.bin_names[1]],
-                bins=self.bin_edges
-            )
-
-            self.data_dict[flav] = data_hist
-
-        maps = []
-        for flavor in ['cscd', 'trck']:
-            maps.append(Map(
-                name=flavor, hist=self.data_dict[flavor],
-                binning=self.output_binning, tex='data'
-            ))
-
+        maps = [Map(name=self.output_names[0],hist=hist,binning=self.output_binning)]
         self.template = MapSet(maps, name='data')
 
     def _compute_outputs(self, inputs=None):
