@@ -239,7 +239,10 @@ class Map(object):
         # Do the work here to set read-only attributes
         super(Map, self).__setattr__('_binning', binning)
         binning.assert_array_fits(hist)
-        super(Map, self).__setattr__('_hist', hist)
+        #print hist.flags
+        #print hist.strides
+        #print hist.ndim
+        super(Map, self).__setattr__('_hist', np.ascontiguousarray(hist))
         if error_hist is not None:
             self.set_errors(error_hist)
 
@@ -270,7 +273,7 @@ class Map(object):
             return
         self.assert_compat(error_hist)
         super(Map, self).__setattr__('_hist', unp.uarray(self._hist,
-                                                         error_hist))
+                                                         np.ascontiguousarray(error_hist)))
 
     def compare(self, ref):
         """Compare this map with another.
@@ -782,7 +785,8 @@ class Map(object):
             expected_values = expected_values.hist
         elif isinstance(expected_values, list):
             if isinstance(expected_values[0], Map):
-                expected_values = sum([ev.hist for ev in expected_values])
+                expected_values = reduce(lambda x,y: x+y, expected_values)
+                expected_values = expected_values.hist
         return np.sum(llh(actual_values=self.hist,
                           expected_values=expected_values))
 
@@ -805,7 +809,8 @@ class Map(object):
             expected_values = expected_values.hist
         elif isinstance(expected_values, list):
             if isinstance(expected_values[0], Map):
-                expected_values = sum([ev.hist for ev in expected_values])
+                expected_values = reduce(lambda x,y: x+y, expected_values)
+                expected_values = expected_values.hist
         return np.sum(conv_llh(actual_values=self.hist,
                                expected_values=expected_values))
 
@@ -852,7 +857,8 @@ class Map(object):
             expected_values = expected_values.hist
         elif isinstance(expected_values, list):
             if isinstance(expected_values[0], Map):
-                expected_values = sum([ev.hist for ev in expected_values])
+                expected_values = reduce(lambda x,y: x+y, expected_values)
+                expected_values = expected_values.hist
         return np.sum(mod_chi2(actual_values=self.hist,
                           expected_values=expected_values))
 
@@ -875,7 +881,8 @@ class Map(object):
             expected_values = expected_values.hist
         elif isinstance(expected_values, list):
             if isinstance(expected_values[0], Map):
-                expected_values = sum([ev.hist for ev in expected_values])
+                expected_values = reduce(lambda x,y: x+y, expected_values)
+                expected_values = expected_values.hist
         return np.sum(chi2(actual_values=self.hist,
                            expected_values=expected_values))
 
@@ -994,7 +1001,8 @@ class Map(object):
             state_updates = {
                 #'name': "(%s / %s)" % (self.name, other.name),
                 #'tex': r"{(%s / %s)}" % (self.tex, other.tex),
-                'hist': np.divide(self.hist, other.hist),
+                #'hist': np.divide(unp.nominal_values(self.hist), unp.nominal_values(other.hist)),
+                'hist': self.hist / other.hist,
                 'full_comparison': (self.full_comparison or
                                     other.full_comparison),
             }
