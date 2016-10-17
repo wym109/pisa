@@ -702,6 +702,7 @@ class Analysis(object):
                                        metric=metric,
                                        minimizer_settings=minimizer_settings,
                                        **kwargs)
+		# TODO: serialisation!
                 for k in bf['minimizer_metadata']:
                     if k in ['hess', 'hess_inv']:
                         print "deleting %s"%k
