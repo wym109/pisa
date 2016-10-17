@@ -19,11 +19,12 @@ from pisa.utils.log import logging
 from pisa.utils import resources
 
 
-JSON_EXTS = ['json']
+JSON_EXTS = ['json', 'json.bz2']
 HDF5_EXTS = ['hdf', 'h5', 'hdf5']
 PKL_EXTS = ['pickle', 'pckl', 'pkl', 'p']
 DILL_EXTS = ['dill']
 CFG_EXTS = ['ini', 'cfg']
+ZIP_EXTS = ['bz2']
 
 
 def expandPath(path, exp_user=True, exp_vars=True, absolute=False):
@@ -223,10 +224,18 @@ def from_file(fname, fmt=None, **kwargs):
 
     """
     if fmt is None:
-        _, ext = os.path.splitext(fname)
+        rootname, ext = os.path.splitext(fname)
         ext = ext.replace('.', '').lower()
     else:
         ext = fmt.lower()
+
+    zip_ext = None
+    if ext in ZIP_EXTS:
+        rootname, inner_ext = os.path.splitext(rootname)
+        inner_ext = inner_ext.replace('.', '').lower()
+        zip_ext = ext
+        ext = inner_ext + '.' + zip_ext
+
     fname = resources.find_resource(fname)
     if ext in JSON_EXTS:
         return jsons.from_json(fname, **kwargs)
