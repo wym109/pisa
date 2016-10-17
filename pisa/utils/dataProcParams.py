@@ -363,7 +363,16 @@ class DataProcParams(dict):
         >>> expr = 'I3MCTree/energy[I3MCTree/event == I3EventHeader[0]
 
         """
-        h5path_re = re.compile(r'[a-zA-Z_]{1}[a-z0-9_./]*', re.IGNORECASE)
+        h5path_re = re.compile(
+            r'''
+            ([a-z_]          # First character must be letter or underscore
+             [a-z0-9_.]*     # 0 or more legal chars: letters, numbers, _, .
+             (?:             # (Do not return the following group separately)
+                [/]{0,1}     # Next character CAN be no or 1 front-slash
+                [a-z0-9_.]+  # But a slash *must* be followed by legal chars
+             )*              # Slash+chars pattern might not occur, or repeat
+            )''', re.VERBOSE | re.IGNORECASE
+        )
         numpy_re = re.compile(r'^(np|numpy)\.[a-z_.]+', re.IGNORECASE)
 
         eval_str = expression
