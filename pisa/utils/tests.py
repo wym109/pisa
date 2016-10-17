@@ -132,7 +132,8 @@ def make_ratio_map(amap, bmap):
     return result
 
 
-def baseplot(m, title, ax, symm=False, evtrate=False):
+def baseplot(m, title, ax, clabel=None, symm=False, evtrate=False,
+             vmax=None, cmap=plt.cm.afmhot):
     """Simple plotting of a 2D histogram (map)"""
     hist = np.ma.masked_invalid(m['map'])
     energy = m['ebins']
@@ -141,21 +142,24 @@ def baseplot(m, title, ax, symm=False, evtrate=False):
     if symm:
         cmap = plt.cm.seismic
         extr = np.nanmax(np.abs(hist))
-        vmax = extr
+        if vmax is None:
+            vmax = extr
         vmin = -extr
     else:
-        cmap = plt.cm.hot
         if evtrate:
             vmin = 0
         else:
             vmin = np.nanmin(hist)
-        vmax = np.nanmax(hist)
+        if vmax is None:
+            vmax = np.nanmax(hist)
     cmap.set_bad(color=(0,1,0), alpha=1)
     x = coszen
     y = np.log10(energy)
     X, Y = np.meshgrid(x, y)
     pcmesh = ax.pcolormesh(X, Y, hist, vmin=vmin, vmax=vmax, cmap=cmap)
     cbar = plt.colorbar(mappable=pcmesh, ax=ax)
+    if clabel is not None:
+        cbar.set_label(clabel)
     cbar.ax.tick_params(labelsize='large')
     ax.set_xlabel(r'$\cos\theta_Z$')
     ax.set_ylabel(r'Energy (GeV)')
