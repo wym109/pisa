@@ -309,7 +309,12 @@ class OneDimBinning(object):
             self._weighted_centers = self.midpoints
 
         if bin_names is not None:
-            assert isinstance(bin_names, Iterable)
+            if not isinstance(bin_names, Iterable):
+                raise ValueError('bin_names object needs to be iterable.')
+            if not isinstance(bin_names, Sequence):
+                logging.debug('Converting bin_names to a list so it '
+                              'can be indexed. Needed by future operations')
+                bin_names = [name for name in bin_names]    
             if len(set(bin_names)) != len(bin_names):
                 raise ValueError('All bin names should be unique!')
             if len(bin_names) != num_bins:
