@@ -24,6 +24,7 @@ from pisa import ureg, Q_
 from pisa.core.map import METRICS_TO_MAXIMIZE, VALID_METRICS
 from pisa.core.param import ParamSet
 from pisa.utils.log import logging
+from pisa.utils.fileio import to_file
 
 
 class Counter(object):
@@ -511,8 +512,9 @@ class Analysis(object):
     # * set (some free or fixed) params, then check metric
     # where the setting of the params is done for some number of values.
     def scan(self, data_dist, hypo_maker, hypo_param_selections, metric,
-             param_names=None, steps=None, values=None, outer=True,
-             profile=True, minimizer_settings=None, **kwargs):
+             param_names=None, steps=None, values=None, only_points=None,
+             outer=True, profile=True, minimizer_settings=None, outfile=None,
+             **kwargs):
         """Set hypo maker parameters named by `param_names` according to
         either values specified by `values` or number of steps specified by
         `steps`, and return the `metric` indicating how well the data
@@ -591,6 +593,10 @@ class Analysis(object):
                   len(inner seq0) * len(inner seq1) * ...
                 Asimov distributions produced.
 
+        only_points : None, integer, or even-length sequence of integers
+            Only select subset of points to be analysed by specifying their
+            range of positions within the whole set (0-indexed, incremental).
+
         outer : bool
             If set to True and a sequence of sequences is passed for `values`,
             the points scanned are the *outer product* of the inner sequences.
@@ -644,7 +650,15 @@ class Analysis(object):
             steplist = [[(pname, val) for val in values[i]] for (i, pname) in
                             enumerate(param_names)]
         else:
-            steplist = [(param_names[0], val) for val in values]
+            steplist = [[(param_names[0], val) for val in values[0]]]
+
+        points_acc = []
+        if not only_points is None:
+            assert (len(only_points) == 1 or len(only_points) % 2 == 0)
+            if len(only_points) == 1:
+                points_acc = only_points
+            for i in xrange(0, len(only_points)-1, 2):
+                points_acc.extend(range(only_points[i], only_points[i+1]+1))
 
         # instead of introducing another multitude of tests above, check here
         # whether the lists of steps all have the same length in case `outer`
@@ -662,7 +676,9 @@ class Analysis(object):
 
         results = {'steps': {}, 'results': []}
         results['steps'] = {pname: [] for pname in param_names}
-        for pos in loopfunc(*steplist):
+        for i,pos in enumerate(loopfunc(*steplist)):
+            if len(points_acc) > 0 and i not in points_acc:
+                continue
             for (pname, val) in pos:
                 params[pname].value = val
                 results['steps'][pname].append(val)
@@ -685,10 +701,17 @@ class Analysis(object):
                                        metric=metric,
                                        minimizer_settings=minimizer_settings,
                                        **kwargs)
+                for k in bf['minimizer_metadata']:
+                    if k in ['hess', 'hess_inv']:
+                        print "deleting %s"%k
+                        del bf['minimizer_metadata'][k]
             bf['params'] = deepcopy(bf['params']._serializable_state)
             bf['hypo_asimov_dist'] = \
                         deepcopy(bf['hypo_asimov_dist']._serializable_state)
             results['results'].append(bf)
+            if not outfile is None:
+                # store intermediate results
+                to_file(results, outfile)
         return results
 
 def test_Counter():

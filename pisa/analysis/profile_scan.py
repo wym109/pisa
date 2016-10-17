@@ -46,6 +46,14 @@ if __name__ == '__main__':
         of steps for each parameter (in the same order as the parameter names).'''
     )
     parser.add_argument(
+        '--only-points', type=int, nargs='+', required=False, help='''Provide a
+        point or ranges of points to be scanned specified by one or an even
+        number of integer numbers (might be useful if the analysis is to be
+        split up into several smaller jobs). 0-indexing is assumed. Isn't
+        applied to any single parameter, but to the whole set of points
+        (with steps x steps - 1 corresponding to the last).'''
+    )
+    parser.add_argument(
         '--no-outer', action='store_true', help='''Do not scan points as outer
         product of inner sequences.'''
     )
@@ -98,8 +106,9 @@ if __name__ == '__main__':
     res = analysis.scan(data_dist=data, hypo_maker=hypo_maker,
                         hypo_param_selections=args.param_selection,
                         metric=args.metric, param_names=args.param_names,
-                        steps=args.steps, outer=not args.no_outer,
-                        profile=args.profile,
-                        minimizer_settings=minimizer_settings)
+                        steps=args.steps, only_points=args.only_points,
+                        outer=not args.no_outer, profile=args.profile,
+                        minimizer_settings=minimizer_settings,
+                        outfile=args.outfile)
     to_file(res, args.outfile)
     logging.info("Done.")
