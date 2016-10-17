@@ -366,7 +366,7 @@ if __name__ == '__main__':
 
     try:
         args.only_stage = int(args.only_stage)
-    except ValueError:
+    except (TypeError, ValueError):
         pass
 
     if args.dir:
@@ -427,7 +427,7 @@ if __name__ == '__main__':
         for fmt, enabled in formats.items():
             if not enabled:
                 continue
-            my_plotter = Plotter(stamp='PISA Cake test',
+            my_plotter = Plotter(stamp='event rate',
                                  outdir=args.dir,
                                  fmt=fmt, log=False,
                                  annotate=args.annotate)

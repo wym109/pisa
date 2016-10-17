@@ -46,7 +46,6 @@ def compare_pisa_self(config1, config2, testname1, testname2, outdir):
         cake1_trck_map_to_plot['czbins'] = \
             cake1_trck_map.binning['reco_coszen'].bin_edges.magnitude
         cake1_trck_map_to_plot['map'] = cake1_trck_map.hist
-        cake1_trck_map_to_plot['map'] = cake1_trck_map_to_plot['map']
         cake1_trck_events = np.sum(cake1_trck_map_to_plot['map'])
         cake1_cscd_map_to_plot = {}
         cake1_cscd_map_to_plot['ebins'] = \
@@ -54,7 +53,6 @@ def compare_pisa_self(config1, config2, testname1, testname2, outdir):
         cake1_cscd_map_to_plot['czbins'] = \
             cake1_cscd_map.binning['reco_coszen'].bin_edges.magnitude
         cake1_cscd_map_to_plot['map'] = cake1_cscd_map.hist
-        cake1_cscd_map_to_plot['map'] = cake1_cscd_map_to_plot['map']
         cake1_cscd_events = np.sum(cake1_cscd_map_to_plot['map'])
     elif '4' in testname1:
         cake1_both_map = outputs1.combine_wildcard('*')
@@ -63,16 +61,22 @@ def compare_pisa_self(config1, config2, testname1, testname2, outdir):
             cake1_both_map.binning['reco_energy'].bin_edges.magnitude
         cake1_trck_map_to_plot['czbins'] = \
             cake1_both_map.binning['reco_coszen'].bin_edges.magnitude
-        cake1_trck_map_to_plot['map'] = cake1_both_map.hist[1,:,:]
-        cake1_trck_map_to_plot['map'] = cake1_trck_map_to_plot['map']
+        cake1_trck_map_to_plot['map'] = \
+            cake1_both_map.slice_hist_by_name(
+                dim_name='pid',
+                bin_name='trck'
+            )
         cake1_trck_events = np.sum(cake1_trck_map_to_plot['map'])
         cake1_cscd_map_to_plot = {}
         cake1_cscd_map_to_plot['ebins'] = \
             cake1_both_map.binning['reco_energy'].bin_edges.magnitude
         cake1_cscd_map_to_plot['czbins'] = \
             cake1_both_map.binning['reco_coszen'].bin_edges.magnitude
-        cake1_cscd_map_to_plot['map'] = cake1_both_map.hist[0,:,:]
-        cake1_cscd_map_to_plot['map'] = cake1_cscd_map_to_plot['map']
+        cake1_cscd_map_to_plot['map'] = \
+            cake1_both_map.slice_hist_by_name(
+                dim_name='pid',
+                bin_name='cscd'
+            )
         cake1_cscd_events = np.sum(cake1_cscd_map_to_plot['map'])
     else:
         raise ValueError("Should be comparing 4-stage or 5-stage PISAs.")
@@ -86,7 +90,6 @@ def compare_pisa_self(config1, config2, testname1, testname2, outdir):
         cake2_trck_map_to_plot['czbins'] = \
             cake2_trck_map.binning['reco_coszen'].bin_edges.magnitude
         cake2_trck_map_to_plot['map'] = cake2_trck_map.hist
-        cake2_trck_map_to_plot['map'] = cake2_trck_map_to_plot['map']
         cake2_trck_events = np.sum(cake2_trck_map_to_plot['map'])
         cake2_cscd_map_to_plot = {}
         cake2_cscd_map_to_plot['ebins'] = \
@@ -94,7 +97,6 @@ def compare_pisa_self(config1, config2, testname1, testname2, outdir):
         cake2_cscd_map_to_plot['czbins'] = \
             cake2_cscd_map.binning['reco_coszen'].bin_edges.magnitude
         cake2_cscd_map_to_plot['map'] = cake2_cscd_map.hist
-        cake2_cscd_map_to_plot['map'] = cake2_cscd_map_to_plot['map']
         cake2_cscd_events = np.sum(cake2_cscd_map_to_plot['map'])
     elif '4' in testname2:
         cake2_both_map = outputs2.combine_wildcard('*')
@@ -103,16 +105,22 @@ def compare_pisa_self(config1, config2, testname1, testname2, outdir):
             cake2_both_map.binning['reco_energy'].bin_edges.magnitude
         cake2_trck_map_to_plot['czbins'] = \
             cake2_both_map.binning['reco_coszen'].bin_edges.magnitude
-        cake2_trck_map_to_plot['map'] = cake2_both_map.hist[1,:,:]
-        cake2_trck_map_to_plot['map'] = cake2_trck_map_to_plot['map']
+        cake2_trck_map_to_plot['map'] = \
+            cake2_both_map.slice_hist_by_name(
+                dim_name='pid',
+                bin_name='trck'
+            )
         cake2_trck_events = np.sum(cake2_trck_map_to_plot['map'])
         cake2_cscd_map_to_plot = {}
         cake2_cscd_map_to_plot['ebins'] = \
             cake2_both_map.binning['reco_energy'].bin_edges.magnitude
         cake2_cscd_map_to_plot['czbins'] = \
             cake2_both_map.binning['reco_coszen'].bin_edges.magnitude
-        cake2_cscd_map_to_plot['map'] = cake2_both_map.hist[0,:,:]
-        cake2_cscd_map_to_plot['map'] = cake2_cscd_map_to_plot['map']
+        cake2_cscd_map_to_plot['map'] = \
+            cake2_both_map.slice_hist_by_name(
+                dim_name='pid',
+                bin_name='cscd'
+            )
         cake2_cscd_events = np.sum(cake2_cscd_map_to_plot['map'])
     else:
         raise ValueError("Should be comparing 4-stage or 5-stage PISAs.")
@@ -435,9 +443,9 @@ if __name__ == '__main__':
         'tests', 'data', 'oscfit', 'OscFit1X600Baseline.json'
     )
 
-    weights_names = ['unweighted',
+    weights_names = [#'unweighted',
                      'weighted_aeff']
-    short_weights_names = ['uw',
+    short_weights_names = [#'uw',
                            'wa']
 
     logging.info("<<<< Test effect of weighting >>>>")
@@ -470,7 +478,7 @@ if __name__ == '__main__':
 
         # Perform oversampled tests
         if args.oversampling or test_all:
-            oversamples = [5,10,50]
+            oversamples = [1]
             for os in oversamples:
                 psosc = oversample_config(
                     base_config=deepcopy(psc),

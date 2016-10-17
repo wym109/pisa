@@ -10,6 +10,7 @@ from I3 files by the icecube.hdfwriter.I3HDFTableService
 """
 
 import os
+from collections import OrderedDict
 from copy import deepcopy
 
 import numpy as np
@@ -17,9 +18,10 @@ import sympy as sym
 
 import pisa.core.events as events
 from pisa.utils.log import logging, set_verbosity
-import pisa.utils.utils as utils
-import pisa.utils.flavInt as flavInt
-from pisa.utils.mcSimRunSettings import MCSimRunSettings
+from pisa.utils.format import list2hrlist
+from pisa.utils.fileio import expandPath, mkdir
+from pisa.utils.flavInt import FlavIntData, NuFlav, NuFlavIntGroup, ALL_NUFLAVINTS, ALL_NUINT_TYPES, xlateGroupsStr
+from pisa.utils.mcSimRunSettings import DetMCSimRunsSettings
 from pisa.utils.dataProcParams import DataProcParams
 import pisa.utils.resources as resources
 
@@ -46,8 +48,8 @@ OUTPUT_FIELDS = (
     'true_coszen',
     'reco_energy',
     'reco_coszen',
-    'mc_weight',
-    'mc_weight_per_gev_per_sr',
+    #'mc_weight',
+    #'mc_weight_per_gev_per_sr',
     'weighted_aeff',
     'pid',
 )
@@ -73,10 +75,10 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
     data_files : dict
         File paths for finding data files for each run, formatted as:
             {
-                '<run#>': [<list of dir or file paths>],
-                '<run#>': [<list of dir or file paths>],
+                '<run#>': [<list of file paths>],
+                '<run#>': [<list of file paths>],
                 ...
-                '<run#>': [<list of dir or file paths>],
+                '<run#>': [<list of file paths>],
             }
     detector : string
     proc_ver
@@ -114,18 +116,18 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
 
     """
     if isinstance(run_settings, basestring):
-        run_settings = mcSimRunSettings.DetMCSimRunsSettings(
+        run_settings = DetMCSimRunsSettings(
             resources.find_resource(args.run_settings),
             detector=detector
         )
-    assert isinstance(run_settings, mcSimRunSettings.DetMCSimRunsSettings)
+    assert isinstance(run_settings, DetMCSimRunsSettings)
     assert run_settings.detector == detector
 
     if isinstance(data_proc_params, basestring):
         data_proc_params = DataProcParams(
-            resources.find_resource(data_proc_params),
             detector=detector,
-            proc_ver=proc_ver
+            proc_ver=proc_ver,
+            data_proc_params=resources.find_resource(data_proc_params)
         )
     assert data_proc_params.detector == detector
     assert data_proc_params.proc_ver == proc_ver
@@ -137,49 +139,54 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
     run_norm_factors = {}
     bin_edges = set()
 
-    runs_by_flavint = flavInt.FlavIntData()
+    runs_by_flavint = FlavIntData()
     for flavint in runs_by_flavint.flavints():
         runs_by_flavint[flavint] = []
 
-    ngen_flavint_by_run = {run:flavInt.FlavIntData() for run in runs}
-    #ngen_per_flav_by_run = {run:flavInt.FlavIntData() for run in runs}
-    eint_per_flav_by_run = {run:flavInt.FlavIntData() for run in runs}
-    for run in runs:
-        flavints_in_run = run_settings.get_flavints()
-        e_range = run_settings.get_energy_range(run)
-        gamma = run_settings.get_spectral_index(run)
-        for flavint in flavints_in_run:
-            runs_by_flavint[flavint].append(run)
-            ngen_flav = run_settings.get_num_gen(flav_or_flavint=flavint,
-                                                 include_physical_fract=True)
-            #runs_by_flavint[flavint].append(run)
-            #this_flav = flavint.
-            #xsec_fract_en_wtd_avg[run][flavint] = \
-            ngen_flavint_by_run[run][flavint] = \
-                    xsec.get_xs_ratio_integral(flavintgrp0=flavint,
-                                               flavintgrp1=flavint.flav(),
-                                               e_range=e_range,
-                                               gamma=gamma,
-                                               average=True)
-        xsec_ver = run_settings.get_xsec_version(run)
-        if xsec_ver_ref is None:
-            xsec_ver_ref = xsec_ver
-        # An assumption of below logic is that all MC is generated using the
-        # same cross sections version.
-        #
-        # TODO / NOTE:
-        # It would be possible to combine runs with different cross sections so
-        # long as each (flavor, interaction type) cross sections are
-        # weighted-averaged together using weights
-        #   N_gen_{n,flav+inttype} * E_x^{-gamma_n} / 
-        #       ( \int_{E_min_n}^{E_max_n} E^{-\gamma_n} dE )
-        # where E_x are the energy sample points specified in the cross
-        # sections (and hence these must also be identical across all cross
-        # sections that get combined, unless interpolation is performed).
-        assert xsec_ver == xsec_ver_ref
-        ngen_weighted_energy_integral[str(run)] = powerLawIntegral(
-        #flavs_by_run[run] = run_settings.flavs(run)
-    #flavs_present = 
+    #ngen_flavint_by_run = {run:FlavIntData() for run in runs}
+    ##ngen_per_flav_by_run = {run:FlavIntData() for run in runs}
+    #eint_per_flav_by_run = {run:FlavIntData() for run in runs}
+    #for run in runs:
+    #    flavints_in_run = run_settings.get_flavints(run=run)
+    #    e_range = run_settings.get_energy_range(run)
+    #    gamma = run_settings.get_spectral_index(run)
+    #    for flavint in flavints_in_run:
+    #        runs_by_flavint[flavint].append(run)
+    #        ngen_flav = run_settings.get_num_gen(
+    #            run=run, flav_or_flavint=flavint, include_physical_fract=True
+    #        )
+    #        #runs_by_flavint[flavint].append(run)
+    #        #this_flav = flavint.
+    #        #xsec_fract_en_wtd_avg[run][flavint] = \
+    #        ngen_flavint_by_run[run][flavint] = \
+    #                xsec.get_xs_ratio_integral(
+    #                    flavintgrp0=flavint,
+    #                    flavintgrp1=flavint.flav(),
+    #                    e_range=e_range,
+    #                    gamma=gamma,
+    #                    average=True
+    #                )
+    #    xsec_ver = run_settings.get_xsec_version(run=run)
+    #    if xsec_ver_ref is None:
+    #        xsec_ver_ref = xsec_ver
+    #    # An assumption of below logic is that all MC is generated using the
+    #    # same cross sections version.
+    #    #
+    #    # TODO / NOTE:
+    #    # It would be possible to combine runs with different cross sections so
+    #    # long as each (flavor, interaction type) cross sections are
+    #    # weighted-averaged together using weights
+    #    #   N_gen_{n,flav+inttype} * E_x^{-gamma_n} / 
+    #    #       ( \int_{E_min_n}^{E_max_n} E^{-\gamma_n} dE )
+    #    # where E_x are the energy sample points specified in the cross
+    #    # sections (and hence these must also be identical across all cross
+    #    # sections that get combined, unless interpolation is performed).
+    #    assert xsec_ver == xsec_ver_ref
+    #    #ngen_weighted_energy_integral[str(run)] = powerLawIntegral(
+    #    #flavs_by_run[run] = run_settings.flavs(run)
+    ##flavs_present = 
+
+    detector_geom = run_settings[runs[0]]['geom']
 
     # Create Events object to store data
     evts = events.Events()
@@ -202,24 +209,24 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
             cuts.append(ccut)
 
     orig_outdir = outdir
-    outdir = utils.expandPath(outdir)
+    outdir = expandPath(outdir)
     logging.info('Output dir spec\'d: %s', orig_outdir)
     if outdir != orig_outdir:
         logging.info('Output dir expands to: %s', outdir)
-    utils.mkdir(outdir)
+    mkdir(outdir)
 
     detector_label = str(data_proc_params.detector)
-    proc_label = 'proc_v' + str(data_proc_params.proc_ver)
+    proc_label = 'proc_' + str(data_proc_params.proc_ver)
 
     # What flavints to group together
     if join is None or join == '':
         grouped = []
-        ungrouped = [flavInt.NuFlavIntGroup(k) for k in flavInt.ALL_NUFLAVINTS]
+        ungrouped = [NuFlavIntGroup(k) for k in ALL_NUFLAVINTS]
         groups_label = 'unjoined'
         logging.info('Events in the following groups will be joined together:'
                      ' (none)')
     else:
-        grouped, ungrouped = flavInt.xlateGroupsStr(join)
+        grouped, ungrouped = xlateGroupsStr(join)
         evts.metadata['flavints_joined'] = [str(g) for g in grouped]
         groups_label = 'joined_G_' + '_G_'.join([str(g) for g in grouped])
         logging.info('Events in the following groups will be joined together: '
@@ -245,7 +252,7 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
     extracted_data = [
         {
             inttype: {field:[] for field in extract_fields}
-            for inttype in flavInt.ALL_NUINT_TYPES
+            for inttype in ALL_NUINT_TYPES
         }
         for _ in flavintgrp_names
     ]
@@ -254,7 +261,7 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
     # nc separately from nc because aeff's for cc & nc add, whereas
     # aeffs intra-CC should be weighted-averaged (as for intra-NC)
     ngen = [
-        {inttype:{} for inttype in flavInt.ALL_NUINT_TYPES}
+        {inttype:{} for inttype in ALL_NUINT_TYPES}
         for _ in flavintgrp_names
     ]
 
@@ -263,8 +270,7 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
     # calculating aeff
     filecount = {}
     detector_geom = None
-    for userspec_baseflav, fnames in data_files.iteritems():
-        userspec_baseflav = flavInt.NuFlav(userspec_baseflav)
+    for run, fnames in data_files.iteritems():
         for fname in fnames:
             # Retrieve data from all nodes specified in the processing
             # settings file
@@ -272,10 +278,9 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
 
             # Check to make sure only one run is present in the data
             runs_in_data = set(data['run'])
-            assert len(runs_in_data) == 1, \
-                    'Must be just one run present in data'
+            assert len(runs_in_data) == 1, 'Must be just one run in data'
 
-            run = int(data['run'][0])
+            #run = int(data['run'][0])
             if not run in filecount:
                 filecount[run] = 0
             filecount[run] += 1
@@ -310,8 +315,8 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
                     # keyed by the output of the barNoBar() method for each
                     if not run in ngen[grp_n][int_type]:
                         ngen[grp_n][int_type][run] = {
-                            flavInt.NuFlav(12).barNoBar(): 0,
-                            flavInt.NuFlav(-12).barNoBar(): 0,
+                            NuFlav(12).barNoBar(): 0,
+                            NuFlav(-12).barNoBar(): 0,
                         }
 
                     # Record count only if it hasn't already been recorded
@@ -320,8 +325,8 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
                         # so DO NOT specify the full flavint here, only flav
                         # (since one_weight does NOT take bar/nobar fraction,
                         # it must be included here in the ngen computation)
-                        flav_ngen = run_settings.totGen(run=run,
-                                                        barnobar=barnobar)
+                        flav_ngen = run_settings.get_num_gen(run=run,
+                                                             barnobar=barnobar)
                         ngen[grp_n][int_type][run][barnobar] = flav_ngen
 
                     # Append the data. Note that extracted_data is:
@@ -369,7 +374,7 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
         logging.info(fmt % fmtfields)
         logging.info(lines)
         for grp_n, flavint_group in enumerate(flavint_groupings):
-            for int_type in flavInt.ALL_NUINT_TYPES:
+            for int_type in ALL_NUINT_TYPES:
                 ngen_it_tot = 0
                 for run, run_counts in ngen[grp_n][int_type].iteritems():
                     for barnobar, barnobar_counts in run_counts.iteritems():
@@ -394,12 +399,12 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
         logging.info('Files read, run %s: %d' % (run, count))
         ref_num_i3_files = run_settings[run]['num_i3_files']
         if count != ref_num_i3_files:
-            logging.warn('Run %d, Number of files read (%d) != number of '
+            logging.warn('Run %s, Number of files read (%d) != number of '
                          'source I3 files (%d), which may indicate an error.' %
                          (run, count, ref_num_i3_files))
 
     # Generate output data
-    for flavint in flavInt.ALL_NUFLAVINTS:
+    for flavint in ALL_NUFLAVINTS:
         int_type = flavint.intType()
         for grp_n, flavint_group in enumerate(flavint_groupings):
             if not flavint in flavint_group:
@@ -411,13 +416,24 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
                     'flavint %s **IS** in flavint_group %s, storing.' %
                     (flavint, flavint_group)
                 )
-            evts.set(
-                flavint,
-                {f: extracted_data[grp_n][int_type][f] for f in output_fields}
-            )
+            evts[flavint] = {f: extracted_data[grp_n][int_type][f]
+                             for f in output_fields}
 
     # Generate file name
-    run_label = 'runs_' + utils.list2hrlist(runs)
+    numerical_runs = []
+    alphanumerical_runs = []
+    for run in runs:
+        try:
+            int(run)
+            numerical_runs.append(int(run))
+        except ValueError:
+            alphanumerical_runs.append(str(run))
+    run_labels = []
+    if len(numerical_runs) > 0:
+        run_labels.append(list2hrlist(numerical_runs))
+    if len(alphanumerical_runs) > 0:
+        run_labels += sorted(alphanumerical_runs)
+    run_label = 'runs_' + ','.join(run_labels)
     geom_label = '' + detector_geom
     fname = 'events__' + '__'.join([
         detector_label,
@@ -445,11 +461,11 @@ def main():
 
         Example:
             $PISA/pisa/i3utils/make_events_file.py \
-                --det "pingu" \
-                --proc "5" \
-                --nue ~/data/390/source_hdf5/*.hdf5 \
-                --numu ~/data/389/source_hdf5/*.hdf5 \
-                --nutau ~/data/388/source_hdf5/*.hdf5 \
+                --det "PINGU" \
+                --proc "V5.1" \
+                --run 390 ~/data/390/source_hdf5/*.hdf5 \
+                --run 389 ~/data/389/source_hdf5/*.hdf5 \
+                --run 388 ~/data/388/source_hdf5/*.hdf5 \
                 -vv \
                 --outdir /tmp/events/''',
         formatter_class=ArgumentDefaultsHelpFormatter
@@ -459,9 +475,8 @@ def main():
         metavar='DETECTOR',
         type=str,
         required=True,
-        help='Detector, e.g. "PINGU" or "DeepCore". This'
-             ' is used as the top-most key in run_settings.json and'
-             ' data_proc_params.json files.'
+        help='''Detector, e.g. "PINGU" or "DeepCore". This is used as the
+        top-most key in run_settings.json and data_proc_params.json files.'''
     )
     parser.add_argument(
         '--proc',
@@ -475,28 +490,13 @@ def main():
     )
 
     parser.add_argument(
-        '--nue',
-        metavar='H5_FILE',
+        '--run',
+        metavar='RUN_ID H5_FILE0 H5_FILE1 ...',
         type=str,
         nargs="+",
+        action='append',
         required=True,
         help='nue HDF5 file(s)'
-    )
-    parser.add_argument(
-        '--numu',
-        metavar='H5_FILE',
-        type=str,
-        nargs="+",
-        required=True,
-        help='numu HDF5 file(s)'
-    )
-    parser.add_argument(
-        '--nutau',
-        metavar='H5_FILE',
-        type=str,
-        nargs="+",
-        required=True,
-        help='nutau HDF5 file(s)'
     )
 
     parser.add_argument(
@@ -617,16 +617,20 @@ def main():
 
     set_verbosity(args.verbose)
 
-    det = args.det.lower()
-    proc = args.proc.lower()
+    runs_files = OrderedDict()
+    for run_info in args.run:
+        runs_files[run_info[0]] = run_info[1:]
+
+    det = args.det.strip()
+    proc = args.proc.strip()
     run_settings = DetMCSimRunsSettings(
         resources.find_resource(args.run_settings),
         detector=det
     )
     data_proc_params = DataProcParams(
-        resources.find_resource(args.data_proc_params),
         detector=det,
-        proc_ver=proc
+        proc_ver=proc,
+        data_proc_params=resources.find_resource(args.data_proc_params)
     )
 
     logging.info('Using detector %s, processing version %s.' % (det, proc))
@@ -656,21 +660,23 @@ def main():
         None,
         # CC events unjoined; join nuall NC and nuallbar NC separately (used
         # for generating aeff param service's aeff parameterizations)
-        'nuallnc;nuallbarnc',
+        'nuallnc,nuallbarnc',
         # CC events paried by flav--anti-flav; nuallNC+nuallbarNC all joined
         # together; used for reco services (MC and vbwkde)
-        'nuecc+nuebarcc;numucc+numubarcc;nutaucc+nutaubarcc;nuallnc+nuallbarnc',
+        'nuecc+nuebarcc,numucc+numubarcc,nutaucc+nutaubarcc,nuallnc+nuallbarnc',
     ]
 
     # Create the events files
     for grouping in groupings:
         makeEventsFile(
-            data_files={'nue':args.nue, 'numu':args.numu, 'nutau':args.nutau},
+            data_files=runs_files,
+            detector=args.det,
+            proc_ver=args.proc,
+            cut=args.cut,
             outdir=args.outdir,
             run_settings=run_settings,
             data_proc_params=data_proc_params,
             join=grouping,
-            cut=args.cut,
             cust_cuts=ccut,
             extract_fields=extract_fields,
             output_fields=output_fields,

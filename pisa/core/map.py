@@ -20,6 +20,7 @@ from fnmatch import fnmatch
 from functools import wraps
 from itertools import izip
 from operator import add, getitem, setitem
+import os
 import re
 
 import numpy as np
@@ -28,11 +29,14 @@ import uncertainties
 from uncertainties import ufloat
 from uncertainties import unumpy as unp
 
+from pisa import ureg
 from pisa.core.binning import OneDimBinning, MultiDimBinning
 from pisa.utils.comparisons import isbarenumeric, normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils import jsons
+from pisa.utils.fileio import get_valid_filename, mkdir
 from pisa.utils.log import logging, set_verbosity
+from pisa.utils.flavInt import NuFlavIntGroup
 from pisa.utils.random_numbers import get_random_state
 from pisa.utils.stats import chi2, llh, conv_llh, mod_chi2
 from pisa.utils.profiler import line_profile, profile
@@ -57,6 +61,14 @@ def strip_outer_parens(value):
     if m is not None:
         value = m.groups()[0]
     m = re.match(r'^\((.*)\)$', value)
+    if m is not None:
+        value = m.groups()[0]
+    return value
+
+
+def strip_outer_dollars(value):
+    value = value.strip()
+    m = re.match(r'^\$(.*)\$$', value)
     if m is not None:
         value = m.groups()[0]
     return value
@@ -205,29 +217,12 @@ class Map(object):
         # Set Read/write attributes via their defined setters
         super(Map, self).__setattr__('_name', name)
         # TeX dict for some common map names
-        tex_dict = {'nue':r'\nu_e',
-                    'numu':r'\nu_{\mu}',
-                    'nutau':r'\nu_{\tau}',
-                    'nuebar':r'\bar{\nu}_e',
-                    'numubar':r'\bar{\nu}_{\mu}',
-                    'nutaubar':r'\bar{\nu}_{\tau}',
-                    'nue_cc':r'\nu_e\ CC',
-                    'numu_cc':r'\nu_{\mu}\ CC',
-                    'nutau_cc':r'\nu_{\tau}\ CC',
-                    'nue_nc':r'\nu_e\ NC',
-                    'numu_nc':r'\nu_{\mu}\ NC',
-                    'nutau_nc':r'\nu_{\tau}\ NC',
-                    'nuebar_cc':r'\bar{\nu}_e\ CC',
-                    'numubar_cc':r'\bar{\nu}_{\mu}\ CC',
-                    'nutaubar_cc':r'\bar{\nu}_{\tau}\ CC',
-                    'nuebar_nc':r'\bar{\nu}_e\ NC',
-                    'numubar_nc':r'\bar{\nu}_{\mu}\ NC',
-                    'nutaubar_nc':r'\bar{\nu}_{\tau}\ NC'}
         if tex is None:
-            if tex_dict.has_key(name):
-                tex = tex_dict[name]
-            else:
-                tex = r'\rm{%s}' % name
+            try:
+                fg = NuFlavIntGroup(name)
+                tex = fg.tex()
+            except:
+                tex = (r'\rm{%s}' % name).replace('_', r'\_')
         super(Map, self).__setattr__('_tex', tex)
         super(Map, self).__setattr__('_hash', hash)
         super(Map, self).__setattr__('_full_comparison', full_comparison)
@@ -277,6 +272,179 @@ class Map(object):
         self.assert_compat(error_hist)
         super(Map, self).__setattr__('_hist', unp.uarray(self._hist,
                                                          error_hist))
+
+    def compare(self, ref):
+        """Compare this map with another.
+
+        Parameters
+        ----------
+        ref : Map
+            Map against with to compare. Taken as reference. Must have same
+            binning as this map.
+
+        Returns
+        -------
+        ratio, diff, fract : Maps for self/ref, sef-ref, and (self-ref)/ref
+        max_diff_ratio, max_diff : float
+        nanmatch, infmatch : bool, whether nan elements and +/- inf elements
+            align (+inf is not equal to -inf)
+
+        """
+        assert isinstance(ref, Map)
+        assert ref.binning == self.binning
+        diff = self - ref
+        with np.errstate(divide='ignore', invalid='ignore'):
+            ratio = self / ref
+            fract_diff = diff / ref
+
+        #diff.name = self.name + '-' + ref.name
+        #diff.tex = self.tex + ' - ' + ref.tex
+
+        #ratio.name = self.name + '/' + ref.name
+        #ratio.tex = self.tex + '/' + ref.tex
+
+        #fract_diff.name = '(' + self.name + '-' + ref.name + ')/' + ref.name
+        #fract_diff.tex = '(' + self.tex + '-' + ref.tex + ')/' + ref.tex
+
+        max_diff_ratio = np.nanmax(np.abs(fract_diff.hist))
+
+        # Handle cases where ratio returns infinite
+        # This isn't necessarily a fail, since all it means is the referene was
+        # zero; if the new value is sufficiently close to zero then it's still
+        # fine.
+        if np.isinf(max_diff_ratio):
+            # First find all the finite elements
+            finite_mask = np.isfinite(fract_diff.hist)
+            # Then find the nanmax of this, will be our new test value
+            max_diff_ratio = np.nanmax(np.abs(fract_diff.hist[finite_mask]))
+            # Also find all the infinite elements; compute a second test value
+            max_diff = np.nanmax(np.abs(diff.hist[~finite_mask]))
+        else:
+            # Without any infinite elements we can ignore this second test
+            max_diff = np.nanmax(np.abs(diff.hist))
+
+        nanmatch = bool(np.all(np.isnan(self.hist) == np.isnan(ref.hist)))
+        infmatch = bool(np.all(
+            self.hist[np.isinf(self.hist)] == ref.hist[np.isinf(ref.hist)]
+        ))
+
+        comparisons = OrderedDict([
+            ('diff', diff),
+            ('ratio', ratio),
+            ('fract_diff', fract_diff),
+            ('max_diff_ratio', max_diff_ratio),
+            ('max_diff', max_diff),
+            ('nanmatch', nanmatch),
+            ('infmatch', infmatch)
+        ])
+        return comparisons
+
+    def plot(self, evtrate=True, symm=False, logz=False, fig=None, ax=None,
+             title=None, outdir=None, fname=None, backend='pdf', fmt='pdf',
+             cmap=None, fig_kw=None, plt_kw=None):
+        import matplotlib as mpl
+        if (backend is not None
+            and mpl.get_backend().lower() != backend.lower()):
+            mpl.use(backend)
+        import matplotlib.pyplot as plt
+
+        if title is None:
+            title = '$' + self.tex + '$'
+        if fname is None:
+            fname = get_valid_filename(self.name)
+
+        if fig_kw is None:
+            fig_kw = {}
+        if plt_kw is None:
+            plt_kw = {}
+
+        if fig is None and ax is None:
+            fig = plt.figure(**fig_kw)
+        if ax is None:
+            ax = fig.add_subplot(111)
+
+        if outdir is not None:
+            mkdir(outdir, warn=False)
+
+        # TODO: allow plotting of N-dimensional arrays: 1D should be simple; >
+        # 2D by arraying them as 2D slices in the smallest dimension(s)
+        assert len(self.binning) == 2
+
+        hist = np.ma.masked_invalid(self.hist)
+        islog = False
+        if symm:
+            if cmap is None:
+                cmap = plt.cm.seismic
+            extr = np.nanmax(np.abs(hist))
+            vmax = extr
+            vmin = -extr
+        else:
+            if cmap is None:
+                #cmap = plt.cm.afmhot
+                cmap = plt.cm.bone
+            if evtrate:
+                vmin = 0
+            else:
+                vmin = np.nanmin(hist)
+            vmax = np.nanmax(hist)
+        cmap.set_bad(color=(0,1,0), alpha=1)
+
+        x = self.binning.dims[0].bin_edges.magnitude
+        y = self.binning.dims[1].bin_edges.magnitude
+
+        if self.binning.dims[0].is_log:
+            xticks = 2**(np.arange(np.ceil(np.log2(min(x))),
+                                   np.floor(np.log2(max(x)))+1))
+            x = np.log10(x)
+        if self.binning.dims[1].is_log:
+            yticks = 2**(np.arange(np.ceil(np.log2(min(y))),
+                                   np.floor(np.log2(max(y)))+1))
+            y = np.log10(y)
+
+        X, Y = np.meshgrid(x, y)
+        pcmesh = ax.pcolormesh(
+            X, Y, hist.T,
+            vmin=vmin, vmax=vmax, cmap=cmap,
+            shading='flat', edgecolors='face'
+        )
+        cbar = plt.colorbar(mappable=pcmesh, ax=ax)
+        cbar.ax.tick_params(labelsize='large')
+
+        xlabel = strip_outer_dollars(self.binning.dims[0].tex)
+        ylabel = strip_outer_dollars(self.binning.dims[1].tex)
+
+        xunits = self.binning.dims[0].units
+        yunits = self.binning.dims[1].units
+
+        if xunits != ureg.dimensionless:
+            xlabel = xlabel + r'\; \left({:~L}\right)'.format(xunits)
+        if yunits != ureg.dimensionless:
+            ylabel = ylabel + r'\; \left({:~L}\right)'.format(yunits)
+
+        xlabel = '$%s$' % xlabel
+        ylabel = '$%s$' % ylabel
+
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        ax.set_title(title, y=1.03)
+        ax.set_xlim(np.min(x), np.max(x))
+        ax.set_ylim(np.min(y), np.max(y))
+
+        if self.binning.dims[0].is_log:
+            ax.set_xticks(np.log10(xticks))
+            ax.set_xticklabels([str(int(xt)) for xt in xticks])
+        if self.binning.dims[1].is_log:
+            ax.set_yticks(np.log10(yticks))
+            ax.set_yticklabels([str(int(yt)) for yt in yticks])
+
+        if outdir is not None:
+            if fname is None:
+                fname = label
+            path = os.path.join([outdir, get_valid_filename(fname+'.'+fmt)])
+            logging.debug('>>>> Plot for inspection saved at %s' %path)
+            fig.savefig(os.path.join(*path))
+
+        return ax, pcmesh, cbar
 
     def _new_obj(original_function):
         """Decorator to deepcopy unaltered states into new object."""
@@ -573,6 +741,26 @@ class Map(object):
 
     def __getitem__(self, idx):
         return self._slice_or_index(idx)
+
+    def slice_hist_by_name(self, dim_name, bin_name):
+        assert isinstance(dim_name, basestring)
+        assert isinstance(bin_name, basestring)
+        if dim_name not in self.binning.names:
+            raise ValueError('`%s` must be in binning. Found %s'
+                             %(dim_name,self.binning.names))
+        if bin_name not in self.binning[dim_name].bin_names:
+            raise ValueError('Unknown %s classification %s.'
+                             %(dim_name,bin_name))
+        bin_index = self.binning[dim_name].bin_names.index(bin_name)
+        dim_index = self.binning.names.index(dim_name)
+        idx = []
+        for i in range(0,len(self.binning.names)):
+            if i != dim_index:
+                idx.append(slice(None))
+            else:
+                idx.append(bin_index)
+        idx = tuple(idx)
+        return self.hist[idx]
 
     def llh(self, expected_values):
         """Calculate the total log-likelihood value between this map and the map
@@ -1306,6 +1494,14 @@ class MapSet(object):
         if len(resulting_maps) == 1:
             return resulting_maps[0]
         return MapSet(resulting_maps)
+
+    def compare(self, ref):
+        assert isinstance(ref, MapSet) and len(self) == len(ref)
+        rslt = OrderedDict()
+        for m, r in zip(self, ref):
+            out = m.compare(r)
+            rslt[m.name] = out
+        return rslt
 
     def __eq__(self, other):
         return recursiveEquality(self._hashable_state, other._hashable_state)
