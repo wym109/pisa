@@ -12,6 +12,7 @@ just use from_json, to_json) for... faster JSON serdes?
 # TODO: why the second line above?
 
 
+import bz2
 from collections import OrderedDict
 import os
 
@@ -23,6 +24,7 @@ from pisa import ureg, Q_
 from pisa.utils.resources import open_resource
 from pisa.utils.log import logging
 
+ZIP_EXTS = ['bz2']
 
 def json_string(string):
     """Decode a json string"""
@@ -39,20 +41,41 @@ def loads(s):
 
 
 def from_json(filename):
-    """Open a file in JSON format an parse the content"""
-    try:
+    """Open a file in JSON format (optionally compressed with bz2) and parse
+    the content into Python objects.
+
+    Note that this currently only recognizes bz2-compressed file by its
+    extension (i.e., the file must be <root>.json.bz2 if it is compressed).
+
+    Parameters
+    ----------
+    filename : str
+
+    Returns
+    -------
+    content: OrderedDict with contents of JSON file
+
+    """
+    rootname, ext = os.path.splitext(fname)
+    ext = ext.replace('.', '').lower()
+    assert ext == 'json' or ext in ZIP_EXTS
+    if ext == 'bz2':
+        content = json.loads(
+            bz2.decompress(open_resource(filename)),
+            cls=NumpyDecoder,
+            object_pairs_hook=OrderedDict
+        )
+    else:
         content = json.load(open_resource(filename), cls=NumpyDecoder,
                             object_pairs_hook=OrderedDict)
-        return content
-    except (IOError, json.JSONDecodeError), e:
-        logging.error('Unable to read JSON file "%s"' %filename)
-        logging.error(e)
-        raise e
+    return content
 
 
 def to_json(content, filename, indent=2, overwrite=True, sort_keys=False):
     """Write content to a JSON file using a custom parser that automatically
-    converts numpy arrays to lists.
+    converts numpy arrays to lists. If the filename has a ".bz2" extension
+    appended, the contents will be compressed (using bz2 and highest-level of
+    compression, i.e., -9)
 
     Parameters
     ----------
@@ -70,9 +93,25 @@ def to_json(content, filename, indent=2, overwrite=True, sort_keys=False):
         else:
             raise Exception('Refusing to overwrite path ' + fpath)
 
+    rootname, ext = os.path.splitext(fname)
+    ext = ext.replace('.', '').lower()
+    assert ext == 'json' or ext in ZIP_EXTS
+
     with open(filename, 'w') as outfile:
-        json.dump(content, outfile, indent=indent, cls=NumpyEncoder,
-                  sort_keys=sort_keys, allow_nan=True, ignore_nan=False)
+        if ext == 'bz2':
+            outfile.write(
+                bz2.compress(
+                    json.dumps(
+                        content, outfile, indent=indent, cls=NumpyEncoder,
+                        sort_keys=sort_keys, allow_nan=True, ignore_nan=False
+                    )
+                )
+            )
+        else:
+            json.dump(
+                content, outfile, indent=indent, cls=NumpyEncoder,
+                sort_keys=sort_keys, allow_nan=True, ignore_nan=False
+            )
         logging.debug('Wrote %.2f kB to %s' % (outfile.tell()/1024., filename))
 
 
