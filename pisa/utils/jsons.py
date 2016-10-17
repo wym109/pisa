@@ -56,12 +56,12 @@ def from_json(filename):
     content: OrderedDict with contents of JSON file
 
     """
-    rootname, ext = os.path.splitext(fname)
+    rootname, ext = os.path.splitext(filename)
     ext = ext.replace('.', '').lower()
     assert ext == 'json' or ext in ZIP_EXTS
     if ext == 'bz2':
         content = json.loads(
-            bz2.decompress(open_resource(filename)),
+            bz2.decompress(open_resource(filename).read()),
             cls=NumpyDecoder,
             object_pairs_hook=OrderedDict
         )
@@ -93,7 +93,7 @@ def to_json(content, filename, indent=2, overwrite=True, sort_keys=False):
         else:
             raise Exception('Refusing to overwrite path ' + fpath)
 
-    rootname, ext = os.path.splitext(fname)
+    rootname, ext = os.path.splitext(filename)
     ext = ext.replace('.', '').lower()
     assert ext == 'json' or ext in ZIP_EXTS
 
@@ -171,15 +171,21 @@ def test_NumpyEncoderDecoder():
     testdir = tempfile.mkdtemp()
     fname = os.path.join(testdir, 'nda1.json')
     to_json(nda1, fname)
-    nda2 = from_json(fname)
-    assert np.allclose(nda2, nda1, rtol=1e-12, atol=0, equal_nan=True), \
-            'nda1=\n%s\nnda2=\n%s\nsee file: %s' %(nda1, nda2, fname)
+    fname2 = os.path.join(testdir, 'nda1.json.bz2')
+    to_json(nda1, fname2)
+    for fn in [fname, fname2]:
+        nda2 = from_json(fn)
+        assert np.allclose(nda2, nda1, rtol=1e-12, atol=0, equal_nan=True), \
+                'nda1=\n%s\nnda2=\n%s\nsee file: %s' %(nda1, nda2, fn)
     d1 = {'nda1': nda1}
     fname = os.path.join(testdir, 'd1.json')
+    fname2 = os.path.join(testdir, 'd1.json.bz2')
     to_json(d1, fname)
-    d2 = from_json(fname)
-    assert recursiveEquality(d2, d1), \
-            'd1=\n%s\nd2=\n%s\nsee file: %s' %(d1, d2, fname)
+    to_json(d1, fname2)
+    for fn in [fname, fname2]:
+        d2 = from_json(fn)
+        assert recursiveEquality(d2, d1), \
+                'd1=\n%s\nd2=\n%s\nsee file: %s' %(d1, d2, fn)
     logging.info('<< PASSED : test_NumpyEncoderDecoder >>')
 
 
