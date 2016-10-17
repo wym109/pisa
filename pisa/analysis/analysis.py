@@ -511,7 +511,7 @@ class Analysis(object):
     #   params
     # * set (some free or fixed) params, then check metric
     # where the setting of the params is done for some number of values.
-    def scan(self, data_dist, hypo_maker, hypo_param_selections, metric,
+    def scan(self, data_dist, hypo_maker, metric, hypo_param_selections=None,
              param_names=None, steps=None, values=None, only_points=None,
              outer=True, profile=True, minimizer_settings=None, outfile=None,
              **kwargs):

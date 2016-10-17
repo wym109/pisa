@@ -58,7 +58,7 @@ if __name__ == '__main__':
         product of inner sequences.'''
     )
     parser.add_argument(
-        '--param-selection', type=str, required=True,
+        '--param-selection', type=str, required=False,
         help='''Selection of params to use in order to generate the hypothesised
         Asimov distributions.'''
     )
