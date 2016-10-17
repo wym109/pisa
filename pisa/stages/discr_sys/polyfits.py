@@ -65,7 +65,7 @@ class polyfits(Stage):
         for pname in self.pnames:
             self.fit_results[pname] = from_file(self.params[pname+'_file'].value)
             assert self.input_names == self.fit_results[pname]['map_names']
-            assert self.input_binning.hash == self.fit_results[pname]['binning_hash']
+            #assert self.input_binning.hash == self.fit_results[pname]['binning_hash']
 
     @profile
     def _compute_transforms(self):
