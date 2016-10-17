@@ -743,6 +743,22 @@ class Map(object):
         return self._slice_or_index(idx)
 
     def slice_map_by_name(self, dim_name, bin_name):
+        """
+        Slice the existing map by selecting the bin defined by bin_name
+        along the dimension defined by dim_name
+
+        Parameters
+        ----------
+        dim_name : string corresponding to one of the dimension names
+        bin_name : string corresponding to one of the bin names along t
+                   his dimension.
+
+        Returns
+        -------
+        Map corresponding to the requested slice. Dimensionality should 
+        otherwise be preserved. 
+
+        """
         assert isinstance(dim_name, basestring)
         assert isinstance(bin_name, basestring)
         if dim_name not in self.binning.names:
@@ -764,8 +780,6 @@ class Map(object):
         idx = tuple(idx)
         binning = MultiDimBinning(other_bins)
         hist = self.hist[idx]
-        logging.info('Returning new map sliced on %s dimension by %s name.'
-                     %(dim_name,bin_name))
         return Map(name=bin_name, hist=hist, binning=binning)
 
     def llh(self, expected_values):
