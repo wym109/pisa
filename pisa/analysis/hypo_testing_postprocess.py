@@ -78,6 +78,9 @@ def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
         fluctuate_data=fluctuate_data, fluctuate_fid=fluctuate_fid
     )
 
+    #for key in labels.dict.keys():
+    #    print key
+
     # Find all relevant data dirs, and from each extract the fiducial fit(s)
     # information contained
     data_sets = OrderedDict()
@@ -91,6 +94,8 @@ def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
             dset_label = data_ind
         else:
             dset_label = labels.data_prefix
+            if not labels.data_name in [None, '']:
+                dset_label += '_' + labels.data_name
             if not labels.data_suffix in [None, '']:
                 dset_label += '_' + labels.data_suffix
 
@@ -121,7 +126,11 @@ def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
                         fid_label = labels.fid
                     if k not in lvl2_fits:
                         lvl2_fits[k] = OrderedDict()
-                    lvl2_fits[k][fid_label] = extract_fit(fpath, 'metric_val')
+                    lvl2_fits[k][fid_label] = \
+                        extract_fit(fpath, ['metric_val','fit_history'])
+                    fit_history = lvl2_fits[k][fid_label].pop('fit_history')
+                    lvl2_fits[k][fid_label]['best_fit_params'] = \
+                        fit_history[-1]
                     break
         data_sets[dset_label] = lvl2_fits
     return data_sets
@@ -140,6 +149,8 @@ def extract_fit(fpath, keys=None):
 
     """
     info = from_file(fpath)
+    if keys == 'metric_val':
+        print info.keys()
     if keys is None:
         return info
     if isinstance(keys, basestring):
@@ -196,5 +207,15 @@ if __name__ == '__main__':
         print np.sqrt(np.abs(od['h1_fit_to_h0_fid']['fid_asimov']['metric_val'] - od['h0_fit_to_h1_fid']['fid_asimov']['metric_val']))
 
     else:
-        raise NotImplementedError('llr-analysis')
+        data_sets = extract_trials(logdir=args.dir,
+                                   fluctuate_fid=True,
+                                   fluctuate_data=False)
 
+        print data_sets.keys()
+
+        print data_sets['toy_no_asimov']['h0_fit_to_data']
+
+        dstakeys = ['h0_fit_to_data', 'h1_fit_to_data', 'h1_fit_to_h1_fid', 'h1_fit_to_h0_fid', 'h0_fit_to_h1_fid', 'h0_fit_to_h0_fid']
+        print data_sets['toy_no_asimov']['h0_fit_to_h1_fid'][1].keys()
+        print data_sets['toy_no_asimov']['h0_fit_to_h1_fid'][1]['metric_val']
+        print data_sets['toy_no_asimov']['h0_fit_to_h1_fid'][1]['best_fit_params']
