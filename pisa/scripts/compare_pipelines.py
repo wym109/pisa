@@ -6,9 +6,10 @@ Compares reco vbwkde vs. hist.
 """
 
 from argparse import ArgumentParser
+import os
 
 from pisa.core.pipeline import Pipeline
-from pisa.utils.fileio import mkdir
+from pisa.utils.fileio import mkdir, to_file
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.tests import plot_cmp
 
@@ -82,6 +83,8 @@ if __name__ == '__main__':
         for k in ['max_diff_ratio', 'max_diff', 'nanmatch', 'infmatch']:
             print '%s = %s' %(k, comparisons[k])
         if args.outdir is not None:
+            to_file(test_map, os.path.expandvars(os.path.expanduser(os.path.join(args.outdir, map_name + '__' + args.test_label + '.json.bz2'))))
+            to_file(ref_map, os.path.expandvars(os.path.expanduser(os.path.join(args.outdir, map_name + '__' + args.ref_label + '.json.bz2'))))
             for fmt in plot_formats:
                 plot_cmp(new=test_map, ref=ref_map, new_label=args.test_label,
                          ref_label=args.ref_label, plot_label=test_map.tex,

@@ -26,7 +26,7 @@ import os
 import numpy as np
 from scipy.interpolate import interp1d
 
-from pisa.core.binning import MultiDimBinning
+from pisa.core.binning import MultiDimBinning, OneDimBinning
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.utils.confInterval import MLConfInterval
@@ -365,7 +365,8 @@ class vbwkde(Stage):
             repr_flav_int = xform_flavints.flavints()[0]
             kde_info, extra_info = self.compute_kdes(
                 events=self.remaining_events[repr_flav_int],
-                binning=self.input_binning
+                input_binning=self.input_binning,
+                output_binning=self.output_binning
             )
             self.all_kde_info[str(xform_flavints)] = kde_info
             self.all_extra_info[str(xform_flavints)] = extra_info
@@ -397,7 +398,7 @@ class vbwkde(Stage):
         return self.all_kde_info
 
     @profile
-    def compute_kdes(self, events, binning):
+    def compute_kdes(self, events, input_binning, output_binning):
         """Construct VBW-KDE kernels for smearing each true-variables bin.
 
         Note that the output binning (i.e., reco variables' binning) is
@@ -417,8 +418,11 @@ class vbwkde(Stage):
         events : Events
             Must contain each of {true|reco}_{energy|coszen} fields
 
-        binning : MultiDimBinning
-            Must contain each of {true|reco}_{energy|coszen} dimensions. If it
+        input_binning : MultiDimBinning
+            Must contain each of true_{energy|coszen} dimensions.
+
+        output_binning : MultiDimBinning
+            Must contain each of reco_{energy|coszen} dimensions. If it
             contains a pid dimension, then kernels are computed in PID as well.
 
         Returns
@@ -434,11 +438,8 @@ class vbwkde(Stage):
         EPSILON = 1e-10
         ENERGY_RANGE = [0, 501] # GeV
 
-        # Select out the dimensions we actually use
-        #binning = MultiDimBinning([binning.true_energy, binning.true_coszen])
-
         compute_pid = False
-        if 'pid' in binning:
+        if 'pid' in output_binning.names:
             compute_pid = True
 
         # TODO: characterize only events in a given pid bin
@@ -449,9 +450,9 @@ class vbwkde(Stage):
         reco_energy = events['reco_energy']
         true_coszen = events['true_coszen']
         reco_coszen = events['reco_coszen']
-        ebins = binning.true_energy
+        ebins = input_binning.true_energy
         ebin_edges = ebins.bin_edges.m_as('GeV')
-        czbins = binning.true_coszen
+        czbins = input_binning.true_coszen
         czbin_edges = czbins.bin_edges.m_as('dimensionless')
 
         # NOTE: below defines bin centers on linear scale; other logic in this
@@ -778,7 +779,9 @@ class vbwkde(Stage):
                 min_num_pts = 2**12
                 min_pts_smallest_bin = 5.0
                 kde_range = np.diff(pid_kde_lims)
-                num_pts0 = kde_range/(pidbin_wid/min_pts_smallest_bin)
+                # TODO: something intelligetn here but that takes into account
+                # possible infinite bin edges
+                num_pts0 = 0 #kde_range/(pidbin_wid/min_pts_smallest_bin)
                 kde_num_pts = int(max(
                     min_num_pts,
                     2**np.ceil(np.log2(num_pts0))
@@ -841,6 +844,7 @@ class vbwkde(Stage):
             )
 
             if compute_pid:
+                print '*'*80
                 thisbin_kde_info['pid_interp'] = pid_interp
                 thisbin_extra_info.update(dict(
                     pid=pid,
@@ -903,28 +907,24 @@ class vbwkde(Stage):
 
         transform_binning = self.input_binning * self.output_binning
 
-        output_ebins = self.output_binning.reco_energy
-        output_czbins = self.output_binning.reco_coszen
+        output_e_binning = self.output_binning.reco_energy
+        output_cz_binning = self.output_binning.reco_coszen
 
         compute_pid = False
-        if 'pid' in self.output_binning:
+        if 'pid' in self.output_binning.names:
             compute_pid = True
-            output_pidbins = self.output_binning.pid
+            output_pid_binning = self.output_binning.pid
 
         input_czbins = self.input_binning.true_coszen
 
         # Upsample to get coordinates at which to evaluate trapezoidal-rule
         # integral for each output bin
-        e_oversamp_binned = output_ebins.oversample(SAMPLES_PER_BIN-1)
-        cz_oversamp_binned = output_czbins.oversample(SAMPLES_PER_BIN-1)
+        e_oversamp_binned = output_e_binning.oversample(SAMPLES_PER_BIN-1)
+        cz_oversamp_binned = output_cz_binning.oversample(SAMPLES_PER_BIN-1)
 
         # Convert to scalars in compuational units
         e_oversamp_binned = e_oversamp_binned.bin_edges.m_as('GeV')
         cz_oversamp_binned = cz_oversamp_binned.bin_edges.m_as('dimensionless')
-
-        if compute_pid:
-            pid_oversamp_binned = output_pidbins.oversample(SAMPLES_PER_BIN-1)
-            pid_oversamp_binned = output_pidbins.bin_edges.m_as('dimensionless')
 
         # Object in which to store the MxN-dimenstional kernels
         kernel = np.full(shape=transform_binning.shape, fill_value=np.nan,
@@ -978,15 +978,15 @@ class vbwkde(Stage):
                                  %res_scale_ref)
 
             # Convolve the input bin (represented by a boxcar normalized to
-            # have summed area of 1) with the resolution function's shape,
-            # since by binning the input (truth dimensions) we must (roughlY)
-            # assume that an event in the bin could have come from anywhere in
-            # that bin with equal probability. Therfore the resolution function
+            # have sum of 1) with the resolution function's shape, since by
+            # binning the input (truth dimensions) we must (roughlY) assume
+            # that an event in the bin could have come from anywhere in that
+            # bin with equal probability. Therfore the resolution function
             # could be applied at the left edge of the bin, the right edge of
             # the bin, or anywhere in between. This is a convolution of the two
-            # PDFs: a boxcar for the bin, and the KDE resolution function.
-            # Note that a function other than a boxcar might be appropriate as
-            # well, but simplicity rules at the moment.
+            # PDFs: a boxcar for the bin, and the KDE resolution function. Note
+            # that a function other than a boxcar might be appropriate as well,
+            # but simplicity rules at the moment.
 
             if self.E_CONVOLUTION:
                 # 1. Determine bin width in relative coordinates (taking res
@@ -1132,7 +1132,7 @@ class vbwkde(Stage):
                               %(input_ebin_n, binned_area))
 
             output_ebin_areas = []
-            for output_ebin_n in xrange(output_ebins.num_bins):
+            for output_ebin_n in xrange(output_e_binning.num_bins):
                 sl = slice(output_ebin_n*SAMPLES_PER_BIN,
                            (output_ebin_n+1)*SAMPLES_PER_BIN + 1)
                 ebin_area = np.trapz(y=e_pdf_binned[sl],
@@ -1155,9 +1155,34 @@ class vbwkde(Stage):
             # PID distribution for events in this energy bin
             #==================================================================
             if compute_pid:
+                # If e.g. +/-inf (or large pos/neg) values are used for bin
+                # edges for PID (which is common), re-form the binning with
+                # the edges at the limits of the PID KDE's extents. Only the
+                # left-most and right-most bins need to be considered here.
+                comp_pid_binning = deepcopy(output_pid_binning)
+                edges = comp_pid_binning.bin_edges.magnitude
+                edges_units = comp_pid_binning.bin_edges.units
+                interp_min, interp_max = np.min(pid_interp.x), np.max(pid_interp.x)
+                reform = False
+                if edges[0] < interp_min:
+                    reform = True
+                    edges[0] = interp_min
+                if edges[-1] > interp_max:
+                    reform = True
+                    edges[-1] = interp_max
+                if reform:
+                    comp_pid_binning = OneDimBinning(
+                        bin_edges=edges*edges_units,
+                        name=comp_pid_binning.name
+                    )
+                else:
+                    comp_pid_binning = deepcopy(comp_pid_binning)
+                pid_oversamp_binned = comp_pid_binning.oversample(SAMPLES_PER_BIN-1)
+                pid_oversamp_binned = comp_pid_binning.bin_edges.m_as('dimensionless')
+
                 pid_pdf = pid_interp(pid_oversamp_binned)
                 output_pidbin_areas = []
-                for n in xrange(output_pidbins.num_bins):
+                for n in xrange(comp_pid_binning.num_bins):
                     sl = slice(n*SAMPLES_PER_BIN, (n+1)*SAMPLES_PER_BIN+1)
                     area = np.abs(np.trapz(y=pid_pdf[sl],
                                            x=pid_oversamp_binned[sl]))
@@ -1170,6 +1195,7 @@ class vbwkde(Stage):
                         raise ValueError()
 
                     output_pidbin_areas.append(area)
+                tot_output_pidbin_area = np.sum(output_pidbin_areas)
 
             #==================================================================
             # Neutrino coszen resolution for events in this energy bin
@@ -1283,7 +1309,7 @@ class vbwkde(Stage):
                         (cz_interpolant_limits[1] - 1) / 2.0
                     )))
 
-                output_czbin_areas = np.zeros(output_czbins.num_bins)
+                output_czbin_areas = np.zeros(output_cz_binning.num_bins)
                 for alias_n in range(-negative_aliases, 1 + positive_aliases):
                     # Even aliases are a simple shift by 2xalias#
                     if alias_n % 2 == 0:
@@ -1304,7 +1330,7 @@ class vbwkde(Stage):
                     assert np.all(cz_pdf >= 0), str(cz_pdf)
 
                     alias_cz_areas = []
-                    for n in xrange(output_czbins.num_bins):
+                    for n in xrange(output_cz_binning.num_bins):
                         sl = slice(n*SAMPLES_PER_BIN, (n+1)*SAMPLES_PER_BIN+1)
                         area = np.abs(np.trapz(y=cz_pdf[sl],
                                                x=abs_cz_coords[sl]))
