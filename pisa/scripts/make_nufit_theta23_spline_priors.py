@@ -173,12 +173,3 @@ if __name__ == '__main__':
         to_file(minimisedprior,
                 os.path.join(args.outdir,
                              'nufit%sminimisedtheta23spline.json'%NuFitVersion))
-
-    
-
-
-
-
-
-
-
