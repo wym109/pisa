@@ -230,9 +230,10 @@ class vbwkde(Stage):
         distribution of reconstructed events corresponding to each bin of true
         events using VBW-KDE.
 
-        The resulting transform is a 2N-dimensional histogram, where N is the
-        dimensionality of the input binning. The transform maps the truth bin
-        counts to the reconstructed bin counts.
+        The resulting transform is an MxN-dimensional histogram, where M is the
+        dimensionality of the input binning and N is the dimensionality of the
+        output binning. The transform maps the truth bin counts to the
+        reconstructed bin counts.
 
         I.e., for the case of 1D input binning, the ith element of the
         reconstruction kernel will be a map showing the distribution of events
@@ -400,7 +401,8 @@ class vbwkde(Stage):
         """Construct VBW-KDE kernels for smearing each true-variables bin.
 
         Note that the output binning (i.e., reco variables' binning) is
-        irrelevant to this method.
+        irrelevant to this method, except whether this includes energy, coszen,
+        and/or PID. (As of now, the firt two are required.)
 
         From the samples, a linear interpolant is generated. There are one
         energy and one coszen interpolant genreated for each energy bin.
@@ -424,9 +426,6 @@ class vbwkde(Stage):
         kde_info
 
         """
-        # Select out the dimensions we actually use
-        binning = MultiDimBinning([binning.true_energy, binning.true_coszen])
-
         # Constants. Can turn into stage args or params if that makes more
         # sense.
         OVERFIT_FACTOR = 1.0
@@ -434,6 +433,16 @@ class vbwkde(Stage):
         TGT_NUM_EVENTS = 300
         EPSILON = 1e-10
         ENERGY_RANGE = [0, 501] # GeV
+
+        # Select out the dimensions we actually use
+        #binning = MultiDimBinning([binning.true_energy, binning.true_coszen])
+
+        compute_pid = False
+        if 'pid' in binning:
+            compute_pid = True
+
+        # TODO: characterize only events in a given pid bin
+        #for pid_n in range(pidbins.num_bins):
 
         # TODO: handle units consistency here when Events object gets units
         true_energy = events['true_energy']
@@ -445,14 +454,10 @@ class vbwkde(Stage):
         czbins = binning.true_coszen
         czbin_edges = czbins.bin_edges.m_as('dimensionless')
 
-        compute_pid = False
-        if 'pid' in binning:
-            compute_pid = True
-
         # NOTE: below defines bin centers on linear scale; other logic in this
         # method assumes this to be the case, so **DO NOT USE**
         # weighted_centers in this method, which may return
-        # logarithmically-defined centers instead.
+        # logarithmic centers instead.
 
         left_ebin_edges = ebin_edges[0:-1]
         right_ebin_edges = ebin_edges[1:]
@@ -761,11 +766,8 @@ class vbwkde(Stage):
                 pid_max = max(pid)
                 pid_range = pid_max-pid_min
 
-                # Want the lower limit of KDE evaluation to be located at the most
-                # negative of
-                # * 2x the distance between the bin midpoint to the reco with
-                #   most-negative error
-                # * 4x the bin width to the left of the midpoint
+                # Want the limits of KDE evaluation to be located 4x the bin
+                # width to the left and right of the min/max pid vals
                 pid_lowerlim = pid_min-pid_range*4
                 pid_upperlim = pid_max+pid_range*4
                 pid_kde_lims = np.array([pid_lowerlim, pid_upperlim])
@@ -811,7 +813,6 @@ class vbwkde(Stage):
                     pid_pdf = np.clip(a=pid_pdf, a_min=0, a_max=np.inf)
 
                 assert np.min(pid_pdf) >= 0, str(np.min(pid_pdf))
-                #assert np.max(pid_pdf) < 1, str(np.max(pidcz_pdf))
 
                 # Create linear interpolator for the PDF (relative to bin midpoint)
                 pid_interp = interp1d(
@@ -873,7 +874,7 @@ class vbwkde(Stage):
         Parameters
         ----------
         kde_info : OrderedDict
-            Object returned by method `compute_kdes`. See help on that method
+            Object returned by method `compute_kdes`. See help on that methcz_coordsod
             for more details.
 
 
@@ -904,6 +905,7 @@ class vbwkde(Stage):
 
         output_ebins = self.output_binning.reco_energy
         output_czbins = self.output_binning.reco_coszen
+
         compute_pid = False
         if 'pid' in self.output_binning:
             compute_pid = True
@@ -919,6 +921,10 @@ class vbwkde(Stage):
         # Convert to scalars in compuational units
         e_oversamp_binned = e_oversamp_binned.bin_edges.m_as('GeV')
         cz_oversamp_binned = cz_oversamp_binned.bin_edges.m_as('dimensionless')
+
+        if compute_pid:
+            pid_oversamp_binned = output_pidbins.oversample(SAMPLES_PER_BIN-1)
+            pid_oversamp_binned = output_pidbins.bin_edges.m_as('dimensionless')
 
         # Object in which to store the MxN-dimenstional kernels
         kernel = np.full(shape=transform_binning.shape, fill_value=np.nan,
@@ -1059,6 +1065,8 @@ class vbwkde(Stage):
             logging.trace('Bin %4d binned E area after trapz renorm = %e'
                           %(input_ebin_n, binned_area))
 
+            # Following is disabled due to less accurate results; kept for
+            # posterity and further testing in the future
             if False:
                 # Now figure out the "invalid" area under the PDF. Since we
                 # draw events that are > than the bin midpoint, but we
@@ -1142,6 +1150,26 @@ class vbwkde(Stage):
                     and tot_output_ebin_area < 1+EPSILON, \
                     'Input Ebin %4d, tot_output_ebin_area=%e' \
                     %(input_ebin_n, tot_output_ebin_area)
+
+            #==================================================================
+            # PID distribution for events in this energy bin
+            #==================================================================
+            if compute_pid:
+                pid_pdf = pid_interp(pid_oversamp_binned)
+                output_pidbin_areas = []
+                for n in xrange(output_pidbins.num_bins):
+                    sl = slice(n*SAMPLES_PER_BIN, (n+1)*SAMPLES_PER_BIN+1)
+                    area = np.abs(np.trapz(y=pid_pdf[sl],
+                                           x=pid_oversamp_binned[sl]))
+                    if area <= -EPSILON:
+                        logging.error('x  = %s' %rel_cz_coords[sl])
+                        logging.error('y  = %s' %cz_pdf[sl])
+                        logging.error('sl = %s' %sl)
+                        logging.error('alias %d czbin %d area=%e'
+                                      %(alias_n, n, area))
+                        raise ValueError()
+
+                    output_pidbin_areas.append(area)
 
             #==================================================================
             # Neutrino coszen resolution for events in this energy bin
@@ -1275,13 +1303,11 @@ class vbwkde(Stage):
                     cz_pdf = smeared_cz_interp(rel_cz_coords) / cz_res_scale
                     assert np.all(cz_pdf >= 0), str(cz_pdf)
 
-                    areas = []
+                    alias_cz_areas = []
                     for n in xrange(output_czbins.num_bins):
                         sl = slice(n*SAMPLES_PER_BIN, (n+1)*SAMPLES_PER_BIN+1)
                         area = np.abs(np.trapz(y=cz_pdf[sl],
                                                x=abs_cz_coords[sl]))
-                        #if n < 0:
-                        #    area = -area
                         if area <= -EPSILON:
                             logging.error('x  = %s' %rel_cz_coords[sl])
                             logging.error('y  = %s' %cz_pdf[sl])
@@ -1290,14 +1316,14 @@ class vbwkde(Stage):
                                           %(alias_n, n, area))
                             raise ValueError()
 
-                        areas.append(area)
+                        alias_cz_areas.append(area)
 
                     #logging.trace('input ebin %4d, input czbin %4d,'
                     #              ' cz alias_n=%+d, areas=%s'
                     #              %(input_ebin_n, input_czbin_n, alias_n,
                     #                areas))
 
-                    output_czbin_areas += np.array(areas)
+                    output_czbin_areas += np.array(alias_cz_areas)
 
                 #logging.trace('input ebin %4d, input czbin %4d,'
                 #              'output_czbin_areas=%s'
@@ -1343,10 +1369,13 @@ class vbwkde(Stage):
                 d = np.sum(kernel[i,j]) - tot_output_area
                 assert np.abs(d) < EPSILON, 'd: %s, epsilon: %s' %(d, epsilon)
 
-        check_areas = kernel.sum(axis=(2,3))
+        if compute_pid:
+            output_areas = kernel.sum(axis=(2,3,4))
+        else:
+            output_areas = kernel.sum(axis=(2,3))
 
-        #assert np.max(check_areas) < 1 + EPSILON, str(np.max(check_areas))
-        assert np.min(check_areas) > 0 - EPSILON, str(np.min(check_areas))
+        #assert np.max(output_areas) < 1 + EPSILON, str(np.max(output_areas))
+        assert np.min(output_areas) > 0 - EPSILON, str(np.min(output_areas))
 
         return kernel
 
