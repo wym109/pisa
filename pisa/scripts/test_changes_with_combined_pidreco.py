@@ -34,7 +34,7 @@ def compare_pisa_self(config1, config2, testname1, testname2, outdir):
     pipeline2 = Pipeline(config2)
     outputs2 = pipeline2.get_outputs()
 
-    if '5' in testname1:
+    if '5-stage' in testname1:
         cake1_trck_map = outputs1.combine_wildcard('*_trck')
         cake1_cscd_map = outputs1.combine_wildcard('*_cscd')
         cake1_trck_map_to_plot = {}
@@ -51,7 +51,7 @@ def compare_pisa_self(config1, config2, testname1, testname2, outdir):
             cake1_cscd_map.binning['reco_coszen'].bin_edges.magnitude
         cake1_cscd_map_to_plot['map'] = cake1_cscd_map.hist
         cake1_cscd_events = np.sum(cake1_cscd_map_to_plot['map'])
-    elif '4' in testname1:
+    elif '4-stage' in testname1:
         cake1_both_map = outputs1.combine_wildcard('*')
         cake1_trck_map_to_plot = {}
         cake1_trck_map_to_plot['ebins'] = \
@@ -78,7 +78,7 @@ def compare_pisa_self(config1, config2, testname1, testname2, outdir):
     else:
         raise ValueError("Should be comparing 4-stage or 5-stage PISAs.")
 
-    if '5' in testname2:
+    if '5-stage' in testname2:
         cake2_trck_map = outputs2.combine_wildcard('*_trck')
         cake2_cscd_map = outputs2.combine_wildcard('*_cscd')
         cake2_trck_map_to_plot = {}
@@ -95,7 +95,7 @@ def compare_pisa_self(config1, config2, testname1, testname2, outdir):
             cake2_cscd_map.binning['reco_coszen'].bin_edges.magnitude
         cake2_cscd_map_to_plot['map'] = cake2_cscd_map.hist
         cake2_cscd_events = np.sum(cake2_cscd_map_to_plot['map'])
-    elif '4' in testname2:
+    elif '4-stage' in testname2:
         cake2_both_map = outputs2.combine_wildcard('*')
         cake2_trck_map_to_plot = {}
         cake2_trck_map_to_plot['ebins'] = \
@@ -444,7 +444,7 @@ if __name__ == '__main__':
     # Perform oversampled tests
     if args.oversampling:
         oversamples = [5,10,20,50]
-        for oversamples in oversamples:
+        for oversample in oversamples:
             pisa_standard_oversampled_config = oversample_config(
                 base_config=deepcopy(pisa_standard_config),
                 oversample=oversample
@@ -460,7 +460,7 @@ if __name__ == '__main__':
                 oscfitfile=oscfitfile,
                 testname1='5-stage-%s-Oversampled%i'%(args.weighting,
                                                       oversample),
-                testname2='4-stage-%s-%i'%(args.weighting,
-                                           oversample),
+                testname2='4-stage-%s-Oversampled%i'%(args.weighting,
+                                                      oversample),
                 outdir=args.outdir
             )
