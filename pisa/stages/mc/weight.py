@@ -3,7 +3,7 @@ The purpose of this stage is to reweight an event sample to include effects of
 oscillation and various systematics.
 
 This service in particular is intended to follow a `data` service which takes
-advantage of the Events object being passed as a sideband in the Stage.
+advantage of the Data object being passed as a sideband in the Stage.
 """
 import numpy as np
 import pint
@@ -13,6 +13,7 @@ import pycuda.autoinit
 
 from pisa import ureg, Q_
 from pisa.core.stage import Stage
+from pisa.core.events import Data
 from pisa.core.map import MapSet
 from pisa.core.binning import OneDimBinning, MultiDimBinning
 from pisa.core.param import ParamSet
@@ -29,20 +30,92 @@ from pisa.stages.osc.prob3gpu import prob3gpu
 
 
 class weight(Stage):
-    """
+    """mc service to reweight an event sample taking into account atmospheric
+    fluxes, neutrino oscillations and various other systematics.
+
+    Parameters
+    ----------
+    params: ParamSet of sequence with which to instantiate a ParamSet
+        Parameters which set everything besides the binning
+
+        Parameters required by this service are
+            * output_events : bool
+                Flag to specify whether the service output returns a
+                MapSet or the Data
+
             * livetime : ureg.Quantity
                 Desired lifetime.
 
-    TODO(shivesh): docstring."""
+            * Flux related parameters:
+                For more information see `$PISA/pisa/stages/flux/honda.py`
+                - flux_file
+                - flux_mode
+                - atm_delta_index
+                - energy_scale
+                - nue_numu_ratio
+                - nu_nubar_ratio
+                - oversample_e
+                - oversample_cz
+                - cache_flux : bool
+                    Flag to specifiy whether to cache the flux values if
+                    calculated inside this service to a file specified
+                    by `disk_cache`.
+
+            * Oscillation related parameters:
+                For more information see `$PISA/pisa/stage/osc/prob3gpu.py`
+                - oscillate : bool
+                    Flag to specifiy whether to include the effects of neutrino
+                    oscillation.
+                - earth_model
+                - YeI
+                - YeM
+                - YeO
+                - detector_depth
+                - prop_height
+                - no_nc_osc : bool
+                    Flag to turn off oscillations for the neutral current
+                    interactions.
+                - deltacp
+                - deltam21
+                - deltam31
+                - theta12
+                - theta13
+                - theta23
+
+    input_names : string
+        Specifies the string representation of the NuFlavIntGroup(s) that
+        belong in the Data object passed to this service.
+
+    output_binning : MultiDimBinning or convertible thereto
+        The binning desired for the output maps.
+
+    output_names : string
+        Specifies the string representation of the NuFlavIntGroup(s) which will
+        be produced as an output.
+
+    error_method : None, bool, or string
+        If None, False, or empty string, the stage does not compute errors for
+        the transforms and does not apply any (additional) error to produce its
+        outputs. (If the inputs already have errors, these are propagated.)
+
+    debug_mode : None, bool, or string
+        If None, False, or empty string, the stage runs normally.
+        Otherwise, the stage runs in debug mode. This disables caching (forcing
+        recomputation of any nominal transforms, transforms, and outputs).
+
+    transforms_cache_depth
+    outputs_cache_depth : int >= 0
+
+    """
     def __init__(self, params, output_binning, input_names, output_names,
                  error_method=None, debug_mode=None, disk_cache=None,
-                 memcache_deepcopy=True, transforms_cache_depth=20,
-                 outputs_cache_depth=20):
+                 memcache_deepcopy=True, outputs_cache_depth=20):
 
         self.weight_params = (
+            'output_events',
             'livetime',
             'oscillate',
-            'cache_flux',
+            'cache_flux'
         )
 
         self.flux_params = (
@@ -69,7 +142,7 @@ class weight(Stage):
             'deltam21',
             'deltam31',
             'deltacp',
-            'no_nc_osc',
+            'no_nc_osc'
         )
 
         expected_params = self.flux_params + self.osc_params + self.weight_params
@@ -125,7 +198,6 @@ class weight(Stage):
             disk_cache=disk_cache,
             memcache_deepcopy=memcache_deepcopy,
             outputs_cache_depth=outputs_cache_depth,
-            transforms_cache_depth=transforms_cache_depth,
             output_binning=output_binning
         )
 
@@ -135,7 +207,10 @@ class weight(Stage):
 
     @profile
     def _compute_outputs(self, inputs=None):
-        """Compute nominal histograms for output channels."""
+        """Compute histograms for output channels."""
+        if not isinstance(inputs, Data):
+            raise AssertionError('inputs is not a Data object, instead is '
+                                 'type {0}'.format(type(inputs)))
         self._data = inputs
 
         if self.neutrino:
@@ -188,7 +263,10 @@ class weight(Stage):
                 tex         = r'\rm{muons}'
             ))
 
-        return MapSet(maps=outputs, name=self._data.metadata['name'])
+        if self.params['output_events'].value:
+            return self._data
+        else:
+            return MapSet(maps=outputs, name=self._data.metadata['name'])
 
     def compute_flux_weights(self):
         """Neutrino fluxes via `honda` service."""
@@ -424,6 +502,7 @@ class weight(Stage):
         return scaled_a, scaled_b
 
     def validate_params(self, params):
+        assert isinstance(params['output_events'].value, bool)
         assert isinstance(params['livetime'].value, pint.quantity._Quantity)
         assert isinstance(params['oscillate'].value, bool)
         assert isinstance(params['cache_flux'].value, bool)
