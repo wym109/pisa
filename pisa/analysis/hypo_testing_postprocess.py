@@ -133,6 +133,8 @@ def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
                         fit_history[-1]
                     break
         data_sets[dset_label] = lvl2_fits
+        data_sets[dset_label]['params'] = \
+            extract_fit(fpath, ['params'])['params']
     return data_sets
 
 
@@ -149,8 +151,6 @@ def extract_fit(fpath, keys=None):
 
     """
     info = from_file(fpath)
-    if keys == 'metric_val':
-        print info.keys()
     if keys is None:
         return info
     if isinstance(keys, basestring):
@@ -213,9 +213,9 @@ if __name__ == '__main__':
 
         print data_sets.keys()
 
-        print data_sets['toy_no_asimov']['h0_fit_to_data']
+        print len(data_sets['toy_no_asimov']['params']['params'].keys())
 
         dstakeys = ['h0_fit_to_data', 'h1_fit_to_data', 'h1_fit_to_h1_fid', 'h1_fit_to_h0_fid', 'h0_fit_to_h1_fid', 'h0_fit_to_h0_fid']
         print data_sets['toy_no_asimov']['h0_fit_to_h1_fid'][1].keys()
         print data_sets['toy_no_asimov']['h0_fit_to_h1_fid'][1]['metric_val']
-        print data_sets['toy_no_asimov']['h0_fit_to_h1_fid'][1]['best_fit_params']
+        print len(data_sets['toy_no_asimov']['h0_fit_to_h1_fid'][1]['best_fit_params'])
