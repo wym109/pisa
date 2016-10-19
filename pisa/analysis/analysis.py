@@ -514,7 +514,7 @@ class Analysis(object):
     def scan(self, data_dist, hypo_maker, metric, hypo_param_selections=None,
              param_names=None, steps=None, values=None, only_points=None,
              outer=True, profile=True, minimizer_settings=None, outfile=None,
-             **kwargs):
+             save_history = False, **kwargs):
         """Set hypo maker parameters named by `param_names` according to
         either values specified by `values` or number of steps specified by
         `steps`, and return the `metric` indicating how well the data
@@ -710,6 +710,8 @@ class Analysis(object):
             bf['params'] = deepcopy(bf['params']._serializable_state)
             bf['hypo_asimov_dist'] = \
                         deepcopy(bf['hypo_asimov_dist']._serializable_state)
+            if not save_history:
+                bf.pop('fit_history',None)
             results['results'].append(bf)
             if not outfile is None:
                 # store intermediate results
