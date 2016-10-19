@@ -743,7 +743,7 @@ class Map(object):
     def __getitem__(self, idx):
         return self._slice_or_index(idx)
 
-    def slice_map_by_name(self, dim_name, bin_name):
+    def slice_by_name(self, dim_name, bin_name):
         """
         Slice the existing map by selecting the bin defined by bin_name
         along the dimension defined by dim_name
