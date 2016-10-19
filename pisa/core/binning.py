@@ -314,11 +314,11 @@ class OneDimBinning(object):
             if not isinstance(bin_names, Sequence):
                 # Converting bin_names to a list so it can be indexed.
                 # Needed by future operations.
-                bin_names = [name for name in bin_names]    
+                bin_names = list(bin_names)
             if len(set(bin_names)) != len(bin_names):
                 raise ValueError('All bin names should be unique!')
             if len(bin_names) != num_bins:
-                raise ValueError('Each bin should have a name!')
+                raise ValueError('Some but not all bins have names.')
             for bin_name in bin_names:
                 if not isinstance(bin_name, basestring):
                     raise ValueError('%s is not a valid name. '
@@ -721,6 +721,10 @@ class OneDimBinning(object):
             raise ValueError('`factor` must be integer >= 0; got %s' %factor)
 
         factor = int(factor)
+
+        if factor == 1:
+            return self
+
         if self.is_log:
             bin_edges = np.logspace(np.log10(self.domain[0].m),
                                     np.log10(self.domain[-1].m),
@@ -740,15 +744,19 @@ class OneDimBinning(object):
             # Final bin needs final edge
             bin_edges.append(this_bin_new_edges[-1])
 
-        return {'bin_edges': np.array(bin_edges)*self.units}
+        return {'bin_edges': np.array(bin_edges)*self.units,
+                'bin_names': None}
 
     @_new_obj
     def downsample(self, factor):
         assert int(factor) == float(factor)
         factor = int(factor)
+        if factor == 1:
+            return self
         assert factor > 0 and factor <= self.num_bins
         assert self.num_bins % factor == 0
-        return {'bin_edges': self.bin_edges[::factor]}
+        return {'bin_edges': self.bin_edges[::factor],
+                'bin_names': None}
 
     def ito(self, units):
         """Convert units in-place. Cf. Pint's `ito` method."""
@@ -825,10 +833,7 @@ class OneDimBinning(object):
         # Deal with indexing by name first as to not break anything else
         if isinstance(index, basestring):
             assert self.bin_names is not None
-            if index in self.bin_names:
-                index = [self.binning[dim_name].bin_names.index(bin_name)]
-            else:
-                raise ValueError('`index` "%s" not found in bin names'%index)
+            index = self.bin_names.index(index)
 
         # Simple to get all but final bin edge
         bin_edges = magnitude[index].tolist()
@@ -843,10 +848,12 @@ class OneDimBinning(object):
             index = range(*index.indices(len(self)))
         if isinstance(index, int):
             index = [index]
+
         if isinstance(index, Sequence):
             for bin_index in index:
                 if isinstance(bin_index, str):
-                    raise ValueError('Slicing by name currently not supported')
+                    raise ValueError('Slicing by seq of names currently not'
+                                     ' supported')
             if len(index) == 0:
                 raise ValueError('`index` "%s" results in no bins being'
                                  ' specified.' %orig_index)
@@ -854,18 +861,25 @@ class OneDimBinning(object):
                 raise ValueError('Bin indices must be monotonically'
                                  ' increasing and adjacent.')
             new_edges = set()
+            new_names = []
             for bin_index in index:
                 assert(bin_index >= -len(self) and bin_index < len(self)), \
                         str(bin_index)
                 edge_ind0 = bin_index % len(self)
                 edge_ind1 = edge_ind0 + 1
+                if self.bin_names is not None:
+                    new_names.append(self.bin_names[edge_ind0])
                 new_edges = new_edges.union((self.bin_edges[edge_ind0].m,
                                              self.bin_edges[edge_ind1].m))
         else:
-            raise TypeError('Unhandled index type %s' %type(index))
+            raise TypeError('Unhandled index type %s' %type(orig_index))
 
-        # Retrieve current state; only bin_edges needs to be updated
-        return {'bin_edges': np.array(sorted(new_edges))*units}
+        if new_names == []:
+            new_names = None
+        # Retrieve current state; only bin_edges and bin_names need to be
+        # updated
+        return {'bin_edges': np.array(sorted(new_edges))*units,
+                'bin_names': new_names}
 
     def __iter__(self):
         indices = range(len(self))
@@ -1414,8 +1428,12 @@ class MultiDimBinning(object):
         meshgrid = self.meshgrid(entity='bin_widths', attach_units=False)
         volumes = reduce(lambda x,y: x*y, meshgrid)
         if attach_units:
-            return volumes * reduce(lambda x,y:x*y, [ureg(str(d.units))
-                                                     for d in self._dimensions])
+            return (
+                volumes
+                * reduce(lambda x,y:x*y, [ureg(str(d.units)) for d in
+                                          self._dimensions])
+            )
+
         return volumes
 
     def empty(self, **kwargs):
@@ -1513,9 +1531,10 @@ def test_OneDimBinning():
     from pisa.utils.log import logging, set_verbosity
 
     b1 = OneDimBinning(name='energy', num_bins=40, is_log=True,
-                       domain=[1, 80]*ureg.GeV)
+                       domain=[1, 80]*ureg.GeV,
+                       bin_names=[str(i) for i in range(40)])
     b2 = OneDimBinning(name='coszen', num_bins=40, is_lin=True,
-                       domain=[-1, 1])
+                       domain=[-1, 1], bin_names=None)
     logging.debug('len(b1): %s' %len(b1))
     logging.debug('b1: %s' %b1)
     logging.debug('b2: %s' %b2)
@@ -1574,6 +1593,8 @@ def test_OneDimBinning():
             to_json(b, b_file)
             b_ = OneDimBinning.from_json(b_file)
             assert b_ == b, 'b=\n%s\nb_=\n%s' %(b, b_)
+    except:
+        print b
     finally:
         shutil.rmtree(testdir, ignore_errors=True)
 
