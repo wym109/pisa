@@ -514,7 +514,7 @@ class Analysis(object):
     def scan(self, data_dist, hypo_maker, metric, hypo_param_selections=None,
              param_names=None, steps=None, values=None, only_points=None,
              outer=True, profile=True, minimizer_settings=None, outfile=None,
-             **kwargs):
+             debug_mode=1, **kwargs):
         """Set hypo maker parameters named by `param_names` according to
         either values specified by `values` or number of steps specified by
         `steps`, and return the `metric` indicating how well the data
@@ -596,25 +596,43 @@ class Analysis(object):
         only_points : None, integer, or even-length sequence of integers
             Only select subset of points to be analysed by specifying their
             range of positions within the whole set (0-indexed, incremental).
+            For the lazy amongst us...
 
         outer : bool
             If set to True and a sequence of sequences is passed for `values`,
             the points scanned are the *outer product* of the inner sequences.
-            See `values` for a more detailed explanation.
+            See `values` for a more detailed explanation (or refer to your
+            beloved undergraduate maths course).
 
         profile : bool
             If set to True, minimizes specified metric over all free parameters
             at each scanned point. Otherwise keeps them at their nominal values
             and only performs grid scan of the parameters specified in
-            `param_names`.
+            `param_names`. Unfortunately, that which you desire is only seldomly
+            easy to obtain.
 
         minimizer_settings : dict
             Dictionary containing the settings for minimization, which are
-            only needed if `profile` is set to True.
+            only needed if `profile` is set to True. Hint: it has proven useful
+            to sprinkle with a healthy dose of scepticism.
+
+        outfile : string
+            Outfile to store results to. Will be updated at each scan step to
+            write out intermediate results to prevent loss of data in case
+            the apocalypse strikes after all.
+
+        debug_mode : int, either one of [0, 1, 2]
+            If set to 2, will add a wealth of minimisation history and physics
+            information to the output file. Let's drown the desert! Otherwise,
+            the output will contain the essentials to perform an analysis (0),
+            or will hopefully be detailed enough for some simple debugging (1).
+            Any other value for `debug_mode` will be set to 2.
 
         """
         assert not (steps is not None and values is not None)
         assert not (steps is None and values is None)
+        if not debug_mode in (0, 1, 2):
+            debug_mode = 2
         if isinstance(param_names, basestring):
             param_names = [param_names]
 
@@ -702,7 +720,7 @@ class Analysis(object):
                                        metric=metric,
                                        minimizer_settings=minimizer_settings,
                                        **kwargs)
-		# TODO: serialisation!
+                # TODO: serialisation!
                 for k in bf['minimizer_metadata']:
                     if k in ['hess', 'hess_inv']:
                         print "deleting %s"%k
@@ -710,6 +728,20 @@ class Analysis(object):
             bf['params'] = deepcopy(bf['params']._serializable_state)
             bf['hypo_asimov_dist'] = \
                         deepcopy(bf['hypo_asimov_dist']._serializable_state)
+
+            # decide which information to retain based on chosen debug mode
+            if debug_mode == 0 or debug_mode == 1:
+                try:
+                    del bf['fit_history']
+                    del bf['hypo_asimov_dist']
+                except: pass
+
+            if debug_mode == 0:
+                # torch the woods!
+                try:
+                    del bf['minimizer_metadata']
+                    del bf['minimizer_time']
+                except: pass
             results['results'].append(bf)
             if not outfile is None:
                 # store intermediate results
