@@ -217,10 +217,9 @@ class Map(object):
         super(Map, self).__setattr__('_name', name)
         # TeX dict for some common map names
         if tex is None:
-            try:
-                fg = NuFlavIntGroup(name)
-                tex = fg.tex()
-            except:
+            fg = NuFlavIntGroup(name)
+            tex = fg.tex()
+            if tex == '':
                 tex = (r'\rm{%s}' % name).replace('_', r'\_')
         super(Map, self).__setattr__('_tex', tex)
         super(Map, self).__setattr__('_hash', hash)
