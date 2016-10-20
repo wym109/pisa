@@ -63,8 +63,8 @@ class Analysis(object):
         pass
 
     def fit_hypo(self, data_dist, hypo_maker, hypo_param_selections, metric,
-                 minimizer_settings, check_octant=True, other_metrics=None,
-                 blind=False, pprint=True):
+                 minimizer_settings, reset_free=True, check_octant=True,
+                 other_metrics=None, blind=False, pprint=True):
         """Fitter "outer" loop: If `check_octant` is True, run
         `fit_hypo_inner` starting in each octant of theta23 (assuming that
         is a param in the `hypo_maker`). Otherwise, just run the inner
@@ -131,7 +131,7 @@ class Analysis(object):
         # Select the version of the parameters used for this hypothesis
         hypo_maker.select_params(hypo_param_selections)
         # Reset free parameters to nominal values
-        hypo_maker.reset_free()
+        if reset_free: hypo_maker.reset_free()
 
         alternate_fits = []
 
