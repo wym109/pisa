@@ -277,9 +277,9 @@ if __name__ == '__main__':
                                                 hypo_maker.get_total_outputs(),
                                    metric=args.metric
                                    )
+
             for bf_dict in (bf, bf_max_mix):
                 # TODO: serialisation!
-                print bf_dict
                 bf_dict['params'] = deepcopy(bf_dict['params']._serializable_state)
                 if 'minimizer_metadata' in bf_dict:
                     delete_keys(bf_dict['minimizer_metadata'],
@@ -293,7 +293,7 @@ if __name__ == '__main__':
                 try: bf_dict['hypo_asimov_dist'] = \
                         deepcopy(bf_dict['hypo_asimov_dist']._serializable_state)
                 except: pass
-                print bf_dict
+
             one_fit_dict['wrong octant'] = deepcopy(bf)
             one_fit_dict['maximal mixing'] = deepcopy(bf_max_mix)
 
