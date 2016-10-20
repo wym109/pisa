@@ -63,6 +63,8 @@ class gpu(Stage):
             reco_e_scale_raw : quantity (dimensionless)
             reco_cz_res_raw :quantity (dimensionless)
             bdt_cut : quantity (dimensionless)
+            kde : bool
+                apply KDE smoothing to outputs (d2d)
 
     Notes
     -----
@@ -136,7 +138,8 @@ class gpu(Stage):
             'reco_e_res_raw',
             'reco_e_scale_raw',
             'reco_cz_res_raw',
-            'bdt_cut')
+            'bdt_cut',
+            'kde',)
 
         expected_params = (self.osc_params + self.weight_params +
                            self.other_params)
@@ -155,6 +158,10 @@ class gpu(Stage):
             output_binning=output_binning,
             debug_mode=debug_mode
         )
+
+        if self.params.kde.value:
+            from pisa.utils.kde_hist import kde_histogramdd
+            self.kde_histogramdd = kde_histogramdd
 
     def validate_params(self, params):
         # not a good idea to scale nutau norm, without the NC events being oscillated
@@ -205,9 +212,23 @@ class gpu(Stage):
             else:
                 bin_edges = self.output_binning[name].bin_edges.magnitude.astype(FTYPE)
             self.bin_edges.append(bin_edges)
+
+        if self.params.kde.value:
+            #right now we have to do pid 'by hand', this is ugly and needs to be generalized
+            self.pid_bin = self.bin_names.index('pid')
+            self.bin_names.pop(self.pid_bin)
+            self.pid_bin_edges = self.bin_edges.pop(self.pid_bin)
+            assert len(self.pid_bin_edges) == 3
+            d2d_binning = []
+            for b in self.output_binning:
+                if not b.name == 'pid':
+                    d2d_binning.append(b)
+            self.d2d_binning = MultiDimBinning(d2d_binning)
+            assert self.error_method == None
             
-        # GPU histogramer
-        self.histogrammer = GPUhist(*self.bin_edges)
+        else:
+            # GPU histogramer
+            self.histogrammer = GPUhist(*self.bin_edges)
 
         # load events
         self.load_events()
@@ -372,18 +393,13 @@ class gpu(Stage):
         self.events_dict[flav]['device'][var] = cuda.mem_alloc(self.events_dict[flav]['host'][var].nbytes)
         cuda.memcpy_htod(self.events_dict[flav]['device'][var], self.events_dict[flav]['host'][var])
         
-    def get_device_arrays(self):
-        ''' Copy back a dictionary with event by event information'''
-        return_events = {}
-        variables = ['true_energy', 'true_coszen', 'reco_energy', 'reco_coszen',
-                        'weight']
+    def get_device_arrays(self,variables=['weight']):
+        ''' Copy back event by event information into the host dict'''
         for flav in self.flavs:
-            return_events[flav] = {}
             for var in variables:
                 buff = np.ones(self.events_dict[flav]['n_evts'])
                 cuda.memcpy_dtoh(buff, self.events_dict[flav]['device'][var])
-                return_events[flav][var] = buff
-        return return_events
+                self.events_dict[flav]['host'][var] = buff
 
     def sum_array(self, x, n_evts):
         '''
@@ -472,37 +488,61 @@ class gpu(Stage):
         end_t = time.time()
         logging.debug('GPU calc done in %.4f ms for %s events'%(((end_t - start_t) * 1000),tot))
 
-        if recalc_osc or recalc_weight:
-            start_t = time.time()
-            # histogram events and download fromm GPU, if either weights or osc changed
-            if len(self.bin_names) == 2:
-                for flav in self.flavs:
-                    self.events_dict[flav]['hist'] = self.histogrammer.get_hist(self.events_dict[flav]['n_evts'],
-                                                                            d_x = self.events_dict[flav]['device'][self.bin_names[0]],
-                                                                            d_y = self.events_dict[flav]['device'][self.bin_names[1]],
-                                                                            d_w = self.events_dict[flav]['device']['weight'])
 
-                    if self.error_method in ['sumw2', 'fixed_sumw2']:
-                        self.events_dict[flav]['sumw2'] = self.histogrammer.get_hist(self.events_dict[flav]['n_evts'],
+        if self.params.kde.value:
+            if recalc_osc or recalc_weight:
+                #copy back weights
+                self.get_device_arrays(variables=['weight'])
+
+
+                for flav in self.flavs:
+                    mask_pid0 = (self.events_dict[flav]['host']['pid'] >= self.pid_bin_edges[0]) & (self.events_dict[flav]['host']['pid'] < self.pid_bin_edges[1])
+                    mask_pid1 = (self.events_dict[flav]['host']['pid'] >= self.pid_bin_edges[1]) & (self.events_dict[flav]['host']['pid'] <= self.pid_bin_edges[2])
+                    data = np.array([self.events_dict[flav]['host'][self.bin_names[0]][mask_pid0], self.events_dict[flav]['host'][self.bin_names[1]][mask_pid0]])
+                    weights = self.events_dict[flav]['host']['weight'][mask_pid0]
+                    hist_pid0 = self.kde_histogramdd(data.T, weights=weights, binning=self.d2d_binning, coszen_name='reco_coszen', use_cuda=True)
+                    data = np.array([self.events_dict[flav]['host'][self.bin_names[0]][mask_pid1], self.events_dict[flav]['host'][self.bin_names[1]][mask_pid1]])
+                    weights = self.events_dict[flav]['host']['weight'][mask_pid1]
+                    hist_pid1 = self.kde_histogramdd(data.T, weights=weights, binning=self.d2d_binning, coszen_name='reco_coszen', use_cuda=True)
+                    hist = np.dstack([hist_pid0,hist_pid1])
+                    if not self.pid_bin == 2:
+                        hist = np.swapaxes(hist,self.pid_bin,2)
+                    self.events_dict[flav]['hist'] = hist
+
+
+            
+        else:
+            if recalc_osc or recalc_weight:
+                start_t = time.time()
+                # histogram events and download fromm GPU, if either weights or osc changed
+                if len(self.bin_names) == 2:
+                    for flav in self.flavs:
+                        self.events_dict[flav]['hist'] = self.histogrammer.get_hist(self.events_dict[flav]['n_evts'],
                                                                                 d_x = self.events_dict[flav]['device'][self.bin_names[0]],
                                                                                 d_y = self.events_dict[flav]['device'][self.bin_names[1]],
-                                                                                d_w = self.events_dict[flav]['device']['sumw2'])
-            else:
-                for flav in self.flavs:
-                    self.events_dict[flav]['hist'] = self.histogrammer.get_hist(self.events_dict[flav]['n_evts'],
-                                                                            d_x = self.events_dict[flav]['device'][self.bin_names[0]],
-                                                                            d_y = self.events_dict[flav]['device'][self.bin_names[1]],
-                                                                            d_z = self.events_dict[flav]['device'][self.bin_names[2]],
-                                                                            d_w = self.events_dict[flav]['device']['weight'])
+                                                                                d_w = self.events_dict[flav]['device']['weight'])
 
-                    if self.error_method in ['sumw2', 'fixed_sumw2']:
-                        self.events_dict[flav]['sumw2'] = self.histogrammer.get_hist(self.events_dict[flav]['n_evts'],
+                        if self.error_method in ['sumw2', 'fixed_sumw2']:
+                            self.events_dict[flav]['sumw2'] = self.histogrammer.get_hist(self.events_dict[flav]['n_evts'],
+                                                                                    d_x = self.events_dict[flav]['device'][self.bin_names[0]],
+                                                                                    d_y = self.events_dict[flav]['device'][self.bin_names[1]],
+                                                                                    d_w = self.events_dict[flav]['device']['sumw2'])
+                else:
+                    for flav in self.flavs:
+                        self.events_dict[flav]['hist'] = self.histogrammer.get_hist(self.events_dict[flav]['n_evts'],
                                                                                 d_x = self.events_dict[flav]['device'][self.bin_names[0]],
                                                                                 d_y = self.events_dict[flav]['device'][self.bin_names[1]],
                                                                                 d_z = self.events_dict[flav]['device'][self.bin_names[2]],
-                                                                                d_w = self.events_dict[flav]['device']['sumw2'])
-            end_t = time.time()
-            logging.debug('GPU hist done in %.4f ms for %s events'%(((end_t - start_t) * 1000),tot))
+                                                                                d_w = self.events_dict[flav]['device']['weight'])
+
+                        if self.error_method in ['sumw2', 'fixed_sumw2']:
+                            self.events_dict[flav]['sumw2'] = self.histogrammer.get_hist(self.events_dict[flav]['n_evts'],
+                                                                                    d_x = self.events_dict[flav]['device'][self.bin_names[0]],
+                                                                                    d_y = self.events_dict[flav]['device'][self.bin_names[1]],
+                                                                                    d_z = self.events_dict[flav]['device'][self.bin_names[2]],
+                                                                                    d_w = self.events_dict[flav]['device']['sumw2'])
+                end_t = time.time()
+                logging.debug('GPU hist done in %.4f ms for %s events'%(((end_t - start_t) * 1000),tot))
 
         
         # set new hash

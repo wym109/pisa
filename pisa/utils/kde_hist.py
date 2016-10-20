@@ -5,19 +5,25 @@ from pisa.utils.profiler import profile
 from pisa.core.binning import OneDimBinning, MultiDimBinning
 
 @profile
-def kde_histogramdd(sample, binning, bw_method='scott',adaptive=True, alpha=0.3,use_cuda=False,coszen_reflection=0.25):
+def kde_histogramdd(sample, binning, weights=[],bw_method='scott',adaptive=True, alpha=0.3,use_cuda=False,coszen_reflection=0.25,coszen_name = 'coszen'):
     '''
     sample : nd-array of shape (N_evts, vars), with vars in the
                 right order corresponding to the binning order
     binning : pisa MultiDimBinning
     coszen_reflection : part (number between 0 and 1) of binning that is refelct at the coszen -1 and 1 egdes
     '''
-    coszen_name = 'coszen'
     # flip around to satisfy the kde implementation
     x = sample.T
     # must have same amount of dimensions as binning dimensions
     assert x.shape[0] == len(binning)
     cz_bin = binning.names.index(coszen_name)
+    # normal hist
+    bins = [unp.nominal_values(b.bin_edges) for b in binning]
+    if len(weights) == 0:
+        raw_hist,e = np.histogramdd(x.T,bins=bins)
+    else:
+        raw_hist,e = np.histogramdd(x.T,bins=bins,weights=weights)
+    norm = np.sum(raw_hist)
 
     #swap out cz bin to first place (index 0)
     if not cz_bin == 0:
@@ -45,7 +51,7 @@ def kde_histogramdd(sample, binning, bw_method='scott',adaptive=True, alpha=0.3,
     #additional_above[cz_bin] = 2*cz_above[0]  - additional_above[cz_bin]
 
     # get the kernel weights
-    kernel_weights_adaptive = gaussian_kde(x,bw_method=bw_method,adaptive=adaptive, alpha=alpha,use_cuda=True)
+    kernel_weights_adaptive = gaussian_kde(x,weights=weights,bw_method=bw_method,adaptive=adaptive, alpha=alpha,use_cuda=True)
     # get the bin centers, where we're going to evaluate the kdes at
     bin_points = []
     for b in binning:
@@ -91,6 +97,7 @@ def kde_histogramdd(sample, binning, bw_method='scott',adaptive=True, alpha=0.3,
     # swap back the axes
     if not cz_bin == 0:
         hist = np.swapaxes(hist,0, cz_bin)
+    hist = hist/np.sum(hist)*norm
     return hist
     #return hist.reshape(binning.shape)
 
@@ -121,7 +128,7 @@ if __name__ == '__main__':
     raw_hist,e = np.histogramdd(x.T,bins=bins)
 
     hist = kde_histogramdd(x.T,binning,bw_method='silverman')
-    hist = hist/np.sum(hist)*np.sum(raw_hist)
+    #hist = hist/np.sum(hist)*np.sum(raw_hist)
     m1 = Map(name='KDE', hist=hist, binning=binning)
     m2 = Map(name='raw', hist=raw_hist, binning=binning)
     m = MapSet([m1,m2,m1/m2,m1-m2])
