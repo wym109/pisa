@@ -795,7 +795,7 @@ class ParamSelector(object):
                     raise
             distilled_selections.append(selection)
 
-        self._selections = distilled_selections
+        self._selections = sorted(distilled_selections)
 
         return self._current_params
 

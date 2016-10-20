@@ -389,11 +389,11 @@ class vbwkde(Stage):
 
         if bool(self.debug_mode):
             outfile = os.path.join(
-                outdir, hex_kde_hash + '_all_kde_info.json.bz2'
+                outdir, hex_kde_hash + '_all_kde_info.dill'
             )
             to_file(self.all_kde_info, outfile)
             outfile = os.path.join(
-                outdir, hex_kde_hash + '_all_extra_kde_info.json.bz2'
+                outdir, hex_kde_hash + '_all_extra_kde_info.dill'
             )
             to_file(self.all_extra_info, outfile)
 
