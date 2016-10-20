@@ -1191,13 +1191,13 @@ class vbwkde(Stage):
                 else:
                     comp_pid_binning = deepcopy(comp_pid_binning)
 
-                pid_oversamp_binned = comp_pid_binning.oversample(SAMPLES_PER_BIN-1).bin_edges.m_as('dimensionless')
+                pid_oversamp_binned = comp_pid_binning.oversample(SAMPLES_PER_BIN*10-1).bin_edges.m_as('dimensionless')
 
                 pid_pdf = pid_interp(pid_oversamp_binned)
 
                 output_pidbin_areas = []
                 for n in xrange(comp_pid_binning.num_bins):
-                    sl = slice(n*SAMPLES_PER_BIN, (n+1)*SAMPLES_PER_BIN+1)
+                    sl = slice(n*SAMPLES_PER_BIN*10, (n+1)*SAMPLES_PER_BIN*10+1)
                     area = np.abs(np.trapz(y=pid_pdf[sl],
                                            x=pid_oversamp_binned[sl]))
                     if area <= -EPSILON:

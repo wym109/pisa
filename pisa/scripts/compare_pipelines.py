@@ -41,6 +41,11 @@ if __name__ == '__main__':
         help='''Label for test'''
     )
     parser.add_argument(
+        '--combine', type=str, required=False, default=None,
+        help='''Combine by wildcard string. Use single quotes such that
+        asterisk does not get expanded by shell.'''
+    )
+    parser.add_argument(
         '--pdf', action='store_true',
         help='''Save plots in PDF format.'''
     )
@@ -68,7 +73,11 @@ if __name__ == '__main__':
         mkdir(args.outdir)
 
     ref_maps = ref_pipeline.get_outputs()
+    if args.combine is not None:
+        ref_maps = ref_maps.combine_wildcard(args.combine)
     test_maps = test_pipeline.get_outputs()
+    if args.combine is not None:
+        test_maps = test_maps.combine_wildcard(args.combine)
 
     if test_maps.names != ref_maps.names:
         raise ValueError(
