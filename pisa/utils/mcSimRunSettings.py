@@ -113,8 +113,8 @@ class MCSimRunSettings(dict):
         if isinstance(run_settings, dict):
             rsd = run_settings
         else:
-            raise TypeError('Unhandled run_settings type passed in arg: ' +
-                            type(run_settings))
+            raise TypeError('Unhandled run_settings type passed in arg: %s'
+                            %type(run_settings))
         #if detector is not None:
         #    try:
         #        rsd = rsd[detector]

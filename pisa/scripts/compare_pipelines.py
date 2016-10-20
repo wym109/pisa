@@ -4,13 +4,15 @@
 """
 Compares reco vbwkde vs. hist.
 """
-
+import numpy as np
+from uncertainties import unumpy as unp
 from argparse import ArgumentParser
 
 from pisa.core.pipeline import Pipeline
 from pisa.utils.fileio import mkdir
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.tests import plot_cmp
+from pisa.utils.plotter import Plotter
 
 
 if __name__ == '__main__':
@@ -37,6 +39,11 @@ if __name__ == '__main__':
     parser.add_argument(
         '--test-label', type=str, required=True,
         help='''Label for test'''
+    )
+    parser.add_argument(
+        '--combine', type=str, required=False, default=None,
+        help='''Combine by wildcard string. Use single quotes such that
+        asterisk does not get expanded by shell.'''
     )
     parser.add_argument(
         '--pdf', action='store_true',
@@ -66,7 +73,11 @@ if __name__ == '__main__':
         mkdir(args.outdir)
 
     ref_maps = ref_pipeline.get_outputs()
+    if args.combine is not None:
+        ref_maps = ref_maps.combine_wildcard(args.combine)
     test_maps = test_pipeline.get_outputs()
+    if args.combine is not None:
+        test_maps = test_maps.combine_wildcard(args.combine)
 
     if test_maps.names != ref_maps.names:
         raise ValueError(
@@ -74,17 +85,12 @@ if __name__ == '__main__':
             %(test_maps.names, ref_maps.names)
         )
 
-    for map_name in test_maps.names:
-        print 'Map %s:' %map_name
-        test_map = test_maps[map_name]
-        ref_map = ref_maps[map_name]
-        comparisons = test_map.compare(ref_map)
-        for k in ['max_diff_ratio', 'max_diff', 'nanmatch', 'infmatch']:
-            print '%s = %s' %(k, comparisons[k])
-        if args.outdir is not None:
-            for fmt in plot_formats:
-                plot_cmp(new=test_map, ref=ref_map, new_label=args.test_label,
-                         ref_label=args.ref_label, plot_label=test_map.tex,
-                         file_label=test_map.name, outdir=args.outdir,
-                         ftype=fmt)
-        print ''
+    my_plotter = Plotter(stamp='', outdir=args.outdir, fmt='pdf', log=False, annotate=False, symmetric=False, ratio=True)
+    for map in ref_maps:
+        print '%s:\t%.2f'%(map.name, np.sum(unp.nominal_values(map.hist)))
+    my_plotter.plot_2d_array(ref_maps, split_axis='pid', fname='%s_nominal'%args.ref_label)
+    my_plotter.plot_2d_array(test_maps, split_axis='pid', fname='%s_nominal'%args.test_label)
+    my_plotter.label = '%s/%s - 1'%(args.test_label, args.ref_label)
+    my_plotter.plot_2d_array(test_maps/ref_maps-1., split_axis='pid', fname='ratio', cmap='RdBu', vmin=-2,vmax=2)
+    my_plotter.label = '%s - %s'%(args.ref_label, args.test_label)
+    my_plotter.plot_2d_array(ref_maps - test_maps, split_axis='pid', fname='abs_diff', cmap='RdBu', vmin=-10, vmax=10)

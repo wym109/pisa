@@ -675,7 +675,7 @@ class Stage(object):
 
     @property
     def param_selections(self):
-        return deepcopy(self._selections)
+        return sorted(deepcopy(self._param_selector.param_selections))
 
     @property
     def input_names(self):

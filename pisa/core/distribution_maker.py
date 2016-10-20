@@ -6,7 +6,9 @@
 from collections import OrderedDict, Sequence
 import importlib
 import inspect
+from itertools import product
 
+from pisa import ureg
 from pisa.core.pipeline import Pipeline
 from pisa.core.param import ParamSet
 from pisa.utils.betterConfigParser import BetterConfigParser
@@ -55,6 +57,9 @@ class DistributionMaker(object):
             if not isinstance(pipeline, Pipeline):
                 pipeline = Pipeline(pipeline)
             self._pipelines.append(pipeline)
+        for pipeline in self:
+            pipeline.select_params(self.param_selections,
+                                   error_on_missing=False)
 
     def __iter__(self):
         return iter(self._pipelines)
@@ -97,9 +102,7 @@ class DistributionMaker(object):
     @property
     def param_selections(self):
         selections = set()
-        [selections.add(pipeline.selections) for pipeline in self]
-        for pipeline in self:
-            assert set(pipeline.selections) == selections
+        [selections.update(pipeline.param_selections) for pipeline in self]
         return sorted(selections)
 
     @property
@@ -164,6 +167,67 @@ class DistributionMaker(object):
                 if name in fp_names:
                     pipeline.params[name]._rescaled_value = rvalue
             #pipeline.update_params(fp)
+
+
+def test_DistributionMaker():
+    #
+    # Test: select_params and param_selections
+    #
+
+    hierarchies = ['nh', 'ih']
+    materials = ['iron', 'pyrolite']
+
+    t23 = dict(
+        ih=49.5 * ureg.deg,
+        nh=42.3 * ureg.deg
+    )
+    YeO = dict(
+        iron=0.4656,
+        pyrolite=0.4957
+    )
+
+    # Instantiate with two pipelines: first has both nh/ih and iron/pyrolite
+    # param selectors, while the second only has nh/ih param selectors.
+    dm = DistributionMaker(['tests/settings/test_Pipeline.cfg',
+                            'tests/settings/test_Pipeline2.cfg'])
+
+    current_mat = 'iron'
+    current_hier = 'nh'
+
+    for new_hier, new_mat in product(hierarchies, materials):
+        new_YeO = YeO[new_mat]
+
+        assert dm.param_selections == sorted([current_hier, current_mat]), str(dm.params.param_selections)
+        assert dm.params.theta23.value == t23[current_hier], str(dm.params.theta23)
+        assert dm.params.YeO.value == YeO[current_mat], str(dm.params.YeO)
+
+        # Select just the hierarchy
+        dm.select_params(new_hier)
+        assert dm.param_selections == sorted([new_hier, current_mat]), str(dm.param_selections)
+        assert dm.params.theta23.value == t23[new_hier], str(dm.params.theta23)
+        assert dm.params.YeO.value == YeO[current_mat], str(dm.params.YeO)
+
+        # Select just the material
+        dm.select_params(new_mat)
+        assert dm.param_selections == sorted([new_hier, new_mat]), str(dm.param_selections)
+        assert dm.params.theta23.value == t23[new_hier], str(dm.params.theta23)
+        assert dm.params.YeO.value == YeO[new_mat], str(dm.params.YeO)
+
+        # Reset both to "current"
+        dm.select_params([current_mat, current_hier])
+        assert dm.param_selections == sorted([current_hier, current_mat]), str(dm.param_selections)
+        assert dm.params.theta23.value == t23[current_hier], str(dm.params.theta23)
+        assert dm.params.YeO.value == YeO[current_mat], str(dm.params.YeO)
+
+        # Select both hierarchy and material
+        dm.select_params([new_mat, new_hier])
+        assert dm.param_selections == sorted([new_hier, new_mat]), str(dm.param_selections)
+        assert dm.params.theta23.value == t23[new_hier], str(dm.params.theta23)
+        assert dm.params.YeO.value == YeO[new_mat], str(dm.params.YeO)
+
+        current_hier = new_hier
+        current_mat = new_mat
+
 
 
 if __name__ == '__main__':
