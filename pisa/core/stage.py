@@ -556,10 +556,12 @@ class Stage(object):
 
         # Create a new output container different from `outputs` but copying
         # the contents, for purposes of attaching the sideband objects found.
-        augmented_outputs = MapSet(outputs)
-        [augmented_outputs.append(inputs[name]) for name in unused_input_names]
+        # augmented_outputs = MapSet(outputs)
+        # [augmented_outputs.append(inputs[name]) for name in unused_input_names]
 
-        return augmented_outputs
+        # return augmented_outputs
+        # TODO(shivesh):
+        return outputs
 
     @profile
     def _check_params(self, params):

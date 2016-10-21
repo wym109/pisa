@@ -202,7 +202,6 @@ class weight(Stage):
         )
 
         if disk_cache is not None and self.params['cache_flux'].value:
-            self.cache_hash = None
             self.instantiate_disk_cache()
 
     @profile
