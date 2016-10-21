@@ -1,11 +1,10 @@
 #! /usr/bin/env python
 # author: S.Wren
-# date:   March 20, 2016
+# date:   October 19, 2016
 """
-Runs the pipeline in event-by-event mode to see how much it agrees with OscFit.
-This is also checked against the PISA 2 legacy mode.
-Test data for comparing against should be in the tests/data directory.
-A set of plots will be output in your output directory for you to check.
+Run a set of tests on the PISA 3 pipeline to check the effect of combining Reco
+and PID in to a single stage. Output is tested against both the standard PISA 
+and a full event-by-event treatment from OscFit in various configurations.
 """
 
 from argparse import ArgumentParser
@@ -35,7 +34,7 @@ def compare_pisa_self(config1, config2, testname1, testname2, outdir):
     pipeline2 = Pipeline(config2)
     outputs2 = pipeline2.get_outputs()
 
-    if '5' in testname1:
+    if '5-stage' in testname1:
         cake1_trck_map = outputs1.combine_wildcard('*_trck')
         cake1_cscd_map = outputs1.combine_wildcard('*_cscd')
         cake1_trck_map_to_plot = {}
@@ -52,7 +51,7 @@ def compare_pisa_self(config1, config2, testname1, testname2, outdir):
             cake1_cscd_map.binning['reco_coszen'].bin_edges.magnitude
         cake1_cscd_map_to_plot['map'] = cake1_cscd_map.hist
         cake1_cscd_events = np.sum(cake1_cscd_map_to_plot['map'])
-    elif '4' in testname1:
+    elif '4-stage' in testname1:
         cake1_both_map = outputs1.combine_wildcard('*')
         cake1_trck_map_to_plot = {}
         cake1_trck_map_to_plot['ebins'] = \
@@ -60,7 +59,7 @@ def compare_pisa_self(config1, config2, testname1, testname2, outdir):
         cake1_trck_map_to_plot['czbins'] = \
             cake1_both_map.binning['reco_coszen'].bin_edges.magnitude
         cake1_trck_map_to_plot['map'] = \
-            cake1_both_map.slice_map_by_name(
+            cake1_both_map.slice_by_name(
                 dim_name='pid',
                 bin_name='trck'
             ).hist
@@ -71,7 +70,7 @@ def compare_pisa_self(config1, config2, testname1, testname2, outdir):
         cake1_cscd_map_to_plot['czbins'] = \
             cake1_both_map.binning['reco_coszen'].bin_edges.magnitude
         cake1_cscd_map_to_plot['map'] = \
-            cake1_both_map.slice_map_by_name(
+            cake1_both_map.slice_by_name(
                 dim_name='pid',
                 bin_name='cscd'
             ).hist
@@ -79,7 +78,7 @@ def compare_pisa_self(config1, config2, testname1, testname2, outdir):
     else:
         raise ValueError("Should be comparing 4-stage or 5-stage PISAs.")
 
-    if '5' in testname2:
+    if '5-stage' in testname2:
         cake2_trck_map = outputs2.combine_wildcard('*_trck')
         cake2_cscd_map = outputs2.combine_wildcard('*_cscd')
         cake2_trck_map_to_plot = {}
@@ -96,7 +95,7 @@ def compare_pisa_self(config1, config2, testname1, testname2, outdir):
             cake2_cscd_map.binning['reco_coszen'].bin_edges.magnitude
         cake2_cscd_map_to_plot['map'] = cake2_cscd_map.hist
         cake2_cscd_events = np.sum(cake2_cscd_map_to_plot['map'])
-    elif '4' in testname2:
+    elif '4-stage' in testname2:
         cake2_both_map = outputs2.combine_wildcard('*')
         cake2_trck_map_to_plot = {}
         cake2_trck_map_to_plot['ebins'] = \
@@ -104,7 +103,7 @@ def compare_pisa_self(config1, config2, testname1, testname2, outdir):
         cake2_trck_map_to_plot['czbins'] = \
             cake2_both_map.binning['reco_coszen'].bin_edges.magnitude
         cake2_trck_map_to_plot['map'] = \
-            cake2_both_map.slice_map_by_name(
+            cake2_both_map.slice_by_name(
                 dim_name='pid',
                 bin_name='trck'
             ).hist
@@ -115,7 +114,7 @@ def compare_pisa_self(config1, config2, testname1, testname2, outdir):
         cake2_cscd_map_to_plot['czbins'] = \
             cake2_both_map.binning['reco_coszen'].bin_edges.magnitude
         cake2_cscd_map_to_plot['map'] = \
-            cake2_both_map.slice_map_by_name(
+            cake2_both_map.slice_by_name(
                 dim_name='pid',
                 bin_name='cscd'
             ).hist
@@ -126,28 +125,30 @@ def compare_pisa_self(config1, config2, testname1, testname2, outdir):
     max_diff_ratio, max_diff = plot_comparisons(
         ref_map=cake1_trck_map_to_plot,
         new_map=cake2_trck_map_to_plot,
-        ref_abv=testname2,
-        new_abv=testname1,
+        ref_abv=testname1,
+        new_abv=testname2,
         outdir=outdir,
         subdir='recopidcombinedchecks',
-        stagename='baseline',
+        stagename=None,
         servicename='recopid',
         name='trck',
         texname=r'\rm{trck}',
+        shorttitles=True,
         ftype=FMT
     )
 
     max_diff_ratio, max_diff = plot_comparisons(
         ref_map=cake1_cscd_map_to_plot,
         new_map=cake2_cscd_map_to_plot,
-        ref_abv=testname2,
-        new_abv=testname1,
+        ref_abv=testname1,
+        new_abv=testname2,
         outdir=outdir,
         subdir='recopidcombinedchecks',
-        stagename='baseline',
+        stagename=None,
         servicename='recopid',
         name='cscd',
         texname=r'\rm{cscd}',
+        shorttitles=True,
         ftype=FMT
     )
 
@@ -217,10 +218,11 @@ def compare_5stage(config, testname, outdir, oscfitfile):
             new_abv=testname,
             outdir=outdir,
             subdir='recopidcombinedchecks',
-            stagename=testname,
+            stagename=None,
             servicename='baseline',
             name=nukey,
             texname=texname,
+            shorttitles=True,
             ftype=FMT
         )
 
@@ -275,14 +277,14 @@ def compare_4stage(config, testname, outdir, oscfitfile):
         if nukey == 'trck':
             texname = r'\rm{trck}'
             cake_map_to_plot['map'] = \
-                cake_map.slice_map_by_name(
+                cake_map.slice_by_name(
                     dim_name='pid',
                     bin_name='trck'
                 ).hist
         elif nukey == 'cscd':
             texname = r'\rm{cscd}'
             cake_map_to_plot['map'] = \
-                cake_map.slice_map_by_name(
+                cake_map.slice_by_name(
                     dim_name='pid',
                     bin_name='cscd'
                 ).hist
@@ -295,10 +297,11 @@ def compare_4stage(config, testname, outdir, oscfitfile):
             new_abv=testname,
             outdir=outdir,
             subdir='recopidcombinedchecks',
-            stagename=testname,
+            stagename=None,
             servicename='baseline',
             name=nukey,
             texname=texname,
+            shorttitles=True,
             ftype=FMT
         )
 
@@ -314,37 +317,37 @@ def compare_4stage(config, testname, outdir, oscfitfile):
         total_oscfit_events += oscfit_events
 
     print_event_rates(
-            testname1=testname,
-            testname2='OscFit',
-            kind='all',
-            map1_events=total_pisa_events,
-            map2_events=total_oscfit_events
-        )
+        testname1=testname,
+        testname2='OscFit',
+        kind='all',
+        map1_events=total_pisa_events,
+        map2_events=total_oscfit_events
+    )
 
     return pipeline
 
 
 def do_comparisons(config1, config2, oscfitfile,
                    testname1, testname2, outdir):
-        pisa_recopid_pipeline = compare_pisa_self(
-            config1=config1,
-            config2=config2,
-            testname1=testname1,
-            testname2=testname2,
-            outdir=args.outdir
-        )
-        pisa_standard_pipeline = compare_5stage(
-            config=config1,
-            testname=testname1,
-            outdir=args.outdir,
-            oscfitfile=oscfitfile
-        )
-        pisa_recopid_pipeline = compare_4stage(
-            config=config2,
-            testname=testname2,
-            outdir=args.outdir,
-            oscfitfile=oscfitfile
-        )
+    pisa_recopid_pipeline = compare_pisa_self(
+        config1=config1,
+        config2=config2,
+        testname1=testname1,
+        testname2=testname2,
+        outdir=args.outdir
+    )
+    pisa_standard_pipeline = compare_5stage(
+        config=config1,
+        testname=testname1,
+        outdir=args.outdir,
+        oscfitfile=oscfitfile
+    )
+    pisa_recopid_pipeline = compare_4stage(
+        config=config2,
+        testname=testname2,
+        outdir=args.outdir,
+        oscfitfile=oscfitfile
+    )
 
 
 def oversample_config(base_config, oversample):
@@ -358,27 +361,6 @@ def oversample_config(base_config, oversample):
     return base_config
 
 
-def do_weighting_comparisons(configAs, configBs,
-                             testnameA, testnameB,
-                             testname1, testname2, outdir):
-
-    pipelineA2 = compare_pisa_self(
-        config1=configAs[0],
-        config2=configAs[1],
-        testname1=testnameA+testname1,
-        testname2=testnameA+testname2,
-        outdir=args.outdir
-    )
-
-    pipelineB2 = compare_pisa_self(
-        config1=configBs[0],
-        config2=configBs[1],
-        testname1=testnameB+testname1,
-        testname2=testnameB+testname2,
-        outdir=args.outdir
-    )
-
-
 if __name__ == '__main__':
     parser = ArgumentParser(
         description='''Run a set of tests on the PISA 3 pipeline to check the
@@ -386,120 +368,99 @@ if __name__ == '__main__':
         against both the standard PISA and a full event-by-event treatment
         from OscFit in various configurations.'''
     )
-    parser.add_argument('--baseline', action='store_true',
-                        help='''Run baseline tests''')
-    parser.add_argument('--oversampling', action='store_true',
+    parser.add_argument('--oversampling', action='store_true', default=False,
                         help='''Run oversampling tests i.e. use a finer binning
-                        through the truth stages.''')
-    parser.add_argument('--outdir', metavar='DIR', type=str, required=False,
+                        through the truth stages in addition to the standard
+                        tests. You must flag this if you want it.''')
+    parser.add_argument('--weighting', type=str, default=None,
+                        help='''Name of the weighting field to use in the
+                        comparisons. This must correspond to a field in the
+                        events files being used.''')
+    parser.add_argument('--outdir', metavar='DIR', type=str, required=True,
                         help='''Store all output plots to this directory. If
                         they don't exist, the script will make them, including
-                        all subdirectories. If none is supplied no plots will
-                        be saved.''')
-    parser.add_argument('--ratio_threshold', type=float, default=1E-8,
-                        help='''Sets the agreement threshold on the ratio test
-                        plots. If this is not reached the tests will fail.''')
-    parser.add_argument('--diff_threshold', type=float, default=2E-3,
-                        help='''Sets the agreement threshold on the diff test
-                        plots. If this is not reached the tests will fail. This
-                        test is only important if any ratios return inf.''')
+                        all subdirectories.''')
     parser.add_argument('-v', action='count', default=None,
                         help='set verbosity level')
     args = parser.parse_args()
     set_verbosity(args.v)
 
-    # Figure out which tests to do
-    test_all = True
-    if args.baseline or args.oversampling:
-        test_all = False
+    known_weights = [None, 'weighted_aeff']
+
+    if args.weighting not in known_weights:
+        logging.warn('''%s weighting field not known to be in events file.
+                     Tests may not work in this case!'''%args.weighting)
 
     # Want these for all tests
     pisa_standard_settings = os.path.join(
         'tests', 'settings', 'recopid_full_pipeline_5stage_test.cfg'
     )
     pisa_standard_config = parse_pipeline_config(pisa_standard_settings)
-    pisa_standard_weighted_config = deepcopy(pisa_standard_config)
-    reco_k = [k for k in pisa_standard_weighted_config.keys() \
-              if k[0] == 'reco'][0]
-    standard_reco_params = \
-        pisa_standard_weighted_config[reco_k]['params'].params
-    standard_reco_params.reco_weights_name.value = 'weighted_aeff'
-    pid_k = [k for k in pisa_standard_weighted_config.keys() \
-             if k[0] == 'pid'][0]
-    standard_pid_params = \
-        pisa_standard_weighted_config[pid_k]['params'].params
-    standard_pid_params.pid_weights_name.value = 'weighted_aeff'
-    standard_configs = [pisa_standard_config,
-                        pisa_standard_weighted_config]
-
     pisa_recopid_settings = os.path.join(
         'tests', 'settings', 'recopid_full_pipeline_4stage_test.cfg'
     )
     pisa_recopid_config = parse_pipeline_config(pisa_recopid_settings)
-    pisa_recopid_weighted_config = deepcopy(pisa_recopid_config)
-    recopid_k = [k for k in pisa_recopid_weighted_config.keys() \
+    
+    # Add weighting to pipeline according to user input
+    # Need to add it to both reco and PID for standard config
+    reco_k = [k for k in pisa_standard_config.keys() \
+              if k[0] == 'reco'][0]
+    standard_reco_params = \
+        pisa_standard_config[reco_k]['params'].params
+    standard_reco_params.reco_weights_name.value = args.weighting
+    pid_k = [k for k in pisa_standard_config.keys() \
+             if k[0] == 'pid'][0]
+    standard_pid_params = \
+        pisa_standard_config[pid_k]['params'].params
+    standard_pid_params.pid_weights_name.value = args.weighting
+    # Just needs adding to reco for joined recopid config
+    recopid_k = [k for k in pisa_recopid_config.keys() \
                  if k[0] == 'reco'][0]
     recopid_reco_params = \
-        pisa_recopid_weighted_config[recopid_k]['params'].params
-    recopid_reco_params.reco_weights_name.value = 'weighted_aeff'
-    recopid_configs = [pisa_recopid_config,
-                       pisa_recopid_weighted_config]
+        pisa_recopid_config[recopid_k]['params'].params
+    recopid_reco_params.reco_weights_name.value = args.weighting
 
+    # Load OscFit file for comparisons
     oscfitfile = os.path.join(
         'tests', 'data', 'oscfit', 'OscFit1X600Baseline.json'
     )
 
-    weights_names = [#'unweighted',
-                     'weighted_aeff']
-    short_weights_names = [#'uw',
-                           'wa']
+    # Rename in this instance now so it's clearer in logs and filenames
+    if args.weighting == None:
+        args.weighting = 'unweighted'
 
-    logging.info("<<<< Test effect of weighting >>>>")
-    do_weighting_comparisons(
-        configAs=deepcopy(standard_configs),
-        configBs=deepcopy(recopid_configs),
-        testnameA='5-stage',
-        testnameB='4-stage',
-        testname1='uw',
-        testname2='wa',
+    logging.info("<<<< %s reco/pid Transformations >>>>"%args.weighting)
+    # Perform baseline tests
+    logging.info("<< No oversampling >>")
+    do_comparisons(
+        config1=deepcopy(pisa_standard_config),
+        config2=deepcopy(pisa_recopid_config),
+        oscfitfile=oscfitfile,
+        testname1='5-stage-%s'%args.weighting,
+        testname2='4-stage-%s'%args.weighting,
         outdir=args.outdir
     )
 
-    for psc, prc, wn, swn in zip(standard_configs,
-                                 recopid_configs,
-                                 weights_names,
-                                 short_weights_names):
-        logging.info("<<<< %s reco/pid Transformations >>>>"%wn)
-        # Perform baseline tests
-        if args.baseline or test_all:
-            logging.info("<< No oversampling >>")
+    # Perform oversampled tests
+    if args.oversampling:
+        oversamples = [5,10,20,50]
+        for oversample in oversamples:
+            pisa_standard_oversampled_config = oversample_config(
+                base_config=deepcopy(pisa_standard_config),
+                oversample=oversample
+            )
+            pisa_recopid_oversampled_config = oversample_config(
+                base_config=deepcopy(pisa_recopid_config),
+                oversample=oversample
+            )
+            logging.info("<< Oversampling by %i >>"%(oversample))
             do_comparisons(
-                config1=deepcopy(psc),
-                config2=deepcopy(prc),
+                config1=deepcopy(pisa_standard_oversampled_config),
+                config2=deepcopy(pisa_recopid_oversampled_config),
                 oscfitfile=oscfitfile,
-                testname1='5-stage%s'%swn,
-                testname2='4-stage%s'%swn,
+                testname1='5-stage-%s-Oversampled%i'%(args.weighting,
+                                                      oversample),
+                testname2='4-stage-%s-Oversampled%i'%(args.weighting,
+                                                      oversample),
                 outdir=args.outdir
             )
-
-        # Perform oversampled tests
-        if args.oversampling or test_all:
-            oversamples = [1]
-            for os in oversamples:
-                psosc = oversample_config(
-                    base_config=deepcopy(psc),
-                    oversample=os
-                )
-                prosc = oversample_config(
-                    base_config=deepcopy(prc),
-                    oversample=os
-                )
-                logging.info("<< Oversampling by %i >>"%(os))
-                do_comparisons(
-                    config1=deepcopy(psosc),
-                    config2=deepcopy(prosc),
-                    oscfitfile=oscfitfile,
-                    testname1='5-stage%s%i'%(swn,os),
-                    testname2='4-stage%s%i'%(swn,os),
-                    outdir=args.outdir
-                )
