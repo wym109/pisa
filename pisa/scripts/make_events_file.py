@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+
 #
 # author: Justin L. Lanfranchi
 #         jll1062+pisa@phys.psu.edu
@@ -19,11 +19,11 @@ import sympy as sym
 import pisa.core.events as events
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.format import list2hrlist
-from pisa.utils.fileio import expandPath, mkdir
+from pisa.utils.fileio import expandPath, mkdir, to_file
 from pisa.utils.flavInt import FlavIntData, NuFlav, NuFlavIntGroup, ALL_NUFLAVINTS, ALL_NUINT_TYPES, xlateGroupsStr
 from pisa.utils.mcSimRunSettings import DetMCSimRunsSettings
 from pisa.utils.dataProcParams import DataProcParams
-import pisa.utils.resources as resources
+from pisa.utils import resources
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
@@ -107,12 +107,12 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
     cust_cuts
         dict with a single DataProcParams cut specification or list of same
         (see help for DataProcParams for detailed description of cut spec)
-    extract_fields : iterable of strings
-        Field names to extract from source HDF5 file
-    output_fields : iterable of strings
+    extract_fields : None or iterable of strings
+        Field names to extract from source HDF5 file. If None, extract all.
+    output_fields : None or iterable of strings
         Fields to include in the generated PISA-standard-format events HDF5
         file; note that if 'weighted_aeff' is not preent, effective area will
-        not be computed
+        not be computed. If None, all fields will be written.
 
     """
     if isinstance(run_settings, basestring):
@@ -176,7 +176,7 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
     #    # It would be possible to combine runs with different cross sections so
     #    # long as each (flavor, interaction type) cross sections are
     #    # weighted-averaged together using weights
-    #    #   N_gen_{n,flav+inttype} * E_x^{-gamma_n} / 
+    #    #   N_gen_{n,flav+inttype} * E_x^{-gamma_n} /
     #    #       ( \int_{E_min_n}^{E_max_n} E^{-\gamma_n} dE )
     #    # where E_x are the energy sample points specified in the cross
     #    # sections (and hence these must also be identical across all cross
@@ -184,7 +184,7 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
     #    assert xsec_ver == xsec_ver_ref
     #    #ngen_weighted_energy_integral[str(run)] = powerLawIntegral(
     #    #flavs_by_run[run] = run_settings.flavs(run)
-    ##flavs_present = 
+    ##flavs_present =
 
     detector_geom = run_settings[runs[0]]['geom']
 
@@ -249,13 +249,21 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
     # Instantiate storage for all intermediate destination fields;
     # The data structure looks like:
     #   extracted_data[group #][interaction type][field name] = list of data
-    extracted_data = [
-        {
-            inttype: {field:[] for field in extract_fields}
-            for inttype in ALL_NUINT_TYPES
-        }
-        for _ in flavintgrp_names
-    ]
+    if extract_fields is None:
+        extracted_data =  [
+            {
+                inttype: {} for inttype in ALL_NUINT_TYPES
+            }
+            for _ in flavintgrp_names
+        ]
+    else:
+        extracted_data = [
+            {
+                inttype: {field:[] for field in extract_fields}
+                for inttype in ALL_NUINT_TYPES
+            }
+            for _ in flavintgrp_names
+        ]
 
     # Instantiate generated-event counts for destination fields; count
     # nc separately from nc because aeff's for cc & nc add, whereas
@@ -270,11 +278,21 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
     # calculating aeff
     filecount = {}
     detector_geom = None
+    bad_files = []
     for run, fnames in data_files.iteritems():
+        file_count = 0
         for fname in fnames:
             # Retrieve data from all nodes specified in the processing
             # settings file
-            data = data_proc_params.getData(fname, run_settings=run_settings)
+            logging.trace('Trying to get data from file %s' %fname)
+            try:
+                data = data_proc_params.getData(fname, run_settings=run_settings)
+            except:
+                logging.warn('Bad file encountered: %s' %fname)
+                bad_files.append(fname)
+                continue
+
+            file_count += 1
 
             # Check to make sure only one run is present in the data
             runs_in_data = set(data['run'])
@@ -311,7 +329,7 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
                     if not run_flavint in flavint_group:
                         continue
 
-                    # Instantiate a field for particles and anti-particles,
+                    # Instantiate a field for particles and antiparticles,
                     # keyed by the output of the barNoBar() method for each
                     if not run in ngen[grp_n][int_type]:
                         ngen[grp_n][int_type][run] = {
@@ -332,9 +350,19 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
                     # Append the data. Note that extracted_data is:
                     # extracted_data[group n][int_type][extract field name] =
                     #   list
-                    [extracted_data[grp_n][int_type][f].extend(
-                        intonly_cut_data[f])
-                     for f in extract_fields]
+                    if extract_fields is None:
+                        for f in intonly_cut_data.keys():
+                            if f not in extracted_data[grp_n][int_type]:
+                                extracted_data[grp_n][int_type][f] = []
+                            extracted_data[grp_n][int_type][f].extend(
+                                intonly_cut_data[f]
+                            )
+                    else:
+                        [extracted_data[grp_n][int_type][f].extend(
+                            intonly_cut_data[f])
+                         for f in extract_fields]
+        logging.info('File count for run %s: %d' %(run, file_count))
+    to_file(bad_files, '/tmp/bad_files.json')
 
     # Compute "weighted_aeff" field:
     #
@@ -361,7 +389,9 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
     #
     # See Justin Lanfranchi's presentation on the PINGU Analysis call,
     # 2015-10-21, for more details.
-    if 'weighted_aeff' in output_fields:
+    if ((output_fields is None
+         and (extract_fields is None or 'one_weight' in extract_fields))
+        or 'weighted_aeff' in output_fields):
         fmtfields = (' '*12+'flavint_group',
                      'int type',
                      '     run',
@@ -374,7 +404,7 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
         logging.info(fmt % fmtfields)
         logging.info(lines)
         for grp_n, flavint_group in enumerate(flavint_groupings):
-            for int_type in ALL_NUINT_TYPES:
+            for int_type in set([fi.intType() for fi in flavint_group.flavints()]):
                 ngen_it_tot = 0
                 for run, run_counts in ngen[grp_n][int_type].iteritems():
                     for barnobar, barnobar_counts in run_counts.iteritems():
@@ -385,10 +415,14 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
                              barnobar, int(barnobar_counts), int(ngen_it_tot))
                         )
                 # Convert data to numpy array
-                for field in extract_fields:
-                    extracted_data[grp_n][int_type][field] = \
-                            np.array(extracted_data[grp_n][int_type][field])
-
+                if extract_fields is None:
+                    for field in extracted_data[grp_n][int_type].keys():
+                        extracted_data[grp_n][int_type][field] = \
+                                np.array(extracted_data[grp_n][int_type][field])
+                else:
+                    for field in extract_fields:
+                        extracted_data[grp_n][int_type][field] = \
+                                np.array(extracted_data[grp_n][int_type][field])
                 # Generate weighted_aeff field for this group / int type's data
                 extracted_data[grp_n][int_type]['weighted_aeff'] = \
                         extracted_data[grp_n][int_type]['one_weight'] \
@@ -416,8 +450,11 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
                     'flavint %s **IS** in flavint_group %s, storing.' %
                     (flavint, flavint_group)
                 )
-            evts[flavint] = {f: extracted_data[grp_n][int_type][f]
-                             for f in output_fields}
+            if output_fields is None:
+                evts[flavint] = extracted_data[grp_n][int_type]
+            else:
+                evts[flavint] = {f: extracted_data[grp_n][int_type][f]
+                                 for f in output_fields}
 
     # Generate file name
     numerical_runs = []
@@ -678,8 +715,8 @@ def main():
             data_proc_params=data_proc_params,
             join=grouping,
             cust_cuts=ccut,
-            extract_fields=extract_fields,
-            output_fields=output_fields,
+            extract_fields=None, #extract_fields,
+            output_fields=None, #output_fields,
         )
 
 

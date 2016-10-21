@@ -328,7 +328,7 @@ class Analysis(object):
             fit_info['params'] = deepcopy(hypo_maker.params)
         fit_info['detailed_metric_info'] = self.get_detailed_metric_info(
             data_dist=data_dist, hypo_asimov_dist=hypo_asimov_dist,
-            metric=metric, other_metrics=other_metrics
+            hypo_maker=hypo_maker, metric=metric, other_metrics=other_metrics
         )
         fit_info['minimizer_time'] = minimizer_time * ureg.sec
         fit_info['minimizer_metadata'] = metadata
@@ -375,7 +375,7 @@ class Analysis(object):
             fit_info['params'] = deepcopy(hypo_maker.params)
         fit_info['detailed_metric_info'] = self.get_detailed_metric_info(
             data_dist=data_dist, hypo_asimov_dist=hypo_asimov_dist,
-            metric=metric, other_metrics=other_metrics
+            hypo_maker=hypo_maker, metric=metric, other_metrics=other_metrics
         )
         fit_info['minimizer_time'] = 0 * ureg.sec
         fit_info['minimizer_metadata'] = OrderedDict()
@@ -384,7 +384,7 @@ class Analysis(object):
 
     @staticmethod
     def get_detailed_metric_info(data_dist, hypo_asimov_dist, metric,
-                                 other_metrics=None):
+                                 hypo_maker, other_metrics=None):
         # Get the best-fit metric value for each of the output distributions
         # and for each of the `other_metrics` specified.
         if other_metrics is None:
@@ -397,9 +397,11 @@ class Analysis(object):
             name_vals_d = data_dist.metric_per_map(
                 expected_values=hypo_asimov_dist, metric=m
             )
+            name_vals_d['prior'] = \
+                                hypo_maker.params.priors_penalty(metric=metric)
             name_vals_d['total'] = data_dist.metric_total(
                 expected_values=hypo_asimov_dist, metric=m
-            )
+            ) + name_vals_d['prior']
             detailed_metric_info[m] = name_vals_d
         return detailed_metric_info
 
