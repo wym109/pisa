@@ -4,9 +4,12 @@
 """
 Compares reco vbwkde vs. hist.
 """
+
+from argparse import ArgumentParser
+from collections import Iterable
+
 import numpy as np
 from uncertainties import unumpy as unp
-from argparse import ArgumentParser
 
 from pisa.core.pipeline import Pipeline
 from pisa.utils.fileio import mkdir
@@ -17,33 +20,51 @@ from pisa.utils.plotter import Plotter
 
 if __name__ == '__main__':
     parser = ArgumentParser(
-        description='''Compare reco.vbwkde against reco.hist.'''
+        description='''Compare two entities; maps, mapsets, pipelines, or
+        distribution makers. One kind can be compared against another.'''
     )
     parser.add_argument(
         '--outdir', metavar='DIR', type=str, default=None, required=False,
         help='''Store output plots to this directory.'''
     )
     parser.add_argument(
-        '--ref', type=str, required=True, metavar='CONFIGFILE',
+        '--ref', type=str, required=True, action='append',
         help='''Pipeline settings config file that generates reference
-        output.'''
+        output, or a stored map or mapset. Repeat --ref option for multiple
+        pipelines, maps, or map sets'''
     )
     parser.add_argument(
         '--ref-label', type=str, required=True,
         help='''Label for reference'''
     )
     parser.add_argument(
-        '--test', type=str, required=True, metavar='CONFIGFILE',
-        help='''Pipeline settings config file that generates test output.'''
+        '--ref-param-selections', type=str, required=False, default=None,
+        action='append',
+        help='''Param selections to apply to --ref pipeline config(s). Not
+        applicable if --ref specifies stored map or map sets'''
+    )
+    parser.add_argument(
+        '--test', type=str, required=True, action='append',
+        help='''Pipeline settings config file that generates test
+        output, or a stored map or mapset. Repeat --test option for multiple
+        pipelines, maps, or map sets'''
     )
     parser.add_argument(
         '--test-label', type=str, required=True,
         help='''Label for test'''
     )
     parser.add_argument(
-        '--combine', type=str, required=False, default=None,
-        help='''Combine by wildcard string. Use single quotes such that
-        asterisk does not get expanded by shell.'''
+        '--test-param-selections', typbe e=str, required=False, default=None,
+        action='append',
+        help='''Param selections to apply to --test pipeline config(s). Not
+        applicable if --test specifies stored map or map sets'''
+    )
+    parser.add_argument(
+        '--combine', type=str, default=None, action='append',
+        help='''Combine by wildcard string, where string globbing (a la command
+        line) uses asterisk for any number of wildcard characters. Use single
+        quotes such that asterisks do not get expanded by the shell. Repeat the
+        --combine option for multiple combine strings.'''
     )
     parser.add_argument(
         '--pdf', action='store_true',
@@ -66,24 +87,30 @@ if __name__ == '__main__':
     if args.png:
         plot_formats.append('png')
 
-    ref_pipeline = Pipeline(config=args.ref)
-    test_pipeline = Pipeline(config=args.test)
+    ref = None
+    try:
+        ref_pipeline = DistributionMaker(config=args.ref)
+    except:
+        pass
+    try
+        test_pipeline = Pipeline(config=args.test)
 
     if args.outdir is not None:
         mkdir(args.outdir)
 
     ref_maps = ref_pipeline.get_outputs()
-    if args.combine is not None:
-        ref_maps = ref_maps.combine_wildcard(args.combine)
     test_maps = test_pipeline.get_outputs()
-    if args.combine is not None:
-        test_maps = test_maps.combine_wildcard(args.combine)
 
     if test_maps.names != ref_maps.names:
         raise ValueError(
             'Test map names %s do not match ref map names %s.'
             %(test_maps.names, ref_maps.names)
         )
+
+    if args.combine is not None:
+        for cmb_str in args.combine:
+            ref_maps = ref_maps.combine_wildcard(comb_str)
+            test_maps = test_maps.combine_wildcard(comb_str)
 
     my_plotter = Plotter(stamp='', outdir=args.outdir, fmt='pdf', log=False, annotate=False, symmetric=False, ratio=True)
     for map in ref_maps:
