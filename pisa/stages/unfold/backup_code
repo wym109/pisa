@@ -1,0 +1,100 @@
+        background_str = []
+        if trans_data.are_muons: background_str.append('muons')
+        for fig in trans_data:
+            if fig != self._output_nu_group:
+                background_str.append(fig)
+
+        signal_data = trans_data[self._output_nu_group]
+        background_data = [trans_data[bg] for bg in background_str]
+        background_data = reduce(Data._merge, background_data)
+        all_data = Data._merge(deepcopy(background_data), signal_data)
+
+        all_hist = self._histogram(
+            events=all_data,
+            binning=self.input_binning,
+            weights=all_data['pisa_weight'],
+            errors=True,
+            name='all',
+            tex=r'\rm{all}'
+        )
+
+        bg_hist = self._histogram(
+            events=background_data,
+            binning=self.input_binning,
+            weights=background_data['pisa_weight'],
+            errors=True,
+            name='background',
+            tex=r'\rm{background}'
+        )
+
+        signal_sub_hist = all_hist - bg_hist
+
+        # TODO(shivesh): flatten to 1D
+        bin_shape = self.input_binning.shape
+        signal_sub_th1d = TH2D('signal_sub', 'signal_sub', 10, -3, 3)
+
+    @staticmethod
+    def _histogram(events, binning, weights=None, errors=False, **kwargs):
+        """Histogram the events given the input binning."""
+        logging.debug('Histogramming')
+
+        bin_names = binning.names
+        bin_edges = [edges.m for edges in binning.bin_edges]
+        for name in bin_names:
+            if not events.has_key(name):
+                raise AssertionError('Input events object does not have '
+                                     'key {0}'.format(name))
+
+        sample = [events[colname] for colname in bin_names]
+        hist, edges = np.histogramdd(
+            sample=sample, weights=weights, bins=bin_edges
+        )
+        if errors:
+            hist2, edges = np.histogramdd(
+                sample=sample, weights=np.square(weights), bins=bin_edges
+            )
+            hist = unp.uarray(hist, np.sqrt(hist2))
+
+        return Map(hist=hist, binning=binning, **kwargs)
+
+
+        # background_str = []
+        # if trans_data.are_muons: background_str.append('muons')
+        # for fig in trans_data:
+        #     if fig != self._output_nu_group:
+        #         background_str.append(fig)
+        # background_data = [trans_data[bg] for bg in background_str]
+        # background_data = reduce(Data._merge, background_data)
+        # all_data = Data._merge(deepcopy(background_data), signal_data)
+
+        # # TODO(shivesh): histogram with ROOT
+        # all_hist = self._histogram(
+        #     events=all_data,
+        #     binning=self.reco_binning,
+        #     weights=all_data['pisa_weight'],
+        #     errors=True,
+        #     name='all',
+        #     tex=r'\rm{all}'
+        # )
+        # bg_hist = self._histogram(
+        #     events=background_data,
+        #     binning=self.reco_binning,
+        #     weights=background_data['pisa_weight'],
+        #     errors=True,
+        #     name='background',
+        #     tex=r'\rm{background}'
+        # )
+        # signal_sub_hist = all_hist.hist - bg_hist.hist
+        # data_s = []
+        # for name in reco_names:
+        #     data_s.append(signal_data[name])
+        # data_s = np.vstack(data_s)
+
+        # th2d_s = TH2D(
+        #     'signal', 'signal',
+        #     n_evnts - 1, reco_binning[0],
+        #     n_evnts - 1, reco_binning[1]
+        # )
+        # fill_hist(th2d_s, data_s.T, weights=weight)
+
+        # unfold = RooUnfoldBayes(response, signal_sub_hist, 1)
