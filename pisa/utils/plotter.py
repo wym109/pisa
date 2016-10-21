@@ -248,6 +248,8 @@ class Plotter(object):
         self.stamp = stamp
 
     def plot_2d_map(self, map, cmap='rainbow', **kwargs):
+        vmin = kwargs.pop('vmin', None)
+        vmax = kwargs.pop('vmax', None)
         ''' plot map or transform on current axis in 2d'''
         axis = plt.gca()
         if isinstance(map, BinnedTensorTransform):
@@ -265,8 +267,10 @@ class Plotter(object):
             vmax = max(np.max(np.ma.masked_invalid(zmap)), - np.min(np.ma.masked_invalid(zmap)))
             vmin = -vmax
         else:
-            vmax = np.max(zmap[np.isfinite(zmap)])
-            vmin = np.min(zmap[np.isfinite(zmap)])
+            if vmax == None:
+                vmax = np.max(zmap[np.isfinite(zmap)])
+            if vmin == None:
+                vmin = np.min(zmap[np.isfinite(zmap)])
         extent = [np.min(bin_edges[0].m), np.max(bin_edges[0].m), np.min(bin_edges[1].m), np.max(bin_edges[1].m)]
         # needs to be transposed for imshow
         #img = plt.imshow(zmap.T,origin='lower',interpolation='nearest',extent=extent,aspect='auto',

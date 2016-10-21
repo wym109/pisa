@@ -742,6 +742,7 @@ class Analysis(object):
                     del bf['minimizer_metadata']
                     del bf['minimizer_time']
                 except: pass
+
             results['results'].append(bf)
             if not outfile is None:
                 # store intermediate results
