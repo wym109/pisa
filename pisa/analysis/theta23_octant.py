@@ -130,6 +130,7 @@ if __name__ == '__main__':
 
     # set up results dict
     results_dict = {}
+    results_dict["truth_sampled"] = []
 
     # parse minimizer settings
     minimizer_settings = from_file(args.minimizer_settings)
@@ -189,6 +190,7 @@ if __name__ == '__main__':
         lt = lt*ureg.common_year
         # TODO: consistent units (range + values etc.)
         t23 = t23*ureg.deg
+        results_dict["truth_sampled"].append({"livetime": lt, "theta23": t23})
         logging.info("Generating %s data distribution for true livetime='%s'"
                      " and true theta23='%s'"%(data_dist_type, lt, t23))
         data_maker.params.livetime.value = lt
