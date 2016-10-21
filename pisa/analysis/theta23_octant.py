@@ -12,6 +12,14 @@ from pisa.analysis.analysis import Analysis
 from pisa.core.distribution_maker import DistributionMaker
 from pisa.utils.log import logging, set_verbosity
 
+
+def get_metadata(ini_args):
+    METADATA_K = ('data_settings', 'template_settings', 'data_param_selection',
+                  'only_correct_nmo', 'only_x_nmo', 'minimizer_settings')
+    ini_args_d = vars(ini_args)
+    metadata_d = {k: ini_args_d.get(k, None) for k in METADATA_K}
+    return metadata_d
+
 if __name__ == '__main__':
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
     from itertools import product
@@ -130,7 +138,9 @@ if __name__ == '__main__':
 
     # set up results dict
     results_dict = {}
+    results_dict["metadata"] = get_metadata(args)
     results_dict["truth_sampled"] = []
+    results_dict["fits"] = {}
 
     # parse minimizer settings
     minimizer_settings = from_file(args.minimizer_settings)
@@ -213,8 +223,8 @@ if __name__ == '__main__':
         # loop over fit parameter selections
         for hypo_param_selection in hypo_param_selections:
             one_fit_dict = {'wrong octant': {}, 'maximal mixing': {}}
-            if not hypo_param_selection in results_dict:
-                results_dict[hypo_param_selection] = []
+            if not hypo_param_selection in results_dict["fits"]:
+                results_dict["fits"][hypo_param_selection] = []
 
             logging.info("Fit parameters: '%s'"%hypo_param_selection)
             hypo_maker.select_params(hypo_param_selection)
@@ -299,7 +309,7 @@ if __name__ == '__main__':
             one_fit_dict['wrong octant'] = deepcopy(bf)
             one_fit_dict['maximal mixing'] = deepcopy(bf_max_mix)
 
-            results_dict[hypo_param_selection].append(one_fit_dict)
+            results_dict["fits"][hypo_param_selection].append(one_fit_dict)
             to_file(results_dict, args.outfile)
             # unfix theta23 again
             hypo_maker.params.theta23.is_fixed = False
