@@ -381,7 +381,7 @@ class Analysis(object):
         return fit_info
 
     @staticmethod
-    def get_detailed_metric_info(data_dist, hypo_asimov_dist, metric,
+    def get_detailed_metric_info(data_dist, hypo_asimov_dist, metric, hypo_maker,
                                  other_metrics=None):
         # Get the best-fit metric value for each of the output distributions
         # and for each of the `other_metrics` specified.
@@ -395,9 +395,10 @@ class Analysis(object):
             name_vals_d = data_dist.metric_per_map(
                 expected_values=hypo_asimov_dist, metric=m
             )
+            name_vals_d['prior'] = hypo_maker.params.priors_penalty(metric=metric)
             name_vals_d['total'] = data_dist.metric_total(
                 expected_values=hypo_asimov_dist, metric=m
-            )
+            ) + name_vals_d['prior']
             detailed_metric_info[m] = name_vals_d
         return detailed_metric_info
 
