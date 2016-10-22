@@ -7,15 +7,17 @@ unfolding.
 """
 from operator import add
 from copy import deepcopy
+from itertools import product
 
 import numpy as np
 import pint
 from uncertainties import unumpy as unp
 
-from ROOT import TH1D, TH2D
+from ROOT import TH1, TH1D, TH2D
 from ROOT import RooUnfoldResponse, RooUnfoldBayes
 from root_numpy import array2hist, hist2array
 from rootpy.plotting import Hist1D, Hist2D
+TH1.SetDefaultSumw2(False)
 
 from pisa import ureg, Q_
 from pisa.core.stage import Stage
@@ -94,32 +96,36 @@ class roounfold(Stage):
                                  'type {0}'.format(type(inputs)))
         self._data = inputs
         # TODO(shivesh): background subtraction
+        # TODO(shivesh): stat fluctuations
         trans_data = self._data.transform_groups(
             self._output_nu_group
         )
         signal_data = trans_data[self._output_nu_group]
 
-        # TODO(shivesh): stat errors
         response = self.create_response(signal_data)
 
         sig_reco = self._histogram(
             events=signal_data,
             binning=self.reco_binning,
             weights=signal_data['pisa_weight'],
-            errors=False,
+            errors=True,
             name='reco_signal',
             tex=r'\rm{reco_signal}'
         )
         sig_r_flat = roounfold._flatten_to_1d(sig_reco)
-        sig_r_th1d = roounfold._convert_to_th1d(sig_r_flat)
+        sig_r_th1d = roounfold._convert_to_th1d(sig_r_flat, errors=True)
 
         # TODO(shivesh): different algorithms
         unfold = RooUnfoldBayes(
             response, sig_r_th1d, self.params['regularisation'].value
         )
-        sig_unfolded_flat = unfold.Hreco()
+
+        sig_unfolded_flat = unfold.Hreco(1)
         sig_unfold = self._unflatten_thist(
-            sig_unfolded_flat, self.true_binning, name=self._output_nu_group
+            in_th1d=sig_unfolded_flat,
+            binning=self.true_binning,
+            name=self._output_nu_group,
+            errors=True
         )
 
         return MapSet([sig_unfold])
@@ -144,7 +150,7 @@ class roounfold(Stage):
                 logging.info('Loading response object from cache.')
                 response = self.disk_cache[this_cache_hash]
             else:
-                raise ValueError('reponse object with correct hash not found '
+                raise ValueError('response object with correct hash not found '
                                  'in disk_cache')
 
         if self.disk_cache is not None:
@@ -168,7 +174,7 @@ class roounfold(Stage):
             events=signal_data,
             binning=reco_binning,
             weights=signal_data['pisa_weight'],
-            errors=False,
+            errors=True,
             name='reco_signal',
             tex=r'\rm{reco_signal}'
         )
@@ -176,7 +182,7 @@ class roounfold(Stage):
             events=signal_data,
             binning=true_binning,
             weights=signal_data['pisa_weight'],
-            errors=False,
+            errors=True,
             name='true_signal',
             tex=r'\rm{true_signal}'
         )
@@ -187,15 +193,15 @@ class roounfold(Stage):
             events=signal_data,
             binning=reco_binning+true_binning,
             weights=signal_data['pisa_weight'],
-            errors=False,
+            errors=True,
             name='smearing_matrix',
             tex=r'\rm{smearing_matrix}'
         )
         smear_flat = roounfold._flatten_to_2d(smear_matrix)
 
-        sig_r_th1d = roounfold._convert_to_th1d(sig_r_flat)
-        sig_t_th1d = roounfold._convert_to_th1d(sig_t_flat)
-        smear_th2d = roounfold._convert_to_th2d(smear_flat)
+        sig_r_th1d = roounfold._convert_to_th1d(sig_r_flat, errors=True)
+        sig_t_th1d = roounfold._convert_to_th1d(sig_t_flat, errors=True)
+        smear_th2d = roounfold._convert_to_th2d(smear_flat, errors=True)
 
         response = RooUnfoldResponse(sig_r_th1d, sig_t_th1d, smear_th2d)
         return response
@@ -263,7 +269,7 @@ class roounfold(Stage):
         return Map(name=in_map.name, hist=hist, binning=binning)
 
     @staticmethod
-    def _convert_to_th1d(in_map):
+    def _convert_to_th1d(in_map, errors=False):
         assert isinstance(in_map, Map)
         name = in_map.name
         assert len(in_map.shape) == 1
@@ -271,11 +277,15 @@ class roounfold(Stage):
         edges = in_map.binning.bin_edges[0].m
 
         th1d = TH1D(name, name, n_bins, edges)
-        array2hist(in_map.hist, th1d)
+        array2hist(unp.nominal_values(in_map.hist), th1d)
+        if errors:
+            map_errors = unp.std_devs(in_map.hist)
+            for idx in xrange(n_bins):
+                th1d.SetBinError(idx+1, map_errors[idx])
         return th1d
 
     @staticmethod
-    def _convert_to_th2d(in_map):
+    def _convert_to_th2d(in_map, errors=False):
         assert isinstance(in_map, Map)
         name = in_map.name
         n_bins = in_map.shape
@@ -284,12 +294,20 @@ class roounfold(Stage):
         edges_a, edges_b = [b.m for b in in_map.binning.bin_edges]
 
         th2d = TH2D(name, name, nbins_a, edges_a, nbins_b, edges_b)
-        array2hist(in_map.hist, th2d)
+        array2hist(unp.nominal_values(in_map.hist), th2d)
+        if errors:
+            map_errors = unp.std_devs(in_map.hist)
+            for x_idx, y_idx in product(*map(range, n_bins)):
+                th2d.SetBinError(x_idx+1, y_idx+1, map_errors[x_idx][y_idx])
         return th2d
 
     @staticmethod
-    def _unflatten_thist(in_th1d, binning, name='', **kwargs):
+    def _unflatten_thist(in_th1d, binning, name='', errors=False, **kwargs):
         flat_hist = hist2array(in_th1d)
+        if errors:
+            map_errors = [in_th1d.GetBinError(idx+1)
+                          for idx in xrange(len(flat_hist))]
+            flat_hist = unp.uarray(flat_hist, map_errors)
         hist = flat_hist.reshape(binning.shape)
         return Map(hist=hist, binning=binning, name=name, **kwargs)
 
