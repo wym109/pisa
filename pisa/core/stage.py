@@ -64,7 +64,8 @@ class Stage(object):
         Whether or not this stage takes inputs to be transformed (and hence
         implements transforms).
 
-    params : ParamSelector, dict ParamSelector kwargs, ParamSet, or object instantiable to ParamSet
+    params : ParamSelector, dict of ParamSelector kwargs, ParamSet, or object
+             instantiable to ParamSet
 
     expected_params : list of strings
         List containing required `params` names.

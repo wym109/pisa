@@ -270,9 +270,12 @@ class Pipeline(object):
 
         Not meant to be perfect, but should suffice for tracking provenance of
         an object stored to disk that were produced by a Stage.
+
         """
         if self._source_code_hash is None:
-            self._source_code_hash = hash_obj(inspect.getsource(self.__class__))
+            self._source_code_hash = hash_obj(inspect.getsource(
+                self.__class__
+            ))
         return self._source_code_hash
 
     @property
