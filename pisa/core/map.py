@@ -812,23 +812,29 @@ class Map(object):
         dimension and optionally the specific bin(s) within that dimension
         specified by `bin`.
 
-        If both `dim` and `bin` are specified and this locates a single bin, a
-        single Map is returned, while if this locates multiple bins, a MapSet
+        If both `dim` and `bin` are specified and this identifies a single bin,
+        a single Map is returned, while if this locates multiple bins, a MapSet
         is returned where each map corresponds to a bin (in the order dictated
         by the `bin` specification).
 
-        If only `dim` is specified, _regardless_ of the number of
-        multiple bins meet the (dim, bin) criteria, the maps corresponding to
-        each `bin` are collected into a MapSet and returned.
+        If only `dim` is specified, _regardless_ if multiple bins meet the
+        (dim, bin) criteria, the maps corresponding to each `bin` are collected
+        into a MapSet and returned.
 
         Resulting maps are ordered according to the binning and are renamed as:
 
-            new_map[j].name = orig_map.name__dim.name__dim.binning.bin_names[i]
+            new_map[j].name = orig_map.name__dim.binning.bin_names[i]
 
-        where j is the index into the new MapSet and i is the index to the bin
-        in the original binning spec. `map.name` is the current (pre-split)
-        map's name, and if the bins do not have names, then the stringified
-        integer index to the bin, str(i), is used instead.
+        if the current map has a name, or
+
+            new_map[j].name = dim.binning.bin_names[i]
+
+        if the current map has a zero-length name.
+
+        In the above, j is the index into the new MapSet and i is the index to
+        the bin in the original binning spec. `map.name` is the current
+        (pre-split) map's name, and if the bins do not have names, then the
+        stringified integer index to the bin, str(i), is used instead.
 
         Parameters
         ----------
@@ -841,13 +847,13 @@ class Map(object):
         Returns
         -------
         split_maps : Map or MapSet
-            If only `dim` is passed, return MapSet regardless of how many maps
+            If only `dim` is passed, returns MapSet regardless of how many maps
             are found. If both `dim` and `bin` are specified and this results
             in selecting more than one bin, also returns a MapSet. However if
-            both are specified and this selects a single bin, just a Map is
-            returned. Naming of the maps and MapSet is updated to reflect what
-            the map represents, while the hash value is copied into the new
-            map(s).
+            both `dim` and `bin` are specified and this selects a single bin,
+            just the indexed Map is returned. Naming of the maps and MapSet is
+            updated to reflect what the map represents, while the hash value is
+            copied into the new map(s).
 
         """
         dim_index = self.binning.index(dim, use_basenames=use_basenames)
