@@ -215,6 +215,11 @@ def recursiveEquality(x, y):
                     logging.trace('ys: %s' %ys)
                     return False
 
+    elif hasattr(x, '_hashable_state'):
+        if not hasattr(y, '_hashable_state'):
+            return False
+        return recursiveEquality(x._hashable_state, y._hashable_state)
+
     # Unhandled
     else:
         raise TypeError('Unhandled type(s): %s, x=%s, y=%s' %

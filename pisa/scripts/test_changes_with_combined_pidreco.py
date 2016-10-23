@@ -59,9 +59,9 @@ def compare_pisa_self(config1, config2, testname1, testname2, outdir):
         cake1_trck_map_to_plot['czbins'] = \
             cake1_both_map.binning['reco_coszen'].bin_edges.magnitude
         cake1_trck_map_to_plot['map'] = \
-            cake1_both_map.slice_by_name(
-                dim_name='pid',
-                bin_name='trck'
+            cake1_both_map.split(
+                dim='pid',
+                bin='trck'
             ).hist
         cake1_trck_events = np.sum(cake1_trck_map_to_plot['map'])
         cake1_cscd_map_to_plot = {}
@@ -70,9 +70,9 @@ def compare_pisa_self(config1, config2, testname1, testname2, outdir):
         cake1_cscd_map_to_plot['czbins'] = \
             cake1_both_map.binning['reco_coszen'].bin_edges.magnitude
         cake1_cscd_map_to_plot['map'] = \
-            cake1_both_map.slice_by_name(
-                dim_name='pid',
-                bin_name='cscd'
+            cake1_both_map.split(
+                dim='pid',
+                bin='cscd'
             ).hist
         cake1_cscd_events = np.sum(cake1_cscd_map_to_plot['map'])
     else:
@@ -103,9 +103,9 @@ def compare_pisa_self(config1, config2, testname1, testname2, outdir):
         cake2_trck_map_to_plot['czbins'] = \
             cake2_both_map.binning['reco_coszen'].bin_edges.magnitude
         cake2_trck_map_to_plot['map'] = \
-            cake2_both_map.slice_by_name(
-                dim_name='pid',
-                bin_name='trck'
+            cake2_both_map.split(
+                dim='pid',
+                bin='trck'
             ).hist
         cake2_trck_events = np.sum(cake2_trck_map_to_plot['map'])
         cake2_cscd_map_to_plot = {}
@@ -114,9 +114,9 @@ def compare_pisa_self(config1, config2, testname1, testname2, outdir):
         cake2_cscd_map_to_plot['czbins'] = \
             cake2_both_map.binning['reco_coszen'].bin_edges.magnitude
         cake2_cscd_map_to_plot['map'] = \
-            cake2_both_map.slice_by_name(
-                dim_name='pid',
-                bin_name='cscd'
+            cake2_both_map.split(
+                dim='pid',
+                bin='cscd'
             ).hist
         cake2_cscd_events = np.sum(cake2_cscd_map_to_plot['map'])
     else:
@@ -277,16 +277,16 @@ def compare_4stage(config, testname, outdir, oscfitfile):
         if nukey == 'trck':
             texname = r'\rm{trck}'
             cake_map_to_plot['map'] = \
-                cake_map.slice_by_name(
-                    dim_name='pid',
-                    bin_name='trck'
+                cake_map.split(
+                    dim='pid',
+                    bin='trck'
                 ).hist
         elif nukey == 'cscd':
             texname = r'\rm{cscd}'
             cake_map_to_plot['map'] = \
-                cake_map.slice_by_name(
-                    dim_name='pid',
-                    bin_name='cscd'
+                cake_map.split(
+                    dim='pid',
+                    bin='cscd'
                 ).hist
         pisa_events = np.sum(cake_map_to_plot['map'])
 
