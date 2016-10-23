@@ -4,7 +4,7 @@ import numpy as np
 import struct
 
 from pisa.utils.log import logging, set_verbosity
-#from pisa.utils.profiler import profile
+from pisa.utils.profiler import profile
 
 
 # TODO: add sigfigs arg:

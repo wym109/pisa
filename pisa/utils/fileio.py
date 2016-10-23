@@ -10,6 +10,8 @@ import os
 import re
 import unicodedata
 
+import dill
+
 from pisa.utils.betterConfigParser import BetterConfigParser
 from pisa.utils import hdf
 from pisa.utils import jsons
@@ -17,10 +19,12 @@ from pisa.utils.log import logging
 from pisa.utils import resources
 
 
-JSON_EXTS = ['json']
+JSON_EXTS = ['json', 'json.bz2']
 HDF5_EXTS = ['hdf', 'h5', 'hdf5']
 PKL_EXTS = ['pickle', 'pckl', 'pkl', 'p']
+DILL_EXTS = ['dill']
 CFG_EXTS = ['ini', 'cfg']
+ZIP_EXTS = ['bz2']
 
 
 def expandPath(path, exp_user=True, exp_vars=True, absolute=False):
@@ -185,6 +189,20 @@ def to_pickle(obj, fname, overwrite=True):
                         protocol=cPickle.HIGHEST_PROTOCOL)
 
 
+def from_dill(fname):
+    return dill.load(file(fname, 'rb'))
+
+
+def to_dill(obj, fname, overwrite=True):
+    fpath = os.path.expandvars(os.path.expanduser(fname))
+    if os.path.exists(fpath):
+        if overwrite:
+            logging.warn('Overwriting file at ' + fpath)
+        else:
+            raise Exception('Refusing to overwrite path ' + fpath)
+    return dill.dump(obj, file(fname, 'wb'), protocol=dill.HIGHEST_PROTOCOL)
+
+
 def from_file(fname, fmt=None, **kwargs):
     """Dispatch correct file reader based on fmt (if specified) or guess
     based on file name's extension.
@@ -206,10 +224,18 @@ def from_file(fname, fmt=None, **kwargs):
 
     """
     if fmt is None:
-        _, ext = os.path.splitext(fname)
+        rootname, ext = os.path.splitext(fname)
         ext = ext.replace('.', '').lower()
     else:
         ext = fmt.lower()
+
+    zip_ext = None
+    if ext in ZIP_EXTS:
+        rootname, inner_ext = os.path.splitext(rootname)
+        inner_ext = inner_ext.replace('.', '').lower()
+        zip_ext = ext
+        ext = inner_ext + '.' + zip_ext
+
     fname = resources.find_resource(fname)
     if ext in JSON_EXTS:
         return jsons.from_json(fname, **kwargs)
@@ -217,6 +243,8 @@ def from_file(fname, fmt=None, **kwargs):
         return hdf.from_hdf(fname, **kwargs)
     if ext in PKL_EXTS:
         return from_pickle(fname, **kwargs)
+    if ext in DILL_EXTS:
+        return from_dill(fname, **kwargs)
     if ext in CFG_EXTS:
         return from_cfg(fname, **kwargs)
     errmsg = 'File "%s": unrecognized extension "%s"' % (fname, ext)
@@ -238,6 +266,8 @@ def to_file(obj, fname, fmt=None, **kwargs):
         return hdf.to_hdf(obj, fname, **kwargs)
     elif ext in PKL_EXTS:
         return to_pickle(obj, fname, **kwargs)
+    elif ext in DILL_EXTS:
+        return to_dill(obj, fname, **kwargs)
     else:
         errmsg = 'Unrecognized file type/extension: ' + ext
         logging.error(errmsg)

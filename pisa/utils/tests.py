@@ -132,7 +132,8 @@ def make_ratio_map(amap, bmap):
     return result
 
 
-def baseplot(m, title, ax, symm=False, evtrate=False):
+def baseplot(m, title, ax, clabel=None, symm=False, evtrate=False,
+             vmax=None, cmap=plt.cm.afmhot):
     """Simple plotting of a 2D histogram (map)"""
     hist = np.ma.masked_invalid(m['map'])
     energy = m['ebins']
@@ -141,21 +142,24 @@ def baseplot(m, title, ax, symm=False, evtrate=False):
     if symm:
         cmap = plt.cm.seismic
         extr = np.nanmax(np.abs(hist))
-        vmax = extr
+        if vmax is None:
+            vmax = extr
         vmin = -extr
     else:
-        cmap = plt.cm.hot
         if evtrate:
             vmin = 0
         else:
             vmin = np.nanmin(hist)
-        vmax = np.nanmax(hist)
+        if vmax is None:
+            vmax = np.nanmax(hist)
     cmap.set_bad(color=(0,1,0), alpha=1)
     x = coszen
     y = np.log10(energy)
     X, Y = np.meshgrid(x, y)
     pcmesh = ax.pcolormesh(X, Y, hist, vmin=vmin, vmax=vmax, cmap=cmap)
     cbar = plt.colorbar(mappable=pcmesh, ax=ax)
+    if clabel is not None:
+        cbar.set_label(clabel)
     cbar.ax.tick_params(labelsize='large')
     ax.set_xlabel(r'$\cos\theta_Z$')
     ax.set_ylabel(r'Energy (GeV)')
@@ -237,7 +241,8 @@ def baseplot2(map, title, ax, vmax=None, symm=False, evtrate=False):
 
 
 def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
-                     texname, stagename, servicename, ftype='png'):
+                     texname, stagename, servicename, shorttitles=False,
+                     ftype='png'):
     """Plot comparisons between two identically-binned histograms (maps)"""
     path = [outdir]
 
@@ -248,8 +253,11 @@ def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
     if outdir is not None:
         mkdir(os.path.join(*path), warn=False)
 
-    fname = ['%s_%s_comparisons' %(ref_abv.lower(), new_abv.lower()),
-             'stage_'+stagename]
+    if stagename is not None:
+        fname = ['%s_%s_comparisons' %(ref_abv.lower(), new_abv.lower()),
+                 'stage_'+stagename]
+    else:
+        fname = ['%s_%s_comparisons' %(ref_abv.lower(), new_abv.lower())]
     if servicename is not None:
         fname.append('service_'+servicename)
     if name is not None:
@@ -293,24 +301,44 @@ def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
         gridspec_kw = dict(left=0.03, right=0.968, wspace=0.32)
         fig, axes = plt.subplots(nrows=1, ncols=5, gridspec_kw=gridspec_kw,
                                  sharex=False, sharey=False, figsize=(20,5))
-        baseplot(m=ref_map,
-                 title=basetitle+' '+ref_abv,
-                 evtrate=True,
-                 ax=axes[0])
-        baseplot(m=new_map,
-                 title=basetitle+' '+new_abv,
-                 evtrate=True,
-                 ax=axes[1])
-        baseplot(m=ratio_map,
-                 title=basetitle+' %s/%s' %(new_abv, ref_abv),
-                 ax=axes[2])
-        baseplot(m=diff_map,
-                 title=basetitle+' %s-%s' %(new_abv, ref_abv),
-                 symm=True, ax=axes[3])
-        baseplot(m=diff_ratio_map,
-                 title=basetitle+' (%s-%s)/%s' %(new_abv, ref_abv, ref_abv),
-                 symm=True,
-                 ax=axes[4])
+        if shorttitles:
+            baseplot(m=ref_map,
+                     title=basetitle+' '+ref_abv+' (A)',
+                     evtrate=True,
+                     ax=axes[0])
+            baseplot(m=new_map,
+                     title=basetitle+' '+new_abv+' (B)',
+                     evtrate=True,
+                     ax=axes[1])
+            baseplot(m=ratio_map,
+                     title='A/B',
+                     ax=axes[2])
+            baseplot(m=diff_map,
+                     title='A-B',
+                     symm=True, ax=axes[3])
+            baseplot(m=diff_ratio_map,
+                     title='(A-B)/A',
+                     symm=True,
+                     ax=axes[4])
+        else:
+            baseplot(m=ref_map,
+                     title=basetitle+' '+ref_abv,
+                     evtrate=True,
+                     ax=axes[0])
+            baseplot(m=new_map,
+                     title=basetitle+' '+new_abv,
+                     evtrate=True,
+                     ax=axes[1])
+            baseplot(m=ratio_map,
+                     title=basetitle+' %s/%s' %(new_abv, ref_abv),
+                     ax=axes[2])
+            baseplot(m=diff_map,
+                     title=basetitle+' %s-%s' %(new_abv, ref_abv),
+                     symm=True, ax=axes[3])
+            baseplot(m=diff_ratio_map,
+                     title=basetitle+' (%s-%s)/%s' %(new_abv, ref_abv, ref_abv),
+                     symm=True,
+                     ax=axes[4])
         logging.debug('>>>> Plot for inspection saved at %s'
                       %os.path.join(*path))
         fig.savefig(os.path.join(*path))
