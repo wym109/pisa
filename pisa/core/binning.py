@@ -139,7 +139,7 @@ class OneDimBinning(object):
 
     Examples
     --------
-    >>> import pint; ureg = pint.UnitRegistry()
+    >>> from pisa import ureg
     >>> ebins = OneDimBinning(name='energy', tex=r'E_\nu', is_log=True,
     ...                       num_bins=40, domain=[1, 80]*ureg.GeV)
     >>> print ebins
@@ -287,6 +287,8 @@ class OneDimBinning(object):
         self._domain = np.array([np.min(bin_edges), np.max(bin_edges)]) * units
 
         # Store units for convenience
+        if isinstance(units, pint.quantity._Quantity):
+            units = units.units
         self._units = units
 
         # Derive rest of unspecified parameters from bin_edges or enforce
@@ -336,9 +338,93 @@ class OneDimBinning(object):
         self._edges_hash = None
         self.rehash()
 
-    #def __repr__(self):
-    #    argstrs = [('%s=%s' %item) for item in self._serializable_state.items()]
-    #    return '%s(%s)' %(self.__class__.__name__, ', '.join(argstrs))
+    def __repr__(self):
+        previous_precision = np.get_printoptions()['precision']
+        np.set_printoptions(precision=18)
+        try:
+            argstrs = [('%s=%r' %item) for item in
+                       self._serializable_state.items()]
+            r = '%s(%s)' %(self.__class__.__name__, ',\n    '.join(argstrs))
+        finally:
+            np.set_printoptions(precision=previous_precision)
+        return r
+
+    def __str__(self):
+        domain_str = (
+            'spanning '
+            + '[%s, %s] %s' %(self.bin_edges[0].magnitude,
+                              self.bin_edges[-1].magnitude,
+                              format(self.units, '~'))
+        ).strip()
+
+        edge_str = (
+            'with edges at ['
+            + ', '.join([str(e) for e in self.bin_edges.m])
+            + '] '
+            + format(self.bin_edges.u, '~')
+        ).strip()
+
+        if self.num_bins == 1:
+            descr = 'one bin %s' %edge_str
+            if self.is_lin:
+                descr += ' (behavior is linear)'
+            elif self.is_log:
+                descr += ' (behavior is logarithmic)'
+        elif self.is_lin:
+            descr = '%d equally-sized bins %s' %(self.num_bins, domain_str)
+        elif self.is_log:
+            descr = '%d logarithmically-uniform bins %s' %(self.num_bins,
+                                                           domain_str)
+        else:
+            descr = '%d irregularly-sized bins %s' %(self.num_bins, edge_str)
+
+        if self.bin_names is not None:
+            descr += (', bin_names=['
+                      + ', '.join([("'%s'"%n) for n in self.bin_names])
+                      + ']')
+
+        return (self.__class__.__name__
+                + "('{name:s}', {descr:s}".format(name=self.name, descr=descr)
+                + ")")
+
+    def __pretty__(self, p, cycle):
+        """Method used by the `pretty` library for formatting"""
+        if cycle:
+            p.text('%s(...)' %self.__class__.__name__)
+        else:
+            p.begin_group(4, '%s(name=' %self.__class__.__name__)
+            p.text(str(self))
+            p.end_group(4, ')')
+
+    def _repr_pretty_(self, p, cycle):
+        """Method used by e.g. ipython/Jupyter for formatting"""
+        return self.__pretty__(p, cycle)
+
+    def __contains__(self, x):
+        try:
+            self.index(x)
+        except ValueError:
+            return False
+        return True
+
+    def index(self, x):
+        try:
+            if isinstance(x, basestring):
+                assert self.bin_names is not None
+                return self.bin_names.index(x)
+            if isinstance(x, int):
+                assert x >= 0 and x < len(self)
+                return x
+            return False
+        except (AssertionError, ValueError):
+            valid_range = [0, len(self)-1]
+            if self.bin_names is None:
+                valid_names = ''
+            else:
+                valid_names = ' or a valid bin name in %s' %self.bin_names
+            raise ValueError("Bin corresponding to '%s' could not be located."
+                             " Specify an int in %s%s."
+                             %(x, valid_range, valid_names))
 
     def to_json(self, filename, **kwargs):
         """Serialize the state to a JSON file that can be instantiated as a new
@@ -501,10 +587,10 @@ class OneDimBinning(object):
 
     @property
     def label(self):
-        unit = format(self.units, '~')
-        if unit == '':
+        units = format(self.units, '~').strip()
+        if units == '':
             return self.tex
-        return self.tex + ' (%s)'%unit
+        return self.tex + r'\; (%s)'%units
 
     @property
     def bin_widths(self):
@@ -774,49 +860,21 @@ class OneDimBinning(object):
     def __getattr__(self, attr):
         return super(self.__class__, self).__getattribute__(attr)
 
-    def __str__(self):
-        domain_str = 'spanning [%s, %s] %s' %(self.bin_edges[0].magnitude,
-                                              self.bin_edges[-1].magnitude,
-                                              format(self.units, '~'))
-        edge_str = 'with edges at [' + \
-                ', '.join([str(e) for e in self.bin_edges.m]) + \
-                '] ' + format(self.bin_edges.u, '~')
-
-        if self.num_bins == 1:
-            descr = 'one bin %s' %edge_str
-            if self.is_lin:
-                descr += ' (behavior is linear)'
-            elif self.is_log:
-                descr += ' (behavior is logarithmic)'
-        elif self.is_lin:
-            descr = '%d equally-sized bins %s' %(self.num_bins, domain_str)
-        elif self.is_log:
-            descr = '%d logarithmically-uniform bins %s' %(self.num_bins,
-                                                           domain_str)
-        else:
-            descr = '%d irregularly-sized bins %s' %(self.num_bins, edge_str)
-
-        return '{name:s}: {descr:s}'.format(name=self.name, descr=descr)
-
-    # TODO: make repr return representation that can recreate binning instead
-    # of str (which just looks nice for user); think now alos how to pickle
-    # and unpickle
-    def __repr__(self):
-        return str(self)
-
     # TODO: make this actually grab the bins specified (and be able to grab
     # disparate bins, whether or not they are adjacent)... i.e., fill in all
     # upper bin edges, and handle the case that it goes from linear or log
     # to uneven (or if it stays lin or log, keep that attribute for the
     # subselection). Granted, a OneDimBinning object right now requires
     # monotonically-increasing and adjacent bins.
+
+    # TODO: make indexing allow for sequence containing a single ellipsis
     @_new_obj
     def __getitem__(self, index):
         """Return a new OneDimBinning, sub-selected by `index`.
 
         Parameters
         ----------
-        index : int, slice, str, or length-one Sequence
+        index : int, slice, ellipsis, str, or length-one Sequence
             The *bin indices* (not bin-edge indices) to return. Generated
             OneDimBinning object must obey the usual rules (monotonic, etc.).
             If a str is supplied it must match a name in bin_names
@@ -826,11 +884,15 @@ class OneDimBinning(object):
         A new OneDimBinning but only with bins selected by `index`.
 
         """
+        # Ellipsis: binninng[...] returns everything
+        if index is Ellipsis:
+            return {}
+
         magnitude = self.bin_edges.magnitude
         units = self.bin_edges.units
         orig_index = index
 
-        # Deal with indexing by name first as to not break anything else
+        # Deal with indexing by name first so as to not break anything else
         if isinstance(index, basestring):
             assert self.bin_names is not None
             index = self.bin_names.index(index)
@@ -849,7 +911,9 @@ class OneDimBinning(object):
         if isinstance(index, int):
             index = [index]
 
-        if isinstance(index, Sequence):
+        if isinstance(index, Iterable):
+            if not isinstance(index, Sequence):
+                index = list(index)
             for bin_index in index:
                 if isinstance(bin_index, str):
                     raise ValueError('Slicing by seq of names currently not'
@@ -863,8 +927,12 @@ class OneDimBinning(object):
             new_edges = set()
             new_names = []
             for bin_index in index:
-                assert(bin_index >= -len(self) and bin_index < len(self)), \
-                        str(bin_index)
+                if bin_index < -len(self) or bin_index >= len(self):
+                    raise ValueError(
+                        "Dimension '%s': bin index %s is invalid. Bin index"
+                        " must be >= %+d and <= %+d"
+                        %(self.name, bin_index, -len(self), len(self)-1)
+                    )
                 edge_ind0 = bin_index % len(self)
                 edge_ind1 = edge_ind0 + 1
                 if self.bin_names is not None:
@@ -936,9 +1004,38 @@ class MultiDimBinning(object):
         self._shape = tuple([b.num_bins for b in self._dimensions])
         self._num_dims = len(self._dimensions)
 
-    #def __repr__(self):
-    #    argstrs = [('%s=%s' %item) for item in self._serializable_state.items()]
-    #    return '%s(%s)' %(self.__class__.__name__, ', '.join(argstrs))
+    def __repr__(self):
+        previous_precision = np.get_printoptions()['precision']
+        np.set_printoptions(precision=18)
+        try:
+            argstrs = [('%s=%r' %item) for item in
+                       self._serializable_state.items()]
+            r = '%s(%s)' %(self.__class__.__name__, ',\n    '.join(argstrs))
+        finally:
+            np.set_printoptions(precision=previous_precision)
+        return r
+
+    def __str__(self):
+        return (self.__class__.__name__ + '(\n    '
+                + ',\n    '.join([str(dim) for dim in self._dimensions])
+                + '\n)')
+
+    def __pretty__(self, p, cycle):
+        """Method used by the `pretty` library for formatting"""
+        if cycle:
+            p.text('%s(...)' %self.__class__.__name__)
+        else:
+            p.begin_group(4, '%s([' %self.__class__.__name__)
+            for n, dim in enumerate(self):
+                p.breakable()
+                p.pretty(dim)
+                if n < len(self)-1:
+                    p.text(',')
+            p.end_group(4, '])')
+
+    def _repr_pretty_(self, p, cycle):
+        """Method used by e.g. ipython/Jupyter for formatting"""
+        return self.__pretty__(p, cycle)
 
     def to_json(self, filename, **kwargs):
         """Serialize the state to a JSON file that can be instantiated as a new
@@ -1114,11 +1211,14 @@ class MultiDimBinning(object):
         return crit
 
     def index(self, dim, use_basenames=False):
-        """Find dimension `dim` and return its integer index.
+        """Find dimension implied by `dim` and return its integer index.
 
         Parameters
         ----------
         dim : int, string, OneDimBinning
+            An integer index, dimesion name, or identical OneDimBinning object
+            to locate within the contained dimensions
+
         use_basenames : bool
             Dimension names are only compared after pre/suffixes are stripped,
             allowing for e.g. `dim`='true_energy' to find 'reco_energy'.
@@ -1135,13 +1235,30 @@ class MultiDimBinning(object):
         names = self.basenames if use_basenames else self.names
         if isinstance(dim, OneDimBinning):
             d = dim.basename if use_basenames else dim.name
-            idx = names.index(d)
+            try:
+                idx = names.index(d)
+            except ValueError:
+                what = 'index'
+                raise ValueError(
+                    'Dimension %s not present. Valid dimensions are in range %s'
+                    %(d, [0, len(self)-1])
+                )
         elif isinstance(dim, basestring):
             d = basename(dim) if use_basenames else dim
-            idx = names.index(d)
+            try:
+                idx = names.index(d)
+            except ValueError:
+                what = 'basename' if use_basenames else 'name'
+                raise ValueError(
+                    "Dimension %s '%s' not present. Valid dimension %ss are %s"
+                    %(what, d, what, names)
+                )
         elif isinstance(dim, int):
             if dim < 0 or dim >= len(self):
-                raise ValueError("'%d' is not in range." %dim)
+                raise ValueError(
+                    'Dimension %d does not exist. Valid dimensions indices'
+                    ' are in the range %s.' %(dim, [0, len(self)-1])
+                )
             idx = dim
         else:
             raise TypeError('Unhandled type for `dim`: "%s"' %type(dim))
@@ -1439,8 +1556,12 @@ class MultiDimBinning(object):
     def empty(self, **kwargs):
         np.empty(self.shape, **kwargs)
 
-    def __contains__(self, name):
-        return name in self.names
+    def __contains__(self, x):
+        if isinstance(x, OneDimBinning):
+            return x in self.dims
+        if isinstance(x, basestring):
+            return x in self.names
+        return False
 
     def __eq__(self, other):
         if not isinstance(other, MultiDimBinning):
@@ -1455,12 +1576,27 @@ class MultiDimBinning(object):
         other = MultiDimBinning(other)
         return MultiDimBinning([d for d in self] + [d for d in other])
 
+    # TODO: should __getattr__ raise its own exception if the attr is not found
+    # as a dimension rather than call parent's __getattribute__ method, since
+    # presumably that already failed?
     def __getattr__(self, attr):
-        for d in self._dimensions:
-            if d.name == attr:
-                return d
-        return super(self.__class__, self).__getattribute__(attr)
+        # If youve gotten here, __getattribute__ has failed. Try to get the
+        # attr as a contained dimension:
+        try:
+            return self.__getitem__(attr)
+        except (KeyError, ValueError):
+            # If that failed, re-run parent's __getattribute__ which will raise
+            # an appropriate exception
+            return super(self.__class__, self).__getattribute__(attr)
 
+    # TODO: refine handling of ellipsis such that the following work as in
+    # Numpy:
+    #       * ['dim0', 'dim3', ...]
+    #       * ['dim0', 3, ...]
+    #       * [...]
+    #       * [0, ...]
+    #       * [..., 2]
+    #       * [..., 2, 1, 4]
     def __getitem__(self, index):
         """Interpret indices as indexing bins and *not* bin edges.
         Indices refer to dimensions in same order they were specified at
@@ -1485,13 +1621,21 @@ class MultiDimBinning(object):
         by `index`. Whether or not behavior is logarithmic is unchanged.
 
         """
+        if index is Ellipsis:
+            return self
+
         if isinstance(index, basestring):
-            return getattr(self, index)
+            for d in self._dimensions:
+                if d.name == index:
+                    return d
 
         # TODO: implement a "linearization" like np.flatten() to iterate
         # through each bin individually without hassle for the user...
         #if self.num_dims == 1 and np.isscalar(index):
         #    return self._dimensions[0]
+
+        if isinstance(index, Iterable) and not isinstance(index, Sequence):
+            index = list(index)
 
         if not isinstance(index, Sequence):
             index = [index]
@@ -1514,12 +1658,6 @@ class MultiDimBinning(object):
 
     def __ne__(self, other):
         return not self == other
-
-    def __repr__(self):
-        return str(self)
-
-    def __str__(self):
-        return '\n'.join([str(dim) for dim in self._dimensions])
 
 
 def test_OneDimBinning():
@@ -1547,6 +1685,8 @@ def test_OneDimBinning():
     logging.debug('b1[:-1]: %s' %b1[:-1])
     logging.debug('copy(b1): %s' %copy(b1))
     logging.debug('deepcopy(b1): %s' %deepcopy(b1))
+    # Indexing by Ellipsis
+    assert b1[...] == b1
     # TODO: make pickle great again
     #pickle.dumps(b1, pickle.HIGHEST_PROTOCOL)
     try:
@@ -1622,6 +1762,7 @@ def test_MultiDimBinning():
     logging.debug(str(mdb.energy))
     logging.debug('copy(mdb): %s' %copy(mdb))
     logging.debug('deepcopy(mdb): %s' %deepcopy(mdb))
+    assert deepcopy(mdb) == mdb
     #s = pickle.dumps(mdb, pickle.HIGHEST_PROTOCOL)
     # TODO: add these back in when we get pickle loading working!
     #mdb2 = pickle.loads(s)

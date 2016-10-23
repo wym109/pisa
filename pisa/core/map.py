@@ -240,14 +240,56 @@ class Map(object):
         # Do the work here to set read-only attributes
         super(Map, self).__setattr__('_binning', binning)
         binning.assert_array_fits(hist)
-        super(Map, self).__setattr__('_hist', 
+        super(Map, self).__setattr__('_hist',
                 np.ascontiguousarray(hist))
         if error_hist is not None:
             self.set_errors(error_hist)
 
     def __repr__(self):
-        argstrs = [('%s=%s' %item) for item in self._serializable_state]
-        return '%s(%s)' %(self.__class__.__name__, ', '.join(argstrs))
+        previous_precision = np.get_printoptions()['precision']
+        np.set_printoptions(precision=18)
+        try:
+            state = self._serializable_state
+            state['hist'] = np.array_repr(state['hist'])
+            if state['error_hist'] is not None:
+                state['error_hist'] = np.array_repr(state['error_hist'])
+            argstrs = [('%s=%r' %item) for item in
+                       self._serializable_state.items()]
+            r = '%s(%s)' %(self.__class__.__name__, ',\n    '.join(argstrs))
+        finally:
+            np.set_printoptions(precision=previous_precision)
+        return r
+
+    def __str__(self):
+        attrs = ['name', 'tex', 'binning', 'full_comparison', 'hash', 'hist']
+        state = {a:getattr(self, a) for a in attrs}
+        state['name'] = repr(state['name'])
+        state['tex'] = repr(state['tex'])
+        state['hist'] = np.array_repr(state['hist'])
+        argstrs = [('%s=%s' %(a, state[a])) for a in attrs]
+        s = '%s(%s)' %(self.__class__.__name__, ',\n    '.join(argstrs))
+        return s
+
+    def __pretty__(self, p, cycle):
+        """Method used by the `pretty` library for formatting"""
+        myname = self.__class__.__name__
+        if cycle:
+            p.text('%s(...)' %myname)
+        else:
+            p.begin_group(4, '%s(' %myname)
+            attrs = ['name', 'tex', 'binning', 'full_comparison', 'hash',
+                     'hist']
+            for n, attr in enumerate(attrs):
+                p.breakable()
+                p.text(attr + '=')
+                p.pretty(getattr(self, attr))
+                if n < len(attrs)-1:
+                    p.text(',')
+            p.end_group(4, ')')
+
+    def _repr_pretty_(self, p, cycle):
+        """Method used by e.g. ipython/Jupyter for formatting"""
+        return self.__pretty__(p, cycle)
 
     def set_poisson_errors(self):
         """Approximate poisson errors using sqrt(n)."""
@@ -463,6 +505,25 @@ class Map(object):
 
     @_new_obj
     def reorder_dimensions(self, order):
+        """Rearrange the dimensions in the map. This affects both the binning
+        and the contained histogram.
+
+        Parameters
+        ----------
+        order : MultiDimBinning or sequence of str, int, or OneDimBinning
+            Ordering desired for the dimensions of this map. See
+            `binning.reorder_dimensions` for details on how to specify `order`.
+
+        Returns
+        -------
+        Map : copy of this map but with dimensions reordered
+
+        See Also
+        --------
+        rebin : modify Map by splitting or combining adjacent bins
+        downsample : modify Map by combining adjacent bins
+
+        """
         new_binning = self.binning.reorder_dimensions(order)
         orig_order = range(len(self.binning))
         new_order = [self.binning.index(b, use_basenames=True)
@@ -488,12 +549,13 @@ class Map(object):
         return {'hist': new_hist, 'binning': new_binning}
 
     @_new_obj
-    def sum(self, dims, keepdims=False):
-        """Sum over dimensions.
+    def sum(self, axis, keepdims=False):
+        """Sum over dimensions corresponding to `axis` specification. Similar
+        in behavior to `numpy.sum` method.
 
         Parameters
         ----------
-        dims : str, int, or sequence thereof
+        axis : str, int, or sequence thereof
             Dimensions to be summed over.
         keepdims : bool
             If True, marginalizes out (removes) the specified dimensions. If
@@ -506,9 +568,10 @@ class Map(object):
         Map
 
         """
-        if isinstance(dims, (basestring, int)):
-            dims = [dims]
-        sum_indices = tuple([self.binning.index(dim) for dim in dims])
+        if isinstance(axis, (basestring, int)):
+            axis = [axis]
+        # Note that the tuple is necessary here (I think...)
+        sum_indices = tuple([self.binning.index(dim) for dim in axis])
         new_hist = self.hist.sum(axis=sum_indices, keepdims=keepdims)
 
         new_binning = []
@@ -710,9 +773,6 @@ class Map(object):
             idx_item = np.unravel_index(i, shape)
             yield idx_item
 
-    def __repr__(self):
-        return np.array_repr(self._hist)
-
     def __hash__(self):
         if self.hash is not None:
             return self.hash
@@ -743,45 +803,122 @@ class Map(object):
     def __getitem__(self, idx):
         return self._slice_or_index(idx)
 
-    def slice_by_name(self, dim_name, bin_name):
-        """
-        Slice the existing map by selecting the bin defined by bin_name
-        along the dimension defined by dim_name
+    # TODO: if no bin name is given (i.e., 1D indexing), then split into maps
+    # and return a MapSet with a map per bin; append '__%s__%s' %(dim_name,
+    # bin_name) to this map's name to name each new map, and if no bin names
+    # are given, use str(int(ind)) instead for bin_name.
+    def split(self, dim, bin=None, use_basenames=False):
+        """Split this map into one or more maps by selecting the `dim`
+        dimension and optionally the specific bin(s) within that dimension
+        specified by `bin`.
+
+        If both `dim` and `bin` are specified and this locates a single bin, a
+        single Map is returned, while if this locates multiple bins, a MapSet
+        is returned where each map corresponds to a bin (in the order dictated
+        by the `bin` specification).
+
+        If only `dim` is specified, _regardless_ of the number of
+        multiple bins meet the (dim, bin) criteria, the maps corresponding to
+        each `bin` are collected into a MapSet and returned.
+
+        Resulting maps are ordered according to the binning and are renamed as:
+
+            new_map[j].name = orig_map.name__dim.name__dim.binning.bin_names[i]
+
+        where j is the index into the new MapSet and i is the index to the bin
+        in the original binning spec. `map.name` is the current (pre-split)
+        map's name, and if the bins do not have names, then the stringified
+        integer index to the bin, str(i), is used instead.
 
         Parameters
         ----------
-        dim_name : string corresponding to one of the dimension names
-        bin_name : string corresponding to one of the bin names along t
-                   his dimension.
+        dim : string, int
+            Name or index of a dimension in the map
+        bin : None or bin indexing object (str, int, slice, ellipsis)
+            Optionally specify specific bin(s) to split out from the chosen
+            dimension.
 
         Returns
         -------
-        Map corresponding to the requested slice. Dimensionality should 
-        otherwise be preserved. 
+        split_maps : Map or MapSet
+            If only `dim` is passed, return MapSet regardless of how many maps
+            are found. If both `dim` and `bin` are specified and this results
+            in selecting more than one bin, also returns a MapSet. However if
+            both are specified and this selects a single bin, just a Map is
+            returned. Naming of the maps and MapSet is updated to reflect what
+            the map represents, while the hash value is copied into the new
+            map(s).
 
         """
-        assert isinstance(dim_name, basestring)
-        assert isinstance(bin_name, basestring)
-        if dim_name not in self.binning.names:
-            raise ValueError('`%s` must be in binning. Found %s'
-                             %(dim_name,self.binning.names))
-        if bin_name not in self.binning[dim_name].bin_names:
-            raise ValueError('Unknown %s classification %s.'
-                             %(dim_name,bin_name))
-        dim_index = self.binning.names.index(dim_name)
-        bin_index = self.binning[dim_name].bin_names.index(bin_name)
-        idx = []
-        other_bins = []
-        for i, name in enumerate(self.binning.names):
-            if i != dim_index:
-                idx.append(slice(None))
-                other_bins.append(self.binning[name])
+        dim_index = self.binning.index(dim, use_basenames=use_basenames)
+        spliton_dim = self.binning.dims[dim_index]
+
+        # Move the dimension we're going to split on to be the first dim
+        new_order = range(len(self.binning))
+        new_order.pop(dim_index)
+        new_order = [dim_index] + new_order
+        rearranged_map = self.reorder_dimensions(new_order)
+        rearranged_hist = rearranged_map.hist
+        rearranged_dims = rearranged_map.binning.dims
+
+        # Take all dims except the one being split on
+        new_binning = rearranged_dims[1:]
+
+        singleton = False
+        if bin is not None:
+            if isinstance(bin, (int, basestring)):
+                bin_indices = [spliton_dim.index(bin)]
+            elif isinstance(bin, slice):
+                bin_indices = range(len(spliton_dim))[bin]
+            elif bin is Ellipsis:
+                bin_indices = range(len(spliton_dim))
+
+            if len(bin_indices) == 1:
+                singleton = True
+        else:
+            bin_indices = range(len(spliton_dim))
+
+        maps = []
+        for bin_index in bin_indices:
+            bin = spliton_dim[bin_index]
+            new_hist = rearranged_hist[bin_index, ...]
+            if bin.bin_names is not None:
+                bin_name = bin.bin_names[0]
             else:
-                idx.append(bin_index)
-        idx = tuple(idx)
-        binning = MultiDimBinning(other_bins)
-        hist = self.hist[idx]
-        return Map(name=bin_name, hist=hist, binning=binning)
+                bin_name = str(bin_index)
+
+            if len(self.name) > 0:
+                new_name = '%s__%s' %(self.name, bin_name)
+            else:
+                new_name = '%s' %bin_name
+
+            if len(self.tex) > 0:
+                new_tex = r'%s, \; %s = {\rm %s}' %(self.tex, spliton_dim.tex,
+                                                    bin_name)
+            else:
+                new_tex = r'%s = {\rm %s}' %(spliton_dim.tex, bin_name)
+
+            maps.append(
+                Map(name=new_name, hist=new_hist, binning=new_binning,
+                    hash=self.hash, tex=new_tex,
+                    full_comparison=self.full_comparison)
+            )
+
+        if singleton:
+            assert len(maps) == 1
+            return maps[0]
+
+        if len(self.name) > 0:
+            mapset_name = '%s__split_on__%s' % (self.name, spliton_dim.name)
+        else:
+            mapset_name = 'split_on__%s' % spliton_dim.name
+
+        if len(self.tex) > 0:
+            mapset_tex = r'%s, \; %s' %(self.tex, spliton_dim.tex)
+        else:
+            mapset_tex = r'%s' %spliton_dim.tex
+
+        return MapSet(maps=maps, name=mapset_name, tex=mapset_tex)
 
     def llh(self, expected_values):
         """Calculate the total log-likelihood value between this map and the map
@@ -1248,8 +1385,47 @@ class MapSet(object):
         self.hash = hash
 
     def __repr__(self):
-        argstrs = [('%s=%s' %item) for item in self._serializable_state]
-        return '%s(%s)' %(self.__class__.__name__, ', '.join(argstrs))
+        previous_precision = np.get_printoptions()['precision']
+        np.set_printoptions(precision=18)
+        try:
+            argstrs = [('%s=%r' %item) for item in
+                       self._serializable_state.items()]
+            r = '%s(%s)' %(self.__class__.__name__, ',\n    '.join(argstrs))
+        finally:
+            np.set_printoptions(precision=previous_precision)
+        return r
+
+    def __str__(self):
+        state = {}
+        attrs = ['name', 'tex', 'hash', 'maps']
+        state['name'] = repr(self.name)
+        state['tex'] = repr(self.tex)
+        state['hash'] = repr(self.hash)
+        state['maps'] = ('[\n' + ' '*8 + '%s    \n]'
+                         %',\n        '.join([str(m) for m in self]))
+        argstrs = [('%s=%s' %(a, state[a])) for a in attrs]
+        s = '%s(%s)' %(self.__class__.__name__, ',\n    '.join(argstrs))
+        return s
+
+    def __pretty__(self, p, cycle):
+        """Method used by the `pretty` library for formatting"""
+        myname = self.__class__.__name__
+        if cycle:
+            p.text('%s(...)' %myname)
+        else:
+            p.begin_group(4, '%s(' %myname)
+            attrs = ['name', 'hash', 'maps']
+            for n, attr in enumerate(attrs):
+                p.breakable()
+                p.text(attr + '=')
+                p.pretty(getattr(self, attr))
+                if n < len(attrs)-1:
+                    p.text(',')
+            p.end_group(4, ')')
+
+    def _repr_pretty_(self, p, cycle):
+        """Method used by e.g. ipython/Jupyter for formatting"""
+        return self.__pretty__(p, cycle)
 
     @property
     def _serializable_state(self):
@@ -1303,10 +1479,9 @@ class MapSet(object):
         # State is a dict for Map, so instantiate with double-asterisk syntax
         return cls(**state)
 
-    def index(self, m):
-        """Find map according to `x` and return the corresponding index.
-        Accepts either an integer index or a map name to make interface
-        consistent.
+    def index(self, x):
+        """Find map corresponding to `x` and return its index. Accepts either
+        an integer index or a map name to make interface consistent.
 
         Parameters
         ----------
@@ -1319,15 +1494,21 @@ class MapSet(object):
         integer index to the map
 
         """
-        if isinstance(x, int):
-            l = len(self)
-            assert x >= -l and x < l
-        elif isinstance(x, Map):
-            x = self.names.index(x.name)
-        elif isinstance(x, basestring):
-            x = self.names.index(x)
-        else:
-            raise TypeError('Unhandled type "%s" for `x`' %type(x))
+        try:
+            if isinstance(x, int):
+                l = len(self)
+                assert x >= -l and x < l
+            elif isinstance(x, Map):
+                x = self.names.index(x.name)
+            elif isinstance(x, basestring):
+                x = self.names.index(x)
+            else:
+                raise TypeError('Unhandled type "%s" for `x`' %type(x))
+        except (AssertionError, ValueError):
+            raise ValueError(
+                "A map corresponding to '%s' cannot be found in the set."
+                " Valid maps are %s" %(x, self.names)
+            )
         return x
 
     def pop(self, *args): #x=None):
@@ -1667,16 +1848,6 @@ class MapSet(object):
 
         # Otherwise put into an ordered dict with name: val pairs
         return self.collate_with_names(returned_vals)
-
-    def __str__(self):
-        if self.name is not None:
-            my_name = "'" + self.name + "'"
-        else:
-            my_name = super(MapSet, self).__repr__()
-        return "MapSet %s containing maps %s" % (my_name, self.names)
-
-    def __repr__(self):
-        return str(self)
 
     def __contains__(self, name):
         return name in [m.name for m in self]
