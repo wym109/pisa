@@ -6,7 +6,7 @@ Compare two PISA entities.
 """
 
 
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter 
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from collections import Iterable, OrderedDict
 import os
 
@@ -95,26 +95,37 @@ if __name__ == '__main__':
         specfied, no plots are produced.'''
     )
     parser.add_argument(
-        '--diff-vmin', type=float, required=False, default=None,
-        help='''Difference plot vmin; if you specify only one of --diff-vmin or
-        --diff-vmax, symmetric limits are automatically used (vmin = -vmax).'''
+        '--diff-min', type=float, required=False, default=None,
+        help='''Difference plot vmin; if you specify only one of --diff-min or
+        --diff-max, symmetric limits are automatically used (min = -max).'''
     )
     parser.add_argument(
-        '--diff-vmax', type=float, required=False, default=None,
-        help='''Difference plot vmax; if you specify only one of --diff-vmin or
-        --diff-vmax, symmetric limits are automatically used (vmin = -vmax).'''
+        '--diff-max', type=float, required=False, default=None,
+        help='''Difference plot max; if you specify only one of --diff-min or
+        --diff-max, symmetric limits are automatically used (min = -max).'''
     )
     parser.add_argument(
-        '--fract-diff-vmin', type=float, required=False, default=None,
+        '--fract-diff-min', type=float, required=False, default=None,
         help='''Fractional difference plot vmin; if you specify only one of
-        --fract-diff-vmin or --fract-diff-vmax, symmetric limits are
-        automatically used (vmin = -vmax).'''
+        --fract-diff-min or --fract-diff-max, symmetric limits are
+        automatically used (min = -max).'''
     )
     parser.add_argument(
-        '--fract-diff-vmax', type=float, required=False, default=None,
-        help='''Fractional difference plot vmax; if you specify only one of
-        --fract-diff-vmin or --fract-diff-vmax, symmetric limits are
-        automatically used (vmin = -vmax).'''
+        '--fract-diff-max', type=float, required=False, default=None,
+        help='''Fractional difference plot max; if you specify only one of
+        --fract-diff-min or --fract-diff-max, symmetric limits are
+        automatically used (min = -max).'''
+    )
+    parser.add_argument(
+        '--asymm-min', type=float, required=False, default=None,
+        help='''Asymmetry plot vmin; if you specify only one of --asymm-min or
+        --asymm-max, symmetric limits are automatically used (min = -max).'''
+    )
+    parser.add_argument(
+        '--asymm-max', type=float, required=False, default=None,
+        help='''Fractional difference plot max; if you specify only one of
+        --asymm-min or --asymm-max, symmetric limits are automatically used
+        (min = -max).'''
     )
     parser.add_argument(
         '-v', action='count',
@@ -137,20 +148,28 @@ if __name__ == '__main__':
         plot_formats.append('png')
 
     diff_symm = True
-    if args.diff_vmin is not None and args.diff_vmax is None:
-        args.diff_vmax = -args.diff_vmin
+    if args.diff_min is not None and args.diff_max is None:
+        args.diff_max = -args.diff_min
         diff_symm = False
-    if args.diff_vmax is not None and args.diff_vmin is None:
-        args.diff_vmin = -args.diff_vmax
+    if args.diff_max is not None and args.diff_min is None:
+        args.diff_min = -args.diff_max
         diff_symm = False
 
     fract_diff_symm = True
-    if args.fract_diff_vmin is not None and args.fract_diff_vmax is None:
-        args.fract_diff_vmax = -args.fract_diff_vmin
+    if args.fract_diff_min is not None and args.fract_diff_max is None:
+        args.fract_diff_max = -args.fract_diff_min
         fract_diff_symm = False
-    if args.fract_diff_vmax is not None and args.fract_diff_vmin is None:
-        args.fract_diff_vmin = -args.fract_diff_vmax
+    if args.fract_diff_max is not None and args.fract_diff_min is None:
+        args.fract_diff_min = -args.fract_diff_max
         fract_diff_symm = False
+
+    asymm_symm = True
+    if args.asymm_max is not None and args.asymm_min is None:
+        args.asymm_min = -args.asymm_max
+        asymm_symm = False
+    if args.asymm_min is not None and args.asymm_max is None:
+        args.asymm_max = -args.asymm_min
+        asymm_symm = False
 
     args.outdir = os.path.expanduser(os.path.expandvars(args.outdir))
     mkdir(args.outdir)
@@ -234,6 +253,10 @@ if __name__ == '__main__':
     if args.combine is not None:
         ref = ref.combine_wildcard(args.combine)
         test = test.combine_wildcard(args.combine)
+        if isinstance(ref, Map):
+            ref = MapSet([ref])
+        if isinstance(test, Map):
+            test = MapSet([test])
 
     # Save to disk the maps being plotted (excluding optional aboslute value
     # operations)
@@ -254,6 +277,7 @@ if __name__ == '__main__':
     new_ref = []
     diff_maps = []
     fract_diff_maps = []
+    asymm_maps = []
     summary_stats = {}
     for ref_map in ref:
         test_map = test[ref_map.name].reorder_dimensions(ref_map.binning)
@@ -264,11 +288,13 @@ if __name__ == '__main__':
 
         diff_map = test_map - ref_map
         fract_diff_map = (test_map - ref_map)/ref_map
+        asymm_map = (test_map - ref_map)/ref_map**0.5
 
         new_ref.append(ref_map)
         reordered_test.append(test_map)
         diff_maps.append(diff_map)
         fract_diff_maps.append(fract_diff_map)
+        asymm_maps.append(asymm_map)
 
         total_ref = np.sum(np.ma.masked_invalid(ref_map.nominal_values))
         total_test = np.sum(np.ma.masked_invalid(test_map.nominal_values))
@@ -286,6 +312,8 @@ if __name__ == '__main__':
         median_fract_diff = np.median(np.ma.masked_invalid(fract_diff_map.nominal_values))
         mad_fract_diff = np.median(np.abs(np.ma.masked_invalid(fract_diff_map.nominal_values)))
 
+        asymm = np.sqrt(np.sum(np.ma.masked_invalid(asymm_map.nominal_values)**2))
+
         summary_stats[test_map.name] = OrderedDict([
             ('total_ref', total_ref),
             ('total_test', total_test),
@@ -299,6 +327,7 @@ if __name__ == '__main__':
             ('mad_diff', mad_diff),
             ('median_fract_diff', median_fract_diff),
             ('mad_fract_diff', mad_fract_diff),
+            ('asymm', asymm),
         ])
 
         logging.info('Map %s...' % ref_map.name)
@@ -317,12 +346,15 @@ if __name__ == '__main__':
         logging.info('    %.4e +/- %.4e' %(mean_fract_diff, std_fract_diff))
         logging.info('  (Test - Ref) / Ref, median +/- median-abs-dev:')
         logging.info('    %.4e +/- %.4e' %(median_fract_diff, mad_fract_diff))
+        logging.info('  (Test - Ref) / sqrt(Ref), sum in quadrature:')
+        logging.info('    %.4e' %asymm)
         logging.info('')
 
     ref = MapSet(new_ref)
     test = MapSet(reordered_test)
     diff = MapSet(diff_maps)
     fract_diff = MapSet(fract_diff_maps)
+    asymm = MapSet(asymm_maps)
 
     diff.to_json(os.path.join(
         args.outdir,
@@ -331,6 +363,10 @@ if __name__ == '__main__':
     fract_diff.to_json(os.path.join(
         args.outdir,
         'fract_diff__%s___%s.json.bz2' %(test_plot_label, ref_plot_label)
+    ))
+    asymm.to_json(os.path.join(
+        args.outdir,
+        'asymm__%s___%s.json.bz2' %(test_plot_label, ref_plot_label)
     ))
     to_file(
         summary_stats,
@@ -359,7 +395,7 @@ if __name__ == '__main__':
             test - ref, split_axis='pid',
             fname='diff__%s__%s' % (test_plot_label, ref_plot_label),
             cmap='seismic',
-            vmin=args.diff_vmin, vmax=args.diff_vmax
+            vmin=args.diff_min, vmax=args.diff_max
         )
 
         plotter = Plotter(stamp='', outdir=args.outdir, fmt=plot_format,
@@ -372,5 +408,19 @@ if __name__ == '__main__':
             test/ref - 1., split_axis='pid',
             fname='fract_diff__%s__%s' % (test_plot_label, ref_plot_label),
             cmap='seismic',
-            vmin=args.fract_diff_vmin, vmax=args.fract_diff_vmax
+            vmin=args.fract_diff_min, vmax=args.fract_diff_max
+        )
+
+        plotter = Plotter(stamp='', outdir=args.outdir, fmt=plot_format,
+                          log=False,
+                          annotate=False,
+                          symmetric=asymm_symm,
+                          ratio=True)
+        plotter.label = '(%s - %s)/sqrt(%s)' % (test_plot_label,
+                                                ref_plot_label, ref_plot_label)
+        plotter.plot_2d_array(
+            (test-ref)/ref**0.5, split_axis='pid',
+            fname='asymm__%s__%s' % (test_plot_label, ref_plot_label),
+            cmap='seismic',
+            vmin=args.asymm_min, vmax=args.asymm_max
         )
