@@ -16,22 +16,18 @@ from uncertainties import unumpy as unp
 from ROOT import TH1, TH1D, TH2D
 from ROOT import RooUnfoldResponse, RooUnfoldBayes
 from root_numpy import array2hist, hist2array
-from rootpy.plotting import Hist1D, Hist2D
 TH1.SetDefaultSumw2(False)
 
 from pisa import ureg, Q_
 from pisa.core.stage import Stage
 from pisa.core.events import Data
 from pisa.core.map import Map, MapSet
-from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.core.binning import OneDimBinning, MultiDimBinning
-from pisa.utils.flavInt import flavintGroupsFromString, ALL_NUFLAVINTS
-from pisa.utils.flavInt import NuFlavInt, NuFlavIntGroup, FlavIntData
+from pisa.utils.flavInt import NuFlavIntGroup
 from pisa.utils.comparisons import normQuant
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
-from pisa.utils.resources import find_resource
 
 
 class roounfold(Stage):
@@ -95,27 +91,50 @@ class roounfold(Stage):
             raise AssertionError('inputs is not a Data object, instead is '
                                  'type {0}'.format(type(inputs)))
         self._data = inputs
-        # TODO(shivesh): background subtraction
-        # TODO(shivesh): stat fluctuations
+
+        # TODO(shivesh): different algorithms
         trans_data = self._data.transform_groups(
             self._output_nu_group
         )
+
+        background_str = [fig for fig in trans_data
+                          if fig != self._output_nu_group]
+        if trans_data.are_muons: background_str.append('muons')
+
         signal_data = trans_data[self._output_nu_group]
+        background_data = [trans_data[bg] for bg in background_str]
+        background_data = reduce(Data._merge, background_data)
+        all_data = Data._merge(deepcopy(background_data), signal_data)
+
+        all_hist = self._histogram(
+            events=all_data,
+            binning=self.reco_binning,
+            weights=all_data['pisa_weight'],
+            errors=False,
+            name='all',
+            tex=r'\rm{all}'
+        )
+        if self.params['stat_fluctuations'].value:
+            all_hist = all_hist.fluctuate('poisson')
+        all_hist.set_poisson_errors()
+
+        bg_hist = self._histogram(
+            events=background_data,
+            binning=self.reco_binning,
+            weights=background_data['pisa_weight'],
+            errors=True,
+            name='background',
+            tex=r'\rm{background}'
+        )
+        sig_reco = all_hist - bg_hist
+        sig_reco.name = 'reco_signal'
+        sig_reco.tex = r'\rm{reco_signal}'
 
         response = self.create_response(signal_data)
 
-        sig_reco = self._histogram(
-            events=signal_data,
-            binning=self.reco_binning,
-            weights=signal_data['pisa_weight'],
-            errors=True,
-            name='reco_signal',
-            tex=r'\rm{reco_signal}'
-        )
         sig_r_flat = roounfold._flatten_to_1d(sig_reco)
         sig_r_th1d = roounfold._convert_to_th1d(sig_r_flat, errors=True)
 
-        # TODO(shivesh): different algorithms
         unfold = RooUnfoldBayes(
             response, sig_r_th1d, self.params['regularisation'].value
         )

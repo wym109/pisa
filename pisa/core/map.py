@@ -293,8 +293,10 @@ class Map(object):
 
     def set_poisson_errors(self):
         """Approximate poisson errors using sqrt(n)."""
-        super(Map, self).__setattr__('_hist', unp.uarray(self._hist,
-                                                         np.sqrt(self._hist)))
+        nom_hist = unp.nominal_values(self._hist)
+        super(Map, self).__setattr__(
+            '_hist', unp.uarray(nom_hist, np.sqrt(nom_hist))
+        )
 
     def set_errors(self, error_hist):
         """Manually define the error with an array the same shape as the
