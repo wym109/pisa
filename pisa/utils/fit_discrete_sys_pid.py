@@ -17,6 +17,17 @@ from pisa.utils.log import set_verbosity
 from pisa.utils.config_parser import parse_pipeline_config, parse_quantity, parse_string_literal
 from pisa.utils.plotter import Plotter
 
+'''
+function to produce fit results for sets of disctrete systematics
+(i.e. for example several simulations for different DOM efficiencies)
+
+the parameters and settings going into the fit are given by an external
+cfg file (fit settings)
+
+n-dimensional MapSets are supported to be fitted with m-dimesnional polynomials,
+that can either be forced to go through the nominal data point or not
+'''
+
 parser = ArgumentParser()
 parser.add_argument('-t', '--template-settings', type=str,
                     metavar='configfile', required=True,
