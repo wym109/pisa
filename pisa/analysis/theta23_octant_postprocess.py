@@ -41,6 +41,7 @@ def extract_octant_data(datadir):
         #wo_metric["best_hypo"] = []
         max_mix_metric = deepcopy(wo_metric)
         wo_max_comb_metric = deepcopy(wo_metric)
+        metric_str = None
         for hypo in fits_d:
             hypo_data = fits_d[hypo]
             for fit_data in hypo_data:
@@ -57,6 +58,9 @@ def extract_octant_data(datadir):
                     elif fit_key == "maximal mixing":
                         max_mix_metric_val = fit_data[fit_key]['metric_val']
                         max_mix_metric[hypo].append(max_mix_metric_val)
+                    if metric_str is None:
+                        metric_str = fit_data[fit_key]['metric']
+                    assert fit_data[fit_key]['metric'] == metric_str
                 """If the solution at maximal mixing happens to be better than
                 the best fit resulting from injecting the wrong octant mirror
                 point of the truth, the maximal mixing fit needs to be
@@ -74,14 +78,38 @@ def extract_octant_data(datadir):
         wo_max_comb_metric["best_hypo"] = [np.min(metrics) for metrics in
                                     zip(*wo_max_comb_metric.values())]
         # get one list entry per file found in datadir
-        # TODO: Keys!
-        data_dicts_per_file.append({"WO": wo_metric, "MM": max_mix_metric,
-                                    "Comb": wo_max_comb_metric})
+        # TODO: Keys ('wrong octant' needed at all? -> probably not)
+        data_dicts_per_file.append({"wrong octant": wo_metric,
+                                    "maximal mixing": max_mix_metric,
+                                    "combined": wo_max_comb_metric,
+                                    "metric": metric_str})
         truth_points_per_file.append(injected_points)
     return data_dicts_per_file, truth_points_per_file
 
-def plot_octant_data(wo_metric, max_mix_metric, truth_sampled):
-    pass
+def plot_octant_data(oct_dat_d, running_groups, all_fixed_vals, fixed_dim,
+                     metric_str, ax, xlab):
+    for m, r_vals in enumerate(running_groups):
+        f_val = all_fixed_vals[m]
+        running_inds = [int(i) for i in np.array(r_vals)[:,0]]
+        y1 = np.array(oct_dat_d["combined"]["best_hypo"])[running_inds]
+        y2 = np.array(oct_dat_d["maximal mixing"]["best_hypo"])[running_inds]
+        ax[0].plot(np.array(r_vals)[:,1], y1, label="%s %s"%
+                                    (f_val, fixed_dim.replace("_", " ")), lw=3)
+        ax[0].set_ylabel(r"Octant Sensitivity (%s)"%metric_str, fontsize=18,
+                                                                   labelpad=20)
+        ax[1].plot(np.array(r_vals)[:,1], y2, lw=3)
+        ax[1].set_ylabel(r"Maximal Mixing Sensitivity (%s)"%metric_str,
+                                                      fontsize=18, labelpad=20)
+        for axi in ax:
+            plt.setp(axi.spines.values(), linewidth=2)
+            axi.set_xlabel(xlab, fontsize=18, labelpad=20)
+            axi.tick_params(axis='both', which='major', pad=10, width=3)
+            #axi.set_ylim(min(min(y1),min(y2)), max(max(y1), max(y2)))
+            axi.set_ylim(0, max(max(y1), max(y2)))
+            for lab in axi.get_xticklabels() + axi.get_yticklabels():
+                lab.set_fontsize(18)
+        ax[0].legend(loc='best', frameon=False, fontsize=14)
+    return ax
 
 
 def parse_args():
@@ -111,26 +139,42 @@ if __name__ == "__main__":
         print "Could not use tex"
     args = parse_args()
     init_args_d = vars(args)
-    data_dicts_per_file, truth_points_per_file = extract_octant_data(datadir=args.dir)
-    for (i, (oct_dat_d, tp)) in enumerate(zip(data_dicts_per_file,
+    data_dicts_per_file, truth_points_per_file = \
+                                           extract_octant_data(datadir=args.dir)
+    for (k, (oct_dat_d, tps)) in enumerate(zip(data_dicts_per_file,
                                                         truth_points_per_file)):
+        metric_used = oct_dat_d["metric"]
+        # all livetimes in sample
+        all_lt_vals = list(set([tp["livetime"][0] for tp in tps]))
+        lt_dim = tps[0]["livetime"][1][0][0]
+        t23_dim = tps[0]["theta23"][1][0][0]
+        # all theta23 values
+        all_t23_vals = list(set([tp["theta23"][0] for tp in tps]))
+        fixed_lt_running_t23 = []
+        fixed_lts = []
+        fixed_t23_running_lt = []
+        fixed_t23s = []
+        for lt in all_lt_vals:
+            lt_t23_vals = [(i, tp["theta23"][0]) for i,tp in enumerate(tps)
+                                                    if tp["livetime"][0] == lt]
+            fixed_lt_running_t23.append(lt_t23_vals)
+
+        for t23 in all_t23_vals:
+            t23_lt_vals = [(i, tp["livetime"][0]) for i,tp in enumerate(tps)
+                                                    if tp["theta23"][0] == t23]
+            fixed_t23_running_lt.append(t23_lt_vals)
         f, (ax1, ax2) = plt.subplots(1, 2, figsize=(12,8))
-        # TODO: don't simply assume chi2 metric
-        # TODO: determine which true variables are running
-        y1 = np.sqrt(oct_dat_d["Comb"]["best_hypo"])
-        y2 = np.sqrt(oct_dat_d["MM"]["best_hypo"])
-        # TODO: x-values
-        ax1.plot(np.arange(38, 54, 2), y1)
-        ax1.set_ylabel(r"Octant Sensitivity", fontsize=18)
-        # TODO: x-values
-        ax2.plot(np.arange(38, 54, 2), y2)
-        ax2.set_ylabel(r"Maximal Mixing Sensitivity", fontsize=18)
-        for ax in (ax1, ax2):
-            ax.set_xlabel(r"$\theta_{23}$", fontsize=18)
-            ax.tick_params(axis='both', which='major', pad=10)
-            ax.grid()
-            ax.set_ylim(min(min(y1),min(y2)), max(max(y1), max(y2)))
-            for lab in ax.get_xticklabels() + ax.get_yticklabels():
-                lab.set_fontsize(16)
+        ax1, ax2 = plot_octant_data(oct_dat_d, fixed_lt_running_t23, all_lt_vals,
+                                    lt_dim, metric_used, (ax1, ax2),
+                                    xlab=r"$\theta_{23}$ [%s]"%
+                                                      t23_dim.replace("_", " "))
         f.tight_layout()
-        plt.savefig("./test_%d.png"%i)
+        plt.savefig("./fixed_lt_running_t23_%d.png"%k)
+
+        f, (ax1, ax2) = plt.subplots(1, 2, figsize=(12,8))
+        ax1, ax2 = plot_octant_data(oct_dat_d, fixed_t23_running_lt, all_t23_vals,
+                                    t23_dim, metric_used, (ax1, ax2),
+                                    xlab="livetime [%s]"%
+                                                       lt_dim.replace("_", " "))
+        f.tight_layout()
+        plt.savefig("./fixed_t23_running_lt_%d.png"%k)
