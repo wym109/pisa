@@ -57,9 +57,9 @@ class DistributionMaker(object):
             if not isinstance(pipeline, Pipeline):
                 pipeline = Pipeline(pipeline)
             self._pipelines.append(pipeline)
-        for pipeline in self:
-            pipeline.select_params(self.param_selections,
-                                   error_on_missing=False)
+        #for pipeline in self:
+        #    pipeline.select_params(self.param_selections,
+        #                           error_on_missing=False)
 
     def __iter__(self):
         return iter(self._pipelines)
