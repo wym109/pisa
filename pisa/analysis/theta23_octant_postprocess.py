@@ -34,65 +34,58 @@ def extract_octant_data(datadir):
     for basename in nsort(os.listdir(datadir)):
         fpath = os.path.join(datadir, basename)
         octant_data = from_file(fpath)
-        injected_points = octant_data["truth_sampled"]
-        fits_d = octant_data["fits"]
+        injected_points = octant_data['truth_sampled']
+        fits_d = octant_data['fits']
         hypos = fits_d.keys()
-        wo_metric = {hypo: [] for hypo in hypos}
-        #wo_metric["best_hypo"] = []
-        max_mix_metric = deepcopy(wo_metric)
-        wo_max_comb_metric = deepcopy(wo_metric)
+        hypo_d = {hypo: [] for hypo in hypos}
+        gof = {'wrong octant': deepcopy(hypo_d),
+               'maximal mixing': deepcopy(hypo_d),
+               'combined': deepcopy(hypo_d)}
         metric_str = None
         for hypo in fits_d:
             hypo_data = fits_d[hypo]
             for fit_data in hypo_data:
-                for fit_key in fit_data:
-                    # TODO: replace the two separate dicts with two keys within
-                    # the same dict?
-                    # Make two variables so we can access them later when
-                    # combining the two fits.
-                    # TODO: Can one of the two keys not exist for some reason?
-                    # If so, need to make at least one of the two variables invalid
-                    if fit_key == "wrong octant":
-                        wo_metric_val = fit_data[fit_key]['metric_val']
-                        wo_metric[hypo].append(wo_metric_val)
-                    elif fit_key == "maximal mixing":
-                        max_mix_metric_val = fit_data[fit_key]['metric_val']
-                        max_mix_metric[hypo].append(max_mix_metric_val)
-                    if metric_str is None:
-                        metric_str = fit_data[fit_key]['metric']
-                    assert fit_data[fit_key]['metric'] == metric_str
+                assert ("wrong octant" in fit_data and
+                        "maximal mixing" in fit_data)
+                wo_metric_val = fit_data['wrong octant']['metric_val']
+                gof['wrong octant'][hypo].append(wo_metric_val)
+                max_mix_metric_val = fit_data['maximal mixing']['metric_val']
+                gof['maximal mixing'][hypo].append(max_mix_metric_val)
+                if metric_str is None:
+                    metric_str = fit_data['wrong octant']['metric']
+                    assert fit_data['maximal mixing']['metric'] == metric_str
                 """If the solution at maximal mixing happens to be better than
                 the best fit resulting from injecting the wrong octant mirror
                 point of the truth, the maximal mixing fit needs to be
                 considered as the best wrong octant solution. So combine the two
                 for the same hypothesis."""
-                wo_max_comb_metric[hypo].append(min(
-                                            wo_metric_val, max_mix_metric_val))
+                gof['combined'][hypo].append(min(wo_metric_val,
+                                                 max_mix_metric_val))
         # minimize over the hypo selections
-        wo_metric["best_hypo"] = [np.min(metrics) for metrics in
-                                             zip(*wo_metric.values())]
-        max_mix_metric["best_hypo"] = [np.min(metrics) for metrics in
-                                    zip(*max_mix_metric.values())]
+        gof['wrong octant']['best hypo'] = \
+            [np.min(metrics) for metrics in zip(*gof['wrong octant'].values())]
+        gof['maximal mixing']['best hypo'] = \
+            [np.min(metrics) for metrics in zip(*gof['maximal mixing'].values())]
         # also minimize the combined fit wrong octant/maximal mixing fit over the
         # various hypotheses
-        wo_max_comb_metric["best_hypo"] = [np.min(metrics) for metrics in
-                                    zip(*wo_max_comb_metric.values())]
+        gof['combined']['best hypo'] = \
+            [np.min(metrics) for metrics in zip(*gof['combined'].values())]
         # get one list entry per file found in datadir
         # TODO: Keys ('wrong octant' needed at all? -> probably not)
-        data_dicts_per_file.append({"wrong octant": wo_metric,
-                                    "maximal mixing": max_mix_metric,
-                                    "combined": wo_max_comb_metric,
-                                    "metric": metric_str})
+        data_dicts_per_file.append({'wrong octant': gof['wrong octant'],
+                                    'maximal mixing': gof['maximal mixing'],
+                                    'combined': gof['combined'],
+                                    'metric': metric_str})
         truth_points_per_file.append(injected_points)
     return data_dicts_per_file, truth_points_per_file
 
-def plot_octant_data(oct_dat_d, running_groups, all_fixed_vals, fixed_dim,
-                     metric_str, ax, xlab):
+def plot_gof(oct_dat_d, running_groups, all_fixed_vals, fixed_dim,
+             metric_str, ax, xlab):
     for m, r_vals in enumerate(running_groups):
         f_val = all_fixed_vals[m]
         running_inds = [int(i) for i in np.array(r_vals)[:,0]]
-        y1 = np.array(oct_dat_d["combined"]["best_hypo"])[running_inds]
-        y2 = np.array(oct_dat_d["maximal mixing"]["best_hypo"])[running_inds]
+        y1 = np.array(oct_dat_d['combined']['best hypo'])[running_inds]
+        y2 = np.array(oct_dat_d['maximal mixing']['best hypo'])[running_inds]
         ax[0].plot(np.array(r_vals)[:,1], y1, label="%s %s"%
                                     (f_val, fixed_dim.replace("_", " ")), lw=3)
         ax[0].set_ylabel(r"Octant Sensitivity (%s)"%metric_str, fontsize=18,
@@ -111,7 +104,6 @@ def plot_octant_data(oct_dat_d, running_groups, all_fixed_vals, fixed_dim,
         ax[0].legend(loc='best', frameon=False, fontsize=14)
     return ax
 
-
 def parse_args():
     parser = ArgumentParser(
         formatter_class=ArgumentDefaultsHelpFormatter,
@@ -123,11 +115,18 @@ def parse_args():
         help='''Directory where octant data files are stored. Will try to
              combine data as much as possible.'''
     )
+    # TODO: implement
+    parser.add_argument(
+        '--plot-best-fits', default=False, action='store_true',
+        help='''*Not implemented yet*. Also plot best fit values as function of
+        injected points (in addition to goodness of fit).'''
+    )
     parser.add_argument(
         '-v', action='count', default=None,
         help='set verbosity level'
     )
     return parser.parse_args()
+
 
 if __name__ == "__main__":
     import matplotlib
@@ -143,38 +142,37 @@ if __name__ == "__main__":
                                            extract_octant_data(datadir=args.dir)
     for (k, (oct_dat_d, tps)) in enumerate(zip(data_dicts_per_file,
                                                         truth_points_per_file)):
-        metric_used = oct_dat_d["metric"]
+        metric_used = oct_dat_d['metric']
         # all livetimes in sample
-        all_lt_vals = list(set([tp["livetime"][0] for tp in tps]))
-        lt_dim = tps[0]["livetime"][1][0][0]
-        t23_dim = tps[0]["theta23"][1][0][0]
+        all_lt_vals = list(set([tp['livetime'][0] for tp in tps]))
+        lt_dim = tps[0]['livetime'][1][0][0]
+        t23_dim = tps[0]['theta23'][1][0][0]
         # all theta23 values
-        all_t23_vals = list(set([tp["theta23"][0] for tp in tps]))
+        all_t23_vals = list(set([tp['theta23'][0] for tp in tps]))
         fixed_lt_running_t23 = []
         fixed_lts = []
         fixed_t23_running_lt = []
         fixed_t23s = []
         for lt in all_lt_vals:
-            lt_t23_vals = [(i, tp["theta23"][0]) for i,tp in enumerate(tps)
-                                                    if tp["livetime"][0] == lt]
+            lt_t23_vals = [(i, tp['theta23'][0]) for i,tp in enumerate(tps)
+                                                    if tp['livetime'][0] == lt]
             fixed_lt_running_t23.append(lt_t23_vals)
 
         for t23 in all_t23_vals:
-            t23_lt_vals = [(i, tp["livetime"][0]) for i,tp in enumerate(tps)
-                                                    if tp["theta23"][0] == t23]
+            t23_lt_vals = [(i, tp['livetime'][0]) for i,tp in enumerate(tps)
+                                                    if tp['theta23'][0] == t23]
             fixed_t23_running_lt.append(t23_lt_vals)
         f, (ax1, ax2) = plt.subplots(1, 2, figsize=(12,8))
-        ax1, ax2 = plot_octant_data(oct_dat_d, fixed_lt_running_t23, all_lt_vals,
-                                    lt_dim, metric_used, (ax1, ax2),
-                                    xlab=r"$\theta_{23}$ [%s]"%
+        ax1, ax2 = plot_gof(oct_dat_d, fixed_lt_running_t23, all_lt_vals,
+                            lt_dim, metric_used, (ax1, ax2),
+                            xlab=r"$\theta_{23}$ [%s]"%
                                                       t23_dim.replace("_", " "))
         f.tight_layout()
         plt.savefig("./fixed_lt_running_t23_%d.png"%k)
 
         f, (ax1, ax2) = plt.subplots(1, 2, figsize=(12,8))
-        ax1, ax2 = plot_octant_data(oct_dat_d, fixed_t23_running_lt, all_t23_vals,
-                                    t23_dim, metric_used, (ax1, ax2),
-                                    xlab="livetime [%s]"%
-                                                       lt_dim.replace("_", " "))
+        ax1, ax2 = plot_gof(oct_dat_d, fixed_t23_running_lt, all_t23_vals,
+                            t23_dim, metric_used, (ax1, ax2),
+                            xlab="livetime [%s]"%lt_dim.replace("_", " "))
         f.tight_layout()
         plt.savefig("./fixed_t23_running_lt_%d.png"%k)
