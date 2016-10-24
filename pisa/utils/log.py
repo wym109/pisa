@@ -37,7 +37,7 @@ from pisa.utils.resources import find_resource
 
 # Get the logging configuration
 # Will search in local dir, $PISA and finally package resources
-logconfig = from_json(find_resource('logging.json'))
+logconfig = from_json(find_resource('settings/logging/logging.json'))
 
 # Setup the logging system with this config
 logging.config.dictConfig(logconfig)
