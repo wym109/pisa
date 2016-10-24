@@ -5,8 +5,15 @@ from pisa.utils.profiler import profile
 from pisa.core.binning import OneDimBinning, MultiDimBinning
 
 @profile
-def kde_histogramdd(sample, binning, weights=[],bw_method='scott',adaptive=True, alpha=0.3,use_cuda=False,coszen_reflection=0.25,coszen_name = 'coszen',oversample=1):
+def kde_histogramdd(sample, binning, weights=[],bw_method='scott',adaptive=True,
+                        alpha=0.3,use_cuda=False,coszen_reflection=0.25,coszen_name = 'coszen',oversample=1):
     '''
+    function to run kernel density estimation (KDE) for an array of data points, and
+    then evaluate the on a histogram like grid, to effectively produce a histogram-like output
+
+    this is based on sebastian schoenen's KDE implementation:
+    http://code.icecube.wisc.edu/svn/sandbox/schoenen/kde/
+
     sample : nd-array of shape (N_evts, vars), with vars in the
                 right order corresponding to the binning order
     binning : pisa MultiDimBinning
@@ -17,7 +24,7 @@ def kde_histogramdd(sample, binning, weights=[],bw_method='scott',adaptive=True,
     use_cuda : run on GPU (only allowing <= 2d)
     coszen_reflection : part (number between 0 and 1) of binning that is refelct at the coszen -1 and 1 egdes
     coszen_name : binning name to identigy the coszen bin that needs to undergo special treatement for reflection
-    versample : int, evaluate KDE at more points per bin, takes longer, but is more accurate
+    oversample : int, evaluate KDE at more points per bin, takes longer, but is more accurate
     '''
     # compute raw histo for norm
     #bins = [unp.nominal_values(b.bin_edges) for b in binning]

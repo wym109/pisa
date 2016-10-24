@@ -20,13 +20,15 @@ from pisa.utils.config_parser import split
 
 class nutau(Stage):
     '''
+    Stage combining the different maps (flav int) into right now a single map
+    and apply a scale factor for nutau events
+
     Parameters
     ----------
     params : ParamSet or sequence with which to instantiate a ParamSet.
         Expected params are:
 
             nu_nc_norm : quantity (dimensionless)
-            nutau_cc_norm : quantity (dimensionless)
     '''
 
     def __init__(self, params, input_binning, output_binning, input_names, output_names,
