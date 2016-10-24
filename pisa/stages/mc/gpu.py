@@ -515,7 +515,7 @@ class gpu(Stage):
                         mask_pid = (self.events_dict[flav]['host']['pid'] >= self.pid_bin_edges[pid]) & (self.events_dict[flav]['host']['pid'] < self.pid_bin_edges[pid+1])
                         data = np.array([self.events_dict[flav]['host'][self.bin_names[0]][mask_pid], self.events_dict[flav]['host'][self.bin_names[1]][mask_pid]])
                         weights = self.events_dict[flav]['host']['weight'][mask_pid]
-                        pid_stack.append(self.kde_histogramdd(data.T, weights=weights, binning=self.d2d_binning, coszen_name='reco_coszen', use_cuda=True,bw_method='silverman',alpha=1.0, oversample=1,coszen_reflection=0.5))
+                        pid_stack.append(self.kde_histogramdd(data.T, weights=weights, binning=self.d2d_binning, coszen_name='reco_coszen', use_cuda=True,bw_method='silverman',alpha=1.0, oversample=1,coszen_reflection=0.5,adaptive=True))
                     hist = np.dstack(pid_stack)
                     if not self.pid_bin == 2:
                         hist = np.swapaxes(hist,self.pid_bin,2)
