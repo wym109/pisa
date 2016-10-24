@@ -29,7 +29,6 @@ def maperror_logmsg(m):
     return msg
 
 
-# TODO: chi2
 def chi2(actual_values, expected_values):
     """Compute the chi-square between each value in `actual_values` and
     `expected_values`.
@@ -144,7 +143,7 @@ def llh(actual_values, expected_values):
         np.clip(expected_values, a_min=SMALL_POS, a_max=np.inf,
                 out=expected_values)
 
-    llh = actual_values*np.log(expected_values) - expected_values 
+    llh = actual_values*np.log(expected_values) - expected_values
     # to center around 0
     llh -= actual_values*np.log(actual_values) - actual_values
     #return (actual_values*np.log(expected_values) - expected_values - gammaln(actual_values + 1))
@@ -204,9 +203,7 @@ def conv_llh(actual_values, expected_values):
     return sum
 
 def barlow_llh(actual_values, expected_values):
-    '''
-    compute the barlow LLH taking into account finite stats
-    '''
+    """Compute the barlow LLH taking into account finite stats"""
     l = likelihoods()
     actual_values = unp.nominal_values(actual_values).ravel()
     sigmas = [unp.std_devs(ev.ravel()) for ev in expected_values]
@@ -216,11 +213,15 @@ def barlow_llh(actual_values, expected_values):
     l.SetData(actual_values)
     l.SetMC(np.array(ws))
     l.SetUnweighted(np.array(uws))
-    llh =  l.GetLLH('barlow') 
+    llh = l.GetLLH('barlow')
     del l
     return -llh
 
 def mod_chi2(actual_values, expected_values):
+    """Compute the chi-square value taking into account uncertainty terms
+    (incl. e.g. finite stats)
+
+    """
     actual_values = unp.nominal_values(actual_values).ravel()
     sigma = unp.std_devs(expected_values).ravel()
     expected_values = unp.nominal_values(expected_values).ravel()
