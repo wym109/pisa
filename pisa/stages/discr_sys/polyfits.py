@@ -93,7 +93,7 @@ class polyfits(Stage):
                 shape = fit_params.shape[:-1]
                 if transform is None:
                     transform = np.ones(shape)
-                for idx in np.ndindex(*_shape):
+                for idx in np.ndindex(*shape):
                     # at every point evaluate the funtion
                     transform[idx] *= fit_fun(p_value,
                             *fit_params[idx])
