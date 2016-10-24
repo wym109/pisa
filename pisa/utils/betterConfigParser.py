@@ -5,7 +5,7 @@ from pisa.utils import resources
 class BetterConfigParser(ConfigParser.SafeConfigParser):
 
     def read(self, fname):
-        #preprocessing for include statements
+        # preprocessing for include statements
         new_fnames = [fname]
         processed_fnames = []
         # loop until we cannot find any more includes

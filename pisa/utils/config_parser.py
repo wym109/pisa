@@ -36,7 +36,8 @@ The config file is expected to contain the following sections::
     [stage:stageB]
     ...
 
-* `#include` statements can be used to include other cfg files
+* `#include` statements can be used to include other cfg files; these must be
+    the first line(s) of the file.
 
 * `pipeline` is the top most section that defines the hierarchy of stages and
     what services to be instatiated.
