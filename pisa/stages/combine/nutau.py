@@ -19,13 +19,16 @@ from pisa.utils.hash import hash_obj
 from pisa.utils.config_parser import split
 
 class nutau(Stage):
-    '''
+    """
     Stage combining the different maps (flav int) into right now a single map
     and apply a scale factor for nutau events
 
     combine_groups: dict with output map names and what maps should be contained
-    for example {'evts':'nue_cc, nuebar_cc, numu_cc, numubar_cc, nutau_cc, nutaubar_cc,
-                         nue_nc, nuebar_nc, numu_nc, numubar_nc, nutau_nc, nutaubar_nc'}
+    for example
+      {
+        'evts':
+          'nue_cc, nuebar_cc, numu_cc, numubar_cc, nutau_cc, nutaubar_cc, nue_nc, nuebar_nc, numu_nc, numubar_nc, nutau_nc, nutaubar_nc'
+      }
 
     Parameters
     ----------
@@ -34,7 +37,9 @@ class nutau(Stage):
 
             nu_nc_norm : quantity (dimensionless)
                 global scaling factor that is applied to all *_nc maps
-    '''
+            nutau_norm : quantity (dimensionless)
+            nutau_cc_norm : quantity (dimensionless)
+    """
 
     def __init__(self, params, input_binning, input_names, combine_groups,
                  disk_cache=None, memcache_deepcopy=True, error_method=None,
@@ -42,7 +47,9 @@ class nutau(Stage):
 
         expected_params = (
             'nu_nc_norm',
-            )
+            'nutau_norm',
+            'nutau_cc_norm'
+        )
 
         input_names =  split(input_names)
         self.combine_groups = eval(combine_groups)
@@ -76,8 +83,15 @@ class nutau(Stage):
             xform = np.ones(xform_shape)
             input_names = self.input_names
             for i,name in enumerate(in_names):
+                scale = 1
                 if '_nc' in name:
-                    xform[i] *= self.params.nu_nc_norm.value.m_as('dimensionless')
+                    scale *= self.params.nu_nc_norm.value.m_as('dimensionless')
+                if 'nutau' in name:
+                    scale *= self.params.nutau_norm.value.m_as('dimensionless')
+                if 'nutau_cc' in name:
+                    scale *= self.params.nutau_cc_norm.value.m_as('dimensionless')
+                if scale != 1:
+                    xform[i] *= scale
 
             transforms.append(
                 BinnedTensorTransform(
