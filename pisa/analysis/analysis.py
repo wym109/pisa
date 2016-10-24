@@ -392,10 +392,11 @@ class Analysis(object):
         all_metrics = sorted(set([metric] + other_metrics))
         detailed_metric_info = OrderedDict()
         for m in all_metrics:
-            name_vals_d = data_dist.metric_per_map(
+            name_vals_d = OrderedDict()
+            name_vals_d['maps'] = data_dist.metric_per_map(
                 expected_values=hypo_asimov_dist, metric=m
             )
-            name_vals_d['prior'] = params.priors_penalty(metric=metric)
+            name_vals_d['priors'] = params.priors_penalty(metric=metric)
             detailed_metric_info[m] = name_vals_d
         return detailed_metric_info
 
