@@ -16,6 +16,7 @@ import os
 
 import numpy as np
 
+from pisa.core.param import ParamSet
 from pisa.utils.fileio import from_file, get_valid_filename, mkdir, to_file, nsort
 from pisa.utils.log import logging, set_verbosity
 
@@ -37,20 +38,26 @@ def extract_octant_data(datadir):
         injected_points = octant_data['truth_sampled']
         fits_d = octant_data['fits']
         hypos = fits_d.keys()
-        hypo_d = {hypo: [] for hypo in hypos}
-        gof = {'wrong octant': deepcopy(hypo_d),
-               'maximal mixing': deepcopy(hypo_d),
-               'combined': deepcopy(hypo_d)}
+        hypo_d = {hypo: {'gof': [], 'best fits': []} for hypo in hypos}
+        # record the goodness-of-fit values
+        data_d = {'wrong octant': deepcopy(hypo_d),
+                  'maximal mixing': deepcopy(hypo_d),
+                  'combined': deepcopy(hypo_d)}
         metric_str = None
         for hypo in fits_d:
             hypo_data = fits_d[hypo]
             for fit_data in hypo_data:
-                assert ("wrong octant" in fit_data and
-                        "maximal mixing" in fit_data)
+                assert ('wrong octant' in fit_data and
+                        'maximal mixing' in fit_data)
+                # very explicit for now
                 wo_metric_val = fit_data['wrong octant']['metric_val']
-                gof['wrong octant'][hypo].append(wo_metric_val)
+                data_d['wrong octant'][hypo]['gof'].append(wo_metric_val)
+                wo_bf_vals = get_bf_vals(fit_data['wrong octant']['params'])
+                data_d['wrong octant'][hypo]['best fits'].append(wo_bf_vals)
                 max_mix_metric_val = fit_data['maximal mixing']['metric_val']
-                gof['maximal mixing'][hypo].append(max_mix_metric_val)
+                data_d['maximal mixing'][hypo]['gof'].append(max_mix_metric_val)
+                max_mix_bf_vals = get_bf_vals(fit_data['maximal mixing']['params'])
+                data_d['maximal mixing'][hypo]['best fits'].append(max_mix_bf_vals)
                 if metric_str is None:
                     metric_str = fit_data['wrong octant']['metric']
                     assert fit_data['maximal mixing']['metric'] == metric_str
@@ -59,25 +66,30 @@ def extract_octant_data(datadir):
                 point of the truth, the maximal mixing fit needs to be
                 considered as the best wrong octant solution. So combine the two
                 for the same hypothesis."""
-                gof['combined'][hypo].append(min(wo_metric_val,
-                                                 max_mix_metric_val))
-        # minimize over the hypo selections
-        gof['wrong octant']['best hypo'] = \
-            [np.min(metrics) for metrics in zip(*gof['wrong octant'].values())]
-        gof['maximal mixing']['best hypo'] = \
-            [np.min(metrics) for metrics in zip(*gof['maximal mixing'].values())]
-        # also minimize the combined fit wrong octant/maximal mixing fit over the
-        # various hypotheses
-        gof['combined']['best hypo'] = \
-            [np.min(metrics) for metrics in zip(*gof['combined'].values())]
+                data_d['combined'][hypo]['gof'].append(min(wo_metric_val,
+                                                       max_mix_metric_val))
+        # minimize over the hypo selections, also minimize the combined
+        # wrong octant/maximal mixing fit over the various hypotheses
+        # (no "combined" best fit parameter values for now)
+        for fit_key in ('wrong octant', 'maximal mixing', 'combined'):
+            hypo_gofs = [data_d[fit_key][h]['gof'] for h in fits_d]
+            data_d[fit_key]['best hypo'] = \
+                [np.min(metrics) for metrics in zip(*hypo_gofs)]
         # get one list entry per file found in datadir
         # TODO: Keys ('wrong octant' needed at all? -> probably not)
-        data_dicts_per_file.append({'wrong octant': gof['wrong octant'],
-                                    'maximal mixing': gof['maximal mixing'],
-                                    'combined': gof['combined'],
+        data_dicts_per_file.append({'wrong octant': data_d['wrong octant'],
+                                    'maximal mixing': data_d['maximal mixing'],
+                                    'combined': data_d['combined'],
                                     'metric': metric_str})
         truth_points_per_file.append(injected_points)
     return data_dicts_per_file, truth_points_per_file
+
+def get_bf_vals(params):
+    free_vals = {}
+    for p in params:
+        if not params[p]['is_fixed']:
+            free_vals[p] = params[p]['value']
+    return free_vals
 
 def plot_gof(oct_dat_d, running_groups, all_fixed_vals, fixed_dim,
              metric_str, ax, xlab):
@@ -118,8 +130,8 @@ def parse_args():
     # TODO: implement
     parser.add_argument(
         '--plot-best-fits', default=False, action='store_true',
-        help='''*Not implemented yet*. Also plot best fit values as function of
-        injected points (in addition to goodness of fit).'''
+        help='''*Not implemented yet*. Also plot parameters' best fit values as
+        function of injected points (in addition to goodness of fit).'''
     )
     parser.add_argument(
         '-v', action='count', default=None,
@@ -176,3 +188,6 @@ if __name__ == "__main__":
                             xlab="livetime [%s]"%lt_dim.replace("_", " "))
         f.tight_layout()
         plt.savefig("./fixed_t23_running_lt_%d.png"%k)
+
+        if args.plot_best_fits:
+            pass
