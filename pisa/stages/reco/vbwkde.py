@@ -35,7 +35,7 @@ from pisa.utils.fileio import mkdir, to_file
 from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup
 from pisa.utils.format import hash2hex
 from pisa.utils.hash import hash_obj
-from pisa.utils.kde import vbw_kde
+from pisa.utils.vbwkde import vbw_kde
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile, line_profile
 from pisa.utils.resources import find_resource
