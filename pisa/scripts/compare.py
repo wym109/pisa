@@ -202,14 +202,14 @@ if __name__ == '__main__':
         try:
             ref = MapSet.from_json(args.ref[0])
         except:
-            raise
+            pass
         else:
             ref_source = 'MapSet'
 
     if ref is None:
         raise ValueError(
             'Could not instantiate the reference DistributionMaker, Map, or'
-            ' MapSet from ref valu(s) %s' % args.ref
+            ' MapSet from ref value(s) %s' % args.ref
         )
 
     # Get the test distribution(s) into the form of a test MapSet
@@ -247,7 +247,7 @@ if __name__ == '__main__':
     if test is None:
         raise ValueError(
             'Could not instantiate the test DistributionMaker, Map, or MapSet'
-            ' from test valu(s) %s' % args.test
+            ' from test value(s) %s' % args.test
         )
 
     if args.combine is not None:
@@ -377,6 +377,7 @@ if __name__ == '__main__':
     )
 
     for plot_format in plot_formats:
+        # Plot the raw distributions
         plotter = Plotter(stamp='', outdir=args.outdir, fmt=plot_format,
                           log=False, annotate=False,
                           symmetric=False,
@@ -386,18 +387,21 @@ if __name__ == '__main__':
         plotter.plot_2d_array(test, split_axis='pid', fname='distr__%s'
                               % test_plot_label)
 
+        # Plot the difference (test - ref)
         plotter = Plotter(stamp='', outdir=args.outdir, fmt=plot_format,
                           log=False, annotate=False,
                           symmetric=diff_symm,
                           ratio=False)
         plotter.label = '%s - %s' % (test_plot_label, ref_plot_label)
         plotter.plot_2d_array(
-            test - ref, split_axis='pid',
+            test - ref,
+            split_axis='pid',
             fname='diff__%s__%s' % (test_plot_label, ref_plot_label),
             cmap='seismic',
             vmin=args.diff_min, vmax=args.diff_max
         )
 
+        # Plot the fractional difference (test - ref)/ref
         plotter = Plotter(stamp='', outdir=args.outdir, fmt=plot_format,
                           log=False,
                           annotate=False,
@@ -405,12 +409,14 @@ if __name__ == '__main__':
                           ratio=True)
         plotter.label = '%s/%s - 1' % (test_plot_label, ref_plot_label)
         plotter.plot_2d_array(
-            test/ref - 1., split_axis='pid',
+            test/ref - 1.,
+            split_axis='pid',
             fname='fract_diff__%s__%s' % (test_plot_label, ref_plot_label),
             cmap='seismic',
             vmin=args.fract_diff_min, vmax=args.fract_diff_max
         )
 
+        # Plot the asymmetry (test - ref)/sqrt(ref)
         plotter = Plotter(stamp='', outdir=args.outdir, fmt=plot_format,
                           log=False,
                           annotate=False,
@@ -419,7 +425,8 @@ if __name__ == '__main__':
         plotter.label = '(%s - %s)/sqrt(%s)' % (test_plot_label,
                                                 ref_plot_label, ref_plot_label)
         plotter.plot_2d_array(
-            (test-ref)/ref**0.5, split_axis='pid',
+            (test-ref)/ref**0.5,
+            split_axis='pid',
             fname='asymm__%s__%s' % (test_plot_label, ref_plot_label),
             cmap='seismic',
             vmin=args.asymm_min, vmax=args.asymm_max
