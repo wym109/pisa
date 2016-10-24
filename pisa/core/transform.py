@@ -798,7 +798,7 @@ class BinnedTensorTransform(Transform):
 
         # Transform same shape: element-by-element multiplication
         if self.xform_array.shape == input_array.shape:
-            if self.error_method == 'fixed':
+            if self.error_method.strip().lower() == 'fixed':
                 # don't scale errors here
                 output = unp.uarray(unp.nominal_values(input_array) * self.xform_array, unp.std_devs(input_array))
             else:
