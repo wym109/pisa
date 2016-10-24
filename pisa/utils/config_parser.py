@@ -411,8 +411,11 @@ def parse_pipeline_config(config):
                     # Make sure there are no other specs (in this section) for
                     # the param defined defined in previous section
                     for a in PARAM_ATTRS:
-                        assert not config.has_option(section,
-                                                     '%s.%s' %(fullname, a))
+                        if config.has_option(section, '%s.%s' %(fullname, a)):
+                            raise ValueError("Parameter spec. '%s' of '%s' "
+                                             "found in section '%s', but "
+                                             "parameter exists in previous "
+                                             "stage!"%(a, fullname, section))
 
                     break
 
