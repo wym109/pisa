@@ -24,6 +24,8 @@ class nutau(Stage):
     and apply a scale factor for nutau events
 
     combine_groups: dict with output map names and what maps should be contained
+    for example {'evts':'nue_cc, nuebar_cc, numu_cc, numubar_cc, nutau_cc, nutaubar_cc,
+                         nue_nc, nuebar_nc, numu_nc, numubar_nc, nutau_nc, nutaubar_nc'}
 
     Parameters
     ----------
