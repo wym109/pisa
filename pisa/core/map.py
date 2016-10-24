@@ -14,7 +14,7 @@ containers but that get passed down to operate on the contained data.
 
 from __future__ import division
 
-from collections import OrderedDict, Mapping, Sequence
+from collections import OrderedDict, Iterable, Mapping, Sequence
 from copy import deepcopy, copy
 from fnmatch import fnmatch
 from functools import wraps
@@ -83,6 +83,24 @@ def sanitize_name(name):
     # Remove leading characters until we find a letter or underscore
     name = re.sub('^[^a-zA-Z_]+', '', name)
     return name
+
+
+def reduceToHist(x):
+    if isinstance(expected_values, np.ndarray):
+        pass
+    elif isinstance(expected_values, Map):
+        expected_values = expected_values.hist
+    elif isinstance(expected_values, MapSet):
+        expected_values = sum(expected_values).hist
+
+    # If iterable, must be iterable of MapSets
+    elif isinstance(expected_values, Iterable):
+        expected_values = reduce(lambda x,y: sum(x) + sum(y),
+                                 expected_values).hist
+    else:
+        raise ValueError('Unhandled type for `expected_values`: %s'
+                         %type(expected_values))
+    return expected_values
 
 
 # TODO: put uncertainties in
@@ -961,12 +979,7 @@ class Map(object):
         total_llh : float
 
         """
-        if isinstance(expected_values, Map):
-            expected_values = expected_values.hist
-        elif isinstance(expected_values, list):
-            if isinstance(expected_values[0], Map):
-                expected_values = reduce(lambda x,y: x+y, expected_values)
-                expected_values = expected_values.hist
+        expected_values = reduceToHist(expected_values)
         return np.sum(llh(actual_values=self.hist,
                           expected_values=expected_values))
 
@@ -985,21 +998,16 @@ class Map(object):
         total_conv_llh : float
 
         """
-        if isinstance(expected_values, Map):
-            expected_values = expected_values.hist
-        elif isinstance(expected_values, list):
-            if isinstance(expected_values[0], Map):
-                expected_values = reduce(lambda x,y: x+y, expected_values)
-                expected_values = expected_values.hist
+        expected_values = reduceToHist(expected_values)
         return np.sum(conv_llh(actual_values=self.hist,
                                expected_values=expected_values))
 
     def barlow_llh(self, expected_values):
-        """Calculate the total barlow log-likelihood value between this map and the map
-        described by `expected_values`; self is taken to be the "actual values"
-        (or (pseudo)data), and `expected_values` are the expectation values for
-        each bin.
-        I assumes at the moment some things that are not true, namely that the weights are uniform
+        """Calculate the total barlow log-likelihood value between this map and
+        the map described by `expected_values`; self is taken to be the "actual
+        values" (or (pseudo)data), and `expected_values` are the expectation
+        values for each bin. I assumes at the moment some things that are not
+        true, namely that the weights are uniform
 
         Parameters
         ----------
@@ -1010,11 +1018,10 @@ class Map(object):
         total_barlow_llh : float
 
         """
-        if isinstance(expected_values, Map):
-            expected_values = expected_values.hist
-        elif isinstance(expected_values, list):
-            if isinstance(expected_values[0], Map):
-                expected_values = [ev.hist for ev in expected_values]
+        if isinstance(expected_values, (np.ndarray, Map, MapSet)):
+            expected_values = reduceToHist(expected_values)
+        elif isinstance(expected_values, Iterable):
+            expected_values = [reduceToHist(x) for x in expected_values]
         return np.sum(barlow_llh(actual_values=self.hist,
                           expected_values=expected_values))
 
@@ -1033,12 +1040,7 @@ class Map(object):
         total_mod_chi2 : float
 
         """
-        if isinstance(expected_values, Map):
-            expected_values = expected_values.hist
-        elif isinstance(expected_values, list):
-            if isinstance(expected_values[0], Map):
-                expected_values = reduce(lambda x,y: x+y, expected_values)
-                expected_values = expected_values.hist
+        expected_values = reduceToHist(expected_values)
         return np.sum(mod_chi2(actual_values=self.hist,
                           expected_values=expected_values))
 
@@ -1057,12 +1059,7 @@ class Map(object):
         total_chi2 : float
 
         """
-        if isinstance(expected_values, Map):
-            expected_values = expected_values.hist
-        elif isinstance(expected_values, list):
-            if isinstance(expected_values[0], Map):
-                expected_values = reduce(lambda x,y: x+y, expected_values)
-                expected_values = expected_values.hist
+        expected_values = reduceToHist(expected_values)
         return np.sum(chi2(actual_values=self.hist,
                            expected_values=expected_values))
 
@@ -1897,7 +1894,9 @@ class MapSet(object):
                         this_map_args.append(arg[map_name])
                     elif self.collate_by_num:
                         this_map_args.append(arg[map_num])
-                elif isinstance(arg, list):
+
+                # TODO: test to make sure this works for e.g. metric_per_map
+                elif isinstance(arg, Iterable):
                     list_arg = []
                     for item in arg:
                         if isinstance(item, MapSet):

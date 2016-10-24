@@ -64,16 +64,11 @@ class DistributionMaker(object):
     def __iter__(self):
         return iter(self._pipelines)
 
-    def get_outputs(self, **kwargs):
-        total_outputs = None
+    def get_outputs(self, sum=False, **kwargs):
         outputs = [pipeline.get_outputs(**kwargs) for pipeline in self]
+        if sum:
+            outputs = reduce(lambda x,y: sum(x) + sum(y), outputs)
         return outputs
-
-    def get_total_outputs(self, seed=None, **kwargs):
-        total_outputs = None
-        outputs = [pipeline.get_outputs(**kwargs) for pipeline in self]
-        total_outputs = reduce(lambda x,y: x+y, outputs)
-        return total_outputs
 
     def update_params(self, params):
         [pipeline.update_params(params) for pipeline in self]
