@@ -64,7 +64,8 @@ class Stage(object):
         Whether or not this stage takes inputs to be transformed (and hence
         implements transforms).
 
-    params : ParamSelector, dict ParamSelector kwargs, ParamSet, or object instantiable to ParamSet
+    params : ParamSelector, dict of ParamSelector kwargs, ParamSet, or object
+             instantiable to ParamSet
 
     expected_params : list of strings
         List containing required `params` names.
@@ -675,7 +676,7 @@ class Stage(object):
 
     @property
     def param_selections(self):
-        return deepcopy(self._selections)
+        return sorted(deepcopy(self._param_selector.param_selections))
 
     @property
     def input_names(self):
