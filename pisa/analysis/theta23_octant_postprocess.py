@@ -190,4 +190,9 @@ if __name__ == "__main__":
         plt.savefig("./fixed_t23_running_lt_%d.png"%k)
 
         if args.plot_best_fits:
-            pass
+            nparams_fit = \
+               len(oct_dat_d['wrong octant'].values()[0]['best fits'][0].keys())
+            if nparams_fit == 0:
+                print "No parameters were fit for file no. %d."%(k+1)
+                continue
+            #TODO: implement plotting
