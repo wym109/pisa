@@ -49,7 +49,7 @@ EPSILON = 1e-2
 
 class vbwkde(Stage):
     """
-    From the simulation file, a set of 4D transforms are created which map
+    From the simulation file, a set of transforms are created which map
     bins of true events onto distributions of reconstructed events using
     variable-bandwidth kernel density estimation. These transforms can be
     accessed by [true_energy][true_coszen][reco_energy][reco_coszen].
