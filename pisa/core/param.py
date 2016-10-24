@@ -457,7 +457,7 @@ class ParamSet(Sequence):
 
         Raises
         ------
-        IndexError : if `value` does not correspond to a param in this ParamSet
+        ValueError : if `value` does not correspond to a param in this ParamSet
 
         """
         idx = -1
@@ -468,7 +468,7 @@ class ParamSet(Sequence):
         elif isinstance(value, Param) and value in self._params:
             idx = self._params.index(value)
         if idx < 0 or idx >= len(self):
-            raise IndexError('%s not found in ParamSet' % (value,))
+            raise ValueError('%s not found in ParamSet' % (value,))
         return idx
 
     def replace(self, new):
@@ -482,7 +482,7 @@ class ParamSet(Sequence):
 
         Raises
         ------
-        IndexError : if `new.name` does not match an existing param's name
+        ValueError : if `new.name` does not match an existing param's name
 
         """
         idx = self.index(new.name)
@@ -507,7 +507,7 @@ class ParamSet(Sequence):
 
         Raises
         ------
-        IndexError : if any index cannot be found
+        ValueError : if any index cannot be found
 
         """
         if isinstance(x, (Param, int, basestring)):
@@ -536,7 +536,7 @@ class ParamSet(Sequence):
 
         Raises
         ------
-        IndexError : if any index cannot be found
+        ValueError : if any index cannot be found
 
         """
         if isinstance(x, (Param, int, basestring)):
