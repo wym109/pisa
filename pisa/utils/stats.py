@@ -4,12 +4,12 @@
 
 
 import numpy as np
-from uncertainties import unumpy as unp
 from scipy.special import gammaln
+from uncertainties import unumpy as unp
 
+from pisa.utils.barlow import likelihoods
 from pisa.utils.comparisons import isbarenumeric
 from pisa.utils.log import logging
-from pisa.utils.barlow import likelihoods
 
 
 # A small positive number with which to replace numbers smaller than it
@@ -77,7 +77,8 @@ def chi2(actual_values, expected_values):
         # TODO: is this okay to do?
         # replace 0's with small positive numbers to avoid inf in division
         np.clip(actual_values, a_min=SMALL_POS, a_max=np.inf, out=actual_values)
-        np.clip(expected_values, a_min=SMALL_POS, a_max=np.inf, out=expected_values)
+        np.clip(expected_values, a_min=SMALL_POS, a_max=np.inf,
+                out=expected_values)
 
         delta = actual_values - expected_values
 
@@ -127,7 +128,8 @@ def llh(actual_values, expected_values):
         # TODO: How should we handle nan / masked values in the "data"
         # (actual_values) distribution? How about negative numbers?
 
-        # Make sure actual values (aka "data") are valid -- no infs, no nans, etc.
+        # Make sure actual values (aka "data") are valid -- no infs, no nans,
+        # etc.
         if np.any((actual_values < 0) | ~np.isfinite(actual_values)):
             msg = '`actual_values` must be >= 0 and neither inf nor nan...\n' \
                     + maperror_logmsg(actual_values)
@@ -157,6 +159,7 @@ def log_poisson(k,l):
 def log_smear(x,sigma):
     return-np.log(sigma)-0.5*np.log(2*np.pi)-np.square(x)/(2*np.square(sigma))
 
+
 def conv_poisson(k,l,s,nsigma=3,steps=50.):
     st = 2*(steps+1)
     conv_x = np.linspace(-nsigma*s,+nsigma*s,st)[:-1]+nsigma*s/(st-1.)
@@ -178,6 +181,7 @@ def conv_poisson(k,l,s,nsigma=3,steps=50.):
     conv = np.exp(conv_y[idx:] + f_y)
     norm = np.sum(np.exp(conv_y))
     return conv.sum()/norm
+
 
 def norm_conv_poisson(k,l,s,nsigma=3,steps=50.):
     cp = conv_poisson(k,l,s,nsigma=nsigma,steps=steps)
@@ -202,6 +206,7 @@ def conv_llh(actual_values, expected_values):
         sum -= np.log(max(SMALL_POS,norm_conv_poisson(*norm_triplets[i])))
     return sum
 
+
 def barlow_llh(actual_values, expected_values):
     """Compute the barlow LLH taking into account finite stats"""
     l = likelihoods()
@@ -217,6 +222,7 @@ def barlow_llh(actual_values, expected_values):
     del l
     return -llh
 
+
 def mod_chi2(actual_values, expected_values):
     """Compute the chi-square value taking into account uncertainty terms
     (incl. e.g. finite stats)
@@ -225,7 +231,8 @@ def mod_chi2(actual_values, expected_values):
     actual_values = unp.nominal_values(actual_values).ravel()
     sigma = unp.std_devs(expected_values).ravel()
     expected_values = unp.nominal_values(expected_values).ravel()
-    chi2 = np.square(actual_values - expected_values)/(np.square(sigma)+expected_values)
+    chi2 = np.square(actual_values -
+                     expected_values)/(np.square(sigma)+expected_values)
     # wrong def.
     #chi2 = np.square(actual_values - expected_values)/(np.square(sigma)+actual_values)
     return np.sum(chi2)
