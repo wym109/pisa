@@ -40,12 +40,12 @@ The config file is expected to contain the following sections::
     the first line(s) of the file.
 
 * `pipeline` is the top most section that defines the hierarchy of stages and
-    what services to be instatiated.
+    what services to be instantiated.
 
 * `binning` can contain different binning definitions, that are then later
     referred to from within the stage sections.
 
-* `stage` one such section per stage:service is necessary. It cotains some
+* `stage` one such section per stage:service is necessary. It contains some
     options that are common for all stages (`binning`, `error_method` and
     `debug_mode`) as well as all the necessary arguments and parameters for a
     given stage.
@@ -66,7 +66,7 @@ example `param.name.fixed = False`, which makes it a free parameter in the fit
 (by default a parameter is fixed unless specified like this).
 
 A range must be given for a free parameter. Either as absolute range `[x,y]` or
-in conjuction with the keywords `nominal` (= nominal parameter value) and
+in conjunction with the keywords `nominal` (= nominal parameter value) and
 `sigma` if the param was specified with the `+/-` notation.
 
 `.prior` is another argument, that can take the values `uniform` or `spline`,

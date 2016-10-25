@@ -1,6 +1,10 @@
+
+
 import ConfigParser
 import re
+
 from pisa.utils import resources
+
 
 class BetterConfigParser(ConfigParser.SafeConfigParser):
 
@@ -13,7 +17,7 @@ class BetterConfigParser(ConfigParser.SafeConfigParser):
             processed_fnames.extend(new_fnames)
             new_fnames = self.recursive_fnames(new_fnames)
             rec_incs = set(new_fnames).intersection(processed_fnames)
-            assert not any(rec_incs), 'recursice include statements found for %s'%', '.join(rec_incs)
+            assert not any(rec_incs), 'recursive include statements found for %s'%', '.join(rec_incs)
             if len(new_fnames) == 0:
                 break
         # call read with complete files list
@@ -38,14 +42,17 @@ class BetterConfigParser(ConfigParser.SafeConfigParser):
         return processed_fnames
 
     def get(self, section, option):
-        result = ConfigParser.SafeConfigParser.get(self, section, option, raw=True)
+        result = ConfigParser.SafeConfigParser.get(self, section, option,
+                                                   raw=True)
         result = self.__replaceSectionwideTemplates(result)
         return result
 
     def items(self, section):
-        list = ConfigParser.SafeConfigParser.items(self, section=section, raw=True)
-        result = [(key, self.__replaceSectionwideTemplates(value)) for key,value
-        in list]
+        config_list = ConfigParser.SafeConfigParser.items(
+            self, section=section, raw=True
+        )
+        result = [(key, self.__replaceSectionwideTemplates(value)) for
+                  key,value in config_list]
         return result
 
     def optionxform(self, optionstr):
@@ -57,7 +64,9 @@ class BetterConfigParser(ConfigParser.SafeConfigParser):
         result = data
         findExpression = re.compile(r"((.*)\<!(.*)\|(.*)\!>(.*))*")
         groups = findExpression.search(data).groups()
-        if not groups == (None, None, None, None, None): # expression not matched
+
+        # If expression not matched
+        if not groups == (None, None, None, None, None):
             result = self.__replaceSectionwideTemplates(groups[1])
             result += self.get(groups[2], groups[3])
             result += self.__replaceSectionwideTemplates(groups[4])
