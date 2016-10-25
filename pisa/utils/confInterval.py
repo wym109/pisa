@@ -23,6 +23,9 @@ import numpy as np
 import scipy.optimize as optimize
 
 
+__all__ = ['MLConfInterval']
+
+
 class MLConfInterval:
     def __init__(self, x, y, epsilon=1e-10):
         '''

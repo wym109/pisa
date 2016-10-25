@@ -21,6 +21,9 @@ import itertools
 from pisa.utils.log import logging
 
 
+__all__ = ['Plotter']
+
+
 class Plotter(object):
     def __init__(self, outdir='.', stamp='PISA cake test', size=(8,8), fmt='pdf', log=True, label='# events', grid=True, ratio=False, annotate=False, symmetric=False):
         self.outdir = outdir

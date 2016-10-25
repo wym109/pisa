@@ -12,6 +12,10 @@ from pisa.utils.profiler import profile
 from pisa.utils.log import set_verbosity
 
 
+__all__ = ['GPUhist']
+
+
+# TODO: get pep8 up in heah
 class GPUhist(object):
     """
     Histogramming class for GPUs

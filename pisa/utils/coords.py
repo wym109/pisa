@@ -6,6 +6,9 @@ import numpy as np
 from pisa.utils.log import logging, set_verbosity
 
 
+__all__ = ['abs2rel', 'rel2abs']
+
+
 # NOTE: If we want to scale the resolutions about some reference point
 # (x_r) and then shift them by `shift`:
 #

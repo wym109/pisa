@@ -7,6 +7,9 @@ from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile
 
 
+__all__ = ['hash_obj', 'hash_file']
+
+
 # TODO: add sigfigs arg:
 # sigfigs : None or integer
 #     If specified, round all numerical quantities being hashed prior to

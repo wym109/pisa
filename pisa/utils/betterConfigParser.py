@@ -6,6 +6,9 @@ import re
 from pisa.utils import resources
 
 
+__all__ = ['BetterConfigParser']
+
+
 class BetterConfigParser(ConfigParser.SafeConfigParser):
 
     def read(self, fname):

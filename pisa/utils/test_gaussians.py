@@ -12,6 +12,9 @@ from scipy.stats import norm
 from pisa.utils.gaussians import gaussian, gaussians
 
 
+__all__ = ['test_gaussian', 'test_gaussians', 'speed_test_gaussians']
+
+
 def test_gaussian():
     x = np.linspace(-10, 10, 1e3, dtype=np.float64)
 

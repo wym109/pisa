@@ -47,6 +47,10 @@ import sys
 from scipy.optimize import minimize
 
 
+__all__ = ['likelihoods']
+
+
+# TODO: pep8 this mofo
 class likelihoods():
     mc_histograms = None
     unweighted_histograms = None

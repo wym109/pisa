@@ -12,6 +12,10 @@ from pisa.utils.comparisons import isbarenumeric
 from pisa.utils.log import logging
 
 
+__all__ = ['chi2', 'llh', 'log_poisson', 'log_smear', 'conv_poisson',
+           'norm_conv_poisson', 'conv_llh', 'barlow_llh', 'mod_chi2']
+
+
 # A small positive number with which to replace numbers smaller than it
 SMALL_POS = 1e-10
 

@@ -1,43 +1,51 @@
-import numpy as np
+"""
+Detection uncertainties
+"""
+
 from copy import deepcopy
-from pisa.utils.miscFunctions import cartesian
+
+import numpy as np
 from numpy.polynomial.polynomial import polyfit
 from scipy.interpolate import interp1d
 
-############
-# Detection uncertainties
-#############
+from pisa.utils.miscFunctions import cartesian
 
-def getSystematicFunctions(y_values, y_valuesw2, xpoints, xi_nominal = None,
-                           poly_degree = 2, use_interp = False, legacy_mode = False):
-    '''
 
-    Given a list of histograms produced with varying a single variable X, it
+__all__ = ['getSystematicFunctions', 'axialMassVar', 'norm_fcn', 'LogLogParam',
+           'ModNuMuFlux', 'ModNuEFlux', 'modRatioNuBar', 'modRatioUpHor']
+
+
+# TODO: this module needs lots of work and review!
+
+
+def getSystematicFunctions(y_values, y_valuesw2, xpoints, xi_nominal=None,
+                           poly_degree=2, use_interp=False, legacy_mode=False):
+    """Given a list of histograms produced with varying a single variable X, it
     fits a polynomial function at every bin. The function returns the matrices,
-    x and y values, as well as the normalization applied to isolate shape effects.
+    x and y values, as well as the normalization applied to isolate shape
+    effects.
 
     Parameters
     ----------
-    hist_list: list of histograms (numpy 2D arrays)
-    
-    hist_list_w2: list of histograms with squared weights (error estimate)
+        hist_list: list of histograms (numpy 2D arrays)
 
-    xpoints: point in x at which the histograms are evaluated
+        hist_list_w2: list of histograms with squared weights (error estimate)
 
-    poly_degree: degree of the polinomial used in the fit
+        xpoints: point in x at which the histograms are evaluated
 
-    free_norm: removes normalization, fit only the shapes (set to False to reproduce MC)
+        poly_degree: degree of the polinomial used in the fit
 
-    '''
+        free_norm: removes normalization, fit only the shapes (set to False to reproduce MC)
+
+    """
 
     # Going over all indices (except in the last dimension, which is the systematic change)
     # Built to support N dimensional histograms
-    # Pushing the systematic change to the last dimension 
+    # Pushing the systematic change to the last dimension
     y_values    = np.rollaxis(y_values, 0, len(y_values.shape))
     y_valuesw2  = np.rollaxis(y_valuesw2, 0, len(y_valuesw2.shape))
     # Defining the matrix of the functions
     poly_matrix = np.zeros(y_values.shape[:-1], dtype=object)
-
 
     indices      = np.array(list(y_values.shape)[:-1])
     all_indices  = cartesian(([range(0,x) for x in indices]))
@@ -72,9 +80,9 @@ def getSystematicFunctions(y_values, y_valuesw2, xpoints, xi_nominal = None,
                 # For the legacy mode that is enough:
                 if legacy_mode:
                     one_fit = np.poly1d(polyfit(xpoints, yvalues_bin,
-                                                deg = poly_degree, 
+                                                deg = poly_degree,
                                                 rcond = None,
-                                                w = 1./werrors)[::-1])   
+                                                w = 1./werrors)[::-1])
                 else:
                     bad_bins = np.abs(1 - yvalues_bin) > 1.
                     mean_y   = yvalues_bin[~bad_bins].mean()
@@ -83,7 +91,7 @@ def getSystematicFunctions(y_values, y_valuesw2, xpoints, xi_nominal = None,
                         one_fit = np.poly1d([mean_y])
                     else: # Fit without outliers
                         one_fit = np.poly1d(polyfit(xpoints, yvalues_bin,
-                                                    deg = poly_degree, 
+                                                    deg = poly_degree,
                                                     rcond = None,
                                                     w = 1./werrors)[::-1])
 
@@ -96,7 +104,7 @@ def getSystematicFunctions(y_values, y_valuesw2, xpoints, xi_nominal = None,
                                      (1.*len(xpoints[~bad_bins] - poly_degree)))
                     if nochange_chi2 <= fit_chi2:
                         one_fit = np.poly1d([mean_y])
-                
+
         poly_matrix[tuple(one_index)]=one_fit
 
     return poly_matrix, y_values, y_valuesw2, all_indices
@@ -120,6 +128,7 @@ def axialMassVar(coeff = np.zeros(2), Ma = 0.):
 def norm_fcn(x, A, sigma = 0.3):
     #x *= 0.9
     return A/np.sqrt(2*np.pi*sigma**2) * np.exp(-x**2/(2*sigma**2))
+
 def LogLogParam(energy = 1., y1 = 1., y2 = 1.,
                 x1=0.5, x2=3.,
                 cutoff_value = False):
@@ -160,14 +169,14 @@ x2z = 2.
 # This is the neutrino/antineutrino ratio modification for NuMu
 def ModNuMuFlux(energy, czenith,
                 e1=1., e2=1., z1=1., z2=1.):
-    A_ave = LogLogParam(energy=energy, 
-                        y1=e1max_mu*e1, 
+    A_ave = LogLogParam(energy=energy,
+                        y1=e1max_mu*e1,
                         y2=e2max_mu*e2,
                         x1=x1e, x2=x2e)
-    A_shape = 2.5*LogLogParam(energy=energy, 
-                              y1=z1max_mu*z1, 
+    A_shape = 2.5*LogLogParam(energy=energy,
+                              y1=z1max_mu*z1,
                               y2=z2max_mu*z2,
-                              x1=x1z, x2=x2z, 
+                              x1=x1z, x2=x2z,
                               cutoff_value = numu_cutoff)
     return A_ave - (norm_fcn(czenith, A_shape, 0.32) - 0.75*A_shape)
 
@@ -177,12 +186,12 @@ def ModNuEFlux(energy, czenith,
                e1mu=1., e2mu=1., z1mu=1., z2mu=1.,
                e1e=1., e2e=1., z1e=1., z2e=1.):
 
-    A_ave = LogLogParam(energy=energy, 
-                        y1=e1max_mu*e1mu + e1max_e*e1e, 
+    A_ave = LogLogParam(energy=energy,
+                        y1=e1max_mu*e1mu + e1max_e*e1e,
                         y2=e2max_mu*e2mu + e2max_e*e2e,
                         x1=x1e, x2=x2e)
-    A_shape = 1.*LogLogParam(energy=energy, 
-                             y1=z1max_mu*z1mu + z1max_e*z1e, 
+    A_shape = 1.*LogLogParam(energy=energy,
+                             y1=z1max_mu*z1mu + z1max_e*z1e,
                              y2=z2max_mu*z2mu + z2max_e*z2e,
                              x1=x1z, x2=x2z,
                              cutoff_value = nue_cutoff)
@@ -207,7 +216,7 @@ def modRatioNuBar(prim, true_e, true_cz, nu_nubar, nubar_sys):
     #weightmod[antineutrinos] = 1./(1+(1-nu_nubar)*modfactor[antineutrinos])
 
     if 'bar' in prim:
-        return 1./(1+(1-nu_nubar)*modfactor) 
+        return 1./(1+(1-nu_nubar)*modfactor)
     else:
         return 1. + modfactor*nu_nubar
 
@@ -220,13 +229,13 @@ def modRatioNuBar(prim, true_e, true_cz, nu_nubar, nubar_sys):
 
 def modRatioUpHor(prim, true_e, true_cz, uphor):
     if 'nue' in prim:
-        A_shape   = 1.*np.abs(uphor)*LogLogParam(energy=true_e, 
+        A_shape   = 1.*np.abs(uphor)*LogLogParam(energy=true_e,
                                y1=(z1max_e+z1max_mu),
                                y2=(z2max_e+z2max_mu),
                                x1=x1z, x2=x2z,
                                cutoff_value = nue_cutoff)
     elif 'numu' in prim:
-        A_shape   = 1.*np.abs(uphor)*LogLogParam(energy=true_e, 
+        A_shape   = 1.*np.abs(uphor)*LogLogParam(energy=true_e,
                                y1=z1max_mu,
                                y2=z2max_mu,
                                x1=x1z, x2=x2z,

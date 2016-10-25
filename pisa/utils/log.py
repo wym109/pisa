@@ -22,6 +22,10 @@ The last one is temporary and should be replaced by a proper profiler.
 import logging
 import logging.config
 
+
+__all__ = ['logging', 'set_verbosity']
+
+
 # Add a trace level
 logging.TRACE = 5
 logging.addLevelName(logging.TRACE, "TRACE")

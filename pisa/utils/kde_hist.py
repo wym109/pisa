@@ -8,6 +8,9 @@ from pisa.core.binning import OneDimBinning, MultiDimBinning
 from pisa.utils.profiler import profile
 
 
+__all__ = ['kde_histogramdd']
+
+
 @profile
 def kde_histogramdd(sample, binning, weights=[], bw_method='scott',
                     adaptive=True, alpha=0.3, use_cuda=False,

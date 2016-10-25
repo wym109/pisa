@@ -111,6 +111,10 @@ from pisa.utils.fileio import from_file
 from pisa.utils.log import logging
 
 
+__all__ = ['parse_quantity', 'parse_string_literal', 'split',
+           'interpret_param_subfields', 'parse_param', 'parse_pipeline_config']
+
+
 # Config files use "units.xyz" to denote that "xyz" is a unit; therefore,
 # ureg is also referred to as "units" in this context.
 units = ureg
