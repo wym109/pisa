@@ -9,21 +9,21 @@ from pisa.utils.const import FTYPE
 from pisa.core.events import Events
 
 class GPUweight(object):
-    '''
-    This is a collection of CUDA functions to calculate event weights on GPU
-    some code is from copying PISAv2 nad oscfit python code and c++-izing it
-    '''
+    """
+    Collection of CUDA functions to calculate event weights on GPU some code is
+    copied from PISA 2 and oscFit Python code and c++-izing it
 
+    """
     def __init__(self):
         kernel_template = """//CUDA//
           #include "constants.h"
           #include "utils.h"
           #include "math.h"
 
-          // number of operations per thread for summing function 
+          // number of operations per thread for summing function
           #define N_THREAD 256
 
-          __global__ void sum_array(const int n_evts, fType *X,  fType *out) 
+          __global__ void sum_array(const int n_evts, fType *X,  fType *out)
           {
             // sum up array X and write the output in out[0]
             //__shared__ fType temp_sum;
@@ -60,14 +60,14 @@ class GPUweight(object):
 		    }
 		}
 
-            __device__ fType sign(fType x) { 
+            __device__ fType sign(fType x) {
 		// why tf is there no signum function in math.h ??
-		int sgn; 
-		if (x > 0.0) sgn= 1.; 
-		if (x < 0.0) sgn= -1.; 
-		if (x == 0.0) sgn= 0.; 
-		return sgn; 
-	    } 
+		int sgn;
+		if (x > 0.0) sgn= 1.;
+		if (x < 0.0) sgn= -1.;
+		if (x == 0.0) sgn= 0.;
+		return sgn;
+	    }
 
             __device__ fType spectral_index_scale(fType true_energy, fType egy_pivot, fType delta_index){
                 // calculate spectral index scale
@@ -167,7 +167,7 @@ class GPUweight(object):
                 }
             }
 
- 
+
                 __global__ void flux(const int n_evts, fType *weighted_aeff, fType *true_energy, fType *true_coszen,
                                     fType *neutrino_nue_flux, fType *neutrino_numu_flux,
                                     fType *neutrino_oppo_nue_flux, fType *neutrino_oppo_numu_flux,
@@ -185,7 +185,7 @@ class GPUweight(object):
                         // nue/numu ratio
                         // for neutrinos
                         fType idx_scale = spectral_index_scale(true_energy[idx], 24.0900951261, delta_index);
-                        
+
                         fType new_nue_flux, new_numu_flux;
                         apply_ratio_scale(neutrino_nue_flux[idx], neutrino_numu_flux[idx], nue_numu_ratio, true,
                                             new_nue_flux, new_numu_flux);
@@ -210,7 +210,7 @@ class GPUweight(object):
                         }
                         // idx scale
                         //new_nue_flux2 *= idx_scale * weighted_aeff[idx];
-                        //new_nue_flux2 *= idx_scale; 
+                        //new_nue_flux2 *= idx_scale;
                         //new_numu_flux2 *= idx_scale * weighted_aeff[idx];
                         //new_numu_flux2 *= idx_scale;
                         //new_nue_flux2 *= weighted_aeff[idx];
@@ -249,7 +249,7 @@ class GPUweight(object):
                         // GENIE axial mass sys
                         fType aeff_QE =  1. + quad_fit_MaCCQE[idx]*pow(Genie_Ma_QE,2) + linear_fit_MaCCQE[idx]*Genie_Ma_QE;
                         fType aeff_RES =  1. + quad_fit_MaCCRES[idx]*pow(Genie_Ma_RES,2) + linear_fit_MaCCRES[idx]*Genie_Ma_RES;
-                        
+
                         // calc weight
                         //fType w = aeff_scale * livetime * aeff_QE * aeff_RES *
                         weight[idx] = aeff_scale * livetime * weighted_aeff[idx] * aeff_QE * aeff_RES *
@@ -257,7 +257,7 @@ class GPUweight(object):
                     }
                 }
 
-            __global__ void sumw2(const int n_evts, fType *weight, 
+            __global__ void sumw2(const int n_evts, fType *weight,
                                     fType *sumw2) {
                     // fill arrays with weights squared (for error calculation)
                     int idx = threadIdx.x + blockDim.x * blockIdx.x;
@@ -266,9 +266,15 @@ class GPUweight(object):
                     }
                 }
           """
+        # TODO: path containing $PISA can be invalid! Use resources & relative
+        # package paths instead!
+
         # compile
-        include_path = os.path.expandvars('$PISA/pisa/stages/osc/grid_propagator/')
-        module = SourceModule(kernel_template, include_dirs=[include_path], keep=True)
+        include_path = os.path.expandvars(
+            '$PISA/pisa/stages/osc/grid_propagator/'
+        )
+        module = SourceModule(kernel_template, include_dirs=[include_path],
+                              keep=True)
         self.weights_fun = module.get_function("weights")
         self.flux_fun = module.get_function("flux")
         self.sumw2_fun = module.get_function("sumw2")
@@ -289,21 +295,23 @@ class GPUweight(object):
         bdim = (256,1,1)
         dx, mx = divmod(n_evts, bdim[0])
         gdim = ((dx + (mx>0)) * bdim[0], 1)
-        self.flux_fun(n_evts, weighted_aeff, true_energy, true_coszen,
-                            neutrino_nue_flux, neutrino_numu_flux,
-                            neutrino_oppo_nue_flux, neutrino_oppo_numu_flux,
-                            scaled_nue_flux, scaled_numu_flux,
-                            scaled_nue_flux_shape, scaled_numu_flux_shape,
-                            FTYPE(nue_numu_ratio), FTYPE(nu_nubar_ratio), np.int32(kNuBar), FTYPE(delta_index),  
-                            FTYPE(Barr_uphor_ratio), FTYPE(Barr_nu_nubar_ratio),
-                            block=bdim, grid=gdim)
+        self.flux_fun(
+            n_evts, weighted_aeff, true_energy, true_coszen,
+            neutrino_nue_flux, neutrino_numu_flux,
+            neutrino_oppo_nue_flux, neutrino_oppo_numu_flux,
+            scaled_nue_flux, scaled_numu_flux,
+            scaled_nue_flux_shape, scaled_numu_flux_shape,
+            FTYPE(nue_numu_ratio), FTYPE(nu_nubar_ratio), np.int32(kNuBar), FTYPE(delta_index),
+            FTYPE(Barr_uphor_ratio), FTYPE(Barr_nu_nubar_ratio),
+            block=bdim, grid=gdim
+        )
 
     def calc_weight(self, n_evts, weighted_aeff, true_energy, true_coszen,
                     scaled_nue_flux_shape, scaled_numu_flux_shape,
                     nue_flux_norm, numu_flux_norm,
                     linear_fit_MaCCQE, quad_fit_MaCCQE,
                     linear_fit_MaCCRES, quad_fit_MaCCRES,
-                    prob_e, prob_mu, pid, weight, 
+                    prob_e, prob_mu, pid, weight,
                     livetime, aeff_scale,
                     Genie_Ma_QE, Genie_Ma_RES,
                     **kwargs):
@@ -311,15 +319,17 @@ class GPUweight(object):
         bdim = (256,1,1)
         dx, mx = divmod(n_evts, bdim[0])
         gdim = ((dx + (mx>0)) * bdim[0], 1)
-        self.weights_fun(n_evts, weighted_aeff, true_energy, true_coszen,
-                            scaled_nue_flux_shape, scaled_numu_flux_shape,
-                            FTYPE(nue_flux_norm), FTYPE(numu_flux_norm),
-                            linear_fit_MaCCQE, quad_fit_MaCCQE,
-                            linear_fit_MaCCRES, quad_fit_MaCCRES,
-                            prob_e, prob_mu, pid, weight,
-                            FTYPE(livetime), FTYPE(aeff_scale),
-                            FTYPE(Genie_Ma_QE), FTYPE(Genie_Ma_RES),
-                            block=bdim, grid=gdim)
+        self.weights_fun(
+            n_evts, weighted_aeff, true_energy, true_coszen,
+            scaled_nue_flux_shape, scaled_numu_flux_shape,
+            FTYPE(nue_flux_norm), FTYPE(numu_flux_norm),
+            linear_fit_MaCCQE, quad_fit_MaCCQE,
+            linear_fit_MaCCRES, quad_fit_MaCCRES,
+            prob_e, prob_mu, pid, weight,
+            FTYPE(livetime), FTYPE(aeff_scale),
+            FTYPE(Genie_Ma_QE), FTYPE(Genie_Ma_RES),
+            block=bdim, grid=gdim
+        )
 
     def calc_sumw2(self, n_evts, weight, sumw2, **kwargs):
         bdim = (256,1,1)

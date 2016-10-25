@@ -1,6 +1,7 @@
 # authors: P.Eller (pde3@psu.edu)
 # date:   September 2016
 
+
 import sys, os
 import numpy as np
 import pycuda.driver as cuda
@@ -8,24 +9,25 @@ import pycuda.autoinit
 import time
 
 from pisa import ureg, Q_
-from pisa.core.stage import Stage
-from pisa.core.param import ParamSet
-from pisa.core.events import Events
 from pisa.core.binning import OneDimBinning, MultiDimBinning
+from pisa.core.events import Events
 from pisa.core.map import Map, MapSet
-from pisa.stages.osc.prob3gpu import prob3gpu
+from pisa.core.param import ParamSet
+from pisa.core.stage import Stage
 from pisa.stages.mc.GPUweight import GPUweight
-from pisa.utils.resources import find_resource
-from pisa.utils.log import logging
-from pisa.utils.const import FTYPE
-from pisa.utils.log import logging
+from pisa.stages.osc.prob3gpu import prob3gpu
 from pisa.utils.comparisons import normQuant
-from pisa.utils.hash import hash_obj
 from pisa.utils.config_parser import split
+from pisa.utils.const import FTYPE
+from pisa.utils.hash import hash_obj
+from pisa.utils.log import logging
+from pisa.utils.resources import find_resource
+
 
 class gpu(Stage):
-    '''
-    GPU accelerated (pyCUDA) service to compute histograms based on reweighted MC events.
+    """
+    GPU accelerated (pyCUDA) service to compute histograms based on reweighted
+    MC events.
 
     Parameters
     ----------
@@ -67,14 +69,15 @@ class gpu(Stage):
 
     Notes
     -----
-
-    This stage takes as inputs hdf5 events files that already iclude the nominal flux weights and genie systematic coefficients. The files are expected to contain
+    This stage takes as inputs hdf5 events files that already iclude the
+    nominal flux weights and genie systematic coefficients. The files are
+    expected to contain
         true_energy : true energy of the event in GeV
         true_coszen : true coszen of the event
         reco_energy : reco energy of the event in GeV
         reco_coszen : reco coszen of the event
-        neutrino_nue_flux : flux weight for nu_e in case of neutrino, or anit-nu_e in case of anti-neutrino event
-        neutrino_numu_flux : flux weight for nu_mu in case of neutrino, or anit-nu_mu in case of anti-neutrino event
+        neutrino_nue_flux : flux weight for nu_e in case of neutrino, or anti-nu_e in case of anti-neutrino event
+        neutrino_numu_flux : flux weight for nu_mu in case of neutrino, or anti-nu_mu in case of anti-neutrino event
         neutrino_oppo_nue_flux:flux weight for anti-nu_e in case of neutrino, or nu_e in case of anti-neutrino event
         neutrino_oppo_numu_flux :flux weight for anti-nu_mu in case of neutrino, or nu_mu in case of anti-neutrino event
         weighted_aeff : effective are weight for event
@@ -93,12 +96,12 @@ class gpu(Stage):
         * device : pointers to the same arrays, but on GPU
     and some additional keys like:
         * n_evts : number of events
-        * hist : retreived histogram
+        * hist : retrieved histogram
         * ...
 
     All floats (arrays) on GPU are of type FTYPE, currently double precision
-        
-    '''
+
+    """
 
     def __init__(self, params, output_binning, disk_cache=None,
                  memcache_deepcopy=True, error_method=None, output_names=None,
@@ -107,7 +110,7 @@ class gpu(Stage):
         self.osc_params = (
             'detector_depth',
             'earth_model',
-            'prop_height', 
+            'prop_height',
             'YeI',
             'YeO',
             'YeM',
@@ -117,7 +120,8 @@ class gpu(Stage):
             'deltam21',
             'deltam31',
             'deltacp',
-            'no_nc_osc')
+            'no_nc_osc'
+        )
 
         self.weight_params = (
             'nu_nubar_ratio',
@@ -128,7 +132,8 @@ class gpu(Stage):
             'Barr_uphor_ratio',
             'Barr_nu_nubar_ratio',
             'Genie_Ma_QE',
-            'Genie_Ma_RES')
+            'Genie_Ma_RES'
+        )
 
         self.other_params = (
             'events_file',
@@ -139,7 +144,8 @@ class gpu(Stage):
             'reco_cz_res_raw',
             'bdt_cut',
             'kde',
-            'cut_outer',)
+            'cut_outer',
+        )
 
         expected_params = (self.osc_params + self.weight_params +
                            self.other_params)
@@ -167,12 +173,12 @@ class gpu(Stage):
             #otherwise that
             from pisa.utils.gpu_hist import GPUhist
             self.GPUhist = GPUhist
-            
+
 
     def validate_params(self, params):
         # not a good idea to scale nutau norm, without the NC events being oscillated
         if params.nutau_norm.value != 1.0 or params.nutau_norm.is_fixed == False:
-            assert (params.no_nc_osc.value == False), 'if you want NC tau events scaled, you should osciallte them -> set no_nc_osc to False!!!'
+            assert (params.no_nc_osc.value == False), 'If you want NC tau events scaled, you should oscillate them -> set no_nc_osc to False!!!'
 
     def _compute_nominal_outputs(self):
         # these are for storing hashes for caching that is done inside the stage
@@ -190,15 +196,15 @@ class gpu(Stage):
         prop_height = self.params.prop_height.value.m_as('km')
         detector_depth = self.params.detector_depth.value.m_as('km')
 
-        # Prob3 GPU oscialltions
-	osc_params_subset = []
+        # Prob3 GPU oscillations
+        osc_params_subset = []
         for param in self.params:
             if param.name in self.osc_params:
                 osc_params_subset.append(param)
         osc_params_subset = ParamSet(osc_params_subset)
 
-        self.osc = prob3gpu(params=osc_params_subset, 
-                            input_binning=None, 
+        self.osc = prob3gpu(params=osc_params_subset,
+                            input_binning=None,
                             output_binning=None,
                             error_method=None,
                             memcache_deepcopy=False,
@@ -220,7 +226,7 @@ class gpu(Stage):
             self.bin_edges.append(bin_edges)
 
         if self.params.kde.value:
-            #right now we have to do pid 'by hand', this is ugly and needs to be generalized
+            # Right now we have to do pid 'by hand', this is ugly and needs to be generalized
             self.pid_bin = self.bin_names.index('pid')
             self.bin_names.pop(self.pid_bin)
             self.pid_bin_edges = self.bin_edges.pop(self.pid_bin)
@@ -230,7 +236,7 @@ class gpu(Stage):
                     d2d_binning.append(b)
             self.d2d_binning = MultiDimBinning(d2d_binning)
             assert self.error_method == None
-            
+
         else:
             # GPU histogramer
             self.histogrammer = self.GPUhist(*self.bin_edges)
@@ -261,7 +267,7 @@ class gpu(Stage):
                         'linear_fit_MaCCRES',
                         'quad_fit_MaCCRES',
                     ]
-        # allocate empty arrays (filled with 1s) on GPU
+        # Allocate empty arrays (filled with 1s) on GPU
         empty = ['prob_e',
                     'prob_mu',
                     'weight',
@@ -274,7 +280,7 @@ class gpu(Stage):
         if self.error_method in ['sumw2', 'fixed_sumw2']:
             empty += ['sumw2']
 
-        # list of flav_ints to use and corresponding number used in several parts of the code
+        # List of flav_ints to use and corresponding number used in several parts of the code
         self.flavs = ['nue_cc',
                         'numu_cc',
                         'nutau_cc',
@@ -289,14 +295,14 @@ class gpu(Stage):
                         'nutaubar_nc'
                     ]
 
-        # corrwsponding numbers for the flavours defined above, needed bi Prob3
+        # Corresponding numbers for the flavours defined above, needed bi Prob3
         kFlavs = [0, 1, 2] * 4
         kNuBars = [1] *6 + [-1] * 6
 
         for flav, kFlav, kNuBar in zip(self.flavs, kFlavs, kNuBars):
             cuts = []
             if self.params.cut_outer.value:
-                for name,edge in zip(self.bin_names, self.bin_edges):
+                for name, edge in zip(self.bin_names, self.bin_edges):
                     cuts.append(evts[flav][name] >= edge[0])
                     cuts.append(evts[flav][name] <= edge[-1])
             if evts[flav].has_key('dunkman_L5'):
@@ -319,11 +325,11 @@ class gpu(Stage):
         self.events_dict = {}
         for flav, kFlav, kNuBar in zip(self.flavs, kFlavs, kNuBars):
             self.events_dict[flav] = {}
-            # neutrinos: 1, anti-neutrinos: -1 
+            # neutrinos: 1, anti-neutrinos: -1
             self.events_dict[flav]['kNuBar'] = kNuBar
             # electron: 0, muon: 1, tau: 2
             self.events_dict[flav]['kFlav'] = kFlav
-            # host arrays
+            # Host arrays
             self.events_dict[flav]['host'] = {}
             for var in variables:
                 try:
@@ -350,7 +356,7 @@ class gpu(Stage):
                     self.events_dict[flav]['host'][var] = np.ones(self.events_dict[flav]['n_evts'], dtype=FTYPE)
                 else:
                     self.events_dict[flav]['host'][var] = np.zeros(self.events_dict[flav]['n_evts'], dtype=FTYPE)
-            # calulate layers (every particle crosses a number of layers in the earth with different densities, and for a given length
+            # Calulate layers (every particle crosses a number of layers in the earth with different densities, and for a given length
             # these depend only on the earth model (PREM) and the true coszen of an event. Therefore we can calculate these for once and are done
             self.events_dict[flav]['host']['numLayers'], \
                 self.events_dict[flav]['host']['densityInLayer'], \
@@ -359,7 +365,7 @@ class gpu(Stage):
         end_t = time.time()
         logging.debug('layers done in %.4f ms'%((end_t - start_t) * 1000))
 
-        # copy arrays to GPU
+        # Copy arrays to GPU
         start_t = time.time()
         for flav in self.flavs:
             self.events_dict[flav]['device'] = {}
@@ -369,26 +375,26 @@ class gpu(Stage):
         end_t = time.time()
         logging.debug('copy done in %.4f ms'%((end_t - start_t) * 1000))
 
-        # apply raw reco sys
+        # Apply raw reco sys
         self.apply_reco()
 
 
     def apply_reco(self):
-        ''' applying raw reco systematics (to use as inputs to polyfit stage) '''
+        """Apply raw reco systematics (to use as inputs to polyfit stage)"""
         for flav in self.flavs:
-            # apply energy reco sys
+            # Apply energy reco sys
             f = self.params.reco_e_res_raw.value.m_as('dimensionless')
             g = self.params.reco_e_scale_raw.value.m_as('dimensionless')
             self.events_dict[flav]['host']['reco_energy'] = \
                 (g * ((1.-f) * self.events_dict[flav]['host']['true_energy'] + \
                 f * self.events_dict[flav]['host']['reco_energy'])).astype(FTYPE)
 
-            # apply coszen reco sys
+            # Apply coszen reco sys
             f = self.params.reco_cz_res_raw.value.m_as('dimensionless')
             self.events_dict[flav]['host']['reco_coszen'] = \
                 ((1.-f) * self.events_dict[flav]['host']['true_coszen'] + \
                 f * self.events_dict[flav]['host']['reco_coszen']).astype(FTYPE)
-            # make sure everything is within -1 <= coszen <= 1, otherwise reflect
+            # Make sure everything is within -1 <= coszen <= 1, otherwise reflect
             while np.any(self.events_dict[flav]['host']['reco_coszen']<-1) or \
                 np.any(self.events_dict[flav]['host']['reco_coszen']>1):
                 self.events_dict[flav]['host']['reco_coszen'][self.events_dict[flav]['host']['reco_coszen']>1] = \
@@ -401,13 +407,13 @@ class gpu(Stage):
 
 
     def update_device_arrays(self, flav, var):
-        ''' helper function to update device arrays '''
+        """Helper function to update device arrays"""
         self.events_dict[flav]['device'][var].free()
         self.events_dict[flav]['device'][var] = cuda.mem_alloc(self.events_dict[flav]['host'][var].nbytes)
         cuda.memcpy_htod(self.events_dict[flav]['device'][var], self.events_dict[flav]['host'][var])
-        
-    def get_device_arrays(self,variables=['weight']):
-        ''' Copy back event by event information into the host dict'''
+
+    def get_device_arrays(self, variables=['weight']):
+        """Copy back event by event information into the host dict"""
         for flav in self.flavs:
             for var in variables:
                 buff = np.ones(self.events_dict[flav]['n_evts'])
@@ -415,20 +421,18 @@ class gpu(Stage):
                 self.events_dict[flav]['host'][var] = buff
 
     def sum_array(self, x, n_evts):
-        '''
-        helper function to compute the sum over a device array
-        '''
-	out = np.array([0.]).astype(FTYPE)
+        """Helper function to compute the sum over a device array"""
+        out = np.array([0.]).astype(FTYPE)
         d_out = cuda.mem_alloc(out.nbytes)
         cuda.memcpy_htod(d_out, out)
-	self.weight.calc_sum(n_evts, x, d_out)
-	cuda.memcpy_dtoh(out, d_out)
-	return out[0]
+        self.weight.calc_sum(n_evts, x, d_out)
+        cuda.memcpy_dtoh(out, d_out)
+        return out[0]
 
 
     def _compute_outputs(self, inputs=None):
         logging.info('retreive weighted histo')
-        # get hash to decide wether expensive stuff needs to be recalculated 
+        # Get hash to decide whether expensive stuff needs to be recalculated
         osc_hash = hash_obj(normQuant([self.params[name].value for name in self.osc_params]))
         weight_hash = hash_obj(normQuant([self.params[name].value for name in self.weight_params]))
         recalc_osc = not (osc_hash == self.osc_hash)
@@ -457,7 +461,6 @@ class gpu(Stage):
         tot = 0
         start_t = time.time()
         for flav in self.flavs:
-
             # calculate osc probs, filling the device arrays with probabilities
             if recalc_osc:
                 if not (self.params.no_nc_osc.value and flav.endswith('_nc')):
@@ -468,7 +471,7 @@ class gpu(Stage):
             if recalc_weight:
                 # calcukate the flux weights
                 self.weight.calc_flux(self.events_dict[flav]['n_evts'],
-                                    nue_numu_ratio=nue_numu_ratio, 
+                                    nue_numu_ratio=nue_numu_ratio,
                                     nu_nubar_ratio=nu_nubar_ratio, kNuBar=self.events_dict[flav]['kNuBar'],
                                     delta_index=delta_index,
                                     Barr_uphor_ratio=Barr_uphor_ratio, Barr_nu_nubar_ratio=Barr_nu_nubar_ratio,
@@ -483,7 +486,7 @@ class gpu(Stage):
                 #numu_flux_norm_d = self.sum_array(self.events_dict[flav]['device']['scaled_numu_flux_shape'], self.events_dict[flav]['n_evts'])
                 #numu_flux_norm = numu_flux_norm_n / numu_flux_norm_d
                 numu_flux_norm = 1.
-                
+
                 # calculate the event weights, from osc. probs and flux weights
                 # global scaling factors for the nue and numu flux can be given, for normalization purposes
                 self.weight.calc_weight(self.events_dict[flav]['n_evts'], livetime=livetime,
@@ -492,15 +495,13 @@ class gpu(Stage):
                                     Genie_Ma_QE=Genie_Ma_QE, Genie_Ma_RES=Genie_Ma_RES,
                                     **self.events_dict[flav]['device'])
 
-                
                 # calculate weights squared, for error propagation
                 if self.error_method in ['sumw2', 'fixed_sumw2']:
                     self.weight.calc_sumw2(self.events_dict[flav]['n_evts'], **self.events_dict[flav]['device'])
 
             tot += self.events_dict[flav]['n_evts']
         end_t = time.time()
-        logging.debug('GPU calc done in %.4f ms for %s events'%(((end_t - start_t) * 1000),tot))
-
+        logging.debug('GPU calc done in %.4f ms for %s events'%(((end_t - start_t) * 1000), tot))
 
         if self.params.kde.value:
             if recalc_osc or recalc_weight:
@@ -515,14 +516,14 @@ class gpu(Stage):
                         mask_pid = (self.events_dict[flav]['host']['pid'] >= self.pid_bin_edges[pid]) & (self.events_dict[flav]['host']['pid'] < self.pid_bin_edges[pid+1])
                         data = np.array([self.events_dict[flav]['host'][self.bin_names[0]][mask_pid], self.events_dict[flav]['host'][self.bin_names[1]][mask_pid]])
                         weights = self.events_dict[flav]['host']['weight'][mask_pid]
-                        pid_stack.append(self.kde_histogramdd(data.T, weights=weights, binning=self.d2d_binning, coszen_name='reco_coszen', use_cuda=True,bw_method='silverman',alpha=1.0, oversample=1,coszen_reflection=0.5,adaptive=True))
+                        pid_stack.append(self.kde_histogramdd(data.T, weights=weights, binning=self.d2d_binning, coszen_name='reco_coszen', use_cuda=True, bw_method='silverman', alpha=1.0, oversample=1, coszen_reflection=0.5, adaptive=True))
                     hist = np.dstack(pid_stack)
                     if not self.pid_bin == 2:
-                        hist = np.swapaxes(hist,self.pid_bin,2)
+                        hist = np.swapaxes(hist, self.pid_bin, 2)
                     self.events_dict[flav]['hist'] = hist
                 end_t = time.time()
-                logging.debug('KDE done in %.4f ms for %s events'%(((end_t - start_t) * 1000),tot))
-            
+                logging.debug('KDE done in %.4f ms for %s events'%(((end_t - start_t) * 1000), tot))
+
         else:
             if recalc_osc or recalc_weight:
                 start_t = time.time()
@@ -554,9 +555,9 @@ class gpu(Stage):
                                                                                     d_z = self.events_dict[flav]['device'][self.bin_names[2]],
                                                                                     d_w = self.events_dict[flav]['device']['sumw2'])
                 end_t = time.time()
-                logging.debug('GPU hist done in %.4f ms for %s events'%(((end_t - start_t) * 1000),tot))
+                logging.debug('GPU hist done in %.4f ms for %s events'%(((end_t - start_t) * 1000), tot))
 
-        
+
         # set new hash
         self.osc_hash = osc_hash
         self.weight_hash = weight_hash
@@ -568,7 +569,7 @@ class gpu(Stage):
         for name in self.output_names:
             for flav in self.flavs:
                 f = 1.0
-                if flav in ['nutau_cc','nutaubar_cc']:
+                if flav in ['nutau_cc', 'nutaubar_cc']:
                     f *= self.params.nutau_cc_norm.value.m_as('dimensionless')
                 if 'nutau' in flav:
                     f *= self.params.nutau_norm.value.m_as('dimensionless')
@@ -598,4 +599,4 @@ class gpu(Stage):
             else:
                 maps.append(Map(name=name, tex=name, hist=hist, binning=self.output_binning))
 
-        return MapSet(maps,name='gpu_mc')
+        return MapSet(maps, name='gpu_mc')
