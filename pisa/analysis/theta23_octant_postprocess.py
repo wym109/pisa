@@ -109,8 +109,7 @@ def plot_gof(oct_dat_d, running_groups, all_fixed_vals, fixed_dim,
             plt.setp(axi.spines.values(), linewidth=2)
             axi.set_xlabel(xlab, fontsize=18, labelpad=20)
             axi.tick_params(axis='both', which='major', pad=10, width=3)
-            #axi.set_ylim(min(min(y1),min(y2)), max(max(y1), max(y2)))
-            axi.set_ylim(0, max(max(y1), max(y2)))
+            axi.set_ylim(min(min(y1),min(y2)), max(max(y1), max(y2)))
             for lab in axi.get_xticklabels() + axi.get_yticklabels():
                 lab.set_fontsize(18)
         ax[0].legend(loc='best', frameon=False, fontsize=12)
@@ -122,7 +121,6 @@ def plot_best_fits(oct_dat_d, running_groups, all_fixed_vals,
         f_val = all_fixed_vals[m]
         running_inds = [int(i) for i in np.array(r_vals)[:,0]]
         for n,param_name in enumerate(param_names):
-            print param_name
             for fit_key in oct_dat_d:
                 # wrong octant, maximal mixing or combined (but don't care about
                 # the latter here for now)
@@ -154,8 +152,6 @@ def plot_best_fits(oct_dat_d, running_groups, all_fixed_vals,
             for axi in row:
                 plt.setp(axi.spines.values(), linewidth=2)
                 axi.tick_params(axis='both', which='major', pad=10, width=3)
-                #axi.set_ylim(min(min(y1),min(y2)), max(max(y1), max(y2)))
-                #axi.set_ylim(min(min(y1), min(y2)), max(max(y1), max(y2)))
                 for lab in axi.get_xticklabels() + axi.get_yticklabels():
                     lab.set_fontsize(10)
         ax[n][0].set_xlabel(xlab, fontsize=12) #,labelpad=20)
@@ -171,13 +167,13 @@ def parse_args():
     parser.add_argument(
         '-d', '--dir', required=True, metavar='DIR', type=str,
         help='''Directory where octant data files are stored. Will try to
-             combine data as much as possible.'''
+        combine data as much as possible.'''
     )
-    # TODO: implement
     parser.add_argument(
         '--plot-best-fits', default=False, action='store_true',
-        help='''*Not implemented yet*. Also plot parameters' best fit values as
-        function of injected points (in addition to goodness of fit).'''
+        help='''Also plot parameters' best fit values as
+        function of injected points (in addition to goodness of fit).
+        *Only shown as function of true theta23*.'''
     )
     parser.add_argument(
         '-v', action='count', default=None,
