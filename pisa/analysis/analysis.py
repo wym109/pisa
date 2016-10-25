@@ -613,8 +613,9 @@ class Analysis(object):
             only needed if `profile` is set to True.
 
         """
-        assert not (steps is not None and values is not None)
-        assert not (steps is None and values is None)
+        # Either `steps` or `values` must be specified, but not both (xor)
+        assert (steps is None) != (values is None)
+
         if isinstance(param_names, basestring):
             param_names = [param_names]
 
