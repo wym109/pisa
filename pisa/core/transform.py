@@ -289,7 +289,8 @@ class Transform(object):
     # TODO: get rid of the tex attribute, or add back in the name attribute?
 
     # Attributes that __setattr__ will allow setting
-    _slots = ('_input_names', '_output_name', '_tex', '_hash', '_hash', 'error_method')
+    _slots = ('_input_names', '_output_name', '_tex', '_hash', '_hash',
+              'error_method')
     # Attributes that should be retrieved to fully describe state
     _state_attrs = ('input_names', 'output_name', 'tex', 'hash', 'error_method')
 
@@ -501,7 +502,7 @@ class BinnedTensorTransform(Transform):
     hash : immutable object (usually integer)
         A hash value the user can attach
 
-    error_method : string
+    error_method : None, bool, or string
         Define the method for error propaation on unumpy arrays
 
     output_name : string
@@ -541,8 +542,8 @@ class BinnedTensorTransform(Transform):
                          ['input_binning', 'output_binning', 'xform_array'])
 
     def __init__(self, input_names, output_name, input_binning, output_binning,
-                 xform_array, sum_inputs=False, error_array=None, tex=None, error_method=None,
-                 hash=None):
+                 xform_array, sum_inputs=False, error_array=None, tex=None,
+                 error_method=None, hash=None):
         super(BinnedTensorTransform, self).__init__(
             input_names=input_names, output_name=output_name,
             input_binning=input_binning, output_binning=output_binning,
@@ -798,9 +799,13 @@ class BinnedTensorTransform(Transform):
 
         # Transform same shape: element-by-element multiplication
         if self.xform_array.shape == input_array.shape:
-            if self.error_method.strip().lower() == 'fixed':
+            if (isinstance(self.error_method, basestring) and
+                    self.error_method.strip().lower() == 'fixed'):
                 # don't scale errors here
-                output = unp.uarray(unp.nominal_values(input_array) * self.xform_array, unp.std_devs(input_array))
+                output = unp.uarray(
+                    unp.nominal_values(input_array) * self.xform_array,
+                    unp.std_devs(input_array)
+                )
             else:
                 output = input_array * self.xform_array
 
@@ -852,8 +857,7 @@ class BinnedTensorTransform(Transform):
         return output
 
 
-#def test_BinnedTensorTransform():
-if __name__ == '__main__':
+def test_BinnedTensorTransform():
     import os
     import shutil
     import tempfile
@@ -945,5 +949,5 @@ if __name__ == '__main__':
     print '<< PASSED : test_TransformSet >>'
 
 
-#if __name__ == "__main__":
-#    test_BinnedTensorTransform()
+if __name__ == "__main__":
+    test_BinnedTensorTransform()
