@@ -99,7 +99,7 @@ if __name__ == '__main__':
                                         DistributionMaker(args.data_settings)
 
     data_maker.select_params(args.data_param_selection)
-    data = data_maker.get_total_outputs()
+    data = data_maker.get_outputs(sum=True)
 
     analysis = Analysis()
 

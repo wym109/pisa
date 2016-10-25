@@ -37,7 +37,8 @@ def do_akhmedov(h0_map, h0_name, h1_map, h1_name, fulltitle,
     akhmedov_to_plot = {}
     akhmedov_to_plot['ebins'] = h0_map['ebins']
     akhmedov_to_plot['czbins'] = h0_map['czbins']
-    akhmedov_to_plot['map'] = (h1_map['map']-h0_map['map'])/np.sqrt(h0_map['map'])
+    akhmedov_to_plot['map'] = ((h1_map['map']-h0_map['map'])
+                               / np.sqrt(h0_map['map']))
 
     akhmedovlabel = r'$\left(N_{\mathrm{%s}}-N_{\mathrm{%s}}\right)/\sqrt{N_{\mathrm{%s}}}$'%(h1_name,h0_name,h0_name)
 
@@ -207,11 +208,11 @@ if __name__ == '__main__':
 
     h0_maker =  hypo_testing.h0_maker
     h0_maker.select_params(init_args_d['h0_param_selections'])
-    h0_maps = h0_maker.get_total_outputs()
+    h0_maps = h0_maker.get_outputs(sum=True)
 
     h1_maker = hypo_testing.h1_maker
     h1_maker.select_params(init_args_d['h1_param_selections'])
-    h1_maps = h1_maker.get_total_outputs()
+    h1_maps = h1_maker.get_outputs(sum=True)
 
     if 'trck' in ''.join(h0_maps.names):
 
