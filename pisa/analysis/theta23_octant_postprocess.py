@@ -85,6 +85,8 @@ def extract_octant_data(datadir):
     return data_dicts_per_file, truth_points_per_file
 
 def get_bf_vals(params):
+    """Return names of free parameters and corresponding values in dictionary
+    derived from `ParamSet` object."""
     free_vals = {}
     for p in params:
         if not params[p]['is_fixed']:
@@ -93,6 +95,33 @@ def get_bf_vals(params):
 
 def plot_gof(oct_dat_d, running_groups, all_fixed_vals, fixed_dim,
              metric_str, ax, xlab):
+    """Plot goodness-of-fit metric `metric_str` as function of running parameter
+    (theta23/livetime). Values belonging together are each expected to be stored
+    in a separate list within `running_groups`. For each of these groups, one
+    fixed value of the other parameter (livetime/theta23) needs to be supplied
+    in `all_fixed_vals` (this will be used for the legend entry).
+
+    Parameters
+    ----------
+    oct_dat_d : dict
+        Dictionary containing fit results (goodness-of-fit, best fit parameter
+        values) for each injected point. As returned by `extract_octant_data`.
+    running_groups : list
+        List of lists containing values of running parameter (one for each new
+        value of the other true parameter).
+    all_fixed_vals : list
+        All possible values of the parameter not assumed to be running (e.g.
+        values of true livetime for which different true theta23 were injected).
+    fixed_dim : str
+        String representing dimension of values in `all_fixed_vals`.
+    metric_str : str
+        String representing metric (goodness-of-fit) used. Only for plotting,
+        thus not required to be stored in `oct_dat_d`.
+    ax : matplotlib axes instance
+        Plots will be added to this.
+    xlab : str
+        String representing name of running parameter for plotting.
+    """
     for m, r_vals in enumerate(running_groups):
         f_val = all_fixed_vals[m]
         running_inds = [int(i) for i in np.array(r_vals)[:,0]]
@@ -117,6 +146,14 @@ def plot_gof(oct_dat_d, running_groups, all_fixed_vals, fixed_dim,
 
 def plot_best_fits(oct_dat_d, running_groups, all_fixed_vals,
                    fixed_dim, xlab, param_names, ax):
+    """Plot best fit values of parameters whose names are passed via
+    `param_names` as function of running parameter in `running_groups`. See
+    `plot_gof` for description of other parameters. Plots are made for all
+    hypothesis parameter selections found in `oct_dat_d`, for the maximal mixing
+    fit (i.e. theta23 fixed to 45 degrees) and the fit seeded with the true
+    theta23 mirrored into the wrong octant. If the latter results in a best-fit
+    theta23 of 45 degrees, all best fit values among the two fits should agree
+    with each other to within the numerical precision of the minimiser."""
     for m, r_vals in enumerate(running_groups):
         f_val = all_fixed_vals[m]
         running_inds = [int(i) for i in np.array(r_vals)[:,0]]
