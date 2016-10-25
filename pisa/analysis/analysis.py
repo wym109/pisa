@@ -27,6 +27,10 @@ from pisa.utils.log import logging
 from pisa.utils.fileio import to_file
 
 
+__all__ = ['Analysis', 'Counter']
+
+
+# TODO: move this to a central location prob. in utils
 class Counter(object):
     def __init__(self, i=0):
         self._i = i

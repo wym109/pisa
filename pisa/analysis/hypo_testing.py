@@ -44,6 +44,9 @@ from pisa.utils.resources import find_resource
 from pisa.utils.timing import timediffstamp, timestamp
 
 
+__all__ = ['HypoTesting', 'Labels']
+
+
 class Labels(object):
     """Derive file labels and naming scheme for data and directories produced
     by the HypoTesting class.
@@ -1479,6 +1482,7 @@ def parse_args():
 
 # TODO: make this work with Python package resources, not merely absolute
 # paths! ... e.g. hash on the file or somesuch?
+# TODO: move to a central loc prob. in utils
 def normcheckpath(path, checkdir=False):
     normpath = find_resource(path)
     if checkdir:
