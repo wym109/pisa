@@ -21,6 +21,9 @@ from pisa.utils import fileio
 from pisa.utils.log import logging
 
 
+__all__ = ['Prior', 'plot_prior', 'get_prior_bounds']
+
+
 # TODO: uniform prior should take a constant, such that e.g. discrete parameter
 # values when run separately will return valid comparisons across the
 # discretely-chosen values (with different uniform priors)

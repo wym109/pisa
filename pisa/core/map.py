@@ -45,6 +45,8 @@ HASH_SIGFIGS = 12
 VALID_METRICS = ('chi2', 'llh', 'conv_llh', 'mod_chi2', 'barlow_llh')
 METRICS_TO_MAXIMIZE = ['llh', 'conv_llh']
 
+__all__ = ['Map', 'MapSet', 'rebin', 'reduceToHist']
+
 
 # TODO: CUDA and numba implementations of rebin if these libs are available
 

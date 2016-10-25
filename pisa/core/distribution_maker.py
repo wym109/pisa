@@ -17,6 +17,9 @@ from pisa.utils.log import logging, set_verbosity
 from pisa.utils.random_numbers import get_random_state
 
 
+__all__ = ['DistributionMaker']
+
+
 class DistributionMaker(object):
     """Container for one or more pipelines; the outputs from all contained
     pipelines are added together to create the distribution.

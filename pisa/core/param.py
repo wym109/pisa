@@ -23,6 +23,10 @@ from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile
 from pisa.utils.random_numbers import get_random_state
 
+
+__all__ = ['Param', 'ParamSet', 'ParamSelector']
+
+
 # TODO: Make property "frozen" or "read_only" so params in param set e.g.
 # returned by a template maker -- which updating the values of will NOT have
 # the effect the user might expect -- will be explicitly forbidden?
