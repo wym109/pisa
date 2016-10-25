@@ -8,7 +8,7 @@ from .log import logging, set_verbosity
 # TODO: make this work, as well as top-level modules, without breaking imports
 # from core
 
-#from .fileio import from_file, to_file
+from .fileio import from_file, to_file
 #from .timing import *
 #from .comparisons import *
 #from .confInterval import *
