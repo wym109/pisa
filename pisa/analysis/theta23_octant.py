@@ -109,7 +109,8 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         '--debug-mode', type=int, choices=[0, 1, 2], required=False, default=1,
-        help='''How much information to keep in the output file. 0 for only
+        help='''*Use 0 for `slsqp` minimizer settings file*.
+        How much information to keep in the output file. 0 for only
         essentials for a physics analysis, 1 for more minimizer history, 2 for
         whatever can be recorded.'''
     )

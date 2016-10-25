@@ -113,7 +113,53 @@ def plot_gof(oct_dat_d, running_groups, all_fixed_vals, fixed_dim,
             axi.set_ylim(0, max(max(y1), max(y2)))
             for lab in axi.get_xticklabels() + axi.get_yticklabels():
                 lab.set_fontsize(18)
-        ax[0].legend(loc='best', frameon=False, fontsize=14)
+        ax[0].legend(loc='best', frameon=False, fontsize=12)
+    return ax
+
+def plot_best_fits(oct_dat_d, running_groups, all_fixed_vals,
+                   fixed_dim, xlab, param_names, ax):
+    for m, r_vals in enumerate(running_groups):
+        f_val = all_fixed_vals[m]
+        running_inds = [int(i) for i in np.array(r_vals)[:,0]]
+        for n,param_name in enumerate(param_names):
+            print param_name
+            for fit_key in oct_dat_d:
+                # wrong octant, maximal mixing or combined (but don't care about
+                # the latter here for now)
+                if fit_key == 'combined' or fit_key == 'metric': continue
+                for hypo in oct_dat_d[fit_key]:
+                    if hypo == 'best hypo': continue
+                    best_fit_d = \
+                        np.array(oct_dat_d[fit_key][hypo]['best fits']) \
+                                [running_inds]
+                    try: y1 = [bf_d[param_name][0] for bf_d in best_fit_d]
+                    except: continue
+                    if fit_key == 'wrong octant':
+                        col_ind = 0
+                        fit_key_str = 'wrong oct.'
+                    elif fit_key == 'maximal mixing':
+                        col_ind = 1
+                        fit_key_str = 'max. mix.'
+                    else: raise ValueError("Fit key %s not recognised!"%fit_key)
+                    ax[n, col_ind].plot(np.array(r_vals)[:,1], y1,
+                                       label="fit %s (%s %s)"%
+                                       (hypo, f_val, fixed_dim.replace("_", " ")),
+                                       lw=2)
+                    ax[n, col_ind].set_ylabel("%s (%s fit)"%
+                                              (param_name.replace("_", " "),
+                                              fit_key_str),
+                                              fontsize=10)#, labelpad=20)
+                    ax[n][0].legend(loc='best', frameon=False, fontsize=10)
+        for row in ax:
+            for axi in row:
+                plt.setp(axi.spines.values(), linewidth=2)
+                axi.tick_params(axis='both', which='major', pad=10, width=3)
+                #axi.set_ylim(min(min(y1),min(y2)), max(max(y1), max(y2)))
+                #axi.set_ylim(min(min(y1), min(y2)), max(max(y1), max(y2)))
+                for lab in axi.get_xticklabels() + axi.get_yticklabels():
+                    lab.set_fontsize(10)
+        ax[n][0].set_xlabel(xlab, fontsize=12) #,labelpad=20)
+        ax[n][1].set_xlabel(xlab, fontsize=12) #,labelpad=20)
     return ax
 
 def parse_args():
@@ -190,9 +236,21 @@ if __name__ == "__main__":
         plt.savefig("./fixed_t23_running_lt_%d.png"%k)
 
         if args.plot_best_fits:
-            nparams_fit = \
-               len(oct_dat_d['wrong octant'].values()[0]['best fits'][0].keys())
+            param_names_fit = \
+               oct_dat_d['wrong octant'].values()[0]['best fits'][0].keys()
+            nparams_fit = len(param_names_fit)
             if nparams_fit == 0:
                 print "No parameters were fit for file no. %d."%(k+1)
                 continue
-            #TODO: implement plotting
+            f_bf, ax_bf = plt.subplots(nparams_fit, 2, figsize=(16,3*nparams_fit),
+                                       sharex=True)
+            ax_bf = plot_best_fits(oct_dat_d, fixed_lt_running_t23,
+                                   all_lt_vals, lt_dim,
+                                   r"$\theta_{23}$ [%s]"%
+                                   t23_dim.replace("_", " "),
+                                   param_names_fit, ax_bf if nparams_fit > 1
+                                   else ax_bf.reshape((1,2)) )
+            f.tight_layout()
+            if nparams_fit == 1:
+                plt.gcf().subplots_adjust(bottom=0.2)
+            plt.savefig("./fixed_lt_running_t23_%d_best_fits.png"%k)
