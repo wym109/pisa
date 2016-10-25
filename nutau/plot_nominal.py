@@ -24,11 +24,12 @@ set_verbosity(args.v)
 
 
 
-my_plotter = Plotter(stamp='', outdir=args.outdir, fmt='pdf', log=False, annotate=True, symmetric=False, ratio=True)
+my_plotter = Plotter(stamp='', outdir=args.outdir, fmt='pdf', log=False, annotate=False, symmetric=False, ratio=True)
 
 template_maker = DistributionMaker(args.template_settings)
 template_nominal = template_maker.get_total_outputs()
 to_file(template_nominal, args.outdir+'/maps.json')
 for map in template_nominal:
     print '%s:\t%.2f'%(map.name, np.sum(unp.nominal_values(map.hist)))
-my_plotter.plot_2d_array(template_nominal, split_axis='pid', fname='nominal', cmap='summer')
+my_plotter.plot_2d_array(template_nominal, split_axis='pid', fname='nominal', cmap='YlOrRd')
+#my_plotter.plot_2d_array(template_nominal, fname='nominal', cmap='YlOrRd')

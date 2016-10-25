@@ -681,9 +681,12 @@ class Analysis(object):
         for i,pos in enumerate(loopfunc(*steplist)):
             if len(points_acc) > 0 and i not in points_acc:
                 continue
+            msg = ''
             for (pname, val) in pos:
                 params[pname].value = val
                 results['steps'][pname].append(val)
+                msg += '%s = %.2f '%(pname, val)
+            logging.info('Working on point ' + msg)
             hypo_maker.update_params(params)
             # TODO: consistent treatment of hypo_param_selections and scanning
             if not profile or len(hypo_maker.params.free) == 0:

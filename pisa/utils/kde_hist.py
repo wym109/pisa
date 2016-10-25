@@ -1,10 +1,10 @@
 from kde.cudakde import gaussian_kde
 import numpy as np
 from uncertainties import unumpy as unp
-from pisa.utils.profiler import profile
+from pisa.utils.profiler import profile, line_profile
 from pisa.core.binning import OneDimBinning, MultiDimBinning
 
-@profile
+#@line_profile
 def kde_histogramdd(sample, binning, weights=[],bw_method='scott',adaptive=True,
                         alpha=0.3,use_cuda=False,coszen_reflection=0.25,coszen_name = 'coszen',oversample=1):
     '''
@@ -38,7 +38,8 @@ def kde_histogramdd(sample, binning, weights=[],bw_method='scott',adaptive=True,
     else:
         norm = np.sum(weights)
     #oversample
-    binning = binning.oversample(oversample)
+    if not oversample==1:
+        binning = binning.oversample(oversample)
     # flip around to satisfy the kde implementation
     x = sample.T
     # must have same amount of dimensions as binning dimensions
@@ -105,11 +106,12 @@ def kde_histogramdd(sample, binning, weights=[],bw_method='scott',adaptive=True,
         hist1 = 0
     hist = hist + hist1 + hist0
     # bin volumes
-    volume = binning.bin_volumes()
-    hist *= volume
+    volume = binning.bin_volumes(attach_units=False)
+    hist = np.multiply(hist,volume)
     #downsample
-    for i,b in enumerate(binning):
-        hist = np.add.reduceat(hist, np.arange(0,len(b.bin_edges)-1,oversample), axis=i)
+    if not oversample==1:
+        for i,b in enumerate(binning):
+            hist = np.add.reduceat(hist, np.arange(0,len(b.bin_edges)-1,oversample), axis=i)
     # swap back the axes
     if not cz_bin == 0:
         hist = np.swapaxes(hist,0, cz_bin)
