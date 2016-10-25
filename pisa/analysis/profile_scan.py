@@ -8,23 +8,24 @@ Profile LLH/Chisquare Analysis
 
 """
 
+
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+
+import numpy as np
+
+from pisa import ureg, Q_
 from pisa.analysis.analysis import Analysis
 from pisa.core.distribution_maker import DistributionMaker
+from pisa.utils.config_parser import parse_pipeline_config
+from pisa.utils.fileio import from_file, to_file
 from pisa.utils.log import logging, set_verbosity
 
+
 if __name__ == '__main__':
-    from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-
-    import numpy as np
-
-    from pisa import ureg, Q_
-    from pisa.utils.fileio import from_file, to_file
-    from pisa.utils.config_parser import parse_pipeline_config
-
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '-d', '--data-settings', type=str,
-        metavar='configfile', default=None,
+        metavar='CONFIGFILE', default=None,
         help='''Settings for the generation of "data" distributions; repeat
         this argument to specify multiple pipelines. If omitted, the same
         settings as specified for --template-settings are used to generate data
@@ -32,30 +33,30 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         '-t', '--template-settings',
-        metavar='CONFIGFILE', required=True,
-        action='append',
+        metavar='CONFIGFILE', required=True, action='append',
         help='''Settings for generating template distributions; repeat
         this option to define multiple pipelines.'''
     )
     parser.add_argument(
-        '--param-names', type=str, nargs='+', required=True, help='''Provide a
-        list of parameter names to scan.'''
+        '--param-names', type=str, nargs='+', required=True,
+        help='''Provide a list of parameter names to scan.'''
     )
     parser.add_argument(
-        '--steps', type=int, nargs='+', required=True, help='''Provide a number
-        of steps for each parameter (in the same order as the parameter names).'''
+        '--steps', type=int, nargs='+', required=True,
+        help='''Provide a number of steps for each parameter (in the same order
+        as the parameter names).'''
     )
     parser.add_argument(
-        '--only-points', type=int, nargs='+', required=False, help='''Provide a
-        point or ranges of points to be scanned specified by one or an even
-        number of integer numbers (might be useful if the analysis is to be
-        split up into several smaller jobs). 0-indexing is assumed. Isn't
-        applied to any single parameter, but to the whole set of points
-        (with steps x steps - 1 corresponding to the last).'''
+        '--only-points', type=int, nargs='+', required=False,
+        help='''Provide a point or ranges of points to be scanned specified by
+        one or an even number of integer numbers (might be useful if the
+        analysis is to be split up into several smaller jobs). 0-indexing is
+        assumed. Isn't applied to any single parameter, but to the whole set of
+        points (with steps x steps - 1 corresponding to the last).'''
     )
     parser.add_argument(
-        '--no-outer', action='store_true', help='''Do not scan points as outer
-        product of inner sequences.'''
+        '--no-outer', action='store_true',
+        help='''Do not scan points as outer product of inner sequences.'''
     )
     parser.add_argument(
         '--data-param-selection', type=str, required=False,
@@ -64,12 +65,13 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         '--hypo-param-selections', type=str, nargs='+', required=False,
-        help='''Selection of params to use in order to generate the hypothesised
-        Asimov distributions.'''
+        help='''Selection of params to use in order to generate the
+        hypothesised Asimov distributions.'''
     )
     parser.add_argument(
-        '--profile', action='store_true', help='''Run profile scan, i.e. optimise
-        over remaining free parameters.'''
+        '--profile', action='store_true',
+        help='''Run profile scan, i.e. optimise over remaining free
+        parameters.'''
     )
     parser.add_argument(
         '-o', '--outfile', metavar='FILE',
