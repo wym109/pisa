@@ -41,6 +41,9 @@ NAME_SEPCHARS = r'([_\s-])*'
 NAME_FIXES_REGEXES = [re.compile(p + NAME_SEPCHARS, re.IGNORECASE)
                       for p in NAME_FIXES]
 
+__all__ = ['OneDimBinning', 'MultiDimBinning', 'basename']
+
+# TODO: move this to a centralized utils location
 def basename(n):
     """Remove "true" or "reco" prefix(es) and/or suffix(es) from binning
     name `n` along with any number of possible separator characters.

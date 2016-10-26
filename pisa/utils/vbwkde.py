@@ -90,6 +90,9 @@ import scipy.interpolate as interpolate
 from pisa.utils.log import logging
 
 
+__all__ = ['fbw_kde', 'vbw_kde', 'fixed_point']
+
+
 pi = np.pi
 sqrtpi = np.sqrt(pi)
 sqrt2pi = np.sqrt(2*pi)

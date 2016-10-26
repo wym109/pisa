@@ -9,19 +9,22 @@ PIDSpec class for importing, working with, and storing PID specifications.
 """
 
 
-import os
 import collections
+import os
+
 import h5py
-
-import pisa.utils.jsons as jsons
-import pisa.utils.flavInt as flavInt
-import pisa.utils.resources as resources
-
 # Note that the form of the numpy import is intentional, so that cuts -- which
 # are exectuted with `eval` -- will have access to numpy's namespace without
 # explicit reference to numpy. It's a hack, but it works well.
 import numpy as np
 from numpy import *
+
+import pisa.utils.flavInt as flavInt
+from pisa.utils.jsons import from_json
+import pisa.utils.resources as resources
+
+
+__all__ = ['PIDSpec']
 
 
 class PIDSpec(object):
@@ -72,7 +75,7 @@ class PIDSpec(object):
         if pid_specs is None:
             pid_specs = 'pid/pid_specifications.json'
         if isinstance(pid_specs, basestring):
-            pid_specs = jsons.from_json(resources.find_resource(pid_specs))
+            pid_specs = from_json(resources.find_resource(pid_specs))
         elif isinstance(pid_specs, collections.Mapping):
             pass
         else:

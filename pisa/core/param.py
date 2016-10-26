@@ -16,11 +16,16 @@ import numpy as np
 import pint
 from pisa import ureg, Q_
 
+from pisa.utils import jsons
 from pisa.utils.comparisons import isbarenumeric, normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile
 from pisa.utils.random_numbers import get_random_state
+
+
+__all__ = ['Param', 'ParamSet', 'ParamSelector']
+
 
 # TODO: Make property "frozen" or "read_only" so params in param set e.g.
 # returned by a template maker -- which updating the values of will NOT have
@@ -37,6 +42,9 @@ class Param(object):
     Parameters
     ----------
     name : string
+
+    unique_id : string
+        set to name if None provided
 
     value : string or pint Quantity with units
 
@@ -88,17 +96,18 @@ class Param(object):
 
 
     """
-    _slots = ('name', 'value', 'prior', 'range', 'is_fixed', 'is_discrete',
+    _slots = ('name', 'unique_id', 'value', 'prior', 'range', 'is_fixed', 'is_discrete',
               'nominal_value', '_rescaled_value',
               '_nominal_value', '_tex', 'help','_value', '_range', '_units')
-    _state_attrs = ('name', 'value', 'prior', 'range', 'is_fixed',
+    _state_attrs = ('name', 'unique_id', 'value', 'prior', 'range', 'is_fixed',
                      'is_discrete', 'nominal_value', 'tex', 'help')
 
-    def __init__(self, name, value, prior, range, is_fixed, is_discrete=False,
+    def __init__(self, name, value, prior, range, is_fixed, unique_id=None, is_discrete=False,
                  nominal_value=None, tex=None, help=''):
         self._value = None
         self.value = value
         self.name = name
+        self.unique_id = unique_id if unique_id is not None else name
         self._tex = tex if tex is not None else name
         self.help = help
         self.range = range
@@ -263,19 +272,49 @@ class Param(object):
         self.nominal_value = self.value
 
     def randomize(self, random_state=None):
+        """Randomize the parameter's value according to a uniform random
+        distribution within the parameter's defined limits.
+
+        Parameters
+        ----------
+        random_state : None, int, or RandomState
+            Object to use for random state. None defaults to the global random
+            state (this is discouraged, as results are not reproducible). An
+            integer acts as a seed to `numpy.random.seed()`, and RandomState is
+            a `numpy.random.RandomState` object.
+
+        """
         random = get_random_state(random_state)
         rand = random.rand()
         self._rescaled_value = rand
 
     def prior_penalty(self, metric):
+        """Return the prior penalty according to `metric`.
+
+        Parameters
+        ----------
+        metric : str
+            Metric to use for evaluating the prior penalty.
+
+        Returns
+        -------
+        penalty : float prior penalty value
+
+        """
+        LLH_METRICS = ['llh', 'barlow_llh', 'conv_llh']
+        CHI2_METRICS = ['chi2', 'mod_chi2']
+        assert isinstance(metric, basestring)
+        metric = metric.strip().lower()
+        if metric not in LLH_METRICS + CHI2_METRICS:
+            raise ValueError('Metric "%s" is invalid; must be one of %s'
+                             %(metric, LLH_METRICS+CHI2_METRICS))
         if self.prior is None:
             return 0
-        metric = metric.lower() if isinstance(metric, basestring) else metric
-        if metric in ['llh', 'barlow_llh', 'conv_llh']:
+        if metric in LLH_METRICS:
             logging.trace('self.value: %s' %self.value)
             logging.trace('self.prior: %s' %self.prior)
             return self.prior.llh(self.value)
-        elif metric in ['chi2', 'mod_chi2']:
+        elif metric in CHI2_METRICS:
             return self.prior.chi2(self.value)
         else:
             raise ValueError('Unrecognized `metric` "%s"' %str(metric))
@@ -405,10 +444,38 @@ class ParamSet(Sequence):
         self._params = param_sequence
 
     @property
+    def _serializable_state(self):
+        state = OrderedDict()
+        for p in self._params:
+            state[p.name] = p.state
+        return state
+
+    @property
     def _by_name(self):
         return {obj.name: obj for obj in self._params}
 
     def index(self, value):
+        """Return an integer index to the Param in this ParamSet indexed by
+        `value`. This does not look up a param's `value` property but looks for
+        param by name, integer index, or matching object.
+
+        Parameters
+        ----------
+        value : int, str or Param
+            The object to return an index for. If int, the integer is returned
+            (so long as it's in the valid range). If str, return index of param
+            with matching `name` attribute. If Param object, return index of an
+            equivalent Param in this set.
+
+        Returns
+        -------
+        idx : int index to a corresponding param in this ParamSet
+
+        Raises
+        ------
+        ValueError : if `value` does not correspond to a param in this ParamSet
+
+        """
         idx = -1
         if isinstance(value, int):
             idx = value
@@ -421,22 +488,80 @@ class ParamSet(Sequence):
         return idx
 
     def replace(self, new):
+        """Replace an existing param with `new` param, where the existing param
+        must have the same `name` attribute as `new`.
+
+        Parameters
+        ----------
+        new : Param
+            New param to use instead of current param.
+
+        Raises
+        ------
+        ValueError : if `new.name` does not match an existing param's name
+
+        """
         idx = self.index(new.name)
         self._params[idx] = new
 
     def fix(self, x):
+        """Set param(s) to be fixed in value (and hence not modifiable by e.g.
+        a minimizer).
+
+        Note that the operation is atomic: If `x` is a sequence of indexing
+        objects, if _any_ index in `x` cannot be found, _no_ other params
+        specified in `x` will be set to be fixed.
+
+        Any params specified in `x` that are already fixed simply remain so.
+
+        Parameters
+        ----------
+        x : int, str, Param, or iterable thereof
+            Object or sequence to index into params to define which to affix.
+            See `index` method for valid objects to use for indexing into the
+            ParamSet.
+
+        Raises
+        ------
+        ValueError : if any index cannot be found
+
+        """
         if isinstance(x, (Param, int, basestring)):
             x = [x]
-        my_names = self.names
-        for name in x:
-            self[self.index(name)].is_fixed = True
+        indices = set()
+        for obj in x:
+            indices.add(self.index(obj))
+        for idx in indices:
+            self[idx].is_fixed = True
 
     def unfix(self, x):
+        """Set param(s) to be free (and hence  modifiable by e.g. a minimizer).
+
+        Note that the operation is atomic: If `x` is a sequence of indexing
+        objects, if _any_ index in `x` cannot be found, _no_ other params
+        specified in `x` will be set to be free.
+
+        Any params specified in `x` that are already free simply remain so.
+
+        Parameters
+        ----------
+        x : int, str, Param, or iterable thereof
+            Object or sequence to index into params to define which to affix.
+            See `index` method for valid objects to use for indexing into the
+            ParamSet.
+
+        Raises
+        ------
+        ValueError : if any index cannot be found
+
+        """
         if isinstance(x, (Param, int, basestring)):
             x = [x]
-        my_names = self.names
-        for name in x:
-            self[self.index(name)].is_fixed = False
+        indices = set()
+        for obj in x:
+            indices.add(self.index(obj))
+        for idx in indices:
+            self[idx].is_fixed = False
 
     def update(self, obj, existing_must_match=False, extend=True):
         """Update this param set using `obj`.
@@ -521,7 +646,7 @@ class ParamSet(Sequence):
 
     def __getattr__(self, attr):
         try:
-            return super(self.__class__, self).__getattr__(attr)
+            return super(self.__class__, self).__getattribute__(attr)
         except AttributeError, exc:
             try:
                 return self[attr]
@@ -583,8 +708,36 @@ class ParamSet(Sequence):
         return recursiveEquality(self.state, other.state)
 
     def priors_penalty(self, metric):
+        """Return the aggregate prior penalty for all params at their current
+        values.
+
+        Parameters
+        ----------
+        metric : str
+            Metric to use for evaluating the prior.
+
+        Returns
+        -------
+        penalty : float sum of all parameters' prior values
+
+        """
         return np.sum([obj.prior_penalty(metric=metric)
                        for obj in self._params])
+
+    def priors_penalties(self, metric):
+        """Return the prior penalties for each param at their current values.
+
+        Parameters
+        ----------
+        metric : str
+            Metric to use for evaluating the prior.
+
+        Returns
+        -------
+        penalty : list of float prior values, one for each param
+
+        """
+        return [obj.prior_penalty(metric=metric) for obj in self._params]
 
     def reset_all(self):
         """Reset both free and fixed parameters to their nominal values."""
@@ -599,6 +752,18 @@ class ParamSet(Sequence):
         self.nominal_values = self.values
 
     def randomize_free(self, random_state=None):
+        """Randomize any free parameters with according to a uniform random
+        distribution within the parameters' defined limits.
+
+        Parameters
+        ----------
+        random_state : None, int, or RandomState
+            Object to use for random state. None defaults to the global random
+            state (this is discouraged, as results are not reproducible). An
+            integer acts as a seed to `numpy.random.seed()`, and RandomState is
+            a `numpy.random.RandomState` object.
+
+        """
         random = get_random_state(random_state)
         n = len(self.free)
         rand = random.rand(n)
@@ -721,6 +886,11 @@ class ParamSet(Sequence):
     def state_hash(self):
         return hash_obj(normQuant(self.state))
 
+    def to_json(self, filename, **kwargs):
+        """Serialize the state to a JSON file that can be instantiated as a new
+        object later.
+        """
+        jsons.to_json(self._serializable_state, filename=filename, **kwargs)
 
 class ParamSelector(object):
     """
@@ -795,7 +965,7 @@ class ParamSelector(object):
                     raise
             distilled_selections.append(selection)
 
-        self._selections = distilled_selections
+        self._selections = sorted(distilled_selections)
 
         return self._current_params
 

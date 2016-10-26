@@ -38,6 +38,9 @@ from pisa.utils.resources import find_resource
 from pisa.utils.timing import timediffstamp, timestamp
 
 
+__all__ = ['extract_trials', 'extract_fit']
+
+
 def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
     """Extract and aggregate analysis results.
 

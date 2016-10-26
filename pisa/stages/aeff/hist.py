@@ -2,20 +2,20 @@
 # date:   March 20, 2016
 
 
-import copy
-from itertools import product
-
 import numpy as np
 
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.core.events import Events
-from pisa.utils.flavInt import ALL_NUFLAVINTS, flavintGroupsFromString, \
-        IntType, NuFlavIntGroup
+from pisa.utils.flavInt import (ALL_NUFLAVINTS, flavintGroupsFromString,
+                                IntType, NuFlavIntGroup)
 from pisa.utils.fileio import mkdir, to_file
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile
+
+
+__all__ = ['hist']
 
 
 # TODO: the below logic does not generalize to muons, but probably should
@@ -24,8 +24,7 @@ from pisa.utils.profiler import profile
 # input_names and output_names.
 
 class hist(Stage):
-    """Example stage with maps as inputs and outputs, and no disk cache. E.g.,
-    histogrammed oscillations stages will work like this.
+    """Effective area.
 
     Parameters
     ----------
@@ -35,6 +34,7 @@ class hist(Stage):
         aeff_events
         livetime
         aeff_scale
+        nutau_cc_norm
         transform_events_keep_criteria
 
     particles : string
@@ -77,9 +77,8 @@ class hist(Stage):
 
     Notes
     -----
-    Example input names would be:
     See Conventions section in the documentation for more informaton on
-    particle naming scheme in PISA. As an example
+    particle naming scheme in PISA.
 
     """
     def __init__(self, params, particles, transform_groups,
@@ -98,10 +97,13 @@ class hist(Stage):
 
         # All of the following params (and no more) must be passed via the
         # `params` argument.
-        expected_params = (
-            'aeff_events', 'livetime', 'aeff_scale', 'nutau_cc_norm',
+        expected_params = [
+            'aeff_events', 'livetime', 'aeff_scale',
             'transform_events_keep_criteria'
-        )
+        ]
+        if particles == 'neutrinos':
+            expected_params.append('nutau_cc_norm')
+
 
         if isinstance(input_names, basestring):
             input_names = input_names.replace(' ', '').split(',')
@@ -118,6 +120,10 @@ class hist(Stage):
             else:
                 input_flavints = NuFlavIntGroup(input_names)
                 output_names = [str(fi) for fi in input_flavints]
+        elif self.particles == 'muons':
+            raise NotImplementedError
+        else:
+            raise ValueError('Particle type `%s` is not valid' % self.particles)
 
         logging.trace('transform_groups = %s' %self.transform_groups)
         logging.trace('output_names = %s' %' :: '.join(output_names))
@@ -195,7 +201,7 @@ class hist(Stage):
 
         nominal_transforms = []
         for xform_flavints in self.transform_groups:
-            logging.debug("Computing aeff xform for %s..." %xform_flavints)
+            logging.debug("Working on %s effective areas xform" %xform_flavints)
 
             aeff_transform = self.remaining_events.histogram(
                 kinds=xform_flavints,
@@ -232,7 +238,7 @@ class hist(Stage):
                         xform_input_names.append(input_name)
 
                 for output_name in self.output_names:
-                    if not output_name in xform_flavints:
+                    if output_name not in xform_flavints:
                         continue
                     xform = BinnedTensorTransform(
                         input_names=xform_input_names,
@@ -252,7 +258,7 @@ class hist(Stage):
                     input_flavs = NuFlavIntGroup(input_name)
                     # Since aeff "splits" neutrino flavors into
                     # flavor+interaction types, need to check if the output
-                    # flavints' are encapsulated by the input flavor(s).
+                    # flavints are encapsulated by the input flavor(s).
                     if len(set(xform_flavints).intersection(input_flavs)) == 0:
                         continue
                     for output_name in self.output_names:
@@ -271,12 +277,18 @@ class hist(Stage):
         return TransformSet(transforms=nominal_transforms)
 
     def _compute_transforms(self):
-        """Compute new oscillation transforms"""
+        """Compute new effective area transforms"""
         # Read parameters in in the units used for computation
         aeff_scale = self.params.aeff_scale.m_as('dimensionless')
         livetime_s = self.params.livetime.m_as('sec')
         logging.trace('livetime = %s --> %s sec'
                       %(self.params.livetime.value, livetime_s))
+
+        if self.particles == 'neutrinos':
+            nutau_cc_norm = self.params.nutau_cc_norm.m_as('dimensionless')
+            if nutau_cc_norm != 1:
+                assert NuFlavIntGroup('nutau_cc') in self.transform_groups
+                assert NuFlavIntGroup('nutaubar_cc') in self.transform_groups
 
         new_transforms = []
         for xform_flavints in self.transform_groups:
@@ -284,14 +296,15 @@ class hist(Stage):
             flav_names = [str(flav) for flav in xform_flavints.flavs()]
             aeff_transform = None
             for transform in self.nominal_transforms:
-                if transform.input_names[0] in flav_names \
-                        and transform.output_name in xform_flavints:
+                if (transform.input_names[0] in flav_names
+                        and transform.output_name in xform_flavints):
                     if aeff_transform is None:
-                        aeff_transform = transform.xform_array * (aeff_scale *
-                                                                  livetime_s)
-                        if transform.output_name in ['nutau_cc', 'nutaubar_cc']:
-                            aeff_transform = aeff_transform * \
-                                    self.params.nutau_cc_norm.magnitude
+                        scale = aeff_scale * livetime_s
+                        if (self.particles == 'neutrinos'
+                                and ('nutau_cc' in transform.output_name
+                                or 'nutaubar_cc' in transform.output_name)):
+                            scale *= nutau_cc_norm
+                        aeff_transform = transform.xform_array * scale
                     new_xform = BinnedTensorTransform(
                         input_names=transform.input_names,
                         output_name=transform.output_name,

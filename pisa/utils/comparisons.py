@@ -39,6 +39,10 @@ from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import line_profile, profile
 
 
+__all__ = ['isvalidname', 'isscalar', 'isbarenumeric',
+           'recursiveEquality', 'recursiveAllclose', 'normQuant']
+
+
 PREC = np.finfo(float).eps
 """Machine precision ("eps") for `float` datatype"""
 

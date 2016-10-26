@@ -20,6 +20,10 @@ from pisa.utils.fileio import expandPath, from_file, to_file
 from pisa.utils import flavInt
 from pisa.utils.log import logging, set_verbosity
 
+
+__all__ = ['CrossSections']
+
+
 # TODO: make class for groups of CX or just a function for finding eisting
 # versions in a json file; eliminate the optional ver parameters in
 # CrossSections class methods

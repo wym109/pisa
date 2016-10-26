@@ -30,6 +30,9 @@ from pisa.utils import hdf
 from pisa.utils.log import logging, set_verbosity
 
 
+__all__ = ['Events']
+
+
 # TODO: test hash function (attr)
 class Events(FlavIntData):
     """Container for storing events, including metadata about the events.

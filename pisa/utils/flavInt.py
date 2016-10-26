@@ -50,6 +50,13 @@ from pisa.utils.log import logging, set_verbosity
 from pisa.utils.comparisons import recursiveAllclose, recursiveEquality
 
 
+__all__ = ['NuFlav', 'NuFlavInt', 'NuFlavIntGroup', 'FlavIntData',
+           'FlavIntDataGroup', 'CombinedFlavIntData', 'xlateGroupsStr',
+           'flavintGroupsFromString', 'IntType', 'BarSep', 'set_bar_ssep',
+           'get_bar_ssep', 'tex', 'ALL_NUPARTICLES', 'ALL_NUANTIPARTICLES',
+           'ALL_NUFLAVS']
+
+
 global __BAR_SSEP__
 __BAR_SSEP__ = ''
 
@@ -80,6 +87,7 @@ def get_bar_ssep():
     return __BAR_SSEP__
 
 
+# TODO: move this to central loc in utils
 def tex(x, d=False):
     if d:
         return '$' + x.tex() + '$'
@@ -236,6 +244,7 @@ ALL_NUANTIPARTICLES = (NuFlav(-12), NuFlav(-14), NuFlav(-16))
 ALL_NUFLAVS = tuple(sorted(list(ALL_NUPARTICLES) + list(ALL_NUANTIPARTICLES)))
 
 
+# TODO: are the following two classes redundant now?
 class AllNu(object):
     def __init__(self):
         self.__flav = [p for p in ALL_NUPARTICLES]

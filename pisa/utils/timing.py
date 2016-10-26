@@ -6,6 +6,10 @@ import numpy as np
 
 from pisa.utils.format import engfmt
 
+
+__all__ = ['Timer', 'timediffstamp', 'timestamp']
+
+
 # TODO: add unit tests!
 
 class Timer(object):
