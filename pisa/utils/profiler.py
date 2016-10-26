@@ -5,6 +5,9 @@ from line_profiler import LineProfiler
 from pisa.utils.log import logging, set_verbosity, tprofile
 
 
+__all__ = ['line_profile', 'profile']
+
+
 class log():
     """Class to redirect output into our logging stream."""
     def write(self, string):

@@ -1,26 +1,33 @@
 # authors: P.Eller (pde3@psu.edu)
 # date:   September 2016
+
+
 import os
+
+import numpy as np
 import pycuda.driver as cuda
 from pycuda.compiler import SourceModule
-import numpy as np
+
 from pisa.utils.profiler import profile
 from pisa.utils.log import set_verbosity
-#set_verbosity(3)
 
+
+__all__ = ['GPUhist']
+
+
+# TODO: get pep8 up in heah
 class GPUhist(object):
-    ''' histogramming class for GPUs
-        
-    PARAMETERS
-    ---------
+    """
+    Histogramming class for GPUs
 
+    Parameters
+    ---------
     bin_edges_x : array
     bin_edges_y : array
     bin_edges_z : array (optional)
 
-    METHODS
+    Methods
     -------
-
     get_hist
         retreive weighted histogram of given events
         * n_evts : number of events
@@ -31,10 +38,8 @@ class GPUhist(object):
     clear
         clear buffer
 
-    '''
-    
+    """
     def __init__(self, bin_edges_x, bin_edges_y, bin_edges_z=None):
-        ''' initialize histogram, with given bin_edges '''
         self.FTYPE = np.float64
         self.h3d = bool(bin_edges_z is not None)
         # events to be histogrammed per thread
@@ -44,7 +49,7 @@ class GPUhist(object):
         if self.h3d:
             self.n_bins_z = np.int32(len(bin_edges_z)-1)
             self.hist = np.ravel(np.zeros((self.n_bins_x, self.n_bins_y, self.n_bins_z))).astype(self.FTYPE)
-        else: 
+        else:
             self.n_bins_z = 1
             self.hist = np.ravel(np.zeros((self.n_bins_x, self.n_bins_y))).astype(self.FTYPE)
 
@@ -54,7 +59,7 @@ class GPUhist(object):
         self.d_bin_edges_y = cuda.mem_alloc(bin_edges_y.nbytes)
         if self.h3d:
             self.d_bin_edges_z = cuda.mem_alloc(bin_edges_z.nbytes)
-            
+
 
         # copy
         cuda.memcpy_htod(self.d_hist, self.hist)
@@ -62,17 +67,17 @@ class GPUhist(object):
         cuda.memcpy_htod(self.d_bin_edges_y, bin_edges_y)
         if self.h3d:
             cuda.memcpy_htod(self.d_bin_edges_z, bin_edges_z)
-            
 
-        kernel_template = """//CUDA//
+
+        kernel_template = '''//CUDA//
           // total number of bins (must be known at comiple time)
           #define N_BINS %i
           // number of events to be histogrammed per thread
           #define N_THREAD %i
-            
+
           #include "constants.h"
           #include "utils.h"
-          
+
           __device__ int GetBin(fType x, const int n_bins, fType *bin_edges){
             // search what bin an event belongs in, given the event values x, the number of bins n_bins and the bin_edges array
             int first = 0;
@@ -93,7 +98,7 @@ class GPUhist(object):
                     last = bin - 1;
                 }
             }
-            return bin; 
+            return bin;
           }
 
           __global__ void Hist2D(fType *X, fType *Y, fType *W, const int n_evts, fType *hist, const int n_bins_x, const int n_bins_y, fType *bin_edges_x, fType *bin_edges_y)
@@ -168,7 +173,7 @@ class GPUhist(object):
             }
 
           }
-          """%(self.n_bins_x*self.n_bins_y*self.n_bins_z, self.n_thread)
+          '''%(self.n_bins_x*self.n_bins_y*self.n_bins_z, self.n_thread)
         include_path = os.path.expandvars('$PISA/pisa/stages/osc/grid_propagator/')
         module = SourceModule(kernel_template, include_dirs=[include_path], keep=True)
         self.hist2d_fun = module.get_function("Hist2D")
@@ -178,12 +183,13 @@ class GPUhist(object):
         # very dumb way to reset to zero...
         if self.h3d:
             self.hist = np.ravel(np.zeros((self.n_bins_x, self.n_bins_y, self.n_bins_z))).astype(self.FTYPE)
-        else: 
+        else:
             self.hist = np.ravel(np.zeros((self.n_bins_x, self.n_bins_y))).astype(self.FTYPE)
         cuda.memcpy_htod(self.d_hist, self.hist)
 
     def get_hist(self, n_evts, d_x, d_y, d_w, d_z=None):
-        ''' retrive histogram, given device arrays for x&y values as well as weights w '''
+        """Retrive histogram, given device arrays for x&y values as well as
+        weights w"""
         # block and grid dimensions
         bdim = (256,1,1)
         dx, mx = divmod(n_evts/self.n_thread+1, bdim[0])
@@ -224,7 +230,8 @@ if __name__ == '__main__':
     histogrammer = GPUhist(bin_edges_e, bin_edges_cz)
     hist2d = histogrammer.get_hist(n_evts, d_e, d_cz, d_w)
 
-    np_hist2d,_,_ = np.histogram2d(e, cz,bins=(bin_edges_e, bin_edges_cz), weights=w)
+    np_hist2d,_,_ = np.histogram2d(e, cz,bins=(bin_edges_e, bin_edges_cz),
+                                   weights=w)
     print hist2d
     print np_hist2d
     assert (np.sum(hist2d - np_hist2d) == 0.)

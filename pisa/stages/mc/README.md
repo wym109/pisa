@@ -9,7 +9,7 @@ only a gpu based method is available right now, requiring a Nvidia GPU
 ### gpu
 
 This service generates histograms, given a set of MC events that also include nominal flux weights.
-Weights are calculated for every event and flavour/interaction type (alpha) indicvidually, according to the following expression
+Weights are calculated for every event and flavor/interaction type (alpha) individually, according to the following expression
 
 ![weights](images/weight.png)
 <!---
@@ -20,9 +20,9 @@ w_\alpha(E,CZ) = p_\alpha(E,CZ) \cdot M_{RES}(E,CZ) \cdot M_{QE}(E,CZ) \cdot t_{
 where:
   * `M RES` and `M QE` are precalculated GENIE systematics
   * `t live` the livetime
-  * `W Aeff` the precalculated effective area weight (including oneweight and crosssection)
-  * `A eff scale` a global scaling paramter
-  * `p alpha` the probability of observing the event in this flaveour/inttype calculates as:
+  * `W Aeff` the precalculated effective area weight (including OneWeight and cross section)
+  * `A eff scale` a global scaling parameter
+  * `p alpha` the probability of observing the event in this flavor/inttype calculates as:
 
 ![prob](images/prob.png)
 <!---
@@ -30,7 +30,7 @@ p_\alpha(E,CZ) = P^{osc}_{e\rightarrow\alpha}(E,CZ) \cdot \widehat{flux}_e(E,CZ)
 --->
 
 where:
-  * `P osc` is the oscialltion probability (obtained from Prob3)
+  * `P osc` is the oscillation probability (obtained from Prob3)
   * `flux hat` the modified flux given by:
 
 ![flux](images/flux.png)
@@ -39,10 +39,10 @@ where:
 --->
 
 where:
-  * `flux` is the nominal flux that is obtained for aexample from the Honda flux tables
+  * `flux` is the nominal flux that is obtained for example from the Honda flux tables
   * `Barr up/hor`, `Barr nu/nubar` and `R nue/numu` are flux ratio uncertainties
   * `S` the systematic uncertainty on the spectral index
 
-The events get histogramed on GPU into the provided bin edges for reconstructed energy and cos(zenith), as well as PID (cscade or track). At the moment the division into PID classes is two separate histograms at the moment, not a real binning.
+The events get histogrammed on GPU into the provided bin edges for reconstructed energy and cos(zenith), as well as PID (cscade or track). At the moment the division into PID classes is two separate histograms at the moment, not a real binning.
 
-In this implementation the histograms are added up for all flavour/inttypes in the end of the stage, while also applying additional scale factors for the tau neutrino and the NC histograms.
+In this implementation the histograms are added up for all flavor/inttypes in the end of the stage, while also applying additional scale factors for the tau neutrino and the NC histograms.

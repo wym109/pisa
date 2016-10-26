@@ -1,4 +1,4 @@
-# authors: J.Lanfranchi/P.Eller
+# author: P.Eller
 # date:   March 20, 2016
 
 
@@ -24,11 +24,21 @@ from pisa.utils.config_parser import split
 # input_names and output_names.
 
 class polyfits(Stage):
+    """
+    Stage to apply externally created fits of discrete systematics sets
+    The inputs are parameter value plus corresponding slope file per
+    systematic
+
+    i.e. for example the params
+        dom_eff : Quantity
+        dom_eff_file : path of corresponding fit file
+
+    The slope files can be created with pisa/utils/fit_discrete_sys_pid.py
+
+    """
     def __init__(self, params, input_binning, output_binning, input_names,
                  disk_cache=None, error_method=None,
                  transforms_cache_depth=20, outputs_cache_depth=20):
-        """TODO: documentme"""
-
         # All of the following params (and no more) must be passed via the
         # `params` argument.
         expected_params = (
@@ -58,18 +68,22 @@ class polyfits(Stage):
         )
 
     def _compute_nominal_transforms(self):
-        """TODO: documentme"""
+        """Load the fit results from the file and make some check
+        compatibility"""
         self.pnames = [pname for pname in self.params.names if not
             pname.endswith('_file')]
         self.fit_results = {}
         for pname in self.pnames:
-            self.fit_results[pname] = from_file(self.params[pname+'_file'].value)
+            self.fit_results[pname] = from_file(
+                self.params[pname+'_file'].value
+            )
             assert self.input_names == self.fit_results[pname]['map_names']
             #assert self.input_binning.hash == self.fit_results[pname]['binning_hash']
 
     @profile
     def _compute_transforms(self):
-        """TODO: documentme"""
+        """For the current parameter values, evaluate the fit function and
+        write the resulting scaling into an x-form array"""
         # TODO: use iterators to collapse nested loops
         transforms = []
         for name in self.input_names:
@@ -79,10 +93,11 @@ class polyfits(Stage):
                            self.fit_results[pname]['nominal'])
                 exec(self.fit_results[pname]['function'])
                 fit_params = self.fit_results[pname][name]
-                small_shape = fit_params.shape[:-1]
+                shape = fit_params.shape[:-1]
                 if transform is None:
-                    transform = np.ones(small_shape)
-                for idx in np.ndindex(*small_shape):
+                    transform = np.ones(shape)
+                for idx in np.ndindex(*shape):
+                    # At every point evaluate the function
                     transform[idx] *= fit_fun(p_value,
                             *fit_params[idx])
 

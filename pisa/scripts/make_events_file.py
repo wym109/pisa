@@ -287,7 +287,7 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
             logging.trace('Trying to get data from file %s' %fname)
             try:
                 data = data_proc_params.getData(fname, run_settings=run_settings)
-            except:
+            except (ValueError, KeyError, IOError):
                 logging.warn('Bad file encountered: %s' %fname)
                 bad_files.append(fname)
                 continue

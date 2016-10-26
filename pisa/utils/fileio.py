@@ -19,6 +19,11 @@ from pisa.utils.log import logging
 from pisa.utils import resources
 
 
+__all__ = ['expandPath', 'mkdir', 'get_valid_filename', 'nsort', 'findFiles',
+           'from_cfg', 'from_pickle', 'to_pickle', 'from_dill', 'to_dill',
+           'from_file', 'to_file']
+
+
 JSON_EXTS = ['json', 'json.bz2']
 HDF5_EXTS = ['hdf', 'h5', 'hdf5']
 PKL_EXTS = ['pickle', 'pckl', 'pkl', 'p']
@@ -227,6 +232,7 @@ def from_file(fname, fmt=None, **kwargs):
         rootname, ext = os.path.splitext(fname)
         ext = ext.replace('.', '').lower()
     else:
+        rootname = fname
         ext = fmt.lower()
 
     zip_ext = None
@@ -256,10 +262,19 @@ def to_file(obj, fname, fmt=None, **kwargs):
     """Dispatch correct file writer based on fmt (if specified) or guess
     based on file name's extension"""
     if fmt is None:
-        _, ext = os.path.splitext(fname)
+        rootname, ext = os.path.splitext(fname)
         ext = ext.replace('.', '').lower()
     else:
+        rootname = fname
         ext = fmt.lower()
+
+    zip_ext = None
+    if ext in ZIP_EXTS:
+        rootname, inner_ext = os.path.splitext(rootname)
+        inner_ext = inner_ext.replace('.', '').lower()
+        zip_ext = ext
+        ext = inner_ext + '.' + zip_ext
+
     if ext in JSON_EXTS:
         return jsons.to_json(obj, fname, **kwargs)
     elif ext in HDF5_EXTS:

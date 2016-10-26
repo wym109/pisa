@@ -8,18 +8,12 @@
       "disp"   : 0,
       "ftol"   : 2e-7,
       "eps"    : 1.0e-4,
-      "gtol"   : 1.0e-5,
-      "maxcor" : 10,
-      "maxfun" : 15000,
-      "maxiter": 200
+      "maxiter": 1000
     },
     "desc": {
       "disp"   : "Set to True to print convergence messages",
-      "ftol"   : "ftol = factr*EPS, where EPS is machine precision (usually ~ 2e-16)",
-      "eps"    : "Step size to use in numerically evaluating gradient",
-      "gtol"   : "Gradient tolerance: if gradient_i > gtol for all i, exit",
-      "maxcor" : "Max number of corrections to define limited memory matrix",
-      "maxfun" : "Maximum number of function calls",
+      "ftol"   : "Precision goal for the value of f in the stopping criterion",
+      "eps"    : "Step size used for numerical approximation of the jacobian.",
       "maxiter": "Maximum number of iteration"
     }
   }

@@ -1045,8 +1045,9 @@ if __name__ == '__main__':
             'events', 'deepcore_ic86', 'MSU', '1XXXX', 'Joined',
             'DC_MSU_1X585_joined_nu_nubar_events_mc.hdf5'
         )
-        params.pid_weights_name.value = 'weighted_aeff'
-        params.pid_ver.value = 'msu_mn8d-mn7d'
+        #params.pid_weights_name.value = 'weighted_aeff'
+        #params.pid_ver.value = 'msu_mn8d-mn7d'
+        params.pid_spec.value = "[('cscd', '(pid >= -2) & (pid <= 3)'), ('trck', 'pid > 3')]"
         pisa2file = os.path.join(
             'tests', 'data', 'pid', 'PISAV2PIDStageHist1X585Service.json'
         )

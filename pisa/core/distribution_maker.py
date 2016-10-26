@@ -6,13 +6,18 @@
 from collections import OrderedDict, Sequence
 import importlib
 import inspect
+from itertools import product
 
+from pisa import ureg
 from pisa.core.pipeline import Pipeline
 from pisa.core.param import ParamSet
 from pisa.utils.betterConfigParser import BetterConfigParser
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.random_numbers import get_random_state
+
+
+__all__ = ['DistributionMaker']
 
 
 class DistributionMaker(object):
@@ -55,20 +60,18 @@ class DistributionMaker(object):
             if not isinstance(pipeline, Pipeline):
                 pipeline = Pipeline(pipeline)
             self._pipelines.append(pipeline)
+        #for pipeline in self:
+        #    pipeline.select_params(self.param_selections,
+        #                           error_on_missing=False)
 
     def __iter__(self):
         return iter(self._pipelines)
 
-    def get_outputs(self, **kwargs):
-        total_outputs = None
+    def get_outputs(self, sum=False, **kwargs):
         outputs = [pipeline.get_outputs(**kwargs) for pipeline in self]
+        if sum:
+            outputs = reduce(lambda x,y: sum(x) + sum(y), outputs)
         return outputs
-
-    def get_total_outputs(self, seed=None, **kwargs):
-        total_outputs = None
-        outputs = [pipeline.get_outputs(**kwargs) for pipeline in self]
-        total_outputs = reduce(lambda x,y: x+y, outputs)
-        return total_outputs
 
     def update_params(self, params):
         [pipeline.update_params(params) for pipeline in self]
@@ -102,9 +105,7 @@ class DistributionMaker(object):
     @property
     def param_selections(self):
         selections = set()
-        [selections.add(pipeline.selections) for pipeline in self]
-        for pipeline in self:
-            assert set(pipeline.selections) == selections
+        [selections.update(pipeline.param_selections) for pipeline in self]
         return sorted(selections)
 
     @property
@@ -171,10 +172,71 @@ class DistributionMaker(object):
             #pipeline.update_params(fp)
 
 
+def test_DistributionMaker():
+    #
+    # Test: select_params and param_selections
+    #
+
+    hierarchies = ['nh', 'ih']
+    materials = ['iron', 'pyrolite']
+
+    t23 = dict(
+        ih=49.5 * ureg.deg,
+        nh=42.3 * ureg.deg
+    )
+    YeO = dict(
+        iron=0.4656,
+        pyrolite=0.4957
+    )
+
+    # Instantiate with two pipelines: first has both nh/ih and iron/pyrolite
+    # param selectors, while the second only has nh/ih param selectors.
+    dm = DistributionMaker(['tests/settings/test_Pipeline.cfg',
+                            'tests/settings/test_Pipeline2.cfg'])
+
+    current_mat = 'iron'
+    current_hier = 'nh'
+
+    for new_hier, new_mat in product(hierarchies, materials):
+        new_YeO = YeO[new_mat]
+
+        assert dm.param_selections == sorted([current_hier, current_mat]), str(dm.params.param_selections)
+        assert dm.params.theta23.value == t23[current_hier], str(dm.params.theta23)
+        assert dm.params.YeO.value == YeO[current_mat], str(dm.params.YeO)
+
+        # Select just the hierarchy
+        dm.select_params(new_hier)
+        assert dm.param_selections == sorted([new_hier, current_mat]), str(dm.param_selections)
+        assert dm.params.theta23.value == t23[new_hier], str(dm.params.theta23)
+        assert dm.params.YeO.value == YeO[current_mat], str(dm.params.YeO)
+
+        # Select just the material
+        dm.select_params(new_mat)
+        assert dm.param_selections == sorted([new_hier, new_mat]), str(dm.param_selections)
+        assert dm.params.theta23.value == t23[new_hier], str(dm.params.theta23)
+        assert dm.params.YeO.value == YeO[new_mat], str(dm.params.YeO)
+
+        # Reset both to "current"
+        dm.select_params([current_mat, current_hier])
+        assert dm.param_selections == sorted([current_hier, current_mat]), str(dm.param_selections)
+        assert dm.params.theta23.value == t23[current_hier], str(dm.params.theta23)
+        assert dm.params.YeO.value == YeO[current_mat], str(dm.params.YeO)
+
+        # Select both hierarchy and material
+        dm.select_params([new_mat, new_hier])
+        assert dm.param_selections == sorted([new_hier, new_mat]), str(dm.param_selections)
+        assert dm.params.theta23.value == t23[new_hier], str(dm.params.theta23)
+        assert dm.params.YeO.value == YeO[new_mat], str(dm.params.YeO)
+
+        current_hier = new_hier
+        current_mat = new_mat
+
+
+
 if __name__ == '__main__':
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
     import numpy as np
-    from pisa.utils.fileio import from_file, to_file
+    from pisa.utils.fileio import expandPath, from_file, to_file
     from pisa.utils.config_parser import parse_pipeline_config
     from pisa.utils.plotter import Plotter
 
@@ -199,6 +261,10 @@ if __name__ == '__main__':
     distribution_maker = DistributionMaker(pipelines=args.pipeline)
     outputs = distribution_maker.get_outputs()
     if args.outdir:
+        # TODO: unique filename: append hash (or hash per pipeline config)
+        fname = 'distribution_maker_outputs.json.bz2'
+        fpath = expandPath(os.path.join(args.outdir, fname))
+        to_file(outputs, fpath)
         my_plotter = Plotter(
             stamp='PISA cake test',
             outdir=args.outdir,

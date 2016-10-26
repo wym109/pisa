@@ -27,6 +27,10 @@ from pisa.utils.log import logging
 from pisa.utils.fileio import to_file
 
 
+__all__ = ['Analysis', 'Counter']
+
+
+# TODO: move this to a central location prob. in utils
 class Counter(object):
     def __init__(self, i=0):
         self._i = i
@@ -305,7 +309,7 @@ class Analysis(object):
         hypo_maker._set_rescaled_free_params(rescaled_pvals)
 
         # Record the Asimov distribution with the optimal param values
-        hypo_asimov_dist = hypo_maker.get_total_outputs()
+        hypo_asimov_dist = hypo_maker.get_outputs(sum=True)
 
         # Get the best-fit metric value
         metric_val = sign * optimize_result.pop('fun')
@@ -398,7 +402,7 @@ class Analysis(object):
             name_vals_d['maps'] = data_dist.metric_per_map(
                 expected_values=hypo_asimov_dist, metric=m
             )
-            name_vals_d['priors'] = params.priors_penalty(metric=metric)
+            name_vals_d['priors'] = params.priors_penalties(metric=metric)
             detailed_metric_info[m] = name_vals_d
         return detailed_metric_info
 
@@ -453,7 +457,7 @@ class Analysis(object):
 
         # Get the Asimov map set
         try:
-            hypo_asimov_dist = hypo_maker.get_total_outputs()
+            hypo_asimov_dist = hypo_maker.get_outputs(sum=True)
         except:
             if not blind:
                 logging.error(
@@ -466,7 +470,7 @@ class Analysis(object):
         try:
             metric_val = (
                 data_dist.metric_total(expected_values=hypo_asimov_dist,
-                                  metric=metric)
+                                       metric=metric)
                 + hypo_maker.params.priors_penalty(metric=metric)
             )
         except:
@@ -628,10 +632,12 @@ class Analysis(object):
             Any other value for `debug_mode` will be set to 2.
 
         """
-        assert not (steps is not None and values is not None)
-        assert not (steps is None and values is None)
         if not debug_mode in (0, 1, 2):
             debug_mode = 2
+
+        # Either `steps` or `values` must be specified, but not both (xor)
+        assert (steps is None) != (values is None)
+
         if isinstance(param_names, basestring):
             param_names = [param_names]
 
@@ -706,19 +712,23 @@ class Analysis(object):
             if not profile or len(hypo_maker.params.free) == 0:
                 logging.info('Not optimizing since `profile` set to False or'
                              ' no free parameters found...')
-                bf = self.nofit_hypo(data_dist=data_dist,
-                                     hypo_maker=hypo_maker,
-                                     hypo_param_selections=hypo_param_selections,
-                                     hypo_asimov_dist=hypo_maker.get_total_outputs(),
-                                     metric=metric, **kwargs)
+                bf = self.nofit_hypo(
+                    data_dist=data_dist,
+                    hypo_maker=hypo_maker,
+                    hypo_param_selections=hypo_param_selections,
+                    hypo_asimov_dist=hypo_maker.get_outputs(sum=True),
+                    metric=metric,
+                    **kwargs
+                )
             else:
                 logging.info('Starting optimization since `profile` requested.')
-                bf, af = self.fit_hypo(data_dist=data_dist,
-                                       hypo_maker=hypo_maker,
-                                       hypo_param_selections=hypo_param_selections,
-                                       metric=metric,
-                                       minimizer_settings=minimizer_settings,
-                                       **kwargs)
+                bf, af = self.fit_hypo(
+                    data_dist=data_dist,
+                    hypo_maker=hypo_maker,
+                    hypo_param_selections=hypo_param_selections, metric=metric,
+                    minimizer_settings=minimizer_settings,
+                    **kwargs
+                )
                 # TODO: serialisation!
                 for k in bf['minimizer_metadata']:
                     if k in ['hess', 'hess_inv']:
