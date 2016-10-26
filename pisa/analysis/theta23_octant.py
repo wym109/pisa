@@ -219,7 +219,7 @@ if __name__ == '__main__':
         data_maker.params.theta23.value = t23
 
         # generate the data distributions
-        data_dist = data_maker.get_total_outputs()
+        data_dist = data_maker.get_outputs(sum=True)
 
         # loop over fit parameter selections
         for hypo_param_selection in hypo_param_selections:
@@ -284,12 +284,11 @@ if __name__ == '__main__':
             # no need for a fit if args.theta23_only = True
             else:
                 bf_max_mix = analysis.nofit_hypo(data_dist=data_dist,
-                                   hypo_maker=hypo_maker,
-                                   hypo_param_selections=hypo_param_selection,
-                                   hypo_asimov_dist= \
-                                                hypo_maker.get_total_outputs(),
-                                   metric=args.metric
-                                   )
+                               hypo_maker=hypo_maker,
+                               hypo_param_selections=hypo_param_selection,
+                               hypo_asimov_dist=hypo_maker.get_outputs(sum=True),
+                               metric=args.metric
+                               )
 
             for bf_dict in (bf, bf_max_mix):
                 # TODO: serialisation!
