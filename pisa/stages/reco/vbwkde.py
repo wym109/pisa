@@ -40,7 +40,12 @@ from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile, line_profile
 from pisa.utils.resources import find_resource
 
-EPSILON = 1e-2
+
+__all__ = ['vbwkde', 'plot_kde_detail', 'plot_multiple']
+
+
+EPSILON = 1e-8
+
 
 # TODO: the below logic does not generalize to muons, but probably should
 # (rather than requiring an almost-identical version just for muons). For
@@ -49,7 +54,7 @@ EPSILON = 1e-2
 
 class vbwkde(Stage):
     """
-    From the simulation file, a set of transforms are created which map
+    From simulated events, a set of transforms are created which map
     bins of true events onto distributions of reconstructed events using
     variable-bandwidth kernel density estimation. These transforms can be
     accessed by [true_energy][true_coszen][reco_energy][reco_coszen].
@@ -399,16 +404,23 @@ class vbwkde(Stage):
 
         return self.all_kde_info
 
-    @profile
-    def compute_kdes(self, events, input_binning, output_binning):
-        """Construct VBW-KDE kernels for smearing each true-variables bin.
+    #@profile
+    @staticmethod
+    def compute_kdes(events, input_binning, output_binning, min_num_events=100,
+                     tgt_num_events=300):
+        """Construct VBW-KDE kernels characterizing reconstruction error for
+        each of energy, coszen, and (optionally) PID in each true-variables
+        energy bin. N.B. the resolutions--computed once for each energy bin for
+        all true-coszen and all PID values--are ascribed to each output coszen
+        and PID bin.
 
         Note that the output binning (i.e., reco variables' binning) is
         irrelevant to this method, except whether this includes energy, coszen,
         and/or PID. (As of now, the firt two are required.)
 
-        From the samples, a linear interpolant is generated. There are one
-        energy and one coszen interpolant genreated for each energy bin.
+        Each KDE is sampled and a linear interpolant is generated from these
+        samples. There are one energy and one coszen interpolant genreated for
+        each energy bin.
 
         NOTE: Actual limits in energy used to group events into a single "true"
         bin may be extended beyond the bin edges defined by ebins in order
@@ -423,30 +435,68 @@ class vbwkde(Stage):
         input_binning : MultiDimBinning
             Must contain each of true_{energy|coszen} dimensions.
 
-        output_binning : MultiDimBinning
+        output_binning : MultiDimBinning or sequence of str
             Must contain each of reco_{energy|coszen} dimensions. If it
             contains a pid dimension, then kernels are computed in PID as well.
+
+        min_num_events : int
+
+        tgt_num_events : int
 
         Returns
         -------
         kde_info : OrderedDict with format (bin energy values in GeV):
             {
-                (ebin_min, ebin_mid, ebin_max): {
-                    'e_interp': reco-energy-error kde interpolant,
-                    'cz_interp': reco-coszen-error
+              (ebin_min, ebin_mid, ebin_max): {
+                'e_interp': reco-energy-error kde interpolant,
+                'cz_interp': reco-coszen-error,
+                'pid_interp': reco-coszen-error (optional)
+              }
+            }
+
+        extra_info : OrderedDict with format
+            {
+              (ebin_min, ebin_mid, ebin_max): {
+                'enu_err': list of reco-energy-error values,
+                'cz_err': list of reco-coszen-error values,
+                'actual_ebin_edges': min, max true-E of events used,
+                'enu_bw': list of Gaussian kernel bandwidths (corresponding
+                          to enu_err list),
+                'cz_bw': bandwidths corresponding with cz_err list,
+                'e_kde_lims': range in e-reco-error used to comp e KDE,
+                'cz_kde_lims': range in cz-reco-error used to comp cz KDE,
+
+                # -- following will only be populated if computing pid --
+
+                'pid': list of pid values,
+                'pid_bw': list of pid values,
+                'pid_kde_lims': list of pid values,
+              }
+            }
 
         """
         # Constants. Can turn into stage args or params if that makes more
         # sense.
         OVERFIT_FACTOR = 1.0
-        MIN_NUM_EVENTS = 100
-        TGT_NUM_EVENTS = 300
-        EPSILON = 1e-10
-        ENERGY_RANGE = [0, 501] # GeV
 
+        if isinstance(output_binning, MultiDimBinning):
+            output_dim_names = output_binning.names
+        elif isinstance(output_binning, basestring):
+            output_dim_names = [output_binning]
+        elif isinstance(output_binning, Sequence):
+            output_dim_names = list(output_binning)
+        else:
+            raise TypeError('Unhandled type for `output_binning` argument: %s'
+                            %type(output_binning))
+
+        # Optionally parameterize particle ID dimension (pid)
         compute_pid = False
-        if 'pid' in output_binning.names:
+        if 'pid' in output_dim_names:
             compute_pid = True
+
+        # For now, require reco_energy and reco_coszen (and parameterize both)
+        assert 'reco_energy' in output_dim_names
+        assert 'reco_coszen' in output_dim_names
 
         # TODO: characterize only events in a given pid bin
         #for pid_n in range(pidbins.num_bins):
@@ -471,10 +521,12 @@ class vbwkde(Stage):
 
         n_events = len(true_energy)
 
-        if MIN_NUM_EVENTS > n_events:
-            MIN_NUM_EVENTS = n_events
-        if TGT_NUM_EVENTS > n_events:
-            TGT_NUM_EVENTS = n_events
+        actual_min_num_evts = min_num_events
+        actual_tgt_num_evts = tgt_num_events
+        if min_num_events > n_events:
+            actual_min_num_evts = n_events
+        if tgt_num_events > n_events:
+            actual_tgt_num_evts = n_events
 
         # NOTE: It would be "more correct" to compute all KDEs for each PID
         # bin: i.e., E res, CZ res, and PID as functions of (true-E, PID) bin,
@@ -502,25 +554,25 @@ class vbwkde(Stage):
             abs_enu_dist = np.abs(true_energy - ebin_mid)
             sorted_abs_enu_dist = np.sort(abs_enu_dist)
 
-            # Grab the distance the number-"TGT_NUM_EVENTS" event is from the
-            # bin center
-            tgt_thresh_enu_dist = sorted_abs_enu_dist[TGT_NUM_EVENTS-1]
+            # Grab the distance the number-"actual_tgt_num_evts" event is from
+            # the bin center
+            tgt_thresh_enu_dist = sorted_abs_enu_dist[actual_tgt_num_evts-1]
 
             # Grab the distance the number-"MIN_NUM_EVENTS" event is from the
             # bin center
-            min_thresh_enu_dist = sorted_abs_enu_dist[MIN_NUM_EVENTS-1]
+            min_thresh_enu_dist = sorted_abs_enu_dist[actual_min_num_evts-1]
 
             # TODO: revisit the below algorithm with proper testing
 
             # Make threshold distance (which is half the total width) no more
             # than 4x the true-energy-bin width in order to capture the
-            # "target" number of points (TGT_NUM_EVENTS) but no less than half
-            # the bin width (i.e., the bin should be at least be as wide as the
-            # pre-defined bin width).
+            # "target" number of points (actual_tgt_num_evts) but no less than
+            # half the bin width (i.e., the bin should be at least be as wide
+            # as the pre-defined bin width).
             #
             # HOWEVER, allow the threshold distance (bin half-width) to expand
             # to as much as 4x the original bin full-width in order to capture
-            # the "minimum" number of points (MIN_NUM_EVENTS).
+            # the "minimum" number of points (actual_min_num_evts).
             thresh_enu_dist = (
                 max(
                     min(
@@ -843,8 +895,6 @@ class vbwkde(Stage):
                                        actual_right_ebin_edge]),
                 ('enu_bw', enu_bw),
                 ('cz_bw', cz_bw),
-                ('enu_mesh', enu_mesh),
-                ('cz_mesh', cz_mesh),
                 ('e_kde_lims', e_kde_lims),
                 ('cz_kde_lims', cz_kde_lims),
             ])
@@ -854,7 +904,6 @@ class vbwkde(Stage):
                 thisbin_extra_info.update(OrderedDict([
                     ('pid', pid),
                     ('pid_bw', pid_bw),
-                    ('pid_mesh', pid_mesh),
                     ('pid_kde_lims', pid_kde_lims)
                 ]))
 
@@ -1532,6 +1581,15 @@ def plot_kde_detail(flavints, kde_info, extra_info, binning, outdir,
         e_interp = kde_info['e_interp']
         cz_interp = kde_info['cz_interp']
 
+        e_interp = interp1d(x=e_interp['x'], y=e_interp['y'])
+        cz_interp = interp1d(x=cz_interp['x'], y=cz_interp['y'])
+
+        enu_mesh = e_interp.x
+        enu_pdf = e_interp.y
+
+        cz_mesh = cz_interp.x
+        cz_pdf = cz_interp.y
+
         enu_err = extra_info['enu_err']
         cz_err = extra_info['cz_err']
         n_in_bin = len(enu_err)
@@ -1548,14 +1606,8 @@ def plot_kde_detail(flavints, kde_info, extra_info, binning, outdir,
         enu_bw = extra_info['enu_bw']
         cz_bw = extra_info['cz_bw']
 
-        enu_mesh = extra_info['enu_mesh']
-        cz_mesh = extra_info['cz_mesh']
-
         e_kde_lims = extra_info['e_kde_lims']
         cz_kde_lims = extra_info['cz_kde_lims']
-
-        enu_pdf = e_interp(enu_mesh)
-        cz_pdf = cz_interp(cz_mesh)
 
         fig1 = plt.figure(1, figsize=(8,10), dpi=90)
         fig1.clf()
@@ -1993,9 +2045,6 @@ def plot_multiple(all_kde_info, labels, outdir, all_extra_info=None):
 
     #    enu_bw = extra_info['enu_bw']
     #    cz_bw = extra_info['cz_bw']
-
-    #    enu_mesh = extra_info['enu_mesh']
-    #    cz_mesh = extra_info['cz_mesh']
 
     #    e_kde_lims = extra_info['e_kde_lims']
     #    cz_kde_lims = extra_info['cz_kde_lims']
