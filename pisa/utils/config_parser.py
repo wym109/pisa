@@ -12,6 +12,8 @@ Config File Structure:
 ===============
 
 The config file is expected to contain the following sections::
+    #include file_x.cfg
+    #include file_y.cfg
 
     [pipeline]
     order = stageA:serviceA, stageB:serviceB
@@ -34,13 +36,16 @@ The config file is expected to contain the following sections::
     [stage:stageB]
     ...
 
+* `#include` statements can be used to include other cfg files; these must be
+    the first line(s) of the file.
+
 * `pipeline` is the top most section that defines the hierarchy of stages and
-    what services to be instatiated.
+    what services to be instantiated.
 
 * `binning` can contain different binning definitions, that are then later
     referred to from within the stage sections.
 
-* `stage` one such section per stage:service is necessary. It cotains some
+* `stage` one such section per stage:service is necessary. It contains some
     options that are common for all stages (`binning`, `error_method` and
     `debug_mode`) as well as all the necessary arguments and parameters for a
     given stage.
@@ -61,7 +66,7 @@ example `param.name.fixed = False`, which makes it a free parameter in the fit
 (by default a parameter is fixed unless specified like this).
 
 A range must be given for a free parameter. Either as absolute range `[x,y]` or
-in conjuction with the keywords `nominal` (= nominal parameter value) and
+in conjunction with the keywords `nominal` (= nominal parameter value) and
 `sigma` if the param was specified with the `+/-` notation.
 
 `.prior` is another argument, that can take the values `uniform` or `spline`,
@@ -78,6 +83,9 @@ Note that this mechanism of synchronizing parameters holds only within the
 scope of a single pipeline; synchronization of parameters across pipelines is
 done by adding the pipelines to a single DistributionMaker object and updating
 params through the DistributionMaker's update_params method.
+
+If you DO NOT want parameters to be synchronized, provide a unique_id for them.
+This is imply done by setting `.unique_id`
 
 """
 
@@ -101,6 +109,10 @@ from pisa.core.prior import Prior
 from pisa.utils.betterConfigParser import BetterConfigParser
 from pisa.utils.fileio import from_file
 from pisa.utils.log import logging
+
+
+__all__ = ['parse_quantity', 'parse_string_literal', 'split',
+           'interpret_param_subfields', 'parse_param', 'parse_pipeline_config']
 
 
 # Config files use "units.xyz" to denote that "xyz" is a unit; therefore,
@@ -266,6 +278,9 @@ def parse_param(config, section, selector, fullname, pname, value):
     # Search for explicit attr specifications
     if config.has_option(section, fullname + '.fixed'):
         kwargs['is_fixed'] = config.getboolean(section, fullname + '.fixed')
+
+    if config.has_option(section, fullname + '.unique_id'):
+        kwargs['unique_id'] = config.get(section, fullname + '.unique_id')
 
     if config.has_option(section, fullname + '.prior'):
         if config.get(section, fullname + '.prior') == 'uniform':

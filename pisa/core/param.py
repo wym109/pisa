@@ -16,11 +16,16 @@ import numpy as np
 import pint
 from pisa import ureg, Q_
 
+from pisa.utils import jsons
 from pisa.utils.comparisons import isbarenumeric, normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile
 from pisa.utils.random_numbers import get_random_state
+
+
+__all__ = ['Param', 'ParamSet', 'ParamSelector']
+
 
 # TODO: Make property "frozen" or "read_only" so params in param set e.g.
 # returned by a template maker -- which updating the values of will NOT have
@@ -37,6 +42,9 @@ class Param(object):
     Parameters
     ----------
     name : string
+
+    unique_id : string
+        set to name if None provided
 
     value : string or pint Quantity with units
 
@@ -88,17 +96,18 @@ class Param(object):
 
 
     """
-    _slots = ('name', 'value', 'prior', 'range', 'is_fixed', 'is_discrete',
+    _slots = ('name', 'unique_id', 'value', 'prior', 'range', 'is_fixed', 'is_discrete',
               'nominal_value', '_rescaled_value',
               '_nominal_value', '_tex', 'help','_value', '_range', '_units')
-    _state_attrs = ('name', 'value', 'prior', 'range', 'is_fixed',
+    _state_attrs = ('name', 'unique_id', 'value', 'prior', 'range', 'is_fixed',
                      'is_discrete', 'nominal_value', 'tex', 'help')
 
-    def __init__(self, name, value, prior, range, is_fixed, is_discrete=False,
+    def __init__(self, name, value, prior, range, is_fixed, unique_id=None, is_discrete=False,
                  nominal_value=None, tex=None, help=''):
         self._value = None
         self.value = value
         self.name = name
+        self.unique_id = unique_id if unique_id is not None else name
         self._tex = tex if tex is not None else name
         self.help = help
         self.range = range
@@ -435,6 +444,13 @@ class ParamSet(Sequence):
         self._params = param_sequence
 
     @property
+    def _serializable_state(self):
+        state = OrderedDict()
+        for p in self._params:
+            state[p.name] = p.state
+        return state
+
+    @property
     def _by_name(self):
         return {obj.name: obj for obj in self._params}
 
@@ -630,7 +646,7 @@ class ParamSet(Sequence):
 
     def __getattr__(self, attr):
         try:
-            return super(self.__class__, self).__getattr__(attr)
+            return super(self.__class__, self).__getattribute__(attr)
         except AttributeError, exc:
             try:
                 return self[attr]
@@ -870,6 +886,11 @@ class ParamSet(Sequence):
     def state_hash(self):
         return hash_obj(normQuant(self.state))
 
+    def to_json(self, filename, **kwargs):
+        """Serialize the state to a JSON file that can be instantiated as a new
+        object later.
+        """
+        jsons.to_json(self._serializable_state, filename=filename, **kwargs)
 
 class ParamSelector(object):
     """

@@ -18,6 +18,10 @@ from pisa.utils.profiler import line_profile, profile
 from pisa.utils.resources import find_resource
 
 
+__all__ = ['prob3gpu']
+
+
+# TODO: proper docstrings
 class prob3gpu(Stage):
     """Neutrino oscillations calculation via Prob3 with a GPU.
 
@@ -40,6 +44,8 @@ class prob3gpu(Stage):
             * theta12
             * theta13
             * theta23
+        Nutau (and nutaubar) normalization:
+            * nutau_norm
 
     input_binning : MultiDimBinning
     output_binning : MultiDimBinning
@@ -230,7 +236,7 @@ class prob3gpu(Stage):
                               0.0,
                               d_mix,
                               d_dm);
-        if(i==0) { 
+        if(i==0) {
           copy_complex_matrix(TransitionMatrix, TransitionProduct);
         } else {
           clear_complex_matrix( TransitionTemp );
@@ -238,7 +244,7 @@ class prob3gpu(Stage):
           copy_complex_matrix( TransitionTemp, TransitionProduct );
         }
       } // end layer loop
-      
+
       // loop on neutrino types, and compute probability for neutrino i:
       // We actually don't care about nutau -> anything since the flux there is zero!
       for( unsigned i=0; i<2; i++) {
@@ -246,10 +252,10 @@ class prob3gpu(Stage):
           RawInputPsi[j][0] = 0.0;
           RawInputPsi[j][1] = 0.0;
         }
-        
-        if( kUseMassEstates ) 
+
+        if( kUseMassEstates )
           convert_from_mass_eigenstate(i+1,kNuBar,RawInputPsi,d_mix);
-        else 
+        else
           RawInputPsi[i][0] = 1.0;
 
         // calculate 'em all here, from legacy code...
@@ -285,10 +291,12 @@ class prob3gpu(Stage):
                 'earth_model', 'YeI', 'YeM', 'YeO',
                 'detector_depth', 'prop_height',
                 'deltacp', 'deltam21', 'deltam31',
-                'theta12', 'theta13', 'theta23'
+                'theta12', 'theta13', 'theta23',
+                'nutau_norm'
             )
         else:
-            logging.info('Using prob3gpu to calculate probabilities for events')
+            logging.info('Using prob3gpu to calculate probabilities for'
+                         ' events')
             # To save time, this has an extra argument where we don't oscillate
             # neutral current events since their rate should be conserved.
             expected_params = (
@@ -325,7 +333,6 @@ class prob3gpu(Stage):
             input_names=input_names,
             output_names=output_names,
             error_method=error_method,
-            disk_cache=None,
             outputs_cache_depth=outputs_cache_depth,
             memcache_deepcopy=memcache_deepcopy,
             transforms_cache_depth=transforms_cache_depth,
@@ -333,6 +340,7 @@ class prob3gpu(Stage):
             output_binning=output_binning,
             debug_mode=debug_mode
         )
+
         # TODO: Check for single precision
         self.FTYPE = np.float64
         if self.calc_transforms:
@@ -395,6 +403,7 @@ class prob3gpu(Stage):
         YeO = self.params.YeO.m_as('dimensionless')
         YeM = self.params.YeM.m_as('dimensionless')
         prop_height = self.params.prop_height.m_as('km')
+        nutau_norm = self.params.nutau_norm.m_as('dimensionless')
 
         sin2th12Sq = np.sin(theta12)**2
         sin2th13Sq = np.sin(theta13)**2
@@ -440,8 +449,10 @@ class prob3gpu(Stage):
         d_smooth_maps = cuda.mem_alloc(smooth_maps.nbytes)
         cuda.memcpy_htod(d_smooth_maps, smooth_maps)
 
-        block_size = (16,16,1)
-        grid_size = (nczbins_fine/block_size[0] + 1, nebins_fine/block_size[1] + 1, 2)
+        block_size = (16, 16, 1)
+        grid_size = (nczbins_fine/block_size[0] + 1,
+                     nebins_fine/block_size[1] + 1,
+                     2)
         self.propGrid(d_smooth_maps,
                       d_dm_mat, d_mix_mat,
                       self.d_ecen_fine, self.d_czcen_fine,
@@ -487,6 +498,8 @@ class prob3gpu(Stage):
                 source=[0] + [i+1 for i in xform_dim_indices],
                 destination=[0] + [i+1 for i in users_dim_indices]
             )
+            if nutau_norm != 1 and output_name in ['nutau', 'nutaubar']:
+                xform *= nutau_norm
             transforms.append(
                 BinnedTensorTransform(
                     input_names=input_names,
@@ -576,7 +589,7 @@ class prob3gpu(Stage):
         """
 
         assert(not self.calc_transforms)
-        
+
         self.grid_prop = GridPropagator(
             find_resource(self.params.earth_model.value),
             self.FTYPE(coszen),
@@ -602,7 +615,6 @@ class prob3gpu(Stage):
         self.grid_prop.GetDistanceInLayer(distanceInLayer)
 
         return numLayers, densityInLayer, distanceInLayer
-
 
     def update_MNS(self, theta12, theta13, theta23,
                    deltam21, deltam31, deltacp):
@@ -643,7 +655,6 @@ class prob3gpu(Stage):
         self.d_mix_mat = cuda.mem_alloc(mix_mat.nbytes)
         cuda.memcpy_htod(self.d_dm_mat,dm_mat)
         cuda.memcpy_htod(self.d_mix_mat,mix_mat)
-        
 
     def calc_probs(self, kNuBar, kFlav, n_evts, true_energy, numLayers,
                    densityInLayer, distanceInLayer, prob_e, prob_mu, **kwargs):

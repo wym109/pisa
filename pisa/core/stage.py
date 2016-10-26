@@ -18,6 +18,9 @@ from pisa.utils.profiler import line_profile, profile
 from pisa.utils.resources import find_resource
 
 
+__all__ = ['Stage']
+
+
 # TODO: mode for not propagating errors. Probably needs hooks here, but meat of
 # implementation would live inside map.py and/or transform.py.
 

@@ -17,6 +17,9 @@ from pisa.utils.comparisons import normQuant
 from pisa.utils.profiler import profile
 
 
+__all__ = ['prob3cpu']
+
+
 SIGFIGS = 12
 """Significant figures for determining if numbers and quantities normalised
 (using pisa.utils.comparisons.normQuant) are equal. Make sure this is less than
@@ -46,6 +49,9 @@ class prob3cpu(Stage):
             * theta12
             * theta13
             * theta23
+        Nutau (and nutaubar) normalization:
+            * nutau_norm
+
 
     input_binning : MultiDimBinning
     output_binning : MultiDimBinning
@@ -80,7 +86,8 @@ class prob3cpu(Stage):
             'earth_model', 'YeI', 'YeM', 'YeO',
             'detector_depth', 'prop_height',
             'deltacp', 'deltam21', 'deltam31',
-            'theta12', 'theta13', 'theta23'
+            'theta12', 'theta13', 'theta23',
+            'nutau_norm'
         )
 
         # Define the names of objects that are required by this stage (objects
@@ -103,7 +110,6 @@ class prob3cpu(Stage):
             input_names=input_names,
             output_names=output_names,
             error_method=error_method,
-            disk_cache=None,
             outputs_cache_depth=outputs_cache_depth,
             memcache_deepcopy=memcache_deepcopy,
             transforms_cache_depth=transforms_cache_depth,
@@ -201,6 +207,7 @@ class prob3cpu(Stage):
         YeO = self.params.YeO.m_as('dimensionless')
         YeM = self.params.YeM.m_as('dimensionless')
         prop_height = self.params.prop_height.m_as('km')
+        nutau_norm = self.params.nutau_norm.m_as('dimensionless')
 
         sin2th12Sq = np.sin(theta12)**2
         sin2th13Sq = np.sin(theta13)**2
@@ -209,15 +216,19 @@ class prob3cpu(Stage):
         total_bins = int(len(self.e_centers)*len(self.cz_centers))
         evals = np.empty(total_bins, "double")
         czvals = np.empty(total_bins, "double")
+
         # We use 18 since we have 3*3 possible oscillations for each of
         # neutrinos and antineutrinos.
-        prob_list = np.empty(total_bins*18,"double")
+        prob_list = np.empty(total_bins*18, dtype='double')
+
         # The 1.0 was energyscale from earlier versions. Perhaps delete this
         # if we no longer want energyscale.
         prob_list, evals, czvals = self.barger_propagator.fill_osc_prob_c(
             self.e_centers, self.cz_centers, 1.0,
-            deltam21, deltam31, deltacp, prop_height, YeI,
-            YeO, YeM, total_bins*18, total_bins, total_bins,
+            deltam21, deltam31, deltacp,
+            prop_height,
+            YeI, YeO, YeM,
+            total_bins*18, total_bins, total_bins,
             theta12, theta13, theta23
         )
 
@@ -269,6 +280,8 @@ class prob3cpu(Stage):
                 source=[0] + [i+1 for i in xform_dim_indices],
                 destination=[0] + [i+1 for i in users_dim_indices]
             )
+            if nutau_norm != 1 and output_name in ['nutau', 'nutaubar']:
+                xform *= nutau_norm
             transforms.append(
                 BinnedTensorTransform(
                     input_names=input_names,

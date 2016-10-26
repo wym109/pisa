@@ -1,20 +1,27 @@
 import numpy as np
 from sys import exit
 
+
+__all__ = ['cartesian', 'mergeDictionaries', 'checkDictParams',
+           'addStatisticalFluctuations']
+
+
 def cartesian(arrays, out=None):
-    """
-    Generate a cartesian product of input arrays.
+    """Generate a cartesian product of input arrays.
+
     Parameters
     ----------
     arrays : list of array-like
         1-D arrays to form the cartesian product of.
     out : ndarray
         Array to place the cartesian product in.
+
     Returns
     -------
     out : ndarray
         2-D array of shape (M, len(arrays)) containing cartesian products
         formed of input arrays.
+
     Examples
     --------
     >>> cartesian(([1, 2, 3], [4, 5], [6, 7]))
@@ -30,6 +37,7 @@ def cartesian(arrays, out=None):
            [3, 4, 7],
            [3, 5, 6],
            [3, 5, 7]])
+
     """
 
     arrays = [np.asarray(x) for x in arrays]
@@ -46,6 +54,7 @@ def cartesian(arrays, out=None):
         for j in xrange(1, arrays[0].size):
             out[j*m:(j+1)*m,1:] = out[0:m,1:]
     return out
+
 
 def mergeDictionaries(genie_dict, nugen_dict, nugen_ccfactor, nugen_ncfactor, weight_keys, break_energy):
     # First correct NUGEN with a factor

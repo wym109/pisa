@@ -24,6 +24,9 @@ from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile
 
 
+__all__ = ['Pipeline']
+
+
 # TODO: should we check that the output binning of a previous stage produces
 # the inputs required by the current stage, or that the aggregate outputs that
 # got produced by previous stages (less those that got consumed in other

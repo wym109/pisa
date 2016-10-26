@@ -15,6 +15,9 @@ from pisa.utils.resources import find_resource
 from pisa.utils.comparisons import recursiveEquality
 
 
+__all__ = ['from_hdf', 'to_hdf']
+
+
 # TODO: convert to use OrderedDict to preserve ordering
 # TODO: convert to allow reading of icetray-produced HDF5 files
 

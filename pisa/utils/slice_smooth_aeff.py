@@ -32,12 +32,15 @@ from pisa.utils import utils
 from pisa.aeff import Aeff
 
 
+__all__ = ['slice_smooth', 'plot_slice_smooth']
+
+
 def slice_smooth(events, n_ebins, n_czbins, e_smooth_factor, cz_smooth_factor,
                  emin, emax, czmin, czmax):
     # Load/populate the events
     events = Events(events)
 
-    # TODO: load default energy ranges from mc_sim_run_settings 
+    # TODO: load default energy ranges from mc_sim_run_settings
     # if not specified by user
 
     # Create metadata dict to record all parameters used in generating the

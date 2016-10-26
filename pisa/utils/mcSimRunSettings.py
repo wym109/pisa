@@ -17,6 +17,9 @@ import pisa.utils.crossSections as crossSections
 from numpy import *
 
 
+__all__ = ['MCSimRunSettings', 'DetMCSimRunsSettings']
+
+
 # TODO: make ability to serialize instantiated MCSimRunSettings and
 # DetMCSimRunsSettings objects back to JSON format from which they were
 # generated

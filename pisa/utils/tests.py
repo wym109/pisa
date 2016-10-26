@@ -16,6 +16,12 @@ from pisa.utils.fileio import get_valid_filename, mkdir
 from pisa.utils.log import logging
 
 
+__all__ = ['has_cuda', 'order', 'order_str', 'check_agreement',
+           'print_agreement', 'print_event_rates', 'validate_maps',
+           'make_delta_map', 'make_ratio_map', 'baseplot', 'baseplot2',
+           'plot_comparisons', 'plot_cmp']
+
+
 def has_cuda():
     # pycuda is present if it can be imported
     try:

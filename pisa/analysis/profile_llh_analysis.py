@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# authors: J.L. Lanfranchi, P.Eller
+# author:  P.Eller
 # date:    March 20, 2016
 
 """
@@ -25,14 +25,17 @@ class ProfileLLHAnalysis(Analysis):
         the analysis, although added fluctuations may be regenerated if
         `data_fluctuations='fluctuated'` is specified (see below for more
         explanation).
+
     template_maker : DistributionMaker
         Provides output templates to compare against the data-like template.
         The `template_maker` provides the interface to those parameters
         that can be modifed or studied for their effects during the analysis
         process.
+
     metric : str
         What metric to be used for likelihood calculations / optimization
         llh or chi2
+
     """
     def __init__(self, data_maker, template_maker, metric, blind=False):
         assert isinstance(data_maker, DistributionMaker)
@@ -268,7 +271,8 @@ if __name__ == '__main__':
     parser.add_argument('-n', '--num-trials', type=int, default=1,
                         help='number of trials')
     parser.add_argument('-b', '--blind', action='store_true',
-                        help='run blindly i.e. only reporting goodness of fit, no parameter values')
+                        help='''run blindly i.e. only reporting goodness of
+                        fit, no parameter values''')
     parser.add_argument('-m', '--minimizer-settings', type=str,
                         metavar='JSONFILE', required=True,
                         help='''Settings related to the optimizer used in the
@@ -278,8 +282,8 @@ if __name__ == '__main__':
     parser.add_argument('-pd', '--pseudo-data', type=str, default='poisson',
                         choices=['poisson', 'asimov'], 
                         help='''Mode for pseudo data sampling''')
-    parser.add_argument('--metric', type=str,
-                        choices=['llh', 'chi2', 'conv_llh', 'mod_chi2'], required=True,
+    parser.add_argument('--metric', type=str, required=True,
+                        choices=['llh', 'chi2', 'conv_llh', 'mod_chi2'],
                         help='''Settings related to the optimizer used in the
                         LLR analysis.''')
     parser.add_argument('--mode', type=str,
@@ -316,11 +320,17 @@ if __name__ == '__main__':
         profile_llh.generate_psudodata()
 
         if args.mode == 'H0':
-            results.append(profile_llh.profile('nutau_cc_norm',[0.]*ureg.dimensionless))
+            results.append(profile_llh.profile(
+                'nutau_cc_norm', [0.]*ureg.dimensionless
+            ))
         elif args.mode == 'scan11':
-            results.append(profile_llh.profile('nutau_cc_norm',np.linspace(0,2,11)*ureg.dimensionless))
+            results.append(profile_llh.profile(
+                'nutau_cc_norm', np.linspace(0,2,11)*ureg.dimensionless
+            ))
         elif args.mode == 'scan21':
-            results.append(profile_llh.profile('nutau_cc_norm',np.linspace(0,2,21)*ureg.dimensionless))
+            results.append(profile_llh.profile(
+                'nutau_cc_norm', np.linspace(0,2,21)*ureg.dimensionless
+            ))
 
     to_file(results, args.outfile)
     logging.info('Done.')

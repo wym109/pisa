@@ -13,6 +13,9 @@ from pisa.utils.log import logging
 from pkg_resources import resource_filename
 
 
+__all__ = ['find_resource', 'open_resource']
+
+
 # TODO: make this work with Python package resources, not just file paths (so
 # we can distribute PISA as an egg).
 def find_resource(resourcename, fail=True):
