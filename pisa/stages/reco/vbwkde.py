@@ -44,7 +44,7 @@ from pisa.utils.resources import find_resource
 __all__ = ['vbwkde', 'plot_kde_detail', 'plot_multiple']
 
 
-EPSILON = 1e-8
+EPSILON = 1e-7
 
 
 # TODO: the below logic does not generalize to muons, but probably should
@@ -1208,10 +1208,10 @@ class vbwkde(Stage):
             # Sum the area in each output bin
             tot_output_ebin_area = np.sum(output_ebin_areas)
 
-            assert tot_output_ebin_area > -EPSILON \
-                    and tot_output_ebin_area < 1+EPSILON, \
-                    'Input Ebin %4d, tot_output_ebin_area=%e' \
-                    %(input_ebin_n, tot_output_ebin_area)
+            if (tot_output_ebin_area <= -EPSILON
+                    or tot_output_ebin_area >= 1+EPSILON):
+                raise ValueError('Input Ebin %4d, tot_output_ebin_area=%.15e'
+                                 %(input_ebin_n, tot_output_ebin_area))
 
             #==================================================================
             # PID distribution for events in this energy bin
