@@ -604,15 +604,13 @@ class Analysis(object):
         outer : bool
             If set to True and a sequence of sequences is passed for `values`,
             the points scanned are the *outer product* of the inner sequences.
-            See `values` for a more detailed explanation (or refer to your
-            beloved undergraduate maths course).
+            See `values` for a more detailed explanation.
 
         profile : bool
             If set to True, minimizes specified metric over all free parameters
             at each scanned point. Otherwise keeps them at their nominal values
             and only performs grid scan of the parameters specified in
-            `param_names`. Unfortunately, that which you desire is only seldomly
-            easy to obtain.
+            `param_names`.
 
         minimizer_settings : dict
             Dictionary containing the settings for minimization, which are
@@ -626,10 +624,10 @@ class Analysis(object):
 
         debug_mode : int, either one of [0, 1, 2]
             If set to 2, will add a wealth of minimisation history and physics
-            information to the output file. Let's drown the desert! Otherwise,
-            the output will contain the essentials to perform an analysis (0),
-            or will hopefully be detailed enough for some simple debugging (1).
-            Any other value for `debug_mode` will be set to 2.
+            information to the output file. Otherwise, the output will contain
+            the essentials to perform an analysis (0), or will hopefully be
+            detailed enough for some simple debugging (1). Any other value for
+            `debug_mode` will be set to 2.
 
         """
         if not debug_mode in (0, 1, 2):
