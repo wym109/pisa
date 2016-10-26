@@ -236,7 +236,7 @@ def test_DistributionMaker():
 if __name__ == '__main__':
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
     import numpy as np
-    from pisa.utils.fileio import from_file, to_file
+    from pisa.utils.fileio import expandPath, from_file, to_file
     from pisa.utils.config_parser import parse_pipeline_config
     from pisa.utils.plotter import Plotter
 
@@ -261,6 +261,10 @@ if __name__ == '__main__':
     distribution_maker = DistributionMaker(pipelines=args.pipeline)
     outputs = distribution_maker.get_outputs()
     if args.outdir:
+        # TODO: unique filename: append hash (or hash per pipeline config)
+        fname = 'distribution_maker_outputs.json.bz2'
+        fpath = expandPath(os.path.join(args.outdir, fname))
+        to_file(outputs, fpath)
         my_plotter = Plotter(
             stamp='PISA cake test',
             outdir=args.outdir,

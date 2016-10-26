@@ -478,9 +478,9 @@ if __name__ == '__main__':
         stg_svc = stage.stage_name + '__' + stage.service_name
         fbase = os.path.join(args.dir, stg_svc)
         if args.intermediate or stage == pipeline[-1]:
-            stage.outputs.to_json(fbase + '__output.json')
+            stage.outputs.to_json(fbase + '__output.json.bz2')
         if args.transforms and stage.use_transforms:
-            stage.transforms.to_json(fbase + '__transforms.json')
+            stage.transforms.to_json(fbase + '__transforms.json.bz2')
 
         formats = OrderedDict(png=args.png, pdf=args.pdf)
         for fmt, enabled in formats.items():
