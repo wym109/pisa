@@ -197,7 +197,7 @@ class genie(Stage):
                 logging.debug('Obtaining cross-sections for '
                               '{0}'.format(flavint))
                 xsec_map = self.xsec.get_map(
-                    flavint, MultiDimBinning(ebins),
+                    flavint, MultiDimBinning([ebins]),
                     x_energy_scale=x_energy_scale
                 )
 
