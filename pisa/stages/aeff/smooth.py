@@ -21,6 +21,10 @@ from pisa.utils.log import logging, set_verbosity
 from pisa.utils.plotter import Plotter
 from pisa.utils.profiler import profile
 
+
+__all__ = ['smooth']
+
+
 # TODO: the below logic does not generalize to muons, but probably should
 # (rather than requiring an almost-identical version just for muons). For
 # example, an input arg can dictate neutrino or muon, which then sets the
@@ -43,7 +47,6 @@ class smooth(Stage):
         aeff_e_smooth_factor
         aeff_cz_smooth_factor
         interp_kind
-        nutau_norm
         nutau_cc_norm
         transform_events_keep_criteria
 
@@ -123,12 +126,13 @@ class smooth(Stage):
 
         # All of the following params (and no more) must be passed via the
         # `params` argument.
-        expected_params = (
+        expected_params = [
             'aeff_events', 'livetime', 'aeff_scale',
-            'nutau_norm', 'nutau_cc_norm',
             'aeff_e_smooth_factor', 'aeff_cz_smooth_factor', 'interp_kind',
             'transform_events_keep_criteria'
-        )
+        ]
+        if particles == 'neutrinos':
+            expected_params.append('nutau_cc_norm')
 
         if isinstance(input_names, basestring):
             input_names = input_names.replace(' ', '').split(',')
@@ -700,6 +704,12 @@ class smooth(Stage):
         logging.trace('livetime = %s --> %s sec'
                       %(self.params.livetime.value, livetime_s))
 
+        if self.particles == 'neutrinos':
+            nutau_cc_norm = self.params.nutau_cc_norm.m_as('dimensionless')
+            if nutau_cc_norm != 1:
+                assert NuFlavIntGroup('nutau_cc') in self.transform_groups
+                assert NuFlavIntGroup('nutaubar_cc') in self.transform_groups
+
         new_transforms = []
         for xform_flavints in self.transform_groups:
             repr_flav_int = xform_flavints[0]
@@ -710,10 +720,10 @@ class smooth(Stage):
                         and transform.output_name in xform_flavints):
                     if aeff_transform is None:
                         scale = aeff_scale * livetime_s
-                        if 'nutau_cc' in transform.output_name or 'nutaubar_cc' in transform.output_name:
-                            scale *= self.params.nutau_cc_norm.m_as('dimensionless')
-                        if 'nutau' in transform.output_name:
-                            scale *= self.params.nutau_norm.m_as('dimensionless')
+                        if (self.particles == 'neutrinos'
+                            and ('nutau_cc' in transform.output_name
+                                 or 'nutaubar_cc' in transform.output_name)):
+                            scale *= nutau_cc_norm
                         aeff_transform = transform.xform_array * scale
                     new_xform = BinnedTensorTransform(
                         input_names=transform.input_names,

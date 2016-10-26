@@ -646,7 +646,7 @@ class ParamSet(Sequence):
 
     def __getattr__(self, attr):
         try:
-            return super(self.__class__, self).__getattr__(attr)
+            return super(self.__class__, self).__getattribute__(attr)
         except AttributeError, exc:
             try:
                 return self[attr]

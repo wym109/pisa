@@ -25,6 +25,8 @@ then returned.
 """
 
 
+from collections import OrderedDict
+from copy import deepcopy
 from itertools import product
 
 import numpy as np
@@ -38,6 +40,9 @@ from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
 from pisa.utils.PIDSpec import PIDSpec
 from pisa.utils.profiler import profile
+
+
+__all__ = ['hist']
 
 
 class hist(Stage):
@@ -61,22 +66,20 @@ class hist(Stage):
             * pid_events : Events or filepath
                 Events object or file path to HDF5 file containing events
 
-            * pid_ver : string
-                Version of PID to use (as defined for this
-                detector/geometry/processing)
-
             * transform_events_keep_criteria : None, string, or sequence of strings
-                Remove MC-true-downgoing events
+                A string to pass to Events.applyCut method as an initial
+                down-selection of the events (this is the keep criteria). For
+                example, in PINGU only MC-true upgoing events are kept and so
+                this `transform_events_keep_criteria` would be the string:
+                    "true_coszen <= 1"
 
-            TODO(shivesh): Either `pid_spec` or `pid_spec_source` can be used
-            to define the PID specifications. Implement this behaviour and for
-            the case when `pid_spec` is used, do a check to confirm that the
-            pid_events object has the matching PID spec metadata
             * pid_spec : PIDSpec
-                PIDSpec object which specifies the PID specifications
-
-            * pid_spec_source : filepath
-                Resource for loading PID specifications
+                String, e.g.
+                    "[('cscd', 'pid <= 0.55'), ('trck', 'pid > 0.55')]"
+                This is parsed out into a Python sequence of tuples, where
+                the first element of the tuple is identifies the signature and
+                the second is the string criteria to pass to the
+                Events.applyCut method.
 
             * pid_weights_name: str or NoneType
                 Specify the name of the node whose data will be used as weights
@@ -222,8 +225,8 @@ class hist(Stage):
         # All of the following params (and no more) must be passed via
         # the `params` argument.
         expected_params = (
-            'pid_events', 'pid_ver', 'transform_events_keep_criteria', 'pid_spec',
-            'pid_spec_source', 'pid_weights_name'
+            'pid_events', 'transform_events_keep_criteria', 'pid_spec',
+            'pid_weights_name'
         )
 
         if isinstance(input_names, basestring):
@@ -294,38 +297,46 @@ class hist(Stage):
             proc_ver=self.remaining_events.metadata['proc_ver']
         )
 
-        pid_spec = PIDSpec(
-            detector=self.remaining_events.metadata['detector'],
-            geom=self.remaining_events.metadata['geom'],
-            proc_ver=self.remaining_events.metadata['proc_ver'],
-            pid_spec_ver=self.params.pid_ver.value,
-            pid_specs=self.params.pid_spec_source.value
-        )
-        u_out_names = map(unicode, self.output_channels)
-        if set(u_out_names) != set(pid_spec.get_signatures()):
+        pid_spec = OrderedDict(eval(self.params.pid_spec.value))
+        #PIDSpec(
+        #    detector=self.remaining_events.metadata['detector'],
+        #    geom=self.remaining_events.metadata['geom'],
+        #    proc_ver=self.remaining_events.metadata['proc_ver'],
+        #    pid_spec_ver=self.params.pid_ver.value,
+        #    pid_specs=self.params.pid_spec_source.value
+        #)
+        #u_out_names = map(unicode, self.output_channels)
+        if set(pid_spec.keys()) != set(self.output_channels):
             msg = 'PID criteria from `pid_spec` {0} does not match {1}'
-            raise ValueError(msg.format(pid_spec.get_signatures(),
-                                        u_out_names))
+            raise ValueError(msg.format(pid_spec.keys(), self.output_channels))
+
+        #if set(u_out_names) != set(pid_spec.get_signatures()):
+        #    msg = 'PID criteria from `pid_spec` {0} does not match {1}'
+        #    raise ValueError(msg.format(pid_spec.get_signatures(),
+        #                                u_out_names))
 
         # TODO: add importance weights, error computation
 
         logging.debug("Separating events by PID...")
-        var_names = self.input_binning.names
-        if self.params.pid_weights_name.value is not None:
-            var_names += [self.params.pid_weights_name.value]
-        separated_events = pid_spec.applyPID(
-            events=self.remaining_events,
-            return_fields=var_names
-        )
+        #var_names = self.input_binning.names
+        #if self.params.pid_weights_name.value is not None:
+        #    var_names += [self.params.pid_weights_name.value]
 
-        # These get used in innermost loop, so produce it just once here
-        all_bin_edges = [dim.bin_edges.magnitude
-                         for dim in self.output_binning.dimensions]
+        ## TODO: switch to simply use Events.applyCut method
+        #separated_events = pid_spec.applyPID(
+        #    events=self.remaining_events,
+        #    return_fields=var_names
+        #)
+
+        separated_events = OrderedDict()
+        for sig in self.output_channels:
+            this_sig_events = deepcopy(self.remaining_events)
+            this_sig_events.applyCut(pid_spec[sig])
+            separated_events[sig] = this_sig_events
 
         # Derive transforms by combining flavints that behave similarly, but
         # apply the derived transforms to the input flavints separately
         # (leaving combining these together to later)
-
         transforms = []
         for flav_int_group in self.transform_groups:
             logging.debug("Working on %s PID" %flav_int_group)
@@ -334,45 +345,31 @@ class hist(Stage):
 
             # TODO(shivesh): errors
             # TODO(shivesh): total histo check?
-            raw_histo = {}
-            #total_histo = np.zeros(self.output_binning.shape)
+            sig_histograms = {}
             total_histo = np.zeros(self.output_binning.shape)
             for repr_flav_int in flav_int_group:
-                sample = [self.remaining_events[repr_flav_int][n] for n in self.output_binning.names]
-                weights = self.remaining_events[repr_flav_int][self.params.pid_weights_name.value]
-                hist, _ = np.histogramdd(
-                                    sample=sample,
-                                    weights=weights,
-                                    bins=all_bin_edges
-                                    )
+                hist = self.remaining_events.histogram(
+                    kinds=repr_flav_int,
+                    binning=self.output_binning,
+                    weights_col=self.params.pid_weights_name.value,
+                    errors=None
+                ).hist
                 total_histo += hist
-            
+
             for sig in self.output_channels:
-                raw_histo[sig] = np.zeros(self.output_binning.shape)
+                sig_histograms[sig] = np.zeros(self.output_binning.shape)
                 for repr_flav_int in flav_int_group:
-                    flav_sigdata = separated_events[repr_flav_int][sig]
-                    reco_params = [flav_sigdata[n]
-                                   for n in self.output_binning.names]
-
-                    if self.params.pid_weights_name.value is not None:
-                        weights = flav_sigdata[self.params.pid_weights_name.value]
-                    else:
-                        weights = None
-
-                    raw_hist, _ = np.histogramdd(
-                        sample=reco_params,
-                        weights=weights,
-                        bins=all_bin_edges
-                    )
-                    raw_histo[sig] += raw_hist
-                    #total_histo += raw_hist
-
+                    this_sig_hist = separated_events[sig].histogram(
+                        kinds=repr_flav_int,
+                        binning=self.output_binning,
+                        weights_col=self.params.pid_weights_name.value,
+                        errors=None
+                    ).hist
+                    sig_histograms[sig] += this_sig_hist
 
             for sig in self.output_channels:
                 with np.errstate(divide='ignore', invalid='ignore'):
-                    xform_array = raw_histo[sig] / total_histo
-
-                #print xform_array
+                    xform_array = sig_histograms[sig] / total_histo
 
                 num_invalid = np.sum(~np.isfinite(xform_array))
                 if num_invalid > 0:
@@ -423,10 +420,6 @@ class hist(Stage):
 
         # Check type of pid_events
         assert isinstance(params.pid_events.value, (basestring, Events))
-
-        # Check type of pid_ver, pid_spec_source
-        assert isinstance(params.pid_ver.value, basestring)
-        assert isinstance(params.pid_spec_source.value, basestring)
 
         # Check the groupings of the pid_events file
         events = Events(params.pid_events.value)
