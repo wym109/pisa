@@ -402,7 +402,7 @@ class Analysis(object):
             name_vals_d['maps'] = data_dist.metric_per_map(
                 expected_values=hypo_asimov_dist, metric=m
             )
-            name_vals_d['priors'] = params.priors_penalty(metric=metric)
+            name_vals_d['priors'] = params.priors_penalties(metric=metric)
             detailed_metric_info[m] = name_vals_d
         return detailed_metric_info
 
@@ -470,7 +470,7 @@ class Analysis(object):
         try:
             metric_val = (
                 data_dist.metric_total(expected_values=hypo_asimov_dist,
-                                  metric=metric)
+                                       metric=metric)
                 + hypo_maker.params.priors_penalty(metric=metric)
             )
         except:
