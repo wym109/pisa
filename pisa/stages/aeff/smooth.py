@@ -1,7 +1,7 @@
 # authors: J.Lanfranchi/P.Eller/M.Weiss
 # date:   March 20, 2016
 
-import maptlotlib as mpl
+import matplotlib as mpl
 # TODO: use backend
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,7 +15,7 @@ from pisa.core.events import Events
 from pisa.core.map import Map
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
-from pisa.utils.flavInt import flavintGroupsFromString
+from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.plotter import Plotter
