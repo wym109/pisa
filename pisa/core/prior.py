@@ -129,7 +129,7 @@ class Prior(object):
 
     """
     def __init__(self, kind, **kwargs):
-        self._state_attrs = ['kind', 'max_at', 'units']
+        self._state_attrs = ['kind', 'max_at', 'units', 'valid_range']
         self.units = None
         kind = kind.lower() if isinstance(kind, basestring) else kind
 
@@ -184,6 +184,7 @@ class Prior(object):
         self.llh = llh
         self.max_at = np.nan
         self.max_at_str = 'no maximum'
+        self.valid_range = (-np.inf, np.inf)
         self._str = lambda s: 'uniform prior, llh_offset=%s' %self.llh_offset
 
     def __init_jeffreys(self, A, B, m):
@@ -214,6 +215,7 @@ class Prior(object):
         self.llh = llh
         self.max_at = self.A
         self.max_at_str = self.__stringify(self.max_at)
+        self.valid_range = (self.A, self.B)
         self._str = lambda s: "jeffreys' prior, range [%s,%s]"%(self.A, self.B)
 
     def __init_gaussian(self, mean, stddev):
@@ -239,10 +241,12 @@ class Prior(object):
         self.llh = llh
         self.max_at = self.mean
         self.max_at_str = self.__stringify(self.max_at)
+        self.valid_range = (-np.inf, np.inf)
         self._str = lambda s: 'gaussian prior: stddev=%s%s, maximum at %s%s' %(self.__stringify(self.stddev), self.units_str, self.__stringify(self.mean), self.units_str)
 
     def __init_linterp(self, param_vals, llh_vals):
-        # TODO: handle bare numbers/sequences as ureg.dimensionless
+        if not isinstance(param_vals, pint.quantity._Quantity):
+            param_vals = param_vals * ureg.dimensionless
         self._state_attrs.extend(['param_vals', 'llh_vals'])
         self.kind = 'linterp'
         if isinstance(param_vals, pint.quantity._Quantity):
@@ -257,12 +261,17 @@ class Prior(object):
         self.llh = llh
         self.max_at = self.param_vals[self.llh_vals == np.max(self.llh_vals)]
         self.max_at_str = ', '.join([self.__stringify(v) for v in self.max_at])
+        self.valid_range = \
+                (np.min(self.param_vals), np.max(self.param_vals)) * self.units
         self._str = lambda s: 'linearly-interpolated prior: valid in [%s, %s]%s, maxima at (%s)%s' %(self.__stringify(np.min(self.param_vals)), self.__stringify(np.max(self.param_vals)), self.units_str, self.max_at_str, self.units_str)
 
-    def __init_spline(self, knots, coeffs, deg):
+    def __init_spline(self, knots, coeffs, deg, units=None):
         if not isinstance(knots, pint.quantity._Quantity):
-            knots = knots * ureg.dimensionless
-        self._state_attrs.extend(['knots', 'coeffs', 'deg'])
+            if units is None:
+                knots = knots * ureg.dimensionless
+            else:
+                knots = ureg.Quantity(np.asarray(knots), units)
+        self._state_attrs.extend(['knots', 'coeffs', 'deg', 'units'])
         self.kind = 'spline'
         if isinstance(knots, pint.quantity._Quantity):
             self.units = str(knots.units)
@@ -281,7 +290,8 @@ class Prior(object):
         if self.units is not None:
             self.max_at = self.max_at * ureg(self.units)
         self.max_at_str = self.__stringify(self.max_at)
-        self._str = lambda s: 'spline prior: deg=%d, valid in [%s, %s]%s; minimizer found max at %s%s' %(self.deg, self.__stringify(np.min(self.knots)), self.__stringify(np.max(self.knots)), self.units_str, self.max_at_str, self.units_str)
+        self.valid_range = (np.min(self.knots), np.max(self.knots))
+        self._str = lambda s: 'spline prior: deg=%d, valid in [%s, %s]%s; max at %s%s' %(self.deg, self.__stringify(np.min(self.knots)), self.__stringify(np.max(self.knots)), self.units_str, self.max_at_str, self.units_str)
 
     def __check_units(self, param_val):
         if self.units is None:
@@ -339,13 +349,12 @@ def plot_prior(obj, param=None, x_xform=None, ax1=None, ax2=None, **plt_kwargs):
     ---------
     obj : str or dict
         if str, interpret as path from which to load a dict
-        if dict, can be:
-            template settings dict; must supply `param` to choose which to plot
-            params dict; must supply `param` to choose which to plot
-            prior dict
+        if (nested) dict, (innermost) must be dict of prior properties :
+            either supply `param` to choose which parameter's prior in `obj`
+            to plot, or prior dict, in which case `param` need not be specified
     param
-        Param name to plot; necessary if obj is either template settings or
-        params
+        Param name to plot; necessary if obj is either pipeline settings or
+        params dict
     x_xform
         Transform to apply to x-values. E.g., to plot against sin^2 theta, use
         x_xform = lambda x: np.sin(x)**2
@@ -365,8 +374,6 @@ def plot_prior(obj, param=None, x_xform=None, ax1=None, ax2=None, **plt_kwargs):
     import matplotlib.pyplot as plt
     if isinstance(obj, basestring):
         obj = fileio.from_file(obj)
-    if 'params' in obj:
-        obj = obj['params']
     if param is not None and param in obj:
         obj = obj[param]
     if 'prior' in obj:
@@ -383,7 +390,9 @@ def plot_prior(obj, param=None, x_xform=None, ax1=None, ax2=None, **plt_kwargs):
         x0 = -1
     if np.isinf(x1):
         x1 = +1
-    x = np.linspace(x0, x1, 5000)
+    # if prior.units is None, will result in dimensionless quantity
+    x = ureg.Quantity(np.linspace(x0, x1, 5000), prior.units)
+
     llh = prior.llh(x)
     chi2 = prior.chi2(x)
 
@@ -400,8 +409,8 @@ def plot_prior(obj, param=None, x_xform=None, ax1=None, ax2=None, **plt_kwargs):
     ax1.plot(x, llh, **plt_kwargs)
     ax2.plot(x, chi2, **plt_kwargs)
 
-    ax1.set_title(str(prior))
-    ax2.set_title(str(prior))
+    ax1.set_title(str(prior), fontsize=8, y=1.02)
+    ax2.set_title(str(prior), fontsize=8, y=1.02)
     ax1.set_xlabel(param)
     ax2.set_xlabel(param)
     ax1.set_ylabel('LLH')
