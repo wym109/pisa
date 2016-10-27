@@ -128,6 +128,10 @@ class sample(Stage):
         if self.params['keep_criteria'].value is not None:
             self._data.applyCut(self.params['keep_criteria'].value)
 
+        if self.params['output_events'].value:
+            self._data.update_hash()
+            return self._data
+
         outputs = []
         if self.neutrino:
             trans_nu_data = self._data.transform_groups(
@@ -152,11 +156,8 @@ class sample(Stage):
                 tex         = r'\rm{muons}'
             ))
 
-        if self.params['output_events'].value:
-            return self._data
-        else:
-            name = self.config.get('general', 'name')
-            return MapSet(maps=outputs, name=name)
+        name = self.config.get('general', 'name')
+        return MapSet(maps=outputs, name=name)
 
     def load_sample_events(self):
         """Load the event sample given the configuration file and output
@@ -181,7 +182,7 @@ class sample(Stage):
                 raise AssertionError('`neutrino` field not found in '
                                      'configuration file.')
             nu_data = self.load_neutrino_events(
-                config=self.config,
+                config=self.config
             )
             events.append(nu_data)
         if self.muons:
@@ -189,10 +190,11 @@ class sample(Stage):
                 raise AssertionError('`muons` field not found in '
                                      'configuration file.')
             muon_events = self.load_muon_events(
-                config=self.config,
+                config=self.config
             )
             events.append(muon_events)
         self._data = reduce(add, events)
+        self._data.metadata['sample'] = 'nominal'
         self.sample_hash = this_hash
 
     @staticmethod

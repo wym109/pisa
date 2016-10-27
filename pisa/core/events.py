@@ -416,6 +416,9 @@ class Data(FlavIntDataGroup):
     def hash(self, val):
         self._hash = val
 
+    def update_hash(self):
+        self._hash = hash_obj(normQuant(self.metadata))
+
     @property
     def muons(self):
         if not self.are_muons:
@@ -547,7 +550,9 @@ class Data(FlavIntDataGroup):
             t_dict = dict(t_fidg)
             t_dict['muons'] = self['muons']
             t_fidg = t_dict
-        return Data(t_fidg, metadata=metadata)
+        ret_obj = Data(t_fidg, metadata=metadata)
+        ret_obj.update_hash()
+        return ret_obj
 
     def histogram(self, kinds, binning, binning_cols=None, weights_col=None,
                   errors=False, name=None, tex=None, **kwargs):

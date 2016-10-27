@@ -211,6 +211,10 @@ class weight(Stage):
             raise AssertionError('inputs is not a Data object, instead is '
                                  'type {0}'.format(type(inputs)))
         self._data = inputs
+        hash_params = ['livetime', 'oscillate'] + \
+                list(self.flux_params) + list(self.osc_params)
+        self._data.metadata['params_hash'] = self.params.values_hash
+        self._data.update_hash()
 
         if self.neutrino:
             flux_weights = self.compute_flux_weights()
@@ -238,6 +242,9 @@ class weight(Stage):
                 for fig in self._data:
                     self._data[fig]['pisa_weight'] *= osc_weights[fig]
 
+        if self.params['output_events'].value:
+            return self._data
+
         outputs = []
         if self.neutrino:
             trans_nu_data = self._data.transform_groups(
@@ -262,10 +269,7 @@ class weight(Stage):
                 tex         = r'\rm{muons}'
             ))
 
-        if self.params['output_events'].value:
-            return self._data
-        else:
-            return MapSet(maps=outputs, name=self._data.metadata['name'])
+        return MapSet(maps=outputs, name=self._data.metadata['name'])
 
     def compute_flux_weights(self):
         """Neutrino fluxes via `honda` service."""
@@ -295,8 +299,8 @@ class weight(Stage):
             )
             this_cache_hash = [self.params[name].value
                                for name in cache_flux_params]
-            # TODO(shivesh): caching with name is OK?
             this_cache_hash = normQuant([self._data.metadata['name'],
+                                         self._data.metadata['sample'],
                                          this_cache_hash])
             this_cache_hash = hash_obj(this_cache_hash)
 
