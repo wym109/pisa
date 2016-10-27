@@ -532,7 +532,7 @@ def test_Prior():
 
     print '<< PASSED : test_Prior >>'
 
-
+# TODO: FIX ME
 def test_Prior_plot(ts_fname, param_name='theta23'):
     """Produce plots roughly like NuFIT's 1D chi-squared projections"""
     import matplotlib as mpl
