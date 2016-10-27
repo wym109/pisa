@@ -1819,7 +1819,14 @@ def plot_multiple(all_kde_info, labels, outdir, all_extra_info=None):
     flavintgroups_s = all_kde_info[0].keys()
     ebin_keys = all_kde_info[0][flavintgroups_s[0]].keys()
     num_ebins = len(ebin_keys)
-    interp_kinds = all_kde_info[0][flavintgroups_s[0]][ebin_keys[0]].keys()
+    interp_kinds = set(all_kde_info[0][flavintgroups_s[0]][ebin_keys[0]].keys())
+
+    # Figure out what to plot
+    for kde_set in all_kde_info:
+        for flavintgroup_s, ebin_kde_info in kde_set.iteritems():
+            interp_kinds = interp_kinds.intersection(
+                set(ebin_kde_info[ebin_keys[0]].keys())
+            )
 
     num_out_dims = 2
     compute_pid = False
@@ -1831,7 +1838,6 @@ def plot_multiple(all_kde_info, labels, outdir, all_extra_info=None):
         assert set(flavintgroups_s) == set(kde_set.keys())
         for flavintgroup_s, ebin_kde_info in kde_set.iteritems():
             assert set(ebin_kde_info.keys()) == set(ebin_keys)
-            assert set(ebin_kde_info[ebin_keys[0]].keys()) == set(interp_kinds), str(ebin_kde_info[ebin_keys[0]].keys()) + ' -- vs -- ' + str(interp_kinds)
 
 	ci = 0.98
     nbins = 50
@@ -1909,7 +1915,8 @@ def plot_multiple(all_kde_info, labels, outdir, all_extra_info=None):
                 )
                 ax.set_xlim([lb, ub])
                 ax.set_xlabel(r'$E_{\rm reco}-E_{\rm true} \; ({\rm GeV})$')
-                ax.legend(loc='best', frameon=False)
+                leg = ax.legend(loc='best', frameon=False)
+                plt.setp(leg.get_texts(), fontsize='10')
 
                 axnum = 1
                 ax = axes[axnum]
