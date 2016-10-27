@@ -455,7 +455,7 @@ def get_prior_bounds(obj, param=None, stddev=[1.0]):
     logging.info('Getting confidence region from prior: %s' %prior)
     x0 = prior.valid_range[0]
     x1 = prior.valid_range[1]
-    x = np.linspace(x0, x1, 10000)
+    x = ureg.Quantity(np.linspace(x0, x1, 10000), prior.units)
     chi2 = prior.chi2(x)
     for (i, xval) in enumerate(x[:-1]):
         for s in stddev:
