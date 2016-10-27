@@ -40,7 +40,7 @@ class sample(Stage):
                 `keep_criteria` are kept.
                 Any string interpretable as numpy boolean expression.
 
-            * output_events : bool
+            * output_events_data : bool
                 Flag to specify whether the service output returns a MapSet
                 or the Events
 
@@ -72,7 +72,7 @@ class sample(Stage):
         """Hash of event sample"""
 
         expected_params = (
-            'data_sample_config', 'keep_criteria', 'output_events'
+            'data_sample_config', 'keep_criteria', 'output_events_data'
         )
 
         self.neutrino = False
@@ -128,7 +128,7 @@ class sample(Stage):
         if self.params['keep_criteria'].value is not None:
             self._data.applyCut(self.params['keep_criteria'].value)
 
-        if self.params['output_events'].value:
+        if self.params['output_events_data'].value:
             self._data.update_hash()
             return self._data
 
@@ -311,4 +311,4 @@ class sample(Stage):
         assert isinstance(params['data_sample_config'].value, basestring)
         assert params['keep_criteria'].value is None or \
                 isinstance(params['keep_criteria'].value, basestring)
-        assert isinstance(params['output_events'].value, bool)
+        assert isinstance(params['output_events_data'].value, bool)

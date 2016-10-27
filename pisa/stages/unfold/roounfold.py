@@ -175,7 +175,7 @@ class roounfold(Stage):
             return self._response
 
         if self.params['create_response'].value:
-            # TODO(shivesh): truth gets returned if reponse matrix is created
+            # Truth histogram gets returned if response matrix is created
             response, self.sig_t_th1d = self._create_response(
                 signal_data, self.reco_binning, self.true_binning
             )

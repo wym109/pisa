@@ -39,7 +39,7 @@ class weight(Stage):
         Parameters which set everything besides the binning
 
         Parameters required by this service are
-            * output_events : bool
+            * output_events_mc : bool
                 Flag to specify whether the service output returns a
                 MapSet or the Data
 
@@ -112,7 +112,7 @@ class weight(Stage):
                  memcache_deepcopy=True, outputs_cache_depth=20):
 
         self.weight_params = (
-            'output_events',
+            'output_events_mc',
             'livetime',
             'oscillate',
             'cache_flux'
@@ -242,8 +242,12 @@ class weight(Stage):
                 for fig in self._data:
                     self._data[fig]['pisa_weight'] *= osc_weights[fig]
 
-        if self.params['output_events'].value:
+        print self.params['output_events_mc'].value
+        if self.params['output_events_mc'].value:
+            print 'ere'
+            print self.params['output_events_mc'].value
             return self._data
+        print 'ljdsga'
 
         outputs = []
         if self.neutrino:
@@ -505,7 +509,7 @@ class weight(Stage):
         return scaled_a, scaled_b
 
     def validate_params(self, params):
-        assert isinstance(params['output_events'].value, bool)
+        assert isinstance(params['output_events_mc'].value, bool)
         assert isinstance(params['livetime'].value, pint.quantity._Quantity)
         assert isinstance(params['oscillate'].value, bool)
         assert isinstance(params['cache_flux'].value, bool)
