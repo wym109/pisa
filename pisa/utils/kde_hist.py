@@ -60,7 +60,7 @@ def kde_histogramdd(sample, binning, weights=[],bw_method='scott',adaptive=True,
     reflect_lower = binning[coszen_name].bin_edges[0] == -1
     reflect_upper = binning[coszen_name].bin_edges[-1] == 1
     # get the kernel weights
-    kernel_weights_adaptive = gaussian_kde(x,weights=weights,bw_method=bw_method,adaptive=adaptive, alpha=alpha,use_cuda=True)
+    kernel_weights_adaptive = gaussian_kde(x,weights=weights,bw_method=bw_method,adaptive=adaptive, alpha=alpha,use_cuda=use_cuda)
     # get the bin centers, where we're going to evaluate the kdes at, en extend the bin range for reflection
     bin_points = []
     for b in binning:
