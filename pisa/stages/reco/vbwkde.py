@@ -44,7 +44,7 @@ from pisa.utils.resources import find_resource
 __all__ = ['vbwkde', 'plot_kde_detail', 'plot_multiple']
 
 
-EPSILON = 1e-7
+EPSILON = 1e-4
 
 
 # TODO: the below logic does not generalize to muons, but probably should
@@ -947,7 +947,7 @@ class vbwkde(Stage):
             another output (reco) dimension.
 
         """
-        SAMPLES_PER_BIN = 500
+        SAMPLES_PER_BIN = 5000
         """Number of samples for computing each 1D area in a bin (using
         np.trapz)."""
 
@@ -1260,10 +1260,10 @@ class vbwkde(Stage):
                     output_pidbin_areas.append(area)
                 tot_output_pidbin_area = np.sum(output_pidbin_areas)
 
-                assert tot_output_pidbin_area > -EPSILON \
-                        and tot_output_pidbin_area < 1+EPSILON, \
-                        'Input Ebin %4d, tot_output_pidbin_area=%e' \
-                        %(input_ebin_n, tot_output_pidbin_area)
+                if (tot_output_pidbin_area <= -EPSILON
+                        or tot_output_pidbin_area >= 1+EPSILON):
+                    raise ValueError('Input Ebin %4d, tot_output_pidbin_area=%.15e'
+                                     %(input_ebin_n, tot_output_pidbin_area))
 
             #==================================================================
             # Neutrino coszen resolution for events in this energy bin
