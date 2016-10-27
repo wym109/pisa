@@ -92,6 +92,12 @@ class roounfold(Stage):
                                  'type {0}'.format(type(inputs)))
         self._data = inputs
 
+        # TODO(shivesh): plots with errors
+        # TODO(shivesh): fix the seed value for the stat fluctuations
+        # TODO(shivesh): add transform_groups to return all other flavintgroups
+        # TODO(shivesh): based on min reduced chi^2 cut (max 10)
+        # TODO(shivesh): include bg subtraction in unfolding
+        # TODO(shivesh): real data
         # TODO(shivesh): different algorithms
         trans_data = self._data.transform_groups(
             self._output_nu_group
@@ -135,8 +141,24 @@ class roounfold(Stage):
         sig_r_flat = roounfold._flatten_to_1d(sig_reco)
         sig_r_th1d = roounfold._convert_to_th1d(sig_r_flat, errors=True)
 
+        regularisation = self.params['regularisation'].value
+        if self.params['create_response'].value:
+            chisq = None
+            for r_idx in xrange(regularisation):
+                unfold = RooUnfoldBayes(
+                    response, sig_r_th1d, r_idx+1
+                )
+                idx_chisq = unfold.Chi2(self.sig_t_th1d, 1)
+                print 'idx_chisq', idx_chisq
+                if chisq is None: pass
+                elif idx_chisq > chisq:
+                    regularisation = r_idx
+                    break
+                chisq = idx_chisq
+
+        print 'reg', regularisation
         unfold = RooUnfoldBayes(
-            response, sig_r_th1d, self.params['regularisation'].value
+            response, sig_r_th1d, regularisation
         )
 
         sig_unfolded_flat = unfold.Hreco(1)
@@ -156,13 +178,14 @@ class roounfold(Stage):
             return self._response
 
         if self.params['create_response'].value:
-            response = self._create_response(
+            # TODO(shivesh): truth gets returned if reponse matrix is created
+            response, self.sig_t_th1d = self._create_response(
                 signal_data, self.reco_binning, self.true_binning
             )
         else:
-            # Cache based on binning, output names and event sample name
+            # Cache based on binning, output names and event sample hash
             cache_params = [self.reco_binning, self.true_binning,
-                            self.output_names, self._data.metadata['name']]
+                            self.output_names, self._data.hash]
             this_cache_hash = hash_obj(cache_params)
 
             if self.disk_cache.has_key(this_cache_hash):
@@ -173,9 +196,9 @@ class roounfold(Stage):
                                  'in disk_cache')
 
         if self.disk_cache is not None:
-            # Cache based on binning, output names and event sample name
+            # Cache based on binning, output names and event sample hash
             cache_params = [self.reco_binning, self.true_binning,
-                            self.output_names, self._data.metadata['name']]
+                            self.output_names, self._data.hash]
             this_cache_hash = hash_obj(cache_params)
             if not self.disk_cache.has_key(this_cache_hash):
                 logging.info('Caching response object to disk.')
@@ -223,7 +246,7 @@ class roounfold(Stage):
         smear_th2d = roounfold._convert_to_th2d(smear_flat, errors=True)
 
         response = RooUnfoldResponse(sig_r_th1d, sig_t_th1d, smear_th2d)
-        return response
+        return response, sig_t_th1d
 
     @staticmethod
     def _histogram(events, binning, weights=None, errors=False, **kwargs):
