@@ -87,7 +87,7 @@ def sanitize_name(name):
     return name
 
 
-def reduceToHist(x):
+def reduceToHist(expected_values):
     if isinstance(expected_values, np.ndarray):
         pass
     elif isinstance(expected_values, Map):
