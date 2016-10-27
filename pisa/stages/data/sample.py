@@ -233,10 +233,10 @@ class sample(Stage):
                     base_suffix + file_prefix
 
             events = from_file(events_file)
-            cc_mask = events['ptype'] > 0
-            nc_mask = events['ptype'] < 0
-            nu_mask = events['interaction'] == 1
-            nubar_mask = events['interaction'] == 2
+            nu_mask = events['ptype'] > 0
+            nubar_mask = events['ptype'] < 0
+            cc_mask = events['interaction'] == 1
+            nc_mask = events['interaction'] == 2
 
             if weights[idx] == 'None' or weights[idx] == '1':
                 events['pisa_weight'] = \

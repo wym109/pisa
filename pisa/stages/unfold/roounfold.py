@@ -32,7 +32,7 @@ from pisa.utils.profiler import profile
 
 class roounfold(Stage):
     """TODO(shivesh): docstring"""
-    def __init__(self, params, output_names, reco_binning, true_binning,
+    def __init__(self, params, signal, reco_binning, true_binning,
                  error_method=None, disk_cache=None, outputs_cache_depth=20,
                  memcache_deepcopy=True, debug_mode=None):
 
@@ -44,9 +44,9 @@ class roounfold(Stage):
         self.reco_binning = reco_binning
         self.true_binning = true_binning
 
-        output_names = output_names.replace(' ','').split(',')
+        signal = signal.replace(' ','').split(',')
         self._output_nu_group = []
-        for name in output_names:
+        for name in signal:
             if 'muons' in name or 'noise' in name:
                 raise AssertionError('Are you trying to unfold muons/noise?')
             else:
@@ -92,10 +92,9 @@ class roounfold(Stage):
                                  'type {0}'.format(type(inputs)))
         self._data = inputs
 
+        # TODO(shivesh): DistributionMaker
         # TODO(shivesh): plots with errors
         # TODO(shivesh): fix the seed value for the stat fluctuations
-        # TODO(shivesh): add transform_groups to return all other flavintgroups
-        # TODO(shivesh): based on min reduced chi^2 cut (max 10)
         # TODO(shivesh): include bg subtraction in unfolding
         # TODO(shivesh): real data
         # TODO(shivesh): different algorithms
@@ -149,14 +148,12 @@ class roounfold(Stage):
                     response, sig_r_th1d, r_idx+1
                 )
                 idx_chisq = unfold.Chi2(self.sig_t_th1d, 1)
-                print 'idx_chisq', idx_chisq
                 if chisq is None: pass
                 elif idx_chisq > chisq:
                     regularisation = r_idx
                     break
                 chisq = idx_chisq
 
-        print 'reg', regularisation
         unfold = RooUnfoldBayes(
             response, sig_r_th1d, regularisation
         )
