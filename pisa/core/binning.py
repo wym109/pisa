@@ -593,7 +593,7 @@ class OneDimBinning(object):
         units = format(self.units, '~').strip()
         if units == '':
             return self.tex
-        return self.tex + r'\; (%s)'%units
+        return self.tex + r' (%s)'%units
 
     @property
     def bin_widths(self):
@@ -1546,7 +1546,7 @@ class MultiDimBinning(object):
     # even take a `method` argument to force method manually.
     def bin_volumes(self, attach_units=True):
         meshgrid = self.meshgrid(entity='bin_widths', attach_units=False)
-        volumes = reduce(lambda x,y: x*y, meshgrid)
+        volumes = reduce(lambda x,y: np.multiply(x,y), meshgrid)
         if attach_units:
             return (
                 volumes

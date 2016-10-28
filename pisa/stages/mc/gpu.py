@@ -431,8 +431,8 @@ class gpu(Stage):
 
 
     def _compute_outputs(self, inputs=None):
-        logging.info('retreive weighted histo')
-        # Get hash to decide whether expensive stuff needs to be recalculated
+        logging.debug('retreive weighted histo')
+        # get hash to decide wether expensive stuff needs to be recalculated 
         osc_hash = hash_obj(normQuant([self.params[name].value for name in self.osc_params]))
         weight_hash = hash_obj(normQuant([self.params[name].value for name in self.weight_params]))
         recalc_osc = not (osc_hash == self.osc_hash)
@@ -597,6 +597,6 @@ class gpu(Stage):
                     self.fixed_error[name] = np.sqrt(out_sumw2[name])
                 maps.append(Map(name=name, hist=hist, error_hist=self.fixed_error[name], binning=self.output_binning))
             else:
-                maps.append(Map(name=name, tex=name, hist=hist, binning=self.output_binning))
+                maps.append(Map(name=name, hist=hist, binning=self.output_binning))
 
         return MapSet(maps, name='gpu_mc')

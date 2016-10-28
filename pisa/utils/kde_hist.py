@@ -4,6 +4,7 @@ from kde.cudakde import gaussian_kde
 import numpy as np
 from uncertainties import unumpy as unp
 
+from pisa.utils.profiler import profile, line_profile
 from pisa.core.binning import OneDimBinning, MultiDimBinning
 from pisa.utils.profiler import profile
 
@@ -11,14 +12,12 @@ from pisa.utils.profiler import profile
 __all__ = ['kde_histogramdd']
 
 
-@profile
-def kde_histogramdd(sample, binning, weights=[], bw_method='scott',
-                    adaptive=True, alpha=0.3, use_cuda=False,
-                    coszen_reflection=0.25, coszen_name = 'coszen',
-                    oversample=1):
-    """Run kernel density estimation (KDE) for an array of data points, and
-    then evaluate the on a histogram like grid, to effectively produce a
-    histogram-like output
+#@line_profile
+def kde_histogramdd(sample, binning, weights=[],bw_method='scott',adaptive=True,
+                        alpha=0.3,use_cuda=False,coszen_reflection=0.25,coszen_name = 'coszen',oversample=1):
+    '''
+    function to run kernel density estimation (KDE) for an array of data points, and
+    then evaluate the on a histogram like grid, to effectively produce a histogram-like output
 
     Based on Sebastian Schoenen's KDE implementation:
     http://code.icecube.wisc.edu/svn/sandbox/schoenen/kde/
@@ -53,9 +52,10 @@ def kde_histogramdd(sample, binning, weights=[], bw_method='scott',
         norm = sample.shape[0]
     else:
         norm = np.sum(weights)
-    # Oversample
-    binning = binning.oversample(oversample)
-    # Flip around to satisfy the kde implementation
+    #oversample
+    if not oversample==1:
+        binning = binning.oversample(oversample)
+    # flip around to satisfy the kde implementation
     x = sample.T
     # Must have same amount of dimensions as binning dimensions
     assert x.shape[0] == len(binning)
@@ -75,15 +75,9 @@ def kde_histogramdd(sample, binning, weights=[], bw_method='scott',
     # Check if edge needs to be reflected
     reflect_lower = binning[coszen_name].bin_edges[0] == -1
     reflect_upper = binning[coszen_name].bin_edges[-1] == 1
-
-    # Get the kernel weights
-    kernel_weights_adaptive = gaussian_kde(
-        x, weights=weights, bw_method=bw_method, adaptive=adaptive,
-        alpha=alpha, use_cuda=True
-    )
-
-    # Get the bin centers, where we're going to evaluate the kdes at, en extend
-    # the bin range for reflection
+    # get the kernel weights
+    kernel_weights_adaptive = gaussian_kde(x,weights=weights,bw_method=bw_method,adaptive=adaptive, alpha=alpha,use_cuda=use_cuda)
+    # get the bin centers, where we're going to evaluate the kdes at, en extend the bin range for reflection
     bin_points = []
     for b in binning:
         c = unp.nominal_values(b.weighted_centers)
@@ -132,15 +126,14 @@ def kde_histogramdd(sample, binning, weights=[], bw_method='scott',
     else:
         hist1 = 0
     hist = hist + hist1 + hist0
-    # Bin volumes
-    volume = binning.bin_volumes()
-    hist *= volume
-    # Downsample
-    for i, b in enumerate(binning):
-        hist = np.add.reduceat(
-            hist, np.arange(0, len(b.bin_edges)-1, oversample), axis=i
-        )
-    # Swap back the axes
+    # bin volumes
+    volume = binning.bin_volumes(attach_units=False)
+    hist = np.multiply(hist,volume)
+    #downsample
+    if not oversample==1:
+        for i,b in enumerate(binning):
+            hist = np.add.reduceat(hist, np.arange(0,len(b.bin_edges)-1,oversample), axis=i)
+    # swap back the axes
     if not cz_bin == 0:
         hist = np.swapaxes(hist, 0, cz_bin)
     #hist = hist/np.sum(hist)*norm

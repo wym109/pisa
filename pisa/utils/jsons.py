@@ -129,6 +129,8 @@ class NumpyEncoder(json.JSONEncoder):
         # remove this and leave it to other objects to do the following.
         elif isinstance(obj, pint.quantity._Quantity):
             return obj.to_tuple()
+        elif isinstance(obj, np.bool_):
+            return bool(obj)
         try:
             return json.JSONEncoder.default(self, obj)
         except:
