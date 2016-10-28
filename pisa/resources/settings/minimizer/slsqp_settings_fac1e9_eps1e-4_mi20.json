@@ -6,7 +6,7 @@
   "options":{
     "value": {
       "disp"   : 0,
-      "ftol"   : 2e-7,
+      "ftol"   : 1.0e-6,
       "eps"    : 1.0e-4,
       "maxiter": 1000
     },

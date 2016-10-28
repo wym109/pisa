@@ -18,11 +18,11 @@ from pisa.utils import jsons
 from pisa.utils.log import logging
 from pisa.utils import resources
 
+import numpy as np
 
 __all__ = ['expandPath', 'mkdir', 'get_valid_filename', 'nsort', 'findFiles',
-           'from_cfg', 'from_pickle', 'to_pickle', 'from_dill', 'to_dill',
-           'from_file', 'to_file']
-
+            'from_cfg', 'from_pickle', 'to_pickle', 'from_dill', 'to_dill',
+            'from_file', 'to_file']
 
 JSON_EXTS = ['json', 'json.bz2']
 HDF5_EXTS = ['hdf', 'h5', 'hdf5']
@@ -30,6 +30,7 @@ PKL_EXTS = ['pickle', 'pckl', 'pkl', 'p']
 DILL_EXTS = ['dill']
 CFG_EXTS = ['ini', 'cfg']
 ZIP_EXTS = ['bz2']
+TXT_EXTS = ['txt','dat']
 
 
 def expandPath(path, exp_user=True, exp_vars=True, absolute=False):
@@ -193,6 +194,20 @@ def to_pickle(obj, fname, overwrite=True):
     return cPickle.dump(obj, file(fname, 'wb'),
                         protocol=cPickle.HIGHEST_PROTOCOL)
 
+def from_txt(fname, as_array=False):
+    if as_array:
+        with open(fname, 'r') as f:
+            a = f.readlines()
+        a = [[float(m) for m in l.strip('\n\r').split()] for l in a]
+        a = np.array(a)
+    else:
+        with open(fname, 'r') as f:
+            a = f.read()
+    return a
+
+def to_txt(obj, fname):
+    with open(fname, 'w') as f:
+        f.write(obj)
 
 def from_dill(fname):
     return dill.load(file(fname, 'rb'))
@@ -253,6 +268,8 @@ def from_file(fname, fmt=None, **kwargs):
         return from_dill(fname, **kwargs)
     if ext in CFG_EXTS:
         return from_cfg(fname, **kwargs)
+    if ext in TXT_EXTS:
+        return from_txt(fname, **kwargs)
     errmsg = 'File "%s": unrecognized extension "%s"' % (fname, ext)
     logging.error(errmsg)
     raise TypeError(errmsg)
@@ -283,6 +300,8 @@ def to_file(obj, fname, fmt=None, **kwargs):
         return to_pickle(obj, fname, **kwargs)
     elif ext in DILL_EXTS:
         return to_dill(obj, fname, **kwargs)
+    elif ext in TXT_EXTS:
+        return to_txt(obj, fname, **kwargs)
     else:
         errmsg = 'Unrecognized file type/extension: ' + ext
         logging.error(errmsg)
