@@ -166,6 +166,7 @@ class roounfold(Stage):
             errors=True
         )
 
+        print 'sum', np.sum(unp.nominal_values(sig_unfold.hist))
         return MapSet([sig_unfold])
 
     def create_response(self, signal_data):

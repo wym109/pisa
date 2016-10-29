@@ -17,6 +17,7 @@ from pisa.core.events import Data
 from pisa.core.map import MapSet
 from pisa.core.binning import OneDimBinning, MultiDimBinning
 from pisa.core.param import ParamSet
+from pisa.utils.flux_weights import load_2D_table, calculate_flux_weights
 from pisa.utils.flavInt import ALL_NUFLAVINTS
 from pisa.utils.flavInt import NuFlavInt, NuFlavIntGroup
 from pisa.utils.comparisons import normQuant
@@ -25,7 +26,6 @@ from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
 
-from pisa.stages.flux.honda import honda
 from pisa.stages.osc.prob3gpu import prob3gpu
 
 
@@ -49,13 +49,9 @@ class weight(Stage):
             * Flux related parameters:
                 For more information see `$PISA/pisa/stages/flux/honda.py`
                 - flux_file
-                - flux_mode
                 - atm_delta_index
-                - energy_scale
                 - nue_numu_ratio
                 - nu_nubar_ratio
-                - oversample_e
-                - oversample_cz
                 - cache_flux : bool
                     Flag to specifiy whether to cache the flux values if
                     calculated inside this service to a file specified
@@ -120,13 +116,9 @@ class weight(Stage):
 
         self.flux_params = (
             'atm_delta_index',
-            'energy_scale',
             'nu_nubar_ratio',
             'nue_numu_ratio',
-            'oversample_e',
-            'oversample_cz',
             'flux_file',
-            'flux_mode'
         )
 
         self.osc_params = (
@@ -211,43 +203,45 @@ class weight(Stage):
             raise AssertionError('inputs is not a Data object, instead is '
                                  'type {0}'.format(type(inputs)))
         self._data = inputs
-        hash_params = ['livetime', 'oscillate'] + \
-                list(self.flux_params) + list(self.osc_params)
-        self._data.metadata['params_hash'] = self.params.values_hash
-        self._data.update_hash()
 
         if self.neutrino:
-            flux_weights = self.compute_flux_weights()
+            livetime = self.params['livetime'].value
+            flux_weights = self.compute_flux_weights(attach_units=True)
             if not self.params['oscillate'].value:
                 # no oscillations
-                for fig in self._data:
+                for fig in self._data.iterkeys():
                     flav_pdg = NuFlavInt(fig).flavCode()
                     if flav_pdg == 12:
                         self._data[fig]['pisa_weight'] *= \
-                                flux_weights[fig]['nue_flux']
+                            flux_weights[fig]['nue_flux'] * livetime
                     elif flav_pdg == 14:
                         self._data[fig]['pisa_weight'] *= \
-                                flux_weights[fig]['numu_flux']
+                            flux_weights[fig]['numu_flux'] * livetime
                     elif flav_pdg == -12:
                         self._data[fig]['pisa_weight'] *= \
-                                flux_weights[fig]['nuebar_flux']
+                            flux_weights[fig]['nuebar_flux'] * livetime
                     elif flav_pdg == -14:
                         self._data[fig]['pisa_weight'] *= \
-                                flux_weights[fig]['numubar_flux']
+                            flux_weights[fig]['numubar_flux'] * livetime
                     elif abs(flav_pdg) == 16:
                         self._data[fig]['pisa_weight'] *= 0.
+                        self._data[fig]['pisa_weight'] = \
+                                self._data[fig]['pisa_weight'].m * \
+                                ureg.dimensionless
             else:
                 # oscillations
                 osc_weights = self.compute_osc_weights(flux_weights)
-                for fig in self._data:
-                    self._data[fig]['pisa_weight'] *= osc_weights[fig]
+                for fig in self._data.iterkeys():
+                    self._data[fig]['pisa_weight'] *= \
+                            osc_weights[fig] * livetime
+            for fig in self._data.iterkeys():
+                self._data[fig]['pisa_weight'].ito('dimensionless')
 
-        print self.params['output_events_mc'].value
+        self._data.metadata['params_hash'] = self.params.values_hash
+        self._data.update_hash()
+
         if self.params['output_events_mc'].value:
-            print 'ere'
-            print self.params['output_events_mc'].value
             return self._data
-        print 'ljdsga'
 
         outputs = []
         if self.neutrino:
@@ -275,12 +269,22 @@ class weight(Stage):
 
         return MapSet(maps=outputs, name=self._data.metadata['name'])
 
-    def compute_flux_weights(self):
+    def compute_flux_weights(self, attach_units=False):
         """Neutrino fluxes via `honda` service."""
         this_hash = normQuant([self.params[name].value
                                for name in self.flux_params])
+        out_units = ureg('1 / (GeV s m**2 sr)')
         if self.flux_hash == this_hash:
-            return self._flux_weights
+            if attach_units:
+                flux_weights = {}
+                for fig in self._flux_weights.iterkeys():
+                    flux_weights[fig] = {}
+                    for flav in self._flux_weights[fig].iterkeys():
+                        flux_weights[fig][flav] = \
+                                self._flux_weights[fig][flav]*out_units
+                return flux_weights
+            else:
+                return self._flux_weights
 
         data_contains_flux = all(
             ['nue_flux' in fig and 'numu_flux' in fig and 'nuebar_flux' in fig
@@ -296,16 +300,10 @@ class weight(Stage):
                 flux_weights[fig]['nuebar_flux'] = self._data[fig]['nuebar_flux']
                 flux_weights[fig]['numubar_flux'] = self._data[fig]['numubar_flux']
         elif self.params['cache_flux'].value:
-            cache_flux_params = (
-                'energy_scale',
-                'flux_file',
-                'flux_mode'
-            )
-            this_cache_hash = [self.params[name].value
-                               for name in cache_flux_params]
             this_cache_hash = normQuant([self._data.metadata['name'],
                                          self._data.metadata['sample'],
-                                         this_cache_hash])
+                                         self._data.metadata['cuts'],
+                                         self.params['flux_file'].value])
             this_cache_hash = hash_obj(this_cache_hash)
 
             if self.disk_cache.has_key(this_cache_hash):
@@ -355,7 +353,16 @@ class weight(Stage):
 
         self.flux_hash = this_hash
         self._flux_weights = flux_weights
-        return flux_weights
+        if attach_units:
+            flux_weights_u = {}
+            for fig in flux_weights.iterkeys():
+                flux_weights_u[fig] = {}
+                for flav in flux_weights[fig].iterkeys():
+                    flux_weights_u[fig][flav] = \
+                            flux_weights[fig][flav]*out_units
+            return flux_weights_u
+        else:
+            return flux_weights
 
     def compute_osc_weights(self, flux_weights):
         """Neutrino oscillations calculation via Prob3."""
@@ -378,37 +385,27 @@ class weight(Stage):
     def _compute_flux_weights(nu_data, params):
         """Neutrino fluxes via integral preserving spline."""
         logging.debug('Computing flux values')
-        fake_binning = MultiDimBinning((
-            OneDimBinning(name='true_energy', num_bins=2, is_log=True,
-                          domain=[1, 300]*ureg.GeV),
-            OneDimBinning(name='true_coszen', num_bins=2, is_lin=True,
-                          domain=[-1, 1])
-        ))
-
-        flux = honda(
-            params = params,
-            output_binning = fake_binning,
-            error_method = None,
-            outputs_cache_depth = 0,
-            memcache_deepcopy = False,
-        )
+        spline_dict = load_2D_table(params['flux_file'].value)
 
         flux_weights = {}
         for fig in nu_data.iterkeys():
             flux_weights[fig] = {}
-
             logging.debug('Computing flux values for flavour {0}'.format(fig))
-            flux_weights[fig]['nue_flux'] = flux.calculate_flux_weights(
-                'nue', nu_data[fig]['energy'], nu_data[fig]['coszen']
+            flux_weights[fig]['nue_flux'] = calculate_flux_weights(
+                nu_data[fig]['energy'], nu_data[fig]['coszen'],
+                spline_dict['nue']
             )
-            flux_weights[fig]['numu_flux'] = flux.calculate_flux_weights(
-                'numu', nu_data[fig]['energy'], nu_data[fig]['coszen']
+            flux_weights[fig]['numu_flux'] = calculate_flux_weights(
+                nu_data[fig]['energy'], nu_data[fig]['coszen'],
+                spline_dict['numu']
             )
-            flux_weights[fig]['nuebar_flux'] = flux.calculate_flux_weights(
-                'nuebar', nu_data[fig]['energy'], nu_data[fig]['coszen']
+            flux_weights[fig]['nuebar_flux'] = calculate_flux_weights(
+                nu_data[fig]['energy'], nu_data[fig]['coszen'],
+                spline_dict['nuebar']
             )
-            flux_weights[fig]['numubar_flux'] = flux.calculate_flux_weights(
-                'numubar', nu_data[fig]['energy'], nu_data[fig]['coszen']
+            flux_weights[fig]['numubar_flux'] = calculate_flux_weights(
+                nu_data[fig]['energy'], nu_data[fig]['coszen'],
+                spline_dict['numubar']
             )
 
         return flux_weights

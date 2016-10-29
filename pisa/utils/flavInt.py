@@ -44,7 +44,9 @@ import sys
 import traceback
 
 import numpy as np
+import pint
 
+from pisa import ureg, Q_
 from pisa.utils import fileio
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.comparisons import recursiveAllclose, recursiveEquality
@@ -1350,6 +1352,15 @@ class FlavIntDataGroup(dict):
                 elif isinstance(a[key], np.ndarray) and \
                         isinstance(b[key], np.ndarray):
                     a[key] = np.concatenate((a[key], b[key]))
+                elif isinstance(a[key], pint.quantity._Quantity) and \
+                        isinstance(b[key], pint.quantity._Quantity):
+                    if isinstance(a[key].m, np.ndarray) and \
+                       isinstance(b[key].m, np.ndarray):
+                        units = a[key].units
+                        a[key] = np.concatenate((a[key].m, b[key].m_as(units)))
+                        a[key] = a[key] * units
+                    else:
+                        raise Exception('Conflict at %s' % '.'.join(path + [str(key)]))
                 else:
                     raise Exception('Conflict at %s' % '.'.join(path + [str(key)]))
             else:

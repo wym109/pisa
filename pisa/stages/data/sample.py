@@ -12,6 +12,7 @@ from operator import add
 
 import numpy as np
 
+from pisa import ureg, Q_
 from pisa.core.stage import Stage
 from pisa.core.events import Data
 from pisa.core.map import MapSet
@@ -204,6 +205,7 @@ class sample(Stage):
         name = config.get('general', 'name')
         flavours = parse(config.get('neutrino', 'flavours'))
         weights = parse(config.get('neutrino', 'weights'))
+        weight_units = config.get('neutrino', 'weight_units')
         sys_list = parse(config.get('neutrino', 'sys_list'))
         base_suffix = config.get('neutrino', 'basesuffix')
         if base_suffix == 'None': base_suffix = ''
@@ -240,12 +242,13 @@ class sample(Stage):
 
             if weights[idx] == 'None' or weights[idx] == '1':
                 events['pisa_weight'] = \
-                        np.ones(events['ptype'].shape)
+                    np.ones(events['ptype'].shape) *  ureg.dimensionless
             elif weights[idx] == '0':
                 events['pisa_weight'] = \
-                        np.zeros(events['ptype'].shape)
+                    np.zeros(events['ptype'].shape) * ureg.dimensionless
             else:
-                events['pisa_weight'] = events[weights[idx]]
+                events['pisa_weight'] = events[weights[idx]] * \
+                        ureg(weight_units)
 
             if 'zenith' in events and 'coszen' not in events:
                 events['coszen'] = np.cos(events['zenith'])
