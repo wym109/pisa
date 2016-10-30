@@ -2,6 +2,9 @@
 # date:   September 2016
 
 
+__all__ = ['GPUHist']
+
+
 import os
 
 import numpy as np
@@ -11,9 +14,6 @@ import pycuda.driver as cuda
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import line_profile, profile
 from pisa.utils.resources import find_resource
-
-
-__all__ = ['GPUHist']
 
 
 # TODO: get pep8 up in heah
@@ -72,7 +72,6 @@ class GPUHist(object):
             self.d_bin_edges_z = cuda.mem_alloc(bin_edges_z.nbytes)
 
         # Copy
-        cuda.memcpy_htod(self.d_hist, self.hist) # TODO: why copy here?
         cuda.memcpy_htod(self.d_bin_edges_x, bin_edges_x)
         cuda.memcpy_htod(self.d_bin_edges_y, bin_edges_y)
         if self.h3d:
@@ -87,6 +86,7 @@ class GPUHist(object):
 
         #include "constants.h"
         #include "utils.h"
+
 
         __device__ int GetBin(fType x, const int n_bins, fType *bin_edges)
         {
@@ -112,16 +112,19 @@ class GPUHist(object):
             return bin;
         }
 
+
         __global__ void ClearHist(fType *hist)
         {
-            // Write zeros into global memory hist
+            // Write zeros to histogram in global memory
             int bin;
             int iterations = (N_BINS / blockDim.x) + 1;
             for (int i = 0; i < iterations; i++) {
                 bin = (i * blockDim.x) + threadIdx.x;
                 if (bin < N_BINS) hist[bin] = 0.0;
             }
+            __syncthreads();
         }
+
 
         __global__ void Hist2D(fType *X, fType *Y, fType *W, const int n_evts,
                                fType *hist,
@@ -135,7 +138,8 @@ class GPUHist(object):
             int bin;
             for (int i = 0; i < iterations; i++) {
                 bin = (i * blockDim.x) + threadIdx.x;
-                if (bin < N_BINS) temp_hist[bin] = 0;
+                if (bin < N_BINS)
+                    temp_hist[bin] = 0.0;
             }
             __syncthreads();
 
@@ -159,18 +163,17 @@ class GPUHist(object):
             // Write shared buffer into global memory
             for (int i = 0; i < iterations; i++) {
                 bin = (i * blockDim.x) + threadIdx.x;
-                // TODO: why the following "if" statement?
-                if (bin < N_BINS) atomicAdd_custom(&(hist[bin]), temp_hist[bin]);
+                if (bin < N_BINS)
+                    atomicAdd_custom(&(hist[bin]), temp_hist[bin]);
             }
         }
+
 
         __global__ void Hist3D(fType *X, fType *Y, fType *Z, fType *W,
                                const int n_evts,
                                fType *hist,
-                               const int n_bins_x, const int n_bins_y,
-                               const int n_bins_z,
-                               fType *bin_edges_x, fType *bin_edges_y,
-                               fType *bin_edges_z)
+                               const int n_bins_x, const int n_bins_y, const int n_bins_z,
+                               fType *bin_edges_x, fType *bin_edges_y, fType *bin_edges_z)
         {
             __shared__ fType temp_hist[N_BINS];
 
@@ -191,7 +194,9 @@ class GPUHist(object):
                     fType z = Z[idx];
 
                     // Check if event is even in range
-                    if ((x >= bin_edges_x[0]) && (x <= bin_edges_x[n_bins_x]) && (y >= bin_edges_y[0]) && (y <= bin_edges_y[n_bins_y]) && (z >= bin_edges_z[0]) && (z <= bin_edges_z[n_bins_z])) {
+                    if ((x >= bin_edges_x[0]) && (x <= bin_edges_x[n_bins_x])
+                          && (y >= bin_edges_y[0]) && (y <= bin_edges_y[n_bins_y])
+                          && (z >= bin_edges_z[0]) && (z <= bin_edges_z[n_bins_z])) {
                         int bin_x = GetBin(x, n_bins_x, bin_edges_x);
                         int bin_y = GetBin(y, n_bins_y, bin_edges_y);
                         int bin_z = GetBin(z, n_bins_z, bin_edges_z);
@@ -248,8 +253,7 @@ class GPUHist(object):
                 n_evts,
                 self.d_hist,
                 self.n_bins_x, self.n_bins_y, self.n_bins_z,
-                self.d_bin_edges_x, self.d_bin_edges_y,
-                self.d_bin_edges_z,
+                self.d_bin_edges_x, self.d_bin_edges_y, self.d_bin_edges_z,
                 block=self.bdim, grid=gdim
             )
         else:
