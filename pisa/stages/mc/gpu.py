@@ -164,11 +164,9 @@ class gpu(Stage):
         )
 
         if self.params.kde.value:
-            #in that case we need this
             from pisa.utils.kde_hist import kde_histogramdd
             self.kde_histogramdd = kde_histogramdd
         else:
-            #otherwise that
             from pisa.utils.gpu_hist import GPUHist
             self.GPUHist = GPUHist
 
