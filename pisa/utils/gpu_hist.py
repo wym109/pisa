@@ -274,38 +274,51 @@ class GPUHist(object):
 def test_GPUHist():
     from itertools import product
     import pycuda.autoinit
-    n_events = np.int32(1e6)
-    n_bins = np.int32(50)
 
-    for FTYPE, weight in product([np.float64], [True, False]): #, np.float32]:
+    ftypes = [np.float64]
+    nexps = [0, 1, 6]
+    nbinses = [1, 10, 50]
+    ft = [False, True]
+    for FTYPE, weight, nexp, n_bins in product(ftypes, ft, nexps, nbinses):
+        n_events = np.int32(10**nexp)
+        logging.debug('FTYPE=%s, weight=%-5s, bins=%2sx2, n_events=10^%s'
+                      %(FTYPE.__name__, weight, n_bins, nexp))
+
         if FTYPE == np.float32:
             rtol = 1e-7
         elif FTYPE == np.float64:
-            rtol = 1e-15
-        # DEBUG: should not need to reset the rtol, but the GPU
-        # histogrammer's not very accurate
-        #rtol = 1e-6
+            rtol = 1e-13
 
         # Draw random samples from the Pareto distribution for energy values
         rs = np.random.RandomState(seed=0)
         a, m = 1., 1
         e = ((rs.pareto(a, n_events) + 1) * m).astype(FTYPE)
+        # Ensure endpoints are in data
+        e[0] = 1
+        e[-1] = 80
 
         # Draw random samples from a uniform distribution for coszen values
         rs = np.random.RandomState(seed=1)
         cz = rs.uniform(low=-1, high=+1, size=n_events).astype(FTYPE)
+        # Ensure endpoints are in data
+        cz[0] = -1
+        cz[-1] = +1
 
         # Draw random samples from a uniform distribution for pid values
         rs = np.random.RandomState(seed=2)
-        pid = rs.uniform(low=-1, high=+1, size=n_events).astype(FTYPE)
+        pid = rs.uniform(low=-1, high=+2, size=n_events).astype(FTYPE)
+        # Ensure endpoints are in data
+        pid[0] = -1
+        pid[-1] = +2
 
         if weight:
             # Draw random samples from a uniform distribution for weights
             rs = np.random.RandomState(seed=3)
             w = rs.uniform(low=0, high=1000, size=n_events).astype(FTYPE)
+            # Ensure a weight of 0 is represented
             w[0] = 0
         else:
-            w = np.ones_like(e)
+            w = np.ones_like(e, dtype=FTYPE)
 
         d_e = cuda.mem_alloc(e.nbytes)
         d_cz = cuda.mem_alloc(cz.nbytes)
@@ -316,17 +329,19 @@ def test_GPUHist():
         cuda.memcpy_htod(d_pid, pid)
         cuda.memcpy_htod(d_w, w)
 
-        logging.debug('%s events'%n_events)
-
         bin_edges_e = np.logspace(0, 2, n_bins+1, dtype=FTYPE)
         bin_edges_cz = np.linspace(-1, 1, n_bins+1, dtype=FTYPE)
-        bin_edges_pid = np.linspace(-1, 1, 2+1, dtype=FTYPE)
+        bin_edges_pid = np.array([-1, 0, 2], dtype=FTYPE)
 
-        histogrammer = GPUHist(bin_edges_e, bin_edges_cz, ftype=FTYPE)
-        hist2d = histogrammer.get_hist(n_events, d_e, d_cz, d_w)
-        hist2d = histogrammer.get_hist(n_events, d_e, d_cz, d_w)
-        hist2d = histogrammer.get_hist(n_events, d_e, d_cz, d_w)
-        hist2d = histogrammer.get_hist(n_events, d_e, d_cz, d_w)
+        histogrammer = GPUHist(
+            bin_edges_x=bin_edges_e,
+            bin_edges_y=bin_edges_cz,
+            ftype=FTYPE
+        )
+        for i in range(3):
+            hist2d = histogrammer.get_hist(
+                n_events=n_events, d_x=d_e, d_y=d_cz, d_w=d_w
+            )
 
         np_hist2d,_,_ = np.histogram2d(
             e, cz,
@@ -334,18 +349,29 @@ def test_GPUHist():
             weights=w
         )
 
-        logging.trace('GPU 2D histogram:\n' + repr(hist2d))
-        logging.trace('Numpy 2D histogram:\n' + repr(np_hist2d))
-        assert np.allclose(hist2d, np_hist2d, atol=0, rtol=rtol), str(np.max(np.abs(hist2d-np_hist2d)))
+        if not np.allclose(hist2d, np_hist2d, atol=0, rtol=rtol):
+            logging.error('Numpy hist:\n%s' %repr(np_hist2d))
+            logging.error('GPUHist hist:\n%s' %repr(hist2d))
+            raise ValueError(
+                '2D histogram FTYPE=%s, weighted=%s, n_events=%s worst fractional error is %s'
+                %(FTYPE, weight, n_events, np.max(np.abs((hist2d-np_hist2d)/np_hist2d)))
+            )
 
         del histogrammer
 
-        histogrammer = GPUHist(bin_edges_x=bin_edges_e,
-                               bin_edges_y=bin_edges_cz,
-                               bin_edges_z=bin_edges_pid,
-                               ftype=FTYPE)
-        hist3d = histogrammer.get_hist(n_events, d_e, d_cz, d_w, d_pid)
-        hist3d = histogrammer.get_hist(n_events, d_e, d_cz, d_w, d_pid)
+        logging.debug('FTYPE=%s, weight=%-5s, bins=%2sx%2sx2, n_events=10^%s'
+                      %(FTYPE.__name__, weight, n_bins, n_bins, nexp))
+
+        histogrammer = GPUHist(
+            bin_edges_x=bin_edges_e,
+            bin_edges_y=bin_edges_cz,
+            bin_edges_z=bin_edges_pid,
+            ftype=FTYPE
+        )
+        for i in range(3):
+            hist3d = histogrammer.get_hist(
+                n_events=n_events, d_x=d_e, d_y=d_cz, d_w=d_w, d_z=d_pid
+            )
 
         np_hist3d, _ = np.histogramdd(
             sample=[e, cz, pid],
@@ -353,9 +379,13 @@ def test_GPUHist():
             weights=w
         )
 
-        logging.trace('GPU 3D histogram:\n' + repr(hist3d))
-        logging.trace('Numpy 3D histogram:\n' + repr(np_hist3d))
-        assert np.allclose(hist3d, np_hist3d, atol=0, rtol=rtol), str(np.max(np.abs(hist3d-np_hist3d)))
+        if not np.allclose(hist3d, np_hist3d, atol=0, rtol=rtol):
+            logging.error('Numpy hist:\n%s' %repr(np_hist3d))
+            logging.error('GPUHist hist:\n%s' %repr(hist3d))
+            raise ValueError(
+                '3D histogram FTYPE=%s, weighted=%s, n_events=%s worst fractional error is %s'
+                %(FTYPE, weight, n_events, np.max(np.abs((hist3d-np_hist3d)/np_hist3d)))
+            )
 
         del histogrammer
 
