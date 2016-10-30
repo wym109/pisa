@@ -27,18 +27,7 @@ class GPUHist(object):
     bin_edges_x : array
     bin_edges_y : array
     bin_edges_z : array (optional)
-
-    Methods
-    -------
-    get_hist
-        retreive weighted histogram of given events
-        * n_evts : number of events
-        * d_x : CUDA device array of length n_evts with x-values
-        * d_y : CUDA device array of length n_evts with y-values
-        * d_z : CUDA device array of length n_evts with y-values
-        * d_w : CUDA device array of length n_evts with weights
-    clear
-        clear buffer
+    ftype : numpy datatype (optional)
 
     """
     def __init__(self, bin_edges_x, bin_edges_y, bin_edges_z=None,
@@ -52,9 +41,10 @@ class GPUHist(object):
         self.bdim = (256, 1, 1)
 
         # Events to be histogrammed per thread
-        self.n_threads = 20
+        self.events_per_thread = 20
         self.n_bins_x = np.int32(len(bin_edges_x)-1)
         self.n_bins_y = np.int32(len(bin_edges_y)-1)
+        self.n_flat_bins = self.n_bins_x * self.n_bins_y
         if self.h3d:
             self.n_bins_z = np.int32(len(bin_edges_z)-1)
             self.hist = np.ravel(np.zeros((self.n_bins_x, self.n_bins_y,
@@ -63,6 +53,7 @@ class GPUHist(object):
             self.n_bins_z = np.int32(1)
             self.hist = np.ravel(np.zeros((self.n_bins_x, self.n_bins_y),
                                           dtype=self.FTYPE))
+        self.n_flat_bins *= self.n_bins_z
 
         # Allocate
         self.d_hist = cuda.mem_alloc(self.hist.nbytes)
@@ -79,10 +70,10 @@ class GPUHist(object):
 
         kernel_template = '''//CUDA//
         // Total number of bins (must be known at compile time)
-        #define N_BINS %i
+        #define N_FLAT_BINS %(n_flat_bins)i
 
         // Number of events to be histogrammed per thread
-        #define N_THREADS %i
+        #define EVENTS_PER_THREAD %(events_per_thread)i
 
         #include "constants.h"
         #include "utils.h"
@@ -117,35 +108,36 @@ class GPUHist(object):
         {
             // Write zeros to histogram in global memory
             int bin;
-            int iterations = (N_BINS / blockDim.x) + 1;
-            for (int i = 0; i < iterations; i++) {
-                bin = (i * blockDim.x) + threadIdx.x;
-                if (bin < N_BINS) hist[bin] = 0.0;
+            //int iterations = (N_FLAT_BINS / blockDim.x) + 1;
+            for (int i = 0; i < N_FLAT_BINS; i++) {
+                //bin = (i * blockDim.x) + threadIdx.x;
+                if (i < N_FLAT_BINS)
+                    hist[i] = 0.0;
             }
             __syncthreads();
         }
 
 
-        __global__ void Hist2D(fType *X, fType *Y, fType *W, const int n_evts,
+        __global__ void Hist2D(fType *X, fType *Y, fType *W, const int n_events,
                                fType *hist,
                                const int n_bins_x, const int n_bins_y,
                                fType *bin_edges_x, fType *bin_edges_y)
         {
-            __shared__ fType temp_hist[N_BINS];
+            __shared__ fType temp_hist[N_FLAT_BINS];
 
             // Zero out (reset) shared histogram buffer
-            int iterations = (N_BINS / blockDim.x) + 1;
+            int iterations = (N_FLAT_BINS / blockDim.x) + 1;
             int bin;
             for (int i = 0; i < iterations; i++) {
                 bin = (i * blockDim.x) + threadIdx.x;
-                if (bin < N_BINS)
+                if (bin < N_FLAT_BINS)
                     temp_hist[bin] = 0.0;
             }
             __syncthreads();
 
-            int idx = N_THREADS * (threadIdx.x + blockDim.x * blockIdx.x);
-            for (int i = 0; i < N_THREADS; i++) {
-                if (idx < n_evts) {
+            int idx = EVENTS_PER_THREAD * (threadIdx.x + blockDim.x * blockIdx.x);
+            for (int i = 0; i < EVENTS_PER_THREAD; i++) {
+                if (idx < n_events) {
                     fType x = X[idx];
                     fType y = Y[idx];
                     // Check if event is even in range
@@ -163,32 +155,32 @@ class GPUHist(object):
             // Write shared buffer into global memory
             for (int i = 0; i < iterations; i++) {
                 bin = (i * blockDim.x) + threadIdx.x;
-                if (bin < N_BINS)
+                if (bin < N_FLAT_BINS)
                     atomicAdd_custom(&(hist[bin]), temp_hist[bin]);
             }
         }
 
 
         __global__ void Hist3D(fType *X, fType *Y, fType *Z, fType *W,
-                               const int n_evts,
+                               const int n_events,
                                fType *hist,
                                const int n_bins_x, const int n_bins_y, const int n_bins_z,
                                fType *bin_edges_x, fType *bin_edges_y, fType *bin_edges_z)
         {
-            __shared__ fType temp_hist[N_BINS];
+            __shared__ fType temp_hist[N_FLAT_BINS];
 
             // Zero out (reset) shared histogram buffer
-            int iterations = (N_BINS / blockDim.x) + 1;
+            int iterations = (N_FLAT_BINS / blockDim.x) + 1;
             int bin;
             for (int i = 0; i < iterations; i++) {
                 bin = (i * blockDim.x) + threadIdx.x;
-                if (bin < N_BINS) temp_hist[bin] = 0;
+                if (bin < N_FLAT_BINS) temp_hist[bin] = 0;
             }
             __syncthreads();
 
-            int idx = N_THREADS * (threadIdx.x + blockDim.x * blockIdx.x);
-            for (int i = 0; i < N_THREADS; i++) {
-                if (idx < n_evts) {
+            int idx = EVENTS_PER_THREAD * (threadIdx.x + blockDim.x * blockIdx.x);
+            for (int i = 0; i < EVENTS_PER_THREAD; i++) {
+                if (idx < n_events) {
                     fType x = X[idx];
                     fType y = Y[idx];
                     fType z = Z[idx];
@@ -210,10 +202,12 @@ class GPUHist(object):
             // Write shared buffer into global memory
             for (int i = 0; i < iterations; i++) {
                 bin = (i * blockDim.x) + threadIdx.x;
-                if (bin < N_BINS) atomicAdd_custom(&(hist[bin]), temp_hist[bin]);
+                if (bin < N_FLAT_BINS)
+                    atomicAdd_custom(&(hist[bin]), temp_hist[bin]);
             }
         }
-        '''%(self.n_bins_x*self.n_bins_y*self.n_bins_z, self.n_threads)
+        '''%dict(n_flat_bins=self.n_flat_bins,
+                 events_per_thread=self.events_per_thread)
 
         include_path = os.path.abspath(
             find_resource('../stages/osc/grid_propagator/')
@@ -228,21 +222,21 @@ class GPUHist(object):
     def clear(self):
         """Clear the histogram bins on the GPU"""
         dx, mx = divmod(
-            1 + (self.n_bins_x*self.n_bins_y*self.n_bins_z / self.n_threads),
+            1 + (self.n_flat_bins), # / self.events_per_thread),
             self.bdim[0]
         )
         gdim = ((dx + (mx > 0)) * self.bdim[0], 1)
         self.clearhist_fun(self.d_hist, block=self.bdim, grid=gdim)
 
     @profile
-    def get_hist(self, n_evts, d_x, d_y, d_w, d_z=None):
+    def get_hist(self, n_events, d_x, d_y, d_w, d_z=None):
         """Retrive histogram, given device arrays for x&y values as well as
         weights w"""
         # TODO: useful comments on what's going on with magical numbers and
         # computations
 
         # Block and grid dimensions
-        dx, mx = divmod(n_evts/self.n_threads+1, self.bdim[0])
+        dx, mx = divmod(n_events/self.events_per_thread+1, self.bdim[0])
         gdim = ((dx + (mx > 0)) * self.bdim[0], 1)
         self.clear()
 
@@ -250,7 +244,7 @@ class GPUHist(object):
         if self.h3d:
             self.hist3d_fun(
                 d_x, d_y, d_z, d_w,
-                n_evts,
+                n_events,
                 self.d_hist,
                 self.n_bins_x, self.n_bins_y, self.n_bins_z,
                 self.d_bin_edges_x, self.d_bin_edges_y, self.d_bin_edges_z,
@@ -259,7 +253,7 @@ class GPUHist(object):
         else:
             self.hist2d_fun(
                 d_x, d_y, d_w,
-                n_evts,
+                n_events,
                 self.d_hist,
                 self.n_bins_x, self.n_bins_y,
                 self.d_bin_edges_x, self.d_bin_edges_y,
@@ -278,18 +272,19 @@ class GPUHist(object):
 
 
 def test_GPUHist():
+    from itertools import product
     import pycuda.autoinit
     n_events = np.int32(1e6)
-    n_bins = np.int32(5)
+    n_bins = np.int32(50)
 
-    for FTYPE in [np.float64]: #, np.float32]:
+    for FTYPE, weight in product([np.float64], [True, False]): #, np.float32]:
         if FTYPE == np.float32:
             rtol = 1e-7
-        if FTYPE == np.float64:
+        elif FTYPE == np.float64:
             rtol = 1e-15
         # DEBUG: should not need to reset the rtol, but the GPU
         # histogrammer's not very accurate
-        rtol = 1e-6
+        #rtol = 1e-6
 
         # Draw random samples from the Pareto distribution for energy values
         rs = np.random.RandomState(seed=0)
@@ -304,10 +299,13 @@ def test_GPUHist():
         rs = np.random.RandomState(seed=2)
         pid = rs.uniform(low=-1, high=+1, size=n_events).astype(FTYPE)
 
-        # Draw random samples from a uniform distribution for weights
-        rs = np.random.RandomState(seed=3)
-        w = rs.uniform(low=0, high=1000, size=n_events).astype(FTYPE)
-        w[0] = 0
+        if weight:
+            # Draw random samples from a uniform distribution for weights
+            rs = np.random.RandomState(seed=3)
+            w = rs.uniform(low=0, high=1000, size=n_events).astype(FTYPE)
+            w[0] = 0
+        else:
+            w = np.ones_like(e)
 
         d_e = cuda.mem_alloc(e.nbytes)
         d_cz = cuda.mem_alloc(cz.nbytes)
@@ -327,6 +325,8 @@ def test_GPUHist():
         histogrammer = GPUHist(bin_edges_e, bin_edges_cz, ftype=FTYPE)
         hist2d = histogrammer.get_hist(n_events, d_e, d_cz, d_w)
         hist2d = histogrammer.get_hist(n_events, d_e, d_cz, d_w)
+        hist2d = histogrammer.get_hist(n_events, d_e, d_cz, d_w)
+        hist2d = histogrammer.get_hist(n_events, d_e, d_cz, d_w)
 
         np_hist2d,_,_ = np.histogram2d(
             e, cz,
@@ -334,8 +334,8 @@ def test_GPUHist():
             weights=w
         )
 
-        logging.debug('GPU 2D histogram:\n' + repr(hist2d))
-        logging.debug('Numpy 2D histogram:\n' + repr(np_hist2d))
+        logging.trace('GPU 2D histogram:\n' + repr(hist2d))
+        logging.trace('Numpy 2D histogram:\n' + repr(np_hist2d))
         assert np.allclose(hist2d, np_hist2d, atol=0, rtol=rtol), str(np.max(np.abs(hist2d-np_hist2d)))
 
         del histogrammer
@@ -346,7 +346,6 @@ def test_GPUHist():
                                ftype=FTYPE)
         hist3d = histogrammer.get_hist(n_events, d_e, d_cz, d_w, d_pid)
         hist3d = histogrammer.get_hist(n_events, d_e, d_cz, d_w, d_pid)
-        print hist3d.shape
 
         np_hist3d, _ = np.histogramdd(
             sample=[e, cz, pid],
@@ -354,16 +353,15 @@ def test_GPUHist():
             weights=w
         )
 
-        logging.debug('GPU 3D histogram:\n' + repr(hist3d))
-        logging.debug('Numpy 3D histogram:\n' + repr(np_hist3d))
+        logging.trace('GPU 3D histogram:\n' + repr(hist3d))
+        logging.trace('Numpy 3D histogram:\n' + repr(np_hist3d))
         assert np.allclose(hist3d, np_hist3d, atol=0, rtol=rtol), str(np.max(np.abs(hist3d-np_hist3d)))
 
         del histogrammer
-
 
     logging.info('<< PASS : test_GPUHist >>')
 
 
 if __name__ == '__main__':
-    set_verbosity(3)
+    set_verbosity(2)
     test_GPUHist()
