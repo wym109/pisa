@@ -7,12 +7,11 @@ from uncertainties import unumpy as unp
 from pisa import ureg, Q_
 from pisa.core.distribution_maker import DistributionMaker
 from pisa.core.map import Map, MapSet
-from pisa.utils.stats import chi2
 from pisa.utils.log import set_verbosity
 
 set_verbosity(1)
 
-livetimes = [1, 2, 3, 4, 5, 6] * ureg.year
+livetimes = [1, 50, 100] * ureg.year
 
 template_maker = DistributionMaker('settings/pipeline/cfx.cfg')
 
@@ -37,10 +36,15 @@ for lt in livetimes:
 
     sf_param.value = True
     template_maker.update_params(sf_param)
-    temp_out = template_maker.get_outputs()[0].pop()
-
-    chisqaure.append(
-        chi2(actual_values=nom_out.hist, expected_values=temp_out.hist)
-    )
+    t_chi2 = []
+    for x in xrange(20):
+        temp_out = template_maker.get_outputs()[0].pop()
+        try:
+            t_chi2.append(
+                nom_out.chi2(expected_values=temp_out.hist)
+            )
+        except ValueError:
+            pass
+    chisqaure.append(np.mean(t_chi2))
 
 print chisqaure
