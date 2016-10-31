@@ -10,7 +10,10 @@
 #ifndef __CONSTANTS_H__
 #define __CONSTANTS_H__
 
+#define SINGLE_PRECISION
 #define fType float
+//#define DOUBLE_PRECISION
+//#define fType double
 const fType kmTOcm = 1.0e5;
 
 // debugging purposes:

@@ -9,7 +9,7 @@ import pycuda.driver as cuda
 from pycuda.compiler import SourceModule
 
 from pisa.utils.profiler import profile
-from pisa.utils.log import set_verbosity
+from pisa.utils.log import logging, set_verbosity
 from pisa.utils.const import FTYPE
 
 
@@ -72,11 +72,12 @@ class GPUhist(object):
         kernel_template = '''//CUDA//
           // total number of bins (must be known at comiple time)
           #define N_BINS %i
+
           // number of events to be histogrammed per thread
           #define N_THREAD %i
 
           #include "constants.h"
-          //#include "utils.h"
+          #include "cuda_utils.h"
 
           __device__ int GetBin(fType x, const int n_bins, fType *bin_edges){
             // search what bin an event belongs in, given the event values x, the number of bins n_bins and the bin_edges array
@@ -123,7 +124,7 @@ class GPUhist(object):
                     if ((x >= bin_edges_x[0]) && (x <= bin_edges_x[n_bins_x]) && (y >= bin_edges_y[0]) && (y <= bin_edges_y[n_bins_y])){
                         int bin_x = GetBin(x, n_bins_x, bin_edges_x);
                         int bin_y = GetBin(y, n_bins_y, bin_edges_y);
-                        atomicAdd(&temp_hist[bin_y + bin_x * n_bins_y], W[idx]);
+                        atomicAdd_custom(&temp_hist[bin_y + bin_x * n_bins_y], W[idx]);
                     }
                 }
                 idx++;
@@ -132,7 +133,7 @@ class GPUhist(object):
             // write shared buffer into global memory
             for (int i = 0; i < iterations; i++){
                 bin = (i * blockDim.x) + threadIdx.x;
-                if (bin < N_BINS) atomicAdd( &(hist[bin]), temp_hist[bin] );
+                if (bin < N_BINS) atomicAdd_custom( &(hist[bin]), temp_hist[bin] );
             }
 
           }
@@ -160,7 +161,7 @@ class GPUhist(object):
                         int bin_x = GetBin(x, n_bins_x, bin_edges_x);
                         int bin_y = GetBin(y, n_bins_y, bin_edges_y);
                         int bin_z = GetBin(z, n_bins_z, bin_edges_z);
-                        atomicAdd(&temp_hist[bin_z + (bin_y * n_bins_z) + (bin_x * n_bins_y * n_bins_z)], W[idx]);
+                        atomicAdd_custom(&temp_hist[bin_z + (bin_y * n_bins_z) + (bin_x * n_bins_y * n_bins_z)], W[idx]);
                     }
                 }
                 idx++;
@@ -169,12 +170,12 @@ class GPUhist(object):
             // write shared buffer into global memory
             for (int i = 0; i < iterations; i++){
                 bin = (i * blockDim.x) + threadIdx.x;
-                if (bin < N_BINS) atomicAdd( &(hist[bin]), temp_hist[bin] );
+                if (bin < N_BINS) atomicAdd_custom( &(hist[bin]), temp_hist[bin] );
             }
 
           }
           '''%(self.n_bins_x*self.n_bins_y*self.n_bins_z, self.n_thread)
-        include_path = os.path.expandvars('$PISA/pisa/stages/osc/prob3cuda/')
+        include_path = os.path.expandvars('$PISA/pisa/utils/')
         module = SourceModule(kernel_template, include_dirs=[include_path], keep=True)
         self.hist2d_fun = module.get_function("Hist2D")
         self.hist3d_fun = module.get_function("Hist3D")
@@ -208,29 +209,128 @@ class GPUhist(object):
             hist = self.hist.reshape(self.n_bins_x, self.n_bins_y)
         return hist
 
-if __name__ == '__main__':
+
+def test_GPUhist():
+    from itertools import product
     import pycuda.autoinit
 
-    e = np.linspace(1,100,1000).astype(FTYPE)
-    cz = np.linspace(-1,1,1000).astype(FTYPE)
-    n_evts = np.int32(len(e))
-    w = np.ones(n_evts).astype(FTYPE)
-    d_e = cuda.mem_alloc(e.nbytes)
-    d_cz = cuda.mem_alloc(cz.nbytes)
-    d_w = cuda.mem_alloc(w.nbytes)
-    cuda.memcpy_htod(d_e, e)
-    cuda.memcpy_htod(d_cz, cz)
-    cuda.memcpy_htod(d_w, w)
-    print '%s events'%n_evts
+    ftypes = [FTYPE]
+    nexps = [0, 1, 6]
+    nbinses = [1, 10, 50]
+    ft = [False, True]
+    for ftype, weight, nexp, n_bins in product(ftypes, ft, nexps, nbinses):
+        n_events = np.int32(10**nexp)
+        logging.debug('ftype=%s, weight=%-5s, bins=%2sx2, n_events=10^%s'
+                      %(ftype.__name__, weight, n_bins, nexp))
 
-    bin_edges_e = np.linspace(1,100,10).astype(FTYPE)
-    bin_edges_cz = np.linspace(-1,1,10).astype(FTYPE)
+        if ftype == np.float32:
+            rtol = 1e-6
+        elif ftype == np.float64:
+            rtol = 1e-13
 
-    histogrammer = GPUhist(bin_edges_e, bin_edges_cz)
-    hist2d = histogrammer.get_hist(n_evts, d_e, d_cz, d_w)
+        # Draw random samples from the Pareto distribution for energy values
+        rs = np.random.RandomState(seed=0)
+        a, m = 1., 1
+        e = ((rs.pareto(a, n_events) + 1) * m).astype(ftype)
+        # Ensure endpoints are in data
+        e[0] = 1
+        e[-1] = 80
 
-    np_hist2d,_,_ = np.histogram2d(e, cz,bins=(bin_edges_e, bin_edges_cz),
-                                   weights=w)
-    print hist2d
-    print np_hist2d
-    assert (np.sum(hist2d - np_hist2d) == 0.)
+        # Draw random samples from a uniform distribution for coszen values
+        rs = np.random.RandomState(seed=1)
+        cz = rs.uniform(low=-1, high=+1, size=n_events).astype(ftype)
+        # Ensure endpoints are in data
+        cz[0] = -1
+        cz[-1] = +1
+
+        # Draw random samples from a uniform distribution for pid values
+        rs = np.random.RandomState(seed=2)
+        pid = rs.uniform(low=-1, high=+2, size=n_events).astype(ftype)
+        # Ensure endpoints are in data
+        pid[0] = -1
+        pid[-1] = +2
+
+        if weight:
+            # Draw random samples from a uniform distribution for weights
+            rs = np.random.RandomState(seed=3)
+            w = rs.uniform(low=0, high=1000, size=n_events).astype(ftype)
+            # Ensure a weight of 0 is represented
+            w[0] = 0
+        else:
+            w = np.ones_like(e, dtype=ftype)
+
+        d_e = cuda.mem_alloc(e.nbytes)
+        d_cz = cuda.mem_alloc(cz.nbytes)
+        d_pid = cuda.mem_alloc(pid.nbytes)
+        d_w = cuda.mem_alloc(w.nbytes)
+        cuda.memcpy_htod(d_e, e)
+        cuda.memcpy_htod(d_cz, cz)
+        cuda.memcpy_htod(d_pid, pid)
+        cuda.memcpy_htod(d_w, w)
+
+        bin_edges_e = np.logspace(0, 2, n_bins+1, dtype=ftype)
+        bin_edges_cz = np.linspace(-1, 1, n_bins+1, dtype=ftype)
+        bin_edges_pid = np.array([-1, 0, 2], dtype=ftype)
+
+        histogrammer = GPUhist(
+            bin_edges_x=bin_edges_e,
+            bin_edges_y=bin_edges_cz,
+            #ftype=ftype
+        )
+        for i in range(3):
+            hist2d = histogrammer.get_hist(
+                n_evts=n_events, d_x=d_e, d_y=d_cz, d_w=d_w
+            )
+
+        np_hist2d,_,_ = np.histogram2d(
+            e, cz,
+            bins=(bin_edges_e, bin_edges_cz),
+            weights=w
+        )
+
+        if not np.allclose(hist2d, np_hist2d, atol=0, rtol=rtol):
+            logging.error('Numpy hist:\n%s' %repr(np_hist2d))
+            logging.error('GPUHist hist:\n%s' %repr(hist2d))
+            raise ValueError(
+                '2D histogram ftype=%s, weighted=%s, n_events=%s worst fractional error is %s'
+                %(ftype, weight, n_events, np.max(np.abs((hist2d-np_hist2d)/np_hist2d)))
+            )
+
+        del histogrammer
+
+        logging.debug('ftype=%s, weight=%-5s, bins=%2sx%2sx2, n_events=10^%s'
+                      %(ftype.__name__, weight, n_bins, n_bins, nexp))
+
+        histogrammer = GPUhist(
+            bin_edges_x=bin_edges_e,
+            bin_edges_y=bin_edges_cz,
+            bin_edges_z=bin_edges_pid,
+            #ftype=ftype
+        )
+        for i in range(3):
+            hist3d = histogrammer.get_hist(
+                n_evts=n_events, d_x=d_e, d_y=d_cz, d_w=d_w, d_z=d_pid
+            )
+
+        np_hist3d, _ = np.histogramdd(
+            sample=[e, cz, pid],
+            bins=(bin_edges_e, bin_edges_cz, bin_edges_pid),
+            weights=w
+        )
+
+        if not np.allclose(hist3d, np_hist3d, atol=0, rtol=rtol):
+            logging.error('Numpy hist:\n%s' %repr(np_hist3d))
+            logging.error('GPUHist hist:\n%s' %repr(hist3d))
+            raise ValueError(
+                '3D histogram ftype=%s, weighted=%s, n_events=%s worst fractional error is %s'
+                %(ftype, weight, n_events, np.max(np.abs((hist3d-np_hist3d)/np_hist3d)))
+            )
+
+        del histogrammer
+
+    logging.info('<< PASS : test_GPUhist >>')
+
+
+if __name__ == '__main__':
+    set_verbosity(2)
+    test_GPUhist()

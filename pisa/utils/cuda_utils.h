@@ -1,7 +1,7 @@
 #ifndef UTILS_H__
 #define UTILS_H__
 
-//#include <iostream>
+#include "constants.h"
 
 /*
 #define checkCudaErrors(val) check( (val), #val, __FILE__, __LINE__)
@@ -16,6 +16,7 @@ void check(T err, const char* const func, const char* const file, const int line
 }
 */
 
+#ifdef DOUBLE_PRECISION
 __device__ double atomicAdd_custom(double* address, double val)
 {
   unsigned long long int* address_as_ull = (unsigned long long int*) address;
@@ -32,5 +33,11 @@ __device__ double atomicAdd_custom(double* address, double val)
 
   return __longlong_as_double(old);
 }
+#else
+__device__ float atomicAdd_custom(float* address, float val)
+{
+  return atomicAdd(address, val);
+}
+#endif
 
 #endif
