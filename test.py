@@ -11,7 +11,7 @@ from pisa.utils.log import set_verbosity
 
 set_verbosity(1)
 
-livetimes = [1, 50, 100] * ureg.year
+livetimes = [1, 4, 16, 64] * ureg.year
 
 template_maker = DistributionMaker('settings/pipeline/cfx.cfg')
 
@@ -21,7 +21,7 @@ template_maker.params.unfix('livetime')
 sf_param = template_maker.params['stat_fluctuations']
 lt_param = template_maker.params['livetime']
 
-chisqaure = []
+frac_err = []
 for lt in livetimes:
     print '==========='
     print 'livetime = {0}'.format(lt)
@@ -30,21 +30,13 @@ for lt in livetimes:
     lt_param.value = lt
     template_maker.update_params(lt_param)
 
-    sf_param.value = False
-    template_maker.update_params(sf_param)
-    nom_out = template_maker.get_outputs()[0].pop()
-
     sf_param.value = True
     template_maker.update_params(sf_param)
-    t_chi2 = []
+    fe = []
     for x in xrange(20):
         temp_out = template_maker.get_outputs()[0].pop()
-        try:
-            t_chi2.append(
-                nom_out.chi2(expected_values=temp_out.hist)
-            )
-        except ValueError:
-            pass
-    chisqaure.append(np.mean(t_chi2))
+        fe.append(np.mean(unp.std_devs(temp_out.hist)) / \
+                      np.sum(unp.nominal_values(temp_out.hist)))
+    frac_err.append(np.mean(fe))
 
-print chisqaure
+print frac_err

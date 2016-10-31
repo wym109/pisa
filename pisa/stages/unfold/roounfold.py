@@ -39,7 +39,8 @@ class roounfold(Stage):
         """Hash of input event sample"""
 
         expected_params = (
-            'create_response', 'stat_fluctuations', 'regularisation'
+            'create_response', 'stat_fluctuations', 'regularisation',
+            'optimize_reg'
         )
 
         self.response_hash = None
@@ -83,6 +84,11 @@ class roounfold(Stage):
             raise AssertionError('No disk_cache specified from which to load '
                                  'response object.')
 
+        if self.params['optimize_reg'].value and \
+           not self.params['create_response'].value:
+            raise AssertionError('`create_response` must be set to True if '
+                                 'the flag `optimize_reg` is set to True.')
+ 
         if disk_cache is not None:
             self.instantiate_disk_cache()
 
@@ -106,6 +112,7 @@ class roounfold(Stage):
         # TODO(shivesh): DistributionMaker
         # TODO(shivesh): plots with errors
         # TODO(shivesh): fix the seed value for the stat fluctuations
+        #                - will fix the TODO above
         # TODO(shivesh): include bg subtraction in unfolding
         # TODO(shivesh): real data
         # TODO(shivesh): different algorithms
@@ -152,12 +159,13 @@ class roounfold(Stage):
         sig_r_th1d = roounfold._convert_to_th1d(sig_r_flat, errors=True)
 
         regularisation = self.params['regularisation'].value
-        if self.params['create_response'].value:
+        if self.params['optimize_reg'].value:
             chisq = None
             for r_idx in xrange(regularisation):
                 unfold = RooUnfoldBayes(
                     response, sig_r_th1d, r_idx+1
                 )
+                unfold.SetVerbose(0)
                 idx_chisq = unfold.Chi2(self.sig_t_th1d, 1)
                 if chisq is None: pass
                 elif idx_chisq > chisq:
@@ -168,6 +176,7 @@ class roounfold(Stage):
         unfold = RooUnfoldBayes(
             response, sig_r_th1d, regularisation
         )
+        unfold.SetVerbose(0)
 
         sig_unfolded_flat = unfold.Hreco(1)
         sig_unfold = self._unflatten_thist(
@@ -178,7 +187,9 @@ class roounfold(Stage):
         )
 
         del sig_r_th1d
-        print 'sum', np.sum(unp.nominal_values(sig_unfold.hist))
+        logging.info('Unfolded reco sum {0}'.format(
+            np.sum(unp.nominal_values(sig_unfold.hist))
+        ))
         return MapSet([sig_unfold])
 
     def create_response(self, signal_data):
@@ -369,3 +380,4 @@ class roounfold(Stage):
         assert isinstance(params['create_response'].value, bool)
         assert isinstance(params['stat_fluctuations'].value, bool)
         assert isinstance(params['regularisation'].value, pint.quantity._Quantity)
+        assert isinstance(params['optimize_reg'].value, bool)
