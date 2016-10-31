@@ -201,6 +201,9 @@ class Stage(object):
         self.nominal_transforms_cache = None
         """Memory cache object for storing nominal transforms"""
 
+        self.full_hash = True
+        """Whether to do full hashing if true, otherwise do fast hashing"""
+
         self.transforms_cache = MemoryCache(
             max_depth=self.transforms_cache_depth, is_lru=True,
             deepcopy=self.memcache_deepcopy
@@ -423,7 +426,7 @@ class Stage(object):
             transforms_hash = self._derive_transforms_hash(
                 nominal_transforms_hash=nominal_transforms_hash
             )
-        logging.trace('transforms_hash: %s' %transforms_hash)
+        logging.trace('transforms_hash: %s' %str(transforms_hash))
 
         # Load and return existing transforms if in the cache
         if self.transforms_cache is not None \
@@ -802,8 +805,11 @@ class Stage(object):
                     if hasattr(val, 'hash'):
                         attr_hash = val.hash
                     else:
-                        norm_val = normQuant(val)
-                        attr_hash = hash_obj(val)
+                        if self.full_hash:
+                            norm_val = normQuant(val)
+                            attr_hash = hash_obj(val)
+                        else:
+                            attr_hash = hash_obj(val, full_hash=False)
                     id_subobjects.append(attr_hash)
 
                 # Generate the "sub-hash"
@@ -846,8 +852,11 @@ class Stage(object):
             if hasattr(val, 'hash'):
                 attr_hash = val.hash
             else:
-                norm_val = normQuant(val)
-                attr_hash = hash_obj(val)
+                if self.full_hash:
+                    norm_val = normQuant(val)
+                    attr_hash = hash_obj(val)
+                else:
+                    attr_hash = hash_obj(val, full_hash=False)
             id_objects.append(attr_hash)
 
         # If any hashes are missing (i.e, None), invalidate the entire hash
@@ -902,8 +911,11 @@ class Stage(object):
             if hasattr(val, 'hash'):
                 attr_hash = val.hash
             else:
-                norm_val = normQuant(val)
-                attr_hash = hash_obj(val)
+                if self.full_hash:
+                    norm_val = normQuant(val)
+                    attr_hash = hash_obj(val)
+                else:
+                    attr_hash = hash_obj(val, full_hash=False)
             id_objects.append(attr_hash)
         id_objects.append(self.source_code_hash)
 

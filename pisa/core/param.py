@@ -98,7 +98,8 @@ class Param(object):
     """
     _slots = ('name', 'unique_id', 'value', 'prior', 'range', 'is_fixed',
               'is_discrete', 'nominal_value', '_rescaled_value',
-              '_nominal_value', '_tex', 'help','_value', '_range', '_units')
+              '_nominal_value', '_tex', 'help','_value', '_range', '_units',
+              'normalize_values')
     _state_attrs = ('name', 'unique_id', 'value', 'prior', 'range', 'is_fixed',
                      'is_discrete', 'nominal_value', 'tex', 'help')
 

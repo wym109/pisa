@@ -231,7 +231,7 @@ class Map(object):
 
     """
     _slots = ('name', 'hist', 'binning', 'hash', '_hash', 'tex',
-               'full_comparison', 'parent_indexer')
+               'full_comparison', 'parent_indexer', 'normalize_values')
     _state_attrs = ('name', 'hist', 'binning', 'hash', 'tex',
                     'full_comparison')
 
@@ -723,7 +723,7 @@ class Map(object):
         # uncertainties to propagate)
         if np.all(stddevs == 0):
             stddevs = None
-        elseif self.normalize_values:
+        elif self.normalize_values:
             stddevs = normQuant(stddevs, sigfigs=HASH_SIGFIGS)
         state['error_hist'] = stddevs
         state['tex'] = self.tex
