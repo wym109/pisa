@@ -90,7 +90,12 @@ class roounfold(Stage):
         if not isinstance(inputs, Data):
             raise AssertionError('inputs is not a Data object, instead is '
                                  'type {0}'.format(type(inputs)))
-        self._data = inputs
+        print '====='
+        print inputs.hash
+        print inputs['numu_cc']['pisa_weight'].units
+        print np.sum(inputs['numu_cc']['pisa_weight'])
+        print '====='
+        self._data = deepcopy(inputs)
 
         # TODO(shivesh): DistributionMaker
         # TODO(shivesh): plots with errors

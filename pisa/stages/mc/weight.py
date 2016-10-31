@@ -5,6 +5,8 @@ oscillation and various systematics.
 This service in particular is intended to follow a `data` service which takes
 advantage of the Data object being passed as a sideband in the Stage.
 """
+from copy import deepcopy
+
 import numpy as np
 import pint
 
@@ -202,7 +204,7 @@ class weight(Stage):
         if not isinstance(inputs, Data):
             raise AssertionError('inputs is not a Data object, instead is '
                                  'type {0}'.format(type(inputs)))
-        self._data = inputs
+        self._data = deepcopy(inputs)
 
         if self.neutrino:
             livetime = self.params['livetime'].value
