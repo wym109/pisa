@@ -35,6 +35,8 @@ class roounfold(Stage):
     def __init__(self, params, signal, reco_binning, true_binning,
                  error_method=None, disk_cache=None, outputs_cache_depth=20,
                  memcache_deepcopy=True, debug_mode=None):
+        self.sample_hash = None
+        """Hash of input event sample"""
 
         expected_params = (
             'create_response', 'stat_fluctuations', 'regularisation'
@@ -84,17 +86,21 @@ class roounfold(Stage):
         if disk_cache is not None:
             self.instantiate_disk_cache()
 
+        self.include_attrs_for_hashes('sample_hash')
+
+        # TODO(shivesh): make this nicer
+        self.random = None
+        self.include_attrs_for_hashes('random')
+
     @profile
     def _compute_outputs(self, inputs=None):
         """Compute histograms for output channels."""
         if not isinstance(inputs, Data):
             raise AssertionError('inputs is not a Data object, instead is '
                                  'type {0}'.format(type(inputs)))
-        print '====='
-        print inputs.hash
-        print inputs['numu_cc']['pisa_weight'].units
-        print np.sum(inputs['numu_cc']['pisa_weight'])
-        print '====='
+        if self.params['stat_fluctuations'].value:
+            self.random = float(np.random.randn(1))
+        self.sample_hash = inputs.hash
         self._data = deepcopy(inputs)
 
         # TODO(shivesh): DistributionMaker
@@ -171,6 +177,7 @@ class roounfold(Stage):
             errors=True
         )
 
+        del sig_r_th1d
         print 'sum', np.sum(unp.nominal_values(sig_unfold.hist))
         return MapSet([sig_unfold])
 
@@ -249,6 +256,8 @@ class roounfold(Stage):
         smear_th2d = roounfold._convert_to_th2d(smear_flat, errors=True)
 
         response = RooUnfoldResponse(sig_r_th1d, sig_t_th1d, smear_th2d)
+        del sig_r_th1d
+        del smear_th2d
         return response, sig_t_th1d
 
     @staticmethod

@@ -108,6 +108,8 @@ class weight(Stage):
     def __init__(self, params, output_binning, input_names, output_names,
                  error_method=None, debug_mode=None, disk_cache=None,
                  memcache_deepcopy=True, outputs_cache_depth=20):
+        self.sample_hash = None
+        """Hash of event sample"""
 
         self.weight_params = (
             'output_events_mc',
@@ -198,6 +200,8 @@ class weight(Stage):
         if disk_cache is not None and self.params['cache_flux'].value:
             self.instantiate_disk_cache()
 
+        self.include_attrs_for_hashes('sample_hash')
+
     @profile
     def _compute_outputs(self, inputs=None):
         """Compute histograms for output channels."""
@@ -241,6 +245,7 @@ class weight(Stage):
 
         self._data.metadata['params_hash'] = self.params.values_hash
         self._data.update_hash()
+        self.sample_hash = self._data.hash
 
         if self.params['output_events_mc'].value:
             return self._data
@@ -370,7 +375,7 @@ class weight(Stage):
         """Neutrino oscillations calculation via Prob3."""
         this_hash = normQuant([self.params[name].value
                                for name in self.osc_params])
-        if self.flux_hash == this_hash:
+        if self.osc_hash == this_hash:
             return self._osc_weights
         osc_params = []
         for param in self.params:
