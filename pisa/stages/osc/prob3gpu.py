@@ -72,10 +72,10 @@ class prob3gpu(Stage):
     """
     # Define CUDA kernel
     KERNEL_TEMPLATE = '''
+    #include "constants.h"
     #include "mosc.cu"
     #include "mosc3.cu"
-    //#include "utils.h"
-    #include "constants.h"
+    #include "cuda_utils.h"
     #include <stdio.h>
 
     /* If we use some kind of oversampling then we need the original
@@ -189,8 +189,7 @@ class prob3gpu(Stage):
         for (unsigned to_nu=0; to_nu<3; to_nu++) {
           int k = (iMap+to_nu);
           fType prob = Probability[i][to_nu];
-          //atomicAdd_custom((d_smooth_maps + k*nczbins*nebins +
-          atomicAdd((d_smooth_maps + k*nczbins*nebins +
+          atomicAdd_custom((d_smooth_maps + k*nczbins*nebins +
               eidx_smooth*nczbins + czidx_smooth), prob/scale);
         }
       }
@@ -493,13 +492,14 @@ class prob3gpu(Stage):
 
         """
         # Path relative to `resources` directory
-        file_path = find_resource('../stages/osc/prob3cuda/mosc3.cu')
-        dir_path = os.path.dirname(file_path)
-        include_path = os.path.abspath(dir_path)
+        include_path = [
+            os.path.abspath(find_resource('../stages/osc/prob3cuda')),
+            os.path.abspath(find_resource('../utils'))
+        ]
         logging.debug('  pycuda INC PATH: %s' %include_path)
         logging.debug('  pycuda FLAGS: %s' %pycuda.compiler.DEFAULT_NVCC_FLAGS)
         self.module = pycuda.compiler.SourceModule(
-            self.KERNEL_TEMPLATE, include_dirs=[include_path], keep=True
+            self.KERNEL_TEMPLATE, include_dirs=include_path, keep=True
         )
         if not self.calc_transforms:
             self.propArray = self.module.get_function('propagateArray')
