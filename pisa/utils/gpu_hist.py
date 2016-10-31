@@ -10,6 +10,7 @@ from pycuda.compiler import SourceModule
 
 from pisa.utils.profiler import profile
 from pisa.utils.log import set_verbosity
+from pisa.utils.const import FTYPE
 
 
 __all__ = ['GPUhist']
@@ -40,7 +41,6 @@ class GPUhist(object):
 
     """
     def __init__(self, bin_edges_x, bin_edges_y, bin_edges_z=None):
-        self.FTYPE = np.float64
         self.h3d = bool(bin_edges_z is not None)
         # events to be histogrammed per thread
         self.n_thread = 20
@@ -48,10 +48,10 @@ class GPUhist(object):
         self.n_bins_y = np.int32(len(bin_edges_y)-1)
         if self.h3d:
             self.n_bins_z = np.int32(len(bin_edges_z)-1)
-            self.hist = np.ravel(np.zeros((self.n_bins_x, self.n_bins_y, self.n_bins_z))).astype(self.FTYPE)
+            self.hist = np.ravel(np.zeros((self.n_bins_x, self.n_bins_y, self.n_bins_z))).astype(FTYPE)
         else:
             self.n_bins_z = 1
-            self.hist = np.ravel(np.zeros((self.n_bins_x, self.n_bins_y))).astype(self.FTYPE)
+            self.hist = np.ravel(np.zeros((self.n_bins_x, self.n_bins_y))).astype(FTYPE)
 
         # allocate
         self.d_hist = cuda.mem_alloc(self.hist.nbytes)
@@ -76,7 +76,7 @@ class GPUhist(object):
           #define N_THREAD %i
 
           #include "constants.h"
-          #include "utils.h"
+          //#include "utils.h"
 
           __device__ int GetBin(fType x, const int n_bins, fType *bin_edges){
             // search what bin an event belongs in, given the event values x, the number of bins n_bins and the bin_edges array
@@ -123,7 +123,7 @@ class GPUhist(object):
                     if ((x >= bin_edges_x[0]) && (x <= bin_edges_x[n_bins_x]) && (y >= bin_edges_y[0]) && (y <= bin_edges_y[n_bins_y])){
                         int bin_x = GetBin(x, n_bins_x, bin_edges_x);
                         int bin_y = GetBin(y, n_bins_y, bin_edges_y);
-                        atomicAdd_custom(&temp_hist[bin_y + bin_x * n_bins_y], W[idx]);
+                        atomicAdd(&temp_hist[bin_y + bin_x * n_bins_y], W[idx]);
                     }
                 }
                 idx++;
@@ -132,7 +132,7 @@ class GPUhist(object):
             // write shared buffer into global memory
             for (int i = 0; i < iterations; i++){
                 bin = (i * blockDim.x) + threadIdx.x;
-                if (bin < N_BINS) atomicAdd_custom( &(hist[bin]), temp_hist[bin] );
+                if (bin < N_BINS) atomicAdd( &(hist[bin]), temp_hist[bin] );
             }
 
           }
@@ -160,7 +160,7 @@ class GPUhist(object):
                         int bin_x = GetBin(x, n_bins_x, bin_edges_x);
                         int bin_y = GetBin(y, n_bins_y, bin_edges_y);
                         int bin_z = GetBin(z, n_bins_z, bin_edges_z);
-                        atomicAdd_custom(&temp_hist[bin_z + (bin_y * n_bins_z) + (bin_x * n_bins_y * n_bins_z)], W[idx]);
+                        atomicAdd(&temp_hist[bin_z + (bin_y * n_bins_z) + (bin_x * n_bins_y * n_bins_z)], W[idx]);
                     }
                 }
                 idx++;
@@ -169,12 +169,12 @@ class GPUhist(object):
             // write shared buffer into global memory
             for (int i = 0; i < iterations; i++){
                 bin = (i * blockDim.x) + threadIdx.x;
-                if (bin < N_BINS) atomicAdd_custom( &(hist[bin]), temp_hist[bin] );
+                if (bin < N_BINS) atomicAdd( &(hist[bin]), temp_hist[bin] );
             }
 
           }
           '''%(self.n_bins_x*self.n_bins_y*self.n_bins_z, self.n_thread)
-        include_path = os.path.expandvars('$PISA/pisa/stages/osc/grid_propagator/')
+        include_path = os.path.expandvars('$PISA/pisa/stages/osc/prob3cuda/')
         module = SourceModule(kernel_template, include_dirs=[include_path], keep=True)
         self.hist2d_fun = module.get_function("Hist2D")
         self.hist3d_fun = module.get_function("Hist3D")
@@ -182,9 +182,9 @@ class GPUhist(object):
     def clear(self):
         # very dumb way to reset to zero...
         if self.h3d:
-            self.hist = np.ravel(np.zeros((self.n_bins_x, self.n_bins_y, self.n_bins_z))).astype(self.FTYPE)
+            self.hist = np.ravel(np.zeros((self.n_bins_x, self.n_bins_y, self.n_bins_z))).astype(FTYPE)
         else:
-            self.hist = np.ravel(np.zeros((self.n_bins_x, self.n_bins_y))).astype(self.FTYPE)
+            self.hist = np.ravel(np.zeros((self.n_bins_x, self.n_bins_y))).astype(FTYPE)
         cuda.memcpy_htod(self.d_hist, self.hist)
 
     def get_hist(self, n_evts, d_x, d_y, d_w, d_z=None):
@@ -210,7 +210,6 @@ class GPUhist(object):
 
 if __name__ == '__main__':
     import pycuda.autoinit
-    FTYPE = np.float64
 
     e = np.linspace(1,100,1000).astype(FTYPE)
     cz = np.linspace(-1,1,1000).astype(FTYPE)

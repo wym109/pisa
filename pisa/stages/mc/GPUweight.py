@@ -17,7 +17,7 @@ class GPUweight(object):
     def __init__(self):
         kernel_template = """//CUDA//
           #include "constants.h"
-          #include "utils.h"
+          //#include "utils.h"
           #include "math.h"
 
           // number of operations per thread for summing function
@@ -38,7 +38,7 @@ class GPUweight(object):
             }
             //__syncthreads();
             //if (threadIdx.x == 0) atomicAdd_custom( &out[0], temp_sum );
-            atomicAdd_custom( &(out[0]), temp_sum );
+            atomicAdd( &(out[0]), temp_sum );
 
               }
 
@@ -271,7 +271,7 @@ class GPUweight(object):
 
         # compile
         include_path = os.path.expandvars(
-            '$PISA/pisa/stages/osc/grid_propagator/'
+            '$PISA/pisa/stages/osc/prob3cuda/'
         )
         module = SourceModule(kernel_template, include_dirs=[include_path],
                               keep=True)

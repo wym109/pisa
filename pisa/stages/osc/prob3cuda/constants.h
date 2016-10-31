@@ -10,11 +10,10 @@
 #ifndef __CONSTANTS_H__
 #define __CONSTANTS_H__
 
-#define fType double
+#define fType float
 const fType kmTOcm = 1.0e5;
 
 // debugging purposes:
 #define VERBOSE false
-
 
 #endif
