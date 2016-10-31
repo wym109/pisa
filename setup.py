@@ -204,38 +204,6 @@ if __name__ == '__main__':
         'tests/settings/*.cfg'
     ]
 
-    if CUDA:
-        prob3gpu_module = Extension(
-            name='pisa.stages.osc.grid_propagator._GridPropagator',
-            sources=[
-                'pisa/stages/osc/grid_propagator/GridPropagator.cpp',
-                'pisa/stages/osc/prob3/EarthDensity.cc',
-                'pisa/stages/osc/grid_propagator/GridPropagator.i'
-            ],
-            include_dirs=[
-                'pisa/stages/osc/prob3/'
-            ],
-            extra_compile_args=[
-                '-xc++', '-lstdc++', '-shared-libgcc', '-c', '-Wall', '-O3',
-                '-fPIC'
-            ],
-            swig_opts=[
-                '-v', '-c++'
-            ]
-        )
-        ext_modules.append(prob3gpu_module)
-        package_data['pisa.stages.osc.grid_propagator'] = [
-            'mosc3.cu',
-            'mosc.cu',
-            'mosc3.h',
-            'mosc.h',
-            'constants.h',
-            'numpy.i',
-            'GridPropagator.h',
-            'OscUtils.h',
-            'utils.h'
-        ]
-
     if OPENMP:
         gaussians_module = Extension(
             'pisa.utils.gaussians',
@@ -310,7 +278,7 @@ if __name__ == '__main__':
             'pisa.stages.flux',
             'pisa.stages.mc',
             'pisa.stages.osc',
-            'pisa.stages.osc.grid_propagator',
+            'pisa.stages.osc.prob3cuda',
             'pisa.stages.osc.nuCraft',
             'pisa.stages.osc.prob3',
             'pisa.stages.pid',
