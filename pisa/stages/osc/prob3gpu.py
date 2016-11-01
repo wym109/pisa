@@ -284,7 +284,7 @@ class prob3gpu(Stage):
                                  ' defined or both be none, but not a mixture.'
                                  ' Something is wrong here.')
         if self.calc_transforms:
-            logging.info('Using prob3gpu to produce binned transforms')
+            logging.debug('Using prob3gpu to produce binned transforms')
             expected_params = (
                 'earth_model', 'YeI', 'YeM', 'YeO',
                 'detector_depth', 'prop_height',
@@ -292,7 +292,7 @@ class prob3gpu(Stage):
                 'theta12', 'theta13', 'theta23', 'nutau_norm',
             )
         else:
-            logging.info('Using prob3gpu to calculate probabilities for events')
+            logging.debug('Using prob3gpu to calculate probabilities for events')
             # To save time, this has an extra argument where we don't oscillate
             # neutral current events since their rate should be conserved.
             expected_params = (
@@ -399,7 +399,7 @@ class prob3gpu(Stage):
         mAtm = deltam31 if deltam31 < 0.0 else (deltam31 - deltam21)
 
         self.layers = Layers(self.params.earth_model.value, self.params.detector_depth.m_as('km'), prop_height)
-        self.layers.SetElecFrac(YeI, YeO, YeM)
+        self.layers.setElecFrac(YeI, YeO, YeM)
         self.osc = OscParams(deltam21, mAtm, sin2th12Sq, sin2th13Sq, sin2th23Sq, deltacp)
 
         self.prepare_device_arrays()
@@ -507,7 +507,7 @@ class prob3gpu(Stage):
             self.propGrid = self.module.get_function('propagateGrid')
 
     def prepare_device_arrays(self):
-        self.layers.calc_layers(self.czcen_fine)
+        self.layers.calcLayers(self.czcen_fine)
         self.maxLayers = self.layers.max_layers
 
         numLayers = self.layers.n_layers
@@ -538,7 +538,7 @@ class prob3gpu(Stage):
         self.d_ecen_fine.free()
         self.d_czcen_fine.free()
 
-    def calc_Layers(self, coszen):
+    def calc_layers(self, coszen):
         """
         \params:
           * energy: array of energies in GeV
@@ -555,9 +555,9 @@ class prob3gpu(Stage):
         YeM = self.params.YeM.m_as('dimensionless')
         prop_height = self.params.prop_height.m_as('km')
         self.layers = Layers(self.params.earth_model.value, self.params.detector_depth.m_as('km'), prop_height)
-        self.layers.SetElecFrac(YeI, YeO, YeM)
+        self.layers.setElecFrac(YeI, YeO, YeM)
 
-        self.layers.calc_layers(coszen)
+        self.layers.calcLayers(coszen)
         self.maxLayers = self.layers.max_layers
 
         numLayers = self.layers.n_layers
