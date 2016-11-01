@@ -23,7 +23,8 @@ from pisa.core.stage import Stage
 from pisa.core.events import Data
 from pisa.core.map import Map, MapSet
 from pisa.core.binning import OneDimBinning, MultiDimBinning
-from pisa.utils.flavInt import NuFlavIntGroup
+from pisa.utils.flavInt import NuFlavIntGroup, ALL_NUFLAVINTS
+from pisa.utils.random_numbers import get_random_state
 from pisa.utils.comparisons import normQuant
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
@@ -32,22 +33,38 @@ from pisa.utils.profiler import profile
 
 class roounfold(Stage):
     """TODO(shivesh): docstring"""
-    def __init__(self, params, signal, reco_binning, true_binning,
-                 error_method=None, disk_cache=None, outputs_cache_depth=20,
-                 memcache_deepcopy=True, debug_mode=None):
+    def __init__(self, params, input_names, output_names, reco_binning,
+                 true_binning, error_method=None, disk_cache=None,
+                 outputs_cache_depth=20, memcache_deepcopy=True,
+                 debug_mode=None):
         self.sample_hash = None
-        """Hash of input event sample"""
+        """Hash of input event sample."""
+        self.random_state = None
+        """Hash of random state."""
+        self.response_hash = None
+        """Hash of response object."""
 
         expected_params = (
             'create_response', 'stat_fluctuations', 'regularisation',
             'optimize_reg'
         )
 
-        self.response_hash = None
         self.reco_binning = reco_binning
         self.true_binning = true_binning
 
-        signal = signal.replace(' ','').split(',')
+        input_names = input_names.replace(' ','').split(',')
+        clean_innames = []
+        for name in input_names:
+            if 'muons' in name:
+                clean_innames.append(name)
+            elif 'noise' in name:
+                clean_innames.append(name)
+            elif 'all_nu' in name:
+                clean_innames = [str(NuFlavIntGroup(f)) for f in ALL_NUFLAVINTS]
+            else:
+                clean_innames.append(str(NuFlavIntGroup(name)))
+
+        signal = output_names.replace(' ','').split(',')
         self._output_nu_group = []
         for name in signal:
             if 'muons' in name or 'noise' in name:
@@ -71,6 +88,7 @@ class roounfold(Stage):
             use_transforms=False,
             params=params,
             expected_params=expected_params,
+            input_names=clean_innames,
             output_names=self._output_nu_group,
             error_method=error_method,
             disk_cache=disk_cache,
@@ -93,10 +111,7 @@ class roounfold(Stage):
             self.instantiate_disk_cache()
 
         self.include_attrs_for_hashes('sample_hash')
-
-        # TODO(shivesh): make this nicer
-        self.random = None
-        self.include_attrs_for_hashes('random')
+        self.include_attrs_for_hashes('random_state')
 
     @profile
     def _compute_outputs(self, inputs=None):
@@ -104,15 +119,10 @@ class roounfold(Stage):
         if not isinstance(inputs, Data):
             raise AssertionError('inputs is not a Data object, instead is '
                                  'type {0}'.format(type(inputs)))
-        if self.params['stat_fluctuations'].value:
-            self.random = float(np.random.randn(1))
         self.sample_hash = inputs.hash
         self._data = deepcopy(inputs)
 
-        # TODO(shivesh): DistributionMaker
         # TODO(shivesh): plots with errors
-        # TODO(shivesh): fix the seed value for the stat fluctuations
-        #                - will fix the TODO above
         # TODO(shivesh): include bg subtraction in unfolding
         # TODO(shivesh): real data
         # TODO(shivesh): different algorithms
@@ -137,8 +147,13 @@ class roounfold(Stage):
             name='all',
             tex=r'\rm{all}'
         )
-        if self.params['stat_fluctuations'].value:
-            all_hist = all_hist.fluctuate('poisson')
+
+        self.seed = int(self.params['stat_fluctuations'].value.m)
+        if self.seed != 0:
+            if self.random_state is None:
+                self.random_state = get_random_state(self.seed)
+            all_hist = all_hist.fluctuate('poisson', self.random_state)
+        else: self.random_state = None
         all_hist.set_poisson_errors()
 
         bg_hist = self._histogram(
@@ -378,6 +393,7 @@ class roounfold(Stage):
 
     def validate_params(self, params):
         assert isinstance(params['create_response'].value, bool)
-        assert isinstance(params['stat_fluctuations'].value, bool)
+        sf = params['stat_fluctuations'].value
+        assert sf is None or isinstance(sf, pint.quantity._Quantity)
         assert isinstance(params['regularisation'].value, pint.quantity._Quantity)
         assert isinstance(params['optimize_reg'].value, bool)

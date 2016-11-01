@@ -12,6 +12,7 @@ from pisa.utils.log import set_verbosity
 set_verbosity(1)
 
 livetimes = [1, 4, 16, 64] * ureg.year
+# livetimes = [1] * ureg.year
 
 template_maker = DistributionMaker('settings/pipeline/cfx.cfg')
 
@@ -30,13 +31,13 @@ for lt in livetimes:
     lt_param.value = lt
     template_maker.update_params(lt_param)
 
-    sf_param.value = True
+    sf_param.value = 1234 * ureg.dimensionless
     template_maker.update_params(sf_param)
     fe = []
     for x in xrange(20):
         temp_out = template_maker.get_outputs()[0].pop()
         fe.append(np.mean(unp.std_devs(temp_out.hist)) / \
-                      np.sum(unp.nominal_values(temp_out.hist)))
+                  np.sum(unp.nominal_values(temp_out.hist)))
     frac_err.append(np.mean(fe))
 
 print frac_err
