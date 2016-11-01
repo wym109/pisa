@@ -44,7 +44,7 @@ from pisa.utils.resources import find_resource
 __all__ = ['vbwkde', 'plot_kde_detail', 'plot_multiple']
 
 
-EPSILON = 1e-8
+EPSILON = 1e-4
 
 
 # TODO: the below logic does not generalize to muons, but probably should
@@ -947,7 +947,7 @@ class vbwkde(Stage):
             another output (reco) dimension.
 
         """
-        SAMPLES_PER_BIN = 500
+        SAMPLES_PER_BIN = 5000
         """Number of samples for computing each 1D area in a bin (using
         np.trapz)."""
 
@@ -1208,10 +1208,10 @@ class vbwkde(Stage):
             # Sum the area in each output bin
             tot_output_ebin_area = np.sum(output_ebin_areas)
 
-            assert tot_output_ebin_area > -EPSILON \
-                    and tot_output_ebin_area < 1+EPSILON, \
-                    'Input Ebin %4d, tot_output_ebin_area=%e' \
-                    %(input_ebin_n, tot_output_ebin_area)
+            if (tot_output_ebin_area <= -EPSILON
+                    or tot_output_ebin_area >= 1+EPSILON):
+                raise ValueError('Input Ebin %4d, tot_output_ebin_area=%.15e'
+                                 %(input_ebin_n, tot_output_ebin_area))
 
             #==================================================================
             # PID distribution for events in this energy bin
@@ -1260,10 +1260,10 @@ class vbwkde(Stage):
                     output_pidbin_areas.append(area)
                 tot_output_pidbin_area = np.sum(output_pidbin_areas)
 
-                assert tot_output_pidbin_area > -EPSILON \
-                        and tot_output_pidbin_area < 1+EPSILON, \
-                        'Input Ebin %4d, tot_output_pidbin_area=%e' \
-                        %(input_ebin_n, tot_output_pidbin_area)
+                if (tot_output_pidbin_area <= -EPSILON
+                        or tot_output_pidbin_area >= 1+EPSILON):
+                    raise ValueError('Input Ebin %4d, tot_output_pidbin_area=%.15e'
+                                     %(input_ebin_n, tot_output_pidbin_area))
 
             #==================================================================
             # Neutrino coszen resolution for events in this energy bin
@@ -1819,7 +1819,14 @@ def plot_multiple(all_kde_info, labels, outdir, all_extra_info=None):
     flavintgroups_s = all_kde_info[0].keys()
     ebin_keys = all_kde_info[0][flavintgroups_s[0]].keys()
     num_ebins = len(ebin_keys)
-    interp_kinds = all_kde_info[0][flavintgroups_s[0]][ebin_keys[0]].keys()
+    interp_kinds = set(all_kde_info[0][flavintgroups_s[0]][ebin_keys[0]].keys())
+
+    # Figure out what to plot
+    for kde_set in all_kde_info:
+        for flavintgroup_s, ebin_kde_info in kde_set.iteritems():
+            interp_kinds = interp_kinds.intersection(
+                set(ebin_kde_info[ebin_keys[0]].keys())
+            )
 
     num_out_dims = 2
     compute_pid = False
@@ -1831,7 +1838,6 @@ def plot_multiple(all_kde_info, labels, outdir, all_extra_info=None):
         assert set(flavintgroups_s) == set(kde_set.keys())
         for flavintgroup_s, ebin_kde_info in kde_set.iteritems():
             assert set(ebin_kde_info.keys()) == set(ebin_keys)
-            assert set(ebin_kde_info[ebin_keys[0]].keys()) == set(interp_kinds), str(ebin_kde_info[ebin_keys[0]].keys()) + ' -- vs -- ' + str(interp_kinds)
 
 	ci = 0.98
     nbins = 50
@@ -1909,7 +1915,8 @@ def plot_multiple(all_kde_info, labels, outdir, all_extra_info=None):
                 )
                 ax.set_xlim([lb, ub])
                 ax.set_xlabel(r'$E_{\rm reco}-E_{\rm true} \; ({\rm GeV})$')
-                ax.legend(loc='best', frameon=False)
+                leg = ax.legend(loc='best', frameon=False)
+                plt.setp(leg.get_texts(), fontsize='10')
 
                 axnum = 1
                 ax = axes[axnum]

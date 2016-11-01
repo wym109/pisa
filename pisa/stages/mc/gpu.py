@@ -416,7 +416,7 @@ class gpu(Stage):
         """Copy back event by event information into the host dict"""
         for flav in self.flavs:
             for var in variables:
-                buff = np.ones(self.events_dict[flav]['n_evts'])
+                buff = np.ones(self.events_dict[flav]['n_evts'], dtype=FTYPE)
                 cuda.memcpy_dtoh(buff, self.events_dict[flav]['device'][var])
                 self.events_dict[flav]['host'][var] = buff
 
@@ -431,7 +431,6 @@ class gpu(Stage):
 
 
     def _compute_outputs(self, inputs=None):
-        logging.info('retreive weighted histo')
         # Get hash to decide whether expensive stuff needs to be recalculated
         osc_hash = hash_obj(normQuant([self.params[name].value for name in self.osc_params]))
         weight_hash = hash_obj(normQuant([self.params[name].value for name in self.weight_params]))

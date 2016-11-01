@@ -1,4 +1,3 @@
-
 from collections import Sequence
 import os # Needed to get the absolute path to mosc3.cu and mosc.cu or else nvcc fails
 
@@ -11,17 +10,15 @@ from pisa import ureg, Q_
 from pisa.core.binning import MultiDimBinning
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
-from pisa.stages.osc.grid_propagator.GridPropagator import GridPropagator
 from pisa.utils.log import logging
 from pisa.utils.comparisons import normQuant
 from pisa.utils.profiler import line_profile, profile
 from pisa.utils.resources import find_resource
+from pisa.stages.osc.layers import Layers
+from pisa.stages.osc.osc_params import OscParams
+from pisa.utils.const import FTYPE
 
 
-__all__ = ['prob3gpu']
-
-
-# TODO: proper docstrings
 class prob3gpu(Stage):
     """Neutrino oscillations calculation via Prob3 with a GPU.
 
@@ -44,8 +41,6 @@ class prob3gpu(Stage):
             * theta12
             * theta13
             * theta23
-        Nutau (and nutaubar) normalization:
-            * nutau_norm
 
     input_binning : MultiDimBinning
     output_binning : MultiDimBinning
@@ -77,10 +72,10 @@ class prob3gpu(Stage):
     """
     # Define CUDA kernel
     KERNEL_TEMPLATE = '''
+    #include "constants.h"
     #include "mosc.cu"
     #include "mosc3.cu"
-    #include "utils.h"
-    #include "constants.h"
+    #include "cuda_utils.h"
     #include <stdio.h>
 
     /* If we use some kind of oversampling then we need the original
@@ -131,13 +126,16 @@ class prob3gpu(Stage):
       clear_complex_matrix(TransitionTemp);
       clear_probabilities(Probability);
 
-      int layers = *(d_numberOfLayers + czidx);
+      //int layers = 1;//*(d_numberOfLayers + czidx);
+      int layers = d_numberOfLayers[czidx];
 
       fType energy = d_ecen_fine[eidx];
       //fType coszen = d_czcen_fine[czidx];
       for (int i=0; i<layers; i++) {
-        fType density = *(d_densityInLayer + czidx*maxLayers + i);
-        fType distance = *(d_distanceInLayer + czidx*maxLayers + i);
+        //fType density = 0.5;//*(d_densityInLayer + czidx*maxLayers + i);
+        fType density = d_densityInLayer[czidx*maxLayers + i];
+        //fType distance = 100.;//*(d_distanceInLayer + czidx*maxLayers + i);
+        fType distance = d_distanceInLayer[czidx*maxLayers + i];
 
         get_transition_matrix(kNuBar,
                               energy,
@@ -236,7 +234,7 @@ class prob3gpu(Stage):
                               0.0,
                               d_mix,
                               d_dm);
-        if(i==0) {
+        if(i==0) { 
           copy_complex_matrix(TransitionMatrix, TransitionProduct);
         } else {
           clear_complex_matrix( TransitionTemp );
@@ -244,7 +242,7 @@ class prob3gpu(Stage):
           copy_complex_matrix( TransitionTemp, TransitionProduct );
         }
       } // end layer loop
-
+      
       // loop on neutrino types, and compute probability for neutrino i:
       // We actually don't care about nutau -> anything since the flux there is zero!
       for( unsigned i=0; i<2; i++) {
@@ -252,10 +250,10 @@ class prob3gpu(Stage):
           RawInputPsi[j][0] = 0.0;
           RawInputPsi[j][1] = 0.0;
         }
-
-        if( kUseMassEstates )
+        
+        if( kUseMassEstates ) 
           convert_from_mass_eigenstate(i+1,kNuBar,RawInputPsi,d_mix);
-        else
+        else 
           RawInputPsi[i][0] = 1.0;
 
         // calculate 'em all here, from legacy code...
@@ -286,17 +284,15 @@ class prob3gpu(Stage):
                                  ' defined or both be none, but not a mixture.'
                                  ' Something is wrong here.')
         if self.calc_transforms:
-            logging.info('Using prob3gpu to produce binned transforms')
+            logging.debug('Using prob3gpu to produce binned transforms')
             expected_params = (
                 'earth_model', 'YeI', 'YeM', 'YeO',
                 'detector_depth', 'prop_height',
                 'deltacp', 'deltam21', 'deltam31',
-                'theta12', 'theta13', 'theta23',
-                'nutau_norm'
+                'theta12', 'theta13', 'theta23', 'nutau_norm',
             )
         else:
-            logging.info('Using prob3gpu to calculate probabilities for'
-                         ' events')
+            logging.debug('Using prob3gpu to calculate probabilities for events')
             # To save time, this has an extra argument where we don't oscillate
             # neutral current events since their rate should be conserved.
             expected_params = (
@@ -320,10 +316,6 @@ class prob3gpu(Stage):
 
         self.gpu_id = gpu_id
 
-        #if self.gpu_id is None:
-        #    self.gpu_id = cuda.Context.get_device()
-        #self.context = cuda.Device(self.gpu_id).make_context()
-
         # Invoke the init method from the parent class (Stage), which does a
         # lot of work (caching, providing public interfaces, etc.)
         super(self.__class__, self).__init__(
@@ -333,6 +325,7 @@ class prob3gpu(Stage):
             input_names=input_names,
             output_names=output_names,
             error_method=error_method,
+            disk_cache=None,
             outputs_cache_depth=outputs_cache_depth,
             memcache_deepcopy=memcache_deepcopy,
             transforms_cache_depth=transforms_cache_depth,
@@ -342,7 +335,6 @@ class prob3gpu(Stage):
         )
 
         # TODO: Check for single precision
-        self.FTYPE = np.float64
         if self.calc_transforms:
             self.compute_binning_constants()
         self.initialize_kernel()
@@ -366,8 +358,8 @@ class prob3gpu(Stage):
         ])
 
         ecen_fine, czcen_fine = self.ecz_binning.weighted_centers
-        self.ecen_fine = ecen_fine.magnitude
-        self.czcen_fine = czcen_fine.magnitude
+        self.ecen_fine = ecen_fine.magnitude.astype(FTYPE)
+        self.czcen_fine = czcen_fine.magnitude.astype(FTYPE)
 
         self.e_dim_num = self.input_binning.names.index('true_energy')
         self.cz_dim_num = self.input_binning.names.index('true_coszen')
@@ -381,10 +373,6 @@ class prob3gpu(Stage):
         nu_xform = np.empty(xform_shape)
         antinu_xform = np.empty(xform_shape)
         return nu_xform, antinu_xform
-
-    def _derive_nominal_transforms_hash(self):
-        """No nominal transforms implemented for this service."""
-        return None
 
     @profile
     def _compute_transforms(self):
@@ -403,7 +391,6 @@ class prob3gpu(Stage):
         YeO = self.params.YeO.m_as('dimensionless')
         YeM = self.params.YeM.m_as('dimensionless')
         prop_height = self.params.prop_height.m_as('km')
-        nutau_norm = self.params.nutau_norm.m_as('dimensionless')
 
         sin2th12Sq = np.sin(theta12)**2
         sin2th13Sq = np.sin(theta13)**2
@@ -411,66 +398,51 @@ class prob3gpu(Stage):
 
         mAtm = deltam31 if deltam31 < 0.0 else (deltam31 - deltam21)
 
-        # TODO: check this, and possibly remove comment if unnecessary (should
-        # be no # copy-paste even in comments unless absolutely necessary)
+        self.layers = Layers(self.params.earth_model.value, self.params.detector_depth.m_as('km'), prop_height)
+        self.layers.setElecFrac(YeI, YeO, YeM)
+        self.osc = OscParams(deltam21, mAtm, sin2th12Sq, sin2th13Sq, sin2th23Sq, deltacp)
 
-        # Comment GridPropagator.cpp::SetMNS()
-        # "For the inverted Hierarchy, adjust the input
-        # by the solar mixing (should be positive)
-        # to feed the core libraries the correct value of m32."
-        #if mAtm < 0.0: mAtm -= deltam21;
-
-        self.grid_prop.SetMNS(deltam21, mAtm, sin2th12Sq, sin2th13Sq,
-                              sin2th23Sq, deltacp)
-        self.grid_prop.SetEarthDensityParams(prop_height, YeI, YeO, YeM)
         self.prepare_device_arrays()
 
-        dm_mat = np.zeros((3,3), dtype=self.FTYPE)
-        self.grid_prop.Get_dm_mat(dm_mat)
-        mix_mat = np.zeros((3,3,2), dtype=self.FTYPE)
-        self.grid_prop.Get_mix_mat(mix_mat)
+        dm_mat = self.osc.M_mass
+        mix_mat = self.osc.M_pmns
 
         logging.trace('dm_mat: \n %s' %str(dm_mat))
         logging.trace('mix[re]: \n %s' %str(mix_mat[:,:,0]))
+
+        dm_mat = dm_mat.astype(FTYPE)
+        mix_mat = mix_mat.astype(FTYPE)
 
         d_dm_mat = cuda.mem_alloc(dm_mat.nbytes)
         d_mix_mat = cuda.mem_alloc(mix_mat.nbytes)
         cuda.memcpy_htod(d_dm_mat, dm_mat)
         cuda.memcpy_htod(d_mix_mat, mix_mat)
 
-        nebins_fine = np.uint32(len(self.ecen_fine))
-        nczbins_fine = np.uint32(len(self.czcen_fine))
+        nebins_fine = np.int32(len(self.ecen_fine))
+        nczbins_fine = np.int32(len(self.czcen_fine))
 
         # Earlier versions had self.ecen_fine*energy_scale but energy_scale is
         # not used anymore
         cuda.memcpy_htod(self.d_ecen_fine, self.ecen_fine)
 
-        smooth_maps = np.zeros((nczbins_fine*nebins_fine*12), dtype=self.FTYPE)
+        smooth_maps = np.zeros((nczbins_fine*nebins_fine*12), dtype=FTYPE)
         d_smooth_maps = cuda.mem_alloc(smooth_maps.nbytes)
         cuda.memcpy_htod(d_smooth_maps, smooth_maps)
 
-        block_size = (16, 16, 1)
-        grid_size = (nczbins_fine/block_size[0] + 1,
-                     nebins_fine/block_size[1] + 1,
-                     2)
+        block_size = (16,16,1)
+        grid_size = (nczbins_fine/block_size[0] + 1, nebins_fine/block_size[1] + 1, 2)
         self.propGrid(d_smooth_maps,
                       d_dm_mat, d_mix_mat,
                       self.d_ecen_fine, self.d_czcen_fine,
                       nebins_fine, nczbins_fine,
                       nebins_fine, nczbins_fine,
-                      np.uint32(self.maxLayers),
+                      np.int32(self.maxLayers),
                       self.d_numLayers, self.d_densityInLayer,
                       self.d_distanceInLayer,
                       block=block_size, grid=grid_size)
                       #shared=16384)
 
         cuda.memcpy_dtoh(smooth_maps, d_smooth_maps)
-        #self.free_device_memory()
-        #d_smooth_maps.free()
-        #d_dm_mat.free()
-        #d_mix_mat.free()
-        ## Finish this context cleanly since we don't need it anymore
-        #self.context.pop()
 
         # Return TransformSet
         smooth_maps = np.reshape(smooth_maps, (12, nebins_fine, nczbins_fine))
@@ -498,8 +470,6 @@ class prob3gpu(Stage):
                 source=[0] + [i+1 for i in xform_dim_indices],
                 destination=[0] + [i+1 for i in users_dim_indices]
             )
-            if nutau_norm != 1 and output_name in ['nutau', 'nutaubar']:
-                xform *= nutau_norm
             transforms.append(
                 BinnedTensorTransform(
                     input_names=input_names,
@@ -522,40 +492,31 @@ class prob3gpu(Stage):
 
         """
         # Path relative to `resources` directory
-        file_path = find_resource('../stages/osc/grid_propagator/mosc3.cu')
-        dir_path = os.path.dirname(file_path)
-        include_path = os.path.abspath(dir_path)
+        include_path = [
+            os.path.abspath(find_resource('../stages/osc/prob3cuda')),
+            os.path.abspath(find_resource('../utils'))
+        ]
         logging.debug('  pycuda INC PATH: %s' %include_path)
         logging.debug('  pycuda FLAGS: %s' %pycuda.compiler.DEFAULT_NVCC_FLAGS)
         self.module = pycuda.compiler.SourceModule(
-            self.KERNEL_TEMPLATE, include_dirs=[include_path], keep=True
+            self.KERNEL_TEMPLATE, include_dirs=include_path, keep=True
         )
         if not self.calc_transforms:
-            # We must define self.grid_prop later when we have a coszen
-            # value to use
-            self.grid_prop = None
             self.propArray = self.module.get_function('propagateArray')
         else:
-            self.grid_prop = GridPropagator(
-                find_resource(self.params.earth_model.value),
-                self.FTYPE(self.czcen_fine),
-                self.FTYPE(self.params.detector_depth.m_as('km'))
-            )
             self.propGrid = self.module.get_function('propagateGrid')
 
     def prepare_device_arrays(self):
-        self.maxLayers = self.grid_prop.GetMaxLayers()
-        nczbins_fine = len(self.czcen_fine)
-        numLayers = np.zeros(nczbins_fine, dtype=np.int32)
-        densityInLayer = np.zeros((nczbins_fine*self.maxLayers),
-                                  dtype=self.FTYPE)
-        distanceInLayer = np.zeros((nczbins_fine*self.maxLayers),
-                                   dtype=self.FTYPE)
+        self.layers.calcLayers(self.czcen_fine)
+        self.maxLayers = self.layers.max_layers
 
-        self.grid_prop.GetNumberOfLayers(numLayers)
-        self.grid_prop.GetDensityInLayer(densityInLayer)
-        self.grid_prop.GetDistanceInLayer(distanceInLayer)
+        numLayers = self.layers.n_layers
+        densityInLayer = self.layers.density
+        distanceInLayer =self.layers.distance
 
+        numLayers = numLayers.astype(np.int32)
+        densityInLayer = densityInLayer.astype(FTYPE)
+        distanceInLayer = distanceInLayer.astype(FTYPE)
         # Copy all these earth info arrays to device:
         self.d_numLayers = cuda.mem_alloc(numLayers.nbytes)
         self.d_densityInLayer = cuda.mem_alloc(densityInLayer.nbytes)
@@ -577,7 +538,7 @@ class prob3gpu(Stage):
         self.d_ecen_fine.free()
         self.d_czcen_fine.free()
 
-    def calc_Layers(self, coszen):
+    def calc_layers(self, coszen):
         """
         \params:
           * energy: array of energies in GeV
@@ -587,34 +548,29 @@ class prob3gpu(Stage):
           * detector_depth: Detector depth in km.
           * prop_height: Height in the atmosphere to begin in km.
         """
-
         assert(not self.calc_transforms)
 
-        self.grid_prop = GridPropagator(
-            find_resource(self.params.earth_model.value),
-            self.FTYPE(coszen),
-            self.params.detector_depth.m_as('km')
-        )
+        YeI = self.params.YeI.m_as('dimensionless')
+        YeO = self.params.YeO.m_as('dimensionless')
+        YeM = self.params.YeM.m_as('dimensionless')
+        prop_height = self.params.prop_height.m_as('km')
+        self.layers = Layers(self.params.earth_model.value, self.params.detector_depth.m_as('km'), prop_height)
+        self.layers.setElecFrac(YeI, YeO, YeM)
 
-        self.grid_prop.SetEarthDensityParams(
-            self.params.prop_height.m_as('km'),
-            self.params.YeI.m_as('dimensionless'),
-            self.params.YeO.m_as('dimensionless'),
-            self.params.YeM.m_as('dimensionless')
-        )
+        self.layers.calcLayers(coszen)
+        self.maxLayers = self.layers.max_layers
 
-        n_evts = np.uint32(len(coszen))
+        numLayers = self.layers.n_layers
+        densityInLayer = self.layers.density
+        distanceInLayer =self.layers.distance
 
-        self.maxLayers  = self.grid_prop.GetMaxLayers()
-        numLayers       = np.zeros(n_evts,dtype=np.int32)
-        densityInLayer  = np.zeros((n_evts*self.maxLayers),dtype=self.FTYPE)
-        distanceInLayer = np.zeros((n_evts*self.maxLayers),dtype=self.FTYPE)
-
-        self.grid_prop.GetNumberOfLayers(numLayers)
-        self.grid_prop.GetDensityInLayer(densityInLayer)
-        self.grid_prop.GetDistanceInLayer(distanceInLayer)
+        numLayers = numLayers.astype(np.int32)
+        densityInLayer = densityInLayer.astype(FTYPE)
+        distanceInLayer = distanceInLayer.astype(FTYPE)
+        
 
         return numLayers, densityInLayer, distanceInLayer
+
 
     def update_MNS(self, theta12, theta13, theta23,
                    deltam21, deltam31, deltacp):
@@ -640,21 +596,18 @@ class prob3gpu(Stage):
         # to feed the core libraries the correct value of m32."
         #if mAtm < 0.0: mAtm -= deltam21;
 
-        self.grid_prop.SetMNS(deltam21,mAtm,sin2th12Sq,sin2th13Sq,
-                              sin2th23Sq,deltacp)
-
-        dm_mat = np.zeros((3,3),dtype=self.FTYPE)
-        self.grid_prop.Get_dm_mat(dm_mat)
-        mix_mat = np.zeros((3,3,2),dtype=self.FTYPE)
-        self.grid_prop.Get_mix_mat(mix_mat)
+        self.osc = OscParams(deltam21, mAtm, sin2th12Sq, sin2th13Sq, sin2th23Sq, deltacp)
+        dm_mat = self.osc.M_mass
+        mix_mat = self.osc.M_pmns
 
         logging.debug("dm_mat: \n %s"%str(dm_mat))
         logging.debug("mix[re]: \n %s"%str(mix_mat[:,:,0]))
 
-        self.d_dm_mat = cuda.mem_alloc(dm_mat.nbytes)
-        self.d_mix_mat = cuda.mem_alloc(mix_mat.nbytes)
-        cuda.memcpy_htod(self.d_dm_mat,dm_mat)
-        cuda.memcpy_htod(self.d_mix_mat,mix_mat)
+        self.d_dm_mat = cuda.mem_alloc(FTYPE(dm_mat).nbytes)
+        self.d_mix_mat = cuda.mem_alloc(FTYPE(mix_mat).nbytes)
+        cuda.memcpy_htod(self.d_dm_mat,FTYPE(dm_mat))
+        cuda.memcpy_htod(self.d_mix_mat,FTYPE(mix_mat))
+        
 
     def calc_probs(self, kNuBar, kFlav, n_evts, true_energy, numLayers,
                    densityInLayer, distanceInLayer, prob_e, prob_mu, **kwargs):

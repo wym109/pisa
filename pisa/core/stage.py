@@ -147,7 +147,7 @@ class Stage(object):
                  params=None, expected_params=None, input_names=None,
                  output_names=None, error_method=None, disk_cache=None,
                  memcache_deepcopy=True, transforms_cache_depth=10,
-                 outputs_cache_depth=10, input_binning=None,
+                 outputs_cache_depth=0, input_binning=None,
                  output_binning=None, debug_mode=None):
 
         # Allow for string inputs, but have to populate into lists for
@@ -216,10 +216,12 @@ class Stage(object):
         """Memory cache object for storing outputs (excludes sideband
         objects)."""
 
-        self.outputs_cache = MemoryCache(
-            max_depth=self.outputs_cache_depth, is_lru=True,
-            deepcopy=self.memcache_deepcopy
-        )
+        self.outputs_cache = None
+        if self.outputs_cache_depth > 0:
+            self.outputs_cache = MemoryCache(
+                max_depth=self.outputs_cache_depth, is_lru=True,
+                deepcopy=self.memcache_deepcopy
+            )
 
         self.disk_cache = disk_cache
         """Disk cache object"""
@@ -777,7 +779,7 @@ class Stage(object):
         id_objects = []
 
         # If stage uses inputs, grab hash from the inputs container object
-        if len(self.input_names) > 0:
+        if self.outputs_cache is not None and len(self.input_names) > 0:
             inhash = self.inputs.hash
             logging.trace('inputs.hash = %s' %inhash)
             id_objects.append(inhash)
@@ -793,29 +795,31 @@ class Stage(object):
         # Otherwise, generate sub-hash on binning and param values here
         else:
             transforms_hash, nominal_transforms_hash = None, None
-            id_subobjects = []
-            # Include all parameter values
-            id_subobjects.append(self.params.values_hash)
 
-            # Include additional attributes of this object
-            for attr in sorted(self._attrs_to_hash):
-                val = getattr(self, attr)
-                if hasattr(val, 'hash'):
-                    attr_hash = val.hash
+            if self.outputs_cache is not None:
+                id_subobjects = []
+                # Include all parameter values
+                id_subobjects.append(self.params.values_hash)
+
+                # Include additional attributes of this object
+                for attr in sorted(self._attrs_to_hash):
+                    val = getattr(self, attr)
+                    if hasattr(val, 'hash'):
+                        attr_hash = val.hash
+                    else:
+                        norm_val = normQuant(val)
+                        attr_hash = hash_obj(val)
+                    id_subobjects.append(attr_hash)
+
+                # Generate the "sub-hash"
+                if any([(h == None) for h in id_subobjects]):
+                    sub_hash = None
                 else:
-                    norm_val = normQuant(val)
-                    attr_hash = hash_obj(val)
-                id_subobjects.append(attr_hash)
-
-            # Generate the "sub-hash"
-            if any([(h == None) for h in id_subobjects]):
-                sub_hash = None
-            else:
-                sub_hash = hash_obj(id_subobjects)
-            id_objects.append(sub_hash)
+                    sub_hash = hash_obj(id_subobjects)
+                id_objects.append(sub_hash)
 
         # If any hashes are missing (i.e, None), invalidate the entire hash
-        if any([(h == None) for h in id_objects]):
+        if self.outputs_cache is None or any([(h is None) for h in id_objects]):
             outputs_hash = None
         else:
             outputs_hash = hash_obj(id_objects)

@@ -17,7 +17,7 @@ class GPUweight(object):
     def __init__(self):
         kernel_template = """//CUDA//
           #include "constants.h"
-          #include "utils.h"
+          #include "cuda_utils.h"
           #include "math.h"
 
           // number of operations per thread for summing function
@@ -270,10 +270,11 @@ class GPUweight(object):
         # package paths instead!
 
         # compile
-        include_path = os.path.expandvars(
-            '$PISA/pisa/stages/osc/grid_propagator/'
-        )
-        module = SourceModule(kernel_template, include_dirs=[include_path],
+        include_dirs = [
+            os.path.abspath(find_resource('../stages/osc/prob3cuda')),
+            os.path.abspath(find_resource('../utils'))
+        ]
+        module = SourceModule(kernel_template, include_dirs=include_dirs,
                               keep=True)
         self.weights_fun = module.get_function("weights")
         self.flux_fun = module.get_function("flux")

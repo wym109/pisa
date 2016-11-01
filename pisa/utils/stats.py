@@ -165,6 +165,8 @@ def log_smear(x,sigma):
 
 
 def conv_poisson(k,l,s,nsigma=3,steps=50.):
+    # replace 0's with small positive numbers to avoid inf in log
+    l = max(SMALL_POS, l)
     st = 2*(steps+1)
     conv_x = np.linspace(-nsigma*s,+nsigma*s,st)[:-1]+nsigma*s/(st-1.)
     conv_y = log_smear(conv_x,s)
@@ -232,6 +234,9 @@ def mod_chi2(actual_values, expected_values):
     (incl. e.g. finite stats)
 
     """
+    # replace 0's with small positive numbers to avoid inf in log
+    np.clip(expected_values, a_min=SMALL_POS, a_max=np.inf,
+            out=expected_values)
     actual_values = unp.nominal_values(actual_values).ravel()
     sigma = unp.std_devs(expected_values).ravel()
     expected_values = unp.nominal_values(expected_values).ravel()

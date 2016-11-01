@@ -47,8 +47,8 @@ class nutau(Stage):
 
         expected_params = (
             'nu_nc_norm',
-            'nutau_norm',
-            'nutau_cc_norm'
+            #'nutau_norm',
+            #'nutau_cc_norm'
         )
 
         input_names =  split(input_names)
@@ -86,10 +86,10 @@ class nutau(Stage):
                 scale = 1
                 if '_nc' in name:
                     scale *= self.params.nu_nc_norm.value.m_as('dimensionless')
-                if 'nutau' in name:
-                    scale *= self.params.nutau_norm.value.m_as('dimensionless')
-                if 'nutau_cc' in name:
-                    scale *= self.params.nutau_cc_norm.value.m_as('dimensionless')
+                #if 'nutau' in name:
+                #    scale *= self.params.nutau_norm.value.m_as('dimensionless')
+                #if 'nutau_cc' in name:
+                #    scale *= self.params.nutau_cc_norm.value.m_as('dimensionless')
                 if scale != 1:
                     xform[i] *= scale
 
