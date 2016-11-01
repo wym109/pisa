@@ -8,10 +8,8 @@
  *
  */
 
-#ifndef MOSCHINCLUDED
-#define MOSCHINCLUDED
-
-//#include "constants.h"
+#ifndef __MOSCHINCLUDED__
+#define __MOSCHINCLUDED__
 
 #define elec (0)
 #define muon (1)
@@ -46,4 +44,4 @@ __device__ void get_product(fType L, fType E, fType rho,fType Mix[][3][2],
                             fType product[][3][3][2]);
 
 
-#endif /* MOSCHINCLUDED */
+#endif /* __MOSCHINCLUDED__ */
