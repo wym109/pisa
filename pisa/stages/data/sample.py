@@ -80,7 +80,7 @@ class sample(Stage):
         self.muons = False
         self.noise = False
 
-        output_names = output_names.replace(' ','').split(',')
+        output_names = output_names.replace(' ', '').split(',')
         clean_outnames = []
         self._output_nu_groups = []
         for name in output_names:
@@ -93,7 +93,7 @@ class sample(Stage):
             elif 'all_nu' in name:
                 self.neutrino = True
                 self._output_nu_groups = \
-                        [NuFlavIntGroup(f) for f in ALL_NUFLAVINTS]
+                    [NuFlavIntGroup(f) for f in ALL_NUFLAVINTS]
             else:
                 self.neutrino = True
                 self._output_nu_groups.append(NuFlavIntGroup(name))
@@ -173,6 +173,7 @@ class sample(Stage):
             'Extracting events using configuration file {0} and output names '
             '{1}'.format(hash_property[0], hash_property[1])
         )
+
         def parse(string):
             return string.replace(' ', '').split(',')
         event_types = parse(self.config.get('general', 'event_type'))
@@ -213,7 +214,7 @@ class sample(Stage):
         nu_data = []
         for idx, flav in enumerate(flavours):
             f = int(flav)
-            all_flavints = NuFlavIntGroup(f,-f).flavints()
+            all_flavints = NuFlavIntGroup(f, -f).flavints()
             flav_fidg = FlavIntDataGroup(
                 flavint_groups=all_flavints
             )
@@ -269,6 +270,7 @@ class sample(Stage):
     @staticmethod
     def load_muon_events(config):
         name = config.get('general', 'name')
+
         def parse(string):
             return string.replace(' ', '').split(',')
         sys_list = parse(config.get('muons', 'sys_list'))

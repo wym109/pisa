@@ -17,7 +17,6 @@ from pisa import ureg, Q_
 from pisa.core.stage import Stage
 from pisa.core.events import Data
 from pisa.core.map import MapSet
-from pisa.core.binning import OneDimBinning, MultiDimBinning
 from pisa.core.param import ParamSet
 from pisa.utils.flux_weights import load_2D_table, calculate_flux_weights
 from pisa.utils.flavInt import ALL_NUFLAVINTS
@@ -150,7 +149,7 @@ class weight(Stage):
         self.flux_hash = None
         self.osc_hash = None
 
-        input_names = input_names.replace(' ','').split(',')
+        input_names = input_names.replace(' ', '').split(',')
         clean_innames = []
         for name in input_names:
             if 'muons' in name:
@@ -162,7 +161,7 @@ class weight(Stage):
             else:
                 clean_innames.append(str(NuFlavIntGroup(name)))
 
-        output_names = output_names.replace(' ','').split(',')
+        output_names = output_names.replace(' ', '').split(',')
         clean_outnames = []
         self._output_nu_groups = []
         for name in output_names:
@@ -175,7 +174,7 @@ class weight(Stage):
             elif 'all_nu' in name:
                 self.neutrino = True
                 self._output_nu_groups = \
-                        [NuFlavIntGroup(f) for f in ALL_NUFLAVINTS]
+                    [NuFlavIntGroup(f) for f in ALL_NUFLAVINTS]
             else:
                 self.neutrino = True
                 self._output_nu_groups.append(NuFlavIntGroup(name))
@@ -313,7 +312,7 @@ class weight(Stage):
                                          self.params['flux_file'].value])
             this_cache_hash = hash_obj(this_cache_hash)
 
-            if self.disk_cache.has_key(this_cache_hash):
+            if this_cache_hash in self.disk_cache:
                 logging.info('Loading flux values from cache.')
                 flux_weights = self.disk_cache[this_cache_hash]
             else:
@@ -334,7 +333,7 @@ class weight(Stage):
             )
 
         if self.params['cache_flux'].value:
-            if not self.disk_cache.has_key(this_cache_hash):
+            if not this_cache_hash in self.disk_cache:
                 logging.info('Caching flux values to disk.')
                 self.disk_cache[this_cache_hash] = flux_weights
 
@@ -456,7 +455,7 @@ class weight(Stage):
             device['prob_e'] = np.zeros(n_evts, dtype=FTYPE)
             device['prob_mu'] = np.zeros(n_evts, dtype=FTYPE)
             out_layers_n = ('numLayers', 'densityInLayer', 'distanceInLayer')
-            out_layers = osc.calc_Layers(coszen_array)
+            out_layers = osc.calc_layers(coszen_array)
             device.update(dict(zip(out_layers_n, out_layers)))
 
             osc_data[fig]['device'] = {}

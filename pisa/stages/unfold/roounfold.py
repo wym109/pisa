@@ -52,7 +52,7 @@ class roounfold(Stage):
         self.reco_binning = reco_binning
         self.true_binning = true_binning
 
-        input_names = input_names.replace(' ','').split(',')
+        input_names = input_names.replace(' ', '').split(',')
         clean_innames = []
         for name in input_names:
             if 'muons' in name:
@@ -106,7 +106,7 @@ class roounfold(Stage):
            not self.params['create_response'].value:
             raise AssertionError('`create_response` must be set to True if '
                                  'the flag `optimize_reg` is set to True.')
- 
+
         if disk_cache is not None:
             self.instantiate_disk_cache()
 
@@ -224,7 +224,7 @@ class roounfold(Stage):
                             self.output_names, self._data.hash]
             this_cache_hash = hash_obj(cache_params)
 
-            if self.disk_cache.has_key(this_cache_hash):
+            if this_cache_hash in self.disk_cache:
                 logging.info('Loading response object from cache.')
                 response = self.disk_cache[this_cache_hash]
             else:
@@ -236,7 +236,7 @@ class roounfold(Stage):
             cache_params = [self.reco_binning, self.true_binning,
                             self.output_names, self._data.hash]
             this_cache_hash = hash_obj(cache_params)
-            if not self.disk_cache.has_key(this_cache_hash):
+            if not this_cache_hash in self.disk_cache:
                 logging.info('Caching response object to disk.')
                 self.disk_cache[this_cache_hash] = response
 
@@ -294,7 +294,7 @@ class roounfold(Stage):
         bin_names = binning.names
         bin_edges = [edges.m for edges in binning.bin_edges]
         for name in bin_names:
-            if not events.has_key(name):
+            if not name in events:
                 raise AssertionError('Input events object does not have '
                                      'key {0}'.format(name))
 
