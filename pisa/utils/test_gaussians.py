@@ -86,6 +86,8 @@ def speed_test_gaussians(num_gaussians, num_points):
             'must pass integral value or equivalent for `num_gaussians`'
     assert int(num_points) == float(num_points), \
             'must pass integral value or equivalent for `num_points`'
+    num_gaussians = int(num_gaussians)
+    num_points = int(num_points)
 
     def wstdout(msg):
         sys.stdout.write(msg)
