@@ -8,9 +8,10 @@ import numpy as np
 import pycuda.driver as cuda
 from pycuda.compiler import SourceModule
 
+from pisa import FTYPE
 from pisa.utils.profiler import profile
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils.const import FTYPE
+from pisa.utils.resources import find_resource
 
 
 __all__ = ['GPUhist']
@@ -40,6 +41,117 @@ class GPUhist(object):
         clear buffer
 
     """
+
+    KERNEL_TEMPLATE = '''//CUDA//
+    #define %(C_PRECISION_DEF)s
+    #define fType %(C_FTYPE)s
+
+    #include "cuda_utils.h"
+
+    // total number of bins (must be known at comiple time)
+    #define N_BINS %i
+
+    // number of events to be histogrammed per thread
+    #define N_THREAD %i
+
+
+    __device__ int GetBin(fType x, const int n_bins, fType *bin_edges){
+      // search what bin an event belongs in, given the event values x, the number of bins n_bins and the bin_edges array
+      int first = 0;
+      int last = n_bins -1;
+      int bin;
+      // binary search to speed things up and allow for arbitrary binning
+      while (first <= last) {
+          bin = (first + last)/2;
+          if (x >= bin_edges[bin]){
+              if ((x < bin_edges[bin+1]) || ((x <= bin_edges[n_bins])) && (bin == n_bins - 1)){
+                  break;
+              }
+              else {
+                  first = bin + 1;
+              }
+          }
+          else {
+              last = bin - 1;
+          }
+      }
+      return bin;
+    }
+
+    __global__ void Hist2D(fType *X, fType *Y, fType *W, const int n_evts, fType *hist, const int n_bins_x, const int n_bins_y, fType *bin_edges_x, fType *bin_edges_y)
+    {
+      __shared__ fType temp_hist[N_BINS];
+      // zero out (reset) shared histogram buffer
+      int iterations = (N_BINS / blockDim.x) + 1;
+      int bin;
+      for (int i = 0; i < iterations; i++){
+          bin = (i * blockDim.x) + threadIdx.x;
+          if (bin < N_BINS) temp_hist[bin] = 0;
+      }
+      __syncthreads();
+
+      int idx = N_THREAD * (threadIdx.x + blockDim.x * blockIdx.x);
+          for (int i = 0; i < N_THREAD; i++){
+
+          if (idx < n_evts) {
+              fType x = X[idx];
+              fType y = Y[idx];
+              // check if event is even in range
+              if ((x >= bin_edges_x[0]) && (x <= bin_edges_x[n_bins_x]) && (y >= bin_edges_y[0]) && (y <= bin_edges_y[n_bins_y])){
+                  int bin_x = GetBin(x, n_bins_x, bin_edges_x);
+                  int bin_y = GetBin(y, n_bins_y, bin_edges_y);
+                  atomicAdd_custom(&temp_hist[bin_y + bin_x * n_bins_y], W[idx]);
+              }
+          }
+          idx++;
+      }
+      __syncthreads();
+      // write shared buffer into global memory
+      for (int i = 0; i < iterations; i++){
+          bin = (i * blockDim.x) + threadIdx.x;
+          if (bin < N_BINS) atomicAdd_custom( &(hist[bin]), temp_hist[bin] );
+      }
+
+    }
+      __global__ void Hist3D(fType *X, fType *Y, fType *Z, fType *W, const int n_evts, fType *hist, const int n_bins_x, const int n_bins_y, const int n_bins_z, fType *bin_edges_x, fType *bin_edges_y, fType *bin_edges_z)
+    {
+      __shared__ fType temp_hist[N_BINS];
+      // zero out (reset) shared histogram buffer
+      int iterations = (N_BINS / blockDim.x) + 1;
+      int bin;
+      for (int i = 0; i < iterations; i++){
+          bin = (i * blockDim.x) + threadIdx.x;
+          if (bin < N_BINS) temp_hist[bin] = 0;
+      }
+      __syncthreads();
+
+      int idx = N_THREAD * (threadIdx.x + blockDim.x * blockIdx.x);
+          for (int i = 0; i < N_THREAD; i++){
+
+          if (idx < n_evts) {
+              fType x = X[idx];
+              fType y = Y[idx];
+              fType z = Z[idx];
+              // check if event is even in range
+              if ((x >= bin_edges_x[0]) && (x <= bin_edges_x[n_bins_x]) && (y >= bin_edges_y[0]) && (y <= bin_edges_y[n_bins_y]) && (z >= bin_edges_z[0]) && (z <= bin_edges_z[n_bins_z])){
+                  int bin_x = GetBin(x, n_bins_x, bin_edges_x);
+                  int bin_y = GetBin(y, n_bins_y, bin_edges_y);
+                  int bin_z = GetBin(z, n_bins_z, bin_edges_z);
+                  atomicAdd_custom(&temp_hist[bin_z + (bin_y * n_bins_z) + (bin_x * n_bins_y * n_bins_z)], W[idx]);
+              }
+          }
+          idx++;
+      }
+      __syncthreads();
+      // write shared buffer into global memory
+      for (int i = 0; i < iterations; i++){
+          bin = (i * blockDim.x) + threadIdx.x;
+          if (bin < N_BINS) atomicAdd_custom( &(hist[bin]), temp_hist[bin] );
+      }
+
+    }
+    '''
+
     def __init__(self, bin_edges_x, bin_edges_y, bin_edges_z=None):
         self.h3d = bool(bin_edges_z is not None)
         # events to be histogrammed per thread
@@ -68,115 +180,15 @@ class GPUhist(object):
         if self.h3d:
             cuda.memcpy_htod(self.d_bin_edges_z, bin_edges_z)
 
+        kernel_code = (self.KERNEL_TEMPLATE
+                       %dict(C_PRECISION_DEF=C_PRECISION_DEF, C_FTYPE=C_FTYPE))
 
-        kernel_template = '''//CUDA//
-          // total number of bins (must be known at comiple time)
-          #define N_BINS %i
+        include_dirs = [
+            os.path.abspath(find_resource('../utils'))
+        ]
 
-          // number of events to be histogrammed per thread
-          #define N_THREAD %i
-
-          #include "constants.h"
-          #include "cuda_utils.h"
-
-          __device__ int GetBin(fType x, const int n_bins, fType *bin_edges){
-            // search what bin an event belongs in, given the event values x, the number of bins n_bins and the bin_edges array
-            int first = 0;
-            int last = n_bins -1;
-            int bin;
-            // binary search to speed things up and allow for arbitrary binning
-            while (first <= last) {
-                bin = (first + last)/2;
-                if (x >= bin_edges[bin]){
-                    if ((x < bin_edges[bin+1]) || ((x <= bin_edges[n_bins])) && (bin == n_bins - 1)){
-                        break;
-                    }
-                    else {
-                        first = bin + 1;
-                    }
-                }
-                else {
-                    last = bin - 1;
-                }
-            }
-            return bin;
-          }
-
-          __global__ void Hist2D(fType *X, fType *Y, fType *W, const int n_evts, fType *hist, const int n_bins_x, const int n_bins_y, fType *bin_edges_x, fType *bin_edges_y)
-          {
-            __shared__ fType temp_hist[N_BINS];
-            // zero out (reset) shared histogram buffer
-            int iterations = (N_BINS / blockDim.x) + 1;
-            int bin;
-            for (int i = 0; i < iterations; i++){
-                bin = (i * blockDim.x) + threadIdx.x;
-                if (bin < N_BINS) temp_hist[bin] = 0;
-            }
-            __syncthreads();
-
-            int idx = N_THREAD * (threadIdx.x + blockDim.x * blockIdx.x);
-                for (int i = 0; i < N_THREAD; i++){
-
-                if (idx < n_evts) {
-                    fType x = X[idx];
-                    fType y = Y[idx];
-                    // check if event is even in range
-                    if ((x >= bin_edges_x[0]) && (x <= bin_edges_x[n_bins_x]) && (y >= bin_edges_y[0]) && (y <= bin_edges_y[n_bins_y])){
-                        int bin_x = GetBin(x, n_bins_x, bin_edges_x);
-                        int bin_y = GetBin(y, n_bins_y, bin_edges_y);
-                        atomicAdd_custom(&temp_hist[bin_y + bin_x * n_bins_y], W[idx]);
-                    }
-                }
-                idx++;
-            }
-            __syncthreads();
-            // write shared buffer into global memory
-            for (int i = 0; i < iterations; i++){
-                bin = (i * blockDim.x) + threadIdx.x;
-                if (bin < N_BINS) atomicAdd_custom( &(hist[bin]), temp_hist[bin] );
-            }
-
-          }
-            __global__ void Hist3D(fType *X, fType *Y, fType *Z, fType *W, const int n_evts, fType *hist, const int n_bins_x, const int n_bins_y, const int n_bins_z, fType *bin_edges_x, fType *bin_edges_y, fType *bin_edges_z)
-          {
-            __shared__ fType temp_hist[N_BINS];
-            // zero out (reset) shared histogram buffer
-            int iterations = (N_BINS / blockDim.x) + 1;
-            int bin;
-            for (int i = 0; i < iterations; i++){
-                bin = (i * blockDim.x) + threadIdx.x;
-                if (bin < N_BINS) temp_hist[bin] = 0;
-            }
-            __syncthreads();
-
-            int idx = N_THREAD * (threadIdx.x + blockDim.x * blockIdx.x);
-                for (int i = 0; i < N_THREAD; i++){
-
-                if (idx < n_evts) {
-                    fType x = X[idx];
-                    fType y = Y[idx];
-                    fType z = Z[idx];
-                    // check if event is even in range
-                    if ((x >= bin_edges_x[0]) && (x <= bin_edges_x[n_bins_x]) && (y >= bin_edges_y[0]) && (y <= bin_edges_y[n_bins_y]) && (z >= bin_edges_z[0]) && (z <= bin_edges_z[n_bins_z])){
-                        int bin_x = GetBin(x, n_bins_x, bin_edges_x);
-                        int bin_y = GetBin(y, n_bins_y, bin_edges_y);
-                        int bin_z = GetBin(z, n_bins_z, bin_edges_z);
-                        atomicAdd_custom(&temp_hist[bin_z + (bin_y * n_bins_z) + (bin_x * n_bins_y * n_bins_z)], W[idx]);
-                    }
-                }
-                idx++;
-            }
-            __syncthreads();
-            // write shared buffer into global memory
-            for (int i = 0; i < iterations; i++){
-                bin = (i * blockDim.x) + threadIdx.x;
-                if (bin < N_BINS) atomicAdd_custom( &(hist[bin]), temp_hist[bin] );
-            }
-
-          }
-          '''%(self.n_bins_x*self.n_bins_y*self.n_bins_z, self.n_thread)
-        include_path = os.path.expandvars('$PISA/pisa/utils/')
-        module = SourceModule(kernel_template, include_dirs=[include_path], keep=True)
+        module = SourceModule(kernel_code, include_dirs=include_dirs,
+                              keep=True)
         self.hist2d_fun = module.get_function("Hist2D")
         self.hist3d_fun = module.get_function("Hist3D")
 

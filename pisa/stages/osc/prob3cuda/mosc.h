@@ -3,7 +3,7 @@
  *
  * date: 31 Jan 2014
  *
- * Broke off code from probGpu.cu to put in it's own file, to make
+ * Broke off code from probGpu.cu to put in its own file, to make
  * analagous to original prob3++.
  *
  */
@@ -11,7 +11,7 @@
 #ifndef MOSCHINCLUDED
 #define MOSCHINCLUDED
 
-#include "constants.h"
+//#include "constants.h"
 
 #define elec (0)
 #define muon (1)

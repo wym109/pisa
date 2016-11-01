@@ -8,7 +8,7 @@ import pycuda.driver as cuda
 import pycuda.autoinit
 import time
 
-from pisa import ureg, Q_
+from pisa import ureg, Q_, FTYPE
 from pisa.core.binning import OneDimBinning, MultiDimBinning
 from pisa.core.events import Events
 from pisa.core.map import Map, MapSet
@@ -18,7 +18,6 @@ from pisa.stages.mc.GPUweight import GPUweight
 from pisa.stages.osc.prob3gpu import prob3gpu
 from pisa.utils.comparisons import normQuant
 from pisa.utils.config_parser import split
-from pisa.utils.const import FTYPE
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
 from pisa.utils.resources import find_resource

@@ -1,3 +1,8 @@
+"""
+Calculation of Earth layers and electron densities.
+"""
+
+
 from __future__ import division
 
 import numpy as np
@@ -6,9 +11,14 @@ try:
 except ImportError:
     numba = None
 
-from pisa.utils.const import FTYPE
+from pisa import FTYPE
 from pisa.utils.fileio import from_file
+from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile
+
+
+__all__ = ['extCalcLayers', 'Layers']
+
 
 if numba is None:
     class jit(object):
@@ -20,15 +30,13 @@ if numba is None:
 else:
     jit = numba.jit
     ftype = numba.typeof(FTYPE(1))
-    int32 = numba.int32
-    Tuple = numba.types.Tuple
     signature = (
-        Tuple((int32[:], ftype[:], ftype[:]))(
+        numba.types.Tuple((numba.int32[:], ftype[:], ftype[:]))(
             ftype[:],
             ftype,
             ftype,
             ftype,
-            int32,
+            numba.int32,
             ftype,
             ftype[:],
             ftype[:],
@@ -38,9 +46,6 @@ else:
             ftype[:]
         )
     )
-
-
-__all__ = ['extCalcLayers', 'Layers']
 
 
 @jit(signature, nopython=True, nogil=True, cache=True)
@@ -167,7 +172,8 @@ def extCalcLayers(
             for i in range(layers):
                 # this is the density
                 traverse_rhos[i+i_trav] = rhos[i]
-                # TODO: Why default? is this air with density 0 and electron fraction just doesn't matter?
+                # TODO: Why default? is this air with density 0 and electron
+                # fraction just doesn't matter?
                 traverse_electron_frac[i+i_trav] = default_elec_frac
                 for rad_i in range(len(YeOuterRadius)):
                     # why 1.001?
@@ -325,11 +331,18 @@ class Layers(object):
     def distance(self):
         return self._distance
 
-if __name__ == '__main__':
+
+def test_Layers():
     layer = Layers('osc/PREM_4layer.dat')
     layer.setElecFrac( 0.4656, 0.4656, 0.4957)
     cz = np.linspace(-1, 1, 1e5, dtype=FTYPE)
     layer.calcLayers(cz);
-    print layer.n_layers
-    print layer.density
-    print layer.distance
+    logging.info('n_layers = %s' %layer.n_layers)
+    logging.info('density  = %s' %layer.density)
+    logging.info('distance = %s' %layer.distance)
+    logging.info('<< PASS : test_Layers >>')
+
+
+if __name__ == '__main__':
+    set_verbosity(3)
+    test_Layers()
