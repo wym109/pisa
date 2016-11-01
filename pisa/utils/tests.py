@@ -60,7 +60,7 @@ def check_agreement(testname, thresh_ratio, ratio, thresh_diff, diff):
     diff_ord_str = order_str(diff)
     diff_pass_str = 'PASS' if diff_pass else 'FAIL'
 
-    s = '<< {testname:s}, {kind:s}: {pass_str:s} >>' \
+    s = '<< {testname:s}, {kind:s}: {pass_str:s} >>\n' \
         ' agreement to 10^{level:s} (threshold={thresh:e})'
 
     s_ratio = s.format(
@@ -87,7 +87,7 @@ def check_agreement(testname, thresh_ratio, ratio, thresh_diff, diff):
 
 def print_agreement(testname, ratio):
     ratio_ord_str = order_str(ratio)
-    s = '<< {testname:s}, {kind:s} >>' \
+    s = '<< {testname:s}, {kind:s} >>\n' \
         ' agreement to 10^{level:s}'
 
     s_ratio = s.format(
