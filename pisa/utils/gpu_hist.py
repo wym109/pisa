@@ -8,7 +8,7 @@ import numpy as np
 import pycuda.driver as cuda
 from pycuda.compiler import SourceModule
 
-from pisa import FTYPE
+from pisa import FTYPE, C_FTYPE, C_PRECISION_DEF
 from pisa.utils.profiler import profile
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.resources import find_resource
@@ -49,10 +49,10 @@ class GPUhist(object):
     #include "cuda_utils.h"
 
     // total number of bins (must be known at comiple time)
-    #define N_BINS %i
+    #define N_BINS %(N_BINS)i
 
     // number of events to be histogrammed per thread
-    #define N_THREAD %i
+    #define N_THREAD %(N_THREAD)i
 
 
     __device__ int GetBin(fType x, const int n_bins, fType *bin_edges){
@@ -180,8 +180,12 @@ class GPUhist(object):
         if self.h3d:
             cuda.memcpy_htod(self.d_bin_edges_z, bin_edges_z)
 
-        kernel_code = (self.KERNEL_TEMPLATE
-                       %dict(C_PRECISION_DEF=C_PRECISION_DEF, C_FTYPE=C_FTYPE))
+        kernel_code = self.KERNEL_TEMPLATE %dict(
+            C_PRECISION_DEF=C_PRECISION_DEF,
+            C_FTYPE=C_FTYPE,
+            N_BINS=self.n_bins_x*self.n_bins_y*self.n_bins_z,
+            N_THREAD=self.n_thread
+        )
 
         include_dirs = [
             os.path.abspath(find_resource('../utils'))

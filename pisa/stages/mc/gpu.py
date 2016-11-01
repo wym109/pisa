@@ -2,11 +2,11 @@
 # date:   September 2016
 
 
-import sys, os
+import time
+
 import numpy as np
 import pycuda.driver as cuda
 import pycuda.autoinit
-import time
 
 from pisa import ureg, Q_, FTYPE
 from pisa.core.binning import OneDimBinning, MultiDimBinning
@@ -360,7 +360,7 @@ class gpu(Stage):
             self.events_dict[flav]['host']['numLayers'], \
                 self.events_dict[flav]['host']['densityInLayer'], \
                 self.events_dict[flav]['host']['distanceInLayer'] = \
-                self.osc.calc_Layers(self.events_dict[flav]['host']['true_coszen'])
+                self.osc.calc_layers(self.events_dict[flav]['host']['true_coszen'])
         end_t = time.time()
         logging.debug('layers done in %.4f ms'%((end_t - start_t) * 1000))
 
