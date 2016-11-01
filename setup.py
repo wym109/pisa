@@ -28,8 +28,8 @@ If you wish to upgrade PISA and/or its dependencies:
 
 
 from distutils.command.build import build as _build
-from setuptools.command.build_ext import build_ext as _build_ext
 import os
+from setuptools.command.build_ext import build_ext as _build_ext
 from setuptools import setup, Extension
 import shutil
 import subprocess
@@ -135,11 +135,6 @@ class build_ext(_build_ext):
 if __name__ == '__main__':
     setup_cc()
     sys.stdout.write('Using compiler %s\n' %os.environ['CC'])
-
-    CUDA = has_cuda()
-    if not CUDA:
-        sys.stderr.write('WARNING: Could not import pycuda; PISA may not be'
-                         ' able to support CUDA (GPU) accelerations.\n')
 
     OPENMP = has_openmp()
     if not OPENMP:
@@ -295,6 +290,7 @@ if __name__ == '__main__':
             'pisa/analysis/profile_llh_postprocess.py',
             'pisa/core/distribution_maker.py',
             'pisa/core/pipeline.py',
+            'pisa/scripts/compare.py',
             'pisa/scripts/fit_discrete_sys.py',
             'pisa/scripts/fit_discrete_sys_pid.py',
             'pisa/scripts/make_events_file.py',
@@ -308,3 +304,8 @@ if __name__ == '__main__':
         # be compiled and are inaccessible in zip
         zip_safe=False
     )
+
+    if not has_cuda():
+        sys.stderr.write('WARNING: Could not import pycuda; attempt will be '
+                         ' made to install, but if this fails, PISA may not be'
+                         ' able to support CUDA (GPU) accelerations.\n')
