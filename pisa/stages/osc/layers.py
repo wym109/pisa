@@ -1,33 +1,49 @@
 from __future__ import division
 
-import numba
 import numpy as np
+try:
+    import numba
+except ImportError:
+    numba = None
 
 from pisa.utils.const import FTYPE
 from pisa.utils.fileio import from_file
+from pisa.utils.profiler import profile
+
+if numba is None:
+    class jit(object):
+        def __init__(self, *args, **kwargs):
+            pass
+        def __call__(self, *args):
+            return args[0]
+    signature = None
+else:
+    jit = numba.jit
+    ftype = numba.typeof(FTYPE(1))
+    int32 = numba.int32
+    Tuple = numba.types.Tuple
+    signature = (
+        Tuple((int32[:], ftype[:], ftype[:]))(
+            ftype[:],
+            ftype,
+            ftype,
+            ftype,
+            int32,
+            ftype,
+            ftype[:],
+            ftype[:],
+            ftype[:],
+            ftype,
+            ftype[:],
+            ftype[:]
+        )
+    )
 
 
-__all__ = ['Layers']
+__all__ = ['extCalcLayers', 'Layers']
 
 
-ftype = numba.typeof(FTYPE(1))
-int32 = numba.int32
-Tuple = numba.types.Tuple
-@numba.jit(
-    Tuple((int32[:], ftype[:], ftype[:]))(
-        ftype[:],
-        ftype,
-        ftype,
-        ftype,
-        int32,
-        ftype,
-        ftype[:],
-        ftype[:],
-        ftype[:],
-        ftype,
-        ftype[:],
-        ftype[:]
-    ), nopython=True, nogil=True, cache=True)
+@jit(signature, nopython=True, nogil=True, cache=True)
 def extCalcLayers(
         cz,
         r_detector,
@@ -41,9 +57,33 @@ def extCalcLayers(
         default_elec_frac,
         coszen_limit,
         radii):
-    """External layer calculator function, accelerated with Numba"""
+    """Layer density/distance calculator for each coszen specified.
+
+    Accelerated with Numba if present.
+
+    Parameters
+    ----------
+    cz
+    r_detector
+    prop_height
+    detector_depth
+    max_layers
+    min_detector_depth
+    rhos
+    YeFrac
+    YeOuterRadius
+    default_elec_frac
+    coszen_limit
+
+    Returns
+    -------
+    n_layers : int number of layers
+    density : array of densities, flattened from (cz, max_layers)
+    distance : array of distances per layer, flattened from (cz, max_layers)
+
+    """
     # Something to store the final results in
-    shape = (numba.int64(len(cz)), numba.int64(max_layers))
+    shape = (np.int64(len(cz)), np.int64(max_layers))
     n_layers = np.zeros(shape[0], dtype=np.int32)
     distance = np.zeros(shape=shape, dtype=FTYPE)
     density = np.zeros(shape=shape, dtype=FTYPE)
