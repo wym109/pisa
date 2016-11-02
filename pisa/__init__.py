@@ -31,9 +31,9 @@ derived from this"""
 if 'PISA_FTYPE' in os.environ:
     pisa_ftype = os.environ['PISA_FTYPE']
     sys.stderr.write('PISA_FTYPE env var is defined as: "%s"; ' %pisa_ftype)
-    if pisa_ftype.strip().lower() in ['float', 'float32', '32', 'single']:
+    if pisa_ftype.strip().lower() in ['single', 'float32', 'fp32', '32', 'f4']:
         FTYPE = np.float32
-    elif pisa_ftype.strip().lower() in ['double', 'float64', '64']:
+    elif pisa_ftype.strip().lower() in ['double', 'float64', 'fp64', '64', 'f8']:
         FTYPE = np.float64
     else:
         sys.stderr.write('\n')
