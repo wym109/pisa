@@ -345,8 +345,8 @@ class prob3gpu(Stage):
 
     def compute_binning_constants(self):
         # Only works if energy and coszen are in input_binning
-        if 'true_energy' not in self.input_binning \
-                or 'true_coszen' not in self.input_binning:
+        if ('true_energy' not in self.input_binning
+                or 'true_coszen' not in self.input_binning):
             raise ValueError('Input binning must contain both "true_energy"'
                              ' and "true_coszen" dimensions.')
 
@@ -498,7 +498,7 @@ class prob3gpu(Stage):
         # Path relative to `resources` directory
         include_dirs = [
             os.path.abspath(find_resource('../stages/osc/prob3cuda')),
-            os.path.abspath(find_resource('../utils')),
+            os.path.abspath(find_resource('../utils'))
         ]
         logging.debug('  pycuda INC PATH: %s' %include_dirs)
         logging.debug('  pycuda FLAGS: %s' %pycuda.compiler.DEFAULT_NVCC_FLAGS)

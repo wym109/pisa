@@ -170,8 +170,8 @@ class gpu(Stage):
             self.kde_histogramdd = kde_histogramdd
         else:
             #otherwise that
-            from pisa.utils.gpu_hist import GPUhist
-            self.GPUhist = GPUhist
+            from pisa.utils.gpu_hist import GPUHist
+            self.GPUHist = GPUHist
 
 
     def validate_params(self, params):
@@ -238,7 +238,7 @@ class gpu(Stage):
 
         else:
             # GPU histogramer
-            self.histogrammer = self.GPUhist(*self.bin_edges)
+            self.histogrammer = self.GPUHist(*self.bin_edges)
 
         # load events
         self.load_events()
