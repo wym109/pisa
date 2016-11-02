@@ -28,17 +28,24 @@ derived from this"""
 
 
 # Set FTYPE from environment variable PISA_FTYPE, if it is defined
+float32_strings = ['single', 'float32', 'fp32', '32', 'f4']
+float64_strings = ['double', 'float64', 'fp64', '64', 'f8']
 if 'PISA_FTYPE' in os.environ:
     pisa_ftype = os.environ['PISA_FTYPE']
     sys.stderr.write('PISA_FTYPE env var is defined as: "%s"; ' %pisa_ftype)
-    if pisa_ftype.strip().lower() in ['single', 'float32', 'fp32', '32', 'f4']:
+    if pisa_ftype.strip().lower() in float32_strings:
         FTYPE = np.float32
-    elif pisa_ftype.strip().lower() in ['double', 'float64', 'fp64', '64', 'f8']:
+    elif pisa_ftype.strip().lower() in float64_strings:
         FTYPE = np.float64
     else:
+        msg = (
+            'Environment var PISA_FTYPE="%s" is unrecognized.\n'
+            '--> For single precision set PISA_FTYPE to one of %s\n'
+            '--> For double precision set PISA_FTYPE to one of %s\n'
+            %(pisa_ftype, float32_strings, float64_strings)
+        )
         sys.stderr.write('\n')
-        raise ValueError('Environment var PISA_FTYPE val %s is unrecognized.'
-                         %pisa_ftype)
+        raise ValueError(msg)
 
 
 """
