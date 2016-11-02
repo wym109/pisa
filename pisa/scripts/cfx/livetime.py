@@ -49,7 +49,8 @@ for lt in livetimes:
                     unp.nominal_values(nom_out.hist)
         num_invalid = ~np.isfinite(div)
         div[num_invalid] = 0
-        fe.append(div)
+        fe.append(np.mean(div))
+        # fe.append(div)
     frac_err.append(np.mean(fe))
     frac_err_err.append(np.std(fe))
 
@@ -70,16 +71,14 @@ from matplotlib.offsetbox import AnchoredText
 
 binning = livetimes.m
 fig = plt.figure(figsize=(9, 5))
-fig.suptitle('Ratio to nominal with errors representing the spread \n'
-             'of an ensemble of unfoldings with psuedodata', fontsize=18,
-             y=1.007)
 ax = fig.add_subplot(111)
 ax.set_xlim(np.min(binning)-1, np.max(binning)+1)
-ax.set_ylim(0.5, 1.5)
+ax.set_ylim(0.8, 1.2)
 ax.tick_params(axis='x', labelsize=14)
 ax.tick_params(axis='y', labelsize=12)
 
 ax.set_xlabel('livetime (years)', fontsize=18)
+ax.set_ylabel('mean ratio unfolded vs. truth (200 trials)', fontsize=15)
 for ymaj in ax.yaxis.get_majorticklocs():
     ax.axhline(y=ymaj, ls=':', color='gray', alpha=0.7, linewidth=1)
 for xmaj in ax.xaxis.get_majorticklocs():
