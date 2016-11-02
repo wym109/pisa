@@ -86,7 +86,7 @@ def chi2(actual_values, expected_values):
 
         delta = actual_values - expected_values
 
-    return (delta * delta) / actual_values
+    return np.divide((delta * delta),actual_values)
 
 
 def llh(actual_values, expected_values):

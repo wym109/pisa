@@ -391,9 +391,10 @@ class gpu(Stage):
 
             # Apply coszen reco sys
             f = self.params.reco_cz_res_raw.value.m_as('dimensionless')
+            # convert in terms of angle, not cosine
             self.events_dict[flav]['host']['reco_coszen'] = \
-                ((1.-f) * self.events_dict[flav]['host']['true_coszen'] + \
-                f * self.events_dict[flav]['host']['reco_coszen']).astype(FTYPE)
+                np.cos(((1.-f) * np.arccos(self.events_dict[flav]['host']['true_coszen']) + \
+                        f * np.arccos(self.events_dict[flav]['host']['reco_coszen']))).astype(FTYPE)
             # Make sure everything is within -1 <= coszen <= 1, otherwise reflect
             while np.any(self.events_dict[flav]['host']['reco_coszen']<-1) or \
                 np.any(self.events_dict[flav]['host']['reco_coszen']>1):

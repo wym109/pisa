@@ -376,15 +376,17 @@ if __name__ == '__main__':
         )
     )
 
+    split_axis=None
+
     for plot_format in plot_formats:
         # Plot the raw distributions
         plotter = Plotter(stamp='', outdir=args.outdir, fmt=plot_format,
                           log=False, annotate=False,
                           symmetric=False,
                           ratio=False)
-        plotter.plot_2d_array(ref, split_axis='pid', fname='distr__%s'
+        plotter.plot_2d_array(ref, split_axis=split_axis, fname='distr__%s'
                               % ref_plot_label)
-        plotter.plot_2d_array(test, split_axis='pid', fname='distr__%s'
+        plotter.plot_2d_array(test, split_axis=split_axis, fname='distr__%s'
                               % test_plot_label)
 
         # Plot the difference (test - ref)
@@ -395,7 +397,7 @@ if __name__ == '__main__':
         plotter.label = '%s - %s' % (test_plot_label, ref_plot_label)
         plotter.plot_2d_array(
             test - ref,
-            split_axis='pid',
+            split_axis=split_axis,
             fname='diff__%s__%s' % (test_plot_label, ref_plot_label),
             cmap='seismic',
             vmin=args.diff_min, vmax=args.diff_max
@@ -410,7 +412,7 @@ if __name__ == '__main__':
         plotter.label = '%s/%s - 1' % (test_plot_label, ref_plot_label)
         plotter.plot_2d_array(
             test/ref - 1.,
-            split_axis='pid',
+            split_axis=split_axis,
             fname='fract_diff__%s__%s' % (test_plot_label, ref_plot_label),
             cmap='seismic',
             vmin=args.fract_diff_min, vmax=args.fract_diff_max
@@ -426,7 +428,7 @@ if __name__ == '__main__':
                                                 ref_plot_label, ref_plot_label)
         plotter.plot_2d_array(
             (test-ref)/ref**0.5,
-            split_axis='pid',
+            split_axis=split_axis,
             fname='asymm__%s__%s' % (test_plot_label, ref_plot_label),
             cmap='seismic',
             vmin=args.asymm_min, vmax=args.asymm_max
