@@ -290,11 +290,12 @@ if __name__ == '__main__':
             'pisa/analysis/profile_llh_postprocess.py',
             'pisa/core/distribution_maker.py',
             'pisa/core/pipeline.py',
+            'pisa/scripts/add_flux_to_events_file.py',
             'pisa/scripts/compare.py',
             'pisa/scripts/fit_discrete_sys.py',
             'pisa/scripts/fit_discrete_sys_pid.py',
             'pisa/scripts/make_events_file.py',
-            'pisa/scripts/test_changes_with_combined_pidreco.py',
+            'pisa/scripts/make_nufit_theta23_spline_priors.py',
             'pisa/scripts/test_consistency_with_pisa2.py',
             'pisa/scripts/test_consistency_with_oscfit.py'
         ],
