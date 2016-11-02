@@ -1,12 +1,16 @@
-from collections import Sequence
-import os # Needed to get the absolute path to mosc3.cu and mosc.cu or else nvcc fails
+"""
+prob3gpu : use CUDA (via PyCUDA module) to accelerate 3-neutrino oscillation
+calculations. Equivalent agorithm to Prob3++.
+"""
+
+import os
 
 import numpy as np
 import pycuda.compiler
 import pycuda.driver as cuda
 import pycuda.autoinit
 
-from pisa import ureg, Q_
+from pisa import ureg, Q_, FTYPE, C_FTYPE, C_PRECISION_DEF
 from pisa.core.binning import MultiDimBinning
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
@@ -16,7 +20,6 @@ from pisa.utils.profiler import line_profile, profile
 from pisa.utils.resources import find_resource
 from pisa.stages.osc.layers import Layers
 from pisa.stages.osc.osc_params import OscParams
-from pisa.utils.const import FTYPE
 
 
 class prob3gpu(Stage):
@@ -71,8 +74,10 @@ class prob3gpu(Stage):
 
     """
     # Define CUDA kernel
-    KERNEL_TEMPLATE = '''
-    #include "constants.h"
+    KERNEL_TEMPLATE = '''//CUDA//
+    #define %(C_PRECISION_DEF)s
+    #define fType %(C_FTYPE)s
+
     #include "mosc.cu"
     #include "mosc3.cu"
     #include "cuda_utils.h"
@@ -234,7 +239,7 @@ class prob3gpu(Stage):
                               0.0,
                               d_mix,
                               d_dm);
-        if(i==0) { 
+        if(i==0) {
           copy_complex_matrix(TransitionMatrix, TransitionProduct);
         } else {
           clear_complex_matrix( TransitionTemp );
@@ -242,7 +247,7 @@ class prob3gpu(Stage):
           copy_complex_matrix( TransitionTemp, TransitionProduct );
         }
       } // end layer loop
-      
+
       // loop on neutrino types, and compute probability for neutrino i:
       // We actually don't care about nutau -> anything since the flux there is zero!
       for( unsigned i=0; i<2; i++) {
@@ -250,10 +255,10 @@ class prob3gpu(Stage):
           RawInputPsi[j][0] = 0.0;
           RawInputPsi[j][1] = 0.0;
         }
-        
-        if( kUseMassEstates ) 
+
+        if( kUseMassEstates )
           convert_from_mass_eigenstate(i+1,kNuBar,RawInputPsi,d_mix);
-        else 
+        else
           RawInputPsi[i][0] = 1.0;
 
         // calculate 'em all here, from legacy code...
@@ -334,15 +339,14 @@ class prob3gpu(Stage):
             debug_mode=debug_mode
         )
 
-        # TODO: Check for single precision
         if self.calc_transforms:
             self.compute_binning_constants()
         self.initialize_kernel()
 
     def compute_binning_constants(self):
         # Only works if energy and coszen are in input_binning
-        if 'true_energy' not in self.input_binning \
-                or 'true_coszen' not in self.input_binning:
+        if ('true_energy' not in self.input_binning
+                or 'true_coszen' not in self.input_binning):
             raise ValueError('Input binning must contain both "true_energy"'
                              ' and "true_coszen" dimensions.')
 
@@ -492,14 +496,18 @@ class prob3gpu(Stage):
 
         """
         # Path relative to `resources` directory
-        include_path = [
+        include_dirs = [
             os.path.abspath(find_resource('../stages/osc/prob3cuda')),
             os.path.abspath(find_resource('../utils'))
         ]
-        logging.debug('  pycuda INC PATH: %s' %include_path)
+        logging.debug('  pycuda INC PATH: %s' %include_dirs)
         logging.debug('  pycuda FLAGS: %s' %pycuda.compiler.DEFAULT_NVCC_FLAGS)
+
+        kernel_code = (self.KERNEL_TEMPLATE
+                       %dict(C_PRECISION_DEF=C_PRECISION_DEF, C_FTYPE=C_FTYPE))
+
         self.module = pycuda.compiler.SourceModule(
-            self.KERNEL_TEMPLATE, include_dirs=include_path, keep=True
+            kernel_code, include_dirs=include_dirs, keep=True
         )
         if not self.calc_transforms:
             self.propArray = self.module.get_function('propagateArray')
@@ -567,10 +575,9 @@ class prob3gpu(Stage):
         numLayers = numLayers.astype(np.int32)
         densityInLayer = densityInLayer.astype(FTYPE)
         distanceInLayer = distanceInLayer.astype(FTYPE)
-        
+
 
         return numLayers, densityInLayer, distanceInLayer
-
 
     def update_MNS(self, theta12, theta13, theta23,
                    deltam21, deltam31, deltacp):
@@ -607,7 +614,6 @@ class prob3gpu(Stage):
         self.d_mix_mat = cuda.mem_alloc(FTYPE(mix_mat).nbytes)
         cuda.memcpy_htod(self.d_dm_mat,FTYPE(dm_mat))
         cuda.memcpy_htod(self.d_mix_mat,FTYPE(mix_mat))
-        
 
     def calc_probs(self, kNuBar, kFlav, n_evts, true_energy, numLayers,
                    densityInLayer, distanceInLayer, prob_e, prob_mu, **kwargs):

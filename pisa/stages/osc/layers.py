@@ -1,3 +1,8 @@
+"""
+Calculation of Earth layers and electron densities.
+"""
+
+
 from __future__ import division
 
 import numpy as np
@@ -6,9 +11,14 @@ try:
 except ImportError:
     numba = None
 
-from pisa.utils.const import FTYPE
+from pisa import FTYPE
 from pisa.utils.fileio import from_file
+from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile
+
+
+__all__ = ['extCalcLayers', 'Layers']
+
 
 if numba is None:
     class jit(object):
@@ -20,15 +30,13 @@ if numba is None:
 else:
     jit = numba.jit
     ftype = numba.typeof(FTYPE(1))
-    int32 = numba.int32
-    Tuple = numba.types.Tuple
     signature = (
-        Tuple((int32[:], ftype[:], ftype[:]))(
+        numba.types.Tuple((numba.int32[:], ftype[:], ftype[:]))(
             ftype[:],
             ftype,
             ftype,
             ftype,
-            int32,
+            numba.int32,
             ftype,
             ftype[:],
             ftype[:],
@@ -38,9 +46,6 @@ else:
             ftype[:]
         )
     )
-
-
-__all__ = ['extCalcLayers', 'Layers']
 
 
 @jit(signature, nopython=True, nogil=True, cache=True)
@@ -90,7 +95,7 @@ def extCalcLayers(
 
     # Loop over all CZ values
     for k, coszen in enumerate(cz):
-        tot_earth_len = -2.0 * coszen * r_detector
+        tot_earth_len = -2 * coszen * r_detector
 
         # To store results
         traverse_rhos = np.zeros(max_layers, dtype=FTYPE)
@@ -111,15 +116,17 @@ def extCalcLayers(
                 coszen + np.sqrt(coszen**2 - 1 + (1 + kappa) * (1 + kappa))
             )
             lam *= r_detector
-            path_thru_atm = (prop_height * (prop_height + 2. * detector_depth + 2.0*r_detector))/(path_len + lam)
+            path_thru_atm = (
+                prop_height * (prop_height + 2*detector_depth + 2*r_detector)
+                / (path_len + lam)
+            )
             path_thru_outerlayer = path_len - path_thru_atm
             traverse_rhos[0] = 0.0
             traverse_dist[0] = path_thru_atm
             traverse_electron_frac[0] = default_elec_frac
 
-            layers = 1
-
             # In that case the neutrino passes through some earth (?)
+            layers = 1
             if detector_depth > min_detector_depth:
                 traverse_rhos[1] = rhos[0]
                 traverse_dist[1] = path_thru_outerlayer
@@ -129,8 +136,8 @@ def extCalcLayers(
         # Below horizon
         else:
             path_len = (
-                np.sqrt(((r_detector + prop_height + detector_depth))**2
-                - r_detector**2 * (1 - coszen**2)) \
+                np.sqrt((r_detector + prop_height + detector_depth)**2
+                        - r_detector**2 * (1 - coszen**2))
                 - r_detector * coszen
             )
 
@@ -167,10 +174,11 @@ def extCalcLayers(
             for i in range(layers):
                 # this is the density
                 traverse_rhos[i+i_trav] = rhos[i]
-                # TODO: Why default? is this air with density 0 and electron fraction just doesn't matter?
+                # TODO: Why default? is this air with density 0 and electron
+                # fraction just doesn't matter?
                 traverse_electron_frac[i+i_trav] = default_elec_frac
                 for rad_i in range(len(YeOuterRadius)):
-                    # why 1.001?
+                    # TODO: why 1.001 here?
                     if radii[i] < (YeOuterRadius[rad_i] * 1.001):
                         traverse_electron_frac[i+i_trav] = YeFrac[rad_i]
                         break
@@ -215,7 +223,7 @@ class Layers(object):
         path to PREM file containing layer radii and densities as white space
         separated txt
 
-    detectorDepth : float
+    detector_depth : float
         depth of detector underground in km
 
     prop_height : float
@@ -240,7 +248,7 @@ class Layers(object):
 
     """
     def __init__(self, prem_file, detector_depth=1., prop_height=2.):
-        # load earth model
+        # Load earth model
         prem = from_file(prem_file, as_array=True)
         self.rhos = prem[...,1][::-1].astype(FTYPE)
         self.radii = prem[...,0][::-1].astype(FTYPE)
@@ -325,11 +333,18 @@ class Layers(object):
     def distance(self):
         return self._distance
 
-if __name__ == '__main__':
+
+def test_Layers():
     layer = Layers('osc/PREM_4layer.dat')
     layer.setElecFrac( 0.4656, 0.4656, 0.4957)
     cz = np.linspace(-1, 1, 1e5, dtype=FTYPE)
     layer.calcLayers(cz);
-    print layer.n_layers
-    print layer.density
-    print layer.distance
+    logging.info('n_layers = %s' %layer.n_layers)
+    logging.info('density  = %s' %layer.density)
+    logging.info('distance = %s' %layer.distance)
+    logging.info('<< PASS : test_Layers >>')
+
+
+if __name__ == '__main__':
+    set_verbosity(3)
+    test_Layers()
