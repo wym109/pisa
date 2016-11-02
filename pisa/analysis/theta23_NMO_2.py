@@ -267,7 +267,7 @@ if __name__ == '__main__':
             # now check the match of the solution starting in true octant
             logging.info("Checking fit starting in true octant.")
             # need to reset here, then set theta23, but not reset in `fit_hypo`
-	        hypo_maker.params.reset_free()
+            hypo_maker.params.reset_free()
             hypo_maker.params.theta23.value = t23
             bf_to, _ = analysis.fit_hypo(data_dist=data_dist,
                                    hypo_maker=hypo_maker,
