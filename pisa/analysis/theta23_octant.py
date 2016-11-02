@@ -104,7 +104,7 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         '--metric', type=str,
-        choices=['llh', 'chi2', 'conv_llh'], required=True,
+        choices=['llh', 'chi2', 'conv_llh', 'mod_chi2'], required=True,
         help='''Metric to be minimized.'''
     )
     parser.add_argument(
@@ -248,7 +248,8 @@ if __name__ == '__main__':
                 logging.info("Searching for best lower octant match to"
                              " theta23='%s' in range %s" %(t23, t23_range_lo))
 
-            # now we can update the seed
+            # now we can update the seed (after resetting free parameters)
+            hypo_maker.params.reset_free()
             t23_wo_seed = 90*ureg.deg - t23
             hypo_maker.params.theta23.value = t23_wo_seed
             logging.debug("Starting fit at theta23='%s'"%t23_wo_seed)
@@ -271,6 +272,7 @@ if __name__ == '__main__':
             # now check the match of the solution at maximal mixing, not allowing
             # theta23 but all the other systematics to vary
             logging.info("Checking fit of maximal mixing.")
+            hypo_maker.params.reset_free()
             hypo_maker.params.theta23.value = 45*ureg.deg
             hypo_maker.params.theta23.is_fixed = True
             if not args.theta23_only:
