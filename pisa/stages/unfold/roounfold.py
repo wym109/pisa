@@ -107,6 +107,11 @@ class roounfold(Stage):
             raise AssertionError('`create_response` must be set to True if '
                                  'the flag `optimize_reg` is set to True.')
 
+        if int(self.params['regularisation'].value.m) == 0 and \
+           not self.params['create_response'].value:
+            raise AssertionError('`create_response` must be set to True if '
+                                 'the flag `regularisation` is set to 0.')
+
         if disk_cache is not None:
             self.instantiate_disk_cache()
 
@@ -173,7 +178,17 @@ class roounfold(Stage):
         sig_r_flat = roounfold._flatten_to_1d(sig_reco)
         sig_r_th1d = roounfold._convert_to_th1d(sig_r_flat, errors=True)
 
-        regularisation = self.params['regularisation'].value
+        regularisation = int(self.params['regularisation'].value)
+        if regularisation == 0:
+            sig_true = roounfold._histogram(
+                events=signal_data,
+                binning=self.true_binning,
+                weights=signal_data['pisa_weight'],
+                errors=True,
+                name=self._output_nu_group
+            )
+            return MapSet([sig_true])
+
         if self.params['optimize_reg'].value:
             chisq = None
             for r_idx in xrange(regularisation):
@@ -202,6 +217,7 @@ class roounfold(Stage):
         )
 
         del sig_r_th1d
+        del unfold
         logging.info('Unfolded reco sum {0}'.format(
             np.sum(unp.nominal_values(sig_unfold.hist))
         ))
@@ -215,6 +231,10 @@ class roounfold(Stage):
 
         if self.params['create_response'].value:
             # Truth histogram gets returned if response matrix is created
+            try:
+                del self.sig_t_th1d
+                del self._response
+            except: pass
             response, self.sig_t_th1d = self._create_response(
                 signal_data, self.reco_binning, self.true_binning
             )
