@@ -249,7 +249,11 @@ if __name__ == '__main__':
                              " theta23='%s' in range %s" %(t23, t23_range_lo))
 
             # now we can update the seed (after resetting free parameters)
+            # but we cannot just also reset theta23, as nominal and range
+            # might clash
+            hypo_maker.params.fix("theta23")
             hypo_maker.params.reset_free()
+            hypo_maker.params.unfix("theta23")
             t23_wo_seed = 90*ureg.deg - t23
             hypo_maker.params.theta23.value = t23_wo_seed
             logging.debug("Starting fit at theta23='%s'"%t23_wo_seed)
@@ -272,9 +276,9 @@ if __name__ == '__main__':
             # now check the match of the solution at maximal mixing, not allowing
             # theta23 but all the other systematics to vary
             logging.info("Checking fit of maximal mixing.")
-            hypo_maker.params.reset_free()
             hypo_maker.params.theta23.value = 45*ureg.deg
-            hypo_maker.params.theta23.is_fixed = True
+            hypo_maker.params.fix("theta23")
+            hypo_maker.params.reset_free()
             if not args.theta23_only:
                 bf_max_mix, _ = analysis.fit_hypo(data_dist=data_dist,
                                    hypo_maker=hypo_maker,
