@@ -247,7 +247,7 @@ if __name__ == '__main__':
             hypo_maker.params.reset_free()
             t23_wo_seed = 90*ureg.deg - t23
             hypo_maker.params.theta23.value = t23_wo_seed
-            logging.debug("Starting fit at theta23='%s'"%t23_wo_seed)
+            logging.info("Starting fit at theta23='%s'"%t23_wo_seed)
 
             if args.theta23_only:
                 # fix all parameters except theta23
