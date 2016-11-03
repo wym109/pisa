@@ -15,7 +15,7 @@ __all__ = ['kde_histogramdd']
 #@line_profile
 def kde_histogramdd(sample, binning, weights=[],bw_method='scott',adaptive=True,
                         alpha=0.3,use_cuda=False,coszen_reflection=0.25,coszen_name = 'coszen',oversample=1):
-    '''
+    """
     function to run kernel density estimation (KDE) for an array of data points, and
     then evaluate the on a histogram like grid, to effectively produce a histogram-like output
 
