@@ -23,7 +23,7 @@ def get_data(dir,x_var,y_var):
 
     # get llh denominators for q for each seed
     for filename in os.listdir(dir):
-        if filename.endswith('.json') and x_var in filename:
+        if filename.endswith('.json') and y_var in filename:
             file = from_file(dir +'/'+filename)
             cond = file[0][0]
             if file[0][0].has_key('llh'): metric = 'llh'
@@ -32,23 +32,26 @@ def get_data(dir,x_var,y_var):
             elif file[0][0].has_key('mod_chi2'): metric = 'mod_chi2'
             elif file[0][0].has_key('barlow_llh'): metric = 'barlow_llh'
             flag = False
-            name = filename.rstrip('.json')
-            assert name.split('_')[0] == x_var
-            x_val = float(name.split('_')[1])
-            x.append(x_val)
-            y = cond[y_var][0]
+            name = filename[:-5]
+            assert name.split('_')[0] == y_var
+            y_val = float(name.split('_')[1])
+            y.append(y_val)
+            x = cond[x_var][0]
             if 'llh' in metric:
                 q.append(2*cond[metric])
             else:
                 q.append(-cond[metric])
 
-    x = np.array(x)
-    q = [z for (k,z) in sorted(zip(x,q))]
-    x.sort()
-    q = np.array(q)
+    y = np.array(y)
+    q = [z for (k,z) in sorted(zip(y,q))]
+    y.sort()
+    q = np.array(q).T
     #print x, y ,q
     x = np.sin(x*np.pi/180.)
     x = np.square(x)
+    print x
+    print y
+    print q
 
     #smooth out
     xs = zoom(x,ZOOM)
@@ -85,9 +88,9 @@ if __name__ == '__main__':
             dirs.append(dir) 
 
 
-    levels = [2.3,4.61]#,5.99,9.21]
+    levels = [2.3,4.61]#,5.99,9.21,19.35]
     flevels = 2*np.logspace(-2,2,100)
-    fmt = {2.3:r'$68\%$',4.61:r'$90\%$',5.99:r'$2\sigma$',9.21:'99%'}
+    fmt = {2.3:r'$68\%$',4.61:r'$90\%$',5.99:r'$2\sigma$',9.21:'99%',19.35:r'$4\sigma$'}
     fig = plt.figure()
     ax1 = fig.add_subplot(111)
 
@@ -102,18 +105,18 @@ if __name__ == '__main__':
         ax1.clabel(CS, inline=1, fontsize=10, fmt=fmt)
 
     ax1.set_xlabel(r'$\sin^2(\theta_{23})$')
-    ax1.set_ylabel(r'$\Delta m_{31}^2\ \rm{(eV^2)}$')
+    ax1.set_ylabel(r'$\Delta m_{31}^2\ \rm{(10^{-3}eV^2)}$')
     a_text = AnchoredText('Gen2 Phase 1 Preliminary'+'\nNormal mass ordering assumed'+'\n%s years Asimov'%livetime, loc=2, frameon=False)
     ax1.add_artist(a_text)
     ax1.grid()
     ax1.set_xlim(0.3,0.7)
-    ax1.set_ylim(0.0024,0.0029)
+    ax1.set_ylim(2.4,2.9)
     ax1.legend(loc='upper right',ncol=1, frameon=False,numpoints=1,fontsize=10,handles=legs)
 
 
     #NOvA & T2K
     theta = np.square(np.sin(np.array([39.23, 46.83])/180.*np.pi))
-    dm = np.array([0.00267, 0.002545])
+    dm = np.array([2.67, 2.545])
     text = ['NOvA','T2K']
     ax1.scatter(theta,dm, marker='+', c='k')
     for x,y,t in zip(theta,dm,text):
@@ -121,5 +124,5 @@ if __name__ == '__main__':
 
 
     plt.show()
-    plt.savefig('contour_%s.pdf'%(args.tag))
-    plt.savefig('contour_%s.png'%(args.tag))
+    plt.savefig('contour_%s.pdf'%(args.tag), edgecolor='none')
+    plt.savefig('contour_%s.png'%(args.tag),dpi=150, edgecolor='none')

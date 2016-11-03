@@ -188,7 +188,7 @@ if __name__ == '__main__':
     asimov = {}
 
     # zoom
-    z = 10
+    z = 1
 
     # get llh denominators for q for each seed
     for filename in os.listdir(args.dir):

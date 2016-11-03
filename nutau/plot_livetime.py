@@ -71,17 +71,33 @@ def plot(name,hypos,asimovs,x_var='nutau_cc_norm',dir='.'):
         if i == 0:
             #ax.fill_between(years[-1],best_m2s,best_p2s,facecolor='g', linewidth=0, alpha=0.15, label='90% range improved sys')
             #ax.fill_between(years[-1],best_ms,best_ps,facecolor='g', linewidth=0, alpha=0.3, label='68% range improved sys')
-            ax.fill_between(years[-1],best_m2s,best_p2s,facecolor='g', linewidth=0, alpha=0.15, label='95% range')
-            ax.fill_between(years[-1],best_ms,best_ps,facecolor='g', linewidth=0, alpha=0.3, label='68% range')
+            ax.fill_between(years[-1],best_m2s,best_p2s,facecolor='g', linewidth=0, alpha=0.15, label='95% range baseline')
+            ax.fill_between(years[-1],best_ms,best_ps,facecolor='g', linewidth=0, alpha=0.3, label='68% range baseline')
             
             #ax.text(max(years[-1])*1.01,0.98*best_ms[-1],' %.2f'%best_ms[-1],fontsize=10,color='g')
             #ax.text(max(years[-1])*1.01,0.98*best_ps[-1],' %.2f'%best_ps[-1],fontsize=10,color='g')
             #ax.text(max(years[-1])*1.01,0.98*best_m2s[-1],'(%.2f)'%best_m2s[-1],fontsize=10,color='g')
             #ax.text(max(years[-1])*1.01,0.98*best_p2s[-1],'(%.2f)'%best_p2s[-1],fontsize=10,color='g')
+            ax2 = plt.subplot2grid((1,8), (0,7),sharey=ax)
+            ax2.errorbar(np.array([-1.]),np.array([1.]),yerr=np.array([[1.0-best_ms[-2]],[best_ps[-2]-1.0]]),fmt='.',color='forestgreen')
+            ax2.text(-1.0,best_ms[-2],'this analysis (%iy exp.) 68%% '%(years[0][-2]),fontsize=10,color='g',rotation='vertical',ha='center',va='top')
+            #ax2.errorbar(np.array([0.]),np.array([1.]),yerr=np.array([[0.20],[0.21]]),fmt='.',color='forestgreen')
+            ax2.errorbar(np.array([0.]),np.array([1.]),yerr=np.array([[0.15],[0.17]]),fmt='.',color='forestgreen')
+            #e = ax2.errorbar(np.array([0.]),np.array([1.]),yerr=np.array([[0.31],[0.36]]),fmt='.',color='forestgreen')
+            #e[-1][0].set_linestyle(':')
+            #ax2.text(0.0,1.0-0.31,'DeepCore (10y exp.) 68%, 95% ',fontsize=10,color='g',rotation='vertical',ha='center',va='top')
+            ax2.text(0.0,1.0-0.15,'DeepCore (10y exp.) 68% ',fontsize=10,color='g',rotation='vertical',ha='center',va='top')
+            ax2.errorbar(np.array([1.]),np.array([1.47]),yerr=np.array([[0.32],[0.32]]),fmt='.',color='navy')
+            ax2.text(1.0,1.47-0.32,'SuperK 68% ',fontsize=10,color='navy',rotation='vertical',ha='center',va='top')
+            ax2.errorbar(np.array([2.]),np.array([1.8]),yerr=np.array([[1.1],[1.8]]),fmt='.',color='navy')
+            ax2.text(2.0,1.8-1.1,'Opera 90% ',fontsize=10,color='navy',rotation='vertical',ha='center',va='top')
+            ax2.set_xlim(-2,3)
+            ax2.set_ylim(0,2)
+            ax2.set_axis_off()
         else:
-            ax.plot(years[-1],best_m2s, color='k', linewidth=1, linestyle=':', label='95% range baseline')
+            ax.plot(years[-1],best_m2s, color='k', linewidth=1, linestyle=':', label='95% range optimistic')
             ax.plot(years[-1],best_p2s, color='k', linewidth=1, linestyle=':')
-            ax.plot(years[-1],best_ms,  color='k', linewidth=1, label='68% range baseline')
+            ax.plot(years[-1],best_ms,  color='k', linewidth=1, label='68% range optimistic')
             ax.plot(years[-1],best_ps,  color='k', linewidth=1)
         ax.set_xlabel('livetime (years)')
         #ax.set_xlabel('livetime (months)')
@@ -89,31 +105,16 @@ def plot(name,hypos,asimovs,x_var='nutau_cc_norm',dir='.'):
         ax.set_ylim([0,2])
         #ax.set_yticks(np.linspace(0,2,21))
         ax.yaxis.set_minor_locator(minorLocator)
-
-        ax.set_xlim([years[0][0],years[0][-1]])
+    
+        #crop
+        ax.set_xlim([years[0][0],years[0][-2]])
         ax.plot(years[-1],best, color='g', linewidth=1)
     
     ax.legend(loc='upper right',ncol=1, frameon=False,numpoints=1,fontsize=10)
 
-    ax2 = plt.subplot2grid((1,8), (0,7),sharey=ax)
-    ax2.errorbar(np.array([-1.]),np.array([1.]),yerr=np.array([[1.0-best_ms[-1]],[best_ps[-1]-1.0]]),fmt='.',color='forestgreen')
-    ax2.text(-1.0,best_ms[-1],'this analysis (%iy exp.) 68%% '%(years[0][-1]),fontsize=10,color='g',rotation='vertical',ha='center',va='top')
-    #ax2.errorbar(np.array([0.]),np.array([1.]),yerr=np.array([[0.20],[0.21]]),fmt='.',color='forestgreen')
-    ax2.errorbar(np.array([0.]),np.array([1.]),yerr=np.array([[0.15],[0.17]]),fmt='.',color='forestgreen')
-    #e = ax2.errorbar(np.array([0.]),np.array([1.]),yerr=np.array([[0.31],[0.36]]),fmt='.',color='forestgreen')
-    #e[-1][0].set_linestyle(':')
-    #ax2.text(0.0,1.0-0.31,'DeepCore (10y exp.) 68%, 95% ',fontsize=10,color='g',rotation='vertical',ha='center',va='top')
-    ax2.text(0.0,1.0-0.15,'DeepCore (10y exp.) 68% ',fontsize=10,color='g',rotation='vertical',ha='center',va='top')
-    ax2.errorbar(np.array([1.]),np.array([1.47]),yerr=np.array([[0.32],[0.32]]),fmt='.',color='navy')
-    ax2.text(1.0,1.47-0.32,'SuperK 68% ',fontsize=10,color='navy',rotation='vertical',ha='center',va='top')
-    ax2.errorbar(np.array([2.]),np.array([1.8]),yerr=np.array([[1.1],[1.8]]),fmt='.',color='navy')
-    ax2.text(2.0,1.8-1.1,'Opera 90% ',fontsize=10,color='navy',rotation='vertical',ha='center',va='top')
-    ax2.set_xlim(-2,3)
-    ax2.set_ylim(0,2)
-    ax2.set_axis_off()
 
     plt.show()
-    plt.savefig('%s/nutaunorm.png'%(dir), facecolor=fig.get_facecolor(), edgecolor='none')
+    plt.savefig('%s/nutaunorm.png'%(dir), facecolor=fig.get_facecolor(), edgecolor='none',dpi=150)
     plt.savefig('%s/nutaunorm.pdf'%(dir), facecolor=fig.get_facecolor(), edgecolor='none')
 
 
@@ -121,7 +122,8 @@ def plot(name,hypos,asimovs,x_var='nutau_cc_norm',dir='.'):
     plt.grid()
     ax = fig.add_subplot(111)
     num = 10
-    ax.set_xlim([years[0][0],years[0][-1]])
+    #crop
+    ax.set_xlim([years[0][0],years[0][-2]])
     sigma = np.array(sigmas[0]).T
     colormap = plt.cm.Spectral 
     colors = [colormap(i) for i in np.linspace(0, 1,num)]
