@@ -15,9 +15,9 @@ import os
 
 import numpy as np
 
+from pisa import FTYPE
 from pisa.core.map import Map, MapSet
 from pisa.core.pipeline import Pipeline
-from pisa.utils.const import FTYPE
 from pisa.utils.fileio import from_file
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.resources import find_resource
