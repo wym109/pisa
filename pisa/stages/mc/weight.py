@@ -13,6 +13,7 @@ import pint
 import pycuda.driver as cuda
 import pycuda.autoinit
 
+from pisa import FTYPE
 from pisa import ureg, Q_
 from pisa.core.stage import Stage
 from pisa.core.events import Data
@@ -22,7 +23,6 @@ from pisa.utils.flux_weights import load_2D_table, calculate_flux_weights
 from pisa.utils.flavInt import ALL_NUFLAVINTS
 from pisa.utils.flavInt import NuFlavInt, NuFlavIntGroup
 from pisa.utils.comparisons import normQuant
-from pisa.utils.const import FTYPE
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
