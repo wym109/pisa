@@ -24,11 +24,12 @@ re_param = template_maker.params['regularisation']
 sf_param = template_maker.params['stat_fluctuations']
 lt_param = template_maker.params['livetime']
 
-frac_err, frac_err_err = [], []
-for lt in livetimes:
+mean = []
+for idx, lt in enumerate(livetimes):
     print '==========='
     print 'livetime = {0}'.format(lt)
     print '==========='
+    mean.append([])
 
     lt_param.value = lt
     template_maker.update_params(lt_param)
@@ -36,8 +37,6 @@ for lt in livetimes:
     re_param.value = 0 * ureg.dimensionless
     template_maker.update_params(re_param)
     nom_out = template_maker.get_outputs()[0].pop()
-    # nom_tot_sum = np.sum(nom_out.hist).n
-    # print 'nom_tot_sum', nom_tot_sum
 
     re_param.value = 2 * ureg.dimensionless
     sf_param.value = 1234 * ureg.dimensionless
@@ -47,23 +46,13 @@ for lt in livetimes:
     for x in xrange(200):
     # for x in xrange(2):
         temp_out = template_maker.get_outputs()[0].pop()
-        # temp_tot_sum = np.sum(temp_out.hist).n
-        # if nom_tot_sum > 0.0001:
-        #     div = temp_tot_sum / nom_tot_sum
-        # else:
-        #     div = 0
         nan_mask = nom_out.hist < 0.0001
         div = temp_out.hist[~nan_mask] / nom_out.hist[~nan_mask]
         fe.append(div)
-    mean = []
     for f in fe:
-        mean.append(np.mean(f))
-    mean = np.array(mean)
-    frac_err.append(np.mean(unp.nominal_values(mean)))
-    frac_err_err.append(np.mean(unp.std_devs(mean)))
+        mean[idx].append(np.mean(f))
 
-frac_err, frac_err_err = map(np.array, (frac_err, frac_err_err))
-fe = unp.uarray(frac_err, frac_err_err)
+fe = zip(*mean)
 print fe
 
 import matplotlib as mpl
@@ -81,7 +70,7 @@ binning = livetimes.m
 fig = plt.figure(figsize=(9, 5))
 ax = fig.add_subplot(111)
 ax.set_xlim(np.min(binning)-1, np.max(binning)+1)
-ax.set_ylim(0.7, 1.3)
+ax.set_ylim(0.5, 1.5)
 ax.tick_params(axis='x', labelsize=14)
 ax.tick_params(axis='y', labelsize=12)
 
@@ -96,10 +85,11 @@ def get_edges_from_cen(bincen):
     hwidth = 0.5*(bincen[1] - bincen[0])
     return np.append([bincen[0]-hwidth], bincen[:]+hwidth)
 
-fe_0 = np.concatenate([[fe[0]], fe])
-ax.errorbar(
-    binning, unp.nominal_values(fe), color='blue', xerr=0,
-    yerr=unp.std_devs(fe), capsize=3, alpha=1, linestyle='--',
-    markersize=2, linewidth=1
-)
-fig.savefig('./images/cfx/livetime_alt.png', bbox_inches='tight', dpi=150)
+for f in fe:
+    fe_0 = np.concatenate([[f[0]], f])
+    ax.errorbar(
+        binning, unp.nominal_values(f), xerr=0,
+        yerr=unp.std_devs(f), capsize=3, alpha=0.5, linestyle='--',
+        markersize=2, linewidth=1
+    )
+fig.savefig('./images/cfx/livetime_2.png', bbox_inches='tight', dpi=150)
