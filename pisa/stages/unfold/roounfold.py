@@ -98,15 +98,6 @@ class roounfold(Stage):
             debug_mode=debug_mode
         )
 
-        if not self.params['create_response'].value and disk_cache is None:
-            raise AssertionError('No disk_cache specified from which to load '
-                                 'response object.')
-
-        if self.params['optimize_reg'].value and \
-           not self.params['create_response'].value:
-            raise AssertionError('`create_response` must be set to True if '
-                                 'the flag `optimize_reg` is set to True.')
-
         if disk_cache is not None:
             self.instantiate_disk_cache()
 
@@ -121,6 +112,15 @@ class roounfold(Stage):
                                  'type {0}'.format(type(inputs)))
         self.sample_hash = inputs.hash
         self._data = deepcopy(inputs)
+
+        if not self.params['create_response'].value and disk_cache is None:
+            raise AssertionError('No disk_cache specified from which to load '
+                                 'response object.')
+
+        if self.params['optimize_reg'].value and \
+           not self.params['create_response'].value:
+            raise AssertionError('`create_response` must be set to True if '
+                                 'the flag `optimize_reg` is set to True.')
 
         # TODO(shivesh): Fix "smearing_matrix" memory leak
         # TODO(shivesh): include bg subtraction in unfolding
@@ -149,7 +149,7 @@ class roounfold(Stage):
             tex=r'\rm{all}'
         )
 
-        self.seed = int(self.params['stat_fluctuations'].value.m)
+        self.seed = int(self.params['stat_fluctuations'].m)
         if self.seed != 0:
             if self.random_state is None:
                 self.random_state = get_random_state(self.seed)
@@ -174,7 +174,7 @@ class roounfold(Stage):
         sig_r_flat = roounfold._flatten_to_1d(sig_reco)
         sig_r_th1d = roounfold._convert_to_th1d(sig_r_flat, errors=True)
 
-        regularisation = int(self.params['regularisation'].value)
+        regularisation = int(self.params['regularisation'].m)
         if regularisation == 0:
             sig_true = roounfold._histogram(
                 events=signal_data,

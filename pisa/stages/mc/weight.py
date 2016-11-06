@@ -60,6 +60,7 @@ class weight(Stage):
                 - nue_numu_ratio
                 - nu_nubar_ratio
                 - norm_numu
+                - norm_nutau
                 - norm_nc
                 - cache_flux : bool
                     Flag to specifiy whether to cache the flux values if
@@ -83,7 +84,6 @@ class weight(Stage):
                 - theta12
                 - theta13
                 - theta23
-                - norm_nutau
                 - no_nc_osc : bool
                     Flag to turn off oscillations for the neutral current
                     interactions.
@@ -139,6 +139,7 @@ class weight(Stage):
             'nu_nubar_ratio',
             'nue_numu_ratio',
             'norm_numu',
+            'norm_nutau',
             'norm_nc'
         )
 
@@ -155,20 +156,20 @@ class weight(Stage):
             'deltam21',
             'deltam31',
             'deltacp',
-            'norm_nutau',
             'no_nc_osc'
         )
 
-        self.atmmu_params = {
-            'norm_atmmu'
-        }
+        self.atmmu_params = (
+            'norm_atmmu',
+        )
 
-        self.noise_params = {
-            'norm_noise'
-        }
+        self.noise_params = (
+            'norm_noise',
+        )
 
-        expected_params = self.flux_params + self.osc_params + \
-                self.weight_params + self.atmmu_params + self.noise_params
+        expected_params = self.weight_params + self.xsec_params + \
+                self.flux_params + self.osc_params + self.atmmu_params + \
+                self.noise_params
 
         self.neutrino = False
         self.muons = False
@@ -322,6 +323,7 @@ class weight(Stage):
 
         self.xsec_hash = this_hash
         self._xsec_weights = xsec_weights
+        return xsec_weights
 
     def compute_flux_weights(self, attach_units=False):
         """Neutrino fluxes via `honda` service."""
@@ -596,6 +598,7 @@ class weight(Stage):
         assert isinstance(params['nu_nubar_ratio'].value, pq)
         assert isinstance(params['nue_numu_ratio'].value, pq)
         assert isinstance(params['norm_numu'].value, pq)
+        assert isinstance(params['norm_nutau'].value, pq)
         assert isinstance(params['norm_nc'].value, pq)
         assert isinstance(params['earth_model'].value, basestring)
         assert isinstance(params['YeI'].value, pq)
@@ -609,7 +612,6 @@ class weight(Stage):
         assert isinstance(params['deltam21'].value, pq)
         assert isinstance(params['deltam31'].value, pq)
         assert isinstance(params['deltacp'].value, pq)
-        assert isinstance(params['norm_nutau'].value, pq)
         assert isinstance(params['no_nc_osc'].value, bool)
         assert isinstance(params['norm_atmmu'].value, pq)
         assert isinstance(params['norm_noise'].value, pq)
