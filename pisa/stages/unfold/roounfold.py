@@ -107,11 +107,6 @@ class roounfold(Stage):
             raise AssertionError('`create_response` must be set to True if '
                                  'the flag `optimize_reg` is set to True.')
 
-        if int(self.params['regularisation'].value.m) == 0 and \
-           not self.params['create_response'].value:
-            raise AssertionError('`create_response` must be set to True if '
-                                 'the flag `regularisation` is set to 0.')
-
         if disk_cache is not None:
             self.instantiate_disk_cache()
 
@@ -127,10 +122,11 @@ class roounfold(Stage):
         self.sample_hash = inputs.hash
         self._data = deepcopy(inputs)
 
-        # TODO(shivesh): plots with errors
+        # TODO(shivesh): Fix "smearing_matrix" memory leak
         # TODO(shivesh): include bg subtraction in unfolding
         # TODO(shivesh): real data
         # TODO(shivesh): different algorithms
+        # TODO(shivesh): efficiency correction in unfolding
         trans_data = self._data.transform_groups(
             self._output_nu_group
         )

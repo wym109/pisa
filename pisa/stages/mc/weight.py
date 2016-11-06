@@ -19,7 +19,6 @@ from pisa.core.stage import Stage
 from pisa.core.events import Data
 from pisa.core.map import MapSet
 from pisa.core.param import ParamSet
-from pisa.utils.flux_weights import load_2D_table, calculate_flux_weights
 from pisa.utils.flavInt import ALL_NUFLAVINTS
 from pisa.utils.flavInt import NuFlavInt, NuFlavIntGroup
 from pisa.utils.comparisons import normQuant
@@ -27,6 +26,7 @@ from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
 
+from pisa.utils.flux_weights import load_2D_table, calculate_flux_weights
 from pisa.stages.osc.prob3gpu import prob3gpu
 
 
@@ -47,12 +47,20 @@ class weight(Stage):
             * livetime : ureg.Quantity
                 Desired lifetime.
 
+            * Cross-section related parameters:
+                - nu_dis_a
+                - nu_dis_b
+                - nubar_dis_a
+                - nubar_dis_b
+
             * Flux related parameters:
                 For more information see `$PISA/pisa/stages/flux/honda.py`
                 - flux_file
                 - atm_delta_index
                 - nue_numu_ratio
                 - nu_nubar_ratio
+                - norm_numu
+                - norm_nc
                 - cache_flux : bool
                     Flag to specifiy whether to cache the flux values if
                     calculated inside this service to a file specified
@@ -69,15 +77,16 @@ class weight(Stage):
                 - YeO
                 - detector_depth
                 - prop_height
-                - no_nc_osc : bool
-                    Flag to turn off oscillations for the neutral current
-                    interactions.
                 - deltacp
                 - deltam21
                 - deltam31
                 - theta12
                 - theta13
                 - theta23
+                - norm_nutau
+                - no_nc_osc : bool
+                    Flag to turn off oscillations for the neutral current
+                    interactions.
 
     input_names : string
         Specifies the string representation of the NuFlavIntGroup(s) that
@@ -117,35 +126,55 @@ class weight(Stage):
             'cache_flux'
         )
 
+        self.xsec_params = (
+            'nu_dis_a',
+            'nu_dis_b',
+            'nubar_dis_a',
+            'nubar_dis_b'
+        )
+
         self.flux_params = (
+            'flux_file',
             'atm_delta_index',
             'nu_nubar_ratio',
             'nue_numu_ratio',
-            'flux_file',
+            'norm_numu',
+            'norm_nc'
         )
 
         self.osc_params = (
-            'detector_depth',
             'earth_model',
-            'prop_height',
             'YeI',
             'YeO',
             'YeM',
+            'detector_depth',
+            'prop_height',
             'theta12',
             'theta13',
             'theta23',
             'deltam21',
             'deltam31',
             'deltacp',
+            'norm_nutau',
             'no_nc_osc'
         )
 
-        expected_params = self.flux_params + self.osc_params + self.weight_params
+        self.atmmu_params = {
+            'norm_atmmu'
+        }
+
+        self.noise_params = {
+            'norm_noise'
+        }
+
+        expected_params = self.flux_params + self.osc_params + \
+                self.weight_params + self.atmmu_params + self.noise_params
 
         self.neutrino = False
         self.muons = False
         self.noise = False
 
+        self.xsec_hash = None
         self.flux_hash = None
         self.osc_hash = None
 
@@ -209,37 +238,41 @@ class weight(Stage):
                                  'type {0}'.format(type(inputs)))
         self._data = deepcopy(inputs)
 
+        # TODO(shivesh): muons + noise reweighting
         if self.neutrino:
-            livetime = self.params['livetime'].value
+            # XSec reweighting
+            xsec_weights = self.compute_xsec_weights()
+            for fig in self._data.iterkeys():
+                self._data[fig]['pisa_weight'] *= xsec_weights[fig]
+
+            # Flux reweighting
             flux_weights = self.compute_flux_weights(attach_units=True)
             if not self.params['oscillate'].value:
                 # no oscillations
                 for fig in self._data.iterkeys():
                     flav_pdg = NuFlavInt(fig).flavCode()
+                    weight = self._data[fig]['pisa_weight']
                     if flav_pdg == 12:
-                        self._data[fig]['pisa_weight'] *= \
-                            flux_weights[fig]['nue_flux'] * livetime
+                        weight *= flux_weights[fig]['nue_flux']
                     elif flav_pdg == 14:
-                        self._data[fig]['pisa_weight'] *= \
-                            flux_weights[fig]['numu_flux'] * livetime
+                        weight *= flux_weights[fig]['numu_flux']
                     elif flav_pdg == -12:
-                        self._data[fig]['pisa_weight'] *= \
-                            flux_weights[fig]['nuebar_flux'] * livetime
+                        weight *= flux_weights[fig]['nuebar_flux']
                     elif flav_pdg == -14:
-                        self._data[fig]['pisa_weight'] *= \
-                            flux_weights[fig]['numubar_flux'] * livetime
+                        weight *= flux_weights[fig]['numubar_flux']
                     elif abs(flav_pdg) == 16:
-                        self._data[fig]['pisa_weight'] *= 0.
-                        self._data[fig]['pisa_weight'] = \
-                                self._data[fig]['pisa_weight'].m * \
-                                ureg.dimensionless
+                        # attach units of flux from nue
+                        weight *= 0. * flux_weights[fig]['nue_flux'].u
             else:
                 # oscillations
                 osc_weights = self.compute_osc_weights(flux_weights)
                 for fig in self._data.iterkeys():
-                    self._data[fig]['pisa_weight'] *= \
-                            osc_weights[fig] * livetime
+                    self._data[fig]['pisa_weight'] *= osc_weights[fig]
+
+            # Livetime reweighting
+            livetime = self.params['livetime'].value
             for fig in self._data.iterkeys():
+                self._data[fig]['pisa_weight'] *= livetime
                 self._data[fig]['pisa_weight'].ito('dimensionless')
 
         self._data.metadata['params_hash'] = self.params.values_hash
@@ -274,6 +307,21 @@ class weight(Stage):
             ))
 
         return MapSet(maps=outputs, name=self._data.metadata['name'])
+
+    def compute_xsec_weights(self):
+        """Reweight to take into account xsec systematics."""
+        this_hash = normQuant([self.params[name].value
+                               for name in self.xsec_params])
+        if self.xsec_hash == this_hash:
+            return self._xsec_weights
+
+        xsec_weights = self._compute_xsec_weights(
+            self._data, ParamSet(p for p in self.params
+                                 if p.name in self.xsec_params)
+        )
+
+        self.xsec_hash = this_hash
+        self._xsec_weights = xsec_weights
 
     def compute_flux_weights(self, attach_units=False):
         """Neutrino fluxes via `honda` service."""
@@ -316,20 +364,14 @@ class weight(Stage):
                 logging.info('Loading flux values from cache.')
                 flux_weights = self.disk_cache[this_cache_hash]
             else:
-                flux_params = []
-                for param in self.params:
-                    if param.name in self.flux_params:
-                        flux_params.append(param)
                 flux_weights = self._compute_flux_weights(
-                    self._data, ParamSet(flux_params)
+                    self._data, ParamSet(p for p in self.params
+                                         if p.name in self.flux_params)
                 )
         else:
-            flux_params = []
-            for param in self.params:
-                if param.name in self.flux_params:
-                    flux_params.append(param)
             flux_weights = self._compute_flux_weights(
-                self._data, ParamSet(flux_params)
+                self._data, ParamSet(p for p in self.params
+                                     if p.name in self.flux_params)
             )
 
         if self.params['cache_flux'].value:
@@ -337,55 +379,84 @@ class weight(Stage):
                 logging.info('Caching flux values to disk.')
                 self.disk_cache[this_cache_hash] = flux_weights
 
-        # TODO(shivesh): more flux systematics
+        # TODO(shivesh): Barr flux systematics
         for fig in flux_weights:
-            nue_flux = flux_weights[fig]['nue_flux']
-            numu_flux = flux_weights[fig]['numu_flux']
-            nuebar_flux = flux_weights[fig]['nuebar_flux']
+            nue_flux     = flux_weights[fig]['nue_flux']
+            numu_flux    = flux_weights[fig]['numu_flux']
+            nuebar_flux  = flux_weights[fig]['nuebar_flux']
             numubar_flux = flux_weights[fig]['numubar_flux']
 
+            norm_nc = 1.0
+            if 'nc' in fig:
+                norm_nc = self.params['norm_nc'].m
+            norm_numu = self.params['norm_numu'].m
+            atm_index = np.power(
+                self._data[fig]['energy'], self.params['atm_delta_index'].m
+            )
+            nue_flux     *= atm_index * norm_nc
+            numu_flux    *= atm_index * norm_nc * norm_numu
+            nuebar_flux  *= atm_index * norm_nc
+            numubar_flux *= atm_index * norm_nc * norm_numu
+
             nue_flux, nuebar_flux = self.apply_ratio_scale(
-                nue_flux, nuebar_flux, self.params['nu_nubar_ratio'].value
+                nue_flux, nuebar_flux, self.params['nu_nubar_ratio'].m
             )
             numu_flux, numubar_flux = self.apply_ratio_scale(
-                numu_flux, numubar_flux, self.params['nu_nubar_ratio'].value
+                numu_flux, numubar_flux, self.params['nu_nubar_ratio'].m
             )
             nue_flux, numu_flux = self.apply_ratio_scale(
-                nue_flux, numu_flux, self.params['nue_numu_ratio'].value
+                nue_flux, numu_flux, self.params['nue_numu_ratio'].m
             )
             nuebar_flux, numubar_flux = self.apply_ratio_scale(
-                nuebar_flux, numubar_flux, self.params['nue_numu_ratio'].value
+                nuebar_flux, numubar_flux, self.params['nue_numu_ratio'].m
             )
 
         self.flux_hash = this_hash
         self._flux_weights = flux_weights
         if attach_units:
-            flux_weights_u = {}
+            fw_units = {}
             for fig in flux_weights.iterkeys():
-                flux_weights_u[fig] = {}
+                fw_units[fig] = {}
                 for flav in flux_weights[fig].iterkeys():
-                    flux_weights_u[fig][flav] = \
-                            flux_weights[fig][flav]*out_units
-            return flux_weights_u
+                    fw_units[fig][flav] = flux_weights[fig][flav]*out_units
+            return fw_units
         else:
             return flux_weights
 
     def compute_osc_weights(self, flux_weights):
         """Neutrino oscillations calculation via Prob3."""
         this_hash = normQuant([self.params[name].value
-                               for name in self.osc_params])
+                               for name in self.flux_params + self.osc_params])
         if self.osc_hash == this_hash:
             return self._osc_weights
-        osc_params = []
-        for param in self.params:
-            if param.name in self.osc_params:
-                osc_params.append(param)
         osc_weights = self._compute_osc_weights(
-            self._data, ParamSet(osc_params), flux_weights
+            self._data, ParamSet(p for p in self.params
+                                 if p.name in self.osc_params), flux_weights
         )
+
+        for fig in osc_weights:
+            if 'tau' in fig:
+                osc_weights[fig] *= self.params['norm_nutau'].m
+
         self.osc_hash = this_hash
         self._osc_weights = osc_weights
         return self._osc_weights
+
+    @staticmethod
+    def _compute_xsec_weights(nu_data, params):
+        """Reweight to take into account xsec systematics."""
+        logging.debug('Reweighting xsec systematics')
+
+        xsec_weights = {}
+        for fig in nu_data.iterkeys():
+            if 'bar' not in fig:
+                dis_a = params['nu_dis_a'].m
+                dis_b = params['nu_dis_b'].m
+            else:
+                dis_a = params['nubar_dis_a'].m
+                dis_b = params['nubar_dis_b'].m
+            xsec_weights[fig] = dis_b * np.power(nu_data[fig]['GENIE_x'], -dis_a)
+        return xsec_weights
 
     @staticmethod
     def _compute_flux_weights(nu_data, params):
@@ -460,8 +531,7 @@ class weight(Stage):
 
             osc_data[fig]['device'] = {}
             for key in device.iterkeys():
-                osc_data[fig]['device'][key] = \
-                        cuda.mem_alloc(device[key].nbytes)
+                osc_data[fig]['device'][key] = cuda.mem_alloc(device[key].nbytes)
                 cuda.memcpy_htod(osc_data[fig]['device'][key], device[key])
 
         osc.update_MNS(theta12, theta13, theta23, deltam21, deltam31, deltacp)
@@ -512,20 +582,34 @@ class weight(Stage):
         return scaled_a, scaled_b
 
     def validate_params(self, params):
+        pq = pint.quantity._Quantity
         assert isinstance(params['output_events_mc'].value, bool)
-        assert isinstance(params['livetime'].value, pint.quantity._Quantity)
+        assert isinstance(params['livetime'].value, pq)
         assert isinstance(params['oscillate'].value, bool)
         assert isinstance(params['cache_flux'].value, bool)
+        assert isinstance(params['nu_dis_a'].value, pq)
+        assert isinstance(params['nu_dis_b'].value, pq)
+        assert isinstance(params['nubar_dis_a'].value, pq)
+        assert isinstance(params['nubar_dis_b'].value, pq)
+        assert isinstance(params['flux_file'].value, basestring)
+        assert isinstance(params['atm_delta_index'].value, pq)
+        assert isinstance(params['nu_nubar_ratio'].value, pq)
+        assert isinstance(params['nue_numu_ratio'].value, pq)
+        assert isinstance(params['norm_numu'].value, pq)
+        assert isinstance(params['norm_nc'].value, pq)
         assert isinstance(params['earth_model'].value, basestring)
-        assert isinstance(params['detector_depth'].value, pint.quantity._Quantity)
-        assert isinstance(params['theta12'].value, pint.quantity._Quantity)
-        assert isinstance(params['theta13'].value, pint.quantity._Quantity)
-        assert isinstance(params['theta23'].value, pint.quantity._Quantity)
-        assert isinstance(params['deltam21'].value, pint.quantity._Quantity)
-        assert isinstance(params['deltam31'].value, pint.quantity._Quantity)
-        assert isinstance(params['deltacp'].value, pint.quantity._Quantity)
-        assert isinstance(params['YeI'].value, pint.quantity._Quantity)
-        assert isinstance(params['YeO'].value, pint.quantity._Quantity)
-        assert isinstance(params['YeM'].value, pint.quantity._Quantity)
-        assert isinstance(params['prop_height'].value, pint.quantity._Quantity)
+        assert isinstance(params['YeI'].value, pq)
+        assert isinstance(params['YeO'].value, pq)
+        assert isinstance(params['YeM'].value, pq)
+        assert isinstance(params['detector_depth'].value, pq)
+        assert isinstance(params['prop_height'].value, pq)
+        assert isinstance(params['theta12'].value, pq)
+        assert isinstance(params['theta13'].value, pq)
+        assert isinstance(params['theta23'].value, pq)
+        assert isinstance(params['deltam21'].value, pq)
+        assert isinstance(params['deltam31'].value, pq)
+        assert isinstance(params['deltacp'].value, pq)
+        assert isinstance(params['norm_nutau'].value, pq)
         assert isinstance(params['no_nc_osc'].value, bool)
+        assert isinstance(params['norm_atmmu'].value, pq)
+        assert isinstance(params['norm_noise'].value, pq)
