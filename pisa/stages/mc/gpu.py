@@ -319,7 +319,7 @@ class gpu(Stage):
                     except KeyError:
                         pass
 
-        logging.info('read in events and copy to GPU')
+        logging.debug('read in events and copy to GPU')
         start_t = time.time()
         # setup all arrays that need to be put on GPU
         self.events_dict = {}
@@ -363,7 +363,7 @@ class gpu(Stage):
                 self.events_dict[flav]['host']['distanceInLayer'] = \
                 self.osc.calc_Layers(self.events_dict[flav]['host']['true_coszen'])
         end_t = time.time()
-        logging.info('layers done in %.4f ms'%((end_t - start_t) * 1000))
+        logging.debug('layers done in %.4f ms'%((end_t - start_t) * 1000))
 
         # Copy arrays to GPU
         start_t = time.time()

@@ -149,7 +149,7 @@ def kde_histogramdd(sample, binning, weights=[], bw_method='scott',
 
     # Bin volumes
     volume = binning.bin_volumes(attach_units=False)
-    hist = np.multiply(hist, volume)
+    hist = hist*volume
 
     # Downsample
     if not oversample==1:
