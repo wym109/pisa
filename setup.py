@@ -28,8 +28,8 @@ If you wish to upgrade PISA and/or its dependencies:
 
 
 from distutils.command.build import build as _build
-from setuptools.command.build_ext import build_ext as _build_ext
 import os
+from setuptools.command.build_ext import build_ext as _build_ext
 from setuptools import setup, Extension
 import shutil
 import subprocess
@@ -136,11 +136,6 @@ if __name__ == '__main__':
     setup_cc()
     sys.stdout.write('Using compiler %s\n' %os.environ['CC'])
 
-    CUDA = has_cuda()
-    if not CUDA:
-        sys.stderr.write('WARNING: Could not import pycuda; PISA may not be'
-                         ' able to support CUDA (GPU) accelerations.\n')
-
     OPENMP = has_openmp()
     if not OPENMP:
         sys.stderr.write(
@@ -203,38 +198,6 @@ if __name__ == '__main__':
         'tests/data/oscfit/*.json',
         'tests/settings/*.cfg'
     ]
-
-    if CUDA:
-        prob3gpu_module = Extension(
-            name='pisa.stages.osc.grid_propagator._GridPropagator',
-            sources=[
-                'pisa/stages/osc/grid_propagator/GridPropagator.cpp',
-                'pisa/stages/osc/prob3/EarthDensity.cc',
-                'pisa/stages/osc/grid_propagator/GridPropagator.i'
-            ],
-            include_dirs=[
-                'pisa/stages/osc/prob3/'
-            ],
-            extra_compile_args=[
-                '-xc++', '-lstdc++', '-shared-libgcc', '-c', '-Wall', '-O3',
-                '-fPIC'
-            ],
-            swig_opts=[
-                '-v', '-c++'
-            ]
-        )
-        ext_modules.append(prob3gpu_module)
-        package_data['pisa.stages.osc.grid_propagator'] = [
-            'mosc3.cu',
-            'mosc.cu',
-            'mosc3.h',
-            'mosc.h',
-            'constants.h',
-            'numpy.i',
-            'GridPropagator.h',
-            'OscUtils.h',
-            'utils.h'
-        ]
 
     if OPENMP:
         gaussians_module = Extension(
@@ -311,7 +274,7 @@ if __name__ == '__main__':
             'pisa.stages.flux',
             'pisa.stages.mc',
             'pisa.stages.osc',
-            'pisa.stages.osc.grid_propagator',
+            'pisa.stages.osc.prob3cuda',
             'pisa.stages.osc.nuCraft',
             'pisa.stages.osc.prob3',
             'pisa.stages.pid',
@@ -328,10 +291,12 @@ if __name__ == '__main__':
             'pisa/analysis/profile_llh_postprocess.py',
             'pisa/core/distribution_maker.py',
             'pisa/core/pipeline.py',
+            'pisa/scripts/add_flux_to_events_file.py',
+            'pisa/scripts/compare.py',
             'pisa/scripts/fit_discrete_sys.py',
             'pisa/scripts/fit_discrete_sys_pid.py',
             'pisa/scripts/make_events_file.py',
-            'pisa/scripts/test_changes_with_combined_pidreco.py',
+            'pisa/scripts/make_nufit_theta23_spline_priors.py',
             'pisa/scripts/test_consistency_with_pisa2.py',
             'pisa/scripts/test_consistency_with_oscfit.py'
         ],
@@ -341,3 +306,8 @@ if __name__ == '__main__':
         # be compiled and are inaccessible in zip
         zip_safe=False
     )
+
+    if not has_cuda():
+        sys.stderr.write('WARNING: Could not import pycuda; attempt will be '
+                         ' made to install, but if this fails, PISA may not be'
+                         ' able to support CUDA (GPU) accelerations.\n')

@@ -2,13 +2,13 @@
 # date:   September 2016
 
 
-import sys, os
+import time
+
 import numpy as np
 import pycuda.driver as cuda
 import pycuda.autoinit
-import time
 
-from pisa import ureg, Q_
+from pisa import ureg, Q_, FTYPE
 from pisa.core.binning import OneDimBinning, MultiDimBinning
 from pisa.core.events import Events
 from pisa.core.map import Map, MapSet
@@ -18,7 +18,6 @@ from pisa.stages.mc.GPUweight import GPUweight
 from pisa.stages.osc.prob3gpu import prob3gpu
 from pisa.utils.comparisons import normQuant
 from pisa.utils.config_parser import split
-from pisa.utils.const import FTYPE
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
 from pisa.utils.resources import find_resource
@@ -171,8 +170,8 @@ class gpu(Stage):
             self.kde_histogramdd = kde_histogramdd
         else:
             #otherwise that
-            from pisa.utils.gpu_hist import GPUhist
-            self.GPUhist = GPUhist
+            from pisa.utils.gpu_hist import GPUHist
+            self.GPUHist = GPUHist
 
 
     def validate_params(self, params):
@@ -239,7 +238,7 @@ class gpu(Stage):
 
         else:
             # GPU histogramer
-            self.histogrammer = self.GPUhist(*self.bin_edges)
+            self.histogrammer = self.GPUHist(*self.bin_edges)
 
         # load events
         self.load_events()
@@ -361,7 +360,7 @@ class gpu(Stage):
             self.events_dict[flav]['host']['numLayers'], \
                 self.events_dict[flav]['host']['densityInLayer'], \
                 self.events_dict[flav]['host']['distanceInLayer'] = \
-                self.osc.calc_Layers(self.events_dict[flav]['host']['true_coszen'])
+                self.osc.calc_layers(self.events_dict[flav]['host']['true_coszen'])
         end_t = time.time()
         logging.debug('layers done in %.4f ms'%((end_t - start_t) * 1000))
 
@@ -377,7 +376,6 @@ class gpu(Stage):
 
         # Apply raw reco sys
         self.apply_reco()
-
 
     def apply_reco(self):
         """Apply raw reco systematics (to use as inputs to polyfit stage)"""
@@ -405,7 +403,6 @@ class gpu(Stage):
             self.update_device_arrays(flav, 'reco_energy')
             self.update_device_arrays(flav, 'reco_coszen')
 
-
     def update_device_arrays(self, flav, var):
         """Helper function to update device arrays"""
         self.events_dict[flav]['device'][var].free()
@@ -416,7 +413,7 @@ class gpu(Stage):
         """Copy back event by event information into the host dict"""
         for flav in self.flavs:
             for var in variables:
-                buff = np.ones(self.events_dict[flav]['n_evts'])
+                buff = np.ones(self.events_dict[flav]['n_evts'], dtype=FTYPE)
                 cuda.memcpy_dtoh(buff, self.events_dict[flav]['device'][var])
                 self.events_dict[flav]['host'][var] = buff
 
@@ -429,10 +426,10 @@ class gpu(Stage):
         cuda.memcpy_dtoh(out, d_out)
         return out[0]
 
-
     def _compute_outputs(self, inputs=None):
         logging.debug('retreive weighted histo')
-        # Get hash to decide whether expensive stuff needs to be recalculated 
+
+        # Get hash to decide whether expensive stuff needs to be recalculated
         osc_hash = hash_obj(normQuant([self.params[name].value for name in self.osc_params]))
         weight_hash = hash_obj(normQuant([self.params[name].value for name in self.weight_params]))
         recalc_osc = not (osc_hash == self.osc_hash)
@@ -523,7 +520,6 @@ class gpu(Stage):
                     self.events_dict[flav]['hist'] = hist
                 end_t = time.time()
                 logging.debug('KDE done in %.4f ms for %s events'%(((end_t - start_t) * 1000), tot))
-
         else:
             if recalc_osc or recalc_weight:
                 start_t = time.time()

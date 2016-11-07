@@ -227,7 +227,7 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
     detector_geom = run_settings[runs[0]]['geom']
 
     # Create Events object to store data
-    evts = events.Events()
+    evts = Events()
     evts.metadata.update({
         'detector': run_settings.detector,
         'proc_ver': data_proc_params.proc_ver,
