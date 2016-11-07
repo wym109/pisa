@@ -36,6 +36,11 @@ class sample(Stage):
             * data_sample_config : filepath
                 Filepath to event sample configuration
 
+            * dataset : string
+                Pick which systematic set to use (or nominal)
+                examples: 'nominal', 'neutrino:dom_eff:1.05', 'muons:hole_ice:0.01'
+                the nominal set will be used for the event types not specified
+
             * keep_criteria : None or string
                 Apply a cut such as the only events which satisfy
                 `keep_criteria` are kept.
@@ -73,7 +78,7 @@ class sample(Stage):
         """Hash of event sample"""
 
         expected_params = (
-            'data_sample_config', 'keep_criteria', 'output_events_data'
+            'data_sample_config', 'dataset', 'keep_criteria', 'output_events_data'
         )
 
         self.neutrino = False
@@ -127,10 +132,14 @@ class sample(Stage):
     def _compute_outputs(self, inputs=None):
         """Apply basic cuts and compute histograms for output channels."""
         if self.params['keep_criteria'].value is not None:
+            # TODO(shivesh)
+            raise NotImplementedError(
+                'needs check to make sure this works in a DistributionMaker'
+            )
             self._data.applyCut(self.params['keep_criteria'].value)
+            self._data.update_hash()
 
         if self.params['output_events_data'].value:
-            self._data.update_hash()
             return self._data
 
         outputs = []
@@ -183,24 +192,30 @@ class sample(Stage):
             if 'neutrino' not in event_types:
                 raise AssertionError('`neutrino` field not found in '
                                      'configuration file.')
+            dataset = self.params['dataset'].value.lower()
+            if 'neutrino' not in dataset:
+                dataset = 'nominal'
             nu_data = self.load_neutrino_events(
-                config=self.config
+                config=self.config, dataset=dataset
             )
             events.append(nu_data)
         if self.muons:
             if 'muons' not in event_types:
                 raise AssertionError('`muons` field not found in '
                                      'configuration file.')
+            dataset = self.params['dataset'].value
+            if 'muons' not in dataset:
+                dataset = 'nominal'
             muon_events = self.load_muon_events(
-                config=self.config
+                config=self.config, dataset=dataset
             )
             events.append(muon_events)
         self._data = reduce(add, events)
-        self._data.metadata['sample'] = 'nominal'
+        self._data.update_hash()
         self.sample_hash = this_hash
 
     @staticmethod
-    def load_neutrino_events(config):
+    def load_neutrino_events(config, dataset):
         def parse(string):
             return string.replace(' ', '').split(',')
         name = config.get('general', 'name')
@@ -218,20 +233,23 @@ class sample(Stage):
             flav_fidg = FlavIntDataGroup(
                 flavint_groups=all_flavints
             )
-            prefixes = []
-            for sys in sys_list:
-                ev_sys = 'neutrino:' + sys
-                nominal = config.get(ev_sys, 'nominal')
-                ev_sys_nom = ev_sys + ':' + nominal
-                prefixes.append(config.get(ev_sys_nom, 'file_prefix'))
-            if len(set(prefixes)) > 1:
-                raise AssertionError(
-                    'Choice of nominal file is ambigous. Nominal '
-                    'choice of systematic parameters must coincide '
-                    'with one and only one file. Options found are: '
-                    '{0}'.format(prefixes)
-                )
-            file_prefix = flav + prefixes[0]
+            if dataset == 'nominal':
+                prefixes = []
+                for sys in sys_list:
+                    ev_sys = 'neutrino:' + sys
+                    nominal = config.get(ev_sys, 'nominal')
+                    ev_sys_nom = ev_sys + ':' + nominal
+                    prefixes.append(config.get(ev_sys_nom, 'file_prefix'))
+                if len(set(prefixes)) > 1:
+                    raise AssertionError(
+                        'Choice of nominal file is ambigous. Nominal '
+                        'choice of systematic parameters must coincide '
+                        'with one and only one file. Options found are: '
+                        '{0}'.format(prefixes)
+                    )
+                file_prefix = flav + prefixes[0]
+            else:
+                file_prefix = flav + config.get(dataset, 'file_prefix')
             events_file = config.get('general', 'datadir') + \
                     base_suffix + file_prefix
 
@@ -263,12 +281,14 @@ class sample(Stage):
                 flav_fidg[flavint] = {var: events[var][i_mask & t_mask]
                                       for var in events.iterkeys()}
             nu_data.append(flav_fidg)
-        nu_data = Data(reduce(add, nu_data), metadata={'name': name})
+        nu_data = Data(
+            reduce(add, nu_data), metadata={'name': name, 'sample': dataset}
+        )
 
         return nu_data
 
     @staticmethod
-    def load_muon_events(config):
+    def load_muon_events(config, dataset):
         name = config.get('general', 'name')
 
         def parse(string):
@@ -278,20 +298,23 @@ class sample(Stage):
         base_suffix = config.get('muons', 'basesuffix')
         if base_suffix == 'None': base_suffix = ''
 
-        paths = []
-        for sys in sys_list:
-            ev_sys = 'muons:' + sys
-            nominal = config.get(ev_sys, 'nominal')
-            ev_sys_nom = ev_sys + ':' + nominal
-            paths.append(config.get(ev_sys_nom, 'file_path'))
-        if len(set(paths)) > 1:
-            raise AssertionError(
-                'Choice of nominal file is ambigous. Nominal '
-                'choice of systematic parameters must coincide '
-                'with one and only one file. Options found are: '
-                '{0}'.format(paths)
-            )
-        file_path = paths[0]
+        if dataset == 'nominal':
+            paths = []
+            for sys in sys_list:
+                ev_sys = 'muons:' + sys
+                nominal = config.get(ev_sys, 'nominal')
+                ev_sys_nom = ev_sys + ':' + nominal
+                paths.append(config.get(ev_sys_nom, 'file_path'))
+            if len(set(paths)) > 1:
+                raise AssertionError(
+                    'Choice of nominal file is ambigous. Nominal '
+                    'choice of systematic parameters must coincide '
+                    'with one and only one file. Options found are: '
+                    '{0}'.format(paths)
+                )
+            file_path = paths[0]
+        else:
+            file_path = config.get(dataset, 'file_path')
 
         muons = from_file(file_path)
 
@@ -310,10 +333,11 @@ class sample(Stage):
             muons['reco_coszen'] = np.cos(muons['reco_zenith'])
 
         muon_dict = {'muons': muons}
-        return Data(muon_dict, metadata={'name': name})
+        return Data(muon_dict, metadata={'name': name, 'mu_sample': dataset})
 
     def validate_params(self, params):
         assert isinstance(params['data_sample_config'].value, basestring)
+        assert isinstance(params['dataset'].value, basestring)
         assert params['keep_criteria'].value is None or \
                 isinstance(params['keep_criteria'].value, basestring)
         assert isinstance(params['output_events_data'].value, bool)

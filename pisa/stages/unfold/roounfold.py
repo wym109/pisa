@@ -408,8 +408,9 @@ class roounfold(Stage):
         return Map(hist=hist, binning=binning, name=name, **kwargs)
 
     def validate_params(self, params):
+        pq = pint.quantity._Quantity
         assert isinstance(params['create_response'].value, bool)
-        sf = params['stat_fluctuations'].value
-        assert sf is None or isinstance(sf, pint.quantity._Quantity)
-        assert isinstance(params['regularisation'].value, pint.quantity._Quantity)
+        assert params['stat_fluctuations'].value is None \
+                or isinstance(params['stat_fluctuations'].value, pq)
+        assert isinstance(params['regularisation'].value, pq)
         assert isinstance(params['optimize_reg'].value, bool)
