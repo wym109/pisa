@@ -87,22 +87,22 @@ def sanitize_name(name):
     return name
 
 
-def reduceToHist(x):
-    if isinstance(x, np.ndarray):
+def reduceToHist(expected_values):
+    if isinstance(expected_values, np.ndarray):
         pass
-    elif isinstance(x, Map):
-        x = x.hist
-    elif isinstance(x, MapSet):
-        x = sum(x).hist
+    elif isinstance(expected_values, Map):
+        expected_values = expected_values.hist
+    elif isinstance(expected_values, MapSet):
+        expected_values = sum(expected_values).hist
 
     # If iterable, must be iterable of MapSets
-    elif isinstance(x, Iterable):
-        x = reduce(lambda x,y: sum(x) + sum(y),
-                                 x).hist
+    elif isinstance(expected_values, Iterable):
+        expected_values = reduce(lambda x,y: sum(x) + sum(y),
+                                 expected_values).hist
     else:
-        raise ValueError('Unhandled type for `x`: %s'
-                         %type(x))
-    return x
+        raise ValueError('Unhandled type for `expected_values`: %s'
+                         %type(expected_values))
+    return expected_values
 
 
 # TODO: put uncertainties in

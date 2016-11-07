@@ -491,8 +491,5 @@ if __name__ == '__main__':
                                  fmt=fmt, log=False,
                                  annotate=args.annotate)
             my_plotter.ratio = True
-            try:
-                my_plotter.plot_2d_array(stage.outputs, fname=stg_svc+'__output',
-                                         cmap='OrRd')
-            except:
-                pass
+            my_plotter.plot_2d_array(stage.outputs, fname=stg_svc+'__output',
+                                     cmap='OrRd')
