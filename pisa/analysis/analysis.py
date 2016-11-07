@@ -134,8 +134,10 @@ class Analysis(object):
         """
         # Select the version of the parameters used for this hypothesis
         hypo_maker.select_params(hypo_param_selections)
+
         # Reset free parameters to nominal values
-        if reset_free: hypo_maker.reset_free()
+        if reset_free:
+            hypo_maker.reset_free()
 
         alternate_fits = []
 
@@ -662,12 +664,12 @@ class Analysis(object):
             if np.issubdtype(type(steps), int):
                 assert steps >= 2
                 values = [np.linspace(r[0], r[1], steps)*r[0].units
-                                                                for r in ranges]
+                          for r in ranges]
             else:
                 assert len(steps) == nparams
                 assert np.all(np.array(steps)>=2)
                 values = [np.linspace(r[0], r[1], steps[i])*r[0].units
-                                                   for i,r in enumerate(ranges)]
+                          for i,r in enumerate(ranges)]
 
         if nparams > 1:
             steplist = [[(pname, val) for val in values[i]] for (i, pname) in
@@ -683,18 +685,19 @@ class Analysis(object):
             for i in xrange(0, len(only_points)-1, 2):
                 points_acc.extend(range(only_points[i], only_points[i+1]+1))
 
-        # instead of introducing another multitude of tests above, check here
+        # Instead of introducing another multitude of tests above, check here
         # whether the lists of steps all have the same length in case `outer`
         # is set to False
         if nparams > 1 and not outer:
             assert np.all(len(steps) == len(steplist[0]) for steps in steplist)
             loopfunc = zip
         else:
-            # with single parameter, can use either `zip` or `product`
+            # With single parameter, can use either `zip` or `product`
             loopfunc = product
 
         params = hypo_maker.params
-        # fix the parameters to be scanned if `profile` is set to True
+
+        # Fix the parameters to be scanned if `profile` is set to True
         params.fix(param_names)
 
         results = {'steps': {}, 'results': []}
@@ -702,6 +705,7 @@ class Analysis(object):
         for i,pos in enumerate(loopfunc(*steplist)):
             if len(points_acc) > 0 and i not in points_acc:
                 continue
+
             msg = ''
             for (pname, val) in pos:
                 params[pname].value = val
@@ -709,11 +713,12 @@ class Analysis(object):
                 msg += '%s = %.2f '%(pname, val)
             logging.info('Working on point ' + msg)
             hypo_maker.update_params(params)
+
             # TODO: consistent treatment of hypo_param_selections and scanning
             if not profile or len(hypo_maker.params.free) == 0:
                 logging.info('Not optimizing since `profile` set to False or'
                              ' no free parameters found...')
-                bf = self.nofit_hypo(
+                best_fit = self.nofit_hypo(
                     data_dist=data_dist,
                     hypo_maker=hypo_maker,
                     hypo_param_selections=hypo_param_selections,
@@ -723,40 +728,46 @@ class Analysis(object):
                 )
             else:
                 logging.info('Starting optimization since `profile` requested.')
-                bf, af = self.fit_hypo(
+                best_fit, alternate_fits = self.fit_hypo(
                     data_dist=data_dist,
                     hypo_maker=hypo_maker,
-                    hypo_param_selections=hypo_param_selections, metric=metric,
+                    hypo_param_selections=hypo_param_selections,
+                    metric=metric,
                     minimizer_settings=minimizer_settings,
                     **kwargs
                 )
                 # TODO: serialisation!
-                for k in bf['minimizer_metadata']:
+                for k in best_fit['minimizer_metadata']:
                     if k in ['hess', 'hess_inv']:
                         print "deleting %s"%k
-                        del bf['minimizer_metadata'][k]
-            bf['params'] = deepcopy(bf['params']._serializable_state)
-            bf['hypo_asimov_dist'] = \
-                        deepcopy(bf['hypo_asimov_dist']._serializable_state)
+                        del best_fit['minimizer_metadata'][k]
+
+            best_fit['params'] = \
+                    deepcopy(best_fit['params']._serializable_state)
+            best_fit['hypo_asimov_dist'] = \
+                    deepcopy(best_fit['hypo_asimov_dist']._serializable_state)
 
             # decide which information to retain based on chosen debug mode
             if debug_mode == 0 or debug_mode == 1:
                 try:
-                    del bf['fit_history']
-                    del bf['hypo_asimov_dist']
-                except: pass
+                    del best_fit['fit_history']
+                    del best_fit['hypo_asimov_dist']
+                except:
+                    pass
 
             if debug_mode == 0:
                 # torch the woods!
                 try:
-                    del bf['minimizer_metadata']
-                    del bf['minimizer_time']
-                except: pass
+                    del best_fit['minimizer_metadata']
+                    del best_fit['minimizer_time']
+                except:
+                    pass
 
-            results['results'].append(bf)
+            results['results'].append(best_fit)
             if not outfile is None:
                 # store intermediate results
                 to_file(results, outfile)
+
         return results
 
 def test_Counter():
