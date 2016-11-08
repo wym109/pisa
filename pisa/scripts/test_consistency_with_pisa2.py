@@ -1126,7 +1126,7 @@ if __name__ == '__main__':
         )
         pisa2file = find_resource(pisa2file)
         pisa2_comparisons = from_file(pisa2file)
-        # Up to flux stage comparisons
+        # Through flux stage comparisons
         compare_flux_full(
             pisa_maps=pisa2_comparisons[0],
             cake_maps=pipeline['flux'].outputs,
@@ -1134,7 +1134,7 @@ if __name__ == '__main__':
             ratio_test_threshold=args.ratio_threshold,
             diff_test_threshold=args.diff_threshold
         )
-        # Up to osc stage comparisons
+        # Through osc stage comparisons
         compare_osc_full(
             pisa_maps=pisa2_comparisons[1],
             cake_maps=pipeline['osc'].outputs,
@@ -1142,7 +1142,7 @@ if __name__ == '__main__':
             ratio_test_threshold=args.ratio_threshold,
             diff_test_threshold=args.diff_threshold
         )
-        # Up to aeff stage comparisons
+        # Through aeff stage comparisons
         compare_aeff_full(
             pisa_maps=pisa2_comparisons[2],
             cake_maps=pipeline['aeff'].outputs,
@@ -1150,7 +1150,7 @@ if __name__ == '__main__':
             ratio_test_threshold=args.ratio_threshold,
             diff_test_threshold=args.diff_threshold
         )
-        # Up to reco stage comparisons
+        # Through reco stage comparisons
         compare_reco_full(
             pisa_maps=pisa2_comparisons[3],
             cake_maps=pipeline['reco'].outputs,
@@ -1158,7 +1158,7 @@ if __name__ == '__main__':
             ratio_test_threshold=args.ratio_threshold,
             diff_test_threshold=args.diff_threshold
         )
-        # Up to PID stage comparisons
+        # Through PID stage comparisons
         compare_pid_full(
             pisa_maps=pisa2_comparisons[4],
             cake_maps=pipeline['pid'].outputs, # use reco here
