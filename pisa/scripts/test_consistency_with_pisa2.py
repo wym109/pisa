@@ -25,9 +25,10 @@ from pisa.utils.config_parser import parse_pipeline_config
 from pisa.utils.tests import has_cuda, check_agreement, plot_comparisons
 
 
-# TODO: names shouldn't indicate that this is PISA 3; it is whatever the
-# current PISA is. The only version that is fixed is PISA 2, against which
-# we're comparing the current PISA version.
+__all__ = ['compare_flux', 'compare_osc', 'compare_aeff', 'compare_reco',
+           'compare_pid', 'compare_flux_full', 'compare_osc_full',
+           'compare_aeff_full', 'compare_reco_full', 'compare_pid_full']
+
 
 def compare_flux(config, servicename, pisa2file, systname,
                  outdir, ratio_test_threshold, diff_test_threshold):
@@ -788,7 +789,7 @@ def compare_pid_full(cake_maps, pisa_maps, outdir, ratio_test_threshold,
 
 if __name__ == '__main__':
     if FTYPE == np.float32:
-        dflt_ratio_threshold = 1e-4
+        dflt_ratio_threshold = 5e-4
     elif FTYPE == np.float64:
         dflt_ratio_threshold = 1e-8
     else:
