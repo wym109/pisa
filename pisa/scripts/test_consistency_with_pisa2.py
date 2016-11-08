@@ -15,6 +15,7 @@ import os
 
 import numpy as np
 
+from pisa import FTYPE
 from pisa.core.map import Map, MapSet
 from pisa.core.pipeline import Pipeline
 from pisa.utils.fileio import from_file
@@ -786,6 +787,13 @@ def compare_pid_full(cake_maps, pisa_maps, outdir, ratio_test_threshold,
 
 
 if __name__ == '__main__':
+    if FTYPE == np.float32:
+        dflt_ratio_threshold = 1e-4
+    elif FTYPE == np.float64:
+        dflt_ratio_threshold = 1e-8
+    else:
+        raise ValueError('FTYPE=%s from const.py not handled' % FTYPE)
+
     parser = ArgumentParser(
         description='''Run a set of tests on the PISA pipeline against
         benchmark PISA 2 data. If no test flags are specified, *all* tests will
@@ -825,7 +833,8 @@ if __name__ == '__main__':
                         they don't exist, the script will make them, including
                         all subdirectories. If none is supplied no plots will
                         be saved.''')
-    parser.add_argument('--ratio_threshold', type=float, default=1E-8,
+    parser.add_argument('--ratio_threshold', type=float,
+                        default=dflt_ratio_threshold,
                         help='''Sets the agreement threshold on the ratio test
                         plots. If this is not reached the tests will fail.''')
     parser.add_argument('--diff_threshold', type=float, default=2E-3,

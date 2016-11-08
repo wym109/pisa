@@ -2,13 +2,13 @@
 # date:   September 2016
 
 
-import sys, os
+import time
+
 import numpy as np
 import pycuda.driver as cuda
 import pycuda.autoinit
-import time
 
-from pisa import ureg, Q_
+from pisa import ureg, Q_, FTYPE
 from pisa.core.binning import OneDimBinning, MultiDimBinning
 from pisa.core.events import Events
 from pisa.core.map import Map, MapSet
@@ -18,10 +18,12 @@ from pisa.stages.mc.GPUWeight import GPUWeight
 from pisa.stages.osc.prob3gpu import prob3gpu
 from pisa.utils.comparisons import normQuant
 from pisa.utils.config_parser import split
-from pisa.utils.const import FTYPE
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
 from pisa.utils.resources import find_resource
+
+
+__all__ = ['gpu']
 
 
 class gpu(Stage):
@@ -167,6 +169,7 @@ class gpu(Stage):
             from pisa.utils.kde_hist import kde_histogramdd
             self.kde_histogramdd = kde_histogramdd
         else:
+            #otherwise that
             from pisa.utils.gpu_hist import GPUHist
             self.GPUHist = GPUHist
 
@@ -326,7 +329,7 @@ class gpu(Stage):
                     except KeyError:
                         pass
 
-        logging.info('read in events and copy to GPU')
+        logging.debug('read in events and copy to GPU')
         start_t = time.time()
         # setup all arrays that need to be put on GPU
         self.events_dict = {}
@@ -375,19 +378,13 @@ class gpu(Stage):
                         self.events_dict[flav]['n_evts'], dtype=FTYPE
                     )
                 else:
-                    self.events_dict[flav]['host'][var] = np.zeros(
-                        self.events_dict[flav]['n_evts'], dtype=FTYPE
-                    )
-            # Calulate layers (every particle crosses a number of layers in the
-            # earth with different densities, and for a given length these
-            # depend only on the earth model (PREM) and the true coszen of an
-            # event. Therefore we can calculate these for once and are done
-            nlayers, dens, dist = self.osc.calc_Layers(
-                self.events_dict[flav]['host']['true_coszen']
-            )
-            self.events_dict[flav]['host']['numLayers'] = nlayers
-            self.events_dict[flav]['host']['densityInLayer'] = dens
-            self.events_dict[flav]['host']['distanceInLayer'] = dist
+                    self.events_dict[flav]['host'][var] = np.zeros(self.events_dict[flav]['n_evts'], dtype=FTYPE)
+            # Calulate layers (every particle crosses a number of layers in the earth with different densities, and for a given length
+            # these depend only on the earth model (PREM) and the true coszen of an event. Therefore we can calculate these for once and are done
+            self.events_dict[flav]['host']['numLayers'], \
+                self.events_dict[flav]['host']['densityInLayer'], \
+                self.events_dict[flav]['host']['distanceInLayer'] = \
+                self.osc.calc_layers(self.events_dict[flav]['host']['true_coszen'])
         end_t = time.time()
         logging.debug('layers done in %.4f ms'%((end_t - start_t) * 1000))
 
@@ -453,7 +450,7 @@ class gpu(Stage):
         """Copy back event by event information into the host dict"""
         for flav in self.flavs:
             for var in variables:
-                buff = np.ones(self.events_dict[flav]['n_evts'])
+                buff = np.ones(self.events_dict[flav]['n_evts'], dtype=FTYPE)
                 cuda.memcpy_dtoh(buff, self.events_dict[flav]['device'][var])
                 self.events_dict[flav]['host'][var] = buff
 
@@ -467,7 +464,7 @@ class gpu(Stage):
         return out[0]
 
     def _compute_outputs(self, inputs=None):
-        logging.info('retreive weighted histo')
+        logging.debug('retreive weighted histo')
 
         # Get hash to decide whether expensive stuff needs to be recalculated
         osc_hash = hash_obj(normQuant([self.params[name].value
@@ -599,7 +596,6 @@ class gpu(Stage):
                 end_t = time.time()
                 logging.debug('KDE done in %.4f ms for %s events'
                               %(((end_t - start_t) * 1000), tot))
-
         else:
             if recalc_osc or recalc_weight:
                 start_t = time.time()
@@ -693,7 +689,7 @@ class gpu(Stage):
                                 error_hist=self.fixed_error[name],
                                 binning=self.output_binning))
             else:
-                maps.append(Map(name=name, tex=name, hist=hist,
+                maps.append(Map(name=name, hist=hist,
                                 binning=self.output_binning))
 
         return MapSet(maps, name='gpu_mc')

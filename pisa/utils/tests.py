@@ -42,7 +42,7 @@ def order(x):
 def order_str(x):
     order_float = order(x)
     try:
-        return str(int(order_float))
+        return str(int(order_float)).rjust(4)
     except OverflowError:
         pass
     return str(order_float)
@@ -54,40 +54,50 @@ def check_agreement(testname, thresh_ratio, ratio, thresh_diff, diff):
 
     thresh_ratio_str = order_str(thresh_ratio)
     ratio_ord_str = order_str(ratio)
-    ratio_pass_str = 'PASS' if diff_pass else 'FAIL'
+    ratio_pass_str = 'PASS' if ratio_pass else 'FAIL'
 
     thresh_diff_str = order_str(thresh_diff)
     diff_ord_str = order_str(diff)
     diff_pass_str = 'PASS' if diff_pass else 'FAIL'
 
-    s = '<< {testname:s}, {kind:s}: {pass_str:s} >>' \
-        ' agreement to 10^{level:s} (threshold={thresh:e})'
+    headline = '<< {testname:s}, {kind:s} : {pass_str:s} >>'
+    detail_str = '... agree to (( 10^{level:s} )) ; thresh = (( 10^{thresh:s} ))'
 
-    s_ratio = s.format(
-        testname=testname, kind='fract diff', pass_str=ratio_pass_str,
-        level=ratio_ord_str, thresh=thresh_ratio
+    ratio_headline = headline.format(
+        testname=testname, kind='fract diff', pass_str=ratio_pass_str
     )
-    s_diff = s.format(
+    ratio_detail = detail_str.format(
+        level=ratio_ord_str, thresh=thresh_ratio_str
+    )
+
+    diff_headline = headline.format(
         testname=testname, kind='diff', pass_str=diff_pass_str,
-        level=diff_ord_str, thresh=thresh_diff
+    )
+    diff_detail = detail_str.format(
+        level=diff_ord_str, thresh=thresh_diff_str
     )
 
+    err_messages = []
     if ratio_pass:
-        logging.info(s_ratio)
+        logging.info(ratio_headline)
+        logging.info(ratio_detail)
     else:
-        logging.error(s_ratio)
-        raise ValueError(s_ratio)
+        err_messages += [ratio_headline, ratio_detail]
 
     if diff_pass:
-        logging.info(s_diff)
+        logging.info(diff_headline)
+        logging.info(diff_detail)
     else:
-        logging.error(s_diff)
-        raise ValueError(s_diff)
+        err_messages += [diff_headline, diff_detail]
+
+    if not (ratio_pass and diff_pass):
+        [logging.error(m) for m in err_messages]
+        raise ValueError('\n    '.join(err_messages))
 
 
 def print_agreement(testname, ratio):
     ratio_ord_str = order_str(ratio)
-    s = '<< {testname:s}, {kind:s} >>' \
+    s = '<< {testname:s}, {kind:s} >>\n' \
         ' agreement to 10^{level:s}'
 
     s_ratio = s.format(
