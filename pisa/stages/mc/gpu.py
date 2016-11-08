@@ -184,7 +184,7 @@ class gpu(Stage):
     def initialize(self):
         # Store hashes for caching that is done inside the stage
         self.osc_hash = None
-        self.weight_hash = None
+        self.gpu_weight_hash = None
 
         # Reset fixed errors
         self.fixed_error = None
@@ -260,50 +260,53 @@ class gpu(Stage):
         bdt_cut = self.params.bdt_cut.value.m_as('dimensionless')
 
         # Load and copy events
-        variables = ['true_energy',
-                        'true_coszen',
-                        'reco_energy',
-                        'reco_coszen',
-                        'neutrino_nue_flux',
-                        'neutrino_numu_flux',
-                        'neutrino_oppo_nue_flux',
-                        'neutrino_oppo_numu_flux',
-                        'weighted_aeff',
-                        'pid',
-                        'dunkman_L5',
-                        'linear_fit_MaCCQE',
-                        'quad_fit_MaCCQE',
-                        'linear_fit_MaCCRES',
-                        'quad_fit_MaCCRES',
-                    ]
-        # Allocate empty arrays (filled with 1s) on GPU
-        empty = ['prob_e',
-                    'prob_mu',
-                    'weight',
-                    'scaled_nue_flux',
-                    'scaled_numu_flux',
-                    'scaled_nue_flux_shape',
-                    'scaled_numu_flux_shape'
-                ]
+        variables = [
+            'true_energy',
+            'true_coszen',
+            'reco_energy',
+            'reco_coszen',
+            'neutrino_nue_flux',
+            'neutrino_numu_flux',
+            'neutrino_oppo_nue_flux',
+            'neutrino_oppo_numu_flux',
+            'weighted_aeff',
+            'pid',
+            'dunkman_L5',
+            'linear_fit_MaCCQE',
+            'quad_fit_MaCCQE',
+            'linear_fit_MaCCRES',
+            'quad_fit_MaCCRES',
+        ]
 
+        # Allocate empty arrays (filled with 1s) on GPU
+        empty = [
+            'prob_e',
+            'prob_mu',
+            'weight',
+            'scaled_nue_flux',
+            'scaled_numu_flux',
+            'scaled_nue_flux_shape',
+            'scaled_numu_flux_shape'
+        ]
         if self.error_method in ['sumw2', 'fixed_sumw2']:
             empty += ['sumw2']
 
         # List of flav_ints to use and corresponding number used in several
         # parts of the code
-        self.flavs = ['nue_cc',
-                        'numu_cc',
-                        'nutau_cc',
-                        'nue_nc',
-                        'numu_nc',
-                        'nutau_nc',
-                        'nuebar_cc',
-                        'numubar_cc',
-                        'nutaubar_cc',
-                        'nuebar_nc',
-                        'numubar_nc',
-                        'nutaubar_nc'
-                    ]
+        self.flavs = [
+            'nue_cc',
+            'numu_cc',
+            'nutau_cc',
+            'nue_nc',
+            'numu_nc',
+            'nutau_nc',
+            'nuebar_cc',
+            'numubar_cc',
+            'nutaubar_cc',
+            'nuebar_nc',
+            'numubar_nc',
+            'nutaubar_nc'
+        ]
 
         # Corresponding numbers for the flavours defined above, needed bi Prob3
         kFlavs = [0, 1, 2] * 4
@@ -467,10 +470,15 @@ class gpu(Stage):
         logging.debug('retreive weighted histo')
 
         # Get hash to decide whether expensive stuff needs to be recalculated
-        osc_hash = hash_obj(normQuant([self.params[name].value
-                                       for name in self.osc_params]))
-        weight_hash = hash_obj(normQuant([self.params[name].value
-                                          for name in self.gpu_weight_params]))
+        osc_param_vals = [self.params[name].value for name in self.osc_params]
+        gpu_weight_vals = [self.params[name].value
+                           for name in self.gpu_weight_params]
+        if self.full_hash:
+            osc_param_vals = normQuant(osc_param_vals)
+            gpu_weight_vals = normQuant(gpu_weight_vals)
+        osc_hash = hash_obj(osc_param_vals, full_hash=self.full_hash)
+        gpu_weight_hash = hash_obj(gpu_weight_vals, full_hash=self.full_hash)
+
         recalc_osc = not (osc_hash == self.osc_hash)
         recalc_weight = True
 
@@ -646,7 +654,7 @@ class gpu(Stage):
 
         # Set new hash
         self.osc_hash = osc_hash
-        self.weight_hash = weight_hash
+        self.gpu_weight_hash = gpu_weight_hash
 
         # Add histos together into output names, and apply nutau normalizations
         # errors (sumw2) are also added, while scales are applied in quadrature
