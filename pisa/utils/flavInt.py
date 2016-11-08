@@ -1244,7 +1244,7 @@ class FlavIntDataGroup(dict):
 
     @flavint_groups.setter
     def flavint_groups(self, value):
-        if 'muons' in value: assert 0
+        assert 'muons' not in value
         fig = self._parse_flavint_groups(value)
         all_flavints = reduce(add, [f.flavints() for f in fig])
         for fi in set(all_flavints):

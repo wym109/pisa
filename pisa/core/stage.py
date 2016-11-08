@@ -562,13 +562,9 @@ class Stage(object):
 
         # Create a new output container different from `outputs` but copying
         # the contents, for purposes of attaching the sideband objects found.
-        if isinstance(self.inputs, MapSet):
-            augmented_outputs = MapSet(outputs)
-            [augmented_outputs.append(inputs[name]) for name in unused_input_names]
-        elif isinstance(self.inputs, Data):
-            return outputs
+        augmented_outputs = MapSet(outputs)
+        [augmented_outputs.append(inputs[name]) for name in unused_input_names]
 
-        # return augmented_outputs
         return augmented_outputs
 
     @profile
