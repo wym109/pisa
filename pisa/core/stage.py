@@ -641,7 +641,7 @@ class Stage(object):
             events = events.value
         elif isinstance(events, basestring):
             events = find_resource(events)
-        this_hash = hash_obj(events)
+        this_hash = hash_obj(events, full_hash=self.full_hash)
         if self._events_hash is not None and this_hash == self._events_hash:
             return
         logging.debug('Extracting events from Events obj or file: %s' %events)
@@ -702,7 +702,10 @@ class Stage(object):
         an object stored to disk that were produced by a Stage.
         """
         if self._source_code_hash is None:
-            self._source_code_hash = hash_obj(inspect.getsource(self.__class__))
+            self._source_code_hash = hash_obj(
+                inspect.getsource(self.__class__),
+                full_hash=self.full_hash
+            )
         return self._source_code_hash
 
     @property
@@ -711,8 +714,9 @@ class Stage(object):
         provenance of persisted (on-disk) objects."""
         objects_to_hash = [self.source_code_hash, self.params.state_hash]
         for attr in self._attrs_to_hash:
-            objects_to_hash.append(hash_obj(getattr(self, attr)))
-        return hash_obj(objects_to_hash)
+            objects_to_hash.append(hash_obj(getattr(self, attr),
+                                            full_hash=self.full_hash))
+        return hash_obj(objects_to_hash, full_hash=self.full_hash)
 
     def include_attrs_for_hashes(self, attrs):
         """Include a class attribute or attributes to be included when
@@ -804,26 +808,27 @@ class Stage(object):
                     val = getattr(self, attr)
                     if hasattr(val, 'hash'):
                         attr_hash = val.hash
+                    elif self.full_hash:
+                        norm_val = normQuant(val)
+                        attr_hash = hash_obj(norm_val,
+                                             full_hash=self.full_hash)
                     else:
-                        if self.full_hash:
-                            norm_val = normQuant(val)
-                            attr_hash = hash_obj(val)
-                        else:
-                            attr_hash = hash_obj(val, full_hash=False)
+                        attr_hash = hash_obj(val, full_hash=self.full_hash)
                     id_subobjects.append(attr_hash)
 
                 # Generate the "sub-hash"
                 if any([(h == None) for h in id_subobjects]):
                     sub_hash = None
                 else:
-                    sub_hash = hash_obj(id_subobjects)
+                    sub_hash = hash_obj(id_subobjects,
+                                        full_hash=self.full_hash)
                 id_objects.append(sub_hash)
 
         # If any hashes are missing (i.e, None), invalidate the entire hash
         if self.outputs_cache is None or any([(h is None) for h in id_objects]):
             outputs_hash = None
         else:
-            outputs_hash = hash_obj(id_objects)
+            outputs_hash = hash_obj(id_objects, full_hash=self.full_hash)
 
         return outputs_hash, transforms_hash, nominal_transforms_hash
 
@@ -851,19 +856,18 @@ class Stage(object):
             val = getattr(self, attr)
             if hasattr(val, 'hash'):
                 attr_hash = val.hash
+            elif self.full_hash:
+                norm_val = normQuant(val)
+                attr_hash = hash_obj(norm_val, full_hash=self.full_hash)
             else:
-                if self.full_hash:
-                    norm_val = normQuant(val)
-                    attr_hash = hash_obj(val)
-                else:
-                    attr_hash = hash_obj(val, full_hash=False)
+                attr_hash = hash_obj(val, full_hash=self.full_hash)
             id_objects.append(attr_hash)
 
         # If any hashes are missing (i.e, None), invalidate the entire hash
         if any([(h == None) for h in id_objects]):
             transforms_hash = None
         else:
-            transforms_hash = hash_obj(id_objects)
+            transforms_hash = hash_obj(id_objects, full_hash=self.full_hash)
 
         return transforms_hash, nominal_transforms_hash
 
@@ -910,12 +914,11 @@ class Stage(object):
             val = getattr(self, attr)
             if hasattr(val, 'hash'):
                 attr_hash = val.hash
+            elif self.full_hash:
+                norm_val = normQuant(val)
+                attr_hash = hash_obj(norm_val, full_hash=self.full_hash)
             else:
-                if self.full_hash:
-                    norm_val = normQuant(val)
-                    attr_hash = hash_obj(val)
-                else:
-                    attr_hash = hash_obj(val, full_hash=False)
+                attr_hash = hash_obj(val, full_hash=self.full_hash)
             id_objects.append(attr_hash)
         id_objects.append(self.source_code_hash)
 
@@ -923,7 +926,8 @@ class Stage(object):
         if any([(h == None) for h in id_objects]):
             nominal_transforms_hash = None
         else:
-            nominal_transforms_hash = hash_obj(id_objects)
+            nominal_transforms_hash = hash_obj(id_objects,
+                                               full_hash=self.full_hash)
 
         return nominal_transforms_hash
 
