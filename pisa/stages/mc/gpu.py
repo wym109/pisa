@@ -318,7 +318,7 @@ class gpu(Stage):
                     except KeyError:
                         pass
 
-        logging.info('read in events and copy to GPU')
+        logging.debug('read in events and copy to GPU')
         start_t = time.time()
         # setup all arrays that need to be put on GPU
         self.events_dict = {}
@@ -377,7 +377,6 @@ class gpu(Stage):
         # Apply raw reco sys
         self.apply_reco()
 
-
     def apply_reco(self):
         """Apply raw reco systematics (to use as inputs to polyfit stage)"""
         for flav in self.flavs:
@@ -404,7 +403,6 @@ class gpu(Stage):
             self.update_device_arrays(flav, 'reco_energy')
             self.update_device_arrays(flav, 'reco_coszen')
 
-
     def update_device_arrays(self, flav, var):
         """Helper function to update device arrays"""
         self.events_dict[flav]['device'][var].free()
@@ -428,8 +426,9 @@ class gpu(Stage):
         cuda.memcpy_dtoh(out, d_out)
         return out[0]
 
-
     def _compute_outputs(self, inputs=None):
+        logging.debug('retreive weighted histo')
+
         # Get hash to decide whether expensive stuff needs to be recalculated
         osc_hash = hash_obj(normQuant([self.params[name].value for name in self.osc_params]))
         weight_hash = hash_obj(normQuant([self.params[name].value for name in self.weight_params]))
@@ -521,7 +520,6 @@ class gpu(Stage):
                     self.events_dict[flav]['hist'] = hist
                 end_t = time.time()
                 logging.debug('KDE done in %.4f ms for %s events'%(((end_t - start_t) * 1000), tot))
-
         else:
             if recalc_osc or recalc_weight:
                 start_t = time.time()
@@ -595,6 +593,6 @@ class gpu(Stage):
                     self.fixed_error[name] = np.sqrt(out_sumw2[name])
                 maps.append(Map(name=name, hist=hist, error_hist=self.fixed_error[name], binning=self.output_binning))
             else:
-                maps.append(Map(name=name, tex=name, hist=hist, binning=self.output_binning))
+                maps.append(Map(name=name, hist=hist, binning=self.output_binning))
 
         return MapSet(maps, name='gpu_mc')

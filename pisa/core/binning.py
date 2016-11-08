@@ -593,7 +593,7 @@ class OneDimBinning(object):
         units = format(self.units, '~').strip()
         if units == '':
             return self.tex
-        return self.tex + r'\; (%s)'%units
+        return self.tex + r' \; (%s)'%units
 
     @property
     def bin_widths(self):
