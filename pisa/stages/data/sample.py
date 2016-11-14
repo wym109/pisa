@@ -178,7 +178,7 @@ class sample(Stage):
         """Load the event sample given the configuration file and output
         groups. Hash this object using both the configuration file and
         the output types."""
-        hash_property = [self.config, self.neutrino, self.muongun]
+        hash_property = [self.config, self.neutrino, self.muons]
         this_hash = hash_obj(hash_property, full_hash=self.full_hash)
         if this_hash == self.sample_hash:
             return
