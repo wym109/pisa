@@ -30,7 +30,7 @@ If you wish to upgrade PISA and/or its dependencies:
 from distutils.command.build import build as _build
 import os
 from setuptools.command.build_ext import build_ext as _build_ext
-from setuptools import setup, Extension
+from setuptools import setup, Extension, find_packages
 import shutil
 import subprocess
 import sys
@@ -263,27 +263,7 @@ if __name__ == '__main__':
                 'versioneer'
             ]
         },
-        packages=[
-            'pisa',
-            'pisa.analysis',
-            'pisa.core',
-            'pisa.resources',
-            'pisa.stages',
-            'pisa.stages.aeff',
-            'pisa.stages.data',
-            'pisa.stages.flux',
-            'pisa.stages.mc',
-            'pisa.stages.osc',
-            'pisa.stages.osc.prob3cuda',
-            'pisa.stages.osc.nuCraft',
-            'pisa.stages.osc.prob3',
-            'pisa.stages.pid',
-            'pisa.stages.reco',
-            'pisa.stages.discr_sys',
-            'pisa.stages.xsec',
-            'pisa.resources',
-            'pisa.utils'
-        ],
+        packages=find_packages(),
         ext_modules=ext_modules,
         package_data=package_data,
         # Cannot be compressed due to c, pyx, and cu source files that need to
