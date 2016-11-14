@@ -284,29 +284,45 @@ if __name__ == '__main__':
             'pisa.resources',
             'pisa.utils'
         ],
-        scripts=[
-            'pisa/analysis/hypo_testing.py',
-            'pisa/analysis/hypo_testing_postprocess.py',
-            'pisa/analysis/profile_llh_analysis.py',
-            'pisa/analysis/profile_llh_postprocess.py',
-            'pisa/core/distribution_maker.py',
-            'pisa/core/pipeline.py',
-            'pisa/scripts/add_flux_to_events_file.py',
-            'pisa/scripts/compare.py',
-            'pisa/scripts/fit_discrete_sys.py',
-            'pisa/scripts/fit_discrete_sys_pid.py',
-            'pisa/scripts/make_events_file.py',
-            'pisa/scripts/make_nufit_theta23_spline_priors.py',
-            'pisa/scripts/test_consistency_with_pisa2.py',
-            'pisa/scripts/test_consistency_with_oscfit.py'
-        ],
         ext_modules=ext_modules,
         package_data=package_data,
         # Cannot be compressed due to c, pyx, and cu source files that need to
         # be compiled and are inaccessible in zip
-        zip_safe=False
+        zip_safe=False,
+        entry_points={
+            'console_scripts': [
+                'hypo_testing.py = pisa.analysis.hypo_testing:main',
+                'hypo_testing_postprocess.py = pisa.analysis.hypo_testing_postprocess:main',
+                'profile_llh_analysis.py = pisa.analysis.profile_llh_analysis:main',
+                'profile_llh_postprocess.py = pisa.analysis.profile_llh_postprocess:main',
+                'distribution_maker.py = pisa.core.distribution_maker:main',
+                'pipeline.py = pisa.core.pipeline:main',
+                'add_flux_to_events_file.py = pisa.scripts.add_flux_to_events_file:main',
+                'compare.py = pisa.scripts.compare:main',
+                'fit_discrete_sys.py = pisa.scripts.fit_discrete_sys:main',
+                'fit_discrete_sys_pid.py = pisa.scripts.fit_discrete_sys_pid:main',
+                'make_events_file.py = pisa.scripts.make_events_file:main',
+                'make_nufit_theta23_spline_priors.py = pisa.scripts.make_nufit_theta23_spline_priors:main',
+                'test_consistency_with_pisa2.py = pisa.scripts.test_consistency_with_pisa2:main',
+                'test_consistency_with_osfit.py = pisa.scripts.test_consistency_with_oscfit:main'
+            ]
+        }
     )
 
+# 'pisa/analysis/hypo_testing.py',
+# 'pisa/analysis/hypo_testing_postprocess.py',
+# 'pisa/analysis/profile_llh_analysis.py',
+# 'pisa/analysis/profile_llh_postprocess.py',
+# 'pisa/core/distribution_maker.py',
+# 'pisa/core/pipeline.py',
+# 'pisa/scripts/add_flux_to_events_file.py',
+# 'pisa/scripts/compare.py',
+# 'pisa/scripts/fit_discrete_sys.py',
+# 'pisa/scripts/fit_discrete_sys_pid.py',
+# 'pisa/scripts/make_events_file.py',
+# 'pisa/scripts/make_nufit_theta23_spline_priors.py',
+# 'pisa/scripts/test_consistency_with_pisa2.py',
+# 'pisa/scripts/test_consistency_with_oscfit.py'
     if not has_cuda():
         sys.stderr.write('WARNING: Could not import pycuda; attempt will be '
                          ' made to install, but if this fails, PISA may not be'

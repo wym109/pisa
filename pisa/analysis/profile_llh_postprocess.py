@@ -9,7 +9,9 @@ import numpy as np
 from pisa.utils.fileio import from_file
 
 
-if __name__ == '__main__':
+def main(args=None):
+    if args is None:
+        args = sys.argv[1:]
     parser = ArgumentParser()
     parser.add_argument(
         '-d', '--dir', metavar='DIR', default='.',
@@ -91,3 +93,7 @@ if __name__ == '__main__':
                     %(key, val, val-nominal, (val-nominal)/nominal*100)
         else:
             print '%s\t%.4f sigma'%(key, val)
+
+
+if __name__ == '__main__':
+    main()

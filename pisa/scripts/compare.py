@@ -9,6 +9,7 @@ Compare two PISA entities.
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from collections import Iterable, OrderedDict
 import os
+import sys
 
 import numpy as np
 from uncertainties import unumpy as unp
@@ -21,7 +22,9 @@ from pisa.utils.tests import plot_cmp
 from pisa.utils.plotter import Plotter
 
 
-if __name__ == '__main__':
+def main(args=None):
+    if args is None:
+        args = sys.argv[1:]
     parser = ArgumentParser(
         description='''Compare two entities: Maps, map sets, pipelines, or
         distribution makers. One kind can be compared against another, so long
@@ -431,3 +434,7 @@ if __name__ == '__main__':
             cmap='seismic',
             vmin=args.asymm_min, vmax=args.asymm_max
         )
+
+
+if __name__ == '__main__':
+    main()

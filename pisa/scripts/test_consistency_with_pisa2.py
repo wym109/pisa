@@ -12,6 +12,7 @@ Agreement is expected to order 10^{-14} in the far right plots.
 from argparse import ArgumentParser
 from copy import deepcopy
 import os
+import sys
 
 import numpy as np
 
@@ -786,8 +787,9 @@ def compare_pid_full(cake_maps, pisa_maps, outdir, ratio_test_threshold,
         diff=max_diff
     )
 
-
-if __name__ == '__main__':
+def main(args=None):
+    if args is None:
+        args = sys.argv[1:]
     if FTYPE == np.float32:
         dflt_ratio_threshold = 5e-4
     elif FTYPE == np.float64:
@@ -1166,3 +1168,6 @@ if __name__ == '__main__':
             ratio_test_threshold=args.ratio_threshold,
             diff_test_threshold=args.diff_threshold
         )
+
+if __name__ == '__main__':
+    main()
