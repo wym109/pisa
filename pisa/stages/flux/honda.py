@@ -18,21 +18,49 @@ This is either achieved through b-spline interpolation (done in both energy and
 cosZenith dimensions simultaneously in log10(flux)) or an integral-preserving
 method that manipulates 1 dimensional splines of integrated flux.
 
-Most of the functionality will be ported from PISA with any necessary changes/improvements applied.
+Most of the functionality will be ported from PISA with any necessary
+changes/improvements applied.
 """
 
 
 from collections import Mapping
 
 import numpy as np
-from scipy import interpolate
+import scipy.interpolate as interpolate
 
 from pisa import ureg, Q_
 from pisa.core.map import Map, MapSet
 from pisa.core.stage import Stage
 from pisa.utils.resources import open_resource
-from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
+from pisa.utils.profiler import line_profile, profile
+
+
+__all__ = ['apply_ratio_scale_2d', 'mmc2d', 'honda']
+
+
+try:
+    import numba
+    @numba.jit("(float64[:,:],float64[:,:],float64,float64[:,:],float64[:,:])",
+               nopython=True, nogil=True, cache=True)
+    def apply_ratio_scale_2d(h1, h2, ratio_scale, out1, out2):
+        I = h1.shape[0]
+        J = h1.shape[1]
+        for i in range(I):
+            for j in range(J):
+                orig_map_sum = h1[i,j] + h2[i,j]
+                orig_map_ratio = h1[i,j] / h2[i,j]
+                out2[i,j] = orig_map_sum / (1 + ratio_scale * orig_map_ratio)
+                out1[i,j] = ratio_scale * orig_map_ratio * out2[i,j]
+        return out1, out2
+except:
+    apply_ratio_scale_2d = None
+
+
+# NOTE: the following doesn't speed up the operation, but line_profile
+# misidentifies such operations as being more time-consuming than they are.
+def mmc2d(m1, m2, c):
+    return m1*m2*c
 
 
 class honda(Stage):
@@ -290,9 +318,9 @@ class honda(Stage):
            atmospheric model", Phys. Rev. D92, 023004 (2015), arXiv:1502.03916.
 
     """
-    def __init__(self, params, output_binning, disk_cache=None,
-                 error_method=None, outputs_cache_depth=20,
-                 memcache_deepcopy=True, debug_mode=None):
+    def __init__(self, params, output_binning, error_method,
+                 outputs_cache_depth, memcache_deepcopy, disk_cache=None,
+                 debug_mode=None):
         # All of the following params (and no more) must be passed via the
         # `params` argument.
         expected_params = (
@@ -313,8 +341,6 @@ class honda(Stage):
         # and transformed directly by this stage to produce its output.)
         super(self.__class__, self).__init__(
             use_transforms=False,
-            stage_name='flux',
-            service_name='honda',
             params=params,
             expected_params=expected_params,
             output_names=output_names,
@@ -351,6 +377,7 @@ class honda(Stage):
         elif set(self.output_binning.names) == set(['true_energy',
                                                     'true_coszen']):
             self.load_2D_table(smooth=0.05)
+            self.compute_2D_binning_constants()
         else:
             raise ValueError(
                 'Incompatible `output_binning` for either 2D (requires'
@@ -358,6 +385,9 @@ class honda(Stage):
                 ' requires "true_azimuth"). Faulty `output_binning`=%s'
                 %self.output_binning
             )
+
+        self.previous_energy_scale = None
+        self.output_maps = None
 
     def load_2D_table(self, smooth=0.05):
         """Manipulate 2 dimensional flux tables.
@@ -375,8 +405,8 @@ class honda(Stage):
 
         """
 
-        flux_file = self.params['flux_file'].value
-        logging.info("Loading atmospheric flux table %s" % flux_file)
+        flux_file = self.params.flux_file.value
+        logging.debug("Loading atmospheric flux table %s" % flux_file)
 
         # columns in Honda files are in the same order
         cols = ['energy'] + self.primaries
@@ -401,7 +431,7 @@ class honda(Stage):
         # Now get a spline representation of the flux table.
         logging.debug('Make spline representation of flux')
 
-        flux_mode = self.params['flux_mode'].value
+        flux_mode = self.params.flux_mode.value
 
         if flux_mode == 'bisplrep':
             logging.debug('Doing quick bivariate spline interpolation')
@@ -474,8 +504,8 @@ class honda(Stage):
             Not changing from 0.05 is strongly recommended
             The integral-preserving has a fixed smoothing of 0.
         """
-        flux_file = self.params['flux_file'].value
-        logging.info("Loading atmospheric flux table %s" %flux_file)
+        flux_file = self.params.flux_file.value
+        logging.debug("Loading atmospheric flux table %s" %flux_file)
 
         # columns in Honda files are in the same order
         cols = ['energy'] + self.primaries
@@ -506,7 +536,7 @@ class honda(Stage):
         # Now get a spline representation of the flux table.
         logging.debug('Make spline representation of flux')
 
-        flux_mode = self.params['flux_mode'].value
+        flux_mode = self.params.flux_mode.value
 
         if flux_mode == 'bisplrep':
 
@@ -524,7 +554,8 @@ class honda(Stage):
                     # Get the logarithmic flux
                     log_flux = np.log10(f.T)
                     # Get a spline representation
-                    spline =  interpolate.bisplrep(logE, C, log_flux, s=smooth*4.)
+                    spline = interpolate.bisplrep(logE, C, log_flux,
+                                                  s=smooth*4.)
                     # Found smoothing has to be weaker here. Not sure why.
                     # and store
                     self.spline_dict[nutype][az] = spline
@@ -583,21 +614,25 @@ class honda(Stage):
         """
         output_maps = []
 
-        for prim in self.primaries:
-            if set(self.output_binning.names) == set(['true_energy',
-                                                      'true_coszen',
-                                                      'true_azimuth']):
-                output_maps.append(self.compute_3D_outputs(prim))
-            elif set(self.output_binning.names) == set(['true_energy',
-                                                        'true_coszen']):
-                output_maps.append(self.compute_2D_outputs(prim))
-            else:
-                raise ValueError(
-                    'Incompatible `output_binning` for either 2D (requires'
-                    ' "energy" and "coszen") or 3D (additionally requires'
-                    ' "azimuth"). Faulty `output_binning`=%s'
-                    %self.output_binning
-                )
+        if self.params.energy_scale.value != self.previous_energy_scale \
+                or self.output_maps is None:
+            for prim in self.primaries:
+                outbnames = set(self.output_binning.names)
+                if outbnames == set(['true_energy', 'true_coszen',
+                                     'true_azimuth']):
+                    output_maps.append(self.compute_3D_outputs(prim))
+                elif outbnames == set(['true_energy', 'true_coszen']):
+                    output_maps.append(self.compute_2D_outputs(prim))
+                else:
+                    raise ValueError(
+                        'Incompatible `output_binning` for either 2D (requires'
+                        ' "energy" and "coszen") or 3D (additionally requires'
+                        ' "azimuth"). Faulty `output_binning`=%s'
+                        %self.output_binning
+                    )
+            self.previous_energy_scale = self.params.energy_scale.value
+            self.output_maps = output_maps
+
         # Combine the output maps into a single MapSet object to return.
         # The MapSet contains the varous things that are necessary to make
         # caching work and also provides a nice interface for the user to all
@@ -605,28 +640,36 @@ class honda(Stage):
 
         # Now apply systematics if needed
         # First check what needs doing
-        nuenumuratio_toapply = self.params['nue_numu_ratio'].value != 1.0
-        nunubarratio_toapply = self.params['nu_nubar_ratio'].value != 1.0
-        atmdeltaindex_toapply = self.params['atm_delta_index'].value != 0.0
+        nuenumuratio_toapply = self.params.nue_numu_ratio.value != 1.0
+        nunubarratio_toapply = self.params.nu_nubar_ratio.value != 1.0
+        atmdeltaindex_toapply = self.params.atm_delta_index.value != 0.0
 
-        # If any
-        if nuenumuratio_toapply or nunubarratio_toapply \
-                or atmdeltaindex_toapply:
-            # Make a copy, since we don't know which we want to apply this to
-            scaled_output_maps = MapSet(maps=output_maps, name='flux maps')
-            # Then just go through applying whatever
-            if nuenumuratio_toapply:
-                scaled_output_maps = \
-                        self.apply_nue_numu_ratio(scaled_output_maps)
-            if nunubarratio_toapply:
-                scaled_output_maps = \
-                        self.apply_nu_nubar_ratio(scaled_output_maps)
-            if atmdeltaindex_toapply:
-                scaled_output_maps = self.apply_delta_index(scaled_output_maps)
-            return scaled_output_maps
+        scaled_output_maps = MapSet(maps=self.output_maps, name='flux maps')
+        if nuenumuratio_toapply:
+            scaled_output_maps = self.apply_nue_numu_ratio(scaled_output_maps)
+        if nunubarratio_toapply:
+            scaled_output_maps = self.apply_nu_nubar_ratio(scaled_output_maps)
+        if atmdeltaindex_toapply:
+            scaled_output_maps = self.apply_delta_index(scaled_output_maps)
+
+        return scaled_output_maps
+
+    def compute_2D_binning_constants(self):
+        self.bin_volumes = self.output_binning.bin_volumes(attach_units=False)
+        # Adds/ensures the expected units for the binning
+        if self.output_binning['true_energy'].units != ureg.GeV:
+            self.all_binning = self.output_binning.to(true_energy='GeV',
+                                                      true_coszen=None)
         else:
-            return MapSet(maps=output_maps, name='flux maps')
+            self.all_binning = self.output_binning
+        # Get bin centers to evaluate splines at
+        self.evals = self.all_binning.true_energy.weighted_centers.magnitude
+        self.czvals = self.all_binning.true_coszen.weighted_centers.magnitude
+        self.proxy_binning = self.all_binning.reorder_dimensions(
+            ['true_energy', 'true_coszen']
+        )
 
+    @profile
     def compute_2D_outputs(self, prim):
         """
         Method for computing 2 dimensional fluxes.
@@ -646,19 +689,15 @@ class honda(Stage):
               * 'nuebar'
 
         """
-        # Adds/ensures the expected units for the binning
-        all_binning = self.output_binning.to(true_energy='GeV',
-                                             true_coszen=None)
-
-        # Get bin centers to evaluate splines at
-        evals = all_binning.true_energy.weighted_centers.magnitude
-        czvals = all_binning.true_coszen.weighted_centers.magnitude
-
         # Energy scale systematic says to read in flux to bin E at
         # energy_scale*E
-        evals *= self.params['energy_scale'].magnitude
-
-        flux_mode = self.params['flux_mode'].value
+        energy_scale = self.params.energy_scale.m_as('dimensionless')
+        evals = self.evals * energy_scale
+        logevals = np.log10(evals)
+        czvals = self.czvals
+        czkeys = ['%.2f'%x for x in np.linspace(-0.95, 0.95, 20)]
+        cz_spline_points = np.linspace(-1, 1, 21)
+        flux_mode = self.params.flux_mode.value
 
         if flux_mode == 'bisplrep':
             # Assert that spline dict matches what is expected
@@ -678,61 +717,54 @@ class honda(Stage):
             #      These keys are strings, despite being numbers
             assert not isinstance(self.spline_dict[self.primaries[0]]['0.95'],
                                   Mapping)
+            # 1st derivatives of one spline for each coszen (splines are
+            # functions of energy)
+            all_spline_vals = [np.zeros_like(logevals)]
+            for czkey in czkeys:
+                # Have to multiply by bin widths to get correct derivatives
+                # Here the bin width is 0.05 (in log energy)
+                spvals = interpolate.splev(logevals,
+                                           self.spline_dict[prim][czkey],
+                                           der=1)*0.05
+                all_spline_vals.append(spvals)
+            all_spline_vals = np.array(all_spline_vals)
 
+            # Cumulative sum over coszen to get "integrated" spline values
+            int_spline_vals = np.cumsum(all_spline_vals, axis=0)
+
+            # TODO: the following loop is what takes almost all of the time in
+            # this function. This is candidate for obtaining speedups! (Or can
+            # algorithm be re-worked to avoid re-splining each time
+            # compute_2D_outputs is called?)
             return_table = []
-            for energyval in evals:
-                logenergyval = np.log10(energyval)
-                spline_vals = []
-                for czkey in np.linspace(-0.95, 0.95, 20):
-                    # Have to multiply by bin widths to get correct derivatives
-                    # Here the bin width is in log energy, is 0.05
-                    spline_vals.append(
-                        interpolate.splev(logenergyval,
-                                          self.spline_dict[prim]['%.2f'%czkey],
-                                          der=1)*0.05
-                    )
-                int_spline_vals = []
-                tot_val = 0.0
-                int_spline_vals.append(tot_val)
-                for val in spline_vals:
-                    tot_val += val
-                    int_spline_vals.append(tot_val)
-                    
-                spline = interpolate.splrep(np.linspace(-1, 1, 21),
-                                            int_spline_vals, s=0)
+            for n, energyval in enumerate(evals):
+                spline = interpolate.splrep(cz_spline_points,
+                                            int_spline_vals[:,n], s=0)
 
                 # Have to multiply by bin widths to get correct derivatives
                 # Here the bin width is in cosZenith, is 0.1
-                czfluxes = (interpolate.splev(czvals, spline, der=1)
-                            * 0.1/energyval)
-                return_table.append(czfluxes)
+                return_table.append(interpolate.splev(czvals, spline,
+                                                      der=1)*(0.1/energyval))
 
             return_table = np.array(return_table)
 
         # Put the flux into a Map object, give it the output_name
         # Need a dummy binning object for this first
-        proxy_binning = all_binning.reorder_dimensions(['true_energy',
-                                                        'true_coszen'])
-        return_map = Map(name=prim,
-                         hist=return_table,
-                         binning=proxy_binning)
+        return_map = Map(name=prim, hist=return_table,
+                         binning=self.proxy_binning)
 
         # Now put map in correct dimensionality for user request
         return_map = return_map.reorder_dimensions(self.output_binning.names)
 
-        # Flux is given per sr and GeV, so we need to multiply
-        # by bin width in both dimensions
-        # i.e. the bin volume
-        return_map *= self.output_binning.bin_volumes(attach_units=False)
-
-        # Energy scale systematic must be applied again here since it should
-        # come in the bin volume
-        return_map *= self.params['energy_scale'].magnitude
-
-        # For 2D we also need to integrate over azimuth
-        # There is no dependency, so this is a multiplication of 2pi
-        return_map *= 2*np.pi
-
+        # * Flux is given per sr and GeV, so we need to multiply
+        #   by bin width in both dimensions i.e. the bin volume
+        # * Energy scale systematic must be applied again here since it should
+        #   come in the bin volume
+        # * For 2D we also need to integrate over azimuth
+        #   There is no dependency, so this is a multiplication of 2pi
+        hist = mmc2d(return_map.hist, self.bin_volumes, 2*np.pi*energy_scale)
+        return_map = Map(name=prim, hist=hist, binning=return_map.binning)
+        #return_map *= self.bin_volumes*(2*np.pi*self.params.energy_scale.m)
         return return_map
 
     def compute_3D_outputs(self, prim):
@@ -769,23 +801,25 @@ class honda(Stage):
 
         # Energy scale systematic says to read in flux to bin E at
         # energy_scale*E
-        evals *= self.params['energy_scale'].magnitude
+        evals *= self.params.energy_scale.magnitude
 
-        flux_mode = self.params['flux_mode'].value
+        flux_mode = self.params.flux_mode.value
 
         if flux_mode == 'bisplrep':
             # Assert that spline dict matches what is expected
             # i.e. One spline for each primary for every table azimuth value
             #      45.0 is used for no particular reason
-            assert not isinstance(self.spline_dict[self.primaries[0]][45.0], Mapping)
+            assert not isinstance(self.spline_dict[self.primaries[0]][45.0],
+                                  Mapping)
 
             # Get the spline interpolation, which is in
             # log(flux) as function of log(E), cos(zenith)
             # There is one for every table azimuth value
             az_maps = []
             for azkey in np.linspace(15.0, 345.0, 12):
-                intermediate_table = interpolate.bisplev(np.log10(evals), czvals,
-                                                   self.spline_dict[prim][azkey])
+                intermediate_table = interpolate.bisplev(
+                    np.log10(evals), czvals, self.spline_dict[prim][azkey]
+                )
                 intermediate_table = np.power(10., intermediate_table)
                 az_maps.append(intermediate_table)
 
@@ -794,18 +828,19 @@ class honda(Stage):
             # in all 3 dimensions at once takes FOREVER.
             # This method is still slow, but is at least an improvement.
             return_table = []
-            for enit in range(0,len(az_maps[0])):
+            for enit in range(0, len(az_maps[0])):
                 cz_vals = []
-                for czit in range(0,len(az_maps[0][0])):
+                for czit in range(0, len(az_maps[0][0])):
                     az_spline_vals = []
-                    for azit in range(0,len(az_maps)):
+                    for azit in range(0, len(az_maps)):
                         az_spline_vals.append(az_maps[azit][enit][czit])
                     # Azimuth spline wants to be cyclic.
                     # Achieve this by adding 15 deg point at 375
                     az_spline_vals.append(az_spline_vals[0])
                     # Do this linearly to avoid issues in that dimension.
-                    az_spline = interpolate.splrep(np.linspace(15.0, 375.0, 13),
-                                                   az_spline_vals, k=1, s=0)
+                    az_spline = interpolate.splrep(
+                        np.linspace(15.0, 375.0, 13), az_spline_vals, k=1, s=0
+                    )
                     # Therefore any value requested Az < 15 deg we need
                     # to evaluate at Az + 360 deg
                     proxy_azvals = []
@@ -826,7 +861,7 @@ class honda(Stage):
             #      45.0 and 0.95 are used for no particular reason
             #      cosZenith keys are strings, despite being numbers
             assert not isinstance(
-                self.spline_dict[self.primaries[0]][45.0]['0.95'],Mapping)
+                self.spline_dict[self.primaries[0]][45.0]['0.95'], Mapping)
 
             return_table = []
             for energyval in evals:
@@ -853,7 +888,8 @@ class honda(Stage):
 
                         cz_spline = interpolate.splrep(np.linspace(-1, 1, 21),
                                                        int_spline_vals, s=0)
-                        # Have to multiply by bin widths to get correct derivatives
+                        # Have to multiply by bin widths to get correct
+                        # derivatives
                         # Here the bin width is in cosZenith, is 0.1
                         azflux = (interpolate.splev(czval, cz_spline, der=1)
                                   * 0.1/energyval)
@@ -876,7 +912,8 @@ class honda(Stage):
                     # Thus these fluxes should be cyclic
                     # So we evaluate this spline directly
                     # i.e. rather than the first derivative.
-                    azfluxes = interpolate.splev(proxy_azvals, az_spline, der=0)
+                    azfluxes = interpolate.splev(proxy_azvals, az_spline,
+                                                 der=0)
                     # Save these fluxes in an intermediate table
                     intermediate_table.append(azfluxes)
                 # Save these fluxes in to the return table
@@ -905,9 +942,64 @@ class honda(Stage):
 
         # Energy scale systematic must be applied again here since it should
         # come in the bin volume
-        return_map *= self.params['energy_scale'].magnitude
+        return_map *= self.params.energy_scale.magnitude
 
         return return_map
+
+    @staticmethod
+    def apply_ratio_scale(map1, map2, ratio_scale):
+        """Apply an arbitrary ratio systematic.
+
+        This will be normalisation-preserving to minimise the correlation with
+        any normalisation systematics such as aeff_scale.
+
+        This systematic changes map1/map2 to a new value.
+
+        If map1/map2 = orig_ratio then the returned maps will have
+
+            map1/map2 = orig_ratio * ratio_scale.
+
+        Normalisation-preserving means
+
+            original_map1 + original_map2 = returned_map1 + returned_map2.
+
+        Parameters
+        ----------
+        map1 : Map
+            The numerator map in the ratio.
+        map2 : Map
+            The denominator map in the ratio.
+        ratio_scale : float
+            The amount by which to scale map1/map2 by.
+
+        Returns
+        -------
+        scaled_map1, scaled_map2 : re-scaled maps
+
+        """
+        if apply_ratio_scale_2d is None:
+            # We require S1/S2 = O1/O2 * R and S1 + S2 = O1 + O2
+            # This trivially tells us S1 = S2*R*O1/O2
+            # The second can then be used to derive the form of S2
+            # S1 + S2 = S2*R*O1/O2 + S2 = S2(1+R*O1/O2) = O1 + O2
+            # Gives S2 = (O1 + O2) / (1+R*O1/O2)
+            orig_map_sum = map1 + map2
+            orig_map_ratio = map1/map2
+            scaled_map2 = orig_map_sum / (1 + ratio_scale * orig_map_ratio)
+            scaled_map1 = ratio_scale * orig_map_ratio * scaled_map2
+        else:
+            out1 = np.empty_like(map1.hist)
+            out2 = np.empty_like(map2.hist)
+            sh1, sh2 = apply_ratio_scale_2d(map1.hist, map2.hist, ratio_scale,
+                                            out1, out2)
+            scaled_map1 = Map(name=map1.name, hist=sh1, binning=map1.binning,
+                              tex=map1.tex,
+                              full_comparison=map1.full_comparison)
+            scaled_map2 = Map(name=map2.name, hist=sh2, binning=map2.binning,
+                              tex=map2.tex,
+                              full_comparison=map2.full_comparison)
+
+        return scaled_map1, scaled_map2
 
     def apply_nue_numu_ratio(self, flux_maps):
         """
@@ -925,15 +1017,15 @@ class honda(Stage):
 
         """
         scaled_nue_flux, scaled_numu_flux = self.apply_ratio_scale(
-            map1 = flux_maps['nue'],
-            map2 = flux_maps['numu'],
-            ratio_scale = self.params['nue_numu_ratio'].magnitude
+            map1=flux_maps['nue'],
+            map2=flux_maps['numu'],
+            ratio_scale=self.params.nue_numu_ratio.magnitude
         )
 
         scaled_nuebar_flux, scaled_numubar_flux = self.apply_ratio_scale(
-            map1 = flux_maps['nuebar'],
-            map2 = flux_maps['numubar'],
-            ratio_scale = self.params['nue_numu_ratio'].magnitude
+            map1=flux_maps['nuebar'],
+            map2=flux_maps['numubar'],
+            ratio_scale=self.params.nue_numu_ratio.magnitude
         )
 
         # Names of maps get messed up by apply_ratio_scale function
@@ -975,15 +1067,15 @@ class honda(Stage):
 
         """
         scaled_nue_flux, scaled_nuebar_flux = self.apply_ratio_scale(
-            map1 = flux_maps['nue'],
-            map2 = flux_maps['nuebar'],
-            ratio_scale = self.params['nu_nubar_ratio'].magnitude
+            map1=flux_maps['nue'],
+            map2=flux_maps['nuebar'],
+            ratio_scale=self.params.nu_nubar_ratio.magnitude
         )
 
         scaled_numu_flux, scaled_numubar_flux = self.apply_ratio_scale(
-            map1 = flux_maps['numu'],
-            map2 = flux_maps['numubar'],
-            ratio_scale = self.params['nu_nubar_ratio'].magnitude
+            map1=flux_maps['numu'],
+            map2=flux_maps['numubar'],
+            ratio_scale=self.params.nu_nubar_ratio.magnitude
         )
 
         # Names of maps get messed up by apply_ratio_scale function
@@ -1009,53 +1101,6 @@ class honda(Stage):
 
         return MapSet(maps=scaled_flux_maps, name='flux maps')
 
-    @staticmethod
-    def apply_ratio_scale(map1, map2, ratio_scale):
-        """Apply an arbitrary ratio systematic.
-
-        This will be normalisation-preserving to minimise the correlation with
-        any normalisation systematics such as aeff_scale.
-
-        This systematic changes map1/map2 to a new value.
-
-        If map1/map2 = orig_ratio then the returned maps will have
-
-            map1/map2 = orig_ratio * ratio_scale.
-
-        Normalisation-preserving means
-
-            original_map1 + original_map2 = returned_map1 + returned_map2.
-
-        Parameters
-        ----------
-        map1 : Map
-            The numerator map in the ratio.
-        map2 : Map
-            The denominator map in the ratio.
-        ratio_scale : float
-            The amount by which to scale map1/map2 by.
-
-        Returns
-        -------
-        scaled_map1, scaled_map2 : re-scaled maps
-
-        """
-        # We require S1/S2 = O1/O2 * R and S1 + S2 = O1 + O2
-        # This trivially tells us S1 = S2*R*O1/O2
-        # The second can then be used to derive the form of S2
-        # S1 + S2 = S2*R*O1/O2 + S2 = S2(1+R*O1/O2) = O1 + O2
-        # Gives S2 = (O1 + O2) / (1+R*O1/O2)
-
-        orig_map_sum = map1 + map2
-        orig_map_ratio = map1/map2
-        orig_total1 = map1.hist.sum()
-        orig_total2 = map2.hist.sum()
-
-        scaled_map2 = orig_map_sum / (1 + ratio_scale * orig_map_ratio)
-        scaled_map1 = ratio_scale * orig_map_ratio * scaled_map2
-
-        return scaled_map1, scaled_map2
-
     def apply_delta_index(self, flux_maps):
         """Apply the atmospheric index systematic.
 
@@ -1077,7 +1122,7 @@ class honda(Stage):
 
         scaled_flux_maps = []
 
-        for flav in ['numu','numubar']:
+        for flav in ['numu', 'numubar']:
 
             if len(self.output_binning.names) == 2:
                 all_binning = self.output_binning.to(true_energy='GeV',
@@ -1093,18 +1138,24 @@ class honda(Stage):
 
             # This pivoting will give an energy-dependent scale factor
             scale = np.power(evals/median_energy,
-                             self.params['atm_delta_index'].value)
+                             self.params.atm_delta_index.value)
 
             flux_map = flux_maps[flav]
 
             # Need to multiply along the energy axis, so it must be last
             if 'energy' not in self.output_binning.names[-1]:
                 if len(self.output_binning.names) == 2:
-                    transposed_map = flux_map.reorder_dimensions(['true_coszen','true_energy'])
+                    transposed_map = flux_map.reorder_dimensions(
+                        ['true_coszen', 'true_energy']
+                    )
                 elif len(self.output_binning.names) == 3:
-                    transposed_map = flux_map.reorder_dimensions(['true_azimuth','true_coszen','true_energy'])
+                    transposed_map = flux_map.reorder_dimensions(
+                        ['true_azimuth', 'true_coszen', 'true_energy']
+                    )
                 scaled_transposed_map = transposed_map*scale
-                scaled_flux = scaled_transposed_map.reorder_dimensions(self.output_binning.names)
+                scaled_flux = scaled_transposed_map.reorder_dimensions(
+                    self.output_binning.names
+                )
             else:
                 scaled_flux = flux_map*scale
 
@@ -1122,29 +1173,29 @@ class honda(Stage):
         # do some checks on the parameters
 
         # Currently, these are the only interpolation methods supported
-        assert (params['flux_mode'].value in ['integral-preserving',
+        assert (params.flux_mode.value in ['integral-preserving',
                                               'bisplrep'])
 
         # This is the Honda service after all...
-        assert ('honda' in params['flux_file'].value)
+        assert ('honda' in params.flux_file.value)
 
         # Flux file should have aa (for azimuth-averaged) if binning
         # is energy and cosZenith
         if set(self.output_binning.names) == set(['true_energy',
                                                   'true_coszen']):
-            assert ('aa' in params['flux_file'].value )
+            assert ('aa' in params.flux_file.value )
 
         # Flux file should not have aa (for azimuth-averaged) if binning
         # is energy, cosZenith and azimuth
         elif set(self.output_binning.names) == set(['true_energy',
                                                     'true_coszen',
                                                     'true_azimuth']):
-            assert ('aa' not in params['flux_file'].value)
+            assert ('aa' not in params.flux_file.value)
 
         # Ratio systematics should not be negative.
         # This makes no sense after all
-        assert (params['nue_numu_ratio'].value > 0.0)
-        assert (params['nu_nubar_ratio'].value > 0.0)
+        assert (params.nue_numu_ratio.value > 0.0)
+        assert (params.nu_nubar_ratio.value > 0.0)
 
         # Neither should energy scale for that matter
-        assert (params['energy_scale'].value > 0.0)
+        assert (params.energy_scale.value > 0.0)

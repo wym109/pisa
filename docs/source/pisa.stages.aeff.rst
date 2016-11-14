@@ -12,6 +12,14 @@ pisa.stages.aeff.hist module
     :undoc-members:
     :show-inheritance:
 
+pisa.stages.aeff.smooth module
+------------------------------
+
+.. automodule:: pisa.stages.aeff.smooth
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 
 Module contents
 ---------------

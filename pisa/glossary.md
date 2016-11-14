@@ -1,5 +1,7 @@
 # PISA Terminology
 
+* **DistributionMaker**: A collection of one or more *pipelines*; this produces the events distributions we see (in the case of data) or that we expect to see (in the case of Monte Carlo). The output of a DistributionMaker is a MapSet.
+
 * **Map**: N-dimensional histogram, most often in energy and cosine of the zenith angle (coszen)--but the number of dimensions and the binning in each are completely configurable in PISA). Note that the binning of a map is accessed via `map.binning`.
 
 * **MapSet**: Container or set of `Map`, with convenience methods for working with the contained maps.

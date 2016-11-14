@@ -12,7 +12,7 @@ import numpy as np
 from uncertainties import unumpy as unp
 
 from pisa.core.binning import MultiDimBinning
-from pisa.core.map import Map, MapSet
+from pisa.core.map import Map, MapSet, rebin
 from pisa.utils.comparisons import normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils import jsons
@@ -21,6 +21,10 @@ from pisa.utils.profiler import line_profile, profile
 
 
 HASH_SIGFIGS = 12
+
+
+__all__ = ['TransformSet', 'Transform', 'BinnedTensorTransform']
+
 
 # TODO: Include option for propagating/not propagating errors, so that while
 # e.g. a minimizer runs to match templates to "data," the overhead is not
@@ -39,7 +43,22 @@ HASH_SIGFIGS = 12
 # TODO: dtype arg to BinnedTensorTransform (or a global def like HASH_SIGFIGS?)
 # to allow for single precision and hence any associated speedups
 
-# TODO: numba implementation of BinnedTensorTransform
+## TODO: numba implementation of BinnedTensorTransform faster or not?
+#import numba
+#@numba.jit("float64[:,:] (float64[:,:], float64[:,:,:,:])",
+#           nopython=True, nogil=True, cache=True)
+#def map2d_kernel4d(x, xform):
+#    I = x.shape[0]
+#    J = x.shape[1]
+#    out = np.empty((I,J))
+#    for i1 in range(I):
+#        for j1 in range(J):
+#            out[i1,j1] = 0.0
+#            for i0 in range(I):
+#                for j0 in range(J):
+#                    out[i1,j1] += x[i1,j1] * xform[i0,j0,i1,j1]
+#    return out
+
 
 # TODO: Add Sequence capabilities to TransformSet (e.g. it'd be nice to have at
 # least append, extend, ...)
@@ -84,6 +103,9 @@ class TransformSet(object):
 
     def __iter__(self):
         return iter(self._transforms)
+
+    def __len__(self):
+        return len(self._transforms)
 
     def __eq__(self, other):
         if not isinstance(other, TransformSet):
@@ -271,12 +293,13 @@ class Transform(object):
     # TODO: get rid of the tex attribute, or add back in the name attribute?
 
     # Attributes that __setattr__ will allow setting
-    _slots = ('_input_names', '_output_name', '_tex', '_hash', '_hash')
+    _slots = ('_input_names', '_output_name', '_tex', '_hash', '_hash',
+              'error_method')
     # Attributes that should be retrieved to fully describe state
-    _state_attrs = ('input_names', 'output_name', 'tex', 'hash')
+    _state_attrs = ('input_names', 'output_name', 'tex', 'hash', 'error_method')
 
     def __init__(self, input_names, output_name, input_binning=None,
-                 output_binning=None, tex=None, hash=None):
+                 output_binning=None, tex=None, hash=None, error_method=None):
         # Convert to sequence of single string if a single string was passed
         # for uniform interfacing
         if isinstance(input_names, basestring):
@@ -308,6 +331,10 @@ class Transform(object):
 
         self._tex = tex if tex is not None else output_name
         self._hash = hash
+        if bool(error_method) == False:
+            self._error_method = None
+        else:
+            self._error_method = error_method
 
     @property
     def _serializable_state(self):
@@ -317,6 +344,7 @@ class Transform(object):
         state['input_binning'] = self.input_binning._serializable_state
         state['output_binning'] = self.output_binning._serializable_state
         state['tex'] = self.tex
+        state['error_method'] = self.error_method
         state['hash'] = self.hash
         return state
 
@@ -328,6 +356,7 @@ class Transform(object):
         state['input_binning'] = self.input_binning._hashable_state
         state['output_binning'] = self.output_binning._hashable_state
         state['tex'] = self.tex
+        state['error_method'] = self.error_method
         return state
 
     def to_json(self, filename, **kwargs):
@@ -405,6 +434,10 @@ class Transform(object):
     def tex(self):
         return self._tex
 
+    @property
+    def error_method(self):
+        return self._error_method
+
     def apply(self, inputs):
         output = self._apply(inputs)
         # TODO: tex, etc.?
@@ -473,6 +506,9 @@ class BinnedTensorTransform(Transform):
     hash : immutable object (usually integer)
         A hash value the user can attach
 
+    error_method : None, bool, or string
+        Define the method for error propaation on unumpy arrays
+
     output_name : string
 
     input_binning : MultiDimBinning
@@ -482,8 +518,6 @@ class BinnedTensorTransform(Transform):
     xform_array : numpy ndarray
 
     error_array : None or numpy ndarray
-
-    tex : string
 
     params_hash : immutable object (usually integer)
 
@@ -513,11 +547,11 @@ class BinnedTensorTransform(Transform):
 
     def __init__(self, input_names, output_name, input_binning, output_binning,
                  xform_array, sum_inputs=False, error_array=None, tex=None,
-                 hash=None):
+                 error_method=None, hash=None):
         super(BinnedTensorTransform, self).__init__(
             input_names=input_names, output_name=output_name,
             input_binning=input_binning, output_binning=output_binning,
-            tex=tex, hash=hash
+            tex=tex, hash=hash, error_method=error_method
         )
         self.xform_array = xform_array
         self.sum_inputs = sum_inputs
@@ -559,7 +593,8 @@ class BinnedTensorTransform(Transform):
             return
         assert error_array.shape == self.xform_array.shape
         super(BinnedTensorTransform, self).__setattr__(
-            '_xform_array', unp.uarray(self._xform_array, error_array)
+            '_xform_array', unp.uarray(self._xform_array, 
+                    np.ascontiguousarray(error_array))
         )
 
     @property
@@ -569,9 +604,9 @@ class BinnedTensorTransform(Transform):
     @xform_array.setter
     def xform_array(self, x):
         self.validate_transform(self.input_binning, self.output_binning, x)
-        self._xform_array = x
+        self._xform_array = np.ascontiguousarray(x)
 
-    def new_obj(original_function):
+    def _new_obj(original_function):
         """Decorator to deepcopy unaltered states into new object"""
         @wraps(original_function)
         def new_function(self, *args, **kwargs):
@@ -585,17 +620,17 @@ class BinnedTensorTransform(Transform):
             return self.__class__(**new_state)
         return new_function
 
-    @new_obj
+    @_new_obj
     def __abs__(self):
         return dict(xform_array=np.abs(self.xform_array))
 
-    @new_obj
+    @_new_obj
     def __add__(self, other):
         if isinstance(other, BinnedTensorTransform):
             return dict(xform_array=self.xform_array + other.xform_array)
         return dict(xform_array=self.xform_array + other)
 
-    @new_obj
+    @_new_obj
     def __div__(self, other):
         if isinstance(other, BinnedTensorTransform):
             return dict(xform_array=self.xform_array / other.xform_array)
@@ -606,53 +641,53 @@ class BinnedTensorTransform(Transform):
             return False
         return recursiveEquality(self._hashable_state, other._hashable_state)
 
-    @new_obj
+    @_new_obj
     def __mul__(self, other):
         if isinstance(other, BinnedTensorTransform):
             return dict(xform_array=self.xform_array * other.xform_array)
         return dict(xform_array=self.xform_array * other)
 
-    @new_obj
+    @_new_obj
     def __ne__(self, other):
         return not self == other
 
-    @new_obj
+    @_new_obj
     def __neg__(self, other):
         return dict(xform_array=-self.xform_array)
 
-    @new_obj
+    @_new_obj
     def __pow__(self, other):
         if isinstance(other, BinnedTensorTransform):
             return dict(xform_array=self.xform_array ** other.xform_array)
         return dict(xform_array=self.xform_array ** other)
 
-    @new_obj
+    @_new_obj
     def __radd__(self, other):
         return self + other
 
-    @new_obj
+    @_new_obj
     def __rdiv__(self, other):
         if isinstance(other, BinnedTensorTransform):
             return dict(xform_array=other.xform_array / self.xform_array)
         return dict(xform_array=other / self.xform_array)
 
-    @new_obj
+    @_new_obj
     def __rmul__(self, other):
         if isinstance(other, BinnedTensorTransform):
             return dict(xform_array=other.xform_array * self.xform_array)
         return dict(xform_array=other * self.xform_array)
 
-    @new_obj
+    @_new_obj
     def __rsub__(self, other):
         if isinstance(other, BinnedTensorTransform):
             return dict(xform_array=other.xform_array - self.xform_array)
         return dict(xform_array=other - self.xform_array)
 
-    @new_obj
+    @_new_obj
     def sqrt(self):
         return dict(xform_array=np.sqrt(self.xform_array))
 
-    @new_obj
+    @_new_obj
     def __sub__(self, other):
         if isinstance(other, BinnedTensorTransform):
             return dict(xform_array=self.xform_array - other.xform_array)
@@ -693,7 +728,6 @@ class BinnedTensorTransform(Transform):
     # given the (concatenated) input dimension and the dimension of the
     # transform kernel
 
-    @profile
     def _apply(self, inputs):
         """Apply transforms to input maps to compute output maps.
 
@@ -710,9 +744,6 @@ class BinnedTensorTransform(Transform):
 
         """
         self.validate_input(inputs)
-
-        # Rebin if necessary so inputs have `input_binning`
-        inputs = inputs.rebin(self.input_binning)
 
         # TODO: In the multiple inputs / single output case and depending upon
         # the dimensions of the transform, for efficiency purposes we should
@@ -749,19 +780,38 @@ class BinnedTensorTransform(Transform):
         # by a factor of the number of inputs being "combined" (the number of
         # adds stays the same).
 
-        # TODO: make (sure) all of these operations compatible with
+        # TODO: make sure all of these operations are compatible with
         # uncertainties module!
 
-        if self.num_inputs == 1:
-            input_array = inputs[self.input_names[0]].hist
-        else:
-            input_array = np.stack([inputs[name].hist
-                                    for name in self.input_names], axis=0)
-            if self.sum_inputs:
-                input_array = np.sum(input_array, axis=0)
+        names = self.input_names
+        in0 = inputs[names[0]]
 
+        if self.num_inputs == 1:
+            input_array = (in0.rebin(self.input_binning)).hist
+
+        # Stack inputs, sum inputs, *then* rebin (if necessary)
+        elif self.sum_inputs:
+            input_array = np.sum([inputs[n].hist for n in names], axis=0)
+            input_array = rebin(input_array, orig_binning=in0.binning,
+                                new_binning=self.input_binning)
+
+        # Rebin (if necessary) then stack
+        else:
+            input_array = [(inputs[n].rebin(self.input_binning)).hist
+                           for n in names]
+            input_array = np.stack(input_array, axis=0)
+
+        # Transform same shape: element-by-element multiplication
         if self.xform_array.shape == input_array.shape:
-            output = input_array * self.xform_array
+            if (isinstance(self.error_method, basestring) and
+                    self.error_method.strip().lower() == 'fixed'):
+                # don't scale errors here
+                output = unp.uarray(
+                    unp.nominal_values(input_array) * self.xform_array,
+                    unp.std_devs(input_array)
+                )
+            else:
+                output = input_array * self.xform_array
 
             # If multiple inputs were concatenated together, and we did not sum
             # these inputs together, we need to sum the results together now.
@@ -778,9 +828,20 @@ class BinnedTensorTransform(Transform):
         #   xform.shape == (input_array.shape, input_array.shape) (roughly)
         # and then apply tensordot appropriately for this generic case...
 
+        # TODO: why does this fail for different input/output binning, but
+        # below tensordot works?
+        #elif len(self.xform_array.shape) == 4 and len(input_array.shape) == 2:
+        #    output = map2d_kernel4d(input_array, self.xform_array)
+
         elif len(self.xform_array.shape) == 2*len(input_array.shape):
             output = np.tensordot(input_array, self.xform_array,
                                   axes=([0,1], [0,1]))
+
+        elif (input_array.shape ==
+              self.xform_array.shape[0:len(input_array.shape)]):
+            axes = range(len(input_array.shape))
+            output = np.tensordot(input_array, self.xform_array,
+                                  axes=(axes, axes))
 
         else:
             raise ValueError(
@@ -800,8 +861,7 @@ class BinnedTensorTransform(Transform):
         return output
 
 
-#def test_BinnedTensorTransform():
-if __name__ == '__main__':
+def test_BinnedTensorTransform():
     import os
     import shutil
     import tempfile
@@ -893,5 +953,5 @@ if __name__ == '__main__':
     print '<< PASSED : test_TransformSet >>'
 
 
-#if __name__ == "__main__":
-#    test_BinnedTensorTransform()
+if __name__ == "__main__":
+    test_BinnedTensorTransform()

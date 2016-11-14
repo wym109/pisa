@@ -6,6 +6,10 @@ import numpy as np
 
 from pisa.utils.format import engfmt
 
+
+__all__ = ['Timer', 'timediffstamp', 'timestamp']
+
+
 # TODO: add unit tests!
 
 class Timer(object):
@@ -62,10 +66,11 @@ def timediffstamp(dt_sec, hms_always=False, sec_decimals=3):
         sign_str = '-'
     dt_sec = sgn*dt_sec
 
-    r = dt_sec % 3600
-    h = int((dt_sec - r)/3600)
-    s = r % 60
-    m = int((r - s)/60)
+    h, r = divmod(dt_sec, 3600)
+    m, s = divmod(r, 60)
+    h = int(h)
+    m = int(m)
+
     strdt = ''
     if hms_always or h != 0:
         strdt += format(h, '02d') + ':'
@@ -76,16 +81,19 @@ def timediffstamp(dt_sec, hms_always=False, sec_decimals=3):
         s = int(s)
         s_fmt = 'd' if len(strdt) == 0 else '02d'
     else:
-        # If no hours or minutes, use engineering fmt
+        # If no hours or minutes, use engineering fmt for seconds
         if (h == 0) and (m == 0) and not hms_always:
-            return engfmt(dt_sec*sgn, sigfigs=100, decimals=sec_decimals) + 's'
+            sec_str = engfmt(dt_sec*sgn, sigfigs=100, decimals=sec_decimals)
+            return sec_str + 's'
         # Otherwise, round seconds to sec_decimals decimal digits
         s = np.round(s, sec_decimals)
         if len(strdt) == 0:
             s_fmt = '.%df' %sec_decimals
         else:
-            s_fmt = '0%d.%df' %(3+sec_decimals, sec_decimals)
-        print 's_fmt:', s_fmt
+            if sec_decimals == 0:
+                s_fmt = '02.0f'
+            else:
+                s_fmt = '0%d.%df' %(3+sec_decimals, sec_decimals)
     if len(strdt) > 0:
         strdt += format(s, s_fmt)
     else:

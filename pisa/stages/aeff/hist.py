@@ -2,19 +2,20 @@
 # date:   March 20, 2016
 
 
-import copy
-from itertools import product
-
 import numpy as np
 
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.core.events import Events
-from pisa.utils.flavInt import ALL_NUFLAVINTS, flavintGroupsFromString, \
-        IntType, NuFlavIntGroup
+from pisa.utils.flavInt import (ALL_NUFLAVINTS, flavintGroupsFromString,
+                                IntType, NuFlavIntGroup)
+from pisa.utils.fileio import mkdir, to_file
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile
+
+
+__all__ = ['hist']
 
 
 # TODO: the below logic does not generalize to muons, but probably should
@@ -23,17 +24,18 @@ from pisa.utils.profiler import profile
 # input_names and output_names.
 
 class hist(Stage):
-    """Example stage with maps as inputs and outputs, and no disk cache. E.g.,
-    histogrammed oscillations stages will work like this.
+    """Effective area.
 
     Parameters
     ----------
     params : ParamSet
         Must exclusively have parameters:
 
-        aeff_weight_file
+        aeff_events
         livetime
         aeff_scale
+        nutau_cc_norm
+        transform_events_keep_criteria
 
     particles : string
         Must be one of 'neutrinos' or 'muons' (though only neutrinos are
@@ -67,8 +69,6 @@ class hist(Stage):
     debug_mode : None, bool, or string
         Whether to store extra debug info for this service.
 
-    disk_cache
-
     transforms_cache_depth : int >= 0
 
     outputs_cache_depth : int >= 0
@@ -77,19 +77,15 @@ class hist(Stage):
 
     Notes
     -----
-    Example input names would be:
     See Conventions section in the documentation for more informaton on
-    particle naming scheme in PISA. As an example
+    particle naming scheme in PISA.
 
     """
     def __init__(self, params, particles, transform_groups,
                  sum_grouped_flavints, input_binning, output_binning,
-                 input_names=None, error_method=None, disk_cache=None,
-                 transforms_cache_depth=20, outputs_cache_depth=20,
-                 memcache_deepcopy=True, debug_mode=None):
-        self.events_hash = None
-        """Hash of events file or Events object used"""
-
+                 memcache_deepcopy, transforms_cache_depth,
+                 outputs_cache_depth, input_names=None, error_method=None,
+                 debug_mode=None):
         assert particles in ['neutrinos', 'muons']
         self.particles = particles
         """Whether stage is instantiated to process neutrinos or muons"""
@@ -101,9 +97,13 @@ class hist(Stage):
 
         # All of the following params (and no more) must be passed via the
         # `params` argument.
-        expected_params = (
-            'aeff_weight_file', 'livetime', 'aeff_scale', 'nutau_cc_norm'
-        )
+        expected_params = [
+            'aeff_events', 'livetime', 'aeff_scale',
+            'transform_events_keep_criteria'
+        ]
+        if particles == 'neutrinos':
+            expected_params.append('nutau_cc_norm')
+
 
         if isinstance(input_names, basestring):
             input_names = input_names.replace(' ', '').split(',')
@@ -116,10 +116,14 @@ class hist(Stage):
         # outputs
         if self.particles == 'neutrinos':
             if self.sum_grouped_flavints:
-                output_names = tuple([str(g) for g in self.transform_groups])
+                output_names = [str(g) for g in self.transform_groups]
             else:
                 input_flavints = NuFlavIntGroup(input_names)
-                output_names = tuple([str(fi) for fi in input_flavints])
+                output_names = [str(fi) for fi in input_flavints]
+        elif self.particles == 'muons':
+            raise NotImplementedError
+        else:
+            raise ValueError('Particle type `%s` is not valid' % self.particles)
 
         logging.trace('transform_groups = %s' %self.transform_groups)
         logging.trace('output_names = %s' %' :: '.join(output_names))
@@ -128,15 +132,12 @@ class hist(Stage):
         # work for you.
         super(self.__class__, self).__init__(
             use_transforms=True,
-            stage_name='aeff',
-            service_name='hist',
             params=params,
             expected_params=expected_params,
             input_names=input_names,
             output_names=output_names,
             error_method=error_method,
             memcache_deepcopy=memcache_deepcopy,
-            disk_cache=disk_cache,
             outputs_cache_depth=outputs_cache_depth,
             transforms_cache_depth=transforms_cache_depth,
             input_binning=input_binning,
@@ -148,18 +149,10 @@ class hist(Stage):
         self.include_attrs_for_hashes('particles')
         self.include_attrs_for_hashes('transform_groups')
 
-    def load_events(self):
-        evts = self.params.aeff_weight_file.value
-        this_hash = hash_obj(evts)
-        if this_hash == self.events_hash:
-            return
-        logging.debug('Extracting events from Events obj or file: %s' %evts)
-        self.events = Events(evts)
-        self.events_hash = this_hash
-
-    @profile
     def _compute_nominal_transforms(self):
-        self.load_events()
+        self.load_events(self.params.aeff_events)
+        self.cut_events(self.params.transform_events_keep_criteria)
+
         # Units must be the following for correctly converting a sum-of-
         # OneWeights-in-bin to an average effective area across the bin.
         comp_units = dict(true_energy='GeV', true_coszen=None,
@@ -199,20 +192,24 @@ class hist(Stage):
         if 'true_coszen' not in input_binning:
             missing_dims_vol *= 2
 
-        # This gets used in innermost loop, so produce it just once here
-        all_bin_edges = [edges.magnitude for edges in output_binning.bin_edges]
+        if bool(self.debug_mode):
+            outdir = os.path.join(find_resource('debug'),
+                                  self.stage_name,
+                                  self.service_name)
+            mkdir(outdir)
+            #hex_hash = hash2hex(kde_hash)
 
         nominal_transforms = []
         for xform_flavints in self.transform_groups:
-            logging.debug("Computing aeff xform for %s..." %xform_flavints)
+            logging.debug("Working on %s effective areas xform" %xform_flavints)
 
-            aeff_transform = self.events.histogram(
+            aeff_transform = self.remaining_events.histogram(
                 kinds=xform_flavints,
-                binning=all_bin_edges,
-                binning_cols=self.input_binning.names,
+                binning=input_binning,
                 weights_col='weighted_aeff',
-                errors=(self.error_method is not None)
+                errors=(self.error_method not in [None, False])
             )
+            aeff_transform = aeff_transform.hist
 
             # Divide histogram by
             #   (energy bin width x coszen bin width x azimuth bin width)
@@ -221,6 +218,11 @@ class hist(Stage):
             # missing dimensions is applied here.
             bin_volumes = input_binning.bin_volumes(attach_units=False)
             aeff_transform /= (bin_volumes * missing_dims_vol)
+
+            if self.debug_mode:
+                outfile = os.path.join(outdir,
+                                       'aeff_' + str(xform_flavints) + '.dill')
+                to_file(aeff_transform, outfile)
 
             # If combining grouped flavints:
             # Create a single transform for each group and assign all flavors
@@ -236,7 +238,7 @@ class hist(Stage):
                         xform_input_names.append(input_name)
 
                 for output_name in self.output_names:
-                    if not output_name in xform_flavints:
+                    if output_name not in xform_flavints:
                         continue
                     xform = BinnedTensorTransform(
                         input_names=xform_input_names,
@@ -256,7 +258,7 @@ class hist(Stage):
                     input_flavs = NuFlavIntGroup(input_name)
                     # Since aeff "splits" neutrino flavors into
                     # flavor+interaction types, need to check if the output
-                    # flavints' are encapsulated by the input flavor(s).
+                    # flavints are encapsulated by the input flavor(s).
                     if len(set(xform_flavints).intersection(input_flavs)) == 0:
                         continue
                     for output_name in self.output_names:
@@ -274,14 +276,19 @@ class hist(Stage):
 
         return TransformSet(transforms=nominal_transforms)
 
-    @profile
     def _compute_transforms(self):
-        """Compute new oscillation transforms"""
+        """Compute new effective area transforms"""
         # Read parameters in in the units used for computation
         aeff_scale = self.params.aeff_scale.m_as('dimensionless')
         livetime_s = self.params.livetime.m_as('sec')
         logging.trace('livetime = %s --> %s sec'
                       %(self.params.livetime.value, livetime_s))
+
+        if self.particles == 'neutrinos':
+            nutau_cc_norm = self.params.nutau_cc_norm.m_as('dimensionless')
+            if nutau_cc_norm != 1:
+                assert NuFlavIntGroup('nutau_cc') in self.transform_groups
+                assert NuFlavIntGroup('nutaubar_cc') in self.transform_groups
 
         new_transforms = []
         for xform_flavints in self.transform_groups:
@@ -289,14 +296,15 @@ class hist(Stage):
             flav_names = [str(flav) for flav in xform_flavints.flavs()]
             aeff_transform = None
             for transform in self.nominal_transforms:
-                if transform.input_names[0] in flav_names \
-                        and transform.output_name in xform_flavints:
+                if (transform.input_names[0] in flav_names
+                        and transform.output_name in xform_flavints):
                     if aeff_transform is None:
-                        aeff_transform = transform.xform_array * (aeff_scale *
-                                                                  livetime_s)
-                        if transform.output_name in ['nutau_cc', 'nutaubar_cc']:
-                            aeff_transform = aeff_transform * \
-                                    self.params.nutau_cc_norm.magnitude
+                        scale = aeff_scale * livetime_s
+                        if (self.particles == 'neutrinos'
+                                and ('nutau_cc' in transform.output_name
+                                or 'nutaubar_cc' in transform.output_name)):
+                            scale *= nutau_cc_norm
+                        aeff_transform = transform.xform_array * scale
                     new_xform = BinnedTensorTransform(
                         input_names=transform.input_names,
                         output_name=transform.output_name,

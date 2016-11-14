@@ -1,13 +1,17 @@
 
 import copy
 from collections import OrderedDict
-import cPickle as pickle
+#import cPickle as pickle
+import dill
 import os
 import re
 import sqlite3
 import time
 
 from pisa.utils.log import logging, set_verbosity
+
+
+__all__ = ['MemoryCache', 'DiskCache']
 
 
 class MemoryCache(object):
@@ -42,7 +46,7 @@ class MemoryCache(object):
 
     """
     GLOBAL_MEMCACHE_DEPTH_OVERRIDE = None
-    def __init__(self, max_depth, is_lru=True, deepcopy=True):
+    def __init__(self, max_depth, is_lru=True, deepcopy=False):
         self.__cache = OrderedDict()
         self.__max_depth = max_depth
         self.__is_lru = is_lru
@@ -160,7 +164,7 @@ class DiskCache(object):
     is_lru : bool
         If True, implement least-recently-used (LRU) logic for removing items
         beyond `max_depth`. This adds an additional ~400 ms to item retrieval
-        time.
+        time. Otherwise, behaves as a first-in-first-out (FIFO) cache.
 
     Notes
     -----
@@ -285,7 +289,8 @@ class DiskCache(object):
                 raise KeyError(str(key))
             data = tmp[0]
             t4 = time.time();logging.trace('fetch: % 0.4f' % (t4 - t3))
-            data = pickle.loads(bytes(data))
+            #data = pickle.loads(bytes(data))
+            data = dill.loads(bytes(data))
             t5 = time.time();logging.trace('loads: % 0.4f' % (t5 - t4))
         finally:
             conn.commit()
@@ -300,7 +305,8 @@ class DiskCache(object):
             )
         t0 = time.time()
         assert isinstance(key, int)
-        data = sqlite3.Binary(pickle.dumps(obj, pickle.HIGHEST_PROTOCOL))
+        #data = sqlite3.Binary(pickle.dumps(obj, pickle.HIGHEST_PROTOCOL))
+        data = sqlite3.Binary(dill.dumps(obj, dill.HIGHEST_PROTOCOL))
         t1 = time.time();logging.trace('dumps: % 0.4f' % (t1 - t0))
 
         conn = self.__connect()

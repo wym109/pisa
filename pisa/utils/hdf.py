@@ -15,7 +15,13 @@ from pisa.utils.resources import find_resource
 from pisa.utils.comparisons import recursiveEquality
 
 
-def from_hdf(val, return_attrs=False):
+__all__ = ['from_hdf', 'to_hdf']
+
+
+# TODO: convert to use OrderedDict to preserve ordering
+# TODO: convert to allow reading of icetray-produced HDF5 files
+
+def from_hdf(val, return_node=None, return_attrs=False):
     """Return the contents of an HDF5 file or node as a nested dict; optionally
     return a second dict containing any HDF5 attributes attached to the
     entry-level HDF5 entity.
@@ -28,6 +34,9 @@ def from_hdf(val, return_attrs=False):
           as an h5py.File
         * Otherwise, val must be an h5py.Group in an instantiated object
 
+    return_node : None or string
+        Not yet implemented
+
     return_attrs : bool
         Whether to return attrs attached to entry-level entity
 
@@ -39,7 +48,10 @@ def from_hdf(val, return_attrs=False):
 
     (attrs : dict)
         Attributes of entry-level entity; only returned if return_attrs=True
+
     """
+    if return_node is not None:
+        raise NotImplementedError('`return_node` is not yet implemented.')
 
     # NOTE: It's generally sub-optimal to have different return type signatures
     # (1 or 2 return values in this case), but defaulting to a single return

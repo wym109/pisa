@@ -12,6 +12,9 @@ from scipy.stats import norm
 from pisa.utils.gaussians import gaussian, gaussians
 
 
+__all__ = ['test_gaussian', 'test_gaussians', 'speed_test_gaussians']
+
+
 def test_gaussian():
     x = np.linspace(-10, 10, 1e3, dtype=np.float64)
 
@@ -83,6 +86,8 @@ def speed_test_gaussians(num_gaussians, num_points):
             'must pass integral value or equivalent for `num_gaussians`'
     assert int(num_points) == float(num_points), \
             'must pass integral value or equivalent for `num_points`'
+    num_gaussians = int(num_gaussians)
+    num_points = int(num_points)
 
     def wstdout(msg):
         sys.stdout.write(msg)
@@ -105,6 +110,12 @@ def speed_test_gaussians(num_gaussians, num_points):
 
     # Place to store result of `scipy.stats.norm`
     refbuf = np.zeros_like(outbuf, dtype=np.float64)
+
+    # Check default beahvior (possibly controlled by environment var
+    # OMP_NUM_THREADS, if this is set)
+    t0 = time.time()
+    gaussians(outbuf, x, mu, sigma)
+    T = time.time() - t0
 
     # Try out the threads functionality for each result; reset the accumulation
     # buffer each time.

@@ -62,7 +62,8 @@ from math import cos as scos
 from math import fabs as fabs     # more restrictive than abs() (in a good way)
 # from math import pow as spower   # slower than **
 from numpy import *
-from scipy import interpolate, integrate
+import scipy.interpolate as interpolate
+import scipy.integrate as integrate
 # from scipy.linalg.matfuncs import expm2 as expm2
 from scipy.stats import lognorm
 import warnings

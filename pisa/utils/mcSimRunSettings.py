@@ -17,6 +17,9 @@ import pisa.utils.crossSections as crossSections
 from numpy import *
 
 
+__all__ = ['MCSimRunSettings', 'DetMCSimRunsSettings']
+
+
 # TODO: make ability to serialize instantiated MCSimRunSettings and
 # DetMCSimRunsSettings objects back to JSON format from which they were
 # generated
@@ -113,8 +116,8 @@ class MCSimRunSettings(dict):
         if isinstance(run_settings, dict):
             rsd = run_settings
         else:
-            raise TypeError('Unhandled run_settings type passed in arg: ' +
-                            type(run_settings))
+            raise TypeError('Unhandled run_settings type passed in arg: %s'
+                            %type(run_settings))
         #if detector is not None:
         #    try:
         #        rsd = rsd[detector]
@@ -122,7 +125,7 @@ class MCSimRunSettings(dict):
         #        pass
         rsd = self.translateSourceDict(rsd) #{run:self.translateSourceDict(rs) for run,rs in rsd.iteritems()}
         if not detector is None:
-            detector = str(detector).lower()
+            detector = str(detector).strip()
         self.detector = detector
         self.run = run
         self.update(rsd)
@@ -158,7 +161,7 @@ class MCSimRunSettings(dict):
     def barnobarfract(self, barnobar=None, is_particle=None,
                       flav_or_flavint=None):
         """Fraction of events generated (either particles or antiparticles).
-        
+
         Specifying whether you want the fraction for particle or
         antiparticle can be done in one (and only one) of three ways:
 
@@ -187,19 +190,26 @@ class MCSimRunSettings(dict):
     def get_num_gen(self, barnobar=None, is_particle=None,
                     flav_or_flavint=None, include_physical_fract=True):
         """Return the number of events generated.
-       
-        barnobar : None, -1 (antiparticle), or +1 (particle)
+
+        Parameters
+        ----------
+        barnobar : None or int
+            -1 for antiparticle or +1 for particle
+
         is_particle : None or bool
+
         flav_or_flavint : None or convertible to NuFlav or NuFlavInt
             If one of `barnobar`, `is_particle`, or `flav_or_flavint` is
             specified, returns only the number of particles or antiparticles
             generated. Otherwise (if none of those is specified), return the
             total number of generated events.
+
         include_physical_fract : bool
             Whether to include the "GENIE physical fraction", which accounts
             for events that are generated but are un-physical and therefore
             will never be detectable. These are removed to not penalize
             detection efficiency.
+
         """
         nargs = sum([(not barnobar is None),
                      (not is_particle is None),
@@ -268,7 +278,7 @@ class DetMCSimRunsSettings(dict):
                             type(run_settings))
 
         if detector:
-            detector = str(detector).lower()
+            detector = str(detector).strip()
         self.detector = detector
 
         # Determine how deeply nested runs are in the dict to allow for
@@ -284,7 +294,7 @@ class DetMCSimRunsSettings(dict):
                     raise ValueError('Must specify which detector; detectors '
                                      'found: ' + str(rsd.keys()))
             else:
-                runs_d = rsd[self.detector.lower()]
+                runs_d = rsd[self.detector.strip()]
         else:
             raise Exception('dict must either be 3 levels: '
                             '{DET:{RUN:{...}}}; or 2 levels: {RUN:{...}}')

@@ -4,14 +4,6 @@ pisa.core package
 Submodules
 ----------
 
-pisa.core.analysis module
--------------------------
-
-.. automodule:: pisa.core.analysis
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 pisa.core.binning module
 ------------------------
 
@@ -24,6 +16,14 @@ pisa.core.distribution_maker module
 -----------------------------------
 
 .. automodule:: pisa.core.distribution_maker
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+pisa.core.events module
+-----------------------
+
+.. automodule:: pisa.core.events
     :members:
     :undoc-members:
     :show-inheritance:

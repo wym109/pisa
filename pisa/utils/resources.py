@@ -13,11 +13,16 @@ from pisa.utils.log import logging
 from pkg_resources import resource_filename
 
 
-def find_resource(resourcename, is_dir=False, fail=True):
-    """Try to find a resource or directory.
+__all__ = ['find_resource', 'open_resource']
 
-    First check if resourcename is an absolute path, then relative to the $PISA
-    environment variable if it is set. Otherwise, look in the resources
+
+# TODO: make this work with Python package resources, not just file paths (so
+# we can distribute PISA as an egg).
+def find_resource(resourcename, fail=True):
+    """Try to find a resource (file or directory).
+
+    First check if `resourcename` is an absolute path, then relative to the
+    $PISA environment variable if it is set. Otherwise, look in the resources
     directory of the pisa installation.
 
     Parameters
@@ -27,62 +32,56 @@ def find_resource(resourcename, is_dir=False, fail=True):
         absolute or relative (to $PWD or within the $PISA/resources directory)
         path. E.g., 'directory/resourcename'.
 
-    is_dir : bool
-        Whether to return a directory or file
-
     fail : bool
         If True, raise IOError if resourcename not found
         If False, return None if resourcename not found
 
     Returns
     -------
-    If found, File or directory path; if not found and `fail` is False, returns None.
+    String if `resource` is found (relative path to the file or directory); if
+    not found and `fail` is False, returns None.
 
     Raises
     ------
-    Exception if the file is not found and `fail=True`.
+    IOError if `resource` is not found and `fail` is True.
+
     """
-
-    if is_dir:
-        isentity = os.path.isdir
-        entity_type = 'dir'
-    else:
-        isentity = os.path.isfile
-        entity_type = 'file'
-
-    # First check for absolute path
+    logging.trace('Attempting to locate `resourcename` "%s"' %resourcename)
+    # 1) Check for absolute path or path relative to current working
+    #    directory
+    logging.trace('Checking absolute or path relative to cwd...')
     rsrc_path = os.path.expandvars(os.path.expanduser(resourcename))
-    logging.trace("Checking if %s is a %s..." % (rsrc_path, entity_type))
-    if isentity(rsrc_path):
-        logging.debug('Found %s' % (rsrc_path))
+    if os.path.isfile(rsrc_path) or os.path.isdir(rsrc_path):
+        logging.debug('Found %s at %s' % (resourcename, rsrc_path))
         return rsrc_path
 
-    # Next check if $PISA is set in environment
-    logging.trace("Checking environment for $PISA...")
+    # 2) Check if $PISA is set in environment, and look relative to that
+    logging.trace('Checking environment for $PISA...')
     if 'PISA' in os.environ:
         rpath = os.path.expandvars(os.path.expanduser(os.environ['PISA']))
-        logging.debug('Searching resource path PISA=%s' % rpath)
+        logging.trace('Searching resource path PISA=%s' % rpath)
 
         rsrc_path = os.path.join(rpath, resourcename)
-        if isentity(rsrc_path):
+        if os.path.isfile(rsrc_path) or os.path.isdir(rsrc_path):
             logging.debug('Found %s at %s' % (resourcename, rsrc_path))
             return rsrc_path
 
-    # Not in the resource path, so look inside the package
+    # TODO: use resource_string or resource_stream instead, so that this work
+    # swith egg distributions
+
+    # 3) Look inside the installed pisa package
     logging.trace('Searching package resources...')
-    rsrc_path = resource_filename(__name__,
-            os.path.join('../resources',resourcename))
-    rsrc_path = os.path.relpath(rsrc_path)
-    if isentity(rsrc_path):
+    rsrc_path = resource_filename('pisa', 'resources/' + resourcename)
+    if os.path.isfile(rsrc_path) or os.path.isdir(rsrc_path):
+        rsrc_path = os.path.relpath(rsrc_path)
         logging.debug('Found %s at %s' % (resourcename, rsrc_path))
         return rsrc_path
 
     # Nowhere to be found
+    msg = 'Could not find resource "%s"' % resourcename
     if fail:
-        raise IOError('Could not find %s resource "%s"' % (entity_type,
-                                                           resourcename))
-    logging.debug('Could not find %s resource "%s"' % (entity_type,
-                                                       resourcename))
+        raise IOError(msg)
+    logging.debug(msg)
     return None
 
 

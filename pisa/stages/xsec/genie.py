@@ -5,8 +5,10 @@ detector into an event count.
 This service in particular reads in from a GENIE cross-section spline ROOT file
 in order to obtain the relavant cross-sections. Example pipeline settings file
 can be found in
-$PISA/pisa/resources/settings/pipeline_settings/pipeline_settings_xsec.ini
+$PISA/pisa/resources/settings/pipeline/xsec.cfg
 """
+
+
 from itertools import product
 from operator import add
 
@@ -25,7 +27,10 @@ from pisa.utils.spline import Spline, CombinedSpline
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
-from pisa.resources.resources import find_resource
+from pisa.utils.resources import find_resource
+
+
+__all__ = ['genie', 'test_standard_plots', 'test_per_e_plot']
 
 
 class genie(Stage):
@@ -156,8 +161,6 @@ class genie(Stage):
 
         super(self.__class__, self).__init__(
             use_transforms=True,
-            stage_name='xsec',
-            service_name='genie',
             params=params,
             expected_params=expected_params,
             input_names=input_names,
@@ -199,7 +202,7 @@ class genie(Stage):
                 logging.debug('Obtaining cross-sections for '
                               '{0}'.format(flavint))
                 xsec_map = self.xsec.get_map(
-                    flavint, MultiDimBinning(ebins),
+                    flavint, MultiDimBinning([ebins]),
                     x_energy_scale=x_energy_scale
                 )
 
@@ -240,7 +243,7 @@ class genie(Stage):
     def load_xsec_splines(self):
         """Load the cross-sections splines from the ROOT file."""
         xsec_file = self.params['xsec_file'].value
-        this_hash = hash_obj(xsec_file)
+        this_hash = hash_obj(xsec_file, full_hash=self.full_hash)
         if this_hash == self.xsec_hash:
             self.xsec.reset()
             return
@@ -341,38 +344,39 @@ class genie(Stage):
 
 
 def test_standard_plots(xsec_file, outdir='./'):
-    from CFXToy.utils.plotter import plotter
+    from pisa.utils.plotter import Plotter
     xsec = genie.get_combined_xsec(xsec_file)
 
-    e_bins = MultiDimBinning(OneDimBinning(name='true_energy', tex=r'E$_\nu$',
+    e_bins = MultiDimBinning(OneDimBinning(name='true_energy', tex=r'E_\nu',
                                            num_bins=150, domain=(1E-1, 1E3)*ureg.GeV,
                                            is_log=True))
     xsec.compute_maps(e_bins)
 
     logging.info('Making plots for genie xsec_maps')
-    plot_obj = plotter(outdir=outdir, stamp='Cross-Section', fmt='png',
+    plot_obj = Plotter(outdir=outdir, stamp='Cross-Section', fmt='png',
                        log=True, size=(12, 8),
                        label=r'Cross-Section ($m^{2}$)')
     maps = xsec.return_mapset()
-    plot_obj.plot_CFX_xsec(maps, ylim=(1E-43, 1E-37))
+    plot_obj.plot_xsec(maps, ylim=(1E-43, 1E-37))
 
 
 def test_per_e_plot(xsec_file, outdir='./'):
-    from CFXToy.utils.plotter import plotter
+    from pisa.utils.plotter import Plotter
     xsec = genie.get_combined_xsec(xsec_file)
 
-    e_bins = MultiDimBinning(OneDimBinning(name='true_energy', tex=r'E$_\nu$',
+    e_bins = MultiDimBinning(OneDimBinning(name='true_energy', tex=r'E_\nu',
                                            num_bins=200, domain=(1E-1, 1E3)*ureg.GeV,
                                            is_log=True))
     xsec.compute_maps(e_bins)
     xsec.scale_maps(1./e_bins.true_energy.bin_widths)
 
     logging.info('Making plots for genie xsec_maps per energy')
-    plot_obj = plotter(outdir=outdir, stamp='Cross-Section / Energy',
+    plot_obj = Plotter(outdir=outdir, stamp='Cross-Section / Energy',
                        fmt='png', log=False, size=(12, 8),
                        label=r'Cross-Section / Energy ($m^{2} GeV^{-1}$)')
     maps = xsec.return_mapset()
-    plot_obj.plot_CFX_xsec(maps, ylim=(3.5E-41, 3E-40))
+    plot_obj.plot_xsec(maps, ylim=(3.5E-41, 3E-40))
+
 
 if __name__ == '__main__':
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter

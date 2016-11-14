@@ -4,18 +4,18 @@ pisa.utils package
 Submodules
 ----------
 
-pisa.utils.BetterConfigParser module
-------------------------------------
-
-.. automodule:: pisa.utils.BetterConfigParser
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 pisa.utils.PIDSpec module
 -------------------------
 
 .. automodule:: pisa.utils.PIDSpec
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+pisa.utils.betterConfigParser module
+------------------------------------
+
+.. automodule:: pisa.utils.betterConfigParser
     :members:
     :undoc-members:
     :show-inheritance:
@@ -44,6 +44,22 @@ pisa.utils.confInterval module
     :undoc-members:
     :show-inheritance:
 
+pisa.utils.config_parser module
+-------------------------------
+
+.. automodule:: pisa.utils.config_parser
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+pisa.utils.const module
+-----------------------
+
+.. automodule:: pisa.utils.const
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 pisa.utils.crossSections module
 -------------------------------
 
@@ -56,14 +72,6 @@ pisa.utils.dataProcParams module
 --------------------------------
 
 .. automodule:: pisa.utils.dataProcParams
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-pisa.utils.events module
-------------------------
-
-.. automodule:: pisa.utils.events
     :members:
     :undoc-members:
     :show-inheritance:
@@ -104,6 +112,14 @@ pisa.utils.gaussians module
 ---------------------------
 
 .. automodule:: pisa.utils.gaussians
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+pisa.utils.gpu_hist module
+--------------------------
+
+.. automodule:: pisa.utils.gpu_hist
     :members:
     :undoc-members:
     :show-inheritance:
@@ -164,10 +180,10 @@ pisa.utils.mcSimRunSettings module
     :undoc-members:
     :show-inheritance:
 
-pisa.utils.parse_config module
-------------------------------
+pisa.utils.miscFunctions module
+-------------------------------
 
-.. automodule:: pisa.utils.parse_config
+.. automodule:: pisa.utils.miscFunctions
     :members:
     :undoc-members:
     :show-inheritance:
@@ -180,10 +196,10 @@ pisa.utils.physics module
     :undoc-members:
     :show-inheritance:
 
-pisa.utils.plot module
-----------------------
+pisa.utils.plot_brazil_new module
+---------------------------------
 
-.. automodule:: pisa.utils.plot
+.. automodule:: pisa.utils.plot_brazil_new
     :members:
     :undoc-members:
     :show-inheritance:
@@ -208,6 +224,14 @@ pisa.utils.profiler module
 --------------------------
 
 .. automodule:: pisa.utils.profiler
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+pisa.utils.random_numbers module
+--------------------------------
+
+.. automodule:: pisa.utils.random_numbers
     :members:
     :undoc-members:
     :show-inheritance:
@@ -252,6 +276,14 @@ pisa.utils.smooth_pid module
     :undoc-members:
     :show-inheritance:
 
+pisa.utils.spline module
+------------------------
+
+.. automodule:: pisa.utils.spline
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 pisa.utils.stats module
 -----------------------
 
@@ -260,10 +292,26 @@ pisa.utils.stats module
     :undoc-members:
     :show-inheritance:
 
+pisa.utils.systematicFunctions module
+-------------------------------------
+
+.. automodule:: pisa.utils.systematicFunctions
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 pisa.utils.test_gaussians module
 --------------------------------
 
 .. automodule:: pisa.utils.test_gaussians
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+pisa.utils.tests module
+-----------------------
+
+.. automodule:: pisa.utils.tests
     :members:
     :undoc-members:
     :show-inheritance:

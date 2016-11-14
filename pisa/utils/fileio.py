@@ -1,27 +1,36 @@
-#
-# fileio.py
-#
-# A set of utility function for generic file IO
-#
 # author: Justin Lanfranchi
-#         jll1062@phys.psu.edu
+#         jll1062+pisa@phys.psu.edu
 #
 # date:   2015-06-13
 """Generic file I/O, dispatching specific file readers/writers as necessary"""
 
+
+import cPickle
 import os
 import re
-import pisa.utils.jsons as jsons
-import pisa.utils.hdf as hdf
-import pisa.utils.resources as resources
-from pisa.utils.log import logging
-import cPickle
-from pisa.utils.BetterConfigParser import BetterConfigParser
+import unicodedata
 
-JSON_EXTS = ['json']
+import dill
+
+from pisa.utils.betterConfigParser import BetterConfigParser
+from pisa.utils import hdf
+from pisa.utils import jsons
+from pisa.utils.log import logging
+from pisa.utils import resources
+
+import numpy as np
+
+__all__ = ['expandPath', 'mkdir', 'get_valid_filename', 'nsort', 'findFiles',
+            'from_cfg', 'from_pickle', 'to_pickle', 'from_dill', 'to_dill',
+            'from_file', 'to_file']
+
+JSON_EXTS = ['json', 'json.bz2']
 HDF5_EXTS = ['hdf', 'h5', 'hdf5']
-PKL_EXTS = ['pickle', 'pkl', 'p']
+PKL_EXTS = ['pickle', 'pckl', 'pkl', 'p']
+DILL_EXTS = ['dill']
 CFG_EXTS = ['ini', 'cfg']
+ZIP_EXTS = ['bz2']
+TXT_EXTS = ['txt','dat']
 
 
 def expandPath(path, exp_user=True, exp_vars=True, absolute=False):
@@ -54,11 +63,30 @@ def mkdir(d, mode=0750, warn=True):
     except OSError as err:
         if err[0] == 17:
             if warn:
-                logging.warn('Directory "' + str(d) + '" already exists')
+                logging.warn('Directory "%s" already exists' %d)
         else:
             raise err
     else:
-        logging.info('Created directory "' + d + '"')
+        logging.info('Created directory "%s"' %d)
+
+
+def get_valid_filename(s):
+    """Sanitize string to make it reasonable to use as a filename.
+
+    From https://github.com/django/django/blob/master/django/utils/text.py
+
+    Parameters
+    ----------
+    s : string
+
+    Examples
+    --------
+    >>> print get_valid_filename(r'A,bCd $%#^#*!()"\' .ext ')
+    'a_bcd__.ext'
+
+    """
+    s = re.sub(r'[ ,;\t]', '_', s.strip().lower())
+    return re.sub(r'(?u)[^-\w.]', '', s)
 
 
 NSORT_RE = re.compile("(\\d+)")
@@ -166,44 +194,114 @@ def to_pickle(obj, fname, overwrite=True):
     return cPickle.dump(obj, file(fname, 'wb'),
                         protocol=cPickle.HIGHEST_PROTOCOL)
 
+def from_txt(fname, as_array=False):
+    if as_array:
+        with open(fname, 'r') as f:
+            a = f.readlines()
+        a = [[float(m) for m in l.strip('\n\r').split()] for l in a]
+        a = np.array(a)
+    else:
+        with open(fname, 'r') as f:
+            a = f.read()
+    return a
+
+def to_txt(obj, fname):
+    with open(fname, 'w') as f:
+        f.write(obj)
+
+def from_dill(fname):
+    return dill.load(file(fname, 'rb'))
+
+
+def to_dill(obj, fname, overwrite=True):
+    fpath = os.path.expandvars(os.path.expanduser(fname))
+    if os.path.exists(fpath):
+        if overwrite:
+            logging.warn('Overwriting file at ' + fpath)
+        else:
+            raise Exception('Refusing to overwrite path ' + fpath)
+    return dill.dump(obj, file(fname, 'wb'), protocol=dill.HIGHEST_PROTOCOL)
+
 
 def from_file(fname, fmt=None, **kwargs):
     """Dispatch correct file reader based on fmt (if specified) or guess
-    based on file name's extension"""
+    based on file name's extension.
+
+    Parameters
+    ----------
+    fname : string
+        File path / name from which to load data.
+    fmt : None or string
+        If string, for interpretation of the file according to this format. If
+        None, file format is deduced by an extension found in `fname`.
+    **kwargs
+        All other arguments are passed to the function called to read the file.
+
+    Returns
+    -------
+    Object instantiated from the file (string, dictionariy, ...). Each format
+    is interpreted differently.
+
+    """
     if fmt is None:
-        _, ext = os.path.splitext(fname)
+        rootname, ext = os.path.splitext(fname)
         ext = ext.replace('.', '').lower()
     else:
+        rootname = fname
         ext = fmt.lower()
+
+    zip_ext = None
+    if ext in ZIP_EXTS:
+        rootname, inner_ext = os.path.splitext(rootname)
+        inner_ext = inner_ext.replace('.', '').lower()
+        zip_ext = ext
+        ext = inner_ext + '.' + zip_ext
+
     fname = resources.find_resource(fname)
     if ext in JSON_EXTS:
         return jsons.from_json(fname, **kwargs)
-    elif ext in HDF5_EXTS:
+    if ext in HDF5_EXTS:
         return hdf.from_hdf(fname, **kwargs)
-    elif ext in PKL_EXTS:
+    if ext in PKL_EXTS:
         return from_pickle(fname, **kwargs)
-    elif ext in CFG_EXTS:
+    if ext in DILL_EXTS:
+        return from_dill(fname, **kwargs)
+    if ext in CFG_EXTS:
         return from_cfg(fname, **kwargs)
-    else:
-        errmsg = 'File "%s": unrecognized extension "%s"' % (fname, ext)
-        logging.error(errmsg)
-        raise TypeError(errmsg)
+    if ext in TXT_EXTS:
+        return from_txt(fname, **kwargs)
+    errmsg = 'File "%s": unrecognized extension "%s"' % (fname, ext)
+    logging.error(errmsg)
+    raise TypeError(errmsg)
 
 
 def to_file(obj, fname, fmt=None, **kwargs):
     """Dispatch correct file writer based on fmt (if specified) or guess
     based on file name's extension"""
     if fmt is None:
-        _, ext = os.path.splitext(fname)
+        rootname, ext = os.path.splitext(fname)
         ext = ext.replace('.', '').lower()
     else:
+        rootname = fname
         ext = fmt.lower()
+
+    zip_ext = None
+    if ext in ZIP_EXTS:
+        rootname, inner_ext = os.path.splitext(rootname)
+        inner_ext = inner_ext.replace('.', '').lower()
+        zip_ext = ext
+        ext = inner_ext + '.' + zip_ext
+
     if ext in JSON_EXTS:
         return jsons.to_json(obj, fname, **kwargs)
     elif ext in HDF5_EXTS:
         return hdf.to_hdf(obj, fname, **kwargs)
     elif ext in PKL_EXTS:
         return to_pickle(obj, fname, **kwargs)
+    elif ext in DILL_EXTS:
+        return to_dill(obj, fname, **kwargs)
+    elif ext in TXT_EXTS:
+        return to_txt(obj, fname, **kwargs)
     else:
         errmsg = 'Unrecognized file type/extension: ' + ext
         logging.error(errmsg)

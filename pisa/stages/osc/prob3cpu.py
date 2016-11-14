@@ -17,6 +17,9 @@ from pisa.utils.comparisons import normQuant
 from pisa.utils.profiler import profile
 
 
+__all__ = ['prob3cpu']
+
+
 SIGFIGS = 12
 """Significant figures for determining if numbers and quantities normalised
 (using pisa.utils.comparisons.normQuant) are equal. Make sure this is less than
@@ -45,6 +48,13 @@ class prob3cpu(Stage):
             * theta12
             * theta13
             * theta23
+<<<<<<< HEAD
+=======
+        Nutau (and nutaubar) normalization:
+            * nutau_norm
+
+
+>>>>>>> upstream/cake
     input_binning : MultiDimBinning
     output_binning : MultiDimBinning
     transforms_cache_depth : int >= 0
@@ -67,19 +77,22 @@ class prob3cpu(Stage):
       * 'nuebar'
       * 'numubar'
       * 'nutaubar'
+      
     """
     def __init__(self, params, input_binning, output_binning,
                  error_method=None, transforms_cache_depth=20,
                  outputs_cache_depth=20, debug_mode=None):
+
         expected_params = (
             'earth_model', 'YeI', 'YeM', 'YeO',
             'detector_depth', 'prop_height',
             'deltacp', 'deltam21', 'deltam31',
-            'theta12', 'theta13', 'theta23'
+            'theta12', 'theta13', 'theta23',
+            'nutau_norm'
         )
 
         # Define the names of objects that are required by this stage (objects
-        # will have the attribute "name": i.e., obj.name)
+        # will have the attribute `name`: i.e., obj.name)
         input_names = (
             'nue', 'numu', 'nuebar', 'numubar'
         )
@@ -93,15 +106,13 @@ class prob3cpu(Stage):
         # lot of work (caching, providing public interfaces, etc.)
         super(self.__class__, self).__init__(
             use_transforms=True,
-            stage_name='osc',
-            service_name='prob3cpu',
             params=params,
             expected_params=expected_params,
             input_names=input_names,
             output_names=output_names,
             error_method=error_method,
-            disk_cache=None,
             outputs_cache_depth=outputs_cache_depth,
+            memcache_deepcopy=memcache_deepcopy,
             transforms_cache_depth=transforms_cache_depth,
             input_binning=input_binning,
             output_binning=output_binning,
@@ -114,8 +125,10 @@ class prob3cpu(Stage):
         # Only works if energy and coszen are in input_binning
         if 'true_energy' not in self.input_binning \
                 or 'true_coszen' not in self.input_binning:
-            raise ValueError('Input binning must contain both "true_energy" and'
-                             ' "true_coszen" dimensions.')
+            raise ValueError(
+                'Input binning must contain both "true_energy" and'
+                ' "true_coszen" dimensions.'
+            )
 
         # Not handling rebinning (or oversampling)
         assert self.input_binning == self.output_binning
@@ -154,7 +167,8 @@ class prob3cpu(Stage):
             and hasattr(self, '_barger_earth_model')
             and hasattr(self, '_barger_detector_depth')
             and normQuant(self._barger_detector_depth, sigfigs=SIGFIGS)
-                == normQuant(self.params.detector_depth.m_as('km'), sigfigs=SIGFIGS)
+                == normQuant(self.params.detector_depth.m_as('km'),
+                             sigfigs=SIGFIGS)
             and self.params.earth_model.value == self._barger_earth_model):
             return
 
@@ -194,6 +208,7 @@ class prob3cpu(Stage):
         YeO = self.params.YeO.m_as('dimensionless')
         YeM = self.params.YeM.m_as('dimensionless')
         prop_height = self.params.prop_height.m_as('km')
+        nutau_norm = self.params.nutau_norm.m_as('dimensionless')
 
         sin2th12Sq = np.sin(theta12)**2
         sin2th13Sq = np.sin(theta13)**2
@@ -202,45 +217,81 @@ class prob3cpu(Stage):
         total_bins = int(len(self.e_centers)*len(self.cz_centers))
         evals = np.empty(total_bins, "double")
         czvals = np.empty(total_bins, "double")
-        # We use 18 since we have each 3*3 possible oscillations for neutrinos
-        # and antineutrinos.
-        probList = np.empty(total_bins*18,"double")
+
+        # We use 18 since we have 3*3 possible oscillations for each of
+        # neutrinos and antineutrinos.
+        prob_list = np.empty(total_bins*18, dtype='double')
+
         # The 1.0 was energyscale from earlier versions. Perhaps delete this
         # if we no longer want energyscale.
-        probList, evals, czvals = self.barger_propagator.fill_osc_prob_c(
-                self.e_centers, self.cz_centers, 1.0,
-                deltam21, deltam31, deltacp, prop_height, YeI,
-                YeO, YeM, total_bins*18, total_bins, total_bins,
-                theta12, theta13, theta23)
+        prob_list, evals, czvals = self.barger_propagator.fill_osc_prob_c(
+            self.e_centers, self.cz_centers, 1.0,
+            deltam21, deltam31, deltacp,
+            prop_height,
+            YeI, YeO, YeM,
+            total_bins*18, total_bins, total_bins,
+            theta12, theta13, theta23
+        )
 
         # Slice up the transform arrays into views to populate each transform
+        dims = ['true_energy', 'true_coszen']
+        xform_dim_indices = [0, 1]
+        users_dim_indices = [self.input_binning.index(d) for d in dims]
+        xform_shape = [2] + [self.input_binning[d].num_bins for d in dims]
+
+        # TODO: populate explicitly by flavor, don't assume any particular
+        # ordering of the outputs names!
         transforms = []
-        xShape = [2] + list(self.input_binning.shape)
         for out_idx, output_name in enumerate(self.output_names):
-            xform = np.empty(xShape)
+            xform = np.empty(xform_shape)
             if out_idx < 3:
                 # Neutrinos
-                xform[0] = np.array([probList[out_idx+i*18*self.num_czbins:out_idx
-                            +18*(i+1)*self.num_czbins:18]
-                            for i in range(0, self.num_ebins)])
-                xform[1] = np.array([probList[out_idx+3+i*18*self.num_czbins:out_idx
-                            +18*(i+1)*self.num_czbins:18]
-                            for i in range(0, self.num_ebins)])
+                xform[0] = np.array([
+                    prob_list[out_idx + i*18*self.num_czbins
+                              : out_idx + 18*(i+1)*self.num_czbins
+                              : 18]
+                    for i in range(0, self.num_ebins)
+                ])
+                xform[1] = np.array([
+                    prob_list[out_idx+3 + i*18*self.num_czbins
+                              : out_idx + 18*(i+1)*self.num_czbins
+                              : 18]
+                    for i in range(0, self.num_ebins)
+                ])
                 input_names = self.input_names[0:2]
+
             else:
                 # Antineutrinos
-                xform[0] = np.array([probList[out_idx+6+i*18*self.num_czbins:out_idx
-                            +6+18*(i+1)*self.num_czbins:18]
-                            for i in range(0, self.num_ebins)])
-                xform[1] = np.array([probList[out_idx+9+i*18*self.num_czbins:out_idx
-                            +9+18*(i+1)*self.num_czbins:18]
-                            for i in range(0, self.num_ebins)])
+                xform[0] = np.array([
+                    prob_list[out_idx+6 + i*18*self.num_czbins
+                              : out_idx+6 + 18*(i+1)*self.num_czbins
+                              : 18]
+                    for i in range(0, self.num_ebins)
+                ])
+                xform[1] = np.array([
+                    prob_list[out_idx+9 + i*18*self.num_czbins
+                              : out_idx+9 + 18*(i+1)*self.num_czbins
+                              : 18]
+                    for i in range(0, self.num_ebins)
+                ])
                 input_names = self.input_names[2:4]
-            transforms.append(BinnedTensorTransform(input_names=input_names,
-                              output_name=output_name,
-                              input_binning=self.input_binning,
-                              output_binning=self.output_binning,
-                              xform_array=xform))
+
+            xform = np.moveaxis(
+                xform,
+                source=[0] + [i+1 for i in xform_dim_indices],
+                destination=[0] + [i+1 for i in users_dim_indices]
+            )
+            if nutau_norm != 1 and output_name in ['nutau', 'nutaubar']:
+                xform *= nutau_norm
+            transforms.append(
+                BinnedTensorTransform(
+                    input_names=input_names,
+                    output_name=output_name,
+                    input_binning=self.input_binning,
+                    output_binning=self.output_binning,
+                    xform_array=xform
+                )
+            )
 
         return TransformSet(transforms=transforms)
 
