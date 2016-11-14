@@ -8,6 +8,8 @@ event samples can be found on
 https://wiki.icecube.wisc.edu/index.php/IC86_Tau_Appearance_Analysis
 https://wiki.icecube.wisc.edu/index.php/IC86_oscillations_event_selection
 """
+
+
 from operator import add
 
 import numpy as np
@@ -22,6 +24,9 @@ from pisa.utils.comparisons import normQuant
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
+
+
+__all__ = ['sample']
 
 
 class sample(Stage):
@@ -173,8 +178,8 @@ class sample(Stage):
         """Load the event sample given the configuration file and output
         groups. Hash this object using both the configuration file and
         the output types."""
-        hash_property = [self.config, self.neutrino, self.muons]
-        this_hash = hash_obj(normQuant(hash_property))
+        hash_property = [self.config, self.neutrino, self.muongun]
+        this_hash = hash_obj(hash_property, full_hash=self.full_hash)
         if this_hash == self.sample_hash:
             return
 
