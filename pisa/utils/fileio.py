@@ -277,7 +277,7 @@ def from_file(fname, fmt=None, **kwargs):
     raise TypeError(errmsg)
 
 
-def to_file(obj, fname, fmt=None, **kwargs):
+def to_file(obj, fname, fmt=None, overwrite=True, warn=True, **kwargs):
     """Dispatch correct file writer based on fmt (if specified) or guess
     based on file name's extension"""
     if fmt is None:
@@ -295,15 +295,16 @@ def to_file(obj, fname, fmt=None, **kwargs):
         ext = inner_ext + '.' + zip_ext
 
     if ext in JSON_EXTS:
-        return jsons.to_json(obj, fname, **kwargs)
+        return jsons.to_json(obj, fname, overwrite=overwrite, warn=warn,
+                             **kwargs)
     elif ext in HDF5_EXTS:
-        return hdf.to_hdf(obj, fname, **kwargs)
+        return hdf.to_hdf(obj, fname, overwrite=overwrite, warn=warn, **kwargs)
     elif ext in PKL_EXTS:
-        return to_pickle(obj, fname, **kwargs)
+        return to_pickle(obj, fname, overwrite=overwrite, warn=warn, **kwargs)
     elif ext in DILL_EXTS:
-        return to_dill(obj, fname, **kwargs)
+        return to_dill(obj, fname, overwrite=overwrite, warn=warn, **kwargs)
     elif ext in TXT_EXTS:
-        return to_txt(obj, fname, **kwargs)
+        return to_txt(obj, fname)
     else:
         errmsg = 'Unrecognized file type/extension: ' + ext
         logging.error(errmsg)
