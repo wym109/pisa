@@ -184,11 +184,12 @@ def from_pickle(fname):
     return cPickle.load(file(fname, 'rb'))
 
 
-def to_pickle(obj, fname, overwrite=True):
+def to_pickle(obj, fname, overwrite=True, warn=True):
     fpath = os.path.expandvars(os.path.expanduser(fname))
     if os.path.exists(fpath):
         if overwrite:
-            logging.warn('Overwriting file at ' + fpath)
+            if warn:
+                logging.warn('Overwriting file at ' + fpath)
         else:
             raise Exception('Refusing to overwrite path ' + fpath)
     return cPickle.dump(obj, file(fname, 'wb'),
@@ -213,11 +214,12 @@ def from_dill(fname):
     return dill.load(file(fname, 'rb'))
 
 
-def to_dill(obj, fname, overwrite=True):
+def to_dill(obj, fname, overwrite=True, warn=True):
     fpath = os.path.expandvars(os.path.expanduser(fname))
     if os.path.exists(fpath):
         if overwrite:
-            logging.warn('Overwriting file at ' + fpath)
+            if warn:
+                logging.warn('Overwriting file at ' + fpath)
         else:
             raise Exception('Refusing to overwrite path ' + fpath)
     return dill.dump(obj, file(fname, 'wb'), protocol=dill.HIGHEST_PROTOCOL)
