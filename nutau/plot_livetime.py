@@ -130,6 +130,7 @@ def plot(name,hypos,asimovs,x_var='nutau_cc_norm',dir='.'):
     colors = [colormap(i) for i in np.linspace(0, 1,num)]
     for j,c in enumerate(colors):
         ax.plot(years[0],sigma[j], color=c,label=r'rejection $\nu_\tau=$ %s'%hypos[j])
+        print years[0], sigma[j]
     #ax.plot(years[0],sigmas[0], color='b', label='baseline')
     #ax.plot(years[1],sigmas[1], color='g', label='improved sys')
     #ax.set_xlabel('livetime (years)')

@@ -22,6 +22,7 @@ from pisa.utils.const import FTYPE
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
 from pisa.utils.resources import find_resource
+from copy import deepcopy
 
 
 class gpu(Stage):
@@ -66,6 +67,8 @@ class gpu(Stage):
             bdt_cut : quantity (dimensionless)
             kde : bool
                 apply KDE smoothing to outputs (d2d)
+            hist_e_scale : quantity (dimensionless)
+                scale factor for energy bin edges, as a reco E systematic
 
     Notes
     -----
@@ -142,6 +145,7 @@ class gpu(Stage):
             'reco_e_res_raw',
             'reco_e_scale_raw',
             'reco_cz_res_raw',
+            'hist_e_scale',
             'bdt_cut',
             'kde',
             'cut_outer',
@@ -179,6 +183,9 @@ class gpu(Stage):
         # not a good idea to scale nutau norm, without the NC events being oscillated
         if params.nutau_norm.value != 1.0 or params.nutau_norm.is_fixed == False:
             assert (params.no_nc_osc.value == False), 'If you want NC tau events scaled, you should oscillate them -> set no_nc_osc to False!!!'
+        if params.hist_e_scale.is_fixed == False or params.hist_e_scale.value != 1.0:
+            assert (params.kde.value == False), 'The hist_e_scale can only be used with histograms, not KDEs!'
+
 
     def _compute_nominal_outputs(self):
         # these are for storing hashes for caching that is done inside the stage
@@ -218,9 +225,10 @@ class gpu(Stage):
         self.bin_names = self.output_binning.names
         self.bin_edges = []
 
-        for name in self.bin_names:
+        for i,name in enumerate(self.bin_names):
             if 'energy' in  name:
                 bin_edges = self.output_binning[name].bin_edges.to('GeV').magnitude.astype(FTYPE)
+                self.e_bin_number = i
             else:
                 bin_edges = self.output_binning[name].bin_edges.magnitude.astype(FTYPE)
             self.bin_edges.append(bin_edges)
@@ -239,7 +247,9 @@ class gpu(Stage):
 
         else:
             # GPU histogramer
-            self.histogrammer = self.GPUhist(*self.bin_edges)
+            bin_edges = deepcopy(self.bin_edges)
+            bin_edges[self.e_bin_number] *= FTYPE(self.params.hist_e_scale.value.m_as('dimensionless'))
+            self.histogrammer = self.GPUhist(*bin_edges)
 
         # load events
         self.load_events()
@@ -525,6 +535,16 @@ class gpu(Stage):
                 logging.debug('KDE done in %.4f ms for %s events'%(((end_t - start_t) * 1000), tot))
 
         else:
+            # hist_e_scale:
+            bin_edges = deepcopy(self.bin_edges)
+            bin_edges[self.e_bin_number] *= FTYPE(self.params.hist_e_scale.value.m_as('dimensionless'))
+            #print self.params.hist_e_scale.value.m_as('dimensionless')
+            #bin_edges[self.e_bin_number] *= 0.99
+            #if self.params.hist_e_scale.value.m_as('dimensionless') != 1.0:
+            #    print bin_edges[self.e_bin_number]
+            #    print self.params.hist_e_scale.value.m_as('dimensionless')
+            self.histogrammer.update_bin_edges(*bin_edges)
+
             if recalc_osc or recalc_weight:
                 start_t = time.time()
                 # histogram events and download fromm GPU, if either weights or osc changed

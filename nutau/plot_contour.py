@@ -80,7 +80,7 @@ if __name__ == '__main__':
 
     legs = []
     #colors = ['red', 'black']*2
-    colors = ['red', 'grey', 'blue', 'grey']
+    colors = ['red', 'grey', 'blue', 'green']
     tags = [args.tag1, args.tag2,args.tag3, args.tag4]
     dirs = []
     for dir in [args.dir1, args.dir2, args.dir3, args.dir4]:

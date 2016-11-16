@@ -180,6 +180,7 @@ if __name__ == '__main__':
     parser.add_argument('-x','--x-var',help='variable to plot against', default='nutau_cc_norm') 
     parser.add_argument('--dist',action='store_true') 
     parser.add_argument('--asimov',action='store_true') 
+    parser.add_argument('--ignore-skip',action='store_true') 
     args = parser.parse_args()
 
     total = 0
@@ -218,7 +219,7 @@ if __name__ == '__main__':
                      continue
                 else:
                     plot_dict[key] = np.array(val[0])
-            if flag:
+            if flag and not args.ignore_skip:
                 print 'skipping file %s'%filename
             elif 'asimov' in filename or args.asimov:
                 name = filename[:-5]

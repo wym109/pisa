@@ -187,6 +187,19 @@ class GPUhist(object):
             self.hist = np.ravel(np.zeros((self.n_bins_x, self.n_bins_y))).astype(FTYPE)
         cuda.memcpy_htod(self.d_hist, self.hist)
 
+    def update_bin_edges(self, bin_edges_x, bin_edges_y, bin_edges_z=None):
+        # assure compatibility
+        assert self.h3d == bool(bin_edges_z is not None)
+        assert self.n_bins_x == np.int32(len(bin_edges_x)-1)
+        assert self.n_bins_y == np.int32(len(bin_edges_y)-1)
+        if self.h3d:
+            assert self.n_bins_z == np.int32(len(bin_edges_z)-1)
+        # copy
+        cuda.memcpy_htod(self.d_bin_edges_x, bin_edges_x)
+        cuda.memcpy_htod(self.d_bin_edges_y, bin_edges_y)
+        if self.h3d:
+            cuda.memcpy_htod(self.d_bin_edges_z, bin_edges_z)
+
     def get_hist(self, n_evts, d_x, d_y, d_w, d_z=None):
         """Retrive histogram, given device arrays for x&y values as well as
         weights w"""
