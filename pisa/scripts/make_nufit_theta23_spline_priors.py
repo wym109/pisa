@@ -6,12 +6,18 @@ Creates splines to the NuFit delta-chi2 surfaces for theta23 and puts them in
 to a format that can be read by PISA to use as a prior on this parameter.
 """
 
+
 from argparse import ArgumentParser,ArgumentDefaultsHelpFormatter
-import os, gzip
+import gzip
+import os
+
 import numpy as np
 import scipy.interpolate
 
 from pisa.utils.fileio import to_file
+
+
+__all__ = ['extract_vals', 'make_prior_dict']
 
 
 def extract_vals(infile, string_of_interest):
