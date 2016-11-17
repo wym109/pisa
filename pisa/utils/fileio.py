@@ -304,6 +304,10 @@ def to_file(obj, fname, fmt=None, overwrite=True, warn=True, **kwargs):
     elif ext in DILL_EXTS:
         return to_dill(obj, fname, overwrite=overwrite, warn=warn, **kwargs)
     elif ext in TXT_EXTS:
+        if kwargs:
+            raise ValueError("Following additional keyword arguments not"
+                             " accepted when writing to text file: %s" %
+                             kwargs.keys())
         return to_txt(obj, fname)
     else:
         errmsg = 'Unrecognized file type/extension: ' + ext
