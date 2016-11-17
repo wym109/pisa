@@ -17,12 +17,12 @@ from collections import OrderedDict
 import os
 
 import numpy as np
+import pint
 import simplejson as json
 
-import pint
 from pisa import ureg, Q_
-from pisa.utils.resources import open_resource
-from pisa.utils.log import logging
+import resources
+import log
 
 
 __all__ = ['json_string', 'from_json', 'to_json']
@@ -65,12 +65,13 @@ def from_json(filename):
     assert ext == 'json' or ext in ZIP_EXTS
     if ext == 'bz2':
         content = json.loads(
-            bz2.decompress(open_resource(filename).read()),
+            bz2.decompress(resources.open_resource(filename).read()),
             cls=NumpyDecoder,
             object_pairs_hook=OrderedDict
         )
     else:
-        content = json.load(open_resource(filename), cls=NumpyDecoder,
+        content = json.load(resources.open_resource(filename),
+                            cls=NumpyDecoder,
                             object_pairs_hook=OrderedDict)
     return content
 
@@ -109,7 +110,7 @@ def to_json(content, filename, indent=2, overwrite=True, warn=True,
     if os.path.exists(fpath):
         if overwrite:
             if warn:
-                logging.warn('Overwriting file at ' + fpath)
+                log.logging.warn('Overwriting file at ' + fpath)
         else:
             raise Exception('Refusing to overwrite path ' + fpath)
 
@@ -132,7 +133,8 @@ def to_json(content, filename, indent=2, overwrite=True, warn=True,
                 content, outfile, indent=indent, cls=NumpyEncoder,
                 sort_keys=sort_keys, allow_nan=True, ignore_nan=False
             )
-        logging.debug('Wrote %.2f kB to %s' % (outfile.tell()/1024., filename))
+        log.logging.debug('Wrote %.2f kB to %s'
+                          % (outfile.tell()/1024., filename))
 
 
 class NumpyEncoder(json.JSONEncoder):
@@ -189,8 +191,7 @@ class NumpyDecoder(json.JSONDecoder):
 def test_NumpyEncoderDecoder():
     import tempfile
     from pisa.utils.comparisons import recursiveEquality
-    from pisa.utils.log import logging, set_verbosity
-    set_verbosity(3)
+    log.set_verbosity(3)
     nda1 = np.array([-np.inf, np.nan, np.inf, -1, 0, 1, ])
     testdir = tempfile.mkdtemp()
     fname = os.path.join(testdir, 'nda1.json')
@@ -210,7 +211,7 @@ def test_NumpyEncoderDecoder():
         d2 = from_json(fn)
         assert recursiveEquality(d2, d1), \
                 'd1=\n%s\nd2=\n%s\nsee file: %s' %(d1, d2, fn)
-    logging.info('<< PASSED : test_NumpyEncoderDecoder >>')
+    log.logging.info('<< PASSED : test_NumpyEncoderDecoder >>')
 
 
 if __name__ == '__main__':
