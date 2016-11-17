@@ -75,7 +75,8 @@ def from_json(filename):
     return content
 
 
-def to_json(content, filename, indent=2, overwrite=True, sort_keys=False):
+def to_json(content, filename, indent=2, overwrite=True, warn=True,
+            sort_keys=False):
     """Write content to a JSON file using a custom parser that automatically
     converts numpy arrays to lists. If the filename has a ".bz2" extension
     appended, the contents will be compressed (using bz2 and highest-level of
@@ -83,9 +84,23 @@ def to_json(content, filename, indent=2, overwrite=True, sort_keys=False):
 
     Parameters
     ----------
+    content : obj
+        Object to be written to file. Tries making use of the object's own
+        `to_json` method if it exists.
     filename : str
+        Name of the file to be written to. Extension has to be 'json' or 'bz2'.
     indent : int
+        Pretty-printing. Cf. documentation of json.dump() or json.dumps()
     overwrite : bool
+        Set to `True` (default) to allow overwriting existing file. Raise
+        exception and quit otherwise.
+    warn : bool
+        Issue a warning message if a file is being overwritten (`True`, default).
+        Suppress warning by setting to `False` (e.g. when overwriting is the
+        desired behaviour).
+    sort_keys : bool
+        Output of dictionaries will be sorted by key if set to `True`.
+        Default is `False`. Cf. json.dump() or json.dumps().
 
     """
     if hasattr(content, 'to_json'):
@@ -93,7 +108,8 @@ def to_json(content, filename, indent=2, overwrite=True, sort_keys=False):
     fpath = os.path.expandvars(os.path.expanduser(filename))
     if os.path.exists(fpath):
         if overwrite:
-            logging.warn('Overwriting file at ' + fpath)
+            if warn:
+                logging.warn('Overwriting file at ' + fpath)
         else:
             raise Exception('Refusing to overwrite path ' + fpath)
 

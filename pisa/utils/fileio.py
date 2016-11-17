@@ -184,11 +184,12 @@ def from_pickle(fname):
     return cPickle.load(file(fname, 'rb'))
 
 
-def to_pickle(obj, fname, overwrite=True):
+def to_pickle(obj, fname, overwrite=True, warn=True):
     fpath = os.path.expandvars(os.path.expanduser(fname))
     if os.path.exists(fpath):
         if overwrite:
-            logging.warn('Overwriting file at ' + fpath)
+            if warn:
+                logging.warn('Overwriting file at ' + fpath)
         else:
             raise Exception('Refusing to overwrite path ' + fpath)
     return cPickle.dump(obj, file(fname, 'wb'),
@@ -213,11 +214,12 @@ def from_dill(fname):
     return dill.load(file(fname, 'rb'))
 
 
-def to_dill(obj, fname, overwrite=True):
+def to_dill(obj, fname, overwrite=True, warn=True):
     fpath = os.path.expandvars(os.path.expanduser(fname))
     if os.path.exists(fpath):
         if overwrite:
-            logging.warn('Overwriting file at ' + fpath)
+            if warn:
+                logging.warn('Overwriting file at ' + fpath)
         else:
             raise Exception('Refusing to overwrite path ' + fpath)
     return dill.dump(obj, file(fname, 'wb'), protocol=dill.HIGHEST_PROTOCOL)
@@ -275,7 +277,7 @@ def from_file(fname, fmt=None, **kwargs):
     raise TypeError(errmsg)
 
 
-def to_file(obj, fname, fmt=None, **kwargs):
+def to_file(obj, fname, fmt=None, overwrite=True, warn=True, **kwargs):
     """Dispatch correct file writer based on fmt (if specified) or guess
     based on file name's extension"""
     if fmt is None:
@@ -293,15 +295,20 @@ def to_file(obj, fname, fmt=None, **kwargs):
         ext = inner_ext + '.' + zip_ext
 
     if ext in JSON_EXTS:
-        return jsons.to_json(obj, fname, **kwargs)
+        return jsons.to_json(obj, fname, overwrite=overwrite, warn=warn,
+                             **kwargs)
     elif ext in HDF5_EXTS:
-        return hdf.to_hdf(obj, fname, **kwargs)
+        return hdf.to_hdf(obj, fname, overwrite=overwrite, warn=warn, **kwargs)
     elif ext in PKL_EXTS:
-        return to_pickle(obj, fname, **kwargs)
+        return to_pickle(obj, fname, overwrite=overwrite, warn=warn, **kwargs)
     elif ext in DILL_EXTS:
-        return to_dill(obj, fname, **kwargs)
+        return to_dill(obj, fname, overwrite=overwrite, warn=warn, **kwargs)
     elif ext in TXT_EXTS:
-        return to_txt(obj, fname, **kwargs)
+        if kwargs:
+            raise ValueError("Following additional keyword arguments not"
+                             " accepted when writing to text file: %s" %
+                             kwargs.keys())
+        return to_txt(obj, fname)
     else:
         errmsg = 'Unrecognized file type/extension: ' + ext
         logging.error(errmsg)
