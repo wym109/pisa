@@ -441,7 +441,7 @@ if __name__ == '__main__':
     parser.add_argument('-pd', '--pseudo-data', type=str, default='poisson',
                         choices=['poisson', 'gauss+poisson', 'asimov', 'data'], 
                         help='''Mode for pseudo data sampling''')
-    parser.add_argument('--var', type=str, default='args.var',
+    parser.add_argument('--var', type=str, default='nutau_norm',
                         help='''param to be profiled''')
     parser.add_argument('--metric', type=str,
                         choices=['llh', 'chi2', 'conv_llh', 'mod_chi2', 'barlow_llh'], required=True,
