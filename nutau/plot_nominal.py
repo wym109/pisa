@@ -24,7 +24,7 @@ set_verbosity(args.v)
 
 
 
-my_plotter = Plotter(stamp='', outdir=args.outdir, fmt='pdf', log=False, annotate=False, symmetric=False, ratio=True)
+my_plotter = Plotter(stamp='', outdir=args.outdir, fmt='pdf', log=True, annotate=False, symmetric=False, ratio=True)
 
 template_maker = DistributionMaker(args.template_settings)
 template_nominal = template_maker.get_outputs(sum=True)

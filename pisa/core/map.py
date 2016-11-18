@@ -97,7 +97,7 @@ def reduceToHist(expected_values):
 
     # If iterable, must be iterable of MapSets
     elif isinstance(expected_values, Iterable):
-        expected_values = reduce(lambda x,y: sum(x) + sum(y),
+        expected_values = reduce(lambda x,y: x+y,
                                  expected_values).hist
     else:
         raise ValueError('Unhandled type for `expected_values`: %s'
