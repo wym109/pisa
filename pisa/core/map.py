@@ -1076,6 +1076,16 @@ class Map(object):
         return np.sum(chi2(actual_values=self.hist,
                            expected_values=expected_values))
 
+    def metric_total(self, expected_values, metric):
+        if metric in VALID_METRICS:
+            return getattr(self, metric)(expected_values)
+        else:
+            raise ValueError('`metric` "%s" not recognized; use one of %s.'
+                             %(metric, VALID_METRICS))
+
+    def metric_per_map(self, expected_values, metric):
+        return self.metric_total(expected_values, metric)
+
     def __setitem__(self, idx, val):
         return setitem(self.hist, idx, val)
 

@@ -70,7 +70,7 @@ class DistributionMaker(object):
     def get_outputs(self, return_sum=False, **kwargs):
         outputs = [pipeline.get_outputs(**kwargs) for pipeline in self]
         if return_sum:
-            outputs = reduce(lambda x,y: x + y, outputs)
+            outputs = reduce(lambda x,y: sum(x) + sum(y), outputs)
         return outputs
 
     def update_params(self, params):
