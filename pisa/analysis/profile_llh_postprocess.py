@@ -9,7 +9,7 @@ import numpy as np
 from pisa.utils.fileio import from_file
 
 
-def main(args=None):
+def main():
     parser = ArgumentParser()
     parser.add_argument(
         '-d', '--dir', metavar='DIR', default='.',

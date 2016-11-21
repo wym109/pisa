@@ -176,7 +176,7 @@ def compare_systematics(baseline_oscfit, config, testname, outdir, oscfitfile):
     return pipeline
 
 
-def main(args=None):
+def main():
     parser = ArgumentParser(
         description='''Run a set of tests on the PISA 3 pipeline against
         the output from OscFit. If no test flags are specified, *all* tests will

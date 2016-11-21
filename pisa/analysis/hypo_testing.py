@@ -1498,7 +1498,7 @@ def normcheckpath(path, checkdir=False):
     return normpath
 
 
-def main(args=None):
+def main():
     args = parse_args()
     init_args_d = vars(args)
 

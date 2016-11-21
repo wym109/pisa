@@ -19,7 +19,7 @@ from pisa.utils.config_parser import parse_pipeline_config, parse_quantity, pars
 from pisa.utils.plotter import plotter
 
 
-def main(args=None):
+def main():
     parser = ArgumentParser()
     parser.add_argument('-t', '--template-settings', type=str,
                         metavar='configfile', required=True,

@@ -233,7 +233,7 @@ def test_DistributionMaker():
         current_mat = new_mat
 
 
-def main(args=None):
+def main():
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
     import numpy as np
     import os

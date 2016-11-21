@@ -345,7 +345,7 @@ def test_Pipeline():
         current_mat = new_mat
 
 
-def main(args=None):
+def main():
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
     import numpy as np
     from pisa.core.map import Map, MapSet

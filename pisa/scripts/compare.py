@@ -22,7 +22,7 @@ from pisa.utils.tests import plot_cmp
 from pisa.utils.plotter import Plotter
 
 
-def main(args=None):
+def main():
     parser = ArgumentParser(
         description='''Compare two entities: Maps, map sets, pipelines, or
         distribution makers. One kind can be compared against another, so long

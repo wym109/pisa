@@ -670,7 +670,7 @@ def parse_args():
     return args
 
 
-def main(args=None):
+def main():
     args = parse_args()
     set_verbosity(args.verbose)
 

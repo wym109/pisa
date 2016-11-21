@@ -43,7 +43,7 @@ def add_fluxes_to_file(data_file_path, flux_table, neutrino_weight_name, outdir)
 	print 'File %s already exists, skipped. Please delete it or rename it.' % output_file_name
 
 
-def main(args=None):
+def main():
     parser = ArgumentParser(description='''Add neutrino fluxes (and neutrino weights(osc*flux*sim_weight) if needed) for each event. ''')
     parser_file = parser.add_mutually_exclusive_group(required=True)
     parser_file.add_argument( '-f', '--file', metavar='H5_FILE', type=str, help='input HDF5 file')

@@ -182,7 +182,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def main(args=None):
+def main():
     args = parse_args()
     init_args_d = vars(args)
 

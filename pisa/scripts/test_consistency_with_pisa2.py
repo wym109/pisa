@@ -787,7 +787,7 @@ def compare_pid_full(cake_maps, pisa_maps, outdir, ratio_test_threshold,
         diff=max_diff
     )
 
-def main(args=None):
+def main():
     if FTYPE == np.float32:
         dflt_ratio_threshold = 5e-4
     elif FTYPE == np.float64:
