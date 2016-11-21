@@ -147,17 +147,23 @@ def kde_histogramdd(sample, binning, weights=[], bw_method='scott',
 
     Parameters
     ----------
-        sample : nd-array of shape (N_evts, vars), with vars in the
-                    right order corresponding to the binning order
-        binning : pisa MultiDimBinning
+        sample : nd-array
+            of shape (N_evts, vars), with vars in the right order corresponding to the binning order
+        binning : MultiDimBinning
         weights : array
-        bw_method: scott or silverman
+        bw_method: string
+            scott or silverman
         adaptive : bool
-        alpha : some parameter for the KDEs
-        use_cuda : run on GPU (only allowing <= 2d)
-        coszen_reflection : part (number between 0 and 1) of binning that is reflect at the coszen -1 and 1 egdes
-        coszen_name : binning name to identify the coszen bin that needs to undergo special treatment for reflection
-        oversample : int, evaluate KDE at more points per bin, takes longer, but is more accurate
+        alpha : float
+            some parameter for the KDEs
+        use_cuda : bool
+            run on GPU (only allowing <= 2d)
+        coszen_reflection : float
+            part (number between 0 and 1) of binning that is reflect at the coszen -1 and 1 egdes
+        coszen_name : string
+            binning name to identify the coszen bin that needs to undergo special treatment for reflection
+        oversample : int
+            evaluate KDE at more points per bin, takes longer, but is more accurate
         stack_pid : bool
             treat pid binning demension separate, not as KDEs
 

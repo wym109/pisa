@@ -1191,8 +1191,7 @@ class Map(object):
             state_updates = {
                 #'name': "(%s / %s)" % (self.name, other.name),
                 #'tex': r"{(%s / %s)}" % (self.tex, other.tex),
-                'hist': np.divide(unp.nominal_values(self.hist), unp.nominal_values(other.hist)),
-                #'hist': self.hist / other.hist,
+                'hist': unp.nominal_values(self.hist) / unp.nominal_values(other.hist),
                 'full_comparison': (self.full_comparison or
                                     other.full_comparison),
             }
