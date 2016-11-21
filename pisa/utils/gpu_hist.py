@@ -223,7 +223,7 @@ class GPUHist(object):
         cuda.memcpy_htod(self.d_hist, self.hist)
 
     def update_bin_edges(self, bin_edges_x, bin_edges_y, bin_edges_z=None):
-        # assure compatibility
+        # ensure compatibility
         assert self.h3d == bool(bin_edges_z is not None)
         assert self.n_bins_x == np.int32(len(bin_edges_x)-1)
         assert self.n_bins_y == np.int32(len(bin_edges_y)-1)
