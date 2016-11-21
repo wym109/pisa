@@ -20,8 +20,6 @@ from pisa.utils.plotter import plotter
 
 
 def main(args=None):
-    if args is None:
-        args = sys.argv[1:]
     parser = ArgumentParser()
     parser.add_argument('-t', '--template-settings', type=str,
                         metavar='configfile', required=True,

@@ -671,8 +671,6 @@ def parse_args():
 
 
 def main(args=None):
-    if args is None:
-        args = sys.argv[1:]
     args = parse_args()
     set_verbosity(args.verbose)
 

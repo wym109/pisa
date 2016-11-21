@@ -32,8 +32,6 @@ from pisa.utils.plotter import Plotter
 
 
 def main(args=None):
-    if args is None:
-        args = sys.argv[1:]
     parser = ArgumentParser()
     parser.add_argument('-t', '--template-settings', type=str,
                         metavar='configfile', required=True,

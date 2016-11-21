@@ -10,8 +10,6 @@ from pisa.utils.fileio import from_file
 
 
 def main(args=None):
-    if args is None:
-        args = sys.argv[1:]
     parser = ArgumentParser()
     parser.add_argument(
         '-d', '--dir', metavar='DIR', default='.',

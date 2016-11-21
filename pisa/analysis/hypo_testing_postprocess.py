@@ -183,8 +183,6 @@ def parse_args():
 
 
 def main(args=None):
-    if args is None:
-        args = sys.argv[1:]
     args = parse_args()
     init_args_d = vars(args)
 

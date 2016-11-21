@@ -74,8 +74,6 @@ def make_prior_dict(f_io=None, f_no=None, f=None):
 
 
 if main(args=None):
-    if args is None:
-        args = sys.argv[1:]
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument('-io','--io_chi2_file',type=str,required=True,
                         help="Inverted Ordering Chi2 file from NuFit")

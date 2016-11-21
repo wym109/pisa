@@ -346,8 +346,6 @@ def test_Pipeline():
 
 
 def main(args=None):
-    if args is None:
-        args = sys.argv[1:]
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
     import numpy as np
     from pisa.core.map import Map, MapSet

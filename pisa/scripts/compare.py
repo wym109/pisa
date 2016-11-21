@@ -23,8 +23,6 @@ from pisa.utils.plotter import Plotter
 
 
 def main(args=None):
-    if args is None:
-        args = sys.argv[1:]
     parser = ArgumentParser(
         description='''Compare two entities: Maps, map sets, pipelines, or
         distribution makers. One kind can be compared against another, so long
