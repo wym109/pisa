@@ -36,7 +36,7 @@ from pisa.aeff.AeffServiceMC import AeffServiceMC
 __all__ = []
 
 
-if __name__ = '__main__':
+if __name__ == '__main__':
     parser = ArgumentParser(
         '''Generate smoothed effective areas at energy bin centers. NOTE: at
         present, uses *ONLY* the MC-true-upgoing events.''',
