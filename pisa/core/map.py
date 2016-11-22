@@ -97,7 +97,7 @@ def reduceToHist(expected_values):
 
     # If iterable, must be iterable of MapSets
     elif isinstance(expected_values, Iterable):
-        expected_values = reduce(lambda x,y: sum(x) + sum(y),
+        expected_values = reduce(lambda x,y: x+y,
                                  expected_values).hist
     else:
         raise ValueError('Unhandled type for `expected_values`: %s'
@@ -1203,8 +1203,7 @@ class Map(object):
             state_updates = {
                 #'name': "(%s / %s)" % (self.name, other.name),
                 #'tex': r"{(%s / %s)}" % (self.tex, other.tex),
-                #'hist': np.divide(unp.nominal_values(self.hist), unp.nominal_values(other.hist)),
-                'hist': self.hist / other.hist,
+                'hist': unp.nominal_values(self.hist) / unp.nominal_values(other.hist),
                 'full_comparison': (self.full_comparison or
                                     other.full_comparison),
             }
