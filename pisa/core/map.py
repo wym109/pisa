@@ -316,8 +316,10 @@ class Map(object):
 
     def set_poisson_errors(self):
         """Approximate poisson errors using sqrt(n)."""
-        super(Map, self).__setattr__('_hist', unp.uarray(self._hist,
-                                                         np.sqrt(self._hist)))
+        nom_hist = unp.nominal_values(self._hist)
+        super(Map, self).__setattr__(
+            '_hist', unp.uarray(nom_hist, np.sqrt(nom_hist))
+        )
 
     def set_errors(self, error_hist):
         """Manually define the error with an array the same shape as the
@@ -1075,6 +1077,16 @@ class Map(object):
         expected_values = reduceToHist(expected_values)
         return np.sum(chi2(actual_values=self.hist,
                            expected_values=expected_values))
+
+    def metric_total(self, expected_values, metric):
+        if metric in VALID_METRICS:
+            return getattr(self, metric)(expected_values)
+        else:
+            raise ValueError('`metric` "%s" not recognized; use one of %s.'
+                             %(metric, VALID_METRICS))
+
+    def metric_per_map(self, expected_values, metric):
+        return self.metric_total(expected_values, metric)
 
     def __setitem__(self, idx, val):
         return setitem(self.hist, idx, val)
