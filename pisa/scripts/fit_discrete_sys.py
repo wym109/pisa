@@ -1,6 +1,7 @@
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import copy
 import itertools
+import sys
 from uncertainties import unumpy as unp
 
 import numpy as np
@@ -18,7 +19,7 @@ from pisa.utils.config_parser import parse_pipeline_config, parse_quantity, pars
 from pisa.utils.plotter import plotter
 
 
-if __name__ == '__main__':
+def main():
     parser = ArgumentParser()
     parser.add_argument('-t', '--template-settings', type=str,
                         metavar='configfile', required=True,
@@ -275,3 +276,7 @@ if __name__ == '__main__':
                         #f = chi2.pdf(x, *p)
                         #ax.plot(x,f, color='r')
                         plt.savefig('diff_%s_%s.png'%(sys,cat))
+
+
+if __name__ == '__main__':
+    main()
