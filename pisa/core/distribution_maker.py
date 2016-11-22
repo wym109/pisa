@@ -68,9 +68,9 @@ class DistributionMaker(object):
     def __iter__(self):
         return iter(self._pipelines)
 
-    def get_outputs(self, sum=False, **kwargs):
+    def get_outputs(self, return_sum=False, **kwargs):
         outputs = [pipeline.get_outputs(**kwargs) for pipeline in self]
-        if sum:
+        if return_sum:
             outputs = reduce(lambda x,y: sum(x) + sum(y), outputs)
         return outputs
 

@@ -48,7 +48,7 @@ class ProfileLLHAnalysis(Analysis):
         self.blind = blind
 
         # Generate distribution
-        self.asimov = self.data_maker.get_outputs()
+        self.asimov = self.data_maker.get_outputs(return_sum=True)
         self.pseudodata_method = None
         self.pseudodata = None
         self.n_minimizer_calls = 0
@@ -77,7 +77,7 @@ class ProfileLLHAnalysis(Analysis):
         self._minimizer_settings = None
 
         # Generate distribution
-        self.asimov = self.data_maker.get_outputs()
+        self.asimov = self.data_maker.get_outputs(return_sum=True)
         self.pseudodata = None
         self.n_minimizer_calls = 0
 
