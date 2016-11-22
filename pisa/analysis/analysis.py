@@ -62,8 +62,8 @@ class Analysis(object):
         data distribution is provided. See [minimizer_settings] for
 
     """
-    __nit__ = 1
     def __init__(self):
+        self.__nit__ = 1
         pass
 
     def fit_hypo(self, data_dist, hypo_maker, hypo_param_selections, metric,
@@ -282,6 +282,7 @@ class Analysis(object):
 
             sys.stdout.write(hdr)
 
+        # reset number of iterations before each minimization
         self.__nit__ = 1
         optimize_result = optimize.minimize(
             fun=self._minimizer_callable,
