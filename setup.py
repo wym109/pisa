@@ -291,7 +291,7 @@ if __name__ == '__main__':
                 'pipeline.py = pisa.core.pipeline:main',
                 'add_flux_to_events_file.py = pisa.scripts.add_flux_to_events_file:main',
                 'compare.py = pisa.scripts.compare:main',
-                'fit_discrete_sys_pid.py = pisa.scripts.fit_discrete_sys_pid:main',
+                'fit_discrete_sys.py = pisa.scripts.fit_discrete_sys:main',
                 'make_events_file.py = pisa.scripts.make_events_file:main',
                 'make_nufit_theta23_spline_priors.py = pisa.scripts.make_nufit_theta23_spline_priors:main',
                 'test_consistency_with_pisa2.py = pisa.scripts.test_consistency_with_pisa2:main',
