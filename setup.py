@@ -146,6 +146,9 @@ if __name__ == '__main__':
     ext_modules = []
     package_data = {}
 
+    # Include documentation files wherever they may be
+    package_data[''] = ['*.md', '*.rst']
+
     # Prob3 oscillation code (pure C++, no CUDA)
     prob3cpu_module = Extension(
         name='pisa.stages.osc.prob3._BargerPropagator',
@@ -165,10 +168,12 @@ if __name__ == '__main__':
     ext_modules.append(prob3cpu_module)
 
     package_data['pisa.resources'] = [
-        'aeff/*.json',
-        'cross_sections/cross_sections.json',
+        'aeff/*.json*',
+        'cross_sections/*json*',
+        'discr_sys/*.json*',
+
         'events/*.hdf5',
-        'events/*.json',
+        'events/*.json*',
         'events/deepcore_ic86/MSU/1XXX/Joined/*.hdf5',
         'events/deepcore_ic86/MSU/1XXX/UnJoined/*.hdf5',
         'events/deepcore_ic86/MSU/1XXXX/Joined/*.hdf5',
@@ -176,25 +181,33 @@ if __name__ == '__main__':
         'events/deepcore_ic86/MSU/icc/*.hdf5',
         'events/pingu_v36/*.hdf5',
         'events/pingu_v39/*.hdf5',
+
         'flux/*.d',
         'osc/*.hdf5',
         'osc/*.dat',
-        'pid/*.json',
-        'priors/*.json',
-        'reco/*.json',
+        'pid/*.json*',
+        'priors/*.json*',
+        'priors/*.md',
+        'reco/*.json*',
+
+        'settings/binning/*.cfg',
         'settings/discrete_sys/*.cfg',
         'settings/logging/logging.json',
-        'settings/minimizer/*.json',
+        'settings/mc/*.cfg',
+        'settings/minimizer/*.json*',
+        'settings/osc/*.cfg',
+        'settings/osc/*.md',
         'settings/pipeline/*.cfg',
-        'discr_sys/*.json',
-        'tests/data/aeff/*.json',
-        'tests/data/flux/*.json',
-        'tests/data/full/*.json',
-        'tests/data/osc/*.json',
-        'tests/data/pid/*.json',
-        'tests/data/reco/*.json',
+        'settings/pipeline/*.md',
+
+        'tests/data/aeff/*.json*',
+        'tests/data/flux/*.json*',
+        'tests/data/full/*.json*',
+        'tests/data/osc/*.json*',
+        'tests/data/pid/*.json*',
+        'tests/data/reco/*.json*',
         'tests/data/xsec/*.root',
-        'tests/data/oscfit/*.json',
+        'tests/data/oscfit/*.json*',
         'tests/settings/*.cfg'
     ]
 
@@ -278,7 +291,6 @@ if __name__ == '__main__':
                 'pipeline.py = pisa.core.pipeline:main',
                 'add_flux_to_events_file.py = pisa.scripts.add_flux_to_events_file:main',
                 'compare.py = pisa.scripts.compare:main',
-                'fit_discrete_sys.py = pisa.scripts.fit_discrete_sys:main',
                 'fit_discrete_sys_pid.py = pisa.scripts.fit_discrete_sys_pid:main',
                 'make_events_file.py = pisa.scripts.make_events_file:main',
                 'make_nufit_theta23_spline_priors.py = pisa.scripts.make_nufit_theta23_spline_priors:main',
