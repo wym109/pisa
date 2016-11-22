@@ -63,7 +63,7 @@ class Analysis(object):
 
     """
     def __init__(self):
-        self.__nit__ = 0
+        self._nit = 0
         pass
 
     def fit_hypo(self, data_dist, hypo_maker, hypo_param_selections, metric,
@@ -255,7 +255,7 @@ class Analysis(object):
         fit_history = []
         start_t = time.time()
 
-        if pprint:
+        if pprint and not blind:
             free_p = hypo_maker.params.free
 
             # Display any units on top
@@ -283,7 +283,7 @@ class Analysis(object):
             sys.stdout.write(hdr)
 
         # reset number of iterations before each minimization
-        self.__nit__ = 0
+        self._nit = 0
         optimize_result = optimize.minimize(
             fun=self._minimizer_callable,
             x0=x0,
@@ -292,7 +292,7 @@ class Analysis(object):
             bounds=bounds,
             method=minimizer_settings['method']['value'],
             options=minimizer_settings['options']['value'],
-            callback = self._minimizer_callback
+            callback=self._minimizer_callback
         )
         end_t = time.time()
         if pprint:
@@ -489,10 +489,11 @@ class Analysis(object):
 
         # Report status of metric & params (except if blinded)
         if blind:
-            msg = 'minimizer iteration #%6d' %self.__nit__
+            msg = ('minimizer iteration: #%6d | function call: #%6d'
+		   %(self._nit, counter.count))
         else:
             #msg = '%s=%.6e | %s' %(metric, metric_val, hypo_maker.params.free)
-            msg = '%s %s %s | ' %(('%d'%self.__nit__).center(6),
+            msg = '%s %s %s | ' %(('%d'%self._nit).center(6),
                                 ('%d'%counter.count).center(10),
                                 format(metric_val, '0.5e').rjust(12))
             msg += ' '.join([('%0.5e'%p.value.m).rjust(12)
@@ -516,13 +517,14 @@ class Analysis(object):
 
     def _minimizer_callback(self, xk):
         """Passed as `callback` parameter to `optimize.minimize`, and is called
-           after each iteration. Keeps track of number of iterations.
+        after each iteration. Keeps track of number of iterations.
 
         Parameters
         ----------
-        xk : Parameter vector
+        xk : list
+	    Parameter vector
         """
-        self.__nit__+=1
+        self._nit+=1
 
     # TODO: move the complexity of defining a scan into a class with various
     # factory methods, and just pass that class to the scan method; we will
