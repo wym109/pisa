@@ -1187,13 +1187,6 @@ def main():
             logging.info(PID_PASS_MESSAGE)
         else:
             raise ValueError(PID_FAIL_MESSAGE)
-        compare_pid_full(
-            pisa_maps=pisa2_comparisons[4],
-            cake_maps=pipeline['pid'].outputs, # use reco here
-            outdir=args.outdir,
-            ratio_test_threshold=args.ratio_threshold,
-            diff_test_threshold=args.diff_threshold
-        )
 
 
 if __name__ == '__main__':
