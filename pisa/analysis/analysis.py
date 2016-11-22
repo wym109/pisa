@@ -63,7 +63,7 @@ class Analysis(object):
 
     """
     def __init__(self):
-        self.__nit__ = 1
+        self.__nit__ = 0
         pass
 
     def fit_hypo(self, data_dist, hypo_maker, hypo_param_selections, metric,
@@ -260,7 +260,7 @@ class Analysis(object):
 
             # Display any units on top
             r = re.compile(r'(^[+0-9.eE-]* )|(^[+0-9.eE-]*$)')
-            hdr = ' '*(6+10+1+12+3)
+            hdr = ' '*(6+1+10+1+12+3)
             unt = []
             for p in free_p:
                 u = r.sub('', format(p.value, '~')).replace(' ','')[0:10]
@@ -271,7 +271,7 @@ class Analysis(object):
             hdr += '\n'
 
             # Header names
-            hdr += ('iter'.center(6) + ' ' + 'funcalls'.center(10) +
+            hdr += ('iter'.center(6) + ' ' + 'funcalls'.center(10) + ' ' +
                     metric[0:12].center(12) + ' | ')
             hdr += ' '.join([p.name[0:12].center(12) for p in free_p])
             hdr += '\n'
@@ -283,7 +283,7 @@ class Analysis(object):
             sys.stdout.write(hdr)
 
         # reset number of iterations before each minimization
-        self.__nit__ = 1
+        self.__nit__ = 0
         optimize_result = optimize.minimize(
             fun=self._minimizer_callable,
             x0=x0,
@@ -515,6 +515,13 @@ class Analysis(object):
         return sign*metric_val
 
     def _minimizer_callback(self, xk):
+        """Passed as `callback` parameter to `optimize.minimize`, and is called
+           after each iteration. Keeps track of number of iterations.
+
+        Parameters
+        ----------
+        xk : Parameter vector
+        """
         self.__nit__+=1
 
     # TODO: move the complexity of defining a scan into a class with various
