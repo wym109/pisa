@@ -177,7 +177,7 @@ class Analysis(object):
             fp = self.template_maker.params.free
             fp[param_names].value = val
             self.template_maker.update_params(fp)
-            template = self.template_maker.get_outputs(return_sum=True)
+            template = self.template_maker.get_outputs()
             metric_vals.append(self.pseudodata.metric_total(expected_values=template,
                                                       metric=self.metric))
         return metric_vals
@@ -216,7 +216,7 @@ class Analysis(object):
             sign = -1
         self.template_maker.params.free._rescaled_values = scaled_param_vals
 
-        template = self.template_maker.get_outputs(return_sum=True)
+        template = self.template_maker.get_outputs()
         #N_mc = sum([unp.nominal_values(map.hist).sum() for map in template])
         #scale = self.N_data/N_mc
         #scale=1.
@@ -288,7 +288,7 @@ class Analysis(object):
             print '\naverage template generation time during minimizer run: %.4f ms'%((end_t - start_t) * 1000./self.n_minimizer_calls)
             best_fit_vals = minim_result.x
             metric_val = minim_result.fun
-            template = self.template_maker.get_outputs(return_sum=True)
+            template = self.template_maker.get_outputs()
             dict_flags = {}
             mod_chi2_val = (self.pseudodata.metric_total(expected_values=template, metric='mod_chi2')
                 + template_maker.params.priors_penalty(metric='mod_chi2'))
@@ -303,7 +303,7 @@ class Analysis(object):
                 logging.warning(str(dict_flags))
 
         all_metrics = {}
-        template = self.template_maker.get_outputs(return_sum=True)
+        template = self.template_maker.get_outputs()
         #for metric in ['llh', 'conv_llh', 'barlow_llh','chi2', 'mod_chi2']:
         for metric in ['llh','chi2']:
             all_metrics[metric] = self.pseudodata.metric_total(expected_values=template, metric=metric) + template_maker.params.priors_penalty(metric=metric) 
@@ -441,7 +441,7 @@ if __name__ == '__main__':
     parser.add_argument('-pd', '--pseudo-data', type=str, default='poisson',
                         choices=['poisson', 'gauss+poisson', 'asimov', 'data'], 
                         help='''Mode for pseudo data sampling''')
-    parser.add_argument('--var', type=str, default='args.var',
+    parser.add_argument('--var', type=str, default='nutau_norm',
                         help='''param to be profiled''')
     parser.add_argument('--metric', type=str,
                         choices=['llh', 'chi2', 'conv_llh', 'mod_chi2', 'barlow_llh'], required=True,

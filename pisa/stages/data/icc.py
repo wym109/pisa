@@ -88,7 +88,7 @@ class icc(Stage):
         '''
         # get params
         icc_bg_file = self.params.icc_bg_file.value
-        if self.error_method in ['sumw2+shape', 'fixed_sumw2+shape', 'shape']:
+        if 'shape' in self.error_method:
             alt_icc_bg_file = self.params.alt_icc_bg_file.value
         else:
             alt_icc_bg_file = None
@@ -235,9 +235,14 @@ class icc(Stage):
             maps = [Map(name=self.output_names[0], hist=(self.icc_bg_hist * scale), error_hist=error ,binning=self.output_binning)]
         elif self.error_method == 'shape':
             error = scale * np.abs(self.icc_bg_hist - self.alt_icc_bg_hist)
+        elif self.error_method == 'fixed_shape':
+            error = fixed_scale * np.abs(self.icc_bg_hist - self.alt_icc_bg_hist)
             maps = [Map(name=self.output_names[0], hist=(self.icc_bg_hist * scale), error_hist=error ,binning=self.output_binning)]
         elif self.error_method == 'fixed_sumw2+shape':
             error = fixed_scale * np.sqrt(self.icc_bg_hist + (self.icc_bg_hist - self.alt_icc_bg_hist)**2 )
+            maps = [Map(name=self.output_names[0], hist=(self.icc_bg_hist * scale), error_hist=error ,binning=self.output_binning)]
+        elif self.error_method == 'fixed_doublesumw2+shape':
+            error = fixed_scale * np.sqrt(2*self.icc_bg_hist + (self.icc_bg_hist - self.alt_icc_bg_hist)**2 )
             maps = [Map(name=self.output_names[0], hist=(self.icc_bg_hist * scale), error_hist=error ,binning=self.output_binning)]
         else:
             maps = [Map(name=self.output_names[0], hist=(self.icc_bg_hist * scale), binning=self.output_binning)]

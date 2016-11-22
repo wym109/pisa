@@ -1,4 +1,16 @@
 #!/usr/bin/env python
+"""
+Produce fit results for sets of disctrete systematics (i.e. for example
+several simulations for different DOM efficiencies)
+
+The parameters and settings going into the fit are given by an external cfg
+file (fit settings).
+
+n-dimensional MapSets are supported to be fitted with m-dimesnional
+polynomials, that can either be forced to go through the nominal data point or
+not
+
+"""
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import copy
@@ -24,7 +36,7 @@ __all__ = ['parse_args', 'main']
 
 
 def parse_args():
-    parser = ArgumentParser(description=main.__doc__)
+    parser = ArgumentParser(description=__doc__)
     parser.add_argument(
         '-t', '--template-settings', type=str,
         metavar='configfile', required=True,
@@ -60,21 +72,10 @@ def parse_args():
 
 
 def main():
-    """Produce fit results for sets of disctrete systematics (i.e. for example
-    several simulations for different DOM efficiencies)
-
-    The parameters and settings going into the fit are given by an external
-    cfg file (fit settings).
-
-    n-dimensional MapSets are supported to be fitted with m-dimesnional
-    polynomials, that can either be forced to go through the nominal data point
-    or not
-
-    """
     args = parse_args()
     set_verbosity(args.v)
 
-    if args.plot:
+    if args.plot: 
         import matplotlib as mpl
         mpl.use('pdf')
         import matplotlib.pyplot as plt
@@ -83,6 +84,7 @@ def main():
     cfg = from_file(args.fit_settings)
     sys_list = cfg.get('general', 'sys_list').replace(' ', '').split(',')
     stop_idx = cfg.getint('general', 'stop_after_stage')
+
 
     for sys in sys_list:
         # Parse info for given systematic
@@ -234,7 +236,7 @@ def main():
             maps = []
             for name in map_names:
                 maps.append(Map(name='%s_raw'%name, hist=outputs[name][...,d],
-                            binning=binning))
+                                binning=binning))
             maps = MapSet(maps)
             my_plotter = Plotter(
                 stamp='PISA cake test',
@@ -248,6 +250,9 @@ def main():
                 fname='%s_%s_%s_%s'%(sys, args.tag, d, smooth),
                 split_axis='pid', cmap='RdBu'
             )
+
+
+main.__doc__ = __doc__
 
 
 if __name__ == '__main__':
