@@ -70,7 +70,7 @@ class Analysis(object):
         self.blind = blind
 
         # DOF as n_bins - n_free_params + n_gauss_priors
-        n_bins = sum(map.binning.tot_num_bins for map in self.template_maker.get_outputs(sum=True))
+        n_bins = sum(map.binning.tot_num_bins for map in self.template_maker.get_outputs(return_sum=True))
         self.n_free_params = len(self.template_maker.params.free)
         n_gauss_priors = 0
         for param in self.template_maker.params.free:
@@ -78,7 +78,7 @@ class Analysis(object):
         self.dof = n_bins - self.n_free_params + n_gauss_priors
 
         # Generate distribution
-        self.data = self.data_maker.get_outputs(sum=True)
+        self.data = self.data_maker.get_outputs(return_sum=True)
         self.pseudodata_method = None
         self.pseudodata = None
         self.n_minimizer_calls = 0
@@ -177,7 +177,7 @@ class Analysis(object):
             fp = self.template_maker.params.free
             fp[param_names].value = val
             self.template_maker.update_params(fp)
-            template = self.template_maker.get_outputs()
+            template = self.template_maker.get_outputs(return_sum=True)
             metric_vals.append(self.pseudodata.metric_total(expected_values=template,
                                                       metric=self.metric))
         return metric_vals
@@ -216,7 +216,7 @@ class Analysis(object):
             sign = -1
         self.template_maker.params.free._rescaled_values = scaled_param_vals
 
-        template = self.template_maker.get_outputs()
+        template = self.template_maker.get_outputs(return_sum=True)
         #N_mc = sum([unp.nominal_values(map.hist).sum() for map in template])
         #scale = self.N_data/N_mc
         #scale=1.
@@ -288,7 +288,7 @@ class Analysis(object):
             print '\naverage template generation time during minimizer run: %.4f ms'%((end_t - start_t) * 1000./self.n_minimizer_calls)
             best_fit_vals = minim_result.x
             metric_val = minim_result.fun
-            template = self.template_maker.get_outputs()
+            template = self.template_maker.get_outputs(return_sum=True)
             dict_flags = {}
             mod_chi2_val = (self.pseudodata.metric_total(expected_values=template, metric='mod_chi2')
                 + template_maker.params.priors_penalty(metric='mod_chi2'))
@@ -303,7 +303,7 @@ class Analysis(object):
                 logging.warning(str(dict_flags))
 
         all_metrics = {}
-        template = self.template_maker.get_outputs()
+        template = self.template_maker.get_outputs(return_sum=True)
         #for metric in ['llh', 'conv_llh', 'barlow_llh','chi2', 'mod_chi2']:
         for metric in ['llh','chi2']:
             all_metrics[metric] = self.pseudodata.metric_total(expected_values=template, metric=metric) + template_maker.params.priors_penalty(metric=metric) 
