@@ -1089,9 +1089,6 @@ class Map(object):
             raise ValueError('`metric` "%s" not recognized; use one of %s.'
                              %(metric, VALID_METRICS))
 
-    def metric_per_map(self, expected_values, metric):
-        return self.metric_total(expected_values, metric)
-
     def __setitem__(self, idx, val):
         return setitem(self.hist, idx, val)
 
