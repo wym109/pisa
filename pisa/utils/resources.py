@@ -246,7 +246,7 @@ def find_path(pathspec, fail=True):
             augmented_paths = [os.path.join(resource_path, subdir, pathspec)
                                for subdir in RESOURCES_SUBDIRS]
             # Also look in the base dir specified for the pathspec
-            augmented_paths.appned(os.path.join(resource_path, pathspec))
+            augmented_paths.append(os.path.join(resource_path, pathspec))
 
             for augmented_path in augmented_paths:
                 if os.path.exists(augmented_path):
