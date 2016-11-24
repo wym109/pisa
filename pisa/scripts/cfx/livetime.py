@@ -9,6 +9,7 @@ from pisa.core.distribution_maker import DistributionMaker
 from pisa.core.map import Map, MapSet
 from pisa.utils.log import set_verbosity
 
+
 if __name__ == '__main__':
     set_verbosity(1)
 
@@ -37,7 +38,7 @@ if __name__ == '__main__':
 
         re_param.value = 0 * ureg.dimensionless
         template_maker.update_params(re_param)
-        nom_out = template_maker.get_outputs()[0].pop()
+        nom_out = template_maker.get_outputs(return_sum=True)[0].pop()
 
         re_param.value = 4 * ureg.dimensionless
         sf_param.value = 1234 * ureg.dimensionless
@@ -46,7 +47,7 @@ if __name__ == '__main__':
         fe = []
         for x in xrange(200):
         # for x in xrange(2):
-            temp_out = template_maker.get_outputs()[0].pop()
+            temp_out = template_maker.get_outputs(return_sum=True)[0].pop()
             nan_mask = nom_out.hist < 0.0001
             div = temp_out.hist[~nan_mask] / nom_out.hist[~nan_mask]
             fe.append(div)

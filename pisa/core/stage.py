@@ -951,6 +951,7 @@ class Stage(object):
     def _compute_nominal_outputs(self):
         return None
 
+    @profile
     def _compute_outputs(self, inputs):
         """Override this method for no-input stages which do not use transforms.
         Input stages that compute a TransformSet needn't override this, as the

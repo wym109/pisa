@@ -31,6 +31,20 @@ __all__ = ['compare_flux', 'compare_osc', 'compare_aeff', 'compare_reco',
            'compare_aeff_full', 'compare_reco_full', 'compare_pid_full']
 
 
+PID_FAIL_MESSAGE = (
+    "PISA 2 reference file has a known bug in its PID (fraction for each PID"
+    " signature is taken as total of events ID'd for each signatures, and not"
+    " total of all events, as it should be. Therefore, if PISA 3 / full"
+    " pipeline PID agrees with PISA 2 (same) for DeepCore (which does not have"
+    " mutually-exclusive PID definition), then PISA 3 is in error."
+)
+
+PID_PASS_MESSAGE = (
+    "PID passed, since PISA 3 should *disagree* with PISA 2 due to known bug"
+    " in PISA 2"
+)
+
+
 def compare_flux(config, servicename, pisa2file, systname,
                  outdir, ratio_test_threshold, diff_test_threshold):
     """Compare flux stages run in isolation with dummy inputs"""
@@ -787,6 +801,7 @@ def compare_pid_full(cake_maps, pisa_maps, outdir, ratio_test_threshold,
         diff=max_diff
     )
 
+
 def main():
     if FTYPE == np.float32:
         dflt_ratio_threshold = 5e-4
@@ -1055,22 +1070,23 @@ def main():
             'events', 'deepcore_ic86', 'MSU', '1XXXX', 'Joined',
             'DC_MSU_1X585_joined_nu_nubar_events_mc.hdf5'
         )
-        #params.pid_weights_name.value = 'weighted_aeff'
-        #params.pid_ver.value = 'msu_mn8d-mn7d'
-        params.pid_spec.value = "[('cscd', '(pid >= -2) & (pid <= 3)'), ('trck', 'pid > 3')]"
         pisa2file = os.path.join(
             'tests', 'data', 'pid', 'PISAV2PIDStageHist1X585Service.json'
         )
         pisa2file = find_resource(pisa2file)
-        pid_pipeline = compare_pid(
-            config=deepcopy(pid_config),
-            servicename='hist_1X585',
-            pisa2file=pisa2file,
-            outdir=args.outdir,
-            ratio_test_threshold=args.ratio_threshold,
-            diff_test_threshold=args.diff_threshold
-        )
-
+        try:
+            pid_pipeline = compare_pid(
+                config=deepcopy(pid_config),
+                servicename='hist_1X585',
+                pisa2file=pisa2file,
+                outdir=args.outdir,
+                ratio_test_threshold=args.ratio_threshold,
+                diff_test_threshold=args.diff_threshold
+            )
+        except ValueError:
+            logging.info(PID_PASS_MESSAGE)
+        else:
+            raise ValueError(PID_FAIL_MESSAGE)
     ## Perform reco+PID tests
     #if args.recopid or test_all:
     #    pid_settings = os.path.join(
@@ -1159,13 +1175,19 @@ def main():
             diff_test_threshold=args.diff_threshold
         )
         # Through PID stage comparisons
-        compare_pid_full(
-            pisa_maps=pisa2_comparisons[4],
-            cake_maps=pipeline['pid'].outputs, # use reco here
-            outdir=args.outdir,
-            ratio_test_threshold=args.ratio_threshold,
-            diff_test_threshold=args.diff_threshold
-        )
+        try:
+            compare_pid_full(
+                pisa_maps=pisa2_comparisons[4],
+                cake_maps=pipeline['pid'].outputs, # use reco here
+                outdir=args.outdir,
+                ratio_test_threshold=args.ratio_threshold,
+                diff_test_threshold=args.diff_threshold
+            )
+        except ValueError:
+            logging.info(PID_PASS_MESSAGE)
+        else:
+            raise ValueError(PID_FAIL_MESSAGE)
+
 
 if __name__ == '__main__':
     main()
