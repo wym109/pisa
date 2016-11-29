@@ -30,12 +30,13 @@ def parse_args():
     )
     parser.add_argument(
         '--ignore-gpu', action='store_true', default=False,
-        help='''Do not run the gpu examples. You will need to flag this if your
-        system does not have a gpu else it will fail.'''
+        help='''Skip the pipelines which require a gpu to run. You will
+        need to flag this if your system does not have a gpu else it
+        will fail.'''
     )
     parser.add_argument(
         '--ignore-root', action='store_true', default=False,
-        help='''Do not run the examples which depend on ROOT. You will
+        help='''Skip the pipelines which require ROOT to run. You will
         need to flag this if your system does not have an installation
         of ROOT that your python can find else it will fail.'''
     )
@@ -75,20 +76,23 @@ def main():
                 if args.ignore_root:
                     logging.info('Skipping pipeline as it has ROOT '
                                  'dependencies')
-                    pass
                 else:
-                    raise ImportError('Error trying to import ROOT - use the '
-                                      'flag "--ignore-root" to skip ROOT '
-                                      'dependent pipelines.')
+                    logging.error(sys.exc_info())
+                    logging.error('%s does not work. Error trying to import '
+                                  'ROOT - use the flag "--ignore-root" to '
+                                  'skip ROOT dependent pipelines.'
+                                  %settings_file)
+                    raise
             elif 'cuda' in err.message:
                 if args.ignore_gpu:
                     logging.info('Skipping pipeline as it has GPU '
                                  'dependencies')
-                    pass
                 else:
-                    raise ImportError('Error trying to import CUDA - use the '
-                                      'flag "--ignore-gpu" to skip GPU '
-                                      'dependent pipelines.')
+                    logging.error(sys.exc_info())
+                    logging.error('%s doese not work. Error trying to import '
+                                  'CUDA - use the flag "--ignore-gpu" to skip '
+                                  'GPU dependent pipelines.' % settings_file)
+                    raise
             else:
                 logging.error(sys.exc_info())
                 raise ValueError('%s does not work. Please review the error '
