@@ -2,9 +2,11 @@
 # author: S.Wren
 # date:   November 15, 2016
 """
-Looks in the example pipeline settings directory and runs all of them to ensure
-that their functionality remains intact. Note that this only tests that they run
-but does not test that this is necessarily correct. This is up to the user.
+Look in the PISA installation's pipeline settings directory for any example
+pipeline configs (*example*.cfg) and run all of them to ensure that their
+functionality remains intact. Note that this only tests that they run but does
+not test that the generated outputs are necessarily correct (this is up to the
+user).
 """
 
 
@@ -22,12 +24,7 @@ __all__ = ['parse_args', 'main']
 
 
 def parse_args():
-    parser = ArgumentParser(
-        description='''Looks in the example pipeline settings directory and 
-        runs all of them to ensure that their functionality remains intact. 
-        Note that this only tests that they run but does not test that this is 
-        necessarily correct. This is up to the user.'''
-    )
+    parser = ArgumentParser(description=__doc__)
     parser.add_argument(
         '--ignore-gpu', action='store_true', default=False,
         help='''Do not run the gpu examples. You will need to flag this if your
