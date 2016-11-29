@@ -61,14 +61,6 @@ def main():
         # aeff smooth stage is currently broken. So ignore for now.
         if 'smooth' in settings_file:
             settings_files.remove(settings_file)
-        if args.ignore_gpu:
-            if 'gpu' in settings_file:
-                settings_files.remove(settings_file)
-        if args.ignore_root:
-            if 'xsec' in settings_file:
-                settings_files.remove(settings_file)
-            if 'cfx' in settings_file:
-                settings_files.remove(settings_file)
 
     for settings_file in settings_files:
         try:
@@ -80,17 +72,28 @@ def main():
             logging.info('Seems fine!')
         except ImportError as err:
             if 'ROOT' in err.message:
-                raise ImportError('Error trying to import ROOT - use the flag '
-                                  '"--ignore-root" to skip ROOT dependent '
-                                  'pipelines.')
+                if args.ignore_root:
+                    logging.info('Skipping pipeline as it has ROOT '
+                                 'dependencies')
+                    pass
+                else:
+                    raise ImportError('Error trying to import ROOT - use the '
+                                      'flag "--ignore-root" to skip ROOT '
+                                      'dependent pipelines.')
             elif 'cuda' in err.message:
-                raise ImportError('Error trying to import CUDA - use the flag '
-                                  '"--ignore-gpu" to skip GPU dependent '
-                                  'pipelines.')
-            logging.error(sys.exc_info())
-            raise ValueError('%s does not work. Please review the error '
-                             'message above and fix the problem.'
-                             %settings_file)
+                if args.ignore_gpu:
+                    logging.info('Skipping pipeline as it has GPU '
+                                 'dependencies')
+                    pass
+                else:
+                    raise ImportError('Error trying to import CUDA - use the '
+                                      'flag "--ignore-gpu" to skip GPU '
+                                      'dependent pipelines.')
+            else:
+                logging.error(sys.exc_info())
+                raise ValueError('%s does not work. Please review the error '
+                                 'message above and fix the problem.'
+                                 %settings_file)
         except:
             logging.error(sys.exc_info())
             raise ValueError('%s does not work. Please review the error '
