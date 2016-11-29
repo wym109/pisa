@@ -89,7 +89,7 @@ def main():
                                  'dependencies')
                 else:
                     logging.error(sys.exc_info())
-                    logging.error('%s doese not work. Error trying to import '
+                    logging.error('%s does not work. Error trying to import '
                                   'CUDA - use the flag "--ignore-gpu" to skip '
                                   'GPU dependent pipelines.' % settings_file)
                     raise
