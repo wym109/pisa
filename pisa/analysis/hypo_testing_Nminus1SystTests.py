@@ -74,16 +74,6 @@ def parse_args():
         hypothesis.'''
     )
     parser.add_argument(
-        '--h1-pipeline',
-        type=str, action='append', default=None, metavar='PIPELINE_CFG',
-        help='''Settings for the generation of hypothesis h1 distributions;
-        repeat this argument to specify multiple pipelines. If omitted, the
-        same settings as specified for --h0-pipeline are used to generate
-        hypothesis h1 distributions (and so you have to use the
-        --h1-param-selections argument to generate a hypotheses distinct
-        from hypothesis h0 but still use h0's distribution maker).'''
-    )
-    parser.add_argument(
         '--h1-param-selections',
         type=str, default=None, metavar='PARAM_SELECTOR_LIST',
         help='''Comma-separated (no spaces) list of param selectors to apply to
@@ -224,7 +214,9 @@ def main():
     init_args_d['fluctuate_fid'] = False
 
     init_args_d['h0_maker'] = DistributionMaker(init_args_d['h0_maker'])
-    init_args_d['h1_maker'] = DistributionMaker(init_args_d['h1_maker'])
+    init_args_d['h1_maker'] = init_args_d['h0_maker'].select_params(
+        init_args_d['h1_param_selections']
+    )
 
     fix_wrong = init_args_d.pop('fix_wrong')
 
