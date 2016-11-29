@@ -43,7 +43,9 @@ def do_akhmedov(h0_map, h0_name, h1_map, h1_name, fulltitle,
     akhmedov_to_plot['map'] = ((h1_map['map']-h0_map['map'])
                                / np.sqrt(h0_map['map']))
 
-    akhmedovlabel = r'$\left(N_{\mathrm{%s}}-N_{\mathrm{%s}}\right)/\sqrt{N_{\mathrm{%s}}}$'%(h1_name,h0_name,h0_name)
+    akhmedovlabel = r'$\left(N_{\mathrm{%s}}-N_{\mathrm{%s}}\right)'%(
+        h1_name,h0_name) \
+                    +r'/\sqrt{N_{\mathrm{%s}}}$'%(h0_name)
 
     baseplot(m=h0_map,
              title='hypothesis 0 = %s'%h0_name,
@@ -208,12 +210,35 @@ def main():
 
     h0_maker =  hypo_testing.h0_maker
     h0_maker.select_params(init_args_d['h0_param_selections'])
-    h0_maps = h0_maker.get_outputs(return_sum=True)
+    for h0_pipeline in h0_maker.pipelines:
+        # Need a special case where PID is a separate stage
+        if 'pid' in h0_pipeline.stage_names:
+            return_h0_sum=False
+        else:
+            return_h0_sum=True
+    h0_maps = h0_maker.get_outputs(return_sum=return_h0_sum)
+
+    # Assume just a singular pipeline used here.
+    # Not sure how else to deal with PID as a separate stage.
+    if not return_h0_sum:
+        h0_maps = h0_maps[0]
 
     h1_maker = hypo_testing.h1_maker
     h1_maker.select_params(init_args_d['h1_param_selections'])
-    h1_maps = h1_maker.get_outputs(return_sum=True)
+    for h1_pipeline in h1_maker.pipelines:
+        # Need a special case where PID is a separate stage
+        if 'pid' in h1_pipeline.stage_names:
+            return_h1_sum=False
+        else:
+            return_h1_sum=True
+    h1_maps = h1_maker.get_outputs(return_sum=return_h1_sum)
 
+    # Assume just a singular pipeline used here.
+    # Not sure how else to deal with PID as a separate stage.
+    if not return_h1_sum:
+        h1_maps = h1_maps[0]
+
+    # Need a special case where PID is a separate stage
     if 'trck' in ''.join(h0_maps.names):
 
         h0_trck_map = h0_maps.combine_wildcard('*_trck')
@@ -249,57 +274,76 @@ def main():
             h0_cscd_map.binning['reco_coszen'].bin_edges.magnitude
         h1_cscd_to_plot['map'] = h1_cscd_map.hist
 
-    if 'evts' in ''.join(h0_maps.names):
+        do_akhmedov(h0_map=h0_trck_to_plot,
+                    h1_map=h1_trck_to_plot,
+                    h0_name='%s'%args.h0_name,
+                    h1_name='%s'%args.h1_name,
+                    fulltitle='%s %s Events Identified as Track'
+                    %(detector, selection),
+                    savename='trck',
+                    outdir=args.logdir)
 
-        h0_map = h0_maps['evts']
+        do_akhmedov(h0_map=h0_cscd_to_plot,
+                    h1_map=h1_cscd_to_plot,
+                    h0_name='%s'%args.h0_name,
+                    h1_name='%s'%args.h1_name,
+                    fulltitle='%s %s Events Identified as Cascade'
+                    %(detector, selection),
+                    savename='cscd',
+                    outdir=args.logdir)
+
+    else:
+
+        h0_map = h0_maps['total']
         h0_map.set_errors(error_hist=None)
 
-        h1_map = h1_maps['evts']
+        h1_map = h1_maps['total']
         h1_map.set_errors(error_hist=None)
-	
-	h0_trck_to_plot = {}
-        h0_trck_to_plot['ebins'] = \
-            h0_map.binning['reco_energy'].bin_edges.magnitude
-        h0_trck_to_plot['czbins'] = \
-            h0_map.binning['reco_coszen'].bin_edges.magnitude
-        h0_trck_to_plot['map'] = h0_map.hist[:,:,1]
 
-        h1_trck_to_plot = {}
-        h1_trck_to_plot['ebins'] = \
-            h0_map.binning['reco_energy'].bin_edges.magnitude
-        h1_trck_to_plot['czbins'] = \
-            h0_map.binning['reco_coszen'].bin_edges.magnitude
-        h1_trck_to_plot['map'] = h1_map.hist[:,:,1]
+        pid_names = h0_map.binning['pid'].bin_names
+        if pid_names != h1_map.binning['pid'].bin_names:
+            raise ValueError('h0 and h1 maps must have same PID bin names in '
+                             'order to make the Akhmedov plots')
+        if pid_names is None:
+            logging.warn('There are no names given for the PID bins, thus '
+                         'they will just be numbered in both the the plot '
+                         'save names and titles.')
+            pid_names = [x for x in range(0,h0_map.binning['pid'].num_bins)]
 
-        h0_cscd_to_plot = {}
-        h0_cscd_to_plot['ebins'] = \
-            h0_map.binning['reco_energy'].bin_edges.magnitude
-        h0_cscd_to_plot['czbins'] = \
-            h0_map.binning['reco_coszen'].bin_edges.magnitude
-        h0_cscd_to_plot['map'] = h0_map.hist[:,:,0]
+        for pid_name in pid_names:
 
-        h1_cscd_to_plot = {}
-        h1_cscd_to_plot['ebins'] = \
-            h0_map.binning['reco_energy'].bin_edges.magnitude
-        h1_cscd_to_plot['czbins'] = \
-            h0_map.binning['reco_coszen'].bin_edges.magnitude
-        h1_cscd_to_plot['map'] = h1_map.hist[:,:,0]
+            h0_to_plot = {}
+            h0_to_plot['ebins'] = \
+                h0_map.binning['reco_energy'].bin_edges.magnitude
+            h0_to_plot['czbins'] = \
+                h0_map.binning['reco_coszen'].bin_edges.magnitude
+            h0_to_plot['map'] = h0_map.split(
+                dim='pid',
+                bin=pid_name
+            ).reorder_dimensions(['reco_energy','reco_coszen']).hist
 
-    do_akhmedov(h0_map=h0_trck_to_plot,
-                h1_map=h1_trck_to_plot,
-                h0_name='%s'%args.h0_name,
-                h1_name='%s'%args.h1_name,
-                fulltitle='%s %s Events Identified as Track'%(detector, selection),
-                savename='trck',
-                outdir=args.logdir)
+            h1_to_plot = {}
+            h1_to_plot['ebins'] = \
+                h1_map.binning['reco_energy'].bin_edges.magnitude
+            h1_to_plot['czbins'] = \
+                h1_map.binning['reco_coszen'].bin_edges.magnitude
+            h1_to_plot['map'] = h1_map.split(
+                dim='pid',
+                bin=pid_name
+            ).reorder_dimensions(['reco_energy','reco_coszen']).hist
 
-    do_akhmedov(h0_map=h0_cscd_to_plot,
-                h1_map=h1_cscd_to_plot,
-                h0_name='%s'%args.h0_name,
-                h1_name='%s'%args.h1_name,
-                fulltitle='%s %s Events Identified as Cascade'%(detector, selection),
-                savename='cscd',
-                outdir=args.logdir)
+            if isinstance(pid_name, int):
+                pid_name = 'PID Bin %i'%(pid_name+1)
+
+            do_akhmedov(h0_map=h0_to_plot,
+                        h1_map=h1_to_plot,
+                        h0_name='%s'%args.h0_name,
+                        h1_name='%s'%args.h1_name,
+                        fulltitle='%s %s Events Identified as %s'
+                        %(detector, selection, pid_name),
+                        savename='%s_%s_%s'
+                        %(detector, selection, pid_name.replace(' ','_')),
+                        outdir=args.logdir)
 
 
 if __name__ == '__main__':
