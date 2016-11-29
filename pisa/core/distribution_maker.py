@@ -102,6 +102,8 @@ class DistributionMaker(object):
                 outputs = reduce(lambda x,y: sum(x) + sum(y), outputs)
             else:
                 outputs = sum(sum(outputs))
+            outputs.name = 'total'
+            outputs.tex = 'Total'
             outputs = MapSet(outputs)
         return outputs
 
