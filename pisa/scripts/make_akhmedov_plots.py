@@ -30,6 +30,10 @@ from pisa.utils.tests import baseplot
 __all__ = ['do_akhmedov', 'parse_args', 'normcheckpath', 'main']
 
 
+def fmt_tex(s):
+    return s.replace('_', r'\_').replace(' ', r'\,')
+
+
 def do_akhmedov(h0_map, h0_name, h1_map, h1_name, fulltitle,
                 savename, outdir, ftype='png'):
 
@@ -43,9 +47,9 @@ def do_akhmedov(h0_map, h0_name, h1_map, h1_name, fulltitle,
     akhmedov_to_plot['map'] = ((h1_map['map']-h0_map['map'])
                                / np.sqrt(h0_map['map']))
 
-    akhmedovlabel = r'$\left(N_{\mathrm{%s}}-N_{\mathrm{%s}}\right)'%(
-        h1_name,h0_name) \
-                    +r'/\sqrt{N_{\mathrm{%s}}}$'%(h0_name)
+    akhmedovlabel = (r'$\left(N_{\mathrm{%s}}-N_{\mathrm{%s}}\right)'
+                     r'/\sqrt{N_{\mathrm{%s}}}$'
+                     %(fmt_tex(h1_name),fmt_tex(h0_name),fmt_tex(h0_name)))
 
     baseplot(m=h0_map,
              title='hypothesis 0 = %s'%h0_name,
@@ -279,7 +283,7 @@ def main():
                     h0_name='%s'%args.h0_name,
                     h1_name='%s'%args.h1_name,
                     fulltitle='%s %s Events Identified as Track'
-                    %(detector, selection),
+                              %(detector, selection),
                     savename='trck',
                     outdir=args.logdir)
 
@@ -288,7 +292,7 @@ def main():
                     h0_name='%s'%args.h0_name,
                     h1_name='%s'%args.h1_name,
                     fulltitle='%s %s Events Identified as Cascade'
-                    %(detector, selection),
+                              %(detector, selection),
                     savename='cscd',
                     outdir=args.logdir)
 
@@ -333,16 +337,17 @@ def main():
             ).reorder_dimensions(['reco_energy','reco_coszen']).hist
 
             if isinstance(pid_name, int):
-                pid_name = 'PID Bin %i'%(pid_name+1)
+                pid_name = 'PID Bin %i'%(pid_name)
 
             do_akhmedov(h0_map=h0_to_plot,
                         h1_map=h1_to_plot,
                         h0_name='%s'%args.h0_name,
                         h1_name='%s'%args.h1_name,
                         fulltitle='%s %s Events Identified as %s'
-                        %(detector, selection, pid_name),
+                                  %(detector, selection, pid_name),
                         savename='%s_%s_%s'
-                        %(detector, selection, pid_name.replace(' ','_')),
+                                 %(detector, selection,
+                                   pid_name.replace(' ','_')),
                         outdir=args.logdir)
 
 
