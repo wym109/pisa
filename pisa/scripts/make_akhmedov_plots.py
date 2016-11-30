@@ -3,80 +3,86 @@
 # email:   jll1062+pisa@phys.psu.edu
 # date:    October 16, 2016
 """
-Create Akhmedov-style plots showing the significance to distinguish the two
-hypotheses specified by h0 and h1. Current output will be a plot in the style
-of (h1-h0) / sqrt(h0)
+Create asymmetry plots (aka Akhmedov**-style plots) showing the significance to
+distinguish the two hypotheses specified by h0 and h1. Current output will be a
+plot in the style of (h1-h0) / sqrt(h0)
+
+------
+**E.K. Akhmedov et al., JHEP 02, 082 (2013), figure 5.
+
 """
 
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from fnmatch import fnmatch
 import os
 
 import matplotlib
-matplotlib.use('Agg')
+matplotlib.use('pdf')
 import matplotlib.pyplot as plt
-try:
-    plt.rcParams['text.usetex'] = True
-except:
-    print "Could not use tex"
 import numpy as np
 
 from pisa.analysis.hypo_testing import HypoTesting
+from pisa.utils.fileio import mkdir
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.resources import find_resource
 from pisa.utils.tests import baseplot
 
 
-__all__ = ['do_akhmedov', 'parse_args', 'normcheckpath', 'main']
+__all__ = ['fmt_tex', 'plot_asymmetry', 'parse_args', 'normcheckpath', 'main']
 
 
 def fmt_tex(s):
-    return s.replace('_', r'\_').replace(' ', r'\,')
+    return r'{\rm ' + s.replace('_', r'\_').replace(' ', r'\;') + '}'
 
 
-def do_akhmedov(h0_map, h0_name, h1_map, h1_name, fulltitle,
-                savename, outdir, ftype='png'):
+def plot_asymmetry(h0_map, h0_name, h1_map, h1_name, fulltitle, savename,
+                   outdir, ftype='pdf'):
+    matplotlib.rcParams['font.family'] = 'sans-serif'
+    matplotlib.rcParams['mathtext.fontset'] = 'stixsans'
 
     gridspec_kw = dict(left=0.04, right=0.966, wspace=0.32)
     fig, axes = plt.subplots(nrows=1, ncols=3, gridspec_kw=gridspec_kw,
                              sharex=False, sharey=False, figsize=(15,5))
 
-    akhmedov_to_plot = {}
-    akhmedov_to_plot['ebins'] = h0_map['ebins']
-    akhmedov_to_plot['czbins'] = h0_map['czbins']
-    akhmedov_to_plot['map'] = ((h1_map['map']-h0_map['map'])
-                               / np.sqrt(h0_map['map']))
+    asymmetry_to_plot = {}
+    asymmetry_to_plot['ebins'] = h0_map['ebins']
+    asymmetry_to_plot['czbins'] = h0_map['czbins']
+    asymmetry_to_plot['map'] = ((h1_map['map']-h0_map['map'])
+                                / np.sqrt(h0_map['map']))
 
-    akhmedovlabel = (r'$\left(N_{\mathrm{%s}}-N_{\mathrm{%s}}\right)'
-                     r'/\sqrt{N_{\mathrm{%s}}}$'
-                     %(fmt_tex(h1_name),fmt_tex(h0_name),fmt_tex(h0_name)))
+    asymmetrylabel = (r'$\left(N_{\mathrm{%s}}-N_{\mathrm{%s}}\right)'
+                      r'/\sqrt{N_{\mathrm{%s}}}$'
+                      %(fmt_tex(h1_name), fmt_tex(h0_name), fmt_tex(h0_name)))
 
     baseplot(m=h0_map,
-             title='hypothesis 0 = %s'%h0_name,
+             title='Hypothesis 0: $%s$'%fmt_tex(h0_name),
              evtrate=True,
              ax=axes[0],
-             vmax = max(np.nanmax(h0_map['map']),np.nanmax(h1_map['map'])))
+             vmax = max(np.nanmax(h0_map['map']), np.nanmax(h1_map['map'])))
     baseplot(m=h1_map,
-             title='hypothesis 1 = %s'%h1_name,
+             title='Hypothesis 1: $%s$'%fmt_tex(h1_name),
              evtrate=True,
              ax=axes[1],
-             vmax = max(np.nanmax(h0_map['map']),np.nanmax(h1_map['map'])))
-    baseplot(m=akhmedov_to_plot,
-             title='Asymmetry Plot',
+             vmax = max(np.nanmax(h0_map['map']), np.nanmax(h1_map['map'])))
+    baseplot(m=asymmetry_to_plot,
+             title='Asymmetry',
              symm=True,
-             clabel=akhmedovlabel,
+             clabel=asymmetrylabel,
              ax=axes[2])
-    plt.subplots_adjust(bottom=0.12,top=0.8)
-    plt.suptitle(fulltitle,size='xx-large')
-    fig.savefig(outdir+'/%s_%s_%s_Akhmedov.png'%(savename,h0_name,h1_name))
+    plt.subplots_adjust(bottom=0.12, top=0.8)
+    plt.suptitle(fulltitle, size='xx-large')
+    if savename != '' and savename[-1] != '_':
+        savename += '_'
+    fname = '%s%s_%s_asymmetry.pdf'%(savename, h0_name, h1_name)
+    fname = fname.replace(' ', '_')
+    mkdir(outdir, warn=False)
+    fig.savefig(os.path.join(outdir, fname))
     plt.close(fig.number)
 
 
 def parse_args():
-    parser = ArgumentParser(
-        formatter_class=ArgumentDefaultsHelpFormatter,
-        description=__doc__
-    )
+    parser = ArgumentParser(description=__doc__)
     parser.add_argument(
         '-d', '--logdir', required=True,
         metavar='DIR', type=str,
@@ -128,13 +134,13 @@ def parse_args():
     )
     parser.add_argument(
         '--detector',
-        type=str,default='',
-        help="Name of detector to put in histogram titles"
+        type=str, default='',
+        help='Name of detector to put in histogram titles'
     )
     parser.add_argument(
         '--selection',
-        type=str,default='',
-        help="Name of selection to put in histogram titles"
+        type=str, default='',
+        help='Name of selection to put in histogram titles'
     )
     parser.add_argument(
         '--allow-dirty',
@@ -242,13 +248,29 @@ def main():
     if not return_h1_sum:
         h1_maps = h1_maps[0]
 
-    # Need a special case where PID is a separate stage
-    if 'trck' in ''.join(h0_maps.names):
+    det_sel = []
+    if detector.strip() != '':
+        det_sel.append(detector.strip())
+    if selection.strip() != '':
+        det_sel.append(selection.strip())
+    det_sel_label = ' '.join(det_sel)
 
-        h0_trck_map = h0_maps.combine_wildcard('*_trck')
-        h1_trck_map = h1_maps.combine_wildcard('*_trck')
-        h0_cscd_map = h0_maps.combine_wildcard('*_cscd')
-        h1_cscd_map = h1_maps.combine_wildcard('*_cscd')
+    det_sel_plot_label = det_sel_label
+    if det_sel_plot_label != '':
+        det_sel_plot_label += ', '
+
+    det_sel_file_label = det_sel_label
+    if det_sel_file_label != '':
+        det_sel_file_label += '_'
+    det_sel_file_label = det_sel_file_label.replace(' ', '_')
+
+    # Need a special case where PID is a separate stage
+    if fnmatch(''.join(h0_maps.names), '*_tr*ck*'):
+
+        h0_trck_map = h0_maps.combine_wildcard('*_tr*ck')
+        h1_trck_map = h1_maps.combine_wildcard('*_tr*ck')
+        h0_cscd_map = h0_maps.combine_wildcard('*_c*sc*d*')
+        h1_cscd_map = h1_maps.combine_wildcard('*_c*sc*d*')
 
         h0_trck_to_plot = {}
         h0_trck_to_plot['ebins'] = \
@@ -278,24 +300,28 @@ def main():
             h0_cscd_map.binning['reco_coszen'].bin_edges.magnitude
         h1_cscd_to_plot['map'] = h1_cscd_map.hist
 
-        do_akhmedov(h0_map=h0_trck_to_plot,
-                    h1_map=h1_trck_to_plot,
-                    h0_name='%s'%args.h0_name,
-                    h1_name='%s'%args.h1_name,
-                    fulltitle='%s %s Events Identified as Track'
-                              %(detector, selection),
-                    savename='trck',
-                    outdir=args.logdir)
+        plot_asymmetry(
+            h0_map=h0_trck_to_plot,
+            h1_map=h1_trck_to_plot,
+            h0_name='%s'%args.h0_name,
+            h1_name='%s'%args.h1_name,
+            fulltitle='%sevents identified as track'%det_sel_plot_label,
+            savename='%strck'%det_sel_file_label,
+            outdir=args.logdir
+        )
 
-        do_akhmedov(h0_map=h0_cscd_to_plot,
-                    h1_map=h1_cscd_to_plot,
-                    h0_name='%s'%args.h0_name,
-                    h1_name='%s'%args.h1_name,
-                    fulltitle='%s %s Events Identified as Cascade'
-                              %(detector, selection),
-                    savename='cscd',
-                    outdir=args.logdir)
+        plot_asymmetry(
+            h0_map=h0_cscd_to_plot,
+            h1_map=h1_cscd_to_plot,
+            h0_name='%s'%args.h0_name,
+            h1_name='%s'%args.h1_name,
+            fulltitle='%s %s events identified as cascade'
+                      %det_sel_plot_label,
+            savename='%scscd'%det_sel_file_label,
+            outdir=args.logdir
+        )
 
+    # Otherwise, PID is assumed to be a binning dimension
     else:
 
         h0_map = h0_maps['total']
@@ -307,12 +333,12 @@ def main():
         pid_names = h0_map.binning['pid'].bin_names
         if pid_names != h1_map.binning['pid'].bin_names:
             raise ValueError('h0 and h1 maps must have same PID bin names in '
-                             'order to make the Akhmedov plots')
+                             'order to make the asymmetry plots')
         if pid_names is None:
             logging.warn('There are no names given for the PID bins, thus '
                          'they will just be numbered in both the the plot '
                          'save names and titles.')
-            pid_names = [x for x in range(0,h0_map.binning['pid'].num_bins)]
+            pid_names = [x for x in range(0, h0_map.binning['pid'].num_bins)]
 
         for pid_name in pid_names:
 
@@ -339,16 +365,16 @@ def main():
             if isinstance(pid_name, int):
                 pid_name = 'PID Bin %i'%(pid_name)
 
-            do_akhmedov(h0_map=h0_to_plot,
-                        h1_map=h1_to_plot,
-                        h0_name='%s'%args.h0_name,
-                        h1_name='%s'%args.h1_name,
-                        fulltitle='%s %s Events Identified as %s'
-                                  %(detector, selection, pid_name),
-                        savename='%s_%s_%s'
-                                 %(detector, selection,
-                                   pid_name.replace(' ','_')),
-                        outdir=args.logdir)
+            plot_asymmetry(
+                h0_map=h0_to_plot,
+                h1_map=h1_to_plot,
+                h0_name='%s'%args.h0_name,
+                h1_name='%s'%args.h1_name,
+                fulltitle='%sevents identified as %s'
+                          %(det_sel_plot_label, pid_name),
+               savename=('%s%s'%(det_sel_file_label, pid_name)),
+               outdir=args.logdir
+            )
 
 
 if __name__ == '__main__':
