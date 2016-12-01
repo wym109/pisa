@@ -234,7 +234,10 @@ def make_llr_plots(data, labels, detector, selection):
     plt.ylim(0,plot_scaling_factor*LLRhistmax)
     plt.legend(plot_labels, loc='upper left')
     plt.title(plot_title)
-    plt.savefig('llr.png')
+    filename = 'true_%s_%s_%s_LLRDistribution_%i_Trials.png'%(
+        inj_name, detector, selection, num_trials
+    )
+    plt.savefig(filename)
     plt.close()
 
     
