@@ -276,29 +276,37 @@ def main():
         h0_trck_to_plot['ebins'] = \
             h0_trck_map.binning['reco_energy'].bin_edges.magnitude
         h0_trck_to_plot['czbins'] = \
-        h0_trck_map.binning['reco_coszen'].bin_edges.magnitude
-        h0_trck_to_plot['map'] = h0_trck_map.hist
+            h0_trck_map.binning['reco_coszen'].bin_edges.magnitude
+        h0_trck_to_plot['map'] = h0_trck_map.reorder_dimensions(
+            ['reco_energy','reco_coszen']
+        ).hist
 
         h1_trck_to_plot = {}
         h1_trck_to_plot['ebins'] = \
             h0_trck_map.binning['reco_energy'].bin_edges.magnitude
         h1_trck_to_plot['czbins'] = \
             h0_trck_map.binning['reco_coszen'].bin_edges.magnitude
-        h1_trck_to_plot['map'] = h1_trck_map.hist
+        h1_trck_to_plot['map'] = h1_trck_map.reorder_dimensions(
+            ['reco_energy','reco_coszen']
+        ).hist
 
         h0_cscd_to_plot = {}
         h0_cscd_to_plot['ebins'] = \
             h0_cscd_map.binning['reco_energy'].bin_edges.magnitude
         h0_cscd_to_plot['czbins'] = \
         h0_cscd_map.binning['reco_coszen'].bin_edges.magnitude
-        h0_cscd_to_plot['map'] = h0_cscd_map.hist
+        h0_cscd_to_plot['map'] = h0_cscd_map.reorder_dimensions(
+            ['reco_energy','reco_coszen']
+        ).hist
 
         h1_cscd_to_plot = {}
         h1_cscd_to_plot['ebins'] = \
             h0_cscd_map.binning['reco_energy'].bin_edges.magnitude
         h1_cscd_to_plot['czbins'] = \
             h0_cscd_map.binning['reco_coszen'].bin_edges.magnitude
-        h1_cscd_to_plot['map'] = h1_cscd_map.hist
+        h1_cscd_to_plot['map'] = h1_cscd_map.reorder_dimensions(
+            ['reco_energy','reco_coszen']
+        ).hist
 
         plot_asymmetry(
             h0_map=h0_trck_to_plot,
@@ -315,7 +323,7 @@ def main():
             h1_map=h1_cscd_to_plot,
             h0_name='%s'%args.h0_name,
             h1_name='%s'%args.h1_name,
-            fulltitle='%s %s events identified as cascade'
+            fulltitle='%sevents identified as cascade'
                       %det_sel_plot_label,
             savename='%scscd'%det_sel_file_label,
             outdir=args.logdir
