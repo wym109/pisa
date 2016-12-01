@@ -419,7 +419,7 @@ class Map(object):
 
     def plot(self, evtrate=True, symm=False, logz=False, fig=None, ax=None,
              title=None, outdir=None, fname=None, backend='pdf', fmt='pdf',
-             cmap=None, fig_kw=None, plt_kw=None):
+             cmap=None, fig_kw=None, plt_kw=None, vertmax=None):
         import matplotlib as mpl
         if (backend is not None
             and mpl.get_backend().lower() != backend.lower()):
@@ -478,6 +478,9 @@ class Map(object):
             yticks = 2**(np.arange(np.ceil(np.log2(min(y))),
                                    np.floor(np.log2(max(y)))+1))
             y = np.log10(y)
+
+        if vertmax is not None:
+            vmax=vertmax
 
         X, Y = np.meshgrid(x, y)
         pcmesh = ax.pcolormesh(
