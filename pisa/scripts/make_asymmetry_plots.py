@@ -23,10 +23,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from pisa.analysis.hypo_testing import HypoTesting
+from pisa.core.map import Map
 from pisa.utils.fileio import mkdir
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.resources import find_resource
-from pisa.utils.tests import baseplot
 
 
 __all__ = ['fmt_tex', 'plot_asymmetry', 'parse_args', 'normcheckpath', 'main']
@@ -45,31 +45,40 @@ def plot_asymmetry(h0_map, h0_name, h1_map, h1_name, fulltitle, savename,
     fig, axes = plt.subplots(nrows=1, ncols=3, gridspec_kw=gridspec_kw,
                              sharex=False, sharey=False, figsize=(15,5))
 
-    asymmetry_to_plot = {}
-    asymmetry_to_plot['ebins'] = h0_map['ebins']
-    asymmetry_to_plot['czbins'] = h0_map['czbins']
-    asymmetry_to_plot['map'] = ((h1_map['map']-h0_map['map'])
-                                / np.sqrt(h0_map['map']))
+    asymmetry_hist = ((h1_map.hist-h0_map.hist)
+                         / np.sqrt(h0_map.hist))
+    asymmetry_to_plot = Map(
+        name='asymmetry',
+        hist=asymmetry_hist,
+        binning=h0_map.binning
+    )
 
     asymmetrylabel = (r'$\left(N_{\mathrm{%s}}-N_{\mathrm{%s}}\right)'
                       r'/\sqrt{N_{\mathrm{%s}}}$'
                       %(fmt_tex(h1_name), fmt_tex(h0_name), fmt_tex(h0_name)))
 
-    baseplot(m=h0_map,
-             title='Hypothesis 0: $%s$'%fmt_tex(h0_name),
-             evtrate=True,
-             ax=axes[0],
-             vmax = max(np.nanmax(h0_map['map']), np.nanmax(h1_map['map'])))
-    baseplot(m=h1_map,
-             title='Hypothesis 1: $%s$'%fmt_tex(h1_name),
-             evtrate=True,
-             ax=axes[1],
-             vmax = max(np.nanmax(h0_map['map']), np.nanmax(h1_map['map'])))
-    baseplot(m=asymmetry_to_plot,
-             title='Asymmetry',
-             symm=True,
-             clabel=asymmetrylabel,
-             ax=axes[2])
+    h0_map.plot(
+        fig=fig,
+        ax=axes[0],
+        title='Hypothesis 0: $%s$'%fmt_tex(h0_name),
+        cmap=plt.cm.afmhot
+    )
+
+    h1_map.plot(
+        fig=fig,
+        ax=axes[1],
+        title='Hypothesis 1: $%s$'%fmt_tex(h1_name),
+        cmap=plt.cm.afmhot
+    )
+
+    asymmetry_to_plot.plot(
+        fig=fig,
+        ax=axes[2],
+        title='Asymmetry',
+        symm=True,
+        cmap=plt.cm.seismic
+    )
+
     plt.subplots_adjust(bottom=0.12, top=0.8)
     plt.suptitle(fulltitle, size='xx-large')
     if savename != '' and savename[-1] != '_':
@@ -272,45 +281,9 @@ def main():
         h0_cscd_map = h0_maps.combine_wildcard('*_c*sc*d*')
         h1_cscd_map = h1_maps.combine_wildcard('*_c*sc*d*')
 
-        h0_trck_to_plot = {}
-        h0_trck_to_plot['ebins'] = \
-            h0_trck_map.binning['reco_energy'].bin_edges.magnitude
-        h0_trck_to_plot['czbins'] = \
-            h0_trck_map.binning['reco_coszen'].bin_edges.magnitude
-        h0_trck_to_plot['map'] = h0_trck_map.reorder_dimensions(
-            ['reco_energy','reco_coszen']
-        ).hist
-
-        h1_trck_to_plot = {}
-        h1_trck_to_plot['ebins'] = \
-            h0_trck_map.binning['reco_energy'].bin_edges.magnitude
-        h1_trck_to_plot['czbins'] = \
-            h0_trck_map.binning['reco_coszen'].bin_edges.magnitude
-        h1_trck_to_plot['map'] = h1_trck_map.reorder_dimensions(
-            ['reco_energy','reco_coszen']
-        ).hist
-
-        h0_cscd_to_plot = {}
-        h0_cscd_to_plot['ebins'] = \
-            h0_cscd_map.binning['reco_energy'].bin_edges.magnitude
-        h0_cscd_to_plot['czbins'] = \
-        h0_cscd_map.binning['reco_coszen'].bin_edges.magnitude
-        h0_cscd_to_plot['map'] = h0_cscd_map.reorder_dimensions(
-            ['reco_energy','reco_coszen']
-        ).hist
-
-        h1_cscd_to_plot = {}
-        h1_cscd_to_plot['ebins'] = \
-            h0_cscd_map.binning['reco_energy'].bin_edges.magnitude
-        h1_cscd_to_plot['czbins'] = \
-            h0_cscd_map.binning['reco_coszen'].bin_edges.magnitude
-        h1_cscd_to_plot['map'] = h1_cscd_map.reorder_dimensions(
-            ['reco_energy','reco_coszen']
-        ).hist
-
         plot_asymmetry(
-            h0_map=h0_trck_to_plot,
-            h1_map=h1_trck_to_plot,
+            h0_map=h0_trck_map,
+            h1_map=h1_trck_map,
             h0_name='%s'%args.h0_name,
             h1_name='%s'%args.h1_name,
             fulltitle='%sevents identified as track'%det_sel_plot_label,
@@ -319,8 +292,8 @@ def main():
         )
 
         plot_asymmetry(
-            h0_map=h0_cscd_to_plot,
-            h1_map=h1_cscd_to_plot,
+            h0_map=h0_cscd_map,
+            h1_map=h1_cscd_map,
             h0_name='%s'%args.h0_name,
             h1_name='%s'%args.h1_name,
             fulltitle='%sevents identified as cascade'
@@ -350,25 +323,15 @@ def main():
 
         for pid_name in pid_names:
 
-            h0_to_plot = {}
-            h0_to_plot['ebins'] = \
-                h0_map.binning['reco_energy'].bin_edges.magnitude
-            h0_to_plot['czbins'] = \
-                h0_map.binning['reco_coszen'].bin_edges.magnitude
-            h0_to_plot['map'] = h0_map.split(
+            h0_to_plot = h0_map.split(
                 dim='pid',
                 bin=pid_name
-            ).reorder_dimensions(['reco_energy','reco_coszen']).hist
+            )
 
-            h1_to_plot = {}
-            h1_to_plot['ebins'] = \
-                h1_map.binning['reco_energy'].bin_edges.magnitude
-            h1_to_plot['czbins'] = \
-                h1_map.binning['reco_coszen'].bin_edges.magnitude
-            h1_to_plot['map'] = h1_map.split(
+            h1_to_plot = h1_map.split(
                 dim='pid',
                 bin=pid_name
-            ).reorder_dimensions(['reco_energy','reco_coszen']).hist
+            )
 
             if isinstance(pid_name, int):
                 pid_name = 'PID Bin %i'%(pid_name)
