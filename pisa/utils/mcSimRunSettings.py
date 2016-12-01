@@ -17,6 +17,9 @@ import pisa.utils.crossSections as crossSections
 from numpy import *
 
 
+__all__ = ['MCSimRunSettings', 'DetMCSimRunsSettings']
+
+
 # TODO: make ability to serialize instantiated MCSimRunSettings and
 # DetMCSimRunsSettings objects back to JSON format from which they were
 # generated
@@ -94,7 +97,7 @@ class MCSimRunSettings(dict):
           # Simulated spectral inde gamma; value of 1 => E*{-1}
           "sim_spectral_index": 1,
 
-          # Version of neutrion/ice cross sections used for the simulation
+          # Version of neutrino/ice cross sections used for the simulation
           "xsec_version": "genie_2.6.4",
 
           # Max and min zenith angle simulated (rad)
@@ -113,14 +116,14 @@ class MCSimRunSettings(dict):
         if isinstance(run_settings, dict):
             rsd = run_settings
         else:
-            raise TypeError('Unhandled run_settings type passed in arg: ' +
-                            type(run_settings))
+            raise TypeError('Unhandled run_settings type passed in arg: %s'
+                            %type(run_settings))
         #if detector is not None:
         #    try:
         #        rsd = rsd[detector]
         #    except:
         #        pass
-        rsd = self.translateSourceDict(rsd) #{run:self.translateSourceDict(rs) for run,rs in rsd.iteritems()}
+        rsd = self.translateSourceDict(rsd)
         if not detector is None:
             detector = str(detector).strip()
         self.detector = detector
@@ -130,21 +133,28 @@ class MCSimRunSettings(dict):
     @staticmethod
     def translateSourceDict(d):
         d['tot_gen'] = d['num_events_per_file'] * d['num_i3_files']
-        d['flavints'] = flavInt.NuFlavIntGroup(d['flavints'])
+
+        # NOTE: the ',' --> '+' mapping is necessary since some data files
+        # were saved prior to the convention that commas exclusively separate
+        # groups while plus signs indicate flav/ints grouped together
+
+        d['flavints'] = flavInt.NuFlavIntGroup(d['flavints'].replace(',', '+'))
 
         # Numeric fields are allowed to be expressions that get evaluated
-        numeric_fields = ['azimuth_max',
-                          'azimuth_min',
-                          'energy_max',
-                          'energy_min',
-                          'physical_events_fract',
-                          'genie_prescale_factor',
-                          'nu_to_total_fract',
-                          'num_events_per_file',
-                          'num_i3_files',
-                          'sim_spectral_index',
-                          'zenith_max',
-                          'zenith_min',]
+        numeric_fields = [
+            'azimuth_max',
+            'azimuth_min',
+            'energy_max',
+            'energy_min',
+            'physical_events_fract',
+            'genie_prescale_factor',
+            'nu_to_total_fract',
+            'num_events_per_file',
+            'num_i3_files',
+            'sim_spectral_index',
+            'zenith_max',
+            'zenith_min',
+        ]
         for f in numeric_fields:
             if isinstance(d[f], basestring):
                 d[f] = eval(d[f])
@@ -158,7 +168,7 @@ class MCSimRunSettings(dict):
     def barnobarfract(self, barnobar=None, is_particle=None,
                       flav_or_flavint=None):
         """Fraction of events generated (either particles or antiparticles).
-        
+
         Specifying whether you want the fraction for particle or
         antiparticle can be done in one (and only one) of three ways:
 
@@ -187,23 +197,34 @@ class MCSimRunSettings(dict):
     def get_num_gen(self, barnobar=None, is_particle=None,
                     flav_or_flavint=None, include_physical_fract=True):
         """Return the number of events generated.
-       
-        barnobar : None, -1 (antiparticle), or +1 (particle)
+
+        Parameters
+        ----------
+        barnobar : None or int
+            -1 for antiparticle or +1 for particle
+
         is_particle : None or bool
+
         flav_or_flavint : None or convertible to NuFlav or NuFlavInt
             If one of `barnobar`, `is_particle`, or `flav_or_flavint` is
             specified, returns only the number of particles or antiparticles
             generated. Otherwise (if none of those is specified), return the
             total number of generated events.
+
         include_physical_fract : bool
             Whether to include the "GENIE physical fraction", which accounts
             for events that are generated but are un-physical and therefore
             will never be detectable. These are removed to not penalize
             detection efficiency.
+
         """
         nargs = sum([(not barnobar is None),
                      (not is_particle is None),
                      (not flav_or_flavint is None)])
+        if flav_or_flavint is not None:
+            if (flav_or_flavint not in self.get_flavs()
+                    and flav_or_flavint not in self.get_flavints()):
+                return 0
         barnobarfract = 1
         if nargs > 0:
             barnobarfract = self.barnobarfract(
@@ -216,10 +237,10 @@ class MCSimRunSettings(dict):
         return self['tot_gen'] * barnobarfract * physical_fract
 
     def get_flavints(self):
-        return self['flavints'].get_flavints()
+        return self['flavints'].flavints()
 
     def get_flavs(self):
-        return self['flavints'].get_flavs()
+        return self['flavints'].flavs()
 
     def get_energy_range(self):
         """(min, max) energy in GeV"""

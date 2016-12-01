@@ -1,34 +1,56 @@
+#!/usr/bin/env python
 
-#
 # author: Justin L. Lanfranchi
 #         jll1062+pisa@phys.psu.edu
 #
 # date:   October 24, 2015
 """
-Generate a PISA-standard-format events HDF5 file from HDF5 file(s) generated
-from I3 files by the icecube.hdfwriter.I3HDFTableService
+Take simulated (and reconstructed) HDF5 file(s) (as converted from I3 by
+icecube.hdfwriter.I3HDFTableService) as input and writes out a simplified HDF5
+file for use with PISA.
 """
 
-import os
-from collections import OrderedDict
-from copy import deepcopy
-
-import numpy as np
-import sympy as sym
-
-import pisa.core.events as events
-from pisa.utils.log import logging, set_verbosity
-from pisa.utils.format import list2hrlist
-from pisa.utils.fileio import expandPath, mkdir, to_file
-from pisa.utils.flavInt import FlavIntData, NuFlav, NuFlavIntGroup, ALL_NUFLAVINTS, ALL_NUINT_TYPES, xlateGroupsStr
-from pisa.utils.mcSimRunSettings import DetMCSimRunsSettings
-from pisa.utils.dataProcParams import DataProcParams
-from pisa.utils import resources
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from collections import OrderedDict
+from copy import deepcopy
+import os
+import sys
+
+import numpy as np
+
+from pisa.core.events import Events
+from pisa.utils.dataProcParams import DataProcParams
+from pisa.utils.format import list2hrlist
+from pisa.utils.fileio import expandPath, mkdir, to_file
+from pisa.utils.flavInt import (FlavIntData, NuFlav, NuFlavIntGroup,
+                                ALL_NUFLAVINTS, ALL_NUINT_TYPES, xlateGroupsStr)
+from pisa.utils.log import logging, set_verbosity
+from pisa.utils.mcSimRunSettings import DetMCSimRunsSettings
+from pisa.utils.resources import find_resource
+
+
+__all__ = ['EXAMPLE', 'CMSQ_TO_MSQ', 'EXTRACT_FIELDS', 'OUTPUT_FIELDS',
+           'powerLawIntegral', 'makeEventsFile',
+           'parse_args', 'main']
+
+
+EXAMPLE = """
+Example command-line usage:
+
+make_events_file.py
+    --det "PINGU"
+    --proc "V5.1"
+    --run 390 ~/data/390/icetray_hdf5/*.hdf5
+    --run 389 ~/data/389/icetray_hdf5/*.hdf5
+    --run 388 ~/data/388/icetray_hdf5/*.hdf5
+    -vv
+    --outdir /tmp/events/
+"""
 
 
 CMSQ_TO_MSQ = 1.0e-4
+"""Conversion factor: convert from centimeters^2 to meters^2"""
 
 # Default fields to extract from source HDF5 files during processing
 # Note that *_coszen is generated from *_zenith
@@ -56,6 +78,7 @@ OUTPUT_FIELDS = (
 
 
 def powerLawIntegral(E0, E1, gamma):
+    import sympy as sym
     E = sym.Symbol('E')
     I = sym.integrate(E**(-gamma), E)
     return I.evalf(subs={E:E1}) - I.evalf(subs={E:E0})
@@ -65,23 +88,26 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
                    run_settings=None, data_proc_params=None, join=None,
                    cust_cuts=None, extract_fields=EXTRACT_FIELDS,
                    output_fields=OUTPUT_FIELDS):
-    """Takes the simulated and reconstructed HDF5 file(s) (as converted from I3
-    by icecube.hdfwriter.I3HDFTableService) as input and writes out a
-    simplified PISA-standard-format HDF5 file for use in aeff, reco, and/or PID
-    stages of the template maker.
+    """Take the simulated and reconstructed HDF5 file(s) (as converted from I3
+    by icecube.hdfwriter.I3HDFTableService) as input and write out a simplified
+    PISA-standard-format HDF5 file for use in aeff, reco, and/or PID stages.
 
     Parameters
     ----------
     data_files : dict
         File paths for finding data files for each run, formatted as:
             {
-                '<run#>': [<list of file paths>],
-                '<run#>': [<list of file paths>],
+                <string run>: <list of file paths>,
+                <string run>: <list of file paths>,
                 ...
-                '<run#>': [<list of file paths>],
+                <string run>: <list of file paths>,
             }
     detector : string
+        Name of the detector (e.g. IceCube, DeepCore, PINGU, etc.) as found in
+        e.g. mc_sim_run_settings.json and data_proc_params.json files.
     proc_ver
+        Version of processing applied to the events, as found in e.g.
+        data_proc_params.json.
     cut
         Name of a standard cut to use; must be specified in the relevant
         detector/processing version node of the data processing parameters
@@ -90,15 +116,16 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
         Directory path in which to store resulting files; will be generated if
         it does not already exist (including any parent directories that do not
         exist)
-    run_settings : MCSimRunSettings or string
-        An instantiated MCSimRunSettings object, instantiated e.g. from the
-        PISA-standard resources/events/mc_sim_run_settings.json file
-    data_proc_params : DataProcParams or string
-        An instantiated DataProcParams object, instantiated e.g. from the
-        PISA-standard resources/events/data_proc_params.json file
-    pid_specs : PIDObj or string
-        An instantiated PIDObj, instantiated e.g. from the PISA-standard
-        resources/pid/pid_specifications.json file
+    run_settings : string or MCSimRunSettings
+        Resource location of mc_sim_run_settings.json, e.g. the PISA-standard
+        location
+            $PISA/pisa/resources/events/mc_sim_run_settings.json
+        or an MCSimRunSettings object instantiated therefrom.
+    data_proc_params : string or DataProcParams
+        Resource location of data_proc_params.json, e.g. the PISA-standard
+        location
+            $PISA/pisa/resources/events/data_proc_params.json
+        or a DataProcParams object instantiated therefrom.
     join
         String specifying any flavor/interaction types (flavInts) to join
         together. Separate flavInts with commas (',') and separate groups
@@ -108,16 +135,46 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
         dict with a single DataProcParams cut specification or list of same
         (see help for DataProcParams for detailed description of cut spec)
     extract_fields : None or iterable of strings
-        Field names to extract from source HDF5 file. If None, extract all.
+        Field names to extract from source HDF5 file. If None, extract all
+        fields.
     output_fields : None or iterable of strings
         Fields to include in the generated PISA-standard-format events HDF5
         file; note that if 'weighted_aeff' is not preent, effective area will
         not be computed. If None, all fields will be written.
 
+    Notes
+    -----
+    Compute "weighted_aeff" field:
+
+    Within each int type (CC or NC), ngen should be added together;
+    events recorded of that int type then get their one_weight divided by the
+    total *for that int type only* to obtain the "weighted_aeff" for that
+    event (even if int types are being grouped/joined together).
+
+    This has the effect that within a group, ...
+      ... and within an interaction type, effective area is a weighted
+      average of that of the flavors being combined. E.g. for CC,
+
+                     \sum_{run x}\sum_{flav y} (Aeff_{x,y} * ngen_{x,y})
+          Aeff_CC = ----------------------------------------------------- ,
+                          \sum_{run x}\sum_{flav y} (ngen_{x,y})
+
+      ... and then across interaction types, the results of the above for
+      each int type need to be summed together, i.e.:
+
+          Aeff_total = Aeff_CC + Aeff_NC
+
+    Note that each grouping of flavors is calculated with the above math
+    completely independently from other flavor groupings specified.
+
+    See Justin Lanfranchi's presentation on the PINGU Analysis call,
+    2015-10-21, for more details:
+      https://wikispaces.psu.edu/download/attachments/282040606/meff_report_jllanfranchi_v05_2015-10-21.pdf
+
     """
     if isinstance(run_settings, basestring):
         run_settings = DetMCSimRunsSettings(
-            resources.find_resource(args.run_settings),
+            find_resource(args.run_settings),
             detector=detector
         )
     assert isinstance(run_settings, DetMCSimRunsSettings)
@@ -127,7 +184,7 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
         data_proc_params = DataProcParams(
             detector=detector,
             proc_ver=proc_ver,
-            data_proc_params=resources.find_resource(data_proc_params)
+            data_proc_params=find_resource(data_proc_params)
         )
     assert data_proc_params.detector == detector
     assert data_proc_params.proc_ver == proc_ver
@@ -189,7 +246,7 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
     detector_geom = run_settings[runs[0]]['geom']
 
     # Create Events object to store data
-    evts = events.Events()
+    evts = Events()
     evts.metadata.update({
         'detector': run_settings.detector,
         'proc_ver': data_proc_params.proc_ver,
@@ -266,7 +323,7 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
         ]
 
     # Instantiate generated-event counts for destination fields; count
-    # nc separately from nc because aeff's for cc & nc add, whereas
+    # CClseparately from NC because aeff's for CC & NC add, whereas
     # aeffs intra-CC should be weighted-averaged (as for intra-NC)
     ngen = [
         {inttype:{} for inttype in ALL_NUINT_TYPES}
@@ -286,8 +343,9 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
             # settings file
             logging.trace('Trying to get data from file %s' %fname)
             try:
-                data = data_proc_params.getData(fname, run_settings=run_settings)
-            except:
+                data = data_proc_params.getData(fname,
+                                                run_settings=run_settings)
+            except (ValueError, KeyError, IOError):
                 logging.warn('Bad file encountered: %s' %fname)
                 bad_files.append(fname)
                 continue
@@ -364,31 +422,6 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
         logging.info('File count for run %s: %d' %(run, file_count))
     to_file(bad_files, '/tmp/bad_files.json')
 
-    # Compute "weighted_aeff" field:
-    #
-    # Within each int type (CC or NC), ngen should be added together;
-    # events recorded of that int type then get their one_weight divided by the
-    # total **for that int type only** to obtain the "weighted_aeff" for that
-    # event (even if int types are being grouped/joined together).
-    #
-    # This has the effect that within a group, ...
-    #   ... and within an interaction type, effective area is a weighted
-    #   average of that of the flavors being combined. E.g. for CC,
-    #
-    #                  \sum_{run x}\sum_{flav y} (Aeff_{x,y} * ngen_{x,y})
-    #       Aeff_CC = ----------------------------------------------------- ,
-    #                       \sum_{run x}\sum_{flav y} (ngen_{x,y})
-    #
-    #   ... and then across interaction types, the results of the above for
-    #   each int type need to be summed together, i.e.:
-    #
-    #       Aeff_total = Aeff_CC + Aeff_NC
-    #
-    # Note that each grouping of flavors is calculated with the above math
-    # completely # independently from other flavor groupings specified.
-    #
-    # See Justin Lanfranchi's presentation on the PINGU Analysis call,
-    # 2015-10-21, for more details.
     if ((output_fields is None
          and (extract_fields is None or 'one_weight' in extract_fields))
         or 'weighted_aeff' in output_fields):
@@ -404,7 +437,8 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
         logging.info(fmt % fmtfields)
         logging.info(lines)
         for grp_n, flavint_group in enumerate(flavint_groupings):
-            for int_type in set([fi.intType() for fi in flavint_group.flavints()]):
+            for int_type in set([fi.intType() for fi in
+                                 flavint_group.flavints()]):
                 ngen_it_tot = 0
                 for run, run_counts in ngen[grp_n][int_type].iteritems():
                     for barnobar, barnobar_counts in run_counts.iteritems():
@@ -487,24 +521,10 @@ def makeEventsFile(data_files, detector, proc_ver, cut, outdir,
     evts.save(outfpath)
 
 
-def main():
-    """Get command line arguments and call makeEventsFile() function."""
-
+def parse_args():
+    """Get command line arguments"""
     parser = ArgumentParser(
-        description='''Takes the simulated (and reconstructed) HDF5 file(s) (as
-        converted from I3 by icecube.hdfwriter.I3HDFTableService) as input and
-        writes out a simplified HDF5 file for use in the aeff and reco stages
-        of the template maker.
-
-        Example:
-            $PISA/pisa/i3utils/make_events_file.py \
-                --det "PINGU" \
-                --proc "V5.1" \
-                --run 390 ~/data/390/source_hdf5/*.hdf5 \
-                --run 389 ~/data/389/source_hdf5/*.hdf5 \
-                --run 388 ~/data/388/source_hdf5/*.hdf5 \
-                -vv \
-                --outdir /tmp/events/''',
+        description=__doc__ + EXAMPLE,
         formatter_class=ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
@@ -651,7 +671,11 @@ def main():
     )
 
     args = parser.parse_args()
+    return args
 
+
+def main():
+    args = parse_args()
     set_verbosity(args.verbose)
 
     runs_files = OrderedDict()
@@ -661,13 +685,13 @@ def main():
     det = args.det.strip()
     proc = args.proc.strip()
     run_settings = DetMCSimRunsSettings(
-        resources.find_resource(args.run_settings),
+        find_resource(args.run_settings),
         detector=det
     )
     data_proc_params = DataProcParams(
         detector=det,
         proc_ver=proc,
-        data_proc_params=resources.find_resource(args.data_proc_params)
+        data_proc_params=find_resource(args.data_proc_params)
     )
 
     logging.info('Using detector %s, processing version %s.' % (det, proc))

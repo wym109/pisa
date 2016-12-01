@@ -9,6 +9,9 @@ from collections import Sequence
 import numpy as np
 
 
+__all__ = ['get_random_state']
+
+
 def get_random_state(random_state, jumpahead=0):
     """Derive a `numpy.random.RandomState` object (usable to generate random
     numbers and distributions) from a flexible specification..

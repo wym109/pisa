@@ -11,6 +11,9 @@ import time
 from pisa.utils.log import logging, set_verbosity
 
 
+__all__ = ['MemoryCache', 'DiskCache']
+
+
 class MemoryCache(object):
     """Simple implementation of a first-in-first-out (FIFO) or least-recently-
     used (LRU) in-memory cache, with a subset of the dict interface.

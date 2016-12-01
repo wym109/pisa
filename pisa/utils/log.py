@@ -22,6 +22,10 @@ The last one is temporary and should be replaced by a proper profiler.
 import logging
 import logging.config
 
+
+__all__ = ['logging', 'set_verbosity']
+
+
 # Add a trace level
 logging.TRACE = 5
 logging.addLevelName(logging.TRACE, "TRACE")
@@ -32,12 +36,13 @@ logging.RootLogger.trace = trace
 logging.trace = logging.root.trace
 
 # Don't move these up, as "trace" might be used in them
-from pisa.utils.jsons import from_json
-from pisa.utils.resources import find_resource
+import simplejson as json
+from pkg_resources import resource_stream #pisa.utils.resources as resources
 
 # Get the logging configuration
-# Will search in local dir, $PISA and finally package resources
-logconfig = from_json(find_resource('logging.json'))
+logconfig = json.load(
+    resource_stream('pisa', 'resources/settings/logging/logging.json'),
+)
 
 # Setup the logging system with this config
 logging.config.dictConfig(logconfig)
@@ -70,7 +75,11 @@ def set_verbosity(verbosity):
               2: logging.DEBUG,
               3: logging.TRACE}
 
-    assert(verbosity in levels)
+    if verbosity not in levels:
+        raise ValueError(
+            '`verbosity` specified is %s but must be one of %s.'
+            %(verbosity, levels.keys())
+        )
 
     # Overwrite the root logger with the verbosity level
     logging.root.setLevel(levels[verbosity])

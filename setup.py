@@ -28,9 +28,9 @@ If you wish to upgrade PISA and/or its dependencies:
 
 
 from distutils.command.build import build as _build
-from setuptools.command.build_ext import build_ext as _build_ext
 import os
-from setuptools import setup, Extension
+from setuptools.command.build_ext import build_ext as _build_ext
+from setuptools import setup, Extension, find_packages
 import shutil
 import subprocess
 import sys
@@ -44,7 +44,6 @@ import versioneer
 # needs to be done at run-time).
 
 # TODO: address some/all of the following in the `setup()` method?
-# * entry_points
 # * package_data
 # * include_package_data
 # * eager_resources
@@ -136,11 +135,6 @@ if __name__ == '__main__':
     setup_cc()
     sys.stdout.write('Using compiler %s\n' %os.environ['CC'])
 
-    CUDA = has_cuda()
-    if not CUDA:
-        sys.stderr.write('WARNING: Could not import pycuda; PISA may not be'
-                         ' able to support CUDA (GPU) accelerations.\n')
-
     OPENMP = has_openmp()
     if not OPENMP:
         sys.stderr.write(
@@ -151,6 +145,9 @@ if __name__ == '__main__':
     # Collect (build-able) external modules and package_data
     ext_modules = []
     package_data = {}
+
+    # Include documentation files wherever they may be
+    package_data[''] = ['*.md', '*.rst']
 
     # Prob3 oscillation code (pure C++, no CUDA)
     prob3cpu_module = Extension(
@@ -171,10 +168,12 @@ if __name__ == '__main__':
     ext_modules.append(prob3cpu_module)
 
     package_data['pisa.resources'] = [
-        'aeff/*.json',
-        'cross_sections/cross_sections.json',
+        'aeff/*.json*',
+        'cross_sections/*json*',
+        'discr_sys/*.json*',
+
         'events/*.hdf5',
-        'events/*.json',
+        'events/*.json*',
         'events/deepcore_ic86/MSU/1XXX/Joined/*.hdf5',
         'events/deepcore_ic86/MSU/1XXX/UnJoined/*.hdf5',
         'events/deepcore_ic86/MSU/1XXXX/Joined/*.hdf5',
@@ -182,59 +181,35 @@ if __name__ == '__main__':
         'events/deepcore_ic86/MSU/icc/*.hdf5',
         'events/pingu_v36/*.hdf5',
         'events/pingu_v39/*.hdf5',
+
         'flux/*.d',
-        'logging.json',
         'osc/*.hdf5',
         'osc/*.dat',
-        'pid/*.json',
-        'priors/*.json',
-        'reco/*.json',
+        'pid/*.json*',
+        'priors/*.json*',
+        'priors/*.md',
+        'reco/*.json*',
+
+        'settings/binning/*.cfg',
         'settings/discrete_sys/*.cfg',
-        'settings/minimizer/*.json',
+        'settings/logging/logging.json',
+        'settings/mc/*.cfg',
+        'settings/minimizer/*.json*',
+        'settings/osc/*.cfg',
+        'settings/osc/*.md',
         'settings/pipeline/*.cfg',
-        'discr_sys/*.json',
-        'tests/data/aeff/*.json',
-        'tests/data/flux/*.json',
-        'tests/data/full/*.json',
-        'tests/data/osc/*.json',
-        'tests/data/pid/*.json',
-        'tests/data/reco/*.json',
+        'settings/pipeline/*.md',
+
+        'tests/data/aeff/*.json*',
+        'tests/data/flux/*.json*',
+        'tests/data/full/*.json*',
+        'tests/data/osc/*.json*',
+        'tests/data/pid/*.json*',
+        'tests/data/reco/*.json*',
         'tests/data/xsec/*.root',
-        'tests/data/oscfit/*.json',
+        'tests/data/oscfit/*.json*',
         'tests/settings/*.cfg'
     ]
-
-    if CUDA:
-        prob3gpu_module = Extension(
-            name='pisa.stages.osc.grid_propagator._GridPropagator',
-            sources=[
-                'pisa/stages/osc/grid_propagator/GridPropagator.cpp',
-                'pisa/stages/osc/prob3/EarthDensity.cc',
-                'pisa/stages/osc/grid_propagator/GridPropagator.i'
-            ],
-            include_dirs=[
-                'pisa/stages/osc/prob3/'
-            ],
-            extra_compile_args=[
-                '-xc++', '-lstdc++', '-shared-libgcc', '-c', '-Wall', '-O3',
-                '-fPIC'
-            ],
-            swig_opts=[
-                '-v', '-c++'
-            ]
-        )
-        ext_modules.append(prob3gpu_module)
-        package_data['pisa.stages.osc.grid_propagator'] = [
-            'mosc3.cu',
-            'mosc.cu',
-            'mosc3.h',
-            'mosc.h',
-            'constants.h',
-            'numpy.i',
-            'GridPropagator.h',
-            'OscUtils.h',
-            'utils.h'
-        ]
 
     if OPENMP:
         gaussians_module = Extension(
@@ -281,15 +256,16 @@ if __name__ == '__main__':
             'line_profiler',
             'matplotlib',
             'pint',
+            'kde',
             'simplejson>=3.2.0',
             'tables',
             'uncertainties'
         ],
         extras_require={
-            'cuda':  [
+            'cuda': [
                 'pycuda'
             ],
-            'numba':  [
+            'numba': [
                 'enum34',
                 'numba'
             ],
@@ -299,42 +275,38 @@ if __name__ == '__main__':
                 'versioneer'
             ]
         },
-        packages=[
-            'pisa',
-            'pisa.analysis',
-            'pisa.core',
-            'pisa.resources',
-            'pisa.stages',
-            'pisa.stages.aeff',
-            'pisa.stages.data',
-            'pisa.stages.flux',
-            'pisa.stages.mc',
-            'pisa.stages.osc',
-            'pisa.stages.osc.grid_propagator',
-            'pisa.stages.osc.nuCraft',
-            'pisa.stages.osc.prob3',
-            'pisa.stages.pid',
-            'pisa.stages.reco',
-            'pisa.stages.discr_sys',
-            'pisa.stages.xsec',
-            'pisa.resources',
-            'pisa.utils'
-        ],
-        scripts=[
-            'pisa/analysis/hypo_testing.py',
-            'pisa/analysis/hypo_testing_postprocess.py',
-            'pisa/analysis/profile_llh_analysis.py',
-            'pisa/analysis/profile_llh_postprocess.py',
-            'pisa/core/distribution_maker.py',
-            'pisa/core/pipeline.py',
-            'pisa/scripts/make_events_file.py',
-            'pisa/scripts/test_changes_with_combined_pidreco.py',
-            'pisa/scripts/test_consistency_with_pisa2.py',
-            'pisa/scripts/test_consistency_with_oscfit.py'
-        ],
+        packages=find_packages(),
         ext_modules=ext_modules,
         package_data=package_data,
         # Cannot be compressed due to c, pyx, and cu source files that need to
         # be compiled and are inaccessible in zip
-        zip_safe=False
+        zip_safe=False,
+        entry_points={
+            'console_scripts': [
+                # Scripts in analysis dir
+                'hypo_testing.py = pisa.analysis.hypo_testing:main',
+                'hypo_testing_postprocess.py = pisa.analysis.hypo_testing_postprocess:main',
+                'profile_llh_analysis.py = pisa.analysis.profile_llh_analysis:main',
+                'profile_llh_postprocess.py = pisa.analysis.profile_llh_postprocess:main',
+
+                # Scripts in core dir
+                'distribution_maker.py = pisa.core.distribution_maker:main',
+                'pipeline.py = pisa.core.pipeline:main',
+
+                # Scripts in scripts dir
+                'add_flux_to_events_file.py = pisa.scripts.add_flux_to_events_file:main',
+                'compare.py = pisa.scripts.compare:main',
+                'fit_discrete_sys.py = pisa.scripts.fit_discrete_sys:main',
+                'make_akhmedov_plots.py = pisa.scripts.make_akhmedov_plots:main',
+                'make_events_file.py = pisa.scripts.make_events_file:main',
+                'make_nufit_theta23_spline_priors.py = pisa.scripts.make_nufit_theta23_spline_priors:main',
+                'test_consistency_with_osfit.py = pisa.scripts.test_consistency_with_oscfit:main',
+                'test_consistency_with_pisa2.py = pisa.scripts.test_consistency_with_pisa2:main',
+                'test_example_pipelines.py = pisa.scripts.test_example_pipelines:main'
+            ]
+        }
     )
+    if not has_cuda():
+        sys.stderr.write('WARNING: Could not import pycuda; attempt will be '
+                         ' made to install, but if this fails, PISA may not be'
+                         ' able to support CUDA (GPU) accelerations.\n')

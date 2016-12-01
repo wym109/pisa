@@ -2,19 +2,29 @@
 # author: S.Wren
 # date:   March 20, 2016
 """
-Runs the pipeline multiple times to test everything still agrees with PISA 2.
-Test data for comparing against should be in the tests/data directory.
-A set of plots will be output in your output directory for you to check.
-Agreement is expected to order 10^{-14} in the far right plots.
+Run a set of tests on the PISA pipeline against benchmark PISA 2 data. If no
+test flags are specified, *all* tests will be run.
+
+This script should always be run when you make any major modifications (and
+prior to submitting a pull request) to be sure nothing has broken.
+
+If you find this script does not work, please either fix it or report it! In
+general, this will signify you have "changed" something, somehow in the basic
+functionality which you should understand!
+
+If an output directory is specified, a set of plots will be output for you to
+visually inspect.
 """
 
 
 from argparse import ArgumentParser
 from copy import deepcopy
 import os
+import sys
 
 import numpy as np
 
+from pisa import FTYPE
 from pisa.core.map import Map, MapSet
 from pisa.core.pipeline import Pipeline
 from pisa.utils.fileio import from_file
@@ -24,9 +34,26 @@ from pisa.utils.config_parser import parse_pipeline_config
 from pisa.utils.tests import has_cuda, check_agreement, plot_comparisons
 
 
-# TODO: names shouldn't indicate that this is PISA 3; it is whatever the
-# current PISA is. The only version that is fixed is PISA 2, against which
-# we're comparing the current PISA version.
+__all__ = ['PID_FAIL_MESSAGE', 'PID_PASS_MESSAGE',
+           'compare_flux', 'compare_osc', 'compare_aeff', 'compare_reco',
+           'compare_pid', 'compare_flux_full', 'compare_osc_full',
+           'compare_aeff_full', 'compare_reco_full', 'compare_pid_full',
+           'parse_args', 'main']
+
+
+PID_FAIL_MESSAGE = (
+    "PISA 2 reference file has a known bug in its PID (fraction for each PID"
+    " signature is taken as total of events ID'd for each signatures, and not"
+    " total of all events, as it should be. Therefore, if PISA 3 / full"
+    " pipeline PID agrees with PISA 2 (same) for DeepCore (which does not have"
+    " mutually-exclusive PID definition), then PISA 3 is in error."
+)
+
+PID_PASS_MESSAGE = (
+    "PID passed, since PISA 3 should *disagree* with PISA 2 due to known bug"
+    " in PISA 2"
+)
+
 
 def compare_flux(config, servicename, pisa2file, systname,
                  outdir, ratio_test_threshold, diff_test_threshold):
@@ -785,19 +812,15 @@ def compare_pid_full(cake_maps, pisa_maps, outdir, ratio_test_threshold,
     )
 
 
-if __name__ == '__main__':
-    parser = ArgumentParser(
-        description='''Run a set of tests on the PISA pipeline against
-        benchmark PISA 2 data. If no test flags are specified, *all* tests will
-        be run.
+def parse_args():
+    if FTYPE == np.float32:
+        dflt_ratio_threshold = 5e-4
+    elif FTYPE == np.float64:
+        dflt_ratio_threshold = 1e-8
+    else:
+        raise ValueError('FTYPE=%s from const.py not handled' % FTYPE)
 
-        This script should always be run when you make any major modifications
-        to be sure nothing has broken.
-
-        If you find this script does not work, please either fix it or report
-        it! In general, this will signify you have "changed" something, somehow
-        in the basic functionality which you should understand!'''
-    )
+    parser = ArgumentParser(description=__doc__)
     parser.add_argument('--flux', action='store_true',
                         help='''Run flux tests i.e. the interpolation methods
                         and the flux systematics.''')
@@ -823,9 +846,10 @@ if __name__ == '__main__':
     parser.add_argument('--outdir', metavar='DIR', type=str,
                         help='''Store all output plots to this directory. If
                         they don't exist, the script will make them, including
-                        all subdirectories. If none is supplied no plots will
-                        be saved.''')
-    parser.add_argument('--ratio_threshold', type=float, default=1E-8,
+                        all subdirectories. If --outdir is not supplied, no
+                        plots will be saved.''')
+    parser.add_argument('--ratio_threshold', type=float,
+                        default=dflt_ratio_threshold,
                         help='''Sets the agreement threshold on the ratio test
                         plots. If this is not reached the tests will fail.''')
     parser.add_argument('--diff_threshold', type=float, default=2E-3,
@@ -839,6 +863,11 @@ if __name__ == '__main__':
     parser.add_argument('-v', action='count', default=None,
                         help='set verbosity level')
     args = parser.parse_args()
+    return args
+
+
+def main():
+    args = parse_args()
     set_verbosity(args.v)
 
     # Figure out which tests to do
@@ -1045,21 +1074,23 @@ if __name__ == '__main__':
             'events', 'deepcore_ic86', 'MSU', '1XXXX', 'Joined',
             'DC_MSU_1X585_joined_nu_nubar_events_mc.hdf5'
         )
-        params.pid_weights_name.value = 'weighted_aeff'
-        params.pid_ver.value = 'msu_mn8d-mn7d'
         pisa2file = os.path.join(
             'tests', 'data', 'pid', 'PISAV2PIDStageHist1X585Service.json'
         )
         pisa2file = find_resource(pisa2file)
-        pid_pipeline = compare_pid(
-            config=deepcopy(pid_config),
-            servicename='hist_1X585',
-            pisa2file=pisa2file,
-            outdir=args.outdir,
-            ratio_test_threshold=args.ratio_threshold,
-            diff_test_threshold=args.diff_threshold
-        )
-
+        try:
+            pid_pipeline = compare_pid(
+                config=deepcopy(pid_config),
+                servicename='hist_1X585',
+                pisa2file=pisa2file,
+                outdir=args.outdir,
+                ratio_test_threshold=args.ratio_threshold,
+                diff_test_threshold=args.diff_threshold
+            )
+        except ValueError:
+            logging.info(PID_PASS_MESSAGE)
+        else:
+            raise ValueError(PID_FAIL_MESSAGE)
     ## Perform reco+PID tests
     #if args.recopid or test_all:
     #    pid_settings = os.path.join(
@@ -1115,7 +1146,7 @@ if __name__ == '__main__':
         )
         pisa2file = find_resource(pisa2file)
         pisa2_comparisons = from_file(pisa2file)
-        # Up to flux stage comparisons
+        # Through flux stage comparisons
         compare_flux_full(
             pisa_maps=pisa2_comparisons[0],
             cake_maps=pipeline['flux'].outputs,
@@ -1123,7 +1154,7 @@ if __name__ == '__main__':
             ratio_test_threshold=args.ratio_threshold,
             diff_test_threshold=args.diff_threshold
         )
-        # Up to osc stage comparisons
+        # Through osc stage comparisons
         compare_osc_full(
             pisa_maps=pisa2_comparisons[1],
             cake_maps=pipeline['osc'].outputs,
@@ -1131,7 +1162,7 @@ if __name__ == '__main__':
             ratio_test_threshold=args.ratio_threshold,
             diff_test_threshold=args.diff_threshold
         )
-        # Up to aeff stage comparisons
+        # Through aeff stage comparisons
         compare_aeff_full(
             pisa_maps=pisa2_comparisons[2],
             cake_maps=pipeline['aeff'].outputs,
@@ -1139,7 +1170,7 @@ if __name__ == '__main__':
             ratio_test_threshold=args.ratio_threshold,
             diff_test_threshold=args.diff_threshold
         )
-        # Up to reco stage comparisons
+        # Through reco stage comparisons
         compare_reco_full(
             pisa_maps=pisa2_comparisons[3],
             cake_maps=pipeline['reco'].outputs,
@@ -1147,11 +1178,20 @@ if __name__ == '__main__':
             ratio_test_threshold=args.ratio_threshold,
             diff_test_threshold=args.diff_threshold
         )
-        # Up to PID stage comparisons
-        compare_pid_full(
-            pisa_maps=pisa2_comparisons[4],
-            cake_maps=pipeline['pid'].outputs, # use reco here
-            outdir=args.outdir,
-            ratio_test_threshold=args.ratio_threshold,
-            diff_test_threshold=args.diff_threshold
-        )
+        # Through PID stage comparisons
+        try:
+            compare_pid_full(
+                pisa_maps=pisa2_comparisons[4],
+                cake_maps=pipeline['pid'].outputs, # use reco here
+                outdir=args.outdir,
+                ratio_test_threshold=args.ratio_threshold,
+                diff_test_threshold=args.diff_threshold
+            )
+        except ValueError:
+            logging.info(PID_PASS_MESSAGE)
+        else:
+            raise ValueError(PID_FAIL_MESSAGE)
+
+
+if __name__ == '__main__':
+    main()

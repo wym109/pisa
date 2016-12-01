@@ -12,6 +12,9 @@ from scipy.stats import norm
 from pisa.utils.gaussians import gaussian, gaussians
 
 
+__all__ = ['test_gaussian', 'test_gaussians', 'speed_test_gaussians']
+
+
 def test_gaussian():
     x = np.linspace(-10, 10, 1e3, dtype=np.float64)
 
@@ -83,6 +86,8 @@ def speed_test_gaussians(num_gaussians, num_points):
             'must pass integral value or equivalent for `num_gaussians`'
     assert int(num_points) == float(num_points), \
             'must pass integral value or equivalent for `num_points`'
+    num_gaussians = int(num_gaussians)
+    num_points = int(num_points)
 
     def wstdout(msg):
         sys.stdout.write(msg)

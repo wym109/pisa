@@ -29,6 +29,8 @@ from pisa.utils.log import logging, set_verbosity
 from pisa.utils import resources
 
 
+__all__ = ['DataProcParams']
+
 
 MULTI_PART_FIELDS = [
     'I3MCTree',

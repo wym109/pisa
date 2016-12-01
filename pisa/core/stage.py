@@ -5,7 +5,7 @@ from copy import deepcopy
 import inspect
 import os
 
-from pisa.core.events import Events
+from pisa.core.events import Events, Data
 from pisa.core.map import MapSet
 from pisa.core.param import Param, ParamSelector, ParamSet
 from pisa.core.transform import TransformSet
@@ -16,6 +16,9 @@ from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import line_profile, profile
 from pisa.utils.resources import find_resource
+
+
+__all__ = ['Stage']
 
 
 # TODO: mode for not propagating errors. Probably needs hooks here, but meat of
@@ -64,7 +67,8 @@ class Stage(object):
         Whether or not this stage takes inputs to be transformed (and hence
         implements transforms).
 
-    params : ParamSelector, dict ParamSelector kwargs, ParamSet, or object instantiable to ParamSet
+    params : ParamSelector, dict of ParamSelector kwargs, ParamSet, or object
+             instantiable to ParamSet
 
     expected_params : list of strings
         List containing required `params` names.
@@ -143,7 +147,7 @@ class Stage(object):
                  params=None, expected_params=None, input_names=None,
                  output_names=None, error_method=None, disk_cache=None,
                  memcache_deepcopy=True, transforms_cache_depth=10,
-                 outputs_cache_depth=10, input_binning=None,
+                 outputs_cache_depth=0, input_binning=None,
                  output_binning=None, debug_mode=None):
 
         # Allow for string inputs, but have to populate into lists for
@@ -197,6 +201,9 @@ class Stage(object):
         self.nominal_transforms_cache = None
         """Memory cache object for storing nominal transforms"""
 
+        self.full_hash = True
+        """Whether to do full hashing if true, otherwise do fast hashing"""
+
         self.transforms_cache = MemoryCache(
             max_depth=self.transforms_cache_depth, is_lru=True,
             deepcopy=self.memcache_deepcopy
@@ -212,10 +219,12 @@ class Stage(object):
         """Memory cache object for storing outputs (excludes sideband
         objects)."""
 
-        self.outputs_cache = MemoryCache(
-            max_depth=self.outputs_cache_depth, is_lru=True,
-            deepcopy=self.memcache_deepcopy
-        )
+        self.outputs_cache = None
+        if self.outputs_cache_depth > 0:
+            self.outputs_cache = MemoryCache(
+                max_depth=self.outputs_cache_depth, is_lru=True,
+                deepcopy=self.memcache_deepcopy
+            )
 
         self.disk_cache = disk_cache
         """Disk cache object"""
@@ -417,7 +426,7 @@ class Stage(object):
             transforms_hash = self._derive_transforms_hash(
                 nominal_transforms_hash=nominal_transforms_hash
             )
-        logging.trace('transforms_hash: %s' %transforms_hash)
+        logging.trace('transforms_hash: %s' %str(transforms_hash))
 
         # Load and return existing transforms if in the cache
         if self.transforms_cache is not None \
@@ -504,7 +513,7 @@ class Stage(object):
         # usually be so)
 
         # Keep inputs for internal use and for inspection later
-        self.inputs = {} if inputs is None else inputs
+        self.inputs = inputs
 
         outputs_hash, transforms_hash, nominal_transforms_hash = \
                 self._derive_outputs_hash()
@@ -547,7 +556,8 @@ class Stage(object):
 
         # Attach sideband objects (i.e., inputs not specified in
         # `self.input_names`) to the "augmented" output object
-        names_in_inputs = set([i.name for i in self.inputs])
+        if self.inputs is None: names_in_inputs = set([])
+        else: names_in_inputs = set(self.inputs.names)
         unused_input_names = names_in_inputs.difference(self.input_names)
 
         if len(unused_input_names) == 0:
@@ -632,7 +642,7 @@ class Stage(object):
             events = events.value
         elif isinstance(events, basestring):
             events = find_resource(events)
-        this_hash = hash_obj(events)
+        this_hash = hash_obj(events, full_hash=self.full_hash)
         if self._events_hash is not None and this_hash == self._events_hash:
             return
         logging.debug('Extracting events from Events obj or file: %s' %events)
@@ -675,7 +685,7 @@ class Stage(object):
 
     @property
     def param_selections(self):
-        return deepcopy(self._selections)
+        return sorted(deepcopy(self._param_selector.param_selections))
 
     @property
     def input_names(self):
@@ -693,7 +703,10 @@ class Stage(object):
         an object stored to disk that were produced by a Stage.
         """
         if self._source_code_hash is None:
-            self._source_code_hash = hash_obj(inspect.getsource(self.__class__))
+            self._source_code_hash = hash_obj(
+                inspect.getsource(self.__class__),
+                full_hash=self.full_hash
+            )
         return self._source_code_hash
 
     @property
@@ -702,8 +715,9 @@ class Stage(object):
         provenance of persisted (on-disk) objects."""
         objects_to_hash = [self.source_code_hash, self.params.state_hash]
         for attr in self._attrs_to_hash:
-            objects_to_hash.append(hash_obj(getattr(self, attr)))
-        return hash_obj(objects_to_hash)
+            objects_to_hash.append(hash_obj(getattr(self, attr),
+                                            full_hash=self.full_hash))
+        return hash_obj(objects_to_hash, full_hash=self.full_hash)
 
     def include_attrs_for_hashes(self, attrs):
         """Include a class attribute or attributes to be included when
@@ -768,7 +782,7 @@ class Stage(object):
         id_objects = []
 
         # If stage uses inputs, grab hash from the inputs container object
-        if len(self.input_names) > 0:
+        if self.outputs_cache is not None and len(self.input_names) > 0:
             inhash = self.inputs.hash
             logging.trace('inputs.hash = %s' %inhash)
             id_objects.append(inhash)
@@ -784,32 +798,38 @@ class Stage(object):
         # Otherwise, generate sub-hash on binning and param values here
         else:
             transforms_hash, nominal_transforms_hash = None, None
-            id_subobjects = []
-            # Include all parameter values
-            id_subobjects.append(self.params.values_hash)
 
-            # Include additional attributes of this object
-            for attr in sorted(self._attrs_to_hash):
-                val = getattr(self, attr)
-                if hasattr(val, 'hash'):
-                    attr_hash = val.hash
+            if self.outputs_cache is not None:
+                id_subobjects = []
+                # Include all parameter values
+                id_subobjects.append(self.params.values_hash)
+
+                # Include additional attributes of this object
+                for attr in sorted(self._attrs_to_hash):
+                    val = getattr(self, attr)
+                    if hasattr(val, 'hash'):
+                        attr_hash = val.hash
+                    elif self.full_hash:
+                        norm_val = normQuant(val)
+                        attr_hash = hash_obj(norm_val,
+                                             full_hash=self.full_hash)
+                    else:
+                        attr_hash = hash_obj(val, full_hash=self.full_hash)
+                    id_subobjects.append(attr_hash)
+
+                # Generate the "sub-hash"
+                if any([(h == None) for h in id_subobjects]):
+                    sub_hash = None
                 else:
-                    norm_val = normQuant(val)
-                    attr_hash = hash_obj(val)
-                id_subobjects.append(attr_hash)
-
-            # Generate the "sub-hash"
-            if any([(h == None) for h in id_subobjects]):
-                sub_hash = None
-            else:
-                sub_hash = hash_obj(id_subobjects)
-            id_objects.append(sub_hash)
+                    sub_hash = hash_obj(id_subobjects,
+                                        full_hash=self.full_hash)
+                id_objects.append(sub_hash)
 
         # If any hashes are missing (i.e, None), invalidate the entire hash
-        if any([(h == None) for h in id_objects]):
+        if self.outputs_cache is None or any([(h is None) for h in id_objects]):
             outputs_hash = None
         else:
-            outputs_hash = hash_obj(id_objects)
+            outputs_hash = hash_obj(id_objects, full_hash=self.full_hash)
 
         return outputs_hash, transforms_hash, nominal_transforms_hash
 
@@ -837,16 +857,18 @@ class Stage(object):
             val = getattr(self, attr)
             if hasattr(val, 'hash'):
                 attr_hash = val.hash
-            else:
+            elif self.full_hash:
                 norm_val = normQuant(val)
-                attr_hash = hash_obj(val)
+                attr_hash = hash_obj(norm_val, full_hash=self.full_hash)
+            else:
+                attr_hash = hash_obj(val, full_hash=self.full_hash)
             id_objects.append(attr_hash)
 
         # If any hashes are missing (i.e, None), invalidate the entire hash
         if any([(h == None) for h in id_objects]):
             transforms_hash = None
         else:
-            transforms_hash = hash_obj(id_objects)
+            transforms_hash = hash_obj(id_objects, full_hash=self.full_hash)
 
         return transforms_hash, nominal_transforms_hash
 
@@ -893,9 +915,11 @@ class Stage(object):
             val = getattr(self, attr)
             if hasattr(val, 'hash'):
                 attr_hash = val.hash
-            else:
+            elif self.full_hash:
                 norm_val = normQuant(val)
-                attr_hash = hash_obj(val)
+                attr_hash = hash_obj(norm_val, full_hash=self.full_hash)
+            else:
+                attr_hash = hash_obj(val, full_hash=self.full_hash)
             id_objects.append(attr_hash)
         id_objects.append(self.source_code_hash)
 
@@ -903,7 +927,8 @@ class Stage(object):
         if any([(h == None) for h in id_objects]):
             nominal_transforms_hash = None
         else:
-            nominal_transforms_hash = hash_obj(id_objects)
+            nominal_transforms_hash = hash_obj(id_objects,
+                                               full_hash=self.full_hash)
 
         return nominal_transforms_hash
 
@@ -926,6 +951,7 @@ class Stage(object):
     def _compute_nominal_outputs(self):
         return None
 
+    @profile
     def _compute_outputs(self, inputs):
         """Override this method for no-input stages which do not use transforms.
         Input stages that compute a TransformSet needn't override this, as the

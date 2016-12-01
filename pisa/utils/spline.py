@@ -11,6 +11,10 @@ from pisa.core.binning import MultiDimBinning
 from pisa.utils import flavInt
 from pisa.utils.profiler import profile
 
+
+__all__ = ['Spline', 'CombinedSpline']
+
+
 HASH_SIGFIGS = 12
 """Round to this many significant figures for hashing numbers, such that
 machine precision doesn't cause effectively equivalent numbers to hash
@@ -338,8 +342,8 @@ class CombinedSpline(flavInt.FlavIntData):
 
 def test_Spline():
     # TODO(shivesh): tests
-    spl = Spline('numu')
-    print spl
+    pass
+
 
 if __name__ == '__main__':
     from pisa.utils.log import set_verbosity

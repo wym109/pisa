@@ -2,16 +2,18 @@
 # author: S.Wren
 # date:   March 20, 2016
 """
-Runs the pipeline in event-by-event mode to see how much it agrees with OscFit.
+Run the pipeline in event-by-event mode to see how much it agrees with OscFit.
 This is also checked against the PISA 2 legacy mode.
-Test data for comparing against should be in the tests/data directory.
-A set of plots will be output in your output directory for you to check.
+
+Test data for comparing against should be in the tests/data directory. A set of
+plots will be output in your output directory for you to check.
 """
 
 
 from argparse import ArgumentParser
 from copy import deepcopy
 import os
+import sys
 
 from pisa import ureg, Q_
 from pisa.core.map import MapSet
@@ -21,6 +23,9 @@ from pisa.utils.fileio import from_file
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.resources import find_resource
 from pisa.utils.tests import has_cuda, print_agreement, check_agreement, plot_comparisons
+
+
+__all__ = ['consistency_test', 'compare_baseline', 'compare_systematics', 'main']
 
 
 def consistency_test(config, testname, outdir, pisa3file,
@@ -175,11 +180,10 @@ def compare_systematics(baseline_oscfit, config, testname, outdir, oscfitfile):
     return pipeline
 
 
-if __name__ == '__main__':
+def main():
     parser = ArgumentParser(
-        description='''Run a set of tests on the PISA 3 pipeline against
-        the output from OscFit. If no test flags are specified, *all* tests will
-        be run.'''
+        description=__doc__ + '''\n\nIf no test flags are specified, *all*
+        tests will be run.'''
     )
     parser.add_argument('--baseline', action='store_true', default=False,
                         help='''Run baseline tests i.e. the output of PISA 3
@@ -328,3 +332,7 @@ if __name__ == '__main__':
                 outdir=args.outdir,
                 testname='%s'%texnames[sys]
             )
+
+
+if __name__ == '__main__':
+    main()

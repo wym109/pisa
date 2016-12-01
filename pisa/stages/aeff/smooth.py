@@ -1,9 +1,9 @@
 # authors: J.Lanfranchi/P.Eller/M.Weiss
 # date:   March 20, 2016
 
+import matplotlib as mpl
+# TODO: use backend
 import matplotlib.pyplot as plt
-from matplotlib.cm import Paired
-from matplotlib.offsetbox import AnchoredText
 import numpy as np
 from scipy.interpolate import interp2d, splrep, splev
 import uncertainties as unc
@@ -15,11 +15,15 @@ from pisa.core.events import Events
 from pisa.core.map import Map
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
-from pisa.utils.flavInt import flavintGroupsFromString
+from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.plotter import Plotter
 from pisa.utils.profiler import profile
+
+
+__all__ = ['smooth']
+
 
 # TODO: the below logic does not generalize to muons, but probably should
 # (rather than requiring an almost-identical version just for muons). For
@@ -50,13 +54,23 @@ class smooth(Stage):
         Must be one of 'neutrinos' or 'muons' (though only neutrinos are
         supported at this time).
 
-    transform_groups : string
-        Specifies which particles/interaction types to combine together in
-        computing the transforms. (See Notes.)
+    input_names : None, string or sequence of strings
+        If None, defaults are derived from `particles`.
 
-    combine_grouped_flavints : bool
-        Whether to combine the event-rate maps for the flavint groupings
-        specified by `transform_groups`.
+    error_method
+
+    transform_groups : string
+        Specifies which particles/interaction types to use for computing the
+        transforms. (See Notes.)
+
+    sum_grouped_flavints : bool
+        Whether to sum the event-rate maps for the flavint groupings
+        specified by `transform_groups`. If this is done, the output map names
+        will be the group names (as well as the names of any flavor/interaction
+        types not grouped together). Otherwise, the output map names will be
+        the same as the input map names. Combining grouped flavints' is
+        computationally faster and results in fewer maps, but it may be
+        desirable to not do so for, e.g., debugging.
 
     input_binning : MultiDimBinning or convertible thereto
         Input binning is in true variables, with names prefixed by "true_".
@@ -66,6 +80,12 @@ class smooth(Stage):
         Output binning is in reconstructed variables, with names (traditionally
         in PISA but not necessarily) prefixed by "reco_". Each must match a
         corresponding dimension in `input_binning`.
+
+    transforms_cache_depth : int >= 0
+
+    outputs_cache_depth : int >= 0
+
+    memcache_deepcopy : bool
 
     debug_mode : bool
         If true, this stage will:
@@ -84,17 +104,17 @@ class smooth(Stage):
                     A function to make a comparison plot between a slice of
                     a smoothed and an original transform.
 
-    error_method
-    disk_cache
-    transforms_cache_depth
-    outputs_cache_depth
+    Notes
+    -----
+    See Conventions section in the documentation for more informaton on
+    particle naming scheme in PISA.
 
     """
     def __init__(self, params, particles, transform_groups,
                  sum_grouped_flavints, input_binning, output_binning,
-                 input_names=None, error_method=None, disk_cache=None,
-                 transforms_cache_depth=20, outputs_cache_depth=20,
-                 memcache_deepcopy=True, debug_mode=None):
+                 memcache_deepcopy, transforms_cache_depth,
+                 outputs_cache_depth, input_names=None, error_method=None,
+                 debug_mode=None):
         assert particles in ['neutrinos', 'muons']
         self.particles = particles
         """Whether stage is instantiated to process neutrinos or muons"""
@@ -102,34 +122,40 @@ class smooth(Stage):
         self.transform_groups = flavintGroupsFromString(transform_groups)
         """Particle/interaction types to group for computing transforms"""
 
+        self.sum_grouped_flavints = sum_grouped_flavints
+
         # All of the following params (and no more) must be passed via the
         # `params` argument.
-        expected_params = (
+        expected_params = [
             'aeff_events', 'livetime', 'aeff_scale',
-            'aeff_e_smooth_factor', 'aeff_cz_smooth_factor',
-            'interp_kind', 'nutau_cc_norm', 'transform_events_keep_criteria'
-        )
+            'aeff_e_smooth_factor', 'aeff_cz_smooth_factor', 'interp_kind',
+            'transform_events_keep_criteria'
+        ]
+        if particles == 'neutrinos':
+            expected_params.append('nutau_cc_norm')
+
+        if isinstance(input_names, basestring):
+            input_names = input_names.replace(' ', '').split(',')
+        elif input_names is None:
+            if particles == 'neutrinos':
+                input_names = ('nue', 'nuebar', 'numu', 'numubar', 'nutau',
+                               'nutaubar')
 
         # Define the names of objects expected in inputs and produced as
         # outputs
         if self.particles == 'neutrinos':
-            input_names = (
-                'nue', 'numu', 'nutau', 'nuebar', 'numubar', 'nutaubar'
-            )
-            if sum_grouped_flavints:
-                output_names = tuple([str(g) for g in self.transform_groups])
-
+            if self.sum_grouped_flavints:
+                output_names = [str(g) for g in self.transform_groups]
             else:
-                output_names = (
-                    'nue_cc', 'numu_cc', 'nutau_cc', 'nuebar_cc', 'numubar_cc',
-                    'nutaubar_cc',
-                    'nue_nc', 'numu_nc', 'nutau_nc', 'nuebar_nc', 'numubar_nc',
-                    'nutaubar_nc'
-                )
+                input_flavints = NuFlavIntGroup(input_names)
+                output_names = [str(fi) for fi in input_flavints]
         elif self.particles == 'muons':
             raise NotImplementedError
         else:
             raise ValueError('Particle type `%s` is not valid' % self.particles)
+
+        logging.trace('transform_groups = %s' %self.transform_groups)
+        logging.trace('output_names = %s' %' :: '.join(output_names))
 
         # Invoke the init method from the parent class, which does a lot of
         # work for you.
@@ -140,7 +166,7 @@ class smooth(Stage):
             input_names=input_names,
             output_names=output_names,
             error_method=error_method,
-            disk_cache=disk_cache,
+            memcache_deepcopy=memcache_deepcopy,
             outputs_cache_depth=outputs_cache_depth,
             transforms_cache_depth=transforms_cache_depth,
             input_binning=input_binning,
@@ -153,7 +179,7 @@ class smooth(Stage):
         self.include_attrs_for_hashes('transform_groups')
 
     def slice_smooth(self, xform):
-        '''Returns a smoothed version of `xform`.
+        """Returns a smoothed version of `xform`.
 
         Fits splines to `xform.xform_array`, parallel to energy direction,
         then parallel to coszen, using the smoothing factors found in params.
@@ -174,7 +200,7 @@ class smooth(Stage):
         -------
         A transform with a smoothed xform.array
 
-        '''
+        """
         # Dimensions and order used for computation
         dims = ['true_coszen', 'true_energy'] #, 'true_azimuth']
         # Order is simple for computation
@@ -377,10 +403,6 @@ class smooth(Stage):
             raise ValueError('Input binning has extra dimension(s): %s'
                              %sorted(excess_dims))
 
-        # TODO: not handling rebinning in this stage or within Transform
-        # objects; implement this! (and then this assert statement can go away)
-        assert self.input_binning == self.output_binning
-
         # Select only the units in the input/output binning for conversion
         # (can't pass more than what's actually there)
         in_units = {dim: unit for dim, unit in comp_units.items()
@@ -402,37 +424,31 @@ class smooth(Stage):
         if 'true_coszen' not in input_binning:
             missing_dims_vol *= 2
 
-        # TODO: take events object as an input instead of as a param that
-        # specifies a file? Or handle both cases?
-
-        # TODO: include here the logic from the make_events_file.py script so
-        # we can go directly from a (reasonably populated) icetray-converted
-        # HDF5 file (or files) to a nominal transform, rather than having to
-        # rely on the intermediate step of converting that HDF5 file (or files)
-        # to a PISA HDF5 file that has additional column(s) in it to account
-        # for the combinations of flavors, interaction types, and/or simulation
-        # runs. Parameters can include which groupings to use to formulate an
-        # output.
-
         # Make binning for smoothing
         # TODO Add support for azimuth
         assert 'true_coszen' in input_binning.names
         assert 'true_energy' in input_binning.names
         assert len(input_binning.names) == 2
 
-        s_ebins = OneDimBinning(name='true_energy', tex=r'E_\nu',
-                                is_log=True, num_bins=39, domain=[1,80]*ureg.GeV)
-        s_czbins = OneDimBinning(name='true_coszen',
-                                 tex=r'\cos\theta_\nu', is_lin=True, num_bins=40,
-                                 domain=[-1,1]*ureg(None))
-        smoothing_binning = MultiDimBinning([s_ebins, s_czbins])
+        # TODO: define smoothed binning as oversampled version of input
+        # binning, or define in the config file!
+
+        smoothing_e_binning = OneDimBinning(
+            name='true_energy', tex=r'E_\nu',
+            is_log=True, num_bins=39, domain=[1,80]*ureg.GeV
+        )
+        smoothing_cz_binning = OneDimBinning(
+            name='true_coszen', tex=r'\cos\theta_\nu', is_lin=True,
+            num_bins=40, domain=[-1,1]*ureg(None)
+        )
+        smoothing_binning = smoothing_e_binning * smoothing_cz_binning
         smoothing_binning = smoothing_binning.reorder_dimensions(self.input_binning)
 
         raw_transforms = []
         smooth_transforms = []
         interp_transforms = []
         for xform_flavints in self.transform_groups:
-            logging.debug("Working on %s effective areas" %xform_flavints)
+            logging.debug("Working on %s effective areas xform" %xform_flavints)
 
             aeff_transform = self.remaining_events.histogram(
                 kinds=xform_flavints,
@@ -463,19 +479,32 @@ class smooth(Stage):
             # For each member of the group, save the raw aeff transform and
             # its smoothed and interpolated versions
             flav_names = [str(flav) for flav in xform_flavints.flavs()]
-            for input_name in self.input_names:
-                if input_name not in flav_names:
-                    continue
+
+            # If combining grouped flavints:
+            # Create a single transform for each group and assign all flavors
+            # that contribute to the group as the transform's inputs. Combining
+            # the event rate maps will be performed by the
+            # BinnedTensorTransform object upon invocation of the `apply`
+            # method.
+            if self.sum_grouped_flavints:
+                xform_input_names = []
+                for input_name in self.input_names:
+                    input_flavs = NuFlavIntGroup(input_name)
+                    if len(set(xform_flavints).intersection(input_flavs)) > 0:
+                        xform_input_names.append(input_name)
+
                 for output_name in self.output_names:
                     if output_name not in xform_flavints:
                         continue
                     xform = BinnedTensorTransform(
-                        input_names=input_name,
+                        input_names=xform_input_names,
                         output_name=output_name,
-                        input_binning=smoothing_binning,
-                        output_binning=smoothing_binning,
+                        input_binning=self.input_binning,
+                        output_binning=self.output_binning,
                         xform_array=aeff_transform,
+                        sum_inputs=self.sum_grouped_flavints
                     )
+                    nominal_transforms.append(xform)
                     smooth_transform = self.slice_smooth(xform)
                     interp_transform = self.interpolate_transform(
                         smooth_transform, new_binning=self.input_binning
@@ -483,6 +512,35 @@ class smooth(Stage):
                     raw_transforms.append(xform)
                     smooth_transforms.append(smooth_transform)
                     interp_transforms.append(interp_transform)
+
+            # If *not* combining grouped flavints:
+            # Copy the transform for each input flavor, regardless if the
+            # transform is computed from a combination of flavors.
+            else:
+                for input_name in self.input_names:
+                    input_flavs = NuFlavIntGroup(input_name)
+                    # Since aeff "splits" neutrino flavors into
+                    # flavor+interaction types, need to check if the output
+                    # flavints are encapsulated by the input flavor(s).
+                    if len(set(xform_flavints).intersection(input_flavs)) == 0:
+                        continue
+                    for output_name in self.output_names:
+                        if output_name not in xform_flavints:
+                            continue
+                        xform = BinnedTensorTransform(
+                            input_names=input_name,
+                            output_name=output_name,
+                            input_binning=smoothing_binning,
+                            output_binning=smoothing_binning,
+                            xform_array=aeff_transform,
+                        )
+                        smooth_transform = self.slice_smooth(xform)
+                        interp_transform = self.interpolate_transform(
+                            smooth_transform, new_binning=self.input_binning
+                        )
+                        raw_transforms.append(xform)
+                        smooth_transforms.append(smooth_transform)
+                        interp_transforms.append(interp_transform)
 
         raw_transforms = TransformSet(transforms=raw_transforms)
         smooth_transforms = TransformSet(transforms=smooth_transforms)
@@ -552,19 +610,19 @@ class smooth(Stage):
             # Raw
             plots.init_fig()
             plots.plot_2d_array(raw_transforms, n_rows=2, n_cols=6,
-                                cmap=Paired)
+                                cmap=mpl.cm.Paired)
             plots.dump('aeff_raw_transforms')
 
             # Smoothed
             plots.init_fig()
             plots.plot_2d_array(smooth_transforms, n_rows=2, n_cols=6,
-                                cmap=Paired)
+                                cmap=mpl.cm.Paired)
             plots.dump('aeff_smooth_transforms')
 
             # Interpolated
             plots.init_fig()
             plots.plot_2d_array(interp_transforms, n_rows=2, n_cols=6,
-                                cmap=Paired)
+                                cmap=mpl.cm.Paired)
             plots.dump('aeff_interp_transforms')
 
             #
@@ -585,7 +643,8 @@ class smooth(Stage):
                 fields = ['mean', 'std', 'mad', 'med', 'min', 'max']
                 textstr = '\n'.join([(f + ' ={' + f + ':7.4f}')
                                      for f in fields]).format(**values[i])
-                a_text = AnchoredText(textstr, loc=1, frameon=False)
+                a_text = mpl.offsetbox.AnchoredText(textstr, loc=1,
+                                                    frameon=False)
                 plt.gca().add_artist(a_text)
             plots.dump('aeff_frac_diff_raw_smooth')
 
@@ -645,26 +704,34 @@ class smooth(Stage):
         logging.trace('livetime = %s --> %s sec'
                       %(self.params.livetime.value, livetime_s))
 
+        if self.particles == 'neutrinos':
+            nutau_cc_norm = self.params.nutau_cc_norm.m_as('dimensionless')
+            if nutau_cc_norm != 1:
+                assert NuFlavIntGroup('nutau_cc') in self.transform_groups
+                assert NuFlavIntGroup('nutaubar_cc') in self.transform_groups
+
         new_transforms = []
         for xform_flavints in self.transform_groups:
             repr_flav_int = xform_flavints[0]
             flav_names = [str(flav) for flav in xform_flavints.flavs()]
             aeff_transform = None
             for transform in self.nominal_transforms:
-                if transform.input_names[0] in flav_names \
-                        and transform.output_name in xform_flavints:
+                if (transform.input_names[0] in flav_names
+                        and transform.output_name in xform_flavints):
                     if aeff_transform is None:
-                        aeff_transform = transform.xform_array * (aeff_scale *
-                                                                  livetime_s)
-                        if transform.output_name in ['nutau_cc','nutaubar_cc']:
-                            aeff_transform = (aeff_transform *
-                                             self.params.nutau_cc_norm.value.m)
+                        scale = aeff_scale * livetime_s
+                        if (self.particles == 'neutrinos'
+                            and ('nutau_cc' in transform.output_name
+                                 or 'nutaubar_cc' in transform.output_name)):
+                            scale *= nutau_cc_norm
+                        aeff_transform = transform.xform_array * scale
                     new_xform = BinnedTensorTransform(
                         input_names=transform.input_names,
                         output_name=transform.output_name,
                         input_binning=transform.input_binning,
                         output_binning=transform.output_binning,
-                        xform_array=aeff_transform
+                        xform_array=aeff_transform,
+                        sum_inputs=self.sum_grouped_flavints
                     )
                     new_transforms.append(new_xform)
 

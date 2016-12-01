@@ -12,6 +12,7 @@ from __future__ import division
 
 from collections import OrderedDict
 from copy import deepcopy
+from itertools import product
 import re
 import sys
 import time
@@ -23,8 +24,12 @@ from pisa import ureg, Q_
 from pisa.core.map import METRICS_TO_MAXIMIZE, VALID_METRICS
 from pisa.core.param import ParamSet
 from pisa.utils.log import logging
+from pisa.utils.fileio import to_file
 
 
+__all__ = ['Analysis', 'Counter']
+
+# TODO: move this to a central location prob. in utils
 class Counter(object):
     def __init__(self, i=0):
         self._i = i
@@ -58,11 +63,12 @@ class Analysis(object):
 
     """
     def __init__(self):
+        self._nit = 0
         pass
 
     def fit_hypo(self, data_dist, hypo_maker, hypo_param_selections, metric,
-                 minimizer_settings, check_octant=True, other_metrics=None,
-                 blind=False, pprint=True):
+                 minimizer_settings, reset_free=True, check_octant=True,
+                 other_metrics=None, blind=False, pprint=True):
         """Fitter "outer" loop: If `check_octant` is True, run
         `fit_hypo_inner` starting in each octant of theta23 (assuming that
         is a param in the `hypo_maker`). Otherwise, just run the inner
@@ -128,8 +134,10 @@ class Analysis(object):
         """
         # Select the version of the parameters used for this hypothesis
         hypo_maker.select_params(hypo_param_selections)
+
         # Reset free parameters to nominal values
-        hypo_maker.reset_free()
+        if reset_free:
+            hypo_maker.reset_free()
 
         alternate_fits = []
 
@@ -247,12 +255,12 @@ class Analysis(object):
         fit_history = []
         start_t = time.time()
 
-        if pprint:
+        if pprint and not blind:
             free_p = hypo_maker.params.free
 
             # Display any units on top
             r = re.compile(r'(^[+0-9.eE-]* )|(^[+0-9.eE-]*$)')
-            hdr = ' '*(6+1+12+3)
+            hdr = ' '*(6+1+10+1+12+3)
             unt = []
             for p in free_p:
                 u = r.sub('', format(p.value, '~')).replace(' ','')[0:10]
@@ -263,16 +271,19 @@ class Analysis(object):
             hdr += '\n'
 
             # Header names
-            hdr += 'iter'.center(6) + ' ' + metric[0:12].center(12) + ' | '
+            hdr += ('iter'.center(6) + ' ' + 'funcalls'.center(10) + ' ' +
+                    metric[0:12].center(12) + ' | ')
             hdr += ' '.join([p.name[0:12].center(12) for p in free_p])
             hdr += '\n'
 
             # Underscores
-            hdr += ' '.join(['-'*6, '-'*12, '+'] + ['-'*12]*len(free_p))
+            hdr += ' '.join(['-'*6, '-'*10, '-'*12, '+'] + ['-'*12]*len(free_p))
             hdr += '\n'
 
             sys.stdout.write(hdr)
 
+        # reset number of iterations before each minimization
+        self._nit = 0
         optimize_result = optimize.minimize(
             fun=self._minimizer_callable,
             x0=x0,
@@ -280,7 +291,8 @@ class Analysis(object):
                   blind),
             bounds=bounds,
             method=minimizer_settings['method']['value'],
-            options=minimizer_settings['options']['value']
+            options=minimizer_settings['options']['value'],
+            callback=self._minimizer_callback
         )
         end_t = time.time()
         if pprint:
@@ -303,7 +315,7 @@ class Analysis(object):
         hypo_maker._set_rescaled_free_params(rescaled_pvals)
 
         # Record the Asimov distribution with the optimal param values
-        hypo_asimov_dist = hypo_maker.get_outputs()
+        hypo_asimov_dist = hypo_maker.get_outputs(return_sum=True)
 
         # Get the best-fit metric value
         metric_val = sign * optimize_result.pop('fun')
@@ -326,7 +338,7 @@ class Analysis(object):
             fit_info['params'] = deepcopy(hypo_maker.params)
         fit_info['detailed_metric_info'] = self.get_detailed_metric_info(
             data_dist=data_dist, hypo_asimov_dist=hypo_asimov_dist,
-            metric=metric, other_metrics=other_metrics
+            params=hypo_maker.params, metric=metric, other_metrics=other_metrics
         )
         fit_info['minimizer_time'] = minimizer_time * ureg.sec
         fit_info['minimizer_metadata'] = metadata
@@ -354,10 +366,10 @@ class Analysis(object):
 
         """
         fit_info = OrderedDict()
-        fit_info['metric'] = self.metric
+        fit_info['metric'] = metric
         fit_info['metric_val'] = data_dist.metric_total(
             expected_values=hypo_asimov_dist,
-            metric=self.metric
+            metric=metric
         )
 
         # NOTE: Select params but *do not* reset to nominal values to record
@@ -373,7 +385,7 @@ class Analysis(object):
             fit_info['params'] = deepcopy(hypo_maker.params)
         fit_info['detailed_metric_info'] = self.get_detailed_metric_info(
             data_dist=data_dist, hypo_asimov_dist=hypo_asimov_dist,
-            metric=metric, other_metrics=other_metrics
+            params=hypo_maker.params, metric=metric, other_metrics=other_metrics
         )
         fit_info['minimizer_time'] = 0 * ureg.sec
         fit_info['minimizer_metadata'] = OrderedDict()
@@ -381,7 +393,7 @@ class Analysis(object):
         return fit_info
 
     @staticmethod
-    def get_detailed_metric_info(data_dist, hypo_asimov_dist, metric,
+    def get_detailed_metric_info(data_dist, hypo_asimov_dist, params, metric,
                                  other_metrics=None):
         # Get the best-fit metric value for each of the output distributions
         # and for each of the `other_metrics` specified.
@@ -392,12 +404,11 @@ class Analysis(object):
         all_metrics = sorted(set([metric] + other_metrics))
         detailed_metric_info = OrderedDict()
         for m in all_metrics:
-            name_vals_d = data_dist.metric_per_map(
+            name_vals_d = OrderedDict()
+            name_vals_d['maps'] = data_dist.metric_per_map(
                 expected_values=hypo_asimov_dist, metric=m
             )
-            name_vals_d['total'] = data_dist.metric_total(
-                expected_values=hypo_asimov_dist, metric=m
-            )
+            name_vals_d['priors'] = params.priors_penalties(metric=metric)
             detailed_metric_info[m] = name_vals_d
         return detailed_metric_info
 
@@ -452,7 +463,7 @@ class Analysis(object):
 
         # Get the Asimov map set
         try:
-            hypo_asimov_dist = hypo_maker.get_outputs()
+            hypo_asimov_dist = hypo_maker.get_outputs(return_sum=True)
         except:
             if not blind:
                 logging.error(
@@ -465,7 +476,7 @@ class Analysis(object):
         try:
             metric_val = (
                 data_dist.metric_total(expected_values=hypo_asimov_dist,
-                                  metric=metric)
+                                       metric=metric)
                 + hypo_maker.params.priors_penalty(metric=metric)
             )
         except:
@@ -478,10 +489,12 @@ class Analysis(object):
 
         # Report status of metric & params (except if blinded)
         if blind:
-            msg = 'minimizer iteration #%6d' %counter.count
+            msg = ('minimizer iteration: #%6d | function call: #%6d'
+		   %(self._nit, counter.count))
         else:
             #msg = '%s=%.6e | %s' %(metric, metric_val, hypo_maker.params.free)
-            msg = '%s %s | ' %(('%d'%counter.count).center(6),
+            msg = '%s %s %s | ' %(('%d'%self._nit).center(6),
+                                ('%d'%counter.count).center(10),
                                 format(metric_val, '0.5e').rjust(12))
             msg += ' '.join([('%0.5e'%p.value.m).rjust(12)
                              for p in hypo_maker.params.free])
@@ -502,6 +515,17 @@ class Analysis(object):
 
         return sign*metric_val
 
+    def _minimizer_callback(self, xk):
+        """Passed as `callback` parameter to `optimize.minimize`, and is called
+        after each iteration. Keeps track of number of iterations.
+
+        Parameters
+        ----------
+        xk : list
+	    Parameter vector
+        """
+        self._nit+=1
+
     # TODO: move the complexity of defining a scan into a class with various
     # factory methods, and just pass that class to the scan method; we will
     # surely want to use scanning over parameters in more general ways, too:
@@ -509,8 +533,10 @@ class Analysis(object):
     #   params
     # * set (some free or fixed) params, then check metric
     # where the setting of the params is done for some number of values.
-    def scan(self, data_dist, hypo_maker, metric, param_names=None, steps=None,
-             values=None, outer=False):
+    def scan(self, data_dist, hypo_maker, metric, hypo_param_selections=None,
+             param_names=None, steps=None, values=None, only_points=None,
+             outer=True, profile=True, minimizer_settings=None, outfile=None,
+             debug_mode=1, **kwargs):
         """Set hypo maker parameters named by `param_names` according to
         either values specified by `values` or number of steps specified by
         `steps`, and return the `metric` indicating how well the data
@@ -524,11 +550,33 @@ class Analysis(object):
 
         Parameters
         ----------
+        data_dist : MapSet
+            Data distribution(s). These are what the hypothesis is tasked to
+            best describe during the optimization/comparison process.
+
+        hypo_maker : DistributionMaker or instantiable thereto
+            Generates the expectation distribution under a particular
+            hypothesis. This typically has (but is not required to have) some
+            free parameters which will be modified by the minimizer to optimize
+            the `metric` in case `profile` is set to True.
+
+        hypo_param_selections : string, or sequence of strings
+            A pipeline configuration can have param selectors that allow
+            switching a parameter among two or more values by specifying the
+            corresponding param selector(s) here. This also allows for a single
+            instance of a DistributionMaker to generate distributions from
+            different hypotheses.
+
+        metric : string
+            The metric to use for optimization/comparison. Note that the
+            optimized hypothesis also has this metric evaluated and reported for
+            each of its output maps. Confer `pisa.core.map` for valid metrics.
+
         param_names : None, string, or sequence of strings
             If None, assume all parameters are to be scanned; otherwise,
             specifies only the name or names of parameters to be scanned.
 
-        steps : None, integer, or sequence of strings
+        steps : None, integer, or sequence of integers
             Number of steps to take within the allowed range of the parameter
             (or parameters). Value(s) specified for `steps` must be >= 2. Note
             that the endpoints of the range are always included, and numbers of
@@ -567,33 +615,177 @@ class Analysis(object):
                   len(inner seq0) * len(inner seq1) * ...
                 Asimov distributions produced.
 
+        only_points : None, integer, or even-length sequence of integers
+            Only select subset of points to be analysed by specifying their
+            range of positions within the whole set (0-indexed, incremental).
+            For the lazy amongst us...
+
         outer : bool
             If set to True and a sequence of sequences is passed for `values`,
             the points scanned are the *outer product* of the inner sequences.
             See `values` for a more detailed explanation.
 
+        profile : bool
+            If set to True, minimizes specified metric over all free parameters
+            at each scanned point. Otherwise keeps them at their nominal values
+            and only performs grid scan of the parameters specified in
+            `param_names`.
+
+        minimizer_settings : dict
+            Dictionary containing the settings for minimization, which are
+            only needed if `profile` is set to True. Hint: it has proven useful
+            to sprinkle with a healthy dose of scepticism.
+
+        outfile : string
+            Outfile to store results to. Will be updated at each scan step to
+            write out intermediate results to prevent loss of data in case
+            the apocalypse strikes after all.
+
+        debug_mode : int, either one of [0, 1, 2]
+            If set to 2, will add a wealth of minimisation history and physics
+            information to the output file. Otherwise, the output will contain
+            the essentials to perform an analysis (0), or will hopefully be
+            detailed enough for some simple debugging (1). Any other value for
+            `debug_mode` will be set to 2.
+
         """
-        assert not (steps is not None and values is not None)
+        if not debug_mode in (0, 1, 2):
+            debug_mode = 2
+
+        # Either `steps` or `values` must be specified, but not both (xor)
+        assert (steps is None) != (values is None)
+
         if isinstance(param_names, basestring):
             param_names = [param_names]
 
-        if values is not None and np.isscalar(values):
-            values = np.array([values])
-            nparams = len(param_names)
+        nparams = len(param_names)
+        hypo_maker.select_params(hypo_param_selections)
 
-        metric_vals = []
-        for val in values:
-            fp = hypo_maker.params.free
-            fp[param_names].value = val
-            hypo_maker.update_params(fp)
-            hypo_asimov_dist = hypo_maker.get_outputs()
-            metric_vals.append(
-                data_dist.metric_total(
-                    expected_values=hypo_asimov_dist, metric=metric
+        if values is not None:
+            if np.isscalar(values):
+                values = np.array([values])
+                assert nparams == 1
+            for i,val in enumerate(values):
+                if not np.isscalar(val):
+                    # no scalar here, need a corresponding parameter name
+                    assert nparams >= i+1
+                else:
+                    # a scalar, can either have only one parameter or at least
+                    # this many
+                    assert (nparams == 1 or nparams >= i+1)
+                    if nparams > 1:
+                        values[i] = np.array([val])
+
+        else:
+            ranges = [hypo_maker.params[pname].range for pname in param_names]
+            if np.issubdtype(type(steps), int):
+                assert steps >= 2
+                values = [np.linspace(r[0], r[1], steps)*r[0].units
+                          for r in ranges]
+            else:
+                assert len(steps) == nparams
+                assert np.all(np.array(steps)>=2)
+                values = [np.linspace(r[0], r[1], steps[i])*r[0].units
+                          for i,r in enumerate(ranges)]
+
+        if nparams > 1:
+            steplist = [[(pname, val) for val in values[i]] for (i, pname) in
+                            enumerate(param_names)]
+        else:
+            steplist = [[(param_names[0], val) for val in values[0]]]
+
+        points_acc = []
+        if not only_points is None:
+            assert (len(only_points) == 1 or len(only_points) % 2 == 0)
+            if len(only_points) == 1:
+                points_acc = only_points
+            for i in xrange(0, len(only_points)-1, 2):
+                points_acc.extend(range(only_points[i], only_points[i+1]+1))
+
+        # Instead of introducing another multitude of tests above, check here
+        # whether the lists of steps all have the same length in case `outer`
+        # is set to False
+        if nparams > 1 and not outer:
+            assert np.all(len(steps) == len(steplist[0]) for steps in steplist)
+            loopfunc = zip
+        else:
+            # With single parameter, can use either `zip` or `product`
+            loopfunc = product
+
+        params = hypo_maker.params
+
+        # Fix the parameters to be scanned if `profile` is set to True
+        params.fix(param_names)
+
+        results = {'steps': {}, 'results': []}
+        results['steps'] = {pname: [] for pname in param_names}
+        for i,pos in enumerate(loopfunc(*steplist)):
+            if len(points_acc) > 0 and i not in points_acc:
+                continue
+
+            msg = ''
+            for (pname, val) in pos:
+                params[pname].value = val
+                results['steps'][pname].append(val)
+                msg += '%s = %.2f '%(pname, val)
+            logging.info('Working on point ' + msg)
+            hypo_maker.update_params(params)
+
+            # TODO: consistent treatment of hypo_param_selections and scanning
+            if not profile or len(hypo_maker.params.free) == 0:
+                logging.info('Not optimizing since `profile` set to False or'
+                             ' no free parameters found...')
+                best_fit = self.nofit_hypo(
+                    data_dist=data_dist,
+                    hypo_maker=hypo_maker,
+                    hypo_param_selections=hypo_param_selections,
+                    hypo_asimov_dist=hypo_maker.get_outputs(return_sum=True),
+                    metric=metric,
+                    **kwargs
                 )
-            )
-        return metric_vals
+            else:
+                logging.info('Starting optimization since `profile` requested.')
+                best_fit, alternate_fits = self.fit_hypo(
+                    data_dist=data_dist,
+                    hypo_maker=hypo_maker,
+                    hypo_param_selections=hypo_param_selections,
+                    metric=metric,
+                    minimizer_settings=minimizer_settings,
+                    **kwargs
+                )
+                # TODO: serialisation!
+                for k in best_fit['minimizer_metadata']:
+                    if k in ['hess', 'hess_inv']:
+                        print "deleting %s"%k
+                        del best_fit['minimizer_metadata'][k]
 
+            best_fit['params'] = \
+                    deepcopy(best_fit['params']._serializable_state)
+            best_fit['hypo_asimov_dist'] = \
+                    deepcopy(best_fit['hypo_asimov_dist']._serializable_state)
+
+            # decide which information to retain based on chosen debug mode
+            if debug_mode == 0 or debug_mode == 1:
+                try:
+                    del best_fit['fit_history']
+                    del best_fit['hypo_asimov_dist']
+                except:
+                    pass
+
+            if debug_mode == 0:
+                # torch the woods!
+                try:
+                    del best_fit['minimizer_metadata']
+                    del best_fit['minimizer_time']
+                except:
+                    pass
+
+            results['results'].append(best_fit)
+            if not outfile is None:
+                # store intermediate results
+                to_file(results, outfile)
+
+        return results
 
 def test_Counter():
     pass

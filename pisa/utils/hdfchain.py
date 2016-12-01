@@ -7,6 +7,10 @@ import tables
 from glob import glob
 from collections import defaultdict
 
+
+__all__ = ['HDFTableProxy', 'TableAccessor', 'HDFChain']
+
+
 class HDFTableProxy(object):
     def __init__(self, table, files):
         self.path = str(table._v_pathname)

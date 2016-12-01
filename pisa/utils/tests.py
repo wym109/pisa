@@ -16,6 +16,12 @@ from pisa.utils.fileio import get_valid_filename, mkdir
 from pisa.utils.log import logging
 
 
+__all__ = ['has_cuda', 'order', 'order_str', 'check_agreement',
+           'print_agreement', 'print_event_rates', 'validate_maps',
+           'make_delta_map', 'make_ratio_map', 'baseplot', 'baseplot2',
+           'plot_comparisons', 'plot_cmp']
+
+
 def has_cuda():
     # pycuda is present if it can be imported
     try:
@@ -36,52 +42,62 @@ def order(x):
 def order_str(x):
     order_float = order(x)
     try:
-        return str(int(order_float))
+        return str(int(order_float)).rjust(4)
     except OverflowError:
         pass
     return str(order_float)
 
 
 def check_agreement(testname, thresh_ratio, ratio, thresh_diff, diff):
-    ratio_pass = ratio <= thresh_ratio
-    diff_pass = diff <= thresh_diff
+    ratio_pass = np.abs(ratio) <= np.abs(thresh_ratio)
+    diff_pass = np.abs(diff) <= np.abs(thresh_diff)
 
     thresh_ratio_str = order_str(thresh_ratio)
     ratio_ord_str = order_str(ratio)
-    ratio_pass_str = 'PASS' if diff_pass else 'FAIL'
+    ratio_pass_str = 'PASS' if ratio_pass else 'FAIL'
 
     thresh_diff_str = order_str(thresh_diff)
     diff_ord_str = order_str(diff)
     diff_pass_str = 'PASS' if diff_pass else 'FAIL'
 
-    s = '<< {testname:s}, {kind:s}: {pass_str:s} >>' \
-        ' agreement to 10^{level:s} (threshold={thresh:e})'
+    headline = '<< {testname:s}, {kind:s} : {pass_str:s} >>'
+    detail_str = '... agree to (( 10^{level:s} )) ; thresh = (( 10^{thresh:s} ))'
 
-    s_ratio = s.format(
-        testname=testname, kind='fract diff', pass_str=ratio_pass_str,
-        level=ratio_ord_str, thresh=thresh_ratio
+    ratio_headline = headline.format(
+        testname=testname, kind='fract diff', pass_str=ratio_pass_str
     )
-    s_diff = s.format(
+    ratio_detail = detail_str.format(
+        level=ratio_ord_str, thresh=thresh_ratio_str
+    )
+
+    diff_headline = headline.format(
         testname=testname, kind='diff', pass_str=diff_pass_str,
-        level=diff_ord_str, thresh=thresh_diff
+    )
+    diff_detail = detail_str.format(
+        level=diff_ord_str, thresh=thresh_diff_str
     )
 
+    err_messages = []
     if ratio_pass:
-        logging.info(s_ratio)
+        logging.info(ratio_headline)
+        logging.info(ratio_detail)
     else:
-        logging.error(s_ratio)
-        raise ValueError(s_ratio)
+        err_messages += [ratio_headline, ratio_detail]
 
     if diff_pass:
-        logging.info(s_diff)
+        logging.info(diff_headline)
+        logging.info(diff_detail)
     else:
-        logging.error(s_diff)
-        raise ValueError(s_diff)
+        err_messages += [diff_headline, diff_detail]
+
+    if not (ratio_pass and diff_pass):
+        [logging.error(m) for m in err_messages]
+        raise ValueError('\n    '.join(err_messages))
 
 
 def print_agreement(testname, ratio):
     ratio_ord_str = order_str(ratio)
-    s = '<< {testname:s}, {kind:s} >>' \
+    s = '<< {testname:s}, {kind:s} >>\n' \
         ' agreement to 10^{level:s}'
 
     s_ratio = s.format(
@@ -241,7 +257,8 @@ def baseplot2(map, title, ax, vmax=None, symm=False, evtrate=False):
 
 
 def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
-                     texname, stagename, servicename, ftype='png'):
+                     texname, stagename, servicename, shorttitles=False,
+                     ftype='png'):
     """Plot comparisons between two identically-binned histograms (maps)"""
     path = [outdir]
 
@@ -252,8 +269,11 @@ def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
     if outdir is not None:
         mkdir(os.path.join(*path), warn=False)
 
-    fname = ['%s_%s_comparisons' %(ref_abv.lower(), new_abv.lower()),
-             'stage_'+stagename]
+    if stagename is not None:
+        fname = ['%s_%s_comparisons' %(ref_abv.lower(), new_abv.lower()),
+                 'stage_'+stagename]
+    else:
+        fname = ['%s_%s_comparisons' %(ref_abv.lower(), new_abv.lower())]
     if servicename is not None:
         fname.append('service_'+servicename)
     if name is not None:
@@ -273,7 +293,7 @@ def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
     diff_map = make_delta_map(new_map, ref_map)
     diff_ratio_map = make_ratio_map(diff_map, ref_map)
 
-    max_diff_ratio = np.nanmax(diff_ratio_map['map'])
+    max_diff_ratio = np.nanmax(np.abs(diff_ratio_map['map']))
 
     # Handle cases where ratio returns infinite
     # This isn't necessarily a fail, since all it means is the referene was
@@ -284,11 +304,11 @@ def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
         # First find all the finite elements
         FiniteMap = np.isfinite(diff_ratio_map['map'])
         # Then find the nanmax of this, will be our new test value
-        max_diff_ratio = np.nanmax(diff_ratio_map['map'][FiniteMap])
+        max_diff_ratio = np.nanmax(np.abs(diff_ratio_map['map'][FiniteMap]))
         # Also find all the infinite elements
         InfiniteMap = np.logical_not(FiniteMap)
         # This will be a second test value
-        max_diff = np.nanmax(diff_map['map'][InfiniteMap])
+        max_diff = np.nanmax(np.abs(diff_map['map'][InfiniteMap]))
     else:
         # Without any infinite elements we can ignore this second test
         max_diff = 0.0
@@ -297,24 +317,44 @@ def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
         gridspec_kw = dict(left=0.03, right=0.968, wspace=0.32)
         fig, axes = plt.subplots(nrows=1, ncols=5, gridspec_kw=gridspec_kw,
                                  sharex=False, sharey=False, figsize=(20,5))
-        baseplot(m=ref_map,
-                 title=basetitle+' '+ref_abv,
-                 evtrate=True,
-                 ax=axes[0])
-        baseplot(m=new_map,
-                 title=basetitle+' '+new_abv,
-                 evtrate=True,
-                 ax=axes[1])
-        baseplot(m=ratio_map,
-                 title=basetitle+' %s/%s' %(new_abv, ref_abv),
-                 ax=axes[2])
-        baseplot(m=diff_map,
-                 title=basetitle+' %s-%s' %(new_abv, ref_abv),
-                 symm=True, ax=axes[3])
-        baseplot(m=diff_ratio_map,
-                 title=basetitle+' (%s-%s)/%s' %(new_abv, ref_abv, ref_abv),
-                 symm=True,
-                 ax=axes[4])
+        if shorttitles:
+            baseplot(m=ref_map,
+                     title=basetitle+' '+ref_abv+' (A)',
+                     evtrate=True,
+                     ax=axes[0])
+            baseplot(m=new_map,
+                     title=basetitle+' '+new_abv+' (B)',
+                     evtrate=True,
+                     ax=axes[1])
+            baseplot(m=ratio_map,
+                     title='A/B',
+                     ax=axes[2])
+            baseplot(m=diff_map,
+                     title='A-B',
+                     symm=True, ax=axes[3])
+            baseplot(m=diff_ratio_map,
+                     title='(A-B)/A',
+                     symm=True,
+                     ax=axes[4])
+        else:
+            baseplot(m=ref_map,
+                     title=basetitle+' '+ref_abv,
+                     evtrate=True,
+                     ax=axes[0])
+            baseplot(m=new_map,
+                     title=basetitle+' '+new_abv,
+                     evtrate=True,
+                     ax=axes[1])
+            baseplot(m=ratio_map,
+                     title=basetitle+' %s/%s' %(new_abv, ref_abv),
+                     ax=axes[2])
+            baseplot(m=diff_map,
+                     title=basetitle+' %s-%s' %(new_abv, ref_abv),
+                     symm=True, ax=axes[3])
+            baseplot(m=diff_ratio_map,
+                     title=basetitle+' (%s-%s)/%s' %(new_abv, ref_abv, ref_abv),
+                     symm=True,
+                     ax=axes[4])
         logging.debug('>>>> Plot for inspection saved at %s'
                       %os.path.join(*path))
         fig.savefig(os.path.join(*path))
@@ -395,48 +435,104 @@ def plot_cmp(new, ref, new_label, ref_label, plot_label, file_label, outdir,
             max_diff = 0.0
 
         if outdir is not None:
+            if new.binning.num_dims == 2:
+                n_dims = 2
+                n_third_dim_bins = 1
+            elif new.binning.num_dims == 3:
+                n_dims = 3
+                odd_dim_idx = new.binning.shape.index(np.min(new.binning.shape))
+                print odd_dim_idx
+                n_third_dim_bins = new.binning.shape[odd_dim_idx]
+
             gridspec_kw = dict(left=0.03, right=0.968, wspace=0.32)
-            fig, axes = plt.subplots(nrows=1, ncols=5, gridspec_kw=gridspec_kw,
-                                     sharex=False, sharey=False, figsize=(20,5))
+            fig, axes = plt.subplots(nrows=n_third_dim_bins, ncols=5,
+                                     gridspec_kw=gridspec_kw,
+                                     squeeze=False, sharex=False, sharey=False,
+                                     figsize=(20,5))
 
-            refmax = np.nanmax(ref.hist)
-            newmax = np.nanmax(new.hist)
-            vmax = refmax if refmax > newmax else newmax
+            refslice = ref
+            newslice = new
+            bin_names = None
+            if n_dims == 3:
+                if odd_dim_idx != 0:
+                    refslice  = np.moveaxis(ref, source=odd_dim_idx,
+                                            destination=0)
+                    newslice  = np.moveaxis(new, source=odd_dim_idx,
+                                            destination=0)
+                bin_names = new.binning.dims[odd_dim_idx].bin_names
 
-            baseplot2(map=new,
-                      title=new_label,
-                      vmax=vmax,
-                      evtrate=True,
-                      ax=axes[0])
-            baseplot2(map=ref,
-                      title=ref_label,
-                      vmax=vmax,
-                      evtrate=True,
-                      ax=axes[1])
-            ax, _, _ = baseplot2(map=ratio,
-                                 title='%s/%s' %(new_label, ref_label),
-                                 ax=axes[2])
-            ax.text(0.95, 0.95, "Mean: %.6f"%ratio_mean, horizontalalignment='right',
-                    transform=ax.transAxes, color=(0, 0.8, 0.8))
-            ax.text(0.95, 0.91, "Median: %.6f"%ratio_median, horizontalalignment='right',
-                    transform=ax.transAxes, color=(0, 0.8, 0.8))
+            for odd_bin_idx in range(n_third_dim_bins):
+                if n_dims == 2:
+                    thisbin_ref = refslice
+                    thisbin_new = newslice
+                    tmp_ref_label = ref_label
+                    tmp_new_label = new_label
 
-            ax, _, _ = baseplot2(map=diff,
-                                 title='%s-%s' %(new_label, ref_label),
-                                 symm=True, ax=axes[3])
-            ax.text(0.95, 0.95, "Mean: %.6f"%diff_mean, horizontalalignment='right',
-                    transform=ax.transAxes)
-            ax.text(0.95, 0.91, "Median: %.6f"%diff_median, horizontalalignment='right',
-                    transform=ax.transAxes)
+                elif n_dims == 3:
+                    thisbin_ref = refslice[odd_bin_idx,...].squeeze()
+                    thisbin_new = newslice[odd_bin_idx,...].squeeze()
 
-            ax, _, _ = baseplot2(map=fract_diff,
-                                 title='(%s-%s)/%s' %(new_label, ref_label, ref_label),
-                                 symm=True,
-                                 ax=axes[4])
-            ax.text(0.95, 0.95, "Mean: %.6f"%fract_diff_mean, horizontalalignment='right',
-                    transform=ax.transAxes)
-            ax.text(0.95, 0.91, "Median: %.6f"%fract_diff_median, horizontalalignment='right',
-                    transform=ax.transAxes)
+                    if bin_names is not None:
+                        suffix = bin_names[odd_bin_idx]
+                    else:
+                        suffix = format(odd_bin_idx, 'd')
+                    tmp_new_label = new_label + ' ' + suffix
+                    tmp_ref_label = ref_label + ' ' + suffix
+
+                    ratio = thisbin_new / thisbin_ref
+                    diff = thisbin_new - thisbin_ref
+                    fract_diff = thisbin_diff / thisbin_ref
+
+                refmax = np.nanmax(thisbin_ref.hist)
+                newmax = np.nanmax(thisbin_new.hist)
+                vmax = refmax if refmax > newmax else newmax
+
+                baseplot2(map=thisbin_new,
+                          title=tmp_new_label,
+                          vmax=vmax,
+                          evtrate=True,
+                          ax=axes[odd_bin_idx][0])
+
+                baseplot2(map=thisbin_ref,
+                          title=tmp_ref_label,
+                          vmax=vmax,
+                          evtrate=True,
+                          ax=axes[odd_bin_idx][1])
+
+                ax, _, _ = baseplot2(map=ratio,
+                                     title='%s/%s' %(tmp_new_label,
+                                                     tmp_ref_label),
+                                     ax=axes[odd_bin_idx][2])
+                ax.text(0.95, 0.95, "Mean: %.6f"%ratio_mean,
+                        horizontalalignment='right',
+                        transform=ax.transAxes, color=(0, 0.8, 0.8))
+                ax.text(0.95, 0.91, "Median: %.6f"%ratio_median,
+                        horizontalalignment='right',
+                        transform=ax.transAxes, color=(0, 0.8, 0.8))
+
+                ax, _, _ = baseplot2(map=diff,
+                                     title='%s-%s' %(tmp_new_label,
+                                                     tmp_ref_label),
+                                     symm=True, ax=axes[odd_bin_idx][3])
+                ax.text(0.95, 0.95, "Mean: %.6f"%diff_mean,
+                        horizontalalignment='right',
+                        transform=ax.transAxes)
+                ax.text(0.95, 0.91, "Median: %.6f"%diff_median,
+                        horizontalalignment='right',
+                        transform=ax.transAxes)
+
+                ax, _, _ = baseplot2(map=fract_diff,
+                                     title='(%s-%s)/%s' %(tmp_new_label,
+                                                          tmp_ref_label,
+                                                          tmp_ref_label),
+                                     symm=True,
+                                     ax=axes[odd_bin_idx][4])
+                ax.text(0.95, 0.95, "Mean: %.6f"%fract_diff_mean,
+                        horizontalalignment='right',
+                        transform=ax.transAxes)
+                ax.text(0.95, 0.91, "Median: %.6f"%fract_diff_median,
+                        horizontalalignment='right',
+                        transform=ax.transAxes)
 
             logging.debug('>>>> Plot for inspection saved at %s'
                           %os.path.join(*path))
