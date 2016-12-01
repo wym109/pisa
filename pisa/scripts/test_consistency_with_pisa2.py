@@ -31,7 +31,7 @@ from pisa.utils.fileio import from_file
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.resources import find_resource
 from pisa.utils.config_parser import parse_pipeline_config
-from pisa.utils.tests import has_cuda, check_agreement, plot_comparisons
+from pisa.utils.tests import has_cuda, check_agreement, plot_map_comparisons, pisa2_map_to_pisa3_map
 
 
 __all__ = ['PID_FAIL_MESSAGE', 'PID_PASS_MESSAGE',
@@ -91,7 +91,11 @@ def compare_flux(config, servicename, pisa2file, systname,
         if 'nu' not in nukey:
             continue
 
-        pisa_map_to_plot = pisa2_comparisons[nukey]
+        pisa_map_to_plot = pisa2_map_to_pisa3_map(
+            pisa2_map = pisa2_comparisons[nukey],
+            ebins_name = 'true_energy',
+            czbins_name = 'true_coszen'
+        )
 
         if '_' in nukey:
             if nukey.split('_')[1] == 'bar':
@@ -100,15 +104,9 @@ def compare_flux(config, servicename, pisa2file, systname,
                     new_nukey += substr
                 nukey = new_nukey
 
-        cake_map = outputs[nukey]
-        cake_map_to_plot = {}
-        cake_map_to_plot['ebins'] = \
-                cake_map.binning['true_energy'].bin_edges.magnitude
-        cake_map_to_plot['czbins'] = \
-                cake_map.binning['true_coszen'].bin_edges.magnitude
-        cake_map_to_plot['map'] = cake_map.hist
+        cake_map_to_plot = outputs[nukey]
 
-        max_diff_ratio, max_diff = plot_comparisons(
+        max_diff_ratio, max_diff = plot_map_comparisons(
             ref_map=pisa_map_to_plot,
             new_map=cake_map_to_plot,
             ref_abv='PISAV2', new_abv='PISAV3',
@@ -184,7 +182,11 @@ def compare_osc(config, servicename, pisa2file, systname,
         if 'nu' not in nukey:
             continue
 
-        pisa_map_to_plot = pisa2_comparisons[nukey]
+        pisa_map_to_plot = pisa2_map_to_pisa3_map(
+            pisa2_map = pisa2_comparisons[nukey],
+            ebins_name = 'true_energy',
+            czbins_name = 'true_coszen'
+        )
 
         if '_' in nukey:
             if nukey.split('_')[1] == 'bar':
@@ -193,15 +195,9 @@ def compare_osc(config, servicename, pisa2file, systname,
                     new_nukey += substr
                 nukey = new_nukey
 
-        cake_map = outputs[nukey]
-        cake_map_to_plot = {}
-        cake_map_to_plot['ebins'] = \
-                cake_map.binning['true_energy'].bin_edges.magnitude
-        cake_map_to_plot['czbins'] = \
-                cake_map.binning['true_coszen'].bin_edges.magnitude
-        cake_map_to_plot['map'] = cake_map.hist
+        cake_map_to_plot = outputs[nukey]
 
-        max_diff_ratio, max_diff = plot_comparisons(
+        max_diff_ratio, max_diff = plot_map_comparisons(
             ref_map=pisa_map_to_plot,
             new_map=cake_map_to_plot,
             ref_abv='PISAV2', new_abv='PISAV3',
@@ -281,17 +277,15 @@ def compare_aeff(config, servicename, pisa2file, systname,
             else:
                 new_nukey = nukey
             cakekey = new_nukey + '_' + intkey
-            pisa_map_to_plot = pisa2_comparisons[nukey][intkey]
+            pisa_map_to_plot = pisa2_map_to_pisa3_map(
+                pisa2_map = pisa2_comparisons[nukey][intkey],
+                ebins_name = 'true_energy',
+                czbins_name = 'true_coszen'
+            )
 
-            cake_map = outputs[cakekey]
-            cake_map_to_plot = {}
-            cake_map_to_plot['ebins'] = \
-                    cake_map.binning['true_energy'].bin_edges.magnitude
-            cake_map_to_plot['czbins'] = \
-                    cake_map.binning['true_coszen'].bin_edges.magnitude
-            cake_map_to_plot['map'] = cake_map.hist
+            cake_map_to_plot = outputs[cakekey]
 
-            max_diff_ratio, max_diff = plot_comparisons(
+            max_diff_ratio, max_diff = plot_map_comparisons(
                 ref_map=pisa_map_to_plot,
                 new_map=cake_map_to_plot,
                 ref_abv='PISAV2', new_abv='PISAV3',
@@ -343,26 +337,10 @@ def compare_reco(config, servicename, pisa2file, outdir, ratio_test_threshold,
     nuall_nuallbar_nc = outputs.combine_re(r'nu.*_nc')
 
     modified_cake_outputs = {
-        'nue_cc': {
-            'map': nue_nuebar_cc.hist,
-            'ebins': nue_nuebar_cc.binning.reco_energy.bin_edges.magnitude,
-            'czbins': nue_nuebar_cc.binning.reco_coszen.bin_edges.magnitude
-        },
-        'numu_cc': {
-            'map': numu_numubar_cc.hist,
-            'ebins': numu_numubar_cc.binning.reco_energy.bin_edges.magnitude,
-            'czbins': numu_numubar_cc.binning.reco_coszen.bin_edges.magnitude
-        },
-        'nutau_cc': {
-            'map': nutau_nutaubar_cc.hist,
-            'ebins': nutau_nutaubar_cc.binning.reco_energy.bin_edges.magnitude,
-            'czbins': nutau_nutaubar_cc.binning.reco_coszen.bin_edges.magnitude
-        },
-        'nuall_nc': {
-            'map': nuall_nuallbar_nc.hist,
-            'ebins': nuall_nuallbar_nc.binning.reco_energy.bin_edges.magnitude,
-            'czbins': nuall_nuallbar_nc.binning.reco_coszen.bin_edges.magnitude
-        }
+        'nue_cc': nue_nuebar_cc,
+        'numu_cc': numu_numubar_cc,
+        'nutau_cc': nutau_nutaubar_cc,
+        'nuall_nc': nuall_nuallbar_nc
     }
 
     pisa2_comparisons = from_file(pisa2file)
@@ -371,7 +349,11 @@ def compare_reco(config, servicename, pisa2file, outdir, ratio_test_threshold,
         if 'nu' not in nukey:
             continue
 
-        pisa_map_to_plot = pisa2_comparisons[nukey]
+        pisa_map_to_plot = pisa2_map_to_pisa3_map(
+            pisa2_map = pisa2_comparisons[nukey],
+            ebins_name = 'reco_energy',
+            czbins_name = 'reco_coszen'
+        )
 
         if '_' in nukey:
             if nukey.split('_')[1] == 'bar':
@@ -382,7 +364,7 @@ def compare_reco(config, servicename, pisa2file, outdir, ratio_test_threshold,
 
         cake_map_to_plot = modified_cake_outputs[nukey]
 
-        max_diff_ratio, max_diff = plot_comparisons(
+        max_diff_ratio, max_diff = plot_map_comparisons(
             ref_map=pisa_map_to_plot,
             new_map=cake_map_to_plot,
             ref_abv='PISAV2', new_abv='PISAV3',
@@ -431,24 +413,22 @@ def compare_pid(config, servicename, pisa2file, outdir, ratio_test_threshold,
 
     cake_trck = outputs.combine_wildcard('*_trck')
     cake_cscd = outputs.combine_wildcard('*_cscd')
-    total_cake_trck_dict = {
-        'map': cake_trck.hist,
-        'ebins': cake_trck.binning.reco_energy.bin_edges.magnitude,
-        'czbins': cake_trck.binning.reco_coszen.bin_edges.magnitude
-    }
-    total_cake_cscd_dict = {
-        'map': cake_cscd.hist,
-        'ebins': cake_cscd.binning.reco_energy.bin_edges.magnitude,
-        'czbins': cake_cscd.binning.reco_coszen.bin_edges.magnitude
-    }
 
     pisa2_comparisons = from_file(pisa2file)
-    total_pisa_trck_dict = pisa2_comparisons['trck']
-    total_pisa_cscd_dict = pisa2_comparisons['cscd']
+    pisa_trck = pisa2_map_to_pisa3_map(
+        pisa2_map = pisa2_comparisons['trck'],
+        ebins_name = 'reco_energy',
+        czbins_name = 'reco_coszen'
+    )
+    pisa_cscd = pisa2_map_to_pisa3_map(
+        pisa2_map = pisa2_comparisons['cscd'],
+        ebins_name = 'reco_energy',
+        czbins_name = 'reco_coszen'
+    )
 
-    max_diff_ratio, max_diff= plot_comparisons(
-        ref_map=total_pisa_cscd_dict,
-        new_map=total_cake_cscd_dict,
+    max_diff_ratio, max_diff= plot_map_comparisons(
+        ref_map=pisa_cscd,
+        new_map=cake_cscd,
         ref_abv='PISAV2', new_abv='PISAV3',
         outdir=outdir,
         subdir='pid',
@@ -467,9 +447,9 @@ def compare_pid(config, servicename, pisa2file, outdir, ratio_test_threshold,
         diff=max_diff
     )
 
-    max_diff_ratio, max_diff = plot_comparisons(
-        ref_map=total_pisa_trck_dict,
-        new_map=total_cake_trck_dict,
+    max_diff_ratio, max_diff = plot_map_comparisons(
+        ref_map=pisa_trck,
+        new_map=cake_trck,
         ref_abv='PISAV2', new_abv='PISAV3',
         outdir=outdir,
         subdir='pid',
@@ -505,7 +485,11 @@ def compare_flux_full(cake_maps, pisa_maps, outdir, ratio_test_threshold,
         if 'nu' not in nukey:
             continue
 
-        pisa_map_to_plot = pisa_maps[nukey]
+        pisa_map_to_plot = pisa2_map_to_pisa3_map(
+            pisa2_map = pisa_maps[nukey],
+            ebins_name = 'true_energy',
+            czbins_name = 'true_coszen'
+        )
 
         if '_' in nukey:
             if nukey.split('_')[1] == 'bar':
@@ -514,15 +498,9 @@ def compare_flux_full(cake_maps, pisa_maps, outdir, ratio_test_threshold,
                     new_nukey += substr
                 nukey = new_nukey
 
-        cake_map = cake_maps[nukey]
-        cake_map_to_plot = {}
-        cake_map_to_plot['ebins'] = \
-                cake_map.binning['true_energy'].bin_edges.magnitude
-        cake_map_to_plot['czbins'] = \
-                cake_map.binning['true_coszen'].bin_edges.magnitude
-        cake_map_to_plot['map'] = cake_map.hist
+        cake_map_to_plot = cake_maps[nukey]
 
-        max_diff_ratio, max_diff = plot_comparisons(
+        max_diff_ratio, max_diff = plot_map_comparisons(
             ref_map=pisa_map_to_plot,
             new_map=cake_map_to_plot,
             ref_abv='PISAV2', new_abv='PISAV3',
@@ -558,7 +536,11 @@ def compare_osc_full(cake_maps, pisa_maps, outdir, ratio_test_threshold,
         if 'nu' not in nukey:
             continue
 
-        pisa_map_to_plot = pisa_maps[nukey]
+        pisa_map_to_plot = pisa2_map_to_pisa3_map(
+            pisa2_map = pisa_maps[nukey],
+            ebins_name = 'true_energy',
+            czbins_name = 'true_coszen'
+        )
 
         if '_' in nukey:
             if nukey.split('_')[1] == 'bar':
@@ -567,15 +549,9 @@ def compare_osc_full(cake_maps, pisa_maps, outdir, ratio_test_threshold,
                     new_nukey += substr
                 nukey = new_nukey
 
-        cake_map = cake_maps[nukey]
-        cake_map_to_plot = {}
-        cake_map_to_plot['ebins'] = \
-                cake_map.binning['true_energy'].bin_edges.magnitude
-        cake_map_to_plot['czbins'] = \
-                cake_map.binning['true_coszen'].bin_edges.magnitude
-        cake_map_to_plot['map'] = cake_map.hist
+        cake_map_to_plot = cake_maps[nukey]
 
-        max_diff_ratio, max_diff = plot_comparisons(
+        max_diff_ratio, max_diff = plot_map_comparisons(
             ref_map=pisa_map_to_plot,
             new_map=cake_map_to_plot,
             ref_abv='PISAV2', new_abv='PISAV3',
@@ -620,17 +596,15 @@ def compare_aeff_full(cake_maps, pisa_maps, outdir, ratio_test_threshold,
             else:
                 new_nukey = nukey
             cakekey = new_nukey + '_' + intkey
-            pisa_map_to_plot = pisa_maps[nukey][intkey]
+            pisa_map_to_plot = pisa2_map_to_pisa3_map(
+                pisa2_map = pisa_maps[nukey][intkey],
+                ebins_name = 'true_energy',
+                czbins_name = 'true_coszen'
+            )
 
-            cake_map = cake_maps[cakekey]
-            cake_map_to_plot = {}
-            cake_map_to_plot['ebins'] = \
-                    cake_map.binning['true_energy'].bin_edges.magnitude
-            cake_map_to_plot['czbins'] = \
-                    cake_map.binning['true_coszen'].bin_edges.magnitude
-            cake_map_to_plot['map'] = cake_map.hist
+            cake_map_to_plot = cake_maps[cakekey]
 
-            max_diff_ratio, max_diff = plot_comparisons(
+            max_diff_ratio, max_diff = plot_map_comparisons(
                 ref_map=pisa_map_to_plot,
                 new_map=cake_map_to_plot,
                 ref_abv='PISAV2', new_abv='PISAV3',
@@ -672,33 +646,21 @@ def compare_reco_full(cake_maps, pisa_maps, outdir, ratio_test_threshold,
         nuall_nuallbar_nc = nuall_nuallbar_nc.sum('pid', keepdims=False)
 
     modified_cake_outputs = {
-        'nue_cc': {
-            'map': nue_nuebar_cc.hist,
-            'ebins': nue_nuebar_cc.binning.reco_energy.bin_edges.magnitude,
-            'czbins': nue_nuebar_cc.binning.reco_coszen.bin_edges.magnitude
-        },
-        'numu_cc': {
-            'map': numu_numubar_cc.hist,
-            'ebins': numu_numubar_cc.binning.reco_energy.bin_edges.magnitude,
-            'czbins': numu_numubar_cc.binning.reco_coszen.bin_edges.magnitude
-        },
-        'nutau_cc': {
-            'map': nutau_nutaubar_cc.hist,
-            'ebins': nutau_nutaubar_cc.binning.reco_energy.bin_edges.magnitude,
-            'czbins': nutau_nutaubar_cc.binning.reco_coszen.bin_edges.magnitude
-        },
-        'nuall_nc': {
-            'map': nuall_nuallbar_nc.hist,
-            'ebins': nuall_nuallbar_nc.binning.reco_energy.bin_edges.magnitude,
-            'czbins': nuall_nuallbar_nc.binning.reco_coszen.bin_edges.magnitude
-        }
+        'nue_cc': nue_nuebar_cc,
+        'numu_cc': numu_numubar_cc,
+        'nutau_cc': nutau_nutaubar_cc,
+        'nuall_nc': nuall_nuallbar_nc
     }
 
     for nukey in pisa_maps.keys():
         if 'nu' not in nukey:
             continue
 
-        pisa_map_to_plot = pisa_maps[nukey]
+        pisa_map_to_plot = pisa2_map_to_pisa3_map(
+            pisa2_map = pisa_maps[nukey],
+            ebins_name = 'reco_energy',
+            czbins_name = 'reco_coszen'
+        )
 
         if '_' in nukey:
             if nukey.split('_')[1] == 'bar':
@@ -717,7 +679,7 @@ def compare_reco_full(cake_maps, pisa_maps, outdir, ratio_test_threshold,
         else:
             texname = cake_maps[nukey].tex
 
-        max_diff_ratio, max_diff = plot_comparisons(
+        max_diff_ratio, max_diff = plot_map_comparisons(
             ref_map=pisa_map_to_plot,
             new_map=cake_map_to_plot,
             ref_abv='PISAV2', new_abv='PISAV3',
@@ -757,23 +719,20 @@ def compare_pid_full(cake_maps, pisa_maps, outdir, ratio_test_threshold,
         cake_cscd = total[0,:,:]
         cake_trck = total[1,:,:]
 
-    total_cake_trck_dict = {
-        'map': cake_trck.hist,
-        'ebins': cake_trck.binning.reco_energy.bin_edges.magnitude,
-        'czbins': cake_trck.binning.reco_coszen.bin_edges.magnitude
-    }
-    total_cake_cscd_dict = {
-        'map': cake_cscd.hist,
-        'ebins': cake_cscd.binning.reco_energy.bin_edges.magnitude,
-        'czbins': cake_cscd.binning.reco_coszen.bin_edges.magnitude
-    }
+    pisa_trck = pisa2_map_to_pisa3_map(
+        pisa2_map = pisa_maps['trck'],
+        ebins_name = 'reco_energy',
+        czbins_name = 'reco_coszen'
+    )
+    pisa_cscd = pisa2_map_to_pisa3_map(
+        pisa2_map = pisa_maps['cscd'],
+        ebins_name = 'reco_energy',
+        czbins_name = 'reco_coszen'
+    )
 
-    total_pisa_trck_dict = pisa_maps['trck']
-    total_pisa_cscd_dict = pisa_maps['cscd']
-
-    max_diff_ratio, max_diff = plot_comparisons(
-        ref_map=total_pisa_cscd_dict,
-        new_map=total_cake_cscd_dict,
+    max_diff_ratio, max_diff = plot_map_comparisons(
+        ref_map=pisa_cscd,
+        new_map=cake_cscd,
         ref_abv='PISAV2', new_abv='PISAV3',
         outdir=outdir,
         subdir='fullpipeline',
@@ -791,9 +750,9 @@ def compare_pid_full(cake_maps, pisa_maps, outdir, ratio_test_threshold,
         diff=max_diff
     )
 
-    max_diff_ratio, max_diff = plot_comparisons(
-        ref_map=total_pisa_trck_dict,
-        new_map=total_cake_trck_dict,
+    max_diff_ratio, max_diff = plot_map_comparisons(
+        ref_map=pisa_trck,
+        new_map=cake_trck,
         ref_abv='PISAV2', new_abv='PISAV3',
         outdir=outdir,
         subdir='fullpipeline',

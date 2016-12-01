@@ -11,6 +11,8 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 
+from pisa import ureg
+from pisa.core.binning import OneDimBinning, MultiDimBinning
 from pisa.core.map import Map
 from pisa.utils.fileio import get_valid_filename, mkdir
 from pisa.utils.log import logging
@@ -148,6 +150,32 @@ def make_ratio_map(amap, bmap):
     return result
 
 
+def validate_map_objs(amap, bmap):
+    """Validate that two PISA 3 style maps are compatible binning."""
+    print amap.binning._hashable_state
+    print bmap.binning._hashable_state
+    if not amap.binning == bmap.binning:
+        raise ValueError("Maps' binnings do not match!")
+    
+
+def make_delta_map_obj(amap, bmap):
+    """Get the difference between two PISA 3 style maps (amap-bmap) and return
+    as another PISA 3 style map."""
+    validate_map_objs(amap, bmap)
+    delta_hist = amap.hist - bmap.hist
+    return Map(name='delta', hist=delta_hist, binning=amap.binning)
+
+
+def make_ratio_map_obj(amap, bmap):
+    """Get the ratio of two PISA 3 style maps (amap/bmap) and return as another
+    PISA 3 style map."""
+    validate_map_objs(amap, bmap)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        ratio_hist = amap.hist/bmap.hist
+        result = Map(name='ratio', hist=ratio_hist, binning=amap.binning)
+    return result
+
+
 def baseplot(m, title, ax, clabel=None, symm=False, evtrate=False,
              vmax=None, cmap=plt.cm.afmhot):
     """Simple plotting of a 2D histogram (map)"""
@@ -259,7 +287,7 @@ def baseplot2(map, title, ax, vmax=None, symm=False, evtrate=False):
 def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
                      texname, stagename, servicename, shorttitles=False,
                      ftype='png'):
-    """Plot comparisons between two identically-binned histograms (maps)"""
+    """Plot comparisons between two identically-binned PISA 2 style maps"""
     path = [outdir]
 
     if subdir is None:
@@ -355,6 +383,141 @@ def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
                      title=basetitle+' (%s-%s)/%s' %(new_abv, ref_abv, ref_abv),
                      symm=True,
                      ax=axes[4])
+        logging.debug('>>>> Plot for inspection saved at %s'
+                      %os.path.join(*path))
+        fig.savefig(os.path.join(*path))
+        plt.close(fig.number)
+
+    return max_diff_ratio, max_diff
+
+
+def plot_map_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir,
+                         name, texname, stagename, servicename,
+                         shorttitles=False, ftype='png'):
+    """Plot comparisons between two identically-binned PISA 3 style maps"""
+    path = [outdir]
+
+    if subdir is None:
+        subdir = stagename.lower()
+    path.append(subdir)
+
+    if outdir is not None:
+        mkdir(os.path.join(*path), warn=False)
+
+    if stagename is not None:
+        fname = ['%s_%s_comparisons' %(ref_abv.lower(), new_abv.lower()),
+                 'stage_'+stagename]
+    else:
+        fname = ['%s_%s_comparisons' %(ref_abv.lower(), new_abv.lower())]
+    if servicename is not None:
+        fname.append('service_'+servicename)
+    if name is not None:
+        fname.append(name.lower())
+    fname = '__'.join(fname) + '.' + ftype
+
+    path.append(fname)
+
+    basetitle = []
+    if stagename is not None:
+        basetitle.append('%s' % stagename)
+    if texname is not None:
+        basetitle.append(r'$%s$' % texname)
+    basetitle = ' '.join(basetitle)
+
+    ratio_map = make_ratio_map_obj(new_map, ref_map)
+    diff_map = make_delta_map_obj(new_map, ref_map)
+    diff_ratio_map = make_ratio_map_obj(diff_map, ref_map)
+
+    max_diff_ratio = np.nanmax(np.abs(diff_ratio_map.hist))
+
+    # Handle cases where ratio returns infinite
+    # This isn't necessarily a fail, since all it means is the referene was
+    # zero If the new value is sufficiently close to zero then it's still fine
+    if max_diff_ratio == float('inf'):
+        logging.warn('Infinite value found in ratio tests. Difference tests '
+                     'now also being calculated')
+        # First find all the finite elements
+        FiniteMap = np.isfinite(diff_ratio_map.hist)
+        # Then find the nanmax of this, will be our new test value
+        max_diff_ratio = np.nanmax(np.abs(diff_ratio_map.hist[FiniteMap]))
+        # Also find all the infinite elements
+        InfiniteMap = np.logical_not(FiniteMap)
+        # This will be a second test value
+        max_diff = np.nanmax(np.abs(diff_map.hist[InfiniteMap]))
+    else:
+        # Without any infinite elements we can ignore this second test
+        max_diff = 0.0
+
+    if outdir is not None:
+        gridspec_kw = dict(left=0.03, right=0.968, wspace=0.32)
+        fig, axes = plt.subplots(nrows=1, ncols=5, gridspec_kw=gridspec_kw,
+                                 sharex=False, sharey=False, figsize=(20,5))
+        if shorttitles:
+            ref_map.plot(
+                fig=fig,
+                ax=axes[0],
+                title=basetitle+' '+ref_abv+' (A)',
+                cmap=plt.cm.afmhot
+            )
+            new_map.plot(
+                fig=fig,
+                ax=axes[1],
+                title=basetitle+' '+new_abv+' (B)',
+                cmap=plt.cm.afmhot
+            )
+            ratio_map.plot(
+                fig=fig,
+                ax=axes[2],
+                title='A/B',
+                cmap=plt.cm.afmhot
+            )
+            diff_map.plot(
+                fig=fig,
+                ax=axes[3],
+                title='A-B',
+                symm=True,
+                cmap=plt.cm.seismic
+            )
+            diff_ratio_map.plot(
+                fig=fig,
+                ax=axes[4],
+                title='(A-B)/A',
+                symm=True,
+                cmap=plt.cm.seismic
+            )
+        else:
+            ref_map.plot(
+                fig=fig,
+                ax=axes[0],
+                title=basetitle+' '+ref_abv,
+                cmap=plt.cm.afmhot
+            )
+            new_map.plot(
+                fig=fig,
+                ax=axes[1],
+                title=basetitle+' '+new_abv,
+                cmap=plt.cm.afmhot
+            )
+            ratio_map.plot(
+                fig=fig,
+                ax=axes[2],
+                title=basetitle+' %s/%s' %(new_abv, ref_abv),
+                cmap=plt.cm.afmhot
+            )
+            diff_map.plot(
+                fig=fig,
+                ax=axes[3],
+                title=basetitle+' %s-%s' %(new_abv, ref_abv),
+                symm=True,
+                cmap=plt.cm.seismic
+            )
+            diff_ratio_map.plot(
+                fig=fig,
+                ax=axes[4],
+                title=basetitle+' (%s-%s)/%s' %(new_abv, ref_abv, ref_abv),
+                symm=True,
+                cmap=plt.cm.seismic
+            )
         logging.debug('>>>> Plot for inspection saved at %s'
                       %os.path.join(*path))
         fig.savefig(os.path.join(*path))
@@ -540,3 +703,26 @@ def plot_cmp(new, ref, new_label, ref_label, plot_label, file_label, outdir,
             plt.close(fig.number)
 
         return max_diff_ratio, max_diff
+
+
+def pisa2_map_to_pisa3_map(pisa2_map, ebins_name='ebins', czbins_name='czbins'):
+    expected_keys = ['map', 'ebins', 'czbins']
+    if not sorted(pisa2_map.keys()) == sorted(expected_keys):
+        raise ValueError('PISA 2 map should be a dict containining entries: %s'
+                         %expected_keys)
+    ebins = OneDimBinning(
+        name=ebins_name,
+        bin_edges=pisa2_map['ebins'] * ureg.GeV,
+        is_log=True
+    )
+    czbins = OneDimBinning(
+        name=czbins_name,
+        bin_edges=pisa2_map['czbins'],
+        is_lin=True
+    )
+    bins = MultiDimBinning([ebins,czbins])
+    return Map(
+        name='pisa2equivalent',
+        hist=pisa2_map['map'],
+        binning=bins
+    )
