@@ -23,6 +23,8 @@ plt.rcParams['text.usetex'] = True
 import numpy as np
 import re
 
+from scipy.stats import norm, spearmanr
+
 from pisa import ureg
 from pisa.analysis.hypo_testing import Labels
 from pisa.core.param import Param, ParamSet
@@ -59,6 +61,15 @@ def make_pretty(label):
         logging.warn("I don't know what to do with %s. Returning as is."%label)
         return label
     return pretty_labels[label]
+
+def get_num_rows(data, omit_metric=False):
+    if omit_metric:
+        num_rows = int((len(data.keys())-1)/4)
+    else:
+        num_rows = int(len(data.keys())/4)
+    if len(data.keys())%4 != 0:
+        num_rows += 1
+    return num_rows
 
 
 def extract_injval(injparams, systkey, data_label, hypo_label, injlabel):
@@ -286,7 +297,11 @@ def extract_fit(fpath, keys=None):
     return info
 
 
-def make_llr_plots(data, labels, detector, selection):
+def make_llr_plots(data, labels, detector, selection, outdir):
+
+    outdir = os.path.join(outdir,'LLRDistributions')
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
 
     h0_fit_to_h0_fid_metrics = np.array(data['h0_fit_to_h0_fid']['metric_val'])
     h1_fit_to_h0_fid_metrics = np.array(data['h1_fit_to_h0_fid']['metric_val'])
@@ -343,13 +358,21 @@ def make_llr_plots(data, labels, detector, selection):
     filename = 'true_%s_%s_%s_LLRDistribution_%i_Trials.png'%(
         inj_name, detector, selection, num_trials
     )
-    plt.savefig(filename)
+    plt.savefig(os.path.join(outdir,filename))
     plt.close()
 
 
 def plot_individual_posterior(data, injparams, altparams, all_params, labels,
                               injlabel, altlabel, systkey, fhkey,
                               subplotnum=None):
+    '''
+    This function will use matplotlib to make a histogram of the vals contained
+    in data. The injected value will be plotted along with, where appropriate,
+    the "wrong hypothesis" fiducial fit and the prior. The axis labels and the
+    legend are taken care of in here. The optional subplotnum argument can be
+    given in the combined case so that the y-axis label only get put on when 
+    appropriate.
+    '''
 
     if systkey == 'metric_val':
         metric_type = data['type']
@@ -441,8 +464,15 @@ def plot_individual_posterior(data, injparams, altparams, all_params, labels,
         plt.legend(loc='upper left')
     
 
-def plot_individual_posteriors(data, fid_data, labels, all_params,
-                               detector, selection):
+def plot_individual_posteriors(data, labels, all_params, detector,
+                               selection, outdir):
+    '''
+    This function will make use of plot_individual_posterior and save every time.
+    '''
+
+    outdir = os.path.join(outdir,'IndividualPosteriors')
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
 
     MainTitle = '%s %s Event Selection Posterior'%(detector, selection)
 
@@ -487,17 +517,28 @@ def plot_individual_posteriors(data, fid_data, labels, all_params,
             )
 
             plt.title(MainTitle+r'\\'+FitTitle, fontsize=16)
-            SaveName = ("true_%s_fid_%s_hypo_%s_%s_posterior.png"
+            SaveName = ("true_%s_%s_%s_fid_%s_hypo_%s_%s_posterior.png"
                         %(labels['data_name'],
+                          detector,
+                          selection,
                           labels['%s_name'%fid],
                           labels['%s_name'%hypo],
                           systkey))
-            plt.savefig(SaveName)
+            plt.savefig(os.path.join(outdir,SaveName))
             plt.close()
 
 
 def plot_combined_posteriors(data, fid_data, labels, all_params,
-                             detector, selection):
+                             detector, selection, outdir):
+    '''
+    This function will make use of plot_individual_posterior but just save
+    once all of the posteriors for a given combination of h0 and h1 have
+    been plotted on the same canvas.
+    '''
+
+    outdir = os.path.join(outdir,'CombinedPosteriors')
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
 
     MainTitle = '%s %s Event Selection Posteriors'%(detector, selection)
 
@@ -523,9 +564,7 @@ def plot_combined_posteriors(data, fid_data, labels, all_params,
     for fhkey in data.keys():
         
         # Set up multi-plot
-        num_rows = int(len(data[fhkey].keys())/4)
-        if len(data[fhkey].keys())%4 != 0:
-            num_rows += 1
+        num_rows = get_num_rows(data[fhkey], omit_metric=False)
         plt.figure(figsize=(20,5*num_rows+2))
         subplotnum=1
         
@@ -559,11 +598,262 @@ def plot_combined_posteriors(data, fid_data, labels, all_params,
         plt.suptitle(MainTitle+r'\\'+FitTitle, fontsize=36)
         plt.tight_layout()
         plt.subplots_adjust(top=0.9)
-        SaveName = ("true_%s_fid_%s_hypo_%s_posteriors.png"
+        SaveName = ("true_%s_%s_%s_fid_%s_hypo_%s_posteriors.png"
                     %(labels['data_name'],
+                      detector,
+                      selection,
                       labels['%s_name'%fid],
                       labels['%s_name'%hypo]))
-        plt.savefig(SaveName)
+        plt.savefig(os.path.join(outdir,SaveName))
+        plt.close()
+
+
+def plot_individual_scatter(xdata, ydata, labels, xsystkey, ysystkey,
+                            subplotnum=None, num_rows=None, plot_cor=True):
+    '''
+    This function will use matplotlib to make a scatter plot of the vals
+    contained in xdata and ydata. The correlation will be calculated and
+    the plot will be annotated with this. Axis labels are done in here too. The 
+    optional subplotnum argument can be given in the combined case so that the 
+    y-axis label only get put on when appropriate.
+    '''
+
+    # Extract data and units
+    xvals = np.array(xdata['vals'])
+    xunits = xdata['units']
+    yvals = np.array(ydata['vals'])
+    yunits = ydata['units']
+
+    # Make scatter plot
+    plt.scatter(xvals, yvals)
+
+    if plot_cor:
+        # Calculate correlation and annotate
+        if len(set(xvals)) == 1:
+            logging.warn(("Parameter %s appears to not have been varied. i.e. all "
+                          "of the values in the set are the same. This will "
+                          "lead to NaN in the correlation calculation and so it "
+                          "will not be done."%xsystkey))
+        if len(set(yvals)) == 1:
+            logging.warn(("Parameter %s appears to not have been varied. i.e. all "
+                          "of the values in the set are the same. This will "
+                          "lead to NaN in the correlation calculation and so it "
+                          "will not be done."%ysystkey))
+        if (len(set(xvals)) != 1) and (len(set(yvals)) != 1):
+            rho, pval = spearmanr(xvals, yvals)
+            if subplotnum is not None:
+                row = int((subplotnum-1)/4)
+                xtext = 0.25*0.25+((subplotnum-1)%4)*0.25
+                ytext = 0.88-(1.0/num_rows)*0.9*row
+                plt.figtext(
+                    xtext,
+                    ytext,
+                    'Correlation = %.2f'%rho,
+                    fontsize='large'
+                )
+            else:
+                plt.figtext(
+                    0.15,
+                    0.85,
+                    'Correlation = %.2f'%rho,
+                    fontsize='large'
+                )
+
+    # Make plot range easy to look at
+    Xrange = xvals.max() - xvals.min()
+    Yrange = yvals.max() - yvals.min()
+    if Xrange != 0.0:
+        plt.xlim(xvals.min()-0.1*Xrange,
+                 xvals.max()+0.1*Xrange)
+    if Yrange != 0.0:
+        plt.ylim(yvals.min()-0.1*Yrange,
+                 yvals.max()+0.3*Yrange)
+    
+    # Make axis labels look nice
+    xsystname = make_pretty(xsystkey)
+    if not xunits == 'dimensionless':
+        xsystname += r' (%s)'%make_pretty(xunits)
+    ysystname = make_pretty(ysystkey)
+    if not yunits == 'dimensionless':
+        ysystname += r' (%s)'%make_pretty(yunits)
+
+    plt.xlabel(xsystname)
+    plt.ylabel(ysystname)
+    
+    
+def plot_individual_scatters(data, labels, detector, selection, outdir):
+    '''
+    This function will make use of plot_individual_scatter and save every time.
+    '''
+
+    outdir = os.path.join(outdir,'IndividualScatterPlots')
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+
+    MainTitle = '%s %s Event Selection Correlation Plot'%(detector, selection)
+
+    for fhkey in data.keys():
+        for xsystkey in data[fhkey].keys():
+            if not xsystkey == 'metric_val':
+                for ysystkey in data[fhkey].keys():
+                    if (ysystkey != 'metric_val') and (ysystkey != xsystkey):
+
+                        hypo = fhkey.split('_')[0]
+                        fid = fhkey.split('_')[-2]
+                        FitTitle = ("True %s, Fiducial Fit %s, Hypothesis %s "
+                                    "(%i Trials)"
+                                    %(labels['data_name'],
+                                      labels['%s_name'%fid],
+                                      labels['%s_name'%hypo],
+                                      len(data[fhkey][xsystkey]['vals'])))
+
+                        plot_individual_scatter(
+                            xdata = data[fhkey][xsystkey],
+                            ydata = data[fhkey][ysystkey],
+                            labels = labels,
+                            xsystkey = xsystkey,
+                            ysystkey = ysystkey
+                        )
+
+                        plt.title(MainTitle+r'\\'+FitTitle, fontsize=36)
+                        SaveName = (("true_%s_%s_%s_fid_%s_hypo_%s_%s_%s"
+                                     "_scatter_plot.png"
+                                     %(labels['data_name'],
+                                      detector,
+                                      selection,
+                                      labels['%s_name'%fid],
+                                      labels['%s_name'%hypo],
+                                      xsystkey,
+                                      ysystkey)))
+                        plt.savefig(os.path.join(outdir,SaveName))
+                        plt.close()
+
+
+def plot_combined_individual_scatters(data, labels, detector,
+                                      selection, outdir):
+    '''
+    This function will make use of plot_individual_scatter and save once all of 
+    the scatter plots for a single systematic with every other systematic have 
+    been plotted on the same canvas for each h0 and h1 combination.
+    '''
+
+    outdir = os.path.join(outdir,'CombinedScatterPlots')
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+
+    MainTitle = '%s %s Event Selection Correlation Plot'%(detector, selection)
+
+    for fhkey in data.keys():
+        for xsystkey in data[fhkey].keys():
+            if not xsystkey == 'metric_val':
+                
+                # Set up multi-plot
+                num_rows = get_num_rows(data[fhkey], omit_metric=True)
+                plt.figure(figsize=(20,5*num_rows+2))
+                subplotnum=1
+                
+                for ysystkey in data[fhkey].keys():
+                    if (ysystkey != 'metric_val') and (ysystkey != xsystkey):
+
+                        hypo = fhkey.split('_')[0]
+                        fid = fhkey.split('_')[-2]
+                        FitTitle = ("True %s, Fiducial Fit %s, Hypothesis %s "
+                                    "(%i Trials)"
+                                    %(labels['data_name'],
+                                      labels['%s_name'%fid],
+                                      labels['%s_name'%hypo],
+                                      len(data[fhkey][xsystkey]['vals'])))
+
+                        plt.subplot(num_rows,4,subplotnum)
+
+                        plot_individual_scatter(
+                            xdata = data[fhkey][xsystkey],
+                            ydata = data[fhkey][ysystkey],
+                            labels = labels,
+                            xsystkey = xsystkey,
+                            ysystkey = ysystkey,
+                            subplotnum = subplotnum,
+                            num_rows = num_rows
+                        )
+
+                        subplotnum += 1
+
+                plt.suptitle(MainTitle+r'\\'+FitTitle, fontsize=36)
+                plt.tight_layout()
+                plt.subplots_adjust(top=0.9)
+                SaveName = (("true_%s_%s_%s_fid_%s_hypo_%s_%s"
+                             "_scatter_plot.png"
+                             %(labels['data_name'],
+                               detector,
+                               selection,
+                               labels['%s_name'%fid],
+                               labels['%s_name'%hypo],
+                               xsystkey)))
+                plt.savefig(os.path.join(outdir,SaveName))
+                plt.close()
+
+
+def plot_combined_scatters(data, labels, detector, selection, outdir):
+    '''
+    This function will make use of plot_individual_scatter and save once every 
+    scatter plot has been plotted on a single canvas for each of the h0 and h1 
+    combinations.
+    '''
+
+    outdir = os.path.join(outdir,'CombinedScatterPlots')
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+
+    MainTitle = '%s %s Event Selection Correlation Plot'%(detector, selection)
+
+    for fhkey in data.keys():
+        # Systematic number is one less than number of keys since this also
+        # contains the metric_val entry
+        SystNum = len(data[fhkey].keys())-1
+        # Set up multi-plot
+        plt.figure(figsize=(3.5*(SystNum-1),3.5*(SystNum-1)))
+        subplotnum=(SystNum-1)*(SystNum-1)+1
+        # Set up container to know which correlations have already been plotted
+        PlottedSysts = []
+        for xsystkey in data[fhkey].keys():
+            if not xsystkey == 'metric_val':
+                PlottedSysts.append(xsystkey)
+                for ysystkey in data[fhkey].keys():
+                    if (ysystkey != 'metric_val') and (ysystkey != xsystkey):
+                        subplotnum -= 1
+                        if ysystkey not in PlottedSysts:
+
+                            hypo = fhkey.split('_')[0]
+                            fid = fhkey.split('_')[-2]
+                            FitTitle = ("True %s, Fiducial Fit %s, Hypothesis "
+                                        "%s (%i Trials)"
+                                        %(labels['data_name'],
+                                          labels['%s_name'%fid],
+                                          labels['%s_name'%hypo],
+                                          len(data[fhkey][xsystkey]['vals'])))
+                            
+                            plt.subplot(SystNum-1,SystNum-1,subplotnum)
+
+                            plot_individual_scatter(
+                                xdata = data[fhkey][xsystkey],
+                                ydata = data[fhkey][ysystkey],
+                                labels = labels,
+                                xsystkey = xsystkey,
+                                ysystkey = ysystkey,
+                                plot_cor = False
+                            )
+
+        plt.suptitle(MainTitle+r'\\'+FitTitle, fontsize=120)
+        plt.tight_layout()
+        plt.subplots_adjust(top=0.9)
+        SaveName = (("true_%s_%s_%s_fid_%s_hypo_%s_all"
+                     "_scatter_plots.png"
+                     %(labels['data_name'],
+                       detector,
+                       selection,
+                       labels['%s_name'%fid],
+                       labels['%s_name'%hypo])))
+        plt.savefig(os.path.join(outdir,SaveName))
         plt.close()
 
     
@@ -601,6 +891,26 @@ def parse_args():
         help="Flag to plot combined posteriors"
     )
     parser.add_argument(
+        '-IS','--individual_scatter',action='store_true',default=False,
+        help="Flag to plot individual 2D scatter plots of posteriors"
+    )
+    parser.add_argument(
+        '-CIS','--combined_individual_scatter',
+        action='store_true',default=False,
+        help="""Flag to plot all 2D scatter plots of one systematic with every 
+        other systematic on one plot"""
+    )
+    parser.add_argument(
+        '-CS','--combined_scatter',
+        action='store_true',default=False,
+        help="""Flag to plot all 2D scatter plots on one plot"""
+    )
+    parser.add_argument(
+        '--outdir', metavar='DIR', type=str, required=True,
+        help="""Store all output plots to this directory. This will make
+        further subdirectories, if needed, to organise the output plots."""
+    )
+    parser.add_argument(
         '-v', action='count', default=None,
         help='set verbosity level'
     )
@@ -620,6 +930,10 @@ def main():
     selection = init_args_d.pop('selection')
     iposteriors = init_args_d.pop('individual_posteriors')
     cposteriors = init_args_d.pop('combined_posteriors')
+    iscatter = init_args_d.pop('individual_scatter')
+    ciscatter = init_args_d.pop('combined_individual_scatter')
+    cscatter = init_args_d.pop('combined_scatter')
+    outdir = init_args_d.pop('outdir')
 
     if args.asimov:
         data_sets, all_params, labels = extract_trials(
@@ -686,7 +1000,8 @@ def main():
                 data = values[injkey],
                 labels = labels.dict,
                 detector = detector,
-                selection = selection
+                selection = selection,
+                outdir=outdir
             )
             '''
 
@@ -698,7 +1013,8 @@ def main():
                     labels = labels.dict,
                     all_params = all_params,
                     detector = detector,
-                    selection = selection
+                    selection = selection,
+                    outdir=outdir
                 )
 
             if cposteriors:
@@ -709,8 +1025,40 @@ def main():
                     labels = labels.dict,
                     all_params = all_params,
                     detector = detector,
-                    selection = selection
+                    selection = selection,
+                    outdir=outdir
                 )
+
+            if iscatter:
+
+                plot_individual_scatters(
+                    data = values[injkey],
+                    labels = labels.dict,
+                    detector = detector,
+                    selection = selection,
+                    outdir=outdir
+                )
+
+            if ciscatter:
+
+                plot_combined_individual_scatters(
+                    data = values[injkey],
+                    labels = labels.dict,
+                    detector = detector,
+                    selection = selection,
+                    outdir=outdir
+                )
+
+            if cscatter:
+
+                plot_combined_scatters(
+                    data = values[injkey],
+                    labels = labels.dict,
+                    detector = detector,
+                    selection = selection,
+                    outdir=outdir
+                )
+                
         
 if __name__ == '__main__':
     main()
