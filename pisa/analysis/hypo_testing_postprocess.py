@@ -21,15 +21,89 @@ import matplotlib.pyplot as plt
 import matplotlib.patheffects as PathEffects
 plt.rcParams['text.usetex'] = True
 import numpy as np
+import re
 
 from pisa import ureg
 from pisa.analysis.hypo_testing import Labels
+from pisa.core.param import Param, ParamSet
 from pisa.utils.fileio import from_file, nsort
-from pisa.utils.log import set_verbosity
+from pisa.utils.log import set_verbosity, logging
 
 
 __all__ = ['extract_trials', 'extract_fit', 'parse_args', 'main']
 
+
+def make_pretty(label):
+    pretty_labels = {}
+    pretty_labels["atm_muon_scale"] = r"Muon Background Scale"
+    pretty_labels["nue_numu_ratio"] = r"$\nu_e/\nu_{\mu}$ Ratio"
+    pretty_labels["Barr_uphor_ratio"] = r"Barr Up/Horizontal Ratio"
+    pretty_labels["Barr_nu_nubar_ratio"] = r"Barr $\nu/\bar{\nu}$ Ratio"
+    pretty_labels["delta_index"] = r"Atmospheric Index Change"
+    pretty_labels["theta13"] = r"$\theta_{13}$"
+    pretty_labels["theta23"] = r"$\theta_{23}$"
+    pretty_labels["deltam31"] = r"$\Delta m^2_{31}$"
+    pretty_labels["aeff_scale"] = r"$A_{\mathrm{eff}}$ Scale"
+    pretty_labels["Genie_Ma_QE"] = r"GENIE $M_{A}^{QE}$"
+    pretty_labels["Genie_Ma_RES"] = r"GENIE $M_{A}^{Res}$"
+    pretty_labels["dom_eff"] = r"DOM Efficiency"
+    pretty_labels["hole_ice"] = r"Hole Ice"
+    pretty_labels["hole_ice_fwd"] = r"Hole Ice Forward"
+    pretty_labels["degree"] = r"$^\circ$"
+    pretty_labels["radians"] = r"rads"
+    pretty_labels["electron_volt ** 2"] = r"$\mathrm{eV}^2$"
+    pretty_labels["llh"] = r"Likelihood"
+    pretty_labels["chi2"] = r"$\chi^2$"
+    pretty_labels["mod_chi2"] = r"Modified $\chi^2$"
+    if label not in pretty_labels.keys():
+        logging.warn("I don't know what to do with %s. Returning as is."%label)
+        return label
+    return pretty_labels[label]
+
+
+def extract_injval(injparams, systkey, data_label, hypo_label, injlabel):
+    if systkey == 'deltam31':
+        if hypo_label == data_label:
+            injval = float(injparams[systkey].split(' ')[0])
+        else:
+            injval = -1*float(injparams[systkey].split(' ')[0])
+            injlabel += r' ($\times-1$)'
+            
+    else:
+        injval = float(injparams[systkey].split(' ')[0])
+
+    if (injval < 1e-2) and (injval != 0.0):
+        injlabel += ' = %.3e'%injval
+    else:    
+        injlabel += ' = %.3g'%injval
+
+    return injval, injlabel
+
+
+def extract_gaussian(prior_string, units):
+    if units == 'dimensionless':
+        parse_string = ('gaussian prior: stddev=(.*)'
+                        ' , maximum at (.*)')
+        bits = re.match(
+            parse_string,
+            prior_string,
+            re.M|re.I
+        )
+        stddev = float(bits.group(1))
+        maximum = float(bits.group(2))
+    else:
+        parse_string = ('gaussian prior: stddev=(.*) (.*)'
+                        ', maximum at (.*) (.*)')
+        bits = re.match(
+            parse_string,
+            prior_string,
+            re.M|re.I
+        )
+        stddev = float(bits.group(1))
+        maximum = float(bits.group(3))
+
+    return stddev, maximum
+    
 
 def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
     """Extract and aggregate analysis results.
@@ -70,6 +144,27 @@ def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
         data_name=cfg['data_name'], data_is_data=data_is_data,
         fluctuate_data=fluctuate_data, fluctuate_fid=fluctuate_fid
     )
+
+    all_params = {}
+    all_params['h0_params'] = {}
+    all_params['h1_params'] = {}
+    parse_string = ('(.*)=(.*); prior=(.*),'
+                    ' range=(.*), is_fixed=(.*),'
+                    ' is_discrete=(.*); help="(.*)"')
+    for param_string in cfg['h0_params']:
+        bits = re.match(parse_string, param_string, re.M|re.I)
+        if bits.group(5) == 'False':
+            all_params['h0_params'][bits.group(1)] = {}
+            all_params['h0_params'][bits.group(1)]['value'] = bits.group(2)
+            all_params['h0_params'][bits.group(1)]['prior'] = bits.group(3)
+            all_params['h0_params'][bits.group(1)]['range'] = bits.group(4)
+    for param_string in cfg['h1_params']:
+        bits = re.match(parse_string, param_string, re.M|re.I)
+        if bits.group(5) == 'False':
+            all_params['h1_params'][bits.group(1)] = {}
+            all_params['h1_params'][bits.group(1)]['value'] = bits.group(2)
+            all_params['h1_params'][bits.group(1)]['prior'] = bits.group(3)
+            all_params['h1_params'][bits.group(1)]['range'] = bits.group(4)
 
     #for key in labels.dict.keys():
     #    print key
@@ -132,6 +227,19 @@ def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
                 if fname == labels.dict[k]:
                     lvl2_fits[k] = extract_fit(fpath, 'metric_val')
                     break
+                # Also extract fiducial fits if needed
+                if 'toy' in dset_label:
+                    ftest = ('hypo_%s_fit_to_%s.json'
+                             %(labels.dict['h{x}_name'.format(x=x)],
+                               dset_label))
+                    if fname == ftest:
+                        k = 'h{x}_fit_to_{y}'.format(x=x,y=dset_label)
+                        lvl2_fits[k] = extract_fit(
+                            fpath,
+                            ['metric_val', 'params']
+                        )
+                        break
+                k = 'h{x}_fit_to_{y}'.format(x=x, y=dset_label)
                 for y in ['0','1']:
                     k = 'h{x}_fit_to_h{y}_fid'.format(x=x, y=y)
                     r = labels.dict[k + '_re']
@@ -146,15 +254,13 @@ def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
                         lvl2_fits[k] = OrderedDict()
                     if fid_label in set_file_nums:
                         lvl2_fits[k][fid_label] = \
-                            extract_fit(fpath, ['metric_val','fit_history'])
-                        fit_history = lvl2_fits[k][fid_label].pop('fit_history')
-                        lvl2_fits[k][fid_label]['best_fit_params'] = \
-                            fit_history[-1]
+                            extract_fit(fpath,
+                                        ['metric', 'metric_val','params'])
                     break
         data_sets[dset_label] = lvl2_fits
         data_sets[dset_label]['params'] = \
             extract_fit(fpath, ['params'])['params']
-    return data_sets, labels
+    return data_sets, all_params, labels
 
 
 def extract_fit(fpath, keys=None):
@@ -240,6 +346,226 @@ def make_llr_plots(data, labels, detector, selection):
     plt.savefig(filename)
     plt.close()
 
+
+def plot_individual_posterior(data, injparams, altparams, all_params, labels,
+                              injlabel, altlabel, systkey, fhkey,
+                              subplotnum=None):
+
+    if systkey == 'metric_val':
+        metric_type = data['type']
+    systvals = np.array(data['vals'])
+    units = data['units']
+
+    hypo = fhkey.split('_')[0]
+    fid = fhkey.split('_')[-2]
+                
+    plt.hist(systvals, bins=10)
+
+    # Add injected and alternate fit lines
+    if not systkey == 'metric_val':
+        injval, injlabelproper = extract_injval(
+            injparams = injparams,
+            systkey = systkey,
+            data_label = labels['data_name'],
+            hypo_label = labels['%s_name'%hypo],
+            injlabel = injlabel
+        )
+        plt.axvline(
+            injval,
+            color='r',
+            linewidth=2,
+            label=injlabelproper
+        )
+        if not labels['%s_name'%fid] == labels['data_name']:
+            altval, altlabelproper = extract_injval(
+                injparams = altparams,
+                systkey = systkey,
+                data_label = labels['%s_name'%fid],
+                hypo_label = labels['%s_name'%hypo],
+                injlabel = altlabel
+            )
+            plt.axvline(
+                altval,
+                color='g',
+                linewidth=2,
+                label=altlabelproper
+            )
+
+    # Add shaded region for prior, if appropriate
+    # TODO - Deal with non-gaussian priors
+    wanted_params = all_params['%s_params'%hypo]
+    for param in wanted_params.keys():
+        if param == systkey:
+            if 'gaussian' in wanted_params[param]['prior']:
+                stddev, maximum = extract_gaussian(
+                    prior_string = wanted_params[param]['prior'],
+                    units = units
+                )
+                currentxlim = plt.xlim()
+                if (stddev < 1e-2) and (stddev != 0.0):
+                    priorlabel = (r'Gaussian Prior '
+                                  '($%.3e\pm%.3e$)'%(maximum,stddev))
+                else:
+                    priorlabel = (r'Gaussian Prior '
+                                  '($%.3g\pm%.3g$)'%(maximum,stddev))
+                plt.axvspan(
+                    maximum-stddev,
+                    maximum+stddev,
+                    color='k',
+                    label=priorlabel,
+                    ymax=0.1,
+                    alpha=0.5
+                )
+                # Reset xlimits if prior makes it go far off
+                if plt.xlim()[0] < currentxlim[0]:
+                    plt.xlim(currentxlim[0],plt.xlim()[1])
+                if plt.xlim()[1] > currentxlim[1]:
+                    plt.xlim(plt.xlim()[0],currentxlim[1])
+
+    # Make axis labels look nice
+    if systkey == 'metric_val':
+        systname = make_pretty(metric_type)
+    else:
+        systname = make_pretty(systkey)
+    if not units == 'dimensionless':
+        systname += r' (%s)'%make_pretty(units)
+                
+    plt.xlabel(systname)
+    if subplotnum is not None:
+        if (subplotnum-1)%4 == 0:
+            plt.ylabel(r'Number of Trials')
+    else:
+        plt.ylabel(r'Number of Trials')
+    plt.ylim(0,1.35*plt.ylim()[1])
+    if not systkey == 'metric_val':
+        plt.legend(loc='upper left')
+    
+
+def plot_individual_posteriors(data, fid_data, labels, all_params,
+                               detector, selection):
+
+    MainTitle = '%s %s Event Selection Posterior'%(detector, selection)
+
+    if labels['data_name'] == labels['h0_name']:
+        inj = 'h0'
+        alt = 'h1'
+    else:
+        inj = 'h1'
+        alt = 'h0'
+    injparams = fid_data[
+        ('%s_fit_to_toy_%s_asimov'
+         %(inj,labels['data_name']))
+    ]['params']
+    altparams = fid_data[
+        ('%s_fit_to_toy_%s_asimov'
+         %(alt,labels['data_name']))
+    ]['params']
+    injlabel = 'Injected Value'
+    altlabel = 'Alternate Fit'
+
+    for fhkey in data.keys():
+        for systkey in data[fhkey].keys():
+
+            hypo = fhkey.split('_')[0]
+            fid = fhkey.split('_')[-2]
+            FitTitle = ("True %s, Fiducial Fit %s, Hypothesis %s (%i Trials)"
+                        %(labels['data_name'],
+                          labels['%s_name'%fid],
+                          labels['%s_name'%hypo],
+                          len(data[fhkey][systkey]['vals'])))
+
+            plot_individual_posterior(
+                data = data[fhkey][systkey],
+                injparams = injparams,
+                altparams = altparams,
+                all_params = all_params,
+                labels = labels,
+                injlabel = injlabel,
+                altlabel = altlabel,
+                systkey = systkey,
+                fhkey = fhkey
+            )
+
+            plt.title(MainTitle+r'\\'+FitTitle, fontsize=16)
+            SaveName = ("true_%s_fid_%s_hypo_%s_%s_posterior.png"
+                        %(labels['data_name'],
+                          labels['%s_name'%fid],
+                          labels['%s_name'%hypo],
+                          systkey))
+            plt.savefig(SaveName)
+            plt.close()
+
+
+def plot_combined_posteriors(data, fid_data, labels, all_params,
+                             detector, selection):
+
+    MainTitle = '%s %s Event Selection Posteriors'%(detector, selection)
+
+    labels['MainTitle'] = MainTitle
+
+    if labels['data_name'] == labels['h0_name']:
+        inj = 'h0'
+        alt = 'h1'
+    else:
+        inj = 'h1'
+        alt = 'h0'
+    injparams = fid_data[
+        ('%s_fit_to_toy_%s_asimov'
+         %(inj,labels['data_name']))
+    ]['params']
+    altparams = fid_data[
+        ('%s_fit_to_toy_%s_asimov'
+         %(alt,labels['data_name']))
+    ]['params']
+    injlabel = 'Injected Value'
+    altlabel = 'Alternate Fit'
+
+    for fhkey in data.keys():
+        
+        # Set up multi-plot
+        num_rows = int(len(data[fhkey].keys())/4)
+        if len(data[fhkey].keys())%4 != 0:
+            num_rows += 1
+        plt.figure(figsize=(20,5*num_rows+2))
+        subplotnum=1
+        
+        for systkey in data[fhkey].keys():
+
+            hypo = fhkey.split('_')[0]
+            fid = fhkey.split('_')[-2]
+            FitTitle = ("True %s, Fiducial Fit %s, Hypothesis %s (%i Trials)"
+                        %(labels['data_name'],
+                          labels['%s_name'%fid],
+                          labels['%s_name'%hypo],
+                          len(data[fhkey][systkey]['vals'])))
+
+            plt.subplot(num_rows,4,subplotnum)
+
+            plot_individual_posterior(
+                data = data[fhkey][systkey],
+                injparams = injparams,
+                altparams = altparams,
+                all_params = all_params,
+                labels = labels,
+                injlabel = injlabel,
+                altlabel = altlabel,
+                systkey = systkey,
+                fhkey = fhkey,
+                subplotnum = subplotnum
+            )
+
+            subplotnum += 1
+
+        plt.suptitle(MainTitle+r'\\'+FitTitle, fontsize=36)
+        plt.tight_layout()
+        plt.subplots_adjust(top=0.9)
+        SaveName = ("true_%s_fid_%s_hypo_%s_posteriors.png"
+                    %(labels['data_name'],
+                      labels['%s_name'%fid],
+                      labels['%s_name'%hypo]))
+        plt.savefig(SaveName)
+        plt.close()
+
     
 def parse_args():
     parser = ArgumentParser(description=__doc__)
@@ -258,10 +584,22 @@ def parse_args():
         '--llr', action='store_true',
         help='''Analyze the LLR trials in the specified directories.'''
     )
-    parser.add_argument('--detector',type=str,default='',
-                        help="Name of detector to put in histogram titles")
-    parser.add_argument('--selection',type=str,default='',
-                        help="Name of selection to put in histogram titles")
+    parser.add_argument(
+        '--detector',type=str,default='',
+        help="Name of detector to put in histogram titles"
+    )
+    parser.add_argument(
+        '--selection',type=str,default='',
+        help="Name of selection to put in histogram titles"
+    )
+    parser.add_argument(
+        '-IP','--individual_posteriors',action='store_true',default=False,
+        help="Flag to plot individual posteriors"
+    )
+    parser.add_argument(
+        '-CP','--combined_posteriors',action='store_true',default=False,
+        help="Flag to plot combined posteriors"
+    )
     parser.add_argument(
         '-v', action='count', default=None,
         help='set verbosity level'
@@ -280,21 +618,34 @@ def main():
 
     detector = init_args_d.pop('detector')
     selection = init_args_d.pop('selection')
+    iposteriors = init_args_d.pop('individual_posteriors')
+    cposteriors = init_args_d.pop('combined_posteriors')
 
     if args.asimov:
-        data_sets, labels = extract_trials(logdir=args.dir, fluctuate_fid=False,
-                                           fluctuate_data=False)
+        data_sets, all_params, labels = extract_trials(
+            logdir=args.dir,
+            fluctuate_fid=False,
+            fluctuate_data=False
+        )
         od = data_sets.values()[0]
         #if od['h1_fit_to_h0_fid']['fid_asimov']['metric_val'] > od['h0_fit_to_h1_fid']['fid_asimov']['metric_val']:
         print np.sqrt(np.abs(od['h1_fit_to_h0_fid']['fid_asimov']['metric_val'] - od['h0_fit_to_h1_fid']['fid_asimov']['metric_val']))
 
     else:
-        data_sets, labels = extract_trials(logdir=args.dir,
-                                           fluctuate_fid=True,
-                                           fluctuate_data=False)
-
-        datakeys = ['h0_fit_to_data', 'h1_fit_to_data', 'h1_fit_to_h1_fid', 'h1_fit_to_h0_fid', 'h0_fit_to_h1_fid', 'h0_fit_to_h0_fid']
-
+        data_sets, all_params, labels = extract_trials(
+            logdir=args.dir,
+            fluctuate_fid=True,
+            fluctuate_data=False
+        )
+        
+        fid_values = {}
+        for injkey in data_sets.keys():
+            fid_values[injkey] = {}
+            for datakey in data_sets[injkey]:
+                if ('toy' in datakey) or ('data' in datakey):
+                    fid_values[injkey][datakey] \
+                        = data_sets[injkey].pop(datakey)
+                    
         values = {}
 
         for injkey in data_sets.keys():
@@ -303,33 +654,63 @@ def main():
             paramkeys = alldata['params'].keys()
             for datakey in alldata.keys():
                 if datakey is not 'params':
-                    if alldata[datakey] is not None:
-                        values[injkey][datakey] = {}
-                        values[injkey][datakey]['metric_val'] = []
-                        for paramkey in paramkeys:
-                            values[injkey][datakey][paramkey] = []
-                        trials = alldata[datakey]
-                        for trial_num in trials.keys():
-                            trial = trials[trial_num]
-                            values[injkey][datakey]['metric_val'].append(
-                                trial['metric_val']
-                            )
-                            for param_name, param_val in zip(
-                                    paramkeys,
-                                    trial['best_fit_params']):
-                                values[injkey][datakey][param_name].append(
-                                    param_val
-                                )
+                    values[injkey][datakey] = {}
+                    values[injkey][datakey]['metric_val'] = {}
+                    values[injkey][datakey]['metric_val']['vals'] = []
+                    for paramkey in paramkeys:
+                        values[injkey][datakey][paramkey] = {}
+                        values[injkey][datakey][paramkey]['vals'] = []
+                    trials = alldata[datakey]
+                    for trial_num in trials.keys():
+                        trial = trials[trial_num]
+                        values[injkey][datakey]['metric_val']['vals'] \
+                            .append(trial['metric_val'])
+                        values[injkey][datakey]['metric_val']['type'] \
+                            = trial['metric']
+                        values[injkey][datakey]['metric_val']['units'] \
+                            = 'dimensionless'
+                        param_vals = trial['params']
+                        for param_name in param_vals.keys():
+                            val = param_vals[param_name].split(' ')[0]
+                            units = param_vals[param_name] \
+                                .split(val+' ')[-1]
+                            values[injkey][datakey][param_name]['vals'] \
+                                .append(float(val))
+                            values[injkey][datakey][param_name]['units'] \
+                                = units
 
         for injkey in values.keys():
 
+            '''
             make_llr_plots(
                 data = values[injkey],
                 labels = labels.dict,
                 detector = detector,
                 selection = selection
             )
-            
+            '''
+
+            if iposteriors:
+
+                plot_individual_posteriors(
+                    data = values[injkey],
+                    fid_data = fid_values[injkey],
+                    labels = labels.dict,
+                    all_params = all_params,
+                    detector = detector,
+                    selection = selection
+                )
+
+            if cposteriors:
+
+                plot_combined_posteriors(
+                    data = values[injkey],
+                    fid_data = fid_values[injkey],
+                    labels = labels.dict,
+                    all_params = all_params,
+                    detector = detector,
+                    selection = selection
+                )
         
 if __name__ == '__main__':
     main()
