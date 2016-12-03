@@ -18,7 +18,6 @@ from argparse import ArgumentParser
 from collections import OrderedDict
 import os
 import matplotlib.pyplot as plt
-import matplotlib.patheffects as PathEffects
 plt.rcParams['text.usetex'] = True
 import numpy as np
 import re
@@ -36,6 +35,11 @@ __all__ = ['extract_trials', 'extract_fit', 'parse_args', 'main']
 
 
 def make_pretty(label):
+    '''
+    Takes the labels used in the objects and turns them in to something nice
+    for plotting. This can never truly be exhaustive, but it definitely does 
+    the trick. If something looks ugly add it to this function!
+    '''
     pretty_labels = {}
     pretty_labels["atm_muon_scale"] = r"Muon Background Scale"
     pretty_labels["nue_numu_ratio"] = r"$\nu_e/\nu_{\mu}$ Ratio"
@@ -63,6 +67,10 @@ def make_pretty(label):
     return pretty_labels[label]
 
 def get_num_rows(data, omit_metric=False):
+    '''
+    Calculates the number of rows for multiplots based on the number of 
+    systematics.
+    '''
     if omit_metric:
         num_rows = int((len(data.keys())-1)/4)
     else:
@@ -73,6 +81,11 @@ def get_num_rows(data, omit_metric=False):
 
 
 def extract_injval(injparams, systkey, data_label, hypo_label, injlabel):
+    '''
+    Extracts the injected value and modifies it based on the 
+    hypothesis/fiducial fit being considered. The label associated with this 
+    is then modified accordingly.
+    '''
     if systkey == 'deltam31':
         if hypo_label == data_label:
             injval = float(injparams[systkey].split(' ')[0])
@@ -92,6 +105,11 @@ def extract_injval(injparams, systkey, data_label, hypo_label, injlabel):
 
 
 def extract_gaussian(prior_string, units):
+    '''
+    Parses the string for the Gaussian priors that comes from the config 
+    summary file in the logdir. This should account for dimensions though is 
+    only tested with degrees.
+    '''
     if units == 'dimensionless':
         parse_string = ('gaussian prior: stddev=(.*)'
                         ' , maximum at (.*)')
@@ -297,10 +315,75 @@ def extract_fit(fpath, keys=None):
     return info
 
 
-def make_llr_plots(data, labels, detector, selection, outdir):
+def extract_fid_data(data_sets):
+    '''
+    Takes the data sets returned by the extract_trials function and extracts 
+    the data on the fiducial fits.
 
+    TODO (?) - This works in the case of all MC, but I don't know about data.
+    '''
+    fid_values = {}
+    for injkey in data_sets.keys():
+        fid_values[injkey] = {}
+        for datakey in data_sets[injkey]:
+            if ('toy' in datakey) or ('data' in datakey):
+                fid_values[injkey][datakey] \
+                    = data_sets[injkey].pop(datakey)
+    return fid_values
+
+
+def extract_data(data):
+    '''
+    Takes the data sets returned by the extract_trials function and turns 
+    them in to a format used by all of the plotting functions.
+    '''
+    values = {}
+    for injkey in data.keys():
+        values[injkey] = {}
+        alldata = data[injkey]
+        paramkeys = alldata['params'].keys()
+        for datakey in alldata.keys():
+            if datakey is not 'params':
+                values[injkey][datakey] = {}
+                values[injkey][datakey]['metric_val'] = {}
+                values[injkey][datakey]['metric_val']['vals'] = []
+                for paramkey in paramkeys:
+                    values[injkey][datakey][paramkey] = {}
+                    values[injkey][datakey][paramkey]['vals'] = []
+                trials = alldata[datakey]
+                for trial_num in trials.keys():
+                    trial = trials[trial_num]
+                    values[injkey][datakey]['metric_val']['vals'] \
+                        .append(trial['metric_val'])
+                    values[injkey][datakey]['metric_val']['type'] \
+                        = trial['metric']
+                    values[injkey][datakey]['metric_val']['units'] \
+                        = 'dimensionless'
+                    param_vals = trial['params']
+                    for param_name in param_vals.keys():
+                        val = param_vals[param_name].split(' ')[0]
+                        units = param_vals[param_name] \
+                            .split(val+' ')[-1]
+                        values[injkey][datakey][param_name]['vals'] \
+                            .append(float(val))
+                        values[injkey][datakey][param_name]['units'] \
+                            = units
+    return values
+
+
+def make_llr_plots(data, labels, detector, selection, outdir):
+    '''
+    Does what you think. Takes the data and makes LLR distributions. These are 
+    then saved to the requested outdir within a folder labelled 
+    "LLRDistributions".
+
+    TODO - Significance calculation. This means calculating p-values and then 
+    appending the value to the plot. Probably should come up with a good way 
+    of storing this information rather than just printing it to terminal.
+    '''
     outdir = os.path.join(outdir,'LLRDistributions')
     if not os.path.exists(outdir):
+        logging.info('Making output directory %s'%outdir)
         os.makedirs(outdir)
 
     h0_fit_to_h0_fid_metrics = np.array(data['h0_fit_to_h0_fid']['metric_val'])
@@ -472,6 +555,7 @@ def plot_individual_posteriors(data, labels, all_params, detector,
 
     outdir = os.path.join(outdir,'IndividualPosteriors')
     if not os.path.exists(outdir):
+        logging.info('Making output directory %s'%outdir)
         os.makedirs(outdir)
 
     MainTitle = '%s %s Event Selection Posterior'%(detector, selection)
@@ -538,6 +622,7 @@ def plot_combined_posteriors(data, fid_data, labels, all_params,
 
     outdir = os.path.join(outdir,'CombinedPosteriors')
     if not os.path.exists(outdir):
+        logging.info('Making output directory %s'%outdir)
         os.makedirs(outdir)
 
     MainTitle = '%s %s Event Selection Posteriors'%(detector, selection)
@@ -688,6 +773,7 @@ def plot_individual_scatters(data, labels, detector, selection, outdir):
 
     outdir = os.path.join(outdir,'IndividualScatterPlots')
     if not os.path.exists(outdir):
+        logging.info('Making output directory %s'%outdir)
         os.makedirs(outdir)
 
     MainTitle = '%s %s Event Selection Correlation Plot'%(detector, selection)
@@ -739,6 +825,7 @@ def plot_combined_individual_scatters(data, labels, detector,
 
     outdir = os.path.join(outdir,'CombinedScatterPlots')
     if not os.path.exists(outdir):
+        logging.info('Making output directory %s'%outdir)
         os.makedirs(outdir)
 
     MainTitle = '%s %s Event Selection Correlation Plot'%(detector, selection)
@@ -802,6 +889,7 @@ def plot_combined_scatters(data, labels, detector, selection, outdir):
 
     outdir = os.path.join(outdir,'CombinedScatterPlots')
     if not os.path.exists(outdir):
+        logging.info('Making output directory %s'%outdir)
         os.makedirs(outdir)
 
     MainTitle = '%s %s Event Selection Correlation Plot'%(detector, selection)
@@ -856,6 +944,137 @@ def plot_combined_scatters(data, labels, detector, selection, outdir):
         plt.savefig(os.path.join(outdir,SaveName))
         plt.close()
 
+
+def plot_correlation_matrices(data, labels, detector, selection, outdir):
+    '''
+    This will plot the correlation matrices since the individual scatter plots 
+    are a pain to interpret on their own. This will plot them with a colour 
+    scale and, if the user has the PathEffects module then it will also write 
+    the values on the bins. If a number is invalid it will come up bright green.
+    '''
+    try:
+        import matplotlib.patheffects as PathEffects
+        logging.warn("PathEffects could be imported, so the correlation values"
+                     " will be written on the bins. This is slow.")
+        pe = True
+    except:
+        logging.warn("PathEffects could not be imported, so the correlation" 
+                     " values will not be written on the bins.")
+        pe = False
+
+    outdir = os.path.join(outdir,'CorrelationMatrices')
+    if not os.path.exists(outdir):
+        logging.info('Making output directory %s'%outdir)
+        os.makedirs(outdir)
+
+    MainTitle = ("%s %s Event Selection Correlation Coefficients"
+                 %(detector, selection))
+    Systs = []
+
+    for fhkey in data.keys():
+        # Systematic number is one less than number of keys since this also
+        # contains the metric_val entry
+        SystNum = len(data[fhkey].keys())-1
+        # Set up array to hold lists of correlation values
+        all_corr_lists = []
+        for xsystkey in data[fhkey].keys():
+            all_corr_values = []
+            if not xsystkey == 'metric_val':
+                if make_pretty(xsystkey) not in Systs:
+                    Systs.append(make_pretty(xsystkey))
+                for ysystkey in data[fhkey].keys():
+                    if (ysystkey != 'metric_val'):
+                        hypo = fhkey.split('_')[0]
+                        fid = fhkey.split('_')[-2]
+                        FitTitle = ("True %s, Fiducial Fit %s, Hypothesis "
+                                    "%s (%i Trials)"
+                                    %(labels['data_name'],
+                                      labels['%s_name'%fid],
+                                      labels['%s_name'%hypo],
+                                      len(data[fhkey][xsystkey]['vals'])))
+
+                        # Calculate correlation
+                        xvals = np.array(data[fhkey][xsystkey]['vals'])
+                        yvals = np.array(data[fhkey][ysystkey]['vals'])
+                        if len(set(xvals)) == 1:
+                            logging.warn(("Parameter %s appears to not have "
+                                          "been varied. i.e. all of the values"
+                                          " in the set are the same. This will"
+                                          " lead to NaN in the correlation "
+                                          "calculation and so it will not be "
+                                          "done."%xsystkey))
+                        if len(set(yvals)) == 1:
+                            logging.warn(("Parameter %s appears to not have "
+                                          "been varied. i.e. all of the values"
+                                          " in the set are the same. This will"
+                                          " lead to NaN in the correlation "
+                                          "calculation and so it will not be "
+                                          "done."%ysystkey))
+                        if (len(set(xvals)) != 1) and (len(set(yvals)) != 1):
+                            rho, pval = spearmanr(xvals, yvals)
+                        else:
+                            rho = np.nan
+                        all_corr_values.append(rho)
+                all_corr_lists.append(all_corr_values)
+
+        all_corr_nparray = np.ma.masked_invalid(np.array(all_corr_lists))
+        # Plot it!
+        palette = plt.cm.RdBu
+        palette.set_bad('lime',1.0)
+        plt.imshow(
+            all_corr_nparray,
+            interpolation='none',
+            cmap=plt.cm.RdBu,
+            vmin=-1.0,
+            vmax=1.0
+        )
+        plt.colorbar()
+        # Add systematic names as x and y axis ticks
+        plt.xticks(
+            np.arange(len(Systs)),
+            Systs,
+            rotation=45,
+            horizontalalignment='right'
+        )
+        plt.yticks(
+            np.arange(len(Systs)),
+            Systs,
+            rotation=0
+        )
+        plt.tight_layout()
+        plt.subplots_adjust(bottom=0.30,left=-0.30,right=1.05,top=0.9)
+        plt.title(MainTitle+r'\\'+FitTitle, fontsize=16)
+        SaveName = (("true_%s_%s_%s_fid_%s_hypo_%s_correlation_matrix.png"
+                     %(labels['data_name'],
+                       detector,
+                       selection,
+                       labels['%s_name'%fid],
+                       labels['%s_name'%hypo])))
+        plt.savefig(os.path.join(outdir,SaveName))
+        if pe:
+            for i in range(0,len(all_corr_nparray)):
+                for j in range(0,len(all_corr_nparray[0])):
+                    plt.text(i, j, '%.2f'%all_corr_nparray[i][j],
+                             fontsize='7',
+                             verticalalignment='center',
+                             horizontalalignment='center',
+                             color='w',
+                             path_effects=[
+                                 PathEffects.withStroke(
+                                     linewidth=2.5,
+                                     foreground='k'
+                                 )
+                             ])
+        SaveName = (("true_%s_%s_%s_fid_%s_hypo_%s_correlation_matrix_"
+                     "values.png"
+                     %(labels['data_name'],
+                       detector,
+                       selection,
+                       labels['%s_name'%fid],
+                       labels['%s_name'%hypo])))
+        plt.savefig(os.path.join(outdir,SaveName))
+        plt.close()
+
     
 def parse_args():
     parser = ArgumentParser(description=__doc__)
@@ -876,34 +1095,39 @@ def parse_args():
     )
     parser.add_argument(
         '--detector',type=str,default='',
-        help="Name of detector to put in histogram titles"
+        help="Name of detector to put in histogram titles."
     )
     parser.add_argument(
         '--selection',type=str,default='',
-        help="Name of selection to put in histogram titles"
+        help="Name of selection to put in histogram titles."
     )
     parser.add_argument(
         '-IP','--individual_posteriors',action='store_true',default=False,
-        help="Flag to plot individual posteriors"
+        help="Flag to plot individual posteriors."
     )
     parser.add_argument(
         '-CP','--combined_posteriors',action='store_true',default=False,
-        help="Flag to plot combined posteriors"
+        help="Flag to plot combined posteriors for each h0 and h1 combination."
     )
     parser.add_argument(
         '-IS','--individual_scatter',action='store_true',default=False,
-        help="Flag to plot individual 2D scatter plots of posteriors"
+        help="Flag to plot individual 2D scatter plots of posteriors."
     )
     parser.add_argument(
         '-CIS','--combined_individual_scatter',
         action='store_true',default=False,
         help="""Flag to plot all 2D scatter plots of one systematic with every 
-        other systematic on one plot"""
+        other systematic on one plot for each h0 and h1 combination."""
     )
     parser.add_argument(
-        '-CS','--combined_scatter',
-        action='store_true',default=False,
-        help="""Flag to plot all 2D scatter plots on one plot"""
+        '-CS','--combined_scatter', action='store_true',default=False,
+        help="""Flag to plot all 2D scatter plots on one plot for each 
+        h0 and h1 combination."""
+    )
+    parser.add_argument(
+        '-CM', '--correlation_matrix', action='store_true',default=False,
+        help="""Flag to plot the correlation matrices for each h0 and h1 
+        combination."""
     )
     parser.add_argument(
         '--outdir', metavar='DIR', type=str, required=True,
@@ -933,6 +1157,7 @@ def main():
     iscatter = init_args_d.pop('individual_scatter')
     ciscatter = init_args_d.pop('combined_individual_scatter')
     cscatter = init_args_d.pop('combined_scatter')
+    cmatrix = init_args_d.pop('correlation_matrix')
     outdir = init_args_d.pop('outdir')
 
     if args.asimov:
@@ -952,46 +1177,8 @@ def main():
             fluctuate_data=False
         )
         
-        fid_values = {}
-        for injkey in data_sets.keys():
-            fid_values[injkey] = {}
-            for datakey in data_sets[injkey]:
-                if ('toy' in datakey) or ('data' in datakey):
-                    fid_values[injkey][datakey] \
-                        = data_sets[injkey].pop(datakey)
-                    
-        values = {}
-
-        for injkey in data_sets.keys():
-            values[injkey] = {}
-            alldata = data_sets[injkey]
-            paramkeys = alldata['params'].keys()
-            for datakey in alldata.keys():
-                if datakey is not 'params':
-                    values[injkey][datakey] = {}
-                    values[injkey][datakey]['metric_val'] = {}
-                    values[injkey][datakey]['metric_val']['vals'] = []
-                    for paramkey in paramkeys:
-                        values[injkey][datakey][paramkey] = {}
-                        values[injkey][datakey][paramkey]['vals'] = []
-                    trials = alldata[datakey]
-                    for trial_num in trials.keys():
-                        trial = trials[trial_num]
-                        values[injkey][datakey]['metric_val']['vals'] \
-                            .append(trial['metric_val'])
-                        values[injkey][datakey]['metric_val']['type'] \
-                            = trial['metric']
-                        values[injkey][datakey]['metric_val']['units'] \
-                            = 'dimensionless'
-                        param_vals = trial['params']
-                        for param_name in param_vals.keys():
-                            val = param_vals[param_name].split(' ')[0]
-                            units = param_vals[param_name] \
-                                .split(val+' ')[-1]
-                            values[injkey][datakey][param_name]['vals'] \
-                                .append(float(val))
-                            values[injkey][datakey][param_name]['units'] \
-                                = units
+        fid_values = extract_fid_data(data_sets)
+        values = extract_data(data_sets)
 
         for injkey in values.keys():
 
@@ -1001,7 +1188,7 @@ def main():
                 labels = labels.dict,
                 detector = detector,
                 selection = selection,
-                outdir=outdir
+                outdir = outdir
             )
             '''
 
@@ -1014,7 +1201,7 @@ def main():
                     all_params = all_params,
                     detector = detector,
                     selection = selection,
-                    outdir=outdir
+                    outdir = outdir
                 )
 
             if cposteriors:
@@ -1026,7 +1213,7 @@ def main():
                     all_params = all_params,
                     detector = detector,
                     selection = selection,
-                    outdir=outdir
+                    outdir = outdir
                 )
 
             if iscatter:
@@ -1036,7 +1223,7 @@ def main():
                     labels = labels.dict,
                     detector = detector,
                     selection = selection,
-                    outdir=outdir
+                    outdir = outdir
                 )
 
             if ciscatter:
@@ -1046,7 +1233,7 @@ def main():
                     labels = labels.dict,
                     detector = detector,
                     selection = selection,
-                    outdir=outdir
+                    outdir = outdir
                 )
 
             if cscatter:
@@ -1056,7 +1243,17 @@ def main():
                     labels = labels.dict,
                     detector = detector,
                     selection = selection,
-                    outdir=outdir
+                    outdir = outdir
+                )
+
+            if cmatrix:
+
+                plot_correlation_matrices(
+                    data = values[injkey],
+                    labels = labels.dict,
+                    detector = detector,
+                    selection = selection,
+                    outdir = outdir
                 )
                 
         
