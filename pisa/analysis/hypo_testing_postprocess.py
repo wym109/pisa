@@ -547,10 +547,11 @@ def plot_individual_posterior(data, injparams, altparams, all_params, labels,
         plt.legend(loc='upper left')
     
 
-def plot_individual_posteriors(data, labels, all_params, detector,
+def plot_individual_posteriors(data, fid_data, labels, all_params, detector,
                                selection, outdir):
     '''
-    This function will make use of plot_individual_posterior and save every time.
+    This function will make use of plot_individual_posterior and 
+    save every time.
     '''
 
     outdir = os.path.join(outdir,'IndividualPosteriors')
@@ -801,7 +802,7 @@ def plot_individual_scatters(data, labels, detector, selection, outdir):
                             ysystkey = ysystkey
                         )
 
-                        plt.title(MainTitle+r'\\'+FitTitle, fontsize=36)
+                        plt.title(MainTitle+r'\\'+FitTitle, fontsize=16)
                         SaveName = (("true_%s_%s_%s_fid_%s_hypo_%s_%s_%s"
                                      "_scatter_plot.png"
                                      %(labels['data_name'],
