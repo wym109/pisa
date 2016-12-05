@@ -289,18 +289,18 @@ def main():
     all_bin_units = []
     for step_variable in all_steps.keys():
         bin_cens = []
+        if isinstance(all_steps[step_variable][0][1],list):
+            all_bin_units.append(all_steps[step_variable][0][1][0][0])
+        else:
+            all_bin_units.append('dimensionless')
         for val in all_steps[step_variable]:
             if val[0] not in bin_cens:
                 bin_cens.append(val[0])
-            if val[1][0][0] not in all_bin_units:
-                all_bin_units.append(val[1][0][0])
         all_bin_cens.append(bin_cens)
 
     results = infile['results']
     metric_name = results[0]['metric']
 
-    # Store the metric vals
-    metric_vals = []
     # Store the metric vals and resulting parameter values from those profiled
     data = {}
     data['metric_vals'] = []
@@ -317,16 +317,26 @@ def main():
                     result['params'][param_key]['value'][0]
                 )
 
-    metric_vals = np.array(metric_vals)
+    metric_vals = np.array(data['metric_vals'])
 
     if len(all_bin_cens) == 1:
         # One-dimensional parameter scan
         scan_values = all_bin_cens[0]
         scan_name = all_bin_names[0]
         plt.plot(scan_values, metric_vals)
+        minx = min(scan_values)
+        maxx = max(scan_values)
+        rangex = maxx - minx
+        plt.xlim(minx-0.1*rangex,maxx+0.1*rangex)
+        plt.ylim(0,1.1*max(metric_vals))
         plt.xlabel(make_pretty(scan_name))
         plt.ylabel(make_pretty(metric_name))
-        plt.savefig('%s_1D_%s_scan.png'%(scan_name, metric_name))
+        plt.savefig(
+            os.path.join(
+                args.outdir,
+                '%s_1D_%s_scan.png'%(scan_name, metric_name)
+            )
+        )
 
     elif len(all_bin_cens) == 2:
         # Two-dimensional parameter scan
