@@ -27,6 +27,8 @@ from pisa.utils.fileio import mkdir
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile
+from pisa.core.transform import TransformSet
+from pisa.core.events import Data
 
 
 __all__ = ['Pipeline',
@@ -491,6 +493,32 @@ def main():
             stage.transforms.to_json(fbase + '__transforms.json.bz2')
 
         formats = OrderedDict(png=args.png, pdf=args.pdf)
+        if isinstance(stage.outputs, Data):
+            outputs = []
+            if stage.outputs.contains_neutrinos:
+                trans_nu_data = self._data.transform_groups(
+                    self._output_nu_groups
+                )
+                for fig in trans_nu_data.iterkeys():
+                    outputs.append(stage.outputs.histogram(
+                        kinds       = fig,
+                        binning     = stage.output_binning,
+                        weights_col = 'pisa_weight',
+                        errors      = True,
+                        name        = str(NuFlavIntGroup(fig)),
+                    ))
+            if stage.outputs.contains_muons:
+                outputs.append(stage.outputs.histogram(
+                    kinds       = 'muons',
+                    binning     = stage.output_binning,
+                    weights_col = 'pisa_weight',
+                    errors      = True,
+                    name        = 'muons',
+                    tex         = r'\rm{muons}'
+                ))
+            outputs = MapSet(maps=outputs, name=stg_svc)
+        if isinstance(stage.outputs, (MapSet, TransformSet)):
+            outputs = stage.outputs
         for fmt, enabled in formats.items():
             if not enabled:
                 continue
@@ -499,7 +527,8 @@ def main():
                                  fmt=fmt, log=False,
                                  annotate=args.annotate)
             my_plotter.ratio = True
-            my_plotter.plot_2d_array(stage.outputs, fname=stg_svc+'__output',
+            my_plotter.plot_2d_array(outputs,
+                                     fname=stg_svc+'__output',
                                      cmap='OrRd')
 
     return pipeline, outputs
