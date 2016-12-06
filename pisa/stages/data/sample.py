@@ -300,6 +300,7 @@ class sample(Stage):
             return string.replace(' ', '').split(',')
         sys_list = parse(config.get('muons', 'sys_list'))
         weight = config.get('muons', 'weight')
+        weight_units = config.get('muons', 'weight_units')
         base_suffix = config.get('muons', 'basesuffix')
         if base_suffix == 'None':
             base_suffix = ''
@@ -331,7 +332,8 @@ class sample(Stage):
             muons['pisa_weight'] = \
                     np.zeros(muons['weights'].shape)
         else:
-            muons['pisa_weight'] = muons[weight]
+            muons['pisa_weight'] = muons[weight] * \
+                        ureg(weight_units)
 
         if 'zenith' in muons and 'coszen' not in muons:
             muons['coszen'] = np.cos(muons['zenith'])
