@@ -349,6 +349,8 @@ class Data(FlavIntDataGroup):
             ('flavints_joined', []),
         ])
         self.are_muons = False
+        self.contains_neutrinos = False
+        self.contains_muons = False
 
         meta = {}
         if isinstance(val, basestring) or isinstance(val, h5py.Group):
@@ -391,6 +393,7 @@ class Data(FlavIntDataGroup):
             super(Data, self).__init__(val=data, flavint_groups=flavint_groups)
 
         if self.metadata['flavints_joined']:
+            self.contains_neutrinos = True
             self_flavint_groups = [str(f) for f in self.flavint_groups]
             if self.are_muons: self_flavint_groups += ['muons']
             if set(self.metadata['flavints_joined']) != \
@@ -404,7 +407,9 @@ class Data(FlavIntDataGroup):
         else:
             self.metadata['flavints_joined'] = [str(f)
                                                 for f in self.flavint_groups]
-            if self.are_muons: self.metadata['flavints_joined'] += ['muons']
+            if self.are_muons:
+                self.metadata['flavints_joined'] += ['muons']
+                self.contains_muons = True
 
         self._hash = hash_obj(normQuant(self.metadata))
 
@@ -418,6 +423,12 @@ class Data(FlavIntDataGroup):
 
     def update_hash(self):
         self._hash = hash_obj(normQuant(self.metadata))
+
+    def contains_neutrinos(self):
+        return self.contains_neutrinos
+
+    def contains_muons(self):
+        return self.contains_muons
 
     @property
     def muons(self):
