@@ -10,9 +10,6 @@ from copy import deepcopy
 import numpy as np
 import pint
 
-import pycuda.driver as cuda
-import pycuda.autoinit
-
 from pisa import FTYPE
 from pisa import ureg, Q_
 from pisa.core.stage import Stage
@@ -27,7 +24,6 @@ from pisa.utils.log import logging
 from pisa.utils.profiler import profile
 
 from pisa.utils.flux_weights import load_2D_table, calculate_flux_weights
-from pisa.stages.osc.prob3gpu import prob3gpu
 
 
 class weight(Stage):
@@ -122,6 +118,9 @@ class weight(Stage):
         self.weight_params = (
             'output_events_mc',
             'livetime',
+        )
+
+        self.nu_params = (
             'oscillate',
             'cache_flux'
         )
@@ -159,17 +158,29 @@ class weight(Stage):
             'no_nc_osc'
         )
 
-        self.atmmu_params = (
-            'norm_atmmu',
+        self.atm_muon_params = (
+            'atm_muon_scale',
         )
 
         self.noise_params = (
             'norm_noise',
         )
 
-        expected_params = self.weight_params + self.xsec_params + \
-            self.flux_params + self.osc_params + self.atmmu_params + \
-            self.noise_params
+        expected_params = self.weight_params
+        if ('all_nu' in input_names) or ('neutrinos' in input_names):
+            # Import oscillations calculator only if needed
+            # Allows muons to be passed through this stage on a CPU machine
+            import pycuda.driver as cuda
+            import pycuda.autoinit
+            from pisa.stages.osc.prob3gpu import prob3gpu
+            expected_params += self.nu_params
+            expected_params += self.xsec_params
+            expected_params += self.flux_params
+            expected_params += self.osc_params
+        if 'muons' in input_names:
+            expected_params += self.atm_muon_params
+        if 'noise' in input_names:
+            expected_params += self.noise_params    
 
         self.neutrino = False
         self.muons = False
@@ -276,6 +287,15 @@ class weight(Stage):
             for fig in self._data.iterkeys():
                 self._data[fig]['pisa_weight'] *= livetime
                 self._data[fig]['pisa_weight'].ito('dimensionless')
+
+        if self.muons:
+            # Livetime reweighting
+            livetime = self.params['livetime'].value
+            self._data.muons['pisa_weight'] *= livetime
+            self._data.muons['pisa_weight'].ito('dimensionless')
+            # Scaling
+            atm_muon_scale = self.params['atm_muon_scale'].value
+            self._data.muons['pisa_weight'] *= atm_muon_scale
 
         self._data.metadata['params_hash'] = self.params.values_hash
         self._data.update_hash()
@@ -591,31 +611,34 @@ class weight(Stage):
         pq = pint.quantity._Quantity
         assert isinstance(params['output_events_mc'].value, bool)
         assert isinstance(params['livetime'].value, pq)
-        assert isinstance(params['oscillate'].value, bool)
-        assert isinstance(params['cache_flux'].value, bool)
-        assert isinstance(params['nu_dis_a'].value, pq)
-        assert isinstance(params['nu_dis_b'].value, pq)
-        assert isinstance(params['nubar_dis_a'].value, pq)
-        assert isinstance(params['nubar_dis_b'].value, pq)
-        assert isinstance(params['flux_file'].value, basestring)
-        assert isinstance(params['atm_delta_index'].value, pq)
-        assert isinstance(params['nu_nubar_ratio'].value, pq)
-        assert isinstance(params['nue_numu_ratio'].value, pq)
-        assert isinstance(params['norm_numu'].value, pq)
-        assert isinstance(params['norm_nutau'].value, pq)
-        assert isinstance(params['norm_nc'].value, pq)
-        assert isinstance(params['earth_model'].value, basestring)
-        assert isinstance(params['YeI'].value, pq)
-        assert isinstance(params['YeO'].value, pq)
-        assert isinstance(params['YeM'].value, pq)
-        assert isinstance(params['detector_depth'].value, pq)
-        assert isinstance(params['prop_height'].value, pq)
-        assert isinstance(params['theta12'].value, pq)
-        assert isinstance(params['theta13'].value, pq)
-        assert isinstance(params['theta23'].value, pq)
-        assert isinstance(params['deltam21'].value, pq)
-        assert isinstance(params['deltam31'].value, pq)
-        assert isinstance(params['deltacp'].value, pq)
-        assert isinstance(params['no_nc_osc'].value, bool)
-        assert isinstance(params['norm_atmmu'].value, pq)
-        assert isinstance(params['norm_noise'].value, pq)
+        if self.neutrino:
+            assert isinstance(params['oscillate'].value, bool)
+            assert isinstance(params['cache_flux'].value, bool)
+            assert isinstance(params['nu_dis_a'].value, pq)
+            assert isinstance(params['nu_dis_b'].value, pq)
+            assert isinstance(params['nubar_dis_a'].value, pq)
+            assert isinstance(params['nubar_dis_b'].value, pq)
+            assert isinstance(params['flux_file'].value, basestring)
+            assert isinstance(params['atm_delta_index'].value, pq)
+            assert isinstance(params['nu_nubar_ratio'].value, pq)
+            assert isinstance(params['nue_numu_ratio'].value, pq)
+            assert isinstance(params['norm_numu'].value, pq)
+            assert isinstance(params['norm_nutau'].value, pq)
+            assert isinstance(params['norm_nc'].value, pq)
+            assert isinstance(params['earth_model'].value, basestring)
+            assert isinstance(params['YeI'].value, pq)
+            assert isinstance(params['YeO'].value, pq)
+            assert isinstance(params['YeM'].value, pq)
+            assert isinstance(params['detector_depth'].value, pq)
+            assert isinstance(params['prop_height'].value, pq)
+            assert isinstance(params['theta12'].value, pq)
+            assert isinstance(params['theta13'].value, pq)
+            assert isinstance(params['theta23'].value, pq)
+            assert isinstance(params['deltam21'].value, pq)
+            assert isinstance(params['deltam31'].value, pq)
+            assert isinstance(params['deltacp'].value, pq)
+            assert isinstance(params['no_nc_osc'].value, bool)
+        if self.muons:
+            assert isinstance(params['atm_muon_scale'].value, pq)
+        if self.noise:
+            assert isinstance(params['norm_noise'].value, pq)
