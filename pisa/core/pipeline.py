@@ -27,6 +27,7 @@ from pisa.utils.fileio import mkdir
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile
+from pisa.core.transform import TransformSet
 
 
 __all__ = ['Pipeline',
@@ -491,16 +492,18 @@ def main():
             stage.transforms.to_json(fbase + '__transforms.json.bz2')
 
         formats = OrderedDict(png=args.png, pdf=args.pdf)
-        for fmt, enabled in formats.items():
-            if not enabled:
-                continue
-            my_plotter = Plotter(stamp='event rate',
-                                 outdir=args.dir,
-                                 fmt=fmt, log=False,
-                                 annotate=args.annotate)
-            my_plotter.ratio = True
-            my_plotter.plot_2d_array(stage.outputs, fname=stg_svc+'__output',
-                                     cmap='OrRd')
+        if isinstance(stage.outputs, (MapSet, TransformSet)):
+            for fmt, enabled in formats.items():
+                if not enabled:
+                    continue
+                my_plotter = Plotter(stamp='event rate',
+                                     outdir=args.dir,
+                                     fmt=fmt, log=False,
+                                     annotate=args.annotate)
+                my_plotter.ratio = True
+                my_plotter.plot_2d_array(stage.outputs,
+                                         fname=stg_svc+'__output',
+                                         cmap='OrRd')
 
     return pipeline, outputs
 
