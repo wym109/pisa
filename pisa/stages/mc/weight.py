@@ -309,6 +309,8 @@ class weight(Stage):
             cr_rw_scale = self.params['sigma_gamma_mu'].value
             rw_variable = self.params['sigma_gamma_mu_variable'].value
             rw_array = self.prim_unc_spline(self._data.muons[rw_variable])
+            ## Reweighting term is positive-only by construction, so normalise
+            ## it by shifting the whole array down by a normalisation factor
             norm = sum(rw_array)/len(rw_array)
             cr_rw_array = rw_array-norm
             self._data.muons['pisa_weight'] *= (1+cr_rw_scale*cr_rw_array)
