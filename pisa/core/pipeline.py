@@ -493,7 +493,6 @@ def main():
             stage.transforms.to_json(fbase + '__transforms.json.bz2')
 
         formats = OrderedDict(png=args.png, pdf=args.pdf)
-        print type(stage.outputs)
         if isinstance(stage.outputs, Data):
             outputs = []
             if stage.outputs.contains_neutrinos:
