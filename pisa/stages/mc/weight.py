@@ -7,6 +7,8 @@ advantage of the Data object being passed as a sideband in the Stage.
 """
 from copy import deepcopy
 
+from scipy.interpolate import interp1d
+
 import numpy as np
 import pint
 
@@ -22,7 +24,7 @@ from pisa.utils.comparisons import normQuant
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
-
+from pisa.utils.resources import open_resource
 from pisa.utils.flux_weights import load_2D_table, calculate_flux_weights
 
 
@@ -160,6 +162,10 @@ class weight(Stage):
 
         self.atm_muon_params = (
             'atm_muon_scale',
+            'sigma_gamma_mu_file',
+            'sigma_gamma_mu_spline_kind',
+            'sigma_gamma_mu_variable',
+            'sigma_gamma_mu'
         )
 
         self.noise_params = (
@@ -238,6 +244,9 @@ class weight(Stage):
             output_binning=output_binning
         )
 
+        if self.muons:
+            self.prim_unc_spline = self.make_prim_unc_spline()
+
         if disk_cache is not None and self.params['cache_flux'].value:
             self.instantiate_disk_cache()
 
@@ -296,6 +305,13 @@ class weight(Stage):
             # Scaling
             atm_muon_scale = self.params['atm_muon_scale'].value
             self._data.muons['pisa_weight'] *= atm_muon_scale
+            # Primary CR systematic
+            cr_rw_scale = self.params['sigma_gamma_mu'].value
+            rw_variable = self.params['sigma_gamma_mu_variable'].value
+            rw_array = self.prim_unc_spline(self._data.muons[rw_variable])
+            norm = sum(rw_array)/len(rw_array)
+            cr_rw_array = rw_array-norm
+            self._data.muons['pisa_weight'] *= (1+cr_rw_scale*cr_rw_array)
 
         self._data.metadata['params_hash'] = self.params.values_hash
         self._data.update_hash()
@@ -607,6 +623,66 @@ class weight(Stage):
         scaled_b = ratio_scale*orig_ratio * scaled_a
         return scaled_a, scaled_b
 
+    def make_prim_unc_spline(self):
+        '''
+        Create the spline which will be used to re-weight muons based on the
+        uncertainties arising from cosmic rays. Details on this work can be 
+        found here - 
+
+        https://wiki.icecube.wisc.edu/index.php
+                       /DeepCore_Muon_Background_Systematics
+
+        This work was done for the GRECO sample but should be reasonably 
+        generic. Though you should check this if you use it in a different 
+        analysis.
+        '''
+        if 'true' not in self.params['sigma_gamma_mu_variable'].value:
+            raise ValueError("Variable to construct spline should be a truth "
+                             "variable. You have put %s in your configuration "
+                             "file."
+                             %self.params['sigma_gamma_mu_variable'].value)
+        
+        bare_variable = self.params['sigma_gamma_mu_variable']\
+                            .value.split('true_')[-1]
+        if not bare_variable == 'coszen':
+            raise ValueError("Muon primary cosmic ray systematic is currently "
+                             "only implemented as a function of cos(zenith). "
+                             "%s was set in the configuration file."
+                             %self.params['sigma_gamma_mu_variable'].value)
+        if bare_variable not in self.params['sigma_gamma_mu_file'].value:
+            raise ValueError("Variable set in configuration file is %s but the"
+                             " file you have selected, %s, does not make "
+                             "reference to this in its name."
+                             %(self.params['sigma_gamma_mu_variable'].value,
+                               self.params['sigma_gamma_mu_file'].value))
+        
+        unc_data = np.genfromtxt(
+            open_resource(self.params['sigma_gamma_mu_file'].value)
+        ).T
+        
+        # Need to deal with zeroes that arise due to a lack of MC. For example,
+        # in the case of the splines as a function of cosZenith, there are no
+        # hoirzontal muons. Current solution is just to replace them with their
+        # nearest non-zero values.
+        while 0.0 in unc_data[1]:
+            zero_indices = np.where(unc_data[1] == 0)[0]
+            for zero_index in zero_indices:
+                unc_data[1][zero_index] = unc_data[1][zero_index+1]
+
+        # Add dummpy points for the edge of the zenith range
+        xvals = np.insert(unc_data[0],0,0.0)
+        xvals = np.append(xvals,1.0)
+        yvals = np.insert(unc_data[1],0,unc_data[1][0])
+        yvals = np.append(yvals,unc_data[1][-1])
+
+        muon_uncf = interp1d(
+            xvals,
+            yvals,
+            kind = self.params['sigma_gamma_mu_spline_kind'].value
+        )
+        
+        return muon_uncf
+
     def validate_params(self, params):
         pq = pint.quantity._Quantity
         assert isinstance(params['output_events_mc'].value, bool)
@@ -640,5 +716,11 @@ class weight(Stage):
             assert isinstance(params['no_nc_osc'].value, bool)
         if self.muons:
             assert isinstance(params['atm_muon_scale'].value, pq)
+            assert isinstance(params['sigma_gamma_mu_file'].value, basestring)
+            assert isinstance(params['sigma_gamma_mu_spline_kind'].value,
+                              basestring)
+            assert isinstance(params['sigma_gamma_mu_variable'].value,
+                              basestring)
+            assert isinstance(params['sigma_gamma_mu'].value, pq)
         if self.noise:
             assert isinstance(params['norm_noise'].value, pq)
