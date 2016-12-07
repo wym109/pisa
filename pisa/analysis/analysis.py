@@ -134,7 +134,8 @@ class Analysis(object):
 
         """
         # Select the version of the parameters used for this hypothesis
-        hypo_maker.select_params(hypo_param_selections)
+        if hypo_param_selections is not None:
+            hypo_maker.select_params(hypo_param_selections)
 
         # Reset free parameters to nominal values
         if reset_free:
@@ -375,7 +376,8 @@ class Analysis(object):
 
         # NOTE: Select params but *do not* reset to nominal values to record
         # the current (presumably already optimal) param values
-        hypo_maker.select_params(hypo_param_selections)
+        if hypo_param_selections is not None:
+            hypo_maker.select_params(hypo_param_selections)
 
         if blind:
             # Okay, if blind analysis is being performed, reset the values so
@@ -660,7 +662,8 @@ class Analysis(object):
             param_names = [param_names]
 
         nparams = len(param_names)
-        hypo_maker.select_params(hypo_param_selections)
+        if hypo_param_selections is not None:
+            hypo_maker.select_params(hypo_param_selections)
 
         if values is not None:
             if np.isscalar(values):
