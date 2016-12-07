@@ -21,6 +21,7 @@ from pisa.core.param import ParamSet
 from pisa.utils.flavInt import ALL_NUFLAVINTS
 from pisa.utils.flavInt import NuFlavInt, NuFlavIntGroup
 from pisa.utils.comparisons import normQuant
+from pisa.utils.format import text2tex
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
@@ -119,6 +120,7 @@ class weight(Stage):
 
         self.weight_params = (
             'output_events_mc',
+            'kde_hist',
             'livetime',
         )
 
@@ -244,6 +246,17 @@ class weight(Stage):
             output_binning=output_binning
         )
 
+        if self.params['kde_hist'].value:
+            if self.params['output_events_mc'].value:
+                logging.warn("Warning - You have selected to apply KDE "
+                             "smoothing to the output histograms but have also "
+                             "selected that the output is an Events object "
+                             "rather than a MapSet (where the histograms "
+                             "would live.")
+            else:
+                from pisa.utils.kde_hist import kde_histogramdd
+                self.kde_histogramdd = kde_histogramdd
+
         if self.muons:
             self.prim_unc_spline = self.make_prim_unc_spline()
 
@@ -328,23 +341,79 @@ class weight(Stage):
                 self._output_nu_groups
             )
             for fig in trans_nu_data.iterkeys():
-                outputs.append(trans_nu_data.histogram(
-                    kinds       = fig,
+                if self.params['kde_hist'].value:
+                    for bin_name in self.output_binning.names:
+                        if 'coszen' in bin_name:
+                            coszen_name = bin_name
+                    kde_hist = self.kde_histogramdd(
+                        np.array([
+                            trans_nu_data[bin_name] for bin_name in \
+                            self.output_binning.names]).T,
+                        binning = self.output_binning,
+                        weights = trans_nu_data['pisa_weight'],
+                        coszen_name=coszen_name,
+                        use_cuda=False,
+                        bw_method='silverman',
+                        alpha=0.3,
+                        oversample=10,
+                        coszen_reflection=0.5,
+                        adaptive=True
+                    )
+                    output.append(
+                        Map(
+                            name=fig,
+                            hist=kde_hist,
+                            error_hist=np.sqrt(kde_hist),
+                            binning=self.output_binning,
+                            tex=r'{\rm '+text2tex(fig)+r'}'
+                        )
+                    )
+                else:
+                    outputs.append(trans_nu_data.histogram(
+                        kinds       = fig,
+                        binning     = self.output_binning,
+                        weights_col = 'pisa_weight',
+                        errors      = True,
+                        name        = str(NuFlavIntGroup(fig)),
+                    ))
+
+        if self.muons:
+            if self.params['kde_hist'].value:
+                for bin_name in self.output_binning.names:
+                    if 'coszen' in bin_name:
+                        coszen_name = bin_name
+                kde_hist = self.kde_histogramdd(
+                    np.array([
+                        self._data['muons'][bin_name] for bin_name in \
+                        self.output_binning.names]).T,
+                    binning = self.output_binning,
+                    weights = self._data['muons']['pisa_weight'],
+                    coszen_name=coszen_name,
+                    use_cuda=False,
+                    bw_method='silverman',
+                    alpha=0.3,
+                    oversample=10,
+                    coszen_reflection=0.5,
+                    adaptive=True
+                )
+                output.append(
+                    Map(
+                        name='muons',
+                        hist=kde_hist,
+                        error_hist=np.sqrt(kde_hist),
+                        binning=self.output_binning,
+                        tex=r'{\rm '+text2tex('muons')+r'}'
+                    )
+                )
+            else:
+                outputs.append(self._data.histogram(
+                    kinds       = 'muons',
                     binning     = self.output_binning,
                     weights_col = 'pisa_weight',
                     errors      = True,
-                    name        = str(NuFlavIntGroup(fig)),
+                    name        = 'muons',
+                    tex         = r'\rm{muons}'
                 ))
-
-        if self.muons:
-            outputs.append(self._data.histogram(
-                kinds       = 'muons',
-                binning     = self.output_binning,
-                weights_col = 'pisa_weight',
-                errors      = True,
-                name        = 'muons',
-                tex         = r'\rm{muons}'
-            ))
 
         return MapSet(maps=outputs, name=self._data.metadata['name'])
 
@@ -688,6 +757,7 @@ class weight(Stage):
     def validate_params(self, params):
         pq = pint.quantity._Quantity
         assert isinstance(params['output_events_mc'].value, bool)
+        assert isinstance(params['kde_hist'].value, bool)
         assert isinstance(params['livetime'].value, pq)
         if self.neutrino:
             assert isinstance(params['oscillate'].value, bool)
