@@ -348,7 +348,6 @@ class Data(FlavIntDataGroup):
             ('cuts', []),
             ('flavints_joined', []),
         ])
-        self.are_muons = False
         self.contains_neutrinos = False
         self.contains_muons = False
 
@@ -376,6 +375,10 @@ class Data(FlavIntDataGroup):
             if 'muons' in data:
                 self.muons = deepcopy(data['muons'])
                 del(data['muons'])
+            # Will probably need an if 'noise' in data here once
+            # properly handled
+            if len(data.keys()) > 0:
+                self.neutrinos = deepcopy(data)
         elif 'muons' in self.metadata['flavints_joined']:
             if 'muons' not in data:
                 raise AssertionError('Metadata has muons specified but '
@@ -383,6 +386,10 @@ class Data(FlavIntDataGroup):
             else:
                 self.muons = deepcopy(data['muons'])
                 del(data['muons'])
+            # Will probably need an if 'noise' in data here once
+            # properly handled
+            if len(data.keys()) > 0:
+                self.neutrinos = deepcopy(data)
         elif 'muons' in data:
             raise AssertionError('Found muons in data but not found in '
                                  'metadata key `flavints_joined`')
@@ -393,9 +400,8 @@ class Data(FlavIntDataGroup):
             super(Data, self).__init__(val=data, flavint_groups=flavint_groups)
 
         if self.metadata['flavints_joined']:
-            self.contains_neutrinos = True
             self_flavint_groups = [str(f) for f in self.flavint_groups]
-            if self.are_muons: self_flavint_groups += ['muons']
+            if self.contains_muons: self_flavint_groups += ['muons']
             if set(self.metadata['flavints_joined']) != \
                set(self_flavint_groups):
                 raise AssertionError(
@@ -407,11 +413,11 @@ class Data(FlavIntDataGroup):
         else:
             self.metadata['flavints_joined'] = [str(f)
                                                 for f in self.flavint_groups]
-            if self.are_muons:
+            if self.contains_muons:
                 self.metadata['flavints_joined'] += ['muons']
-                self.contains_muons = True
 
         self._hash = hash_obj(normQuant(self.metadata))
+        
 
     @property
     def hash(self):
@@ -432,15 +438,27 @@ class Data(FlavIntDataGroup):
 
     @property
     def muons(self):
-        if not self.are_muons:
+        if not self.contains_muons:
             raise AssertionError('No muons loaded in Data')
         return self._muons
 
     @muons.setter
     def muons(self, val):
         assert(isinstance(val, dict))
-        self.are_muons = True
+        self.contains_muons = True
         self._muons = val
+
+    @property
+    def neutrinos(self):
+        if not self.contains_neutrinos:
+            raise AssertionError('No neutrinos loaded in Data')
+        return self._neutrinos
+
+    @muons.setter
+    def neutrinos(self, val):
+        assert(isinstance(val, dict))
+        self.contains_neutrinos = True
+        self._neutrinos = val
 
     @property
     def names(self):
@@ -485,7 +503,7 @@ class Data(FlavIntDataGroup):
         assert isinstance(keep_criteria, basestring)
 
         fig_to_process = deepcopy(self.flavint_groups)
-        if self.are_muons: fig_to_process += ['muons']
+        if self.contains_muons: fig_to_process += ['muons']
         fig_processed = []
         new_data = {}
         try:
@@ -556,7 +574,7 @@ class Data(FlavIntDataGroup):
         t_fidg = super(Data, self).transform_groups(flavint_groups)
         metadata = deepcopy(self.metadata)
         metadata['flavints_joined'] = [str(f) for f in t_fidg.flavint_groups]
-        if self.are_muons:
+        if self.contains_muons:
             metadata['flavints_joined'] += ['muons']
             t_dict = dict(t_fidg)
             t_dict['muons'] = self['muons']
@@ -709,12 +727,12 @@ class Data(FlavIntDataGroup):
                     )
         metadata = deepcopy(self.metadata)
 
-        if self.are_muons:
-            if other.are_muons:
+        if self.contains_muons:
+            if other.contains_muons:
                 muons = self._merge(deepcopy(self['muons']), other['muons'])
             else:
                 muons = deepcopy(self['muons'])
-        elif other.are_muons:
+        elif other.contains_muons:
             muons = deepcopy(other['muons'])
 
         if len(self.flavint_groups) == 0:
@@ -820,7 +838,7 @@ def test_Data():
     print m
     data = data + m
     print data
-    if not data.are_muons:
+    if not data.contains_muons:
         raise Exception("data doesn't contain muons.")
 
     # Apply a simple cut
