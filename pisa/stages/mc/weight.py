@@ -345,15 +345,19 @@ class weight(Stage):
             )
             for fig in trans_nu_data.iterkeys():
                 if self.params['kde_hist'].value:
+                    coszen_name = None
                     for bin_name in self.output_binning.names:
                         if 'coszen' in bin_name:
                             coszen_name = bin_name
+                    if coszen_name == None:
+                        raise ValueError("Did not find coszen in binning. KDE "
+                                         "will not work correctly.")
                     kde_hist = self.kde_histogramdd(
-                        np.array([
-                            trans_nu_data[bin_name] for bin_name in \
+                        sample=np.array([
+                            trans_nu_data[bin_name] for bin_name in
                             self.output_binning.names]).T,
-                        binning = self.output_binning,
-                        weights = trans_nu_data['pisa_weight'],
+                        binning=self.output_binning,
+                        weights=trans_nu_data['pisa_weight'],
                         coszen_name=coszen_name,
                         use_cuda=False,
                         bw_method='silverman',
@@ -372,13 +376,15 @@ class weight(Stage):
                         )
                     )
                 else:
-                    outputs.append(trans_nu_data.histogram(
-                        kinds       = fig,
-                        binning     = self.output_binning,
-                        weights_col = 'pisa_weight',
-                        errors      = True,
-                        name        = str(NuFlavIntGroup(fig)),
-                    ))
+                    outputs.append(
+                        trans_nu_data.histogram(
+                            kinds=fig,
+                            binning=self.output_binning,
+                            weights_col='pisa_weight',
+                            errors=True,
+                            name=str(NuFlavIntGroup(fig)),
+                        )
+                    )
 
         if self.muons:
             if self.params['kde_hist'].value:
@@ -386,11 +392,11 @@ class weight(Stage):
                     if 'coszen' in bin_name:
                         coszen_name = bin_name
                 kde_hist = self.kde_histogramdd(
-                    np.array([
+                    sample=np.array([
                         self._data['muons'][bin_name] for bin_name in \
                         self.output_binning.names]).T,
-                    binning = self.output_binning,
-                    weights = self._data['muons']['pisa_weight'],
+                    binning=self.output_binning,
+                    weights=self._data['muons']['pisa_weight'],
                     coszen_name=coszen_name,
                     use_cuda=False,
                     bw_method='silverman',
@@ -409,14 +415,16 @@ class weight(Stage):
                     )
                 )
             else:
-                outputs.append(self._data.histogram(
-                    kinds       = 'muons',
-                    binning     = self.output_binning,
-                    weights_col = 'pisa_weight',
-                    errors      = True,
-                    name        = 'muons',
-                    tex         = r'\rm{muons}'
-                ))
+                outputs.append(
+                    self._data.histogram(
+                        kinds='muons',
+                        binning=self.output_binning,
+                        weights_col='pisa_weight',
+                        errors=True,
+                        name='muons',
+                        tex=r'\rm{muons}'
+                    )
+                )
 
         return MapSet(maps=outputs, name=self._data.metadata['name'])
 
