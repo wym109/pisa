@@ -134,8 +134,7 @@ class Analysis(object):
 
         """
         # Select the version of the parameters used for this hypothesis
-        if hypo_param_selections is not None:
-            hypo_maker.select_params(hypo_param_selections)
+        hypo_maker.select_params(hypo_param_selections)
 
         # Reset free parameters to nominal values
         if reset_free:
@@ -376,8 +375,7 @@ class Analysis(object):
 
         # NOTE: Select params but *do not* reset to nominal values to record
         # the current (presumably already optimal) param values
-        if hypo_param_selections is not None:
-            hypo_maker.select_params(hypo_param_selections)
+        hypo_maker.select_params(hypo_param_selections)
 
         if blind:
             # Okay, if blind analysis is being performed, reset the values so
@@ -563,7 +561,7 @@ class Analysis(object):
             free parameters which will be modified by the minimizer to optimize
             the `metric` in case `profile` is set to True.
 
-        hypo_param_selections : string, or sequence of strings
+        hypo_param_selections : None, string, or sequence of strings
             A pipeline configuration can have param selectors that allow
             switching a parameter among two or more values by specifying the
             corresponding param selector(s) here. This also allows for a single
@@ -662,8 +660,7 @@ class Analysis(object):
             param_names = [param_names]
 
         nparams = len(param_names)
-        if hypo_param_selections is not None:
-            hypo_maker.select_params(hypo_param_selections)
+        hypo_maker.select_params(hypo_param_selections)
 
         if values is not None:
             if np.isscalar(values):

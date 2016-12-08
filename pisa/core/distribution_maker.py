@@ -22,7 +22,7 @@ from pisa.core.param import ParamSet
 from pisa.utils.betterConfigParser import BetterConfigParser
 from pisa.utils.fileio import expandPath, to_file
 from pisa.utils.hash import hash_obj
-from pisa.utils.log import set_verbosity
+from pisa.utils.log import set_verbosity, logging
 from pisa.utils.random_numbers import get_random_state
 
 
@@ -110,19 +110,28 @@ class DistributionMaker(object):
 
     def select_params(self, selections, error_on_missing=True):
         successes = 0
-        for pipeline in self:
-            try:
-                pipeline.select_params(selections, error_on_missing=True)
-            except KeyError:
-                pass
-            else:
-                successes += 1
+        if selections is not None:
+            for pipeline in self:
+                try:
+                    pipeline.select_params(selections, error_on_missing=True)
+                except KeyError:
+                    pass
+                else:
+                    successes += 1
 
-        if error_on_missing and successes == 0:
-            raise KeyError(
-                'None of the selections %s found in any pipeline in this'
-                ' distribution maker' %(selections,)
-            )
+            if error_on_missing and successes == 0:
+                raise KeyError(
+                    'None of the selections %s found in any pipeline in this'
+                    ' distribution maker' %(selections,)
+                )
+        else:
+            for pipeline in self:
+                possible_selections = pipeline.param_selections
+                if not len(possible_selections) == 0:
+                    logging.warn("Although you didn't make a parameter "
+                                 "selection, the following were available: %s."
+                                 " This may cause issues."
+                                 %(possible_selections))
 
     @property
     def pipelines(self):
