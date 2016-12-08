@@ -10,7 +10,7 @@ plot a distribution from pipeline config file(s).
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from collections import OrderedDict
 import inspect
-from itertools import product
+from itertools import izip, product
 import os
 
 import numpy as np
@@ -27,7 +27,8 @@ from pisa.utils.random_numbers import get_random_state
 
 
 __all__ = ['DistributionMaker',
-           'test_DistributionMaker', 'parse_args', 'main']
+           'test_DistributionMaker',
+           'parse_args', 'main']
 
 
 class DistributionMaker(object):
@@ -99,7 +100,7 @@ class DistributionMaker(object):
         outputs = [pipeline.get_outputs(**kwargs) for pipeline in self]
         if return_sum:
             if len(outputs) > 1:
-                outputs = reduce(lambda x,y: sum(x) + sum(y), outputs)
+                outputs = reduce(lambda x, y: sum(x) + sum(y), outputs)
             else:
                 outputs = sum(sum(outputs))
             outputs = MapSet(outputs)
@@ -131,7 +132,7 @@ class DistributionMaker(object):
     @property
     def params(self):
         params = ParamSet()
-        [params.extend(pipeline.params) for pipeline in self.pipelines]
+        [params.extend(pipeline.params) for pipeline in self]
         return params
 
     @property
@@ -153,7 +154,7 @@ class DistributionMaker(object):
 
     @property
     def state_hash(self):
-        return hash_obj([self.source_code_hash] + [s.state_hash for s in self])
+        return hash_obj([self.source_code_hash] + [p.state_hash for p in self])
 
     def set_free_params(self, values):
         """Set free parameters' values.
@@ -163,10 +164,15 @@ class DistributionMaker(object):
         values : list of quantities
 
         """
-        for name, value in zip(self.params.free.names, values):
-            for pipeline in self.pipeline:
-                if name in [p.name for p in pipeline.params.free]:
-                    pipeline.params.free.value = value
+        for name, value in izip(self.params.free.names, values):
+            for pipeline in self:
+                if name in pipeline.params.free.names:
+                    pipeline.params[name] = value
+                elif name in pipeline.params.names:
+                    raise AttributeError(
+                        'Trying to set value for "%s", a parameter that is'
+                        ' fixed in at least one pipeline' %name
+                    )
 
     def randomize_free_params(self, random_state=None):
         if random_state is None:
@@ -190,18 +196,20 @@ class DistributionMaker(object):
         [p.params.set_nominal_by_current_values() for p in self]
 
     def _set_rescaled_free_params(self, rvalues):
-        """Set free param values given a simple list of (0,1) rescaled,
+        """Set free param values given a simple list of [0,1]-rescaled,
         dimensionless values
 
         """
         names = self.params.free.names
-        for pipeline in self.pipelines:
-            fp = pipeline.params.free
-            fp_names = fp.names
-            for name, rvalue in zip(names, rvalues):
-                if name in fp_names:
+        for pipeline in self:
+            for name, rvalue in izip(names, rvalues):
+                if name in pipeline.params.free.names:
                     pipeline.params[name]._rescaled_value = rvalue
-            #pipeline.update_params(fp)
+                elif name in pipeline.params.names:
+                    raise AttributeError(
+                        'Trying to set value for "%s", a parameter that is'
+                        ' fixed in at least one pipeline' %name
+                    )
 
 
 def test_DistributionMaker():
@@ -232,33 +240,47 @@ def test_DistributionMaker():
     for new_hier, new_mat in product(hierarchies, materials):
         new_YeO = YeO[new_mat]
 
-        assert dm.param_selections == sorted([current_hier, current_mat]), str(dm.params.param_selections)
-        assert dm.params.theta23.value == t23[current_hier], str(dm.params.theta23)
+        assert dm.param_selections == sorted([current_hier, current_mat]), \
+                str(dm.params.param_selections)
+        assert dm.params.theta23.value == t23[current_hier], \
+                str(dm.params.theta23)
         assert dm.params.YeO.value == YeO[current_mat], str(dm.params.YeO)
 
         # Select just the hierarchy
         dm.select_params(new_hier)
-        assert dm.param_selections == sorted([new_hier, current_mat]), str(dm.param_selections)
-        assert dm.params.theta23.value == t23[new_hier], str(dm.params.theta23)
-        assert dm.params.YeO.value == YeO[current_mat], str(dm.params.YeO)
+        assert dm.param_selections == sorted([new_hier, current_mat]), \
+                str(dm.param_selections)
+        assert dm.params.theta23.value == t23[new_hier], \
+                str(dm.params.theta23)
+        assert dm.params.YeO.value == YeO[current_mat], \
+                str(dm.params.YeO)
 
         # Select just the material
         dm.select_params(new_mat)
-        assert dm.param_selections == sorted([new_hier, new_mat]), str(dm.param_selections)
-        assert dm.params.theta23.value == t23[new_hier], str(dm.params.theta23)
-        assert dm.params.YeO.value == YeO[new_mat], str(dm.params.YeO)
+        assert dm.param_selections == sorted([new_hier, new_mat]), \
+                str(dm.param_selections)
+        assert dm.params.theta23.value == t23[new_hier], \
+                str(dm.params.theta23)
+        assert dm.params.YeO.value == YeO[new_mat], \
+                str(dm.params.YeO)
 
         # Reset both to "current"
         dm.select_params([current_mat, current_hier])
-        assert dm.param_selections == sorted([current_hier, current_mat]), str(dm.param_selections)
-        assert dm.params.theta23.value == t23[current_hier], str(dm.params.theta23)
-        assert dm.params.YeO.value == YeO[current_mat], str(dm.params.YeO)
+        assert dm.param_selections == sorted([current_hier, current_mat]), \
+                str(dm.param_selections)
+        assert dm.params.theta23.value == t23[current_hier], \
+                str(dm.params.theta23)
+        assert dm.params.YeO.value == YeO[current_mat], \
+                str(dm.params.YeO)
 
         # Select both hierarchy and material
         dm.select_params([new_mat, new_hier])
-        assert dm.param_selections == sorted([new_hier, new_mat]), str(dm.param_selections)
-        assert dm.params.theta23.value == t23[new_hier], str(dm.params.theta23)
-        assert dm.params.YeO.value == YeO[new_mat], str(dm.params.YeO)
+        assert dm.param_selections == sorted([new_hier, new_mat]), \
+                str(dm.param_selections)
+        assert dm.params.theta23.value == t23[new_hier], \
+                str(dm.params.theta23)
+        assert dm.params.YeO.value == YeO[new_mat], \
+                str(dm.params.YeO)
 
         current_hier = new_hier
         current_mat = new_mat
