@@ -176,11 +176,7 @@ class weight(Stage):
 
         expected_params = self.weight_params
         if ('all_nu' in input_names) or ('neutrinos' in input_names):
-            # Import oscillations calculator only if needed
             # Allows muons to be passed through this stage on a CPU machine
-            import pycuda.driver as cuda
-            import pycuda.autoinit
-            from pisa.stages.osc.prob3gpu import prob3gpu
             expected_params += self.nu_params
             expected_params += self.xsec_params
             expected_params += self.flux_params
@@ -190,7 +186,7 @@ class weight(Stage):
         if 'noise' in input_names:
             expected_params += self.noise_params    
 
-        self.neutrino = False
+        self.neutrinos = False
         self.muons = False
         self.noise = False
 
@@ -222,14 +218,14 @@ class weight(Stage):
                 self.noise = True
                 clean_outnames.append(name)
             elif 'all_nu' in name:
-                self.neutrino = True
+                self.neutrinos = True
                 self._output_nu_groups = \
                     [NuFlavIntGroup(f) for f in ALL_NUFLAVINTS]
             else:
-                self.neutrino = True
+                self.neutrinos = True
                 self._output_nu_groups.append(NuFlavIntGroup(name))
 
-        if self.neutrino:
+        if self.neutrinos:
             clean_outnames += [str(f) for f in self._output_nu_groups]
 
         super(self.__class__, self).__init__(
@@ -277,7 +273,7 @@ class weight(Stage):
         self._data = deepcopy(inputs)
 
         # TODO(shivesh): muons + noise reweighting
-        if self.neutrino:
+        if self.neutrinos:
             # XSec reweighting
             xsec_weights = self.compute_xsec_weights()
             for fig in self._data.iterkeys():
@@ -339,7 +335,7 @@ class weight(Stage):
             return self._data
 
         outputs = []
-        if self.neutrino:
+        if self.neutrinos:
             trans_nu_data = self._data.transform_groups(
                 self._output_nu_groups
             )
@@ -611,6 +607,10 @@ class weight(Stage):
     @staticmethod
     def _compute_osc_weights(nu_data, params, flux_weights):
         """Neutrino oscillations calculation via Prob3."""
+        # Import oscillations calculator only if needed
+        import pycuda.driver as cuda
+        import pycuda.autoinit
+        from pisa.stages.osc.prob3gpu import prob3gpu
         logging.debug('Computing oscillation weights')
         # Read parameters in, convert to the units used internally for
         # computation, and then strip the units off. Note that this also
@@ -776,7 +776,7 @@ class weight(Stage):
             ('kde_hist', bool),
             ('livetime', pq)
         ]
-        if self.neutrino:
+        if self.neutrinos:
             param_types.extend([
                 ('oscillate', bool),
                 ('cache_flux', bool),
