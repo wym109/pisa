@@ -503,6 +503,40 @@ def main():
             )
         elif isinstance(stage.outputs, (MapSet, TransformSet)):
             outputs = stage.outputs
+        outputs_2d = []
+        for output in outputs:
+            if len(output.binning) == 2:
+                outputs_2d.append(output)
+            elif len(output.binning) == 3:
+                if 'pid' in output.binning.names:
+                    logging.warn("Script is set up to only plot 2D maps. Your "
+                                 "outputs are %iD. These will be reduced to "
+                                 "multiple 2D maps for the PID dimension."
+                                 %len(output.binning))
+                    pid_names = output.binning['pid'].bin_names
+                    if pid_names is None:
+                        logging.warn("There are no names given for the PID "
+                                     "bins, thus they will just be numbered.")
+                        pid_names = [x for x in range(
+                            0,
+                            output.binning['pid'].num_bins
+                        )]
+                    for pid_name in pid_names:
+                        outputs_2d.append(
+                            output.split(
+                                dim='pid',
+                                bin=pid_name
+                            )
+                        )
+                else:
+                    raise ValueError("Script is set up to only plot 2D maps. "
+                                     "Your outputs are %iD."
+                                     %len(output.binning))
+            else:
+                raise ValueError("Script is set up to only plot 2D maps. Your "
+                                 "outputs are %iD."%len(output.binning))
+        if not len(outputs_2d) == 0:
+            outputs = MapSet(maps=outputs_2d, name=outputs.name)
         for fmt, enabled in formats.items():
             if not enabled:
                 continue
