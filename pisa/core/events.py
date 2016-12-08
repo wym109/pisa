@@ -19,7 +19,7 @@ from uncertainties import unumpy as unp
 
 from pisa import ureg, Q_
 from pisa.core.binning import MultiDimBinning, OneDimBinning
-from pisa.core.map import Map
+from pisa.core.map import Map, MapSet
 from pisa.utils import resources
 from pisa.utils.comparisons import normQuant, recursiveEquality
 from pisa.utils.flavInt import FlavIntData, NuFlavIntGroup, FlavIntDataGroup
@@ -681,6 +681,76 @@ class Data(FlavIntDataGroup):
             tex = r'{\rm ' + text2tex(name) + r'}'
 
         return Map(name=name, hist=hist, binning=binning, tex=tex, **kwargs)
+
+    def histogram_set(self, binning, nu_weights_col, mu_weights_col,
+                      mapset_name, errors=False):
+        """Uses the above histogram function but returns the set of all of them
+        for everything in the Data object.
+
+        Parameters
+        ----------
+        binning : OneDimBinning, MultiDimBinning
+            The definition of the binning for the histograms.
+        nu_weights_col : None or string
+            The column in the Data object by which to weight the neutrino 
+            histograms. Specify None for unweighted histograms.
+        mu_weights_col : None or string
+            The column in the Data object by which to weight the muon
+            histograms. Specify None for unweighted histograms.
+        mapset_name : string
+            The name by which the resulting MapSet will be identified.
+        errors : boolean
+            A flag for whether to calculate errors on the histograms or not. 
+            This defaults to False.
+
+        Returns
+        -------
+        MapSet : A MapSet containing all of the Maps for everything in this 
+                 Data object.
+
+        """
+        if not isinstance(binning, MultiDimBinning):
+            if not isinstance(binning, OneDimBinning):
+                raise TypeError('binning should be either MultiDimBinning or '
+                                'OneDimBinning object. Got %s.'%type(binning))
+        if nu_weights_col is not None:
+            if not isinstance(nu_weights_col, basestring):
+                raise TypeError('nu_weights_col should be a string. Got %s'
+                                %type(nu_weights_col))
+        if mu_weights_col is not None:
+            if not isinstance(mu_weights_col, basestring):
+                raise TypeError('mu_weights_col should be a string. Got %s'
+                                %type(mu_weights_col))
+        if not isinstance(errors, bool):
+            raise TypeError('flag for whether to calculate errors or not '
+                            'should be a boolean. Got %s.'%type(errors)) 
+        outputs = []
+        if self.contains_neutrinos:
+            trans_nu_data = self.transform_groups(
+                self.flavint_groups
+            )
+            for fig in trans_nu_data.iterkeys():
+                outputs.append(
+                    self.histogram(
+                        kinds=fig,
+                        binning=binning,
+                        weights_col=nu_weights_col,
+                        errors=errors,
+                        name=str(NuFlavIntGroup(fig))
+                    )
+                )
+        if self.contains_muons:
+            outputs.append(
+                self.histogram(
+                    kinds='muons',
+                    binning=binning,
+                    weights_col=mu_weights_col,
+                    errors=errors,
+                    name='muons',
+                    tex=r'\rm{muons}'
+                )
+            )
+        return MapSet(maps=outputs, name=mapset_name)
 
     def __load(self, fname):
         try:
