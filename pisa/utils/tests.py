@@ -152,28 +152,12 @@ def make_ratio_map(amap, bmap):
 
 def validate_map_objs(amap, bmap):
     """Validate that two PISA 3 style maps are compatible binning."""
-    print amap.binning._hashable_state
-    print bmap.binning._hashable_state
     if not amap.binning == bmap.binning:
-        raise ValueError("Maps' binnings do not match!")
-    
-
-def make_delta_map_obj(amap, bmap):
-    """Get the difference between two PISA 3 style maps (amap-bmap) and return
-    as another PISA 3 style map."""
-    validate_map_objs(amap, bmap)
-    delta_hist = amap.hist - bmap.hist
-    return Map(name='delta', hist=delta_hist, binning=amap.binning)
-
-
-def make_ratio_map_obj(amap, bmap):
-    """Get the ratio of two PISA 3 style maps (amap/bmap) and return as another
-    PISA 3 style map."""
-    validate_map_objs(amap, bmap)
-    with np.errstate(divide='ignore', invalid='ignore'):
-        ratio_hist = amap.hist/bmap.hist
-        result = Map(name='ratio', hist=ratio_hist, binning=amap.binning)
-    return result
+        raise ValueError(
+            "Maps' binnings do not match! Got first map as \n%s \nand second "
+            " map as \n%s"
+            %(amap.binning._hashable_state,bmap.binning._hashable_state)
+        )
 
 
 def baseplot(m, title, ax, clabel=None, symm=False, evtrate=False,
@@ -424,9 +408,12 @@ def plot_map_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir,
         basetitle.append(r'$%s$' % texname)
     basetitle = ' '.join(basetitle)
 
-    ratio_map = make_ratio_map_obj(new_map, ref_map)
-    diff_map = make_delta_map_obj(new_map, ref_map)
-    diff_ratio_map = make_ratio_map_obj(diff_map, ref_map)
+    validate_map_objs(new_map, ref_map)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        ratio_map = new_map/ref_map
+    diff_map = new_map - ref_map
+    with np.errstate(divide='ignore', invalid='ignore'):
+        diff_ratio_map = diff_map/ref_map
 
     max_diff_ratio = np.nanmax(np.abs(diff_ratio_map.hist))
 
