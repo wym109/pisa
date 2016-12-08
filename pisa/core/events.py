@@ -19,7 +19,7 @@ from uncertainties import unumpy as unp
 
 from pisa import ureg, Q_
 from pisa.core.binning import MultiDimBinning, OneDimBinning
-from pisa.core.map import Map
+from pisa.core.map import Map, MapSet
 from pisa.utils import resources
 from pisa.utils.comparisons import normQuant, recursiveEquality
 from pisa.utils.flavInt import FlavIntData, NuFlavIntGroup, FlavIntDataGroup
@@ -339,6 +339,7 @@ class Data(FlavIntDataGroup):
       ('runs', [620, 621, 622])]
     """
     def __init__(self, val=None, flavint_groups=None, metadata=None):
+        # TODO(shivesh): add noise implementation
         self.metadata = OrderedDict([
             ('name', ''),
             ('detector', ''),
@@ -348,8 +349,10 @@ class Data(FlavIntDataGroup):
             ('cuts', []),
             ('flavints_joined', []),
         ])
-        self.are_muons = False
+        self.contains_neutrinos = False
+        self.contains_muons = False
 
+        # Get data and metadata from val
         meta = {}
         if isinstance(val, basestring) or isinstance(val, h5py.Group):
             data, meta = self.__load(val)
@@ -362,6 +365,7 @@ class Data(FlavIntDataGroup):
         else:
             raise TypeError('Unrecognized `val` type %s' % type(val))
 
+        # Check consistency of metadata from val and from input
         if meta is not None:
             if metadata is not None and meta != metadata:
                 raise AssertionError('Input `metadata` does not match '
@@ -370,43 +374,49 @@ class Data(FlavIntDataGroup):
         elif metadata is not None:
             self.metadata.update(metadata)
 
+        # Find and deal with any muon data if it exists
         if self.metadata['flavints_joined'] == list([]):
             if 'muons' in data:
-                self.muons = deepcopy(data['muons'])
-                del(data['muons'])
+                self.muons = data.pop('muons')
         elif 'muons' in self.metadata['flavints_joined']:
             if 'muons' not in data:
                 raise AssertionError('Metadata has muons specified but '
                                      'they are not found in the data')
             else:
-                self.muons = deepcopy(data['muons'])
-                del(data['muons'])
+                self.muons = data.pop('muons')
         elif 'muons' in data:
             raise AssertionError('Found muons in data but not found in '
                                  'metadata key `flavints_joined`')
 
+        # Instantiate a FlavIntDataGroup
         if data == dict():
             self._flavint_groups = []
         else:
             super(Data, self).__init__(val=data, flavint_groups=flavint_groups)
+            self.contains_neutrinos = True
 
+        # Check consistency of flavints_joined
         if self.metadata['flavints_joined']:
-            self_flavint_groups = [str(f) for f in self.flavint_groups]
-            if self.are_muons: self_flavint_groups += ['muons']
+            combined_types = []
+            if self.contains_neutrinos:
+                combined_types += [str(f) for f in self.flavint_groups]
+            if self.contains_muons:
+                combined_types += ['muons']
             if set(self.metadata['flavints_joined']) != \
-               set(self_flavint_groups):
+               set(combined_types):
                 raise AssertionError(
                     '`flavint_groups` metadata does not match the '
                     'flavint_groups in the data\n{0} != '
                     '{1}'.format(set(self.metadata['flavints_joined']),
-                                 set([str(f) for f in self.flavint_groups]))
+                                 set(combined_types))
                 )
         else:
             self.metadata['flavints_joined'] = [str(f)
                                                 for f in self.flavint_groups]
-            if self.are_muons: self.metadata['flavints_joined'] += ['muons']
+            if self.contains_muons:
+                self.metadata['flavints_joined'] += ['muons']
 
-        self._hash = hash_obj(normQuant(self.metadata))
+        self.update_hash()
 
     @property
     def hash(self):
@@ -421,15 +431,21 @@ class Data(FlavIntDataGroup):
 
     @property
     def muons(self):
-        if not self.are_muons:
-            raise AssertionError('No muons loaded in Data')
+        if not self.contains_muons:
+            raise AttributeError('No muons loaded in Data')
         return self._muons
 
     @muons.setter
     def muons(self, val):
         assert(isinstance(val, dict))
-        self.are_muons = True
+        self.contains_muons = True
         self._muons = val
+
+    @property
+    def neutrinos(self):
+        if not self.contains_neutrinos:
+            raise AttributeError('No neutrinos loaded in Data')
+        return dict(zip(self.keys(), self.values()))
 
     @property
     def names(self):
@@ -473,8 +489,11 @@ class Data(FlavIntDataGroup):
 
         assert isinstance(keep_criteria, basestring)
 
-        fig_to_process = deepcopy(self.flavint_groups)
-        if self.are_muons: fig_to_process += ['muons']
+        fig_to_process = []
+        if self.contains_neutrinos:
+            fig_to_process += deepcopy(self.flavint_groups)
+        if self.contains_muons:
+            fig_to_process += ['muons']
         fig_processed = []
         new_data = {}
         try:
@@ -545,7 +564,7 @@ class Data(FlavIntDataGroup):
         t_fidg = super(Data, self).transform_groups(flavint_groups)
         metadata = deepcopy(self.metadata)
         metadata['flavints_joined'] = [str(f) for f in t_fidg.flavint_groups]
-        if self.are_muons:
+        if self.contains_muons:
             metadata['flavints_joined'] += ['muons']
             t_dict = dict(t_fidg)
             t_dict['muons'] = self['muons']
@@ -663,6 +682,76 @@ class Data(FlavIntDataGroup):
 
         return Map(name=name, hist=hist, binning=binning, tex=tex, **kwargs)
 
+    def histogram_set(self, binning, nu_weights_col, mu_weights_col,
+                      mapset_name, errors=False):
+        """Uses the above histogram function but returns the set of all of them
+        for everything in the Data object.
+
+        Parameters
+        ----------
+        binning : OneDimBinning, MultiDimBinning
+            The definition of the binning for the histograms.
+        nu_weights_col : None or string
+            The column in the Data object by which to weight the neutrino 
+            histograms. Specify None for unweighted histograms.
+        mu_weights_col : None or string
+            The column in the Data object by which to weight the muon
+            histograms. Specify None for unweighted histograms.
+        mapset_name : string
+            The name by which the resulting MapSet will be identified.
+        errors : boolean
+            A flag for whether to calculate errors on the histograms or not. 
+            This defaults to False.
+
+        Returns
+        -------
+        MapSet : A MapSet containing all of the Maps for everything in this 
+                 Data object.
+
+        """
+        if not isinstance(binning, MultiDimBinning):
+            if not isinstance(binning, OneDimBinning):
+                raise TypeError('binning should be either MultiDimBinning or '
+                                'OneDimBinning object. Got %s.'%type(binning))
+        if nu_weights_col is not None:
+            if not isinstance(nu_weights_col, basestring):
+                raise TypeError('nu_weights_col should be a string. Got %s'
+                                %type(nu_weights_col))
+        if mu_weights_col is not None:
+            if not isinstance(mu_weights_col, basestring):
+                raise TypeError('mu_weights_col should be a string. Got %s'
+                                %type(mu_weights_col))
+        if not isinstance(errors, bool):
+            raise TypeError('flag for whether to calculate errors or not '
+                            'should be a boolean. Got %s.'%type(errors)) 
+        outputs = []
+        if self.contains_neutrinos:
+            trans_nu_data = self.transform_groups(
+                self.flavint_groups
+            )
+            for fig in trans_nu_data.iterkeys():
+                outputs.append(
+                    self.histogram(
+                        kinds=fig,
+                        binning=binning,
+                        weights_col=nu_weights_col,
+                        errors=errors,
+                        name=str(NuFlavIntGroup(fig))
+                    )
+                )
+        if self.contains_muons:
+            outputs.append(
+                self.histogram(
+                    kinds='muons',
+                    binning=binning,
+                    weights_col=mu_weights_col,
+                    errors=errors,
+                    name='muons',
+                    tex=r'\rm{muons}'
+                )
+            )
+        return MapSet(maps=outputs, name=mapset_name)
+
     def __load(self, fname):
         try:
             data, meta = from_file(fname, return_attrs=True)
@@ -698,12 +787,12 @@ class Data(FlavIntDataGroup):
                     )
         metadata = deepcopy(self.metadata)
 
-        if self.are_muons:
-            if other.are_muons:
+        if self.contains_muons:
+            if other.contains_muons:
                 muons = self._merge(deepcopy(self['muons']), other['muons'])
             else:
                 muons = deepcopy(self['muons'])
-        elif other.are_muons:
+        elif other.contains_muons:
             muons = deepcopy(other['muons'])
 
         if len(self.flavint_groups) == 0:
@@ -806,11 +895,15 @@ def test_Data():
     muon_file = '/data/icecube/data/mlarson/level7_24Nov2015/current_pickle_files/Level7_muongun.12370_15.pckl'
     m = {'muons': from_file(muon_file)}
     m = Data(val=m)
+    assert m.contains_muons
+    assert not m.contains_neutrinos
     print m
     data = data + m
+    assert data.contains_neutrinos
     print data
-    if not data.are_muons:
+    if not data.contains_muons:
         raise Exception("data doesn't contain muons.")
+    print data.neutrinos.keys()
 
     # Apply a simple cut
     data.applyCut('(zenith <= 1.1) & (energy <= 200)')
