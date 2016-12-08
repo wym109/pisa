@@ -17,18 +17,16 @@ from collections import Iterable, Mapping, OrderedDict, Sequence
 from copy import copy, deepcopy
 from functools import wraps
 from itertools import izip
-from operator import setitem
 import re
 
 import numpy as np
 import pint
-from pisa import ureg, Q_
 
+from pisa import ureg
 from pisa.utils.comparisons import isbarenumeric, normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils import jsons
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils.profiler import line_profile, profile
 
 
 HASH_SIGFIGS = 12
@@ -73,7 +71,7 @@ def basename(n):
     # Type checkingn and conversion
     orig_type = type(n)
     if isinstance(n, OneDimBinning):
-        n = x.name
+        n = n.name
     if not isinstance(n, basestring):
         raise ValueError('Unhandled type %s' %orig_type)
     # Remove all (pre/suf)fixes and any separator chars
@@ -248,7 +246,7 @@ class OneDimBinning(object):
         # (but both can be False, in case of irregularly-spaced bins)
         if is_log and is_lin:
             raise ValueError('`is_log=%s` contradicts `is_lin=%s`'
-                              %(is_log, is_lin))
+                             %(is_log, is_lin))
 
         # If no bin edges specified, the number of bins, domain, and either
         # log or linear spacing are all required to generate bins
@@ -310,25 +308,39 @@ class OneDimBinning(object):
         self._midpoints = (self.bin_edges[:-1] + self.bin_edges[1:])/2.0
         if self.is_log:
             self._weighted_centers = np.sqrt(self.bin_edges[:-1] *
-                                            self.bin_edges[1:])
+                                             self.bin_edges[1:])
         else:
             self._weighted_centers = self.midpoints
 
         if bin_names is not None:
+            # Ok to pass a string if only one bin to be named
+            if isinstance(bin_names, basestring) and num_bins == 1:
+                bin_names = [bin_names]
+
             if not isinstance(bin_names, Iterable):
                 raise ValueError('bin_names object needs to be iterable.')
+
+            # Convert bin_names to list so it can be indexed and has len().
             if not isinstance(bin_names, Sequence):
-                # Converting bin_names to a list so it can be indexed.
-                # Needed by future operations.
                 bin_names = list(bin_names)
+
             if len(set(bin_names)) != len(bin_names):
-                raise ValueError('All bin names should be unique!')
+                raise ValueError(
+                    'All bin names must be unique; `bin_names` passed: %s'
+                    %bin_names
+                )
+
             if len(bin_names) != num_bins:
-                raise ValueError('Some but not all bins have names.')
+                raise ValueError(
+                    'Must pass as many names as there are bins. Got %d names'
+                    ' but there are %d bins. `bin_names` passed: %s'
+                    %(len(bin_names), num_bins, bin_names)
+                )
+
             for bin_name in bin_names:
                 if not isinstance(bin_name, basestring):
-                    raise ValueError('%s is not a valid name. '
-                                     'It must be a string'%bin_name)
+                    raise TypeError('Bin name %s is of type %s, but must be'
+                                    ' string.' %(bin_name, type(bin_name)))
 
         self._bin_names = bin_names
 
@@ -412,6 +424,23 @@ class OneDimBinning(object):
         return True
 
     def index(self, x):
+        """Return integer index of bin identified by `x`.
+
+        Parameters
+        ----------
+        x : int, string
+            If int, ensure it is a valid index and return; if string, look for
+            bin with corresponding name.
+
+        Returns
+        -------
+        int : index of dimension
+
+        Raises
+        ------
+        ValueError if `x` cannot identify a valid bin
+
+        """
         try:
             if isinstance(x, basestring):
                 assert self.bin_names is not None
@@ -419,7 +448,8 @@ class OneDimBinning(object):
             if isinstance(x, int):
                 assert x >= 0 and x < len(self)
                 return x
-            return False
+            raise TypeError('`x` must be either int or string; got %s instead.'
+                            %type(x))
         except (AssertionError, ValueError):
             valid_range = [0, len(self)-1]
             if self.bin_names is None:
@@ -511,10 +541,6 @@ class OneDimBinning(object):
         return self._bin_edges
 
     @property
-    def bin_edges(self):
-        return self._bin_edges
-
-    @property
     def bin_names(self):
         return self._bin_names
 
@@ -587,8 +613,7 @@ class OneDimBinning(object):
         """Hash value based *solely* upon bin edges' values.
 
         The hash value is obtained on the edges after "normalizing" their
-        values: values are converted to base units and then rounded to
-        `HASH_SIGFIGS` significant figures. See
+        values if `self.normalize_values` is True; see
         `pisa.utils.comparsions.normQuant` for details of the normalization
         process.
 
@@ -844,7 +869,6 @@ class OneDimBinning(object):
             bin_edges = np.logspace(np.log10(self.domain[0].m),
                                     np.log10(self.domain[-1].m),
                                     self.num_bins * factor + 1)
-
         elif self.is_lin:
             bin_edges = np.linspace(self.domain[0].m, self.domain[-1].m,
                                     self.num_bins * factor + 1)
@@ -1311,7 +1335,7 @@ class MultiDimBinning(object):
 
         keep_idx = range(len(self))
         for dim in dims:
-            idx = new_binning.index(dim)
+            idx = self.index(dim)
             keep_idx.remove(idx)
 
         keep_dims = [deepcopy(self.dimensions[idx]) for idx in keep_idx]
@@ -1459,7 +1483,7 @@ class MultiDimBinning(object):
 
         """
         if not isinstance(other, MultiDimBinning):
-            for attr, val in other.__dict__.items():
+            for val in other.__dict__.values():
                 if isinstance(val, MultiDimBinning):
                     other = val
                     break
@@ -1547,8 +1571,6 @@ class MultiDimBinning(object):
 
         """
         entity = entity.lower().strip()
-        units = [d.units for d in self._dimensions]
-        #stripped = self.stripped()
         if entity == 'midpoints':
             mg = np.meshgrid(*[d.midpoints for d in self._dimensions],
                              indexing='ij')
@@ -1572,12 +1594,12 @@ class MultiDimBinning(object):
     # even take a `method` argument to force method manually.
     def bin_volumes(self, attach_units=True):
         meshgrid = self.meshgrid(entity='bin_widths', attach_units=False)
-        volumes = reduce(lambda x,y: x*y, meshgrid)
+        volumes = reduce(lambda x, y: x*y, meshgrid)
         if attach_units:
             return (
                 volumes
-                * reduce(lambda x,y:x*y, [ureg(str(d.units)) for d in
-                                          self._dimensions])
+                * reduce(lambda x, y: x*y, [ureg(str(d.units)) for d in
+                                            self._dimensions])
             )
 
         return volumes
@@ -1764,8 +1786,6 @@ def test_OneDimBinning():
             to_json(b, b_file)
             b_ = OneDimBinning.from_json(b_file)
             assert b_ == b, 'b=\n%s\nb_=\n%s' %(b, b_)
-    except:
-        print b
     finally:
         shutil.rmtree(testdir, ignore_errors=True)
 
@@ -1778,14 +1798,13 @@ def test_MultiDimBinning():
     import shutil
     import tempfile
     from pisa.utils.jsons import to_json
-    from pisa.utils.log import logging, set_verbosity
 
     b1 = OneDimBinning(name='energy', num_bins=40, is_log=True,
                        domain=[1, 80]*ureg.GeV)
     b2 = OneDimBinning(name='coszen', num_bins=40, is_lin=True,
                        domain=[-1, 1])
     mdb = MultiDimBinning([b1, b2])
-    b00 = mdb[0,0]
+    b00 = mdb[0, 0]
     x0 = mdb[0:, 0]
     x1 = mdb[0:, 0:]
     x2 = mdb[0, 0:]
@@ -1878,7 +1897,7 @@ def test_MultiDimBinning():
 
     # Reorder by indices
     mdb_3d_new = MultiDimBinning(mdb_3d_orig)
-    mdb_3d_new = mdb_3d_new.reorder_dimensions([2,0,1])
+    mdb_3d_new = mdb_3d_new.reorder_dimensions([2, 0, 1])
     assert mdb_3d_new.names == new_order
 
     # Reorder by combination of index, OneDimBinning, and name
@@ -1897,7 +1916,7 @@ def test_MultiDimBinning():
     mdb_3d_new = MultiDimBinning(mdb_3d_orig)
     try:
         mdb_3d_new = mdb_3d_new.reorder_dimensions(new_order[0:2])
-    except:
+    except Exception:
         pass
     else:
         raise Exception('Should not be able to reorder by subset.')
@@ -1906,7 +1925,6 @@ def test_MultiDimBinning():
 
 
 if __name__ == "__main__":
-    from pisa.utils.log import logging, set_verbosity
     set_verbosity(3)
     test_OneDimBinning()
     test_MultiDimBinning()
