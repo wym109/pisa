@@ -247,6 +247,9 @@ class weight(Stage):
         )
 
         if self.params['kde_hist'].value:
+            raise ValueError("The KDE option is currently not working properly."
+                             " Please disable this in your configuration file "
+                             "by setting kde_hist to False".)
             if self.params['output_events_mc'].value:
                 logging.warn("Warning - You have selected to apply KDE "
                              "smoothing to the output histograms but have also "
