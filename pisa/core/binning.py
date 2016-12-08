@@ -1716,8 +1716,6 @@ def test_OneDimBinning():
     import pickle
     import shutil
     import tempfile
-    from pisa.utils.jsons import to_json
-    from pisa.utils.log import logging, set_verbosity
 
     b1 = OneDimBinning(name='energy', num_bins=40, is_log=True,
                        domain=[1, 80]*ureg.GeV,
@@ -1783,9 +1781,12 @@ def test_OneDimBinning():
             b.to_json(b_file)
             b_ = OneDimBinning.from_json(b_file)
             assert b_ == b, 'b=\n%s\nb_=\n%s' %(b, b_)
-            to_json(b, b_file)
+            jsons.to_json(b, b_file)
             b_ = OneDimBinning.from_json(b_file)
             assert b_ == b, 'b=\n%s\nb_=\n%s' %(b, b_)
+    except:
+        print 'b that failed:', b
+        raise
     finally:
         shutil.rmtree(testdir, ignore_errors=True)
 
@@ -1797,7 +1798,6 @@ def test_MultiDimBinning():
     import pickle
     import shutil
     import tempfile
-    from pisa.utils.jsons import to_json
 
     b1 = OneDimBinning(name='energy', num_bins=40, is_log=True,
                        domain=[1, 80]*ureg.GeV)
@@ -1853,7 +1853,7 @@ def test_MultiDimBinning():
         binning.to_json(b_file)
         b_ = MultiDimBinning.from_json(b_file)
         assert b_ == binning, 'binning=\n%s\nb_=\n%s' %(binning, b_)
-        to_json(binning, b_file)
+        jsons.to_json(binning, b_file)
         b_ = MultiDimBinning.from_json(b_file)
         assert b_ == binning, 'binning=\n%s\nb_=\n%s' %(binning, b_)
     finally:
