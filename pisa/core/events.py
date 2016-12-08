@@ -339,6 +339,7 @@ class Data(FlavIntDataGroup):
       ('runs', [620, 621, 622])]
     """
     def __init__(self, val=None, flavint_groups=None, metadata=None):
+        # TODO(shivesh): add noise implementation
         self.metadata = OrderedDict([
             ('name', ''),
             ('detector', ''),
@@ -351,6 +352,7 @@ class Data(FlavIntDataGroup):
         self.contains_neutrinos = False
         self.contains_muons = False
 
+        # Get data and metadata from val
         meta = {}
         if isinstance(val, basestring) or isinstance(val, h5py.Group):
             data, meta = self.__load(val)
@@ -363,6 +365,7 @@ class Data(FlavIntDataGroup):
         else:
             raise TypeError('Unrecognized `val` type %s' % type(val))
 
+        # Check consistency of metadata from val and from input
         if meta is not None:
             if metadata is not None and meta != metadata:
                 raise AssertionError('Input `metadata` does not match '
@@ -371,14 +374,11 @@ class Data(FlavIntDataGroup):
         elif metadata is not None:
             self.metadata.update(metadata)
 
+        # Find and deal with any muon data if it exists
         if self.metadata['flavints_joined'] == list([]):
             if 'muons' in data:
                 self.muons = deepcopy(data['muons'])
                 del(data['muons'])
-            # Will probably need an if 'noise' in data here once
-            # properly handled
-            if len(data.keys()) > 0:
-                self.neutrinos = deepcopy(data)
         elif 'muons' in self.metadata['flavints_joined']:
             if 'muons' not in data:
                 raise AssertionError('Metadata has muons specified but '
@@ -386,29 +386,31 @@ class Data(FlavIntDataGroup):
             else:
                 self.muons = deepcopy(data['muons'])
                 del(data['muons'])
-            # Will probably need an if 'noise' in data here once
-            # properly handled
-            if len(data.keys()) > 0:
-                self.neutrinos = deepcopy(data)
         elif 'muons' in data:
             raise AssertionError('Found muons in data but not found in '
                                  'metadata key `flavints_joined`')
 
+        # Instantiate a FlavIntDataGroup
         if data == dict():
             self._flavint_groups = []
         else:
             super(Data, self).__init__(val=data, flavint_groups=flavint_groups)
+            self.contains_neutrinos = True
 
+        # Check consistency of flavints_joined
         if self.metadata['flavints_joined']:
-            self_flavint_groups = [str(f) for f in self.flavint_groups]
-            if self.contains_muons: self_flavint_groups += ['muons']
+            combined_types = []
+            if self.contains_neutrinos:
+                combined_types += [str(f) for f in self.flavint_groups]
+            if self.contains_muons:
+                combined_types += ['muons']
             if set(self.metadata['flavints_joined']) != \
-               set(self_flavint_groups):
+               set(combined_types):
                 raise AssertionError(
                     '`flavint_groups` metadata does not match the '
                     'flavint_groups in the data\n{0} != '
                     '{1}'.format(set(self.metadata['flavints_joined']),
-                                 set([str(f) for f in self.flavint_groups]))
+                                 set(combined_types))
                 )
         else:
             self.metadata['flavints_joined'] = [str(f)
@@ -416,8 +418,7 @@ class Data(FlavIntDataGroup):
             if self.contains_muons:
                 self.metadata['flavints_joined'] += ['muons']
 
-        self._hash = hash_obj(normQuant(self.metadata))
-        
+        self.update_hash()
 
     @property
     def hash(self):
@@ -430,16 +431,10 @@ class Data(FlavIntDataGroup):
     def update_hash(self):
         self._hash = hash_obj(normQuant(self.metadata))
 
-    def contains_neutrinos(self):
-        return self.contains_neutrinos
-
-    def contains_muons(self):
-        return self.contains_muons
-
     @property
     def muons(self):
         if not self.contains_muons:
-            raise AssertionError('No muons loaded in Data')
+            raise AttributeError('No muons loaded in Data')
         return self._muons
 
     @muons.setter
@@ -451,14 +446,8 @@ class Data(FlavIntDataGroup):
     @property
     def neutrinos(self):
         if not self.contains_neutrinos:
-            raise AssertionError('No neutrinos loaded in Data')
-        return self._neutrinos
-
-    @muons.setter
-    def neutrinos(self, val):
-        assert(isinstance(val, dict))
-        self.contains_neutrinos = True
-        self._neutrinos = val
+            raise AttributeError('No neutrinos loaded in Data')
+        return dict(zip(self.keys(), self.values()))
 
     @property
     def names(self):
@@ -502,8 +491,11 @@ class Data(FlavIntDataGroup):
 
         assert isinstance(keep_criteria, basestring)
 
-        fig_to_process = deepcopy(self.flavint_groups)
-        if self.contains_muons: fig_to_process += ['muons']
+        fig_to_process = []
+        if self.contains_neutrinos:
+            fig_to_process += deepcopy(self.flavint_groups)
+        if self.contains_muons:
+            fig_to_process += ['muons']
         fig_processed = []
         new_data = {}
         try:
@@ -835,11 +827,15 @@ def test_Data():
     muon_file = '/data/icecube/data/mlarson/level7_24Nov2015/current_pickle_files/Level7_muongun.12370_15.pckl'
     m = {'muons': from_file(muon_file)}
     m = Data(val=m)
+    assert m.contains_muons
+    assert not m.contains_neutrinos
     print m
     data = data + m
+    assert data.contains_neutrinos
     print data
     if not data.contains_muons:
         raise Exception("data doesn't contain muons.")
+    print data.neutrinos.keys()
 
     # Apply a simple cut
     data.applyCut('(zenith <= 1.1) & (energy <= 200)')
