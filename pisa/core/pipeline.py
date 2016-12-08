@@ -18,17 +18,17 @@ import os
 import numpy as np
 
 from pisa import ureg
+from pisa.core.events import Data
 from pisa.core.map import Map, MapSet
 from pisa.core.param import ParamSet
 from pisa.core.stage import Stage
+from pisa.core.transform import TransformSet
 from pisa.utils.config_parser import parse_pipeline_config
 from pisa.utils.betterConfigParser import BetterConfigParser
 from pisa.utils.fileio import mkdir
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile
-from pisa.core.transform import TransformSet
-from pisa.core.events import Data
 
 
 __all__ = ['Pipeline',
@@ -517,7 +517,7 @@ def main():
                     tex         = r'\rm{muons}'
                 ))
             outputs = MapSet(maps=outputs, name=stg_svc)
-        if isinstance(stage.outputs, (MapSet, TransformSet)):
+        elif isinstance(stage.outputs, (MapSet, TransformSet)):
             outputs = stage.outputs
         for fmt, enabled in formats.items():
             if not enabled:
