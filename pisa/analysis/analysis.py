@@ -733,7 +733,7 @@ class Analysis(object):
                 results['steps'][pname].append(val)
                 if isinstance(val, float):
                     msg += '%s = %.2f '%(pname, val)
-                if isinstance(val, pint.quantity._Quantity):
+                elif isinstance(val, pint.quantity._Quantity):
                     msg += '%s = %.2f '%(pname, val.magnitude)
                 else:
                     raise TypeError("val is of type %s which I don't know "
