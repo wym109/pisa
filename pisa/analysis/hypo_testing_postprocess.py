@@ -473,16 +473,24 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir):
         logging.info('Making output directory %s'%outdir)
         os.makedirs(outdir)
 
-    h0_fid_metric = fid_data['h0_fit_to_toy_no_asimov']['metric_val']
-    h1_fid_metric = fid_data['h1_fit_to_toy_no_asimov']['metric_val']
+    h0_fid_metric = fid_data[
+        'h0_fit_to_toy_%s_asimov'%labels['data_name']
+    ][
+        'metric_val'
+    ]
+    h1_fid_metric = fid_data[
+        'h1_fit_to_toy_%s_asimov'%labels['data_name']
+    ][
+        'metric_val'
+    ]
 
     if h1_fid_metric > h0_fid_metric:
         bestfit = 'h0'
         altfit = 'h1'
         critical_value = h0_fid_metric-h1_fid_metric
     else:
-        bestfit = 'h0'
-        altfit = 'h1'
+        bestfit = 'h1'
+        altfit = 'h0'
         critical_value = h1_fid_metric-h0_fid_metric
 
     h0_fit_to_h0_fid_metrics = np.array(
@@ -1369,7 +1377,11 @@ def main():
             fluctuate_data=False
         )
 
-        trial_nums = data_sets['toy_no_asimov']['h0_fit_to_h1_fid'].keys()
+        trial_nums = data_sets[
+            'toy_%s_asimov'%labels.dict['data_name']
+        ][
+            'h0_fit_to_h1_fid'
+        ].keys()
         
         fid_values = extract_fid_data(data_sets)
         values = extract_data(data_sets)
