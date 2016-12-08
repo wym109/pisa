@@ -177,7 +177,7 @@ class NumpyDecoder(json.JSONDecoder):
     def json_array_numpy(self, s_and_end, scan_once, **kwargs):
         values, end = json.decoder.JSONArray(s_and_end, scan_once, **kwargs)
         try:
-            values = np.array(values, dtype=float)
+            values = np.array(values)
         except:
             pass
         return values, end
