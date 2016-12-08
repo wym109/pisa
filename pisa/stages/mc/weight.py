@@ -14,19 +14,19 @@ import pint
 
 from pisa import FTYPE
 from pisa import ureg, Q_
-from pisa.core.stage import Stage
 from pisa.core.events import Data
 from pisa.core.map import MapSet
 from pisa.core.param import ParamSet
+from pisa.core.stage import Stage
+from pisa.utils.comparisons import normQuant
 from pisa.utils.flavInt import ALL_NUFLAVINTS
 from pisa.utils.flavInt import NuFlavInt, NuFlavIntGroup
-from pisa.utils.comparisons import normQuant
+from pisa.utils.flux_weights import load_2D_table, calculate_flux_weights
 from pisa.utils.format import text2tex
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
 from pisa.utils.resources import open_resource
-from pisa.utils.flux_weights import load_2D_table, calculate_flux_weights
 
 
 class weight(Stage):
@@ -695,18 +695,22 @@ class weight(Stage):
         return scaled_a, scaled_b
 
     def make_prim_unc_spline(self):
-        '''
+        """
         Create the spline which will be used to re-weight muons based on the
-        uncertainties arising from cosmic rays. Details on this work can be 
-        found here - 
+        uncertainties arising from cosmic rays. 
 
-        https://wiki.icecube.wisc.edu/index.php
-                       /DeepCore_Muon_Background_Systematics
+        Notes
+        -----
+
+        Details on this work can be found here - 
+
+        https://wiki.icecube.wisc.edu/index.php/DeepCore_Muon_Background_Systematics
 
         This work was done for the GRECO sample but should be reasonably 
-        generic. Though you should check this if you use it in a different 
-        analysis.
-        '''
+        generic. It was found to pretty much be a negligible systemtic. Though 
+        you should check both if it seems reasonable and it is still negligible
+        if you use it with a different event sample.
+        """
         if 'true' not in self.params['sigma_gamma_mu_variable'].value:
             raise ValueError("Variable to construct spline should be a truth "
                              "variable. You have put %s in your configuration "
