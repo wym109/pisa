@@ -164,10 +164,10 @@ class weight(Stage):
 
         self.atm_muon_params = (
             'atm_muon_scale',
-            'sigma_gamma_mu_file',
-            'sigma_gamma_mu_spline_kind',
-            'sigma_gamma_mu_variable',
-            'sigma_gamma_mu'
+            'delta_gamma_mu_file',
+            'delta_gamma_mu_spline_kind',
+            'delta_gamma_mu_variable',
+            'delta_gamma_mu'
         )
 
         self.noise_params = (
@@ -319,8 +319,8 @@ class weight(Stage):
             atm_muon_scale = self.params['atm_muon_scale'].value
             self._data.muons['pisa_weight'] *= atm_muon_scale
             # Primary CR systematic
-            cr_rw_scale = self.params['sigma_gamma_mu'].value
-            rw_variable = self.params['sigma_gamma_mu_variable'].value
+            cr_rw_scale = self.params['delta_gamma_mu'].value
+            rw_variable = self.params['delta_gamma_mu_variable'].value
             rw_array = self.prim_unc_spline(self._data.muons[rw_variable])
             ## Reweighting term is positive-only by construction, so normalise
             ## it by shifting the whole array down by a normalisation factor
@@ -711,28 +711,28 @@ class weight(Stage):
         you should check both if it seems reasonable and it is still negligible
         if you use it with a different event sample.
         """
-        if 'true' not in self.params['sigma_gamma_mu_variable'].value:
+        if 'true' not in self.params['delta_gamma_mu_variable'].value:
             raise ValueError("Variable to construct spline should be a truth "
                              "variable. You have put %s in your configuration "
                              "file."
-                             %self.params['sigma_gamma_mu_variable'].value)
+                             %self.params['delta_gamma_mu_variable'].value)
         
-        bare_variable = self.params['sigma_gamma_mu_variable']\
+        bare_variable = self.params['delta_gamma_mu_variable']\
                             .value.split('true_')[-1]
         if not bare_variable == 'coszen':
             raise ValueError("Muon primary cosmic ray systematic is currently "
                              "only implemented as a function of cos(zenith). "
                              "%s was set in the configuration file."
-                             %self.params['sigma_gamma_mu_variable'].value)
-        if bare_variable not in self.params['sigma_gamma_mu_file'].value:
+                             %self.params['delta_gamma_mu_variable'].value)
+        if bare_variable not in self.params['delta_gamma_mu_file'].value:
             raise ValueError("Variable set in configuration file is %s but the"
                              " file you have selected, %s, does not make "
                              "reference to this in its name."
-                             %(self.params['sigma_gamma_mu_variable'].value,
-                               self.params['sigma_gamma_mu_file'].value))
+                             %(self.params['delta_gamma_mu_variable'].value,
+                               self.params['delta_gamma_mu_file'].value))
         
         unc_data = np.genfromtxt(
-            open_resource(self.params['sigma_gamma_mu_file'].value)
+            open_resource(self.params['delta_gamma_mu_file'].value)
         ).T
         
         # Need to deal with zeroes that arise due to a lack of MC. For example,
@@ -753,50 +753,62 @@ class weight(Stage):
         muon_uncf = interp1d(
             xvals,
             yvals,
-            kind = self.params['sigma_gamma_mu_spline_kind'].value
+            kind = self.params['delta_gamma_mu_spline_kind'].value
         )
         
         return muon_uncf
 
     def validate_params(self, params):
         pq = pint.quantity._Quantity
-        assert isinstance(params['output_events_mc'].value, bool)
-        assert isinstance(params['kde_hist'].value, bool)
-        assert isinstance(params['livetime'].value, pq)
+        param_types = [
+            ('output_events_mc', bool),
+            ('kde_hist', bool),
+            ('livetime', pq)
+        ]
         if self.neutrino:
-            assert isinstance(params['oscillate'].value, bool)
-            assert isinstance(params['cache_flux'].value, bool)
-            assert isinstance(params['nu_dis_a'].value, pq)
-            assert isinstance(params['nu_dis_b'].value, pq)
-            assert isinstance(params['nubar_dis_a'].value, pq)
-            assert isinstance(params['nubar_dis_b'].value, pq)
-            assert isinstance(params['flux_file'].value, basestring)
-            assert isinstance(params['atm_delta_index'].value, pq)
-            assert isinstance(params['nu_nubar_ratio'].value, pq)
-            assert isinstance(params['nue_numu_ratio'].value, pq)
-            assert isinstance(params['norm_numu'].value, pq)
-            assert isinstance(params['norm_nutau'].value, pq)
-            assert isinstance(params['norm_nc'].value, pq)
-            assert isinstance(params['earth_model'].value, basestring)
-            assert isinstance(params['YeI'].value, pq)
-            assert isinstance(params['YeO'].value, pq)
-            assert isinstance(params['YeM'].value, pq)
-            assert isinstance(params['detector_depth'].value, pq)
-            assert isinstance(params['prop_height'].value, pq)
-            assert isinstance(params['theta12'].value, pq)
-            assert isinstance(params['theta13'].value, pq)
-            assert isinstance(params['theta23'].value, pq)
-            assert isinstance(params['deltam21'].value, pq)
-            assert isinstance(params['deltam31'].value, pq)
-            assert isinstance(params['deltacp'].value, pq)
-            assert isinstance(params['no_nc_osc'].value, bool)
+            param_types.extend([
+                ('oscillate', bool),
+                ('cache_flux', bool),
+                ('nu_dis_a', pq),
+                ('nu_dis_b', pq),
+                ('nubar_dis_a', pq),
+                ('nubar_dis_b', pq),
+                ('flux_file', basestring),
+                ('atm_delta_index', pq),
+                ('nu_nubar_ratio', pq),
+                ('nue_numu_ratio', pq),
+                ('norm_numu', pq),
+                ('norm_nutau', pq),
+                ('norm_nc', pq),
+                ('earth_model', basestring),
+                ('YeI', pq),
+                ('YeO', pq),
+                ('YeM', pq),
+                ('detector_depth', pq),
+                ('prop_height', pq),
+                ('theta12', pq),
+                ('theta13', pq),
+                ('theta23', pq),
+                ('deltam21', pq),
+                ('deltam31', pq),
+                ('deltacp', pq),
+                ('no_nc_osc', bool)
+            ])
         if self.muons:
-            assert isinstance(params['atm_muon_scale'].value, pq)
-            assert isinstance(params['sigma_gamma_mu_file'].value, basestring)
-            assert isinstance(params['sigma_gamma_mu_spline_kind'].value,
-                              basestring)
-            assert isinstance(params['sigma_gamma_mu_variable'].value,
-                              basestring)
-            assert isinstance(params['sigma_gamma_mu'].value, pq)
+            param_types.extend([
+                ('atm_muon_scale', pq),
+                ('delta_gamma_mu_file', basestring),
+                ('delta_gamma_mu_spline_kind',basestring),
+                ('delta_gamma_mu_variable',basestring),
+                ('delta_gamma_mu', pq)
+            ])
         if self.noise:
-            assert isinstance(params['norm_noise'].value, pq)
+            param_types.extend([
+                ('norm_noise', pq)
+            ])
+
+        for p, t in param_types:
+            val = params[p].value
+            if not isinstance(val, t):
+                raise TypeError('Param "%s" must be type %s but is %s instead'
+                                %(p,type(t),type(val)))

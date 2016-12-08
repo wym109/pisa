@@ -377,15 +377,13 @@ class Data(FlavIntDataGroup):
         # Find and deal with any muon data if it exists
         if self.metadata['flavints_joined'] == list([]):
             if 'muons' in data:
-                self.muons = deepcopy(data['muons'])
-                del(data['muons'])
+                self.muons = data.pop('muons')
         elif 'muons' in self.metadata['flavints_joined']:
             if 'muons' not in data:
                 raise AssertionError('Metadata has muons specified but '
                                      'they are not found in the data')
             else:
-                self.muons = deepcopy(data['muons'])
-                del(data['muons'])
+                self.muons = data.pop('muons')
         elif 'muons' in data:
             raise AssertionError('Found muons in data but not found in '
                                  'metadata key `flavints_joined`')
