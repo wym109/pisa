@@ -49,7 +49,7 @@ class Layers(object):
         self.TraverseRhos = np.zeros(self.max_layers)
         self.TraverseDistance = np.zeros(self.max_layers)
         self.TraverseElectronFrac = np.zeros(self.max_layers)
-        
+
 	if coszen >= 0:
 	    #Path through the air:
 	    kappa = self.DetectorDepth/self.rDetector
@@ -103,7 +103,7 @@ class Layers(object):
 		    if self.Radii[i] < (self.YeOuterRadius[iRad] * 1.001):
 			self.TraverseElectronFrac[i+iTrav] = self.YeFrac[iRad]
 			break
-                
+
                 c2 = np.square(coszen)
                 R2 = np.square(self.rDetector)
                 s1 = np.square(self.Radii[i]) - R2*(1 -c2)
@@ -156,7 +156,7 @@ class OscParams(object):
             self.dm_atm = dm_atm - dm_solar
         else:
             self.dm_atm = dm_atm
-        
+
     @property
     def M_pmns(self):
 
