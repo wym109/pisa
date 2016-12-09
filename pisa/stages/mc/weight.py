@@ -5,6 +5,9 @@ oscillation and various systematics.
 This service in particular is intended to follow a `data` service which takes
 advantage of the Data object being passed as a sideband in the Stage.
 """
+
+
+from collections import OrderedDict
 from copy import deepcopy
 
 from scipy.interpolate import interp1d
@@ -13,9 +16,9 @@ import numpy as np
 import pint
 
 from pisa import FTYPE
-from pisa import ureg, Q_
+from pisa import ureg
 from pisa.core.events import Data
-from pisa.core.map import MapSet
+from pisa.core.map import Map, MapSet
 from pisa.core.param import ParamSet
 from pisa.core.stage import Stage
 from pisa.utils.comparisons import normQuant
@@ -27,6 +30,9 @@ from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
 from pisa.utils.resources import open_resource
+
+
+__all__ = ['weight']
 
 
 class weight(Stage):
@@ -184,7 +190,7 @@ class weight(Stage):
         if 'muons' in input_names:
             expected_params += self.atm_muon_params
         if 'noise' in input_names:
-            expected_params += self.noise_params    
+            expected_params += self.noise_params
 
         self.neutrinos = False
         self.muons = False
@@ -282,21 +288,24 @@ class weight(Stage):
             # Flux reweighting
             flux_weights = self.compute_flux_weights(attach_units=True)
             if not self.params['oscillate'].value:
+
+                # TODO/BUG: `total_weight` below is defined but never used
+
                 # no oscillations
                 for fig in self._data.iterkeys():
                     flav_pdg = NuFlavInt(fig).flavCode()
-                    weight = self._data[fig]['pisa_weight']
+                    total_weight = self._data[fig]['pisa_weight']
                     if flav_pdg == 12:
-                        weight *= flux_weights[fig]['nue_flux']
+                        total_weight *= flux_weights[fig]['nue_flux']
                     elif flav_pdg == 14:
-                        weight *= flux_weights[fig]['numu_flux']
+                        total_weight *= flux_weights[fig]['numu_flux']
                     elif flav_pdg == -12:
-                        weight *= flux_weights[fig]['nuebar_flux']
+                        total_weight *= flux_weights[fig]['nuebar_flux']
                     elif flav_pdg == -14:
-                        weight *= flux_weights[fig]['numubar_flux']
+                        total_weight *= flux_weights[fig]['numubar_flux']
                     elif abs(flav_pdg) == 16:
                         # attach units of flux from nue
-                        weight *= 0. * flux_weights[fig]['nue_flux'].u
+                        total_weight *= 0. * flux_weights[fig]['nue_flux'].u
             else:
                 # oscillations
                 osc_weights = self.compute_osc_weights(flux_weights)
@@ -345,7 +354,7 @@ class weight(Stage):
                     for bin_name in self.output_binning.names:
                         if 'coszen' in bin_name:
                             coszen_name = bin_name
-                    if coszen_name == None:
+                    if coszen_name is None:
                         raise ValueError("Did not find coszen in binning. KDE "
                                          "will not work correctly.")
                     kde_hist = self.kde_histogramdd(
@@ -362,7 +371,7 @@ class weight(Stage):
                         coszen_reflection=0.5,
                         adaptive=True
                     )
-                    output.append(
+                    outputs.append(
                         Map(
                             name=fig,
                             hist=kde_hist,
@@ -401,7 +410,7 @@ class weight(Stage):
                     coszen_reflection=0.5,
                     adaptive=True
                 )
-                output.append(
+                outputs.append(
                     Map(
                         name='muons',
                         hist=kde_hist,
@@ -447,9 +456,9 @@ class weight(Stage):
         out_units = ureg('1 / (GeV s m**2 sr)')
         if self.flux_hash == this_hash:
             if attach_units:
-                flux_weights = {}
+                flux_weights = OrderedDict()
                 for fig in self._flux_weights.iterkeys():
-                    flux_weights[fig] = {}
+                    flux_weights[fig] = OrderedDict()
                     for flav in self._flux_weights[fig].iterkeys():
                         flux_weights[fig][flav] = \
                                 self._flux_weights[fig][flav]*out_units
@@ -463,13 +472,14 @@ class weight(Stage):
         )
         if data_contains_flux:
             logging.info('Loading flux values from data.')
-            flux_weights = {}
+            flux_weights = OrderedDict()
             for fig in self._data.iterkeys():
-                flux_weights[fig] = {}
-                flux_weights[fig]['nue_flux'] = self._data[fig]['nue_flux']
-                flux_weights[fig]['numu_flux'] = self._data[fig]['numu_flux']
-                flux_weights[fig]['nuebar_flux'] = self._data[fig]['nuebar_flux']
-                flux_weights[fig]['numubar_flux'] = self._data[fig]['numubar_flux']
+                d = OrderedDict()
+                d['nue_flux'] = self._data[fig]['nue_flux']
+                d['numu_flux'] = self._data[fig]['numu_flux']
+                d['nuebar_flux'] = self._data[fig]['nuebar_flux']
+                d['numubar_flux'] = self._data[fig]['numubar_flux']
+                flux_weights[fig] = d
         elif self.params['cache_flux'].value:
             this_cache_hash = normQuant([self._data.metadata['name'],
                                          self._data.metadata['sample'],
@@ -498,9 +508,9 @@ class weight(Stage):
 
         # TODO(shivesh): Barr flux systematics
         for fig in flux_weights:
-            nue_flux     = flux_weights[fig]['nue_flux']
-            numu_flux    = flux_weights[fig]['numu_flux']
-            nuebar_flux  = flux_weights[fig]['nuebar_flux']
+            nue_flux = flux_weights[fig]['nue_flux']
+            numu_flux = flux_weights[fig]['numu_flux']
+            nuebar_flux = flux_weights[fig]['nuebar_flux']
             numubar_flux = flux_weights[fig]['numubar_flux']
 
             norm_nc = 1.0
@@ -510,9 +520,9 @@ class weight(Stage):
             atm_index = np.power(
                 self._data[fig]['energy'], self.params['atm_delta_index'].m
             )
-            nue_flux     *= atm_index * norm_nc
-            numu_flux    *= atm_index * norm_nc * norm_numu
-            nuebar_flux  *= atm_index * norm_nc
+            nue_flux *= atm_index * norm_nc
+            numu_flux *= atm_index * norm_nc * norm_numu
+            nuebar_flux *= atm_index * norm_nc
             numubar_flux *= atm_index * norm_nc * norm_numu
 
             nue_flux, nuebar_flux = self.apply_ratio_scale(
@@ -531,9 +541,9 @@ class weight(Stage):
         self.flux_hash = this_hash
         self._flux_weights = flux_weights
         if attach_units:
-            fw_units = {}
+            fw_units = OrderedDict()
             for fig in flux_weights.iterkeys():
-                fw_units[fig] = {}
+                fw_units[fig] = OrderedDict()
                 for flav in flux_weights[fig].iterkeys():
                     fw_units[fig][flav] = flux_weights[fig][flav]*out_units
             return fw_units
@@ -564,7 +574,7 @@ class weight(Stage):
         """Reweight to take into account xsec systematics."""
         logging.debug('Reweighting xsec systematics')
 
-        xsec_weights = {}
+        xsec_weights = OrderedDict()
         for fig in nu_data.iterkeys():
             if 'bar' not in fig:
                 dis_a = params['nu_dis_a'].m
@@ -572,7 +582,9 @@ class weight(Stage):
             else:
                 dis_a = params['nubar_dis_a'].m
                 dis_b = params['nubar_dis_b'].m
-            xsec_weights[fig] = dis_b * np.power(nu_data[fig]['GENIE_x'], -dis_a)
+            xsec_weights[fig] = (
+                dis_b * np.power(nu_data[fig]['GENIE_x'], -dis_a)
+            )
         return xsec_weights
 
     @staticmethod
@@ -581,9 +593,9 @@ class weight(Stage):
         logging.debug('Computing flux values')
         spline_dict = load_2D_table(params['flux_file'].value)
 
-        flux_weights = {}
+        flux_weights = OrderedDict()
         for fig in nu_data.iterkeys():
-            flux_weights[fig] = {}
+            flux_weights[fig] = OrderedDict()
             logging.debug('Computing flux values for flavour {0}'.format(fig))
             flux_weights[fig]['nue_flux'] = calculate_flux_weights(
                 nu_data[fig]['energy'], nu_data[fig]['coszen'],
@@ -623,26 +635,26 @@ class weight(Stage):
         deltacp = params['deltacp'].m_as('rad')
 
         osc = prob3gpu(
-            params = params,
-            input_binning = None,
-            output_binning = None,
-            error_method = None,
-            memcache_deepcopy = False,
-            transforms_cache_depth = 0,
-            outputs_cache_depth = 0
+            params=params,
+            input_binning=None,
+            output_binning=None,
+            error_method=None,
+            memcache_deepcopy=False,
+            transforms_cache_depth=0,
+            outputs_cache_depth=0
         )
 
-        osc_data = {}
+        osc_data = OrderedDict()
         for fig in nu_data.iterkeys():
             if 'nc' in fig and params['no_nc_osc'].value:
                 continue
-            osc_data[fig] = {}
+            osc_data[fig] = OrderedDict()
             energy_array = nu_data[fig]['energy'].astype(FTYPE)
             coszen_array = nu_data[fig]['coszen'].astype(FTYPE)
             n_evts = np.uint32(len(energy_array))
             osc_data[fig]['n_evts'] = n_evts
 
-            device = {}
+            device = OrderedDict()
             device['true_energy'] = energy_array
             device['prob_e'] = np.zeros(n_evts, dtype=FTYPE)
             device['prob_mu'] = np.zeros(n_evts, dtype=FTYPE)
@@ -650,14 +662,14 @@ class weight(Stage):
             out_layers = osc.calc_layers(coszen_array)
             device.update(dict(zip(out_layers_n, out_layers)))
 
-            osc_data[fig]['device'] = {}
+            osc_data[fig]['device'] = OrderedDict()
             for key in device.iterkeys():
                 osc_data[fig]['device'][key] = cuda.mem_alloc(device[key].nbytes)
                 cuda.memcpy_htod(osc_data[fig]['device'][key], device[key])
 
         osc.update_MNS(theta12, theta13, theta23, deltam21, deltam31, deltacp)
 
-        osc_weights = {}
+        osc_weights = OrderedDict()
         for fig in nu_data.iterkeys():
             flavint = NuFlavInt(fig)
             pdg = abs(flavint.flavCode())
@@ -675,11 +687,13 @@ class weight(Stage):
                     osc_weights[fig] = flux_weights[fig]['nue'+p+'_flux']
                 elif kFlav == 1:
                     osc_weights[fig] = flux_weights[fig]['numu'+p+'_flux']
-                elif kFlav == 2: osc_weights[fig] = 0.
+                elif kFlav == 2:
+                    osc_weights[fig] = 0.
                 continue
 
             osc.calc_probs(
-                kNuBar, kFlav, osc_data[fig]['n_evts'], **osc_data[fig]['device']
+                kNuBar, kFlav, osc_data[fig]['n_evts'],
+                **osc_data[fig]['device']
             )
 
             prob_e = np.zeros(osc_data[fig]['n_evts'], dtype=FTYPE)
@@ -690,8 +704,8 @@ class weight(Stage):
             for key in osc_data[fig]['device']:
                 osc_data[fig]['device'][key].free()
 
-            osc_weights[fig] = flux_weights[fig]['nue'+p+'_flux']*prob_e + \
-                flux_weights[fig]['numu'+p+'_flux']*prob_mu
+            osc_weights[fig] = (flux_weights[fig]['nue'+p+'_flux']*prob_e
+                                + flux_weights[fig]['numu'+p+'_flux']*prob_mu)
 
         return osc_weights
 
@@ -708,17 +722,17 @@ class weight(Stage):
     def make_prim_unc_spline(self):
         """
         Create the spline which will be used to re-weight muons based on the
-        uncertainties arising from cosmic rays. 
+        uncertainties arising from cosmic rays.
 
         Notes
         -----
 
-        Details on this work can be found here - 
+        Details on this work can be found here -
 
         https://wiki.icecube.wisc.edu/index.php/DeepCore_Muon_Background_Systematics
 
-        This work was done for the GRECO sample but should be reasonably 
-        generic. It was found to pretty much be a negligible systemtic. Though 
+        This work was done for the GRECO sample but should be reasonably
+        generic. It was found to pretty much be a negligible systemtic. Though
         you should check both if it seems reasonable and it is still negligible
         if you use it with a different event sample.
         """
@@ -727,7 +741,7 @@ class weight(Stage):
                              "variable. You have put %s in your configuration "
                              "file."
                              %self.params['delta_gamma_mu_variable'].value)
-        
+
         bare_variable = self.params['delta_gamma_mu_variable']\
                             .value.split('true_')[-1]
         if not bare_variable == 'coszen':
@@ -741,11 +755,11 @@ class weight(Stage):
                              "reference to this in its name."
                              %(self.params['delta_gamma_mu_variable'].value,
                                self.params['delta_gamma_mu_file'].value))
-        
+
         unc_data = np.genfromtxt(
             open_resource(self.params['delta_gamma_mu_file'].value)
         ).T
-        
+
         # Need to deal with zeroes that arise due to a lack of MC. For example,
         # in the case of the splines as a function of cosZenith, there are no
         # hoirzontal muons. Current solution is just to replace them with their
@@ -756,17 +770,17 @@ class weight(Stage):
                 unc_data[1][zero_index] = unc_data[1][zero_index+1]
 
         # Add dummpy points for the edge of the zenith range
-        xvals = np.insert(unc_data[0],0,0.0)
-        xvals = np.append(xvals,1.0)
-        yvals = np.insert(unc_data[1],0,unc_data[1][0])
-        yvals = np.append(yvals,unc_data[1][-1])
+        xvals = np.insert(unc_data[0], 0, 0.0)
+        xvals = np.append(xvals, 1.0)
+        yvals = np.insert(unc_data[1], 0, unc_data[1][0])
+        yvals = np.append(yvals, unc_data[1][-1])
 
         muon_uncf = interp1d(
             xvals,
             yvals,
-            kind = self.params['delta_gamma_mu_spline_kind'].value
+            kind=self.params['delta_gamma_mu_spline_kind'].value
         )
-        
+
         return muon_uncf
 
     def validate_params(self, params):
@@ -809,8 +823,8 @@ class weight(Stage):
             param_types.extend([
                 ('atm_muon_scale', pq),
                 ('delta_gamma_mu_file', basestring),
-                ('delta_gamma_mu_spline_kind',basestring),
-                ('delta_gamma_mu_variable',basestring),
+                ('delta_gamma_mu_spline_kind', basestring),
+                ('delta_gamma_mu_variable', basestring),
                 ('delta_gamma_mu', pq)
             ])
         if self.noise:
@@ -822,4 +836,4 @@ class weight(Stage):
             val = params[p].value
             if not isinstance(val, t):
                 raise TypeError('Param "%s" must be type %s but is %s instead'
-                                %(p,type(t),type(val)))
+                                %(p, type(t), type(val)))
