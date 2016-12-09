@@ -41,7 +41,8 @@ from pisa.utils.profiler import profile, line_profile
 from pisa.utils.resources import find_resource
 
 
-__all__ = ['vbwkde', 'plot_kde_detail', 'plot_multiple']
+__all__ = ['EPSILON',
+           'vbwkde', 'plot_kde_detail', 'plot_multiple']
 
 
 EPSILON = 1e-4
@@ -1618,14 +1619,14 @@ def plot_kde_detail(flavints, kde_info, extra_info, binning, outdir,
         ml_ci = MLConfInterval(x=enu_mesh, y=enu_pdf)
         #for conf in np.logspace(np.log10(0.999), np.log10(0.95), 50):
         #    try:
-        #        lb, ub, yopt, r = ml_ci.findCI_lin(conf=conf)
+        #        lb, ub, yopt, r = ml_ci.find_ci_lin(conf=conf)
         #    except:
         #        pass
         #    else:
         #        break
         #xlims = (min(-ebin_mid*1.5, lb),
         #         max(min(ub, 6*ebin_mid),2*ebin_mid))
-        lb, ub, yopt, r = ml_ci.findCI_lin(conf=0.98)
+        lb, ub, yopt, r = ml_ci.find_ci_lin(conf=0.98)
         xlims = (lb, #min(-ebin_mid*1.5, lb),
                  max(min(ub, 6*ebin_mid),2*ebin_wid))
 
@@ -1719,7 +1720,7 @@ def plot_kde_detail(flavints, kde_info, extra_info, binning, outdir,
         )
         ax2.plot(cz_mesh, cz_pdf, **DIFFUS_PP)
         fci = MLConfInterval(x=cz_mesh, y=cz_pdf)
-        lb, ub, yopt, r = fci.findCI_lin(conf=0.995)
+        lb, ub, yopt, r = fci.find_ci_lin(conf=0.995)
         axlims = ax2.axis('tight')
         ax2.set_xlim(lb, ub)
         ax2.set_ylim(0, axlims[3]*1.05)
@@ -1902,7 +1903,7 @@ def plot_multiple(all_kde_info, labels, outdir, all_extra_info=None):
                 axnum = 0
                 ax = axes[axnum]
                 ml_ci = MLConfInterval(x=e_interp.x, y=e_interp.y)
-                lb, ub, yopt, r = ml_ci.findCI_lin(conf=ci)
+                lb, ub, yopt, r = ml_ci.find_ci_lin(conf=ci)
                 lb = lb if lb < lims[axnum][0] else lims[axnum][0]
                 ub = ub if ub > lims[axnum][1] else lims[axnum][1]
                 lims[axnum] = (lb, ub)
@@ -1922,7 +1923,7 @@ def plot_multiple(all_kde_info, labels, outdir, all_extra_info=None):
                 axnum = 1
                 ax = axes[axnum]
                 ml_ci = MLConfInterval(x=cz_interp.x, y=cz_interp.y)
-                lb, ub, yopt, r = ml_ci.findCI_lin(conf=ci)
+                lb, ub, yopt, r = ml_ci.find_ci_lin(conf=ci)
                 lb = lb if lb < lims[axnum][0] else lims[axnum][0]
                 ub = ub if ub > lims[axnum][1] else lims[axnum][1]
                 lims[axnum] = (lb, ub)
@@ -1941,7 +1942,7 @@ def plot_multiple(all_kde_info, labels, outdir, all_extra_info=None):
                     axnum = 2
                     ax = axes[axnum]
                     ml_ci = MLConfInterval(x=pid_interp.x, y=pid_interp.y)
-                    lb, ub, yopt, r = ml_ci.findCI_lin(conf=ci)
+                    lb, ub, yopt, r = ml_ci.find_ci_lin(conf=ci)
                     lb = lb if lb < lims[axnum][0] else lims[axnum][0]
                     ub = ub if ub > lims[axnum][1] else lims[axnum][1]
                     lims[axnum] = (lb, ub)
@@ -2068,14 +2069,14 @@ def plot_multiple(all_kde_info, labels, outdir, all_extra_info=None):
     #    ml_ci = MLConfInterval(x=enu_mesh, y=enu_pdf)
     #    #for conf in np.logspace(np.log10(0.999), np.log10(0.95), 50):
     #    #    try:
-    #    #        lb, ub, yopt, r = ml_ci.findCI_lin(conf=conf)
+    #    #        lb, ub, yopt, r = ml_ci.find_ci_lin(conf=conf)
     #    #    except:
     #    #        pass
     #    #    else:
     #    #        break
     #    #xlims = (min(-ebin_mid*1.5, lb),
     #    #         max(min(ub, 6*ebin_mid),2*ebin_mid))
-    #    lb, ub, yopt, r = ml_ci.findCI_lin(conf=0.98)
+    #    lb, ub, yopt, r = ml_ci.find_ci_lin(conf=0.98)
     #    xlims = (lb, #min(-ebin_mid*1.5, lb),
     #             max(min(ub, 6*ebin_mid),2*ebin_wid))
 
@@ -2169,7 +2170,7 @@ def plot_multiple(all_kde_info, labels, outdir, all_extra_info=None):
     #    )
     #    ax2.plot(cz_mesh, cz_pdf, **DIFFUS_PP)
     #    fci = MLConfInterval(x=cz_mesh, y=cz_pdf)
-    #    lb, ub, yopt, r = fci.findCI_lin(conf=0.995)
+    #    lb, ub, yopt, r = fci.find_ci_lin(conf=0.995)
     #    axlims = ax2.axis('tight')
     #    ax2.set_xlim(lb, ub)
     #    ax2.set_ylim(0, axlims[3]*1.05)
