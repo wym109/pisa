@@ -19,7 +19,7 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from collections import Mapping, OrderedDict, Sequence
 from copy import copy
 import getpass
-from itertools import product
+from itertools import chain, product
 import os
 import random
 import re
@@ -619,23 +619,27 @@ class HypoTesting(Analysis):
 
                     self.produce_fid_data()
                     self.fit_hypos_to_fid()
-
-        except Exception:
+        except:
             exc = sys.exc_info()
-
+        else:
+            exc = (None, None, None)
         finally:
             if exc[0] is not None:
                 logging.error('`run_analysis` body failed with exception:')
-                [logging.error(' '*4 + l) for l in format_exception(*exc)]
+                for line in format_exception(*exc):
+                    [logging.error(' '*4 + sl) for sl in line.splitlines()]
 
             try:
                 self.write_run_stop_info(exc=exc)
-            except Exception:
+            except:
                 exc_l = sys.exc_info()
+            else:
+                exc_l = (None, None, None)
 
             if exc_l[0] is not None:
                 logging.error('`write_run_stop_info` failed with exception:')
-                [logging.error(' '*4 + l) for l in format_exception(*exc_l)]
+                for line in format_exception(*exc_l):
+                    [logging.error(' '*4 + sl) for sl in line.splitlines()]
                 raise exc_l
 
             if exc[0] is not None:
@@ -1267,6 +1271,7 @@ class HypoTesting(Analysis):
         if self.fluctuate_fid:
             run_info.append('fid_start_ind = %d' %self.fid_start_ind)
             run_info.append('num_fid_trials = %d' %self.num_fid_trials)
+        run_info.append('metric = %s' %self.metric)
         run_info.append('other_metrics = %s' %self.other_metrics)
         run_info.append('blind = %s' %self.blind)
         run_info.append('allow_dirty = %s' %self.allow_dirty)
@@ -1274,9 +1279,10 @@ class HypoTesting(Analysis):
         run_info.append('store_minimizer_history = %s'
                         %self.store_minimizer_history)
         run_info.append('pprint = %s' %self.pprint)
-        for env_var in ['MKL_NUM_THREADS', 'OMP_NUM_THREADS',
-                        'CUDA_VISIBLE_DEVICES', 'PATH', 'LD_LIBRARY_PATH',
-                        'PYTHONPATH']:
+        for env_var in ['PISA_FTYPE', 'PISA_RESOURCES',
+                        'MKL_NUM_THREADS', 'OMP_NUM_THREADS',
+                        'CUDA_VISIBLE_DEVICES',
+                        'PATH', 'LD_LIBRARY_PATH', 'PYTHONPATH']:
             if env_var in os.environ:
                 val = os.environ[env_var]
             else:
@@ -1321,8 +1327,12 @@ class HypoTesting(Analysis):
             run_info.append('traceback = None')
         else:
             run_info.append('completed = False')
-            run_info.append('exception = ' + str((exc[0], exc[1])))
-            run_info.append('traceback = ' + '  '.join(format_exception(*exc)))
+            run_info.append('exception = %s: %s' % (exc[0], exc[1]))
+            tb = format_exception(*exc)
+            formatted_tb = ('\n' + ' '*2).join(
+                chain.from_iterable((l.splitlines() for l in tb))
+            )
+            run_info.append('traceback = %s' %formatted_tb)
 
         with file(self.run_info_fpath, 'a') as f:
             f.write('\n'.join(run_info) + '\n')
