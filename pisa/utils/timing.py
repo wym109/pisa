@@ -86,6 +86,7 @@ def timediffstamp(dt_sec, hms_always=False, sec_decimals=3):
     If colon notation (e.g. HH:MM:SS.xxx, MM:SS.xxx, etc.) is not used, the
     number is only seconds, and is appended by a space ' ' followed by units
     of 's' (possibly with a metric prefix).
+
     """
     sign_str = ''
     sgn = 1
@@ -146,6 +147,7 @@ def timestamp(d=True, t=True, tz=True, utc=False, winsafe=False):
         Include UTC time/date (as opposed to local time/date) (default: False)
     winsafe : bool
         Omit colons between hours/minutes (default: False)
+
     """
     if utc:
         time_tuple = time.gmtime()
