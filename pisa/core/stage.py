@@ -1,24 +1,29 @@
 # Authors
+"""
+Stage base class designed to be inherited by PISA services, such that all basic
+functionality is built-in.
+
+"""
+
 
 from collections import Iterable, Mapping, Sequence
 from copy import deepcopy
 import inspect
 import os
 
-from pisa.core.events import Events, Data
+from pisa.core.events import Events
 from pisa.core.map import MapSet
-from pisa.core.param import Param, ParamSelector, ParamSet
+from pisa.core.param import Param, ParamSelector
 from pisa.core.transform import TransformSet
 from pisa.utils.cache import DiskCache, MemoryCache
 from pisa.utils.comparisons import normQuant
 from pisa.utils.fileio import mkdir
 from pisa.utils.hash import hash_obj
-from pisa.utils.log import logging, set_verbosity
-from pisa.utils.profiler import line_profile, profile
+from pisa.utils.log import logging
 from pisa.utils.resources import find_resource
 
 
-__all__ = ['Stage']
+__all__ = ['arg_str_seq_none', 'Stage']
 
 
 # TODO: mode for not propagating errors. Probably needs hooks here, but meat of
@@ -250,15 +255,15 @@ class Stage(object):
         self.validate_params(p)
         self._params = p
 
-        if bool(debug_mode) == False:
-            self._debug_mode = None
-        else:
+        if bool(debug_mode):
             self._debug_mode = debug_mode
-
-        if bool(error_method) == False:
-            self._error_method = None
         else:
+            self._debug_mode = None
+
+        if bool(error_method):
             self._error_method = error_method
+        else:
+            self._error_method = None
 
         # Include each attribute here for hashing if it is defined and its
         # value is not None
@@ -304,7 +309,6 @@ class Stage(object):
         self.nominal_outputs_hash = None
         self.outputs_hash = None
 
-    @profile
     def get_nominal_transforms(self, nominal_transforms_hash):
         """Load a cached transform from the nominal transform memory cache
         (which is backed by a disk cache, if one is specified) if the nominal
@@ -381,7 +385,6 @@ class Stage(object):
         self.nominal_transforms_hash = nominal_transforms_hash
         return nominal_transforms, nominal_transforms_hash
 
-    @profile
     def get_transforms(self, transforms_hash=None,
                        nominal_transforms_hash=None):
         """Load a cached transform (keyed on hash of parameter values) if it
@@ -449,7 +452,6 @@ class Stage(object):
         self.transforms = transforms
         return transforms
 
-    @profile
     def get_nominal_outputs(self, nominal_outputs_hash):
         """Load a cached output from the nominal outputs memory cache
         (which is backed by a disk cache, if one is specified) if the nominal
@@ -477,7 +479,6 @@ class Stage(object):
             self._compute_nominal_outputs()
             self.nominal_outputs_hash = self._derive_nominal_outputs_hash()
 
-    @profile
     def get_outputs(self, inputs=None):
         """Top-level function for computing outputs. Use this method to get
         outputs if you live outside this stage/service.
@@ -556,8 +557,10 @@ class Stage(object):
 
         # Attach sideband objects (i.e., inputs not specified in
         # `self.input_names`) to the "augmented" output object
-        if self.inputs is None: names_in_inputs = set([])
-        else: names_in_inputs = set(self.inputs.names)
+        if self.inputs is None:
+            names_in_inputs = set()
+        else:
+            names_in_inputs = set(self.inputs.names)
         unused_input_names = names_in_inputs.difference(self.input_names)
 
         if len(unused_input_names) == 0:
@@ -570,7 +573,6 @@ class Stage(object):
 
         return augmented_outputs
 
-    @profile
     def _check_params(self, params):
         """Make sure that `expected_params` is defined and that exactly the
         params specified in self.expected_params are present.
@@ -593,7 +595,6 @@ class Stage(object):
                          %', '.join(sorted(exp_p))
                          + ';\n'.join(err_strs))
 
-    @profile
     def check_transforms(self, transforms):
         """Check that transforms' inputs and outputs match those specified
         for this service.
@@ -615,7 +616,6 @@ class Stage(object):
                 "Transforms' outputs: " + str(transforms.output_names) + \
                 "\nStage outputs: " + str(self.output_names)
 
-    @profile
     def check_outputs(self, outputs):
         assert set(outputs.names) == set(self.output_names), \
                 "Outputs: " + str(outputs.names) + \
@@ -818,7 +818,7 @@ class Stage(object):
                     id_subobjects.append(attr_hash)
 
                 # Generate the "sub-hash"
-                if any([(h == None) for h in id_subobjects]):
+                if any([(h is None) for h in id_subobjects]):
                     sub_hash = None
                 else:
                     sub_hash = hash_obj(id_subobjects,
@@ -865,7 +865,7 @@ class Stage(object):
             id_objects.append(attr_hash)
 
         # If any hashes are missing (i.e, None), invalidate the entire hash
-        if any([(h == None) for h in id_objects]):
+        if any([(h is None) for h in id_objects]):
             transforms_hash = None
         else:
             transforms_hash = hash_obj(id_objects, full_hash=self.full_hash)
@@ -924,7 +924,7 @@ class Stage(object):
         id_objects.append(self.source_code_hash)
 
         # If any hashes are missing (i.e, None), invalidate the entire hash
-        if any([(h == None) for h in id_objects]):
+        if any([(h is None) for h in id_objects]):
             nominal_transforms_hash = None
         else:
             nominal_transforms_hash = hash_obj(id_objects,
@@ -951,7 +951,6 @@ class Stage(object):
     def _compute_nominal_outputs(self):
         return None
 
-    @profile
     def _compute_outputs(self, inputs):
         """Override this method for no-input stages which do not use transforms.
         Input stages that compute a TransformSet needn't override this, as the
