@@ -27,6 +27,7 @@ in turn is essential for caching to work correctly.
 from itertools import izip
 from collections import Iterable, Iterator, Mapping, OrderedDict, Sequence
 from numbers import Number
+import re
 
 import numpy as np
 from uncertainties.core import AffineScalarFunc
@@ -34,9 +35,8 @@ from uncertainties import ufloat
 from uncertainties import unumpy as unp
 import pint
 
-from pisa import ureg, Q_, FTYPE
+from pisa import ureg, FTYPE
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils.profiler import line_profile, profile
 
 
 __all__ = ['PREC', 'LOG10_2', 'NP_TYPES', 'SEQ_TYPES', 'MAP_TYPES',
@@ -48,9 +48,9 @@ __all__ = ['PREC', 'LOG10_2', 'NP_TYPES', 'SEQ_TYPES', 'MAP_TYPES',
 PREC = np.finfo(FTYPE).eps
 """Machine precision ("eps") for PISA's FLOAT datatype"""
 
-# Derive the following number via
-# from sympy import *
-# print str(N(log(2, 10), 40))
+# Derive the following number via:
+# >>> from sympy import log, N
+# >>> str(N(log(2, 10), 40))
 LOG10_2 = np.float64('0.3010299956639811952137388947244930267682')
 
 NP_TYPES = (np.ndarray, np.matrix)
@@ -245,7 +245,7 @@ def recursiveAllclose(x, y, *args, **kwargs):
     args and kwargs are passed into numpy.allclose() function
     """
     # TODO: until the below has been verified, refuse to run
-    raise NotImplementedError()
+    raise NotImplementedError('recursiveAllclose not implemented yet')
     # None
     if x is None:
         if y is not None:
@@ -311,7 +311,6 @@ def recursiveAllclose(x, y, *args, **kwargs):
 # floating point spec values -- like half, single, double) for more precise
 # control (and possibly faster comp), esp. if we decide to move to FP32 or
 # (even more critical) FP16?
-#@line_profile
 def normQuant(obj, sigfigs=None, full_norm=True):
     """Normalize quantities such that two things that *should* be equal are
     returned as identical objects.
@@ -658,7 +657,6 @@ def test_recursiveEquality():
 
 
 def test_normQuant():
-    from pisa.utils.log import logging, set_verbosity
     # TODO: test:
     # * non-numerical
     #   * single non-numerical
