@@ -65,14 +65,14 @@ def main():
             logging.info('Instantiating pipeline from file "%s" ...'
                          %settings_file)
             pipeline = Pipeline(settings_file)
-            logging.info('>>>> retrieving outputs...')
+            logging.info('    retrieving outputs...')
             _ = pipeline.get_outputs()
-            logging.info('>>>> Seems fine!')
+            logging.info('    Seems fine!')
 
         except ImportError as err:
             if 'ROOT' in err.message:
                 if args.ignore_root:
-                    logging.info('>>>> Skipping pipeline as it has ROOT '
+                    logging.info('    Skipping pipeline as it has ROOT '
                                  'dependencies')
                 else:
                     logging.error(err)
@@ -84,7 +84,7 @@ def main():
 
             elif 'cuda' in err.message:
                 if args.ignore_gpu:
-                    logging.info('>>>> Skipping pipeline as it has GPU '
+                    logging.info('    Skipping pipeline as it has GPU '
                                  'dependencies')
                 else:
                     logging.error(err)
