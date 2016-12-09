@@ -17,7 +17,7 @@ import h5py
 import numpy as np
 from uncertainties import unumpy as unp
 
-from pisa import ureg, Q_
+from pisa import ureg
 from pisa.core.binning import MultiDimBinning, OneDimBinning
 from pisa.core.map import Map, MapSet
 from pisa.utils import resources
@@ -51,7 +51,8 @@ class Events(FlavIntData):
 
     >>> # Apply an "inbounds" cut via a OneDimBinning
     >>> true_e_binning = OneDimBinning(
-    ...    name='true_energy', num_bins=80, is_log=True, domain=[10, 60]*ureg.GeV
+    ...    name='true_energy', num_bins=80, is_log=True,
+    ...    domain=[10, 60]*ureg.GeV
     ... )
     >>> events.keepInbounds(true_e_binning)
     >>> np.min(events[fi]['true_energy']) >= 10
@@ -94,7 +95,7 @@ class Events(FlavIntData):
         self._hash = hash_obj(normQuant(self.metadata))
 
     def __str__(self):
-        meta = [(str(k) + ' : ' + str(v)) for k,v in self.metadata.items()]
+        meta = [(str(k) + ' : ' + str(v)) for k, v in self.metadata.items()]
         #fields =
         return '\n'.join(meta)
 
@@ -287,11 +288,11 @@ class Events(FlavIntData):
                     )
                 mask = eval(crit_str)
                 new_data[flav_int] = {k:v[mask]
-                                      for k,v in self[flav_int].iteritems()}
+                                      for k, v in self[flav_int].iteritems()}
                 flavints_processed.append(flav_int)
         except:
             if (len(flavints_processed) > 0
-                and flavints_processed != flavints_to_process):
+                    and flavints_processed != flavints_to_process):
                 logging.error('Events object is in an inconsistent state.'
                               ' Reverting cut for all flavInts.')
             raise
@@ -437,7 +438,7 @@ class Data(FlavIntDataGroup):
 
     @muons.setter
     def muons(self, val):
-        assert(isinstance(val, dict))
+        assert isinstance(val, dict)
         self.contains_muons = True
         self._muons = val
 
@@ -515,11 +516,11 @@ class Data(FlavIntDataGroup):
                         field_name, 'self["%s"]["%s"]' %(fig, field_name)
                     )
                 mask = eval(crit_str)
-                new_data[fig] = {k:v[mask] for k,v in self[fig].iteritems()}
+                new_data[fig] = {k:v[mask] for k, v in self[fig].iteritems()}
                 fig_processed.append(fig)
         except:
             if (len(fig_processed) > 0
-                and fig_processed != fig_to_process):
+                    and fig_processed != fig_to_process):
                 logging.error('Data object is in an inconsistent state.'
                               ' Reverting cut for all flavInts.')
             raise
@@ -692,7 +693,7 @@ class Data(FlavIntDataGroup):
         binning : OneDimBinning, MultiDimBinning
             The definition of the binning for the histograms.
         nu_weights_col : None or string
-            The column in the Data object by which to weight the neutrino 
+            The column in the Data object by which to weight the neutrino
             histograms. Specify None for unweighted histograms.
         mu_weights_col : None or string
             The column in the Data object by which to weight the muon
@@ -700,12 +701,12 @@ class Data(FlavIntDataGroup):
         mapset_name : string
             The name by which the resulting MapSet will be identified.
         errors : boolean
-            A flag for whether to calculate errors on the histograms or not. 
+            A flag for whether to calculate errors on the histograms or not.
             This defaults to False.
 
         Returns
         -------
-        MapSet : A MapSet containing all of the Maps for everything in this 
+        MapSet : A MapSet containing all of the Maps for everything in this
                  Data object.
 
         """
@@ -723,7 +724,7 @@ class Data(FlavIntDataGroup):
                                 %type(mu_weights_col))
         if not isinstance(errors, bool):
             raise TypeError('flag for whether to calculate errors or not '
-                            'should be a boolean. Got %s.'%type(errors)) 
+                            'should be a boolean. Got %s.'%type(errors))
         outputs = []
         if self.contains_neutrinos:
             trans_nu_data = self.transform_groups(
@@ -812,7 +813,7 @@ class Data(FlavIntDataGroup):
         return Data(a_fidg, metadata=metadata)
 
     def __str__(self):
-        meta = [(str(k) + ' : ' + str(v)) for k,v in self.metadata.items()]
+        meta = [(str(k) + ' : ' + str(v)) for k, v in self.metadata.items()]
         return '\n'.join(meta)
 
     def __repr__(self):
