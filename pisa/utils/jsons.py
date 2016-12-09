@@ -21,6 +21,7 @@ import pint
 import simplejson as json
 
 from pisa import ureg, Q_
+from pisa.utils.comparisons import isbarenumeric
 import resources
 import log
 
@@ -36,12 +37,14 @@ def json_string(string):
 
 
 def dumps(content, indent=2):
-     return json.dumps(content, cls=NumpyEncoder, indent=indent,
-                       sort_keys=False)
+    """Dump object to JSON-encoded string"""
+    return json.dumps(content, cls=NumpyEncoder, indent=indent,
+                      sort_keys=False)
 
 
 def loads(s):
-     return json.loads(s, cls=NumpyDecoder)
+    """Load (create) object from JSON-encoded string"""
+    return json.loads(s, cls=NumpyDecoder)
 
 
 def from_json(filename):
@@ -60,7 +63,7 @@ def from_json(filename):
     content: OrderedDict with contents of JSON file
 
     """
-    rootname, ext = os.path.splitext(filename)
+    _, ext = os.path.splitext(filename)
     ext = ext.replace('.', '').lower()
     assert ext == 'json' or ext in ZIP_EXTS
     if ext == 'bz2':
@@ -96,9 +99,9 @@ def to_json(content, filename, indent=2, overwrite=True, warn=True,
         Set to `True` (default) to allow overwriting existing file. Raise
         exception and quit otherwise.
     warn : bool
-        Issue a warning message if a file is being overwritten (`True`, default).
-        Suppress warning by setting to `False` (e.g. when overwriting is the
-        desired behaviour).
+        Issue a warning message if a file is being overwritten (`True`,
+        default). Suppress warning by setting to `False` (e.g. when overwriting
+        is the desired behaviour).
     sort_keys : bool
         Output of dictionaries will be sorted by key if set to `True`.
         Default is `False`. Cf. json.dump() or json.dumps().
@@ -114,7 +117,7 @@ def to_json(content, filename, indent=2, overwrite=True, warn=True,
         else:
             raise Exception('Refusing to overwrite path ' + fpath)
 
-    rootname, ext = os.path.splitext(filename)
+    _, ext = os.path.splitext(filename)
     ext = ext.replace('.', '').lower()
     assert ext == 'json' or ext in ZIP_EXTS
 
@@ -176,10 +179,20 @@ class NumpyDecoder(json.JSONDecoder):
 
     def json_array_numpy(self, s_and_end, scan_once, **kwargs):
         values, end = json.decoder.JSONArray(s_and_end, scan_once, **kwargs)
-        try:
-            values = np.array(values)
-        except:
-            pass
+        if len(values) == 0:
+            return values, end
+
+        # TODO: is it faster to convert to numpy array and check if the
+        # resulting dtype is pure numeric?
+        if len(values) <= 1000:
+            check_values = values
+        else:
+            check_values = values[::max([len(values)//1000, 1])]
+
+        if not all([isbarenumeric(v) for v in check_values]):
+            return values, end
+
+        values = np.array(values)
         return values, end
 
     def json_python_string(self, s, end, encoding, strict):
