@@ -4,6 +4,7 @@ oscillation and various systematics.
 
 This service in particular is intended to follow a `data` service which takes
 advantage of the Data object being passed as a sideband in the Stage.
+
 """
 
 
@@ -249,15 +250,18 @@ class weight(Stage):
         )
 
         if self.params['kde_hist'].value:
-            raise ValueError("The KDE option is currently not working properly."
-                             " Please disable this in your configuration file "
-                             "by setting kde_hist to False.")
+            raise ValueError(
+                'The KDE option is currently not working properly. Please '
+                'disable this in your configuration file by setting kde_hist '
+                'to False.'
+            )
             if self.params['output_events_mc'].value:
-                logging.warn("Warning - You have selected to apply KDE "
-                             "smoothing to the output histograms but have also "
-                             "selected that the output is an Events object "
-                             "rather than a MapSet (where the histograms "
-                             "would live.")
+                logging.warn(
+                    'Warning - You have selected to apply KDE smoothing to '
+                    'the output histograms but have also selected that the '
+                    'output is an Events object rather than a MapSet (where '
+                    'the histograms would live.'
+                )
             else:
                 from pisa.utils.kde_hist import kde_histogramdd
                 self.kde_histogramdd = kde_histogramdd
@@ -664,7 +668,9 @@ class weight(Stage):
 
             osc_data[fig]['device'] = OrderedDict()
             for key in device.iterkeys():
-                osc_data[fig]['device'][key] = cuda.mem_alloc(device[key].nbytes)
+                osc_data[fig]['device'][key] = (
+                    cuda.mem_alloc(device[key].nbytes)
+                )
                 cuda.memcpy_htod(osc_data[fig]['device'][key], device[key])
 
         osc.update_MNS(theta12, theta13, theta23, deltam21, deltam31, deltacp)
@@ -737,24 +743,28 @@ class weight(Stage):
         if you use it with a different event sample.
         """
         if 'true' not in self.params['delta_gamma_mu_variable'].value:
-            raise ValueError("Variable to construct spline should be a truth "
-                             "variable. You have put %s in your configuration "
-                             "file."
-                             %self.params['delta_gamma_mu_variable'].value)
+            raise ValueError(
+                'Variable to construct spline should be a truth variable. '
+                'You have put %s in your configuration file.'
+                % self.params['delta_gamma_mu_variable'].value
+            )
 
         bare_variable = self.params['delta_gamma_mu_variable']\
                             .value.split('true_')[-1]
         if not bare_variable == 'coszen':
-            raise ValueError("Muon primary cosmic ray systematic is currently "
-                             "only implemented as a function of cos(zenith). "
-                             "%s was set in the configuration file."
-                             %self.params['delta_gamma_mu_variable'].value)
+            raise ValueError(
+                'Muon primary cosmic ray systematic is currently only '
+                'implemented as a function of cos(zenith). %s was set in the '
+                'configuration file.'
+                % self.params['delta_gamma_mu_variable'].value
+            )
         if bare_variable not in self.params['delta_gamma_mu_file'].value:
-            raise ValueError("Variable set in configuration file is %s but the"
-                             " file you have selected, %s, does not make "
-                             "reference to this in its name."
-                             %(self.params['delta_gamma_mu_variable'].value,
-                               self.params['delta_gamma_mu_file'].value))
+            raise ValueError(
+                'Variable set in configuration file is %s but the file you '
+                'have selected, %s, does not make reference to this in its '
+                'name.' % (self.params['delta_gamma_mu_variable'].value,
+                           self.params['delta_gamma_mu_file'].value)
+            )
 
         unc_data = np.genfromtxt(
             open_resource(self.params['delta_gamma_mu_file'].value)
@@ -835,5 +845,7 @@ class weight(Stage):
         for p, t in param_types:
             val = params[p].value
             if not isinstance(val, t):
-                raise TypeError('Param "%s" must be type %s but is %s instead'
-                                %(p, type(t), type(val)))
+                raise TypeError(
+                    'Param "%s" must be type %s but is %s instead'
+                    % (p, type(t), type(val))
+                )

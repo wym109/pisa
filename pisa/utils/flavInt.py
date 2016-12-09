@@ -1223,7 +1223,7 @@ class FlavIntDataGroup(dict):
 
         if val is None:
             # Instantiate empty FlavIntDataGroup
-            d = {str(group):None for group in self.flavint_groups}
+            d = {str(group): None for group in self.flavint_groups}
         else:
             if isinstance(val, basestring):
                 d = self.__load(val)
@@ -1343,11 +1343,12 @@ class FlavIntDataGroup(dict):
             else:
                 raise AssertionError(
                     'Elements in `flavint_groups` not all type '
-                    'NuFlavIntGroup or string: %s' %flavint_groups
+                    'NuFlavIntGroup or string: %s' % flavint_groups
                 )
         else:
             raise TypeError('Unrecognized `flavint_groups` type %s' %
                             type(flavint_groups))
+
     @staticmethod
     def _merge(a, b, path=None):
         """Merge dictionaries `a` and `b` by recursively iterating down
@@ -1388,14 +1389,14 @@ class FlavIntDataGroup(dict):
             nfi = NuFlavIntGroup(idx)
             return str(nfi)
         except:
-            raise ValueError('Invalid index: %s' %str(idx))
+            raise ValueError('Invalid index: %s' % str(idx))
 
     def __basic_validate(self, fi_container):
         for group in self.flavint_groups:
             f = str(group)
             assert isinstance(fi_container, dict), "container must be of" \
                     " type 'dict'; instead got %s" % type(fi_container)
-            assert fi_container.has_key(f), \
+            assert f in fi_container, \
                     "container missing flavint group '%s'" % f
 
     def __load(self, fname, **kwargs):
@@ -1424,6 +1425,7 @@ class FlavIntDataGroup(dict):
     def __eq__(self, other):
         """Recursive, exact equality"""
         return recursiveEquality(self, other)
+
 
 def flavintGroupsFromString(groups):
     """Interpret `groups` to break into neutrino flavor/interaction type(s)
@@ -1628,7 +1630,7 @@ class CombinedFlavIntData(FlavIntData):
         exception if obsolete groupings are specified).
         """
         dupe_kgs, dupe_kgs_data = self.idDupes(rtol=rtol, atol=atol)
-        d = {str(kg):dat for kg, dat in izip(dupe_kgs, dupe_kgs_data)}
+        d = {str(kg): dat for kg, dat in izip(dupe_kgs, dupe_kgs_data)}
         self.validate(d)
         self.grouped = [kg for kg in dupe_kgs if len(kg) > 1]
         self.ungrouped = [kg for kg in dupe_kgs if len(kg) == 1]
@@ -2156,18 +2158,18 @@ def test_FlavIntDataGroup():
 
     d1 = {
         'numu+numubar': {
-            'energy' : np.arange(0, 10)
+            'energy': np.arange(0, 10)
         },
         'nutau+nutaubar': {
-            'energy' : np.arange(0, 10)
+            'energy': np.arange(0, 10)
         }
     }
     d2 = {
         'nue+nuebar': {
-            'weights' : np.arange(0, 10)
+            'weights': np.arange(0, 10)
         },
         'nutau+nutaubar': {
-            'weights' : np.arange(0, 10)
+            'weights': np.arange(0, 10)
         }
     }
     d1 = FlavIntDataGroup(val=d1)
@@ -2232,9 +2234,11 @@ def test_CombinedFlavIntData():
     # Empty container with groupings
     CombinedFlavIntData(flavint_groupings='nuall,nuallbar')
     # Instantiate with non-standard key names
-    cfid = CombinedFlavIntData(val={'nuall':np.arange(0, 100),
-                                    'nu all bar CC':np.arange(100, 200),
-                                    'nuallbarnc':np.arange(200, 300)})
+    cfid = CombinedFlavIntData(
+        val={'nuall': np.arange(0, 100),
+             'nu all bar CC': np.arange(100, 200),
+             'nuallbarnc': np.arange(200, 300)}
+    )
     assert set(cfid.keys()) == set(('nuall', 'nuallbar_cc', 'nuallbar_nc'))
     cfid.save('/tmp/test_CombinedFlavIntData.json')
     cfid.save('/tmp/test_CombinedFlavIntData.hdf5')
