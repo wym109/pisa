@@ -512,14 +512,13 @@ class Data(FlavIntDataGroup):
                 crit_str = (keep_criteria)
                 for field_name in field_names:
                     crit_str = crit_str.replace(
-                        field_name, 'self["%s"]["%s"]' %(fig, field_name)
+                        field_name, 'self["%s"]["%s"]' % (fig, field_name)
                     )
                 mask = eval(crit_str)
-                new_data[fig] = {k:v[mask] for k,v in self[fig].iteritems()}
+                new_data[fig] = {k: v[mask] for k, v in self[fig].iteritems()}
                 fig_processed.append(fig)
         except:
-            if (len(fig_processed) > 0
-                and fig_processed != fig_to_process):
+            if (len(fig_processed) > 0 and fig_processed != fig_to_process):
                 logging.error('Data object is in an inconsistent state.'
                               ' Reverting cut for all flavInts.')
             raise
@@ -581,7 +580,8 @@ class Data(FlavIntDataGroup):
         Parameters
         ----------
         kinds : string, sequence of NuFlavInt, or NuFlavIntGroup
-        binning : OneDimBinning, MultiDimBinning or sequence of arrays (one array per binning dimension)
+        binning : OneDimBinning, MultiDimBinning or sequence of arrays
+            (one array per binning dimension)
         binning_cols : string or sequence of strings
             Bin only these dimensions, ignoring other dimensions in `binning`
         weights_col : None or string
@@ -619,11 +619,11 @@ class Data(FlavIntDataGroup):
         # TODO: units of columns, and convert bin edges if necessary
         if isinstance(binning, OneDimBinning):
             binning = MultiDimBinning([binning])
-            #bin_edges = [binning.magnitude]
-            #if binning_cols is None:
-            #    binning_cols = [binning.name]
-            #else:
-            #    assert len(binning_cols) == 1 and binning_cols[0] == binning.name
+            # bin_edges = [binning.magnitude]
+            # if binning_cols is None:
+            #     binning_cols = [binning.name]
+            # else:
+            #     assert len(binning_cols) == 1 and binning_cols[0] == binning.name
         elif isinstance(binning, MultiDimBinning):
             pass
         elif isinstance(binning, Iterable) and not isinstance(binning, Sequence):
@@ -631,15 +631,15 @@ class Data(FlavIntDataGroup):
         elif isinstance(binning, Sequence):
             pass
         else:
-            raise TypeError('Unhandled type %s for `binning`.' %type(binning))
+            raise TypeError('Unhandled type %s for `binning`.' % type(binning))
 
         if isinstance(binning, Sequence):
             raise NotImplementedError(
                 'Simle sequences not handled at this time. Please specify a'
                 ' OneDimBinning or MultiDimBinning object for `binning`.'
             )
-            #assert len(binning_cols) == len(binning)
-            #bin_edges = binning
+            # assert len(binning_cols) == len(binning)
+            # bin_edges = binning
 
         # TODO: units support for Data will mean we can do `m_as(...)` here!
         bin_edges = [edges.magnitude for edges in binning.bin_edges]
@@ -668,8 +668,10 @@ class Data(FlavIntDataGroup):
 
         if name is None:
             if tex is None:
-                try: tex = kinds.tex()
-                except: tex = r'{0}'.format(kinds)
+                try:
+                    tex = kinds.tex()
+                except:
+                    tex = r'{0}'.format(kinds)
                 if weights_col is not None:
                     tex += r', \; {\rm weights=' + text2tex(weights_col) + r'}'
 
@@ -692,7 +694,7 @@ class Data(FlavIntDataGroup):
         binning : OneDimBinning, MultiDimBinning
             The definition of the binning for the histograms.
         nu_weights_col : None or string
-            The column in the Data object by which to weight the neutrino 
+            The column in the Data object by which to weight the neutrino
             histograms. Specify None for unweighted histograms.
         mu_weights_col : None or string
             The column in the Data object by which to weight the muon
@@ -700,30 +702,30 @@ class Data(FlavIntDataGroup):
         mapset_name : string
             The name by which the resulting MapSet will be identified.
         errors : boolean
-            A flag for whether to calculate errors on the histograms or not. 
+            A flag for whether to calculate errors on the histograms or not.
             This defaults to False.
 
         Returns
         -------
-        MapSet : A MapSet containing all of the Maps for everything in this 
+        MapSet : A MapSet containing all of the Maps for everything in this
                  Data object.
 
         """
         if not isinstance(binning, MultiDimBinning):
             if not isinstance(binning, OneDimBinning):
                 raise TypeError('binning should be either MultiDimBinning or '
-                                'OneDimBinning object. Got %s.'%type(binning))
+                                'OneDimBinning object. Got %s.' % type(binning))
         if nu_weights_col is not None:
             if not isinstance(nu_weights_col, basestring):
                 raise TypeError('nu_weights_col should be a string. Got %s'
-                                %type(nu_weights_col))
+                                % type(nu_weights_col))
         if mu_weights_col is not None:
             if not isinstance(mu_weights_col, basestring):
                 raise TypeError('mu_weights_col should be a string. Got %s'
-                                %type(mu_weights_col))
+                                % type(mu_weights_col))
         if not isinstance(errors, bool):
             raise TypeError('flag for whether to calculate errors or not '
-                            'should be a boolean. Got %s.'%type(errors)) 
+                            'should be a boolean. Got %s.' % type(errors))
         outputs = []
         if self.contains_neutrinos:
             trans_nu_data = self.transform_groups(
@@ -812,7 +814,7 @@ class Data(FlavIntDataGroup):
         return Data(a_fidg, metadata=metadata)
 
     def __str__(self):
-        meta = [(str(k) + ' : ' + str(v)) for k,v in self.metadata.items()]
+        meta = [(str(k) + ' : ' + str(v)) for k, v in self.metadata.items()]
         return '\n'.join(meta)
 
     def __repr__(self):

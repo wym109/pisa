@@ -1196,7 +1196,7 @@ class FlavIntDataGroup(dict):
             If val is a string, it is expected to be a comma-separated
             list, each field of which describes a NuFlavIntGroup. The
             returned list of groups encompasses all possible flavor/int
-            types, but the groups are mutually exclusive. 
+            types, but the groups are mutually exclusive.
         iterable of strings or NuFlavIntGroup
             If val is an iterable, each member of the iterable is
             interpreted as a NuFlavIntGroup.
@@ -1212,7 +1212,7 @@ class FlavIntDataGroup(dict):
 
         if val is None:
             # Instantiate empty FlavIntDataGroup
-            d = {str(group):None for group in self.flavint_groups}
+            d = {str(group): None for group in self.flavint_groups}
         else:
             if isinstance(val, basestring):
                 d = self.__load(val)
@@ -1337,6 +1337,7 @@ class FlavIntDataGroup(dict):
         else:
             raise TypeError('Unrecognized `flavint_groups` type %s' %
                             type(flavint_groups))
+
     @staticmethod
     def _merge(a, b, path=None):
         """Merge dictionaries `a` and `b` by recursively iterating down
@@ -1344,7 +1345,8 @@ class FlavIntDataGroup(dict):
         arrays are found, after which the appropriate sub-element is
         made equal to the concatenation of the two arrays.
         """
-        if path is None: path = []
+        if path is None:
+            path = []
         for key in b:
             if key in a:
                 if isinstance(a[key], dict) and isinstance(b[key], dict):
@@ -1372,15 +1374,15 @@ class FlavIntDataGroup(dict):
             nfi = NuFlavIntGroup(idx)
             return str(nfi)
         except:
-            raise ValueError('Invalid index: %s' %str(idx))
+            raise ValueError('Invalid index: %s' % str(idx))
 
     def __basic_validate(self, fi_container):
         for group in self.flavint_groups:
             f = str(group)
             assert isinstance(fi_container, dict), "container must be of" \
-                    " type 'dict'; instead got %s" % type(fi_container)
-            assert fi_container.has_key(f), \
-                    "container missing flavint group '%s'" % f
+                " type 'dict'; instead got %s" % type(fi_container)
+            assert f in fi_container, \
+                "container missing flavint group '%s'" % f
 
     def __load(self, fname, **kwargs):
         d = fileio.from_file(fname, **kwargs)
@@ -1408,6 +1410,7 @@ class FlavIntDataGroup(dict):
     def __eq__(self, other):
         """Recursive, exact equality"""
         return recursiveEquality(self, other)
+
 
 def flavintGroupsFromString(groups):
     """Interpret `groups` to break into neutrino flavor/interaction type(s)

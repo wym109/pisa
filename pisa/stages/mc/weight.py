@@ -15,7 +15,7 @@ import pint
 from pisa import FTYPE
 from pisa import ureg, Q_
 from pisa.core.events import Data
-from pisa.core.map import MapSet
+from pisa.core.map import Map, MapSet
 from pisa.core.param import ParamSet
 from pisa.core.stage import Stage
 from pisa.utils.comparisons import normQuant
@@ -184,7 +184,7 @@ class weight(Stage):
         if 'muons' in input_names:
             expected_params += self.atm_muon_params
         if 'noise' in input_names:
-            expected_params += self.noise_params    
+            expected_params += self.noise_params
 
         self.neutrinos = False
         self.muons = False
@@ -243,15 +243,18 @@ class weight(Stage):
         )
 
         if self.params['kde_hist'].value:
-            raise ValueError("The KDE option is currently not working properly."
-                             " Please disable this in your configuration file "
-                             "by setting kde_hist to False.")
+            raise ValueError(
+                'The KDE option is currently not working properly. Please '
+                'disable this in your configuration file by setting kde_hist '
+                'to False.'
+            )
             if self.params['output_events_mc'].value:
-                logging.warn("Warning - You have selected to apply KDE "
-                             "smoothing to the output histograms but have also "
-                             "selected that the output is an Events object "
-                             "rather than a MapSet (where the histograms "
-                             "would live.")
+                logging.warn(
+                    'Warning - You have selected to apply KDE smoothing to '
+                    'the output histograms but have also selected that the '
+                    'output is an Events object rather than a MapSet (where '
+                    'the histograms would live.'
+                )
             else:
                 from pisa.utils.kde_hist import kde_histogramdd
                 self.kde_histogramdd = kde_histogramdd
@@ -345,7 +348,7 @@ class weight(Stage):
                     for bin_name in self.output_binning.names:
                         if 'coszen' in bin_name:
                             coszen_name = bin_name
-                    if coszen_name == None:
+                    if coszen_name is None:
                         raise ValueError("Did not find coszen in binning. KDE "
                                          "will not work correctly.")
                     kde_hist = self.kde_histogramdd(
@@ -362,7 +365,7 @@ class weight(Stage):
                         coszen_reflection=0.5,
                         adaptive=True
                     )
-                    output.append(
+                    outputs.append(
                         Map(
                             name=fig,
                             hist=kde_hist,
@@ -401,7 +404,7 @@ class weight(Stage):
                     coszen_reflection=0.5,
                     adaptive=True
                 )
-                output.append(
+                outputs.append(
                     Map(
                         name='muons',
                         hist=kde_hist,
@@ -623,13 +626,13 @@ class weight(Stage):
         deltacp = params['deltacp'].m_as('rad')
 
         osc = prob3gpu(
-            params = params,
-            input_binning = None,
-            output_binning = None,
-            error_method = None,
-            memcache_deepcopy = False,
-            transforms_cache_depth = 0,
-            outputs_cache_depth = 0
+            params=params,
+            input_binning=None,
+            output_binning=None,
+            error_method=None,
+            memcache_deepcopy=False,
+            transforms_cache_depth=0,
+            outputs_cache_depth=0
         )
 
         osc_data = {}
@@ -708,44 +711,48 @@ class weight(Stage):
     def make_prim_unc_spline(self):
         """
         Create the spline which will be used to re-weight muons based on the
-        uncertainties arising from cosmic rays. 
+        uncertainties arising from cosmic rays.
 
         Notes
         -----
 
-        Details on this work can be found here - 
+        Details on this work can be found here -
 
         https://wiki.icecube.wisc.edu/index.php/DeepCore_Muon_Background_Systematics
 
-        This work was done for the GRECO sample but should be reasonably 
-        generic. It was found to pretty much be a negligible systemtic. Though 
+        This work was done for the GRECO sample but should be reasonably
+        generic. It was found to pretty much be a negligible systemtic. Though
         you should check both if it seems reasonable and it is still negligible
         if you use it with a different event sample.
         """
         if 'true' not in self.params['delta_gamma_mu_variable'].value:
-            raise ValueError("Variable to construct spline should be a truth "
-                             "variable. You have put %s in your configuration "
-                             "file."
-                             %self.params['delta_gamma_mu_variable'].value)
-        
+            raise ValueError(
+                'Variable to construct spline should be a truth variable. '
+                'You have put %s in your configuration file.'
+                % self.params['delta_gamma_mu_variable'].value
+            )
+
         bare_variable = self.params['delta_gamma_mu_variable']\
                             .value.split('true_')[-1]
         if not bare_variable == 'coszen':
-            raise ValueError("Muon primary cosmic ray systematic is currently "
-                             "only implemented as a function of cos(zenith). "
-                             "%s was set in the configuration file."
-                             %self.params['delta_gamma_mu_variable'].value)
+            raise ValueError(
+                'Muon primary cosmic ray systematic is currently only '
+                'implemented as a function of cos(zenith). %s was set in the '
+                'configuration file.'
+                % self.params['delta_gamma_mu_variable'].value
+            )
         if bare_variable not in self.params['delta_gamma_mu_file'].value:
-            raise ValueError("Variable set in configuration file is %s but the"
-                             " file you have selected, %s, does not make "
-                             "reference to this in its name."
-                             %(self.params['delta_gamma_mu_variable'].value,
-                               self.params['delta_gamma_mu_file'].value))
-        
+            raise ValueError(
+                'Variable set in configuration file is %s but the file you '
+                'have selected, %s, does not make reference to this in its '
+                'name.' % (self.params['delta_gamma_mu_variable'].value,
+                           self.params['delta_gamma_mu_file'].value)
+            )
+
         unc_data = np.genfromtxt(
             open_resource(self.params['delta_gamma_mu_file'].value)
         ).T
-        
+
         # Need to deal with zeroes that arise due to a lack of MC. For example,
         # in the case of the splines as a function of cosZenith, there are no
         # hoirzontal muons. Current solution is just to replace them with their
@@ -756,17 +763,17 @@ class weight(Stage):
                 unc_data[1][zero_index] = unc_data[1][zero_index+1]
 
         # Add dummpy points for the edge of the zenith range
-        xvals = np.insert(unc_data[0],0,0.0)
-        xvals = np.append(xvals,1.0)
-        yvals = np.insert(unc_data[1],0,unc_data[1][0])
-        yvals = np.append(yvals,unc_data[1][-1])
+        xvals = np.insert(unc_data[0], 0, 0.0)
+        xvals = np.append(xvals, 1.0)
+        yvals = np.insert(unc_data[1], 0, unc_data[1][0])
+        yvals = np.append(yvals, unc_data[1][-1])
 
         muon_uncf = interp1d(
             xvals,
             yvals,
-            kind = self.params['delta_gamma_mu_spline_kind'].value
+            kind=self.params['delta_gamma_mu_spline_kind'].value
         )
-        
+
         return muon_uncf
 
     def validate_params(self, params):
@@ -809,8 +816,8 @@ class weight(Stage):
             param_types.extend([
                 ('atm_muon_scale', pq),
                 ('delta_gamma_mu_file', basestring),
-                ('delta_gamma_mu_spline_kind',basestring),
-                ('delta_gamma_mu_variable',basestring),
+                ('delta_gamma_mu_spline_kind', basestring),
+                ('delta_gamma_mu_variable', basestring),
                 ('delta_gamma_mu', pq)
             ])
         if self.noise:
@@ -821,5 +828,7 @@ class weight(Stage):
         for p, t in param_types:
             val = params[p].value
             if not isinstance(val, t):
-                raise TypeError('Param "%s" must be type %s but is %s instead'
-                                %(p,type(t),type(val)))
+                raise TypeError(
+                    'Param "%s" must be type %s but is %s instead'
+                    % (p, type(t), type(val))
+                )
