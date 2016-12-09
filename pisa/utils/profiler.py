@@ -1,14 +1,20 @@
+"""
+Profiling decorators
+"""
+
 import time
 
 from line_profiler import LineProfiler
 
+# Note this relative import (might be) necessary to avoid circular imports
 import log
 
 
-__all__ = ['line_profile', 'profile']
+__all__ = ['line_profile', 'profile',
+           'test_profile', 'test_line_profile']
 
 
-class Log():
+class Log(object):
     """Class to redirect output into our logging stream."""
     def write(self, string):
         string = string.rstrip('\n')
@@ -65,10 +71,10 @@ def test_profile():
     def expensive_function():
         log.logging.debug('hello, i am expensive fun')
         for x in get_number():
-            i = x ^ x ^ x
+            _ = x ^ x ^ x
         return 'some result!'
 
-    result = expensive_function()
+    _ = expensive_function()
     log.logging.info('<< PASSED : test_profile >>')
 
 
@@ -86,7 +92,7 @@ def test_line_profile():
             i = x ^ x ^ x
         return 'some result!'
 
-    result = expensive_function()
+    _ = expensive_function()
     log.logging.info('<< PASSED : test_line_profile >>')
 
 
