@@ -17,7 +17,7 @@ from __future__ import division
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from collections import Mapping, OrderedDict, Sequence
-from copy import copy, deepcopy
+from copy import copy
 import getpass
 from itertools import product
 import os
@@ -27,14 +27,14 @@ import socket
 import string
 import sys
 import time
-from traceback import format_exc
+from traceback import format_exception
 
 import pint
 
-from pisa import ureg, _version, __version__
+from pisa import _version, __version__
 from pisa.analysis.analysis import Analysis
 from pisa.core.distribution_maker import DistributionMaker
-from pisa.core.map import VALID_METRICS
+from pisa.core.map import VALID_METRICS, MapSet
 from pisa.utils.comparisons import normQuant
 from pisa.utils.fileio import from_file, get_valid_filename, mkdir, to_file
 from pisa.utils.hash import hash_obj
@@ -108,9 +108,9 @@ class Labels(object):
         self.h0_fit_to_data = '{h0}_fit_to_{data}'.format(**self.dict)
         self.h1_fit_to_data = '{h1}_fit_to_{data}'.format(**self.dict)
 
-        for x, y in product(*[['0','1']]*2):
+        for x, y in product(*[['0', '1']]*2):
             varname = 'h{x}_fit_to_h{y}_fid_'.format(x=x, y=y)
-            basestr = ('{h%s}_fit_to_{h%s}_{fid}'%(x,y)).format(**self.dict)
+            basestr = ('{h%s}_fit_to_{h%s}_{fid}'%(x, y)).format(**self.dict)
             self.dict[varname+'base'] = basestr
             if self.fluctuate_fid:
                 self.dict[varname+'re'] = re.compile(basestr + '_' +
@@ -134,7 +134,7 @@ class Labels(object):
         else:
             ind_sfx = ''
 
-        for x, y in product(*[['0','1']]*2):
+        for x, y in product(*[['0', '1']]*2):
             dst_varname = 'h{x}_fit_to_h{y}_fid'.format(x=x, y=y)
             src_varname = dst_varname + '_base'
             self.dict[dst_varname] = self.dict[src_varname]  + ind_sfx
@@ -251,7 +251,8 @@ class HypoTesting(Analysis):
 
     blind : bool
         Set to True to run a blind analysis, whereby free parameter values are
-        hidden from terminal display and are removed before storing to log files.
+        hidden from terminal display and are removed before storing to log
+        files.
 
     allow_dirty : bool
         !USE WITH CAUTION! Allow for running code despite a "dirty" git
@@ -360,13 +361,13 @@ class HypoTesting(Analysis):
                 data_param_selections = [h0_param_selections]
 
         if (isinstance(h0_param_selections, Sequence)
-            and len(h0_param_selections) == 0):
+                and len(h0_param_selections) == 0):
             h0_param_selections = None
         if (isinstance(h1_param_selections, Sequence)
-            and len(h1_param_selections) == 0):
+                and len(h1_param_selections) == 0):
             h1_param_selections = None
         if (isinstance(data_param_selections, Sequence)
-            and len(data_param_selections) == 0):
+                and len(data_param_selections) == 0):
             data_param_selections = None
 
         # Cannot specify either of `data_maker` or `data_param_selections` if
@@ -522,7 +523,7 @@ class HypoTesting(Analysis):
 
         if h1_name is None:
             if (self.h1_maker == self.h0_maker
-                and self.h1_param_selections == self.h0_param_selections):
+                    and self.h1_param_selections == self.h0_param_selections):
                 h1_name = h0_name
             elif self.h1_param_selections is not None:
                 h1_name = ','.join(self.h1_param_selections)
@@ -531,7 +532,7 @@ class HypoTesting(Analysis):
 
         if data_name is None:
             if (self.data_maker == self.h0_maker
-                and self.data_param_selections == self.h0_param_selections):
+                    and self.data_param_selections == self.h0_param_selections):
                 data_name = h0_name
             elif (self.data_maker == self.h1_maker
                   and self.data_param_selections == self.h1_param_selections):
@@ -618,10 +619,27 @@ class HypoTesting(Analysis):
 
                     self.produce_fid_data()
                     self.fit_hypos_to_fid()
-        except:
-            self.write_run_stop_info(sys.exc_info())
-        else:
-            self.write_run_stop_info()
+
+        except Exception:
+            exc = sys.exc_info()
+
+        finally:
+            if exc[0] is not None:
+                logging.error('`run_analysis` body failed with exception:')
+                [logging.error(' '*4 + l) for l in format_exception(*exc)]
+
+            try:
+                self.write_run_stop_info(exc=exc)
+            except Exception:
+                exc_l = sys.exc_info()
+
+            if exc_l[0] is not None:
+                logging.error('`write_run_stop_info` failed with exception:')
+                [logging.error(' '*4 + l) for l in format_exception(*exc_l)]
+                raise exc_l
+
+            if exc[0] is not None:
+                raise exc
 
     def generate_data(self):
         logging.info('Generating %s distributions.' %self.labels.data_disp)
@@ -644,7 +662,9 @@ class HypoTesting(Analysis):
         # Produce Asimov dist if we don't already have it
         if self.toy_data_asimov_dist is None:
             self.data_maker.select_params(self.data_param_selections)
-            self.toy_data_asimov_dist = self.data_maker.get_outputs(return_sum=True)
+            self.toy_data_asimov_dist = (
+                self.data_maker.get_outputs(return_sum=True)
+            )
             self.h0_fit_to_data = None
             self.h1_fit_to_data = None
 
@@ -684,8 +704,8 @@ class HypoTesting(Analysis):
         # If h0 maker is same as data maker, we know the fit will end up with
         # the data maker's params. Set these param values and record them.
         if (not self.data_is_data and self.data_maker_is_h0_maker
-            and self.h0_param_selections == self.data_param_selections
-            and not self.fluctuate_data):
+                and self.h0_param_selections == self.data_param_selections
+                and not self.fluctuate_data):
             logging.info('Hypo %s will reproduce exactly %s distributions; not'
                          ' running corresponding fit.'
                          %(self.labels.h0_name, self.labels.data_disp))
@@ -724,8 +744,8 @@ class HypoTesting(Analysis):
                      label=self.labels.h0_fit_to_data)
 
         if (not self.data_is_data and self.data_maker_is_h1_maker
-            and self.h1_param_selections == self.data_param_selections
-            and not self.fluctuate_data):
+                and self.h1_param_selections == self.data_param_selections
+                and not self.fluctuate_data):
             logging.info('Hypo %s will reproduce exactly %s distributions; not'
                          ' running corresponding fit.'
                          %(self.labels.h1_name, self.labels.data_disp))
@@ -893,8 +913,8 @@ class HypoTesting(Analysis):
                              self.labels.h1_fit_to_h0_fid + '.json')
         if not os.path.isfile(fpath):
             if ((not self.fluctuate_data) and (not self.fluctuate_fid)
-                and self.data_maker_is_h0_maker
-                and self.h0_param_selections == self.data_param_selections):
+                    and self.data_maker_is_h0_maker
+                    and self.h0_param_selections == self.data_param_selections):
                 logging.info(
                     'Fitting hypo %s to hypo %s %s distributions is'
                     ' unnecessary since former was already fit to %s'
@@ -929,8 +949,8 @@ class HypoTesting(Analysis):
                              self.labels.h0_fit_to_h1_fid + '.json')
         if not os.path.isfile(fpath):
             if ((not self.fluctuate_data) and (not self.fluctuate_fid)
-                and self.data_maker_is_h1_maker
-                and self.h1_param_selections == self.data_param_selections):
+                    and self.data_maker_is_h1_maker
+                    and self.h1_param_selections == self.data_param_selections):
                 logging.info(
                     'Fitting hypo %s to hypo %s %s distributions is'
                     ' unnecessary since former was already fit to %s'
@@ -1145,9 +1165,8 @@ class HypoTesting(Analysis):
             self.logroot, 'minimizer_settings.json'
         )
         self.run_info_fname = (
-            'run_%s_%s_%s.info' %(self.invocation_datetime,
-                                       self.hostname,
-                                       self.random_suffix)
+            'run_%s_%s_%s.info'
+            %(self.invocation_datetime, self.hostname, self.random_suffix)
         )
         self.run_info_fpath = os.path.join(self.logroot, self.run_info_fname)
 
@@ -1203,10 +1222,10 @@ class HypoTesting(Analysis):
         # (want top-to-bottom file convention vs. fifo streaming data
         # convention)
         od = OrderedDict()
-        for ok, ov in (summary.items()):
+        for ok, ov in summary.items():
             if isinstance(ov, OrderedDict):
                 od1 = OrderedDict()
-                for ik, iv in (ov.items()):
+                for ik, iv in ov.items():
                     od1[ik] = iv
                 ov = od1
             od[ok] = ov
@@ -1224,7 +1243,7 @@ class HypoTesting(Analysis):
                 d = OrderedDict()
                 for attr in ['input_binning', 'output_binning']:
                     if (hasattr(stage, attr)
-                        and getattr(stage, attr) is not None):
+                            and getattr(stage, attr) is not None):
                         d[attr] = str(getattr(stage, attr))
                 stage_info[k] = d
             pipeline_info.append(stage_info)
@@ -1279,6 +1298,10 @@ class HypoTesting(Analysis):
         to_file(self.minimizer_settings, self.minimizer_settings_fpath)
 
     def write_run_stop_info(self, exc=None):
+        if isinstance(exc, Sequence):
+            if exc[0] is None:
+                exc = None
+
         self.stop_datetime = timestamp(utc=True, winsafe=True)
         self.stop_time = time.time()
         self.analysis_runtime = self.stop_time - self.analysis_start_time
@@ -1295,19 +1318,17 @@ class HypoTesting(Analysis):
         if exc is None:
             run_info.append('completed = True')
             run_info.append('exception = None')
+            run_info.append('traceback = None')
         else:
             run_info.append('completed = False')
             run_info.append('exception = ' + str((exc[0], exc[1])))
-            run_info.append(format_exc())
+            run_info.append('traceback = ' + '  '.join(format_exception(*exc)))
 
         with file(self.run_info_fpath, 'a') as f:
             f.write('\n'.join(run_info) + '\n')
 
         logging.info('Run stop info written to: ' + self.run_info_fpath)
         logging.info('Total analysis run time: ' + dt_stamp)
-
-        if exc is not None:
-            raise
 
     def log_fit(self, fit_info, dirpath, label):
         serialize = ['metric', 'metric_val', 'params', 'minimizer_time',
