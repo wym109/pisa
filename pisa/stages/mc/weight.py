@@ -54,10 +54,11 @@ class weight(Stage):
                 Desired lifetime.
 
             * Cross-section related parameters:
-                - nu_dis_a
-                - nu_dis_b
-                - nubar_dis_a
-                - nubar_dis_b
+                - nu_diff_DIS
+                - nu_diff_norm
+                - nubar_diff_DIS
+                - nubar_diff_norm
+                - hadron_DIS
 
             * Flux related parameters:
                 For more information see `$PISA/pisa/stages/flux/honda.py`
@@ -137,10 +138,11 @@ class weight(Stage):
         )
 
         self.xsec_params = (
-            'nu_dis_a',
-            'nu_dis_b',
-            'nubar_dis_a',
-            'nubar_dis_b'
+            'nu_diff_DIS',
+            'nu_diff_norm',
+            'nubar_diff_DIS',
+            'nubar_diff_norm',
+            'hadron_DIS'
         )
 
         self.flux_params = (
@@ -580,15 +582,26 @@ class weight(Stage):
 
         xsec_weights = OrderedDict()
         for fig in nu_data.iterkeys():
+            # Differential xsec systematic
             if 'bar' not in fig:
-                dis_a = params['nu_dis_a'].m
-                dis_b = params['nu_dis_b'].m
+                nu_diff_DIS = params['nu_diff_DIS'].m
+                nu_diff_norm = params['nu_diff_norm'].m
             else:
-                dis_a = params['nubar_dis_a'].m
-                dis_b = params['nubar_dis_b'].m
+                nu_diff_DIS = params['nubar_diff_DIS'].m
+                nu_diff_norm = params['nubar_diff_norm'].m
             xsec_weights[fig] = (
-                dis_b * np.power(nu_data[fig]['GENIE_x'], -dis_a)
+                (1 - nu_diff_norm * nu_diff_DIS) *
+                np.power(nu_data[fig]['GENIE_x'], -nu_diff_DIS)
             )
+
+            # High W hadronization systematic
+            hadron_DIS = params['hadron_DIS'].m
+            if hadron_DIS != 0.:
+                xsec_weights[fig] *= (
+                    1. / (1 + (2*hadron_DIS * np.exp(
+                        -nu_data[fig]['GENIE_y'] / hadron_DIS
+                    )))
+                )
         return xsec_weights
 
     @staticmethod
@@ -804,10 +817,11 @@ class weight(Stage):
             param_types.extend([
                 ('oscillate', bool),
                 ('cache_flux', bool),
-                ('nu_dis_a', pq),
-                ('nu_dis_b', pq),
-                ('nubar_dis_a', pq),
-                ('nubar_dis_b', pq),
+                ('nu_diff_DIS', pq),
+                ('nu_diff_norm', pq),
+                ('nubar_diff_DIS', pq),
+                ('nubar_diff_norm', pq),
+                ('hadron_DIS', pq),
                 ('flux_file', basestring),
                 ('atm_delta_index', pq),
                 ('nu_nubar_ratio', pq),
