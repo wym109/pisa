@@ -103,7 +103,6 @@ class prob3gpu(Stage):
       // ensure we don't access memory outside of bounds!
       if (thread_2D_pos.x >= nczbins_fine || thread_2D_pos.y >= nebins_fine)
         return;
-      const int thread_1D_pos = thread_2D_pos.y*nczbins_fine + thread_2D_pos.x;
 
       int eidx = thread_2D_pos.y;
       int czidx = thread_2D_pos.x;
@@ -198,6 +197,7 @@ class prob3gpu(Stage):
         }
       }
     }
+
     __global__ void propagateArray(fType* d_prob_e,
                                    fType* d_prob_mu,
                                    fType d_dm[3][3],
