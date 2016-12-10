@@ -295,25 +295,23 @@ class weight(Stage):
             flux_weights = self.compute_flux_weights(attach_units=True)
             if not self.params['oscillate'].value:
 
-                # TODO/BUG: `total_weight` below is defined but never used
-
-                # no oscillations
+                # No oscillations
                 for fig in self._data.iterkeys():
                     flav_pdg = NuFlavInt(fig).flavCode()
-                    total_weight = self._data[fig]['pisa_weight']
+                    pisa_weight = self._data[fig]['pisa_weight']
                     if flav_pdg == 12:
-                        total_weight *= flux_weights[fig]['nue_flux']
+                        pisa_weight *= flux_weights[fig]['nue_flux']
                     elif flav_pdg == 14:
-                        total_weight *= flux_weights[fig]['numu_flux']
+                        pisa_weight *= flux_weights[fig]['numu_flux']
                     elif flav_pdg == -12:
-                        total_weight *= flux_weights[fig]['nuebar_flux']
+                        pisa_weight *= flux_weights[fig]['nuebar_flux']
                     elif flav_pdg == -14:
-                        total_weight *= flux_weights[fig]['numubar_flux']
+                        pisa_weight *= flux_weights[fig]['numubar_flux']
                     elif abs(flav_pdg) == 16:
                         # attach units of flux from nue
-                        total_weight *= 0. * flux_weights[fig]['nue_flux'].u
+                        pisa_weight *= 0. * flux_weights[fig]['nue_flux'].u
             else:
-                # oscillations
+                # Oscillations
                 osc_weights = self.compute_osc_weights(flux_weights)
                 for fig in self._data.iterkeys():
                     self._data[fig]['pisa_weight'] *= osc_weights[fig]
@@ -336,8 +334,8 @@ class weight(Stage):
             cr_rw_scale = self.params['delta_gamma_mu'].value
             rw_variable = self.params['delta_gamma_mu_variable'].value
             rw_array = self.prim_unc_spline(self._data.muons[rw_variable])
-            ## Reweighting term is positive-only by construction, so normalise
-            ## it by shifting the whole array down by a normalisation factor
+            # Reweighting term is positive-only by construction, so normalise
+            # it by shifting the whole array down by a normalisation factor
             norm = sum(rw_array)/len(rw_array)
             cr_rw_array = rw_array-norm
             self._data.muons['pisa_weight'] *= (1+cr_rw_scale*cr_rw_array)
