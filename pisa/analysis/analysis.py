@@ -581,11 +581,12 @@ class Analysis(object):
             (or parameters). Value(s) specified for `steps` must be >= 2. Note
             that the endpoints of the range are always included, and numbers of
             steps higher than 2 fill in between the endpoints.
+
             * If integer...
-                Take this many steps for each specified parameter.
+                  Take this many steps for each specified parameter.
             * If sequence of integers...
-                Take the coresponding number of steps within the allowed range
-                for each specified parameter.
+                  Take the coresponding number of steps within the allowed range
+                  for each specified parameter.
 
         values : None, scalar, sequence of scalars, or sequence-of-sequences
           * If scalar...
@@ -612,7 +613,7 @@ class Analysis(object):
                 for each value of the first param's inner sequence, an Asimov
                 distribution is produced for every value of the second param's
                 inner sequence. In total, there will be
-                  len(inner seq0) * len(inner seq1) * ...
+                ``len(inner seq0) * len(inner seq1) * ...``
                 Asimov distributions produced.
 
         only_points : None, integer, or even-length sequence of integers
