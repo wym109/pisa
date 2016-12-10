@@ -62,41 +62,48 @@ def main():
 
     for settings_file in settings_files:
         try:
-            logging.info('Testing %s'%settings_file)
-            logging.info('Instantiating pipeline...')
+            logging.info('Instantiating pipeline from file "%s" ...'
+                         %settings_file)
             pipeline = Pipeline(settings_file)
-            logging.info('Retrieving outputs...')
-            outputs = pipeline.get_outputs()
-            logging.info('Seems fine!')
+            logging.info('    retrieving outputs...')
+            _ = pipeline.get_outputs()
+            logging.info('    Seems fine!')
+
         except ImportError as err:
             if 'ROOT' in err.message:
                 if args.ignore_root:
-                    logging.info('Skipping pipeline as it has ROOT '
+                    logging.info('    Skipping pipeline as it has ROOT '
                                  'dependencies')
                 else:
-                    logging.error(sys.exc_info())
+                    logging.error(err)
                     logging.error('%s does not work. Error trying to import '
                                   'ROOT - use the flag "--ignore-root" to '
                                   'skip ROOT dependent pipelines.'
                                   %settings_file)
                     raise
+
             elif 'cuda' in err.message:
                 if args.ignore_gpu:
-                    logging.info('Skipping pipeline as it has GPU '
+                    logging.info('    Skipping pipeline as it has GPU '
                                  'dependencies')
                 else:
-                    logging.error(sys.exc_info())
+                    logging.error(err)
                     logging.error('%s does not work. Error trying to import '
                                   'CUDA - use the flag "--ignore-gpu" to skip '
                                   'GPU dependent pipelines.' % settings_file)
                     raise
+
             else:
-                logging.error(sys.exc_info())
+                logging.error(err)
                 raise ValueError('%s does not work. Please review the error '
                                  'message above and fix the problem.'
                                  %settings_file)
-        except:
-            logging.error(sys.exc_info())
+
+        except KeyboardInterrupt:
+            raise
+
+        except Exception as err:
+            logging.error(err)
             raise ValueError('%s does not work. Please review the error '
                              'message above and fix the problem.'
                              %settings_file)

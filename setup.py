@@ -272,7 +272,8 @@ if __name__ == '__main__':
             'develop': [
                 'sphinx>1.3',
                 'recommonmark',
-                'versioneer'
+                'versioneer',
+                'sphinx_rtd_theme'
             ]
         },
         packages=find_packages(),

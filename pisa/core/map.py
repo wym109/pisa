@@ -18,10 +18,12 @@ from collections import OrderedDict, Iterable, Mapping, Sequence
 from copy import deepcopy, copy
 from fnmatch import fnmatch
 from functools import wraps
-from itertools import izip
+from itertools import izip, permutations
 from operator import add, getitem, setitem
 import os
 import re
+import shutil
+import tempfile
 
 import numpy as np
 from scipy.stats import poisson, norm
@@ -31,7 +33,7 @@ from uncertainties import unumpy as unp
 
 from pisa import ureg, FTYPE
 from pisa.core.binning import OneDimBinning, MultiDimBinning
-from pisa.utils.comparisons import isbarenumeric, normQuant, recursiveEquality
+from pisa.utils.comparisons import normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils import jsons
 from pisa.utils.fileio import get_valid_filename, mkdir
@@ -39,7 +41,6 @@ from pisa.utils.log import logging, set_verbosity
 from pisa.utils.flavInt import NuFlavIntGroup
 from pisa.utils.random_numbers import get_random_state
 from pisa.utils.stats import chi2, llh, conv_llh, mod_chi2, barlow_llh
-from pisa.utils.profiler import line_profile, profile
 
 
 __all__ = ['HASH_SIGFIGS', 'VALID_METRICS', 'METRICS_TO_MAXIMIZE',
@@ -103,7 +104,7 @@ def reduceToHist(expected_values):
 
     # If iterable, must be iterable of MapSets
     elif isinstance(expected_values, Iterable):
-        expected_values = reduce(lambda x,y: x+y,
+        expected_values = reduce(lambda x, y: x+y,
                                  expected_values).hist
     else:
         raise ValueError('Unhandled type for `expected_values`: %s'
@@ -118,7 +119,7 @@ def rebin(hist0, orig_binning, new_binning, normalize_values=True):
             "`new_binning` dimensions' basenames %s do not have 1:1"
             " correspondence (modulo pre/suffixes) to original binning"
             " dimensions' basenames %s"
-            %(new_binning.basenames, self.binning.basenames)
+            %(new_binning.basenames, orig_binning.binning.basenames)
         )
 
     if orig_binning.edges_hash == new_binning.edges_hash:
@@ -237,7 +238,7 @@ class Map(object):
 
     """
     _slots = ('name', 'hist', 'binning', 'hash', '_hash', 'tex',
-               'full_comparison', 'parent_indexer', 'normalize_values')
+              'full_comparison', 'parent_indexer', 'normalize_values')
     _state_attrs = ('name', 'hist', 'binning', 'hash', 'tex',
                     'full_comparison')
 
@@ -422,7 +423,7 @@ class Map(object):
              cmap=None, fig_kw=None, plt_kw=None, vertmax=None):
         import matplotlib as mpl
         if (backend is not None
-            and mpl.get_backend().lower() != backend.lower()):
+                and mpl.get_backend().lower() != backend.lower()):
             mpl.use(backend)
         import matplotlib.pyplot as plt
 
@@ -465,7 +466,7 @@ class Map(object):
             else:
                 vmin = np.nanmin(hist)
             vmax = np.nanmax(hist)
-        cmap.set_bad(color=(0,1,0), alpha=1)
+        cmap.set_bad(color=(0, 1, 0), alpha=1)
 
         x = self.binning.dims[0].bin_edges.magnitude
         y = self.binning.dims[1].bin_edges.magnitude
@@ -520,7 +521,7 @@ class Map(object):
 
         if outdir is not None:
             if fname is None:
-                fname = label
+                fname = self.name
             path = os.path.join([outdir, get_valid_filename(fname+'.'+fmt)])
             logging.debug('>>>> Plot for inspection saved at %s' %path)
             fig.savefig(os.path.join(*path))
@@ -1051,7 +1052,7 @@ class Map(object):
         elif isinstance(expected_values, Iterable):
             expected_values = [reduceToHist(x) for x in expected_values]
         return np.sum(barlow_llh(actual_values=self.hist,
-                          expected_values=expected_values))
+                                 expected_values=expected_values))
 
     def mod_chi2(self, expected_values):
         """Calculate the total modified chi2 value between this map and the map
@@ -1070,7 +1071,7 @@ class Map(object):
         """
         expected_values = reduceToHist(expected_values)
         return np.sum(mod_chi2(actual_values=self.hist,
-                          expected_values=expected_values))
+                               expected_values=expected_values))
 
     def chi2(self, expected_values):
         """Calculate the total chi-squared value between this map and the map
@@ -1253,7 +1254,7 @@ class Map(object):
 
         if isinstance(other, Map):
             if (self.full_comparison or other.full_comparison
-                or self.hash is None or other.hash is None):
+                    or self.hash is None or other.hash is None):
                 return recursiveEquality(self._hashable_state,
                                          other._hashable_state)
             return self.hash == other.hash
@@ -1809,7 +1810,7 @@ class MapSet(object):
     def compare(self, ref):
         assert isinstance(ref, MapSet) and len(self) == len(ref)
         rslt = OrderedDict()
-        for m, r in zip(self, ref):
+        for m, r in izip(self, ref):
             out = m.compare(r)
             rslt[m.name] = out
         return rslt
@@ -1868,7 +1869,7 @@ class MapSet(object):
 
     def collate_with_names(self, vals):
         ret_dict = OrderedDict()
-        [setitem(ret_dict, name, val) for name, val in zip(self.names, vals)]
+        [setitem(ret_dict, name, val) for name, val in izip(self.names, vals)]
         return ret_dict
 
     def find_map(self, value):
@@ -1956,7 +1957,7 @@ class MapSet(object):
 
         # Make the method calls and collect returned values
         returned_vals = [meth(*args)
-                         for meth, args in zip(method_per_map, args_per_map)]
+                         for meth, args in izip(method_per_map, args_per_map)]
 
         # If all results are maps, put them into a new map set & return
         if all([isinstance(r, Map) for r in returned_vals]):
@@ -1999,7 +2000,7 @@ class MapSet(object):
         or slice.
 
         If `item` is a string, retrieve map by name.
-        If `item is an integer or one-dim slice, retrieve maps by sequence
+        If `item is an integer or one-dim slice, retrieve maps by index/slice
         If `item` is length-2 tuple or two-dim slice, retrieve value(s) of all
             contained maps, each indexed by map[`item`]. The output is returned
             in an ordered dict with format {<map name>: <values>, ...}
@@ -2007,24 +2008,27 @@ class MapSet(object):
         """
         if isinstance(item, basestring):
             return self.find_map(item)
-        elif isinstance(item, (int, slice)):
+
+        if isinstance(item, (int, slice)):
             rslt = self.maps[item]
             if hasattr(rslt, '__len__') and len(rslt) > 1:
                 return MapSet(rslt)
             return rslt
-        elif isinstance(item, Sequence):
+
+        if isinstance(item, Iterable):
+            if not isinstance(item, Sequence):
+                item = list(item)
+
             if len(item) == 1:
                 return self.maps[item]
-            elif len(item) == 2:
+
+            if len(item) == 2:
                 return MapSet([getitem(m, item) for m in self])
-            else:
-                raise IndexError('too many indices for 2D hist')
-        #elif isinstance(item, Sequence):
-        #    assert len(item) == 2, 'Maps are 2D, and so must be indexed as such'
-        #    return self.collate_with_names([getitem(m, item) for m in self])
-        else:
-            raise TypeError('getitem does not support `item` of type %s'
-                            % type(item))
+
+            raise IndexError('too many indices for 2D hist')
+
+        raise TypeError('getitem does not support `item` of type %s'
+                        % type(item))
 
     def __abs__(self):
         return self.apply_to_maps('__abs__')
@@ -2189,12 +2193,6 @@ class MapSet(object):
 
 # TODO: add tests for llh, chi2 methods
 def test_Map():
-    import os
-    import shutil
-    import tempfile
-    from pisa.utils.jsons import to_json
-    from pisa import ureg, Q_
-
     n_ebins = 10
     n_czbins = 5
     n_azbins = 2
@@ -2258,7 +2256,7 @@ def test_Map():
             m.to_json(m_file)
             m_ = Map.from_json(m_file)
             assert m_ == m, 'm=\n%s\nm_=\n%s' %(m, m_)
-            to_json(m, m_file)
+            jsons.to_json(m, m_file)
             m_ = Map.from_json(m_file)
             assert m_ == m, 'm=\n%s\nm_=\n%s' %(m, m_)
     finally:
@@ -2338,13 +2336,6 @@ def test_Map():
 # TODO: add tests for llh, chi2 methods
 # TODO: make tests use assert rather than rely on printouts!
 def test_MapSet():
-    from itertools import permutations
-    import os
-    import shutil
-    import tempfile
-    from pisa.utils.jsons import to_json
-    from pisa import ureg, Q_
-
     n_ebins = 6
     n_czbins = 3
     e_binning = OneDimBinning(name='energy', tex=r'E_\nu', num_bins=n_ebins,
@@ -2475,7 +2466,7 @@ def test_MapSet():
             ms.to_json(ms_file)
             ms_ = MapSet.from_json(ms_file)
             assert ms_ == ms, 'ms=\n%s\nms_=\n%s' %(ms, ms_)
-            to_json(ms, ms_file)
+            jsons.to_json(ms, ms_file)
             ms_ = MapSet.from_json(ms_file)
             assert ms_ == ms, 'ms=\n%s\nms_=\n%s' %(ms, ms_)
     finally:
