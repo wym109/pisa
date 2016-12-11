@@ -481,7 +481,7 @@ def plot_cmp(new, ref, new_label, ref_label, plot_label, file_label, outdir,
 
                     ratio = thisbin_new / thisbin_ref
                     diff = thisbin_new - thisbin_ref
-                    fract_diff = thisbin_diff / thisbin_ref
+                    fract_diff = diff / thisbin_ref
 
                 refmax = np.nanmax(thisbin_ref.hist)
                 newmax = np.nanmax(thisbin_new.hist)

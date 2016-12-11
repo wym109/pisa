@@ -152,7 +152,7 @@ class sample(Stage):
                 self._output_nu_groups
             )
             for fig in trans_nu_data.iterkeys():
-                outputs.append(self._data.histogram(
+                outputs.append(trans_nu_data.histogram(
                     kinds       = fig,
                     binning     = self.output_binning,
                     weights_col = 'pisa_weight',
