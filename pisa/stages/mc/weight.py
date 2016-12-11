@@ -54,10 +54,11 @@ class weight(Stage):
                 Desired lifetime.
 
             * Cross-section related parameters:
-                - nu_dis_a
-                - nu_dis_b
-                - nubar_dis_a
-                - nubar_dis_b
+                - nu_diff_DIS
+                - nu_diff_norm
+                - nubar_diff_DIS
+                - nubar_diff_norm
+                - hadron_DIS
 
             * Flux related parameters:
                 For more information see `$PISA/pisa/stages/flux/honda.py`
@@ -137,10 +138,11 @@ class weight(Stage):
         )
 
         self.xsec_params = (
-            'nu_dis_a',
-            'nu_dis_b',
-            'nubar_dis_a',
-            'nubar_dis_b'
+            'nu_diff_DIS',
+            'nu_diff_norm',
+            'nubar_diff_DIS',
+            'nubar_diff_norm',
+            'hadron_DIS'
         )
 
         self.flux_params = (
@@ -269,9 +271,6 @@ class weight(Stage):
         if self.muons:
             self.prim_unc_spline = self.make_prim_unc_spline()
 
-        if disk_cache is not None and self.params['cache_flux'].value:
-            self.instantiate_disk_cache()
-
         self.include_attrs_for_hashes('sample_hash')
 
     @profile
@@ -293,25 +292,23 @@ class weight(Stage):
             flux_weights = self.compute_flux_weights(attach_units=True)
             if not self.params['oscillate'].value:
 
-                # TODO/BUG: `total_weight` below is defined but never used
-
-                # no oscillations
+                # No oscillations
                 for fig in self._data.iterkeys():
                     flav_pdg = NuFlavInt(fig).flavCode()
-                    total_weight = self._data[fig]['pisa_weight']
+                    pisa_weight = self._data[fig]['pisa_weight']
                     if flav_pdg == 12:
-                        total_weight *= flux_weights[fig]['nue_flux']
+                        pisa_weight *= flux_weights[fig]['nue_flux']
                     elif flav_pdg == 14:
-                        total_weight *= flux_weights[fig]['numu_flux']
+                        pisa_weight *= flux_weights[fig]['numu_flux']
                     elif flav_pdg == -12:
-                        total_weight *= flux_weights[fig]['nuebar_flux']
+                        pisa_weight *= flux_weights[fig]['nuebar_flux']
                     elif flav_pdg == -14:
-                        total_weight *= flux_weights[fig]['numubar_flux']
+                        pisa_weight *= flux_weights[fig]['numubar_flux']
                     elif abs(flav_pdg) == 16:
                         # attach units of flux from nue
-                        total_weight *= 0. * flux_weights[fig]['nue_flux'].u
+                        pisa_weight *= 0. * flux_weights[fig]['nue_flux'].u
             else:
-                # oscillations
+                # Oscillations
                 osc_weights = self.compute_osc_weights(flux_weights)
                 for fig in self._data.iterkeys():
                     self._data[fig]['pisa_weight'] *= osc_weights[fig]
@@ -334,8 +331,8 @@ class weight(Stage):
             cr_rw_scale = self.params['delta_gamma_mu'].value
             rw_variable = self.params['delta_gamma_mu_variable'].value
             rw_array = self.prim_unc_spline(self._data.muons[rw_variable])
-            ## Reweighting term is positive-only by construction, so normalise
-            ## it by shifting the whole array down by a normalisation factor
+            # Reweighting term is positive-only by construction, so normalise
+            # it by shifting the whole array down by a normalisation factor
             norm = sum(rw_array)/len(rw_array)
             cr_rw_array = rw_array-norm
             self._data.muons['pisa_weight'] *= (1+cr_rw_scale*cr_rw_array)
@@ -580,15 +577,26 @@ class weight(Stage):
 
         xsec_weights = OrderedDict()
         for fig in nu_data.iterkeys():
+            # Differential xsec systematic
             if 'bar' not in fig:
-                dis_a = params['nu_dis_a'].m
-                dis_b = params['nu_dis_b'].m
+                nu_diff_DIS = params['nu_diff_DIS'].m
+                nu_diff_norm = params['nu_diff_norm'].m
             else:
-                dis_a = params['nubar_dis_a'].m
-                dis_b = params['nubar_dis_b'].m
+                nu_diff_DIS = params['nubar_diff_DIS'].m
+                nu_diff_norm = params['nubar_diff_norm'].m
             xsec_weights[fig] = (
-                dis_b * np.power(nu_data[fig]['GENIE_x'], -dis_a)
+                (1 - nu_diff_norm * nu_diff_DIS) *
+                np.power(nu_data[fig]['GENIE_x'], -nu_diff_DIS)
             )
+
+            # High W hadronization systematic
+            hadron_DIS = params['hadron_DIS'].m
+            if hadron_DIS != 0.:
+                xsec_weights[fig] *= (
+                    1. / (1 + (2*hadron_DIS * np.exp(
+                        -nu_data[fig]['GENIE_y'] / hadron_DIS
+                    )))
+                )
         return xsec_weights
 
     @staticmethod
@@ -804,10 +812,11 @@ class weight(Stage):
             param_types.extend([
                 ('oscillate', bool),
                 ('cache_flux', bool),
-                ('nu_dis_a', pq),
-                ('nu_dis_b', pq),
-                ('nubar_dis_a', pq),
-                ('nubar_dis_b', pq),
+                ('nu_diff_DIS', pq),
+                ('nu_diff_norm', pq),
+                ('nubar_diff_DIS', pq),
+                ('nubar_diff_norm', pq),
+                ('hadron_DIS', pq),
                 ('flux_file', basestring),
                 ('atm_delta_index', pq),
                 ('nu_nubar_ratio', pq),

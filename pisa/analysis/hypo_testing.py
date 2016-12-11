@@ -265,7 +265,6 @@ class HypoTesting(Analysis):
         information. Setting to True is dangerous since this might result in
         irreproducible results.
 
-
     pprint : bool
         If True, display fit information as a single line on the terminal that
         updates in-place as the fit proceeds. If False, this information is

@@ -25,7 +25,9 @@ git clone https://github.com/jllanfranchi/pisa.git --branch cake \
 pip install enum34
 
 # Install PISA and its python package dependencies (optional dependency
-# categories are in brackets)
+# categories are in brackets). Note that sometimes an install issue with the
+# below command can be overcome by simply re-running a second time; also, add
+# -vvv to any pip command that fails for verbose output for debugging issues
 pip install -e my_virtual_env/src/pisa/[cuda,numba,develop] \
     -r my_virtual_env/src/pisa/requirements.txt
 

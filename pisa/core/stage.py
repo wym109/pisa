@@ -11,6 +11,7 @@ from copy import deepcopy
 import inspect
 import os
 
+from pisa import CACHE_DIR
 from pisa.core.events import Events
 from pisa.core.map import MapSet
 from pisa.core.param import Param, ParamSelector
@@ -20,6 +21,7 @@ from pisa.utils.comparisons import normQuant
 from pisa.utils.fileio import mkdir
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
+from pisa.utils.profiler import profile
 from pisa.utils.resources import find_resource
 
 
@@ -34,7 +36,7 @@ def arg_str_seq_none(inputs, name):
 
     Parameters
     ----------
-    inputs : None, string, or sequence of strings
+    inputs : None, string, or iterable of strings
         Input value(s) provided by caller
     name : string
         Name of input, used for producing a meaningful error message
@@ -51,7 +53,7 @@ def arg_str_seq_none(inputs, name):
     if isinstance(inputs, basestring):
         inputs = [inputs]
     elif isinstance(inputs, (Iterable, Sequence)):
-        inputs = [i for i in inputs]
+        inputs = list(inputs)
     elif inputs is None:
         pass
     else:
@@ -82,12 +84,26 @@ class Stage(object):
 
     output_names : None or list of strings
 
-    disk_cache : None, str, or DiskCache
-        If None, no disk cache is available.
-        If str, represents a path with which to instantiate a utils.DiskCache
-        object. Must be concurrent-access-safe (across threads and processes).
+    disk_cache : None, bool, string, or DiskCache
+      * If None or False, no disk cache is available.
+      * If True, a disk cache is generated at the path
+        `CACHE_DIR/<stage_name>/<service_name>.sqlite` where CACHE_DIR is
+        defined in pisa.__init__
+      * If string, this is interpreted as a path. If an absolute path is
+        provided (e.g. "/home/myuser/mycache.sqlite'), this locates the disk
+        cache file exactly, while a relative path (e.g.,
+        "relative/dir/mycache.sqlite") is taken relative to the CACHE_DIR; the
+        aforementioned example will be turned into
+        `CACHE_DIR/relative/dir/mycache.sqlite`.
+      * If a DiskCache object is passed, it will be used directly
 
     memcache_deepcopy : bool
+        Whether to deepcopy objects prior to storing to the memory cache and
+        upon loading these objects from the memory cache. Setting to True
+        ensures no modification of mutable objects stored to a memory cache
+        will affect other logic relying on that object remaining unchanged.
+        However, this comes at the cost of more memory used and slower
+        operations.
 
     outputs_cache_depth : int >= 0
 
@@ -154,7 +170,6 @@ class Stage(object):
                  memcache_deepcopy=True, transforms_cache_depth=10,
                  outputs_cache_depth=0, input_binning=None,
                  output_binning=None, debug_mode=None):
-
         # Allow for string inputs, but have to populate into lists for
         # consistent interfacing to one or multiple of these things
         expected_params = arg_str_seq_none(expected_params, 'expected_params')
@@ -235,7 +250,7 @@ class Stage(object):
         """Disk cache object"""
 
         self.disk_cache_path = None
-        """Path to disk cache file for this stage/service."""
+        """Path to disk cache file for this stage/service (or None)."""
 
         param_selector_keys = set([
             'regular_params', 'selector_param_sets', 'selections'
@@ -308,7 +323,9 @@ class Stage(object):
         self.transforms_hash = None
         self.nominal_outputs_hash = None
         self.outputs_hash = None
+        self.instantiate_disk_cache()
 
+    @profile
     def get_nominal_transforms(self, nominal_transforms_hash):
         """Load a cached transform from the nominal transform memory cache
         (which is backed by a disk cache, if one is specified) if the nominal
@@ -385,6 +402,7 @@ class Stage(object):
         self.nominal_transforms_hash = nominal_transforms_hash
         return nominal_transforms, nominal_transforms_hash
 
+    @profile
     def get_transforms(self, transforms_hash=None,
                        nominal_transforms_hash=None):
         """Load a cached transform (keyed on hash of parameter values) if it
@@ -452,6 +470,7 @@ class Stage(object):
         self.transforms = transforms
         return transforms
 
+    @profile
     def get_nominal_outputs(self, nominal_outputs_hash):
         """Load a cached output from the nominal outputs memory cache
         (which is backed by a disk cache, if one is specified) if the nominal
@@ -479,6 +498,7 @@ class Stage(object):
             self._compute_nominal_outputs()
             self.nominal_outputs_hash = self._derive_nominal_outputs_hash()
 
+    @profile
     def get_outputs(self, inputs=None):
         """Top-level function for computing outputs. Use this method to get
         outputs if you live outside this stage/service.
@@ -573,6 +593,7 @@ class Stage(object):
 
         return augmented_outputs
 
+    @profile
     def _check_params(self, params):
         """Make sure that `expected_params` is defined and that exactly the
         params specified in self.expected_params are present.
@@ -595,6 +616,7 @@ class Stage(object):
                          %', '.join(sorted(exp_p))
                          + ';\n'.join(err_strs))
 
+    @profile
     def check_transforms(self, transforms):
         """Check that transforms' inputs and outputs match those specified
         for this service.
@@ -616,6 +638,7 @@ class Stage(object):
                 "Transforms' outputs: " + str(transforms.output_names) + \
                 "\nStage outputs: " + str(self.output_names)
 
+    @profile
     def check_outputs(self, outputs):
         assert set(outputs.names) == set(self.output_names), \
                 "Outputs: " + str(outputs.names) + \
@@ -660,22 +683,39 @@ class Stage(object):
 
     def instantiate_disk_cache(self):
         if isinstance(self.disk_cache, DiskCache):
+            self.disk_cache_path = self.disk_cache.path
             return
+
+        if self.disk_cache is False or self.disk_cache is None:
+            self.disk_cache = None
+            self.disk_cache_path = None
+            return
+
         if isinstance(self.disk_cache, basestring):
-            self.disk_cache_path = self.disk_cache
-        elif self.disk_cache is None:
-            cache_root_dir = find_resource('cache')
-            dirs = [cache_root_dir, self.stage_name]
-            dirpath = os.path.join(*dirs)
+            dirpath, filename = os.path.split(
+                os.path.expandvars(os.path.expanduser(self.disk_cache))
+            )
+            if os.path.isabs(dirpath):
+                self.disk_cache_path = os.path.join(dirpath, filename)
+            else:
+                self.disk_cache_path = os.path.join(
+                    CACHE_DIR, dirpath, filename
+                )
+        elif self.disk_cache is True:
+            dirs = [CACHE_DIR, self.stage_name]
+            dirpath = os.path.expandvars(os.path.expanduser(
+                os.path.join(*dirs)
+            ))
             if self.service_name is not None and self.service_name != '':
                 filename = self.service_name + '.sqlite'
             else:
-                filename = 'geeric.sqlite'
-            mkdir(dirpath)
+                filename = 'generic.sqlite'
+            mkdir(dirpath, warn=False)
             self.disk_cache_path = os.path.join(dirpath, filename)
         else:
             raise ValueError("Don't know what to do with a %s."
-                             %type(self.disk_cache))
+                             % type(self.disk_cache))
+
         self.disk_cache = DiskCache(self.disk_cache_path, max_depth=10,
                                     is_lru=False)
 
@@ -951,6 +991,7 @@ class Stage(object):
     def _compute_nominal_outputs(self):
         return None
 
+    @profile
     def _compute_outputs(self, inputs):
         """Override this method for no-input stages which do not use transforms.
         Input stages that compute a TransformSet needn't override this, as the

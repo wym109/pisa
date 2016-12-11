@@ -153,7 +153,7 @@ class vbwkde(Stage):
 
     def __init__(self, params, particles, input_names, transform_groups,
                  sum_grouped_flavints, input_binning, output_binning,
-                 error_method=None, transforms_cache_depth=20,
+                 disk_cache, error_method=None, transforms_cache_depth=20,
                  outputs_cache_depth=20, memcache_deepcopy=True,
                  debug_mode=None):
         assert particles in ['neutrinos', 'muons']
@@ -193,6 +193,7 @@ class vbwkde(Stage):
             outputs_cache_depth=outputs_cache_depth,
             transforms_cache_depth=transforms_cache_depth,
             memcache_deepcopy=memcache_deepcopy,
+            disk_cache=disk_cache,
             input_binning=input_binning,
             output_binning=output_binning,
             debug_mode=debug_mode
@@ -205,7 +206,6 @@ class vbwkde(Stage):
         self.include_attrs_for_hashes('sum_grouped_flavints')
 
         self._kde_hash = None
-        self.instantiate_disk_cache()
 
     def validate_binning(self):
         """Require input dimensions of "true_energy" and "true_coszen" (in any
