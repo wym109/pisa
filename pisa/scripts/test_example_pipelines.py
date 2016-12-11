@@ -14,6 +14,7 @@ from argparse import ArgumentParser
 import glob
 import os
 import sys
+from traceback import format_exception
 
 from pisa.core.pipeline import Pipeline
 from pisa.utils.log import logging, set_verbosity
@@ -60,54 +61,58 @@ def main():
         if 'smooth' in settings_file:
             settings_files.remove(settings_file)
 
+    num_configs = len(settings_files)
+
+    failure_count = 0
     for settings_file in settings_files:
+        allow_error = False
+        msg = ''
         try:
             logging.info('Instantiating pipeline from file "%s" ...'
                          %settings_file)
             pipeline = Pipeline(settings_file)
             logging.info('    retrieving outputs...')
             _ = pipeline.get_outputs()
-            logging.info('    Seems fine!')
 
         except ImportError as err:
-            if 'ROOT' in err.message:
-                if args.ignore_root:
-                    logging.info('    Skipping pipeline as it has ROOT '
-                                 'dependencies')
-                else:
-                    logging.error(err)
-                    logging.error('%s does not work. Error trying to import '
-                                  'ROOT - use the flag "--ignore-root" to '
-                                  'skip ROOT dependent pipelines.'
-                                  %settings_file)
-                    raise
-
-            elif 'cuda' in err.message:
-                if args.ignore_gpu:
-                    logging.info('    Skipping pipeline as it has GPU '
-                                 'dependencies')
-                else:
-                    logging.error(err)
-                    logging.error('%s does not work. Error trying to import '
-                                  'CUDA - use the flag "--ignore-gpu" to skip '
-                                  'GPU dependent pipelines.' % settings_file)
-                    raise
-
+            exc = sys.exc_info()
+            if 'ROOT' in err.message and args.ignore_root:
+                allow_error = True
+                msg = ('    Skipping pipeline as it has ROOT dependencies'
+                       ' (ROOT cannot be imported)')
+            elif 'cuda' in err.message and args.ignore_gpu:
+                allow_error = True
+                msg = ('    Skipping pipeline as it has cuda dependencies'
+                       ' (pycuda cannot be imported)')
             else:
-                logging.error(err)
-                raise ValueError('%s does not work. Please review the error '
-                                 'message above and fix the problem.'
-                                 %settings_file)
+                failure_count += 1
 
-        except KeyboardInterrupt:
-            raise
+        except:
+            exc = sys.exc_info()
+            failure_count += 1
 
-        except Exception as err:
-            logging.error(err)
-            raise ValueError('%s does not work. Please review the error '
-                             'message above and fix the problem.'
-                             %settings_file)
+        else:
+            exc = None
 
+        finally:
+            if exc is not None:
+                if allow_error:
+                    logging.warn(msg)
+                else:
+                    logging.error(
+                        '    FAILURE! %s failed to run. Please review the'
+                        ' error message below and fix the problem. Continuing'
+                        ' with any other configs now...' % settings_file
+                    )
+                for line in format_exception(*exc):
+                    for sub_line in line.splitlines():
+                        logging.error(' '*4 + sub_line)
+            else:
+                logging.info('    Seems fine!')
+
+    if failure_count > 0:
+        raise Exception('<< %d of %d EXAMPLE PIPELINE CONFIG FILES FAILED >>'
+                        % (failure_count, num_configs))
 
 if __name__ == '__main__':
     main()
