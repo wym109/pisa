@@ -56,15 +56,17 @@ def main():
     example_directory = find_resource(example_directory)
     settings_files = glob.glob(example_directory + '/*example*.cfg')
 
-    for settings_file in settings_files:
-        # aeff smooth stage is currently broken. So ignore for now.
-        if 'smooth' in settings_file:
-            settings_files.remove(settings_file)
-
     num_configs = len(settings_files)
-
     failure_count = 0
     skip_count = 0
+    for settings_file in settings_files:
+        # aeff smooth stage is currently broken. So ignore for now.
+        if 'aeffsmooth' in settings_file:
+            skip_count += 1
+            logging.warn('Skipping "%s" as it is currently expected to be'
+                         ' broken.' % settings_file)
+            settings_files.remove(settings_file)
+
     for settings_file in settings_files:
         allow_error = False
         msg = ''
@@ -107,19 +109,21 @@ def main():
                         ' error message below and fix the problem. Continuing'
                         ' with any other configs now...' % settings_file
                     )
-                for line in format_exception(*exc):
-                    for sub_line in line.splitlines():
-                        logging.error(' '*4 + sub_line)
+                    for line in format_exception(*exc):
+                        for sub_line in line.splitlines():
+                            logging.error(' '*4 + sub_line)
             else:
                 logging.info('    Seems fine!')
 
     if skip_count > 0:
-        logging.warn('<< %d of %d example pipeline config files skipped >>'
-                     % (failure_count, num_configs))
+        logging.warn('%d of %d example pipeline config files were skipped'
+                     % (skip_count, num_configs))
 
     if failure_count > 0:
-        raise Exception('<< %d of %d EXAMPLE PIPELINE CONFIG FILES FAILED >>'
-                        % (failure_count, num_configs))
+        msg = ('<< FAIL : test_example_pipelines : (%d of %d EXAMPLE PIPELINE'
+               ' CONFIG FILES FAILED) >>' % (failure_count, num_configs))
+        logging.error(msg)
+        raise Exception(msg)
 
     logging.info('<< PASS : test_example_pipelines >>')
 
