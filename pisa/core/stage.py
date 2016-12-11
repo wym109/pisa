@@ -250,7 +250,7 @@ class Stage(object):
         """Disk cache object"""
 
         self.disk_cache_path = None
-        """Path to disk cache file for this stage/service."""
+        """Path to disk cache file for this stage/service (or None)."""
 
         param_selector_keys = set([
             'regular_params', 'selector_param_sets', 'selections'
@@ -323,6 +323,7 @@ class Stage(object):
         self.transforms_hash = None
         self.nominal_outputs_hash = None
         self.outputs_hash = None
+        self.instantiate_disk_cache()
 
     @profile
     def get_nominal_transforms(self, nominal_transforms_hash):
@@ -682,7 +683,14 @@ class Stage(object):
 
     def instantiate_disk_cache(self):
         if isinstance(self.disk_cache, DiskCache):
+            self.disk_cache_path = self.disk_cache.path
             return
+
+        if self.disk_cache is False or self.disk_cache is None:
+            self.disk_cache = None
+            self.disk_cache_path = None
+            return
+
         if isinstance(self.disk_cache, basestring):
             dirpath, filename = os.path.split(
                 os.path.expandvars(os.path.expanduser(self.disk_cache))
@@ -704,11 +712,10 @@ class Stage(object):
                 filename = 'generic.sqlite'
             mkdir(dirpath, warn=False)
             self.disk_cache_path = os.path.join(dirpath, filename)
-        elif self.disk_cache is False or self.disk_cache is None:
-            return
         else:
             raise ValueError("Don't know what to do with a %s."
                              % type(self.disk_cache))
+
         self.disk_cache = DiskCache(self.disk_cache_path, max_depth=10,
                                     is_lru=False)
 

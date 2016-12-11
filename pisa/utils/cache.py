@@ -233,6 +233,10 @@ class DiskCache(object):
         self.__max_depth = max_depth
         self.__is_lru = is_lru
 
+    @property
+    def path(self):
+        return self.__db_fpath
+
     def __instantiate_db(self):
         exists = True if os.path.isfile(self.__db_fpath) else False
 
