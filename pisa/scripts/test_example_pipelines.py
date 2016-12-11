@@ -64,6 +64,7 @@ def main():
     num_configs = len(settings_files)
 
     failure_count = 0
+    skip_count = 0
     for settings_file in settings_files:
         allow_error = False
         msg = ''
@@ -77,10 +78,12 @@ def main():
         except ImportError as err:
             exc = sys.exc_info()
             if 'ROOT' in err.message and args.ignore_root:
+                skip_count += 1
                 allow_error = True
                 msg = ('    Skipping pipeline as it has ROOT dependencies'
                        ' (ROOT cannot be imported)')
             elif 'cuda' in err.message and args.ignore_gpu:
+                skip_count += 1
                 allow_error = True
                 msg = ('    Skipping pipeline as it has cuda dependencies'
                        ' (pycuda cannot be imported)')
@@ -110,9 +113,16 @@ def main():
             else:
                 logging.info('    Seems fine!')
 
+    if skip_count > 0:
+        logging.warn('<< %d of %d example pipeline config files skipped >>'
+                     % (failure_count, num_configs))
+
     if failure_count > 0:
         raise Exception('<< %d of %d EXAMPLE PIPELINE CONFIG FILES FAILED >>'
                         % (failure_count, num_configs))
+
+    logging.info('<< PASS : test_example_pipelines >>')
+
 
 if __name__ == '__main__':
     main()

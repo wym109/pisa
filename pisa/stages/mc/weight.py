@@ -271,9 +271,6 @@ class weight(Stage):
         if self.muons:
             self.prim_unc_spline = self.make_prim_unc_spline()
 
-        if disk_cache is not None and self.params['cache_flux'].value:
-            self.instantiate_disk_cache()
-
         self.include_attrs_for_hashes('sample_hash')
 
     @profile
