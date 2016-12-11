@@ -33,6 +33,7 @@ __all__ = ['fmt_tex', 'plot_asymmetry', 'parse_args', 'normcheckpath', 'main']
 
 
 def fmt_tex(s):
+    """Convert common characters so they show up the same as TeX"""
     return r'{\rm ' + s.replace('_', r'\_').replace(' ', r'\;') + '}'
 
 
@@ -43,10 +44,9 @@ def plot_asymmetry(h0_map, h0_name, h1_map, h1_name, fulltitle, savename,
 
     gridspec_kw = dict(left=0.04, right=0.966, wspace=0.32)
     fig, axes = plt.subplots(nrows=1, ncols=3, gridspec_kw=gridspec_kw,
-                             sharex=False, sharey=False, figsize=(15,5))
+                             sharex=False, sharey=False, figsize=(15, 5))
 
-    asymmetry_hist = ((h1_map.hist-h0_map.hist)
-                         / np.sqrt(h0_map.hist))
+    asymmetry_hist = (h1_map.hist-h0_map.hist) / np.sqrt(h0_map.hist)
     asymmetry_to_plot = Map(
         name='asymmetry',
         hist=asymmetry_hist,
@@ -55,14 +55,14 @@ def plot_asymmetry(h0_map, h0_name, h1_map, h1_name, fulltitle, savename,
 
     asymmetrylabel = (r'$\left(N_{\mathrm{%s}}-N_{\mathrm{%s}}\right)'
                       r'/\sqrt{N_{\mathrm{%s}}}$'
-                      %(fmt_tex(h1_name), fmt_tex(h0_name), fmt_tex(h0_name)))
+                      % (fmt_tex(h1_name), fmt_tex(h0_name), fmt_tex(h0_name)))
 
     vmax = max(np.nanmax(h0_map.hist), np.nanmax(h1_map.hist))
 
     h0_map.plot(
         fig=fig,
         ax=axes[0],
-        title='Hypothesis 0: $%s$'%fmt_tex(h0_name),
+        title='Hypothesis 0: $%s$' % fmt_tex(h0_name),
         cmap=plt.cm.afmhot,
         vertmax=vmax
     )
@@ -70,7 +70,7 @@ def plot_asymmetry(h0_map, h0_name, h1_map, h1_name, fulltitle, savename,
     h1_map.plot(
         fig=fig,
         ax=axes[1],
-        title='Hypothesis 1: $%s$'%fmt_tex(h1_name),
+        title='Hypothesis 1: $%s$' % fmt_tex(h1_name),
         cmap=plt.cm.afmhot,
         vertmax=vmax
     )
@@ -87,7 +87,7 @@ def plot_asymmetry(h0_map, h0_name, h1_map, h1_name, fulltitle, savename,
     plt.suptitle(fulltitle, size='xx-large')
     if savename != '' and savename[-1] != '_':
         savename += '_'
-    fname = '%s%s_%s_asymmetry.pdf'%(savename, h0_name, h1_name)
+    fname = '%s%s_%s_asymmetry.pdf' % (savename, h0_name, h1_name)
     fname = fname.replace(' ', '_')
     mkdir(outdir, warn=False)
     fig.savefig(os.path.join(outdir, fname))
@@ -187,7 +187,7 @@ def normcheckpath(path, checkdir=False):
 
     if not check(normpath):
         raise IOError('Path "%s" which resolves to "%s" is not a %s.'
-                      %(path, normpath, kind))
+                      % (path, normpath, kind))
     return normpath
 
 
@@ -231,14 +231,14 @@ def main():
     # Instantiate the analysis object
     hypo_testing = HypoTesting(**init_args_d)
 
-    h0_maker =  hypo_testing.h0_maker
+    h0_maker = hypo_testing.h0_maker
     h0_maker.select_params(init_args_d['h0_param_selections'])
     for h0_pipeline in h0_maker.pipelines:
         # Need a special case where PID is a separate stage
         if 'pid' in h0_pipeline.stage_names:
-            return_h0_sum=False
+            return_h0_sum = False
         else:
-            return_h0_sum=True
+            return_h0_sum = True
     h0_maps = h0_maker.get_outputs(return_sum=return_h0_sum)
 
     # Assume just a singular pipeline used here.
@@ -251,9 +251,9 @@ def main():
     for h1_pipeline in h1_maker.pipelines:
         # Need a special case where PID is a separate stage
         if 'pid' in h1_pipeline.stage_names:
-            return_h1_sum=False
+            return_h1_sum = False
         else:
-            return_h1_sum=True
+            return_h1_sum = True
     h1_maps = h1_maker.get_outputs(return_sum=return_h1_sum)
 
     # Assume just a singular pipeline used here.
@@ -288,21 +288,21 @@ def main():
         plot_asymmetry(
             h0_map=h0_trck_map,
             h1_map=h1_trck_map,
-            h0_name='%s'%args.h0_name,
-            h1_name='%s'%args.h1_name,
-            fulltitle='%sevents identified as track'%det_sel_plot_label,
-            savename='%strck'%det_sel_file_label,
+            h0_name='%s' % args.h0_name,
+            h1_name='%s' % args.h1_name,
+            fulltitle='%sevents identified as track' % det_sel_plot_label,
+            savename='%strck' % det_sel_file_label,
             outdir=args.logdir
         )
 
         plot_asymmetry(
             h0_map=h0_cscd_map,
             h1_map=h1_cscd_map,
-            h0_name='%s'%args.h0_name,
-            h1_name='%s'%args.h1_name,
-            fulltitle='%sevents identified as cascade'
-                      %det_sel_plot_label,
-            savename='%scscd'%det_sel_file_label,
+            h0_name='%s' % args.h0_name,
+            h1_name='%s' % args.h1_name,
+            fulltitle=('%sevents identified as cascade'
+                       % det_sel_plot_label),
+            savename='%scscd' % det_sel_file_label,
             outdir=args.logdir
         )
 
@@ -338,17 +338,17 @@ def main():
             )
 
             if isinstance(pid_name, int):
-                pid_name = 'PID Bin %i'%(pid_name)
+                pid_name = 'PID Bin %i' % (pid_name)
 
             plot_asymmetry(
                 h0_map=h0_to_plot,
                 h1_map=h1_to_plot,
-                h0_name='%s'%args.h0_name,
-                h1_name='%s'%args.h1_name,
-                fulltitle='%sevents identified as %s'
-                          %(det_sel_plot_label, pid_name),
-               savename=('%s%s'%(det_sel_file_label, pid_name)),
-               outdir=args.logdir
+                h0_name='%s' % args.h0_name,
+                h1_name='%s' % args.h1_name,
+                fulltitle=('%sevents identified as %s'
+                           % (det_sel_plot_label, pid_name)),
+                savename=('%s%s' % (det_sel_file_label, pid_name)),
+                outdir=args.logdir
             )
 
 
