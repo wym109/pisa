@@ -32,6 +32,7 @@ derived from this"""
 # Set FTYPE from environment variable PISA_FTYPE, if it is defined
 float32_strings = ['single', 'float32', 'fp32', '32', 'f4']
 float64_strings = ['double', 'float64', 'fp64', '64', 'f8']
+msg = ''
 if 'PISA_FTYPE' in os.environ:
     pisa_ftype = os.environ['PISA_FTYPE']
     sys.stderr.write('PISA_FTYPE env var is defined as: "%s"; ' %pisa_ftype)
