@@ -193,6 +193,7 @@ class vbwkde(Stage):
             outputs_cache_depth=outputs_cache_depth,
             transforms_cache_depth=transforms_cache_depth,
             memcache_deepcopy=memcache_deepcopy,
+            disk_cache=True,
             input_binning=input_binning,
             output_binning=output_binning,
             debug_mode=debug_mode

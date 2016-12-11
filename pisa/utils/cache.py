@@ -11,6 +11,8 @@ import copy
 import os
 import re
 import sqlite3
+import shutil
+import tempfile
 import time
 
 import dill
@@ -233,6 +235,13 @@ class DiskCache(object):
 
     def __instantiate_db(self):
         exists = True if os.path.isfile(self.__db_fpath) else False
+
+        # Create the directory in with the database file will be created
+        if not exists:
+            dirpath, _ = os.path.split(self.__db_fpath)
+            if not os.path.isdir(dirpath) and dirpath != '':
+                os.makedirs(dirpath)
+
         conn = self.__connect()
         try:
             if exists:
@@ -491,28 +500,28 @@ def test_MemoryCache():
 # TODO: augment test
 def test_DiskCache():
     """Unit tests for DiskCache class"""
-    tmp_fname = '/tmp/DiskCache.sqlite'
+    testdir = tempfile.mkdtemp()
     try:
-        os.remove(tmp_fname)
-    except (IOError, OSError):
-        pass
-    dc = DiskCache(db_fpath=tmp_fname, max_depth=3, is_lru=False)
-    assert 0 not in dc
-    dc[0] = 'zero'
-    assert dc[0] == 'zero'
-    dc[1] = 'one'
-    dc[2] = 'two'
-    dc[3] = 'three'
-    assert 0 not in dc
-    assert dc[3] == 'three'
-    try:
-        os.remove(tmp_fname)
-    except (IOError, OSError):
-        pass
+        # Testing that subfolders get created, hence the long pathname
+        tmp_fname = os.path.join(
+            testdir, 'subfolder1/subfolder2/DiskCache.sqlite'
+        )
+        dc = DiskCache(db_fpath=tmp_fname, max_depth=3, is_lru=False)
+        assert 0 not in dc
+        dc[0] = 'zero'
+        assert dc[0] == 'zero'
+        dc[1] = 'one'
+        dc[2] = 'two'
+        dc[3] = 'three'
+        assert 0 not in dc
+        assert dc[3] == 'three'
+    finally:
+        shutil.rmtree(testdir, ignore_errors=True)
+
     logging.info('<< PASSED : test_DiskCache >>')
 
 
 if __name__ == "__main__":
-    set_verbosity(3)
+    set_verbosity(1)
     test_MemoryCache()
     test_DiskCache()

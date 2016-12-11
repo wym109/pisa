@@ -11,6 +11,7 @@ from copy import deepcopy
 import inspect
 import os
 
+from pisa import CACHE_DIR
 from pisa.core.events import Events
 from pisa.core.map import MapSet
 from pisa.core.param import Param, ParamSelector
@@ -35,7 +36,7 @@ def arg_str_seq_none(inputs, name):
 
     Parameters
     ----------
-    inputs : None, string, or sequence of strings
+    inputs : None, string, or iterable of strings
         Input value(s) provided by caller
     name : string
         Name of input, used for producing a meaningful error message
@@ -52,7 +53,7 @@ def arg_str_seq_none(inputs, name):
     if isinstance(inputs, basestring):
         inputs = [inputs]
     elif isinstance(inputs, (Iterable, Sequence)):
-        inputs = [i for i in inputs]
+        inputs = list(inputs)
     elif inputs is None:
         pass
     else:
@@ -83,12 +84,26 @@ class Stage(object):
 
     output_names : None or list of strings
 
-    disk_cache : None, str, or DiskCache
-        If None, no disk cache is available.
-        If str, represents a path with which to instantiate a utils.DiskCache
-        object. Must be concurrent-access-safe (across threads and processes).
+    disk_cache : None, bool, string, or DiskCache
+      * If None or False, no disk cache is available.
+      * If True, a disk cache is generated at the path
+        `CACHE_DIR/<stage_name>/<service_name>.sqlite` where CACHE_DIR is
+        defined in pisa.__init__
+      * If string, this is interpreted as a path. If an absolute path is
+        provided (e.g. "/home/myuser/mycache.sqlite'), this locates the disk
+        cache file exactly, while a relative path (e.g.,
+        "relative/dir/mycache.sqlite") is taken relative to the CACHE_DIR; the
+        aforementioned example will be turned into
+        `CACHE_DIR/relative/dir/mycache.sqlite`.
+      * If a DiskCache object is passed, it will be used directly
 
     memcache_deepcopy : bool
+        Whether to deepcopy objects prior to storing to the memory cache and
+        upon loading these objects from the memory cache. Setting to True
+        ensures no modification of mutable objects stored to a memory cache
+        will affect other logic relying on that object remaining unchanged.
+        However, this comes at the cost of more memory used and slower
+        operations.
 
     outputs_cache_depth : int >= 0
 
@@ -155,7 +170,6 @@ class Stage(object):
                  memcache_deepcopy=True, transforms_cache_depth=10,
                  outputs_cache_depth=0, input_binning=None,
                  output_binning=None, debug_mode=None):
-
         # Allow for string inputs, but have to populate into lists for
         # consistent interfacing to one or multiple of these things
         expected_params = arg_str_seq_none(expected_params, 'expected_params')
@@ -670,20 +684,31 @@ class Stage(object):
         if isinstance(self.disk_cache, DiskCache):
             return
         if isinstance(self.disk_cache, basestring):
-            self.disk_cache_path = self.disk_cache
-        elif self.disk_cache is None:
-            cache_root_dir = find_resource('cache')
-            dirs = [cache_root_dir, self.stage_name]
-            dirpath = os.path.join(*dirs)
+            dirpath, filename = os.path.split(
+                os.path.expandvars(os.path.expanduser(self.disk_cache))
+            )
+            if os.path.isabs(dirpath):
+                self.disk_cache_path = os.path.join(dirpath, filename)
+            else:
+                self.disk_cache_path = os.path.join(
+                    CACHE_DIR, dirpath, filename
+                )
+        elif self.disk_cache is True:
+            dirs = [CACHE_DIR, self.stage_name]
+            dirpath = os.path.expandvars(os.path.expanduser(
+                os.path.join(*dirs)
+            ))
             if self.service_name is not None and self.service_name != '':
                 filename = self.service_name + '.sqlite'
             else:
-                filename = 'geeric.sqlite'
-            mkdir(dirpath)
+                filename = 'generic.sqlite'
+            mkdir(dirpath, warn=False)
             self.disk_cache_path = os.path.join(dirpath, filename)
+        elif self.disk_cache is False or self.disk_cache is None:
+            return
         else:
             raise ValueError("Don't know what to do with a %s."
-                             %type(self.disk_cache))
+                             % type(self.disk_cache))
         self.disk_cache = DiskCache(self.disk_cache_path, max_depth=10,
                                     is_lru=False)
 
