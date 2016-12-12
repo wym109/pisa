@@ -1,7 +1,10 @@
 # author : S.Wren, J.L.Lanfranchi
 #
 # date   : September 06, 2016
+"""
+Functions to help compare and plot differences between PISA 2 and PISA 3 maps
 
+"""
 
 import os
 import numpy as np
@@ -19,8 +22,16 @@ from pisa.utils.log import logging
 
 __all__ = ['has_cuda', 'order', 'order_str', 'check_agreement',
            'print_agreement', 'print_event_rates', 'validate_maps',
-           'make_delta_map', 'make_ratio_map', 'baseplot', 'baseplot2',
-           'plot_comparisons', 'plot_cmp']
+           'make_delta_map', 'make_ratio_map',
+           'validate_map_objs',
+           'baseplot', 'baseplot2',
+           'plot_comparisons', 'plot_map_comparisons', 'plot_cmp',
+           'pisa2_map_to_pisa3_map']
+
+
+# TODO: make functions work transparently (i.e. autodetect) whether it's a
+# PISA 2 or PISA 3 style map object, convert to PISA 3 maps, and go from
+# there.
 
 
 def has_cuda():
@@ -28,10 +39,10 @@ def has_cuda():
     try:
         import pycuda.driver as cuda
     except:
-        CUDA = False
+        cuda_present = False
     else:
-        CUDA = True
-    return CUDA
+        cuda_present = True
+    return cuda_present
 
 
 def order(x):
@@ -123,11 +134,24 @@ def print_event_rates(testname1, testname2, kind, map1_events, map2_events):
     logging.info(test2_events)
 
 
+# TODO: specify `allclose` parameters `rtol` and `atol` excplicitly
 def validate_maps(amap, bmap):
     """Validate that two PISA 2 style maps are compatible binning."""
     if not (np.allclose(amap['ebins'], bmap['ebins']) and
             np.allclose(amap['czbins'], bmap['czbins'])):
         raise ValueError("Maps' binnings do not match!")
+
+
+# TODO: specify `allclose` parameters `rtol` and `atol` excplicitly
+def validate_map_objs(amap, bmap):
+    """Validate that two PISA 3 style maps are compatible binning."""
+    if not all([np.allclose(ae, be) for ae, be
+                in zip(amap.binning.bin_edges, bmap.binning.bin_edges)]):
+        raise ValueError(
+            "Maps' binnings do not match! Got first map as \n%s \nand second "
+            " map as \n%s"
+            % (amap.binning._hashable_state, bmap.binning._hashable_state)
+        )
 
 
 def make_delta_map(amap, bmap):
@@ -148,16 +172,6 @@ def make_ratio_map(amap, bmap):
                   'czbins': amap['czbins'],
                   'map': amap['map']/bmap['map']}
     return result
-
-
-def validate_map_objs(amap, bmap):
-    """Validate that two PISA 3 style maps are compatible binning."""
-    if not amap.binning == bmap.binning:
-        raise ValueError(
-            "Maps' binnings do not match! Got first map as \n%s \nand second "
-            " map as \n%s"
-            % (amap.binning._hashable_state, bmap.binning._hashable_state)
-        )
 
 
 def baseplot(m, title, ax, clabel=None, symm=False, evtrate=False,
@@ -312,13 +326,13 @@ def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
         logging.warn('Infinite value found in ratio tests. Difference tests '
                      'now also being calculated')
         # First find all the finite elements
-        FiniteMap = np.isfinite(diff_ratio_map['map'])
+        finite_map = np.isfinite(diff_ratio_map['map'])
         # Then find the nanmax of this, will be our new test value
-        max_diff_ratio = np.nanmax(np.abs(diff_ratio_map['map'][FiniteMap]))
+        max_diff_ratio = np.nanmax(np.abs(diff_ratio_map['map'][finite_map]))
         # Also find all the infinite elements
-        InfiniteMap = np.logical_not(FiniteMap)
+        infinite_map = np.logical_not(finite_map)
         # This will be a second test value
-        max_diff = np.nanmax(np.abs(diff_map['map'][InfiniteMap]))
+        max_diff = np.nanmax(np.abs(diff_map['map'][infinite_map]))
     else:
         # Without any infinite elements we can ignore this second test
         max_diff = 0.0
@@ -422,13 +436,13 @@ def plot_map_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir,
         logging.warn('Infinite value found in ratio tests. Difference tests '
                      'now also being calculated')
         # First find all the finite elements
-        FiniteMap = np.isfinite(diff_ratio_map.hist)
+        finite_map = np.isfinite(diff_ratio_map.hist)
         # Then find the nanmax of this, will be our new test value
-        max_diff_ratio = np.nanmax(np.abs(diff_ratio_map.hist[FiniteMap]))
+        max_diff_ratio = np.nanmax(np.abs(diff_ratio_map.hist[finite_map]))
         # Also find all the infinite elements
-        InfiniteMap = np.logical_not(FiniteMap)
+        infinite_map = np.logical_not(finite_map)
         # This will be a second test value
-        max_diff = np.nanmax(np.abs(diff_map.hist[InfiniteMap]))
+        max_diff = np.nanmax(np.abs(diff_map.hist[infinite_map]))
     else:
         # Without any infinite elements we can ignore this second test
         max_diff = 0.0
@@ -693,7 +707,7 @@ def plot_cmp(new, ref, new_label, ref_label, plot_label, file_label, outdir,
 
 def pisa2_map_to_pisa3_map(pisa2_map, ebins_name='ebins', czbins_name='czbins'):
     expected_keys = ['map', 'ebins', 'czbins']
-    if not sorted(pisa2_map.keys()) == sorted(expected_keys):
+    if sorted(pisa2_map.keys()) != sorted(expected_keys):
         raise ValueError('PISA 2 map should be a dict containining entries: %s'
                          %expected_keys)
     ebins = OneDimBinning(
