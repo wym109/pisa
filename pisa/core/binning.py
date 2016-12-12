@@ -22,24 +22,24 @@ import re
 import numpy as np
 import pint
 
-from pisa import ureg
+from pisa import ureg, HASH_SIGFIGS
 from pisa.utils.comparisons import isbarenumeric, normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils import jsons
 from pisa.utils.log import logging, set_verbosity
 
 
-HASH_SIGFIGS = 12
-"""Round to this many significant figures for hashing numbers, such that
-machine precision doesn't cause effectively equivalent numbers to hash
-differently."""
+__all__ = ['NAME_FIXES', 'NAME_SEPCHARS', 'NAME_FIXES_REGEXES',
+           'basename', '_new_obj',
+           'OneDimBinning', 'MultiDimBinning',
+           'test_OneDimBinning', 'test_MultiDimBinning']
+
 
 NAME_FIXES = ['true', 'truth', 'reco', 'reconstructed']
 NAME_SEPCHARS = r'([_\s-])*'
 NAME_FIXES_REGEXES = [re.compile(p + NAME_SEPCHARS, re.IGNORECASE)
                       for p in NAME_FIXES]
 
-__all__ = ['OneDimBinning', 'MultiDimBinning', 'basename']
 
 # TODO: move this to a centralized utils location
 def basename(n):
@@ -78,6 +78,21 @@ def basename(n):
     for regex in NAME_FIXES_REGEXES:
         n = regex.sub('', n)
     return n
+
+
+def _new_obj(original_function):
+    """Decorator to deepcopy unaltered states into new OneDimBinning object."""
+    @wraps(original_function)
+    def new_function(self, *args, **kwargs):
+        new_state = OrderedDict()
+        state_updates = original_function(self, *args, **kwargs)
+        for attr in self._hash_attrs:
+            if attr in state_updates:
+                new_state[attr] = state_updates[attr]
+            else:
+                new_state[attr] = deepcopy(getattr(self, attr))
+        return OneDimBinning(**new_state)
+    return new_function
 
 
 class OneDimBinning(object):
@@ -665,20 +680,6 @@ class OneDimBinning(object):
                                                    max(be.magnitude))
         return crit
 
-    def _new_obj(original_function):
-        """Decorator to deepcopy unaltered states into new object."""
-        @wraps(original_function)
-        def new_function(self, *args, **kwargs):
-            new_state = OrderedDict()
-            state_updates = original_function(self, *args, **kwargs)
-            for attr in self._hash_attrs:
-                if attr in state_updates:
-                    new_state[attr] = state_updates[attr]
-                else:
-                    new_state[attr] = deepcopy(getattr(self, attr))
-            return OneDimBinning(**new_state)
-        return new_function
-
     def __len__(self):
         """Number of bins (*not* number of bin edges)."""
         return self.num_bins
@@ -1013,7 +1014,7 @@ class OneDimBinning(object):
         return recursiveEquality(self._hashable_state, other._hashable_state)
 
     def __ne__(self, other):
-        return not self == other
+        return not self.__eq__(other)
 
 # TODO: make this able to be loaded from a pickle!!!
 class MultiDimBinning(object):
@@ -1708,7 +1709,7 @@ class MultiDimBinning(object):
         return self.num_dims
 
     def __ne__(self, other):
-        return not self == other
+        return not self.__eq__(other)
 
 
 def test_OneDimBinning():
@@ -1778,10 +1779,10 @@ def test_OneDimBinning():
     try:
         for b in [b1, b2, b3, b4]:
             b_file = os.path.join(testdir, 'one_dim_binning.json')
-            b.to_json(b_file)
+            b.to_json(b_file, warn=False)
             b_ = OneDimBinning.from_json(b_file)
             assert b_ == b, 'b=\n%s\nb_=\n%s' %(b, b_)
-            jsons.to_json(b, b_file)
+            jsons.to_json(b, b_file, warn=False)
             b_ = OneDimBinning.from_json(b_file)
             assert b_ == b, 'b=\n%s\nb_=\n%s' %(b, b_)
     except:
@@ -1850,10 +1851,10 @@ def test_MultiDimBinning():
     testdir = tempfile.mkdtemp()
     try:
         b_file = os.path.join(testdir, 'multi_dim_binning.json')
-        binning.to_json(b_file)
+        binning.to_json(b_file, warn=False)
         b_ = MultiDimBinning.from_json(b_file)
         assert b_ == binning, 'binning=\n%s\nb_=\n%s' %(binning, b_)
-        jsons.to_json(binning, b_file)
+        jsons.to_json(binning, b_file, warn=False)
         b_ = MultiDimBinning.from_json(b_file)
         assert b_ == binning, 'binning=\n%s\nb_=\n%s' %(binning, b_)
     finally:
@@ -1925,6 +1926,6 @@ def test_MultiDimBinning():
 
 
 if __name__ == "__main__":
-    set_verbosity(3)
+    set_verbosity(1)
     test_OneDimBinning()
     test_MultiDimBinning()

@@ -18,7 +18,7 @@ import sys
 import numpy as np
 from uncertainties import unumpy as unp
 
-from pisa import ureg
+from pisa import ureg, HASH_SIGFIGS
 from pisa.core.binning import MultiDimBinning
 from pisa.core.map import Map, MapSet, rebin
 from pisa.utils.comparisons import normQuant, recursiveEquality
@@ -26,11 +26,7 @@ from pisa.utils.hash import hash_obj
 from pisa.utils import jsons
 
 
-__all__ = ['HASH_SIGFIGS',
-           'TransformSet', 'Transform', 'BinnedTensorTransform']
-
-
-HASH_SIGFIGS = 12
+__all__ = ['TransformSet', 'Transform', 'BinnedTensorTransform']
 
 
 # TODO: Include option for propagating/not propagating errors, so that while
@@ -46,9 +42,6 @@ HASH_SIGFIGS = 12
 # so we can trnsparently handle e.g. events alongside maps where one is a
 # sideband object for the other in a given stage, but which is which should be
 # irrelevant).
-
-# TODO: dtype arg to BinnedTensorTransform (or a global def like HASH_SIGFIGS?)
-# to allow for single precision and hence any associated speedups
 
 ## TODO: numba implementation of BinnedTensorTransform faster or not?
 #import numba

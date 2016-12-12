@@ -64,7 +64,7 @@ def plot_asymmetry(h0_map, h0_name, h1_map, h1_name, fulltitle, savename,
         ax=axes[0],
         title='Hypothesis 0: $%s$' % fmt_tex(h0_name),
         cmap=plt.cm.afmhot,
-        vertmax=vmax
+        vmax=vmax
     )
 
     h1_map.plot(
@@ -72,7 +72,7 @@ def plot_asymmetry(h0_map, h0_name, h1_map, h1_name, fulltitle, savename,
         ax=axes[1],
         title='Hypothesis 1: $%s$' % fmt_tex(h1_name),
         cmap=plt.cm.afmhot,
-        vertmax=vmax
+        vmax=vmax
     )
 
     asymmetry_to_plot.plot(
