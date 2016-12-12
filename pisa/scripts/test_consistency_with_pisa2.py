@@ -775,7 +775,7 @@ def parse_args():
     if FTYPE == np.float32:
         dflt_ratio_threshold = 5e-4
     elif FTYPE == np.float64:
-        dflt_ratio_threshold = 1e-8
+        dflt_ratio_threshold = 1e-7
     else:
         raise ValueError('FTYPE=%s from const.py not handled' % FTYPE)
 
