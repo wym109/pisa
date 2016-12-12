@@ -886,9 +886,9 @@ def test_Events():
 
 def test_Data():
     """Unit tests for Data class"""
-    # Instantiate from LEESARD file
-    file_loc = '/data/icecube/data/LEESARD/PRD_extend_finalLevel/12550.pckl'
-    file_loc2 = '/data/icecube/data/LEESARD/PRD_extend_finalLevel/14550.pckl'
+    # Instantiate from LEESARD file - located in $PISA_RESOURCES
+    file_loc = '12550.pckl'
+    file_loc2 = '14550.pckl'
     f = from_file(file_loc)
     f2 = from_file(file_loc2)
     d = {'nue+nuebar': f}
@@ -897,7 +897,7 @@ def test_Data():
     data2 = Data(d2)
     print data.keys()
 
-    muon_file = '/data/icecube/data/mlarson/level7_24Nov2015/current_pickle_files/Level7_muongun.12370_15.pckl'
+    muon_file = 'Level7_muongun.12370_15.pckl'
     m = {'muons': from_file(muon_file)}
     m = Data(val=m)
     assert m.contains_muons
