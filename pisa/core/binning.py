@@ -56,7 +56,7 @@ def basename(n):
 
     Returns
     -------
-    string
+    basename : string
 
     Examples
     --------
@@ -133,12 +133,19 @@ class OneDimBinning(object):
         If `num_bins` and `domain` are specified,
 
     is_log : bool
-        Whether
+        Whether bin spacing is to be equal on a log-scale. Specify along with
+        `domain` to generate `bin_edges` on the fly. On the other hand, if
+        `bin_edges` is passed, the nature of the binning will try to be
+        detected. This fails to detect log binning in some cases (e.g. a single
+        bin, which defaults to linear binning), so pass `is_log=True` in such
+        cases to explicitly set the nature of the binning.
 
     domain : length-2 sequence of numerical
         Units may be specified.
 
     num_bins : int
+        Number of bins; specify if `domain` and either `is_lin` or `is_log` are
+        specified, but redundant if `bin_edges` is specified.
 
     bin_names : None or sequence of strings
         Strings by which each bin can be identified. This is expected to be
@@ -156,18 +163,18 @@ class OneDimBinning(object):
     Examples
     --------
     >>> from pisa import ureg
-    >>> ebins = OneDimBinning(name='energy', tex=r'E_\nu', is_log=True,
+    >>> ebins = OneDimBinning(name='energy', is_log=True,
     ...                       num_bins=40, domain=[1, 80]*ureg.GeV)
     >>> print ebins
     energy: 40 logarithmically-uniform bins spanning [1.0, 80.0] GeV
     >>> ebins2 = ebins.to('joule')
     >>> print ebins2
 
-    >>> czbins = OneDimBinning(name='coszen', tex=r'\cos\theta_\nu',
+    >>> czbins = OneDimBinning(name='coszen',
     ...                        is_lin=True, num_bins=4, domain=[-1, 0])
     >>> print czbins
     coszen: 4 equally-sized bins spanning [-1.0, 0.0]
-    >>> czbins2 = OneDimBinning(name='coszen', tex=r'\cos\theta_\nu',
+    >>> czbins2 = OneDimBinning(name='coszen',
     ...                         bin_edges=[-1, -0.75, -0.5, -0.25, 0])
     >>> czbins == czbins2
     True
@@ -449,7 +456,8 @@ class OneDimBinning(object):
 
         Returns
         -------
-        int : index of dimension
+        idx: int
+            index of bin corresponding to `x`
 
         Raises
         ------
@@ -489,8 +497,8 @@ class OneDimBinning(object):
 
         See Also
         --------
-        from_json : Intantiate new OneDimBinning object from the file written
-        by this method pisa.utils.jsons.to_json
+        from_json : Instantiate new OneDimBinning object from the file written
+            by this method pisa.utils.jsons.to_json
 
         """
         jsons.to_json(self._serializable_state, filename=filename, **kwargs)
@@ -1108,7 +1116,8 @@ class MultiDimBinning(object):
 
         See Also
         --------
-        from_json : Intantiate new object from the file written by this method
+        from_json
+            Instantiate new object from the file written by this method
         pisa.utils.jsons.to_json
 
         """
@@ -1199,7 +1208,8 @@ class MultiDimBinning(object):
 
     @property
     def hash(self):
-        return hash_obj(self._hashable_state) #[d.hash for d in self])
+        """Unique hash value for this object"""
+        return hash_obj(self._hashable_state)
 
     def __hash__(self):
         return self.hash
@@ -1279,7 +1289,8 @@ class MultiDimBinning(object):
 
         Returns
         -------
-        integer index of the dimension corresponding to `dim`
+        idx : integer
+            index of the dimension corresponding to `dim`
 
         Raises
         ------
@@ -1328,7 +1339,8 @@ class MultiDimBinning(object):
 
         Returns
         -------
-        MultiDimBinning : same as this, but with `dims` removed.
+        binning : MultiDimBinning
+            Identical binning as this but with `dims` removed.
 
         """
         if isinstance(dims, (basestring, int)):
@@ -1480,7 +1492,11 @@ class MultiDimBinning(object):
 
         Parameters
         ----------
-        `other` : Binning or container with attribute "binning"
+        other : Binning or container with attribute "binning"
+
+        Returns
+        -------
+        compat : bool
 
         """
         if not isinstance(other, MultiDimBinning):
@@ -1606,6 +1622,17 @@ class MultiDimBinning(object):
         return volumes
 
     def empty(self, **kwargs):
+        """Return an "empty" numpy ndarray with same dimensions as this
+        binning.
+
+        The contents are not _actually_ empty, just undefined. Therefore be
+        careful to populate the array prior to using its contents.
+
+        Parameters
+        ----------
+        **kwargs : passed to numpy.empty()
+
+        """
         np.empty(self.shape, **kwargs)
 
     def __contains__(self, x):
