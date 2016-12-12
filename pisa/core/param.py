@@ -1146,7 +1146,7 @@ def test_Param():
     param2 = deepcopy(p2)
     assert param2 == p2
 
-    print '<< PASSED : test_Param >>'
+    logging.info('<< PASSED : test_Param >>')
 
 
 # TODO: add tests for reset() and reset_all() methods
@@ -1160,72 +1160,75 @@ def test_ParamSet():
     p2 = Param(name='b', value=1.5, prior=None, range=[1, 2],
                is_fixed=False, is_discrete=False, tex=r'{\rm b}')
     param_set = ParamSet(p0, p1, p2)
-    print param_set.values
-    print param_set[0]
+    logging.debug(str((param_set.values)))
+    logging.debug(str((param_set[0])))
     param_set[0].value = 1
-    print param_set.values
+    logging.debug(str((param_set.values)))
 
     param_set.values = [1.5, 5, 1]
-    print param_set.values
-    print param_set.values[0]
-    print param_set[0].value
+    logging.debug(str((param_set.values)))
+    logging.debug(str((param_set.values[0])))
+    logging.debug(str((param_set[0].value)))
 
-    print 'priors:', param_set.priors
-    print 'names:', param_set.names
+    logging.debug(str(('priors:', param_set.priors)))
+    logging.debug(str(('names:', param_set.names)))
 
-    print param_set['a']
-    print param_set['a'].value
+    logging.debug(str((param_set['a'])))
+    logging.debug(str((param_set['a'].value)))
     try:
         param_set['a'].value = 33
     except:
         pass
     else:
         assert False
-    print param_set['a'].value
+    logging.debug(str((param_set['a'].value)))
 
-    print param_set['c'].is_fixed
+    logging.debug(str((param_set['c'].is_fixed)))
     param_set['c'].is_fixed = True
-    print param_set['c'].is_fixed
-    print param_set.are_fixed
+    logging.debug(str((param_set['c'].is_fixed)))
+    logging.debug(str((param_set.are_fixed)))
     param_set.fix('a')
-    print param_set.are_fixed
+    logging.debug(str((param_set.are_fixed)))
     param_set.unfix('a')
-    print param_set.are_fixed
+    logging.debug(str((param_set.are_fixed)))
     param_set.unfix([0, 1, 2])
-    print param_set.are_fixed
+    logging.debug(str((param_set.are_fixed)))
 
     fixed_params = param_set.fixed
-    print fixed_params.are_fixed
+    logging.debug(str((fixed_params.are_fixed)))
     free_params = param_set.free
-    print free_params.are_fixed
-    print param_set.free.values
+    logging.debug(str((free_params.are_fixed)))
+    logging.debug(str((param_set.free.values)))
 
-    print param_set.values_hash
-    print param_set.fixed.values_hash
-    print param_set.free.values_hash
+    logging.debug(str((param_set.values_hash)))
+    logging.debug(str((param_set.fixed.values_hash)))
+    logging.debug(str((param_set.free.values_hash)))
 
-    print param_set[0].state
-    print param_set.state_hash
-    print param_set.fixed.state_hash
-    print param_set.free.state_hash
+    logging.debug(str((param_set[0].state)))
+    logging.debug(str((param_set.state_hash)))
+    logging.debug(str((param_set.fixed.state_hash)))
+    logging.debug(str((param_set.free.state_hash)))
 
-    print 'fixed:', param_set.fixed.names
-    print 'fixed, discrete:', param_set.fixed.discrete.names
-    print 'fixed, continuous:', param_set.fixed.continuous.names
-    print 'free:', param_set.free.names
-    print 'free, discrete:', param_set.free.discrete.names
-    print 'free, continuous:', param_set.free.continuous.names
-    print 'continuous, free:', param_set.continuous.free.names
-    print 'free, continuous hash:', param_set.free.continuous.values_hash
-    print 'continuous, free hash:', param_set.continuous.free.values_hash
+    logging.debug(str(('fixed:', param_set.fixed.names)))
+    logging.debug(str(('fixed, discrete:', param_set.fixed.discrete.names)))
+    logging.debug(str(('fixed, continuous:',
+                       param_set.fixed.continuous.names)))
+    logging.debug(str(('free:', param_set.free.names)))
+    logging.debug(str(('free, discrete:', param_set.free.discrete.names)))
+    logging.debug(str(('free, continuous:', param_set.free.continuous.names)))
+    logging.debug(str(('continuous, free:', param_set.continuous.free.names)))
+    logging.debug(str(('free, continuous hash:',
+                       param_set.free.continuous.values_hash)))
+    logging.debug(str(('continuous, free hash:',
+                       param_set.continuous.free.values_hash)))
 
-    print param_set['b'].prior_llh
-    print param_set.priors_llh
-    print param_set.free.priors_llh
-    print param_set.fixed.priors_llh
+    logging.debug(str((param_set['b'].prior_llh)))
+    logging.debug(str((param_set.priors_llh)))
+    logging.debug(str((param_set.free.priors_llh)))
+    logging.debug(str((param_set.fixed.priors_llh)))
 
-    print param_set[0].prior_chi2
-    print param_set.priors_chi2
+    logging.debug(str((param_set[0].prior_chi2)))
+    logging.debug(str((param_set.priors_chi2)))
 
 	# Test that setting attributes works
     e_prior = Prior(kind='gaussian', mean=10*ureg.GeV, stddev=1*ureg.GeV)
@@ -1271,11 +1274,11 @@ def test_ParamSet():
 
     # Test deepcopy
     param_set2 = deepcopy(param_set)
-    print param_set
-    print param_set2
+    logging.debug(str((param_set)))
+    logging.debug(str((param_set2)))
     assert param_set2 == param_set
 
-    print '<< PASSED : test_ParamSet >>'
+    logging.info('<< PASSED : test_ParamSet >>')
 
 
 def test_ParamSelector():
@@ -1408,11 +1411,11 @@ def test_ParamSelector():
     param_selector2 = deepcopy(param_selector)
     assert param_selector2 == param_selector
 
-    print '<< PASSED : test_ParamSelector >>'
+    logging.info('<< PASSED : test_ParamSelector >>')
 
 
 if __name__ == "__main__":
-    set_verbosity(3)
+    set_verbosity(1)
     test_Param()
     test_ParamSet()
     test_ParamSelector()

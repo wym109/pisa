@@ -15,6 +15,7 @@ import numpy as np
 import pint
 
 from pisa import ureg
+from pisa.utils.log import logging, set_verbosity
 
 
 __all__ = ['WHITESPACE_RE', 'NUMBER_RESTR', 'NUMBER_RE',
@@ -420,11 +421,22 @@ def hash2hex(hash, bits=64):
     return hex_hash
 
 
+def test_hrlist_formatter():
+    logging.debug(str((hrlist_formatter(start=0, end=10, step=1))))
+    logging.debug(str((hrlist_formatter(start=0, end=10, step=2))))
+    logging.debug(str((hrlist_formatter(start=0, end=3, step=8))))
+    logging.debug(str((hrlist_formatter(start=0.1, end=3.1, step=1.0))))
+    logging.info('<< PASSED : test_hrlist_formatter >>')
+
+
+def test_list2hrlist():
+    logging.debug(str((list2hrlist([0, 1]))))
+    logging.debug(str((list2hrlist([0, 1, 2]))))
+    logging.debug(str((list2hrlist([0.1, 1.1, 2.1, 3.1]))))
+    logging.info('<< PASSED : test_list2hrlist >>')
+
+
 if __name__ == '__main__':
-    print hrlist_formatter(start=0, end=10, step=1)
-    print hrlist_formatter(start=0, end=10, step=2)
-    print hrlist_formatter(start=0, end=3, step=8)
-    print hrlist_formatter(start=0.1, end=3.1, step=1.0)
-    print list2hrlist([0, 1])
-    print list2hrlist([0, 1, 2])
-    print list2hrlist([0.1, 1.1, 2.1, 3.1])
+    set_verbosity(1)
+    test_hrlist_formatter()
+    test_list2hrlist()

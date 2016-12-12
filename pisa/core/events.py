@@ -895,20 +895,20 @@ def test_Data():
     d2 = {'numu+numubar': f2}
     data = Data(d)
     data2 = Data(d2)
-    print data.keys()
+    logging.debug(str((data.keys())))
 
     muon_file = 'Level7_muongun.12370_15.pckl'
     m = {'muons': from_file(muon_file)}
     m = Data(val=m)
     assert m.contains_muons
     assert not m.contains_neutrinos
-    print m
+    logging.debug(str((m)))
     data = data + m
     assert data.contains_neutrinos
-    print data
+    logging.debug(str((data)))
     if not data.contains_muons:
         raise Exception("data doesn't contain muons.")
-    print data.neutrinos.keys()
+    logging.debug(str((data.neutrinos.keys())))
 
     # Apply a simple cut
     data.applyCut('(zenith <= 1.1) & (energy <= 200)')
@@ -963,14 +963,14 @@ def test_Data():
     data = Data(val='/tmp/test_FlavIntDataGroup.hdf5')
 
     d3 = data + data2 + m
-    print d3
+    logging.debug(str((d3)))
     d3_com = d3.transform_groups(['nue+nuebar+numu+numubar'])
-    print d3_com
+    logging.debug(str((d3_com)))
 
     logging.info('<< PASSED : test_Data >>')
 
 
 if __name__ == "__main__":
-    set_verbosity(3)
+    set_verbosity(1)
     test_Events()
     test_Data()

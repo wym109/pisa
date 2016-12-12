@@ -22,10 +22,10 @@ import pint
 import scipy.optimize as optimize
 
 from pisa import ureg
-from pisa.core.map import METRICS_TO_MAXIMIZE
 from pisa.core.param import ParamSet
 from pisa.utils.log import logging
 from pisa.utils.fileio import to_file
+from pisa.utils.stats import METRICS_TO_MAXIMIZE
 
 
 __all__ = ['Analysis', 'Counter']

@@ -1,7 +1,10 @@
 # author : S.Wren, J.L.Lanfranchi
 #
 # date   : September 06, 2016
+"""
+Functions to help compare and plot differences between PISA 2 and PISA 3 maps
 
+"""
 
 import os
 import numpy as np
@@ -9,7 +12,6 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import numpy as np
 
 from pisa import ureg
 from pisa.core.binning import OneDimBinning, MultiDimBinning
@@ -20,8 +22,16 @@ from pisa.utils.log import logging
 
 __all__ = ['has_cuda', 'order', 'order_str', 'check_agreement',
            'print_agreement', 'print_event_rates', 'validate_maps',
-           'make_delta_map', 'make_ratio_map', 'baseplot', 'baseplot2',
-           'plot_comparisons', 'plot_cmp']
+           'make_delta_map', 'make_ratio_map',
+           'validate_map_objs',
+           'baseplot', 'baseplot2',
+           'plot_comparisons', 'plot_map_comparisons', 'plot_cmp',
+           'pisa2_map_to_pisa3_map']
+
+
+# TODO: make functions work transparently (i.e. autodetect) whether it's a
+# PISA 2 or PISA 3 style map object, convert to PISA 3 maps, and go from
+# there.
 
 
 def has_cuda():
@@ -29,10 +39,10 @@ def has_cuda():
     try:
         import pycuda.driver as cuda
     except:
-        CUDA = False
+        cuda_present = False
     else:
-        CUDA = True
-    return CUDA
+        cuda_present = True
+    return cuda_present
 
 
 def order(x):
@@ -63,7 +73,8 @@ def check_agreement(testname, thresh_ratio, ratio, thresh_diff, diff):
     diff_pass_str = 'PASS' if diff_pass else 'FAIL'
 
     headline = '<< {testname:s}, {kind:s} : {pass_str:s} >>'
-    detail_str = '... agree to (( 10^{level:s} )) ; thresh = (( 10^{thresh:s} ))'
+    detail_str = ('... agree to (( 10^{level:s} )) ; '
+                  'thresh = (( 10^{thresh:s} ))')
 
     ratio_headline = headline.format(
         testname=testname, kind='fract diff', pass_str=ratio_pass_str
@@ -123,11 +134,24 @@ def print_event_rates(testname1, testname2, kind, map1_events, map2_events):
     logging.info(test2_events)
 
 
+# TODO: specify `allclose` parameters `rtol` and `atol` excplicitly
 def validate_maps(amap, bmap):
     """Validate that two PISA 2 style maps are compatible binning."""
     if not (np.allclose(amap['ebins'], bmap['ebins']) and
             np.allclose(amap['czbins'], bmap['czbins'])):
         raise ValueError("Maps' binnings do not match!")
+
+
+# TODO: specify `allclose` parameters `rtol` and `atol` excplicitly
+def validate_map_objs(amap, bmap):
+    """Validate that two PISA 3 style maps are compatible binning."""
+    if not all([np.allclose(ae, be) for ae, be
+                in zip(amap.binning.bin_edges, bmap.binning.bin_edges)]):
+        raise ValueError(
+            "Maps' binnings do not match! Got first map as \n%s \nand second "
+            " map as \n%s"
+            % (amap.binning._hashable_state, bmap.binning._hashable_state)
+        )
 
 
 def make_delta_map(amap, bmap):
@@ -150,23 +174,12 @@ def make_ratio_map(amap, bmap):
     return result
 
 
-def validate_map_objs(amap, bmap):
-    """Validate that two PISA 3 style maps are compatible binning."""
-    if not amap.binning == bmap.binning:
-        raise ValueError(
-            "Maps' binnings do not match! Got first map as \n%s \nand second "
-            " map as \n%s"
-            %(amap.binning._hashable_state,bmap.binning._hashable_state)
-        )
-
-
 def baseplot(m, title, ax, clabel=None, symm=False, evtrate=False,
              vmax=None, cmap=plt.cm.afmhot):
     """Simple plotting of a 2D histogram (map)"""
     hist = np.ma.masked_invalid(m['map'])
     energy = m['ebins']
     coszen = m['czbins']
-    islog = False
     if symm:
         cmap = plt.cm.seismic
         extr = np.nanmax(np.abs(hist))
@@ -180,7 +193,7 @@ def baseplot(m, title, ax, clabel=None, symm=False, evtrate=False,
             vmin = np.nanmin(hist)
         if vmax is None:
             vmax = np.nanmax(hist)
-    cmap.set_bad(color=(0,1,0), alpha=1)
+    cmap.set_bad(color=(0, 1, 0), alpha=1)
     x = coszen
     y = np.log10(energy)
     X, Y = np.meshgrid(x, y)
@@ -220,7 +233,6 @@ def baseplot2(map, title, ax, vmax=None, symm=False, evtrate=False):
     """
     assert len(map.binning) == 2
     hist = np.ma.masked_invalid(map.hist)
-    islog = False
     if symm:
         cmap = plt.cm.seismic
         extr = np.nanmax(np.abs(hist))
@@ -234,7 +246,7 @@ def baseplot2(map, title, ax, vmax=None, symm=False, evtrate=False):
             vmin = np.nanmin(hist)
         if vmax is None:
             vmax = np.nanmax(hist)
-    cmap.set_bad(color=(0,1,0), alpha=1)
+    cmap.set_bad(color=(0, 1, 0), alpha=1)
 
     x = map.binning.dims[0].bin_edges.magnitude
     y = map.binning.dims[1].bin_edges.magnitude
@@ -314,13 +326,13 @@ def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
         logging.warn('Infinite value found in ratio tests. Difference tests '
                      'now also being calculated')
         # First find all the finite elements
-        FiniteMap = np.isfinite(diff_ratio_map['map'])
+        finite_map = np.isfinite(diff_ratio_map['map'])
         # Then find the nanmax of this, will be our new test value
-        max_diff_ratio = np.nanmax(np.abs(diff_ratio_map['map'][FiniteMap]))
+        max_diff_ratio = np.nanmax(np.abs(diff_ratio_map['map'][finite_map]))
         # Also find all the infinite elements
-        InfiniteMap = np.logical_not(FiniteMap)
+        infinite_map = np.logical_not(finite_map)
         # This will be a second test value
-        max_diff = np.nanmax(np.abs(diff_map['map'][InfiniteMap]))
+        max_diff = np.nanmax(np.abs(diff_map['map'][infinite_map]))
     else:
         # Without any infinite elements we can ignore this second test
         max_diff = 0.0
@@ -328,7 +340,7 @@ def plot_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir, name,
     if outdir is not None:
         gridspec_kw = dict(left=0.03, right=0.968, wspace=0.32)
         fig, axes = plt.subplots(nrows=1, ncols=5, gridspec_kw=gridspec_kw,
-                                 sharex=False, sharey=False, figsize=(20,5))
+                                 sharex=False, sharey=False, figsize=(20, 5))
         if shorttitles:
             baseplot(m=ref_map,
                      title=basetitle+' '+ref_abv+' (A)',
@@ -424,13 +436,13 @@ def plot_map_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir,
         logging.warn('Infinite value found in ratio tests. Difference tests '
                      'now also being calculated')
         # First find all the finite elements
-        FiniteMap = np.isfinite(diff_ratio_map.hist)
+        finite_map = np.isfinite(diff_ratio_map.hist)
         # Then find the nanmax of this, will be our new test value
-        max_diff_ratio = np.nanmax(np.abs(diff_ratio_map.hist[FiniteMap]))
+        max_diff_ratio = np.nanmax(np.abs(diff_ratio_map.hist[finite_map]))
         # Also find all the infinite elements
-        InfiniteMap = np.logical_not(FiniteMap)
+        infinite_map = np.logical_not(finite_map)
         # This will be a second test value
-        max_diff = np.nanmax(np.abs(diff_map.hist[InfiniteMap]))
+        max_diff = np.nanmax(np.abs(diff_map.hist[infinite_map]))
     else:
         # Without any infinite elements we can ignore this second test
         max_diff = 0.0
@@ -438,7 +450,7 @@ def plot_map_comparisons(ref_map, new_map, ref_abv, new_abv, outdir, subdir,
     if outdir is not None:
         gridspec_kw = dict(left=0.03, right=0.968, wspace=0.32)
         fig, axes = plt.subplots(nrows=1, ncols=5, gridspec_kw=gridspec_kw,
-                                 sharex=False, sharey=False, figsize=(20,5))
+                                 sharex=False, sharey=False, figsize=(20, 5))
         if shorttitles:
             ref_map.plot(
                 fig=fig,
@@ -570,7 +582,8 @@ def plot_cmp(new, ref, new_label, ref_label, plot_label, file_label, outdir,
 
         # Handle cases where ratio returns infinite
         # This isn't necessarily a fail, since all it means is the referene was
-        # zero If the new value is sufficiently close to zero then it's still fine
+        # zero. If the new value is sufficiently close to zero then it's stil
+        # fine.
         if max_diff_ratio == np.inf:
             logging.warn('Infinite value found in ratio tests. Difference tests'
                          ' now also being calculated')
@@ -598,17 +611,17 @@ def plot_cmp(new, ref, new_label, ref_label, plot_label, file_label, outdir,
             fig, axes = plt.subplots(nrows=n_third_dim_bins, ncols=5,
                                      gridspec_kw=gridspec_kw,
                                      squeeze=False, sharex=False, sharey=False,
-                                     figsize=(20,5))
+                                     figsize=(20, 5))
 
             refslice = ref
             newslice = new
             bin_names = None
             if n_dims == 3:
                 if odd_dim_idx != 0:
-                    refslice  = np.moveaxis(ref, source=odd_dim_idx,
-                                            destination=0)
-                    newslice  = np.moveaxis(new, source=odd_dim_idx,
-                                            destination=0)
+                    refslice = np.moveaxis(ref, source=odd_dim_idx,
+                                           destination=0)
+                    newslice = np.moveaxis(new, source=odd_dim_idx,
+                                           destination=0)
                 bin_names = new.binning.dims[odd_dim_idx].bin_names
 
             for odd_bin_idx in range(n_third_dim_bins):
@@ -619,8 +632,8 @@ def plot_cmp(new, ref, new_label, ref_label, plot_label, file_label, outdir,
                     tmp_new_label = new_label
 
                 elif n_dims == 3:
-                    thisbin_ref = refslice[odd_bin_idx,...].squeeze()
-                    thisbin_new = newslice[odd_bin_idx,...].squeeze()
+                    thisbin_ref = refslice[odd_bin_idx, ...].squeeze()
+                    thisbin_new = newslice[odd_bin_idx, ...].squeeze()
 
                     if bin_names is not None:
                         suffix = bin_names[odd_bin_idx]
@@ -694,7 +707,7 @@ def plot_cmp(new, ref, new_label, ref_label, plot_label, file_label, outdir,
 
 def pisa2_map_to_pisa3_map(pisa2_map, ebins_name='ebins', czbins_name='czbins'):
     expected_keys = ['map', 'ebins', 'czbins']
-    if not sorted(pisa2_map.keys()) == sorted(expected_keys):
+    if sorted(pisa2_map.keys()) != sorted(expected_keys):
         raise ValueError('PISA 2 map should be a dict containining entries: %s'
                          %expected_keys)
     ebins = OneDimBinning(
@@ -707,7 +720,7 @@ def pisa2_map_to_pisa3_map(pisa2_map, ebins_name='ebins', czbins_name='czbins'):
         bin_edges=pisa2_map['czbins'],
         is_lin=True
     )
-    bins = MultiDimBinning([ebins,czbins])
+    bins = MultiDimBinning([ebins, czbins])
     return Map(
         name='pisa2equivalent',
         hist=pisa2_map['map'],
