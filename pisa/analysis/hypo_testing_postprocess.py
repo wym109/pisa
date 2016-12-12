@@ -35,7 +35,7 @@ from scipy.stats import norm, spearmanr
 from pisa import ureg
 from pisa.analysis.hypo_testing import Labels
 from pisa.core.param import Param, ParamSet
-from pisa.utils.fileio import from_file, nsort
+from pisa.utils.fileio import from_file, to_file, nsort
 from pisa.utils.log import set_verbosity, logging
 
 
@@ -167,136 +167,154 @@ def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
 
     """
     logdir = os.path.expanduser(os.path.expandvars(logdir))
-    config_summary_fpath = os.path.join(logdir, 'config_summary.json')
-    cfg = from_file(config_summary_fpath)
+    logdir_content = os.listdir(logdir)
+    if 'data_sets.pckl' in logdir_content:
+        logging.info('Found files I assume to be from a previous run of this '
+                     'processing script. If this is incorrect please delete '
+                     'the files: data_sets.pckl, all_params.pckl and '
+                     'labels.pckl from the logdir you have provided.')
+        data_sets = from_file(os.path.join(logdir, 'data_sets.pckl'))
+        all_params = from_file(os.path.join(logdir, 'all_params.pckl'))
+        labels = from_file(os.path.join(logdir, 'labels.pckl'))
+    elif 'config_summary.json' in logdir_content:
+        config_summary_fpath = os.path.join(logdir, 'config_summary.json')
+        cfg = from_file(config_summary_fpath)
 
-    data_is_data = cfg['data_is_data']
-    if data_is_data and fluctuate_data:
-        raise ValueError('Analysis was performed on data, so `fluctuate_data`'
-                         ' is not supported.')
+        data_is_data = cfg['data_is_data']
+        if data_is_data and fluctuate_data:
+            raise ValueError('Analysis was performed on data, so '
+                             '`fluctuate_data` is not supported.')
 
-    # Get naming scheme
-    labels = Labels(
-        h0_name=cfg['h0_name'], h1_name=cfg['h1_name'],
-        data_name=cfg['data_name'], data_is_data=data_is_data,
-        fluctuate_data=fluctuate_data, fluctuate_fid=fluctuate_fid
-    )
+        # Get naming scheme
+        labels = Labels(
+            h0_name=cfg['h0_name'], h1_name=cfg['h1_name'],
+            data_name=cfg['data_name'], data_is_data=data_is_data,
+            fluctuate_data=fluctuate_data, fluctuate_fid=fluctuate_fid
+        )
 
-    all_params = {}
-    all_params['h0_params'] = {}
-    all_params['h1_params'] = {}
-    parse_string = ('(.*)=(.*); prior=(.*),'
-                    ' range=(.*), is_fixed=(.*),'
-                    ' is_discrete=(.*); help="(.*)"')
-    for param_string in cfg['h0_params']:
-        bits = re.match(parse_string, param_string, re.M|re.I)
-        if bits.group(5) == 'False':
-            all_params['h0_params'][bits.group(1)] = {}
-            all_params['h0_params'][bits.group(1)]['value'] = bits.group(2)
-            all_params['h0_params'][bits.group(1)]['prior'] = bits.group(3)
-            all_params['h0_params'][bits.group(1)]['range'] = bits.group(4)
-    for param_string in cfg['h1_params']:
-        bits = re.match(parse_string, param_string, re.M|re.I)
-        if bits.group(5) == 'False':
-            all_params['h1_params'][bits.group(1)] = {}
-            all_params['h1_params'][bits.group(1)]['value'] = bits.group(2)
-            all_params['h1_params'][bits.group(1)]['prior'] = bits.group(3)
-            all_params['h1_params'][bits.group(1)]['range'] = bits.group(4)
+        all_params = {}
+        all_params['h0_params'] = {}
+        all_params['h1_params'] = {}
+        parse_string = ('(.*)=(.*); prior=(.*),'
+                        ' range=(.*), is_fixed=(.*),'
+                        ' is_discrete=(.*); help="(.*)"')
+        for param_string in cfg['h0_params']:
+            bits = re.match(parse_string, param_string, re.M|re.I)
+            if bits.group(5) == 'False':
+                all_params['h0_params'][bits.group(1)] = {}
+                all_params['h0_params'][bits.group(1)]['value'] = bits.group(2)
+                all_params['h0_params'][bits.group(1)]['prior'] = bits.group(3)
+                all_params['h0_params'][bits.group(1)]['range'] = bits.group(4)
+        for param_string in cfg['h1_params']:
+            bits = re.match(parse_string, param_string, re.M|re.I)
+            if bits.group(5) == 'False':
+                all_params['h1_params'][bits.group(1)] = {}
+                all_params['h1_params'][bits.group(1)]['value'] = bits.group(2)
+                all_params['h1_params'][bits.group(1)]['prior'] = bits.group(3)
+                all_params['h1_params'][bits.group(1)]['range'] = bits.group(4)
 
-    #for key in labels.dict.keys():
-    #    print key
+        # Find all relevant data dirs, and from each extract the fiducial fit(s)
+        # information contained
+        data_sets = OrderedDict()
+        for basename in nsort(os.listdir(logdir)):
+            m = labels.subdir_re.match(basename)
+            if m is None:
+                continue
 
-    # Find all relevant data dirs, and from each extract the fiducial fit(s)
-    # information contained
-    data_sets = OrderedDict()
-    for basename in nsort(os.listdir(logdir)):
-        m = labels.subdir_re.match(basename)
-        if m is None:
-            continue
-
-        if fluctuate_data:
-            data_ind = int(m.groupdict()['data_ind'])
-            dset_label = data_ind
-        else:
-            dset_label = labels.data_prefix
-            if not labels.data_name in [None, '']:
-                dset_label += '_' + labels.data_name
-            if not labels.data_suffix in [None, '']:
-                dset_label += '_' + labels.data_suffix
-
-        lvl2_fits = OrderedDict()
-        lvl2_fits['h0_fit_to_data'] = None
-        lvl2_fits['h1_fit_to_data'] = None
-
-        # Account for failed jobs. Get the set of file numbers that exist
-        # for all h0 an h1 combinations
-        file_nums = OrderedDict()
-        subdir = os.path.join(logdir, basename)
-        for fnum, fname in enumerate(nsort(os.listdir(subdir))):
-            fpath = os.path.join(subdir, fname)
-            for x in ['0', '1']:
-                for y in ['0','1']:
-                    k = 'h{x}_fit_to_h{y}_fid'.format(x=x, y=y)
-                    r = labels.dict[k + '_re']
-                    m = r.match(fname)
-                    if m is None:
-                        continue
-                    if fluctuate_fid:
-                        fid_label = int(m.groupdict()['fid_ind'])
-                    else:
-                        fid_label = labels.fid
-                    if k not in file_nums:
-                        file_nums[k] = []
-                    file_nums[k].append(fid_label)
-                    break
-
-        set_file_nums = []
-        for hypokey in file_nums.keys():
-            if len(set_file_nums) == 0:
-                set_file_nums = set(file_nums[hypokey])
+            if fluctuate_data:
+                data_ind = int(m.groupdict()['data_ind'])
+                dset_label = data_ind
             else:
-                set_file_nums = set_file_nums.intersection(file_nums[hypokey])
+                dset_label = labels.data_prefix
+                if not labels.data_name in [None, '']:
+                    dset_label += '_' + labels.data_name
+                if not labels.data_suffix in [None, '']:
+                    dset_label += '_' + labels.data_suffix
 
-        for fnum, fname in enumerate(nsort(os.listdir(subdir))):
-            fpath = os.path.join(subdir, fname)
-            for x in ['0', '1']:
-                k = 'h{x}_fit_to_data'.format(x=x)
-                if fname == labels.dict[k]:
-                    lvl2_fits[k] = extract_fit(fpath, 'metric_val')
-                    break
-                # Also extract fiducial fits if needed
-                if 'toy' in dset_label:
-                    ftest = ('hypo_%s_fit_to_%s.json'
-                             %(labels.dict['h{x}_name'.format(x=x)],
-                               dset_label))
-                    if fname == ftest:
-                        k = 'h{x}_fit_to_{y}'.format(x=x,y=dset_label)
-                        lvl2_fits[k] = extract_fit(
-                            fpath,
-                            ['metric_val', 'params']
-                        )
+            lvl2_fits = OrderedDict()
+            lvl2_fits['h0_fit_to_data'] = None
+            lvl2_fits['h1_fit_to_data'] = None
+
+            # Account for failed jobs. Get the set of file numbers that exist
+            # for all h0 an h1 combinations
+            file_nums = OrderedDict()
+            subdir = os.path.join(logdir, basename)
+            for fnum, fname in enumerate(nsort(os.listdir(subdir))):
+                fpath = os.path.join(subdir, fname)
+                for x in ['0', '1']:
+                    for y in ['0','1']:
+                        k = 'h{x}_fit_to_h{y}_fid'.format(x=x, y=y)
+                        r = labels.dict[k + '_re']
+                        m = r.match(fname)
+                        if m is None:
+                            continue
+                        if fluctuate_fid:
+                            fid_label = int(m.groupdict()['fid_ind'])
+                        else:
+                            fid_label = labels.fid
+                        if k not in file_nums:
+                            file_nums[k] = []
+                        file_nums[k].append(fid_label)
                         break
-                k = 'h{x}_fit_to_{y}'.format(x=x, y=dset_label)
-                for y in ['0','1']:
-                    k = 'h{x}_fit_to_h{y}_fid'.format(x=x, y=y)
-                    r = labels.dict[k + '_re']
-                    m = r.match(fname)
-                    if m is None:
-                        continue
-                    if fluctuate_fid:
-                        fid_label = int(m.groupdict()['fid_ind'])
-                    else:
-                        fid_label = labels.fid
-                    if k not in lvl2_fits:
-                        lvl2_fits[k] = OrderedDict()
-                    if fid_label in set_file_nums:
-                        lvl2_fits[k][fid_label] = \
-                            extract_fit(fpath,
-                                        ['metric', 'metric_val','params'])
-                    break
-        data_sets[dset_label] = lvl2_fits
-        data_sets[dset_label]['params'] = \
-            extract_fit(fpath, ['params'])['params']
+
+            set_file_nums = []
+            for hypokey in file_nums.keys():
+                if len(set_file_nums) == 0:
+                    set_file_nums = set(file_nums[hypokey])
+                else:
+                    set_file_nums = set_file_nums.intersection(file_nums[hypokey])
+
+            for fnum, fname in enumerate(nsort(os.listdir(subdir))):
+                fpath = os.path.join(subdir, fname)
+                for x in ['0', '1']:
+                    k = 'h{x}_fit_to_data'.format(x=x)
+                    if fname == labels.dict[k]:
+                        lvl2_fits[k] = extract_fit(fpath, 'metric_val')
+                        break
+                    # Also extract fiducial fits if needed
+                    if 'toy' in dset_label:
+                        ftest = ('hypo_%s_fit_to_%s.json'
+                                 %(labels.dict['h{x}_name'.format(x=x)],
+                                   dset_label))
+                        if fname == ftest:
+                            k = 'h{x}_fit_to_{y}'.format(x=x,y=dset_label)
+                            lvl2_fits[k] = extract_fit(
+                                fpath,
+                                ['metric_val', 'params']
+                            )
+                            break
+                    k = 'h{x}_fit_to_{y}'.format(x=x, y=dset_label)
+                    for y in ['0','1']:
+                        k = 'h{x}_fit_to_h{y}_fid'.format(x=x, y=y)
+                        r = labels.dict[k + '_re']
+                        m = r.match(fname)
+                        if m is None:
+                            continue
+                        if fluctuate_fid:
+                            fid_label = int(m.groupdict()['fid_ind'])
+                        else:
+                            fid_label = labels.fid
+                        if k not in lvl2_fits:
+                            lvl2_fits[k] = OrderedDict()
+                        if fid_label in set_file_nums:
+                            lvl2_fits[k][fid_label] = extract_fit(
+                                fpath,
+                                ['metric', 'metric_val','params']
+                            )
+                        break
+            data_sets[dset_label] = lvl2_fits
+            data_sets[dset_label]['params'] = extract_fit(
+                fpath,
+                ['params']
+            )['params']
+        to_file(data_sets, os.path.join(logdir, 'data_sets.pckl'))
+        to_file(all_params, os.path.join(logdir, 'all_params.pckl'))
+        to_file(labels, os.path.join(logdir, 'labels.pckl'))
+    else:
+        raise ValueError('config_summary.json cannot be found in the specified'
+                         ' logdir. It should have been created as part of the '
+                         'output of hypo_testing.py and so this postprocessing'
+                         ' cannot be performed.')
     return data_sets, all_params, labels
 
 
@@ -355,7 +373,7 @@ def extract_data(data):
         alldata = data[injkey]
         paramkeys = alldata['params'].keys()
         for datakey in alldata.keys():
-            if datakey is not 'params':
+            if not datakey == 'params':
                 values[injkey][datakey] = {}
                 values[injkey][datakey]['metric_val'] = {}
                 values[injkey][datakey]['metric_val']['vals'] = []
@@ -417,7 +435,7 @@ def purge_failed_jobs(data, trial_nums, thresh=5.0):
             bad_trials = np.where(good_trials==False)[0]
             if len(bad_trials) == 1:
                 logging.warning(
-                    "Outlier detected for %s in trial %s. These will be "
+                    "Outlier detected for %s in trial %s. This will be "
                     "removed. If you think this should not happen, please "
                     "change the value of the threshold used for this decision "
                     "(currently set to %.2f)."
@@ -425,7 +443,7 @@ def purge_failed_jobs(data, trial_nums, thresh=5.0):
                 )
             else:
                 logging.warning(
-                    "Outlier detected for %s in trial %s. These will be "
+                    "Outlier detected for %s in trials %s. These will be "
                     "removed. If you think this should not happen, please "
                     "change the value of the threshold used for this decision "
                     "(currently set to %.2f)."
@@ -448,25 +466,21 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir):
 
     TODO:
 
-    1) p-values currently calculated assuming h0 is the truth. Should 
-       probably come up with a way of identifying the best fit and constructing 
-       the LLR distributions based on this. This is, after all, how it should 
-       be done with real data.
-
-    2) Currently the p-value is put on the LLR distributions as an annotation.
+    1) Currently the p-value is put on the LLR distributions as an annotation.
        This is probably fine, since the significances can just be calculated 
        from this after the fact.
 
-    3) A method of quantifying the uncertainty due to finite statistics in the 
+    2) A method of quantifying the uncertainty due to finite statistics in the 
        pseudo-trials should be added. Possible ways are:
         a) Fitting the distributions and then drawing X new instances of Y 
            trials (where X and Y are large) and looking at the spread in the 
            p-values. This would require a good fit to the distributions, which
            is fine if they end up gaussian...
         b) Quantifying the uncertainty on the critical value used to determine 
-           the significance. In the case of the median this can be achieved by 
-           drawing subsets of the data. Though, efforts to do this in the past
-           have given results that seemed to underestimate the true uncertainty.
+           the significance. In the case of the median this could be achieved 
+           by drawing subsets of the data and creating a distribution of 
+           medians. Though, efforts to do this in the past have given results 
+           that seemed to underestimate the true uncertainty.
     '''
     outdir = os.path.join(outdir,'LLRDistributions')
     if not os.path.exists(outdir):
@@ -510,6 +524,17 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir):
     metric_type = data['h0_fit_to_h0_fid']['metric_val']['type']
     metric_type_pretty = make_pretty(metric_type)
 
+    # In the case of likelihood, the maximum metric is the better fit.
+    # With chi2 metrics the opposite is true, and so we must multiply
+    # everything by -1 in order to apply the same treatment.
+    if 'chi2' in metric_type:
+        logging.info("Converting chi2 metric to likelihood equivalent.")
+        h0_fit_to_h0_fid_metrics *= -1
+        h1_fit_to_h0_fid_metrics *= -1
+        h0_fit_to_h1_fid_metrics *= -1
+        h1_fit_to_h1_fid_metrics *= -1
+        critical_value *= -1
+
     if bestfit == 'h0':
         LLRbest = h0_fit_to_h0_fid_metrics - h1_fit_to_h0_fid_metrics
         LLRalt = h0_fit_to_h1_fid_metrics - h1_fit_to_h1_fid_metrics
@@ -537,8 +562,13 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir):
     best_name = labels['%s_name'%bestfit]
     alt_name = labels['%s_name'%altfit]
 
-    med_p_value = float(np.sum(LLRbest > alt_median))/len(LLRbest)
-    crit_p_value = float(np.sum(LLRbest > critical_value))/len(LLRbest)
+    # p value quantified by asking how much of the time the ALT hypothesis ends
+    # up more convincing than the fiducial experiment.
+    # The p value is simply this as the fraction of the total number of trials.
+    crit_p_value = float(np.sum(LLRalt > critical_value))/len(LLRalt)
+    # For the case of toy data we also look at the MEDIAN in order to quantify
+    # the MEDIAN SENSITIVITY. THAT IS, THE CASE OF A MEDIAN EXPERIMENT.
+    med_p_value = float(np.sum(LLRalt > best_median))/len(LLRalt)
 
     med_plot_labels = []
     med_plot_labels.append((r"Hypo %s median = %.4f"%(best_name,best_median)))
