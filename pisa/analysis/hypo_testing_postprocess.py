@@ -20,7 +20,6 @@ import os
 
 import numpy as np
 
-from pisa import ureg
 from pisa.analysis.hypo_testing import Labels
 from pisa.utils.fileio import from_file, nsort
 from pisa.utils.log import set_verbosity
@@ -97,7 +96,7 @@ def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
                 if fname == labels.dict[k]:
                     lvl2_fits[k] = extract_fit(fpath, 'metric_val')
                     break
-                for y in ['0','1']:
+                for y in ['0', '1']:
                     k = 'h{x}_fit_to_h{y}_fid'.format(x=x, y=y)
                     r = labels.dict[k + '_re']
                     #print r.pattern

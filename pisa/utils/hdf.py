@@ -4,6 +4,7 @@
 # date:   2015-03-05
 """Set of utilities for handling HDF5 file I/O"""
 
+
 import os
 
 import numpy as np
@@ -15,7 +16,8 @@ from pisa.utils.resources import find_resource
 from pisa.utils.comparisons import recursiveEquality
 
 
-__all__ = ['from_hdf', 'to_hdf']
+__all__ = ['from_hdf', 'to_hdf',
+           'test_hdf']
 
 
 # TODO: convert to use OrderedDict to preserve ordering
@@ -125,9 +127,9 @@ def to_hdf(data_dict, tgt, attrs=None, overwrite=True, warn=True):
         Set to `True` (default) to allow overwriting existing file. Raise
         exception and quit otherwise.
     warn : bool
-        Issue a warning message if a file is being overwritten (`True`, default).
-        Suppress warning by setting to `False` (e.g. when overwriting is the
-        desired behaviour).
+        Issue a warning message if a file is being overwritten. Suppress
+        warning by setting to `False` (e.g. when overwriting is the desired
+        behaviour).
 
     """
     if not isinstance(data_dict, dict):
@@ -136,7 +138,8 @@ def to_hdf(data_dict, tgt, attrs=None, overwrite=True, warn=True):
         raise TypeError(errmsg)
 
     # Define a function for interatively doing the work
-    def store_recursively(fhandle, node, path=None, attrs=None, node_hashes=None):
+    def store_recursively(fhandle, node, path=None, attrs=None,
+                          node_hashes=None):
         path = [] if path is None else path
         node_hashes = {} if node_hashes is None else node_hashes
         full_path = '/' + '/'.join(path)

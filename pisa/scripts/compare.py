@@ -11,18 +11,15 @@ is unnecessary to reproduce the results.
 
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-from collections import Iterable, OrderedDict
+from collections import OrderedDict
 import os
-import sys
 
 import numpy as np
-from uncertainties import unumpy as unp
 
 from pisa.core.distribution_maker import DistributionMaker
 from pisa.core.map import Map, MapSet
 from pisa.utils.fileio import mkdir, to_file
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils.tests import plot_cmp
 from pisa.utils.plotter import Plotter
 
 
@@ -384,7 +381,7 @@ def main():
         )
     )
 
-    split_axis=None
+    split_axis = None
 
     for plot_format in plot_formats:
         # Plot the raw distributions

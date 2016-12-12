@@ -9,9 +9,7 @@ from pycuda.compiler import SourceModule
 import numpy as np
 
 from pisa import FTYPE, C_FTYPE, C_PRECISION_DEF
-from pisa.core.events import Events
 from pisa.utils.resources import find_resource
-
 
 
 class GPUWeight(object):
@@ -298,13 +296,13 @@ class GPUWeight(object):
     # python wrappers for CUDA functions
 
     def calc_flux(self, n_evts, weighted_aeff, true_energy, true_coszen,
-                    neutrino_nue_flux, neutrino_numu_flux,
-                    neutrino_oppo_nue_flux, neutrino_oppo_numu_flux,
-                    scaled_nue_flux, scaled_numu_flux,
-                    scaled_nue_flux_shape, scaled_numu_flux_shape,
-                    nue_numu_ratio, nu_nubar_ratio, kNuBar, delta_index,
-                    Barr_uphor_ratio, Barr_nu_nubar_ratio,
-                    **kwargs):
+                  neutrino_nue_flux, neutrino_numu_flux,
+                  neutrino_oppo_nue_flux, neutrino_oppo_numu_flux,
+                  scaled_nue_flux, scaled_numu_flux,
+                  scaled_nue_flux_shape, scaled_numu_flux_shape,
+                  nue_numu_ratio, nu_nubar_ratio, kNuBar, delta_index,
+                  Barr_uphor_ratio, Barr_nu_nubar_ratio,
+                  **kwargs):
         # block and grid dimensions
         bdim = (256,1,1)
         dx, mx = divmod(n_evts, bdim[0])
