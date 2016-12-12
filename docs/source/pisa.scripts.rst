@@ -28,10 +28,10 @@ pisa.scripts.fit_discrete_sys module
     :undoc-members:
     :show-inheritance:
 
-pisa.scripts.make_akhmedov_plots module
----------------------------------------
+pisa.scripts.make_asymmetry_plots module
+----------------------------------------
 
-.. automodule:: pisa.scripts.make_akhmedov_plots
+.. automodule:: pisa.scripts.make_asymmetry_plots
     :members:
     :undoc-members:
     :show-inheritance:

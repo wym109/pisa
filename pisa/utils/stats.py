@@ -33,6 +33,9 @@ LLH_METRICS = ['llh', 'conv_llh', 'barlow_llh']
 ALL_METRICS = LLH_METRICS + CHI2_METRICS
 """All metrics defined"""
 
+METRICS_TO_MAXIMIZE = LLH_METRICS
+"""Metrics that must be maximized to obtain a better fit"""
+
 
 # TODO(philippeller):
 # * why `nsigma` in some places but `sigma` in others? make conventions

@@ -22,24 +22,24 @@ import re
 import numpy as np
 import pint
 
-from pisa import ureg
+from pisa import ureg, HASH_SIGFIGS
 from pisa.utils.comparisons import isbarenumeric, normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils import jsons
 from pisa.utils.log import logging, set_verbosity
 
 
-HASH_SIGFIGS = 12
-"""Round to this many significant figures for hashing numbers, such that
-machine precision doesn't cause effectively equivalent numbers to hash
-differently."""
+__all__ = ['NAME_FIXES', 'NAME_SEPCHARS', 'NAME_FIXES_REGEXES',
+           'basename', '_new_obj',
+           'OneDimBinning', 'MultiDimBinning',
+           'test_OneDimBinning', 'test_MultiDimBinning']
+
 
 NAME_FIXES = ['true', 'truth', 'reco', 'reconstructed']
 NAME_SEPCHARS = r'([_\s-])*'
 NAME_FIXES_REGEXES = [re.compile(p + NAME_SEPCHARS, re.IGNORECASE)
                       for p in NAME_FIXES]
 
-__all__ = ['OneDimBinning', 'MultiDimBinning', 'basename']
 
 # TODO: move this to a centralized utils location
 def basename(n):
@@ -56,7 +56,7 @@ def basename(n):
 
     Returns
     -------
-    string
+    basename : string
 
     Examples
     --------
@@ -78,6 +78,21 @@ def basename(n):
     for regex in NAME_FIXES_REGEXES:
         n = regex.sub('', n)
     return n
+
+
+def _new_obj(original_function):
+    """Decorator to deepcopy unaltered states into new OneDimBinning object."""
+    @wraps(original_function)
+    def new_function(self, *args, **kwargs):
+        new_state = OrderedDict()
+        state_updates = original_function(self, *args, **kwargs)
+        for attr in self._hash_attrs:
+            if attr in state_updates:
+                new_state[attr] = state_updates[attr]
+            else:
+                new_state[attr] = deepcopy(getattr(self, attr))
+        return OneDimBinning(**new_state)
+    return new_function
 
 
 class OneDimBinning(object):
@@ -118,12 +133,19 @@ class OneDimBinning(object):
         If `num_bins` and `domain` are specified,
 
     is_log : bool
-        Whether
+        Whether bin spacing is to be equal on a log-scale. Specify along with
+        `domain` to generate `bin_edges` on the fly. On the other hand, if
+        `bin_edges` is passed, the nature of the binning will try to be
+        detected. This fails to detect log binning in some cases (e.g. a single
+        bin, which defaults to linear binning), so pass `is_log=True` in such
+        cases to explicitly set the nature of the binning.
 
     domain : length-2 sequence of numerical
         Units may be specified.
 
     num_bins : int
+        Number of bins; specify if `domain` and either `is_lin` or `is_log` are
+        specified, but redundant if `bin_edges` is specified.
 
     bin_names : None or sequence of strings
         Strings by which each bin can be identified. This is expected to be
@@ -141,18 +163,18 @@ class OneDimBinning(object):
     Examples
     --------
     >>> from pisa import ureg
-    >>> ebins = OneDimBinning(name='energy', tex=r'E_\nu', is_log=True,
+    >>> ebins = OneDimBinning(name='energy', is_log=True,
     ...                       num_bins=40, domain=[1, 80]*ureg.GeV)
     >>> print ebins
     energy: 40 logarithmically-uniform bins spanning [1.0, 80.0] GeV
     >>> ebins2 = ebins.to('joule')
     >>> print ebins2
 
-    >>> czbins = OneDimBinning(name='coszen', tex=r'\cos\theta_\nu',
+    >>> czbins = OneDimBinning(name='coszen',
     ...                        is_lin=True, num_bins=4, domain=[-1, 0])
     >>> print czbins
     coszen: 4 equally-sized bins spanning [-1.0, 0.0]
-    >>> czbins2 = OneDimBinning(name='coszen', tex=r'\cos\theta_\nu',
+    >>> czbins2 = OneDimBinning(name='coszen',
     ...                         bin_edges=[-1, -0.75, -0.5, -0.25, 0])
     >>> czbins == czbins2
     True
@@ -434,7 +456,8 @@ class OneDimBinning(object):
 
         Returns
         -------
-        int : index of dimension
+        idx: int
+            index of bin corresponding to `x`
 
         Raises
         ------
@@ -474,8 +497,8 @@ class OneDimBinning(object):
 
         See Also
         --------
-        from_json : Intantiate new OneDimBinning object from the file written
-        by this method pisa.utils.jsons.to_json
+        from_json : Instantiate new OneDimBinning object from the file written
+            by this method pisa.utils.jsons.to_json
 
         """
         jsons.to_json(self._serializable_state, filename=filename, **kwargs)
@@ -664,20 +687,6 @@ class OneDimBinning(object):
                                                    self.name,
                                                    max(be.magnitude))
         return crit
-
-    def _new_obj(original_function):
-        """Decorator to deepcopy unaltered states into new object."""
-        @wraps(original_function)
-        def new_function(self, *args, **kwargs):
-            new_state = OrderedDict()
-            state_updates = original_function(self, *args, **kwargs)
-            for attr in self._hash_attrs:
-                if attr in state_updates:
-                    new_state[attr] = state_updates[attr]
-                else:
-                    new_state[attr] = deepcopy(getattr(self, attr))
-            return OneDimBinning(**new_state)
-        return new_function
 
     def __len__(self):
         """Number of bins (*not* number of bin edges)."""
@@ -1013,7 +1022,7 @@ class OneDimBinning(object):
         return recursiveEquality(self._hashable_state, other._hashable_state)
 
     def __ne__(self, other):
-        return not self == other
+        return not self.__eq__(other)
 
 # TODO: make this able to be loaded from a pickle!!!
 class MultiDimBinning(object):
@@ -1107,7 +1116,8 @@ class MultiDimBinning(object):
 
         See Also
         --------
-        from_json : Intantiate new object from the file written by this method
+        from_json
+            Instantiate new object from the file written by this method
         pisa.utils.jsons.to_json
 
         """
@@ -1198,7 +1208,8 @@ class MultiDimBinning(object):
 
     @property
     def hash(self):
-        return hash_obj(self._hashable_state) #[d.hash for d in self])
+        """Unique hash value for this object"""
+        return hash_obj(self._hashable_state)
 
     def __hash__(self):
         return self.hash
@@ -1278,7 +1289,8 @@ class MultiDimBinning(object):
 
         Returns
         -------
-        integer index of the dimension corresponding to `dim`
+        idx : integer
+            index of the dimension corresponding to `dim`
 
         Raises
         ------
@@ -1327,7 +1339,8 @@ class MultiDimBinning(object):
 
         Returns
         -------
-        MultiDimBinning : same as this, but with `dims` removed.
+        binning : MultiDimBinning
+            Identical binning as this but with `dims` removed.
 
         """
         if isinstance(dims, (basestring, int)):
@@ -1479,7 +1492,11 @@ class MultiDimBinning(object):
 
         Parameters
         ----------
-        `other` : Binning or container with attribute "binning"
+        other : Binning or container with attribute "binning"
+
+        Returns
+        -------
+        compat : bool
 
         """
         if not isinstance(other, MultiDimBinning):
@@ -1605,6 +1622,17 @@ class MultiDimBinning(object):
         return volumes
 
     def empty(self, **kwargs):
+        """Return an "empty" numpy ndarray with same dimensions as this
+        binning.
+
+        The contents are not _actually_ empty, just undefined. Therefore be
+        careful to populate the array prior to using its contents.
+
+        Parameters
+        ----------
+        **kwargs : passed to numpy.empty()
+
+        """
         np.empty(self.shape, **kwargs)
 
     def __contains__(self, x):
@@ -1708,7 +1736,7 @@ class MultiDimBinning(object):
         return self.num_dims
 
     def __ne__(self, other):
-        return not self == other
+        return not self.__eq__(other)
 
 
 def test_OneDimBinning():
@@ -1778,10 +1806,10 @@ def test_OneDimBinning():
     try:
         for b in [b1, b2, b3, b4]:
             b_file = os.path.join(testdir, 'one_dim_binning.json')
-            b.to_json(b_file)
+            b.to_json(b_file, warn=False)
             b_ = OneDimBinning.from_json(b_file)
             assert b_ == b, 'b=\n%s\nb_=\n%s' %(b, b_)
-            jsons.to_json(b, b_file)
+            jsons.to_json(b, b_file, warn=False)
             b_ = OneDimBinning.from_json(b_file)
             assert b_ == b, 'b=\n%s\nb_=\n%s' %(b, b_)
     except:
@@ -1850,10 +1878,10 @@ def test_MultiDimBinning():
     testdir = tempfile.mkdtemp()
     try:
         b_file = os.path.join(testdir, 'multi_dim_binning.json')
-        binning.to_json(b_file)
+        binning.to_json(b_file, warn=False)
         b_ = MultiDimBinning.from_json(b_file)
         assert b_ == binning, 'binning=\n%s\nb_=\n%s' %(binning, b_)
-        jsons.to_json(binning, b_file)
+        jsons.to_json(binning, b_file, warn=False)
         b_ = MultiDimBinning.from_json(b_file)
         assert b_ == binning, 'binning=\n%s\nb_=\n%s' %(binning, b_)
     finally:
@@ -1925,6 +1953,6 @@ def test_MultiDimBinning():
 
 
 if __name__ == "__main__":
-    set_verbosity(3)
+    set_verbosity(1)
     test_OneDimBinning()
     test_MultiDimBinning()

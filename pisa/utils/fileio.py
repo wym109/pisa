@@ -22,15 +22,14 @@ from pisa.utils import resources
 
 import numpy as np
 
-__all__ = ['JSON_EXTS', 'HDF5_EXTS', 'PKL_EXTS', 'DILL_EXTS', 'CFG_EXTS',
-           'ZIP_EXTS', 'TXT_EXTS', 'NSORT_RE',
+
+__all__ = ['PKL_EXTS', 'DILL_EXTS', 'CFG_EXTS', 'ZIP_EXTS', 'TXT_EXTS',
+           'NSORT_RE',
            'expandPath', 'mkdir', 'get_valid_filename', 'nsort', 'findFiles',
            'from_cfg', 'from_pickle', 'to_pickle', 'from_dill', 'to_dill',
            'from_file', 'to_file']
 
 
-JSON_EXTS = ['json', 'json.bz2']
-HDF5_EXTS = ['hdf', 'h5', 'hdf5']
 PKL_EXTS = ['pickle', 'pckl', 'pkl', 'p']
 DILL_EXTS = ['dill']
 CFG_EXTS = ['ini', 'cfg']
@@ -272,9 +271,9 @@ def from_file(fname, fmt=None, **kwargs):
         ext = inner_ext + '.' + zip_ext
 
     fname = resources.find_resource(fname)
-    if ext in JSON_EXTS:
+    if ext in jsons.JSON_EXTS:
         return jsons.from_json(fname, **kwargs)
-    if ext in HDF5_EXTS:
+    if ext in hdf.HDF5_EXTS:
         return hdf.from_hdf(fname, **kwargs)
     if ext in PKL_EXTS:
         return from_pickle(fname, **kwargs)
@@ -306,10 +305,10 @@ def to_file(obj, fname, fmt=None, overwrite=True, warn=True, **kwargs):
         zip_ext = ext
         ext = inner_ext + '.' + zip_ext
 
-    if ext in JSON_EXTS:
+    if ext in jsons.JSON_EXTS:
         return jsons.to_json(obj, fname, overwrite=overwrite, warn=warn,
                              **kwargs)
-    elif ext in HDF5_EXTS:
+    elif ext in hdf.HDF5_EXTS:
         return hdf.to_hdf(obj, fname, overwrite=overwrite, warn=warn, **kwargs)
     elif ext in PKL_EXTS:
         return to_pickle(obj, fname, overwrite=overwrite, warn=warn, **kwargs)
