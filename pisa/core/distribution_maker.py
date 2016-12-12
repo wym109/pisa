@@ -78,7 +78,8 @@ class DistributionMaker(object):
     def __iter__(self):
         return iter(self._pipelines)
 
-    def get_outputs(self, return_sum=False, **kwargs):
+    def get_outputs(self, return_sum=False, sum_map_name='total',
+                    sum_map_tex_name='Total', **kwargs):
         """Compute and return the outputs.
 
         Parameters
@@ -103,6 +104,8 @@ class DistributionMaker(object):
                 outputs = reduce(lambda x, y: sum(x) + sum(y), outputs)
             else:
                 outputs = sum(sum(outputs))
+            outputs.name = sum_map_name
+            outputs.tex = sum_map_tex_name
             outputs = MapSet(outputs)
         return outputs
 
