@@ -72,7 +72,7 @@ def check_agreement(testname, thresh_ratio, ratio, thresh_diff, diff):
     diff_ord_str = order_str(diff)
     diff_pass_str = 'PASS' if diff_pass else 'FAIL'
 
-    headline = '<< {testname:s}, {kind:s} : {pass_str:s} >>'
+    headline = '<< {pass_str:s} : {testname:s}, {kind:s} >>'
     detail_str = ('... agree to (( 10^{level:s} )) ; '
                   'thresh = (( 10^{thresh:s} ))')
 
@@ -118,6 +118,7 @@ def print_agreement(testname, ratio):
     )
 
     logging.info(s_ratio)
+
 
 def print_event_rates(testname1, testname2, kind, map1_events, map2_events):
     s = '<< {testname:s} total {kind:s} events >>' \

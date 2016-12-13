@@ -50,8 +50,9 @@ PID_FAIL_MESSAGE = (
 )
 
 PID_PASS_MESSAGE = (
-    "PID passed, since PISA 3 should *disagree* with PISA 2 due to known bug"
-    " in PISA 2"
+    "**NOTE** Ignore above FAIL message; PID passed, since PISA 3 *should"
+    " disagree* with PISA 2 due to known bug in PISA 2 (doesn't normalize"
+    " correctly if PID categories don't include all events)"
 )
 
 
