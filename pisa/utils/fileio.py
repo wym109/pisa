@@ -268,7 +268,7 @@ def from_file(fname, fmt=None, **kwargs):
         rootname, inner_ext = os.path.splitext(rootname)
         inner_ext = inner_ext.replace('.', '').lower()
         zip_ext = ext
-        ext = inner_ext + '.' + zip_ext
+        ext = inner_ext
 
     fname = resources.find_resource(fname)
     if ext in jsons.JSON_EXTS:
@@ -285,7 +285,7 @@ def from_file(fname, fmt=None, **kwargs):
         return from_txt(fname, **kwargs)
     errmsg = 'File "%s": unrecognized extension "%s"' % (fname, ext)
     log.logging.error(errmsg)
-    raise TypeError(errmsg)
+    raise ValueError(errmsg)
 
 
 def to_file(obj, fname, fmt=None, overwrite=True, warn=True, **kwargs):
@@ -303,7 +303,7 @@ def to_file(obj, fname, fmt=None, overwrite=True, warn=True, **kwargs):
         rootname, inner_ext = os.path.splitext(rootname)
         inner_ext = inner_ext.replace('.', '').lower()
         zip_ext = ext
-        ext = inner_ext + '.' + zip_ext
+        ext = inner_ext
 
     if ext in jsons.JSON_EXTS:
         return jsons.to_json(obj, fname, overwrite=overwrite, warn=warn,
