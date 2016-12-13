@@ -414,6 +414,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('-d', '--data-settings', type=str,
                         metavar='configfile', default=None,
+                        action='append',
                         help='settings for the generation of "data"')
     parser.add_argument('-t', '--template-settings',
                         metavar='configfile', required=True,

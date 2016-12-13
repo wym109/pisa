@@ -86,6 +86,10 @@ def main():
         --combine option for multiple combine strings.'''
     )
     parser.add_argument(
+        '--json', action='store_true',
+        help='''Save output maps in json format.''' 
+    )
+    parser.add_argument(
         '--pdf', action='store_true',
         help='''Save plots in PDF format. If neither this nor --png is
         specified, no plots are produced.'''
@@ -186,7 +190,7 @@ def main():
         ref_source = 'DistributionMaker'
         if args.ref_param_selections is not None:
             ref_dmaker.select_params(args.ref_param_selections)
-        ref = ref_dmaker.get_outputs()
+        ref = ref_dmaker.get_outputs(return_sum=True)
 
     if ref is None:
         try:
@@ -224,7 +228,7 @@ def main():
         test_source = 'DistributionMaker'
         if args.test_param_selections is not None:
             test_dmaker.select_params(args.test_param_selections)
-        test = test_dmaker.get_outputs()
+        test = test_dmaker.get_outputs(return_sum=True)
 
     if test is None:
         try:
@@ -261,12 +265,13 @@ def main():
 
     # Save to disk the maps being plotted (excluding optional aboslute value
     # operations)
-    ref.to_json(os.path.join(
-        args.outdir, 'maps__%s.json.bz2' % args.ref_label
-    ))
-    test.to_json(os.path.join(
-        args.outdir, 'maps__%s.json.bz2' % args.test_label
-    ))
+    if args.json:
+        ref.to_json(os.path.join(
+            args.outdir, 'maps__%s.json.bz2' % args.ref_label
+        ))
+        test.to_json(os.path.join(
+            args.outdir, 'maps__%s.json.bz2' % args.test_label
+        ))
 
     if set(test.names) != set(ref.names):
         raise ValueError(
@@ -357,27 +362,28 @@ def main():
     fract_diff = MapSet(fract_diff_maps)
     asymm = MapSet(asymm_maps)
 
-    diff.to_json(os.path.join(
-        args.outdir,
-        'diff__%s__%s.json.bz2' %(test_plot_label, ref_plot_label)
-    ))
-    fract_diff.to_json(os.path.join(
-        args.outdir,
-        'fract_diff__%s___%s.json.bz2' %(test_plot_label, ref_plot_label)
-    ))
-    asymm.to_json(os.path.join(
-        args.outdir,
-        'asymm__%s___%s.json.bz2' %(test_plot_label, ref_plot_label)
-    ))
-    to_file(
-        summary_stats,
-        os.path.join(
+    if args.json:
+        diff.to_json(os.path.join(
             args.outdir,
-            'stats__%s__%s.json.bz2' %(test_plot_label, ref_plot_label)
+            'diff__%s__%s.json.bz2' %(test_plot_label, ref_plot_label)
+        ))
+        fract_diff.to_json(os.path.join(
+            args.outdir,
+            'fract_diff__%s___%s.json.bz2' %(test_plot_label, ref_plot_label)
+        ))
+        asymm.to_json(os.path.join(
+            args.outdir,
+            'asymm__%s___%s.json.bz2' %(test_plot_label, ref_plot_label)
+        ))
+        to_file(
+            summary_stats,
+            os.path.join(
+                args.outdir,
+                'stats__%s__%s.json.bz2' %(test_plot_label, ref_plot_label)
+            )
         )
-    )
 
-    split_axis=None
+    split_axis='pid'
 
     for plot_format in plot_formats:
         # Plot the raw distributions
@@ -400,8 +406,8 @@ def main():
             test - ref,
             split_axis=split_axis,
             fname='diff__%s__%s' % (test_plot_label, ref_plot_label),
-            cmap='seismic',
-            vmin=args.diff_min, vmax=args.diff_max
+            cmap='RdBu',
+            #vmin=args.diff_min, vmax=args.diff_max
         )
 
         # Plot the fractional difference (test - ref)/ref
@@ -415,8 +421,8 @@ def main():
             test/ref - 1.,
             split_axis=split_axis,
             fname='fract_diff__%s__%s' % (test_plot_label, ref_plot_label),
-            cmap='seismic',
-            vmin=args.fract_diff_min, vmax=args.fract_diff_max
+            cmap='RdBu',
+            #vmin=args.fract_diff_min, vmax=args.fract_diff_max
         )
 
         # Plot the asymmetry (test - ref)/sqrt(ref)
@@ -431,8 +437,8 @@ def main():
             (test-ref)/ref**0.5,
             split_axis=split_axis,
             fname='asymm__%s__%s' % (test_plot_label, ref_plot_label),
-            cmap='seismic',
-            vmin=args.asymm_min, vmax=args.asymm_max
+            cmap='RdBu',
+            #vmin=args.asymm_min, vmax=args.asymm_max
         )
 
 

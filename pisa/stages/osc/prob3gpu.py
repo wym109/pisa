@@ -207,6 +207,7 @@ class prob3gpu(Stage):
                                    const int kNuBar,
                                    const int kFlav,
                                    const int maxLayers,
+                                   fType true_e_scale,
                                    const fType* const d_energy,
                                    const int* const d_numberOfLayers,
                                    const fType* const d_densityInLayer,
@@ -227,7 +228,7 @@ class prob3gpu(Stage):
       clear_complex_matrix( TransitionTemp );
       clear_probabilities( Probability );
       int layers = *(d_numberOfLayers + idx);
-      fType energy = d_energy[idx];
+      fType energy = d_energy[idx] * true_e_scale;
       for( int i=0; i<layers; i++) {
         fType density = *(d_densityInLayer + idx*maxLayers + i);
         fType distance = *(d_distanceInLayer + idx*maxLayers + i);
@@ -305,7 +306,7 @@ class prob3gpu(Stage):
                 'detector_depth', 'prop_height',
                 'deltacp', 'deltam21', 'deltam31',
                 'theta12', 'theta13', 'theta23',
-                'no_nc_osc'
+                'no_nc_osc', 'true_e_scale',
             )
 
         # Define the names of objects that are required by this stage (objects
@@ -615,7 +616,7 @@ class prob3gpu(Stage):
         cuda.memcpy_htod(self.d_dm_mat,FTYPE(dm_mat))
         cuda.memcpy_htod(self.d_mix_mat,FTYPE(mix_mat))
 
-    def calc_probs(self, kNuBar, kFlav, n_evts, true_energy, numLayers,
+    def calc_probs(self, kNuBar, kFlav, n_evts, true_e_scale, true_energy, numLayers,
                    densityInLayer, distanceInLayer, prob_e, prob_mu, **kwargs):
 
         assert(not self.calc_transforms)
@@ -632,6 +633,7 @@ class prob3gpu(Stage):
                        np.int32(kNuBar),
                        np.int32(kFlav),
                        np.int32(self.maxLayers),
+                       FTYPE(true_e_scale),
                        true_energy,
                        numLayers,
                        densityInLayer,

@@ -280,7 +280,7 @@ class Plotter(object):
         if linlog:
             # needs to be transposed for imshow
             img = plt.imshow(zmap.T,origin='lower',interpolation='nearest',extent=extent,aspect='auto',
-                cmap=cmap, **kwargs)
+                cmap=cmap, vmin=vmin, vmax=vmax,**kwargs)
         else:
             # only lin or log can be handled by imshow...otherise use colormesh
             x,y = np.meshgrid(bin_edges[0],bin_edges[1])

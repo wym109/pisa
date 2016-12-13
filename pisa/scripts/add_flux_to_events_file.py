@@ -19,7 +19,7 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 def add_fluxes_to_file(data_file_path, flux_table, neutrino_weight_name, outdir):
     data_file, attrs = from_file(resources.find_resource(data_file_path), return_attrs = True)
     data_file_name = os.path.basename(data_file_path)
-    mkdir(args.outdir)
+    mkdir(outdir)
     output_file_name = outdir + '/' + data_file_name.split('.hdf5')[0]+'_with_fluxes.hdf5'
     if not os.path.isfile(output_file_name):
 	for prim in data_file.keys():
