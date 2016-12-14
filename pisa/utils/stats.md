@@ -22,12 +22,16 @@ The log-likelihood calculates the total of the bin-by bin log-likelihood given t
 
 ### conv_llh
 
-This likelihood takes into account any uncertainties on the expected values (from e.g. finite MC statistics). This is achieved by smearing out the simple poisson pdf with a nromal distribution. The width of this normal distribution is the uncertainty on the expected values.
+This likelihood takes into account any uncertainties on the expected values (from e.g. finite MC statistics). This is achieved by smearing out the simple poisson pdf with a nromal distribution `n` centered at 0. The width of this normal distribution is the uncertainty on the expected values.
 
+![conv_poisson_pdf](images/conv_poisson_pdf.png)
+<!---
+(p*n)(k,\lambda, \sigma) = \int{p(k,\lambda-x)n(x,\sigma)dx}
+--->
 
 ### barlow_llh
 
-This likelihood takes into account the finite MC statistics uncertainties on the expected valuesas in doi:10.1016/0010-4655(93)90005-W ("Fitting using finite Monte Carlo samples" by Barlow and Beeston).
+This likelihood takes into account the finite MC statistics uncertainties on the expected values as in doi:10.1016/0010-4655(93)90005-W ("Fitting using finite Monte Carlo samples" by Barlow and Beeston).
 
 ## Chi-Square Values
 
