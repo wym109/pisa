@@ -27,7 +27,7 @@ __all__ = ['Plotter']
 class Plotter(object):
     '''
 
-    Plotting library for PISA
+    Plotting library for PISA to plot Maps and MapSets
 
     Params:
     ------
@@ -54,7 +54,40 @@ class Plotter(object):
         force symmetric extent of z-axis
     loc : str
         either 'inside' or 'outside', defining where to put axis titles
+
+
+    Methods:
+    -------
+
+    2-d plots:
+
+    plot_2d_single(mapset, **kwargs)
+        plot all maps in individual plots
+    plot_2d_array(mapset, n_rows=None, n_cols=None, fname=None, **kwrags)
+        plot all maps or transforms in a single plot
+
+    1-d plots
+    plot_1d_single(mapset, plot_axis, **kwargs)
+        plot all maps in individual plots
+    plot_1d_array(mapset, plot_axis, n_rows=None, n_cols=None, fname=None, **kwargs)
+        plot 1d projections as an array
+    plot_1d_slices_array(mapsets, plot_axis, fname=None, **kwargs)
+        plot 1d slices as an array
+    plot_1d_all(mapset, plot_axis, **kwargs)
+        all one a single plot
+    plot_1d_stack(mapset, plot_axis, **kwargs)
+        all maps stacked on top of each other
+    plot_1d_cmp(mapsets, plot_axis, fname=None, **kwargs)
+        1d comparisons for two mapsets as projections
+
+
+    Notes:
+    -----
+
+    as **kwargs any matplotlib kwrags can be passed, for example cmap='RdBu' for a 2d plot
+
     '''
+
     def __init__(self, outdir='.', stamp='PISA cake test', size=(8,8), fmt='pdf', log=True, label='# events', grid=True, ratio=False, annotate=False, symmetric=False,loc='inside'):
         self.outdir = outdir
         self.stamp = stamp
@@ -159,12 +192,12 @@ class Plotter(object):
         self.dump(fname)
 
     def plot_1d_slices_array(self, mapsets, plot_axis, fname=None, **kwargs):
-        ''' plot 1d projections as an array '''
+        ''' plot 1d slices as an array '''
         self.slices_array(mapsets, plot_axis, **kwargs)
         self.dump(fname)
 
     def plot_1d_all(self, mapset, plot_axis, **kwargs):
-        ''' all one one canvas '''
+        ''' all one a single plot '''
         self.init_fig()
         for map in mapset:
             self.plot_1d_projection(map, plot_axis, **kwargs)
