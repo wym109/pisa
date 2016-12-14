@@ -634,7 +634,7 @@ class prob3gpu(Stage):
             np.int32(kNuBar),
             np.int32(kFlav),
             np.int32(self.maxLayers),
-            FTYPE(true_energy),
+            FTYPE(true_e_scale),
             true_energy,
             numLayers,
             densityInLayer,

@@ -200,8 +200,8 @@ class icc(Stage):
             self.icc_bg_hist,_ = np.histogramdd(sample = np.array([cut_events[bin_name] for bin_name in self.bin_names]).T, bins=self.bin_edges)
 
 
-        conversion = ureg('common_year').to('seconds').m #/ self.params.atm_muon_scale.value.m_as('dimensionless')
-        logging.info('nominal ICC rate at %.6E Hz'%(self.icc_bg_hist.sum()/conversion))
+        conversion = self.params.atm_muon_scale.value.m_as('dimensionless') / ureg('common_year').to('seconds').m
+        logging.info('nominal ICC rate at %.6E Hz'%(self.icc_bg_hist.sum()*conversion))
 
         if alt_icc_bg_file is not None:
             if self.params.kde_hist.value:
