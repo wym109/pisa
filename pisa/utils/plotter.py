@@ -1,8 +1,12 @@
+# TODO(philippeller): blah blah blah
+
+
+from argparse import ArgumentParser
+import itertools
+
 import numpy as np
 import uncertainties as unc
 from uncertainties import unumpy as unp
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-import math
 
 import matplotlib as mpl
 # headless mode
@@ -14,10 +18,10 @@ mpl.rcParams['mathtext.it'] = 'Bitstream Vera Sans:italic'
 mpl.rcParams['mathtext.bf'] = 'Bitstream Vera Sans:bold'
 from matplotlib import pyplot as plt
 from matplotlib.offsetbox import AnchoredText
-from pisa.core.map import Map, MapSet
+
 from pisa.core.binning import MultiDimBinning
+from pisa.core.map import Map, MapSet
 from pisa.core.transform import BinnedTensorTransform, TransformSet
-import itertools
 from pisa.utils.log import logging
 
 
@@ -25,7 +29,9 @@ __all__ = ['Plotter']
 
 
 class Plotter(object):
-    def __init__(self, outdir='.', stamp='PISA cake test', size=(8,8), fmt='pdf', log=True, label='# events', grid=True, ratio=False, annotate=False, symmetric=False):
+    def __init__(self, outdir='.', stamp='PISA cake test', size=(8,8),
+                 fmt='pdf', log=True, label='# events', grid=True, ratio=False,
+                 annotate=False, symmetric=False):
         self.outdir = outdir
         self.stamp = stamp
         self.fmt = fmt
@@ -36,7 +42,8 @@ class Plotter(object):
         self.grid = grid
         self.ratio = ratio
         self.annotate = annotate
-        if symmetric: assert(self.log == False), 'cannot do log and symmetric at th same time'
+        if symmetric:
+            assert(self.log == False), 'cannot do log and symmetric at the same time'
         self.symmetric = symmetric
         self.reset_colors()
         self.color = 'b'
@@ -50,7 +57,7 @@ class Plotter(object):
     # --- helper functions ---
 
     def init_fig(self,figsize=None):
-        ''' clear/initialize figure '''
+        """clear/initialize figure"""
         if figsize is not None:
             size = figsize
         else:
@@ -64,25 +71,27 @@ class Plotter(object):
     def add_stamp(self, text=None, **kwargs):
         # NOTE add_stamp cannot be used on a subplot that has been
         # de-selected and then re-selected. It will write over existing text.
-        ''' ad common stamp with text '''
+        """ad common stamp with text"""
         if text is not None:
-            a_text = AnchoredText(self.stamp + '\n' + r'$%s$'%text, loc=2, frameon=False, **kwargs)
+            a_text = AnchoredText(self.stamp + '\n' + r'$%s$'%text, loc=2,
+                                  frameon=False, **kwargs)
         else:
             a_text = AnchoredText(self.stamp, loc=2, frameon=False, **kwargs)
         plt.gca().add_artist(a_text)
 
     def add_leg(self):
-        ''' initialize legend '''
+        """initialize legend """
         plt.gca().legend(loc='upper right',ncol=2, frameon=False,numpoints=1)
 
     def dump(self,fname):
-        ''' dump figure to file'''
-        plt.savefig(self.outdir+'/'+fname+'.'+self.fmt, dpi=150, edgecolor='none',facecolor=self.fig.get_facecolor())
+        """dump figure to file"""
+        plt.savefig(self.outdir+'/'+fname+'.'+self.fmt, dpi=150,
+                    edgecolor='none',facecolor=self.fig.get_facecolor())
 
     # --- 2d plots ---
 
     def plot_2d_single(self, mapset, **kwargs):
-        ''' plot all maps in individual plots '''
+        """plot all maps in individual plots"""
         if isinstance(mapset, Map):
             mapset = [mapset]
         for map in mapset:
@@ -93,7 +102,7 @@ class Plotter(object):
 
     def plot_2d_array(self, mapset, n_rows=None, n_cols=None, fname=None,
             **kwargs):
-        ''' plot all maps or transforms in a single plot '''
+        """plot all maps or transforms in a single plot"""
         if fname is None:
             fname = 'test2d'
         self.plot_array(mapset, 'plot_2d_map', n_rows=n_rows, n_cols=n_cols,
@@ -103,7 +112,7 @@ class Plotter(object):
     # --- 1d plots ---
 
     def plot_1d_single(self, mapset, plot_axis, **kwargs):
-        ''' plot all maps in individual plots '''
+        """plot all maps in individual plots"""
         for map in mapset:
             self.init_fig()
             self.plot_1d_projection(map, plot_axis, **kwargs)
@@ -112,18 +121,18 @@ class Plotter(object):
 
     def plot_1d_array(self, mapset, plot_axis, n_rows=None,
             n_cols=None, fname=None, **kwargs):
-        ''' plot 1d projections as an array '''
+        """plot 1d projections as an array"""
         self.plot_array(mapset, 'plot_1d_projection', plot_axis, n_rows=n_rows,
                 n_cols=n_cols, **kwargs)
         self.dump(fname)
 
     def plot_1d_slices_array(self, mapsets, plot_axis, fname=None, **kwargs):
-        ''' plot 1d projections as an array '''
+        """plot 1d projections as an array"""
         self.slices_array(mapsets, plot_axis, **kwargs)
         self.dump(fname)
 
     def plot_1d_all(self, mapset, plot_axis, **kwargs):
-        ''' all one one canvas '''
+        """all one one canvas"""
         self.init_fig()
         for map in mapset:
             self.plot_1d_projection(map, plot_axis, **kwargs)
@@ -132,7 +141,7 @@ class Plotter(object):
         self.dump('all')
 
     def plot_1d_stack(self, mapset, plot_axis, **kwargs):
-        ''' all maps stacked on top of each other '''
+        """all maps stacked on top of each other"""
         self.init_fig()
         for i, map in enumerate(mapset):
             for j in range(i):
@@ -143,7 +152,7 @@ class Plotter(object):
         self.dump('stack')
 
     def plot_1d_cmp(self, mapsets, plot_axis, fname=None, **kwargs):
-        ''' 1d comparisons for two mapsets as projections'''
+        """1d comparisons for two mapsets as projections"""
         for i in range(len(mapsets[0])):
             maps = [mapset[i] for mapset in mapsets]
             self.init_fig()
@@ -165,12 +174,12 @@ class Plotter(object):
     # --- plotting core functions ---
 
     def plot_array(self, mapset, fun, *args, **kwargs):
-        ''' wrapper funtion to exccute plotting function fun for every map in a set
-        distributed over a grid '''
+        """wrapper funtion to exccute plotting function fun for every map in a
+        set distributed over a grid"""
         n_rows = kwargs.pop('n_rows', None)
         n_cols = kwargs.pop('n_cols', None)
         split_axis = kwargs.pop('split_axis', None)
-        ''' plot mapset in array using a function fun '''
+        '''plot mapset in array using a function fun'''
         if isinstance(mapset, Map):
             mapset = MapSet([mapset])
 
@@ -178,9 +187,17 @@ class Plotter(object):
             new_maps = []
             for map in mapset:
                 split_idx = map.binning.names.index(split_axis)
-                new_binning = MultiDimBinning([binning for binning in map.binning if binning.name != split_axis])
+                new_binning = MultiDimBinning(
+                    [binning for binning in map.binning
+                     if binning.name != split_axis]
+                )
                 for i in range(map.binning[split_axis].num_bins):
-                    newmap = Map(name=map.name+'_%s_%i'%(split_axis,i),tex=map.tex+' %s %i'%(split_axis,i), hist = np.rollaxis(map.hist, split_idx, 0)[i], binning=new_binning)
+                    newmap = Map(
+                        name=map.name+'_%s_%i'%(split_axis,i),
+                        tex=map.tex+' %s %i'%(split_axis,i),
+                        hist=np.rollaxis(map.hist, split_idx, 0)[i],
+                        binning=new_binning
+                    )
                     new_maps.append(newmap)
             mapset = MapSet(new_maps)
 
@@ -193,7 +210,7 @@ class Plotter(object):
                             'got %s'%type(mapset))
         if n_rows is None and n_cols is None:
             # TODO: auto row/cols
-            n_rows = math.floor(math.sqrt(n))
+            n_rows = np.floor(np.sqrt(n))
             while n % n_rows != 0:
                n_rows -= 1
             n_cols = n / n_rows
@@ -203,14 +220,16 @@ class Plotter(object):
         plt.tight_layout()
         h_margin = 1. / size[0]
         v_margin = 1. / size[1]
-        self.fig.subplots_adjust(hspace=0.3, wspace=0.3, top=1-v_margin, bottom=v_margin, left=h_margin, right=1-h_margin)
+        self.fig.subplots_adjust(hspace=0.3, wspace=0.3, top=1-v_margin,
+                                 bottom=v_margin, left=h_margin,
+                                 right=1-h_margin)
         for i, map in enumerate(mapset):
             plt.subplot(n_rows,n_cols,i+1)
             getattr(self, fun)(map, *args, **kwargs)
             self.add_stamp(map.tex)
 
     def slices_array(self, mapsets, plot_axis, *args, **kwargs):
-        ''' plot mapset in array using a function fun '''
+        """plot mapset in array using a function fun"""
         n_cols = len(mapsets[0])
         plt_binning = mapsets[0][0].binning[plot_axis]
         plt_axis_n = mapsets[0][0].binning.names.index(plot_axis)
@@ -226,7 +245,9 @@ class Plotter(object):
         h_margin = 1. / size[0]
         v_margin = 1. / size[1]
         # big one
-        self.fig.subplots_adjust(hspace=0., wspace=0.3, top=1-v_margin, bottom=v_margin, left=h_margin, right=1-h_margin)
+        self.fig.subplots_adjust(hspace=0., wspace=0.3, top=1-v_margin,
+                                 bottom=v_margin, left=h_margin,
+                                 right=1-h_margin)
         stamp = self.stamp
         for i in range(len(mapsets[0])):
             for j in range(n_rows):
@@ -256,7 +277,7 @@ class Plotter(object):
     def plot_2d_map(self, map, cmap='rainbow', **kwargs):
         vmin = kwargs.pop('vmin', None)
         vmax = kwargs.pop('vmax', None)
-        ''' plot map or transform on current axis in 2d'''
+        """plot map or transform on current axis in 2d"""
         axis = plt.gca()
         if isinstance(map, BinnedTensorTransform):
             bins = [map.input_binning[name] for name in map.input_binning.names]
@@ -294,7 +315,16 @@ class Plotter(object):
                 for j in range(len(bin_centers[1])):
                     bin_x = bin_centers[0][i].m
                     bin_y = bin_centers[1][j].m
-                    plt.annotate('%.1f'%(zmap[i,j]), xy=(bin_x, bin_y), xycoords=('data', 'data'), xytext=(bin_x, bin_y), textcoords='data', va='top', ha='center', size=7)
+                    plt.annotate(
+                        '%.1f'%(zmap[i,j]),
+                        xy=(bin_x, bin_y),
+                        xycoords=('data', 'data'),
+                        xytext=(bin_x, bin_y),
+                        textcoords='data',
+                        va='top',
+                        ha='center',
+                        size=7
+                    )
 
         axis.set_xlabel(bins[0].label)
         axis.set_ylabel(bins[1].label)
@@ -309,19 +339,24 @@ class Plotter(object):
             col_bar.set_label(self.label)
         
     def plot_1d_projection(self, map, plot_axis, **kwargs):
-        ''' plot map projected on plot_axis'''
+        """plot map projected on plot_axis"""
         axis = plt.gca()
         plt_binning = map.binning[plot_axis]
         hist = self.project_1d(map, plot_axis)
         if map.tex == 'data':
             axis.errorbar(plt_binning.weighted_centers.m,
-                    unp.nominal_values(hist),yerr=unp.std_devs(hist), fmt='o', markersize='4', label='data', color='k', ecolor='k', mec='k', **kwargs)
+                    unp.nominal_values(hist),yerr=unp.std_devs(hist), fmt='o',
+                          markersize='4', label='data', color='k', ecolor='k',
+                          mec='k', **kwargs)
         else:
-            axis.hist(plt_binning.weighted_centers, weights=unp.nominal_values(hist), bins=plt_binning.bin_edges, histtype='step', lw=1.5, label=r'$%s$'%map.tex, color=self.color, **kwargs)
-            axis.bar(plt_binning.bin_edges.m[:-1],2*unp.std_devs(hist),
-                    bottom=unp.nominal_values(hist)-unp.std_devs(hist),
-                    width=plt_binning.bin_widths, alpha=0.25, linewidth=0, color=self.color,
-                    **kwargs)
+            axis.hist(plt_binning.weighted_centers,
+                      weights=unp.nominal_values(hist),
+                      bins=plt_binning.bin_edges, histtype='step', lw=1.5,
+                      label=r'$%s$'%map.tex, color=self.color, **kwargs)
+            axis.bar(plt_binning.bin_edges.m[:-1], 2*unp.std_devs(hist),
+                     bottom=unp.nominal_values(hist)-unp.std_devs(hist),
+                     width=plt_binning.bin_widths, alpha=0.25, linewidth=0,
+                     color=self.color, **kwargs)
         axis.set_xlabel(plt_binning.label)
         if self.label:
             axis.set_ylabel(self.label)
@@ -336,7 +371,7 @@ class Plotter(object):
             plt.grid(True, which="both", ls='-', alpha=0.2)
 
     def project_1d(self, map, plot_axis):
-        ''' sum up a map along all axes except plot_axis '''
+        """sum up a map along all axes except plot_axis"""
         hist = map.hist
         plt_axis_n = map.binning.names.index(plot_axis)
         for i in range(len(map.binning)):
@@ -346,7 +381,7 @@ class Plotter(object):
         return hist
 
     def plot_1d_ratio(self, maps, plot_axis):
-        ''' make a ratio plot for a 1d projection '''
+        """make a ratio plot for a 1d projection"""
         axis = plt.gca()
         map0 = maps[0]
         plt_binning = map0.binning[plot_axis]
@@ -381,14 +416,16 @@ class Plotter(object):
 
             if map.tex == 'data':
                 axis.errorbar(plt_binning.weighted_centers.m,
-                    ratio,yerr=ratio_error, fmt='o', markersize='4', label='data', color='k', ecolor='k', mec='k')
+                    ratio,yerr=ratio_error, fmt='o', markersize='4',
+                              label='data', color='k', ecolor='k', mec='k')
             else:
                 h,b,p = axis.hist(plt_binning.weighted_centers, weights=ratio,
                     bins=plt_binning.bin_edges, histtype='step', lw=1.5,
                     label=r'$%s$'%map.tex, color=self.color)
-                axis.bar(plt_binning.bin_edges.m[:-1],2*ratio_error, bottom=ratio-ratio_error,
-                        width=plt_binning.bin_widths, alpha=0.25,
-                        linewidth=0, color=self.color)
+                axis.bar(plt_binning.bin_edges.m[:-1],2*ratio_error,
+                         bottom=ratio-ratio_error,
+                         width=plt_binning.bin_widths, alpha=0.25, linewidth=0,
+                         color=self.color)
 
         if self.grid:
             plt.grid(True, which="both", ls='-', alpha=0.2)

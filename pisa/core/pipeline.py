@@ -65,10 +65,17 @@ class Pipeline(object):
 
     """
     def __init__(self, config):
-        self._stages = []
         if isinstance(config, (basestring, BetterConfigParser)):
             config = parse_pipeline_config(config=config)
-        assert isinstance(config, OrderedDict)
+        elif isinstance(config, OrderedDict):
+            pass
+        else:
+            raise TypeError(
+                '`config` passed is of type %s but must be string,'
+                ' BetterConfigParser, or OrderedDict' % type(config).__name__
+            )
+
+        self._stages = []
         self._config = config
         self._init_stages()
         self._source_code_hash = None
@@ -358,9 +365,14 @@ def parse_args():
         Optionally store the resulting distribution(s) and plot(s) to disk.'''
     )
     parser.add_argument(
-        '--settings', metavar='CONFIGFILE', type=str,
+        '-p', '--pipeline', metavar='CONFIGFILE', type=str,
         required=True,
         help='File containing settings for the pipeline.'
+    )
+    parser.add_argument(
+        '--select', metavar='PARAM_SELECTIONS', type=str, required=False,
+        help='''Comma-separated list of param selectors to use (overriding any
+        defaults in the config file).'''
     )
     parser.add_argument(
         '--only-stage', metavar='STAGE', type=str,
@@ -427,7 +439,7 @@ def parse_args():
     return args
 
 
-def main():
+def main(return_outputs=False):
     from pisa.utils.plotter import Plotter
 
     args = parse_args()
@@ -445,42 +457,36 @@ def main():
             raise ValueError('No --dir provided, so cannot save images.')
 
     # Instantiate the pipeline
-    pipeline = Pipeline(args.settings)
+    pipeline = Pipeline(args.pipeline)
+    if args.select is not None:
+        pipeline.select_params([s.strip() for s in ','.split(args.select)])
 
-    for run in xrange(1):
-        logging.info('')
-        logging.info('## STARTING RUN %d ............' % run)
-        logging.info('')
-        #pipeline.params.free.values = [p.value*1.01 for p in pipeline.params.free]
-        if args.only_stage is None:
-            stop_idx = args.stop_after_stage
-            if isinstance(stop_idx, basestring):
-                stop_idx = pipeline.index(stop_idx)
-            if stop_idx is not None:
-                stop_idx += 1
-            indices = slice(0, stop_idx)
-            outputs = pipeline.get_outputs(idx=args.stop_after_stage)
+    if args.only_stage is None:
+        stop_idx = args.stop_after_stage
+        if isinstance(stop_idx, basestring):
+            stop_idx = pipeline.index(stop_idx)
+        if stop_idx is not None:
+            stop_idx += 1
+        indices = slice(0, stop_idx)
+        outputs = pipeline.get_outputs(idx=args.stop_after_stage)
+    else:
+        assert args.stop_after_stage is None
+        idx = pipeline.index(args.only_stage)
+        stage = pipeline[idx]
+        indices = slice(idx, idx+1)
+        # create dummy inputs
+        if hasattr(stage, 'input_binning'):
+            logging.info('building dummy input')
+            input_maps = []
+            for name in stage.input_names:
+                hist = np.ones(stage.input_binning.shape)
+                input_maps.append(
+                    Map(name=name, hist=hist, binning=stage.input_binning)
+                )
+            inputs = MapSet(maps=input_maps, name='ones', hash=1)
         else:
-            assert args.stop_after_stage is None
-            idx = pipeline.index(args.only_stage)
-            stage = pipeline[idx]
-            indices = slice(idx, idx+1)
-            # create dummy inputs
-            if hasattr(stage, 'input_binning'):
-                logging.info('building dummy input')
-                input_maps = []
-                for name in stage.input_names:
-                    hist = np.ones(stage.input_binning.shape)
-                    input_maps.append(
-                        Map(name=name, hist=hist, binning=stage.input_binning)
-                    )
-                inputs = MapSet(maps=input_maps, name='ones', hash=1)
-            else:
-                inputs = None
-            outputs = stage.get_outputs(inputs=inputs)
-        logging.info('')
-        logging.info('## ............ finished RUN %d' % run)
-        logging.info('')
+            inputs = None
+        outputs = stage.get_outputs(inputs=inputs)
 
     for stage in pipeline[indices]:
         if not args.dir:
@@ -549,8 +555,9 @@ def main():
                                      fname=stg_svc+'__output',
                                      cmap='OrRd')
 
-    return pipeline, outputs
+    if return_outputs:
+        return pipeline, outputs
 
 
 if __name__ == '__main__':
-    pipeline, outputs = main()
+    pipeline, outputs = main(return_outputs=True)

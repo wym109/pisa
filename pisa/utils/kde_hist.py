@@ -1,15 +1,23 @@
+# TODO(philippeller): cleanups, docs, blah blah
+
+
+from argparse import ArgumentParser
+import os
+from shutil import rmtree
+from tempfile import mkdtemp
 
 from kde.cudakde import gaussian_kde
 import numpy as np
 from uncertainties import unumpy as unp
 
-from pisa.utils.profiler import profile, line_profile
+from pisa import ureg
 from pisa.core.binning import OneDimBinning, MultiDimBinning
-from pisa.utils.profiler import profile
+from pisa.core.map import Map, MapSet
+from pisa.utils.log import logging, set_verbosity
+from pisa.utils.plotter import Plotter
 
 
-__all__ = ['kde_histogramdd']
-
+__all__ = ['get_hist', 'kde_histogramdd', 'test_kde_histogramdd']
 
 
 def get_hist(sample, binning, weights=[], bw_method='scott',
@@ -132,6 +140,7 @@ def get_hist(sample, binning, weights=[], bw_method='scott',
     #hist = hist/np.sum(hist)*norm
     return hist*norm
 
+
 def kde_histogramdd(sample, binning, weights=[], bw_method='scott',
                     adaptive=True, alpha=0.3, use_cuda=False,
                     coszen_reflection=0.25, coszen_name='coszen',
@@ -228,41 +237,51 @@ def kde_histogramdd(sample, binning, weights=[], bw_method='scott',
         return hist
 
 
-
-if __name__ == '__main__':
-    from pisa.core.map import Map, MapSet
-    from pisa.utils.plotter import Plotter
-    from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-    from pisa.utils.log import logging, set_verbosity
-    from pisa import ureg
+def test_kde_histogramdd():
+    """Unit tests for kde_histogramdd"""
 
     parser = ArgumentParser()
     parser.add_argument('-v', action='count', default=None,
-                         help='set verbosity level')
+                        help='set verbosity level')
     args = parser.parse_args()
     set_verbosity(args.v)
 
-    my_plotter = Plotter(stamp='', outdir='.', fmt='pdf', log=False,
-                         annotate=False, symmetric=False, ratio=True)
+    temp_dir = mkdtemp()
+    try:
+        my_plotter = Plotter(stamp='', outdir=temp_dir, fmt='pdf', log=False,
+                             annotate=False, symmetric=False, ratio=True)
 
-    b1 = OneDimBinning(name='coszen', num_bins=100, is_lin=True,
-                       domain=[-1, 1], tex= r'$\cos(\theta)$')
-    b2 = OneDimBinning(name='energy', num_bins=10, is_log=True,
-                       domain=[0.1, 10]*ureg.GeV, tex=r'$E$')
-    binning = MultiDimBinning([b2, b1])
-    x = np.random.normal(1, 1, (2, 1000))
-    x = np.array([np.abs(x[0])-1, x[1]])
-    # cut away outside csozen
-    x = x.T[(x[0]<=1) & (x[0] >= -1),:].T
-    # Swap
-    x[[0,1]] = x[[1,0]]
-    bins = [unp.nominal_values(b.bin_edges) for b in binning]
-    raw_hist, e = np.histogramdd(x.T, bins=bins)
+        b1 = OneDimBinning(name='coszen', num_bins=100, is_lin=True,
+                           domain=[-1, 1], tex= r'\cos(\theta)')
+        b2 = OneDimBinning(name='energy', num_bins=10, is_log=True,
+                           domain=[0.1, 10]*ureg.GeV, tex=r'E')
+        binning = MultiDimBinning([b2, b1])
+        x = np.random.normal(1, 1, (2, 1000))
+        x = np.array([np.abs(x[0])-1, x[1]])
+        # cut away outside csozen
+        x = x.T[(x[0]<=1) & (x[0] >= -1),:].T
+        # Swap
+        x[[0,1]] = x[[1,0]]
+        bins = [unp.nominal_values(b.bin_edges) for b in binning]
+        raw_hist, e = np.histogramdd(x.T, bins=bins)
 
-    hist = kde_histogramdd(x.T, binning, bw_method='silverman',
-                           coszen_name='coszen', oversample=10, stack_pid=False)
-    #hist = hist/np.sum(hist)*np.sum(raw_hist)
-    m1 = Map(name='KDE', hist=hist, binning=binning)
-    m2 = Map(name='raw', hist=raw_hist, binning=binning)
-    m = MapSet([m1, m2, m1/m2, m1-m2])
-    my_plotter.plot_2d_array(m, fname='test_kde', cmap='summer')
+        hist = kde_histogramdd(x.T, binning, bw_method='silverman',
+                               coszen_name='coszen', oversample=10,
+                               stack_pid=False)
+        #hist = hist/np.sum(hist)*np.sum(raw_hist)
+        m1 = Map(name='KDE', hist=hist, binning=binning)
+        m2 = Map(name='raw', hist=raw_hist, binning=binning)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            m = MapSet([m1, m2, m1/m2, m1-m2])
+        fname = 'test_kde'
+        my_plotter.plot_2d_array(m, fname=fname, cmap='summer')
+    except:
+        rmtree(temp_dir)
+        raise
+    else:
+        logging.warn('Inspect and manually clean up output(s) saved to %s'
+                     % temp_dir)
+
+
+if __name__ == '__main__':
+    test_kde_histogramdd()

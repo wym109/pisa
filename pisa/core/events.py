@@ -75,7 +75,7 @@ class Events(FlavIntData):
       ('proc_ver', '5.1'),
       ('runs', [620, 621, 622])]
 
-	"""
+    """
     def __init__(self, val=None):
         self.metadata = OrderedDict([
             ('detector', ''),
@@ -156,7 +156,8 @@ class Events(FlavIntData):
             `kinds` and `weights_col`.
         tex : None or string
             TeX label to give to the resulting Map. If None, default is
-            dereived from the `name` specified or the derived default.
+            dereived from the `name` specified (or its value derived from
+            `kinds` and `weights_col`).
 
         Returns
         -------
@@ -291,7 +292,7 @@ class Events(FlavIntData):
                 new_data[flav_int] = {k:v[mask]
                                       for k, v in self[flav_int].iteritems()}
                 flavints_processed.append(flav_int)
-        except:
+        except Exception as exc:
             if (len(flavints_processed) > 0
                     and flavints_processed != flavints_to_process):
                 logging.error('Events object is in an inconsistent state.'
@@ -881,7 +882,10 @@ def test_Events():
             continue
         assert np.min(events[fi]['true_energy']) < 30
 
-    logging.info('<< PASSED : test_Events >>')
+    logging.info(
+        '<< PASSED : test_Events >> (note:'
+        ' "[   ERROR] Events object is in an inconsistent state. Reverting cut'
+        ' for all flavInts." message above **is expected**.)')
 
 
 def test_Data():
@@ -973,4 +977,4 @@ def test_Data():
 if __name__ == "__main__":
     set_verbosity(1)
     test_Events()
-    test_Data()
+    #test_Data()

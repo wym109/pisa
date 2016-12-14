@@ -31,61 +31,39 @@ import uncertainties
 from uncertainties import ufloat
 from uncertainties import unumpy as unp
 
-from pisa import ureg, FTYPE, HASH_SIGFIGS
+from pisa import ureg, HASH_SIGFIGS
 from pisa.core.binning import OneDimBinning, MultiDimBinning
 from pisa.utils.comparisons import normQuant, recursiveEquality
 from pisa.utils.hash import hash_obj
 from pisa.utils import jsons
 from pisa.utils.fileio import get_valid_filename, mkdir
+from pisa.utils.format import make_valid_python_name, strip_outer_dollars
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils.flavInt import NuFlavIntGroup
 from pisa.utils.random_numbers import get_random_state
 from pisa.utils import stats
 
 
-__all__ = ['type_error', 'strip_outer_parens', 'strip_outer_dollars',
-           'sanitize_name', 'reduceToHist', 'rebin',
+__all__ = ['type_error',
+           'reduceToHist', 'rebin',
            'Map', 'MapSet',
            'test_Map', 'test_MapSet']
 
 
+# TODO: inconsistent treatment of metrics in *chi2*, *llh*, and metric* methods
+# (Issue #264: https://github.com/jllanfranchi/pisa/issues/264)
+
+# TODO: make sure logic works for PID-separated-maps as well as
+# PID-as-binning-dimension maps
+
 # TODO: CUDA and numba implementations of rebin if these libs are available
 
-# TODO: move these functions to a generic utils.py module?
+# TODO: move these utilities functions to a generic utils module?
 
 def type_error(value):
-    raise TypeError('Type of argument not supported: "%s"' % type(value))
-
-
-def strip_outer_parens(value):
-    value = value.strip()
-    m = re.match(r'^\{\((.*)\)\}$', value)
-    if m is not None:
-        value = m.groups()[0]
-    m = re.match(r'^\((.*)\)$', value)
-    if m is not None:
-        value = m.groups()[0]
-    return value
-
-
-def strip_outer_dollars(value):
-    value = value.strip()
-    m = re.match(r'^\$(.*)\$$', value)
-    if m is not None:
-        value = m.groups()[0]
-    return value
-
-
-def sanitize_name(name):
-    """Make a name a valid Python identifier.
-
-    From Triptych at http://stackoverflow.com/questions/3303312
-    """
-    # Remove invalid characters
-    name = re.sub('[^0-9a-zA-Z_]', '', name)
-    # Remove leading characters until we find a letter or underscore
-    name = re.sub('^[^a-zA-Z_]+', '', name)
-    return name
+    """Generic formulation of a TypeError that can be called throughout the
+    code"""
+    raise TypeError('Type of argument not supported: "%s"'
+                    % value.__class__.__name__)
 
 
 def reduceToHist(expected_values):
@@ -252,20 +230,13 @@ class Map(object):
                     'full_comparison')
 
     def __init__(self, name, hist, binning, error_hist=None, hash=None,
-                 tex=None, full_comparison=True):
+                 tex=None, full_comparison=False):
         # Set Read/write attributes via their defined setters
-        super(Map, self).__setattr__('_name', name)
-        # TeX dict for some common map names
-        if tex is None:
-            fg = NuFlavIntGroup(name)
-            tex = fg.tex()
-            # TODO: handle automatically assigning tex names when it's
-            # unassigned in other code, such as in plotting code
-            if tex == '':
-                tex = (r'\rm{%s}' % name).replace('_', r'\_')
-        super(Map, self).__setattr__('_tex', tex)
-        super(Map, self).__setattr__('_hash', hash)
-        super(Map, self).__setattr__('_full_comparison', full_comparison)
+        super(self.__class__, self).__setattr__('_name', name)
+        super(self.__class__, self).__setattr__('_tex', tex)
+        super(self.__class__, self).__setattr__('_hash', hash)
+        super(self.__class__, self).__setattr__('_full_comparison',
+                                                full_comparison)
 
         if not isinstance(binning, MultiDimBinning):
             if isinstance(binning, Sequence):
@@ -278,10 +249,11 @@ class Map(object):
         self.parent_indexer = None
 
         # Do the work here to set read-only attributes
-        super(Map, self).__setattr__('_binning', binning)
+        super(self.__class__, self).__setattr__('_binning', binning)
         binning.assert_array_fits(hist)
-        super(Map, self).__setattr__('_hist',
-                                     np.ascontiguousarray(hist))
+        super(self.__class__, self).__setattr__(
+            '_hist', np.ascontiguousarray(hist)
+        )
         if error_hist is not None:
             self.set_errors(error_hist)
         self.normalize_values = True
@@ -303,7 +275,7 @@ class Map(object):
 
     def __str__(self):
         attrs = ['name', 'tex', 'binning', 'full_comparison', 'hash', 'hist']
-        state = {a:getattr(self, a) for a in attrs}
+        state = {a: getattr(self, a) for a in attrs}
         state['name'] = repr(state['name'])
         state['tex'] = repr(state['tex'])
         state['hist'] = np.array_repr(state['hist'])
@@ -335,7 +307,7 @@ class Map(object):
     def set_poisson_errors(self):
         """Approximate poisson errors using sqrt(n)."""
         nom_values = self.nominal_values
-        super(Map, self).__setattr__(
+        super(self.__class__, self).__setattr__(
             '_hist',
             unp.uarray(nom_values, np.sqrt(nom_values))
         )
@@ -353,10 +325,12 @@ class Map(object):
 
         """
         if error_hist is None:
-            super(Map, self).__setattr__('_hist', self.nominal_values)
+            super(self.__class__, self).__setattr__(
+                '_hist', self.nominal_values
+            )
             return
         self.assert_compat(error_hist)
-        super(Map, self).__setattr__(
+        super(self.__class__, self).__setattr__(
             '_hist',
             unp.uarray(self._hist, np.ascontiguousarray(error_hist))
         )
@@ -844,10 +818,10 @@ class Map(object):
         """Only allow setting attributes defined in slots"""
         if attr not in self._slots:
             raise ValueError('Attribute "%s" not allowed to be set.' % attr)
-        super(Map, self).__setattr__(attr, value)
+        super(self.__class__, self).__setattr__(attr, value)
 
     def __getattr__(self, attr):
-        return super(Map, self).__getattribute__(attr)
+        return super(self.__class__, self).__getattribute__(attr)
 
     @_new_obj
     def _slice_or_index(self, idx):
@@ -1042,6 +1016,8 @@ class Map(object):
         total_barlow_llh : float
 
         """
+        # TODO: should this handle reduceToHist / expected_values as other
+        # methods do, or should they handle these the way this method does?
         if isinstance(expected_values, (np.ndarray, Map, MapSet)):
             expected_values = reduceToHist(expected_values)
         elif isinstance(expected_values, Iterable):
@@ -1088,6 +1064,7 @@ class Map(object):
                                  expected_values=expected_values))
 
     def metric_total(self, expected_values, metric):
+        # TODO: should this use reduceToHist as in chi2 and llh above?
         if metric in stats.ALL_METRICS:
             return getattr(self, metric)(expected_values)
         else:
@@ -1103,8 +1080,9 @@ class Map(object):
 
     @name.setter
     def name(self, value):
+        """map name"""
         assert isinstance(value, basestring)
-        return super(Map, self).__setattr__('_name', value)
+        return super(self.__class__, self).__setattr__('_name', value)
 
     @property
     def tex(self):
@@ -1113,7 +1091,7 @@ class Map(object):
     @tex.setter
     def tex(self, value):
         assert isinstance(value, basestring)
-        return super(Map, self).__setattr__('_tex', value)
+        return super(self.__class__, self).__setattr__('_tex', value)
 
     @property
     def hash(self):
@@ -1123,7 +1101,7 @@ class Map(object):
     def hash(self, value):
         """Hash must be an immutable type (i.e., have a __hash__ method)"""
         assert hasattr(value, '__hash__')
-        super(Map, self).__setattr__('_hash', value)
+        super(self.__class__, self).__setattr__('_hash', value)
 
     @property
     def hist(self):
@@ -1149,7 +1127,7 @@ class Map(object):
     @full_comparison.setter
     def full_comparison(self, value):
         assert isinstance(value, bool)
-        super(Map, self).__setattr__('_full_comparison', value)
+        super(self.__class__, self).__setattr__('_full_comparison', value)
 
     # Common mathematical operators
 
@@ -1231,7 +1209,7 @@ class Map(object):
         equality as for a numpy array. Call this.hist == other.hist for the
         element-by-element nominal value and the error.
 
-        If `full_comparison` is true for *both* maps, or if either map lacks a
+        If `full_comparison` is true for either map, or if either map lacks a
         hash, performs a full comparison of the contents of each map.
 
         Otherwise, simply checks that the hashes are equal.
@@ -1480,14 +1458,15 @@ class MapSet(object):
             else:
                 maps_.append(Map(**m))
 
-        # TODO: handle automatically assigning tex names when it's unassigned
-        # in other code, such as in plotting code
-        tex = (r'{\rm %s}' %name).replace('_', r'\_') if tex is None else tex
-        super(MapSet, self).__setattr__('maps', maps_)
-        super(MapSet, self).__setattr__('name', name)
-        super(MapSet, self).__setattr__('tex', tex)
-        super(MapSet, self).__setattr__('collate_by_name', collate_by_name)
-        super(MapSet, self).__setattr__('collate_by_num', not collate_by_name)
+        super(self.__class__, self).__setattr__('maps', maps_)
+        super(self.__class__, self).__setattr__('name', name)
+        super(self.__class__, self).__setattr__('tex', tex)
+        super(self.__class__, self).__setattr__(
+            'collate_by_name', collate_by_name
+        )
+        super(self.__class__, self).__setattr__(
+            'collate_by_num', not collate_by_name
+        )
         self.hash = hash
 
     def __repr__(self):
@@ -1673,7 +1652,7 @@ class MapSet(object):
         -----
         If special characters are used in the regex, like a backslash, be sure
         to use a Python raw string (which does not interpret such special
-        characters), by prefixing the string with an "r". E.g., the regex to
+        characters) by prefixing the string with an "r". E.g., the regex to
         match a period requires passing
             `regex=r'\.'`
 
@@ -1736,7 +1715,7 @@ class MapSet(object):
             # Attach a "reasonable" name to the map; the caller can do better,
             # but this at least gives the user an idea of what the map
             # represents
-            m.name = sanitize_name(pattern)
+            m.name = make_valid_python_name(pattern)
             resulting_maps.append(m)
         if len(resulting_maps) == 1:
             return resulting_maps[0]
@@ -1797,7 +1776,7 @@ class MapSet(object):
                 m = copy(maps_to_combine[0])
             # Reasonable name for giving user an idea of what the map
             # represents
-            m.name = sanitize_name(expr)
+            m.name = make_valid_python_name(expr)
             resulting_maps.append(m)
         if len(resulting_maps) == 1:
             return resulting_maps[0]
@@ -1816,11 +1795,11 @@ class MapSet(object):
 
     @property
     def name(self):
-        return super(MapSet, self).__getattribute__('_name')
+        return super(self.__class__, self).__getattribute__('_name')
 
     @name.setter
     def name(self, name):
-        return super(MapSet, self).__setattr__('_name', name)
+        return super(self.__class__, self).__setattr__('_name', name)
 
     @property
     def hash(self):
@@ -2415,7 +2394,7 @@ def test_MapSet():
 
     assert ms1.maps == [m1, m2]
     assert ms1.names == ['ones', 'twos']
-    assert ms1.tex == r'{\rm map set 1}'
+    assert ms1.tex is None
     # Check the Poisson errors
     assert np.all(ms1[0].nominal_values == np.ones(binning.shape))
     assert np.all(ms1[0].std_devs == np.ones(binning.shape))

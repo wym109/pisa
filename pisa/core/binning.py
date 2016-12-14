@@ -196,8 +196,6 @@ class OneDimBinning(object):
         self._normalize_values = True
         self._name = name
         self._basename = basename(name)
-        if tex is None:
-            tex = r'{\rm ' + name + '}'
         self._tex = tex
 
         # If None, leave this and try to get units from bin_edges or domain
@@ -558,6 +556,13 @@ class OneDimBinning(object):
     @property
     def tex(self):
         return self._tex
+
+    @tex.setter
+    def tex(self, val):
+        """None or TeX string for dimension; should not include surrounding
+        dollars-signs ($)"""
+        assert val is None or isinstance(val, basestring)
+        self._tex = val
 
     @property
     def bin_edges(self):

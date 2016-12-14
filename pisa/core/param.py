@@ -62,7 +62,7 @@ class Param(object):
 
     is_discrete : bool
 
-    tex : string
+    tex : None or string
 
     help : string
 
@@ -79,8 +79,7 @@ class Param(object):
     >>> gaussian = Prior(kind='gaussian', mean=10*ureg.meter,
     ...                  stddev=1*ureg.meter)
     >>> x = Param(name='x', value=1.5*ureg.foot, prior=gaussian,
-    ...           range=[-10, 60]*ureg.foot, is_fixed=False, is_discrete=False,
-    ...           tex=r'{\rm x}')
+    ...           range=[-10, 60]*ureg.foot, is_fixed=False, is_discrete=False)
     >>> x.value
     <Quantity(1.5, 'foot')>
     >>> print x.prior_llh
@@ -254,7 +253,7 @@ class Param(object):
 
     @tex.setter
     def tex(self, t):
-        self._tex = t if t is not None else self.name
+        self._tex = t if t is not None else r'{\rm %s}' % self.name
 
     @property
     def nominal_value(self):
@@ -797,7 +796,7 @@ class ParamSet(Sequence):
 
     @property
     def tex(self):
-        return r',\,'.join([obj.tex for obj in self._params])
+        return r',\;'.join([obj.tex for obj in self._params])
 
     @property
     def fixed(self):
@@ -1230,7 +1229,7 @@ def test_ParamSet():
     logging.debug(str((param_set[0].prior_chi2)))
     logging.debug(str((param_set.priors_chi2)))
 
-	# Test that setting attributes works
+    # Test that setting attributes works
     e_prior = Prior(kind='gaussian', mean=10*ureg.GeV, stddev=1*ureg.GeV)
     cz_prior = Prior(kind='uniform', llh_offset=-5)
     reco_energy = Param(name='reco_energy', value=12*ureg.GeV,

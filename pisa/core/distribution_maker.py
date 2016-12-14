@@ -20,7 +20,7 @@ from pisa.core.map import MapSet
 from pisa.core.pipeline import Pipeline
 from pisa.core.param import ParamSet
 from pisa.utils.betterConfigParser import BetterConfigParser
-from pisa.utils.fileio import expandPath, to_file
+from pisa.utils.fileio import expandPath, mkdir, to_file
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import set_verbosity, logging
 from pisa.utils.random_numbers import get_random_state
@@ -310,7 +310,12 @@ def parse_args():
         help='''Settings file for each pipeline (repeat for multiple).'''
     )
     parser.add_argument(
-        '--outdir', type=str, action='store',
+        '--select', metavar='PARAM_SELECTIONS', type=str, required=False,
+        help='''Comma-separated list of param selectors to use (overriding any
+        defaults in the config file).'''
+    )
+    parser.add_argument(
+        '-d', '--dir', type=str, action='store',
         help='Directory into which to store the output'
     )
     parser.add_argument(
@@ -321,21 +326,26 @@ def parse_args():
     return args
 
 
-def main():
+def main(return_outputs=False):
     from pisa.utils.plotter import Plotter
     args = parse_args()
     set_verbosity(args.v)
 
     distribution_maker = DistributionMaker(pipelines=args.pipeline)
+    if args.select is not None:
+        selectors = [s.strip() for s in args.select.split(',')]
+        distribution_maker.select_params(selectors)
+
     outputs = distribution_maker.get_outputs(return_sum=True)
-    if args.outdir:
+    if args.dir:
         # TODO: unique filename: append hash (or hash per pipeline config)
         fname = 'distribution_maker_outputs.json.bz2'
-        fpath = expandPath(os.path.join(args.outdir, fname))
+        mkdir(args.dir)
+        fpath = expandPath(os.path.join(args.dir, fname))
         to_file(outputs, fpath)
         my_plotter = Plotter(
             stamp='PISA cake test',
-            outdir=args.outdir,
+            outdir=args.dir,
             fmt='pdf', log=False,
             annotate=False
         )
@@ -346,4 +356,4 @@ def main():
 
 
 if __name__ == '__main__':
-    distribution_maker, outputs = main()
+    distribution_maker, outputs = main(return_outputs=True)

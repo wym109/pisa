@@ -21,7 +21,9 @@ from pisa.utils.log import logging, set_verbosity
 __all__ = ['WHITESPACE_RE', 'NUMBER_RESTR', 'NUMBER_RE',
            'HRGROUP_RESTR', 'HRGROUP_RE', 'IGNORE_CHARS_RE',
            'list2hrlist', 'hrlist2list', 'hrlol2lol', 'hrbool2bool', 'engfmt',
-           'text2tex', 'int2hex', 'hash2hex']
+           'text2tex', 'int2hex', 'hash2hex',
+           'strip_outer_dollars', 'strip_outer_parens',
+           'make_valid_python_name']
 
 
 WHITESPACE_RE = re.compile(r'\s')
@@ -374,7 +376,8 @@ def ravel_results(results):
 
 
 def text2tex(txt):
-    return txt.replace('_', r'\_')
+    """Convert common characters so they show up the same as TeX"""
+    return txt.replace('_', r'\_').replace(' ', r' \; ')
 
 
 def int2hex(i, bits, signed):
@@ -417,11 +420,43 @@ def hash2hex(hash, bits=64):
     elif isinstance(hash, int):
         hex_hash = int2hex(hash, bits=bits, signed=True)
     else:
-        raise ValueError('Unhandled `hash` type %s' %type(hash))
+        raise TypeError('Unhandled `hash` type %s' %type(hash))
     return hex_hash
 
 
+def strip_outer_dollars(value):
+    value = value.strip()
+    m = re.match(r'^\$(.*)\$$', value)
+    if m is not None:
+        value = m.groups()[0]
+    return value
+
+
+def strip_outer_parens(value):
+    value = value.strip()
+    m = re.match(r'^\{\((.*)\)\}$', value)
+    if m is not None:
+        value = m.groups()[0]
+    m = re.match(r'^\((.*)\)$', value)
+    if m is not None:
+        value = m.groups()[0]
+    return value
+
+
+def make_valid_python_name(name):
+    """Make a name a valid Python identifier.
+
+    From Triptych at http://stackoverflow.com/questions/3303312
+    """
+    # Remove invalid characters
+    name = re.sub('[^0-9a-zA-Z_]', '', name)
+    # Remove leading characters until we find a letter or underscore
+    name = re.sub('^[^a-zA-Z_]+', '', name)
+    return name
+
+
 def test_hrlist_formatter():
+    """Unit tests for hrlist_formatter"""
     logging.debug(str((hrlist_formatter(start=0, end=10, step=1))))
     logging.debug(str((hrlist_formatter(start=0, end=10, step=2))))
     logging.debug(str((hrlist_formatter(start=0, end=3, step=8))))
@@ -430,6 +465,7 @@ def test_hrlist_formatter():
 
 
 def test_list2hrlist():
+    """Unit tests for list2hrlist"""
     logging.debug(str((list2hrlist([0, 1]))))
     logging.debug(str((list2hrlist([0, 1, 2]))))
     logging.debug(str((list2hrlist([0.1, 1.1, 2.1, 3.1]))))

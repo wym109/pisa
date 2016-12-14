@@ -10,7 +10,7 @@ is unnecessary to reproduce the results.
 """
 
 
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from argparse import ArgumentParser
 from collections import OrderedDict
 import os
 
@@ -18,6 +18,7 @@ import numpy as np
 
 from pisa.core.distribution_maker import DistributionMaker
 from pisa.core.map import Map, MapSet
+from pisa.core.pipeline import Pipeline
 from pisa.utils.fileio import mkdir, to_file
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.plotter import Plotter
@@ -27,10 +28,7 @@ __all__ = ['parse_args', 'main']
 
 
 def parse_args():
-    parser = ArgumentParser(
-        description=__doc__,
-        formatter_class=ArgumentDefaultsHelpFormatter
-    )
+    parser = ArgumentParser(description=__doc__)
     parser.add_argument(
         '--outdir', metavar='DIR', type=str, required=True,
         help='''Store output plots to this directory.'''
@@ -51,7 +49,7 @@ def parse_args():
         help='''Label for reference'''
     )
     parser.add_argument(
-        '--ref-param-selections', type=str, required=False, default=None,
+        '--ref-param-selections', type=str, required=False,
         action='append',
         help='''Param selections to apply to --ref pipeline config(s). Not
         applicable if --ref specifies stored map or map sets'''
@@ -72,13 +70,13 @@ def parse_args():
         help='''Label for test'''
     )
     parser.add_argument(
-        '--test-param-selections', type=str, required=False, default=None,
+        '--test-param-selections', type=str, required=False,
         action='append',
         help='''Param selections to apply to --test pipeline config(s). Not
         applicable if --test specifies stored map or map sets'''
     )
     parser.add_argument(
-        '--combine', type=str, default=None, action='append',
+        '--combine', type=str, action='append',
         help='''Combine by wildcard string, where string globbing (a la command
         line) uses asterisk for any number of wildcard characters. Use single
         quotes such that asterisks do not get expanded by the shell. Repeat the
@@ -95,34 +93,34 @@ def parse_args():
         specfied, no plots are produced.'''
     )
     parser.add_argument(
-        '--diff-min', type=float, required=False, default=None,
+        '--diff-min', type=float, required=False,
         help='''Difference plot vmin; if you specify only one of --diff-min or
         --diff-max, symmetric limits are automatically used (min = -max).'''
     )
     parser.add_argument(
-        '--diff-max', type=float, required=False, default=None,
+        '--diff-max', type=float, required=False,
         help='''Difference plot max; if you specify only one of --diff-min or
         --diff-max, symmetric limits are automatically used (min = -max).'''
     )
     parser.add_argument(
-        '--fract-diff-min', type=float, required=False, default=None,
+        '--fract-diff-min', type=float, required=False,
         help='''Fractional difference plot vmin; if you specify only one of
         --fract-diff-min or --fract-diff-max, symmetric limits are
         automatically used (min = -max).'''
     )
     parser.add_argument(
-        '--fract-diff-max', type=float, required=False, default=None,
+        '--fract-diff-max', type=float, required=False,
         help='''Fractional difference plot max; if you specify only one of
         --fract-diff-min or --fract-diff-max, symmetric limits are
         automatically used (min = -max).'''
     )
     parser.add_argument(
-        '--asymm-min', type=float, required=False, default=None,
+        '--asymm-min', type=float, required=False,
         help='''Asymmetry plot vmin; if you specify only one of --asymm-min or
         --asymm-max, symmetric limits are automatically used (min = -max).'''
     )
     parser.add_argument(
-        '--asymm-max', type=float, required=False, default=None,
+        '--asymm-max', type=float, required=False,
         help='''Fractional difference plot max; if you specify only one of
         --asymm-min or --asymm-max, symmetric limits are automatically used
         (min = -max).'''
@@ -182,15 +180,26 @@ def main():
     # Get the reference distribution(s) into the form of a test MapSet
     ref = None
     ref_source = None
-    try:
-        ref_dmaker = DistributionMaker(pipelines=args.ref)
-    except:
-        pass
+    if len(args.ref) == 1:
+        try:
+            ref_pipeline = Pipeline(config=args.ref[0])
+        except:
+            raise
+        else:
+            ref_source = 'Pipeline'
+            if args.ref_param_selections is not None:
+                ref_pipeline.select_params(args.ref_param_selections)
+            ref = ref_pipeline.get_outputs()
     else:
-        ref_source = 'DistributionMaker'
-        if args.ref_param_selections is not None:
-            ref_dmaker.select_params(args.ref_param_selections)
-        ref = ref_dmaker.get_outputs()
+        try:
+            ref_dmaker = DistributionMaker(pipelines=args.ref)
+        except:
+            pass
+        else:
+            ref_source = 'DistributionMaker'
+            if args.ref_param_selections is not None:
+                ref_dmaker.select_params(args.ref_param_selections)
+            ref = ref_dmaker.get_outputs()
 
     if ref is None:
         try:
@@ -213,22 +222,33 @@ def main():
 
     if ref is None:
         raise ValueError(
-            'Could not instantiate the reference DistributionMaker, Map, or'
-            ' MapSet from ref value(s) %s' % args.ref
+            'Could not instantiate the reference Pipeline, DistributionMaker,'
+            ' Map, or MapSet from ref value(s) %s' % args.ref
         )
 
     # Get the test distribution(s) into the form of a test MapSet
     test = None
     test_source = None
-    try:
-        test_dmaker = DistributionMaker(pipelines=args.test)
-    except:
-        pass
+    if len(args.test) == 1:
+        try:
+            test_pipeline = Pipeline(config=args.test[0])
+        except:
+            raise
+        else:
+            test_source = 'Pipeline'
+            if args.test_param_selections is not None:
+                test_pipeline.select_params(args.test_param_selections)
+            test = test_pipeline.get_outputs()
     else:
-        test_source = 'DistributionMaker'
-        if args.test_param_selections is not None:
-            test_dmaker.select_params(args.test_param_selections)
-        test = test_dmaker.get_outputs()
+        try:
+            test_dmaker = DistributionMaker(pipelines=args.test)
+        except:
+            pass
+        else:
+            test_source = 'DistributionMaker'
+            if args.test_param_selections is not None:
+                test_dmaker.select_params(args.test_param_selections)
+            test = test_dmaker.get_outputs()
 
     if test is None:
         try:
@@ -251,8 +271,8 @@ def main():
 
     if test is None:
         raise ValueError(
-            'Could not instantiate the test DistributionMaker, Map, or MapSet'
-            ' from test value(s) %s' % args.test
+            'Could not instantiate the test Pipeline, DistributionMaker, Map,'
+            ' or MapSet from test value(s) %s' % args.test
         )
 
     if args.combine is not None:
@@ -263,14 +283,21 @@ def main():
         if isinstance(test, Map):
             test = MapSet([test])
 
+    # Set the MapSet names according to args passed by user
+    ref.name = args.ref_label
+    test.name = args.test_label
+
     # Save to disk the maps being plotted (excluding optional aboslute value
     # operations)
-    ref.to_json(os.path.join(
+    refmaps_path = os.path.join(
         args.outdir, 'maps__%s.json.bz2' % args.ref_label
-    ))
-    test.to_json(os.path.join(
+    )
+    to_file(ref, refmaps_path)
+
+    testmaps_path = os.path.join(
         args.outdir, 'maps__%s.json.bz2' % args.test_label
-    ))
+    )
+    to_file(test, testmaps_path)
 
     if set(test.names) != set(ref.names):
         raise ValueError(
@@ -292,8 +319,9 @@ def main():
             test_map = abs(test_map)
 
         diff_map = test_map - ref_map
-        fract_diff_map = (test_map - ref_map)/ref_map
-        asymm_map = (test_map - ref_map)/ref_map**0.5
+        with np.errstate(divide='ignore', invalid='ignore'):
+            fract_diff_map = (test_map - ref_map)/ref_map
+            asymm_map = (test_map - ref_map)/ref_map**0.5
 
         new_ref.append(ref_map)
         reordered_test.append(test_map)
@@ -309,15 +337,29 @@ def main():
 
         mean_diff = np.mean(np.ma.masked_invalid(diff_map.nominal_values))
         std_diff = np.std(np.ma.masked_invalid(diff_map.nominal_values))
-        mean_fract_diff = np.mean(np.ma.masked_invalid(fract_diff_map.nominal_values))
-        std_fract_diff = np.std(np.ma.masked_invalid(fract_diff_map.nominal_values))
+        mean_fract_diff = np.mean(np.ma.masked_invalid(
+            fract_diff_map.nominal_values
+        ))
+        std_fract_diff = np.std(np.ma.masked_invalid(
+            fract_diff_map.nominal_values
+        ))
 
-        median_diff = np.median(np.ma.masked_invalid(diff_map.nominal_values))
-        mad_diff = np.median(np.abs(np.ma.masked_invalid(diff_map.nominal_values)))
-        median_fract_diff = np.median(np.ma.masked_invalid(fract_diff_map.nominal_values))
-        mad_fract_diff = np.median(np.abs(np.ma.masked_invalid(fract_diff_map.nominal_values)))
+        median_diff = np.nanmedian(np.ma.masked_invalid(
+            diff_map.nominal_values
+        ))
+        mad_diff = np.nanmedian(np.ma.masked_invalid(
+            np.abs(diff_map.nominal_values)
+        ))
+        median_fract_diff = np.nanmedian(np.ma.masked_invalid(
+            fract_diff_map.nominal_values
+        ))
+        mad_fract_diff = np.nanmedian(np.ma.masked_invalid(
+            np.abs(fract_diff_map.nominal_values)
+        ))
 
-        asymm = np.sqrt(np.sum(np.ma.masked_invalid(asymm_map.nominal_values)**2))
+        asymm = np.sqrt(np.sum(
+            np.ma.masked_invalid(asymm_map.nominal_values)**2
+        ))
 
         summary_stats[test_map.name] = OrderedDict([
             ('total_ref', total_ref),
@@ -438,6 +480,9 @@ def main():
             cmap='seismic',
             vmin=args.asymm_min, vmax=args.asymm_max
         )
+
+
+main.__doc__ = __doc__
 
 
 if __name__ == '__main__':
