@@ -280,4 +280,4 @@ if __name__ == '__main__':
     m4.name = 'KDE - hist'
     m4.tex = m4.name
     m = MapSet([m1, m2, m3, m4])
-    my_plotter.plot_2d_array(m, fname='test_kde', cmap='summer',split_axis='pid')
+    my_plotter.plot_2d_array(m, fname='test_kde', cmap='summer')

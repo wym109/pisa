@@ -249,7 +249,7 @@ def main():
                 my_plotter.plot_2d_array(
                     maps,
                     fname='%s_%s_%s_%s'%(sys, args.tag, d, smooth),
-                    split_axis='pid', cmap='RdBu'
+                    cmap='RdBu'
                 )
 
 
