@@ -78,7 +78,7 @@ class Analysis(object):
         self.dof = n_bins - self.n_free_params + n_gauss_priors
 
         # Generate distribution
-        self.data = self.data_maker.get_outputs(return_sum=True)
+        self.data = self.data_maker.get_outputs(return_sum=True, sum_map_name='evts', sum_map_tex_name='evts')
         self.pseudodata_method = None
         self.pseudodata = None
         self.n_minimizer_calls = 0

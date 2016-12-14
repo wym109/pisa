@@ -236,7 +236,6 @@ class icc(Stage):
         scale *= self.params.livetime.value.m_as('common_year')
         fixed_scale *= self.params.livetime.value.m_as('common_year')
         fixed_scale *= self.params.fixed_scale_factor.value.m_as('dimensionless')
-        print self.icc_bg_hist.sum()*scale
 
         if self.error_method == 'sumw2':
             maps = [Map(name=self.output_names[0], hist=(self.icc_bg_hist * scale), error_hist=(np.sqrt(self.icc_bg_hist) * scale) ,binning=self.output_binning)]
