@@ -38,10 +38,6 @@ METRICS_TO_MAXIMIZE = LLH_METRICS
 
 
 # TODO(philippeller):
-# * why `nsigma` in some places but `sigma` in others? make conventions
-#   consistent (particularly within same module)
-# * fill in docstrings and references for all below functions, but especially
-#   the statistical functions
 # * unit tests to ensure these don't break
 
 
