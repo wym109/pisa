@@ -27,11 +27,11 @@ This likelihood takes into account any uncertainties on the expected values (fro
 
 ### barlow_llh
 
-This likelihood takes into account the finite MC statistics uncertainties on the expected values
+This likelihood takes into account the finite MC statistics uncertainties on the expected valuesas in doi:10.1016/0010-4655(93)90005-W ("Fitting using finite Monte Carlo samples" by Barlow and Beeston).
 
 ## Chi-Square Values
 
-Bla
+These are the Chi-Squared values expressing the compatibility of two MapSets. In the limit of large nummbers this should give the same result as `-2*llh`.
 
 ### chi2
 
@@ -42,6 +42,8 @@ more bla
 --->
 
 ### mod_chi2
+
+The modified Chi-Squared expression is increasing the denominator term. The denominator can be understood as a Variance with N corresponding to the poisson variance and any additional error is added as `sigma^2`.
 
 ![mod_chi2](images/mod_chi2.png)
 <!---
