@@ -9,9 +9,7 @@ from pycuda.compiler import SourceModule
 import numpy as np
 
 from pisa import FTYPE, C_FTYPE, C_PRECISION_DEF
-from pisa.core.events import Events
 from pisa.utils.resources import find_resource
-
 
 
 class GPUWeight(object):
@@ -50,32 +48,32 @@ class GPUWeight(object):
 
         }
 
-	__device__ void apply_ratio_scale(fType flux1, fType flux2,
+    __device__ void apply_ratio_scale(fType flux1, fType flux2,
                                         fType ratio_scale, bool sum_const,
                                         fType &scaled_flux1, fType &scaled_flux2){
           // apply a ratio for two fluxes, taken from pisa v2
-	if (sum_const){
-	    // keep sum of flux1, flux2 constant
-	    fType orig_ratio = flux1/flux2;
-	    fType orig_sum = flux1 + flux2;
-	    scaled_flux2 = orig_sum / (1 + ratio_scale*orig_ratio);
-	    scaled_flux1 = ratio_scale*orig_ratio*scaled_flux2;
-	    }
-	else {
-	    // don't keep sum of flux1, flux2 constant
-	    scaled_flux1 = ratio_scale*flux1;
+    if (sum_const){
+        // keep sum of flux1, flux2 constant
+        fType orig_ratio = flux1/flux2;
+        fType orig_sum = flux1 + flux2;
+        scaled_flux2 = orig_sum / (1 + ratio_scale*orig_ratio);
+        scaled_flux1 = ratio_scale*orig_ratio*scaled_flux2;
+        }
+    else {
+        // don't keep sum of flux1, flux2 constant
+        scaled_flux1 = ratio_scale*flux1;
                 scaled_flux2 = flux2;
-	    }
-	}
+        }
+    }
 
         __device__ fType sign(fType x) {
-	// why tf is there no signum function in math.h ??
-	int sgn;
-	if (x > 0.0) sgn= 1.;
-	if (x < 0.0) sgn= -1.;
-	if (x == 0.0) sgn= 0.;
-	return sgn;
-	}
+    // why tf is there no signum function in math.h ??
+    int sgn;
+    if (x > 0.0) sgn= 1.;
+    if (x < 0.0) sgn= -1.;
+    if (x == 0.0) sgn= 0.;
+    return sgn;
+    }
 
         __device__ fType spectral_index_scale(fType true_energy, fType egy_pivot, fType delta_index){
             // calculate spectral index scale
@@ -83,28 +81,28 @@ class GPUWeight(object):
             return scale;
         }
 
-	// These parameters are obtained from fits to the paper of Barr
-	// E dependent ratios, max differences per flavor (Fig.7)
-	__device__ fType e1max_mu = 3.;
-	__device__ fType e2max_mu = 43;
-	__device__ fType e1max_e  = 2.5;
-	__device__ fType e2max_e  = 10;
-	__device__ fType e1max_mu_e = 0.62;
-	__device__ fType e2max_mu_e = 11.45;
-	// Evaluated at
-	__device__ fType x1e = 0.5;
-	__device__ fType x2e = 3.;
+    // These parameters are obtained from fits to the paper of Barr
+    // E dependent ratios, max differences per flavor (Fig.7)
+    __device__ fType e1max_mu = 3.;
+    __device__ fType e2max_mu = 43;
+    __device__ fType e1max_e  = 2.5;
+    __device__ fType e2max_e  = 10;
+    __device__ fType e1max_mu_e = 0.62;
+    __device__ fType e2max_mu_e = 11.45;
+    // Evaluated at
+    __device__ fType x1e = 0.5;
+    __device__ fType x2e = 3.;
 
-	// Zenith dependent amplitude, max differences per flavor (Fig. 9)
-	__device__ fType z1max_mu = 0.6;
-	__device__ fType z2max_mu = 5.;
-	__device__ fType z1max_e  = 0.3;
-	__device__ fType z2max_e  = 5.;
-	__device__ fType nue_cutoff  = 650.;
-	__device__ fType numu_cutoff = 1000.;
-	// Evaluated at
-	__device__ fType x1z = 0.5;
-	__device__ fType x2z = 2.;
+    // Zenith dependent amplitude, max differences per flavor (Fig. 9)
+    __device__ fType z1max_mu = 0.6;
+    __device__ fType z2max_mu = 5.;
+    __device__ fType z1max_e  = 0.3;
+    __device__ fType z2max_e  = 5.;
+    __device__ fType nue_cutoff  = 650.;
+    __device__ fType numu_cutoff = 1000.;
+    // Evaluated at
+    __device__ fType x1z = 0.5;
+    __device__ fType x2z = 2.;
 
         __device__ fType LogLogParam(fType energy, fType y1, fType y2, fType x1, fType x2, bool use_cutoff, fType cutoff_value){
             // oscfit function
@@ -129,16 +127,16 @@ class GPUWeight(object):
 
         __device__ fType ModNuMuFlux(fType energy, fType czenith, fType e1, fType e2, fType z1, fType z2){
             // oscfit function
-	fType A_ave = LogLogParam(energy, e1max_mu*e1, e2max_mu*e2, x1e, x2e, false, 0);
-	fType A_shape = 2.5*LogLogParam(energy, z1max_mu*z1, z2max_mu*z2, x1z, x2z, true, numu_cutoff);
-	return A_ave - (norm_fcn(czenith, A_shape, 0.32) - 0.75*A_shape);
+    fType A_ave = LogLogParam(energy, e1max_mu*e1, e2max_mu*e2, x1e, x2e, false, 0);
+    fType A_shape = 2.5*LogLogParam(energy, z1max_mu*z1, z2max_mu*z2, x1z, x2z, true, numu_cutoff);
+    return A_ave - (norm_fcn(czenith, A_shape, 0.32) - 0.75*A_shape);
         }
 
         __device__ fType ModNuEFlux(fType energy, fType czenith, fType e1mu, fType e2mu, fType z1mu, fType z2mu, fType e1e, fType e2e, fType z1e, fType z2e){
             // oscfit function
-	fType A_ave = LogLogParam(energy, e1max_mu*e1mu + e1max_e*e1e, e2max_mu*e2mu + e2max_e*e2e, x1e, x2e, false, 0);
-	fType A_shape = 1.*LogLogParam(energy, z1max_mu*z1mu + z1max_e*z1e, z2max_mu*z2mu + z2max_e*z2e, x1z, x2z, true, nue_cutoff);
-	return A_ave - (1.5*norm_fcn(czenith, A_shape, 0.4) - 0.7*A_shape);
+    fType A_ave = LogLogParam(energy, e1max_mu*e1mu + e1max_e*e1e, e2max_mu*e2mu + e2max_e*e2e, x1e, x2e, false, 0);
+    fType A_shape = 1.*LogLogParam(energy, z1max_mu*z1mu + z1max_e*z1e, z2max_mu*z2mu + z2max_e*z2e, x1z, x2z, true, nue_cutoff);
+    return A_ave - (1.5*norm_fcn(czenith, A_shape, 0.4) - 0.7*A_shape);
         }
 
         __device__ fType modRatioUpHor(const int kFlav, fType true_energy, fType true_coszen, fType uphor) {
@@ -156,22 +154,22 @@ class GPUWeight(object):
 
         __device__ fType modRatioNuBar(const int kNuBar, const int kFlav, fType true_e, fType true_cz, fType nu_nubar, fType nubar_sys){
             // oscfit function
-	//not sure what nu_nubar is, only found this line in the documentation:
-	// +1 applies the change to neutrinos, 0 to antineutrinos. Anything in between is shared
+    //not sure what nu_nubar is, only found this line in the documentation:
+    // +1 applies the change to neutrinos, 0 to antineutrinos. Anything in between is shared
             fType modfactor;
-	if (kFlav == 0){
-	    modfactor = nubar_sys * ModNuEFlux(true_e, true_cz, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+    if (kFlav == 0){
+        modfactor = nubar_sys * ModNuEFlux(true_e, true_cz, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
             }
-	if (kFlav == 1){
-	    modfactor = nubar_sys * ModNuMuFlux(true_e, true_cz, 1.0, 1.0,1.0,1.0);
+    if (kFlav == 1){
+        modfactor = nubar_sys * ModNuMuFlux(true_e, true_cz, 1.0, 1.0,1.0,1.0);
             }
-	if (kNuBar < 0){
-	    //return 1./(1+(1-nu_nubar)*modfactor);
-	    return max(0.,1./(1+0.5*modfactor));
+    if (kNuBar < 0){
+        //return 1./(1+(1-nu_nubar)*modfactor);
+        return max(0.,1./(1+0.5*modfactor));
             }
-	if (kNuBar > 0){
-	    //return 1. + modfactor*nu_nubar;
-	    return max(0.,1. + 0.5*modfactor);
+    if (kNuBar > 0){
+        //return 1. + modfactor*nu_nubar;
+        return max(0.,1. + 0.5*modfactor);
             }
         }
 
@@ -299,6 +297,7 @@ class GPUWeight(object):
     # python wrappers for CUDA functions
 
     def calc_flux(self, n_evts, weighted_aeff, true_energy, true_coszen,
+<<<<<<< HEAD
                     neutrino_nue_flux, neutrino_numu_flux,
                     neutrino_oppo_nue_flux, neutrino_oppo_numu_flux,
                     scaled_nue_flux, scaled_numu_flux,
@@ -307,6 +306,15 @@ class GPUWeight(object):
                     Barr_uphor_ratio, Barr_nu_nubar_ratio,
                     true_e_scale,
                     **kwargs):
+=======
+                  neutrino_nue_flux, neutrino_numu_flux,
+                  neutrino_oppo_nue_flux, neutrino_oppo_numu_flux,
+                  scaled_nue_flux, scaled_numu_flux,
+                  scaled_nue_flux_shape, scaled_numu_flux_shape,
+                  nue_numu_ratio, nu_nubar_ratio, kNuBar, delta_index,
+                  Barr_uphor_ratio, Barr_nu_nubar_ratio,
+                  **kwargs):
+>>>>>>> 592381a7af812e279c9aa51f773ea4ad640cfaaf
         # block and grid dimensions
         bdim = (256,1,1)
         dx, mx = divmod(n_evts, bdim[0])

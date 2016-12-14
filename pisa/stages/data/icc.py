@@ -205,7 +205,7 @@ class icc(Stage):
 
         if alt_icc_bg_file is not None:
             if self.params.kde_hist.value:
-		self.alt_icc_bg_hist = self.kde_histogramdd(
+        self.alt_icc_bg_hist = self.kde_histogramdd(
                             np.array([alt_cut_events[bin_name] for bin_name in self.bin_names]).T,
                             binning=self.output_binning,
                             coszen_name='reco_coszen',

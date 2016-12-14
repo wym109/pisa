@@ -2,34 +2,33 @@
 # author: J.L. Lanfranchi
 # date:   October 8, 2016
 """
-Compare two PISA entities.
+Compare two entities: Maps, map sets, pipelines, or distribution makers. One
+kind can be compared against another, so long as the resulting map(s) have
+equivalent names and binning. The result each entity specification is formatted
+into a MapSet and stored to disk, so that e.g. re-running a DistributionMaker
+is unnecessary to reproduce the results.
 """
 
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-from collections import Iterable, OrderedDict
+from collections import OrderedDict
 import os
-import sys
 
 import numpy as np
-from uncertainties import unumpy as unp
 
 from pisa.core.distribution_maker import DistributionMaker
 from pisa.core.map import Map, MapSet
 from pisa.utils.fileio import mkdir, to_file
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils.tests import plot_cmp
 from pisa.utils.plotter import Plotter
 
 
-def main():
+__all__ = ['parse_args', 'main']
+
+
+def parse_args():
     parser = ArgumentParser(
-        description='''Compare two entities: Maps, map sets, pipelines, or
-        distribution makers. One kind can be compared against another, so long
-        as the resulting map(s) have equivalent names and binning. At the end,
-        the result each specification is formatted into a MapSet and stored to
-        disk, so that e.g. re-running a DistributionMaker is unnecessary to
-        reproduce the results.''',
+        description=__doc__,
         formatter_class=ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
@@ -137,6 +136,11 @@ def main():
         help='Set verbosity level; repeat -v for higher level.'
     )
     args = parser.parse_args()
+    return args
+
+
+def main():
+    args = parse_args()
     set_verbosity(args.v)
 
     ref_plot_label = args.ref_label

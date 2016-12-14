@@ -188,6 +188,9 @@ class Plotter(object):
             n = len(mapset)
         elif isinstance(mapset, TransformSet):
             n = len([x for x in mapset])
+        else:
+            raise TypeError('Expecting to plot a MapSet or TransformSet but '
+                            'got %s'%type(mapset))
         if n_rows is None and n_cols is None:
             # TODO: auto row/cols
             n_rows = math.floor(math.sqrt(n))

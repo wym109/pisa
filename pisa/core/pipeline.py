@@ -2,29 +2,37 @@
 # authors: J.Lanfranchi/P.Eller
 # date:   March 20, 2016
 """
-Implementation of the Pipeline object, and a __main__ script to instantiate and
-run a pipeline.
+Implementation of the Pipeline object, and a simple script to instantiate and
+run a pipeline (the outputs of which can be plotted and stored to disk).
+
 """
 
 
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from collections import OrderedDict
-import importlib
-import itertools
-import inspect
+from importlib import import_module
+from itertools import product
+from inspect import getsource
 import os
-import sys
 
-from pisa import ureg, Q_
+import numpy as np
+
+from pisa import ureg
+from pisa.core.events import Data
+from pisa.core.map import Map, MapSet
 from pisa.core.param import ParamSet
 from pisa.core.stage import Stage
+from pisa.core.transform import TransformSet
 from pisa.utils.config_parser import parse_pipeline_config
 from pisa.utils.betterConfigParser import BetterConfigParser
+from pisa.utils.fileio import mkdir
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile
 
 
-__all__ = ['Pipeline']
+__all__ = ['Pipeline',
+           'test_Pipeline', 'parse_args', 'main']
 
 
 # TODO: should we check that the output binning of a previous stage produces
@@ -133,7 +141,7 @@ class Pipeline(object):
                 # Import service's module
                 logging.trace('Importing: pisa.stages.%s.%s' %(stage_name,
                                                                service_name))
-                module = importlib.import_module(
+                module = import_module(
                     'pisa.stages.%s.%s' %(stage_name, service_name)
                 )
 
@@ -276,9 +284,7 @@ class Pipeline(object):
 
         """
         if self._source_code_hash is None:
-            self._source_code_hash = hash_obj(inspect.getsource(
-                self.__class__
-            ))
+            self._source_code_hash = hash_obj(getsource(self.__class__))
         return self._source_code_hash
 
     @property
@@ -310,7 +316,7 @@ def test_Pipeline():
     current_mat = 'iron'
     current_hier = 'nh'
 
-    for new_hier, new_mat in itertools.product(hierarchies, materials):
+    for new_hier, new_mat in product(hierarchies, materials):
         new_YeO = YeO[new_mat]
 
         assert pipeline.param_selections == sorted([current_hier, current_mat]), str(pipeline.params.param_selections)
@@ -345,14 +351,12 @@ def test_Pipeline():
         current_mat = new_mat
 
 
-def main():
-    from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-    import numpy as np
-    from pisa.core.map import Map, MapSet
-    from pisa.utils.fileio import mkdir, to_file
-    from pisa.utils.plotter import Plotter
-
-    parser = ArgumentParser()
+def parse_args():
+    parser = ArgumentParser(
+        formatter_class=ArgumentDefaultsHelpFormatter,
+        description='''Instantiate and run a pipeline from a config file.
+        Optionally store the resulting distribution(s) and plot(s) to disk.'''
+    )
     parser.add_argument(
         '--settings', metavar='CONFIGFILE', type=str,
         required=True,
@@ -419,8 +423,14 @@ def main():
         '-v', action='count', default=None,
         help='set verbosity level'
     )
-
     args = parser.parse_args()
+    return args
+
+
+def main():
+    from pisa.utils.plotter import Plotter
+
+    args = parse_args()
     set_verbosity(args.v)
 
     try:
@@ -483,6 +493,50 @@ def main():
             stage.transforms.to_json(fbase + '__transforms.json.bz2')
 
         formats = OrderedDict(png=args.png, pdf=args.pdf)
+        if isinstance(stage.outputs, Data):
+            outputs = stage.outputs.histogram_set(
+                binning=stage.output_binning,
+                nu_weights_col='pisa_weight',
+                mu_weights_col='pisa_weight',
+                mapset_name=stg_svc,
+                errors=True
+            )
+        elif isinstance(stage.outputs, (MapSet, TransformSet)):
+            outputs = stage.outputs
+        outputs_2d = []
+        for output in outputs:
+            if len(output.binning) == 2:
+                outputs_2d.append(output)
+            elif len(output.binning) == 3:
+                if 'pid' in output.binning.names:
+                    logging.warn("Script is set up to only plot 2D maps. Your "
+                                 "outputs are %iD. These will be reduced to "
+                                 "multiple 2D maps for the PID dimension."
+                                 %len(output.binning))
+                    pid_names = output.binning['pid'].bin_names
+                    if pid_names is None:
+                        logging.warn("There are no names given for the PID "
+                                     "bins, thus they will just be numbered.")
+                        pid_names = [x for x in range(
+                            0,
+                            output.binning['pid'].num_bins
+                        )]
+                    for pid_name in pid_names:
+                        outputs_2d.append(
+                            output.split(
+                                dim='pid',
+                                bin=pid_name
+                            )
+                        )
+                else:
+                    raise ValueError("Script is set up to only plot 2D maps. "
+                                     "Your outputs are %iD."
+                                     %len(output.binning))
+            else:
+                raise ValueError("Script is set up to only plot 2D maps. Your "
+                                 "outputs are %iD."%len(output.binning))
+        if not len(outputs_2d) == 0:
+            outputs = MapSet(maps=outputs_2d, name=outputs.name)
         for fmt, enabled in formats.items():
             if not enabled:
                 continue
@@ -491,7 +545,8 @@ def main():
                                  fmt=fmt, log=False,
                                  annotate=args.annotate)
             my_plotter.ratio = True
-            my_plotter.plot_2d_array(stage.outputs, fname=stg_svc+'__output',
+            my_plotter.plot_2d_array(outputs,
+                                     fname=stg_svc+'__output',
                                      cmap='OrRd')
 
     return pipeline, outputs

@@ -9,34 +9,29 @@ file (fit settings).
 n-dimensional MapSets are supported to be fitted with m-dimesnional
 polynomials, that can either be forced to go through the nominal data point or
 not
-
 """
 
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-import copy
-import itertools
+
+from argparse import ArgumentParser
 from uncertainties import unumpy as unp
 
 import numpy as np
 from scipy import interpolate
-from scipy.ndimage.filters import gaussian_filter, generic_filter
+from scipy.ndimage.filters import gaussian_filter
 from scipy.optimize import curve_fit
-from scipy.stats import chi2
 
-from pisa import ureg, Q_
 from pisa.core.map import Map, MapSet
 from pisa.core.pipeline import Pipeline
-from pisa.utils.config_parser import parse_pipeline_config, parse_quantity, parse_string_literal
+from pisa.utils.config_parser import parse_quantity, parse_string_literal
 from pisa.utils.fileio import from_file, to_file
 from pisa.utils.log import set_verbosity
-from pisa.utils.plotter import Plotter
 
 
 __all__ = ['parse_args', 'main']
 
 
 def parse_args():
-    parser = ArgumentParser(description=__doc__)
+    parser = ArgumentParser(description=main.__doc__)
     parser.add_argument(
         '-t', '--template-settings', type=str,
         metavar='configfile', required=True,
@@ -75,7 +70,7 @@ def main():
     args = parse_args()
     set_verbosity(args.v)
 
-    if args.plot: 
+    if args.plot:
         import matplotlib as mpl
         mpl.use('pdf')
         import matplotlib.pyplot as plt
@@ -98,12 +93,12 @@ def main():
 
         # Build fit function
         if force_through_nominal:
-            function = "fit_fun = lambda x, *p: np.polynomial.polynomial.polyval(x, [1.] + list(p))"
+            function = "lambda x, *p: np.polynomial.polynomial.polyval(x, [1.] + list(p))"
         else:
-            function = "fit_fun = lambda x, *p: np.polynomial.polynomial.polyval(x, list(p))"
+            function = "lambda x, *p: np.polynomial.polynomial.polyval(x, list(p))"
             # Add free parameter for constant term
             degree += 1
-        exec(function)
+        fit_fun = eval(function)
 
         # Instantiate template maker
         template_maker = Pipeline(args.template_settings)
@@ -138,10 +133,10 @@ def main():
                     template_maker.update_params(param)
             # Retreive maps
             template = template_maker.get_outputs(idx=stop_idx)
-            if map_names is None: map_names = [map.name for map in template]
+            if map_names is None: map_names = [m.name for m in template]
             inputs[run] = {}
-            for map in template:
-                inputs[run][map.name] = map.hist
+            for m in template:
+                inputs[run][m.name] = m.hist
 
         # Numpy acrobatics:
         arrays = {}
@@ -172,19 +167,20 @@ def main():
 
 
             for idx in np.ndindex(*shape_small):
-            #for i, j in np.ndindex(inputs[name][nominal].shape):
                 y_values = unp.nominal_values(arrays[name][idx])
                 y_sigma = unp.std_devs(arrays[name][idx])
                 if np.any(y_sigma):
-                    popt, pcov = curve_fit(fit_fun, x_values,
-                            y_values, sigma=y_sigma, p0=np.ones(degree))
+                    popt, pcov = curve_fit(fit_fun, x_values, y_values,
+                                           sigma=y_sigma, p0=np.ones(degree))
                 else:
-                    popt, pcov = curve_fit(fit_fun, x_values,
-                            y_values, p0=np.ones(degree))
+                    popt, pcov = curve_fit(fit_fun, x_values, y_values,
+                                           p0=np.ones(degree))
                 perr = np.sqrt(np.diag(pcov))
                 for k, p in enumerate(popt):
                     outputs[name][idx][k] = p
                     errors[name][idx][k] = perr[k]
+
+                # TODO(philippeller): the below block of code will fail
 
                 # Maybe plot
                 #if args.plot:
@@ -255,9 +251,6 @@ def main():
                     fname='%s_%s_%s_%s'%(sys, args.tag, d, smooth),
                     split_axis='pid', cmap='RdBu'
                 )
-
-
-main.__doc__ = __doc__
 
 
 if __name__ == '__main__':
