@@ -297,24 +297,14 @@ class GPUWeight(object):
     # python wrappers for CUDA functions
 
     def calc_flux(self, n_evts, weighted_aeff, true_energy, true_coszen,
-<<<<<<< HEAD
-                    neutrino_nue_flux, neutrino_numu_flux,
-                    neutrino_oppo_nue_flux, neutrino_oppo_numu_flux,
-                    scaled_nue_flux, scaled_numu_flux,
-                    scaled_nue_flux_shape, scaled_numu_flux_shape,
-                    nue_numu_ratio, nu_nubar_ratio, kNuBar, delta_index,
-                    Barr_uphor_ratio, Barr_nu_nubar_ratio,
-                    true_e_scale,
-                    **kwargs):
-=======
-                  neutrino_nue_flux, neutrino_numu_flux,
-                  neutrino_oppo_nue_flux, neutrino_oppo_numu_flux,
-                  scaled_nue_flux, scaled_numu_flux,
-                  scaled_nue_flux_shape, scaled_numu_flux_shape,
-                  nue_numu_ratio, nu_nubar_ratio, kNuBar, delta_index,
-                  Barr_uphor_ratio, Barr_nu_nubar_ratio,
-                  **kwargs):
->>>>>>> 592381a7af812e279c9aa51f773ea4ad640cfaaf
+                neutrino_nue_flux, neutrino_numu_flux,
+                neutrino_oppo_nue_flux, neutrino_oppo_numu_flux,
+                scaled_nue_flux, scaled_numu_flux,
+                scaled_nue_flux_shape, scaled_numu_flux_shape,
+                nue_numu_ratio, nu_nubar_ratio, kNuBar, delta_index,
+                Barr_uphor_ratio, Barr_nu_nubar_ratio,
+                true_e_scale,
+                **kwargs):
         # block and grid dimensions
         bdim = (256,1,1)
         dx, mx = divmod(n_evts, bdim[0])
