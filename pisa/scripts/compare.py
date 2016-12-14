@@ -86,7 +86,7 @@ def parse_args():
     )
     parser.add_argument(
         '--json', action='store_true',
-        help='''Save output maps in json format.''' 
+        help='''Save output maps in compressed json (json.bz2) format.''' 
     )
     parser.add_argument(
         '--pdf', action='store_true',

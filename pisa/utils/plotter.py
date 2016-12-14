@@ -25,7 +25,7 @@ __all__ = ['Plotter']
 
 
 class Plotter(object):
-    '''
+    """
 
     Plotting library for PISA to plot Maps and MapSets
 
@@ -86,12 +86,12 @@ class Plotter(object):
 
     as **kwargs any matplotlib kwrags can be passed, for example cmap='RdBu' for a 2d plot
 
-    '''
+    """
 
     def __init__(self, outdir='.', stamp='PISA cake test', size=(8,8), fmt='pdf', log=True, label='# events', grid=True, ratio=False, annotate=False, symmetric=False,loc='inside'):
         self.outdir = outdir
         self.stamp = stamp
-        if isinstance(fmt,str):
+        if isinstance(fmt,basestring):
             fmt = [fmt]
         self.fmt = fmt
         self.size = size
