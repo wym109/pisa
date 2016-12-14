@@ -22,7 +22,8 @@ The log-likelihood calculates the total of the bin-by bin log-likelihood given t
 
 ### conv_llh
 
-This likelihood takes into account any uncertainties on the expected values (from e.g. finite MC statistics).
+This likelihood takes into account any uncertainties on the expected values (from e.g. finite MC statistics). This is achieved by smearing out the simple poisson pdf with a nromal distribution. The width of this normal distribution is the uncertainty on the expected values.
+
 
 ### barlow_llh
 
@@ -35,5 +36,23 @@ Bla
 ### chi2
 
 more bla
+![chi2](images/chi2.png)
+<!---
+\chi^2 = \sum_{bins}\frac{(N_{exp}-N_{data})^2}{\sqrt{N_{exp}}^2}
+--->
 
 ### mod_chi2
+
+![mod_chi2](images/mod_chi2.png)
+<!---
+\chi^2 = \sum_{bins}\frac{(N_{exp}-N_{data})^2}{\sigma^2 + N_{exp}} 
+--->
+
+
+## Prior Penalties
+
+![prior](images/prior.png)
+<!---
+\sum_{priors}\frac{(p-\hat{p})^2}{\sigma^2}
+--->
+
