@@ -1230,7 +1230,7 @@ def test_ParamSet():
     logging.debug(str((param_set[0].prior_chi2)))
     logging.debug(str((param_set.priors_chi2)))
 
-	# Test that setting attributes works
+        # Test that setting attributes works
     e_prior = Prior(kind='gaussian', mean=10*ureg.GeV, stddev=1*ureg.GeV)
     cz_prior = Prior(kind='uniform', llh_offset=-5)
     reco_energy = Param(name='reco_energy', value=12*ureg.GeV,

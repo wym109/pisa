@@ -75,7 +75,7 @@ class Events(FlavIntData):
       ('proc_ver', '5.1'),
       ('runs', [620, 621, 622])]
 
-	"""
+        """
     def __init__(self, val=None):
         self.metadata = OrderedDict([
             ('detector', ''),
