@@ -46,7 +46,7 @@ class roounfold(Stage):
 
         expected_params = (
             'create_response', 'stat_fluctuations', 'regularisation',
-            'optimize_reg', 'unfold_bg'
+            'optimize_reg', 'unfold_bg', 'unfold_unweighted'
         )
 
         self.reco_binning = reco_binning
@@ -125,8 +125,7 @@ class roounfold(Stage):
                                  'the flag `optimize_reg` is set to True.')
 
         # TODO(shivesh): Fix "smearing_matrix" memory leak
-        # TODO(shivesh): include bg subtraction in unfolding
-        # TODO(shivesh): unweighted unfolding
+        # TODO(shivesh): Fix unweighted unfolding
         # TODO(shivesh): real data
         # TODO(shivesh): different algorithms
         # TODO(shivesh): efficiency correction in unfolding
@@ -243,11 +242,12 @@ class roounfold(Stage):
                 pass
 
         unfold_bg = self.params['unfold_bg'].value
+        unfold_unweighted = self.params['unfold_unweighted'].value
         if self.params['create_response'].value:
             # Truth histogram gets returned if response matrix is created
             response, self.sig_t_th1d = self._create_response(
                 signal_data, all_data, self.reco_binning, self.true_binning,
-                unfold_bg
+                unfold_bg, unfold_unweighted
             )
         else:
             # Cache based on binning, output names and event sample hash
@@ -277,31 +277,34 @@ class roounfold(Stage):
 
     @staticmethod
     def _create_response(signal_data, all_data, reco_binning, true_binning,
-                         unfold_bg):
+                         unfold_bg, unfold_unweighted):
         """Create the response object from the signal data."""
         logging.debug('Creating response object.')
+
         if unfold_bg:
-            sig_reco = roounfold._histogram(
-                events=all_data,
-                binning=reco_binning,
-                weights=all_data['pisa_weight'],
-                errors=True,
-                name='reco_signal',
-                tex=r'\rm{reco_signal}'
-            )
+            reco_data = all_data
         else:
-            sig_reco = roounfold._histogram(
-                events=signal_data,
-                binning=reco_binning,
-                weights=signal_data['pisa_weight'],
-                errors=True,
-                name='reco_signal',
-                tex=r'\rm{reco_signal}'
-            )
+            reco_data = signal_data
+
+        if unfold_unweighted:
+            sig_weights = np.ones(signal_data['pisa_weight'].shape)
+            reco_weights = np.ones(reco_data['pisa_weight'].shape)
+        else:
+            sig_weights = signal_data['pisa_weight']
+            reco_weights = reco_data['pisa_weight']
+
+        sig_reco = roounfold._histogram(
+            events=reco_data,
+            binning=reco_binning,
+            weights=reco_weights,
+            errors=True,
+            name='reco_signal',
+            tex=r'\rm{reco_signal}'
+        )
         sig_true = roounfold._histogram(
             events=signal_data,
             binning=true_binning,
-            weights=signal_data['pisa_weight'],
+            weights=sig_weights,
             errors=True,
             name='true_signal',
             tex=r'\rm{true_signal}'
@@ -312,7 +315,7 @@ class roounfold(Stage):
         smear_matrix = roounfold._histogram(
             events=signal_data,
             binning=reco_binning+true_binning,
-            weights=signal_data['pisa_weight'],
+            weights=sig_weights,
             errors=True,
             name='smearing_matrix',
             tex=r'\rm{smearing_matrix}'
@@ -440,3 +443,4 @@ class roounfold(Stage):
         assert isinstance(params['regularisation'].value, pq)
         assert isinstance(params['optimize_reg'].value, bool)
         assert isinstance(params['unfold_bg'].value, bool)
+        assert isinstance(params['unfold_unweighted'].value, bool)
