@@ -289,10 +289,10 @@ class Events(FlavIntData):
                         field_name, 'self["%s"]["%s"]' %(flav_int, field_name)
                     )
                 mask = eval(crit_str)
-                new_data[flav_int] = {k:v[mask]
+                new_data[flav_int] = {k: v[mask]
                                       for k, v in self[flav_int].iteritems()}
                 flavints_processed.append(flav_int)
-        except Exception as exc:
+        except Exception:
             if (len(flavints_processed) > 0
                     and flavints_processed != flavints_to_process):
                 logging.error('Events object is in an inconsistent state.'
@@ -523,7 +523,7 @@ class Data(FlavIntDataGroup):
                 new_data[fig] = {k: v[mask] for k, v in self[fig].iteritems()}
                 fig_processed.append(fig)
         except:
-            if (len(fig_processed) > 0 and fig_processed != fig_to_process):
+            if len(fig_processed) > 0 and fig_processed != fig_to_process:
                 logging.error('Data object is in an inconsistent state.'
                               ' Reverting cut for all flavInts.')
             raise
@@ -776,6 +776,9 @@ class Data(FlavIntDataGroup):
             return
         super(Data, self).__setitem__(arg, value)
 
+    # TODO(shiveshm): bug: adding an extra arg to __add__ makes no sense;
+    # create a new public -- i.e., without double-underscores -- method if you
+    # want behavior besides `c = a + b`, which is what calls the __add__ method
     def __add__(self, other, keep_self_metadata=False):
         muons = None
         assert isinstance(other, Data)
