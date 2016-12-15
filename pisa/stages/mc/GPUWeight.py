@@ -180,17 +180,18 @@ class GPUWeight(object):
                                 fType *scaled_nue_flux, fType *scaled_numu_flux,
                                 fType *scaled_nue_flux_shape, fType *scaled_numu_flux_shape,
                                 fType nue_numu_ratio, fType nu_nubar_ratio, const int kNuBar, fType delta_index,
-                                fType Barr_uphor_ratio, fType Barr_nu_nubar_ratio
+                                fType Barr_uphor_ratio, fType Barr_nu_nubar_ratio, fType true_e_scale
                                 )
             {
                 // calculate the reweighted flux weights for every event
                 int idx = threadIdx.x + blockDim.x * blockIdx.x;
                 if (idx < n_evts) {
 
+                    fType true_e = true_energy[idx]*true_e_scale;
                     //apply flux systematics
                     // nue/numu ratio
                     // for neutrinos
-                    fType idx_scale = spectral_index_scale(true_energy[idx], 24.0900951261, delta_index);
+                    fType idx_scale = spectral_index_scale(true_e, 24.0900951261, delta_index);
 
                     fType new_nue_flux, new_numu_flux;
                     apply_ratio_scale(neutrino_nue_flux[idx], neutrino_numu_flux[idx], nue_numu_ratio, true,
@@ -222,15 +223,15 @@ class GPUWeight(object):
                     //new_nue_flux2 *= weighted_aeff[idx];
                     //new_numu_flux2 *= weighted_aeff[idx];
                     // Barr flux
-                    new_nue_flux2 *= modRatioNuBar(kNuBar, 0, true_energy[idx], true_coszen[idx], 1.0, Barr_nu_nubar_ratio);
-                    new_numu_flux2 *= modRatioNuBar(kNuBar, 1, true_energy[idx], true_coszen[idx], 1.0, Barr_nu_nubar_ratio);
+                    new_nue_flux2 *= modRatioNuBar(kNuBar, 0, true_e, true_coszen[idx], 1.0, Barr_nu_nubar_ratio);
+                    new_numu_flux2 *= modRatioNuBar(kNuBar, 1, true_e, true_coszen[idx], 1.0, Barr_nu_nubar_ratio);
                     // out
                     scaled_nue_flux[idx] = new_nue_flux2;
                     scaled_numu_flux[idx] = new_numu_flux2;
-                    scaled_nue_flux_shape[idx] = new_nue_flux2 * idx_scale * modRatioUpHor(0, true_energy[idx], true_coszen[idx], Barr_uphor_ratio);
-                    //scaled_nue_flux_shape[idx] = new_nue_flux2 * modRatioUpHor(0, true_energy[idx], true_coszen[idx], Barr_uphor_ratio);
-                    scaled_numu_flux_shape[idx] = new_numu_flux2 * idx_scale * modRatioUpHor(1, true_energy[idx], true_coszen[idx], Barr_uphor_ratio);
-                    //scaled_numu_flux_shape[idx] = new_numu_flux2 * modRatioUpHor(1, true_energy[idx], true_coszen[idx], Barr_uphor_ratio);
+                    scaled_nue_flux_shape[idx] = new_nue_flux2 * idx_scale * modRatioUpHor(0, true_e, true_coszen[idx], Barr_uphor_ratio);
+                    //scaled_nue_flux_shape[idx] = new_nue_flux2 * modRatioUpHor(0, true_e, true_coszen[idx], Barr_uphor_ratio);
+                    scaled_numu_flux_shape[idx] = new_numu_flux2 * idx_scale * modRatioUpHor(1, true_e, true_coszen[idx], Barr_uphor_ratio);
+                    //scaled_numu_flux_shape[idx] = new_numu_flux2 * modRatioUpHor(1, true_e, true_coszen[idx], Barr_uphor_ratio);
                 }
             }
 
@@ -241,7 +242,7 @@ class GPUWeight(object):
                                 fType *linear_fit_MaCCRES, fType *quad_fit_MaCCRES,
                                 fType *prob_e, fType *prob_mu, fType *pid, fType *weight,
                                 fType livetime, fType aeff_scale,
-                                fType Genie_Ma_QE, fType Genie_Ma_RES
+                                fType Genie_Ma_QE, fType Genie_Ma_RES, fType true_e_scale
                                 )
             {
                 // calculate the event weights, given the flux weights and osc. probs
@@ -296,13 +297,14 @@ class GPUWeight(object):
     # python wrappers for CUDA functions
 
     def calc_flux(self, n_evts, weighted_aeff, true_energy, true_coszen,
-                  neutrino_nue_flux, neutrino_numu_flux,
-                  neutrino_oppo_nue_flux, neutrino_oppo_numu_flux,
-                  scaled_nue_flux, scaled_numu_flux,
-                  scaled_nue_flux_shape, scaled_numu_flux_shape,
-                  nue_numu_ratio, nu_nubar_ratio, kNuBar, delta_index,
-                  Barr_uphor_ratio, Barr_nu_nubar_ratio,
-                  **kwargs):
+                neutrino_nue_flux, neutrino_numu_flux,
+                neutrino_oppo_nue_flux, neutrino_oppo_numu_flux,
+                scaled_nue_flux, scaled_numu_flux,
+                scaled_nue_flux_shape, scaled_numu_flux_shape,
+                nue_numu_ratio, nu_nubar_ratio, kNuBar, delta_index,
+                Barr_uphor_ratio, Barr_nu_nubar_ratio,
+                true_e_scale,
+                **kwargs):
         # block and grid dimensions
         bdim = (256,1,1)
         dx, mx = divmod(n_evts, bdim[0])
@@ -315,6 +317,7 @@ class GPUWeight(object):
             scaled_nue_flux_shape, scaled_numu_flux_shape,
             FTYPE(nue_numu_ratio), FTYPE(nu_nubar_ratio), np.int32(kNuBar), FTYPE(delta_index),
             FTYPE(Barr_uphor_ratio), FTYPE(Barr_nu_nubar_ratio),
+            FTYPE(true_e_scale),
             block=bdim, grid=gdim
         )
 
@@ -326,6 +329,7 @@ class GPUWeight(object):
                     prob_e, prob_mu, pid, weight,
                     livetime, aeff_scale,
                     Genie_Ma_QE, Genie_Ma_RES,
+                    true_e_scale,
                     **kwargs):
         # block and grid dimensions
         bdim = (256,1,1)
@@ -340,6 +344,7 @@ class GPUWeight(object):
             prob_e, prob_mu, pid, weight,
             FTYPE(livetime), FTYPE(aeff_scale),
             FTYPE(Genie_Ma_QE), FTYPE(Genie_Ma_RES),
+            FTYPE(true_e_scale),
             block=bdim, grid=gdim
         )
 
