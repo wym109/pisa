@@ -775,19 +775,18 @@ class Data(FlavIntDataGroup):
             return
         super(Data, self).__setitem__(arg, value)
 
-    def __add__(self, other, keep_self_metadata=False):
+    def __add__(self, other):
         muons = None
         assert isinstance(other, Data)
 
-        if not keep_self_metadata:
-            for key in self.metadata:
-                if (key != 'flavints_joined' and
-                        self.metadata[key] != other.metadata[key]):
-                    raise AssertionError(
-                        'Metadata mismatch, key {0}, {1} != '
-                        '{2}'.format(key, self.metadata[key],
-                                     other.metadata[key])
-                    )
+        for key in self.metadata:
+            if (key != 'flavints_joined' and
+                    self.metadata[key] != other.metadata[key]):
+                raise AssertionError(
+                    'Metadata mismatch, key {0}, {1} != '
+                    '{2}'.format(key, self.metadata[key],
+                                 other.metadata[key])
+                )
         metadata = deepcopy(self.metadata)
 
         if self.contains_muons:
