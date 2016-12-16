@@ -776,22 +776,18 @@ class Data(FlavIntDataGroup):
             return
         super(Data, self).__setitem__(arg, value)
 
-    # TODO(shiveshm): bug: adding an extra arg to __add__ makes no sense;
-    # create a new public -- i.e., without double-underscores -- method if you
-    # want behavior besides `c = a + b`, which is what calls the __add__ method
-    def __add__(self, other, keep_self_metadata=False):
+    def __add__(self, other):
         muons = None
         assert isinstance(other, Data)
 
-        if not keep_self_metadata:
-            for key in self.metadata:
-                if (key != 'flavints_joined' and
-                        self.metadata[key] != other.metadata[key]):
-                    raise AssertionError(
-                        'Metadata mismatch, key {0}, {1} != '
-                        '{2}'.format(key, self.metadata[key],
-                                     other.metadata[key])
-                    )
+        for key in self.metadata:
+            if (key != 'flavints_joined' and
+                    self.metadata[key] != other.metadata[key]):
+                raise AssertionError(
+                    'Metadata mismatch, key {0}, {1} != '
+                    '{2}'.format(key, self.metadata[key],
+                                 other.metadata[key])
+                )
         metadata = deepcopy(self.metadata)
 
         if self.contains_muons:
@@ -980,4 +976,4 @@ def test_Data():
 if __name__ == "__main__":
     set_verbosity(1)
     test_Events()
-    #test_Data()
+    test_Data()
