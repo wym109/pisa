@@ -315,8 +315,22 @@ def parse_args():
         defaults in the config file).'''
     )
     parser.add_argument(
+        '--return-sum', action='store_true',
+        help='''Return a sum of the MapSets output by the distribution maker's
+        pipelines as a single map (as opposed to a list of MapSets, one per
+        pipeline)'''
+    )
+    parser.add_argument(
         '-d', '--dir', type=str, action='store',
         help='Directory into which to store the output'
+    )
+    parser.add_argument(
+        '--pdf', action='store_true',
+        help='''Produce pdf plot(s).'''
+    )
+    parser.add_argument(
+        '--png', action='store_true',
+        help='''Produce png plot(s).'''
     )
     parser.add_argument(
         '-v', action='count', default=None,
@@ -330,29 +344,36 @@ def main(return_outputs=False):
     from pisa.utils.plotter import Plotter
     args = parse_args()
     set_verbosity(args.v)
+    plot_formats = []
+    if args.pdf:
+        plot_formats.append('pdf')
+    if args.png:
+        plot_formats.append('png')
 
     distribution_maker = DistributionMaker(pipelines=args.pipeline)
     if args.select is not None:
         selectors = [s.strip() for s in args.select.split(',')]
         distribution_maker.select_params(selectors)
 
-    outputs = distribution_maker.get_outputs(return_sum=True)
+    outputs = distribution_maker.get_outputs(return_sum=args.return_sum)
     if args.dir:
         # TODO: unique filename: append hash (or hash per pipeline config)
         fname = 'distribution_maker_outputs.json.bz2'
         mkdir(args.dir)
         fpath = expandPath(os.path.join(args.dir, fname))
         to_file(outputs, fpath)
+
+    if args.dir and len(plot_formats) > 0:
         my_plotter = Plotter(
-            stamp='PISA cake test',
             outdir=args.dir,
-            fmt='pdf', log=False,
+            fmt=plot_formats, log=False,
             annotate=False
         )
-        my_plotter.ratio = True
+        #my_plotter.ratio = True
         my_plotter.plot_2d_array(outputs, fname='dist_output', cmap='OrRd')
 
-    return distribution_maker, outputs
+    if return_outputs:
+        return distribution_maker, outputs
 
 
 if __name__ == '__main__':

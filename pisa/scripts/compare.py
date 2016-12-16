@@ -7,8 +7,11 @@ kind can be compared against another, so long as the resulting map(s) have
 equivalent names and binning. The result each entity specification is formatted
 into a MapSet and stored to disk, so that e.g. re-running a DistributionMaker
 is unnecessary to reproduce the results.
+
 """
 
+# TODO: make use of `MapSet.compare()` method (and/or expand that until it is
+# equally useful here)
 
 from argparse import ArgumentParser
 from collections import OrderedDict
@@ -24,8 +27,17 @@ from pisa.utils.log import logging, set_verbosity
 from pisa.utils.plotter import Plotter
 
 
-__all__ = ['parse_args', 'main']
+__all__ = ['DISTRIBUTIONMAKER_SOURCE_STR', 'PIPELINE_SOURCE_STR',
+           'MAP_SOURCE_STR', 'MAPSET_SOURCE_STR',
+           'parse_args', 'main']
 
+
+DISTRIBUTIONMAKER_SOURCE_STR = (
+    'DistributionMaker instantiated from multiple pipeline config files'
+)
+PIPELINE_SOURCE_STR = 'Pipeline instantiated from a pipelinen config file'
+MAP_SOURCE_STR = 'Map stored on disk'
+MAPSET_SOURCE_STR = 'MapSet stored on disk'
 
 def parse_args():
     parser = ArgumentParser(description=__doc__)
@@ -84,7 +96,7 @@ def parse_args():
     )
     parser.add_argument(
         '--json', action='store_true',
-        help='''Save output maps in compressed json (json.bz2) format.''' 
+        help='''Save output maps in compressed json (json.bz2) format.'''
     )
     parser.add_argument(
         '--pdf', action='store_true',
@@ -188,9 +200,9 @@ def main():
         try:
             ref_pipeline = Pipeline(config=args.ref[0])
         except:
-            raise
+            pass
         else:
-            ref_source = 'Pipeline'
+            ref_source = PIPELINE_SOURCE_STR
             if args.ref_param_selections is not None:
                 ref_pipeline.select_params(args.ref_param_selections)
             ref = ref_pipeline.get_outputs()
@@ -200,7 +212,7 @@ def main():
         except:
             pass
         else:
-            ref_source = 'DistributionMaker'
+            ref_source = DISTRIBUTIONMAKER_SOURCE_STR
             if args.ref_param_selections is not None:
                 ref_dmaker.select_params(args.ref_param_selections)
             ref = ref_dmaker.get_outputs()
@@ -211,7 +223,7 @@ def main():
         except:
             pass
         else:
-            ref_source = 'Map'
+            ref_source = MAP_SOURCE_STR
             ref = MapSet(ref)
 
     if ref is None:
@@ -222,13 +234,15 @@ def main():
         except:
             pass
         else:
-            ref_source = 'MapSet'
+            ref_source = MAPSET_SOURCE_STR
 
     if ref is None:
         raise ValueError(
             'Could not instantiate the reference Pipeline, DistributionMaker,'
             ' Map, or MapSet from ref value(s) %s' % args.ref
         )
+
+    logging.info('Reference map(s) derived from a ' + ref_source)
 
     # Get the test distribution(s) into the form of a test MapSet
     test = None
@@ -237,9 +251,9 @@ def main():
         try:
             test_pipeline = Pipeline(config=args.test[0])
         except:
-            raise
+            pass
         else:
-            test_source = 'Pipeline'
+            test_source = PIPELINE_SOURCE_STR
             if args.test_param_selections is not None:
                 test_pipeline.select_params(args.test_param_selections)
             test = test_pipeline.get_outputs()
@@ -249,7 +263,7 @@ def main():
         except:
             pass
         else:
-            test_source = 'DistributionMaker'
+            test_source = DISTRIBUTIONMAKER_SOURCE_STR
             if args.test_param_selections is not None:
                 test_dmaker.select_params(args.test_param_selections)
             test = test_dmaker.get_outputs()
@@ -260,7 +274,7 @@ def main():
         except:
             pass
         else:
-            test_source = 'Map'
+            test_source = MAP_SOURCE_STR
             test = MapSet(test)
 
     if test is None:
@@ -271,13 +285,15 @@ def main():
         except:
             pass
         else:
-            test_source = 'MapSet'
+            test_source = MAPSET_SOURCE_STR
 
     if test is None:
         raise ValueError(
             'Could not instantiate the test Pipeline, DistributionMaker, Map,'
             ' or MapSet from test value(s) %s' % args.test
         )
+
+    logging.info('Test map(s) derived from a ' + test_source)
 
     if args.combine is not None:
         ref = ref.combine_wildcard(args.combine)
@@ -310,6 +326,10 @@ def main():
             % (sorted(test.names), sorted(ref.names))
         )
 
+    # Alias to save keystrokes
+    def masked(x):
+        return np.ma.masked_invalid(x.nominal_values)
+
     reordered_test = []
     new_ref = []
     diff_maps = []
@@ -327,6 +347,7 @@ def main():
         with np.errstate(divide='ignore', invalid='ignore'):
             fract_diff_map = (test_map - ref_map)/ref_map
             asymm_map = (test_map - ref_map)/ref_map**0.5
+        abs_fract_diff_map = np.abs(fract_diff_map)
 
         new_ref.append(ref_map)
         reordered_test.append(test_map)
@@ -334,72 +355,105 @@ def main():
         fract_diff_maps.append(fract_diff_map)
         asymm_maps.append(asymm_map)
 
-        total_ref = np.sum(np.ma.masked_invalid(ref_map.nominal_values))
-        total_test = np.sum(np.ma.masked_invalid(test_map.nominal_values))
+        min_ref = np.min(masked(ref_map))
+        max_ref = np.max(masked(ref_map))
 
-        mean_ref = np.mean(np.ma.masked_invalid(ref_map.nominal_values))
-        mean_test = np.mean(np.ma.masked_invalid(test_map.nominal_values))
+        min_test = np.min(masked(test_map))
+        max_test = np.max(masked(test_map))
 
-        mean_diff = np.mean(np.ma.masked_invalid(diff_map.nominal_values))
-        std_diff = np.std(np.ma.masked_invalid(diff_map.nominal_values))
-        mean_fract_diff = np.mean(np.ma.masked_invalid(
-            fract_diff_map.nominal_values
-        ))
-        std_fract_diff = np.std(np.ma.masked_invalid(
-            fract_diff_map.nominal_values
-        ))
+        total_ref = np.sum(masked(ref_map))
+        total_test = np.sum(masked(test_map))
 
-        median_diff = np.nanmedian(np.ma.masked_invalid(
-            diff_map.nominal_values
-        ))
-        mad_diff = np.nanmedian(np.ma.masked_invalid(
-            np.abs(diff_map.nominal_values)
-        ))
-        median_fract_diff = np.nanmedian(np.ma.masked_invalid(
-            fract_diff_map.nominal_values
-        ))
-        mad_fract_diff = np.nanmedian(np.ma.masked_invalid(
-            np.abs(fract_diff_map.nominal_values)
-        ))
+        mean_ref = np.mean(masked(ref_map))
+        mean_test = np.mean(masked(test_map))
 
-        asymm = np.sqrt(np.sum(
-            np.ma.masked_invalid(asymm_map.nominal_values)**2
-        ))
+        max_abs_fract_diff = np.max(masked(abs_fract_diff_map))
+        mean_abs_fract_diff = np.mean(masked(abs_fract_diff_map))
+        median_abs_fract_diff = np.median(masked(abs_fract_diff_map))
+
+        mean_fract_diff = np.mean(masked(fract_diff_map))
+        min_fract_diff = np.min(masked(fract_diff_map))
+        max_fract_diff = np.max(masked(fract_diff_map))
+        std_fract_diff = np.std(masked(fract_diff_map))
+
+        mean_diff = np.mean(masked(diff_map))
+        min_diff = np.min(masked(diff_map))
+        max_diff = np.max(masked(diff_map))
+        std_diff = np.std(masked(diff_map))
+
+        median_diff = np.nanmedian(masked(diff_map))
+        mad_diff = np.nanmedian(masked(np.abs(diff_map)))
+        median_fract_diff = np.nanmedian(masked(fract_diff_map))
+        mad_fract_diff = np.nanmedian(masked(np.abs(fract_diff_map)))
+
+        min_asymm = np.min(masked(fract_diff_map))
+        max_asymm = np.max(masked(fract_diff_map))
+
+        total_asymm = np.sqrt(np.sum(masked(asymm_map)**2))
 
         summary_stats[test_map.name] = OrderedDict([
+            ('min_ref', min_ref),
+            ('max_ref', max_ref),
             ('total_ref', total_ref),
-            ('total_test', total_test),
             ('mean_ref', mean_ref),
+
+            ('min_test', min_test),
+            ('max_test', max_test),
+            ('total_test', total_test),
             ('mean_test', mean_test),
-            ('mean_diff', mean_diff),
-            ('std_diff', std_diff),
+
+            ('max_abs_fract_diff', max_abs_fract_diff),
+            ('mean_abs_fract_diff', mean_abs_fract_diff),
+            ('median_abs_fract_diff', median_abs_fract_diff),
+
+            ('min_fract_diff', min_fract_diff),
+            ('max_fract_diff', max_fract_diff),
             ('mean_fract_diff', mean_fract_diff),
             ('std_fract_diff', std_fract_diff),
-            ('median_diff', median_diff),
-            ('mad_diff', mad_diff),
             ('median_fract_diff', median_fract_diff),
             ('mad_fract_diff', mad_fract_diff),
-            ('asymm', asymm),
+
+            ('min_diff', min_diff),
+            ('max_diff', max_diff),
+            ('mean_diff', mean_diff),
+            ('std_diff', std_diff),
+            ('median_diff', median_diff),
+            ('mad_diff', mad_diff),
+
+            ('min_asymm', min_asymm),
+            ('max_asymm', max_asymm),
+            ('total_asymm', total_asymm),
         ])
 
         logging.info('Map %s...' % ref_map.name)
-        logging.info('  Pct Agreement: %+8.3f%s' % (100*mean_fract_diff, '%'))
-        logging.info('  Totals:')
-        logging.info('    Ref :' + ('%.2f' % total_ref).rjust(8))
-        logging.info('    Test:' + ('%.2f' % total_test).rjust(8))
-        logging.info('  Means:')
-        logging.info('    Ref :' + ('%.2f' % mean_ref).rjust(8))
-        logging.info('    Test:' + ('%.2f' % mean_test).rjust(8))
-        logging.info('  Test - Ref, mean +/- std dev:')
-        logging.info('    %.4e +/- %.4e' %(mean_diff, std_diff))
-        logging.info('  Test - Ref, median +/- median-abs-dev:')
-        logging.info('    %.4e +/- %.4e' %(median_diff, mad_diff))
-        logging.info('  (Test - Ref) / Ref, mean +/- std dev:')
-        logging.info('    %.4e +/- %.4e' %(mean_fract_diff, std_fract_diff))
-        logging.info('  (Test - Ref) / Ref, median +/- median-abs-dev:')
-        logging.info('    %.4e +/- %.4e' %(median_fract_diff, mad_fract_diff))
-        logging.info('  (Test - Ref) / sqrt(Ref), sum in quadrature:')
-        logging.info('    %.4e' %asymm)
+        logging.info('  Ref map(s):')
+        logging.info('    min   :' + ('%.2f' % min_ref).rjust(12))
+        logging.info('    max   :' + ('%.2f' % max_ref).rjust(12))
+        logging.info('    total :' + ('%.2f' % total_ref).rjust(12))
+        logging.info('    mean  :' + ('%.2f' % mean_ref).rjust(12))
+        logging.info('  Test map(s):')
+        logging.info('    min   :' + ('%.2f' % min_test).rjust(12))
+        logging.info('    max   :' + ('%.2f' % max_test).rjust(12))
+        logging.info('    total :' + ('%.2f' % total_test).rjust(12))
+        logging.info('    mean  :' + ('%.2f' % mean_test).rjust(12))
+        logging.info('  Absolute fract. diff., abs((Test - Ref) / Ref):')
+        logging.info('    max   : %.4e' %(max_abs_fract_diff))
+        logging.info('    mean  : %.4e' %(mean_abs_fract_diff))
+        logging.info('    median: %.4e' %(median_abs_fract_diff))
+        logging.info('  Fractional difference, (Test - Ref) / Ref:')
+        logging.info('    min   : %.4e' %(min_fract_diff))
+        logging.info('    max   : %.4e' %(max_fract_diff))
+        logging.info('    mean  : %.4e +/- %.4e' %(mean_fract_diff, std_fract_diff))
+        logging.info('    median: %.4e +/- %.4e' %(median_fract_diff, mad_fract_diff))
+        logging.info('  Difference, Test - Ref:')
+        logging.info('    min   : %.4e' %(min_diff))
+        logging.info('    max   : %.4e' %(max_diff))
+        logging.info('    mean  : %.4e +/- %.4e' %(mean_diff, std_diff))
+        logging.info('    median: %.4e +/- %.4e' %(median_diff, mad_diff))
+        logging.info('  Asymmetry, (Test - Ref) / sqrt(Ref)')
+        logging.info('    min   : %.4e' %(min_asymm))
+        logging.info('    max   : %.4e' %(max_asymm))
+        logging.info('    total : %.4e (sum in quadrature)' %total_asymm)
         logging.info('')
 
     ref = MapSet(new_ref)

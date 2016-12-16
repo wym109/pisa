@@ -615,17 +615,16 @@ class BinnedTensorTransform(Transform):
     @property
     def _serializable_state(self):
         state = super(BinnedTensorTransform, self)._serializable_state
-        state['xform_array'] = unp.nominal_values(self.xform_array)
-        state['error_array'] = unp.std_devs(self.xform_array)
+        state['xform_array'] = self.nominal_values
+        state['error_array'] = self.std_devs
         return state
 
     @property
     def _hashable_state(self):
         state = super(BinnedTensorTransform, self)._hashable_state
-        state['xform_array'] = normQuant(unp.nominal_values(self.xform_array),
+        state['xform_array'] = normQuant(self.nominal_values,
                                          sigfigs=HASH_SIGFIGS)
-        state['error_array'] = normQuant(unp.std_devs(self.xform_array),
-                                         sigfigs=HASH_SIGFIGS)
+        state['error_array'] = normQuant(self.std_devs, sigfigs=HASH_SIGFIGS)
         return state
 
     def set_errors(self, error_array):
@@ -642,13 +641,13 @@ class BinnedTensorTransform(Transform):
         """
         if error_array is None:
             super(self.__class__, self).__setattr__(
-                '_xform_array', unp.nominal_values(self._xform_array)
+                '_xform_array', self.nominal_values
             )
             return
         assert error_array.shape == self.xform_array.shape
         super(BinnedTensorTransform, self).__setattr__(
             '_xform_array',
-            unp.uarray(self._xform_array, np.ascontiguousarray(error_array))
+            unp.uarray(self.xform_array, np.ascontiguousarray(error_array))
         )
 
     @property
@@ -660,6 +659,14 @@ class BinnedTensorTransform(Transform):
     def xform_array(self, x):
         self.validate_transform(self.input_binning, self.output_binning, x)
         self._xform_array = np.ascontiguousarray(x)
+
+    @property
+    def nominal_values(self):
+        return unp.nominal_values(self.xform_array)
+
+    @property
+    def std_devs(self):
+        return unp.std_devs(self.xform_array)
 
     @_new_obj
     def __abs__(self):
@@ -844,6 +851,8 @@ class BinnedTensorTransform(Transform):
                            for n in names]
             input_array = np.stack(input_array, axis=0)
 
+        # TODO: is logic kosher here?
+
         # Transform same shape: element-by-element multiplication
         if self.xform_array.shape == input_array.shape:
             if (isinstance(self.error_method, basestring) and
@@ -976,7 +985,7 @@ def test_BinnedTensorTransform():
     xforms.hash = -20
     assert xforms.hash == -20
 
-    outputs = xforms.apply(inputs)
+    _ = xforms.apply(inputs)
 
     # TODO: get this working above, then test here!
     #xforms2 = xforms * 2

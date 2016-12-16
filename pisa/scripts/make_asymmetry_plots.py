@@ -49,8 +49,8 @@ def plot_asymmetry(h0_map, h0_name, h1_map, h1_name, fulltitle, savename,
         binning=h0_map.binning
     )
 
-    asymmetrylabel = (r'$\left(N_{\mathrm{%s}}-N_{\mathrm{%s}}\right)'
-                      r'/\sqrt{N_{\mathrm{%s}}}$'
+    asymmetrylabel = (r'$\left(N_{%s}-N_{%s}\right)'
+                      r'/\sqrt{N_{%s}}$'
                       % (text2tex(h1_name), text2tex(h0_name),
                          text2tex(h0_name)))
 

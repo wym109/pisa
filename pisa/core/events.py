@@ -233,7 +233,7 @@ class Events(FlavIntData):
                 name += ', weights=' + weights_col
 
         if tex is None:
-            tex = r'{\rm ' + text2tex(name) + r'}'
+            tex = text2tex(name)
 
         return Map(name=name, hist=hist, binning=binning, tex=tex)
 
@@ -675,14 +675,14 @@ class Data(FlavIntDataGroup):
                 except:
                     tex = r'{0}'.format(kinds)
                 if weights_col is not None:
-                    tex += r', \; {\rm weights=' + text2tex(weights_col) + r'}'
+                    tex += r', \; {\rm weights} =' + text2tex(weights_col)
 
             name = str(kinds)
             if weights_col is not None:
                 name += ', weights=' + weights_col
 
         if tex is None:
-            tex = r'{\rm ' + text2tex(name) + r'}'
+            tex = text2tex(name)
 
         return Map(name=name, hist=hist, binning=binning, tex=tex, **kwargs)
 
