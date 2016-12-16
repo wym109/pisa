@@ -934,7 +934,7 @@ class Map(object):
             else:
                 new_name = '%s' %bin_name
 
-            if len(self.tex) > 0:
+            if self.tex is not None and len(self.tex) > 0:
                 new_tex = r'%s, \; %s = {\rm %s}' %(self.tex, spliton_dim.tex,
                                                     bin_name)
             else:
@@ -955,7 +955,7 @@ class Map(object):
         else:
             mapset_name = 'split_on__%s' % spliton_dim.name
 
-        if len(self.tex) > 0:
+        if self.tex is not None and len(self.tex) > 0:
             mapset_tex = r'%s, \; %s' %(self.tex, spliton_dim.tex)
         else:
             mapset_tex = r'%s' %spliton_dim.tex
