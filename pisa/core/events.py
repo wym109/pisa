@@ -75,7 +75,7 @@ class Events(FlavIntData):
       ('proc_ver', '5.1'),
       ('runs', [620, 621, 622])]
 
-        """
+    """
     def __init__(self, val=None):
         self.metadata = OrderedDict([
             ('detector', ''),
@@ -156,7 +156,8 @@ class Events(FlavIntData):
             `kinds` and `weights_col`.
         tex : None or string
             TeX label to give to the resulting Map. If None, default is
-            dereived from the `name` specified or the derived default.
+            dereived from the `name` specified (or its value derived from
+            `kinds` and `weights_col`).
 
         Returns
         -------
@@ -232,7 +233,7 @@ class Events(FlavIntData):
                 name += ', weights=' + weights_col
 
         if tex is None:
-            tex = r'{\rm ' + text2tex(name) + r'}'
+            tex = text2tex(name)
 
         return Map(name=name, hist=hist, binning=binning, tex=tex)
 
@@ -288,10 +289,10 @@ class Events(FlavIntData):
                         field_name, 'self["%s"]["%s"]' %(flav_int, field_name)
                     )
                 mask = eval(crit_str)
-                new_data[flav_int] = {k:v[mask]
+                new_data[flav_int] = {k: v[mask]
                                       for k, v in self[flav_int].iteritems()}
                 flavints_processed.append(flav_int)
-        except:
+        except Exception:
             if (len(flavints_processed) > 0
                     and flavints_processed != flavints_to_process):
                 logging.error('Events object is in an inconsistent state.'
@@ -522,7 +523,7 @@ class Data(FlavIntDataGroup):
                 new_data[fig] = {k: v[mask] for k, v in self[fig].iteritems()}
                 fig_processed.append(fig)
         except:
-            if (len(fig_processed) > 0 and fig_processed != fig_to_process):
+            if len(fig_processed) > 0 and fig_processed != fig_to_process:
                 logging.error('Data object is in an inconsistent state.'
                               ' Reverting cut for all flavInts.')
             raise
@@ -674,14 +675,14 @@ class Data(FlavIntDataGroup):
                 except:
                     tex = r'{0}'.format(kinds)
                 if weights_col is not None:
-                    tex += r', \; {\rm weights=' + text2tex(weights_col) + r'}'
+                    tex += r', \; {\rm weights} =' + text2tex(weights_col)
 
             name = str(kinds)
             if weights_col is not None:
                 name += ', weights=' + weights_col
 
         if tex is None:
-            tex = r'{\rm ' + text2tex(name) + r'}'
+            tex = text2tex(name)
 
         return Map(name=name, hist=hist, binning=binning, tex=tex, **kwargs)
 
@@ -880,7 +881,10 @@ def test_Events():
             continue
         assert np.min(events[fi]['true_energy']) < 30
 
-    logging.info('<< PASSED : test_Events >>')
+    logging.info(
+        '<< PASSED : test_Events >> (note:'
+        ' "[   ERROR] Events object is in an inconsistent state. Reverting cut'
+        ' for all flavInts." message above **is expected**.)')
 
 
 def test_Data():
