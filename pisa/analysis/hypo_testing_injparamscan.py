@@ -13,6 +13,10 @@ set the range of values. For example, one could scan over the space of theta23
 by using a string such as `numpy.linspace(0.35,0.65,31)` which will then be 
 evaluated to figure out a space of theta23 to inject and run Asimov tests.
 
+TODO:
+
+1) Make sure this actually works...
+
 """
 
 

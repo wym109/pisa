@@ -3,6 +3,11 @@
 # date:   November 22, 2016
 """
 A script for processing the output files of profile_scan.py
+
+TODO:
+
+1) This is extremely basic right now. It needs seriously overhauling...
+
 """
 
 import os
