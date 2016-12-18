@@ -36,42 +36,11 @@ from pisa.analysis.hypo_testing import Labels
 from pisa.core.param import Param, ParamSet
 from pisa.utils.fileio import from_file, to_file, nsort
 from pisa.utils.log import set_verbosity, logging
+from pisa.utils.plotter import tex_axis_label
 
 
 __all__ = ['extract_trials', 'extract_fit', 'parse_args', 'main']
 
-
-def make_pretty(label):
-    '''
-    Takes the labels used in the objects and turns them in to something nice
-    for plotting. This can never truly be exhaustive, but it definitely does 
-    the trick. If something looks ugly add it to this function!
-    '''
-    pretty_labels = {}
-    pretty_labels["atm_muon_scale"] = r"Muon Background Scale"
-    pretty_labels["nue_numu_ratio"] = r"$\nu_e/\nu_{\mu}$ Ratio"
-    pretty_labels["Barr_uphor_ratio"] = r"Barr Up/Horizontal Ratio"
-    pretty_labels["Barr_nu_nubar_ratio"] = r"Barr $\nu/\bar{\nu}$ Ratio"
-    pretty_labels["delta_index"] = r"Atmospheric Index Change"
-    pretty_labels["theta13"] = r"$\theta_{13}$"
-    pretty_labels["theta23"] = r"$\theta_{23}$"
-    pretty_labels["deltam31"] = r"$\Delta m^2_{31}$"
-    pretty_labels["aeff_scale"] = r"$A_{\mathrm{eff}}$ Scale"
-    pretty_labels["Genie_Ma_QE"] = r"GENIE $M_{A}^{QE}$"
-    pretty_labels["Genie_Ma_RES"] = r"GENIE $M_{A}^{Res}$"
-    pretty_labels["dom_eff"] = r"DOM Efficiency"
-    pretty_labels["hole_ice"] = r"Hole Ice"
-    pretty_labels["hole_ice_fwd"] = r"Hole Ice Forward"
-    pretty_labels["degree"] = r"$^\circ$"
-    pretty_labels["radians"] = r"rads"
-    pretty_labels["electron_volt ** 2"] = r"$\mathrm{eV}^2$"
-    pretty_labels["llh"] = r"Likelihood"
-    pretty_labels["chi2"] = r"$\chi^2$"
-    pretty_labels["mod_chi2"] = r"Modified $\chi^2$"
-    if label not in pretty_labels.keys():
-        logging.warn("I don't know what to do with %s. Returning as is."%label)
-        return label
-    return pretty_labels[label]
 
 def get_num_rows(data, omit_metric=False):
     '''
@@ -418,6 +387,10 @@ def purge_failed_jobs(data, trial_nums, thresh=5.0):
             Boris Iglewicz and David Hoaglin (1993), "Volume 16: How to Detect 
             and Handle Outliers", The ASQC Basic References in Quality Control:
             Statistical Techniques, Edward F. Mykytka, Ph.D., Editor. 
+
+    Interestingly, I only saw a need for this with my true NO jobs, where I 
+    attempted to run some jobs in fp32 mode. No jobs were needed to be removed 
+    for true IO, where everything was run in fp64 mode.
     '''
     
     for fit_key in data.keys():
@@ -521,7 +494,7 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir):
 
     num_trials = len(h0_fit_to_h0_fid_metrics)
     metric_type = data['h0_fit_to_h0_fid']['metric_val']['type']
-    metric_type_pretty = make_pretty(metric_type)
+    metric_type_pretty = tex_axis_label(metric_type)
 
     # In the case of likelihood, the maximum metric is the better fit.
     # With chi2 metrics the opposite is true, and so we must multiply
@@ -856,11 +829,11 @@ def plot_individual_posterior(data, injparams, altparams, all_params, labels,
 
     # Make axis labels look nice
     if systkey == 'metric_val':
-        systname = make_pretty(metric_type)
+        systname = tex_axis_label(metric_type)
     else:
-        systname = make_pretty(systkey)
+        systname = tex_axis_label(systkey)
     if not units == 'dimensionless':
-        systname += r' (%s)'%make_pretty(units)
+        systname += r' (%s)'%tex_axis_label(units)
                 
     plt.xlabel(systname)
     if subplotnum is not None:
@@ -1082,12 +1055,12 @@ def plot_individual_scatter(xdata, ydata, labels, xsystkey, ysystkey,
                  yvals.max()+0.3*Yrange)
     
     # Make axis labels look nice
-    xsystname = make_pretty(xsystkey)
+    xsystname = tex_axis_label(xsystkey)
     if not xunits == 'dimensionless':
-        xsystname += r' (%s)'%make_pretty(xunits)
-    ysystname = make_pretty(ysystkey)
+        xsystname += r' (%s)'%tex_axis_label(xunits)
+    ysystname = tex_axis_label(ysystkey)
     if not yunits == 'dimensionless':
-        ysystname += r' (%s)'%make_pretty(yunits)
+        ysystname += r' (%s)'%tex_axis_label(yunits)
 
     plt.xlabel(xsystname)
     plt.ylabel(ysystname)
@@ -1307,8 +1280,8 @@ def plot_correlation_matrices(data, labels, detector, selection, outdir):
         for xsystkey in data[fhkey].keys():
             all_corr_values = []
             if not xsystkey == 'metric_val':
-                if make_pretty(xsystkey) not in Systs:
-                    Systs.append(make_pretty(xsystkey))
+                if tex_axis_label(xsystkey) not in Systs:
+                    Systs.append(tex_axis_label(xsystkey))
                 for ysystkey in data[fhkey].keys():
                     if (ysystkey != 'metric_val'):
                         hypo = fhkey.split('_')[0]

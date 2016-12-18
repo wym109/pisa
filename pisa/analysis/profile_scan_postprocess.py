@@ -18,50 +18,16 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 from pisa.utils.fileio import from_file
 from pisa.utils.log import logging, set_verbosity
-
-
-def make_pretty(label):
-    '''
-    Takes the labels used in the objects and turns them in to something nice
-    for plotting. This can never truly be exhaustive, but it definitely does 
-    the trick. If something looks ugly add it to this function!
-    '''
-    pretty_labels = {}
-    pretty_labels["atm_muon_scale"] = r"Muon Background Scale"
-    pretty_labels["nue_numu_ratio"] = r"$\nu_e/\nu_{\mu}$ Ratio"
-    pretty_labels["Barr_uphor_ratio"] = r"Barr Up/Horizontal Ratio"
-    pretty_labels["Barr_nu_nubar_ratio"] = r"Barr $\nu/\bar{\nu}$ Ratio"
-    pretty_labels["delta_index"] = r"Atmospheric Index Change"
-    pretty_labels["theta13"] = r"$\theta_{13}$"
-    pretty_labels["theta23"] = r"$\theta_{23}$"
-    pretty_labels["deltam31"] = r"$\Delta m^2_{31}$"
-    pretty_labels["aeff_scale"] = r"$A_{\mathrm{eff}}$ Scale"
-    pretty_labels["energy_scale"] = r"Energy Scale"
-    pretty_labels["Genie_Ma_QE"] = r"GENIE $M_{A}^{QE}$"
-    pretty_labels["Genie_Ma_RES"] = r"GENIE $M_{A}^{Res}$"
-    pretty_labels["dom_eff"] = r"DOM Efficiency"
-    pretty_labels["hole_ice"] = r"Hole Ice"
-    pretty_labels["hole_ice_fwd"] = r"Hole Ice Forward"
-    pretty_labels["degree"] = r"$^\circ$"
-    pretty_labels["radians"] = r"rads"
-    pretty_labels["electron_volt ** 2"] = r"$\mathrm{eV}^2$"
-    pretty_labels["electron_volt"] = r"$\mathrm{eV}^2$"
-    pretty_labels["llh"] = r"Likelihood"
-    pretty_labels["chi2"] = r"$\chi^2$"
-    pretty_labels["mod_chi2"] = r"Modified $\chi^2$"
-    if label not in pretty_labels.keys():
-        logging.warn("I don't know what to do with %s. Returning as is."%label)
-        return label
-    return pretty_labels[label]
+from pisa.utils.plotter import tex_axis_label
 
 
 def make_label(label, units):
     '''
     Appends units to a label for plotting.
     '''
-    nice_label = make_pretty(label)
+    nice_label = tex_axis_label(label)
     if not units == 'dimensionless':
-        nice_label += ' (%s)'%make_pretty(units)
+        nice_label += ' (%s)'%tex_axis_label(units)
     return nice_label
 
 
@@ -74,23 +40,23 @@ def make_2D_scan_title(detector, selection, param1, param2):
         MainTitle = ("%s %s Event Selection %s / %s Parameter Scan"
                      %(detector,
                        selection,
-                       make_pretty(param1),
-                       make_pretty(param2)))
+                       tex_axis_label(param1),
+                       tex_axis_label(param2)))
     elif (detector is not None):
         MainTitle = ("%s %s / %s Parameter Scan"
                      %(detector,
-                       make_pretty(param1),
-                       make_pretty(param2)))
+                       tex_axis_label(param1),
+                       tex_axis_label(param2)))
     elif (selection is not None):
         MainTitle = ("%s Event Selection %s / %s Parameter Scan"
                      %(detector,
                        selection,
-                       make_pretty(param1),
-                       make_pretty(param2)))
+                       tex_axis_label(param1),
+                       tex_axis_label(param2)))
     else:
         MainTitle = ("%s / %s Parameter Scan"
-                     %(make_pretty(param1),
-                       make_pretty(param2)))
+                     %(tex_axis_label(param1),
+                       tex_axis_label(param2)))
     return MainTitle
 
 
@@ -334,8 +300,8 @@ def main():
         rangex = maxx - minx
         plt.xlim(minx-0.1*rangex,maxx+0.1*rangex)
         plt.ylim(0,1.1*max(metric_vals))
-        plt.xlabel(make_pretty(scan_name))
-        plt.ylabel(make_pretty(metric_name))
+        plt.xlabel(tex_axis_label(scan_name))
+        plt.ylabel(tex_axis_label(metric_name))
         plt.savefig(
             os.path.join(
                 args.outdir,
@@ -379,11 +345,11 @@ def main():
                           linewidths=(3,),
                           origin=origin)
         plt.clabel(CS4, fmt='%2.1f', colors='w', fontsize=14)
-        plt.colorbar(CS3).set_label(label=make_pretty(metric_name),size=36)
+        plt.colorbar(CS3).set_label(label=tex_axis_label(metric_name),size=36)
         plt.xlim([min(xbin_edges),max(xbin_edges)])
         plt.ylim([min(ybin_edges),max(ybin_edges)])
-        plt.xlabel(make_pretty(all_bin_names[0]))
-        plt.ylabel(make_pretty(all_bin_names[1]))
+        plt.xlabel(tex_axis_label(all_bin_names[0]))
+        plt.ylabel(tex_axis_label(all_bin_names[1]))
         plt.savefig(
             '%s_%s_2D_%s_scan.png'%(all_bin_names[0],
                                     all_bin_names[1],
