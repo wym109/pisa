@@ -156,12 +156,13 @@ class Analysis(object):
         )
 
         # Decide whether fit for other octant is necessary
-        if check_octant and 'theta23' in hypo_maker.params.free:
+        if check_octant and 'theta23' in hypo_maker.params.free.names:
             logging.debug('checking other octant of theta23')
             if reset_free:
                 hypo_maker.reset_free()
             else:
-                hypo_maker.params = minimiser_start_params
+		for param in minimiser_start_params:
+		    hypo_maker.params[param.name].value = param.value
 
             # Hop to other octant by reflecting about 45 deg
             theta23 = hypo_maker.params.theta23
