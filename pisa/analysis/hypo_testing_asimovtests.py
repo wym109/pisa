@@ -239,10 +239,9 @@ def main():
     if init_args_d['data_param_selections'] is None:
         init_args_d['data_param_selections'] = \
             init_args_d['h0_param_selections']
-    else:
-        init_args_d['data_maker'].select_params(
-            init_args_d['data_param_selections']
-        )
+    init_args_d['data_maker'].select_params(
+        init_args_d['data_param_selections']
+    )
     if init_args_d['data_name'] is None:
         init_args_d['data_name'] = init_args_d['h0_name']
 
