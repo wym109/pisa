@@ -144,6 +144,7 @@ def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
         data_sets = from_file(os.path.join(logdir, 'data_sets.pckl'))
         all_params = from_file(os.path.join(logdir, 'all_params.pckl'))
         labels = from_file(os.path.join(logdir, 'labels.pckl'))
+        minimiser_info = from_file(os.path.join(logdir, 'minimiser_info.pckl'))
     elif 'config_summary.json' in logdir_content:
         config_summary_fpath = os.path.join(logdir, 'config_summary.json')
         cfg = from_file(config_summary_fpath)
@@ -184,6 +185,7 @@ def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
         # Find all relevant data dirs, and from each extract the fiducial fit(s)
         # information contained
         data_sets = OrderedDict()
+        minimiser_info = OrderedDict()
         for basename in nsort(os.listdir(logdir)):
             m = labels.subdir_re.match(basename)
             if m is None:
@@ -202,6 +204,9 @@ def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
             lvl2_fits = OrderedDict()
             lvl2_fits['h0_fit_to_data'] = None
             lvl2_fits['h1_fit_to_data'] = None
+            minim_info = OrderedDict()
+            minim_info['h0_fit_to_data'] = None
+            minim_info['h1_fit_to_data'] = None
 
             # Account for failed jobs. Get the set of file numbers that exist
             # for all h0 an h1 combinations
@@ -264,13 +269,19 @@ def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
                             fid_label = labels.fid
                         if k not in lvl2_fits:
                             lvl2_fits[k] = OrderedDict()
+                            minim_info[k] = OrderedDict()
                         if fid_label in set_file_nums:
                             lvl2_fits[k][fid_label] = extract_fit(
                                 fpath,
                                 ['metric', 'metric_val','params']
                             )
+                            minim_info[k][fid_label] = extract_fit(
+                                fpath,
+                                ['minimizer_metadata', 'minimizer_time']
+                            )
                         break
             data_sets[dset_label] = lvl2_fits
+            minimiser_info[dset_label] = minim_info
             data_sets[dset_label]['params'] = extract_fit(
                 fpath,
                 ['params']
@@ -278,12 +289,13 @@ def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
         to_file(data_sets, os.path.join(logdir, 'data_sets.pckl'))
         to_file(all_params, os.path.join(logdir, 'all_params.pckl'))
         to_file(labels, os.path.join(logdir, 'labels.pckl'))
+        to_file(minimiser_info, os.path.join(logdir, 'minimiser_info.pckl'))
     else:
         raise ValueError('config_summary.json cannot be found in the specified'
                          ' logdir. It should have been created as part of the '
                          'output of hypo_testing.py and so this postprocessing'
                          ' cannot be performed.')
-    return data_sets, all_params, labels
+    return data_sets, all_params, labels, minimiser_info
 
 
 def extract_fit(fpath, keys=None):
@@ -428,6 +440,98 @@ def purge_failed_jobs(data, trial_nums, thresh=5.0):
                         bad_trials
                     )
                     data[fitkey][param]['vals'] = new_vals
+
+
+def plot_fit_information(minimiser_info, labels, detector, selection, outdir):
+    '''Makes plots of the number of iterations and time taken with the 
+    minimiser. This is a good cross-check that the minimiser did not end 
+    abruptly since you would see significant pile-up if it did.'''
+    outdir = os.path.join(outdir,'MinimiserPlots')
+    if not os.path.exists(outdir):
+        logging.info('Making output directory %s'%outdir)
+        os.makedirs(outdir)
+    MainTitle = '%s %s Event Selection Minimiser Information'%(detector,
+                                                               selection)
+    for fhkey in minimiser_info.keys():
+        if minimiser_info[fhkey] is not None:
+            hypo = fhkey.split('_')[0]
+            fid = fhkey.split('_')[-2]
+            minimiser_times = []
+            minimiser_iterations = []
+            minimiser_funcevals = []
+            minimiser_status = []
+            for trial in minimiser_info[fhkey].keys():
+                bits = minimiser_info[fhkey][trial]['minimizer_time'].split(' ')
+                minimiser_times.append(
+                    float(bits[0])
+                )
+                minimiser_iterations.append(
+                    int(minimiser_info[fhkey][trial][
+                        'minimizer_metadata']['nit'])
+                )
+                minimiser_funcevals.append(
+                    int(minimiser_info[fhkey][trial][
+                        'minimizer_metadata']['nfev'])
+                )
+                minimiser_status.append(
+                    int(minimiser_info[fhkey][trial][
+                        'minimizer_metadata']['status'])
+                )
+                minimiser_units = bits[1]
+            FitTitle = ("True %s, Fiducial Fit %s, Hypothesis %s (%i Trials)"
+                        %(labels['data_name'],
+                          labels['%s_name'%fid],
+                          labels['%s_name'%hypo],
+                          len(minimiser_times)))
+            plt.hist(minimiser_times, bins=10)
+            plt.xlabel('Minimiser Time (seconds)')
+            plt.ylabel('Number of Trials')
+            plt.title(MainTitle+r'\\'+FitTitle, fontsize=16)
+            SaveName = ("true_%s_%s_%s_fid_%s_hypo_%s_minimiser_times.png"
+                        %(labels['data_name'],
+                          detector,
+                          selection,
+                          labels['%s_name'%fid],
+                          labels['%s_name'%hypo]))
+            plt.savefig(os.path.join(outdir,SaveName))
+            plt.close()
+            plt.hist(minimiser_iterations, bins=10)
+            plt.xlabel('Minimiser Iterations')
+            plt.ylabel('Number of Trials')
+            plt.title(MainTitle+r'\\'+FitTitle, fontsize=16)
+            SaveName = ("true_%s_%s_%s_fid_%s_hypo_%s_minimiser_iterations.png"
+                        %(labels['data_name'],
+                          detector,
+                          selection,
+                          labels['%s_name'%fid],
+                          labels['%s_name'%hypo]))
+            plt.savefig(os.path.join(outdir,SaveName))
+            plt.close()
+            plt.hist(minimiser_funcevals, bins=10)
+            plt.xlabel('Minimiser Function Evaluations')
+            plt.ylabel('Number of Trials')
+            plt.title(MainTitle+r'\\'+FitTitle, fontsize=16)
+            SaveName = ("true_%s_%s_%s_fid_%s_hypo_%s_minimiser_funcevals.png"
+                        %(labels['data_name'],
+                          detector,
+                          selection,
+                          labels['%s_name'%fid],
+                          labels['%s_name'%hypo]))
+            plt.savefig(os.path.join(outdir,SaveName))
+            plt.close()
+            plt.hist(minimiser_status, bins=10)
+            plt.xlabel('Minimiser Status')
+            plt.ylabel('Number of Trials')
+            plt.title(MainTitle+r'\\'+FitTitle, fontsize=16)
+            SaveName = ("true_%s_%s_%s_fid_%s_hypo_%s_minimiser_status.png"
+                        %(labels['data_name'],
+                          detector,
+                          selection,
+                          labels['%s_name'%fid],
+                          labels['%s_name'%hypo]))
+            plt.savefig(os.path.join(outdir,SaveName))
+            plt.close()
+    print L
                     
 
 def make_llr_plots(data, fid_data, labels, detector, selection, outdir):
@@ -1464,7 +1568,7 @@ def main():
     outdir = init_args_d.pop('outdir')
 
     if args.asimov:
-        data_sets, all_params, labels = extract_trials(
+        data_sets, all_params, labels, minimiser_info = extract_trials(
             logdir=args.dir,
             fluctuate_fid=False,
             fluctuate_data=False
@@ -1474,7 +1578,7 @@ def main():
         print np.sqrt(np.abs(od['h1_fit_to_h0_fid']['fid_asimov']['metric_val'] - od['h0_fit_to_h1_fid']['fid_asimov']['metric_val']))
 
     else:
-        data_sets, all_params, labels = extract_trials(
+        data_sets, all_params, labels, minimiser_info = extract_trials(
             logdir=args.dir,
             fluctuate_fid=True,
             fluctuate_data=False
@@ -1501,6 +1605,14 @@ def main():
                 )
             else:
                 logging.info("All trials will be included in the analysis.")
+
+            plot_fit_information(
+                minimiser_info=minimiser_info[injkey],
+                labels = labels.dict,
+                detector = detector,
+                selection = selection,
+                outdir=outdir
+            )
             
             make_llr_plots(
                 data = values[injkey],
