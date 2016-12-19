@@ -62,7 +62,7 @@ class Param(object):
 
     is_discrete : bool
 
-    tex : string
+    tex : None or string
 
     help : string
 
@@ -79,8 +79,7 @@ class Param(object):
     >>> gaussian = Prior(kind='gaussian', mean=10*ureg.meter,
     ...                  stddev=1*ureg.meter)
     >>> x = Param(name='x', value=1.5*ureg.foot, prior=gaussian,
-    ...           range=[-10, 60]*ureg.foot, is_fixed=False, is_discrete=False,
-    ...           tex=r'{\rm x}')
+    ...           range=[-10, 60]*ureg.foot, is_fixed=False, is_discrete=False)
     >>> x.value
     <Quantity(1.5, 'foot')>
     >>> print x.prior_llh
@@ -134,7 +133,7 @@ class Param(object):
         return recursiveEquality(self.state, other.state)
 
     def __ne__(self, other):
-        return not self == other
+        return not self.__eq__(other)
 
     def __lt__(self, other):
         return self.name < other.name
@@ -254,7 +253,7 @@ class Param(object):
 
     @tex.setter
     def tex(self, t):
-        self._tex = t if t is not None else self.name
+        self._tex = t if t is not None else r'{\rm %s}' % self.name
 
     @property
     def nominal_value(self):
@@ -797,7 +796,7 @@ class ParamSet(Sequence):
 
     @property
     def tex(self):
-        return r',\,'.join([obj.tex for obj in self._params])
+        return r',\;'.join([obj.tex for obj in self._params])
 
     @property
     def fixed(self):
@@ -1043,6 +1042,7 @@ class ParamSelector(object):
 
 
 def test_Param():
+    """Unit tests for Param class"""
     from scipy.interpolate import splrep, splev
     from pisa.core.prior import Prior
 
@@ -1073,7 +1073,7 @@ def test_Param():
         p2 = Param(name='c', value=1.5, prior=linterp_m,
                    range=[1, 2], is_fixed=False, is_discrete=False,
                    tex=r'\int{\rm c}')
-        p2.prior_llh
+        _ = p2.prior_llh
         logging.debug(str(p2))
         logging.debug(str(linterp_m))
         logging.debug('p2.units: %s' %p2.units)
@@ -1087,7 +1087,7 @@ def test_Param():
     try:
         p2 = Param(name='c', value=1.5*ureg.meter, prior=spline, range=[1, 2],
                    is_fixed=False, is_discrete=False, tex=r'\int{\rm c}')
-        p2.prior_llh
+        _ = p2.prior_llh
     except (TypeError, AssertionError):
         pass
     else:
@@ -1096,7 +1096,7 @@ def test_Param():
         p2 = Param(name='c', value=1.5*ureg.meter, prior=linterp_nounits,
                    range=[1, 2], is_fixed=False, is_discrete=False,
                    tex=r'\int{\rm c}')
-        p2.prior_llh
+        _ = p2.prior_llh
     except (TypeError, AssertionError):
         pass
     else:
@@ -1106,14 +1106,14 @@ def test_Param():
     p2 = Param(name='c', value=1.5, prior=linterp_nounits,
                range=[1, 2], is_fixed=False, is_discrete=False,
                tex=r'\int{\rm c}')
-    p2.prior_llh
+    _ = p2.prior_llh
 
     # Param, prior with no units, range with units
     try:
         p2 = Param(name='c', value=1.5, prior=linterp_nounits,
                    range=[1, 2]*ureg.m, is_fixed=False, is_discrete=False,
                    tex=r'\int{\rm c}')
-        p2.prior_llh
+        _ = p2.prior_llh
         logging.debug(str(p2))
         logging.debug(str(linterp_nounits))
         logging.debug('p2.units: %s' %p2.units)
@@ -1151,6 +1151,7 @@ def test_Param():
 
 # TODO: add tests for reset() and reset_all() methods
 def test_ParamSet():
+    """Unit tests for ParamSet class"""
     from pisa.core.prior import Prior
 
     p0 = Param(name='c', value=1.5, prior=None, range=[1, 2],
@@ -1230,7 +1231,7 @@ def test_ParamSet():
     logging.debug(str((param_set[0].prior_chi2)))
     logging.debug(str((param_set.priors_chi2)))
 
-        # Test that setting attributes works
+    # Test that setting attributes works
     e_prior = Prior(kind='gaussian', mean=10*ureg.GeV, stddev=1*ureg.GeV)
     cz_prior = Prior(kind='uniform', llh_offset=-5)
     reco_energy = Param(name='reco_energy', value=12*ureg.GeV,
@@ -1282,6 +1283,7 @@ def test_ParamSet():
 
 
 def test_ParamSelector():
+    """Unit tests for ParamSelector class"""
     p0 = Param(name='a', value=1.5, prior=None, range=[1, 2],
                is_fixed=False, is_discrete=False, tex=r'\int{\rm c}')
     p1 = Param(name='b', value=2.5, prior=None, range=[1, 5],
@@ -1304,7 +1306,7 @@ def test_ParamSelector():
     param_selector = ParamSelector(
         regular_params=[p0, p1],
         selector_param_sets={'p20': p20, 'p21': p21, 'p22': p22,
-                             'p30_40':ps30_40, 'p31_41': [p31, p41]},
+                             'p30_40': ps30_40, 'p31_41': [p31, p41]},
         selections=['p20', 'p30_40']
     )
     params = param_selector.params
