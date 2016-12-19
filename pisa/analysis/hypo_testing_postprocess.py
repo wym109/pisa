@@ -519,7 +519,7 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir):
     rangeLLR = maxLLR - minLLR
     binning = np.linspace(minLLR - 0.1*rangeLLR,
                           maxLLR + 0.1*rangeLLR,
-                          int(num_trials/20))
+                          int(num_trials/40))
     binwidth = binning[1]-binning[0]
     bincens = np.linspace(binning[0]+binwidth/2.0,
                           binning[-1]-binwidth/2.0,
@@ -608,21 +608,18 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir):
     plt.ylabel(r'Number of Trials (per %.2f)'%binwidth)
     # Nicely scale the plot
     plt.ylim(0,plot_scaling_factor*LLRhistmax)
-    # Make x axes focus on the action!
-    qd = np.percentile(LLRalt, 0.01)
-    qu = np.percentile(LLRbest, 99.99)
-    plt.xlim(qd,qu)
     # Add labels to show which side means what...
+    xlim = plt.gca().get_xlim()
     plt.text(
-        qd-0.05*(qu-qd),
-        -0.09*plot_scaling_factor*LLRhistmax,
+        xlim[0]-0.05*(xlim[1]-xlim[0]),
+        -0.11*plot_scaling_factor*LLRhistmax,
         r"$\leftarrow$ \\ prefers %s"%(alt_name),
         color='k',
         size='large'
     )
     plt.text(
-        qu-0.05*(qu-qd),
-        -0.09*plot_scaling_factor*LLRhistmax,
+        xlim[1]-0.05*(xlim[1]-xlim[0]),
+        -0.11*plot_scaling_factor*LLRhistmax,
         r"$\rightarrow$ \\ prefers %s"%(best_name),
         color='k',
         size='large'
@@ -679,20 +676,18 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir):
     plt.ylabel(r'Number of Trials (per %.2f)'%binwidth)
     # Nicely scale the plot
     plt.ylim(0,plot_scaling_factor*LLRhistmax)
-    # Make x axes focus on the action!
-    qu, qd = np.percentile(LLRalt, [99.99 , 0.01])
-    plt.xlim(qd,qu)
     # Add labels to show which side means what...
+    xlim = plt.gca().get_xlim()
     plt.text(
-        qd-0.05*(qu-qd),
-        -0.09*plot_scaling_factor*LLRhistmax,
+        xlim[0]-0.05*(xlim[1]-xlim[0]),
+        -0.11*plot_scaling_factor*LLRhistmax,
         r"$\leftarrow$ \\ prefers %s"%(alt_name),
         color='k',
         size='large'
     )
     plt.text(
-        qu-0.05*(qu-qd),
-        -0.09*plot_scaling_factor*LLRhistmax,
+        xlim[1]-0.05*(xlim[1]-xlim[0]),
+        -0.11*plot_scaling_factor*LLRhistmax,
         r"$\rightarrow$ \\ prefers %s"%(best_name),
         color='k',
         size='large'
