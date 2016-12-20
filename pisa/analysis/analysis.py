@@ -152,7 +152,7 @@ class Analysis(object):
         )
 
         # Decide whether fit for other octant is necessary
-        if check_octant and 'theta23' in hypo_maker.params.free:
+        if check_octant and 'theta23' in hypo_maker.params.free.names:
             logging.debug('checking other octant of theta23')
             hypo_maker.reset_free()
 
