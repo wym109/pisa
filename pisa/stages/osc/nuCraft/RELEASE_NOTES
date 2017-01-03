@@ -3,6 +3,27 @@ Release notes for nuCraft
 
 
 
+2015-03-09, rev19,  Marius Wallraff
+-------------------------------------------------------------------------------
+
+Minor changes:
+- Made detectorDepth and atmHeight more easily configurable by adding keyword
+  arguments with default values to the NuCraft class.
+- Backported keyword argument numPrec to CalcWeightsLegacy method.
+- Replaced the built-in eval function with ast.literal_eval for reading in
+  EarthModel files to eliminate security risks.
+- Added text to the assertions and improved README, docstrings and comments;
+  cleaned up code.
+- Improved the example script.
+- Slightly adjusted ODE solver settings:
+  - Order was changed from 4 to 5, where 5 is the highest order that features
+    changes compared to lower orders; seldom requires less steps than before,
+    therefore a miniscule performance increase
+  - Removed min_steps and max_steps and increased nsteps; those parameters were/
+    are chosen not to be reached, anyway
+
+
+
 2014-08-01, rev18,  Marius Wallraff
 -------------------------------------------------------------------------------
 
@@ -59,9 +80,9 @@ Major change:
   neutrino).
   This breaks backwards compatibility! Errors due the use of the old
   convention will be raised as exceptions.
-  
+
   Conversion table for your convenience:
-     
+
      name:           old --> new
      nu_e             66      12
      nu_e_bar         67     -12
