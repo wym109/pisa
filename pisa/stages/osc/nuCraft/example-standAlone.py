@@ -11,8 +11,6 @@ from sys import stdout
 
 from NuCraft import NuCraft
 
-set_verbosity(2)
-
 # Example script that reproduces the left side of figure 1 from the
 # Akhmedov/Rassaque/Smirnov paper arxiv 1205.7071;
 # for the core region, results differ because NuCraft takes into account
