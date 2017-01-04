@@ -531,7 +531,6 @@ def plot_fit_information(minimiser_info, labels, detector, selection, outdir):
                           labels['%s_name'%hypo]))
             plt.savefig(os.path.join(outdir,SaveName))
             plt.close()
-    print L
                     
 
 def make_llr_plots(data, fid_data, labels, detector, selection, outdir):
@@ -546,17 +545,6 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir):
        This is probably fine, since the significances can just be calculated 
        from this after the fact.
 
-    2) A method of quantifying the uncertainty due to finite statistics in the 
-       pseudo-trials should be added. Possible ways are:
-        a) Fitting the distributions and then drawing X new instances of Y 
-           trials (where X and Y are large) and looking at the spread in the 
-           p-values. This would require a good fit to the distributions, which
-           is fine if they end up gaussian...
-        b) Quantifying the uncertainty on the critical value used to determine 
-           the significance. In the case of the median this could be achieved 
-           by drawing subsets of the data and creating a distribution of 
-           medians. Though, efforts to do this in the past have given results 
-           that seemed to underestimate the true uncertainty.
     '''
     outdir = os.path.join(outdir,'LLRDistributions')
     if not os.path.exists(outdir):
@@ -672,7 +660,7 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir):
     unc_med_p_value = med_p_value * np.sqrt(wterm + Nterm)
 
     med_plot_labels = []
-    med_plot_labels.append((r"Hypo %s median = %.4f"%(best_name,best_median)))
+    med_plot_labels.append((r"Hypo %s median = $%.4f\pm%.4f$"%(best_name,best_median,median_error)))
     med_plot_labels.append(
         (r"%s best fit - $\log\left[\mathcal{L}\left(\mathcal{H}_{%s}\right)/"
          r"\mathcal{L}\left(\mathcal{H}_{%s}\right)\right]$"
@@ -1501,6 +1489,11 @@ def parse_args():
         help="Name of selection to put in histogram titles."
     )
     parser.add_argument(
+        '-FM','--fit_information',action='store_true',default=False,
+        help="Flag to make plots of the minimiser information i.e. status, 
+        number of iterations, time taken etc."
+    )
+    parser.add_argument(
         '-IP','--individual_posteriors',action='store_true',default=False,
         help="Flag to plot individual posteriors."
     )
@@ -1558,6 +1551,7 @@ def main():
 
     detector = init_args_d.pop('detector')
     selection = init_args_d.pop('selection')
+    fitinfo = init_args_d.pop('fit_information')
     iposteriors = init_args_d.pop('individual_posteriors')
     cposteriors = init_args_d.pop('combined_posteriors')
     iscatter = init_args_d.pop('individual_scatter')
@@ -1605,14 +1599,6 @@ def main():
                 )
             else:
                 logging.info("All trials will be included in the analysis.")
-
-            plot_fit_information(
-                minimiser_info=minimiser_info[injkey],
-                labels = labels.dict,
-                detector = detector,
-                selection = selection,
-                outdir=outdir
-            )
             
             make_llr_plots(
                 data = values[injkey],
@@ -1622,6 +1608,16 @@ def main():
                 selection = selection,
                 outdir = outdir
             )
+
+            if fitinfo:
+                
+                plot_fit_information(
+                    minimiser_info=minimiser_info[injkey],
+                    labels = labels.dict,
+                    detector = detector,
+                    selection = selection,
+                    outdir=outdir
+                )
 
             if iposteriors:
 
