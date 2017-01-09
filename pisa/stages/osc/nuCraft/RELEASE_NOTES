@@ -3,6 +3,17 @@ Release notes for nuCraft
 
 
 
+2017-01-09, rev20,  Marius Wallraff
+-------------------------------------------------------------------------------
+
+Minor changes:
+- Bug fix in EarthModel's init method; setting custom Earth radii by providing
+  init arguments did not work as intended because of "==" instead of "=".
+  Thanks to Justin Lanfranchi for finding and reporting this.
+- Minor improvements in the documentation.
+- Removal of matplotlib "usetex" in the standalone example for improved compat-
+  ibility; had been removed already in CPC version.
+
 2015-03-09, rev19,  Marius Wallraff
 -------------------------------------------------------------------------------
 
@@ -80,9 +91,9 @@ Major change:
   neutrino).
   This breaks backwards compatibility! Errors due the use of the old
   convention will be raised as exceptions.
-
+  
   Conversion table for your convenience:
-
+     
      name:           old --> new
      nu_e             66      12
      nu_e_bar         67     -12

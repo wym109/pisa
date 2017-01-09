@@ -9,7 +9,9 @@ import os, sys
 from time import time
 from sys import stdout
 
-from NuCraft import NuCraft
+from NuCraft import *
+
+
 
 # Example script that reproduces the left side of figure 1 from the
 # Akhmedov/Rassaque/Smirnov paper arxiv 1205.7071;
@@ -114,7 +116,6 @@ rc('axes', grid=True, titlesize=14, labelsize=14, color_cycle=['b','r','k'])   #
 rc('xtick', labelsize=12)
 rc('ytick', labelsize=12)
 rc('lines', linewidth=2)
-rc('text', usetex=True)
 from pylab import *
 
 

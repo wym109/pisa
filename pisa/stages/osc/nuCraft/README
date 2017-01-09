@@ -1,5 +1,5 @@
 ================================================================================
-   nuCraft: Calculation of oscillation probabilities of atmospheric neutrinos
+   nuCraft: Calculation of oscillation probabilities of atmospheric neutrinos   
 ================================================================================
 
 Welcome to nuCraft!
@@ -7,20 +7,20 @@ Welcome to nuCraft!
 NuCraft is a Python project for the calculation of neutrino oscillation
 probabilities, with an emphasis on atmospheric neutrinos. For more detailed
 information and the most recent version, check out the official homepage:
-
+   
    http://nucraft.hepforge.org
-
+   
 As this is purely Python, installation is not necessary; you can just import
 the project and get started.
 Documentation can be found in the docstrings, with some additional explanations
 in inline comments.
 A paper describing details of the implementation has been submitted to Computer
 Physics Communications for publication, with a preprint available at
-
+   
    http://arxiv.org/abs/1409.1387.
-
+   
 If any questions remain, please contact
-
+   
    mwallraff#physik.rwth-aachen.de
 
 
