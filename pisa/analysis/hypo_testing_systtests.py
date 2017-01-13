@@ -127,11 +127,6 @@ def nminusone_test(data_param, hypo_testing, h0_name, h1_name, data_name):
         fluctuate_data=False,
         fluctuate_fid=False
     )
-    # Setup logging and things.
-    hypo_testing.setup_logging()
-    hypo_testing.write_config_summary()
-    hypo_testing.write_minimizer_settings()
-    hypo_testing.write_run_info()
     # This is a standard N-1 test, so fix the parameter in the hypo makers.
     for h0_param in hypo_testing.h0_maker.params.free:
         if h0_param.name == data_param.name:
@@ -139,6 +134,16 @@ def nminusone_test(data_param, hypo_testing, h0_name, h1_name, data_name):
     for h1_param in hypo_testing.h1_maker.params.free:
         if h1_param.name == data_param.name:
             h1_param.is_fixed = True
+    # Setup logging and things.
+    hypo_testing.setup_logging(reset_params=False)
+    hypo_testing.write_config_summary(reset_params=False)
+    hypo_testing.write_minimizer_settings()
+    hypo_testing.write_run_info()
+    # Now do the fits
+    hypo_testing.generate_data()
+    hypo_testing.fit_hypos_to_data()
+    hypo_testing.produce_fid_data()
+    hypo_testing.fit_hypos_to_fid()
 
 
 def parse_args():
