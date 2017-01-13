@@ -415,8 +415,10 @@ def main():
                 data_name=init_args_d['data_name']
             )
 
-        # At the end, reset the parameters in the data maker
+        # At the end, reset the parameters in the maker
         hypo_testing.data_maker.params.reset_free()
+        hypo_testing.h0_maker.params.reset_free()
+        hypo_testing.h1_maker.params.reset_free()
         # Also unfix the hypo maker parameters
         for h0_param in hypo_testing.h0_maker.params:
             if h0_param.name == data_param.name:
