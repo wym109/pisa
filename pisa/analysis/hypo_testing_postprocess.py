@@ -30,10 +30,9 @@ plt.rcParams['text.usetex'] = True
 import numpy as np
 import re
 
-from scipy.stats import norm, spearmanr
+from scipy.stats import spearmanr
 
 from pisa.analysis.hypo_testing import Labels
-from pisa.core.param import Param, ParamSet
 from pisa.utils.fileio import from_file, to_file, nsort
 from pisa.utils.log import set_verbosity, logging
 from pisa.utils.postprocess import tex_axis_label, parse_pint_string, get_num_rows, extract_gaussian

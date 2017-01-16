@@ -23,8 +23,6 @@ plt.rcParams['text.usetex'] = True
 import numpy as np
 import re
 
-from scipy.special import erfc, erfcinv
-
 from pisa.analysis.hypo_testing import Labels
 from pisa.utils.fileio import from_file, to_file, nsort
 from pisa.utils.log import set_verbosity, logging

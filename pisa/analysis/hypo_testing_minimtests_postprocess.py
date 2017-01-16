@@ -9,12 +9,6 @@ Hypothesis testing: How do two hypotheses compare for describing MC or data?
 This script/module plots the ouput of the minimiser tests run on pseudo-trials 
 by hypo_testing_minimtests.py
 
-TODO:
-
-1) Add units to plots
-
-2) Add prior contribution to likelihood surface. Maybe as separate plots?
-
 """
 
 from __future__ import division
@@ -28,10 +22,7 @@ from matplotlib import gridspec
 import numpy as np
 import re
 
-from scipy.stats import norm, spearmanr
-
 from pisa.analysis.hypo_testing import Labels
-from pisa.core.param import Param, ParamSet
 from pisa.utils.fileio import from_file, to_file, nsort
 from pisa.utils.log import set_verbosity, logging
 from pisa.utils.postprocess import tex_axis_label, parse_pint_string, get_num_rows, extract_gaussian
