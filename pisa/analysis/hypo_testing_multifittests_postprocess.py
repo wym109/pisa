@@ -913,6 +913,28 @@ def main():
         for injkey in data_sets.keys():
             for pseudokey in data_sets[injkey].keys():
 
+                plot_starting_param_correlations(
+                    fit_results=data_sets[injkey][pseudokey],
+                    starting_params=starting_params[injkey][pseudokey],
+                    labels=labels.dict,
+                    detector=detector,
+                    selection=selection,
+                    minimiser=minimiser,
+                    outdir=outdir,
+                    pseudokey=pseudokey
+                )
+                
+                plot_fit_metric_correlations(
+                    fit_results=data_sets[injkey][pseudokey],
+                    starting_params=starting_params[injkey][pseudokey],
+                    labels=labels.dict,
+                    detector=detector,
+                    selection=selection,
+                    minimiser=minimiser,
+                    outdir=outdir,
+                    pseudokey=pseudokey
+                )
+
                 plot_starting_params(
                     starting_params=starting_params[injkey][pseudokey],
                     fit_results=data_sets[injkey][pseudokey],
