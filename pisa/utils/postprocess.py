@@ -64,8 +64,8 @@ def parse_pint_string(pint_string):
 def extract_gaussian(prior_string, units):
     '''
     Parses the string for the Gaussian priors that comes from the config 
-    summary file in the logdir. This should account for dimensions though is 
-    only tested with degrees.
+    summary file in the logdir. This should account for dimensions though has 
+    only been proven with "deg" and "ev ** 2".
     '''
     if units == 'dimensionless':
         parse_string = ('gaussian prior: stddev=(.*)'
@@ -78,15 +78,28 @@ def extract_gaussian(prior_string, units):
         stddev = float(bits.group(1))
         maximum = float(bits.group(2))
     else:
-        parse_string = ('gaussian prior: stddev=(.*) (.*)'
-                        ', maximum at (.*) (.*)')
-        bits = re.match(
-            parse_string,
-            prior_string,
-            re.M|re.I
-        )
-        stddev = float(bits.group(1))
-        maximum = float(bits.group(3))
+        try:
+            # This one works for deg and other single string units
+            parse_string = ('gaussian prior: stddev=(.*) (.*)'
+                            ', maximum at (.*) (.*)')
+            bits = re.match(
+                parse_string,
+                prior_string,
+                re.M|re.I
+            )
+            stddev = float(bits.group(1))
+            maximum = float(bits.group(3))
+        except:
+            # This one works for ev ** 2 and other triple string units
+            parse_string = ('gaussian prior: stddev=(.*) (.*) (.*) (.*)'
+                            ', maximum at (.*) (.*) (.*) (.*)')
+            bits = re.match(
+                parse_string,
+                prior_string,
+                re.M|re.I
+            )
+            stddev = float(bits.group(1))
+            maximum = float(bits.group(5))
 
     return stddev, maximum
 
