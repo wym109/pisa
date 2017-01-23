@@ -14,7 +14,9 @@ from ._version import get_versions
 
 __all__ = ['__version__',
            'ureg', 'Q_',
-           'FTYPE', 'HASH_SIGFIGS', 'C_FTYPE', 'C_PRECISION_DEF', 'CACHE_DIR']
+           'OMP_NUM_THREADS',
+           'FTYPE', 'HASH_SIGFIGS', 'C_FTYPE', 'C_PRECISION_DEF',
+           'CACHE_DIR']
 
 
 __version__ = get_versions()['version']
@@ -92,6 +94,14 @@ elif FTYPE == np.float64:
 else:
     raise ValueError('FTYPE must be one of `np.float32` or `np.float64`. Got'
                      ' %s instead.' %FTYPE)
+
+# Default to single thread, then try to read from env
+OMP_NUM_THREADS = 1
+"""Number of threads OpenMP is allocated"""
+
+if os.environ.has_key('OMP_NUM_THREADS'):
+    OMP_NUM_THREADS = int(os.environ['OMP_NUM_THREADS'])
+    assert OMP_NUM_THREADS >= 1
 
 
 # Default value for CACHE_DIR

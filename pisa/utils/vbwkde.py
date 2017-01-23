@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 #
-# Based on the implementation in Matlab by Zdravko Botev.
+# J.L. Lanfranchi for the IceCube/PINGU collaboration.
+#
+# Based on the implementation in Matlab by Zdravko Botev, and the paper
 # Z. I. Botev, J. F. Grotowski, and D. P. Kroese. Kernel density
 # estimation via diffusion. The Annals of Statistics, 38(5):2916-2957, 2010.
 #
@@ -79,125 +81,165 @@ estimation via diffusion. The Annals of Statistics, 38(5):2916-2957, 2010.
 
 from __future__ import division
 
+from math import exp, sqrt
 import os
+import threading
 
-R_PRESENT = False
-"""Whether R (via rpy2) is usable from within Python"""
-try:
-    import rpy2.robjects as robjects
-    from rpy2.robjects import numpy2ri
-    numpy2ri.activate()
-except ImportError:
-    pass
-else:
-    R_PRESENT = True
-    mydir = os.path.abspath(os.path.dirname(__file__))
-    robjects.r("source('%s/isj_bw.R')" % mydir)
-    isj_bw_r_func = robjects.r('isj_bw')
-
+from numba import cuda, jit
 import numpy as np
-from scipy import fftpack
-from scipy import optimize
-from scipy import interpolate
+from scipy import fftpack, optimize, interpolate
 
+from pisa import FTYPE, OMP_NUM_THREADS
 from pisa.utils.log import logging, set_verbosity
-set_verbosity(2)
-try:
-    from pisa.utils.gaussians import gaussian, gaussians
-except ImportError:
-    logging.warning('pisa.utils.gaussians module not importable, defining'
-                    ' custom (slow) functions instead')
-    def gaussian(outbuf, x, mu, sigma):
-        xlessmu = x-mu
-        outbuf += (1./(SQRT2PI*sigma)
-                   * np.exp(-xlessmu*xlessmu/(2.*sigma*sigma)))
-    def gaussians(outbuf, x, mu, sigma, **kwargs):
-        [gaussian(outbuf, x, mu[n], sigma[n]) for n in xrange(len(mu))]
+from pisa.utils.profiler import line_profile, profile
 
 
-__all__ = ['R_PRESENT', 'CHECK_BW', 'OMP_NUM_THREADS', 'fbw_kde', 'vbw_kde',
-           'fixed_point']
+__all__ = ['CUDA_PRESENT', 'gaussians', 'fbw_kde', 'vbw_kde', 'fixed_point']
 
 
-CHECK_BW = True
-"""Whether to check the bandwidth that the Python code computes against that
-computed in the R code"""
-
+CUDA_PRESENT = True
 PI = np.pi
+TWOPI = 2*PI
 SQRTPI = np.sqrt(PI)
-SQRT2PI = np.sqrt(2*PI)
+SQRT2PI = np.sqrt(TWOPI)
 PISQ = PI**2
 
-OMP_NUM_THREADS = 1
-"""Number of threads OpenMP is allocated"""
 
-if os.environ.has_key('OMP_NUM_THREADS'):
-    OMP_NUM_THREADS = int(os.environ['OMP_NUM_THREADS'])
+def gaussians(x, mu, sigma, implementation=None):
+    """Sum of multiple Gaussian curves.
 
+    Parameters
+    ----------
+    x : array
+        Points at which to evaluate the sum of Gaussians
 
-def get_isj_bw(hist, n_dft):
-    dct_data = fftpack.dct(hist, norm=None)
+    mu, sigma : arrays
+        Means and standard deviations of the Gaussians to accumulate
 
-    I = np.arange(1, n_dft)**2
-    dct_data_sq = (dct_data[1:]/2)**2
+    implementation : None or string
+        One of 'singlethreaded', 'multithreaded', or 'cuda'. Passing None, the
+        function will try to determine which of the implementations is best to
+        call.
 
-    # The fixed point calculation finds the bandwidth = t_star
-    failure = True
-    for guess in np.logspace(-2, 5, 10):
-        try:
-            t_star = optimize.brentq(
-                fixed_point,
-                0, guess,
-                args=(data_len, I, dct_data_sq),
-            )
-        except ValueError:
-            pass
-        else:
-            failure = False
-            bandwidth = np.sqrt(t_star)*hist_range
-            break
+    Returns
+    -------
+    outbuf : array
+        Resulting sum of Gaussians
 
-    if failure:
-        if R_PRESENT:
-            logging.warning('Failed to find roots in Python; will try R.')
-        else:
-            raise ValueError('Initial root-finding failed.')
+    Notes
+    -----
+    This function dynamically calls an appropriate implementation depending
+    upon the problem size, the hardware available (multi-core CPU or a GPU),
+    and whether the user specifies `implementation`.
 
-    if CHECK_BW or failure and R_PRESENT:
-        try:
-            bw = isj_bw_r_func(data, n_dft=n_dft, MIN=MIN, MAX=MAX)[0]
-        except:
-            raise
-            if failure:
-                logging.error('VBW KDE (ISJ) root-finding failed.')
-                raise
-        else:
-            if CHECK_BW and not failure:
-                pass
-                #logging.info('Py ISJ bw: %e' % bandwidth)
-                #logging.info(' R ISJ bw: %e' % bw)
-                #logging.info(' (Py-R)/R: %e' % ((bandwidth - bw)/bw))
-                #print 'Py ISJ bw : %f' % bandwidth
-                #print 'R ISJ bw  : %f' % bw
-                #print '(Py-R)/R  :   %e' % ((bandwidth - bw)/bw)
+    """
+    # TODO: figure out which is the roughly the best function to call, if more
+    # than one function is available to call (i.e., really small problems are
+    # fastest in single core, really large `x` are probably best on GPU, and
+    # if/where multithreaded CPU beats GPU is still up in the air
+    if implementation is not None:
+        implementation = implementation.strip().lower()
+        assert implementation in ['cuda', 'singlethreaded', 'multithreaded']
 
-        if failure:
-            bandwidth = bw
+    if implementation == 'cuda' or CUDA_PRESENT:
+        logging.trace('Using CUDA Gaussians implementation')
+        return _gaussians_cuda(x, mu, sigma)
 
-        bandwidth = bw
-        t_star = (bandwidth/hist_range)**2
+    if implementation == 'singlethreaded' or OMP_NUM_THREADS == 1:
+        logging.trace('Using single-threaded Gaussians implementation')
+        outbuf = np.zeros_like(x, dtype=FTYPE)
+        _gaussians_singlethreaded(outbuf, x, mu, sigma)
+        return outbuf
 
-    # Smooth the DCTransformed data using t_star
-    sm_dct_data = (
-        dct_data*np.exp(-np.arange(n_dft)**2 * PISQ*t_star/2)
+    if implementation == 'multithreaded' or OMP_NUM_THREADS > 1:
+        logging.trace('Using multi-threaded Gaussians implementation')
+        return _gaussians_multithreaded(x, mu, sigma)
+
+    raise ValueError(
+        'Unhandled value(s): OMP_NUM_THREADS="%s", CUDA_PRESENT="%s"'
+        % (OMP_NUM_THREADS, CUDA_PRESENT)
     )
 
-    # Inverse DCT to get density
-    density = fftpack.idct(sm_dct_data, norm=None)*n_dft/hist_range
+
+def _gaussians_multithreaded(x, mu, sigma):
+    """Sum of multiple guassians, optimized to be run in multiple threads. This
+    dispatches the single-kernel threaded """
+    n_points = len(x)
+    outbuf = np.zeros(shape=n_points, dtype=FTYPE)
+    chunklen = n_points // OMP_NUM_THREADS
+    threads = []
+    start = 0
+    for i in range(OMP_NUM_THREADS):
+        stop = n_points if i == (OMP_NUM_THREADS - 1) else start + chunklen
+        thread = threading.Thread(
+            target=_gaussians_singlethreaded,
+            args=(outbuf[start:stop], x[start:stop], mu, sigma)
+        )
+        thread.start()
+        threads.append(thread)
+        start += chunklen
+    [thread.join() for thread in threads]
+    return outbuf
 
 
+@jit('void({f:s}[:], {f:s}[:], {f:s}[:], {f:s}[:])'.format(f=FTYPE.__name__),
+     nopython=True, nogil=False, cache=True)
+def _gaussians_singlethreaded(outbuf, x, mu, sigma):
+    """Sum of multiple guassians, optimized to be run in a single thread"""
+    n_points = len(x)
+    for mu_, sigma_ in zip(mu, sigma):
+        for i in range(n_points):
+            xlessmu = x[i] - mu_
+            outbuf[i] += (1/(SQRT2PI*sigma_) * exp(-xlessmu*xlessmu/(2*sigma_*sigma_)))
 
-def fbw_kde(data, n_dft=2**14, MIN=None, MAX=None):
+
+# TODO: if this is loaded, then other CUDA (e.g. pycuda) code doesn't run. Need
+# to fix this behavior.
+
+if CUDA_PRESENT:
+    def _gaussians_cuda(x, mu, sigma):
+        n_points, n_gaussians = len(x), len(mu)
+        n_ops = n_points * n_gaussians
+        threads_per_block = 32
+        blocks_per_grid = (n_points + (threads_per_block - 1)) // threads_per_block
+        func = _gaussians_cuda_kernel[blocks_per_grid, threads_per_block]
+
+        outbuf = np.empty(shape=n_points, dtype=FTYPE)
+
+        # Create empty array on GPU
+        d_outbuf = cuda.device_array(shape=n_points, dtype=FTYPE, stream=0)
+
+        # Copy other arguments to GPU
+        d_x = cuda.to_device(x)
+        d_mu = cuda.to_device(mu)
+        d_sigma = cuda.to_device(sigma)
+
+        # Call the function
+        func(d_outbuf, d_x, d_mu, d_sigma)
+
+        # Copy contents of GPU result to host's outbuf
+        d_outbuf.copy_to_host(ary=outbuf, stream=0)
+
+        return outbuf
+
+
+    @cuda.jit('void({f:s}[:], {f:s}[:], {f:s}[:], {f:s}[:])'.format(f=FTYPE.__name__),
+              inline=True)
+    def _gaussians_cuda_kernel(outbuf, x, mu, sigma):
+        pt_idx = cuda.grid(1)
+        tot = 0.0
+        for g_idx in range(len(mu)):
+            s = sigma[g_idx]
+            m = mu[g_idx]
+            xlessmu = x[pt_idx] - m
+            tot += (
+                1 / (SQRT2PI*s) * exp(-(xlessmu*xlessmu) / (2*(s*s)))
+            )
+        outbuf[pt_idx] = tot
+
+
+@profile
+def fbw_kde(data, n_dct=2**14, MIN=None, MAX=None):
     """Fixed-bandwidth (standard) Gaussian KDE using the Improved
     Sheather-Jones bandwidth.
 
@@ -209,7 +251,7 @@ def fbw_kde(data, n_dft=2**14, MIN=None, MAX=None):
     Parameters
     ----------
     data : array
-    n_dft : int
+    n_dct : int
         Preferably an integer power of 2 for speed purposes
     MIN : float or None
     MAX : float or None
@@ -221,13 +263,13 @@ def fbw_kde(data, n_dft=2**14, MIN=None, MAX=None):
     density : array
 
     """
-    assert int(n_dft) == n_dft
-    n_dft = int(n_dft)
+    assert int(n_dct) == n_dct
+    n_dct = int(n_dct)
 
     # Parameters to set up the mesh on which to calculate
     if MIN is None or MAX is None:
-        minimum = min(data)
-        maximum = max(data)
+        minimum = data.min()
+        maximum = data.max()
         data_range = maximum - minimum
         MIN = minimum - data_range/2 if MIN is None else MIN
         MAX = maximum + data_range/2 if MAX is None else MAX
@@ -236,31 +278,32 @@ def fbw_kde(data, n_dft=2**14, MIN=None, MAX=None):
     hist_range = MAX - MIN
 
     # Histogram the data to get a crude first approximation of the density
-    data_len = len(data)
-    data_hist, bins = np.histogram(data, bins=n_dft, range=(MIN, MAX))
+    data_len = int(len(data))
+    data_hist, bins = np.histogram(data, bins=n_dct, range=(MIN, MAX))
     data_hist = data_hist/data_len
 
     dct_data = fftpack.dct(data_hist, norm=None)
 
-    I = np.arange(1, n_dft)**2
+    I = np.arange(1, n_dct, dtype=np.float64)**2
     dct_data_sq = (dct_data[1:]/2)**2
 
     # The fixed point calculation finds the bandwidth = t_star
     failure = True
     t_star = None
     bandwidth = None
-    #for guess in np.logspace(-2, 5, 200):
-    #    try:
-    #        t_star = optimize.brentq(
-    #            fixed_point,
-    #            0, guess,
-    #            args=(data_len, I, dct_data_sq),
-    #        )
-    #        failure = False
-    #        bandwidth = np.sqrt(t_star)*hist_range
-    #        break
-    #    except ValueError:
-    #        failure = True
+    try:
+        t_star = optimize.minimize_scalar(
+            fun=fixed_point,
+            bounds=(np.finfo(np.float64).eps, 0.1),
+            method='Bounded',
+            args=(data_len, I, dct_data_sq.astype(np.float64)),
+            options=dict(maxiter=1e6, xatol=1e-22),
+        ).x
+    except ValueError:
+        pass
+    else:
+        failure = False
+        bandwidth = np.sqrt(t_star)*hist_range
 
     if failure:
         if R_PRESENT:
@@ -268,37 +311,16 @@ def fbw_kde(data, n_dft=2**14, MIN=None, MAX=None):
         else:
             raise ValueError('Initial root-finding failed.')
 
-    if CHECK_BW or failure and R_PRESENT:
-        try:
-            bw = isj_bw_r_func(data, n_dft=n_dft, MIN=MIN, MAX=MAX)[0]
-        except:
-            raise
-            if failure:
-                logging.error('VBW KDE (ISJ) root-finding failed.')
-                raise
-        else:
-            if CHECK_BW and not failure:
-                logging.info('')
-                logging.info('Py ISJ bw: %s' % bandwidth)
-                logging.info(' R ISJ bw: %s' % bw)
-                if bandwidth is not None:
-                    logging.info(' (Py-R)/R: %s' % ((bandwidth - bw)/bw))
-                #print 'Py ISJ bw : %f' % bandwidth
-                #print 'R ISJ bw  : %f' % bw
-                #print '(Py-R)/R  :   %e' % ((bandwidth - bw)/bw)
-
-        #if failure:
-        #    print 'failed!'
         bandwidth = bw
         t_star = (bw/hist_range)**2
 
     # Smooth the DCTransformed data using t_star
     sm_dct_data = (
-        dct_data*np.exp(-np.arange(n_dft)**2 * PISQ*t_star/2)
+        dct_data*np.exp(-np.arange(n_dct)**2 * PISQ*t_star/2)
     )
 
     # Inverse DCT to get density
-    density = fftpack.idct(sm_dct_data, norm=None)*n_dft/hist_range
+    density = fftpack.idct(sm_dct_data, norm=None)*n_dct/hist_range
 
     mesh = (bins[0:-1] + bins[1:]) / 2
 
@@ -307,7 +329,8 @@ def fbw_kde(data, n_dft=2**14, MIN=None, MAX=None):
     return bandwidth, mesh, density
 
 
-def vbw_kde(data, n_dft=2**14, MIN=None, MAX=None, evaluate_dens=True,
+@profile
+def vbw_kde(data, n_dct=2**14, MIN=None, MAX=None, evaluate_dens=True,
             evaluate_at=None, n_addl_iter=0):
     """
     Parameters
@@ -315,7 +338,7 @@ def vbw_kde(data, n_dft=2**14, MIN=None, MAX=None, evaluate_dens=True,
     data : array
         The data points for which the density estimate is sought
 
-    n_dft : int
+    n_dct : int
         Number of points with which to form regular mesh, from MIN to MAX;
         this gets DCT'd, so N should be a power of two.
         -> Default: 2**14 (16384)
@@ -330,7 +353,7 @@ def vbw_kde(data, n_dft=2**14, MIN=None, MAX=None, evaluate_dens=True,
 
     evaluate_dens : bool
         Whether to evaluate the density either at the mesh points defined by
-        n_dft, MIN, and MAX, or at the points specified by the argument
+        n_dct, MIN, and MAX, or at the points specified by the argument
         evaluate_at. If False, only the gaussians' bandwidths and the mesh
         locations (no density) are returned. Evaluating the density is a large
         fraction of total execution time, so setting this to False saves time
@@ -373,12 +396,8 @@ def vbw_kde(data, n_dft=2**14, MIN=None, MAX=None, evaluate_dens=True,
     """
     # The pilot density estimate is given by the (fixed-bandwidth) Gaussian KDE
     # using the Improved Sheather Jones (ISJ) bandwidth
-    bw_at_peak, mesh, fbw_dens_on_mesh = fbw_kde(
-        data=data,
-        n_dft=n_dft,
-        MIN=MIN,
-        MAX=MAX
-    )
+    bw_at_peak, mesh, fbw_dens_on_mesh = fbw_kde(data=data, n_dct=n_dct,
+                                                 MIN=MIN, MAX=MAX)
 
     # Create linear interpolator for this new density then find density est. at
     # the data points' locations
@@ -408,13 +427,12 @@ def vbw_kde(data, n_dft=2**14, MIN=None, MAX=None, evaluate_dens=True,
 
     # TODO: feed density estimate to point just prior to taking DCT in fbw_kde
     for n in xrange(n_addl_iter):
-        dens_est = np.zeros_like(data, dtype=np.double)
+        dens_est = np.zeros_like(data, dtype=FTYPE)
         gaussians(
             outbuf=dens_est,
             x=data,
             mu=data,
             sigma=kernel_bandwidths,
-            threads=OMP_NUM_THREADS
         )
         dens_est /= len(data)
         kernel_bandwidths = np.sqrt(np.sum(dens_est**2)) / dens_est
@@ -427,13 +445,10 @@ def vbw_kde(data, n_dft=2**14, MIN=None, MAX=None, evaluate_dens=True,
 
     # Note that the array must be initialized to zeros before sending to the
     # `gaussians` function (which adds its results to the existing array)
-    vbw_dens_est = np.zeros_like(evaluate_at, dtype=np.double)
-    gaussians(
-        outbuf=vbw_dens_est,
-        x=evaluate_at.astype(np.double),
-        mu=data.astype(np.double),
-        sigma=kernel_bandwidths.astype(np.double),
-        threads=OMP_NUM_THREADS
+    vbw_dens_est = gaussians(
+        x=evaluate_at.astype(FTYPE),
+        mu=data.astype(FTYPE),
+        sigma=kernel_bandwidths.astype(FTYPE),
     )
 
     # Normalize distribution to have area of 1
@@ -442,50 +457,72 @@ def vbw_kde(data, n_dft=2**14, MIN=None, MAX=None, evaluate_dens=True,
     return kernel_bandwidths, evaluate_at, vbw_dens_est
 
 
-def fixed_point(t, data_len, i, a2):
+@jit('{f:s}({f:s}, int64, {f:s}[:], {f:s}[:])'.format(f='float64'),
+     nopython=True, nogil=False, cache=True)
+def fixed_point(t, data_len, I, a2):
     """Fixed point algorithm for Improved Sheather Jones bandwidth
     selection.
-    
-    Ref: The Annals of Statistics, 38(5):2916-2957, 2010.
+
+    Implements the function t - zeta*gamma**[l](t) from The Annals of Statistics, 38(5):2916-2957, 2010.
+
 
     Parameters
     ----------
-    t, data_len, i, a2 : float
-    
+    t : float64
+    data_len : int64
+    I : array of float64
+    a2 : array of float64
+
+
+    Returns
+    -------
+    result : float64
+
+
     NOTES
     -----
     Original implementation by Botev et al. is quad-precision, whereas this is
     single precision only. This could cause discrepancies from the reference
     implementation.
-    
+
     """
+    len_i = len(I)
     l = 7
-    f = 2*PISQ**l * np.sum(i**l * a2 * np.exp(-i*PISQ*t))
-    for s in xrange(l, 1, -1):
-        k0 = np.prod(np.arange(1, 2.*s, 2))/SQRT2PI
-        const = (1 + (0.5)**(s + 0.5))/3.
-        time = (2*const*k0/data_len/f)**(2./(3.+2.*s))
-        x0 = i**s
-        x10 = -i * PISQ * time
-        x1 = np.exp(x10)
-        x2 = x0 * a2 * x1
-        x3 = np.sum(x2)
-        f = 2*PISQ**s * x3
-    return t-(2*data_len*SQRTPI*f)**(-0.4)
+
+    tot = 0.0
+    for idx in range(len_i):
+        tot += I[idx]**l * a2[idx] * exp(-I[idx] * PISQ * t)
+    f = 2 * PI**(2*l) * tot
+
+    for s in range((l-1), 1, -1):
+        k0 = np.nanprod(np.arange(1, 2*s, 2)) / SQRT2PI
+        const = (1 + (0.5)**(s+0.5)) / 3.0
+        time = (2 * const * k0 / data_len / f)**(2.0 / (3.0 + 2.0*s))
+
+        tot = 0.0
+        for idx in range(len_i): #I_, a2_ in zip(I, a2):
+            tot += I[idx]**s * a2[idx] * exp(-I[idx] * PISQ * time)
+        f = 2 * PI**(2*s) * tot
+
+    return abs(t - (2.0 * data_len * SQRTPI * f)**(-0.4))
 
 
 def speedTest():
     from time import time
-    enuerr = np.random.noncentral_chisquare(df=3, nonc=1,
-                                            size=int(4e3))
-    min_e, max_e = 0, np.max(enuerr)
-
-    t0 = time()
-    bw, x, dens = vbw_kde(data=enuerr, n_dft=1024)
-    logging.debug('time to run: %f s' % (time() - t0))
+    np.random.seed(10)
+    times = []
+    for trial in xrange(10):
+        enuerr = np.random.noncentral_chisquare(df=3, nonc=1, size=int(1e3))
+        min_e, max_e = 0, np.max(enuerr)
+        x = np.linspace(0, 20, 1e3)
+        t0 = time()
+        bw, x, dens = vbw_kde(data=enuerr, n_dct=2**14, evaluate_at=x)
+        times.append(time() - t0)
+    #set_verbosity(1)
+    #logging.info('average time to run: %f s' % np.mean(times))
+    print 'average time to run: %f ms' % (np.mean(times)*1000)
 
 
 if __name__ == "__main__":
-    set_verbosity(2)
-    logging.info('OMP_NUM_THREADS = %d' % OMP_NUM_THREADS)
+    #set_verbosity(0)
     speedTest()
