@@ -81,10 +81,17 @@ estimation via diffusion. The Annals of Statistics, 38(5):2916-2957, 2010.
 
 from __future__ import division
 
-from collections import Iterable
+from collections import Iterable, OrderedDict
 from math import exp, sqrt
+import os
 import threading
 from time import time
+
+NUMBA_ENV_VARS = ['NUMBA_WARNINGS', 'NUMBA_DEBUG', 'NUMBA_TRACE',
+                  'NUMBA_CUDA_LOG_LEVEL']
+for env_var in NUMBA_ENV_VARS:
+    if not os.environ.has_key(env_var):
+        os.environ[env_var] = '0'
 
 from numba import cuda, jit
 import numpy as np
@@ -92,25 +99,35 @@ from scipy import fftpack, interpolate, optimize, stats
 
 from pisa import FTYPE, OMP_NUM_THREADS
 from pisa.utils.log import logging, set_verbosity
-from pisa.utils.profiler import profile
 
 
-__all__ = ['CUDA_PRESENT', 'GAUS_IMPLEMENTATIONS',
+__all__ = ['NUMBA_ENV_VARS', 'CUDA_PRESENT', 'GAUS_IMPLEMENTATIONS',
            'gaussians', 'fbw_kde', 'vbw_kde', 'isj_bandwidth', 'fixed_point',
            'test_gaussuans', 'test_fbw_kde', 'test_vbw_kde',
            'test_isj_bandwidth', 'test_fixed_point']
 
 
-CUDA_PRESENT = False
+# TODO: if the Numba CUDA functions are defined, then other CUDA (e.g. pycuda)
+# code doesn't run. Need to fix this behavior. (E.g. context that gets
+# destroyed?)
+
+# TODO: Numba CUDA info/warning/debug/etc. messages are output when PISA's
+# logging is configured to output the same, but these messages are far too many
+# for this behavior to be useful in general... so must figure out how to turn
+# off (or on) Numba messages while leaving PISA messages on
+
+
 PI = np.pi
 TWOPI = 2*PI
 SQRTPI = sqrt(PI)
 SQRT2PI = sqrt(TWOPI)
 PISQ = PI**2
 
+CUDA_PRESENT = False
 GAUS_IMPLEMENTATIONS = ['singlethreaded', 'multithreaded']
 if CUDA_PRESENT:
     GAUS_IMPLEMENTATIONS.append('cuda')
+
 
 def gaussians(x, mu, sigma, implementation=None):
     """Sum of multiple Gaussian curves, normalized to have area of 1.
@@ -146,7 +163,9 @@ def gaussians(x, mu, sigma, implementation=None):
     # if/where multithreaded CPU beats GPU is still up in the air
     if implementation is not None:
         implementation = implementation.strip().lower()
-        assert implementation in ['cuda', 'singlethreaded', 'multithreaded']
+        if not implementation in GAUS_IMPLEMENTATIONS:
+            raise ValueError('`implementation` must be one of %s'
+                             % GAUS_IMPLEMENTATIONS)
 
     # Convert all inputs to arrays of correct datatype
     if not isinstance(x, Iterable):
@@ -164,11 +183,12 @@ def gaussians(x, mu, sigma, implementation=None):
     # Instantiate an empty output buffer
     outbuf = np.empty(shape=n_points, dtype=FTYPE)
 
-    if implementation == 'cuda' or CUDA_PRESENT:
+    if implementation == 'cuda' or (implementation is None and CUDA_PRESENT):
         logging.trace('Using CUDA Gaussians implementation')
         _gaussians_cuda(outbuf, x, mu, sigma)
 
-    elif implementation == 'singlethreaded' or OMP_NUM_THREADS == 1:
+    elif implementation == 'singlethreaded' or (implementation is None and
+                                                OMP_NUM_THREADS == 1):
         logging.trace('Using single-threaded Gaussians implementation')
         _gaussians_singlethreaded(outbuf, x, mu, sigma, start=0, stop=n_points)
 
@@ -178,8 +198,9 @@ def gaussians(x, mu, sigma, implementation=None):
 
     else:
         raise ValueError(
-            'Unhandled value(s): OMP_NUM_THREADS="%s", CUDA_PRESENT="%s"'
-            % (OMP_NUM_THREADS, CUDA_PRESENT)
+            'Unhandled value(s): OMP_NUM_THREADS="%s", CUDA_PRESENT="%s",'
+            ' `implementation`="%s"'
+            % (OMP_NUM_THREADS, CUDA_PRESENT, implementation)
         )
 
     return outbuf
@@ -210,7 +231,7 @@ GAUS_ST_FUNCSIG = (
     ).format(f=FTYPE.__name__)
 )
 
-@jit(GAUS_ST_FUNCSIG, nopython=True, nogil=False, cache=True)
+@jit(GAUS_ST_FUNCSIG, nopython=True, nogil=True, cache=True)
 def _gaussians_singlethreaded(outbuf, x, mu, sigma, start, stop):
     """Sum of multiple guassians, optimized to be run in a single thread"""
     factor = 1/(SQRT2PI * len(mu))
@@ -223,9 +244,6 @@ def _gaussians_singlethreaded(outbuf, x, mu, sigma, start, stop):
             )
         outbuf[i] = tot
 
-
-# TODO: if this is loaded, then other CUDA (e.g. pycuda) code doesn't run. Need
-# to fix this behavior.
 
 if CUDA_PRESENT:
     def _gaussians_cuda(outbuf, x, mu, sigma):
@@ -250,6 +268,8 @@ if CUDA_PRESENT:
         # Copy contents of GPU result to host's outbuf
         d_outbuf.copy_to_host(ary=outbuf, stream=0)
 
+        del d_x, d_mu, d_sigma, d_outbuf
+
 
     GAUS_CUDA_FUNCSIG = (
         (
@@ -259,9 +279,10 @@ if CUDA_PRESENT:
     @cuda.jit(GAUS_CUDA_FUNCSIG, inline=True)
     def _gaussians_cuda_kernel(outbuf, x, mu, sigma):
         pt_idx = cuda.grid(1)
+        n_gaussians = len(mu)
         tot = 0.0
-        factor = 1/(SQRT2PI * len(mu))
-        for g_idx in enumerate(mu):
+        factor = 1/(SQRT2PI * n_gaussians)
+        for g_idx in range(n_gaussians):
             s = sigma[g_idx]
             m = mu[g_idx]
             xlessmu = x[pt_idx] - m
@@ -271,7 +292,6 @@ if CUDA_PRESENT:
         outbuf[pt_idx] = tot
 
 
-@profile
 def fbw_kde(data, n_dct=None, min=None, max=None, evaluate_dens=True,
             evaluate_at=None):
     """Fixed-bandwidth (standard) Gaussian KDE using the Improved
@@ -354,7 +374,6 @@ def fbw_kde(data, n_dct=None, min=None, max=None, evaluate_dens=True,
     return isj_bw, evaluate_at, density
 
 
-@profile
 def vbw_kde(data, n_dct=None, min=None, max=None, n_addl_iter=0,
             evaluate_dens=True, evaluate_at=None):
     """Variable-bandwidth (standard) Gaussian KDE that uses the function
@@ -580,23 +599,48 @@ def fixed_point(t, data_len, I, a2):
 
 def test_gaussuans():
     """Test `gaussians` function"""
-    x = np.linspace(-20, 20, 1e3)
+    x = np.linspace(-20, 20, 1e4)
     mu_sigma_sets = [
         (0, 1),
-        (np.arange(0, 100), np.arange(0, 100)-50),
-        (np.arange(-20, 21), np.arange(-20, 21)+21),
+        (np.linspace(-50, 50, 1e1), np.linspace(0.5, 100, 1e1)),
+        (np.linspace(-50, 50, 1e2), np.linspace(0.5, 100, 1e2)),
+        (np.linspace(-50, 50, 1e3), np.linspace(0.5, 100, 1e3)),
+        (np.linspace(-20, 20, 1e4), np.logspace(-3, 3, 1e4)),
     ]
+    timings = OrderedDict()
+    for impl in GAUS_IMPLEMENTATIONS:
+        timings[impl] = []
+
     for mus, sigmas in mu_sigma_sets:
+        if not isinstance(mus, Iterable):
+            mus = [mus]
+            sigmas = [sigmas]
+        for m, s in zip(mus, sigmas):
+            g_i = stats.norm.pdf(x, loc=m, scale=s)
+            if np.any(np.isnan(g_i)):
+                logging.error('g_i: %s' % g_i)
+                logging.error('m: %s, s: %s' % (m, s))
+                raise Exception()
         ref = np.sum(
-            [stats.norm.pdf(x, loc=m, scale=s)
-             for m, s in zip(mus, sigmas)],
+            [stats.norm.pdf(x, loc=m, scale=s) for m, s in zip(mus, sigmas)],
             axis=0
-        )
+        )/len(mus)
         for impl in GAUS_IMPLEMENTATIONS:
-            assert np.allclose(
-                gaussians(x, mu=mus, sigma=sigmas, implementation=impl), ref,
-                rtol=1e-12, atol=0, equal_nan=True
-            )
+            t0 = time()
+            test = gaussians(x, mu=mus, sigma=sigmas, implementation=impl)
+            dt = time() - t0
+            timings[impl].append(np.round(dt*1000, decimals=3))
+            #print len(mus), impl, dt*1000
+            if not np.allclose(test, ref):
+                logging.error('test: %s' % test)
+                logging.error('ref : %s' % ref)
+                logging.error('diff: %s' % (test - ref))
+                logging.error('\nmus:%s\nsigmas: %s' % (mus, sigmas))
+                logging.error('implementation: %s' % impl)
+    for impl in GAUS_IMPLEMENTATIONS:
+        timings_str = ', '.join([format(t, '10.3f') for t in timings[impl]])
+        logging.debug('Timings, %15s (ms): %s' % (impl, timings_str))
+    logging.info('<< PASS : test_gaussuans >>')
 
 
 def test_fbw_kde():
@@ -611,6 +655,7 @@ def test_fbw_kde():
         times.append(time() - t0)
     logging.debug('average time to run fbw_kde: %f ms'
                   % (np.mean(times)*1000))
+    logging.info('<< PASS : test_fbw_kde >>')
 
 
 def test_vbw_kde():
@@ -625,6 +670,7 @@ def test_vbw_kde():
         times.append(time() - t0)
     logging.debug('average time to run vbw_kde: %f ms'
                   % (np.mean(times)*1000))
+    logging.info('<< PASS : test_vbw_kde >>')
 
 
 def test_isj_bandwidth():
@@ -638,9 +684,9 @@ def test_fixed_point():
 
 
 if __name__ == "__main__":
-    set_verbosity(1)
-    test_gaussuans()
+    set_verbosity(2)
     test_fixed_point()
     test_isj_bandwidth()
     test_fbw_kde()
     test_vbw_kde()
+    test_gaussuans()
