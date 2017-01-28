@@ -22,6 +22,7 @@ import pint
 import scipy.optimize as optimize
 
 from pisa import ureg
+from pisa.core.map import Map, MapSet
 from pisa.core.param import ParamSet
 from pisa.utils.log import logging
 from pisa.utils.fileio import to_file
@@ -350,6 +351,17 @@ class Analysis(object):
         fit_info['minimizer_time'] = minimizer_time * ureg.sec
         fit_info['minimizer_metadata'] = metadata
         fit_info['fit_history'] = fit_history
+        # If blind replace hypo_asimov_dist with dummy map of just ones
+        if blind:
+            blinded_maps = []
+            for asimov_map in hypo_asimov_dist:
+                blinded_asimov_map = Map(
+                    name=asimov_map.name+'_blinded',
+                    hist=np.ones_like(asimov_map.hist),
+                    binning=asimov_map.binning
+                )
+                blinded_maps.append(blinded_asimov_map)
+            hypo_asimov_dist = MapSet(blinded_maps)
         fit_info['hypo_asimov_dist'] = hypo_asimov_dist
 
         return fit_info
@@ -414,6 +426,9 @@ class Analysis(object):
             name_vals_d = OrderedDict()
             name_vals_d['maps'] = data_dist.metric_per_map(
                 expected_values=hypo_asimov_dist, metric=m
+            )
+            name_vals_d['maps_binned'] = data_dist.metric_per_map(
+                expected_values=hypo_asimov_dist, metric='binned_'+m
             )
             name_vals_d['priors'] = params.priors_penalties(metric=metric)
             detailed_metric_info[m] = name_vals_d
