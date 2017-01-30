@@ -427,9 +427,18 @@ class Analysis(object):
             name_vals_d['maps'] = data_dist.metric_per_map(
                 expected_values=hypo_asimov_dist, metric=m
             )
-            name_vals_d['maps_binned'] = data_dist.metric_per_map(
+            chi2_hists = data_dist.metric_per_map(
                 expected_values=hypo_asimov_dist, metric='binned_'+m
             )
+            name_vals_d['maps_binned'] = {}
+            for asimov_map, chi2_hist in zip(hypo_asimov_dist, chi2_hists):
+                name_vals_d['maps_binned'][asimov_map.name] = {}
+                name_vals_d['maps_binned'][asimov_map.name]['hist'] = \
+                    np.reshape(
+                        chi2_hists[chi2_hist],asimov_map.shape
+                    )
+                name_vals_d['maps_binned'][asimov_map.name]['binning'] = \
+                    str(asimov_map.binning)
             name_vals_d['priors'] = params.priors_penalties(metric=metric)
             detailed_metric_info[m] = name_vals_d
         return detailed_metric_info
