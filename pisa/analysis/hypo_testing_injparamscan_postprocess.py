@@ -798,6 +798,16 @@ def main():
     WO_to_TO_metrics, TO_to_WO_metrics, WO_to_TO_params, TO_to_WO_params = \
         extract_asimov_data(data_sets, labels)
 
+    if WO_to_TO_params.keys() == ['bestfit','altfit']:
+        if cfits or ifits:
+            logging.warning('You have requested to make plots of the best fit '
+                            'points of the systematic parameters but this is '
+                            'not possible since there are none included in '
+                            'this analysis. So no output plots of this kind '
+                            'will be made.')
+        cfits = False
+        ifits = False
+
     if args.altdir is not None:
 
         logging.info('Altdir was provided, so the combined significance plot '
