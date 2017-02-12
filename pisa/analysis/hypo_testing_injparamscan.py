@@ -509,15 +509,26 @@ def main():
             hypo_testing.h1_maker.params[test_name].value = inj_val
             hypo_testing.data_maker.params[test_name].value = inj_val
         # Make names reflect parameter value
-        hypo_testing.labels = Labels(
-            h0_name=init_args_d['h0_name'],
-            h1_name=init_args_d['h1_name'],
-            data_name=init_args_d['data_name']+'_%s_%.4f'
-            %(param_name,requested_val),
-            data_is_data=init_args_d['data_is_data'],
-            fluctuate_data=init_args_d['fluctuate_data'],
-            fluctuate_fid=init_args_d['fluctuate_fid']
-        )
+        if param_name == 'deltam3l':
+            hypo_testing.labels = Labels(
+                h0_name=init_args_d['h0_name'],
+                h1_name=init_args_d['h1_name'],
+                data_name=init_args_d['data_name']+'_%s_%.4f'
+                %(param_name,requested_val*1000.0),
+                data_is_data=init_args_d['data_is_data'],
+                fluctuate_data=init_args_d['fluctuate_data'],
+                fluctuate_fid=init_args_d['fluctuate_fid']
+            )
+        else:
+            hypo_testing.labels = Labels(
+                h0_name=init_args_d['h0_name'],
+                h1_name=init_args_d['h1_name'],
+                data_name=init_args_d['data_name']+'_%s_%.4f'
+                %(param_name,requested_val),
+                data_is_data=init_args_d['data_is_data'],
+                fluctuate_data=init_args_d['fluctuate_data'],
+                fluctuate_fid=init_args_d['fluctuate_fid']
+            )
         # Setup logging and things.
         hypo_testing.setup_logging(reset_params=False)
         hypo_testing.write_config_summary(reset_params=False)
