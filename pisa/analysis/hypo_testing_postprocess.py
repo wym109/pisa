@@ -14,7 +14,6 @@ TODO:
 1) Some of the "combined" plots currently make it impossible to read the axis 
    labels. Come up with a better way of doing this. Could involve making 
    legends and just labelling the axes alphabetically.
-
 2) The important one - Figure out if this script generalises to the case of 
    analysing data. My gut says it doesn't...
 
@@ -41,28 +40,29 @@ from pisa.utils.postprocess import tex_axis_label, parse_pint_string, get_num_ro
 __all__ = ['extract_trials', 'extract_fit', 'parse_args', 'main']
 
 
-def extract_injval(injparams, systkey, data_label, hypo_label, injlabel):
+def extract_paramval(injparams, systkey, fid_label, hypo_label, paramlabel):
     '''
-    Extracts the injected value and modifies it based on the 
+    Extracts a value from a set of parameters and modifies it based on the 
     hypothesis/fiducial fit being considered. The label associated with this 
     is then modified accordingly.
     '''
+    paramval = float(injparams[systkey].split(' ')[0])
     if systkey == 'deltam31':
-        if hypo_label == data_label:
-            injval = float(injparams[systkey].split(' ')[0])
-        else:
-            injval = -1*float(injparams[systkey].split(' ')[0])
-            injlabel += r' ($\times-1$)'
-            
-    else:
-        injval = float(injparams[systkey].split(' ')[0])
+        if 'no' in hypo_label:
+            if np.sign(paramval) != 1:
+                paramval = -1*float(injparams[systkey].split(' ')[0])
+                paramlabel += r' ($\times-1$)'
+        elif 'io' in hypo_label:
+            if np.sign(paramval) != -1:
+                paramval = -1*float(injparams[systkey].split(' ')[0])
+                paramlabel += r' ($\times-1$)'
 
-    if (injval < 1e-2) and (injval != 0.0):
-        injlabel += ' = %.3e'%injval
+    if (paramval < 1e-2) and (paramval != 0.0):
+        paramlabel += ' = %.3e'%paramval
     else:    
-        injlabel += ' = %.3g'%injval
+        paramlabel += ' = %.3g'%paramval
 
-    return injval, injlabel
+    return paramval, paramlabel
     
 
 def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
@@ -122,6 +122,20 @@ def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
         parse_string = ('(.*)=(.*); prior=(.*),'
                         ' range=(.*), is_fixed=(.*),'
                         ' is_discrete=(.*); help="(.*)"')
+        if not data_is_data:
+            all_params['data_params'] = {}
+            for param_string in cfg['data_params']:
+                bits = re.match(parse_string, param_string, re.M|re.I)
+                if bits.group(5) == 'False':
+                    all_params['data_params'][bits.group(1)] = {}
+                    all_params['data_params'][bits.group(1)]['value'] \
+                        = bits.group(2)
+                    all_params['data_params'][bits.group(1)]['prior'] \
+                        = bits.group(3)
+                    all_params['data_params'][bits.group(1)]['range'] \
+                        = bits.group(4)
+        else:
+            all_params['data_params'] = None
         for param_string in cfg['h0_params']:
             bits = re.match(parse_string, param_string, re.M|re.I)
             if bits.group(5) == 'False':
@@ -788,9 +802,9 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir):
     plt.close()
 
 
-def plot_individual_posterior(data, injparams, altparams, all_params, labels,
-                              injlabel, altlabel, systkey, fhkey,
-                              subplotnum=None):
+def plot_individual_posterior(data, data_params, h0_params, h1_params,
+                              all_params, labels, h0label, h1label, systkey,
+                              fhkey, subplotnum=None):
     '''
     This function will use matplotlib to make a histogram of the vals contained
     in data. The injected value will be plotted along with, where appropriate,
@@ -810,36 +824,61 @@ def plot_individual_posterior(data, injparams, altparams, all_params, labels,
                 
     plt.hist(systvals, bins=10)
 
-    # Add injected and alternate fit lines
+    # Add injected and hypothesis fit lines
     if not systkey == 'metric_val':
-        injval, injlabelproper = extract_injval(
-            injparams = injparams,
-            systkey = systkey,
-            data_label = labels['data_name'],
-            hypo_label = labels['%s_name'%hypo],
-            injlabel = injlabel
-        )
-        plt.axvline(
-            injval,
-            color='r',
-            linewidth=2,
-            label=injlabelproper
-        )
-        if not labels['%s_name'%fid] == labels['data_name']:
-            altval, altlabelproper = extract_injval(
-                injparams = altparams,
+        if data_params is not None:
+            if systkey in data_params.keys():
+                injval, injlabelproper = extract_paramval(
+                    injparams = data_params,
+                    systkey = systkey,
+                    fid_label = labels['%s_name'%fid],
+                    hypo_label = labels['%s_name'%hypo],
+                    paramlabel = 'Injected Value'
+                )
+                plt.axvline(
+                    injval,
+                    color='r',
+                    linewidth=2,
+                    label=injlabelproper
+                )
+            else:
+                injval = None
+        else:
+            injval = None
+        if fid == 'h0':
+            fitval, fitlabelproper = extract_paramval(
+                injparams = h0_params,
                 systkey = systkey,
-                data_label = labels['%s_name'%fid],
+                fid_label = labels['%s_name'%fid],
                 hypo_label = labels['%s_name'%hypo],
-                injlabel = altlabel
+                paramlabel = h0label
             )
+        elif fid == 'h1':
+            fitval, fitlabelproper = extract_paramval(
+                injparams = h1_params,
+                systkey = systkey,
+                fid_label = labels['%s_name'%fid],
+                hypo_label = labels['%s_name'%hypo],
+                paramlabel = h1label
+            )
+        else:
+            raise ValueError("I got a hypothesis %s. Expected h0 or h1 only."
+                             %fid)
+        if injval is not None:
+            if fitval != injval:
+                plt.axvline(
+                    fitval,
+                    color='g',
+                    linewidth=2,
+                    label=fitlabelproper
+                )
+        else:
             plt.axvline(
-                altval,
+                fitval,
                 color='g',
                 linewidth=2,
-                label=altlabelproper
+                label=fitlabelproper
             )
-
     # Add shaded region for prior, if appropriate
     # TODO - Deal with non-gaussian priors
     wanted_params = all_params['%s_params'%hypo]
@@ -904,22 +943,19 @@ def plot_individual_posteriors(data, fid_data, labels, all_params, detector,
 
     MainTitle = '%s %s Event Selection Posterior'%(detector, selection)
 
-    if labels['data_name'] == labels['h0_name']:
-        inj = 'h0'
-        alt = 'h1'
+    h0_params = fid_data[
+        ('h0_fit_to_toy_%s_asimov'%labels['data_name'])
+    ]['params']
+    h1_params = fid_data[
+        ('h1_fit_to_toy_%s_asimov'%labels['data_name'])
+    ]['params']
+
+    if 'data_params' in all_params.keys():
+        data_params = {}
+        for pkey in all_params['data_params'].keys():
+            data_params[pkey] = all_params['data_params'][pkey]['value']
     else:
-        inj = 'h1'
-        alt = 'h0'
-    injparams = fid_data[
-        ('%s_fit_to_toy_%s_asimov'
-         %(inj,labels['data_name']))
-    ]['params']
-    altparams = fid_data[
-        ('%s_fit_to_toy_%s_asimov'
-         %(alt,labels['data_name']))
-    ]['params']
-    injlabel = 'Injected Value'
-    altlabel = 'Alternate Fit'
+        data_params = None
 
     for fhkey in data.keys():
         for systkey in data[fhkey].keys():
@@ -934,12 +970,13 @@ def plot_individual_posteriors(data, fid_data, labels, all_params, detector,
 
             plot_individual_posterior(
                 data = data[fhkey][systkey],
-                injparams = injparams,
-                altparams = altparams,
+                data_params = data_params,
+                h0_params = h0_params,
+                h1_params = h1_params,
                 all_params = all_params,
                 labels = labels,
-                injlabel = injlabel,
-                altlabel = altlabel,
+                h0label = '%s Fiducial Fit'%labels['h0_name'],
+                h1label = '%s Fiducial Fit'%labels['h1_name'],
                 systkey = systkey,
                 fhkey = fhkey
             )
@@ -971,24 +1008,21 @@ def plot_combined_posteriors(data, fid_data, labels, all_params,
 
     MainTitle = '%s %s Event Selection Posteriors'%(detector, selection)
 
-    labels['MainTitle'] = MainTitle
+    h0_params = fid_data[
+        ('h0_fit_to_toy_%s_asimov'%labels['data_name'])
+    ]['params']
+    h1_params = fid_data[
+        ('h1_fit_to_toy_%s_asimov'%labels['data_name'])
+    ]['params']
 
-    if labels['data_name'] == labels['h0_name']:
-        inj = 'h0'
-        alt = 'h1'
+    if 'data_params' in all_params.keys():
+        data_params = {}
+        for pkey in all_params['data_params'].keys():
+            data_params[pkey] = all_params['data_params'][pkey]['value']
     else:
-        inj = 'h1'
-        alt = 'h0'
-    injparams = fid_data[
-        ('%s_fit_to_toy_%s_asimov'
-         %(inj,labels['data_name']))
-    ]['params']
-    altparams = fid_data[
-        ('%s_fit_to_toy_%s_asimov'
-         %(alt,labels['data_name']))
-    ]['params']
-    injlabel = 'Injected Value'
-    altlabel = 'Alternate Fit'
+        data_params = None
+
+    labels['MainTitle'] = MainTitle
 
     for fhkey in data.keys():
         
@@ -1011,12 +1045,13 @@ def plot_combined_posteriors(data, fid_data, labels, all_params,
 
             plot_individual_posterior(
                 data = data[fhkey][systkey],
-                injparams = injparams,
-                altparams = altparams,
+                data_params = data_params,
+                h0_params = h0_params,
+                h1_params = h1_params,
                 all_params = all_params,
                 labels = labels,
-                injlabel = injlabel,
-                altlabel = altlabel,
+                h0label = '%s Fiducial Fit'%labels['h0_name'],
+                h1label = '%s Fiducial Fit'%labels['h1_name'],
                 systkey = systkey,
                 fhkey = fhkey,
                 subplotnum = subplotnum
@@ -1557,7 +1592,7 @@ def main():
                 )
             else:
                 logging.info("All trials will be included in the analysis.")
-            
+
             make_llr_plots(
                 data = values[injkey],
                 fid_data = fid_values[injkey],
