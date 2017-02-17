@@ -580,9 +580,17 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir):
     minLLR = min(min(LLRbest), min(LLRalt))
     maxLLR = max(max(LLRbest), max(LLRalt))
     rangeLLR = maxLLR - minLLR
-    binning = np.linspace(minLLR - 0.1*rangeLLR,
-                          maxLLR + 0.1*rangeLLR,
-                          int(num_trials/40))
+    # Special case for low numbers of trials. Here, the plot can't really be
+    # interpreted but the numbers printed on it can still be useful, so we need
+    # to make something.
+    if num_trials < 100:
+        binning = np.linspace(minLLR - 0.1*rangeLLR,
+                              maxLLR + 0.1*rangeLLR,
+                              10)
+    else:
+        binning = np.linspace(minLLR - 0.1*rangeLLR,
+                              maxLLR + 0.1*rangeLLR,
+                              int(num_trials/40))
     binwidth = binning[1]-binning[0]
     bincens = np.linspace(binning[0]+binwidth/2.0,
                           binning[-1]-binwidth/2.0,
@@ -1515,11 +1523,12 @@ def parse_args():
         combination.'''
     )
     parser.add_argument(
-        '--threshold', type=float, default=5.0,
+        '--threshold', type=float, default=0.0,
         help='''Sets the threshold for which to remove 'outlier' trials. 
         Ideally this will not be needed at all, but it is there in case of
         e.g. failed minimiser. The higher this value, the more outliers will 
-        be included. Set it to 0 if you want to include ALL trials.'''
+        be included. Do not set this parameter if you want all trials to be 
+        included.'''
     )
     parser.add_argument(
         '--outdir', metavar='DIR', type=str, required=True,
