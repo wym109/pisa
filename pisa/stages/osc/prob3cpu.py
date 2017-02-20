@@ -5,6 +5,7 @@
 import numpy as np
 
 from pisa.core.binning import MultiDimBinning
+from pisa.core.param import ParamSet, ParamSelector
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.utils.resources import find_resource
@@ -80,17 +81,12 @@ class prob3cpu(Stage):
                  outputs_cache_depth, debug_mode=None):
 
         expected_params = (
-            'earth_model',
+            'earth_model', 'YeI', 'YeM', 'YeO',
             'detector_depth', 'prop_height',
             'deltacp', 'deltam21', 'deltam31',
             'theta12', 'theta13', 'theta23',
             'nutau_norm'
         )
-
-        # If the Earth model is not set to none then we need the electron
-        # fractions. Otherwise they should not be given.
-        if params.params['earth_model'].value is not None:
-            expected_params += ('YeI', 'YeM', 'YeO')
 
         # Define the names of objects that are required by this stage (objects
         # will have the attribute `name`: i.e., obj.name)
@@ -120,7 +116,14 @@ class prob3cpu(Stage):
             debug_mode=debug_mode
         )
 
-        self.compute_binning_constants()
+        # If no binning provided then we want to use this to calculate
+        # probabilities for events instead of transforms for maps.
+        # Set up this self.calc_transforms to use as an assert on the
+        # appropriate functions.
+        self.calc_transforms = (input_binning is not None
+                                and output_binning is not None)
+        if self.calc_transforms:
+            self.compute_binning_constants()
 
     def compute_binning_constants(self):
         # Only works if energy and coszen are in input_binning
@@ -247,67 +250,6 @@ class prob3cpu(Stage):
                 prop_height,
                 theta12, theta13, theta23
             )
-            kSquared = True
-            sin2th12Sq = np.sin(theta12)*np.sin(theta12)
-            sin2th13Sq = np.sin(theta13)*np.sin(theta13)
-            sin2th23Sq = np.sin(theta23)*np.sin(theta23)
-            if deltam31 < 0.0:
-                mAtm = deltam31
-            else:
-                mAtm = deltam31 - deltam21
-            nuflavs = [1,2,3]
-            nubarflavs = [-1,-2,-3]
-            prob_list = []
-            depth = self.params.detector_depth.m_as('km')
-            rdetector = 6371.0 - depth
-            for e_cen in self.e_centers:
-                for cz_cen in self.cz_centers:
-                    kNuBar = 1
-                    for alpha in nuflavs:
-                        for beta in nuflavs:
-                            if cz_cen < 0:
-                                path = np.sqrt(
-                                    (rdetector + prop_height + depth) * \
-                                    (rdetector + prop_height + depth) - \
-                                    (rdetector*rdetector)*(1 - cz_cen*cz_cen)
-                                ) - rdetector*cz_cen
-                            else:
-                                kappa = (depth + prop_height)/rdetector
-                                path = rdetector * np.sqrt(
-                                    cz_cen*cz_cen - 1 + (1 + kappa)*(1 + kappa)
-                                ) - rdetector*cz_cen
-                            self.barger_propagator.SetMNS(
-                                sin2th12Sq,sin2th13Sq,sin2th23Sq,deltam21,
-                                mAtm,deltacp,e_cen,kSquared,kNuBar
-                            )
-                            prob_list.append(
-                                self.barger_propagator.GetVacuumProb(
-                                    alpha, beta, e_cen, path
-                                )
-                            )
-                    kNuBar = -1
-                    for alpha in nubarflavs:
-                        for beta in nubarflavs:
-                            if cz_cen < 0:
-                                path = np.sqrt(
-                                    (rdetector + prop_height + depth) * \
-                                    (rdetector + prop_height + depth) - \
-                                    (rdetector*rdetector)*(1 - cz_cen*cz_cen)
-                                ) - rdetector*cz_cen
-                            else:
-                                kappa = (depth + prop_height)/rdetector
-                                path = rdetector * np.sqrt(
-                                    cz_cen*cz_cen - 1 + (1 + kappa)*(1 + kappa)
-                                ) - rdetector*cz_cen
-                            self.barger_propagator.SetMNS(
-                                sin2th12Sq,sin2th13Sq,sin2th23Sq,deltam21,
-                                mAtm,deltacp,e_cen,kSquared,kNuBar
-                            )
-                            prob_list.append(
-                                self.barger_propagator.GetVacuumProb(
-                                    alpha, beta, e_cen, path
-                                )
-                            )
 
         # Slice up the transform arrays into views to populate each transform
         dims = ['true_energy', 'true_coszen']
@@ -451,5 +393,82 @@ class prob3cpu(Stage):
                         )
         return prob_list
 
+    def calc_probs(self, kNuBar, kFlav, n_evts, true_e_scale, true_energy,
+                   true_coszen, prob_e, prob_mu, **kwargs):
+        """
+        Calculate oscillation probabilities in the case of vacuum oscillations
+        Here we use Prob3 but only because it has already implemented the 
+        vacuum oscillations and so makes life easier. This is for the case of
+        event-by-event calculations, nto for PISA maps.
+        """
+        if self.calc_transforms:
+            raise ValueError("You have initialised prob3cpu for the case of "
+                             "PISA maps and so this is the wrong function for"
+                             " calculating the probabilities.")
+        self.setup_barger_propagator()
+        if self._barger_earth_model is not None:
+            raise ValueError("The barger propagator has been setup with a "
+                             "user-defined Earth Model but this calculations"
+                             " MUST be used for vacuum oscillations. Something"
+                             " is wrong.")
+        # Set up oscillation parameters needed to initialise MNS matrix
+        kSquared = True
+        theta12 = self.params['theta12'].value.m_as('rad')
+        theta13 = self.params['theta13'].value.m_as('rad')
+        theta23 = self.params['theta23'].value.m_as('rad')
+        deltam21 = self.params['deltam21'].value.m_as('eV**2')
+        deltam31 = self.params['deltam31'].value.m_as('eV**2')
+        deltacp = self.params['deltacp'].value.m_as('rad')
+        sin2th12Sq = np.sin(theta12)*np.sin(theta12)
+        sin2th13Sq = np.sin(theta13)*np.sin(theta13)
+        sin2th23Sq = np.sin(theta23)*np.sin(theta23)
+        if deltam31 < 0.0:
+            mAtm = deltam31
+        else:
+            mAtm = deltam31 - deltam21
+        # Set up the distance to the detector. Radius of Earth is 6371km and
+        # we then account for the depth of the detector in the Earth.
+        depth = self.params.detector_depth.m_as('km')
+        prop_height = self.params.prop_height.m_as('km')
+        rdetector = 6371.0 - depth
+        # Probability is separately calculated for each event
+        for i, (en, cz) in enumerate(zip(true_energy, true_coszen)):
+            en *= true_e_scale
+            if cz < 0:
+                path = np.sqrt(
+                    (rdetector + prop_height + depth) * \
+                    (rdetector + prop_height + depth) - \
+                    (rdetector*rdetector)*(1 - cz*cz)
+                ) - rdetector*cz
+            else:
+                kappa = (depth + prop_height)/rdetector
+                path = rdetector * np.sqrt(
+                    cz*cz - 1 + (1 + kappa)*(1 + kappa)
+                ) - rdetector*cz
+            self.barger_propagator.SetMNS(
+                sin2th12Sq,sin2th13Sq,sin2th23Sq,deltam21,
+                mAtm,deltacp,en,kSquared,kNuBar
+            )
+            # kFlav is zero-start indexed, whereas Prob3 wants it from 1
+            prob_e[i] = self.barger_propagator.GetVacuumProb(
+                1, kFlav+1, en, path
+            )
+            prob_mu[i] = self.barger_propagator.GetVacuumProb(
+                2, kFlav+1, en, path
+            )
+            
     def validate_params(self, params):
+        if params['earth_model'].value is None:
+            if params['YeI'].value is not None:
+                raise ValueError("A none Earth model has been set but the YeI "
+                                 "value is set to %s. Set this to none."
+                                 %params['YeI'].value)
+            if params['YeO'].value is not None:
+                raise ValueError("A none Earth model has been set but the YeO "
+                                 "value is set to %s. Set this to none."
+                                 %params['YeO'].value)
+            if params['YeM'].value is not None:
+                raise ValueError("A none Earth model has been set but the YeM "
+                                 "value is set to %s. Set this to none."
+                                 %params['YeM'].value)
         pass
