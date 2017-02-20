@@ -80,12 +80,17 @@ class prob3cpu(Stage):
                  outputs_cache_depth, debug_mode=None):
 
         expected_params = (
-            'earth_model', 'YeI', 'YeM', 'YeO',
+            'earth_model',
             'detector_depth', 'prop_height',
             'deltacp', 'deltam21', 'deltam31',
             'theta12', 'theta13', 'theta23',
             'nutau_norm'
         )
+
+        # If the Earth model is not set to noen then we need the electron
+        # fractions. Otherwise they should not be given.
+        if params.params['earth_model'].value is not None:
+            expected_params += ('YeI', 'YeM', 'YeO')
 
         # Define the names of objects that are required by this stage (objects
         # will have the attribute `name`: i.e., obj.name)
@@ -176,10 +181,19 @@ class prob3cpu(Stage):
         self._barger_earth_model = self.params.earth_model.value
 
         # TODO: can we pass kwargs to swig-ed C++ code?
-        self.barger_propagator = BargerPropagator(
-            find_resource(self._barger_earth_model),
-            self._barger_detector_depth
-        )
+        if self._barger_earth_model is not None:
+            self.barger_propagator = BargerPropagator(
+                find_resource(self._barger_earth_model),
+                self._barger_detector_depth
+            )
+        else:
+            # Initialise with the 12 layer model that should be there. All
+            # calculations will use the GetVacuumProb so what we define here
+            # doesn't matter.
+            self.barger_propagator = BargerPropagator(
+                find_resource('osc/PREM_12layer.dat'),
+                self._barger_detector_depth
+            )
         self.barger_propagator.UseMassEigenstates(False)
 
     def _derive_nominal_transforms_hash(self):
@@ -200,28 +214,100 @@ class prob3cpu(Stage):
         deltam21 = self.params.deltam21.m_as('eV**2')
         deltam31 = self.params.deltam31.m_as('eV**2')
         deltacp = self.params.deltacp.m_as('rad')
-        YeI = self.params.YeI.m_as('dimensionless')
-        YeO = self.params.YeO.m_as('dimensionless')
-        YeM = self.params.YeM.m_as('dimensionless')
         prop_height = self.params.prop_height.m_as('km')
         nutau_norm = self.params.nutau_norm.m_as('dimensionless')
 
-        total_bins = int(len(self.e_centers)*len(self.cz_centers))
+        # The YeX will not be in params if the Earth model is None
+        if self._barger_earth_model is not None:
+            YeI = self.params.YeI.m_as('dimensionless')
+            YeO = self.params.YeO.m_as('dimensionless')
+            YeM = self.params.YeM.m_as('dimensionless')
 
-        # We use 18 since we have 3*3 possible oscillations for each of
-        # neutrinos and antineutrinos.
-        prob_list = np.empty(total_bins*18, dtype='double')
-
-        # The 1.0 was energyscale from earlier versions. Perhaps delete this
-        # if we no longer want energyscale.
-        prob_list, evals, czvals = self.barger_propagator.fill_osc_prob_c(
-            self.e_centers, self.cz_centers, 1.0,
-            deltam21, deltam31, deltacp,
-            prop_height,
-            YeI, YeO, YeM,
-            total_bins*18, total_bins, total_bins,
-            theta12, theta13, theta23
-        )
+            total_bins = int(len(self.e_centers)*len(self.cz_centers))
+            # We use 18 since we have 3*3 possible oscillations for each of
+            # neutrinos and antineutrinos.
+            prob_list = np.empty(total_bins*18, dtype='double')
+            
+            # The 1.0 was energyscale from earlier versions. Perhaps delete this
+            # if we no longer want energyscale.
+            prob_list, evals, czvals = self.barger_propagator.fill_osc_prob_c(
+                self.e_centers, self.cz_centers, 1.0,
+                deltam21, deltam31, deltacp,
+                prop_height,
+                YeI, YeO, YeM,
+                total_bins*18, total_bins, total_bins,
+                theta12, theta13, theta23
+            )
+        else:
+            # Code copied from BargerPropagator.cc but fill_osc_prob_c but
+            # pythonised and modified to use the python binding to
+            # GetVacuumProb.
+            prob_list = self.get_vacuum_prob_maps(
+                deltam21, deltam31, deltacp,
+                prop_height,
+                theta12, theta13, theta23
+            )
+            kSquared = True
+            sin2th12Sq = np.sin(theta12)*np.sin(theta12)
+            sin2th13Sq = np.sin(theta13)*np.sin(theta13)
+            sin2th23Sq = np.sin(theta23)*np.sin(theta23)
+            if deltam31 < 0.0:
+                mAtm = deltam31
+            else:
+                mAtm = deltam31 - deltam21
+            nuflavs = [1,2,3]
+            nubarflavs = [-1,-2,-3]
+            prob_list = []
+            depth = self.params.detector_depth.m_as('km')
+            rdetector = 6371.0 - depth
+            for e_cen in self.e_centers:
+                for cz_cen in self.cz_centers:
+                    kNuBar = 1
+                    for alpha in nuflavs:
+                        for beta in nuflavs:
+                            if cz_cen < 0:
+                                path = np.sqrt(
+                                    (rdetector + prop_height + depth) * \
+                                    (rdetector + prop_height + depth) - \
+                                    (rdetector*rdetector)*(1 - cz_cen*cz_cen)
+                                ) - rdetector*cz_cen
+                            else:
+                                kappa = (depth + prop_height)/rdetector
+                                path = rdetector * np.sqrt(
+                                    cz_cen*cz_cen - 1 + (1 + kappa)*(1 + kappa)
+                                ) - rdetector*cz_cen
+                            self.barger_propagator.SetMNS(
+                                sin2th12Sq,sin2th13Sq,sin2th23Sq,deltam21,
+                                mAtm,deltacp,e_cen,kSquared,kNuBar
+                            )
+                            prob_list.append(
+                                self.barger_propagator.GetVacuumProb(
+                                    alpha, beta, e_cen, path
+                                )
+                            )
+                    kNuBar = -1
+                    for alpha in nubarflavs:
+                        for beta in nubarflavs:
+                            if cz_cen < 0:
+                                path = np.sqrt(
+                                    (rdetector + prop_height + depth) * \
+                                    (rdetector + prop_height + depth) - \
+                                    (rdetector*rdetector)*(1 - cz_cen*cz_cen)
+                                ) - rdetector*cz_cen
+                            else:
+                                kappa = (depth + prop_height)/rdetector
+                                path = rdetector * np.sqrt(
+                                    cz_cen*cz_cen - 1 + (1 + kappa)*(1 + kappa)
+                                ) - rdetector*cz_cen
+                            self.barger_propagator.SetMNS(
+                                sin2th12Sq,sin2th13Sq,sin2th23Sq,deltam21,
+                                mAtm,deltacp,e_cen,kSquared,kNuBar
+                            )
+                            prob_list.append(
+                                self.barger_propagator.GetVacuumProb(
+                                    alpha, beta, e_cen, path
+                                )
+                            )
 
         # Slice up the transform arrays into views to populate each transform
         dims = ['true_energy', 'true_coszen']
@@ -284,6 +370,86 @@ class prob3cpu(Stage):
             )
 
         return TransformSet(transforms=transforms)
+
+    def get_vacuum_prob_maps(self, deltam21, deltam31, deltacp, prop_height,
+                             theta12, theta13, theta23):
+        """
+        Calculate oscillation probabilities in the case of vacuum oscillations
+        Here we use Prob3 but only because it has already implemented the 
+        vacuum oscillations and so makes life easier.
+        """
+        # Set up oscillation parameters needed to initialise MNS matrix
+        kSquared = True
+        sin2th12Sq = np.sin(theta12)*np.sin(theta12)
+        sin2th13Sq = np.sin(theta13)*np.sin(theta13)
+        sin2th23Sq = np.sin(theta23)*np.sin(theta23)
+        if deltam31 < 0.0:
+            mAtm = deltam31
+        else:
+            mAtm = deltam31 - deltam21
+        # Initialise objects to look over for neutrino and antineutrino flavours
+        # 1 - nue, 2 - numu, 3 - nutau
+        nuflavs = [1,2,3]
+        nubarflavs = [-1,-2,-3]
+        prob_list = []
+        # Set up the distance to the detector. Radius of Earth is 6371km and
+        # we then account for the depth of the detector in the Earth.
+        depth = self.params.detector_depth.m_as('km')
+        rdetector = 6371.0 - depth
+        # Probability is separately calculated for each energy and zenith bin
+        # center as well as every initial and final neutrno flavour.
+        for e_cen in self.e_centers:
+            for cz_cen in self.cz_centers:
+                # Neutrinos are calculated for first
+                kNuBar = 1
+                for alpha in nuflavs:
+                    for beta in nuflavs:
+                        if cz_cen < 0:
+                            path = np.sqrt(
+                                (rdetector + prop_height + depth) * \
+                                (rdetector + prop_height + depth) - \
+                                (rdetector*rdetector)*(1 - cz_cen*cz_cen)
+                            ) - rdetector*cz_cen
+                        else:
+                            kappa = (depth + prop_height)/rdetector
+                            path = rdetector * np.sqrt(
+                                cz_cen*cz_cen - 1 + (1 + kappa)*(1 + kappa)
+                            ) - rdetector*cz_cen
+                        self.barger_propagator.SetMNS(
+                            sin2th12Sq,sin2th13Sq,sin2th23Sq,deltam21,
+                            mAtm,deltacp,e_cen,kSquared,kNuBar
+                        )
+                        prob_list.append(
+                            self.barger_propagator.GetVacuumProb(
+                                alpha, beta, e_cen, path
+                            )
+                        )
+                # Then antineutrinos. With this, the layout of this prob_list
+                # matches the output of the matter oscillations calculation.
+                kNuBar = -1
+                for alpha in nubarflavs:
+                    for beta in nubarflavs:
+                        if cz_cen < 0:
+                            path = np.sqrt(
+                                (rdetector + prop_height + depth) * \
+                                (rdetector + prop_height + depth) - \
+                                (rdetector*rdetector)*(1 - cz_cen*cz_cen)
+                            ) - rdetector*cz_cen
+                        else:
+                            kappa = (depth + prop_height)/rdetector
+                            path = rdetector * np.sqrt(
+                                cz_cen*cz_cen - 1 + (1 + kappa)*(1 + kappa)
+                            ) - rdetector*cz_cen
+                        self.barger_propagator.SetMNS(
+                            sin2th12Sq,sin2th13Sq,sin2th23Sq,deltam21,
+                            mAtm,deltacp,e_cen,kSquared,kNuBar
+                        )
+                        prob_list.append(
+                            self.barger_propagator.GetVacuumProb(
+                                alpha, beta, e_cen, path
+                            )
+                        )
+        return prob_list
 
     def validate_params(self, params):
         pass
