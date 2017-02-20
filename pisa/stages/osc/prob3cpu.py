@@ -87,7 +87,7 @@ class prob3cpu(Stage):
             'nutau_norm'
         )
 
-        # If the Earth model is not set to noen then we need the electron
+        # If the Earth model is not set to none then we need the electron
         # fractions. Otherwise they should not be given.
         if params.params['earth_model'].value is not None:
             expected_params += ('YeI', 'YeM', 'YeO')
