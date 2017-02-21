@@ -1013,7 +1013,7 @@ def parse_args():
         example, when you wish to add LLR results to the plot. These should be 
         supplied as a list of tuples e.g. "[(x1,y1),(x2,y2)]" or 
         "[(x1,y1,y1err),(x2,y2,y2err)]" or 
-        "[(x1,y1,y1uperr,y1downerr),(x2,y2,y2uperr,y2downerr)]" or as a list to
+        "[(x1,y1,y1uperr,y1downerr),(x2,y2,y2uperr,y2downerr)]" or as a path to
         a file with the values provided in columns that can be intepreted by 
         numpy genfromtxt. Repeat this argument in conjunction with the extra 
         points label below to specify multiple (and uniquely identifiable) sets
