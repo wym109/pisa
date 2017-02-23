@@ -79,17 +79,35 @@ def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
     if 'data_sets.pckl' in logdir_content:
         logging.info('Found files I assume to be from a previous run of this '
                      'processing script. If this is incorrect please delete '
-                     'the files: data_sets.pckl, all_params.pckl and '
-                     'labels.pckl from the logdir you have provided.')
+                     'the files: data_sets.pckl, all_params.pckl, labels.pckl'
+                     ' and minimiser_info.pckl from the logdir you have '
+                     'provided.')
         all_data = from_file(os.path.join(logdir, 'data_sets.pckl'))
+        if 'all_params.pckl' not in logdir_content:
+            raise ValueError("Directory contains data_sets.pckl but does not "
+                             "contain all_params.pckl as it should. Please "
+                             "delete all .pckl files from the specified "
+                             "directory and re-run this script.")
         all_params = from_file(os.path.join(logdir, 'all_params.pckl'))
+        if 'labels.pckl' not in logdir_content:
+            raise ValueError("Directory contains data_sets.pckl but does not "
+                             "contain labels.pckl as it should. Please "
+                             "delete all .pckl files from the specified "
+                             "directory and re-run this script.")
         all_labels = from_file(os.path.join(logdir, 'labels.pckl'))
+        if 'minimiser_info.pckl' not in logdir_content:
+            raise ValueError("Directory contains data_sets.pckl but does not "
+                             "contain 'minimiser_info.pckl' as it should. "
+                             "Please delete all .pckl files from the specified"
+                             " directory and re-run this script.")
+        all_minim_info = from_file(os.path.join(logdir, 'minimiser_info.pckl'))
 
     else:
 
         all_labels = {}
         all_params = {}
         all_data = {}
+        all_minim_info = {}
         for outputdir in logdir_content:
             outputdir = os.path.join(logdir,outputdir)
             outputdir_content = os.listdir(outputdir)
@@ -149,6 +167,7 @@ def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
                 # Find all relevant data dirs, and from each extract the
                 # fiducial fit(s) information contained
                 this_data = OrderedDict()
+                this_minim_info = OrderedDict()
                 for basename in nsort(os.listdir(outputdir)):
                     m = labels.subdir_re.match(basename)
                     if m is None:
@@ -167,6 +186,9 @@ def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
                     lvl2_fits = OrderedDict()
                     lvl2_fits['h0_fit_to_data'] = None
                     lvl2_fits['h1_fit_to_data'] = None
+                    minim_info = OrderedDict()
+                    minim_info['h0_fit_to_data'] = None
+                    minim_info['h1_fit_to_data'] = None
                     
                     subdir = os.path.join(outputdir, basename)
                     for fnum, fname in enumerate(nsort(os.listdir(subdir))):
@@ -201,22 +223,30 @@ def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
                                     fid_label = labels.fid
                                 if k not in lvl2_fits:
                                     lvl2_fits[k] = OrderedDict()
+                                    minim_info[k] = OrderedDict()
                                 lvl2_fits[k][fid_label] = extract_fit(
                                     fpath,
                                     ['metric', 'metric_val','params']
                                 )
+                                minim_info[k][fid_label] = extract_fit(
+                                    fpath,
+                                    ['minimizer_metadata', 'minimizer_time']
+                                )
                                 break
                     this_data[dset_label] = lvl2_fits
+                    this_minim_info[dset_label] = minim_info
                     this_data[dset_label]['params'] = extract_fit(
                         fpath,
                         ['params']
                     )['params']
                 all_data[injparam] = this_data
+                all_minim_info[injparam] = this_minim_info
         to_file(all_data, os.path.join(logdir, 'data_sets.pckl'))
         to_file(all_params, os.path.join(logdir, 'all_params.pckl'))
         to_file(all_labels, os.path.join(logdir, 'labels.pckl'))
+        to_file(all_minim_info, os.path.join(logdir, 'minimiser_info.pckl'))
         
-    return all_data, all_params, all_labels
+    return all_data, all_params, all_labels, all_minim_info
 
 
 def extract_fit(fpath, keys=None):
@@ -301,6 +331,75 @@ def extract_asimov_data(data_sets, labels):
     return WO_to_TO_metrics, TO_to_WO_metrics, WO_to_TO_params, TO_to_WO_params
 
 
+def extract_minim_data(all_minim_info, data_sets, labels):
+    '''
+    Takes the minimiser info returned by the extract_trials function and 
+    extracts the relevant information. The argument data_sets is needed here
+    to know what the truth was.
+    '''
+    WO_to_TO_minim_info = {}
+    TO_to_WO_minim_info = {}
+    WO_to_TO_minim_info['time'] = []
+    WO_to_TO_minim_info['iterations'] = []
+    WO_to_TO_minim_info['funcevals'] = []
+    WO_to_TO_minim_info['status'] = []
+    TO_to_WO_minim_info['time'] = []
+    TO_to_WO_minim_info['iterations'] = []
+    TO_to_WO_minim_info['funcevals'] = []
+    TO_to_WO_minim_info['status'] = []
+    for injparam in sorted(data_sets.keys()):
+        injlabels = labels[injparam].dict
+        for injkey in data_sets[injparam].keys():
+            h0_metric_val = data_sets[injparam][injkey][
+                'h0_fit_to_toy_%s_asimov'
+                %(injlabels['data_name'])]['metric_val']
+            h1_metric_val = data_sets[injparam][injkey][
+                'h1_fit_to_toy_%s_asimov'
+                %(injlabels['data_name'])]['metric_val']
+            if h1_metric_val > h0_metric_val:
+                bestfit = 'h0'
+                altfit = 'h1'
+            else:
+                bestfit = 'h1'
+                altfit = 'h0'
+
+            WO_to_TO_minim_info['time'].append(
+                all_minim_info[injparam][injkey][
+                    '%s_fit_to_%s_fid'%(altfit, bestfit)
+                ]['fid_asimov']['minimizer_time'])
+            WO_to_TO_minim_info['iterations'].append(
+                all_minim_info[injparam][injkey][
+                    '%s_fit_to_%s_fid'%(altfit, bestfit)
+                ]['fid_asimov']['minimizer_metadata']['nit'])
+            WO_to_TO_minim_info['funcevals'].append(
+                all_minim_info[injparam][injkey][
+                    '%s_fit_to_%s_fid'%(altfit, bestfit)
+                ]['fid_asimov']['minimizer_metadata']['nfev'])
+            WO_to_TO_minim_info['status'].append(
+                all_minim_info[injparam][injkey][
+                    '%s_fit_to_%s_fid'%(altfit, bestfit)
+                ]['fid_asimov']['minimizer_metadata']['status'])
+            
+            TO_to_WO_minim_info['time'].append(
+                all_minim_info[injparam][injkey][
+                    '%s_fit_to_%s_fid'%(bestfit, altfit)
+                ]['fid_asimov']['minimizer_time'])
+            TO_to_WO_minim_info['iterations'].append(
+                all_minim_info[injparam][injkey][
+                    '%s_fit_to_%s_fid'%(bestfit, altfit)
+                ]['fid_asimov']['minimizer_metadata']['nit'])
+            TO_to_WO_minim_info['funcevals'].append(
+                all_minim_info[injparam][injkey][
+                    '%s_fit_to_%s_fid'%(bestfit, altfit)
+                ]['fid_asimov']['minimizer_metadata']['nfev'])
+            TO_to_WO_minim_info['status'].append(
+                all_minim_info[injparam][injkey][
+                    '%s_fit_to_%s_fid'%(bestfit, altfit)
+                ]['fid_asimov']['minimizer_metadata']['status'])
+
+    return WO_to_TO_minim_info, TO_to_WO_minim_info
+
+
 def get_inj_param_units(inj_param_name, fit_params):
     '''
     Gets the appropriate units for the injected parameter based on its name and
@@ -327,7 +426,216 @@ def get_inj_param_units(inj_param_name, fit_params):
     logging.info('Found %s as the units for the injected parameter'
                  %inj_param_units)
     return inj_param_units
+
+
+def plot_minimiser_data(data, xvals, xname, xunits, ylabel, MainTitle,
+                        SubTitle, SaveName, outdir):
+    '''
+    Does the actual plotting and saving of the minimiser times.
+    '''
+    floatvals = []
+    for data_point in data:
+        if isinstance(data_point, basestring):
+            val, units = parse_pint_string(
+                pint_string=data_point
+            )
+            floatvals.append(float(val))
+            yunits = units
+        else:
+            floatvals.append(data_point)
+            yunits = 'dimensionless'
+    plt.plot(
+        xvals,
+        floatvals,
+        linewidth=2,
+        marker='o',
+        color='k',
+    )
+    xlabel = tex_axis_label(xname)
+    if xunits is not 'dimensionless':
+        xlabel += ' (%s)'%tex_axis_label(xunits)
+    plt.xlabel(xlabel)
+    if yunits is not 'dimensionless':
+        ylabel += ' (%s)'%tex_axis_label(yunits)
+    plt.ylabel(ylabel)
+    plt.title(MainTitle + r"\\" + SubTitle, fontsize=16)
+    if 'status' not in SaveName:
+        ymax = max(floatvals)
+        ymin = min(floatvals)
+        yrange = ymax - ymin
+        plt.ylim(ymin - 0.1*yrange, ymax + 0.1*yrange)
+    else:
+        plt.ylim(-0.5,1.5)
+    plt.savefig(os.path.join(outdir,SaveName))
+    plt.close()
         
+
+def make_minim_plots(WO_to_TO_minim_info, TO_to_WO_minim_info, inj_param_vals,
+                     inj_param_name, inj_param_units, labels, detector,
+                     bestfit, altfit, selection, outdir):
+    '''
+    Takes the minimiser data for the two fits in the Asimov-based analysis and 
+    makes plots of these that can be examined.
+    '''
+    outdir = os.path.join(outdir, 'MinimiserInfo')
+    if not os.path.exists(outdir):
+        logging.info('Making output directory %s'%outdir)
+        os.makedirs(outdir)
+
+    MainTitle = '%s %s Event Selection Minimiser Info'%(
+        detector, selection)
+
+    injlabels = labels['%s_%.4f'%(inj_param_name,inj_param_vals[0])].dict
+    truth = injlabels['data_name'].split('_')[0]
+    h1 = injlabels['h1_name']
+    h0 = injlabels['h0_name']
+    if bestfit == 'h0':
+        testlabel = '%s from %s'%(tex_axis_label(h0),tex_axis_label(h1))
+    else:
+        testlabel = '%s from %s'%(tex_axis_label(h1),tex_axis_label(h0))
+
+    trueoutdir = os.path.join(outdir, 'TrueToWrongFits')
+    if not os.path.exists(trueoutdir):
+        logging.info('Making output directory %s'%trueoutdir)
+        os.makedirs(trueoutdir)
+    wrongoutdir = os.path.join(outdir, 'WrongToTrueFits')
+    if not os.path.exists(wrongoutdir):
+        logging.info('Making output directory %s'%wrongoutdir)
+        os.makedirs(wrongoutdir)
+    if bestfit == 'h0':
+        TrueSubTitle = 'Truth %s Hypothesis Fit to Wrong %s Fiducial Data'%(
+            h0,h1)
+        TrueSaveName = "true_%s_%s_%s_true_%s_fits_to_wrong_%s"%(
+            truth,
+            detector,
+            selection,
+            h0,
+            h1
+        )
+        WrongSubTitle = 'Wrong %s Hypothesis Fit to Truth %s Fiducial Data'%(
+            h1,h0)
+        WrongSaveName = "true_%s_%s_%s_wrong_%s_fits_to_true_%s"%(
+            truth,
+            detector,
+            selection,
+            h1,
+            h0
+        )
+    else:
+        TrueSubTitle = 'Truth %s Hypothesis Fit to Wrong %s Fiducial Data'%(
+            h1,h0)
+        TrueSaveName = "true_%s_%s_%s_true_%s_fits_to_wrong_%s"%(
+            truth,
+            detector,
+            selection,
+            h1,
+            h0
+        )
+        WrongSubTitle = 'Truth %s Hypothesis Fit to Wrong %s Fiducial Data'%(
+            h0,h1)
+        WrongSaveName = "true_%s_%s_%s_wrong_%s_fits_to_true_%s"%(
+            truth,
+            detector,
+            selection,
+            h0,
+            h1
+        )
+
+    plot_minimiser_data(
+        data = TO_to_WO_minim_info['time'],
+        xvals = inj_param_vals,
+        xname = inj_param_name,
+        xunits = inj_param_units,
+        ylabel = 'Minimiser Time',
+        MainTitle = MainTitle,
+        SubTitle = TrueSubTitle,
+        SaveName = TrueSaveName+"_minimiser_times.png",
+        outdir = trueoutdir
+    )
+
+    plot_minimiser_data(
+        data = TO_to_WO_minim_info['iterations'],
+        xvals = inj_param_vals,
+        xname = inj_param_name,
+        xunits = inj_param_units,
+        ylabel = 'Minimiser Iterations',
+        MainTitle = MainTitle,
+        SubTitle = TrueSubTitle,
+        SaveName = TrueSaveName+"_minimiser_iterations.png",
+        outdir = trueoutdir
+    )
+
+    plot_minimiser_data(
+        data = TO_to_WO_minim_info['funcevals'],
+        xvals = inj_param_vals,
+        xname = inj_param_name,
+        xunits = inj_param_units,
+        ylabel = 'Minimiser Function Evaluations',
+        MainTitle = MainTitle,
+        SubTitle = TrueSubTitle,
+        SaveName = TrueSaveName+"_minimiser_funcevals.png",
+        outdir = trueoutdir
+    )
+
+    plot_minimiser_data(
+        data = TO_to_WO_minim_info['status'],
+        xvals = inj_param_vals,
+        xname = inj_param_name,
+        xunits = inj_param_units,
+        ylabel = 'Minimiser Status',
+        MainTitle = MainTitle,
+        SubTitle = TrueSubTitle,
+        SaveName = TrueSaveName+"_minimiser_status.png",
+        outdir = trueoutdir
+    )
+    
+    plot_minimiser_data(
+        data = WO_to_TO_minim_info['time'],
+        xvals = inj_param_vals,
+        xname = inj_param_name,
+        xunits = inj_param_units,
+        ylabel = 'Minimiser Time',
+        MainTitle = MainTitle,
+        SubTitle = WrongSubTitle,
+        SaveName = WrongSaveName+"_minimiser_times.png",
+        outdir = wrongoutdir
+    )
+
+    plot_minimiser_data(
+        data = WO_to_TO_minim_info['iterations'],
+        xvals = inj_param_vals,
+        xname = inj_param_name,
+        xunits = inj_param_units,
+        ylabel = 'Minimiser Iterations',
+        MainTitle = MainTitle,
+        SubTitle = WrongSubTitle,
+        SaveName = WrongSaveName+"_minimiser_iterations.png",
+        outdir = wrongoutdir
+    )
+
+    plot_minimiser_data(
+        data = WO_to_TO_minim_info['funcevals'],
+        xvals = inj_param_vals,
+        xname = inj_param_name,
+        xunits = inj_param_units,
+        ylabel = 'Minimiser Function Evaluations',
+        MainTitle = MainTitle,
+        SubTitle = WrongSubTitle,
+        SaveName = WrongSaveName+"_minimiser_funcevals.png",
+        outdir = wrongoutdir
+    )
+
+    plot_minimiser_data(
+        data = WO_to_TO_minim_info['status'],
+        xvals = inj_param_vals,
+        xname = inj_param_name,
+        xunits = inj_param_units,
+        ylabel = 'Minimiser Status',
+        MainTitle = MainTitle,
+        SubTitle = WrongSubTitle,
+        SaveName = WrongSaveName+"_minimiser_status.png",
+        outdir = wrongoutdir
+    )
 
 
 def calculate_deltachi2_signifiances(WO_to_TO_metrics, TO_to_WO_metrics):
@@ -523,7 +831,7 @@ def plot_significances(WO_to_TO_metrics, TO_to_WO_metrics, inj_param_vals,
     '''
     Takes the two sets of metrics relevant to the Asimov-based analysis and 
     makes a plot of the significance as a function of the injected parameter. 
-    The extra_points and extra_points_labels arguments can be used to specify ]
+    The extra_points and extra_points_labels arguments can be used to specify
     extra points to be added to the plot for e.g. LLR results.
     '''
     outdir = os.path.join(outdir, 'Significances')
@@ -968,9 +1276,11 @@ def parse_args():
     parser = ArgumentParser(description=__doc__)
     parser.add_argument(
         '-d', '--dir', required=True,
-        metavar='DIR', type=str,
+        metavar='DIR', type=str, action='append',
         help="""Directory into which the output of hypo_testing_injparamscan.py 
-        was stored."""
+        was stored. Repeat this argument to plot multiple significance lines on
+        the same plot. Note that if you do then none of the fits or the 
+        minimiser info will be plotted."""
     )
     parser.add_argument(
         '--detector',type=str,default='',
@@ -997,15 +1307,6 @@ def parse_args():
         '-CF', '--combined_fits', action='store_true', default=False,
         help='''Flag to make plots of all of the best fit parameters joined
         together.'''
-    )
-    parser.add_argument(
-        '-ad', '--altdir', required=False, default=None,
-        metavar='DIR', type=str,
-        help="""Directory into which a second lot of output from
-        hypo_testing_injparamscan.py was stored. This is useful for plotting
-        the case of both injecting both the hypotheses and plotting them on the
-        same canvas. Note, this will argument will overwrite all other plotting
-        and only this combined plot of significance will be made."""
     )
     parser.add_argument(
         '--extra-points', type=str, action='append', metavar='LIST',
@@ -1052,91 +1353,62 @@ def main():
 
     extra_points = init_args_d.pop('extra_points')
     extra_points_labels = init_args_d.pop('extra_points_label')
+
+    if len(args.dir) == 1:
+
+        logging.info("You have only provided a single directory so plots of "
+                     "the significance as well as the minimiser info will be "
+                     "produced as a minimum.")
     
-    data_sets, all_params, labels = extract_trials(
-        logdir=args.dir,
-        fluctuate_fid=False,
-        fluctuate_data=False
-    )
-
-    inj_params = data_sets.keys()
-    inj_param_vals = []
-    for inj_param in inj_params:
-        inj_param_vals.append(float(inj_param.split('_')[-1]))
-    inj_param_name = inj_params[0].split('_%.4f'%inj_param_vals[0])[0]
-    inj_param_vals = sorted(inj_param_vals)
-
-    WO_to_TO_metrics, TO_to_WO_metrics, WO_to_TO_params, TO_to_WO_params = \
-        extract_asimov_data(data_sets, labels)
-
-    inj_param_units = init_args_d.pop('inj_param_units')
-    if inj_param_units is None:
-        inj_param_units = get_inj_param_units(
-            inj_param_name=inj_param_name,
-            fit_params=WO_to_TO_params
-        )
-
-    if WO_to_TO_params.keys() == ['bestfit','altfit']:
-        if cfits or ifits:
-            logging.warning('You have requested to make plots of the best fit '
-                            'points of the systematic parameters but this is '
-                            'not possible since there are none included in '
-                            'this analysis. So no output plots of this kind '
-                            'will be made.')
-        cfits = False
-        ifits = False
-
-    if args.altdir is not None:
-
-        logging.info('Altdir was provided, so the combined significance plot '
-                     'is the only one which will be made')
-
-        alt_data_sets, alt_all_params, alt_labels = extract_trials(
-            logdir=args.altdir,
+        data_sets, all_params, labels, all_minim_info = extract_trials(
+            logdir=args.dir[0],
             fluctuate_fid=False,
             fluctuate_data=False
         )
 
-        alt_inj_params = data_sets.keys()
-        alt_inj_param_vals = []
-        for alt_inj_param in alt_inj_params:
-            alt_inj_param_vals.append(float(alt_inj_param.split('_')[-1]))
-        alt_inj_param_name = alt_inj_params[0].split(
-            '_%.4f'%alt_inj_param_vals[0])[0]
-        alt_inj_param_vals = sorted(alt_inj_param_vals)
+        inj_params = data_sets.keys()
+        inj_param_vals = []
+        for inj_param in inj_params:
+            inj_param_vals.append(float(inj_param.split('_')[-1]))
+        inj_param_name = inj_params[0].split('_%.4f'%inj_param_vals[0])[0]
+        inj_param_vals = sorted(inj_param_vals)
 
-        if alt_inj_param_vals != inj_param_vals:
-            raise ValueError('Injected parameter values do not match those for'
-                             ' the alternative directory, so results cannot be'
-                             ' plotted on the same canvas.')
+        WO_to_TO_metrics, TO_to_WO_metrics, WO_to_TO_params, TO_to_WO_params = \
+            extract_asimov_data(data_sets, labels)
 
-        alt_WO_to_TO_metrics, alt_TO_to_WO_metrics, \
-        alt_WO_to_TO_params, alt_TO_to_WO_params = \
-                extract_asimov_data(alt_data_sets, alt_labels)
+        WO_to_TO_minim_info, TO_to_WO_minim_info = \
+            extract_minim_data(all_minim_info, data_sets, labels)
 
+        inj_param_units = init_args_d.pop('inj_param_units')
+        if inj_param_units is None:
+            inj_param_units = get_inj_param_units(
+                inj_param_name=inj_param_name,
+                fit_params=WO_to_TO_params
+            )
 
-        plot_significances_two_truths(
-            WO_to_TO_metrics=np.array(WO_to_TO_metrics),
-            TO_to_WO_metrics=np.array(TO_to_WO_metrics),
-            bestfit=WO_to_TO_params['bestfit'],
-            altfit=WO_to_TO_params['altfit'],
-            alt_WO_to_TO_metrics=np.array(alt_WO_to_TO_metrics),
-            alt_TO_to_WO_metrics=np.array(alt_TO_to_WO_metrics),
-            alt_bestfit=alt_WO_to_TO_params['bestfit'],
-            alt_altfit=alt_WO_to_TO_params['altfit'],
+        make_minim_plots(
+            WO_to_TO_minim_info=WO_to_TO_minim_info,
+            TO_to_WO_minim_info=TO_to_WO_minim_info,
             inj_param_vals=inj_param_vals,
             inj_param_name=inj_param_name,
             inj_param_units=inj_param_units,
             labels=labels,
-            alt_labels=alt_labels,
+            bestfit=WO_to_TO_params['bestfit'],
+            altfit=WO_to_TO_params['altfit'],
             detector=detector,
             selection=selection,
-            extra_points=extra_points,
-            extra_points_labels=extra_points_labels,
             outdir=outdir
         )
 
-    else:
+        if WO_to_TO_params.keys() == ['bestfit','altfit']:
+            if cfits or ifits:
+                logging.warning('You have requested to make plots of the best '
+                                'fit points of the systematic parameters but '
+                                'this is not possible since there are none '
+                                'included in this analysis. So no output plots'
+                                ' of this kind will be made.')
+            cfits = False
+            ifits = False
 
         plot_significances(
             WO_to_TO_metrics=np.array(WO_to_TO_metrics),
@@ -1155,7 +1427,7 @@ def main():
         )
 
         if cfits:
-
+                
             plot_combined_fits(
                 WO_to_TO_params=WO_to_TO_params,
                 TO_to_WO_params=TO_to_WO_params,
@@ -1182,6 +1454,9 @@ def main():
                 outdir=outdir
             )
 
-        
+    else:
+        raise ValueError("Plotting multiple things not implemented yet.")
+
+    
 if __name__ == '__main__':
     main()
