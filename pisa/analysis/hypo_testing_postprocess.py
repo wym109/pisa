@@ -2007,6 +2007,21 @@ def main():
     threshold = init_args_d.pop('threshold')
     extra_points = init_args_d.pop('extra_point')
     extra_points_labels = init_args_d.pop('extra_point_label')
+    if extra_points is not None:
+        if extra_points_labels is not None:
+            if len(extra_points) != len(extra_points_labels):
+                raise ValueError("You must specify at least one label for each"
+                                 " set of extra points. Got %i label(s) for %s "
+                                 "set(s) of extra points."%(len(extra_points),
+                                 len(extra_points_labels)))
+        else:
+            raise ValueError("You have specified %i set(s) of extra points but "
+                             "no labels to go with them."%len(extra_points))
+    else:
+        if extra_points_labels is not None:
+            raise ValueError("You have specified %i label(s) for extra points "
+                             "but no set(s) of extra points."%len(
+                                 extra_points_labels))
     outdir = init_args_d.pop('outdir')
 
     if args.asimov:
