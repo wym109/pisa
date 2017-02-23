@@ -651,28 +651,35 @@ def calculate_deltachi2_signifiances(WO_to_TO_metrics, TO_to_WO_metrics):
 
 
 def plot_significance(inj_param_vals, significances, truth, inj_param_name,
-                      inj_param_units, testlabel=None):
+                      inj_param_units, testlabel=None, plotlabel=None):
     '''
     This function will do the actual plotting of the significances.
     '''
+    if plotlabel is None:
+        plotlabel = 'True %s'%(tex_axis_label(truth))
+    if (('mo' in plotlabel.lower()) or ('msw' in plotlabel.lower())) and \
+       (not 'nmo' in plotlabel.lower()):
+        marker='^'
+    else:
+        marker='o'
     # Use the NMO colouring scheme
     if 'no' in truth:
         plt.plot(
             inj_param_vals,
             significances,
             linewidth=2,
-            marker='o',
+            marker=marker,
             color='r',
-            label='True %s'%(tex_axis_label(truth))
+            label=plotlabel
         )
     elif 'io' in truth:
         plt.plot(
             inj_param_vals,
             significances,
             linewidth=2,
-            marker='o',
+            marker=marker,
             color='b',
-            label='True %s'%(tex_axis_label(truth))
+            label=plotlabel
         )
     # Else just make them black
     else:
@@ -680,9 +687,9 @@ def plot_significance(inj_param_vals, significances, truth, inj_param_name,
             inj_param_vals,
             significances,
             linewidth=2,
-            marker='o',
+            marker=marker,
             color='k',
-            label='True %s'%(tex_axis_label(truth))
+            label=plotlabel
         )
     yrange = max(significances)-min(significances)
     plt.ylim(min(significances)-0.1*yrange,max(significances)+0.1*yrange)
@@ -695,7 +702,7 @@ def plot_significance(inj_param_vals, significances, truth, inj_param_name,
                        r' (%s)'%tex_axis_label(inj_param_units))
         else:
             plt.xlabel(tex_axis_label(inj_param_name))
-    if testlabel is not None:
+    if (testlabel is not None) and (testlabel is not False):
         plt.ylabel(r'%s Significance ($\sigma$)'%testlabel)
     else:
         plt.ylabel(r'Significance ($\sigma$)')
@@ -827,7 +834,7 @@ def add_extra_points(points, labels):
 def plot_significances(WO_to_TO_metrics, TO_to_WO_metrics, inj_param_vals,
                        bestfit, altfit, inj_param_name, inj_param_units,
                        labels, detector, selection, outdir, extra_points=None,
-                       extra_points_labels=None):
+                       extra_points_labels=None, plotlabel=None):
     '''
     Takes the two sets of metrics relevant to the Asimov-based analysis and 
     makes a plot of the significance as a function of the injected parameter. 
@@ -860,7 +867,8 @@ def plot_significances(WO_to_TO_metrics, TO_to_WO_metrics, inj_param_vals,
         truth=truth,
         inj_param_name=inj_param_name,
         inj_param_units=inj_param_units,
-        testlabel=testlabel
+        testlabel=testlabel,
+        plotlabel=plotlabel
     )
     minx = min(inj_param_vals)
     maxx = max(inj_param_vals)
@@ -905,18 +913,12 @@ def plot_significances(WO_to_TO_metrics, TO_to_WO_metrics, inj_param_vals,
     plt.close()
 
 
-def plot_significances_two_truths(WO_to_TO_metrics, TO_to_WO_metrics, bestfit,
-                                  altfit, alt_WO_to_TO_metrics,
-                                  alt_TO_to_WO_metrics, alt_bestfit, alt_altfit,
-                                  inj_param_vals, inj_param_name,
-                                  inj_param_units, labels, alt_labels,
-                                  detector, selection, outdir,
-                                  extra_points=None, extra_points_labels=None):
+def plot_multiple_significances(directories, dir_labels, detector, selection,
+                                outdir, inj_param_units, extra_points=None,
+                                extra_points_labels=None):
     '''
-    Takes the two sets of metrics relevant to the Asimov-based analysis and
-    makes a plot of the significance as a function of the injected parameter.
-    This also takes a second set of "alternative" metrics for a different
-    injected truth and plots them on the same canvas.
+    This will take multiple directories and make a significance plot with them
+    all overlaid which will then be saved to the specified outdir.
     '''
     outdir = os.path.join(outdir, 'Significances')
     if not os.path.exists(outdir):
@@ -926,72 +928,102 @@ def plot_significances_two_truths(WO_to_TO_metrics, TO_to_WO_metrics, bestfit,
     MainTitle = '%s %s Event Selection Asimov Analysis Significances'%(
         detector, selection)
 
-    significances = calculate_deltachi2_signifiances(
-        WO_to_TO_metrics=WO_to_TO_metrics,
-        TO_to_WO_metrics=TO_to_WO_metrics
-    )
-    alt_significances = calculate_deltachi2_signifiances(
-        WO_to_TO_metrics=alt_WO_to_TO_metrics,
-        TO_to_WO_metrics=alt_TO_to_WO_metrics
-    )
-    injlabels = labels['%s_%.4f'%(inj_param_name,inj_param_vals[0])].dict
-    alt_injlabels = alt_labels['%s_%.4f'%(
-        inj_param_name,inj_param_vals[0])].dict
-    truth = injlabels['data_name'].split('_')[0]
-    h1 = injlabels['h1_name']
-    h0 = injlabels['h0_name']
-    if bestfit == 'h0':
-        testlabel = '%s from %s'%(tex_axis_label(h0),tex_axis_label(h1))
-    else:
-        testlabel = '%s from %s'%(tex_axis_label(h1),tex_axis_label(h0))
-    alt_truth = alt_injlabels['data_name'].split('_')[0]
-    alt_h1 = alt_injlabels['h1_name']
-    alt_h0 = alt_injlabels['h0_name']
-    if alt_bestfit == 'h0':
-        alt_testlabel = '%s from %s'%(
-            tex_axis_label(alt_h0),tex_axis_label(alt_h1)
+    testlabel = None
+    minx = None
+    maxx = None
+    miny = None
+    maxy = None
+    names = []
+    
+    for i,directory in enumerate(directories):
+
+        data_sets, all_params, labels, all_minim_info = extract_trials(
+            logdir=directory,
+            fluctuate_fid=False,
+            fluctuate_data=False
         )
-    else:
-        alt_testlabel = '%s from %s'%(
-            tex_axis_label(alt_h1),tex_axis_label(alt_h0)
+
+        inj_params = data_sets.keys()
+        inj_param_vals = []
+        for inj_param in inj_params:
+            inj_param_vals.append(float(inj_param.split('_')[-1]))
+        inj_param_name = inj_params[0].split('_%.4f'%inj_param_vals[0])[0]
+        inj_param_vals = sorted(inj_param_vals)
+
+        WO_to_TO_metrics, TO_to_WO_metrics, WO_to_TO_params, TO_to_WO_params = \
+            extract_asimov_data(data_sets, labels)
+
+        if inj_param_units is None:
+            inj_param_units = get_inj_param_units(
+                inj_param_name=inj_param_name,
+                fit_params=WO_to_TO_params
+            )
+
+        significances = calculate_deltachi2_signifiances(
+            WO_to_TO_metrics=np.array(WO_to_TO_metrics),
+            TO_to_WO_metrics=np.array(TO_to_WO_metrics)
         )
-    if alt_testlabel != testlabel:
-        # Special case for labelling my NMO plots nicely
-        if testlabel == 'Normal Ordering from Inverted Ordering':
-            if alt_testlabel == 'Inverted Ordering from Normal Ordering':
-                testlabel = 'NMO'
-            else:
-                testlabel = None
-        elif testlabel == 'Inverted Ordering from Inverted Ordering':
-            if alt_testlabel == 'Normal Ordering from Inverted Ordering':
-                testlabel = 'NMO'
-            else:
-                testlabel = None
-        # Add another one if you could benefit from a more descriptive label
+        injlabels = labels['%s_%.4f'%(inj_param_name,inj_param_vals[0])].dict
+        truth = injlabels['data_name'].split('_')[0]
+        names.append(truth)
+        h1 = injlabels['h1_name']
+        h0 = injlabels['h0_name']
+        if WO_to_TO_params['bestfit'] == 'h0':
+            this_testlabel = '%s from %s'%(
+                tex_axis_label(h0),tex_axis_label(h1))
         else:
-            testlabel = None
-    plot_significance(
-        inj_param_vals=inj_param_vals,
-        significances=significances,
-        truth=truth,
-        inj_param_name=inj_param_name,
-        inj_param_units=inj_param_units,
-        testlabel=testlabel
-    )
-    plot_significance(
-        inj_param_vals=inj_param_vals,
-        significances=alt_significances,
-        truth=alt_truth,
-        inj_param_name=inj_param_name,
-        inj_param_units=inj_param_units,
-        testlabel=testlabel
-    )
-    minx = min(inj_param_vals)
-    maxx = max(inj_param_vals)
-    rangex = maxx - minx
-    plt.xlim(minx-0.1*rangex,maxx+0.1*rangex)
-    miny = min(min(significances), min(alt_significances))
-    maxy = max(max(significances), max(alt_significances))
+            this_testlabel = '%s from %s'%(
+                tex_axis_label(h1),tex_axis_label(h0))
+        # Give a more descriptive y-axis label, but only if they are all the
+        # same. Multiple tests may be plotted on the same axes.
+        if testlabel is not None:
+            if this_testlabel == testlabel:
+                testlabel = this_testlabel
+            else:
+                testlabel = False
+        else:
+            testlabel = this_testlabel
+        if dir_labels is not None:
+            plotlabel = dir_labels[i]
+        else:
+            plotlabel = None
+        plot_significance(
+            inj_param_vals=inj_param_vals,
+            significances=significances,
+            truth=truth,
+            inj_param_name=inj_param_name,
+            inj_param_units=inj_param_units,
+            testlabel=testlabel,
+            plotlabel=plotlabel
+        )
+        this_minx = min(inj_param_vals)
+        this_maxx = max(inj_param_vals)
+        if minx is not None:
+            if minx != this_minx:
+                raise ValueError("x ranges do not seem to match for plots to "
+                                 "be overlaid. Got %.4f as the minimum for one"
+                                 " and %.4f for another"%(minx, this_minx))
+        else:
+            minx = this_minx
+        if maxx is not None:
+            if maxx != this_maxx:
+                raise ValueError("x ranges do not seem to match for plots to "
+                                 "be overlaid. Got %.4f as the maximum for one"
+                                 " and %.4f for another"%(maxx, this_maxx))
+        else:
+            maxx = this_maxx
+        rangex = maxx - minx
+        plt.xlim(minx-0.1*rangex,maxx+0.1*rangex)
+        this_miny = min(significances)
+        this_maxy = max(significances)
+        if miny is not None:
+            miny = min(miny, this_miny)
+        else:
+            miny = this_miny
+        if maxy is not None:
+            maxy = max(maxy, this_maxy)
+        else:
+            maxy = this_maxy
     yrange = maxy - miny
     if miny == 0:
         plt.ylim(miny,maxy+0.1*yrange)
@@ -999,9 +1031,10 @@ def plot_significances_two_truths(WO_to_TO_metrics, TO_to_WO_metrics, bestfit,
         plt.ylim(miny-0.1*yrange,maxy+0.1*yrange)
     plt.title(MainTitle,fontsize=16)
     plt.legend(loc='best')
-    SaveName = "true_%s_and_%s_%s_%s_%s_asimov_significances.png"%(
-        truth,
-        alt_truth,
+    SaveName = "true_"
+    for name in names:
+        SaveName += "and_%s_"%name
+    SaveName += "%s_%s_%s_asimov_significances.png"%(
         detector,
         selection,
         inj_param_name
@@ -1012,21 +1045,22 @@ def plot_significances_two_truths(WO_to_TO_metrics, TO_to_WO_metrics, bestfit,
             points=extra_points,
             labels=extra_points_labels
         )
-        miny = min(minextra, min(significances), min(alt_significances))
-        maxy = max(maxextra, max(significances), max(alt_significances))
+        miny = min(minextra, miny)
+        maxy = max(maxextra, maxy)
         yrange = maxy - miny
         if miny == 0:
             plt.ylim(miny,maxy+0.1*yrange)
         else:
             plt.ylim(miny-0.1*yrange,maxy+0.1*yrange)
         plt.legend(loc='best')
-        SaveName = "true_%s_and_%s_%s_%s_%s_w_extra_points_"%(
-            truth,
-            alt_truth,
+        SaveName = "true_"
+        for name in names:
+            SaveName += "and_%s_"%name
+        SaveName += "%s_%s_%s_w_extra_points_asimov_significances.png"%(
             detector,
             selection,
             inj_param_name
-        ) + "asimov_significances.png"
+        )
         plt.savefig(os.path.join(outdir,SaveName))
     plt.close()
 
@@ -1283,6 +1317,14 @@ def parse_args():
         minimiser info will be plotted."""
     )
     parser.add_argument(
+        '-dl', '--dir_label', type=str, action='append',
+        help="""A unique name from which to identify each the above directory
+        can be identified. Repeat this argument for as many times as you have
+        directories. If no labels are specified here they will be constructed
+        using the truth information in the files. So either specify one for
+        every directory or none at all."""
+    )
+    parser.add_argument(
         '--detector',type=str,default='',
         help="""Name of detector to put in histogram titles."""
     )
@@ -1353,12 +1395,37 @@ def main():
 
     extra_points = init_args_d.pop('extra_points')
     extra_points_labels = init_args_d.pop('extra_points_label')
+    if extra_points is not None:
+        if extra_points_labels is not None:
+            if len(extra_points) != len(extra_points_labels):
+                raise ValueError("You must specify at least one label for each"
+                                 " set of extra points. Got %i label(s) for %s "
+                                 "set(s) of extra points."%(len(extra_points),
+                                 len(extra_points_labels)))
+        else:
+            raise ValueError("You have specified %i set(s) of extra points but "
+                             "no labels to go with them."%len(extra_points))
+    else:
+        if extra_points_labels is not None:
+            raise ValueError("You have specified %i label(s) for extra points "
+                             "but no set(s) of extra points."%len(
+                                 extra_points_labels))
 
     if len(args.dir) == 1:
 
         logging.info("You have only provided a single directory so plots of "
                      "the significance as well as the minimiser info will be "
                      "produced as a minimum.")
+        if args.dir_label is not None:
+            if len(args.dir_label) == 1:
+                logging.info("This will be labelled according to that "
+                             "specified in the arguments to this script.")
+            else:
+                raise ValueError("You must specify just a single label. I got "
+                                 "%i labels."%(len(args.dir_label)))
+        else:
+            logging.info("Label for this will be constructed from the truth "
+                         "information in the summary files.")
     
         data_sets, all_params, labels, all_minim_info = extract_trials(
             logdir=args.dir[0],
@@ -1455,7 +1522,33 @@ def main():
             )
 
     else:
-        raise ValueError("Plotting multiple things not implemented yet.")
+
+        logging.info("You have provided multiple directories so a plot with "
+                     "all of the significances overlaid will be made ONLY.")
+
+        if args.dir_label is not None:
+            if len(args.dir_label) == len(args.dir):
+                logging.info("Overlaid plots will be labelled according to "
+                             "those specified in the arguments to this script.")
+            else:
+                raise ValueError("You must specify the same number of labels "
+                                 "as directories. I got %i labels for %i "
+                                 "directories."%(
+                                     len(args.dir_label),len(args.dir)))
+        else:
+            logging.info("Labels for these will be constructed from the truth "
+                         "information in the summary files.")
+        
+        plot_multiple_significances(
+            directories=args.dir,
+            dir_labels=args.dir_label,
+            detector=detector,
+            selection=selection,
+            inj_param_units=init_args_d.pop('inj_param_units'),
+            extra_points=extra_points,
+            extra_points_labels=extra_points_labels,
+            outdir=outdir
+        )
 
     
 if __name__ == '__main__':
