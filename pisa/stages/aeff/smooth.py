@@ -1,5 +1,5 @@
 # authors: J.Lanfranchi/P.Eller/M.Weiss
-# date:   March 20, 2016
+# date:   March 2, 2017
 """
 Smoothed-histogram effective areas stage
 """
@@ -30,7 +30,7 @@ __all__ = ['smooth_simple']
 # TODO: remove the input_names instantiation arg since these are computed
 # from the `particles` arg?
 
-class smooth_simple(Stage):
+class smooth(Stage):
     """Smooth each effective area transform by fitting splines
 
     Parameters
