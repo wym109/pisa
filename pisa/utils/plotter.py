@@ -239,7 +239,7 @@ class Plotter(object):
         # if dimensionality is 3, then still define a spli_axis automatically
         new_maps = []
         for map in map_set:
-            if map.binning.num_dims == 3:
+            if len(map.binning) == 3:
                 if split_axis is None:
                     # Find shortest dimension
                     l = map.binning.num_bins
