@@ -264,7 +264,6 @@ def compare_aeff(config, servicename, pisa2file, systname,
     outputs = stage.get_outputs(inputs=MapSet(maps=input_maps, name='ones',
                                               hash=1))
     pisa2_comparisons = from_file(pisa2file)
-
     for nukey in pisa2_comparisons.keys():
         if 'nu' not in nukey:
             continue
@@ -936,6 +935,7 @@ def main():
 
     # Perform effective-area tests
     if args.aeff or test_all:
+        '''
         aeff_settings = os.path.join(
             'tests', 'settings', 'pisa2_aeff_hist_test.cfg'
         )
@@ -956,6 +956,29 @@ def main():
             aeff_pipeline = compare_aeff(
                 config=deepcopy(aeff_config),
                 servicename='hist_1X585',
+                pisa2file=pisa2file,
+                systname=syst,
+                outdir=args.outdir,
+                ratio_test_threshold=args.ratio_threshold,
+                diff_test_threshold=args.diff_threshold
+            )
+        '''    
+        aeff_settings = os.path.join(
+            'tests', 'settings', 'pisa2_aeff_param_test.cfg'
+        )
+        aeff_config = parse_pipeline_config(aeff_settings)
+
+        k = [k for k in aeff_config.keys() if k[0] == 'aeff'][0]
+        params = aeff_config[k]['params'].params
+
+        pisa2file = os.path.join(
+            'tests', 'data', 'aeff', 'PISAV2AeffStageParam1X60Service.json'
+        )
+        pisa2file = find_resource(pisa2file)
+        for syst in [None, 'aeff_scale']:
+            aeff_pipeline = compare_aeff(
+                config=deepcopy(aeff_config),
+                servicename='param_1X60',
                 pisa2file=pisa2file,
                 systname=syst,
                 outdir=args.outdir,
