@@ -839,7 +839,7 @@ def main():
     # Perform flux tests
     if args.flux or test_all:
         flux_settings = os.path.join(
-            'tests', 'settings', 'pisa2_flux_test.cfg'
+            'tests', 'settings', 'pisa2_flux_honda_test.cfg'
         )
         flux_config = parse_pipeline_config(flux_settings)
 
@@ -937,7 +937,7 @@ def main():
     # Perform effective-area tests
     if args.aeff or test_all:
         aeff_settings = os.path.join(
-            'tests', 'settings', 'pisa2_aeff_test.cfg'
+            'tests', 'settings', 'pisa2_aeff_hist_test.cfg'
         )
         aeff_config = parse_pipeline_config(aeff_settings)
 
@@ -966,7 +966,7 @@ def main():
     # Perform reconstruction tests
     if args.reco or test_all:
         reco_settings = os.path.join(
-            'tests', 'settings', 'pisa2_reco_test.cfg'
+            'tests', 'settings', 'pisa2_reco_hist_test.cfg'
         )
         reco_config = parse_pipeline_config(reco_settings)
 
@@ -1011,7 +1011,7 @@ def main():
     # Perform PID tests
     if args.pid or test_all:
         pid_settings = os.path.join(
-            'tests', 'settings', 'pisa2_pid_test.cfg'
+            'tests', 'settings', 'pisa2_pid_hist_test.cfg'
         )
         pid_config = parse_pipeline_config(pid_settings)
 
