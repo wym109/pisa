@@ -1072,6 +1072,22 @@ def main():
             logging.info(PID_PASS_MESSAGE)
         else:
             raise ValueError(PID_FAIL_MESSAGE)
+        pid_settings = os.path.join(
+            'tests', 'settings', 'pisa2_pid_param_test.cfg'
+        )
+        pid_config = parse_pipeline_config(pid_settings)
+        pisa2file = os.path.join(
+            'tests', 'data', 'pid', 'PISAV2PIDStageParam1X60Service.json'
+        )
+        pisa2file = find_resource(pisa2file)
+        pid_pipeline = compare_pid(
+            config=deepcopy(pid_config),
+            servicename='param_1X60',
+            pisa2file=pisa2file,
+            outdir=args.outdir,
+            ratio_test_threshold=args.ratio_threshold,
+            diff_test_threshold=args.diff_threshold
+        )
     ## Perform reco+PID tests
     #if args.recopid or test_all:
     #    pid_settings = os.path.join(
