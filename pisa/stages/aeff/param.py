@@ -360,6 +360,14 @@ class param(Stage):
         # objects; implement this! (and then this assert statement can go away)
         assert self.input_binning == self.output_binning
 
+        # Right now this can only deal with 1D energy or 2D energy / coszenith
+        # binning, so if azimuth is present then this will raise an exception.
+        if 'reco_azimuth' in set(self.input_binning.names):
+            raise ValueError(
+                "Input binning cannot have azimuth present for this "
+                "parameterised aeff service."
+            )
+
         self.load_aeff_energy_param(self.params.aeff_energy_paramfile.value)
         self.load_aeff_coszen_param(self.params.aeff_coszen_paramfile.value)
 
@@ -367,7 +375,7 @@ class param(Stage):
         if 'true_coszen' in self.input_binning.names:
             czcen = self.input_binning.true_coszen.weighted_centers.magnitude
         else:
-            if param.aeff_coszen_paramfile.value is not None:
+            if self.params.aeff_coszen_paramfile.value is not None:
                 raise ValueError("coszenith was not found in the binning but a"
                                  " coszenith parameterisation file has been "
                                  "provided in the configuration file. "
@@ -378,7 +386,7 @@ class param(Stage):
         for xform_flavints in self.transform_groups:
             logging.debug("Working on %s effective areas xform" %xform_flavints)
             energy_param = self.find_energy_param(str(xform_flavints))
-            if czcen is not None:
+            if self.params.aeff_coszen_paramfile.value is not None:
                 coszen_param = self.find_coszen_param(str(xform_flavints))
             else:
                 coszen_param = None
@@ -426,19 +434,30 @@ class param(Stage):
             # something better that could be done here...
             if aeff1d[-1] == 0.0:
                 aeff1d[-1] = aeff1d[-2]
-            # Make this into a 2D array
-            aeff2d = np.reshape(
-                np.repeat(
-                    aeff1d, len(czcen)
-                ), (len(ecen), len(czcen))
-            )
-            
-            # Now add cz-dependence, if required
-            if czcen is not None:
-                cz_dep = coszen_param(czcen)
-                # Normalise
-                cz_dep *= len(cz_dep)/np.sum(cz_dep)
-                aeff2d *= cz_dep
+            # Make this in to the right dimensionality.
+            if 'true_coszen' in set(self.input_binning.names):
+                aeff2d = np.repeat(aeff1d, len(czcen))
+                aeff2d = np.reshape(aeff2d, (len(ecen), len(czcen)))
+                # Now add cz-dependence, if required
+                if coszen_param is not None:
+                    cz_dep = coszen_param(czcen)
+                    # Normalise
+                    cz_dep *= len(cz_dep)/np.sum(cz_dep)
+                    aeff2d *= cz_dep
+                if self.input_binning.names[0] == 'true_energy':
+                    aeff2d = aeff2d
+                elif self.input_binning.names[0] == 'true_coszen':
+                    aeff2d = aeff2d.T
+                else:
+                    raise ValueError(
+                        "Got a name for the first bins that was unexpected - "
+                        "%s. Something is wrong."%(
+                            self.input_binning.names[0]
+                        )
+                    )
+                xform_array = aeff2d
+            else:
+                xform_array = aeff1d
 
             # If combining grouped flavints:
             # Create a single transform for each group and assign all flavors
@@ -461,7 +480,7 @@ class param(Stage):
                         output_name=output_name,
                         input_binning=self.input_binning,
                         output_binning=self.output_binning,
-                        xform_array=aeff2d,
+                        xform_array=xform_array,
                         sum_inputs=self.sum_grouped_flavints
                     )
                     nominal_transforms.append(xform)
@@ -485,7 +504,7 @@ class param(Stage):
                             output_name=output_name,
                             input_binning=self.input_binning,
                             output_binning=self.output_binning,
-                            xform_array=aeff2d,
+                            xform_array=xform_array,
                             sum_inputs=self.sum_grouped_flavints
                         )
                         nominal_transforms.append(xform)
