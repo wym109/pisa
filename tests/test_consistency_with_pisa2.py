@@ -935,7 +935,6 @@ def main():
 
     # Perform effective-area tests
     if args.aeff or test_all:
-        '''
         aeff_settings = os.path.join(
             'tests', 'settings', 'pisa2_aeff_hist_test.cfg'
         )
@@ -961,8 +960,7 @@ def main():
                 outdir=args.outdir,
                 ratio_test_threshold=args.ratio_threshold,
                 diff_test_threshold=args.diff_threshold
-            )
-        '''    
+            )    
         aeff_settings = os.path.join(
             'tests', 'settings', 'pisa2_aeff_param_test.cfg'
         )
