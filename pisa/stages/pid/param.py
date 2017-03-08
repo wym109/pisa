@@ -30,12 +30,11 @@ from copy import deepcopy
 from itertools import product
 
 import numpy as np
-import re
 from scipy.stats import norm
 
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
-from pisa.utils.fileio import mkdir, to_file, from_file
+from pisa.utils.fileio import from_file
 from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
@@ -207,6 +206,12 @@ class param(Stage):
             energy_param_dict = from_file(pid_energy_param)
         elif isinstance(pid_energy_param, dict):
             energy_param_dict = pid_energy_param
+        else:
+            raise ValueError(
+                "Expecting either a path to a file or a dictionary provided as"
+                " the store of the parameterisations. Got %s. Something is "
+                "wrong."%(type(reco_param))
+            )
         self.energy_param_dict = energy_param_dict
         self._energy_param_hash = this_hash
 

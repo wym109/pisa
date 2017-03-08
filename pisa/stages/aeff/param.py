@@ -21,7 +21,7 @@ from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.core.events import Events
 from pisa.utils.flavInt import ALL_NUFLAVINTS, flavintGroupsFromString, \
         IntType, NuFlavIntGroup
-from pisa.utils.fileio import mkdir, to_file, from_file
+from pisa.utils.fileio import from_file
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile
@@ -165,6 +165,12 @@ class param(Stage):
             energy_param_dict = from_file(aeff_energy_param)
         elif isinstance(aeff_energy_param, dict):
             energy_param_dict = aeff_energy_param
+        else:
+            raise ValueError(
+                "Expecting either a path to a file or a dictionary provided as"
+                " the store of the parameterisations. Got %s. Something is "
+                "wrong."%(type(reco_param))
+            )
         self.energy_param_dict = energy_param_dict
         self._energy_param_hash = this_hash
 
