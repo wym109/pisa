@@ -156,6 +156,8 @@ class smooth(Stage):
     def smooth(self, xform, errors, e_binning, cz_binning):
         '''
         Smooth a 2d array (xform), with energy as the first dimension and CZ as the second
+        First performing a gaussian smoothing to get rid of zeros
+        then spline smooth
         '''
 
         sumw2 = np.square(errors)
@@ -220,8 +222,8 @@ class smooth(Stage):
 
         # now use gaussian smoothing on those
         # some black magic sigma values
-        sigma_cz = xform.shape[1] * 0.25 * rel_error
-        sigma_e = xform.shape[0] * 0.1 * rel_error
+        sigma_e = xform.shape[0] * 0.025 * rel_error
+        sigma_cz = xform.shape[1] * 0.05 * rel_error
         sigma1 = (0, sigma_cz)
         sigma2 = (sigma_e, 0)
         smooth_extended_xform = ndimage.filters.gaussian_filter(extended_xform, sigma1, mode='reflect')
@@ -235,7 +237,7 @@ class smooth(Stage):
                                      extended_binning,
                                      e_binning,
                                      0,
-                                     self.params.aeff_e_smooth_factor.value,
+                                     self.params.aeff_e_smooth_factor.value/rel_error,
                                      3,
                                      errors=smooth_extended_errors)
 
@@ -243,7 +245,7 @@ class smooth(Stage):
                                        cz_binning,
                                        cz_binning,
                                        1,
-                                       self.params.aeff_cz_smooth_factor.value,
+                                       self.params.aeff_cz_smooth_factor.value/rel_error,
                                        3,
                                        errors=None)
 
