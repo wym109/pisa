@@ -7,6 +7,8 @@ Smoothed-histogram effective areas stage
 import numpy as np
 import uncertainties as unc
 from uncertainties import unumpy as unp
+from scipy.interpolate import bisplrep, bisplev, RectBivariateSpline
+from scipy import ndimage
 
 from pisa import ureg
 from pisa.core.map import Map
@@ -168,25 +170,46 @@ class smooth(Stage):
         self.include_attrs_for_hashes('transform_groups')
 
 
-    def slice_smooth(self, xform, xform_errors, spline_binning):
+    def slice_smooth(self, xform, xform_errors, spline_binning, smooth_factor):
         # Dimensions and order used for computation
-
-        xform = spline_smooth(xform,
-                                spline_binning['true_energy'],
-                                self.input_binning['true_energy'],
-                                self.input_binning.index('true_energy'),
-                                self.params.aeff_e_smooth_factor.value,
+        dim1 = 'true_energy'
+        dim2= 'true_coszen'
+        xform, errors = spline_smooth(xform,
+                                spline_binning[dim1],
+                                self.input_binning[dim1],
+                                self.input_binning.index(dim1),
+                                0.1,
                                 3,
                                 errors=xform_errors)
-        xform = spline_smooth(xform, 
-                                spline_binning['true_coszen'], 
-                                self.input_binning['true_coszen'], 
-                                self.input_binning.index('true_coszen'), 
-                                self.params.aeff_cz_smooth_factor.value, 
-                                3)
+        xform, _ = spline_smooth(xform, 
+                                spline_binning[dim2], 
+                                self.input_binning[dim2], 
+                                self.input_binning.index(dim2), 
+                                0.2,
+                                3,
+                                errors=None)
 
         # clip unphysical (negative)  values
         return xform.clip(0)
+
+    def bi_smooth(self, xform, xform_errors, spline_binning, smooth_factor):
+        #x, y = np.meshgrid(spline_binning.dimensions[0].midpoints, spline_binning.dimensions[1].midpoints)
+        #xb = spline_binning.dimensions[0].bin_edges[0].m
+        #xe = spline_binning.dimensions[0].bin_edges[-1].m
+        #yb = spline_binning.dimensions[1].bin_edges[0].m
+        #ye = spline_binning.dimensions[1].bin_edges[-1].m
+        z = xform
+        #w = 1./xform_errors
+        #w = np.ones(len(x.ravel()))
+        #s = len(x.ravel())
+        #spline = bisplrep(x.ravel(), y.ravel(), z.ravel(), w.ravel(), s=s, xb=xb, yb=yb, xe=xe, ye=ye)
+        spline = RectBivariateSpline(spline_binning.dimensions[0].midpoints, spline_binning.dimensions[1].midpoints,z,s=smooth_factor)
+        x_eval, y_eval = np.meshgrid(self.input_binning.dimensions[0].midpoints.m, self.input_binning.dimensions[1].midpoints.m)
+        #smoothed = bisplev(x_eval.ravel(), y_eval.ravel(), spline)
+        smoothed = spline(self.input_binning.dimensions[0].midpoints.m, self.input_binning.dimensions[1].midpoints.m)
+        #smoothed = smoothed.reshape(z.shape)
+        return smoothed.clip(0)
+
 
     @profile
     def _compute_nominal_transforms(self):
@@ -241,36 +264,96 @@ class smooth(Stage):
         transforms = []
 
         for xform_flavints in self.transform_groups:
-            logging.debug("Working on %s effective areas xform" %xform_flavints)
+            logging.info("Working on %s effective areas xform" %xform_flavints)
 
+            #rel_error = 10.
+            spline_binning = self.spline_binning
             raw_hist = self.remaining_events.histogram(
                 kinds=xform_flavints,
-                binning=self.spline_binning,
+                binning=spline_binning,
                 weights_col='weighted_aeff',
                 errors=True
             )
-            
             raw_transform = unp.nominal_values(raw_hist.hist)
             raw_errors = unp.std_devs(raw_hist.hist)
+
+
+
+            #while rel_error > 0.15:
+            #    raw_hist = self.remaining_events.histogram(
+            #        kinds=xform_flavints,
+            #        binning=spline_binning,
+            #        weights_col='weighted_aeff',
+            #        errors=True
+            #    )
+            #    raw_transform = unp.nominal_values(raw_hist.hist)
+            #    raw_errors = unp.std_devs(raw_hist.hist)
+            #    rel_error = raw_errors/raw_transform
+            #    rel_error = np.median(rel_error[raw_transform != 0])
+            #    e_idx = spline_binning.index('true_energy')
+            #    if rel_error > 0.15:
+            #        factors = [1]*len(spline_binning.dimensions)
+            #        factors[e_idx] = 2
+            #        logging.warning('Downsampling spline energy binning by factor of 2 for better statistics! Now at %.2f'%rel_error)
+            #        try:
+            #            spline_binning = spline_binning.downsample(*factors)
+            #        except:
+            #            logging.error('Not enough statistics in %s, maybe try grouping flavours or change spline binning'%xform_flavints)
+            #            break
+
+            #magic_factor = 2./rel_error
+            #magic_factor = spline_binning.dimensions[e_idx].num_bins
 
             # Divide histogram by
             #   (energy bin width x coszen bin width x azimuth bin width)
             # volumes to convert from sums-of-OneWeights-in-bins to
             # effective areas. Note that volume correction factor for
             # missing dimensions is applied here.
-            bin_volumes = self.spline_binning.bin_volumes(attach_units=False)
+            bin_volumes = spline_binning.bin_volumes(attach_units=False)
             raw_transform /= (bin_volumes * missing_dims_vol)
+            # for bins woth zero events, we get an eror of zero
+            # but these zeros do hae some stat. imprecision
+            # here assume this is equal to the median non-zero error
+            #raw_errors[raw_errors == 0] = np.min(raw_errors[raw_errors != 0])
             raw_errors /= (bin_volumes * missing_dims_vol)
 
+
+            # what's the stat. situation here?
+            rel_error = raw_errors/raw_transform
+            rel_error = np.median(rel_error[raw_transform != 0])
+            print rel_error
+
+            # now use gaussian smoothing on those, muahaha
+            e_idx = spline_binning.index('true_energy')
+            if e_idx == 0:
+                sigma_cz = raw_transform.shape[1]*0.1
+                sigma_e = raw_transform.shape[0]*0.025
+                sigma1 = (0,sigma_cz)
+                sigma2 = (sigma_e,0)
+            else:
+                sigma_cz = raw_transform.shape[0]*0.1
+                sigma_e = raw_transform.shape[1]*0.025
+                sigma1 = (sigma_cz,0)
+                sigma2 = (0,sigma_e)
+            mode = 'reflect'
+            raw_sumw2 = np.square(raw_errors)
+            smooth_transform = ndimage.filters.gaussian_filter(raw_transform, sigma1, mode='reflect')
+            smooth_sumw2 = ndimage.filters.gaussian_filter(raw_sumw2, sigma1, mode='reflect')
+            smooth_transform = ndimage.filters.gaussian_filter(smooth_transform, sigma2, mode='nearest', truncate=1.)
+            smooth_sumw2 = ndimage.filters.gaussian_filter(smooth_sumw2, sigma2, mode='nearest', truncate=1.)
+            smooth_errors = np.sqrt(smooth_sumw2)
+
             # smooth and eval at binning
-            smooth_transform = self.slice_smooth(raw_transform, raw_errors, self.spline_binning)
+            smooth_transform = self.slice_smooth(smooth_transform, smooth_errors, spline_binning, 0.2)
+            
+            #smooth_transform = self.bi_smooth(raw_transform, raw_errors, spline_binning, magic_factor)
 
             # for CC tau interaction, regions < 3.5 GeV are below threshold, therefore set to zero:
             if abs(xform_flavints[0].flavCode()) == 16 and xform_flavints[0].isCC():
                 logging.info('Cutting off effective area below 3.5 GeV for %s'%xform_flavints[0])
-                for i,energy in enumerate(self.input_binning['true_energy'].bin_edges[1:]):
+                for i,energy in enumerate(input_binning['true_energy'].bin_edges[1:]):
                     if energy.magnitude < 3.5:
-                        if self.input_binning.index('true_energy') == 0:
+                        if input_binning.index('true_energy') == 0:
                             smooth_transform[i,:] *= 0
                         else:
                             smooth_transform[:,i] *= 0
@@ -299,8 +382,8 @@ class smooth(Stage):
                     xform = BinnedTensorTransform(
                         input_names=xform_input_names,
                         output_name=output_name,
-                        input_binning=self.input_binning,
-                        output_binning=self.output_binning,
+                        input_binning=input_binning,
+                        output_binning=input_binning,
                         xform_array=smooth_transform,
                         sum_inputs=self.sum_grouped_flavints
                     )
@@ -323,8 +406,8 @@ class smooth(Stage):
                         xform = BinnedTensorTransform(
                             input_names=input_name,
                             output_name=output_name,
-                            input_binning=self.input_binning,
-                            output_binning=self.output_binning,
+                            input_binning=nput_binning,
+                            output_binning=input_binning,
                             xform_array=smooth_transform,
                         )
                         transforms.append(xform)
