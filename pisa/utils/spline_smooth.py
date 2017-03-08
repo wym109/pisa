@@ -1,7 +1,8 @@
 import numpy as np
+from pisa.utils.log import logging
 from scipy.interpolate import splrep, splev, interp1d
 
-def spline_smooth(array, spline_binning, eval_binning, axis=0, smooth_factor=50, k=3,errors=None):
+def spline_smooth(array, spline_binning, eval_binning, axis=0, smooth_factor=50, k=3, errors=None):
     '''
     smooth in slices along an axis
     assuming 2d arrays
@@ -23,19 +24,19 @@ def spline_smooth(array, spline_binning, eval_binning, axis=0, smooth_factor=50,
     interp_errors = None if errors is None else []
     for index in range(array.shape[1]):
         # take slice
-        h_slice = array[:,index]
+        h_slice = array[:, index]
         if errors is None:
             weights = None
         else:
-            h_errors = errors[:,index]
-            #replace zeros with avrage value along other axis
+            h_errors = errors[:, index]
+            #replace zeros errors minimum avrage value along other axis
             for i in range(len(h_errors)):
                 if h_errors[i] == 0:
-                    if np.sum(errors[i,:]) == 0:
-                        h_errors[i] = 100
-                        print "it's all zero"
+                    if np.sum(errors[i, :]) == 0:
+                        h_errors[i] = 0
+                        logging.warning('Detected row in array with all zero values, this can be problematic for spline smoothing!')
                     else:
-                        h_errors[i] = np.mean(errors[i,:][errors[i,:] != 0])
+                        h_errors[i] = np.min(errors[i, :][errors[i, :] != 0])
             weights = 1./h_errors
         # Fit spline to slices
         slice_spline = splrep(
@@ -49,14 +50,14 @@ def spline_smooth(array, spline_binning, eval_binning, axis=0, smooth_factor=50,
         smoothed_slices.append(smoothed_slice)
 
         if errors is not None:
-            erf = interp1d(spline_points, 1./weights, fill_value = "extrapolate")
+            erf = interp1d(spline_points, 1./weights, fill_value="extrapolate")
             new_errors = erf(eval_binning.midpoints)
             interp_errors.append(new_errors)
 
     # Convert list of slices to array
     smoothed_array = np.array(smoothed_slices)
     if errors is not None:
-        interp_errors = np.array(interp_errors) 
+        interp_errors = np.array(interp_errors)
     # swap axes back if necessary
     if axis == 0:
         smoothed_array = smoothed_array.T
