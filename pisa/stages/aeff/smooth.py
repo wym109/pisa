@@ -154,11 +154,21 @@ class smooth(Stage):
 
 
     def smooth(self, xform, errors, e_binning, cz_binning):
-        '''
-        Smooth a 2d array (xform), with energy as the first dimension and CZ as the second
+        """Smooth a 2d array
+
+        with energy as the first dimension and CZ as the second
         First performing a gaussian smoothing to get rid of zeros
         then spline smooth
-        '''
+
+        Parameters
+        ----------
+
+        xform : 2d-array
+        errors : 2d-array
+        e_binning : OneDimBinning
+        cz_binning : OneDimBinning
+
+        """
 
         sumw2 = np.square(errors)
 
