@@ -309,15 +309,37 @@ def compare_aeff(config, servicename, pisa2file, systname,
     return pipeline
 
 
-def compare_reco(config, servicename, pisa2file, outdir, ratio_test_threshold,
+def compare_reco(config, servicename, pisa2file, systname,
+                 outdir, ratio_test_threshold,
                  diff_test_threshold):
     """Compare reco stages run in isolation with dummy inputs"""
     logging.debug('>> Working on reco stage comparisons')
     logging.debug('>>> Checking %s service'%servicename)
     test_service = servicename
 
-    logging.debug('>>> Checking baseline')
-    test_syst = 'baseline'
+    k = [k for k in config.keys() if k[0] == 'reco'][0]
+    params = config[k]['params'].params
+
+    if systname is not None:
+        logging.debug('>>> Checking %s systematic'%systname)
+        test_syst = systname
+        try:
+            params[systname] = \
+                    params[systname].value + \
+                    params[systname].prior.stddev
+        except:
+            params[systname] = \
+                    1.25*params[systname].value
+
+        pisa2file = pisa2file.split('.json')[0] + \
+                '-%s%.2f.json' \
+                %(systname, params[systname].value)
+        servicename += '-%s%.2f' \
+                %(systname, params[systname].value)
+    else:
+        logging.debug('>>> Checking baseline')
+        test_syst = 'baseline'
+        
     pipeline = Pipeline(config)
     stage = pipeline.stages[0]
     input_maps = []
@@ -986,7 +1008,6 @@ def main():
 
     # Perform reconstruction tests
     if args.reco or test_all:
-        '''
         reco_settings = os.path.join(
             'tests', 'settings', 'pisa2_reco_hist_test.cfg'
         )
@@ -1008,6 +1029,7 @@ def main():
             config=deepcopy(reco_config),
             servicename='hist_1X585',
             pisa2file=pisa2file,
+            systname=None,
             outdir=args.outdir,
             ratio_test_threshold=args.ratio_threshold,
             diff_test_threshold=args.diff_threshold
@@ -1025,11 +1047,11 @@ def main():
             config=deepcopy(reco_config),
             servicename='hist_1X60',
             pisa2file=pisa2file,
+            systname=None,
             outdir=args.outdir,
             ratio_test_threshold=args.ratio_threshold,
             diff_test_threshold=args.diff_threshold
         )
-        '''
         reco_settings = os.path.join(
             'tests', 'settings', 'pisa2_reco_param_test.cfg'
         )
@@ -1038,14 +1060,16 @@ def main():
             'tests', 'data', 'reco', 'PISAV2RecoStageParam1X60Service.json'
         )
         pisa2file = find_resource(pisa2file)
-        reco_pipeline = compare_reco(
-            config=deepcopy(reco_config),
-            servicename='param_1X60',
-            pisa2file=pisa2file,
-            outdir=args.outdir,
-            ratio_test_threshold=args.ratio_threshold,
-            diff_test_threshold=args.diff_threshold
-        )
+        for syst in [None, 'e_res_scale', 'cz_res_scale']:
+            reco_pipeline = compare_reco(
+                config=deepcopy(reco_config),
+                servicename='param_1X60',
+                pisa2file=pisa2file,
+                systname=syst,
+                outdir=args.outdir,
+                ratio_test_threshold=args.ratio_threshold,
+                diff_test_threshold=args.diff_threshold
+            )
 
     # Perform PID tests
     if args.pid or test_all:
