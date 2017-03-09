@@ -233,20 +233,20 @@ class smooth(Stage):
         smooth_extended_errors = np.sqrt(smooth_extended_sumw2)
 
         # now spline smooth
-        new_xform, _ = spline_smooth(smooth_extended_xform,
-                                     extended_binning,
-                                     e_binning,
-                                     0,
-                                     self.params.aeff_e_smooth_factor.value/rel_error,
-                                     3,
+        new_xform, _ = spline_smooth(array=smooth_extended_xform,
+                                     spline_binning=extended_binning,
+                                     eval_binning=e_binning,
+                                     axis=0,
+                                     smooth_factor=self.params.aeff_e_smooth_factor.value/rel_error,
+                                     k=3,
                                      errors=smooth_extended_errors)
 
-        final_xform, _ = spline_smooth(new_xform,
-                                       cz_binning,
-                                       cz_binning,
-                                       1,
-                                       self.params.aeff_cz_smooth_factor.value/rel_error,
-                                       3,
+        final_xform, _ = spline_smooth(array=new_xform,
+                                       spline_binning=cz_binning,
+                                       eval_binning=cz_binning,
+                                       axis=1,
+                                       smooth_factor=self.params.aeff_cz_smooth_factor.value/rel_error,
+                                       k=3,
                                        errors=None)
 
         # the final array has the right shape again, because we evaluated the splines only
