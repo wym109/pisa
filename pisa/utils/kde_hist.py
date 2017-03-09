@@ -4,16 +4,18 @@ from uncertainties import unumpy as unp
 
 from pisa.core.binning import OneDimBinning, MultiDimBinning
 
+"""
+Functions to get KDE smoothed historgams
+"""
 
 __all__ = ['get_hist', 'kde_histogramdd', 'test_kde_histogramdd']
-"""
-Functions to get KDE smoothe historgams
-"""
 
 def get_hist(sample, binning, weights=None, bw_method='scott', adaptive=True,
              alpha=0.3, use_cuda=False, coszen_reflection=0.25,
              coszen_name='coszen', oversample=1):
     """Helper function for histograms from KDE
+
+    For description of args see kde_histogramdd()
      
     Handling the reflctions at the coszen edges
 
@@ -50,7 +52,7 @@ def get_hist(sample, binning, weights=None, bw_method='scott', adaptive=True,
 
     # TODO: What if coszen isn't in binning? Does this fail?
     # Yes, coszen is expected
-    cz_bin = binning.names.index(coszen_name)
+    cz_bin = binning.index(coszen_name)
 
     # Swap out cz bin to first place (index 0)
     if cz_bin != 0:
