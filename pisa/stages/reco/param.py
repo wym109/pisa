@@ -301,6 +301,46 @@ class param(Stage):
                 "to do with."%kwargs.keys()
             )
 
+    def apply_reco_scales_and_biases_double_gaussian(self):
+        """
+        Applies the scales to the double gaussian parameterisations.
+        """
+        e_res_scale = self.params.e_res_scale.value.m_as('dimensionless')
+        cz_res_scale = self.params.cz_res_scale.value.m_as('dimensionless')
+        e_reco_bias = self.params.e_reco_bias.value.m_as('GeV')
+        cz_reco_bias = self.params.cz_reco_bias.value.m_as('dimensionless')
+        for flavour in self.param_dict.keys():
+            for param in self.param_dict[flavour]['energy'].keys():
+                if 'width' in param:
+                    self.param_dict[flavour]['energy'][param] *= e_res_scale
+                elif 'bias' in param:
+                    self.param_dict[flavour]['energy'][param] += e_reco_bias
+            for param in self.param_dict[flavour]['coszen'].keys():
+                if 'width' in param:
+                    self.param_dict[flavour]['coszen'][param] *= cz_res_scale
+                elif 'bias' in param:
+                    self.param_dict[flavour]['coszen'][param] += cz_reco_bias
+        
+    def apply_reco_scales_and_biases(self):
+        """
+        Applies the resolution scales and biases. Currently this is done
+        assuming that the parameterisations are double gaussians. Other use
+        cases will need to be added or the method will need to be generalised.
+        """
+        double_gauss_keys = ['loc1','loc2','width1','width2','fraction']
+        flavour1 = self.param_dict.keys()[0]
+        dimension1 = self.param_dict[flavour1].keys()[0]
+        if sorted(self.param_dict[flavour1][dimension1].keys()) == \
+           sorted(double_gauss_keys):
+            self.apply_reco_scales_and_biases_double_gaussian()
+        else:
+            raise ValueError(
+                "Expected the parameters for a double gaussian. No other "
+                "parameterisations have been implemented. Got %s."%(
+                    self.param_dict[flavour][dimension].keys()
+                )
+            )
+
     def _compute_transforms(self):
         """
         Generate reconstruction "smearing kernels" by reading in a set of
@@ -321,14 +361,11 @@ class param(Stage):
                 "Got %s."%(self.input_binning.names)
             )
         
-        e_res_scale = self.params.e_res_scale.value.m_as('dimensionless')
-        cz_res_scale = self.params.cz_res_scale.value.m_as('dimensionless')
-        e_reco_bias = self.params.e_reco_bias.value.m_as('GeV')
-        cz_reco_bias = self.params.cz_reco_bias.value.m_as('dimensionless')
         res_scale_ref = self.params.res_scale_ref.value.strip().lower()
         assert res_scale_ref in ['zero'] # TODO: , 'mean', 'median']
 
         self.load_reco_param(self.params['reco_paramfile'].value)
+        self.apply_reco_scales_and_biases()
 
         # Computational units must be the following for compatibility with
         # events file
