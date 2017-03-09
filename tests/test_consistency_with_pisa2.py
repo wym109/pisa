@@ -986,6 +986,7 @@ def main():
 
     # Perform reconstruction tests
     if args.reco or test_all:
+        '''
         reco_settings = os.path.join(
             'tests', 'settings', 'pisa2_reco_hist_test.cfg'
         )
@@ -1023,6 +1024,23 @@ def main():
         reco_pipeline = compare_reco(
             config=deepcopy(reco_config),
             servicename='hist_1X60',
+            pisa2file=pisa2file,
+            outdir=args.outdir,
+            ratio_test_threshold=args.ratio_threshold,
+            diff_test_threshold=args.diff_threshold
+        )
+        '''
+        reco_settings = os.path.join(
+            'tests', 'settings', 'pisa2_reco_param_test.cfg'
+        )
+        reco_config = parse_pipeline_config(reco_settings)
+        pisa2file = os.path.join(
+            'tests', 'data', 'reco', 'PISAV2RecoStageParam1X60Service.json'
+        )
+        pisa2file = find_resource(pisa2file)
+        reco_pipeline = compare_reco(
+            config=deepcopy(reco_config),
+            servicename='param_1X60',
             pisa2file=pisa2file,
             outdir=args.outdir,
             ratio_test_threshold=args.ratio_threshold,
