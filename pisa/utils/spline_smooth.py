@@ -2,14 +2,35 @@ import numpy as np
 from pisa.utils.log import logging
 from scipy.interpolate import splrep, splev, interp1d
 
-def spline_smooth(array, spline_binning, eval_binning, axis=0, smooth_factor=50, k=3, errors=None):
-    '''
-    smooth in slices along an axis
-    assuming 2d arrays
-    with binning `spline_binning` of axis
-    return array with `eval_binning` of axis
+def spline_smooth(array, spline_binning, eval_binning, axis=0, smooth_factor=5, k=3, errors=None):
+    """Fuction for spline-smoothing arrays
+
+    It is smoothing in slices along one axis, assuming 2d arrays
+    The smoothing is done by splines
+
+    Parameters
+    ----------
+
+    array : 2d-array
+        array to be smoothed
+    spline_binning : OneDimBinning
+        Binning of axis on which to construct the spline
+        Must corrspond to the array dimension
+    axis : int
+        Index of the axis along which to smooth
+    eval_binning : OneDimBinning
+        Binning on which to evaluate the constructed spline
+    smooth_factor : float
+        smoothing factor for spline
+    k : int
+        spline degree
+    errors : 2d-array or None
+        uncertainties on the array
+
+    Notes
+    -----
     could be expanded to nd arrays to generalize it
-    '''
+    """
     # only working for 2d right now!
     assert(array.ndim == 2, 'cannot do other dimensions than 2 right now, sorry')
     # points at which to evaluate splines
