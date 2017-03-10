@@ -266,8 +266,7 @@ if __name__ == '__main__':
                 'pycuda'
             ],
             'numba': [
-                'enum34',
-                'numba'
+                'numba>=0.31'
             ],
             'develop': [
                 'sphinx>1.3',
