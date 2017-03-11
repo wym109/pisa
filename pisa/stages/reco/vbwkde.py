@@ -13,19 +13,55 @@ reconstructed energy and coszen values is estimated using a variable-bandwidth
 KDE.
 
 These transforms are used to produce reco event rate maps.
+
+The algorithm is roughly as follows:
+
+1. CHARACTERIZE RESOLUTIONS:
+   all_kdes = characterize_resolutions()
+
+    * PID CATEGORY NORMALIZATION: For each energy bin in each flavintgroup,
+      figure out how many events PID would categorize in each PID bin.
+        * events = collect_enough_events(flavint_evts, ebin)
+        * KDE 'pid' distribution for collected events; store in cache
+            * Yields (N_flavints * N_ebins) KDEs
+
+    * RESOLUTIONS KDEs: For each (true-energy bin, PID category, flavintgroup),
+      (allowing for expansion in true-energy to get enough events), find the
+      reco-energy and reco-coszen resolutions.
+        * events = collect_enough_events(flavintgroup_pid_evts, ebin)
+        * KDE 'reco_energy' distribution for events; store in cache
+            * Use `log10(reco_energy/true_energy)`
+            * Yields (N_flavints * N_pid_bins * N_ebins) energy res KDEs
+        * KDE 'reco_coszen' distribution for events; store in cache
+            * Use `fold_coszen_err(reco_coszen - true_coszen)`
+            * Yields (N_flavints * N_pid_bins * N_ebins) coszen res KDEs
+
+2. GENERATE SMEARING KERNELS: (assumes all energy binning is
+   logarithmically-even)
+
+   kernel = generate_smearing_kernel(all_kdes[flavints])
+
+    * Figure out which true_energy bins fall within one reco_energy bin;
+    * Scale input-energy binning into the log(ratio)-space:
+      log(true_energy.bin_edges /
+
 """
 
+blah
 
 from __future__ import division
 
-from collections import Iterable, OrderedDict, Sequence
+from collections import Iterable, OrderedDict, Sequence, namedtuple
 from copy import deepcopy
+from itertools import product
 import os
 
 import numpy as np
 from scipy.interpolate import interp1d
 
+from pisa import ureg
 from pisa.core.binning import MultiDimBinning, OneDimBinning
+from pisa.core.events import Events
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.utils.confInterval import MLConfInterval
@@ -40,11 +76,187 @@ from pisa.utils.profiler import profile
 from pisa.utils.resources import find_resource
 
 
-__all__ = ['EPSILON',
+__all__ = ['EPSILON', 'collect_enough_events',
            'vbwkde', 'plot_kde_detail', 'plot_multiple']
 
 
 EPSILON = 1e-4
+KDE_DIM_DEP = {
+    'pid': ['true_energy'],
+    'energy': ['pid', 'true_energy'],
+    'coszen': ['pid', 'true_coszen', 'true_energy']
+}
+_true_energy = OneDimBinning(
+    name='true_energy', num_bins=20, is_log=True, domain=[1, 80]*ureg.GeV
+)
+_true_coszen = OneDimBinning(
+    name='true_coszen', num_bins=3, bin_edges=[-1, -0.75, 0.75, 1]
+)
+KDE_TRUE_BINNING = _true_energy * _true_coszen
+MIN_NUM_EVENTS = 100
+TGT_NUM_EVENTS = 1000
+
+# TODO: figure out a dynamic similarity metric such that this parameter can be
+#       figured out by the software, rather than set by the user. E.g., use
+#       some statistical clustering technique?
+TGT_MAX_BINWIDTH_FACTOR = 1.25
+
+
+# TODO: revisit this heuristic with proper testing
+# TODO: modify this once we have fixed the Events object to be more agnostic to
+#       flavint
+# TODO: modify once Events.applyCut is not longer an in-place operation
+def collect_enough_events(events, flavint, bin,
+                          min_num_events=MIN_NUM_EVENTS,
+                          tgt_num_events=TGT_NUM_EVENTS,
+                          tgt_max_binwidth_factor=TGT_MAX_BINWIDTH_FACTOR):
+    """Heuristic to collect enough events close to the provided bin such
+    that KDEs can be applied and achieve robust results.
+
+    Events are selected via the logic:
+    * If there are `tgt_num_events` or more in the energy bin, simply return
+      all events in the bin.
+    * Otherwise, go up to `tgt_max_binwidth_factor` times the width of the
+      `bin` to find up to `tgt_num_events`. (Note that the distance is
+      measured from the bin's weighted center.)
+    * However, keep going as far as necessary outside the energy bin (i.e.,
+      ignore `tgt_max_binwidth_factor`) to find `min_num_events` events.
+
+    Note that in the above, _all_ events in the bin will _always_ be returned.
+    The rest of the algorithm decides how far outside it has to reach to get a
+    "desired" number of events (`tgt_num_events`) without going too far, but
+    will reach as far as necessary to get the "minimum" number of events
+    (`min_num_events').
+
+    Distances are measured on a logarithmic scale, so events that are one-half
+    and twice the energy bin's weighted center (respectively) are considered to
+    be the same distance to the weighted center.
+
+    In the case of "exact ties" as described above, _both_ events will be kept.
+    Therefore, one may get _more_ than `tgt_num_events` when that threshold is
+    used or more than `min_num_events` when that threshold is used.
+
+    Finally, note that both edges of the `bin` are _inclusive_, i.e., it
+    defines a closed interval.
+
+
+    Parameters
+    ----------
+    events : pisa.core.events.Events
+        Note that a deepcopy is made on this object, so it is not modified in
+        this function.
+
+    bin : pisa.core.binning.OneDimBinning
+
+    flavint : None or convertible to pisa.utils.flavInts.NuFlavIntGroup
+
+    min_num_events : int
+        At least this many events will collected, regardless how far outside
+        the boundaries of `bin` is necessary to find them.
+
+    tgt_num_events : int >= min_num_events
+
+    tgt_max_binwidth_factor : float >= 0
+
+    Returns
+    -------
+    events_subset : pisa.core.events.Events
+        The subset of the passed `events` that fulfill the criteria outlined
+        above.
+
+    """
+    # For now, be strict about what is allowed, so as to keep logic simple
+    assert isinstance(events, Events)
+    flavintgroup = NuFlavIntGroup(flavint)
+    repr_flavint = flavintgroup[0]
+    if isinstance(bin, MultiDimBinning):
+        dims = bin.dimensions
+        assert len(dims) == 1
+        bin = dims[0]
+    assert isinstance(bin, OneDimBinning)
+    edges = bin.bin_edges.m_as('GeV')
+    assert len(edges) == 2
+    assert bin.is_log
+    assert min_num_events <= tgt_num_events
+
+    # ASSUMPTION: units in Events object are same as in `bin`
+    bin_wtd_center = bin.weighted_centers[0].m
+
+    if bin.is_log:
+        bin_width = edges[1] / edges[0]
+        bin_half_width = np.sqrt(bin_width)
+    else:
+        bin_width = edges[1] - edges[0]
+        bin_half_width = bin_width / 2
+
+    # Define for convenience of use elsewhere
+    field_values = events[repr_flavint][dim.name]
+    n_events = len(field_values)
+
+    # If either min_num_events or tgt_num_events is greater than the total
+    # number of events we have to work with, force to be equal to the number
+    # of events we have.
+    min_num_evts = min_num_events if min_num_events < n_events else n_events
+    tgt_num_evts = tgt_num_events if tgt_num_events < n_events else n_events
+
+    # Absolute distance from these events to the center of the bin, sorted in
+    # ascending order (so events closest to bin center come first)
+    if bin.is_log:
+        sorted_abs_dist = np.sort(np.abs(np.log(field_values/bin_wtd_center)))
+    else:
+        sorted_abs_dist = np.sort(np.abs(field_values - bin_wtd_center))
+
+    # Distance from the bin center you have to go to obtain `tgt_num_events`
+    tgt_num_events_dist = np.exp(sorted_abs_dist[tgt_num_evts-1])
+
+    # Maximum distance the  tgt_max_binwidth_factor` allows us to go in order
+    # to obtain `tgt_num_evts` events
+    if bin.is_log:
+        tgt_max_dist = bin_half_width * bin_width*tgt_max_binwidth_factor
+    else:
+        tgt_max_dist = bin_half_width + bin_width*tgt_max_binwidth_factor
+
+    # Define a single "target" distance taking into consideration that we
+    # should neither exceed `tgt_max_dist` nor `tgt_num_evts`
+    if tgt_num_events_dist < tgt_max_dist:
+        tgt_dist = tgt_num_events_dist
+    else:
+        tgt_dist = tgt_max_dist
+
+    # If the target distance is within the bin, simply take all events from
+    # the bin and we're done, as we will get >= tgt_num_events within the bin.
+    if tgt_dist <= bin_half_width:
+        thresh_dist = bin_half_width
+
+    else:
+        # Figure out how far out we have to go to get `min_num_events`
+        min_num_events_dist = np.exp(sorted_abs_dist[min_num_evts-1])
+
+        # If this is _further_ than `tgt_dist`, then we have to suck it up
+        # and go `min_num_events_dist` away to ensure we collect enough events
+        if min_num_events_dist > tgt_dist:
+            thresh_dist = min_num_events_dist
+
+        # But if we can stop at tgt_dist away and get more events than
+        # min_num_evts, we should do that to maximize our statistics
+        else:
+            thresh_dist = tgt_dist
+
+    if bin.is_log:
+        lower_edge = bin_wtd_center / thresh_dist
+        upper_edge = bin_wtd_center * thresh_dist
+    else:
+        lower_edge = bin_wtd_center - thresh_dist
+        upper_edge = bin_wtd_center + thresh_dist
+
+    # ASSUMPTION: applyCut is an in-place operation
+    events_subset = deepcopy(events)
+    cut_str = '({field:s} >= {lower:.15e}) & ({field:s} <= {upper:.15e})'
+    keep_criteria = cut_str.format(field=bin.name, lower=lower_edge,
+                                   upper=upper_edge)
+    events_subset.applyCut(keep_criteria=keep_criteria)
+
+    return events_subset
 
 
 # TODO: the below logic does not generalize to muons, but probably should
@@ -59,11 +271,11 @@ class vbwkde(Stage):
     variable-bandwidth kernel density estimation. These transforms can be
     accessed by [true_energy][true_coszen][reco_energy][reco_coszen].
     These distributions represent the probability that a true event
-    (true_energy, true_coszen) with be reconstructed as (reco_energy,
+    (true_energy, true_coszen) with be reconstructed as (pid, reco_energy,
     reco_coszen).
 
-    From these transforms and the true event rate maps, calculates
-    the reconstructed even rate templates.
+    From these transforms and "true" event rate maps as inputs, calculates
+    the reconstructed even rate maps.
 
     Parameters
     ----------
@@ -123,9 +335,14 @@ class vbwkde(Stage):
         Each must match a corresponding dimension in `output_binning`.
 
     output_binning : MultiDimBinning or convertible thereto
-        Output binning is in reconstructed variables, with names (traditionally
-        in PISA but not necessarily) prefixed by "reco_". Each must match a
-        corresponding dimension in `input_binning`.
+        Output binning is in reconstructed variables, which can include pid.
+
+    kde_binning : MultiDimBinning
+        Must contain true_energy and true_coszen dimensions. Used for
+        grouping events together for finding KDEs. Therefore, it is
+        important that within the defined true-variables binning, the
+        reconstructed variables (including PID used) are uncorrelated with
+        the true variables.
 
     transforms_cache_depth : int >= 0
 
@@ -141,21 +358,27 @@ class vbwkde(Stage):
     The `transform_groups` string is interpreted (and therefore defined) by
     pisa.utils.flavInt.flavint_groups_string. E.g. commonly one might use:
 
-    'nue_cc+nuebar_cc, numu_cc+numubar_cc, nutau_cc+nutaubar_cc, nuall_nc+nuallbar_nc'
+    'nue cc + nuebar cc, numu_cc+numubar_cc, nutau_cc+nutaubar_cc, nuall_nc+nuallbar_nc'
 
-    Any particle type not explicitly mentioned is taken as a singleton group.
+    Any particle type not explicitly mentioned in `transform_groups` is taken
+    as a singleton group.
+
     Plus signs add types to a group, while groups are separated by commas.
-    Whitespace is ignored, so add whitespace for readability.
+    Whitespace is ignored.
+
+    Input "true" event rate maps should be binned finely enough that the
+    smearing that is removed when we lump all events in the kde_binning
+    together and KDE the reco error is not an issue.
 
     """
     E_CONVOLUTION = True
     CZ_CONVOLUTION = True
 
     def __init__(self, params, particles, input_names, transform_groups,
-                 sum_grouped_flavints, input_binning, output_binning,
-                 disk_cache, error_method=None, transforms_cache_depth=20,
-                 outputs_cache_depth=20, memcache_deepcopy=True,
-                 debug_mode=None):
+                 kde_binning, sum_grouped_flavints, input_binning,
+                 output_binning, disk_cache, error_method=None,
+                 transforms_cache_depth=20, outputs_cache_depth=20,
+                 memcache_deepcopy=True, debug_mode=None):
         assert particles in ['neutrinos', 'muons']
         self.particles = particles
         self.transform_groups = flavintGroupsFromString(transform_groups)
@@ -180,6 +403,12 @@ class vbwkde(Stage):
                 output_names = [str(g) for g in self.transform_groups]
             else:
                 output_names = input_names
+        elif self.particles == 'muons':
+            raise NotImplementedError('`particles` = %s not implemented.'
+                                      % self.particles)
+        else:
+            raise ValueError('Invalid value for `particles`: "%s"'
+                             % self.particles)
 
         # Invoke the init method from the parent class, which does a lot of
         # work for you.
@@ -199,13 +428,63 @@ class vbwkde(Stage):
             debug_mode=debug_mode
         )
 
-        # Can do these now that binning has been set up in call to Stage's init
+        #
+        # Can do the below now that binning has been set up in call to Stage's
+        # init
+        #
+
         self.validate_binning()
+
+        # Only keep the dimensions in KDE_TRUE_BINNING that are necessary to
+        # handle the input_binning and output_binning that the user specifies.
+        # These dimensions are stored here.
+        kde_dims = []
+
+        # Likewise, only keep the parts of the KDE_DIM_DEP mapping that are
+        # necessary.
+        self.kde_dim_dep = OrderedDict()
+        """Only parts of KDE_DIM_DEP mapping that are relevant"""
+
+        self.dim_indices = OrderedDict()
+        """Reference for indexing"""
+
+        in_basenames = input_binning.basenames
+        kde_basenames = KDE_TRUE_BINNING.basenames
+        for out_idx, dim in enumerate(output_binning):
+            name = dim.name
+            basename = dim.basename
+
+            in_idx = None
+            if basename in in_basenames:
+                in_idx = in_basenames[basename]
+
+            kde_idx = None
+            if basename in kde_basenames:
+                kde_idx = kde_basenames[basename]
+                kde_dims.append(KDE_TRUE_BINNING.dims[kde_idx])
+            else:
+                # E.g., pid is not in KDE_TRUE_BINNING but will be taken from
+                # user's output_binning
+                kde_dims.append(output_binning.dims[out_idx])
+
+            self.kde_dim_dep[basename] = KDE_DIM_DEP[basename]
+            self.dim_indices[basename] = OrderedDict([
+                ('in', in_idx),
+                ('out', out_idx),
+                ('kde', kde_idx)
+            ])
+
+        self.kde_binning = MultiDimBinning(kde_dims)
+        """Binning for characterizing resolutions (and optionally pid)"""
+
         self.include_attrs_for_hashes('particles')
         self.include_attrs_for_hashes('transform_groups')
+        self.include_attrs_for_hashes('kde_binning')
+        self.include_attrs_for_hashes('kde_dim_dep')
+        self.include_attrs_for_hashes('dim_indices')
         self.include_attrs_for_hashes('sum_grouped_flavints')
 
-        self._kde_hash = None
+        self._kde_hashes = {}
 
     def validate_binning(self):
         """Require input dimensions of "true_energy" and "true_coszen" (in any
@@ -231,7 +510,7 @@ class vbwkde(Stage):
 
     @profile
     def _compute_transforms(self):
-        """Generate reconstruction "smearing kernels" by estimating the
+        """Generate reconstruction smearing kernels by estimating the
         distribution of reconstructed events corresponding to each bin of true
         events using VBW-KDE.
 
@@ -252,12 +531,12 @@ class vbwkde(Stage):
         # Compute the KDEs for each (pid, E) bin (this is then propagated to
         # each (pid, E, cz) bin, as the transform is assumed to not be
         # cz-dependent)
-        all_kde_info = self.get_all_kde_info()
+        self.characterize_resolutions()
 
         # Apply scaling factors and figure out the area per bin for each KDE
         xforms = []
         for xform_flavints in self.transform_groups:
-            reco_kernel = self.compute_resolutions(
+            reco_kernel = self.generate_smearing_kernel(
                 kde_info=all_kde_info[str(xform_flavints)],
             )
 
@@ -297,7 +576,202 @@ class vbwkde(Stage):
         return TransformSet(transforms=xforms)
 
     @profile
-    def get_all_kde_info(self):
+    def characterize_resolutions(self):
+        """Compute the KDEs for each (pid, E) bin. If PID is not present, this
+        is just (E). The results are propagated to each (pid, E, cz) bin, as
+        the transforms are assumed to not be cz-dependent.
+
+        The results are cached to disk and simply loaded from that cache to
+        avoid re-computation.
+
+        Returns
+        -------
+        all_kde_info : OrderedDict with format:
+            {
+                '<flavint group 1>': kde_info,
+                '<flavint group 2>': kde_info,
+                ...
+            }
+            where the format of kde_info is defined in `compute_kdes`
+
+        """
+        # Only hash on the things that could be relevant to the KDE's:
+        # 1. source code: if the code changes at all
+        # 2. input_binning: only input binning matters for the KDE's (output
+        #       binning only comes into play when computing the actual
+        #       transform kernels)
+        # 3. reco_events: event used to compute the transforms, including any
+        #       cuts applied
+        # 4. transform_events_keep_criteria: redundant with the cuts registered
+        #       with the events? not sure... so using it anyway
+        # 5. transform_groups: which flav/ints are grouped for computing KDE
+        hash_items = [
+            self.source_code_hash,
+            hash(self.events),
+            hash(self.transform_groups),
+        ]
+
+        for dim, deps in self.kde_dim_dep.items():
+            augmented_hash_items = deepcopy(hash_items)
+            dep_dims = []
+            for dep in deps:
+                dim = self.kde_binning[dep]
+                augmented_hash_items.append(hash(dim))
+                dep_dims.append(dim)
+            new_hash = hash(augmented_hash_items)
+
+            # See if we already have correct kde_info for this dim
+            if new_hash == self._kde_hashes[dim]:
+                continue
+
+            # Try to load from disk cache
+            if self.disk_cache is not None and new_hash in self.disk_cache:
+                self.kde_info[dim] = self.disk_cache[new_hash]
+                self._kde_hashes[dim] = new_hash
+                continue
+
+            # Compute kde_info
+
+            if len(dep_dims) == 1:
+                # Define a dummy iterable
+                all_bins_first_dims = [None]
+            else:
+                # Iterator over all bins of all dimensions except the last
+                all_bins_first_dims = product(*dep_dims[:-1])
+
+            evts = [self.remaining_events] + [None]*
+            cuts = []
+
+            for bin_first_dims in all_bins_first_dims:
+                # Apply hard cuts on all but final dim dependency (usually
+                # true_energy), which is allowed to "expand" to capture enough
+                # events (and hence no hard cut on the events here)
+                events = deepcopy(self.events)
+                for bin_dim in bin_first_dims:
+                    events.keepInbounds(bin_dim)
+
+                for flavintgroup in self.transform_groups:
+                    repr_flavint = flavintgroup[0]
+                    for bin_dim
+
+                flav_events = collect_enough_events(events, 
+
+            if self.disk_cache is not None:
+                self.disk_cache[new_hash] = kde_info
+
+    def _characterize_dim(self, dim, new_hash):
+        if dim == 'pid':
+            self._characterize_pid(new_hash=new_hash)
+        elif dim == 'energy':
+            self._characterize_energy(new_hash=new_hash)
+        elif dim == 'coszen':
+            self._characterize_coszen(new_hash=new_hash)
+
+    def _characterize_pid(self, new_hash=None):
+        """PID is characterized within each kde_binning.true_energy bin (but
+        including events beyond those bins in case we don't have enough
+        statisticsin the bin).
+
+        """
+        characterization = OrderedDict()
+        for flavintgroup in self.params.transform_groups.value:
+            group_characterization = []
+            repr_flavint = flavintgroup[0]
+            for ebin in self.kde_binning.true_energy:
+                events = collect_enough_events(
+                    events=self.events, flavint=repr_flavint, bin=ebin,
+                )
+                bandwidths, x, densty = vbw_kde(data=enu_err)
+                dx = np.abs((eval_at[-1] - eval_at[0]) / (len(eval_at)-1))
+                group_characterization.append(
+                    OrderedDict((('x', eval_at), ('density', density*dx)))
+                )
+
+            characterization[flavintgroup] = group_characterization
+        self.pid_characterization = characterization
+        self._pid_kde_hash = new_hash
+
+    def _characterize_energy(self):
+        if 'pid' in self.output_binning:
+            pid_binning = self.output_binning.pid
+        else:
+            pid_binning = [None]
+
+        characterization = []
+        for pbin_n, pbin in enumerate(pid_binning):
+            if pbin is None:
+                pid_events = self.events
+            else:
+                pid_events = deepcopy(self.events)
+                pid_events.applyCut(pbin.inbounds_criteria)
+
+            group_characterization = OrderedDict()
+            for flavintgroup in self.params.transform_groups.value:
+                characterizations_vs_energy = []
+                repr_flavint = flavintgroup[0]
+                for ebin_n, ebin in enumerate(self.kde_binning.true_energy):
+                    events = collect_enough_events(
+                        events=pid_events, flavint=repr_flavint, bin=ebin,
+                    )
+                    bandwidths, x, densty = vbw_kde(data=enu_err)
+                    dx = np.abs((eval_at[-1] - eval_at[0]) / (len(eval_at)-1))
+                    characterizations_vs_energy.append(
+                        OrderedDict((('x', eval_at), ('density', density*dx)))
+                    )
+                group_characterization[flavintgroup] = (
+                    characterizations_vs_energy
+                )
+            characterization.append(group_characterization)
+        self.energy_characterization = characterization
+        self._energy_kde_hash = new_hash
+
+    def _characterize_coszen(self, new_hash):
+        if 'pid' in self.output_binning:
+            pid_binning = self.output_binning.pid
+        else:
+            pid_binning = [None]
+
+        if 'true_coszen' in self.transform_binning:
+            cz_binning = self.transform_binning.true_coszen
+        else:
+            cz_binning = [None]
+
+        characterization = []
+        for pbin_n, pbin in enumerate(pid_binning):
+            if pbin is None:
+                pid_events = self.events
+            else:
+                pid_events = deepcopy(self.events)
+                pid_events.applyCut(pbin.inbounds_criteria)
+
+            cz_characterization = []
+            for czbin_n, czbin in enumerate(cz_binning):
+                if czbin is None:
+                    cz_events = pid_events
+                else:
+                    cz_events = deepcopy(pid_events)
+                    cz_events.applyCut(czbin.inbounds_criteria)
+
+                pid_characterization = OrderedDict()
+                for flavintgroup in self.params.transform_groups.value:
+                    group_characterization = []
+                    repr_flavint = flavintgroup[0]
+                    for ebin_n, ebin in enumerate(self.kde_binning.true_energy):
+                        events = collect_enough_events(
+                            events=pid_events, flavint=repr_flavint, bin=ebin,
+                        )
+                        bandwidths, x, densty = vbw_kde(data=enu_err)
+                        dx = np.abs((eval_at[-1] - eval_at[0]) / (len(eval_at)-1))
+                        group_characterization.append(
+                            OrderedDict((('x', eval_at), ('density', density*dx)))
+                        )
+                    pid_characterization[flavintgroup] = group_characterization
+                characterization.append(pid_characterization)
+        self.coszen_characterization = characterization
+        self._coszen_kde_hash = new_hash
+
+    @profile
+    def characterize_resolutions(self):
         """Compute the KDEs for each (pid, E) bin. If PID is not present, this
         is just (E). The results are propagated to each (pid, E, cz) bin, as
         the transforms are assumed to not be cz-dependent.
@@ -361,9 +835,9 @@ class vbwkde(Stage):
         self.all_extra_info = OrderedDict()
         for xform_flavints in self.transform_groups:
             logging.debug("Working on %s reco kernels" %xform_flavints)
-            repr_flav_int = xform_flavints.flavints()[0]
+            repr_flavint = xform_flavints[0]
             kde_info, extra_info = self.compute_kdes(
-                events=self.remaining_events[repr_flav_int],
+                events=self.remaining_events[repr_flavint],
                 input_binning=self.input_binning,
                 output_binning=self.output_binning
             )
@@ -469,10 +943,6 @@ class vbwkde(Stage):
             }
 
         """
-        # Constants. Can turn into stage args or params if that makes more
-        # sense.
-        OVERFIT_FACTOR = 1.0
-
         if isinstance(output_binning, MultiDimBinning):
             output_dim_names = output_binning.names
         elif isinstance(output_binning, basestring):
@@ -660,10 +1130,9 @@ class vbwkde(Stage):
             # Compute variable-bandwidth KDEs
             enu_bw, enu_mesh, enu_pdf = vbw_kde(
                 data=enu_err,
-                overfit_factor=OVERFIT_FACTOR,
-                MIN=e_kde_lims[0],
-                MAX=e_kde_lims[1],
-                N=e_kde_num_pts
+                min=e_kde_lims[0],
+                max=e_kde_lims[1],
+                n_dct=e_kde_num_pts
             )
 
             if np.min(enu_pdf) < 0:
@@ -713,7 +1182,7 @@ class vbwkde(Stage):
             # number, the longer it takes to compute the densities at all the
             # points. Here, just choosing a fixed number regardless of the data
             # or binning
-            N_cz_mesh = 2**12
+            n_cz_mesh = 2**12
 
             # Data range for VBW-KDE to consider
             cz_kde_min = -9
@@ -731,10 +1200,9 @@ class vbwkde(Stage):
                 try:
                     cz_bw, cz_mesh, cz_pdf = vbw_kde(
                         data=cz_err,
-                        overfit_factor=OVERFIT_FACTOR,
-                        MIN=cz_kde_min_ext,
-                        MAX=cz_kde_max_ext,
-                        N=N_cz_mesh_ext
+                        min=cz_kde_min_ext,
+                        max=cz_kde_max_ext,
+                        n_dct=n_cz_mesh_ext
                     )
                 # TODO: only catch specific exception
                 except:
@@ -762,8 +1230,8 @@ class vbwkde(Stage):
                         )
 
                     # Adjust kde_num_points accordingly
-                    N_cz_mesh_ext = int(
-                        N_cz_mesh* ((cz_kde_max_ext - cz_kde_min_ext)
+                    n_cz_mesh_ext = int(
+                        n_cz_mesh* ((cz_kde_max_ext - cz_kde_min_ext)
                                     / (cz_kde_max - cz_kde_min))
                     )
                 else:
@@ -842,10 +1310,9 @@ class vbwkde(Stage):
                 # Compute variable-bandwidth KDEs
                 pid_bw, pid_mesh, pid_pdf = vbw_kde(
                     data=pid,
-                    overfit_factor=OVERFIT_FACTOR,
-                    MIN=pid_kde_lims[0],
-                    MAX=pid_kde_lims[1],
-                    N=pid_kde_num_pts
+                    min=pid_kde_lims[0],
+                    max=pid_kde_lims[1],
+                    n_dct=pid_kde_num_pts
                 )
 
                 if np.min(pid_pdf) < 0:
@@ -905,7 +1372,7 @@ class vbwkde(Stage):
         return kde_info, extra_info
 
     @profile
-    def compute_resolutions(self, kde_info):
+    def generate_smearing_kernel(self, kde_info):
         """Construct a kernel from linear interpolants describing the
         normalized density of reconstructed events.
 
