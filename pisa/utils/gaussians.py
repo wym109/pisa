@@ -19,7 +19,7 @@ from scipy import stats
 from pisa import (FTYPE, OMP_NUM_THREADS, NUMBA_AVAIL, NUMBA_CUDA_AVAIL,
                   numba_jit)
 from pisa.utils.log import logging, set_verbosity
-import pisa.utils.gaussians_cython.gaussians as _gaussians_cython
+from pisa.utils import gaussians_cython
 
 # TODO: if the Numba CUDA functions are defined, then other CUDA (e.g. pycuda)
 # code doesn't run. Need to fix this behavior. (E.g. context that gets
@@ -104,7 +104,8 @@ def gaussians(x, mu, sigma, implementation=None):
     elif implementation == 'cython' or (implementation is None
                                         and not NUMBA_AVAIL):
         logging.trace('Using cython Gaussians implementation')
-        _gaussians_cython(outbuf, x, mu, sigma, threads=OMP_NUM_THREADS)
+        gaussians_cython.gaussians(outbuf, x, mu, sigma,
+                                   threads=OMP_NUM_THREADS)
 
     # Use singlethreaded version if OMP_NUM_THREADS is 1
     elif implementation == 'singlethreaded' or (implementation is None and
@@ -249,21 +250,19 @@ def test_gaussians():
             dt = time() - t0
             timings[impl].append(np.round(dt*1000, decimals=3))
             if not np.allclose(test, ref):
-                logging.error('test: %s', test)
-                logging.error('ref : %s', ref)
-                logging.error('diff: %s', (test - ref))
-                logging.error('\nmus:%s\nsigmas: %s', mus, sigmas)
-                logging.error('implementation: %s', impl)
+                logging.error('BAD RESULT, implementation: %s', impl)
+                logging.error('max abs fract diff: %s',
+                              np.max(np.abs((test/ref - 1))))
 
-    logging.info('gaussians() timings  (Note: OMP_NUM_THREADS=%d; evaluated at'
-                 ' %e points)', OMP_NUM_THREADS, n_eval)
+    logging.debug('gaussians() timings  (Note: OMP_NUM_THREADS=%d; evaluated'
+                  ' at %e points)', OMP_NUM_THREADS, n_eval)
     timings_str = '  '.join([format(t, '10d') for t in n_gaus])
-    logging.info('         %15s       %s', 'impl.', timings_str)
+    logging.debug('         %15s       %s', 'impl.', timings_str)
     timings_str = '  '.join(['-'*10 for t in n_gaus])
-    logging.info('         %15s       %s', '-'*15, timings_str)
+    logging.debug('         %15s       %s', '-'*15, timings_str)
     for impl in GAUS_IMPLEMENTATIONS:
         timings_str = '  '.join([format(t, '10.3f') for t in timings[impl]])
-        logging.info('Timings, %15s (ms): %s', impl, timings_str)
+        logging.debug('Timings, %15s (ms): %s', impl, timings_str)
     logging.info('<< PASS : test_gaussians >>')
 
 
