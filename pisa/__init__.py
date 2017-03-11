@@ -11,9 +11,45 @@ from pint import UnitRegistry
 
 from ._version import get_versions
 
+PYCUDA_AVAIL = False
+try:
+    from pycuda import driver
+except ImportError:
+    pass
+else:
+    PYCUDA_AVAIL = True
+
+NUMBA_AVAIL = False
+try:
+    from numba import jit as numba_jit
+except ImportError:
+    def numba_jit(*args, **kwargs):
+        """Dummy decorator to replace Numba's `jit`"""
+        def decorator(func):
+            """Decorator that gets the actual function being decorated"""
+            return func
+        return decorator
+else:
+    NUMBA_AVAIL = True
+
+NUMBA_CUDA_AVAIL = False
+try:
+    from numba import cuda
+    assert len(cuda.gpus) > 0
+except ImportError:
+    pass #logging.warn('Could not import numba.cuda')
+except AssertionError:
+    pass #logging.warn('Could not find a GPU for numba.cuda to use')
+else:
+    NUMBA_CUDA_AVAIL = True
+finally:
+    if 'cuda' in globals() or 'cuda' in locals():
+        del cuda
+
 
 __all__ = ['__version__',
-           'ureg', 'Q_',
+           'ureg', 'Q_', 'numba_jit',
+           'PYCUDA_AVAIL', 'NUMBA_AVAIL', 'NUMBA_CUDA_AVAIL',
            'OMP_NUM_THREADS',
            'FTYPE', 'HASH_SIGFIGS', 'C_FTYPE', 'C_PRECISION_DEF',
            'CACHE_DIR']
@@ -32,26 +68,24 @@ FTYPE = np.float64
 derived from this"""
 
 # Set FTYPE from environment variable PISA_FTYPE, if it is defined
-float32_strings = ['single', 'float32', 'fp32', '32', 'f4']
-float64_strings = ['double', 'float64', 'fp64', '64', 'f8']
-msg = ''
+FLOAT32_STRINGS = ['single', 'float32', 'fp32', '32', 'f4']
+FLOAT64_STRINGS = ['double', 'float64', 'fp64', '64', 'f8']
 if 'PISA_FTYPE' in os.environ:
-    pisa_ftype = os.environ['PISA_FTYPE']
-    sys.stderr.write('PISA_FTYPE env var is defined as: "%s"; ' %pisa_ftype)
-    if pisa_ftype.strip().lower() in float32_strings:
+    PISA_FTYPE = os.environ['PISA_FTYPE']
+    sys.stderr.write('PISA_FTYPE env var is defined as: "%s"; ' % PISA_FTYPE)
+    if PISA_FTYPE.strip().lower() in FLOAT32_STRINGS:
         FTYPE = np.float32
-    elif pisa_ftype.strip().lower() in float64_strings:
+    elif PISA_FTYPE.strip().lower() in FLOAT64_STRINGS:
         FTYPE = np.float64
     else:
-        msg = (
+        sys.stderr.write('\n')
+        raise ValueError(
             'Environment var PISA_FTYPE="%s" is unrecognized.\n'
             '--> For single precision set PISA_FTYPE to one of %s\n'
             '--> For double precision set PISA_FTYPE to one of %s\n'
-            %(pisa_ftype, float32_strings, float64_strings)
+            %(PISA_FTYPE, FLOAT32_STRINGS, FLOAT64_STRINGS)
         )
-        sys.stderr.write('\n')
-        raise ValueError(msg)
-del float32_strings, float64_strings, msg
+del FLOAT32_STRINGS, FLOAT64_STRINGS
 
 
 # Define HASH_SIGFIGS to set hashing precision based on FTYPE above; value here
