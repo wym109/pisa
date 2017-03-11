@@ -220,17 +220,15 @@ def do_setup():
             'pisa.utils.gaussians_cython',
             ['pisa/utils/gaussians_cython.pyx'],
             libraries=['m'],
-            extra_compile_args=[
-                '-fopenmp', '-O2'
-            ],
+            extra_compile_args=['-fopenmp', '-O2'],
             extra_link_args=['-fopenmp']
         )
     else:
         gaussians_cython_module = Extension(
             'pisa.utils.gaussians_cython',
             ['pisa/utils/gaussians_cython.pyx'],
-            extra_compile_args=['-O2'],
-            libraries=['m']
+            libraries=['m'],
+            extra_compile_args=['-O2']
         )
     ext_modules.append(gaussians_cython_module)
 

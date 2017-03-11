@@ -14,15 +14,19 @@ from ._version import get_versions
 PYCUDA_AVAIL = False
 try:
     from pycuda import driver
-except ImportError:
-    pass
+except Exception:
+    pass #logging.debug('Failed to import or use pycuda', exc_info=True)
 else:
     PYCUDA_AVAIL = True
 
 NUMBA_AVAIL = False
+def dummy_func(x):
+    x += 1
 try:
     from numba import jit as numba_jit
-except ImportError:
+    numba_jit(dummy_func)
+except Exception:
+    #logging.debug('Failed to import or use numba', exc_info=True)
     def numba_jit(*args, **kwargs):
         """Dummy decorator to replace Numba's `jit`"""
         def decorator(func):
@@ -35,11 +39,10 @@ else:
 NUMBA_CUDA_AVAIL = False
 try:
     from numba import cuda
-    assert len(cuda.gpus) > 0
-except ImportError:
-    pass #logging.warn('Could not import numba.cuda')
-except AssertionError:
-    pass #logging.warn('Could not find a GPU for numba.cuda to use')
+    assert len(cuda.gpus) > 0, 'No GPUs detected'
+    cuda.jit('void(float64)')(dummy_func)
+except Exception:
+    pass #logging.debug('Failed to import or use numba.cuda', exc_info=True)
 else:
     NUMBA_CUDA_AVAIL = True
 finally:
