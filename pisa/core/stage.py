@@ -592,7 +592,7 @@ class Stage(object):
         unused_input_names = names_in_inputs.difference(self.input_names)
 
         if len(unused_input_names) == 0:
-            return outputs
+            return outputs.rebin(self.output_binning)
 
         # Create a new output container different from `outputs` but copying
         # the contents, for purposes of attaching the sideband objects found.
@@ -600,7 +600,7 @@ class Stage(object):
         for name in unused_input_names:
             augmented_outputs.append(inputs[name])
 
-        return augmented_outputs
+        return augmented_outputs.rebin(self.output_binning)
 
     @profile
     def _check_params(self, params):
