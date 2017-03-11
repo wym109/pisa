@@ -1680,7 +1680,8 @@ class MultiDimBinning(object):
     def ito(self, *args, **kwargs):
         """Convert units in-place. Cf. Pint's `ito` method."""
         units_list = self._args_kwargs_to_list(*args, **kwargs)
-        [dim.ito(units) for dim, units in izip(self._dimensions, units_list)]
+        for dim, units in izip(self._dimensions, units_list):
+            dim.ito(units)
 
     def to(self, *args, **kwargs):
         """Convert the contained dimensions to the passed units. Unspecified
