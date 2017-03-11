@@ -104,8 +104,14 @@ def gaussians(x, mu, sigma, implementation=None):
     elif implementation == 'cython' or (implementation is None
                                         and not NUMBA_AVAIL):
         logging.trace('Using cython Gaussians implementation')
-        gaussians_cython.gaussians(outbuf, x, mu, sigma,
-                                   threads=OMP_NUM_THREADS)
+        if FTYPE == np.float64:
+            gaussians_cython.gaussians_d(
+                outbuf, x, mu, sigma, threads=OMP_NUM_THREADS
+            )
+        elif FTYPE == np.float32:
+            gaussians_cython.gaussians_s(
+                outbuf, x, mu, sigma, threads=OMP_NUM_THREADS
+            )
 
     # Use singlethreaded version if OMP_NUM_THREADS is 1
     elif implementation == 'singlethreaded' or (implementation is None and
