@@ -295,8 +295,8 @@ class Events(FlavIntData):
         flavints_to_process = self.flavints()
         flavints_processed = []
         remaining_data = {}
-        for flav_int in flavints_to_process:
-            data_dict = self[flav_int]
+        for flavint in flavints_to_process:
+            data_dict = self[flavint]
             field_names = data_dict.keys()
 
             # TODO: handle unicode:
@@ -307,25 +307,23 @@ class Events(FlavIntData):
 
             # Replace simple field names with full paths into the data that
             # lives in this object
-            crit_str = (keep_criteria)
+            crit_str = keep_criteria
             for field_name in field_names:
                 crit_str = crit_str.replace(
-                    field_name, 'self["%s"]["%s"]' %(flav_int, field_name)
+                    field_name, 'self["%s"]["%s"]' %(flavint, field_name)
                 )
             mask = eval(crit_str)
-            remaining_data[flav_int] = (
-                {k: v[mask] for k, v in self[flav_int].iteritems()}
+            remaining_data[flavint] = (
+                {k: v[mask] for k, v in self[flavint].iteritems()}
             )
-            flavints_processed.append(flav_int)
+            flavints_processed.append(flavint)
 
         remaining_events = Events()
         remaining_events.metadata.update(deepcopy(self.metadata))
         remaining_events.metadata['cuts'].append(keep_criteria)
 
-        fig_to_process = []
-        fig_to_process += self.flavint_groups
-        for fig in fig_to_process:
-            remaining_events[fig] = deepcopy(remaining_data.pop(fig))
+        for flavint in flavints_processed:
+            remaining_events[flavint] = deepcopy(remaining_data[flavint])
 
         return remaining_events
 
@@ -901,7 +899,7 @@ def test_Events():
     true_e_binning = OneDimBinning(
         name='true_energy', num_bins=80, is_log=True, domain=[10, 60]*ureg.GeV
     )
-    events.keepInbounds(true_e_binning)
+    events = events.keepInbounds(true_e_binning)
     for fi in events.flavints():
         assert np.min(events[fi]['true_energy']) >= 10
         assert np.max(events[fi]['true_energy']) <= 60
@@ -914,7 +912,7 @@ def test_Events():
         name='true_coszen', num_bins=40, is_lin=True, domain=[-0.8, 0]
     )
     mdb = MultiDimBinning([true_e_binning, true_cz_binning])
-    events.keepInbounds(mdb)
+    events = events.keepInbounds(mdb)
     for fi in events.flavints():
         assert np.min(events[fi]['true_energy']) >= 20
         assert np.max(events[fi]['true_energy']) <= 50
