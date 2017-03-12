@@ -323,7 +323,7 @@ class smooth(Stage):
         for xform_flavints in self.transform_groups:
             logging.info("Working on %s effective areas xform" %xform_flavints)
 
-            raw_hist = self.remaining_events.histogram(
+            raw_hist = self.events.histogram(
                 kinds=xform_flavints,
                 binning=input_binning,
                 weights_col='weighted_aeff',
