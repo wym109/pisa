@@ -64,13 +64,11 @@ See also
 
 from __future__ import division
 
-from collections import Iterable, OrderedDict
 from math import exp, sqrt
-import threading
 from time import time
 
 import numpy as np
-from scipy import fftpack, interpolate, optimize, stats
+from scipy import fftpack, interpolate, optimize
 
 from pisa import FTYPE, numba_jit
 from pisa.utils.gaussians import gaussians
@@ -82,11 +80,11 @@ __all__ = ['fbw_kde', 'vbw_kde', 'isj_bandwidth', 'fixed_point',
            'test_fixed_point']
 
 
-PI = FTYPE(np.pi)
-TWOPI = FTYPE(2*PI)
-SQRTPI = FTYPE(sqrt(PI))
-SQRT2PI = FTYPE(sqrt(TWOPI))
-PISQ = FTYPE(PI**2)
+PI = (np.pi)
+TWOPI = (2*PI)
+SQRTPI = (sqrt(PI))
+SQRT2PI = (sqrt(TWOPI))
+PISQ = (PI**2)
 
 def fbw_kde(data, n_dct=None, min=None, max=None, evaluate_dens=True,
             evaluate_at=None):
@@ -117,8 +115,8 @@ def fbw_kde(data, n_dct=None, min=None, max=None, evaluate_dens=True,
     Returns
     -------
     bandwidth : float
-    mesh : array of float
-    density : array of float
+    evaluate_at : array of float
+    density : None or array of float
 
     """
     if n_dct is None:
@@ -127,7 +125,7 @@ def fbw_kde(data, n_dct=None, min=None, max=None, evaluate_dens=True,
     n_dct = int(n_dct)
     data_len = len(data)
 
-    # Parameters to set up the mesh on which to calculate
+    # Parameters to set up the points on which to evaluate the density
     if min is None or max is None:
         minimum = data.min()
         maximum = data.max()
@@ -156,9 +154,9 @@ def fbw_kde(data, n_dct=None, min=None, max=None, evaluate_dens=True,
 
         # Inverse DCT to get density
         density = fftpack.idct(sm_dct_data, norm=None)*n_dct/hist_range
-        mesh = (bins[0:-1] + bins[1:]) / 2
-        density = density/np.trapz(density, mesh)
-        return isj_bw, mesh, density
+        evaluate_at = (bins[0:-1] + bins[1:]) / 2
+        density = density/np.trapz(density, evaluate_at)
+        return isj_bw, evaluate_at, density
 
     evaluate_at = np.asarray(evaluate_at, dtype=FTYPE)
     density = gaussians(
@@ -253,6 +251,25 @@ def vbw_kde(data, n_dct=None, min=None, max=None, n_addl_iter=0,
         evaluate_at=None
     )
 
+    # Include edges (min, max) in the grid and extend the densities to the
+    # left/right, respectively
+
+    all_gridpoints = []
+    all_dens = []
+    if grid[0] != min:
+        all_gridpoints.append([min])
+        all_dens.append([pilot_dens_on_grid[0]])
+
+    all_gridpoints.append(grid)
+    all_dens.append(pilot_dens_on_grid)
+
+    if grid[-1] != max:
+        all_gridpoints.append([max])
+        all_dens.append([pilot_dens_on_grid[-1]])
+
+    grid = np.concatenate(all_gridpoints)
+    pilot_dens_on_grid = np.concatenate(all_dens)
+
     # Use linear interpolation to get density at the data points
     interp = interpolate.interp1d(
         x=grid,
@@ -262,7 +279,9 @@ def vbw_kde(data, n_dct=None, min=None, max=None, n_addl_iter=0,
         bounds_error=True,
         fill_value=np.nan
     )
-    pilot_dens_at_datapoints = interp(data)
+    # TODO: For some reason this gets translated into an object array, so the
+    # `astype` call is necessary
+    pilot_dens_at_datapoints = interp(data).astype(FTYPE)
 
     n_iter = 1 + n_addl_iter
     for n in xrange(n_iter):
@@ -276,8 +295,7 @@ def vbw_kde(data, n_dct=None, min=None, max=None, n_addl_iter=0,
         #       Estimates of Probability Densities, Annals of Statistics
         #       Vol. 23, No. 1, 1-10, 1995
         kernel_bandwidths = (
-            isj_bw * np.sqrt(np.max(pilot_dens_at_datapoints))
-            / np.sqrt(pilot_dens_at_datapoints)
+            isj_bw * np.sqrt(np.max(pilot_dens_at_datapoints)) / np.sqrt(pilot_dens_at_datapoints)
         )
 
         if n < n_addl_iter:
@@ -388,7 +406,9 @@ def fixed_point(t, data_len, i_range, a2):
 
         tot = 0.0
         for idx in range(len_i): #I_, a2_ in zip(I, a2):
-            tot += i_range[idx]**s * a2[idx] * exp(-i_range[idx] * PISQ * t_elap)
+            tot += (
+                i_range[idx]**s * a2[idx] * exp(-i_range[idx] * PISQ * t_elap)
+            )
         f = 2 * PI**(2*s) * tot
 
     return abs(t - (2.0 * data_len * SQRTPI * f)**(-0.4))
@@ -408,8 +428,8 @@ def test_fbw_kde():
         fbw_kde(data=enuerr, n_dct=n_dct, evaluate_at=x)
         times.append(time() - t0)
     logging.info('median time to run fbw_kde, %d samples %d dct,'
-                 ' eval. at %d points: %f ms'
-                 % (n_samp, n_dct, n_eval, np.median(times)*1000))
+                 ' eval. at %d points: %f ms',
+                 n_samp, n_dct, n_eval, np.median(times)*1000)
     logging.info('<< PASS : test_fbw_kde >>')
 
 
@@ -428,8 +448,8 @@ def test_vbw_kde():
         vbw_kde(data=enuerr, n_dct=n_dct, evaluate_at=x, n_addl_iter=n_addl)
         times.append(time() - t0)
     logging.info('median time to run vbw_kde, %d samples %d dct %d addl iter,'
-                 ' eval. at %d points: %f ms'
-                 % (n_samp, n_dct, n_addl, n_eval, np.median(times)*1000))
+                 ' eval. at %d points: %f ms',
+                 n_samp, n_dct, n_addl, n_eval, np.median(times)*1000)
     logging.info('<< PASS : test_vbw_kde >>')
 
 
