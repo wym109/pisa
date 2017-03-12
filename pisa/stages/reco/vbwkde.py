@@ -64,18 +64,18 @@ from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.utils.coords import abs2rel, rel2abs
 from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup
 from pisa.utils.hash import hash_obj
-from pisa.utils.vbwkde import vbw_kde
+from pisa.utils.vbwkde import vbwkde
 from pisa.utils.profiler import profile
 
 
-__all__ = ['EPSILON', 'KDE_DIM_DEP', 'KDE_TRUE_BINNING', 'MIN_NUM_EVENTS',
-           'TGT_NUM_EVENTS', 'TGT_MAX_BINWIDTH_FACTOR', 'KDEProfile',
-           'collect_enough_events', 'fold_coszen_error', 'extract_coordinate',
-           'vbwkde']
+__all__ = ['EPSILON', 'KDE_DIM_DEPENDENCIES', 'KDE_TRUE_BINNING',
+           'MIN_NUM_EVENTS', 'TGT_NUM_EVENTS', 'TGT_MAX_BINWIDTH_FACTOR',
+           'KDEProfile', 'collect_enough_events', 'fold_coszen_error',
+           'extract_coordinate', 'vbwkde']
 
 
 EPSILON = 1e-4
-KDE_DIM_DEP = OrderedDict([
+KDE_DIM_DEPENDENCIES = OrderedDict([
     ('pid', ['true_energy']),
     ('energy', ['pid', 'true_energy']),
     ('coszen', ['pid', 'true_coszen', 'true_energy'])
@@ -496,10 +496,10 @@ class vbwkde(Stage):
         # These dimensions are stored here.
         kde_dims = []
 
-        # Likewise, only keep the parts of the KDE_DIM_DEP mapping that are
-        # necessary.
-        self.kde_dim_dep = OrderedDict()
-        """Only parts of KDE_DIM_DEP mapping that are relevant"""
+        # Likewise, only keep the parts of the KDE_DIM_DEPENDENCIES mapping
+        # that are necessary.
+        self.kde_dim_dependencies = OrderedDict()
+        """Parts of KDE_DIM_DEPENDENCIES mapping that are relevant"""
 
         self.dim_indices = OrderedDict()
         """Reference for indexing"""
@@ -523,14 +523,17 @@ class vbwkde(Stage):
                 # user's output_binning
                 kde_dims.append(output_binning.dims[out_idx])
 
-            self.kde_dim_dep[basename] = KDE_DIM_DEP[basename]
+            self.kde_dim_dependencies[basename] = (
+                KDE_DIM_DEPENDENCIES[basename]
+            )
             self.dim_indices[basename] = OrderedDict([
                 ('in', in_idx),
                 ('out', out_idx),
                 ('kde', kde_idx)
             ])
 
-        self.KDECoord = namedtuple('KDECoord', self.kde_dim_dep.keys())
+        kde_dims = self.kde_dim_dependencies.keys()
+        self.KDECoord = namedtuple('KDECoord', kde_dims)
         """Identifies a KDE by bin coordinate; order-independent access"""
 
         self.kde_binning = OrderedDict()
@@ -541,7 +544,7 @@ class vbwkde(Stage):
         self.include_attrs_for_hashes('particles')
         self.include_attrs_for_hashes('transform_groups')
         self.include_attrs_for_hashes('kde_binning')
-        self.include_attrs_for_hashes('kde_dim_dep')
+        self.include_attrs_for_hashes('kde_dim_dependencies')
         self.include_attrs_for_hashes('dim_indices')
         self.include_attrs_for_hashes('sum_grouped_flavints')
 
@@ -669,7 +672,7 @@ class vbwkde(Stage):
         #       for each dimension individually
         hash_items = [self.source_code_hash, self.events.hash]
 
-        for kde_dim, dependencies in self.kde_dim_dep.items():
+        for kde_dim, dependencies in self.kde_dim_dependencies.items():
             augmented_hash_items = deepcopy(hash_items)
             dep_dims = []
             dim_lengths = []
@@ -730,9 +733,9 @@ class vbwkde(Stage):
                         bin=bin_dims[-1]
                     )
 
-                    # TODO: starting high on `n_dct`, may want to revise down
-                    #       or separate out `n_dct` from `n_eval` by manually
-                    #       setting `evaluate_at`
+                    # TODO: adjust `n_dct`, may want to revise down or separate
+                    #       out `n_dct` from `n_eval` by manually setting
+                    #       `evaluate_at`
 
                     if kde_dim == 'pid':
                         feature = flav_events['pid']
@@ -786,7 +789,7 @@ class vbwkde(Stage):
                             % kde_dim
                         )
 
-                    _, x, density = vbw_kde(feature, **vbwkde_kwargs)
+                    _, x, density = vbwkde(feature, **vbwkde_kwargs)
 
                     # Extract the central portion (+/-1) of coszen-error KDE
                     if kde_dim == 'coszen':
@@ -856,7 +859,7 @@ class vbwkde(Stage):
             for dim_num, input_bin_dim in enumerate(input_bin):
                 dim_basename = input_bin_dim.basename
 
-                dim_dependencies = self.kde_dim_dep[dim_basename]
+                dim_dependencies = self.kde_dim_dependencies[dim_basename]
                 nearest_indices = {}
                 for dim_dep in dim_dependencies:
                     nearest_indices[dim_dep] = idx

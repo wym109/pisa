@@ -72,11 +72,11 @@ from scipy import fftpack, interpolate, optimize
 
 from pisa import FTYPE, numba_jit
 from pisa.utils.gaussians import gaussians
-from pisa.utils.log import logging, set_verbosity
+from pisa.utils.log import logging, set_verbosity, tprofile
 
 
-__all__ = ['fbw_kde', 'vbw_kde', 'isj_bandwidth', 'fixed_point',
-           'test_fbw_kde', 'test_vbw_kde', 'test_isj_bandwidth',
+__all__ = ['fbwkde', 'vbwkde', 'isj_bandwidth', 'fixed_point',
+           'test_fbwkde', 'test_vbwkde', 'test_isj_bandwidth',
            'test_fixed_point']
 
 
@@ -86,8 +86,8 @@ SQRTPI = (sqrt(PI))
 SQRT2PI = (sqrt(TWOPI))
 PISQ = (PI**2)
 
-def fbw_kde(data, n_dct=None, min=None, max=None, evaluate_dens=True,
-            evaluate_at=None):
+def fbwkde(data, n_dct=None, min=None, max=None, evaluate_dens=True,
+           evaluate_at=None):
     """Fixed-bandwidth (standard) Gaussian KDE using the Improved
     Sheather-Jones bandwidth.
 
@@ -168,10 +168,10 @@ def fbw_kde(data, n_dct=None, min=None, max=None, evaluate_dens=True,
     return isj_bw, evaluate_at, density
 
 
-def vbw_kde(data, n_dct=None, min=None, max=None, n_addl_iter=0,
-            evaluate_dens=True, evaluate_at=None):
+def vbwkde(data, n_dct=None, min=None, max=None, n_addl_iter=0,
+           evaluate_dens=True, evaluate_at=None):
     """Variable-bandwidth (standard) Gaussian KDE that uses the function
-    `fbw_kde` for a pilot density estimate.
+    `fbwkde` for a pilot density estimate.
 
     Parameters
     ----------
@@ -243,10 +243,10 @@ def vbw_kde(data, n_dct=None, min=None, max=None, n_addl_iter=0,
 
     # Pilot density estimate for the VBW KDE comes from fixed bandwidth KDE
     # using the Improved Sheather-Jones algorithm. By specifying
-    # `evaluate_at` to be None, `fbw_kde` derives a regular grid at which to
+    # `evaluate_at` to be None, `fbwkde` derives a regular grid at which to
     # evaluate the points and does so without needing to do a sum of Gaussians
     # (only a freq.-domain multiply and inverse DCT)
-    isj_bw, grid, pilot_dens_on_grid = fbw_kde(
+    isj_bw, grid, pilot_dens_on_grid = fbwkde(
         data=data, n_dct=n_dct, min=min, max=max, evaluate_dens=True,
         evaluate_at=None
     )
@@ -414,8 +414,8 @@ def fixed_point(t, data_len, i_range, a2):
     return abs(t - (2.0 * data_len * SQRTPI * f)**(-0.4))
 
 
-def test_fbw_kde():
-    """Test speed and accuracy of fbw_kde implementation"""
+def test_fbwkde():
+    """Test speed and accuracy of fbwkde implementation"""
     n_samp = int(1e4)
     n_dct = int(2**14)
     n_eval = int(1e4)
@@ -425,32 +425,34 @@ def test_fbw_kde():
     for _ in xrange(3):
         enuerr = np.random.noncentral_chisquare(df=3, nonc=1, size=n_samp)
         t0 = time()
-        fbw_kde(data=enuerr, n_dct=n_dct, evaluate_at=x)
+        fbwkde(data=enuerr, n_dct=n_dct, evaluate_at=x)
         times.append(time() - t0)
-    logging.info('median time to run fbw_kde, %d samples %d dct,'
-                 ' eval. at %d points: %f ms',
-                 n_samp, n_dct, n_eval, np.median(times)*1000)
-    logging.info('<< PASS : test_fbw_kde >>')
+    tprofile.debug(
+        'median time to run fbwkde, %d samples %d dct, eval. at %d points: %f'
+        ' ms', n_samp, n_dct, n_eval, np.median(times)*1000
+    )
+    logging.info('<< PASS : test_fbwkde >>')
 
 
-def test_vbw_kde():
-    """Test speed and accuracy of vbw_kde implementations"""
+def test_vbwkde():
+    """Test speed and accuracy of vbwkde implementations"""
     n_samp = int(1e4)
     n_dct = int(2**14)
     n_eval = int(1e4)
-    n_addl = 1
+    n_addl = 0
     x = np.linspace(0, 20, n_samp)
     np.random.seed(0)
     times = []
     for _ in xrange(3):
         enuerr = np.random.noncentral_chisquare(df=3, nonc=1, size=n_eval)
         t0 = time()
-        vbw_kde(data=enuerr, n_dct=n_dct, evaluate_at=x, n_addl_iter=n_addl)
+        vbwkde(data=enuerr, n_dct=n_dct, evaluate_at=x, n_addl_iter=n_addl)
         times.append(time() - t0)
-    logging.info('median time to run vbw_kde, %d samples %d dct %d addl iter,'
-                 ' eval. at %d points: %f ms',
-                 n_samp, n_dct, n_addl, n_eval, np.median(times)*1000)
-    logging.info('<< PASS : test_vbw_kde >>')
+    tprofile.debug(
+        'median time to run vbwkde, %d samples %d dct %d addl iter, eval. at'
+        ' %d points: %f ms', n_samp, n_dct, n_addl, n_eval, np.median(times)*1e3
+    )
+    logging.info('<< PASS : test_vbwkde >>')
 
 
 def test_isj_bandwidth():
@@ -467,5 +469,5 @@ if __name__ == "__main__":
     set_verbosity(2)
     test_fixed_point()
     test_isj_bandwidth()
-    test_fbw_kde()
-    test_vbw_kde()
+    test_fbwkde()
+    test_vbwkde()
