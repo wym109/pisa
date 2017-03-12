@@ -1942,6 +1942,8 @@ class MultiDimBinning(object):
         return MultiDimBinning([d for d in self] + [d for d in other])
 
     def __mul__(self, other):
+        if isinstance(other, (Mapping, OneDimBinning)):
+            other = [other]
         other = MultiDimBinning(other)
         return MultiDimBinning([d for d in self] + [d for d in other])
 
