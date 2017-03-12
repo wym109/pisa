@@ -9,14 +9,13 @@ and finally the package resources. The loggers found in there will be lifted
 to the module namespace.
 
 Currently, we have three loggers
-* root: generic for what is going on  (typically: `opening file x` or
+* logging: generic for what is going on  (typically: `opening file x` or
   `doing this now` messages)
 * physics: for any physics output that might be interesting
   (`have x many events`, `the flux is ...`)
 * tprofile: for how much time it takes to run some step (in the format of
   `time : start bla`, `time : stop bla`)
 
-The last one is temporary and should be replaced by a proper profiler.
 """
 
 
@@ -50,7 +49,9 @@ def initialize_logging():
     logging_config.dictConfig(logconfig)
 
     thandler = logging_module.StreamHandler()
-    tformatter = logging_module.Formatter(fmt=logconfig['formatters']['profile']['format'])
+    tformatter = logging_module.Formatter(
+        fmt=logconfig['formatters']['profile']['format']
+    )
     thandler.setFormatter(tformatter)
 
     # Capture warnings
@@ -58,13 +59,12 @@ def initialize_logging():
 
     _logging = logging_module.getLogger('pisa')
     _physics = logging_module.getLogger('pisa.physics')
-    _tprofile = logging_module.getLogger('pisa.profile')
-    _tprofile.handlers = [thandler]
+    _tprofile = logging_module.getLogger('pisa.tprofile')
+    # TODO: removed following line due to dupllicate logging messages. Probably
+    # should fix this in a better manner...
+    #_tprofile.handlers = [thandler]
 
     return _logging, _physics, _tprofile
-
-# Make the loggers public
-logging, physics, tprofile = initialize_logging()
 
 
 def set_verbosity(verbosity):
@@ -90,3 +90,7 @@ def set_verbosity(verbosity):
     # Overwrite the root logger with the verbosity level
     logging.setLevel(levels[verbosity])
     tprofile.setLevel(levels[verbosity])
+
+
+# Make the loggers public
+logging, physics, tprofile = initialize_logging()

@@ -215,20 +215,24 @@ def do_setup():
         'tests/settings/*.cfg'
     ]
 
+    extra_compile_args = ['-O3', '-ffast-math', '-msse3',
+                          '-ftree-vectorizer-verbose=1']
+    extra_link_args = ['-ffast-math', '-msse2']
     if has_openmp:
         gaussians_cython_module = Extension(
             'pisa.utils.gaussians_cython',
             ['pisa/utils/gaussians_cython.pyx'],
             libraries=['m'],
-            extra_compile_args=['-fopenmp', '-O2'],
-            extra_link_args=['-fopenmp']
+            extra_compile_args=extra_compile_args + ['-fopenmp'],
+            extra_link_args=extra_link_args + ['-fopenmp'],
         )
     else:
         gaussians_cython_module = Extension(
             'pisa.utils.gaussians_cython',
             ['pisa/utils/gaussians_cython.pyx'],
             libraries=['m'],
-            extra_compile_args=['-O2']
+            extra_compile_args=extra_compile_args,
+            extra_link_args=extra_link_args
         )
     ext_modules.append(gaussians_cython_module)
 

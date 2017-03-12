@@ -14,7 +14,7 @@ Use of threads requires compilation with OpenMP support.
 
 
 cimport cython
-from cython.parallel import prange
+from cython.parallel cimport prange
 from libc.math cimport exp, fabs, sqrt, M_PI
 
 
@@ -156,6 +156,7 @@ def gaussians_d(double[::1] outbuf,
     cdef double twosigma2
     cdef double norm
     cdef double xlessmu
+    cdef double tmp
     cdef Py_ssize_t i, gaus_n, n_gaussians
     # NOTE that the order of the loops is important, as
     # updating the outbuf is NOT thread safe!
@@ -166,12 +167,16 @@ def gaussians_d(double[::1] outbuf,
                     nogil=True,
                     num_threads=threads,
                     schedule='static'):
-        outbuf[i] = 0
-        for gaus_n in xrange(mu.shape[0]):
+        tmp = 0
+        for gaus_n in range(mu.shape[0]):
             twosigma2 = 2*(sigma[gaus_n] * sigma[gaus_n])
             norm = fabs(sqrt2pi_d * sigma[gaus_n]) * <double>n_gaussians
             xlessmu = x[i] - mu[gaus_n]
-            outbuf[i] += exp(-xlessmu * xlessmu / twosigma2) / norm
+            # NOTE: must use the syntax "tmp = tmp + ...", or else Cython
+            # compiler assumes tmp is a reduction variable and compilation
+            # fails
+            tmp = tmp + exp(-(xlessmu * xlessmu) / twosigma2) / norm
+        outbuf[i] = tmp
 
 
 @cython.cdivision(True)
@@ -210,19 +215,24 @@ def gaussians_s(float[::1] outbuf,
     cdef float twosigma2
     cdef float norm
     cdef float xlessmu
+    cdef float tmp
     cdef Py_ssize_t i, gaus_n, n_gaussians
     # NOTE that the order of the loops is important, as
     # updating the outbuf is NOT thread safe!
-    assert outbuf.shape[0] == x.shape[0]
-    assert mu.shape[0] == sigma.shape[0]
     n_gaussians = mu.shape[0]
+    assert outbuf.shape[0] == x.shape[0]
+    assert n_gaussians == sigma.shape[0]
     for i in prange(x.shape[0],
                     nogil=True,
                     num_threads=threads,
                     schedule='static'):
-        outbuf[i] = 0
-        for gaus_n in xrange(mu.shape[0]):
+        tmp = 0
+        for gaus_n in range(mu.shape[0]):
             twosigma2 = 2*(sigma[gaus_n] * sigma[gaus_n])
             norm = fabs(sqrt2pi_s * sigma[gaus_n]) * <float>n_gaussians
             xlessmu = x[i] - mu[gaus_n]
-            outbuf[i] += exp(-xlessmu * xlessmu / twosigma2) / norm
+            # NOTE: must use the syntax "tmp = tmp + ...", or else Cython
+            # compiler assumes tmp is a reduction variable and compilation
+            # fails
+            tmp = tmp + exp(-(xlessmu * xlessmu) / twosigma2) / norm
+        outbuf[i] = tmp
