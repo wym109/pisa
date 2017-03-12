@@ -13,10 +13,10 @@ provide basic operations with the binning.
 
 from __future__ import division
 
-from collections import Iterable, Mapping, OrderedDict, Sequence
+from collections import Iterable, Mapping, OrderedDict, Sequence, namedtuple
 from copy import copy, deepcopy
 from functools import wraps
-from itertools import izip
+from itertools import izip, product
 import re
 
 import numpy as np
@@ -199,8 +199,8 @@ class OneDimBinning(object):
         self._normalize_values = True
         self._name = make_valid_python_name(name)
         if self._name != name:
-            logging.warning('Converted `name` "%s" to valid Python: "%s"'
-                            % (name, self._name))
+            logging.warning('Converted `name` "%s" to valid Python: "%s"',
+                            name, self._name)
         self._basename = basename(name)
         self._tex = None
         self.tex = tex
@@ -239,8 +239,7 @@ class OneDimBinning(object):
             if str(domain[0].units) != str(domain[1].units):
                 logging.warn(
                     'Different (but compatible) units used to specify `domain`'
-                    ' limits: (%s) and (%s).'
-                    %(domain[0].units, domain[1].units)
+                    ' limits: (%s) and (%s).', domain[0].units, domain[1].units
                 )
             if units is not None:
                 if domain[0].dimensionality != units.dimensionality:
@@ -254,8 +253,8 @@ class OneDimBinning(object):
                     logging.warn(
                         'Different (but compatible) units deduced/passed vs.'
                         ' units used to specify `domain` limits:'
-                        ' (%s) vs. (%s and %s).'
-                        %(units, domain[0].units, domain[1].units)
+                        ' (%s) vs. (%s and %s).',
+                        units, domain[0].units, domain[1].units
                     )
                 # Explicitly-passed AND bin_edges' units have precedence, so
                 # convert to wihichever of those has been populated to `units`
@@ -1167,6 +1166,7 @@ class MultiDimBinning(object):
             tmp_dimensions.append(one_dim_binning)
         self._dimensions = tmp_dimensions
         self._compute_metadata()
+        self.Coord = namedtuple('Coord', self.names)
 
     def _compute_metadata(self):
         self._shape = tuple([b.num_bins for b in self._dimensions])
@@ -1481,6 +1481,50 @@ class MultiDimBinning(object):
 
         keep_dims = [deepcopy(self.dimensions[idx]) for idx in keep_idx]
         return MultiDimBinning(keep_dims)
+
+    def iterbins(self):
+        """Return an iterator over each N-dimensional bin. The elments returned
+        by the iterator are each a MultiDimBinning, just containing a single
+        bin.
+
+        Returns
+        -------
+        bin_iterator
+
+        See Also
+        --------
+        flatindex2coord
+            convert the (flat) index to multi-dimensional coordinate, which is
+            useful when using e.g. `enumerate(iterbins)`
+
+        """
+        return (MultiDimBinning(dims) for dims in product(*self.dims))
+
+    def flatindex2coord(self, index):
+        """Convert a flat index into an N-dimensional bin coordinate.
+
+        Useful in conjunction with `enumerate(iterbins)`
+
+        Parameters
+        ----------
+        index : integer
+            The flat index
+
+        Returns
+        -------
+        coord : self.Coord namedtuple
+            Coordinates are in the same order as the binning is here defined
+            and each coordinate is named by its corresponding dimension.
+            Therefore integer indexing into `coord` as well as named indexing
+            are possible.
+
+        """
+        coord = []
+        quot = index
+        for dim_length in self.shape[::-1]:
+            quot, rem = divmod(quot, dim_length)
+            coord.append(rem)
+        return self.Coord(*coord[::-1])
 
     # TODO: examples!
     def reorder_dimensions(self, order, use_deepcopy=False):
@@ -1988,7 +2032,6 @@ class MultiDimBinning(object):
 def test_OneDimBinning():
     """Unit tests for OneDimBinning class"""
     import os
-    import pickle
     import shutil
     import tempfile
 
@@ -1997,18 +2040,18 @@ def test_OneDimBinning():
                        bin_names=[str(i) for i in range(40)])
     b2 = OneDimBinning(name='coszen', num_bins=40, is_lin=True,
                        domain=[-1, 1], bin_names=None)
-    logging.debug('len(b1): %s' %len(b1))
-    logging.debug('b1: %s' %b1)
-    logging.debug('b2: %s' %b2)
-    logging.debug('b1.oversample(10): %s' %b1.oversample(10))
-    logging.debug('b1.oversample(1): %s' %b1.oversample(1))
+    logging.debug('len(b1): %s', len(b1))
+    logging.debug('b1: %s', b1)
+    logging.debug('b2: %s', b2)
+    logging.debug('b1.oversample(10): %s', b1.oversample(10))
+    logging.debug('b1.oversample(1): %s', b1.oversample(1))
     # Slicing
-    logging.debug('b1[1:5]: %s' %b1[1:5])
-    logging.debug('b1[:]: %s' %b1[:])
-    logging.debug('b1[-1]: %s' %b1[-1])
-    logging.debug('b1[:-1]: %s' %b1[:-1])
-    logging.debug('copy(b1): %s' %copy(b1))
-    logging.debug('deepcopy(b1): %s' %deepcopy(b1))
+    logging.debug('b1[1:5]: %s', b1[1:5])
+    logging.debug('b1[:]: %s', b1[:])
+    logging.debug('b1[-1]: %s', b1[-1])
+    logging.debug('b1[:-1]: %s', b1[:-1])
+    logging.debug('copy(b1): %s', copy(b1))
+    logging.debug('deepcopy(b1): %s', deepcopy(b1))
     # Indexing by Ellipsis
     assert b1[...] == b1
     # TODO: make pickle great again
@@ -2071,7 +2114,6 @@ def test_OneDimBinning():
 def test_MultiDimBinning():
     """Unit tests for MultiDimBinning class"""
     import os
-    import pickle
     import shutil
     import tempfile
 
@@ -2080,14 +2122,14 @@ def test_MultiDimBinning():
     b2 = OneDimBinning(name='coszen', num_bins=40, is_lin=True,
                        domain=[-1, 1])
     mdb = MultiDimBinning([b1, b2])
-    b00 = mdb[0, 0]
-    x0 = mdb[0:, 0]
-    x1 = mdb[0:, 0:]
-    x2 = mdb[0, 0:]
-    x3 = mdb[-1, -1]
-    logging.debug(str(mdb.energy))
-    logging.debug('copy(mdb): %s' %copy(mdb))
-    logging.debug('deepcopy(mdb): %s' %deepcopy(mdb))
+    _ = mdb[0, 0]
+    _ = mdb[0:, 0]
+    _ = mdb[0:, 0:]
+    _ = mdb[0, 0:]
+    _ = mdb[-1, -1]
+    logging.debug('%s', mdb.energy)
+    logging.debug('copy(mdb): %s', copy(mdb))
+    logging.debug('deepcopy(mdb): %s', deepcopy(mdb))
     assert deepcopy(mdb) == mdb
     #s = pickle.dumps(mdb, pickle.HIGHEST_PROTOCOL)
     # TODO: add these back in when we get pickle loading working!
@@ -2098,6 +2140,10 @@ def test_MultiDimBinning():
         dict(name='energy', is_log=True, domain=[1, 80]*ureg.GeV, num_bins=40),
         dict(name='coszen', is_lin=True, domain=[-1, 0], num_bins=20)
     ])
+
+    for flatindex, this_bin in enumerate(binning.iterbins()):
+        coord = binning.flatindex2coord(flatindex)
+        assert this_bin == binning[coord]
 
     assert binning.num_bins == [40, 20]
     assert binning.tot_num_bins == 40 * 20
@@ -2114,11 +2160,11 @@ def test_MultiDimBinning():
             %(binning.to('MeV', ''), binning)
     assert binning.to('MeV', '').hash == binning.hash
 
-    mg = binning.meshgrid(entity='bin_edges')
-    mg = binning.meshgrid(entity='weighted_centers')
+    _ = binning.meshgrid(entity='bin_edges')
+    _ = binning.meshgrid(entity='weighted_centers')
     mg = binning.meshgrid(entity='midpoints')
-    bv = binning.bin_volumes(attach_units=False)
-    bv = binning.bin_volumes(attach_units=True)
+    _ = binning.bin_volumes(attach_units=False)
+    _ = binning.bin_volumes(attach_units=True)
     binning.to('MeV', None)
     binning.to('MeV', '')
     binning.to(ureg.joule, '')
@@ -2158,7 +2204,7 @@ def test_MultiDimBinning():
     new_order = ['azimuth', 'energy', 'coszen']
     mdb_2d_new = mdb_2d_new.reorder_dimensions(new_order)
     assert mdb_2d_new == mdb_2d_orig
-    mdb_2d_new2 = MultiDimBinning([e_binning, cz_binning])
+    _ = MultiDimBinning([e_binning, cz_binning])
 
     mdb_3d_orig = MultiDimBinning([e_binning, cz_binning, az_binning])
     orig_order = mdb_3d_orig.names
