@@ -364,7 +364,7 @@ def isj_bandwidth(y, n_datapoints, x_range):
 
 
 @numba_jit('{f:s}({f:s}, int64, {f:s}[:], {f:s}[:])'.format(f='float64'),
-           nopython=True, nogil=False, cache=True)
+           nopython=True, nogil=True, cache=True)
 def fixed_point(t, data_len, i_range, a2):
     """Fixed point algorithm for Improved Sheather Jones bandwidth
     selection.
@@ -402,10 +402,10 @@ def fixed_point(t, data_len, i_range, a2):
     for s in range((l-1), 1, -1):
         k0 = np.nanprod(np.arange(1, 2*s, 2)) / SQRT2PI
         const = (1 + (0.5)**(s+0.5)) / 3.0
-        t_elap = (2 * const * k0 / data_len / f)**(2.0 / (3.0 + 2.0*s))
+        t_elap = (2 * const * k0 / (data_len * f))**(2.0 / (3.0 + 2.0*s))
 
         tot = 0.0
-        for idx in range(len_i): #I_, a2_ in zip(I, a2):
+        for idx in range(len_i):
             tot += (
                 i_range[idx]**s * a2[idx] * exp(-i_range[idx] * PISQ * t_elap)
             )

@@ -66,7 +66,7 @@ def gaussian_d(double[::1] outbuf,
     for i in prange(outbuf.shape[0],
                     nogil=True,
                     num_threads=threads,
-                    schedule='static'):
+                    schedule='dynamic'):
         xlessmu = x[i] - mu
         outbuf[i] = exp(-(xlessmu * xlessmu) / twosigma2) / sqrt2pisigma
 
@@ -115,7 +115,7 @@ def gaussian_s(float[::1] outbuf,
     for i in prange(outbuf.shape[0],
                     nogil=True,
                     num_threads=threads,
-                    schedule='static'):
+                    schedule='dynamic'):
         xlessmu = x[i] - mu
         outbuf[i] = exp(-(xlessmu * xlessmu) / twosigma2) / sqrt2pisigma
 
@@ -166,7 +166,7 @@ def gaussians_d(double[::1] outbuf,
     for i in prange(x.shape[0],
                     nogil=True,
                     num_threads=threads,
-                    schedule='static'):
+                    schedule='dynamic'):
         tmp = 0
         for gaus_n in range(mu.shape[0]):
             twosigma2 = 2*(sigma[gaus_n] * sigma[gaus_n])
@@ -225,7 +225,7 @@ def gaussians_s(float[::1] outbuf,
     for i in prange(x.shape[0],
                     nogil=True,
                     num_threads=threads,
-                    schedule='static'):
+                    schedule='dynamic'):
         tmp = 0
         for gaus_n in range(mu.shape[0]):
             twosigma2 = 2*(sigma[gaus_n] * sigma[gaus_n])
