@@ -288,7 +288,8 @@ class gpu(Stage):
             # GPU histogramer
             bin_edges = deepcopy(self.bin_edges)
             bin_edges[self.e_bin_number] *= FTYPE(self.params.hist_e_scale.value.m_as('dimensionless'))
-            bin_edges[self.pid_bin_number][1] *= FTYPE(self.params.hist_pid_scale.value.m_as('dimensionless'))
+            if 'pid' in self.bin_names:
+                bin_edges[self.pid_bin_number][1] *= FTYPE(self.params.hist_pid_scale.value.m_as('dimensionless'))
             self.histogrammer = self.GPUHist(*bin_edges)
 
         # load events
@@ -681,7 +682,8 @@ class gpu(Stage):
             # hist_e_scale:
             bin_edges = deepcopy(self.bin_edges)
             bin_edges[self.e_bin_number] *= FTYPE(self.params.hist_e_scale.value.m_as('dimensionless'))
-            bin_edges[self.pid_bin_number][1] *= FTYPE(self.params.hist_pid_scale.value.m_as('dimensionless'))
+            if 'pid' in self.bin_names:
+                bin_edges[self.pid_bin_number][1] *= FTYPE(self.params.hist_pid_scale.value.m_as('dimensionless'))
             self.histogrammer.update_bin_edges(*bin_edges)
 
             start_t = time.time()
