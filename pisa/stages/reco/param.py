@@ -342,12 +342,6 @@ class param(Stage):
         self.param_dict = param_dict
         self._param_hash = this_hash
 
-    def reco_dist(bin_edges, **kwargs):
-        """
-        Superposition of arbitrary number of distributions from `scipy.stats`.
-        """
-        pass
-
     def make_cdf(self, bin_edges, enval, enindex, czindex, czval, dist_params):
         """
         General make function for the cdf needed to construct the kernels.
