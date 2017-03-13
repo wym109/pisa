@@ -319,7 +319,8 @@ class Map(object):
         return r
 
     def __str__(self):
-        attrs = ['name', 'tex', 'binning', 'full_comparison', 'hash', 'hist']
+        attrs = ['name', 'tex', 'full_comparison', 'hash', 'parent_indexer',
+                 'binning', 'hist']
         state = {a: getattr(self, a) for a in attrs}
         state['name'] = repr(state['name'])
         state['tex'] = repr(state['tex'])
@@ -335,8 +336,8 @@ class Map(object):
             p.text('%s(...)' %myname)
         else:
             p.begin_group(4, '%s(' %myname)
-            attrs = ['name', 'tex', 'binning', 'full_comparison', 'hash',
-                     'hist']
+            attrs = ['name', 'tex', 'full_comparison', 'hash',
+                     'parent_indexer', 'binning', 'hist']
             for n, attr in enumerate(attrs):
                 p.breakable()
                 p.text(attr + '=')
@@ -348,6 +349,9 @@ class Map(object):
     def _repr_pretty_(self, p, cycle):
         """Method used by e.g. ipython/Jupyter for formatting"""
         return self.__pretty__(p, cycle)
+
+    def defaults_indexer(self, **kwargs):
+        return self.binning.defaults_indexer(**kwargs)
 
     def set_poisson_errors(self):
         """Approximate poisson errors using sqrt(n)."""
@@ -559,7 +563,7 @@ class Map(object):
             if fname is None:
                 fname = self.name
             path = os.path.join([outdir, get_valid_filename(fname+'.'+fmt)])
-            logging.debug('>>>> Plot for inspection saved at %s' %path)
+            logging.debug('>>>> Plot for inspection saved at %s', path)
             fig.savefig(os.path.join(*path))
 
         return ax, pcmesh, cbar
@@ -757,7 +761,13 @@ class Map(object):
 
     @property
     def shape(self):
+        """tuple : shape of the map, akin to `nump.ndarray.shape`"""
         return self.hist.shape
+
+    @property
+    def size(self):
+        """int : total number of elements"""
+        return self.hist.size
 
     @property
     def _serializable_state(self):
@@ -853,8 +863,8 @@ class Map(object):
 
     def iterbins(self):
         """Returns a bin iterator which yields a map containing a single bin
-        each time. Modifications to that map will be reflected in this (the
-        parent) map.
+        each time. Note that modifications to that single-bin map will be
+        reflected in this (the parent) map.
 
         Note that the returned map has the attribute `parent_indexer` for
         indexing directly into to the parent map (or to a similar map).
@@ -864,32 +874,21 @@ class Map(object):
         Map object containing one of each bin of this Map
 
         """
-        shape = self.shape
-        for i in xrange(self.hist.size):
-            idx_item = np.unravel_index(i, shape)
-            idx_view = [slice(x, x+1) for x in idx_item]
+        for i in xrange(self.size):
+            idx_coord = self.binning.index2coord(i)
+            idx_view = [slice(x, x+1) for x in idx_coord]
             single_bin_map = Map(
                 name=self.name, hist=self.hist[idx_view],
-                binning=self.binning[idx_item], hash=None, tex=self.tex,
+                binning=self.binning[idx_coord], hash=None, tex=self.tex,
                 full_comparison=self.full_comparison
             )
-            single_bin_map.parent_indexer = idx_item
+            single_bin_map.parent_indexer = idx_coord
             yield single_bin_map
 
     # TODO : example!
-    def iterindices(self):
-        """Iterator that yields the index for accessing each bin in
-        the map.
-
-        Examples
-        --------
-        >>> map = Map('x', binning=[dict('E', )])
-
-        """
-        shape = self.shape
-        for i in xrange(self.hist.size):
-            idx_item = np.unravel_index(i, shape)
-            yield idx_item
+    def itercoords(self):
+        """Iterator that yields the coordinate of each bin in the map."""
+        return self.binning.itercoords()
 
     def __hash__(self):
         if self.hash is not None:
@@ -905,7 +904,6 @@ class Map(object):
     def __getattr__(self, attr):
         return super(self.__class__, self).__getattribute__(attr)
 
-    @_new_obj
     def _slice_or_index(self, idx):
         """Slice or index into the map. Indexing single element in self.hist
         e.g. hist[1,3] returns a 0D array while hist[1,3:8] returns a 1D array,
@@ -915,8 +913,15 @@ class Map(object):
 
         """
         new_binning = self.binning[idx]
-        return {'binning': self.binning[idx],
-                'hist': np.reshape(self.hist[idx], new_binning.shape)}
+
+        new_map = Map(name=self.name,
+                      hist=np.reshape(self.hist[idx], new_binning.shape),
+                      binning=self.binning[idx],
+                      hash=self.hash,
+                      tex=self.tex,
+                      full_comparison=self.full_comparison)
+        new_map.parent_indexer = idx
+        return new_map
 
     def __getitem__(self, idx):
         return self._slice_or_index(idx)
@@ -1568,7 +1573,7 @@ class MapSet(object):
         return r
 
     def __str__(self):
-        state = {}
+        state = OrderedDict()
         attrs = ['name', 'tex', 'hash', 'maps']
         state['name'] = repr(self.name)
         state['tex'] = repr(self.tex)
@@ -1791,7 +1796,7 @@ class MapSet(object):
             maps_to_combine = []
             for m in self:
                 if re.match(regex, m.name) is not None:
-                    logging.debug('Map "%s" will be added...' %m.name)
+                    logging.debug('Map "%s" will be added...', m.name)
                     maps_to_combine.append(m)
             if len(maps_to_combine) == 0:
                 raise ValueError('No map names match `regex` "%s"' % pattern)
@@ -1853,7 +1858,7 @@ class MapSet(object):
             maps_to_combine = []
             for m in self:
                 if fnmatch(m.name, expr):
-                    logging.debug('Map "%s" will be added...' %m.name)
+                    logging.debug('Map "%s" will be added...', m.name)
                     maps_to_combine.append(m)
             if len(maps_to_combine) == 0:
                 raise ValueError('No map names match `expr` "%s"' % expr)
@@ -1930,7 +1935,8 @@ class MapSet(object):
         """Setting a hash to `val` for the map set sets the hash values of all
         contained maps to `val`."""
         if val is not None:
-            [setattr(m, 'hash', val) for m in self]
+            for m in self:
+                setattr(m, 'hash', val)
 
     @property
     def names(self):
@@ -1950,7 +1956,8 @@ class MapSet(object):
 
     def collate_with_names(self, vals):
         ret_dict = OrderedDict()
-        [setitem(ret_dict, name, val) for name, val in izip(self.names, vals)]
+        for name, val in izip(self.names, vals):
+            setitem(ret_dict, name, val)
         return ret_dict
 
     def find_map(self, value):

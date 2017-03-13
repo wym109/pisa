@@ -9,7 +9,13 @@ provide basic operations with the binning.
 """
 
 # TODO: include Iterables where only Sequence is allowed now?
-# TODO: make indexing accessible by name?
+# TODO: iterbins, itercoords are _*slow*_. Figure out how to speed these up, if
+#       that is possible in pure-Python loops... E.g.
+#           `indices = [i for i in xrange(mdb.size)]`
+#       takes 70 ms while
+#           `coords = [c for c in mdb.itercoords()]`
+#       takes 10 seconds.
+
 
 from __future__ import division
 
@@ -17,12 +23,13 @@ from collections import Iterable, Mapping, OrderedDict, Sequence, namedtuple
 from copy import copy, deepcopy
 from functools import wraps
 from itertools import izip, product
+from operator import mul
 import re
 
 import numpy as np
 import pint
 
-from pisa import ureg, HASH_SIGFIGS
+from pisa import FTYPE, HASH_SIGFIGS, ureg
 from pisa.utils.comparisons import isbarenumeric, normQuant, recursiveEquality
 from pisa.utils.format import (make_valid_python_name, text2tex,
                                strip_outer_dollars)
@@ -497,6 +504,17 @@ class OneDimBinning(object):
         state = jsons.from_json(resource)
         return cls(**state)
 
+    def iterbins(self):
+        """Return an iterator over each bin. The elments returned by the
+        iterator are each a OneDimBinning object, just containing a single bin.
+
+        Returns
+        -------
+        bin_iterator
+
+        """
+        return (self[i] for i in xrange(len(self)))
+
     @property
     def _serializable_state(self):
         state = OrderedDict()
@@ -547,6 +565,16 @@ class OneDimBinning(object):
         stripped off (and must be added prior to e.g. plotting)"""
         assert val is None or isinstance(val, basestring)
         self._tex = strip_outer_dollars(text2tex(val))
+
+    @property
+    def shape(self):
+        """tuple : shape of binning, akin to `nump.ndarray.shape`"""
+        return (len(self),)
+
+    @property
+    def size(self):
+        """int : total number of bins"""
+        return len(self)
 
     @property
     def bin_edges(self):
@@ -1280,8 +1308,13 @@ class MultiDimBinning(object):
 
     @property
     def shape(self):
-        """tuple : shape of binning descripted, akin to `nump.ndarray.shape`"""
+        """tuple : shape of binning, akin to `nump.ndarray.shape`"""
         return self._shape
+
+    @property
+    def size(self):
+        """int : total number of bins"""
+        return reduce(mul, self.shape)
 
     @property
     def normalize_values(self):
@@ -1482,6 +1515,23 @@ class MultiDimBinning(object):
         keep_dims = [deepcopy(self.dimensions[idx]) for idx in keep_idx]
         return MultiDimBinning(keep_dims)
 
+    def defaults_indexer(self, **kwargs):
+        """Any dimension index/slice not specified by name in kwargs will
+        default to ":" (all elements).
+
+        Returns
+        -------
+        indexer : tuple
+
+        """
+        indexer = []
+        for dim in self.dims:
+            if dim.name in kwargs:
+                indexer.append(kwargs[dim.name])
+            else:
+                indexer.append(slice(None))
+        return tuple(indexer)
+
     def iterbins(self):
         """Return an iterator over each N-dimensional bin. The elments returned
         by the iterator are each a MultiDimBinning, just containing a single
@@ -1493,14 +1543,34 @@ class MultiDimBinning(object):
 
         See Also
         --------
-        flatindex2coord
+        index2coord
             convert the (flat) index to multi-dimensional coordinate, which is
             useful when using e.g. `enumerate(iterbins)`
 
         """
         return (MultiDimBinning(dims) for dims in product(*self.dims))
 
-    def flatindex2coord(self, index):
+    def itercoords(self):
+        """Return an iterator over each N-dimensional coordinate into the
+        binning. The elments returned by the iterator are each a namedtuple,
+        which can be used to directly index into the binning.
+
+        Returns
+        -------
+        coord_iterator
+
+        See Also
+        --------
+        iterbins
+            Iterator over each bin
+        index2coord
+            convert the (flat) index to multi-dimensional coordinate, which is
+            useful when using e.g. `enumerate(iterbins)`
+
+        """
+        return (self.index2coord(i) for i in xrange(self.size))
+
+    def index2coord(self, index):
         """Convert a flat index into an N-dimensional bin coordinate.
 
         Useful in conjunction with `enumerate(iterbins)`
@@ -1841,6 +1911,8 @@ class MultiDimBinning(object):
         """
         if map_kw is None:
             map_kw = {}
+        if 'dtype' not in kwargs:
+            kwargs['dtype'] = FTYPE
         hist = np.empty(self.shape, **kwargs)
         return self.__Map(name=name, hist=hist, binning=self, **map_kw)
 
@@ -1868,6 +1940,8 @@ class MultiDimBinning(object):
         """
         if map_kw is None:
             map_kw = {}
+        if 'dtype' not in kwargs:
+            kwargs['dtype'] = FTYPE
         hist = np.zeros(self.shape, **kwargs)
         return self.__Map(name=name, hist=hist, binning=self, **map_kw)
 
@@ -1895,6 +1969,8 @@ class MultiDimBinning(object):
         """
         if map_kw is None:
             map_kw = {}
+        if 'dtype' not in kwargs:
+            kwargs['dtype'] = FTYPE
         hist = np.ones(self.shape, **kwargs)
         return self.__Map(name=name, hist=hist, binning=self, **map_kw)
 
@@ -1922,6 +1998,8 @@ class MultiDimBinning(object):
         """
         if map_kw is None:
             map_kw = {}
+        if 'dtype' not in kwargs:
+            kwargs['dtype'] = FTYPE
         hist = np.full(self.shape, fill_value, **kwargs)
         return self.__Map(name=name, hist=hist, binning=self, **map_kw)
 
@@ -2144,7 +2222,7 @@ def test_MultiDimBinning():
     ])
 
     for flatindex, this_bin in enumerate(binning.iterbins()):
-        coord = binning.flatindex2coord(flatindex)
+        coord = binning.index2coord(flatindex)
         assert this_bin == binning[coord]
 
     assert binning.num_bins == [40, 20]

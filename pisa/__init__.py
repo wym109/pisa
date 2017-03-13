@@ -3,9 +3,11 @@ Define globals available to all modules in PISA
 
 """
 
+from collections import namedtuple, OrderedDict
 import os
 import sys
 
+from numpy import array, inf
 import numpy as np
 from pint import UnitRegistry
 
@@ -50,12 +52,24 @@ finally:
         del cuda
 
 
-__all__ = ['__version__',
-           'ureg', 'Q_', 'numba_jit',
-           'PYCUDA_AVAIL', 'NUMBA_AVAIL', 'NUMBA_CUDA_AVAIL',
-           'OMP_NUM_THREADS',
-           'FTYPE', 'HASH_SIGFIGS', 'C_FTYPE', 'C_PRECISION_DEF',
-           'CACHE_DIR']
+# TODO: pisa.core names are _not_ included here, but possibly should be...?
+__all__ = [
+    # Versioneer needs this
+    '__version__',
+
+    # Utilities that must be accessed centrally for consistency
+    'ureg', 'Q_',
+
+    # Utilities that should be accessed centrally to avoid hassle
+    'numba_jit',
+
+    # Python standard library  names so that `eval(repr(x)) == x`
+    'array', 'inf', 'namedtuple', 'OrderedDict',
+
+    # Constants
+    'PYCUDA_AVAIL', 'NUMBA_AVAIL', 'NUMBA_CUDA_AVAIL', 'OMP_NUM_THREADS',
+    'FTYPE', 'HASH_SIGFIGS', 'C_FTYPE', 'C_PRECISION_DEF', 'CACHE_DIR'
+]
 
 
 __version__ = get_versions()['version']
