@@ -65,6 +65,7 @@ from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup
 from pisa.utils.hash import hash_obj
 from pisa.utils.vbwkde import vbwkde as vbwkde_func
+from pisa.utils.log import logging
 from pisa.utils.profiler import profile
 
 
@@ -244,12 +245,10 @@ def collect_enough_events(events, flavint, bin,
         lower_edge = bin_wtd_center - thresh_dist
         upper_edge = bin_wtd_center + thresh_dist
 
-    # ASSUMPTION: applyCut is an in-place operation
-    events_subset = deepcopy(events)
     cut_str = '({field:s} >= {lower:.15e}) & ({field:s} <= {upper:.15e})'
     keep_criteria = cut_str.format(field=bin.name, lower=lower_edge,
                                    upper=upper_edge)
-    events_subset.applyCut(keep_criteria=keep_criteria)
+    events_subset = events.applyCut(keep_criteria=keep_criteria)
 
     return events_subset
 
@@ -441,6 +440,7 @@ class vbwkde(Stage):
             input_names=input_names,
             output_names=output_names,
             error_method=error_method,
+            disk_cache=True,
             outputs_cache_depth=outputs_cache_depth,
             transforms_cache_depth=transforms_cache_depth,
             memcache_deepcopy=memcache_deepcopy,
@@ -475,17 +475,15 @@ class vbwkde(Stage):
         # Only characterize dimensions that are to be output
         for out_dim in output_binning:
             dep_binnings = []
-            for dep_dim_name in KDE_DIM_DEPENDENCIES.keys():
+            for dep_dim_name in KDE_DIM_DEPENDENCIES[out_dim.basename]:
                 # Use KDE_TRUE_BINNING for KDE binning where possible
-                if dep_dim_name in KDE_TRUE_BINNING.basenames:
-                    idx = KDE_TRUE_BINNING.basenames.index(dep_dim_name)
-                    dep_binnings.append(KDE_TRUE_BINNING.dims[idx])
+                if dep_dim_name in KDE_TRUE_BINNING:
+                    dep_binnings.append(KDE_TRUE_BINNING[dep_dim_name])
 
                 # Otherwise (e.g. pid) must be the same as output_binning, so
                 # get binning spec from there
-                elif dep_dim_name in output_binning.basenames:
-                    idx = output_binning.basenames.index(dep_dim_name)
-                    dep_binnings.append(output_binning.dims[idx])
+                elif dep_dim_name in output_binning:
+                    dep_binnings.append(output_binning[dep_dim_name])
 
                 else:
                     raise ValueError('Dimension "%s" is not handled.'
@@ -616,14 +614,19 @@ class vbwkde(Stage):
         hash_items = [self.source_code_hash, self.events.hash]
 
         for kde_dim, dep_dims_binning in self.kde_binning.items():
+            logging.trace('Working on KDE dimension "%s"', kde_dim)
             new_hash = hash_obj(deepcopy(hash_items) + [dep_dims_binning])
 
             # See if we already have correct kde_info for this dim
-            if new_hash == self._kde_hashes[kde_dim]:
+            if (kde_dim in self._kde_hashes
+                    and new_hash == self._kde_hashes[kde_dim]):
+                logging.trace('  > Already have KDEs for "%s"', kde_dim)
                 continue
 
             # Try to load from disk cache
             if self.disk_cache is not None and new_hash in self.disk_cache:
+                logging.trace('  > Loading KDEs for "%s" from disk cache',
+                              kde_dim)
                 self.kde_info[kde_dim] = self.disk_cache[new_hash]
                 self._kde_hashes[kde_dim] = new_hash
                 continue
@@ -648,8 +651,11 @@ class vbwkde(Stage):
             # statistics can be acquired.
             cut_events = [self.events] * (1 + len(dep_dims_binning))
 
-            for bin_num, bin_dims in enumerate(dep_dims_binning.iterbins()):
+            for bin_num, bin_binning in enumerate(dep_dims_binning.iterbins()):
+                bin_dims = bin_binning.dims
                 bin_coord = dep_dims_binning.index2coord(bin_num)
+                logging.trace('  > characterizing bin %s (%d of %d)',
+                              bin_coord, bin_num, dep_dims_binning.size)
 
                 # Apply cuts for all but the last dimension dependency
                 for dim_num, dim in enumerate(bin_dims[:-1]):
@@ -663,12 +669,13 @@ class vbwkde(Stage):
                         )
 
                 for flavintgroup in self.transform_groups:
+                    logging.trace('    > flavintgroup = %s', flavintgroup)
                     repr_flavint = flavintgroup[0]
 
                     flav_events = collect_enough_events(
                         events=cut_events[-1], flavint=repr_flavint,
                         bin=bin_dims[-1]
-                    )
+                    )[repr_flavint]
 
                     # TODO: adjust `n_dct`, may want to revise down or separate
                     #       out `n_dct` from `n_eval` by manually setting

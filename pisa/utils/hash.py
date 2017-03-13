@@ -5,7 +5,8 @@ Utilities for hashing objects.
 
 
 import base64
-import cPickle as pickle
+#import cPickle as pickle
+import dill
 import hashlib
 import struct
 
@@ -32,7 +33,7 @@ FAST_HASH_STR_BYTES = int(1e3)
 def hash_obj(obj, hash_to='int', full_hash=True):
     """Return hash for an object. Object can be a numpy ndarray or matrix
     (which is serialized to a string), an open file (which has its contents
-    read), or any pickle-able Python object.
+    read), or any dill-able Python object.
 
     Note that only the first most-significant 8 bytes (64 bits) from the MD5
     sum are used in the hash.
@@ -98,13 +99,13 @@ def hash_obj(obj, hash_to='int', full_hash=True):
             return hash_obj(obj.read(), **pass_on_kw)
         return hash_obj(obj.read(FAST_HASH_FILESIZE_BYTES), **pass_on_kw)
 
-    # Convert to string (if not one already) in a fast and generic way: pickle;
+    # Convert to string (if not one already) in a fast and generic way: dill;
     # this creates a binary string, which is fine for sending to hashlib
     if not isinstance(obj, basestring):
         try:
-            pkl = pickle.dumps(obj, pickle.HIGHEST_PROTOCOL)
+            pkl = dill.dumps(obj, dill.HIGHEST_PROTOCOL)
         except:
-            logging.error('Failed to pickle `obj` "%s" of type "%s"'
+            logging.error('Failed to dill `obj` "%s" of type "%s"'
                           %(obj, type(obj)))
             raise
         obj = pkl
