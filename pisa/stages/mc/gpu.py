@@ -192,21 +192,6 @@ class gpu(Stage):
             assert (params.kde.value == False), 'The hist_e_scale can only be used with histograms, not KDEs!'
         if params.hist_pid_scale.is_fixed == False or params.hist_pid_scale.value != 1.0:
             assert (params.kde.value == False), 'The hist_epid_scale can only be used with histograms, not KDEs!'
-        if params['earth_model'].value is None:
-            if params['YeI'].value is not None:
-                raise ValueError("A none Earth model has been set but the YeI "
-                                 "value is set to %s. Set this to none."
-                                 %params['YeI'].value)
-            if params['YeO'].value is not None:
-                raise ValueError("A none Earth model has been set but the YeO "
-                                 "value is set to %s. Set this to none."
-                                 %params['YeO'].value)
-            if params['YeM'].value is not None:
-                raise ValueError("A none Earth model has been set but the YeM "
-                                 "value is set to %s. Set this to none."
-                                 %params['YeM'].value)
-                
-
 
     def _compute_nominal_outputs(self):
         # Store hashes for caching that is done inside the stage
@@ -288,8 +273,7 @@ class gpu(Stage):
             # GPU histogramer
             bin_edges = deepcopy(self.bin_edges)
             bin_edges[self.e_bin_number] *= FTYPE(self.params.hist_e_scale.value.m_as('dimensionless'))
-            if 'pid' in self.bin_names:
-                bin_edges[self.pid_bin_number][1] *= FTYPE(self.params.hist_pid_scale.value.m_as('dimensionless'))
+            bin_edges[self.pid_bin_number][1] *= FTYPE(self.params.hist_pid_scale.value.m_as('dimensionless'))
             self.histogrammer = self.GPUHist(*bin_edges)
 
         # load events
@@ -682,8 +666,7 @@ class gpu(Stage):
             # hist_e_scale:
             bin_edges = deepcopy(self.bin_edges)
             bin_edges[self.e_bin_number] *= FTYPE(self.params.hist_e_scale.value.m_as('dimensionless'))
-            if 'pid' in self.bin_names:
-                bin_edges[self.pid_bin_number][1] *= FTYPE(self.params.hist_pid_scale.value.m_as('dimensionless'))
+            bin_edges[self.pid_bin_number][1] *= FTYPE(self.params.hist_pid_scale.value.m_as('dimensionless'))
             self.histogrammer.update_bin_edges(*bin_edges)
 
             start_t = time.time()
