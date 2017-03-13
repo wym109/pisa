@@ -1909,6 +1909,7 @@ class MultiDimBinning(object):
         map : Map
 
         """
+        assert 'shape' not in kwargs
         if map_kw is None:
             map_kw = {}
         if 'dtype' not in kwargs:
@@ -1938,6 +1939,7 @@ class MultiDimBinning(object):
         map : Map
 
         """
+        assert 'shape' not in kwargs
         if map_kw is None:
             map_kw = {}
         if 'dtype' not in kwargs:
@@ -1967,6 +1969,7 @@ class MultiDimBinning(object):
         map : Map
 
         """
+        assert 'shape' not in kwargs
         if map_kw is None:
             map_kw = {}
         if 'dtype' not in kwargs:
@@ -1980,6 +1983,9 @@ class MultiDimBinning(object):
 
         Parameters
         ----------
+        fill_value
+            Value with which to fill the map
+
         name : string
             Name of the map
 
@@ -1988,14 +1994,15 @@ class MultiDimBinning(object):
             which is specified above)
 
         **kwargs
-            keyword arguments passed on to numpy.fill_value() (except `shape`
-            and `fill_value` which must be omitted)
+            keyword arguments passed on to numpy.fill_value() (except `shape`,
+            which must be omitted)
 
         Returns
         -------
         map : Map
 
         """
+        assert 'shape' not in kwargs
         if map_kw is None:
             map_kw = {}
         if 'dtype' not in kwargs:
@@ -2111,6 +2118,7 @@ class MultiDimBinning(object):
 
 def test_OneDimBinning():
     """Unit tests for OneDimBinning class"""
+    import cPickle as pickle
     import os
     import shutil
     import tempfile
@@ -2134,8 +2142,11 @@ def test_OneDimBinning():
     logging.debug('deepcopy(b1): %s', deepcopy(b1))
     # Indexing by Ellipsis
     assert b1[...] == b1
-    # TODO: make pickle great again
-    #pickle.dumps(b1, pickle.HIGHEST_PROTOCOL)
+    # Pickling
+    s = pickle.dumps(b1, pickle.HIGHEST_PROTOCOL)
+    b1_loaded = pickle.loads(s)
+    assert b1_loaded == b1
+
     try:
         b1[-1:-3]
     except ValueError:
@@ -2168,9 +2179,9 @@ def test_OneDimBinning():
     assert b3.hash == b4.hash, 'b3.hash=%s; b4.hash=%s' %(b3.hash, b4.hash)
 
     # TODO: make pickle great again
-    #s = pickle.dumps(b3, pickle.HIGHEST_PROTOCOL)
-    #b3_loaded = pickle.loads(s)
-    #assert b3_loaded == b3
+    s = pickle.dumps(b3, pickle.HIGHEST_PROTOCOL)
+    b3_loaded = pickle.loads(s)
+    assert b3_loaded == b3
 
     testdir = tempfile.mkdtemp()
     try:
@@ -2193,15 +2204,18 @@ def test_OneDimBinning():
 
 def test_MultiDimBinning():
     """Unit tests for MultiDimBinning class"""
+    import cPickle as pickle
     import os
     import shutil
     import tempfile
+    from pisa.utils.hash import hash_obj
 
     b1 = OneDimBinning(name='energy', num_bins=40, is_log=True,
                        domain=[1, 80]*ureg.GeV)
     b2 = OneDimBinning(name='coszen', num_bins=40, is_lin=True,
                        domain=[-1, 1])
     mdb = MultiDimBinning([b1, b2])
+    _ = hash_obj(mdb)
     _ = mdb[0, 0]
     _ = mdb[0:, 0]
     _ = mdb[0:, 0:]
@@ -2211,8 +2225,8 @@ def test_MultiDimBinning():
     logging.debug('copy(mdb): %s', copy(mdb))
     logging.debug('deepcopy(mdb): %s', deepcopy(mdb))
     assert deepcopy(mdb) == mdb
-    #s = pickle.dumps(mdb, pickle.HIGHEST_PROTOCOL)
     # TODO: add these back in when we get pickle loading working!
+    #s = pickle.dumps(mdb, pickle.HIGHEST_PROTOCOL)
     #mdb2 = pickle.loads(s)
     #assert mdb2 == mdb1
 
