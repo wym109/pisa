@@ -20,6 +20,7 @@ import itertools
 import numpy as np
 from scipy.stats import norm
 from scipy import stats
+from collections import OrderedDict
 
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
@@ -224,7 +225,12 @@ class param(Stage):
         allowed_dist_params = ['loc','scale','fraction']
         # First, get list of distributions to be superimposed.
         reco_dists = param_dict['dist'].split("+")
-        reco_dist_count = {dist: reco_dists.count(dist) for dist in reco_dists}
+        # Need to retain order of specification for correct assignment of
+        # distributions' parameters
+        reco_dist_count = OrderedDict()
+        for dist in reco_dists:
+            if not dist in reco_dist_count:
+                reco_dist_count[dist] = reco_dists.count(dist)
         param_dict.pop('dist')
         dist_param_dict = {}
         if len(reco_dists) == 1:
@@ -243,24 +249,40 @@ class param(Stage):
             #
             # Require all of the parameters from above to be present,
             # including 'fraction'
-            for dist_str,count in reco_dist_count.items():
+            tot_dist_count = 1
+            for dist_str, this_dist_type_count in reco_dist_count.items():
                 dist_str = "".join(dist_str.split())
                 dist_param_dict[dist_str] = []
-                for i in xrange(1, count+1):
+                for i in xrange(1, this_dist_type_count+1):
+                    logging.trace(" Collecting parameters for resolution"
+                                  " function #%d of type '%s'."%(i, dist_str))
                     this_dist_dict = {}
                     for param in allowed_dist_params:
-                        allowed_here = (param+"%s"%i,
+                        allowed_here = (param+"%s"%tot_dist_count,
                                         param+"_"+dist_str+"%s"%i)
+                        logging.trace("  Searching for one of '%s'."
+                                      %str(allowed_here))
                         param_str = select_dist_param_key(allowed_here,
                                                           param_dict)
+                        logging.trace("  Found and selected '%s'."%param_str)
                         this_dist_dict[param] = param_dict[param_str]
                     dist_param_dict[dist_str].append(this_dist_dict)
+                    tot_dist_count += 1
         return dist_param_dict
 
     def check_reco_dist_consistency(self, dist_param_dict):
-       # TODO: Ensure fractions add up to one so as to conserve normalisation,
-       # add fraction if not present...
-       return True
+        # TODO: Allow for only n-1 fractions to be present, add remainder?
+        logging.trace(" Verifying correct normalisation of resolution function.")
+        dist_dicts = np.array(dist_param_dict.values())
+        frac_sum = np.zeros_like(dist_dicts[0][0]['fraction'])
+        for dist_type in dist_dicts:
+            for dist_dict in dist_type:
+                frac_sum += dist_dict['fraction']
+        if not np.all(np.isclose(frac_sum, np.ones_like(frac_sum))):
+            err_msg = ("Total normalisation of resolution function is off"
+                       " (fractions do not add up to 1).")
+            raise ValueError(err_msg)
+        return True
 
     def read_param_string(self, param_func_dict):
         """
@@ -276,7 +298,8 @@ class param(Stage):
             for dimension in param_func_dict[flavour].keys():
                 parameters = {}
                 try:
-                    reco_dist_str = param_func_dict[flavour][dimension]['dist']
+                    reco_dist_str = \
+                        param_func_dict[flavour][dimension]['dist'].lower()
                     logging.debug("Will use %s %s resolution function '%s'"
                                   %(flavour, dimension, reco_dist_str))
                 except:
@@ -350,9 +373,14 @@ class param(Stage):
             try:
                 dist = getattr(stats, dist_str)
             except AttributeError:
-                raise AttributeError("%s is not a valid distribution from"
-                                     " scipy.stats (your scipy version: %s)."
-                                     %(dist_str, scipy.__version__))
+                try:
+                    import scipy
+                    sp_ver_str = scipy.__version__
+                except:
+                    sp_ver_str = "N/A"
+                raise AttributeError("'%s' is not a valid distribution from"
+                                     " scipy.stats (your scipy version: '%s')."
+                                     %(dist_str, sp_ver_str))
             binwise_cdfs = []
             for this_dist_dict in dist_params[dist_str]:
                 loc = this_dist_dict['loc'][enindex,czindex]
