@@ -2625,7 +2625,7 @@ def test_MapSet():
         for p in permutations(ms[0].binning.dimensions):
             ms.reorder_dimensions(p)
 
-    logging.info(str(('<< PASSED : test_MapSet >>')))
+    logging.info('<< PASSED : test_MapSet >>')
 
 
 if __name__ == "__main__":
