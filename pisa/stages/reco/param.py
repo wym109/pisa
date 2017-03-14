@@ -224,33 +224,36 @@ class param(Stage):
 
         allowed_dist_params = ['loc','scale','fraction']
         # First, get list of distributions to be superimposed.
-        reco_dists = param_dict['dist'].split("+")
+        dists = param_dict['dist'].split("+")
         # Need to retain order of specification for correct assignment of
         # distributions' parameters
-        reco_dist_count = OrderedDict()
-        for dist in reco_dists:
-            if not dist in reco_dist_count:
-                reco_dist_count[dist] = reco_dists.count(dist)
+        dist_type_count = OrderedDict()
+        for dist_type in dists:
+            dist_type_count[dist_type] = dist_type_count.get(dist_type, 0) + 1
         param_dict.pop('dist')
         dist_param_dict = {}
-        if len(reco_dists) == 1:
-            dist_str = "".join(reco_dists[0].split())
+        # TODO: do we really need to distinguish the two cases?
+        if len(dists) == 1:
+            dist_str = "".join(dists[0].split())
             dist_param_dict[dist_str] = [{}]
+            logging.trace(" Collecting parameters for single resolution"
+                          " function of type '%s'."%dist_str)
             # No need to specify relative weight in this case ('fraction')
-            # TODO: replace once consistency check done,
-            # require 'fraction' always for now
+            # TODO: remove requirement of 'fraction' being present?
             # for param in allowed_dist_params[:-1]:
             for param in allowed_dist_params:
                 allowed_here = (param, param+"_"+dist_str)
+                logging.trace("  Searching for one of '%s'."%str(allowed_here))
                 param_str = select_dist_param_key(allowed_here, param_dict)
                 dist_param_dict[dist_str][0][param] = param_dict[param_str]
+                logging.trace("  Found and selected '%s'."%param_str)
         else:
             # Need to handle superposition of distributions.
             #
             # Require all of the parameters from above to be present,
             # including 'fraction'
             tot_dist_count = 1
-            for dist_str, this_dist_type_count in reco_dist_count.items():
+            for dist_str, this_dist_type_count in dist_type_count.items():
                 dist_str = "".join(dist_str.split())
                 dist_param_dict[dist_str] = []
                 for i in xrange(1, this_dist_type_count+1):
@@ -264,8 +267,8 @@ class param(Stage):
                                       %str(allowed_here))
                         param_str = select_dist_param_key(allowed_here,
                                                           param_dict)
-                        logging.trace("  Found and selected '%s'."%param_str)
                         this_dist_dict[param] = param_dict[param_str]
+                        logging.trace("  Found and selected '%s'."%param_str)
                     dist_param_dict[dist_str].append(this_dist_dict)
                     tot_dist_count += 1
         return dist_param_dict
