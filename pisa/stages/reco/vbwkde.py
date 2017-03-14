@@ -48,6 +48,12 @@ The algorithm is roughly as follows:
 """
 
 
+# TODO: nutau needn't be treated below 3.5 GeV! ...
+# TODO: write "closest bin" function
+# TODO: handle "closest bin" logic when infinities are involved (seems like
+#         `np.clip(edges, a_min=np.ftype(FTYPE).min, a_max=np.ftype(FTYPE).max`
+#       would do the trick...)
+
 from __future__ import division
 
 from collections import OrderedDict, Sequence, namedtuple
@@ -66,7 +72,7 @@ from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup
 from pisa.utils.hash import hash_obj
 from pisa.utils.vbwkde import vbwkde as vbwkde_func
 from pisa.utils.log import logging
-from pisa.utils.profiler import profile
+from pisa.utils.profiler import line_profile, profile
 
 
 __all__ = ['EPSILON', 'KDE_DIM_DEPENDENCIES', 'KDE_TRUE_BINNING',
@@ -81,10 +87,21 @@ KDE_DIM_DEPENDENCIES = OrderedDict([
     ('energy', ['pid', 'true_energy']),
     ('coszen', ['pid', 'true_coszen', 'true_energy'])
 ])
-KDE_TRUE_BINNING = MultiDimBinning([
-    dict(name='true_energy', num_bins=20, is_log=True, domain=[1, 80]*ureg.GeV),
-    dict(name='true_coszen', bin_edges=[-1, -0.75, 0.75, 1])
-])
+KDE_TRUE_BINNING = {
+    'pid': MultiDimBinning([
+        dict(name='true_energy', num_bins=4, is_log=True,
+             domain=[1, 80]*ureg.GeV),
+        ]),
+    'energy': MultiDimBinning([
+        dict(name='true_energy', num_bins=5, is_log=True,
+             domain=[1, 80]*ureg.GeV),
+        ]),
+    'coszen': MultiDimBinning([
+        dict(name='true_energy', num_bins=3, is_log=True,
+             domain=[1, 80]*ureg.GeV),
+        dict(name='true_coszen', bin_edges=[-1, -0.75, 0.75, 1])
+    ])
+}
 MIN_NUM_EVENTS = 100
 TGT_NUM_EVENTS = 1000
 
@@ -101,7 +118,7 @@ KDEProfile = namedtuple('KDEProfile', ['x', 'density'])
 # TODO: revisit this heuristic with proper testing
 # TODO: modify this once we have fixed the Events object to be more agnostic to
 #       flavint
-# TODO: modify once Events.applyCut is not longer an in-place operation
+@profile
 def collect_enough_events(events, flavint, bin,
                           min_num_events=MIN_NUM_EVENTS,
                           tgt_num_events=TGT_NUM_EVENTS,
@@ -465,20 +482,20 @@ class vbwkde(Stage):
         # characterization. (This also means that we can simply use
         # one-dimensional KDE for the characterization.)
 
-        # While the below derives its binning from either `output_binning` (for
-        # pid) or from `KDE_TRUE_BINNING`, one could imagine sending these
-        # binnings in as a param or another instantiation arg.
-
         self.kde_binning = OrderedDict()
-        """Binning for events for characterizing resolutions & possibly PID"""
+        """OrderedDict formatted as `{out_dim.basename: MultiDimBinning}`, used
+        for binning events for characterizing resolutions in the output
+        dimensions"""
 
         # Only characterize dimensions that are to be output
         for out_dim in output_binning:
             dep_binnings = []
             for dep_dim_name in KDE_DIM_DEPENDENCIES[out_dim.basename]:
                 # Use KDE_TRUE_BINNING for KDE binning where possible
-                if dep_dim_name in KDE_TRUE_BINNING:
-                    dep_binnings.append(KDE_TRUE_BINNING[dep_dim_name])
+                if dep_dim_name in KDE_TRUE_BINNING[out_dim.basename]:
+                    dep_binnings.append(
+                        KDE_TRUE_BINNING[out_dim.basename][dep_dim_name]
+                    )
 
                 # Otherwise (e.g. pid) must be the same as output_binning, so
                 # get binning spec from there
@@ -496,8 +513,32 @@ class vbwkde(Stage):
         self.include_attrs_for_hashes('kde_binning')
         self.include_attrs_for_hashes('sum_grouped_flavints')
 
-        self.kde_info = {}
-        self._kde_hashes = {}
+        self.kde_info = OrderedDict()
+        """OrderedDict containing KDEProfile's. Structure is:
+            {dim_basename: {flavintgroup: {(Coord): (KDEProfile)}}}
+        For example:
+            {'pid': {
+                numu_cc: {
+                    (true_energy=0): (x=[...], density=[...]),
+                    (true_energy=1): (x=[...], density=[...])
+                },
+                numubar_cc: {
+                    (true_energy=0): (x=[...], density=[...]),
+                    (true_energy=1): (x=[...], density=[...])
+                },
+             'energy': {
+                numu_cc: {
+                    (true_energy=0): (x=[...], density=[...]),
+                    (true_energy=1): (x=[...], density=[...])
+                },
+                numubar_cc: {
+                    (true_energy=0): (x=[...], density=[...]),
+                    (true_energy=1): (x=[...], density=[...])}
+                },
+            }}
+        """
+
+        self._kde_hashes = OrderedDict()
 
     def validate_binning(self):
         """Require input dimensions of "true_energy" and "true_coszen" (in any
@@ -614,7 +655,7 @@ class vbwkde(Stage):
         hash_items = [self.source_code_hash, self.events.hash]
 
         for kde_dim, dep_dims_binning in self.kde_binning.items():
-            logging.trace('Working on KDE dimension "%s"', kde_dim)
+            logging.debug('Working on KDE dimension "%s"', kde_dim)
             new_hash = hash_obj(deepcopy(hash_items) + [dep_dims_binning])
 
             # See if we already have correct kde_info for this dim
@@ -782,9 +823,10 @@ class vbwkde(Stage):
             another output (reco) dimension.
 
         """
-        assert flavintgroup in self.kde_info
+        pid_kde_profiles = self.kde_info['pid'][flavintgroup]
+        e_kde_profiles = self.kde_info['energy'][flavintgroup]
+        cz_kde_profiles = self.kde_info['coszen'][flavintgroup]
 
-        kde_profiles = self.kde_info[flavintgroup]
         kde_binning = self.kde_binning
 
         # Events in each input bin will be smeared out into all output bins.
@@ -801,15 +843,15 @@ class vbwkde(Stage):
         reco_coszen = self.output_binning.reco_coszen
         pid_binning = self.output_binning.pid
 
-        # Get once so we don't have to re-compute for each iteration
+        # Get the following once so we don't have to repeat within the loops
+
         pid_kde_e_centers = kde_binning['pid'].true_energy.weighted_centers
+
         e_kde_e_centers = kde_binning['energy'].true_energy.weighted_centers
 
-        # NOTE: `cz_kde_e_centers` are assumed to be the same as
-        #       `e_kde_e_centers`
-        #cz_kde_e_centers = (
-        #    kde_binning['coszen'].true_energy.weighted_centers
-        #)
+        cz_kde_e_centers = (
+            kde_binning['coszen'].true_energy.weighted_centers
+        )
         cz_kde_cz_centers = kde_binning['coszen'].true_coszen.weighted_centers
 
         reco_e_edges = reco_energy.bin_edges - self.params.e_reco_bias.value
@@ -818,10 +860,10 @@ class vbwkde(Stage):
         for true_e_bin_num, true_e_bin in enumerate(true_energy.iterbins()):
             true_e_center = true_e_bin.weighted_centers[0]
             idx = np.argmin(np.abs(np.log(true_e_center/pid_kde_e_centers)))
-            closest_e_kde_coord = kde_binning['pid'].Coord(true_energy=idx)
+            pid_closest_kde_coord = kde_binning['pid'].Coord(true_energy=idx)
 
             # Figure out PID fractions
-            pid_kde_profile = kde_profiles['pid'][closest_e_kde_coord]
+            pid_kde_profile = pid_kde_profiles[pid_closest_kde_coord]
             pid_counts = np.histogram(
                 pid_kde_profile.x, weights=pid_kde_profile.density,
                 bins=pid_binning.bin_edges,
@@ -847,11 +889,11 @@ class vbwkde(Stage):
                 closest_e_idx = np.argmin(
                     np.abs(np.log(true_e_center / e_kde_e_centers))
                 )
-                closest_e_kde_coord = kde_binning['energy'].Coord(
+                e_closest_kde_coord = kde_binning['energy'].Coord(
                     pid=pid_bin_num,
                     true_energy=closest_e_idx
                 )
-                e_kde_profile = kde_profiles['energy'][closest_e_kde_coord]
+                e_kde_profile = e_kde_profiles[e_closest_kde_coord]
 
                 # Tranform reco-energy bin edges into the log-ratio space
                 # where we characterized the energy resolutions
@@ -870,27 +912,28 @@ class vbwkde(Stage):
 
                 kernel[energy_indexer] = pid_fraction * energy_fractions
 
+                # Do this just once for the energy bin, prior to looping over
+                # coszen
+                cz_closest_e_idx = np.argmin(np.abs(
+                    np.log(true_e_center / cz_kde_e_centers)
+                ))
+
                 # Get the closest coszen smearing for this
                 # (PID, true-coszen, true-energy) bin
-                for true_cz_bin_num, true_cz_bin in (
-                        enumerate(true_coszen.iterbins())
-                ):
+                for true_cz_bin_num, true_cz_bin in \
+                        enumerate(true_coszen.iterbins()):
                     true_cz_center = true_cz_bin.weighted_centers[0]
 
-                    # TODO: add closest_e_idx logic if we ever allow binning
-                    # energy differently for coszen resolutions vs. energy
-                    # resolutions
-
-                    closest_cz_idx = np.argmin(np.abs(fold_coszen_error(
+                    cz_closest_cz_idx = np.argmin(np.abs(fold_coszen_error(
                         true_cz_center - cz_kde_cz_centers
                     )))
-                    closest_cz_kde_coord = kde_binning['coszen'].Coord(
+                    cz_closest_kde_coord = kde_binning['coszen'].Coord(
                         pid=pid_bin_num,
-                        true_coszen=closest_cz_idx,
-                        true_energy=closest_e_idx
+                        true_coszen=cz_closest_cz_idx,
+                        true_energy=cz_closest_e_idx
                     )
                     cz_kde_profile = (
-                        kde_profiles['coszen'][closest_cz_kde_coord]
+                        cz_kde_profiles[cz_closest_kde_coord]
                     )
 
                     # TODO: implement `res_scale_ref`!
