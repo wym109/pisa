@@ -459,7 +459,8 @@ class Map(object):
 
     def plot(self, evtrate=True, symm=False, logz=False, fig=None, ax=None,
              title=None, outdir=None, fname=None, backend='pdf', fmt='pdf',
-             cmap=None, fig_kw=None, plt_kw=None, vmax=None):
+             cmap=None, fig_kw=None, plt_kw=None, vmax=None, clabel=None,
+             clabelsize=None, xlabelsize=None, ylabelsize=None, titlesize=None):
         """Simple plot of a map"""
         import matplotlib as mpl
         if (backend is not None
@@ -531,6 +532,11 @@ class Map(object):
         )
         cbar = plt.colorbar(mappable=pcmesh, ax=ax)
         cbar.ax.tick_params(labelsize='large')
+        if clabel is not None:
+            if clabelsize is not None:
+                cbar.set_label(label=clabel,size=clabelsize)
+            else:
+                cbar.set_label(label=clabel)
 
         xlabel = strip_outer_dollars(self.binning.dims[0].tex)
         ylabel = strip_outer_dollars(self.binning.dims[1].tex)
@@ -546,9 +552,18 @@ class Map(object):
         xlabel = '$%s$' % xlabel
         ylabel = '$%s$' % ylabel
 
-        ax.set_xlabel(xlabel)
-        ax.set_ylabel(ylabel)
-        ax.set_title(title, y=1.03)
+        if xlabelsize is not None:
+            ax.set_xlabel(xlabel, size=xlabelsize)
+        else:
+            ax.set_xlabel(xlabel)
+        if ylabelsize is not None:
+            ax.set_ylabel(ylabel, size=ylabelsize)
+        else:
+            ax.set_ylabel(ylabel)
+        if titlesize is not None:
+            ax.set_title(title, y=1.03, size=titlesize)
+        else:
+            ax.set_title(title, y=1.03)
         ax.set_xlim(np.min(x), np.max(x))
         ax.set_ylim(np.min(y), np.max(y))
 
@@ -1048,7 +1063,7 @@ class Map(object):
 
         return MapSet(maps=maps, name=mapset_name, tex=mapset_tex)
 
-    def llh(self, expected_values):
+    def llh(self, expected_values, binned=False):
         """Calculate the total log-likelihood value between this map and the
         map described by `expected_values`; self is taken to be the "actual
         values" (or (pseudo)data), and `expected_values` are the expectation
@@ -1060,14 +1075,18 @@ class Map(object):
 
         Returns
         -------
-        total_llh : float
+        total_llh : float or binned_llh if binned=True
 
         """
         expected_values = reduceToHist(expected_values)
-        return np.sum(stats.llh(actual_values=self.hist,
-                                expected_values=expected_values))
+        if binned:
+            return stats.llh(actual_values=self.hist,
+                             expected_values=expected_values)
+        else:
+            return np.sum(stats.llh(actual_values=self.hist,
+                                    expected_values=expected_values))
 
-    def conv_llh(self, expected_values):
+    def conv_llh(self, expected_values, binned=False):
         """Calculate the total convoluted log-likelihood value between this map
         and the map described by `expected_values`; self is taken to be the
         "actual values" (or (pseudo)data), and `expected_values` are the
@@ -1079,14 +1098,18 @@ class Map(object):
 
         Returns
         -------
-        total_conv_llh : float
+        total_conv_llh : float or binned_conv_llh if binned=True
 
         """
         expected_values = reduceToHist(expected_values)
-        return np.sum(stats.conv_llh(actual_values=self.hist,
-                                     expected_values=expected_values))
+        if binned:
+            return stats.conv_llh(actual_values=self.hist,
+                                  expected_values=expected_values)
+        else:
+            return np.sum(stats.conv_llh(actual_values=self.hist,
+                                         expected_values=expected_values))
 
-    def barlow_llh(self, expected_values):
+    def barlow_llh(self, expected_values, binned=False):
         """Calculate the total barlow log-likelihood value between this map and
         the map described by `expected_values`; self is taken to be the "actual
         values" (or (pseudo)data), and `expected_values` are the expectation
@@ -1099,7 +1122,7 @@ class Map(object):
 
         Returns
         -------
-        total_barlow_llh : float
+        total_barlow_llh : float or binned_barlow_llh if binned=True
 
         """
         # TODO: should this handle reduceToHist / expected_values as other
@@ -1108,10 +1131,14 @@ class Map(object):
             expected_values = reduceToHist(expected_values)
         elif isinstance(expected_values, Iterable):
             expected_values = [reduceToHist(x) for x in expected_values]
-        return np.sum(stats.barlow_llh(actual_values=self.hist,
-                                       expected_values=expected_values))
+        if binned:
+            return stats.barlow_llh(actual_values=self.hist,
+                                    expected_values=expected_values)
+        else:
+            return np.sum(stats.barlow_llh(actual_values=self.hist,
+                                           expected_values=expected_values))
 
-    def mod_chi2(self, expected_values):
+    def mod_chi2(self, expected_values, binned=False):
         """Calculate the total modified chi2 value between this map and the map
         described by `expected_values`; self is taken to be the "actual values"
         (or (pseudo)data), and `expected_values` are the expectation values for
@@ -1123,14 +1150,18 @@ class Map(object):
 
         Returns
         -------
-        total_mod_chi2 : float
+        total_mod_chi2 : float or binned_mod_chi2 if binned=True
 
         """
         expected_values = reduceToHist(expected_values)
-        return np.sum(stats.mod_chi2(actual_values=self.hist,
-                                     expected_values=expected_values))
-
-    def chi2(self, expected_values):
+        if binned:
+            return stats.mod_chi2(actual_values=self.hist,
+                                  expected_values=expected_values)
+        else:
+            return np.sum(stats.mod_chi2(actual_values=self.hist,
+                                         expected_values=expected_values))
+    
+    def chi2(self, expected_values, binned=False):
         """Calculate the total chi-squared value between this map and the map
         described by `expected_values`; self is taken to be the "actual values"
         (or (pseudo)data), and `expected_values` are the expectation values for
@@ -1142,12 +1173,16 @@ class Map(object):
 
         Returns
         -------
-        total_chi2 : float
+        total_chi2 : float or binned_chi2 if binned=True
 
         """
         expected_values = reduceToHist(expected_values)
-        return np.sum(stats.chi2(actual_values=self.hist,
-                                 expected_values=expected_values))
+        if binned:
+            return stats.chi2(actual_values=self.hist,
+                              expected_values=expected_values)
+        else:
+            return np.sum(stats.chi2(actual_values=self.hist,
+                                     expected_values=expected_values))
 
     def metric_total(self, expected_values, metric):
         # TODO: should this use reduceToHist as in chi2 and llh above?
@@ -2214,9 +2249,15 @@ class MapSet(object):
         return MapSet([m.downsample(*args, **kwargs) for m in self])
 
     def metric_per_map(self, expected_values, metric):
-        metric = metric.lower() if isinstance(metric, basestring) else metric
+        if isinstance(metric, basestring):
+            metric = metric.lower()
+            if 'binned_' in metric:
+                metric = metric.replace('binned_','')
+                binned=True
+            else:
+                binned=False
         if metric in stats.ALL_METRICS:
-            return self.apply_to_maps(metric, expected_values)
+            return self.apply_to_maps(metric, expected_values, binned)
         else:
             raise ValueError('`metric` "%s" not recognized; use one of %s.'
                              %(metric, stats.ALL_METRICS))

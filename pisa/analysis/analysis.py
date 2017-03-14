@@ -22,6 +22,7 @@ import pint
 import scipy.optimize as optimize
 
 from pisa import ureg
+from pisa.core.map import Map, MapSet
 from pisa.core.param import ParamSet
 from pisa.utils.log import logging
 from pisa.utils.fileio import to_file
@@ -68,7 +69,8 @@ class Analysis(object):
 
     def fit_hypo(self, data_dist, hypo_maker, hypo_param_selections, metric,
                  minimizer_settings, reset_free=True, check_octant=True,
-                 other_metrics=None, blind=False, pprint=True):
+                 check_ordering=False, other_metrics=None,
+                 blind=False, pprint=True):
         """Fitter "outer" loop: If `check_octant` is True, run
         `fit_hypo_inner` starting in each octant of theta23 (assuming that
         is a param in the `hypo_maker`). Otherwise, just run the inner
@@ -109,6 +111,10 @@ class Analysis(object):
             free), the fit will be re-run in the second (first) octant if
             theta23 is initialized in the first (second) octant.
 
+        check_ordering : bool
+            If the ordering is not in the hypotheses already being tested, the
+            fit will be run in both orderings.
+
         other_metrics : None, string, or list of strings
             After finding the best fit, these other metrics will be evaluated
             for each output that contributes to the overall fit. All strings
@@ -132,38 +138,39 @@ class Analysis(object):
         alternate_fits : list of `fit_info` from other fits run
 
         """
-        # Select the version of the parameters used for this hypothesis
-        hypo_maker.select_params(hypo_param_selections)
 
-        # Reset free parameters to nominal values
-        if reset_free:
-            hypo_maker.reset_free()
+        if check_ordering:
+            if 'nh' in hypo_param_selections or 'ih' in hypo_param_selections:
+                raise ValueError('One of the orderings has already been '
+                                 'specified as one of the hypotheses but the '
+                                 'fit has been requested to check both. These '
+                                 'are incompatible.')
+
+            logging.info('Performing fits in both orderings.')
+            extra_param_selections = ['nh','ih']
+        else:
+            extra_param_selections = [None]
 
         alternate_fits = []
 
-        best_fit_info = self.fit_hypo_inner(
-            hypo_maker=hypo_maker,
-            data_dist=data_dist,
-            metric=metric,
-            minimizer_settings=minimizer_settings,
-            other_metrics=other_metrics,
-            pprint=pprint,
-            blind=blind
-        )
+        for extra_param_selection in extra_param_selections:
+            
+            if extra_param_selection is not None:
+                full_param_selections = hypo_param_selections
+                full_param_selections.append(extra_param_selection)
+            else:
+                full_param_selections = hypo_param_selections
+            # Select the version of the parameters used for this hypothesis
+            hypo_maker.select_params(full_param_selections)
 
-        # Decide whether fit for other octant is necessary
-        if check_octant and 'theta23' in hypo_maker.params.free.names:
-            logging.debug('checking other octant of theta23')
-            hypo_maker.reset_free()
+            # Reset free parameters to nominal values
+            if reset_free:
+                hypo_maker.reset_free()
+            else:
+                # Saves the current minimizer start values for the octant check
+                minimizer_start_params = hypo_maker.params
 
-            # Hop to other octant by reflecting about 45 deg
-            theta23 = hypo_maker.params.theta23
-            inflection_point = (45*ureg.deg).to(theta23.units)
-            theta23.value = 2*inflection_point - theta23.value
-            hypo_maker.update_params(theta23)
-
-            # Re-run minimizer starting at new point
-            new_fit_info = self.fit_hypo_inner(
+            best_fit_info = self.fit_hypo_inner(
                 hypo_maker=hypo_maker,
                 data_dist=data_dist,
                 metric=metric,
@@ -173,23 +180,49 @@ class Analysis(object):
                 blind=blind
             )
 
-            # Take the one with the best fit
-            if metric in METRICS_TO_MAXIMIZE:
-                it_got_better = new_fit_info['metric_val'] > \
+            # Decide whether fit for other octant is necessary
+            if check_octant and 'theta23' in hypo_maker.params.free.names:
+                logging.debug('checking other octant of theta23')
+                if reset_free:
+                    hypo_maker.reset_free()
+                else:
+                    for param in minimizer_start_params:
+                        hypo_maker.params[param.name].value = param.value
+
+                # Hop to other octant by reflecting about 45 deg
+                theta23 = hypo_maker.params.theta23
+                inflection_point = (45*ureg.deg).to(theta23.units)
+                theta23.value = 2*inflection_point - theta23.value
+                hypo_maker.update_params(theta23)
+
+                # Re-run minimizer starting at new point
+                new_fit_info = self.fit_hypo_inner(
+                    hypo_maker=hypo_maker,
+                    data_dist=data_dist,
+                    metric=metric,
+                    minimizer_settings=minimizer_settings,
+                    other_metrics=other_metrics,
+                    pprint=pprint,
+                    blind=blind
+                )
+
+                # Take the one with the best fit
+                if metric in METRICS_TO_MAXIMIZE:
+                    it_got_better = new_fit_info['metric_val'] > \
                         best_fit_info['metric_val']
-            else:
-                it_got_better = new_fit_info['metric_val'] < \
+                else:
+                    it_got_better = new_fit_info['metric_val'] < \
                         best_fit_info['metric_val']
 
-            if it_got_better:
-                alternate_fits.append(best_fit_info)
-                best_fit_info = new_fit_info
-                if not blind:
-                    logging.debug('Accepting other-octant fit')
-            else:
-                alternate_fits.append(new_fit_info)
-                if not blind:
-                    logging.debug('Accepting initial-octant fit')
+                if it_got_better:
+                    alternate_fits.append(best_fit_info)
+                    best_fit_info = new_fit_info
+                    if not blind:
+                        logging.debug('Accepting other-octant fit')
+                else:
+                    alternate_fits.append(new_fit_info)
+                    if not blind:
+                        logging.debug('Accepting initial-octant fit')
 
         return best_fit_info, alternate_fits
 
@@ -249,7 +282,7 @@ class Analysis(object):
         logging.debug('Running the %s minimizer.'
                       %minimizer_settings['method']['value'])
 
-        # Using scipy.optimize.minimize allows a whole host of minimisers to be
+        # Using scipy.optimize.minimize allows a whole host of minimizers to be
         # used.
         counter = Counter()
         fit_history = []
@@ -343,6 +376,9 @@ class Analysis(object):
         fit_info['minimizer_time'] = minimizer_time * ureg.sec
         fit_info['minimizer_metadata'] = metadata
         fit_info['fit_history'] = fit_history
+        # If blind replace hypo_asimov_dist with none object
+        if blind:
+            hypo_asimov_dist = None
         fit_info['hypo_asimov_dist'] = hypo_asimov_dist
 
         return fit_info
@@ -408,6 +444,18 @@ class Analysis(object):
             name_vals_d['maps'] = data_dist.metric_per_map(
                 expected_values=hypo_asimov_dist, metric=m
             )
+            metric_hists = data_dist.metric_per_map(
+                expected_values=hypo_asimov_dist, metric='binned_'+m
+            )
+            maps_binned = []
+            for asimov_map, metric_hist in zip(hypo_asimov_dist, metric_hists):
+                map_binned = Map(
+                    name=asimov_map.name,
+                    hist=np.reshape(metric_hists[metric_hist],asimov_map.shape),
+                    binning=asimov_map.binning
+                )
+                maps_binned.append(map_binned)
+            name_vals_d['maps_binned'] = MapSet(maps_binned)
             name_vals_d['priors'] = params.priors_penalties(metric=metric)
             detailed_metric_info[m] = name_vals_d
         return detailed_metric_info
