@@ -381,20 +381,17 @@ class param(Stage):
         e_reco_bias = self.params.e_reco_bias.value.m_as('GeV')
         cz_reco_bias = self.params.cz_reco_bias.value.m_as('dimensionless')
         for flavour in self.param_dict.keys():
-            for dist in self.param_dict[flavour]['energy'].keys():
-                for i,flav_dim_dist_dict in enumerate(self.param_dict[flavour]['energy'][dist]):
-                    for param in flav_dim_dist_dict.keys():
-                        if 'scale' in param:
-                            self.param_dict[flavour]['energy'][dist][i][param] *= e_res_scale
-                        elif 'loc' in param:
-                            self.param_dict[flavour]['energy'][dist][i][param] += e_reco_bias
-            for dist in self.param_dict[flavour]['coszen'].keys():
-                for i,flav_dim_dist_dict in enumerate(self.param_dict[flavour]['coszen'][dist]):
-                    for param in flav_dim_dist_dict.keys():
-                        if 'scale' in param:
-                            self.param_dict[flavour]['coszen'][dist][i][param] *= cz_res_scale
-                        elif 'loc' in param:
-                            self.param_dict[flavour]['coszen'][dist][i][param] += cz_reco_bias
+            for (dim, dim_scale, dim_bias) in \
+              (('energy', e_res_scale, e_reco_bias),
+               ('coszen', cz_res_scale, cz_reco_bias)):
+                for dist in self.param_dict[flavour][dim].keys():
+                    for i,flav_dim_dist_dict in \
+                      enumerate(self.param_dict[flavour][dim][dist]):
+                        for param in flav_dim_dist_dict.keys():
+                            if param == 'scale':
+                                flav_dim_dist_dict[param] *= dim_scale
+                            elif param == 'loc':
+                                flav_dim_dist_dict[param] += dim_bias
         
     def apply_reco_scales_and_biases(self):
         """
@@ -418,7 +415,7 @@ class param(Stage):
                             "Couldn't find all of "+str(tuple(entries_to_mod))+
                             " in chosen reco parameterisation, but required for"
                             " applying reco scale and bias. Got %s for %s %s."
-                            %(flav_dim_dist_dict.keys(),flav,dim))
+                            %(flav_dim_dist_dict.keys(), flav, dim))
         # everything seems to be fine, so rescale and shift distributions
         self.scale_and_shift_reco_dists()
 
