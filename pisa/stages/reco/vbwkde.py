@@ -118,7 +118,6 @@ KDEProfile = namedtuple('KDEProfile', ['x', 'density'])
 # TODO: revisit this heuristic with proper testing
 # TODO: modify this once we have fixed the Events object to be more agnostic to
 #       flavint
-@profile
 def collect_enough_events(events, flavint, bin,
                           min_num_events=MIN_NUM_EVENTS,
                           tgt_num_events=TGT_NUM_EVENTS,
@@ -411,8 +410,8 @@ class vbwkde(Stage):
     """
     def __init__(self, params, particles, input_names, transform_groups,
                  sum_grouped_flavints, input_binning, output_binning,
-                 error_method=None, transforms_cache_depth=20,
-                 outputs_cache_depth=20, memcache_deepcopy=True,
+                 error_method=None, transforms_cache_depth=1,
+                 outputs_cache_depth=20, memcache_deepcopy=False,
                  debug_mode=None):
         assert particles in ['neutrinos', 'muons']
         self.particles = particles
@@ -834,7 +833,7 @@ class vbwkde(Stage):
         # dimension that was created from events closest to this input bin.
 
         kernel_binning = self.input_binning * self.output_binning
-        kernel = kernel_binning.full(np.nan)
+        kernel = kernel_binning.full(np.nan, name='kernel')
 
         # Shortcut names
         true_energy = self.input_binning.true_energy
@@ -864,12 +863,11 @@ class vbwkde(Stage):
 
             # Figure out PID fractions
             pid_kde_profile = pid_kde_profiles[pid_closest_kde_coord]
-            pid_counts = np.histogram(
+            pid_fractions, _ = np.histogram(
                 pid_kde_profile.x, weights=pid_kde_profile.density,
-                bins=pid_binning.bin_edges,
+                bins=pid_binning.bin_edges.magnitude,
                 density=False
             )
-            pid_fractions = np.sum(pid_counts)
 
             for pid_bin_num in xrange(len(pid_binning)):
                 pid_fraction = pid_fractions[pid_bin_num]
@@ -903,9 +901,9 @@ class vbwkde(Stage):
                 #       `res_scale_ref`
 
                 # Apply the resolution precision systematic
-                e_edges /= self.params.e_res_scale
+                e_edges /= self.params.e_res_scale.value
 
-                energy_fractions = np.histogram(
+                energy_fractions, _ = np.histogram(
                     e_kde_profile.x, weights=e_kde_profile.density,
                     bins=e_edges, density=False
                 )
@@ -940,11 +938,11 @@ class vbwkde(Stage):
 
                     cz_edges = (
                         (reco_cz_edges - self.params.cz_reco_bias.value)
-                        / self.params.cz_res_scale
+                        / self.params.cz_res_scale.value
                     ).magnitude
-                    coszen_fractions = np.histogram(
+                    coszen_fractions, _ = np.histogram(
                         cz_kde_profile.x,
-                        weigths=cz_kde_profile.density,
+                        weights=cz_kde_profile.density,
                         bins=cz_edges
                     )
 
@@ -953,7 +951,7 @@ class vbwkde(Stage):
                         true_coszen=true_cz_bin_num,
                         pid=pid_bin_num
                     )
-                    kernel[coszen_indexer] *= coszen_fractions
+                    kernel.hist[coszen_indexer] *= coszen_fractions
 
-        assert np.all(np.isvalid(kernel.hist))
+        assert np.all(np.isfinite(kernel.hist))
         return kernel
