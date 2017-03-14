@@ -158,9 +158,9 @@ class Param(object):
                         '%s'%(self.name, value, self.range)
                     )
             else:
-                value_big_enough = value >= min(self.range)
-                value_small_enough = value <= max(self.range)
-                if (not value_big_enough) and (not value_small_enough):
+                value_not_big_enough = value < min(self.range)
+                value_not_small_enough = value > max(self.range)
+                if value_not_big_enough or value_not_small_enough:
                     raise ValueError(
                         'Param %s has a value %s which is not in the range of '
                         '%s'%(self.name, value, self.range)
@@ -225,6 +225,8 @@ class Param(object):
         for val in values:
             if isbarenumeric(val):
                 val = val * ureg.dimensionless
+            # NOTE: intentionally using type() instead of isinstance() here.
+            # Not sure if this could be converted to isinstance(), though.
             assert type(val) == type(self.value), \
                     'Value "%s" has type %s but must be of type %s.' \
                     %(val, type(val), type(self.value))
@@ -533,9 +535,9 @@ class ParamSet(Sequence):
             ParamSet containing set of values to change current ParamSet to.
         """
         if self.names != new_params.names:
-            raise ValueError("ParamSet names do not match. Currently have %s "
-                             "and want to change to a set containing %s."%(
-                                 self.names,new_params.names))
+            raise ValueError('ParamSet names do not match. Currently have %s '
+                             'and want to change to a set containing %s.'
+                             % (self.names, new_params.names))
         for new_param in new_params:
             self[new_param.name].value = new_param.value
 
@@ -1039,7 +1041,7 @@ class ParamSelector(object):
             p = ParamSet(p)
         except:
             logging.error('Could not instantiate a ParamSet with `p` of type'
-                          ' %s, value = %s' %(type(p), p))
+                          ' %s, value = %s', type(p), p)
             raise
 
         if selector is None:
@@ -1099,8 +1101,8 @@ def test_Param():
         _ = p2.prior_llh
         logging.debug(str(p2))
         logging.debug(str(linterp_m))
-        logging.debug('p2.units: %s' %p2.units)
-        logging.debug('p2.prior.units: %s' %p2.prior.units)
+        logging.debug('p2.units: %s', p2.units)
+        logging.debug('p2.prior.units: %s', p2.prior.units)
     except (TypeError, pint.DimensionalityError):
         pass
     else:
@@ -1139,8 +1141,8 @@ def test_Param():
         _ = p2.prior_llh
         logging.debug(str(p2))
         logging.debug(str(linterp_nounits))
-        logging.debug('p2.units: %s' %p2.units)
-        logging.debug('p2.prior.units: %s' %p2.prior.units)
+        logging.debug('p2.units: %s', p2.units)
+        logging.debug('p2.prior.units: %s', p2.prior.units)
     except (TypeError, AssertionError):
         pass
     else:
@@ -1199,12 +1201,13 @@ def test_ParamSet():
 
     logging.debug(str((param_set['a'])))
     logging.debug(str((param_set['a'].value)))
+    logging.debug(str((param_set['a'].range)))
     try:
         param_set['a'].value = 33
     except:
         pass
     else:
-        assert False
+        assert False, 'was able to set value outside of range'
     logging.debug(str((param_set['a'].value)))
 
     logging.debug(str((param_set['c'].is_fixed)))
