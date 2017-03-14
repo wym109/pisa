@@ -1002,7 +1002,7 @@ class HypoTesting(Analysis):
                 self.h1_fit_to_h0_fid = copy(self.h1_fit_to_data)
             else:
                 logging.info('Fitting hypo %s to hypo %s %s distributions.',
-                             elf.labels.h1_name, self.labels.h0_name,
+                             self.labels.h1_name, self.labels.h0_name,
                              self.labels.fid_disp)
                 self.h1_maker.select_params(self.h1_param_selections)
                 self.h1_maker.reset_free()
