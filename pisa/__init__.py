@@ -68,7 +68,8 @@ __all__ = [
 
     # Constants
     'PYCUDA_AVAIL', 'NUMBA_AVAIL', 'NUMBA_CUDA_AVAIL', 'OMP_NUM_THREADS',
-    'FTYPE', 'HASH_SIGFIGS', 'C_FTYPE', 'C_PRECISION_DEF', 'CACHE_DIR'
+    'FTYPE', 'HASH_SIGFIGS', 'EPSILON', 'C_FTYPE', 'C_PRECISION_DEF',
+    'CACHE_DIR'
 ]
 
 
@@ -114,6 +115,9 @@ differently."""
 
 if FTYPE == np.float32:
     HASH_SIGFIGS = 6
+
+EPSILON = 10**(-HASH_SIGFIGS)
+"""Best precision considering HASH_SIGFIGS (which is chosen by FTYPE)"""
 
 
 # Derive #define consts for dynamically-compiled C (and also C++ and CUDA) code

@@ -62,7 +62,7 @@ from copy import deepcopy
 
 import numpy as np
 
-from pisa import ureg
+from pisa import EPSILON, ureg
 from pisa.core.binning import MultiDimBinning, OneDimBinning
 from pisa.core.events import Events
 from pisa.core.stage import Stage
@@ -75,13 +75,12 @@ from pisa.utils.log import logging
 from pisa.utils.profiler import line_profile, profile
 
 
-__all__ = ['EPSILON', 'KDE_DIM_DEPENDENCIES', 'KDE_TRUE_BINNING',
-           'MIN_NUM_EVENTS', 'TGT_NUM_EVENTS', 'TGT_MAX_BINWIDTH_FACTOR',
+__all__ = ['KDE_DIM_DEPENDENCIES', 'KDE_TRUE_BINNING', 'MIN_NUM_EVENTS',
+           'TGT_NUM_EVENTS', 'TGT_MAX_BINWIDTH_FACTOR',
            'KDEProfile', 'collect_enough_events', 'fold_coszen_error',
            'vbwkde']
 
 
-EPSILON = 1e-14
 KDE_DIM_DEPENDENCIES = OrderedDict([
     ('pid', ['true_energy']),
     ('energy', ['pid', 'true_energy']),
@@ -89,11 +88,11 @@ KDE_DIM_DEPENDENCIES = OrderedDict([
 ])
 KDE_TRUE_BINNING = {
     'pid': MultiDimBinning([
-        dict(name='true_energy', num_bins=4, is_log=True,
+        dict(name='true_energy', num_bins=5, is_log=True,
              domain=[1, 80]*ureg.GeV),
         ]),
     'energy': MultiDimBinning([
-        dict(name='true_energy', num_bins=5, is_log=True,
+        dict(name='true_energy', num_bins=4, is_log=True,
              domain=[1, 80]*ureg.GeV),
         ]),
     'coszen': MultiDimBinning([
@@ -655,7 +654,7 @@ class vbwkde(Stage):
 
         for kde_dim, dep_dims_binning in self.kde_binning.items():
             logging.debug('Working on KDE dimension "%s"', kde_dim)
-            new_hash = hash_obj(deepcopy(hash_items) + [dep_dims_binning])
+            new_hash = hash_obj(deepcopy(hash_items) + [dep_dims_binning.hash])
 
             # See if we already have correct kde_info for this dim
             if (kde_dim in self._kde_hashes

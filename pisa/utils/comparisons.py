@@ -61,7 +61,7 @@ ALLCLOSE_KW = dict(rtol=EQUALITY_PREC, atol=0, equal_nan=True)
 # Derive the following number via:
 # >>> from sympy import log, N
 # >>> str(N(log(2, 10), 40))
-LOG10_2 = np.float64('0.3010299956639811952137388947244930267682')
+LOG10_2 = FTYPE('0.3010299956639811952137388947244930267682')
 
 NP_TYPES = (np.ndarray, np.matrix)
 SEQ_TYPES = (Sequence, np.ndarray, np.matrix)
@@ -459,6 +459,10 @@ def normQuant(obj, sigfigs=None, full_norm=True):
     True
 
     """
+    from pisa.core.binning import MultiDimBinning, OneDimBinning
+    #logging.trace('-'*80)
+    #logging.trace('obj: %s', obj)
+    #logging.trace('type(obj): %s', type(obj))
     if not full_norm:
         return obj
 
@@ -476,9 +480,14 @@ def normQuant(obj, sigfigs=None, full_norm=True):
     # Store kwargs for easily passing to recursive calls of this function
     kwargs = dict(sigfigs=sigfigs, full_norm=full_norm)
 
+    if hasattr(obj, '_normalize'):
+        #logging.trace('calling _normalize')
+        return obj._normalize()
+
     # Recurse into dict by its (sorted) keys (or into OrderedDict using keys in
     # their defined order) and return an OrderedDict in either case.
     if isinstance(obj, Mapping):
+        #logging.trace('Mapping')
         if isinstance(obj, OrderedDict):
             keys = obj.keys()
         else:
@@ -491,9 +500,11 @@ def normQuant(obj, sigfigs=None, full_norm=True):
     # Sequences, etc. but NOT numpy arrays (or pint quantities, which are
     # iterable) get their elements normalized and populated to a new list for
     # returning.
+    misbehaving_sequences = (np.ndarray, pint.quantity._Quantity)
     if (isinstance(obj, (Iterable, Iterator, Sequence))
-            and not (isinstance(obj, np.ndarray)
-                     or isinstance(obj, pint.quantity._Quantity))):
+            and not isinstance(obj, misbehaving_sequences)):
+        #logging.trace('Iterable, Iterator, or Sequence but not ndarray or'
+        #              ' _Qauantity')
         return [normQuant(x, **kwargs) for x in obj]
 
     # Must be a numpy array or scalar if we got here...
@@ -510,6 +521,7 @@ def normQuant(obj, sigfigs=None, full_norm=True):
 
     has_units = False
     if isinstance(obj, pint.quantity._Quantity):
+        #logging.trace('is a _Quantity, converting to base units')
         has_units = True
         if full_norm:
             obj = obj.to_base_units()
@@ -526,10 +538,12 @@ def normQuant(obj, sigfigs=None, full_norm=True):
 
     has_uncertainties = False
     if isinstance(obj, AffineScalarFunc):
+        #logging.trace('type is AffineScalarFunc')
         has_uncertainties = True
         std_devs = obj.std_dev
         obj = obj.nominal_value
     elif isinstance(obj, np.ndarray) and np.issubsctype(obj, AffineScalarFunc):
+        #logging.trace('ndarray with subsctype is AffineScalarFunc')
         has_uncertainties = True
         std_devs = unp.std_devs(obj)
         obj = unp.nominal_values(obj)
@@ -539,6 +553,7 @@ def normQuant(obj, sigfigs=None, full_norm=True):
     is_scalar = isscalar(obj)
 
     if round_result:
+        #logging.trace('rounding result')
         # frexp returns *binary* fraction (significand) and *binary* exponent
         bin_significand, bin_exponent = np.frexp(obj)
         exponent = LOG10_2 * bin_exponent
@@ -551,6 +566,7 @@ def normQuant(obj, sigfigs=None, full_norm=True):
     # uncertainties
 
     if has_uncertainties and round_result:
+        #logging.trace('uncertainties and rounding')
         std_bin_significand, std_bin_exponent = np.frexp(std_devs)
         std_exponent = LOG10_2 * std_bin_exponent
         std_exponent_integ = np.floor(std_exponent)
@@ -567,13 +583,16 @@ def normQuant(obj, sigfigs=None, full_norm=True):
         std_devs = (np.around(std_significand, sigfigs-1) * 10**exponent_integ)
 
     if has_uncertainties:
+        #logging.trace('recreate uncertainties array')
         obj = unp.uarray(obj, std_devs)
         # If it was a scalar, it has become a len-1 array; extract the scalar
         if is_scalar:
+            #logging.trace('converting to scalar')
             obj = obj[0]
 
     # Finally, attach units if they were present
     if has_units:
+        #logging.trace('reattaching units')
         obj = obj * units
 
     return obj
@@ -608,20 +627,20 @@ def test_isscalar():
 
 
 def test_recursiveEquality():
-    d1 = {'one':1, 'two':2, 'three': None, 'four': 'four'}
-    d2 = {'one':1.0, 'two':2.0, 'three': None, 'four': 'four'}
-    d3 = {'one':np.arange(0, 100),
-          'two':[{'three':{'four':np.arange(1, 2)}},
-                 np.arange(3, 4)]}
-    d4 = {'one':np.arange(0, 100),
-          'two':[{'three':{'four':np.arange(1, 2)}},
-                 np.arange(3, 4)]}
-    d5 = {'one':np.arange(0, 100),
-          'two':[{'three':{'four':np.arange(1, 3)}},
-                 np.arange(3, 4)]}
-    d6 = {'one':np.arange(0, 100),
-          'two':[{'three':{'four':np.arange(1.1, 2.1)}},
-                 np.arange(3, 4)]}
+    d1 = {'one': 1, 'two': 2, 'three': None, 'four': 'four'}
+    d2 = {'one': 1.0, 'two': 2.0, 'three': None, 'four': 'four'}
+    d3 = {'one': np.arange(0, 100),
+          'two': [{'three': {'four': np.arange(1, 2)}},
+                  np.arange(3, 4)]}
+    d4 = {'one': np.arange(0, 100),
+          'two': [{'three': {'four': np.arange(1, 2)}},
+                  np.arange(3, 4)]}
+    d5 = {'one': np.arange(0, 100),
+          'two': [{'three': {'four': np.arange(1, 3)}},
+                  np.arange(3, 4)]}
+    d6 = {'one': np.arange(0, 100),
+          'two': [{'three': {'four': np.arange(1.1, 2.1)}},
+                  np.arange(3, 4)]}
     d7 = OrderedDict()
     d7['d1'] = d1
     d7['f'] = 7.2
@@ -713,6 +732,9 @@ def test_normQuant():
     assert normQuant(-np.inf, sigfigs=15) == normQuant(-np.inf, sigfigs=15)
     assert normQuant(np.inf, sigfigs=15) != normQuant(-np.inf, sigfigs=15)
     assert normQuant(np.nan, sigfigs=15) != normQuant(np.nan, sigfigs=15)
+
+    # Dict of dicts
+    _ = normQuant({'x': {'1': 1, '2': 2}, 'y': {'3': 3, '4': 4}})
     logging.info('<< PASSED : test_normQuant >>')
 
 

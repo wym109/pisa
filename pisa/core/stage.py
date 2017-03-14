@@ -1017,7 +1017,6 @@ class Stage(object):
         else:
             nominal_transforms_hash = hash_obj(id_objects,
                                                full_hash=self.full_hash)
-
         return nominal_transforms_hash
 
     def _derive_nominal_outputs_hash(self):

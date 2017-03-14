@@ -29,7 +29,7 @@ import re
 import numpy as np
 import pint
 
-from pisa import FTYPE, HASH_SIGFIGS, ureg
+from pisa import FTYPE, EPSILON, HASH_SIGFIGS, ureg
 from pisa.utils.comparisons import isbarenumeric, normQuant, recursiveEquality
 from pisa.utils.format import (make_valid_python_name, text2tex,
                                strip_outer_dollars)
@@ -208,10 +208,9 @@ class OneDimBinning(object):
         if self._name != name:
             logging.warning('Converted `name` "%s" to valid Python: "%s"',
                             name, self._name)
-        self._basename = basename(name)
-        self._tex = None
+        self._basename = None
         self.tex = tex
-        self._bin_names = None
+        self._bin_names = bin_names
 
         # If None, leave this and try to get units from bin_edges or domain
         # (and if nothing has units in the end, *then* make quantity have the
@@ -232,9 +231,9 @@ class OneDimBinning(object):
             units = bin_edges.units
             bin_edges = bin_edges.magnitude
 
-        if domain is not None and \
-                (isinstance(domain[0], pint.quantity._Quantity) or \
-                 isinstance(domain[1], pint.quantity._Quantity)):
+        if (domain is not None and
+                (isinstance(domain[0], pint.quantity._Quantity) or
+                 isinstance(domain[1], pint.quantity._Quantity))):
             if domain[0].dimensionality != domain[1].dimensionality:
                 raise ValueError(
                     'Incompatible units: '
@@ -320,7 +319,7 @@ class OneDimBinning(object):
         self._bin_edges = bin_edges * units
 
         # (Re)define domain and attach units
-        self._domain = np.array([np.min(bin_edges), np.max(bin_edges)]) * units
+        self._domain = None
 
         # Store units for convenience
         if isinstance(units, pint.quantity._Quantity):
@@ -339,15 +338,8 @@ class OneDimBinning(object):
         self._is_lin = is_lin
         self._is_log = is_log
         self._is_irregular = not (self.is_lin or self.is_log)
-        self._midpoints = (self.bin_edges[:-1] + self.bin_edges[1:])/2.0
-        if self.is_log:
-            self._weighted_centers = np.sqrt(self.bin_edges[:-1] *
-                                             self.bin_edges[1:])
-        else:
-            self._weighted_centers = self.midpoints
-
-        # Assign passed bin names now that we have bin edges defined
-        self.bin_names = bin_names
+        self._midpoints = None
+        self._weighted_centers = None
 
         # TODO: define hash based upon conversion of things to base units (such
         # that a valid comparison can be made between indentical binnings but
@@ -357,7 +349,8 @@ class OneDimBinning(object):
 
         self._hash = None
         self._edges_hash = None
-        self.rehash()
+        # NOTE: omit this to make hashing "lazy"
+        #self.rehash()
 
     def __repr__(self):
         previous_precision = np.get_printoptions()['precision']
@@ -508,12 +501,40 @@ class OneDimBinning(object):
         """Return an iterator over each bin. The elments returned by the
         iterator are each a OneDimBinning object, just containing a single bin.
 
+        Note that for one test, `iterbins` is about 500x slower than
+        `iteredges`.
+
         Returns
         -------
         bin_iterator
 
+        See Also
+        --------
+        iteredges
+            Faster but only returns edges of bins, not OneDimBinning objects.
+
         """
         return (self[i] for i in xrange(len(self)))
+
+    def iteredges(self):
+        """Return an iterator over each bin's edges. The elments returned by
+        the iterator are each a tuple, containing the edges of the bin. Units
+        are stripped prior to iteration for purposes of speed.
+
+        Returns
+        -------
+        edges_iterator
+
+        See Also
+        --------
+        iterbins
+            Similar, but returns a OneDimBinning object for each bin. This is
+            slower than `iteredges` (by 500x in one test) but easier to work
+            with.
+
+        """
+        magnitudes = self.bin_edges.magnitude
+        return ((e0, e1) for e0, e1 in izip(magnitudes[:-1], magnitudes[1:]))
 
     @property
     def _serializable_state(self):
@@ -531,10 +552,16 @@ class OneDimBinning(object):
     def _hashable_state(self):
         state = OrderedDict()
         state['name'] = self.name
-        if self.normalize_values:
-            bin_edges = normQuant(self.bin_edges, sigfigs=HASH_SIGFIGS)
-        else:
-            bin_edges = self.bin_edges
+        state['edges_hash'] = self.edges_hash
+        state['is_log'] = self.is_log
+        state['is_lin'] = self.is_lin
+        state['bin_names'] = self.bin_names
+        return state
+
+    def _normalize(self):
+        state = OrderedDict()
+        state['name'] = self.name
+        bin_edges = normQuant(self.bin_edges, sigfigs=HASH_SIGFIGS)
         state['bin_edges'] = bin_edges
         state['is_log'] = self.is_log
         state['is_lin'] = self.is_lin
@@ -556,21 +583,23 @@ class OneDimBinning(object):
     def basename(self):
         """Basename of the dimension, stripping "true", "reco", underscores,
         whitespace, etc. from the `name` attribute."""
+        if self._basename is None:
+            self._basename = basename(self.name)
         return self._basename
 
-    @property
-    def tex(self):
-        """string : TeX label"""
-        if self._tex is None:
-            self._tex = strip_outer_dollars(text2tex(self.name))
-        return self._tex
+    #@property
+    #def tex(self):
+    #    """string : TeX label"""
+    #    if self._tex is None:
+    #        self._tex = strip_outer_dollars(text2tex(self.name))
+    #    return self._tex
 
-    @tex.setter
-    def tex(self, val):
-        """None or TeX string for dimension; surrounding dollars-signs ($) are
-        stripped off (and must be added prior to e.g. plotting)"""
-        assert val is None or isinstance(val, basestring)
-        self._tex = strip_outer_dollars(text2tex(val))
+    #@tex.setter
+    #def tex(self, val):
+    #    """None or TeX string for dimension; surrounding dollars-signs ($) are
+    #    stripped off (and must be added prior to e.g. plotting)"""
+    #    assert val is None or isinstance(val, basestring)
+    #    self._tex = strip_outer_dollars(text2tex(val))
 
     @property
     def shape(self):
@@ -594,7 +623,11 @@ class OneDimBinning(object):
 
     @bin_names.setter
     def bin_names(self, names):
+        if names == self._bin_names:
+            return
+
         if names is None:
+            self._hash = None
             self._bin_names = None
             return
 
@@ -611,8 +644,7 @@ class OneDimBinning(object):
 
         if len(set(names)) != len(names):
             raise ValueError(
-                'All bin names must be unique; `names` passed: %s'
-                % names
+                'All bin names must be unique; `names` passed: %s' % names
             )
 
         if len(names) != self.num_bins:
@@ -627,17 +659,26 @@ class OneDimBinning(object):
                 raise TypeError('Bin name %s is of type %s, but must be'
                                 ' string.' %(name, name.__class__.__name__))
 
+        if names == self._bin_names:
+            return
+
+        self._hash = None
         self._bin_names = names
 
     @property
     def domain(self):
         """array : domain of the binning, (min, max) bin edges"""
+        if self._domain is None:
+            bin_edges = self.bin_edges.magnitude
+            self._domain = np.array([np.min(bin_edges),
+                                     np.max(bin_edges)]) * self.units
         return self._domain
 
     @property
     def range(self):
         """float : range of the binning, (max-min) bin edges"""
-        return self._domain[-1] - self._domain[0]
+        domain = self.domain
+        return domain[-1] - self.domain[0]
 
     @property
     def units(self):
@@ -668,6 +709,8 @@ class OneDimBinning(object):
     def midpoints(self):
         """array : Midpoints of the bins: linear average of each bin's
         edges."""
+        if self._midpoints is None:
+            self._midpoints = (self.bin_edges[:-1] + self.bin_edges[1:])/2.0
         return self._midpoints
 
     @property
@@ -675,6 +718,12 @@ class OneDimBinning(object):
         """array : Centers of the bins taking e.g. logarithmic behavior
         into account. I.e., if binning is logarithmic, this is **not**
         the same `midpoints`, whereas in all other cases, it is identical."""
+        if self._weighted_centers is None:
+            if self.is_log:
+                self._weighted_centers = np.sqrt(self.bin_edges[:-1] *
+                                                 self.bin_edges[1:])
+            else:
+                self._weighted_centers = self.midpoints
         return self._weighted_centers
 
     @property
@@ -696,7 +745,7 @@ class OneDimBinning(object):
 
     @property
     def normalize_values(self):
-        """bool : Normalize quantities' units prior to hashing"""
+        """bool : Whether to normalize quantities' units prior to hashing"""
         return self._normalize_values
 
     @normalize_values.setter
@@ -705,7 +754,7 @@ class OneDimBinning(object):
         if b == self._normalize_values:
             return
         self._normalize_values = b
-        # Invalidate the hash, since the hasing behavior has changed
+        # Invalidate the hash, since the hashing behavior has changed
         self._hash = None
         self._edges_hash = None
 
@@ -831,11 +880,13 @@ class OneDimBinning(object):
             raise ValueError('%d bin edge(s) passed; require at least 3 to'
                              ' determine nature of bin spacing.'
                              %len(bin_edges))
-        with np.errstate(divide='ignore', invalid='ignore'):
+        try:
             log_spacing = bin_edges[1:] / bin_edges[:-1]
-        if np.allclose(log_spacing, log_spacing[0]):
-            return True
-        return False
+        except:
+            return False
+        if np.any(np.abs(log_spacing - log_spacing[0]) > EPSILON):
+            return False
+        return True
 
     @staticmethod
     def is_bin_spacing_lin(bin_edges):
@@ -893,8 +944,7 @@ class OneDimBinning(object):
         if len(bin_edges) < 2:
             return False
         # Bin edges must be monotonic and strictly increasing
-        lin_spacing = np.diff(bin_edges)
-        if not np.all(lin_spacing > 0):
+        if np.any(np.diff(bin_edges) <= 0):
             return False
         # Log binning must have equal widths in log-space (but a single bin
         # has no "spacing" or stride, so no need to check)
@@ -1063,6 +1113,11 @@ class OneDimBinning(object):
     # monotonically-increasing and adjacent bins.
 
     # TODO: make indexing allow for sequence containing a single ellipsis
+    # TODO: for some reason, this is crazy, crazy slow when indexing with
+    #       ellipsis... why?
+    # NOTE: mabye we don't care, since using ellipsis (or even an isolated,
+    #       single colon) in a one-dimensional object is a "violation of the
+    #       contract": http://stackoverflow.com/a/118508
     @_new_obj
     def __getitem__(self, index):
         """Return a new OneDimBinning, sub-selected by `index`.
@@ -1086,11 +1141,13 @@ class OneDimBinning(object):
         magnitude = self.bin_edges.magnitude
         units = self.bin_edges.units
         orig_index = index
+        mylen = len(magnitude) - 1
+        bin_names = self.bin_names
 
         # Deal with indexing by name first so as to not break anything else
         if isinstance(index, basestring):
-            assert self.bin_names is not None
-            index = self.bin_names.index(index)
+            assert bin_names is not None
+            index = bin_names.index(index)
 
         # Simple to get all but final bin edge
         bin_edges = magnitude[index].tolist()
@@ -1102,7 +1159,7 @@ class OneDimBinning(object):
 
         # Convert index/indices to positive-number sequence
         if isinstance(index, slice):
-            index = range(*index.indices(len(self)))
+            index = range(*index.indices(mylen))
         if isinstance(index, int):
             index = [index]
 
@@ -1122,18 +1179,19 @@ class OneDimBinning(object):
             new_edges = set()
             new_names = []
             for bin_index in index:
-                if bin_index < -len(self) or bin_index >= len(self):
+                if bin_index < -mylen or bin_index >= mylen:
                     raise ValueError(
                         "Dimension '%s': bin index %s is invalid. Bin index"
                         " must be >= %+d and <= %+d"
-                        %(self.name, bin_index, -len(self), len(self)-1)
+                        %(self.name, bin_index, -mylen, mylen-1)
                     )
-                edge_ind0 = bin_index % len(self)
+                edge_ind0 = bin_index % mylen
                 edge_ind1 = edge_ind0 + 1
-                if self.bin_names is not None:
-                    new_names.append(self.bin_names[edge_ind0])
-                new_edges = new_edges.union((self.bin_edges[edge_ind0].m,
-                                             self.bin_edges[edge_ind1].m))
+                if bin_names is not None:
+                    new_names.append(bin_names[edge_ind0])
+                mag0 = magnitude[edge_ind0]
+                mag1 = magnitude[edge_ind1]
+                new_edges = new_edges.union((mag0, mag1))
         else:
             raise TypeError('Unhandled index type %s' %type(orig_index))
 
@@ -1141,13 +1199,13 @@ class OneDimBinning(object):
             new_names = None
         # Retrieve current state; only bin_edges and bin_names need to be
         # updated
-        return {'bin_edges': np.array(sorted(new_edges))*units,
-                'bin_names': new_names}
+        new_edges = sorted(new_edges)
+        new_edges = np.array(new_edges)
+        new_edges = new_edges * units
+        return {'bin_edges': new_edges, 'bin_names': new_names}
 
     def __iter__(self):
-        indices = range(len(self))
-        for idx in indices:
-            yield self[idx]
+        return (self[idx] for idx in xrange(len(self)))
 
     def __eq__(self, other):
         if not isinstance(other, OneDimBinning):
@@ -1157,7 +1215,7 @@ class OneDimBinning(object):
     def __ne__(self, other):
         return not self.__eq__(other)
 
-# TODO: make this able to be loaded from a pickle!!!
+
 class MultiDimBinning(object):
     """
     Multi-dimensional binning object. This can contain one or more
@@ -1376,8 +1434,15 @@ class MultiDimBinning(object):
 
         """
         state = OrderedDict()
-        state['dimensions'] = [self[name]._hashable_state
-                               for name in sorted(self.names)]
+        # TODO: Shouldn't order matter?
+        #state['dimensions'] = [self[name]._hashable_state
+        #                       for name in sorted(self.names)]
+        state['dimensions'] = [d._hashable_state for d in self]
+        return state
+
+    def _normalize(self):
+        state = OrderedDict()
+        state['dimensions'] = [d._normalize() for d in self]
         return state
 
     @property
@@ -1561,6 +1626,29 @@ class MultiDimBinning(object):
 
         """
         return (MultiDimBinning(dims) for dims in product(*self.dims))
+
+    def iteredges(self):
+        """Return an iterator over each bin's edges. The elments returned by
+        the iterator are a tuple of tuples, where the innermost tuples
+        correspond to each dimension (in the order they're defined here).
+
+        Units are stripped prior to iteration for purposes of speed.
+
+        Note that this method is, according to one simple test, about 5000x
+        faster than `iterbins`.
+
+        Returns
+        -------
+        edges_iterator
+
+        See Also
+        --------
+        iterbins
+            Similar, but returns a OneDimBinning object for each bin. This is
+            slower that `iteredges` but easier to work with.
+
+        """
+        return product(*[dim.iteredges() for dim in self.dims])
 
     def itercoords(self):
         """Return an iterator over each N-dimensional coordinate into the
@@ -2136,11 +2224,14 @@ def test_OneDimBinning():
     import tempfile
     import dill
 
+    logging.debug('creating b1')
     b1 = OneDimBinning(name='energy', num_bins=40, is_log=True,
                        domain=[1, 80]*ureg.GeV,
                        bin_names=[str(i) for i in range(40)])
+    logging.debug('creating b2')
     b2 = OneDimBinning(name='coszen', num_bins=40, is_lin=True,
                        domain=[-1, 1], bin_names=None)
+
     logging.debug('len(b1): %s', len(b1))
     logging.debug('b1: %s', b1)
     logging.debug('b2: %s', b2)
@@ -2158,11 +2249,15 @@ def test_OneDimBinning():
     # Pickling
     s = pickle.dumps(b1, pickle.HIGHEST_PROTOCOL)
     b1_loaded = pickle.loads(s)
-    assert b1_loaded == b1
+    s = pickle.dumps(b1[0], pickle.HIGHEST_PROTOCOL)
+    b1_loaded = pickle.loads(s)
+    assert b1_loaded == b1[0]
     # Dill-pickling
     s = dill.dumps(b1, dill.HIGHEST_PROTOCOL)
     b1_loaded = dill.loads(s)
-    assert b1_loaded == b1
+    s = dill.dumps(b1[0], dill.HIGHEST_PROTOCOL)
+    b1_loaded = dill.loads(s)
+    assert b1_loaded == b1[0]
 
     try:
         b1[-1:-3]
@@ -2175,8 +2270,22 @@ def test_OneDimBinning():
                        domain=[0.1, 10]*ureg.m)
     b4 = OneDimBinning(name='distance', num_bins=10, is_log=True,
                        domain=[1e5, 1e7]*ureg.um)
+    _ = hash_obj(b3)
+    _ = b3.hash
+    _ = hash(b3)
+    _ = hash_obj(b3[0])
+    _ = b3[0].hash
+    _ = hash(b3[0])
+
     b3.normalize_values = True
     b4.normalize_values = True
+
+    _ = hash_obj(b3)
+    _ = b3.hash
+    _ = hash(b3)
+    _ = hash_obj(b3[0])
+    _ = b3[0].hash
+    _ = hash(b3[0])
 
     # Without rounding, converting bin edges to base units yields different
     # results due to finite precision effects
@@ -2214,7 +2323,7 @@ def test_OneDimBinning():
             b_ = OneDimBinning.from_json(b_file)
             assert b_ == b, 'b=\n%s\nb_=\n%s' %(b, b_)
     except:
-        print 'b that failed:', b
+        logging.error('b that failed: %s', b)
         raise
     finally:
         shutil.rmtree(testdir, ignore_errors=True)
@@ -2229,7 +2338,6 @@ def test_MultiDimBinning():
     import shutil
     import tempfile
     import dill
-    from pisa.utils.hash import hash_obj
 
     b1 = OneDimBinning(name='energy', num_bins=40, is_log=True,
                        domain=[1, 80]*ureg.GeV)
@@ -2237,6 +2345,11 @@ def test_MultiDimBinning():
                        domain=[-1, 1])
     mdb = MultiDimBinning([b1, b2])
     _ = hash_obj(mdb)
+    _ = mdb.hash
+    _ = hash(mdb)
+    _ = hash_obj(mdb[0, 0])
+    _ = mdb[0, 0].hash
+    _ = hash(mdb[0, 0])
     _ = mdb[0, 0]
     _ = mdb[0:, 0]
     _ = mdb[0:, 0:]
@@ -2246,7 +2359,7 @@ def test_MultiDimBinning():
     logging.debug('copy(mdb): %s', copy(mdb))
     logging.debug('deepcopy(mdb): %s', deepcopy(mdb))
     assert deepcopy(mdb) == mdb
-    # TODO: add these back in when we get pickle loading working!
+
     s = pickle.dumps(mdb, pickle.HIGHEST_PROTOCOL)
     mdb2 = pickle.loads(s)
     assert mdb2 == mdb
@@ -2255,10 +2368,22 @@ def test_MultiDimBinning():
     mdb2 = dill.loads(s)
     assert mdb2 == mdb
 
+    s = pickle.dumps(mdb[0,0], pickle.HIGHEST_PROTOCOL)
+    mdb2 = pickle.loads(s)
+    assert mdb2 == mdb[0,0]
+
+    s = dill.dumps(mdb[0,0], dill.HIGHEST_PROTOCOL)
+    mdb2 = dill.loads(s)
+    assert mdb2 == mdb[0,0]
+
     binning = MultiDimBinning([
         dict(name='energy', is_log=True, domain=[1, 80]*ureg.GeV, num_bins=40),
         dict(name='coszen', is_lin=True, domain=[-1, 0], num_bins=20)
     ])
+
+    ord_dict_of_binnings = OrderedDict([('x', mdb), ('y', binning)])
+    _ = hash_obj(ord_dict_of_binnings)
+    _ = normQuant(ord_dict_of_binnings)
 
     for flatindex, this_bin in enumerate(binning.iterbins()):
         coord = binning.index2coord(flatindex)
