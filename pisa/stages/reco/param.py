@@ -315,6 +315,7 @@ class param(Stage):
                 parameters['dist'] = reco_dist_str
                 for par, funcstring in param_func_dict[
                         flavour][dimension].items():
+                    par = par.lower()
                     if par == 'dist':
                         continue
                     # this should contain a lambda function
