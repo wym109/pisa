@@ -398,22 +398,29 @@ class param(Stage):
         
     def apply_reco_scales_and_biases(self):
         """
-        Applies the resolution scales and biases to all distributions.
+        Wrapper function for applying the resolution scales and biases to all
+        distributions. Performs consistency check, then calls the function
+        that carries out the actual computations.
         """
+        # these parameters are the ones to which res scales and biases will be
+        # applied
         entries_to_mod = set(('scale', 'loc'))
+        # loop over all sub-dictionaries with distribution parameters to check
+        # whether all parameters to which the systematics will be applied are
+        # really present, raise exception if not
         for flav in self.param_dict.keys():
             for dim in self.param_dict[flav].keys():
                 for dist in self.param_dict[flav][dim].keys():
                     for flav_dim_dist_dict in self.param_dict[flav][dim][dist]:
                         param_view = flav_dim_dist_dict.viewkeys()
-                        if entries_to_mod & param_view == entries_to_mod:
-                            self.scale_and_shift_reco_dists()
-                        else:
+                        if not entries_to_mod & param_view == entries_to_mod:
                             raise ValueError(
                             "Couldn't find all of "+str(tuple(entries_to_mod))+
                             " in chosen reco parameterisation, but required for"
                             " applying reco scale and bias. Got %s for %s %s."
                             %(flav_dim_dist_dict.keys(),flav,dim))
+        # everything seems to be fine, so rescale and shift distributions
+        self.scale_and_shift_reco_dists()
 
     def _compute_transforms(self):
         """
