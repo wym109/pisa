@@ -541,6 +541,12 @@ class OneDimBinning(object):
         state['bin_names'] = self.bin_names
         return state
 
+    def __getstate__(self):
+        return self._serializable_state
+
+    def __setstate__(self, state):
+        self.__init__(**state)
+
     @property
     def name(self):
         """Name of the dimension"""
@@ -1232,6 +1238,12 @@ class MultiDimBinning(object):
     def _repr_pretty_(self, p, cycle):
         """Method used by e.g. ipython/Jupyter for formatting"""
         return self.__pretty__(p, cycle)
+
+    def __getstate__(self):
+        return self._serializable_state
+
+    def __setstate__(self, state):
+        self.__init__(**state)
 
     def to_json(self, filename, **kwargs):
         """Serialize the state to a JSON file that can be instantiated as a new
@@ -2122,6 +2134,7 @@ def test_OneDimBinning():
     import os
     import shutil
     import tempfile
+    import dill
 
     b1 = OneDimBinning(name='energy', num_bins=40, is_log=True,
                        domain=[1, 80]*ureg.GeV,
@@ -2145,6 +2158,10 @@ def test_OneDimBinning():
     # Pickling
     s = pickle.dumps(b1, pickle.HIGHEST_PROTOCOL)
     b1_loaded = pickle.loads(s)
+    assert b1_loaded == b1
+    # Dill-pickling
+    s = dill.dumps(b1, dill.HIGHEST_PROTOCOL)
+    b1_loaded = dill.loads(s)
     assert b1_loaded == b1
 
     try:
@@ -2178,9 +2195,12 @@ def test_OneDimBinning():
             '\nb3=%s\nb4=%s' %(b3._hashable_state, b4._hashable_state)
     assert b3.hash == b4.hash, 'b3.hash=%s; b4.hash=%s' %(b3.hash, b4.hash)
 
-    # TODO: make pickle great again
     s = pickle.dumps(b3, pickle.HIGHEST_PROTOCOL)
     b3_loaded = pickle.loads(s)
+    assert b3_loaded == b3
+
+    s = dill.dumps(b3, dill.HIGHEST_PROTOCOL)
+    b3_loaded = dill.loads(s)
     assert b3_loaded == b3
 
     testdir = tempfile.mkdtemp()
@@ -2208,6 +2228,7 @@ def test_MultiDimBinning():
     import os
     import shutil
     import tempfile
+    import dill
     from pisa.utils.hash import hash_obj
 
     b1 = OneDimBinning(name='energy', num_bins=40, is_log=True,
@@ -2226,9 +2247,13 @@ def test_MultiDimBinning():
     logging.debug('deepcopy(mdb): %s', deepcopy(mdb))
     assert deepcopy(mdb) == mdb
     # TODO: add these back in when we get pickle loading working!
-    #s = pickle.dumps(mdb, pickle.HIGHEST_PROTOCOL)
-    #mdb2 = pickle.loads(s)
-    #assert mdb2 == mdb1
+    s = pickle.dumps(mdb, pickle.HIGHEST_PROTOCOL)
+    mdb2 = pickle.loads(s)
+    assert mdb2 == mdb
+
+    s = dill.dumps(mdb, dill.HIGHEST_PROTOCOL)
+    mdb2 = dill.loads(s)
+    assert mdb2 == mdb
 
     binning = MultiDimBinning([
         dict(name='energy', is_log=True, domain=[1, 80]*ureg.GeV, num_bins=40),
