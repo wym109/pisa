@@ -152,11 +152,19 @@ class Param(object):
     def validate_value(self, value):
         if self.range is not None:
             if self.is_discrete:
-                assert value in self.range, 'value=%s ; range=%s' \
-                        %(value, self.range)
+                if value not in self.range:
+                    raise ValueError(
+                        'Param %s has a value %s which is not in the range of '
+                        '%s'%(self.name, value, self.range)
+                    )
             else:
-                assert value >= min(self.range) and value <= max(self.range), \
-                        'value=%s ; range=%s' %(value, self.range)
+                value_big_enough = value >= min(self.range)
+                value_small_enough = value <= max(self.range)
+                if (not value_big_enough) and (not value_small_enough):
+                    raise ValueError(
+                        'Param %s has a value %s which is not in the range of '
+                        '%s'%(self.name, value, self.range)
+                    )
 
     @property
     def value(self):
@@ -515,6 +523,21 @@ class ParamSet(Sequence):
         """
         idx = self.index(new.name)
         self._params[idx] = new
+
+    def set_values(self, new_params):
+        """Set values in current ParamSet to those defined in new ParamSet
+
+        Parameters
+        ----------
+        new_params : ParamSet
+            ParamSet containing set of values to change current ParamSet to.
+        """
+        if self.names != new_params.names:
+            raise ValueError("ParamSet names do not match. Currently have %s "
+                             "and want to change to a set containing %s."%(
+                                 self.names,new_params.names))
+        for new_param in new_params:
+            self[new_param.name].value = new_param.value
 
     def fix(self, x):
         """Set param(s) to be fixed in value (and hence not modifiable by e.g.
