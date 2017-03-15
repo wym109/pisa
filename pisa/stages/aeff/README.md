@@ -8,6 +8,7 @@ The total event __counts__ in each bin is simply calculated as the product of
 
 
 ## Services
+
 Three effective area services are surported:
   * The simplest builds effective areas directly from histogrammed MC events.
   * Another __smooths__ these effective areas from histogrammed MC events.
