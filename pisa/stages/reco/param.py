@@ -283,7 +283,7 @@ class param(Stage):
         never_sel = sometime_unsel.difference(set(sometime_sel))
         if len(never_sel) > 0:
             logging.warn("Unused distribution parameter identifiers detected: "+
-                         str(never_sel))
+                         str(tuple(never_sel)))
         return dist_param_dict
 
     def check_reco_dist_consistency(self, dist_param_dict):
@@ -337,10 +337,17 @@ class param(Stage):
                     par = par.lower()
                     if par == 'dist':
                         continue
-                    # This should contain a lambda function
-                    function = eval(funcstring)
-                    # Evaluate the function at the given energies and repeat
-                    vals = function(evals)
+                    try:
+                        # This should contain a lambda function
+                        function = eval(funcstring)
+                        # Evaluate the function at the given energies and repeat
+                        vals = function(evals)
+                    except:
+                        raise RuntimeError("Failed to parse parameterisation"
+                                           " for '%s' (found '%s'). This needs"
+                                           " to be a string containing a valid"
+                                           " python function."
+                                           %(par, funcstring))
                     parameters[par] = np.repeat(vals,n_cz).reshape((n_e,n_cz))
                 dist_param_dict = self.process_reco_dist_params(parameters)
                 # Now check for consistency, to not have to loop over all dict
