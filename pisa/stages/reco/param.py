@@ -207,24 +207,39 @@ class param(Stage):
         Ensure consistency between specified reconstruction function(s)
         and their corresponding parameters.
         """
-        def select_dist_param_key(allowed, param_dict):
-            """Evaluates whether 'param_dict' contains exactly
+        def select_dist_param_key(allowed, param_dict, unsel=None):
+            """
+            Evaluates whether 'param_dict' contains exactly
             one of the keys from 'allowed', and returns it if so.
-            If none or more than one is found, raises exception."""
+            If none or more than one is found, raises exception.
+            `unsel` (if a set) is updated with non-allowed/
+            unselected keys.
+            """
+            logging.trace("  Searching for one of '%s'."%str(allowed))
             allowed_here = set(allowed)
-            search_found = allowed_here & param_dict.viewkeys()
+            search_keys = set(param_dict.keys())
+            search_found = allowed_here & search_keys
+            diff = search_keys.difference(search_found)
             if len(search_found) == 0:
                 raise ValueError("No parameter from "+
                                  str(tuple(allowed_here))+" found!")
             elif len(search_found) > 1:
                 raise ValueError("Please remove one of "+
                                  str(tuple(allowed_here))+" !")
-            param_str_to_use = search_found.pop()
-            return param_str_to_use
+            param_str_sel = search_found.pop()
+            logging.trace("  Found and selected '%s'."%param_str_sel)
+            try:
+                unsel.update(diff)
+            except:
+                pass
+            return param_str_sel
 
         allowed_dist_params = ['loc','scale','fraction']
-        # First, get list of distributions to be superimposed.
+        # Prepare for detection of parameter ids that are never selected
+        sometime_sel = []; sometime_unsel = set()
+        # First, get list of distributions to be superimposed
         dists = param_dict['dist'].split("+")
+        ndist = len(dists)
         # Need to retain order of specification for correct assignment of
         # distributions' parameters
         dist_type_count = OrderedDict()
@@ -232,45 +247,43 @@ class param(Stage):
             dist_type_count[dist_type] = dist_type_count.get(dist_type, 0) + 1
         param_dict.pop('dist')
         dist_param_dict = {}
-        # TODO: do we really need to distinguish the two cases?
-        if len(dists) == 1:
-            dist_str = "".join(dists[0].split())
-            dist_param_dict[dist_str] = [{}]
-            logging.trace(" Collecting parameters for single resolution"
-                          " function of type '%s'."%dist_str)
-            # No need to specify relative weight in this case ('fraction')
-            # TODO: remove requirement of 'fraction' being present?
-            # for param in allowed_dist_params[:-1]:
-            for param in allowed_dist_params:
-                allowed_here = (param, param+"_"+dist_str)
-                logging.trace("  Searching for one of '%s'."%str(allowed_here))
-                param_str = select_dist_param_key(allowed_here, param_dict)
-                dist_param_dict[dist_str][0][param] = param_dict[param_str]
-                logging.trace("  Found and selected '%s'."%param_str)
-        else:
-            # Need to handle superposition of distributions.
-            #
-            # Require all of the parameters from above to be present,
-            # including 'fraction'
-            tot_dist_count = 1
-            for dist_str, this_dist_type_count in dist_type_count.items():
-                dist_str = "".join(dist_str.split())
-                dist_param_dict[dist_str] = []
-                for i in xrange(1, this_dist_type_count+1):
-                    logging.trace(" Collecting parameters for resolution"
-                                  " function #%d of type '%s'."%(i, dist_str))
-                    this_dist_dict = {}
-                    for param in allowed_dist_params:
+        tot_dist_count = 1
+        # For each distribution type, find all distributions' 'scale' and 'loc'
+        # parameterisations and store in a list of dictionaries
+        # (with length `this_dist_type_count`)
+        for dist_str, this_dist_type_count in dist_type_count.items():
+            dist_str = "".join(dist_str.split())
+            dist_param_dict[dist_str] = []
+            for i in xrange(1, this_dist_type_count+1):
+                logging.trace(" Collecting parameters for resolution"
+                              " function #%d of type '%s'."%(i, dist_str))
+                this_dist_dict = {}
+                for param in allowed_dist_params:
+                    if ndist == 1:
+                        # There's greater flexibility in this case
+                        allowed_here = (param, param+"_"+dist_str,
+                                        param+"%s"%tot_dist_count,
+                                        param+"_"+dist_str+"%s"%i)
+                    else:
                         allowed_here = (param+"%s"%tot_dist_count,
                                         param+"_"+dist_str+"%s"%i)
-                        logging.trace("  Searching for one of '%s'."
-                                      %str(allowed_here))
-                        param_str = select_dist_param_key(allowed_here,
-                                                          param_dict)
-                        this_dist_dict[param] = param_dict[param_str]
-                        logging.trace("  Found and selected '%s'."%param_str)
-                    dist_param_dict[dist_str].append(this_dist_dict)
-                    tot_dist_count += 1
+                    param_str = select_dist_param_key(allowed_here,
+                                                      param_dict,
+                                                      sometime_unsel)
+                    # Keep track of the parameter id that got selected
+                    sometime_sel += [param_str]
+                    # Select the corresponding entry
+                    this_dist_dict[param] = param_dict[param_str]
+                # Add to list of distribution properties for each distribution
+                # of this type
+                dist_param_dict[dist_str].append(this_dist_dict)
+                tot_dist_count += 1
+        # Find the parameter ids that are present in the parameterisation
+        # dictionary, but which never got selected, and warn the user about those
+        never_sel = sometime_unsel.difference(set(sometime_sel))
+        if len(never_sel) > 0:
+            logging.warn("Unused distribution parameter identifiers detected: "+
+                         str(never_sel))
         return dist_param_dict
 
     def check_reco_dist_consistency(self, dist_param_dict):
@@ -305,22 +318,28 @@ class param(Stage):
                         param_func_dict[flavour][dimension]['dist'].lower()
                     logging.debug("Will use %s %s resolution function '%s'"
                                   %(flavour, dimension, reco_dist_str))
-                except:
+                except KeyError:
                     # For backward compatibility, assume double Gauss if key
                     # is not present.
                     logging.warn("No resolution function specified for %s %s."
                                  " Trying sum of two Gaussians."
                                  %(flavour, dimension))
                     reco_dist_str = "norm+norm"
+                except AttributeError:
+                    raise AttributeError("The resolution function needs to be"
+                                         " given as a string!")
+                if not reco_dist_str:
+                    raise ValueError("Empty string found for resolution"
+                                     " function! Cannot proceed.")
                 parameters['dist'] = reco_dist_str
                 for par, funcstring in param_func_dict[
                         flavour][dimension].items():
                     par = par.lower()
                     if par == 'dist':
                         continue
-                    # this should contain a lambda function
+                    # This should contain a lambda function
                     function = eval(funcstring)
-                    # evaluate the function at the given energies and repeat
+                    # Evaluate the function at the given energies and repeat
                     vals = function(evals)
                     parameters[par] = np.repeat(vals,n_cz).reshape((n_e,n_cz))
                 dist_param_dict = self.process_reco_dist_params(parameters)
