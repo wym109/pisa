@@ -258,6 +258,7 @@ class param(Stage):
                 logging.trace(" Collecting parameters for resolution"
                               " function #%d of type '%s'."%(i, dist_str))
                 this_dist_dict = {}
+                # Also explicitly require a 'fraction' to be present always
                 for param in allowed_dist_params:
                     if ndist == 1:
                         # There's greater flexibility in this case
@@ -287,8 +288,10 @@ class param(Stage):
         return dist_param_dict
 
     def check_reco_dist_consistency(self, dist_param_dict):
-        # TODO: Allow for only n-1 fractions to be present, add remainder?
+        """Enforces correct normalisation of resolution functions."""
         logging.trace(" Verifying correct normalisation of resolution function.")
+        # Obtain list of all distributions (one list of dicts for a distribution
+        # of a certain type). The sum of their relative weights should yield 1.
         dist_dicts = np.array(dist_param_dict.values())
         frac_sum = np.zeros_like(dist_dicts[0][0]['fraction'])
         for dist_type in dist_dicts:
