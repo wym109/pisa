@@ -437,8 +437,8 @@ def test_fbwkde():
 def test_vbwkde():
     """Test speed and accuracy of vbwkde implementations"""
     n_samp = int(1e4)
-    n_dct = int(2**14)
-    n_eval = int(1e4)
+    n_dct = int(2**12)
+    n_eval = int(5e3)
     n_addl = 0
     x = np.linspace(0, 20, n_samp)
     np.random.seed(0)
