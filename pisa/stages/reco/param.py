@@ -19,6 +19,8 @@ from __future__ import division
 import itertools
 import numpy as np
 from scipy.stats import norm
+from scipy import stats
+from collections import OrderedDict
 
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
@@ -200,6 +202,107 @@ class param(Stage):
         for base_d in input_basenames:
             assert base_d in output_basenames
 
+    def process_reco_dist_params(self, param_dict):
+        """
+        Ensure consistency between specified reconstruction function(s)
+        and their corresponding parameters.
+        """
+        def select_dist_param_key(allowed, param_dict, unsel=None):
+            """
+            Evaluates whether 'param_dict' contains exactly
+            one of the keys from 'allowed', and returns it if so.
+            If none or more than one is found, raises exception.
+            `unsel` (if a set) is updated with non-allowed/
+            unselected keys.
+            """
+            logging.trace("  Searching for one of '%s'."%str(allowed))
+            allowed_here = set(allowed)
+            search_keys = set(param_dict.keys())
+            search_found = allowed_here & search_keys
+            diff = search_keys.difference(search_found)
+            if len(search_found) == 0:
+                raise ValueError("No parameter from "+
+                                 str(tuple(allowed_here))+" found!")
+            elif len(search_found) > 1:
+                raise ValueError("Please remove one of "+
+                                 str(tuple(allowed_here))+" !")
+            param_str_sel = search_found.pop()
+            logging.trace("  Found and selected '%s'."%param_str_sel)
+            try:
+                unsel.update(diff)
+            except:
+                pass
+            return param_str_sel
+
+        allowed_dist_params = ['loc','scale','fraction']
+        # Prepare for detection of parameter ids that are never selected
+        sometime_sel = []; sometime_unsel = set()
+        # First, get list of distributions to be superimposed
+        dists = param_dict['dist'].split("+")
+        ndist = len(dists)
+        # Need to retain order of specification for correct assignment of
+        # distributions' parameters
+        dist_type_count = OrderedDict()
+        for dist_type in dists:
+            dist_type_count[dist_type] = dist_type_count.get(dist_type, 0) + 1
+        param_dict.pop('dist')
+        dist_param_dict = {}
+        tot_dist_count = 1
+        # For each distribution type, find all distributions' 'scale' and 'loc'
+        # parameterisations and store in a list of dictionaries
+        # (with length `this_dist_type_count`)
+        for dist_str, this_dist_type_count in dist_type_count.items():
+            dist_str = "".join(dist_str.split())
+            dist_param_dict[dist_str] = []
+            for i in xrange(1, this_dist_type_count+1):
+                logging.trace(" Collecting parameters for resolution"
+                              " function #%d of type '%s'."%(i, dist_str))
+                this_dist_dict = {}
+                # Also explicitly require a 'fraction' to be present always
+                for param in allowed_dist_params:
+                    if ndist == 1:
+                        # There's greater flexibility in this case
+                        allowed_here = (param, param+"_"+dist_str,
+                                        param+"%s"%tot_dist_count,
+                                        param+"_"+dist_str+"%s"%i)
+                    else:
+                        allowed_here = (param+"%s"%tot_dist_count,
+                                        param+"_"+dist_str+"%s"%i)
+                    param_str = select_dist_param_key(allowed_here,
+                                                      param_dict,
+                                                      sometime_unsel)
+                    # Keep track of the parameter id that got selected
+                    sometime_sel += [param_str]
+                    # Select the corresponding entry
+                    this_dist_dict[param] = param_dict[param_str]
+                # Add to list of distribution properties for each distribution
+                # of this type
+                dist_param_dict[dist_str].append(this_dist_dict)
+                tot_dist_count += 1
+        # Find the parameter ids that are present in the parameterisation
+        # dictionary, but which never got selected, and warn the user about those
+        never_sel = sometime_unsel.difference(set(sometime_sel))
+        if len(never_sel) > 0:
+            logging.warn("Unused distribution parameter identifiers detected: "+
+                         str(tuple(never_sel)))
+        return dist_param_dict
+
+    def check_reco_dist_consistency(self, dist_param_dict):
+        """Enforces correct normalisation of resolution functions."""
+        logging.trace(" Verifying correct normalisation of resolution function.")
+        # Obtain list of all distributions (one list of dicts for a distribution
+        # of a certain type). The sum of their relative weights should yield 1.
+        dist_dicts = np.array(dist_param_dict.values())
+        frac_sum = np.zeros_like(dist_dicts[0][0]['fraction'])
+        for dist_type in dist_dicts:
+            for dist_dict in dist_type:
+                frac_sum += dist_dict['fraction']
+        if not np.all(np.isclose(frac_sum, np.ones_like(frac_sum))):
+            err_msg = ("Total normalisation of resolution function is off"
+                       " (fractions do not add up to 1).")
+            raise ValueError(err_msg)
+        return True
+
     def read_param_string(self, param_func_dict):
         """
         Evaluates the parameterisations for the requested binning and stores
@@ -213,12 +316,47 @@ class param(Stage):
             param_dict[flavour] = {}
             for dimension in param_func_dict[flavour].keys():
                 parameters = {}
+                try:
+                    reco_dist_str = \
+                        param_func_dict[flavour][dimension]['dist'].lower()
+                    logging.debug("Will use %s %s resolution function '%s'"
+                                  %(flavour, dimension, reco_dist_str))
+                except KeyError:
+                    # For backward compatibility, assume double Gauss if key
+                    # is not present.
+                    logging.warn("No resolution function specified for %s %s."
+                                 " Trying sum of two Gaussians."
+                                 %(flavour, dimension))
+                    reco_dist_str = "norm+norm"
+                except AttributeError:
+                    raise AttributeError("The resolution function needs to be"
+                                         " given as a string!")
+                if not reco_dist_str:
+                    raise ValueError("Empty string found for resolution"
+                                     " function! Cannot proceed.")
+                parameters['dist'] = reco_dist_str
                 for par, funcstring in param_func_dict[
                         flavour][dimension].items():
-                    function = eval(funcstring)
-                    vals = function(evals)
+                    par = par.lower()
+                    if par == 'dist':
+                        continue
+                    try:
+                        # This should contain a lambda function
+                        function = eval(funcstring)
+                        # Evaluate the function at the given energies and repeat
+                        vals = function(evals)
+                    except:
+                        raise RuntimeError("Failed to parse parameterisation"
+                                           " for '%s' (found '%s'). This needs"
+                                           " to be a string containing a valid"
+                                           " python function."
+                                           %(par, funcstring))
                     parameters[par] = np.repeat(vals,n_cz).reshape((n_e,n_cz))
-                param_dict[flavour][dimension] = parameters
+                dist_param_dict = self.process_reco_dist_params(parameters)
+                # Now check for consistency, to not have to loop over all dict
+                # entries again at a later point in time
+                self.check_reco_dist_consistency(dist_param_dict)
+                param_dict[flavour][dimension] = dist_param_dict
         return param_dict
 
     def load_reco_param(self, reco_param):
@@ -260,86 +398,87 @@ class param(Stage):
         self.param_dict = param_dict
         self._param_hash = this_hash
 
-    def double_gauss(self, bin_edges, enval, enindex, czval, czindex,
-                     loc1, width1, loc2, width2, fraction):
+    def make_cdf(self, bin_edges, enval, enindex, czindex, czval, dist_params):
         """
-        Superposition of two gaussians. Copied from Lukas' PISA 2 code and 
-        modified a bit to generalising the cdf construction.
+        General make function for the cdf needed to construct the kernels.
         """
-        if czval is not None:
-            loc1 = loc1[enindex,czindex] + czval
-            loc2 = loc2[enindex,czindex] + czval
-        else:
-            loc1 = loc1[enindex,czindex] + enval
-            loc2 = loc2[enindex,czindex] + enval
-        n1 = norm(loc=loc1, scale=width1[enindex,czindex])
-        n2 = norm(loc=loc2, scale=width2[enindex,czindex])
-        cdfs = (1.0-fraction[enindex,czindex])*n1.cdf(bin_edges) + \
-               fraction[enindex,czindex]*n2.cdf(bin_edges)
-        return (cdfs[1:]-cdfs[:-1])
+        for dist_str in dist_params.keys():
+            try:
+                dist = getattr(stats, dist_str)
+            except AttributeError:
+                try:
+                    import scipy
+                    sp_ver_str = scipy.__version__
+                except:
+                    sp_ver_str = "N/A"
+                raise AttributeError("'%s' is not a valid distribution from"
+                                     " scipy.stats (your scipy version: '%s')."
+                                     %(dist_str, sp_ver_str))
+            binwise_cdfs = []
+            for this_dist_dict in dist_params[dist_str]:
+                loc = this_dist_dict['loc'][enindex,czindex]
+                scale = this_dist_dict['scale'][enindex,czindex]
+                frac = this_dist_dict['fraction'][enindex,czindex]
+                # now add error to true parameter value
+                loc = loc + czval if czval is not None else loc + enval
+                # unfortunately, creating all dists of same type with
+                # different parameters and evaluating cdfs doesn't seem
+                # to work, so do it one-by-one
+                rv = dist(loc=loc, scale=scale)
+                cdfs = frac*rv.cdf(bin_edges)
+                binwise_cdfs.append(cdfs[1:] - cdfs[:-1])
+            # the following would be nice:
+            # cdfs = dist(loc=loc_list, scale=scale_list).cdf(bin_edges)
+            # binwise_cdfs = [cdf[1:]-cdf[:-1] for cdf in cdfs]
+        binwise_cdf_summed = np.sum(binwise_cdfs, axis=0)
+        return binwise_cdf_summed
 
-    def make_cdf(self, bin_edges, enval, enindex, czindex, czval, **kwargs):
+    def scale_and_shift_reco_dists(self):
         """
-        General make function for the cdf needed to construct the kernels. This
-        should then call the appropriate function depending on what is
-        contained in kwargs.
-        """
-        double_gauss_keys = ['loc1','loc2','width1','width2','fraction']
-        if sorted(kwargs.keys()) == sorted(double_gauss_keys):
-            return self.double_gauss(
-                bin_edges=bin_edges,
-                enval=enval,
-                enindex=enindex,
-                czval=czval,
-                czindex=czindex,
-                **kwargs
-            )
-        else:
-            raise ValueError(
-                "Only double gaussian reco parameterisations are currently "
-                "implemented. Got %s as parameters which I don't know what "
-                "to do with."%kwargs.keys()
-            )
-
-    def apply_reco_scales_and_biases_double_gaussian(self):
-        """
-        Applies the scales to the double gaussian parameterisations.
+        Applies the scales and shifts to all the resolution functions.
         """
         e_res_scale = self.params.e_res_scale.value.m_as('dimensionless')
         cz_res_scale = self.params.cz_res_scale.value.m_as('dimensionless')
         e_reco_bias = self.params.e_reco_bias.value.m_as('GeV')
         cz_reco_bias = self.params.cz_reco_bias.value.m_as('dimensionless')
         for flavour in self.param_dict.keys():
-            for param in self.param_dict[flavour]['energy'].keys():
-                if 'width' in param:
-                    self.param_dict[flavour]['energy'][param] *= e_res_scale
-                elif 'bias' in param:
-                    self.param_dict[flavour]['energy'][param] += e_reco_bias
-            for param in self.param_dict[flavour]['coszen'].keys():
-                if 'width' in param:
-                    self.param_dict[flavour]['coszen'][param] *= cz_res_scale
-                elif 'bias' in param:
-                    self.param_dict[flavour]['coszen'][param] += cz_reco_bias
+            for (dim, dim_scale, dim_bias) in \
+              (('energy', e_res_scale, e_reco_bias),
+               ('coszen', cz_res_scale, cz_reco_bias)):
+                for dist in self.param_dict[flavour][dim].keys():
+                    for i,flav_dim_dist_dict in \
+                      enumerate(self.param_dict[flavour][dim][dist]):
+                        for param in flav_dim_dist_dict.keys():
+                            if param == 'scale':
+                                flav_dim_dist_dict[param] *= dim_scale
+                            elif param == 'loc':
+                                flav_dim_dist_dict[param] += dim_bias
         
     def apply_reco_scales_and_biases(self):
         """
-        Applies the resolution scales and biases. Currently this is done
-        assuming that the parameterisations are double gaussians. Other use
-        cases will need to be added or the method will need to be generalised.
+        Wrapper function for applying the resolution scales and biases to all
+        distributions. Performs consistency check, then calls the function
+        that carries out the actual computations.
         """
-        double_gauss_keys = ['loc1','loc2','width1','width2','fraction']
-        flavour1 = self.param_dict.keys()[0]
-        dimension1 = self.param_dict[flavour1].keys()[0]
-        if sorted(self.param_dict[flavour1][dimension1].keys()) == \
-           sorted(double_gauss_keys):
-            self.apply_reco_scales_and_biases_double_gaussian()
-        else:
-            raise ValueError(
-                "Expected the parameters for a double gaussian. No other "
-                "parameterisations have been implemented. Got %s."%(
-                    self.param_dict[flavour][dimension].keys()
-                )
-            )
+        # these parameters are the ones to which res scales and biases will be
+        # applied
+        entries_to_mod = set(('scale', 'loc'))
+        # loop over all sub-dictionaries with distribution parameters to check
+        # whether all parameters to which the systematics will be applied are
+        # really present, raise exception if not
+        for flav in self.param_dict.keys():
+            for dim in self.param_dict[flav].keys():
+                for dist in self.param_dict[flav][dim].keys():
+                    for flav_dim_dist_dict in self.param_dict[flav][dim][dist]:
+                        param_view = flav_dim_dist_dict.viewkeys()
+                        if not entries_to_mod & param_view == entries_to_mod:
+                            raise ValueError(
+                            "Couldn't find all of "+str(tuple(entries_to_mod))+
+                            " in chosen reco parameterisation, but required for"
+                            " applying reco scale and bias. Got %s for %s %s."
+                            %(flav_dim_dist_dict.keys(), flav, dim))
+        # everything seems to be fine, so rescale and shift distributions
+        self.scale_and_shift_reco_dists()
 
     def _compute_transforms(self):
         """
@@ -349,7 +488,7 @@ class param(Stage):
         coszenith input binning then the kernels provided should have both
         energy and coszenith resolution functions.
 
-        Currently the only type implemented is double gaussians.
+        Any superposition of distributions from scipy.stats is supported.
         """
 
         # Right now this can only deal with 2D energy / coszenith binning
@@ -406,7 +545,6 @@ class param(Stage):
                 czvals = np.append(czvals-coszen_range, czvals)
                 czbins = np.append(czbins[:-1]-coszen_range, czbins)
             reco_kernel = np.zeros((n_e, n_cz, n_e, n_cz))
-
             for (i,j) in itertools.product(range(n_e), range(n_cz)):
                 e_kern_cdf = self.make_cdf(
                     bin_edges=ebins,
@@ -414,7 +552,7 @@ class param(Stage):
                     enindex=i,
                     czval=None,
                     czindex=j,
-                    **this_params['energy']
+                    dist_params=this_params['energy']
                 )
                 if self.coszen_flipback:
                     offset = n_cz
@@ -426,7 +564,7 @@ class param(Stage):
                     enindex=i,
                     czval=czvals[j+offset],
                     czindex=j,
-                    **this_params['coszen']
+                    dist_params=this_params['coszen']
                 )
                 if self.coszen_flipback:
                     cz_kern_cdf = cz_kern_cdf[:int(len(czbins)/2)][::-1] + \

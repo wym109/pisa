@@ -116,13 +116,8 @@ def to_json(content, filename, indent=2, overwrite=True, warn=True,
     if hasattr(content, 'to_json'):
         return content.to_json(filename, indent=indent, overwrite=overwrite,
                                warn=warn, sort_keys=sort_keys)
-    fpath = os.path.expandvars(os.path.expanduser(filename))
-    if os.path.exists(fpath):
-        if overwrite:
-            if warn:
-                log.logging.warn('Overwriting file at ' + fpath)
-        else:
-            raise Exception('Refusing to overwrite path ' + fpath)
+    from pisa.utils.fileio import check_file_exists
+    check_file_exists(fname=filename, overwrite=overwrite, warn=warn)
 
     _, ext = os.path.splitext(filename)
     ext = ext.replace('.', '').lower()
