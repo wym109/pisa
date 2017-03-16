@@ -12,7 +12,7 @@ import inspect
 import os
 
 from pisa import CACHE_DIR
-from pisa.core.events import Events
+from pisa.core.events import Events, Data
 from pisa.core.map import MapSet
 from pisa.core.param import Param, ParamSelector
 from pisa.core.transform import TransformSet
@@ -584,14 +584,27 @@ class Stage(object):
         unused_input_names = names_in_inputs.difference(self.input_names)
 
         if len(unused_input_names) == 0:
-            return outputs.rebin(self.output_binning)
+            if isinstance(outputs, Data):
+                return outputs
+            elif isinstance(outputs, MapSet) or isinstance(outputs, Map):
+                return outputs.rebin(self.output_binning)
+            else:
+                raise TypeError("Outputs are expected to be either a Data or "
+                                "Map/MapSet instance. Got %s. Something is "
+                                "wrong."%type(outputs))
 
         # Create a new output container different from `outputs` but copying
         # the contents, for purposes of attaching the sideband objects found.
-        augmented_outputs = MapSet(outputs)
-        [augmented_outputs.append(inputs[name]) for name in unused_input_names]
+        if isinstance(outputs, MapSet):
+            augmented_outputs = MapSet(outputs)
+            [augmented_outputs.append(inputs[name]) for name in \
+             unused_input_names]
 
-        return augmented_outputs.rebin(self.output_binning)
+            return augmented_outputs.rebin(self.output_binning)
+        else:
+            raise TypeError("Outputs are expected to be a MapSet in this case "
+                            "of including sidebands. Got %s. Something is "
+                            "wrong."%type(outputs))
 
     @profile
     def _check_params(self, params):
