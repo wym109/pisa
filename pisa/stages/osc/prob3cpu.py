@@ -195,6 +195,7 @@ class prob3cpu(Stage):
             # calculations will use the GetVacuumProb so what we define here
             # doesn't matter.
             self.barger_propagator = BargerPropagator(
+                find_resource('osc/PREM_12layer.dat'),
                 self._barger_detector_depth
             )
         self.barger_propagator.UseMassEigenstates(False)
@@ -346,7 +347,7 @@ class prob3cpu(Stage):
                 kNuBar = 1
                 for alpha in nuflavs:
                     for beta in nuflavs:
-                        path = calc_path(
+                        path = self.calc_path(
                             coszen=cz_cen,
                             rdetector=rdetector,
                             prop_height=prop_height,
@@ -366,7 +367,7 @@ class prob3cpu(Stage):
                 kNuBar = -1
                 for alpha in nubarflavs:
                     for beta in nubarflavs:
-                        path = calc_path(
+                        path = self.calc_path(
                             coszen=cz_cen,
                             rdetector=rdetector,
                             prop_height=prop_height,
