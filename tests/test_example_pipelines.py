@@ -14,6 +14,7 @@ from argparse import ArgumentParser
 import glob
 import os
 import sys
+import re
 from traceback import format_exception
 
 from pisa.core.pipeline import Pipeline
@@ -39,6 +40,13 @@ def parse_args():
         of ROOT that your python can find else it will fail.'''
     )
     parser.add_argument(
+        '--ignore-missing-data', action='store_true', default=False,
+        help='''Skip the pipeline which fail because you do not have the 
+        necessary data files in the right locations for your local PISA 
+        installation. This is NOT recommended and you should probably acquire 
+        the missing datafiles somehow.'''
+    )
+    parser.add_argument(
         '-v', action='count', default=None,
         help='set verbosity level'
     )
@@ -54,6 +62,8 @@ def main():
     # things to ignore e.g. cuda stuff and ROOT stuff
     ROOT_err_strings = ['ROOT', 'Roo', 'root', 'roo']
     cuda_err_strings = ['cuda']
+    missing_data_string = ('Could not find resource "(.*)" in '
+                          'filesystem OR in PISA package.')
 
     example_directory = os.path.join(
         'settings', 'pipeline'
@@ -88,19 +98,34 @@ def main():
               args.ignore_root:
                 skip_count += 1
                 allow_error = True
-                msg = ('    Skipping pipeline as it has ROOT dependencies'
-                       ' (ROOT cannot be imported)')
+                msg = ('    Skipping pipeline, %s, as it has ROOT dependencies'
+                       ' (ROOT cannot be imported)'%settings_file)
             elif any(errstr in err.message for errstr in cuda_err_strings) and \
               args.ignore_gpu:
                 skip_count += 1
                 allow_error = True
-                msg = ('    Skipping pipeline as it has cuda dependencies'
-                       ' (pycuda cannot be imported)')
+                msg = ('    Skipping pipeline, %s, as it has cuda dependencies'
+                       ' (pycuda cannot be imported)'%settings_file)
+            else:
+                failure_count += 1
+
+        except IOError as err:
+            exc = sys.exc_info()
+            match = re.match(missing_data_string, err.message, re.M|re.I)
+            if match is not None and args.ignore_missing_data:
+                skip_count += 1
+                allow_error = True
+                msg = ('    Skipping pipeline, %s, as it has data that cannot'
+                       ' be found in the local PISA environment'%settings_file)
             else:
                 failure_count += 1
 
         except:
             exc = sys.exc_info()
+            print "HI"
+            print exc[1]
+            print "HI"
+            print L
             failure_count += 1
 
         else:
