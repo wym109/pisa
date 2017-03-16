@@ -1,14 +1,17 @@
 # PISA author: Timothy C. Arlen
 #
-# CAKE author: Thomas Ehrhardt
-#              tehrhardt@icecube.wisc.edu
-# date:        Oct 19, 2016
+# CAKE authors: Thomas Ehrhardt
+#               tehrhardt@icecube.wisc.edu
+#               Steven Wren
+#               steven.wren@icecube.wisc.edu
+# date:         Oct 19, 2016
 """
-This is an effective area service designed for quick studies of how effective
+This is an effective area stage designed for quick studies of how effective
 areas affect experimental observables and sensitivities. In addition, it is
-supposed to be easily reproducible as it solely relies on (phenomenological)
-functions, dependent on energy (and optionally cosine zenith), and which can
-thus be used as reference or benchmark scenarios.
+supposed to be easily reproducible as it may rely on (phenomenological)
+functions or interpolated discrete data points, dependent on energy
+(and optionally cosine zenith), and which can thus be used as reference or
+benchmark scenarios.
 """
 import copy
 from itertools import product
@@ -149,233 +152,143 @@ class param(Stage):
             debug_mode=debug_mode
         )
 
+        # Make sure the chosen binning is supported
+        self.check_binning()
+
         # Can do these now that binning has been set up in call to Stage's init
         self.include_attrs_for_hashes('particles')
         self.include_attrs_for_hashes('transform_groups')
 
-    def load_aeff_energy_param(self, aeff_energy_param):
+        self.load_aeff_dim_param(dim='energy',
+                        aeff_dim_param=self.params.aeff_energy_paramfile.value)
+        self.load_aeff_dim_param(dim='coszen',
+                        aeff_dim_param=self.params.aeff_coszen_paramfile.value)
+
+
+    def check_binning(self):
         """
-        Load aeff energy-dependent parameterisation from file or dictionary.
+        Performs some checks on the input and output binning specific to
+        this stage.
         """
-        this_hash = hash_obj(aeff_energy_param)
-        if (hasattr(self, '_energy_param_hash') and
-            this_hash == self._energy_param_hash):
-            return
-        if isinstance(aeff_energy_param, basestring):
-            energy_param_dict = from_file(aeff_energy_param)
-        elif isinstance(aeff_energy_param, dict):
-            energy_param_dict = aeff_energy_param
-        else:
-            raise ValueError(
-                "Expecting either a path to a file or a dictionary provided as"
-                " the store of the parameterisations. Got %s. Something is "
-                "wrong."%(type(reco_param))
-            )
-        self.energy_param_dict = energy_param_dict
-        self._energy_param_hash = this_hash
-
-    def load_aeff_coszen_param(self, aeff_coszen_param):
-        """
-        Load aeff coszen-dependent parameterisation from file or dictionary.
-        """
-        if aeff_coszen_param is not None:
-            this_hash = hash_obj(aeff_coszen_param)
-            if (hasattr(self, '_coszen_param_hash') and
-                this_hash == self._coszen_param_hash):
-                return
-            if isinstance(aeff_coszen_param, basestring):
-                coszen_param_dict = from_file(aeff_coszen_param)
-            elif isinstance(aeff_coszen_param, dict):
-                coszen_param_dict = aeff_coszen_param
-            else:
-                raise ValueError("Got type %s for aeff_coszen_param when "
-                                 "either basestring or dict was expected. "
-                                 "Something is wrong."%type(aeff_coszen_param))
-            self.coszen_param_dict = coszen_param_dict
-            self._coszen_param_hash = this_hash
-        else:
-            self.coszen_param_dict = None
-            self._coszen_param_hash = None
-
-    def find_energy_param(self, flavstr):
-        if flavstr not in self.energy_param_dict.keys():
-            if 'nc' in flavstr:
-                if 'bar' in flavstr:
-                    if 'nuallbar_nc' in self.energy_param_dict.keys():
-                        logging.debug("Could not find the %s transform group "
-                                      "but did find a nuallbar version. Will "
-                                      "proceed assuming this is to be used for"
-                                      " all nubar_nc transforms."%flavstr)
-                        energy_param = self.energy_param_dict['nuallbar_nc']
-                    elif 'nuall_nc' in self.energy_param_dict.keys():
-                        logging.debug("Could not find the %s transform group "
-                                      "but did find a nuallbar version. Will "
-                                      "proceed assuming this is to be used for"
-                                      " all nubar_nc transforms and that "
-                                      "therefore nu and nubar transform the "
-                                      "same."%flavstr)
-                        energy_param = self.energy_param_dict['nuall_nc']
-                        raise ValueError(
-                            "Transform group %s not found in energy aeff "
-                            "parameterisations dictionary keys - %s and "
-                            "neither an equivalent nuallbar_nc or nuall_nc "
-                            "entry. Something is wrong."%(
-                                flavstr,
-                                self.energy_param_dict.keys()
-                            )
-                        )
-                else:
-                    if 'nuall_nc' in self.energy_param_dict.keys():
-                        logging.debug("Could not find the %s transform "
-                                      "group but did find a nuall version."
-                                      " Will proceed assuming this is to "
-                                      "be used for all nu_nc transforms."%(
-                                          flavstr))
-                        energy_param = self.energy_param_dict['nuall_nc']
-                    else:
-                        raise ValueError(
-                            "Transform group %s not found in energy aeff "
-                            "parameterisations dictionary keys - %s and "
-                            "neither was an equivalent nuall_nc entry. "
-                            "Something is wrong."%(
-                                flavstr,
-                                self.energy_param_dict.keys()
-                            )
-                        )
-            elif 'bar' in flavstr:
-                new_flavstr = flavstr.replace('bar','')
-                if new_flavstr not in self.energy_param_dict.keys():
-                    raise ValueError(
-                        "Transform group %s not found in energy aeff "
-                        "parameterisation dictionary keys - %s and neither "
-                        "was an equivalent 'unbarred' one. Something is "
-                        "wrong."%(
-                            flavstr,
-                            self.energy_param_dict.keys()
-                        )
-                    )
-                else:
-                    logging.debug("Could not find the %s transform group but "
-                                  "did find an 'unbarred' version. Will "
-                                  "proceed assuming that nu and nubar "
-                                  "transform the same."%(flavstr))
-            else:
-                raise ValueError(
-                    "Transform group %s not found in energy aeff "
-                    "parameterisation dictionary keys - %s. Something is "
-                    "wrong."%(
-                        flavstr,
-                        self.energy_param_dict.keys()
-                    )
-                )
-        else:
-            energy_param = self.energy_param_dict[flavstr]
-            
-        return energy_param
-
-    def find_coszen_param(self, flavstr):
-        if flavstr not in self.coszen_param_dict.keys():
-            if 'nc' in flavstr:
-                if 'bar' in flavstr:
-                    if 'nuallbar_nc' in self.coszen_param_dict.keys():
-                        logging.debug("Could not find the %s transform group "
-                                      "but did find a nuallbar version. Will "
-                                      "proceed assuming this is to be used "
-                                      "for all nubar_nc transforms."%(
-                                          flavstr))
-                        coszen_param = self.coszen_param_dict['nuallbar_nc']
-                    elif 'nuall_nc' in self.coszen_param_dict.keys():
-                        logging.debug("Could not find the %s transform group "
-                                      "but did find a nuall version. Will "
-                                      "proceed assuming this is to be used "
-                                      "for all nu_nc transforms and that nu "
-                                      "and nubar transform the same."%(
-                                          flavstr))
-                        coszen_param = self.coszen_param_dict['nuall_nc']
-                        
-                    else:
-                        raise ValueError(
-                            "Transform group %s not found in coszen aeff "
-                            "parameterisations dictionary keys - %s and "
-                            "neither was a nuallbar_nc or nuall_nc entry. "
-                            "Something is wrong."%(
-                                flavstr,
-                                self.coszen_param_dict.keys()
-                            )
-                        )
-                else:
-                    if 'nuall_nc' in self.coszen_param_dict.keys():
-                        logging.debug("Could not find the %s transform group "
-                                      "but did find a nuall version. Will "
-                                      "proceed assuming this is to be used "
-                                      "for all nu_nc transforms."%(
-                                          flavstr))
-                        coszen_param = self.coszen_param_dict['nuall_nc']
-                    else:
-                        raise ValueError(
-                            "Transform group %s not found in coszen aeff "
-                            "parameterisations dictionary keys - %s and "
-                            "neither was an equivalent nuall_nc entry. "
-                            "Something is wrong."%(
-                                flavstr,
-                                self.coszen_param_dict.keys()
-                            )
-                        )
-            elif 'bar' in flavstr:
-                new_flavints = flavstr.replace('bar','')
-                if new_flavints not in self.coszen_param_dict.keys():
-                    raise ValueError(
-                        "Transform group %s (or 'unbarred' equivalent) not "
-                        "found in coszen aeff parameterisation dictionary "
-                        "keys - %s. Something is wrong."%(
-                            flavstr,
-                            self.coszen_param_dict.keys()
-                        )
-                    )
-                else:
-                    logging.debug("Could not find the %s transform group but "
-                                  "did find the 'unbarred' version  %s instead."
-                                  " Will proceed assuming this flavour behaves"
-                                  " identical for nu and nubar."%(
-                                      flavstr,
-                                      new_flavints
-                                  ))
-                    coszen_param = self.coszen_param_dict[new_flavints]
-            else:
-                raise ValueError(
-                    "Transform group %s not found in coszen aeff "
-                    "parameterisation dictionary keys - %s. Something is "
-                    "wrong."%(
-                        flavstr,
-                        self.coszen_param_dict.keys()
-                    )
-                )
-        else:
-            coszen_param = self.coszen_param_dict[flavstr]
-
-        return coszen_param
-
-    def _compute_nominal_transforms(self):
-        """Compute parameterised effective area transforms"""
         # Require at least true energy in input_binning.
         if 'true_energy' not in self.input_binning:
-            raise ValueError('Input binning must contain "true_energy"'
-                             ' dimension, but does not.')
-
+            raise ValueError("Input binning must contain 'true_energy'"
+                             " dimension, but does not.")
         # TODO: not handling rebinning in this stage or within Transform
         # objects; implement this! (and then this assert statement can go away)
         assert self.input_binning == self.output_binning
 
         # Right now this can only deal with 1D energy or 2D energy / coszenith
         # binning, so if azimuth is present then this will raise an exception.
-        if 'reco_azimuth' in set(self.input_binning.names):
+        if 'true_azimuth' in set(self.input_binning.names):
             raise ValueError(
                 "Input binning cannot have azimuth present for this "
                 "parameterised aeff service."
             )
 
-        self.load_aeff_energy_param(self.params.aeff_energy_paramfile.value)
-        self.load_aeff_coszen_param(self.params.aeff_coszen_paramfile.value)
+    def load_aeff_dim_param(self, aeff_dim_param=None, dim=None):
+        """
+        Load aeff parameterisation (energy- or coszen-dependent)
+        from file or dictionary.
+        """
+        valid_dims = ('energy', 'coszen')
+        if not dim in valid_dims:
+            if isinstance(dim, basestring):
+                raise ValueError("Valid aeff param dimension identifiers are %s."
+                                 " Got '%s' instead."%(str(valid_dims), dim))
+            else:
+                raise ValueError("Aeff param dimension identifier required as"
+                                 " string!")
+        if dim == 'coszen' and not aeff_dim_param:
+            self.coszen_param_dict = None
+            self._coszen_param_hash = None
+            return
+        this_hash = hash_obj(aeff_dim_param)
+        if (hasattr(self, '_%s_param_hash'%dim) and
+            this_hash == getattr(self, "_%s_param_hash"%dim)):
+            return
+        if isinstance(aeff_dim_param, basestring):
+            param_dict = from_file(aeff_dim_param)
+        elif isinstance(aeff_dim_param, dict):
+            param_dict = aeff_dim_param
+        else:
+            raise ValueError("Got type '%s' for aeff_%s_param when "
+                             "either basestring or dict was expected. "
+                             "Something is wrong."%(type(aeff_dim_param), dim))
+        setattr(self, "%s_param_dict"%dim, param_dict)
+        setattr(self, "_%s_param_hash"%dim, this_hash)
+
+    def find_dim_param(self, flavstr, dim):
+        """
+        Locates the specified transform group's aeff parameterisation
+        or an "equivalent" alternative and returns it.
+        """
+        dim_param_dict = getattr(self, "%s_param_dict"%dim)
+        flav_keys = dim_param_dict.keys()
+        if flavstr not in flav_keys:
+            if 'nc' in flavstr:
+                if 'bar' in flavstr:
+                    if 'nuallbar_nc' in flav_keys:
+                        logging.debug("Could not find the '%s' transform group "
+                                      "but did find a 'nuallbar' version. Will "
+                                      "proceed assuming this is to be used for "
+                                      "all 'nubar_nc' transforms."%flavstr)
+                        dim_param = dim_param_dict['nuallbar_nc']
+                    elif 'nuall_nc' in flav_keys:
+                        logging.debug("Could not find the '%s' transform group "
+                                      "but did find a 'nuall' version. Will "
+                                      "proceed assuming this is to be used for "
+                                      "all 'nubar_nc' transforms, and that "
+                                      "therefore nu and nubar transform the "
+                                      "same."%flavstr)
+                        dim_param = dim_param_dict['nuall_nc']
+                    else:
+                        raise ValueError(
+                            "Transform group '%s' not found in %s aeff "
+                            "parameterisation dictionary keys - %s, and "
+                            "neither was an equivalent 'nuallbar_nc' or "
+                            "'nuall_nc' entry. Something is wrong."
+                            %(flavstr, dim, flav_keys))
+                else: # now looking for parameterised *nu* nc aeff
+                    if 'nuall_nc' in flav_keys:
+                        logging.debug("Could not find the '%s' transform group "
+                                      "but did find a 'nuall' version. Will "
+                                      "proceed assuming this is to be used for "
+                                      "all 'nu_nc' transforms."%flavstr)
+                        dim_param = dim_param_dict['nuall_nc']
+                    else:
+                        raise ValueError(
+                            "Transform group '%s' not found in %s aeff "
+                            "parameterisation dictionary keys - %s, and "
+                            "neither was an equivalent 'nuall_nc' entry. "
+                            "Something is wrong."%(flavstr, dim, flav_keys))
+            elif 'bar' in flavstr:
+                # looking for *nubar* cc aeff parameterisations
+                new_flavstr = flavstr.replace('bar','')
+                if new_flavstr not in flav_keys:
+                    raise ValueError(
+                        "Transform group '%s' not found in %s aeff "
+                        "parameterisation dictionary keys - %s, and neither "
+                        "was an equivalent 'unbarred' one. Something is "
+                        "wrong."%(flavstr, dim, flav_keys))
+                else:
+                    logging.debug("Could not find the '%s' transform group but "
+                                  "did find an 'unbarred' version. Will "
+                                  "proceed assuming that nu and nubar "
+                                  "transform the same."%flavstr)
+                    dim_param = dim_param_dict[new_flavstr]
+            else:
+                raise ValueError(
+                    "Transform group '%s' not found in %s aeff "
+                    "parameterisation dictionary keys - %s. Something is "
+                    "wrong."%(flavstr, dim, flav_keys))
+        else:
+            dim_param = dim_param_dict[flavstr]
+            
+        return dim_param
+
+    def _compute_nominal_transforms(self):
+        """Compute parameterised effective area transforms"""
 
         ecen = self.input_binning.true_energy.weighted_centers.magnitude
         if 'true_coszen' in self.input_binning.names:
@@ -391,12 +304,14 @@ class param(Stage):
         nominal_transforms = []
         for xform_flavints in self.transform_groups:
             logging.debug("Working on %s effective areas xform" %xform_flavints)
-            energy_param = self.find_energy_param(str(xform_flavints))
+            energy_param = self.find_dim_param(flavstr=str(xform_flavints),
+                                               dim="energy")
             if self.params.aeff_coszen_paramfile.value is not None:
-                coszen_param = self.find_coszen_param(str(xform_flavints))
+                coszen_param = self.find_dim_param(flavstr=str(xform_flavints),
+                                                   dim="coszen")
             else:
                 coszen_param = None
-            
+
             if isinstance(energy_param, basestring):
                 energy_param = eval(energy_param)
             elif isinstance(energy_param, dict):
