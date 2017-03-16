@@ -340,10 +340,14 @@ class Events(FlavIntData):
         remaining_events : Events
 
         """
+        try:
+            binning = OneDimBinning(binning)
+        except:
+            pass
         if isinstance(binning, OneDimBinning):
             binning = [binning]
-        else:
-            assert isinstance(binning, MultiDimBinning)
+        binning = MultiDimBinning(binning)
+
         current_cuts = self.metadata['cuts']
         new_cuts = [dim.inbounds_criteria for dim in binning]
         unapplied_cuts = [c for c in new_cuts if c not in current_cuts]

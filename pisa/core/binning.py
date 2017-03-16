@@ -1224,7 +1224,7 @@ class OneDimBinning(object):
         return {'bin_edges': new_edges, 'bin_names': new_names}
 
     def __iter__(self):
-        return (self[idx] for idx in xrange(len(self)))
+        return self.iterbins()
 
     def __eq__(self, other):
         if not isinstance(other, OneDimBinning):
@@ -2226,6 +2226,7 @@ class MultiDimBinning(object):
         return MultiDimBinning(**new_binning)
 
     def __iter__(self):
+        """Iterate over dimensions. Use `iterbins` to iterate over bins."""
         return iter(self._dimensions)
 
     def __len__(self):
