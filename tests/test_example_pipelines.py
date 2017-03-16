@@ -74,13 +74,6 @@ def main():
     num_configs = len(settings_files)
     failure_count = 0
     skip_count = 0
-    for settings_file in settings_files:
-        # aeff smooth stage is currently broken. So ignore for now.
-        if 'aeffsmooth' in settings_file:
-            skip_count += 1
-            logging.warn('Skipping "%s" as it is currently expected to be'
-                         ' broken.' % settings_file)
-            settings_files.remove(settings_file)
 
     for settings_file in settings_files:
         allow_error = False
@@ -122,10 +115,6 @@ def main():
 
         except:
             exc = sys.exc_info()
-            print "HI"
-            print exc[1]
-            print "HI"
-            print L
             failure_count += 1
 
         else:
