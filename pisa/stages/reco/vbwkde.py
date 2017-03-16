@@ -89,28 +89,28 @@ KDE_TRUE_BINNING = {
     'pid': MultiDimBinning([
         dict(name='true_energy', num_bins=20, is_log=True,
              domain=[1, 80]*ureg.GeV,
-             tex=r'E_{\nu,{\rm true}}')
+             tex=r'E_{\rm true}')
         ]),
     'energy': MultiDimBinning([
         dict(name='true_energy', num_bins=10, is_log=True,
              domain=[1, 80]*ureg.GeV,
-             tex=r'E_{\nu,{\rm true}}')
+             tex=r'E_{\rm true}')
         ]),
     'coszen': MultiDimBinning([
         dict(name='true_energy', num_bins=10, is_log=True,
              domain=[1, 80]*ureg.GeV,
-             tex=r'E_{\nu,{\rm true}}'),
+             tex=r'E_{\rm true}'),
         dict(name='true_coszen', bin_edges=[-1, -0.75, 0.75, 1],
              tex=r'\cos\,\theta_{\rm true}')
     ])
 }
-MIN_NUM_EVENTS = 100
+MIN_NUM_EVENTS = 50
 TGT_NUM_EVENTS = 1000
 
 # TODO: figure out a dynamic similarity metric such that this parameter can be
 #       figured out by the software, rather than set by the user. E.g., use
 #       some statistical clustering technique?
-TGT_MAX_BINWIDTH_FACTOR = 0.5
+TGT_MAX_BINWIDTH_FACTOR = 0.25
 
 
 KDEProfile = namedtuple('KDEProfile', ['x', 'density'])
@@ -718,7 +718,7 @@ class vbwkde(Stage):
             # The final dimensional dependency is _not_ cut on, allowing for
             # events to be collected exceeding its boundaries so that enough
             # statistics can be acquired.
-            cut_events = [self.events] * (1 + len(dep_dims_binning))
+            cut_events = [self.events] * len(dep_dims_binning)
 
             for bin_num, bin_binning in enumerate(dep_dims_binning.iterbins()):
                 bin_dims = bin_binning.dims
@@ -734,7 +734,7 @@ class vbwkde(Stage):
                         # stored in element dim_num + 1 and its parent is at
                         # [dim_num]
                         cut_events[dim_num + 1] = (
-                            cut_events[dim_num].keepInbounds(dim)
+                            cut_events[dim_num].applyCut(dim.inbounds_criteria)
                         )
 
                 for flavintgroup in self.transform_groups:
@@ -779,8 +779,8 @@ class vbwkde(Stage):
 
                     elif kde_dim == 'coszen':
                         feature = fold_coszen_error(
-                            flav_events['reco_coszen']
-                            - flav_events['true_coszen']
+                            flav_events['reco_coszen'] - flav_events['true_coszen'],
+                            randomize=True
                         )
                         # Make mirrored copies above/below +/-1 (such that
                         # "wraparound" also holds) to minimize KDE edge
