@@ -88,16 +88,20 @@ KDE_DIM_DEPENDENCIES = OrderedDict([
 KDE_TRUE_BINNING = {
     'pid': MultiDimBinning([
         dict(name='true_energy', num_bins=20, is_log=True,
-             domain=[1, 80]*ureg.GeV),
+             domain=[1, 80]*ureg.GeV,
+             tex=r'E_{\nu,{\rm true}}')
         ]),
     'energy': MultiDimBinning([
         dict(name='true_energy', num_bins=10, is_log=True,
-             domain=[1, 80]*ureg.GeV),
+             domain=[1, 80]*ureg.GeV,
+             tex=r'E_{\nu,{\rm true}}')
         ]),
     'coszen': MultiDimBinning([
         dict(name='true_energy', num_bins=10, is_log=True,
-             domain=[1, 80]*ureg.GeV),
-        dict(name='true_coszen', bin_edges=[-1, -0.75, 0.75, 1])
+             domain=[1, 80]*ureg.GeV,
+             tex=r'E_{\nu,{\rm true}}'),
+        dict(name='true_coszen', bin_edges=[-1, -0.75, 0.75, 1],
+             tex=r'\cos\,\theta_{\rm true}')
     ])
 }
 MIN_NUM_EVENTS = 100
@@ -106,7 +110,7 @@ TGT_NUM_EVENTS = 1000
 # TODO: figure out a dynamic similarity metric such that this parameter can be
 #       figured out by the software, rather than set by the user. E.g., use
 #       some statistical clustering technique?
-TGT_MAX_BINWIDTH_FACTOR = 1.25
+TGT_MAX_BINWIDTH_FACTOR = 0.5
 
 
 KDEProfile = namedtuple('KDEProfile', ['x', 'density'])
@@ -180,6 +184,9 @@ def collect_enough_events(events, flavint, bin,
     assert isinstance(events, Events)
     flavintgroup = NuFlavIntGroup(flavint)
     repr_flavint = flavintgroup[0]
+    logging.trace('flavintgroup=%s, repr_flavint=%s, bin=%s',
+                  flavintgroup, repr_flavint, bin)
+
     if isinstance(bin, MultiDimBinning):
         dims = bin.dimensions
         assert len(dims) == 1
@@ -223,7 +230,7 @@ def collect_enough_events(events, flavint, bin,
     # Maximum distance the  tgt_max_binwidth_factor` allows us to go in order
     # to obtain `tgt_num_evts` events
     if bin.is_log:
-        tgt_max_dist = bin_half_width * bin_width*tgt_max_binwidth_factor
+        tgt_max_dist = bin_half_width * (1 + tgt_max_binwidth_factor)**2
     else:
         tgt_max_dist = bin_half_width + bin_width*tgt_max_binwidth_factor
 
@@ -260,10 +267,16 @@ def collect_enough_events(events, flavint, bin,
         lower_edge = bin_wtd_center - thresh_dist
         upper_edge = bin_wtd_center + thresh_dist
 
-    cut_str = '({field:s} >= {lower:.15e}) & ({field:s} <= {upper:.15e})'
-    keep_criteria = cut_str.format(field=bin.name, lower=lower_edge,
-                                   upper=upper_edge)
+    keep_criteria = (
+        '({field:s} >= {lower:.15e}) & ({field:s} <= {upper:0.15e})'.format(
+            field=bin.name, lower=lower_edge, upper=upper_edge)
+    )
     events_subset = events.applyCut(keep_criteria=keep_criteria)
+    logging.trace('cut criteria:                  %s', keep_criteria)
+    logging.trace('total events in that group:    %s',
+                  len(events[repr_flavint]['true_energy']))
+    logging.trace('events in that group selected: %s',
+                  len(events_subset[repr_flavint]['true_energy']))
 
     return events_subset
 
@@ -386,9 +399,19 @@ class vbwkde(Stage):
     output_binning : MultiDimBinning or convertible thereto
         Output binning is in reconstructed variables, which can include pid.
 
+    disk_cache : bool, string, etc.
+        Simplest to set to True or False for enabling/disabling disk caching,
+        respectively, but other inputs are possible (see docs for
+        `pisa.core.stage.Stage` class for more info). The KDE profiles are
+        cached to disk by this service, _not_ the full transform (since the
+        latter can be multiple GB, depending on input/output binning).
+
     transforms_cache_depth : int >= 0
+        Default is 1 since transforms for this service can be huge (gigabytes)
 
     outputs_cache_depth : int >= 0
+        Default is 20 since the outputs from this stage are generally not too
+        large.
 
     memcache_deepcopy : bool
 
@@ -415,7 +438,7 @@ class vbwkde(Stage):
     """
     def __init__(self, params, particles, input_names, transform_groups,
                  sum_grouped_flavints, input_binning, output_binning,
-                 error_method=None, transforms_cache_depth=1,
+                 error_method=None, disk_cache=True, transforms_cache_depth=1,
                  outputs_cache_depth=20, memcache_deepcopy=False,
                  debug_mode=None):
         assert particles in ['neutrinos', 'muons']
@@ -461,7 +484,7 @@ class vbwkde(Stage):
             input_names=input_names,
             output_names=output_names,
             error_method=error_method,
-            disk_cache=True,
+            disk_cache=disk_cache,
             outputs_cache_depth=outputs_cache_depth,
             transforms_cache_depth=transforms_cache_depth,
             memcache_deepcopy=memcache_deepcopy,
@@ -880,11 +903,6 @@ class vbwkde(Stage):
             np.log(inf2finite(reco_energy.bin_edges.m) - self.params.e_reco_bias.value.m) / e_res_scale
         )
         reco_cz_edges = inf2finite(reco_coszen.bin_edges.m)
-        #reco_cz_edges = (inf2finite(reco_coszen.bin_edges.m)
-        #                 - self.params.cz_reco_bias.value.m) / cz_res_scale
-        #reco_cz_binwidth = (
-        #    (reco_cz_edges[-1] - reco_cz_edges[0]) / num_reco_cz_bins
-        #)
 
         true_e_centers = inf2finite(true_coszen.weighted_centers.m)
         true_cz_centers = inf2finite(true_coszen.weighted_centers.m)
@@ -977,20 +995,6 @@ class vbwkde(Stage):
                         bins=reco_cz_edges
                     )
 
-                    #cz_edges = reco_cz_edges - (true_cz_center / cz_res_scale)
-                    #coszen_fractions, _ = np.histogram(
-                    #    cz_kde_profile.x, weights=cz_kde_profile.density,
-                    #    bins=cz_edges
-                    #)
-
-                    #cz_edges = reco_cz_edges - (true_cz_center / cz_res_scale)
-                    #coszen_fractions = np.bincount(
-                    #    x=(cz_kde_profile.x - cz_edges[0]) // reco_cz_binwidth,
-                    #    weigths=cz_kde_profile.density,
-                    #    minlength=num_reco_cz_bins
-                    #)
-                    #coszen_fractions = coszen_fractions[0:num_reco_cz_bins]
-
                     coszen_indexer = kernel_binning.defaults_indexer(
                         true_energy=true_e_bin_num,
                         true_coszen=true_cz_bin_num,
@@ -998,5 +1002,4 @@ class vbwkde(Stage):
                     )
                     kernel.hist[coszen_indexer] *= coszen_fractions
 
-        assert np.all(np.isfinite(kernel.hist))
         return kernel
