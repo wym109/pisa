@@ -20,7 +20,6 @@ from pisa.core.events import Data
 from pisa.core.map import MapSet
 from pisa.utils.flavInt import ALL_NUFLAVINTS, NuFlavIntGroup, FlavIntDataGroup
 from pisa.utils.fileio import from_file
-from pisa.utils.comparisons import normQuant
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
@@ -43,7 +42,7 @@ class sample(Stage):
 
             * dataset : string
                 Pick which systematic set to use (or nominal)
-                examples: 'nominal', 'neutrino:dom_eff:1.05', 'muons:hole_ice:0.01'
+                examples: 'nominal', 'neutrinos:dom_eff:1.05', 'muons:hole_ice:0.01'
                 the nominal set will be used for the event types not specified
 
             * keep_criteria : None or string
@@ -86,7 +85,7 @@ class sample(Stage):
             'data_sample_config', 'dataset', 'keep_criteria', 'output_events_data'
         )
 
-        self.neutrino = False
+        self.neutrinos = False
         self.muons = False
         self.noise = False
 
@@ -101,14 +100,14 @@ class sample(Stage):
                 self.noise = True
                 clean_outnames.append(name)
             elif 'all_nu' in name:
-                self.neutrino = True
+                self.neutrinos = True
                 self._output_nu_groups = \
                     [NuFlavIntGroup(f) for f in ALL_NUFLAVINTS]
             else:
-                self.neutrino = True
+                self.neutrinos = True
                 self._output_nu_groups.append(NuFlavIntGroup(name))
 
-        if self.neutrino:
+        if self.neutrinos:
             clean_outnames += [str(f) for f in self._output_nu_groups]
 
         super(self.__class__, self).__init__(
@@ -148,12 +147,12 @@ class sample(Stage):
             return self._data
 
         outputs = []
-        if self.neutrino:
+        if self.neutrinos:
             trans_nu_data = self._data.transform_groups(
                 self._output_nu_groups
             )
             for fig in trans_nu_data.iterkeys():
-                outputs.append(self._data.histogram(
+                outputs.append(trans_nu_data.histogram(
                     kinds       = fig,
                     binning     = self.output_binning,
                     weights_col = 'pisa_weight',
@@ -178,7 +177,7 @@ class sample(Stage):
         """Load the event sample given the configuration file and output
         groups. Hash this object using both the configuration file and
         the output types."""
-        hash_property = [self.config, self.neutrino, self.muons]
+        hash_property = [self.config, self.neutrinos, self.muons]
         this_hash = hash_obj(hash_property, full_hash=self.full_hash)
         if this_hash == self.sample_hash:
             return
@@ -193,12 +192,12 @@ class sample(Stage):
         event_types = parse(self.config.get('general', 'event_type'))
 
         events = []
-        if self.neutrino:
-            if 'neutrino' not in event_types:
-                raise AssertionError('`neutrino` field not found in '
+        if self.neutrinos:
+            if 'neutrinos' not in event_types:
+                raise AssertionError('`neutrinos` field not found in '
                                      'configuration file.')
             dataset = self.params['dataset'].value.lower()
-            if 'neutrino' not in dataset:
+            if 'neutrinos' not in dataset:
                 dataset = 'nominal'
             nu_data = self.load_neutrino_events(
                 config=self.config, dataset=dataset
@@ -224,12 +223,13 @@ class sample(Stage):
         def parse(string):
             return string.replace(' ', '').split(',')
         name = config.get('general', 'name')
-        flavours = parse(config.get('neutrino', 'flavours'))
-        weights = parse(config.get('neutrino', 'weights'))
-        weight_units = config.get('neutrino', 'weight_units')
-        sys_list = parse(config.get('neutrino', 'sys_list'))
-        base_suffix = config.get('neutrino', 'basesuffix')
-        if base_suffix == 'None': base_suffix = ''
+        flavours = parse(config.get('neutrinos', 'flavours'))
+        weights = parse(config.get('neutrinos', 'weights'))
+        weight_units = config.get('neutrinos', 'weight_units')
+        sys_list = parse(config.get('neutrinos', 'sys_list'))
+        base_suffix = config.get('neutrinos', 'basesuffix')
+        if base_suffix == 'None':
+            base_suffix = ''
 
         nu_data = []
         for idx, flav in enumerate(flavours):
@@ -241,7 +241,7 @@ class sample(Stage):
             if dataset == 'nominal':
                 prefixes = []
                 for sys in sys_list:
-                    ev_sys = 'neutrino:' + sys
+                    ev_sys = 'neutrinos:' + sys
                     nominal = config.get(ev_sys, 'nominal')
                     ev_sys_nom = ev_sys + ':' + nominal
                     prefixes.append(config.get(ev_sys_nom, 'file_prefix'))
@@ -256,7 +256,7 @@ class sample(Stage):
             else:
                 file_prefix = flav + config.get(dataset, 'file_prefix')
             events_file = config.get('general', 'datadir') + \
-                    base_suffix + file_prefix
+                base_suffix + file_prefix
 
             events = from_file(events_file)
             nu_mask = events['ptype'] > 0
@@ -266,7 +266,7 @@ class sample(Stage):
 
             if weights[idx] == 'None' or weights[idx] == '1':
                 events['pisa_weight'] = \
-                    np.ones(events['ptype'].shape) *  ureg.dimensionless
+                    np.ones(events['ptype'].shape) * ureg.dimensionless
             elif weights[idx] == '0':
                 events['pisa_weight'] = \
                     np.zeros(events['ptype'].shape) * ureg.dimensionless
@@ -300,8 +300,10 @@ class sample(Stage):
             return string.replace(' ', '').split(',')
         sys_list = parse(config.get('muons', 'sys_list'))
         weight = config.get('muons', 'weight')
+        weight_units = config.get('muons', 'weight_units')
         base_suffix = config.get('muons', 'basesuffix')
-        if base_suffix == 'None': base_suffix = ''
+        if base_suffix == 'None':
+            base_suffix = ''
 
         if dataset == 'nominal':
             paths = []
@@ -330,7 +332,8 @@ class sample(Stage):
             muons['pisa_weight'] = \
                     np.zeros(muons['weights'].shape)
         else:
-            muons['pisa_weight'] = muons[weight]
+            muons['pisa_weight'] = muons[weight] * \
+                        ureg(weight_units)
 
         if 'zenith' in muons and 'coszen' not in muons:
             muons['coszen'] = np.cos(muons['zenith'])
@@ -344,5 +347,5 @@ class sample(Stage):
         assert isinstance(params['data_sample_config'].value, basestring)
         assert isinstance(params['dataset'].value, basestring)
         assert params['keep_criteria'].value is None or \
-                isinstance(params['keep_criteria'].value, basestring)
+            isinstance(params['keep_criteria'].value, basestring)
         assert isinstance(params['output_events_data'].value, bool)

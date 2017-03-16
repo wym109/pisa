@@ -19,20 +19,31 @@ mkdir my_virtual_env/src
 git clone https://github.com/jllanfranchi/pisa.git --branch cake \
     --single-branch my_virtual_env/src/pisa
 
+# If you want to install numba to accelerate certain pieces of code (highly
+# recommended!), you have to manually install enum34 first
+# (see Issue 253: https://github.com/jllanfranchi/pisa/issues/253)
+pip install enum34
+
 # Install PISA and its python package dependencies (optional dependency
-# categories are in brackets)
+# categories are in brackets). Note that sometimes an install issue with the
+# below command can be overcome by simply re-running a second time; also, add
+# -vvv to any pip command that fails for verbose output for debugging issues
 pip install -e my_virtual_env/src/pisa/[cuda,numba,develop] \
     -r my_virtual_env/src/pisa/requirements.txt
+
+# Define the precision you want GPU code to run in (single or double)
+export PISA_FTYPE=single
 
 # Run the physics tests (append --ignore-cuda-errors if no CUDA support)
 test_consistency_with_pisa2.py -v
 
-# Run a Monte Carlo pipeline to produce, store, and plot its expected
+# EXAMPLE: Run a Monte Carlo pipeline to produce, store, and plot its expected
 # distributions at the output of each stage
 pipeline.py --settings settings/pipeline/example.cfg \
     --dir /tmp/pipeline_output --intermediate --pdf -v
 
-# Run the Asimov NMO analysis; leave off "_gpu" to run CPU-only version
+# EXAMPLE: Run the Asimov NMO analysis; leave off "_gpu" to run CPU-only
+# version
 hypo_testing.py --logdir /tmp/test \
     --h0-pipeline settings/pipeline/example_gpu.cfg \
     --h0-param-selections="ih" \
@@ -40,8 +51,11 @@ hypo_testing.py --logdir /tmp/test \
     --data-param-selections="nh" \
     --data-is-mc \
     --minimizer-settings settings/minimizer/bfgs_settings_fac1e11_eps1e-4_mi20.json \
-    --metric="chi2" \
+    --metric=chi2 \
     --pprint -v
+
+# Display the significance for distinguishing hypothesis h1 from h0
+hypo_testing_postprocess.py --asimov --dir /tmp/test/*
 
 # Leave the virtual environment (run the `source...` command above to re-enter
 # the virtual environment at a later time)
@@ -155,7 +169,7 @@ Load this variable into your *current* environment by sourcing your `.bashrc` fi
 ### Github setup
 
 1. Create your own [github account](https://github.com/)
-1. Obtain access to the `jllanfranchi/pisa` repository by emailing (as a verifiable IceCube member) your **Github username** to Sebastian Böeser (sboeser@uni-mainz.de), cc: John Kelley (jkelley@icecube.wisc.edu)
+1. Obtain access to the `jllanfranchi/pisa` repository by emailing (as a verifiable IceCube member) your **Github username** to Justin Lanfranchi (jll1062+pisa@phys.psu.edu) and copy John Kelley (jkelley@icecube.wisc.edu)
 
 
 #### SSH vs. HTTPS access to repository

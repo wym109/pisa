@@ -18,13 +18,15 @@ import sys
 import time
 
 import numpy as np
+import pint
 import scipy.optimize as optimize
 
-from pisa import ureg, Q_
-from pisa.core.map import METRICS_TO_MAXIMIZE, VALID_METRICS
+from pisa import ureg
+from pisa.core.map import Map, MapSet
 from pisa.core.param import ParamSet
 from pisa.utils.log import logging
 from pisa.utils.fileio import to_file
+from pisa.utils.stats import METRICS_TO_MAXIMIZE
 
 
 __all__ = ['Analysis', 'Counter']
@@ -64,11 +66,11 @@ class Analysis(object):
     """
     def __init__(self):
         self._nit = 0
-        pass
 
     def fit_hypo(self, data_dist, hypo_maker, hypo_param_selections, metric,
                  minimizer_settings, reset_free=True, check_octant=True,
-                 other_metrics=None, blind=False, pprint=True):
+                 check_ordering=False, other_metrics=None,
+                 blind=False, pprint=True):
         """Fitter "outer" loop: If `check_octant` is True, run
         `fit_hypo_inner` starting in each octant of theta23 (assuming that
         is a param in the `hypo_maker`). Otherwise, just run the inner
@@ -109,6 +111,10 @@ class Analysis(object):
             free), the fit will be re-run in the second (first) octant if
             theta23 is initialized in the first (second) octant.
 
+        check_ordering : bool
+            If the ordering is not in the hypotheses already being tested, the
+            fit will be run in both orderings.
+
         other_metrics : None, string, or list of strings
             After finding the best fit, these other metrics will be evaluated
             for each output that contributes to the overall fit. All strings
@@ -132,38 +138,39 @@ class Analysis(object):
         alternate_fits : list of `fit_info` from other fits run
 
         """
-        # Select the version of the parameters used for this hypothesis
-        hypo_maker.select_params(hypo_param_selections)
 
-        # Reset free parameters to nominal values
-        if reset_free:
-            hypo_maker.reset_free()
+        if check_ordering:
+            if 'nh' in hypo_param_selections or 'ih' in hypo_param_selections:
+                raise ValueError('One of the orderings has already been '
+                                 'specified as one of the hypotheses but the '
+                                 'fit has been requested to check both. These '
+                                 'are incompatible.')
+
+            logging.info('Performing fits in both orderings.')
+            extra_param_selections = ['nh','ih']
+        else:
+            extra_param_selections = [None]
 
         alternate_fits = []
 
-        best_fit_info = self.fit_hypo_inner(
-            hypo_maker=hypo_maker,
-            data_dist=data_dist,
-            metric=metric,
-            minimizer_settings=minimizer_settings,
-            other_metrics=other_metrics,
-            pprint=pprint,
-            blind=blind
-        )
+        for extra_param_selection in extra_param_selections:
+            
+            if extra_param_selection is not None:
+                full_param_selections = hypo_param_selections
+                full_param_selections.append(extra_param_selection)
+            else:
+                full_param_selections = hypo_param_selections
+            # Select the version of the parameters used for this hypothesis
+            hypo_maker.select_params(full_param_selections)
 
-        # Decide whether fit for other octant is necessary
-        if check_octant and 'theta23' in hypo_maker.params.free:
-            logging.debug('checking other octant of theta23')
-            hypo_maker.reset_free()
+            # Reset free parameters to nominal values
+            if reset_free:
+                hypo_maker.reset_free()
+            else:
+                # Saves the current minimizer start values for the octant check
+                minimizer_start_params = hypo_maker.params
 
-            # Hop to other octant by reflecting about 45 deg
-            theta23 = hypo_maker.params.theta23
-            inflection_point = (45*ureg.deg).to(theta23.units)
-            theta23.value = 2*inflection_point - theta23.value
-            hypo_maker.update_params(theta23)
-
-            # Re-run minimizer starting at new point
-            new_fit_info = self.fit_hypo_inner(
+            best_fit_info = self.fit_hypo_inner(
                 hypo_maker=hypo_maker,
                 data_dist=data_dist,
                 metric=metric,
@@ -173,23 +180,49 @@ class Analysis(object):
                 blind=blind
             )
 
-            # Take the one with the best fit
-            if metric in METRICS_TO_MAXIMIZE:
-                it_got_better = new_fit_info['metric_val'] > \
+            # Decide whether fit for other octant is necessary
+            if check_octant and 'theta23' in hypo_maker.params.free.names:
+                logging.debug('checking other octant of theta23')
+                if reset_free:
+                    hypo_maker.reset_free()
+                else:
+                    for param in minimizer_start_params:
+                        hypo_maker.params[param.name].value = param.value
+
+                # Hop to other octant by reflecting about 45 deg
+                theta23 = hypo_maker.params.theta23
+                inflection_point = (45*ureg.deg).to(theta23.units)
+                theta23.value = 2*inflection_point - theta23.value
+                hypo_maker.update_params(theta23)
+
+                # Re-run minimizer starting at new point
+                new_fit_info = self.fit_hypo_inner(
+                    hypo_maker=hypo_maker,
+                    data_dist=data_dist,
+                    metric=metric,
+                    minimizer_settings=minimizer_settings,
+                    other_metrics=other_metrics,
+                    pprint=pprint,
+                    blind=blind
+                )
+
+                # Take the one with the best fit
+                if metric in METRICS_TO_MAXIMIZE:
+                    it_got_better = new_fit_info['metric_val'] > \
                         best_fit_info['metric_val']
-            else:
-                it_got_better = new_fit_info['metric_val'] < \
+                else:
+                    it_got_better = new_fit_info['metric_val'] < \
                         best_fit_info['metric_val']
 
-            if it_got_better:
-                alternate_fits.append(best_fit_info)
-                best_fit_info = new_fit_info
-                if not blind:
-                    logging.debug('Accepting other-octant fit')
-            else:
-                alternate_fits.append(new_fit_info)
-                if not blind:
-                    logging.debug('Accepting initial-octant fit')
+                if it_got_better:
+                    alternate_fits.append(best_fit_info)
+                    best_fit_info = new_fit_info
+                    if not blind:
+                        logging.debug('Accepting other-octant fit')
+                else:
+                    alternate_fits.append(new_fit_info)
+                    if not blind:
+                        logging.debug('Accepting initial-octant fit')
 
         return best_fit_info, alternate_fits
 
@@ -249,7 +282,7 @@ class Analysis(object):
         logging.debug('Running the %s minimizer.'
                       %minimizer_settings['method']['value'])
 
-        # Using scipy.optimize.minimize allows a whole host of minimisers to be
+        # Using scipy.optimize.minimize allows a whole host of minimizers to be
         # used.
         counter = Counter()
         fit_history = []
@@ -263,7 +296,7 @@ class Analysis(object):
             hdr = ' '*(6+1+10+1+12+3)
             unt = []
             for p in free_p:
-                u = r.sub('', format(p.value, '~')).replace(' ','')[0:10]
+                u = r.sub('', format(p.value, '~')).replace(' ', '')[0:10]
                 if len(u) > 0:
                     u = '(' + u + ')'
                 unt.append(u.center(12))
@@ -343,6 +376,9 @@ class Analysis(object):
         fit_info['minimizer_time'] = minimizer_time * ureg.sec
         fit_info['minimizer_metadata'] = metadata
         fit_info['fit_history'] = fit_history
+        # If blind replace hypo_asimov_dist with none object
+        if blind:
+            hypo_asimov_dist = None
         fit_info['hypo_asimov_dist'] = hypo_asimov_dist
 
         return fit_info
@@ -408,6 +444,18 @@ class Analysis(object):
             name_vals_d['maps'] = data_dist.metric_per_map(
                 expected_values=hypo_asimov_dist, metric=m
             )
+            metric_hists = data_dist.metric_per_map(
+                expected_values=hypo_asimov_dist, metric='binned_'+m
+            )
+            maps_binned = []
+            for asimov_map, metric_hist in zip(hypo_asimov_dist, metric_hists):
+                map_binned = Map(
+                    name=asimov_map.name,
+                    hist=np.reshape(metric_hists[metric_hist],asimov_map.shape),
+                    binning=asimov_map.binning
+                )
+                maps_binned.append(map_binned)
+            name_vals_d['maps_binned'] = MapSet(maps_binned)
             name_vals_d['priors'] = params.priors_penalties(metric=metric)
             detailed_metric_info[m] = name_vals_d
         return detailed_metric_info
@@ -490,12 +538,12 @@ class Analysis(object):
         # Report status of metric & params (except if blinded)
         if blind:
             msg = ('minimizer iteration: #%6d | function call: #%6d'
-		   %(self._nit, counter.count))
+                   %(self._nit, counter.count))
         else:
             #msg = '%s=%.6e | %s' %(metric, metric_val, hypo_maker.params.free)
             msg = '%s %s %s | ' %(('%d'%self._nit).center(6),
-                                ('%d'%counter.count).center(10),
-                                format(metric_val, '0.5e').rjust(12))
+                                  ('%d'%counter.count).center(10),
+                                  format(metric_val, '0.5e').rjust(12))
             msg += ' '.join([('%0.5e'%p.value.m).rjust(12)
                              for p in hypo_maker.params.free])
 
@@ -522,9 +570,10 @@ class Analysis(object):
         Parameters
         ----------
         xk : list
-	    Parameter vector
+            Parameter vector
+
         """
-        self._nit+=1
+        self._nit += 1
 
     # TODO: move the complexity of defining a scan into a class with various
     # factory methods, and just pass that class to the scan method; we will
@@ -560,7 +609,7 @@ class Analysis(object):
             free parameters which will be modified by the minimizer to optimize
             the `metric` in case `profile` is set to True.
 
-        hypo_param_selections : string, or sequence of strings
+        hypo_param_selections : None, string, or sequence of strings
             A pipeline configuration can have param selectors that allow
             switching a parameter among two or more values by specifying the
             corresponding param selector(s) here. This also allows for a single
@@ -581,11 +630,12 @@ class Analysis(object):
             (or parameters). Value(s) specified for `steps` must be >= 2. Note
             that the endpoints of the range are always included, and numbers of
             steps higher than 2 fill in between the endpoints.
+
             * If integer...
-                Take this many steps for each specified parameter.
+                  Take this many steps for each specified parameter.
             * If sequence of integers...
-                Take the coresponding number of steps within the allowed range
-                for each specified parameter.
+                  Take the coresponding number of steps within the allowed range
+                  for each specified parameter.
 
         values : None, scalar, sequence of scalars, or sequence-of-sequences
           * If scalar...
@@ -612,7 +662,7 @@ class Analysis(object):
                 for each value of the first param's inner sequence, an Asimov
                 distribution is produced for every value of the second param's
                 inner sequence. In total, there will be
-                  len(inner seq0) * len(inner seq1) * ...
+                ``len(inner seq0) * len(inner seq1) * ...``
                 Asimov distributions produced.
 
         only_points : None, integer, or even-length sequence of integers
@@ -649,7 +699,7 @@ class Analysis(object):
             `debug_mode` will be set to 2.
 
         """
-        if not debug_mode in (0, 1, 2):
+        if debug_mode not in (0, 1, 2):
             debug_mode = 2
 
         # Either `steps` or `values` must be specified, but not both (xor)
@@ -665,14 +715,14 @@ class Analysis(object):
             if np.isscalar(values):
                 values = np.array([values])
                 assert nparams == 1
-            for i,val in enumerate(values):
+            for i, val in enumerate(values):
                 if not np.isscalar(val):
                     # no scalar here, need a corresponding parameter name
                     assert nparams >= i+1
                 else:
                     # a scalar, can either have only one parameter or at least
                     # this many
-                    assert (nparams == 1 or nparams >= i+1)
+                    assert nparams == 1 or nparams >= i+1
                     if nparams > 1:
                         values[i] = np.array([val])
 
@@ -684,19 +734,19 @@ class Analysis(object):
                           for r in ranges]
             else:
                 assert len(steps) == nparams
-                assert np.all(np.array(steps)>=2)
+                assert np.all(np.array(steps) >= 2)
                 values = [np.linspace(r[0], r[1], steps[i])*r[0].units
-                          for i,r in enumerate(ranges)]
+                          for i, r in enumerate(ranges)]
 
         if nparams > 1:
-            steplist = [[(pname, val) for val in values[i]] for (i, pname) in
-                            enumerate(param_names)]
+            steplist = [[(pname, val) for val in values[i]]
+                        for (i, pname) in enumerate(param_names)]
         else:
             steplist = [[(param_names[0], val) for val in values[0]]]
 
         points_acc = []
         if not only_points is None:
-            assert (len(only_points) == 1 or len(only_points) % 2 == 0)
+            assert len(only_points) == 1 or len(only_points) % 2 == 0
             if len(only_points) == 1:
                 points_acc = only_points
             for i in xrange(0, len(only_points)-1, 2):
@@ -719,7 +769,7 @@ class Analysis(object):
 
         results = {'steps': {}, 'results': []}
         results['steps'] = {pname: [] for pname in param_names}
-        for i,pos in enumerate(loopfunc(*steplist)):
+        for i, pos in enumerate(loopfunc(*steplist)):
             if len(points_acc) > 0 and i not in points_acc:
                 continue
 
@@ -727,7 +777,14 @@ class Analysis(object):
             for (pname, val) in pos:
                 params[pname].value = val
                 results['steps'][pname].append(val)
-                msg += '%s = %.2f '%(pname, val)
+                if isinstance(val, float):
+                    msg += '%s = %.2f '%(pname, val)
+                elif isinstance(val, pint.quantity._Quantity):
+                    msg += '%s = %.2f '%(pname, val.magnitude)
+                else:
+                    raise TypeError("val is of type %s which I don't know "
+                                    "how to deal with in the output "
+                                    "messages."% type(val))
             logging.info('Working on point ' + msg)
             hypo_maker.update_params(params)
 
@@ -769,7 +826,7 @@ class Analysis(object):
                 try:
                     del best_fit['fit_history']
                     del best_fit['hypo_asimov_dist']
-                except:
+                except KeyError:
                     pass
 
             if debug_mode == 0:
@@ -777,7 +834,7 @@ class Analysis(object):
                 try:
                     del best_fit['minimizer_metadata']
                     del best_fit['minimizer_time']
-                except:
+                except KeyError:
                     pass
 
             results['results'].append(best_fit)

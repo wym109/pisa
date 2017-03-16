@@ -71,6 +71,8 @@ class gpu(Stage):
                 apply KDE smoothing to outputs (d2d)
             hist_e_scale : quantity (dimensionless)
                 scale factor for energy bin edges, as a reco E systematic
+            true_e_scale : quantity (dimensionless)
+                scale factor for true energy
 
     Notes
     -----
@@ -124,7 +126,11 @@ class gpu(Stage):
             'deltam21',
             'deltam31',
             'deltacp',
-            'no_nc_osc'
+            'no_nc_osc',
+        )
+
+        self.true_params = (
+            'true_e_scale',
         )
 
         self.flux_params = (
@@ -147,13 +153,14 @@ class gpu(Stage):
             'reco_e_scale_raw',
             'reco_cz_res_raw',
             'hist_e_scale',
+            'hist_pid_scale',
             'bdt_cut',
             'kde',
             'cut_outer',
         )
 
         expected_params = (self.osc_params + self.flux_params +
-                           self.other_params)
+                           self.other_params + self.true_params)
 
         output_names = split(output_names)
 
@@ -173,7 +180,6 @@ class gpu(Stage):
             from pisa.utils.kde_hist import kde_histogramdd
             self.kde_histogramdd = kde_histogramdd
         else:
-            #otherwise that
             from pisa.utils.gpu_hist import GPUHist
             self.GPUHist = GPUHist
 
@@ -184,7 +190,8 @@ class gpu(Stage):
             assert (params.no_nc_osc.value == False), 'If you want NC tau events scaled, you should oscillate them -> set no_nc_osc to False!!!'
         if params.hist_e_scale.is_fixed == False or params.hist_e_scale.value != 1.0:
             assert (params.kde.value == False), 'The hist_e_scale can only be used with histograms, not KDEs!'
-
+        if params.hist_pid_scale.is_fixed == False or params.hist_pid_scale.value != 1.0:
+            assert (params.kde.value == False), 'The hist_epid_scale can only be used with histograms, not KDEs!'
 
     def _compute_nominal_outputs(self):
         # Store hashes for caching that is done inside the stage
@@ -194,30 +201,54 @@ class gpu(Stage):
         # Reset fixed errors
         self.fixed_error = None
 
-        # Initialize classes
-        earth_model = find_resource(self.params.earth_model.value)
-        YeI = self.params.YeI.value.m_as('dimensionless')
-        YeO = self.params.YeO.value.m_as('dimensionless')
-        YeM = self.params.YeM.value.m_as('dimensionless')
+        # Get param subset wanted for oscillations class
+        osc_params_subset = []
+        for param in self.params:
+            if self.params.earth_model.value is not None:
+                if (param.name in self.osc_params) or \
+                   (param.name in self.true_params):
+                    osc_params_subset.append(param)
+            else:
+                if (param.name in self.osc_params) and \
+                   (param.name != 'no_nc_osc'):
+                    osc_params_subset.append(param)
+                if param.name == 'nutau_norm':
+                    osc_params_subset.append(param)
+
+        osc_params_subset = ParamSet(osc_params_subset)
+
+        if self.params.earth_model.value is not None:
+            earth_model = find_resource(self.params.earth_model.value)
+            YeI = self.params.YeI.value.m_as('dimensionless')
+            YeO = self.params.YeO.value.m_as('dimensionless')
+            YeM = self.params.YeM.value.m_as('dimensionless')
+        else:
+            earth_model = None
+            from pisa.stages.osc.prob3cpu import prob3cpu
         prop_height = self.params.prop_height.value.m_as('km')
         detector_depth = self.params.detector_depth.value.m_as('km')
 
-        # Prob3 GPU oscillations
-        osc_params_subset = []
-        for param in self.params:
-            if param.name in self.osc_params:
-                osc_params_subset.append(param)
-        osc_params_subset = ParamSet(osc_params_subset)
-
-        self.osc = prob3gpu(
-            params=osc_params_subset,
-            input_binning=None,
-            output_binning=None,
-            error_method=None,
-            memcache_deepcopy=False,
-            transforms_cache_depth=0,
-            outputs_cache_depth=0,
-        )
+        # Initialize classes
+        if earth_model is not None:
+            self.osc = prob3gpu(
+                params=osc_params_subset,
+                input_binning=None,
+                output_binning=None,
+                error_method=None,
+                memcache_deepcopy=False,
+                transforms_cache_depth=0,
+                outputs_cache_depth=0,
+            )
+        else:
+            self.osc = prob3cpu(
+                params=osc_params_subset,
+                input_binning=None,
+                output_binning=None,
+                error_method=None,
+                memcache_deepcopy=False,
+                transforms_cache_depth=0,
+                outputs_cache_depth=0,
+            )
 
         # Weight calculator
         self.gpu_weight = GPUWeight()
@@ -226,11 +257,13 @@ class gpu(Stage):
         self.bin_edges = []
 
         for i,name in enumerate(self.bin_names):
-            if 'energy' in  name:
+            if 'energy' in name:
                 bin_edges = self.output_binning[name].bin_edges.to('GeV').magnitude.astype(FTYPE)
                 self.e_bin_number = i
             else:
                 bin_edges = self.output_binning[name].bin_edges.magnitude.astype(FTYPE)
+            if 'pid' in name:
+                self.pid_bin_number = i
             self.bin_edges.append(bin_edges)
 
         if self.params.kde.value:
@@ -240,6 +273,7 @@ class gpu(Stage):
             # GPU histogramer
             bin_edges = deepcopy(self.bin_edges)
             bin_edges[self.e_bin_number] *= FTYPE(self.params.hist_e_scale.value.m_as('dimensionless'))
+            bin_edges[self.pid_bin_number][1] *= FTYPE(self.params.hist_pid_scale.value.m_as('dimensionless'))
             self.histogrammer = self.GPUHist(*bin_edges)
 
         # load events
@@ -249,7 +283,10 @@ class gpu(Stage):
         # --- Load events
         # open Events file
         evts = Events(self.params.events_file.value)
-        bdt_cut = self.params.bdt_cut.value.m_as('dimensionless')
+        if self.params.bdt_cut.value == None:
+            bdt_cut = None
+        else:
+            bdt_cut = self.params.bdt_cut.value.m_as('dimensionless')
 
         # Load and copy events
         variables = [
@@ -342,7 +379,7 @@ class gpu(Stage):
                         evts[flav][var].astype(FTYPE)
                     )
                 except KeyError:
-                    # if variable doesn't exist (e.g. axial mass coeffs, just
+                    # If variable doesn't exist (e.g. axial mass coeffs, just
                     # fill in ones) only warn first time
                     if flav == self.flavs[0]:
                         logging.warning('replacing variable %s by ones'%var)
@@ -366,20 +403,28 @@ class gpu(Stage):
                         ((flav in ['nue_nc', 'nuebar_nc'] and var == 'prob_e')
                          or (flav in ['numu_nc', 'numubar_nc']
                              and var == 'prob_mu'))):
-                    # in case of not oscillating NC events, we can set the
+                    # In case of not oscillating NC events, we can set the
                     # probabilities of nue->nue and numu->numu at 1, and
                     # nutau->nutau at 0
                     self.events_dict[flav]['host'][var] = np.ones(
                         self.events_dict[flav]['n_evts'], dtype=FTYPE
                     )
                 else:
-                    self.events_dict[flav]['host'][var] = np.zeros(self.events_dict[flav]['n_evts'], dtype=FTYPE)
-            # Calulate layers (every particle crosses a number of layers in the earth with different densities, and for a given length
-            # these depend only on the earth model (PREM) and the true coszen of an event. Therefore we can calculate these for once and are done
-            self.events_dict[flav]['host']['numLayers'], \
-                self.events_dict[flav]['host']['densityInLayer'], \
-                self.events_dict[flav]['host']['distanceInLayer'] = \
-                self.osc.calc_layers(self.events_dict[flav]['host']['true_coszen'])
+                    self.events_dict[flav]['host'][var] = np.zeros(
+                        self.events_dict[flav]['n_evts'], dtype=FTYPE
+                    )
+            # Calulate layers (every particle crosses a number of layers in the
+            # earth with different densities, and for a given length these
+            # depend only on the earth model (PREM) and the true coszen of an
+            # event. Therefore we can calculate these for once and are done
+            if self.params['earth_model'].value is not None:
+                nlayers, dens, dist = self.osc.calc_layers(
+                    self.events_dict[flav]['host']['true_coszen']
+                )
+                self.events_dict[flav]['host']['numLayers'] = nlayers
+                self.events_dict[flav]['host']['densityInLayer'] = dens
+                self.events_dict[flav]['host']['distanceInLayer'] = dist
+
         end_t = time.time()
         logging.debug('layers done in %.4f ms'%((end_t - start_t) * 1000))
 
@@ -445,8 +490,10 @@ class gpu(Stage):
         """Copy back event by event information into the host dict"""
         for flav in self.flavs:
             for var in variables:
-                buff = np.ones(self.events_dict[flav]['n_evts'], dtype=FTYPE)
+                buff = np.full(self.events_dict[flav]['n_evts'],
+                               fill_value=np.nan, dtype=FTYPE)
                 cuda.memcpy_dtoh(buff, self.events_dict[flav]['device'][var])
+                assert np.all(np.isvalid(buff))
                 self.events_dict[flav]['host'][var] = buff
 
     def sum_array(self, x, n_evts):
@@ -465,6 +512,12 @@ class gpu(Stage):
         osc_param_vals = [self.params[name].value for name in self.osc_params]
         gpu_flux_vals = [self.params[name].value
                            for name in self.flux_params]
+        
+        true_params_vals = [self.params[name].value for name in self.true_params]
+
+        osc_param_vals += true_params_vals
+        gpu_flux_vals += true_params_vals
+
         if self.full_hash:
             osc_param_vals = normQuant(osc_param_vals)
             gpu_flux_vals = normQuant(gpu_flux_vals)
@@ -478,6 +531,7 @@ class gpu(Stage):
         aeff_scale = self.params.aeff_scale.value.m_as('dimensionless')
         Genie_Ma_QE = self.params.Genie_Ma_QE.value.m_as('dimensionless')
         Genie_Ma_RES = self.params.Genie_Ma_RES.value.m_as('dimensionless')
+        true_e_scale = self.params.true_e_scale.value.m_as('dimensionless')
 
         if recalc_flux:
             nue_numu_ratio = self.params.nue_numu_ratio.value.m_as('dimensionless')
@@ -487,14 +541,15 @@ class gpu(Stage):
             Barr_nu_nubar_ratio = self.params.Barr_nu_nubar_ratio.value.m_as('dimensionless')
 
         if recalc_osc:
-            theta12 = self.params.theta12.value.m_as('rad')
-            theta13 = self.params.theta13.value.m_as('rad')
-            theta23 = self.params.theta23.value.m_as('rad')
-            deltam21 = self.params.deltam21.value.m_as('eV**2')
-            deltam31 = self.params.deltam31.value.m_as('eV**2')
-            deltacp = self.params.deltacp.value.m_as('rad')
-            self.osc.update_MNS(theta12, theta13, theta23, deltam21, deltam31,
-                                deltacp)
+            if self.params['earth_model'].value is not None:
+                theta12 = self.params.theta12.value.m_as('rad')
+                theta13 = self.params.theta13.value.m_as('rad')
+                theta23 = self.params.theta23.value.m_as('rad')
+                deltam21 = self.params.deltam21.value.m_as('eV**2')
+                deltam31 = self.params.deltam31.value.m_as('eV**2')
+                deltacp = self.params.deltacp.value.m_as('rad')
+                self.osc.update_MNS(theta12, theta13, theta23,
+                                    deltam21, deltam31, deltacp)
 
         tot = 0
         start_t = time.time()
@@ -502,12 +557,26 @@ class gpu(Stage):
             # Calculate osc probs, filling the device arrays with probabilities
             if recalc_osc:
                 if not (self.params.no_nc_osc.value and flav.endswith('_nc')):
-                    self.osc.calc_probs(
-                        self.events_dict[flav]['kNuBar'],
-                        self.events_dict[flav]['kFlav'],
-                        self.events_dict[flav]['n_evts'],
-                        **self.events_dict[flav]['device']
-                    )
+                    if self.params['earth_model'].value is not None:
+                        self.osc.calc_probs(
+                            self.events_dict[flav]['kNuBar'],
+                            self.events_dict[flav]['kFlav'],
+                            self.events_dict[flav]['n_evts'],
+                            true_e_scale=true_e_scale,
+                            **self.events_dict[flav]['device']
+                        )
+                    else:
+                        # Vacuum is done on a CPU
+                        self.osc.calc_probs(
+                            self.events_dict[flav]['kNuBar'],
+                            self.events_dict[flav]['kFlav'],
+                            self.events_dict[flav]['n_evts'],
+                            true_e_scale=true_e_scale,
+                            **self.events_dict[flav]['host']
+                        )
+                        # Then need to update the device arrays
+                        self.update_device_arrays(flav, 'prob_e')
+                        self.update_device_arrays(flav, 'prob_mu')
 
             # Calculate weights
             if recalc_flux:
@@ -520,6 +589,7 @@ class gpu(Stage):
                     delta_index=delta_index,
                     Barr_uphor_ratio=Barr_uphor_ratio,
                     Barr_nu_nubar_ratio=Barr_nu_nubar_ratio,
+                    true_e_scale=true_e_scale,
                     **self.events_dict[flav]['device']
                 )
 
@@ -545,16 +615,22 @@ class gpu(Stage):
                 kNuBar=self.events_dict[flav]['kNuBar'],
                 Genie_Ma_QE=Genie_Ma_QE,
                 Genie_Ma_RES=Genie_Ma_RES,
+                true_e_scale=true_e_scale,
                 **self.events_dict[flav]['device']
             )
 
             # Calculate weights squared, for error propagation
             if self.error_method in ['sumw2', 'fixed_sumw2']:
-                self.gpu_weight.calc_sumw2(self.events_dict[flav]['n_evts'], **self.events_dict[flav]['device'])
+                self.gpu_weight.calc_sumw2(
+                    self.events_dict[flav]['n_evts'],
+                    **self.events_dict[flav]['device']
+                )
 
             tot += self.events_dict[flav]['n_evts']
+
         end_t = time.time()
-        logging.debug('GPU calc done in %.4f ms for %s events'%(((end_t - start_t) * 1000), tot))
+        logging.debug('GPU calc done in %.4f ms for %s events'
+                      %(((end_t - start_t) * 1000), tot))
 
         if self.params.kde.value:
             start_t = time.time()
@@ -590,11 +666,7 @@ class gpu(Stage):
             # hist_e_scale:
             bin_edges = deepcopy(self.bin_edges)
             bin_edges[self.e_bin_number] *= FTYPE(self.params.hist_e_scale.value.m_as('dimensionless'))
-            #print self.params.hist_e_scale.value.m_as('dimensionless')
-            #bin_edges[self.e_bin_number] *= 0.99
-            #if self.params.hist_e_scale.value.m_as('dimensionless') != 1.0:
-            #    print bin_edges[self.e_bin_number]
-            #    print self.params.hist_e_scale.value.m_as('dimensionless')
+            bin_edges[self.pid_bin_number][1] *= FTYPE(self.params.hist_pid_scale.value.m_as('dimensionless'))
             self.histogrammer.update_bin_edges(*bin_edges)
 
             start_t = time.time()

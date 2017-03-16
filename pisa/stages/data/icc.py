@@ -39,6 +39,8 @@ class icc(Stage):
             scale factor to be apllied to outputs
         use_def1 : bool
             whether ICC definition 1 is used
+        fixed_scale_factor : float
+            scale fixed errors
 
     Notes
     -----
@@ -59,6 +61,7 @@ class icc(Stage):
             'bdt_cut',
             'alt_icc_bg_file',
             'kde_hist',
+            'fixed_scale_factor'
         )
 
         output_names = ('evts')
@@ -195,19 +198,24 @@ class icc(Stage):
                     )
         else:
             self.icc_bg_hist,_ = np.histogramdd(sample = np.array([cut_events[bin_name] for bin_name in self.bin_names]).T, bins=self.bin_edges)
+
+
+        conversion = self.params.atm_muon_scale.value.m_as('dimensionless') / ureg('common_year').to('seconds').m
+        logging.info('nominal ICC rate at %.6E Hz'%(self.icc_bg_hist.sum()*conversion))
+
         if alt_icc_bg_file is not None:
             if self.params.kde_hist.value:
-		self.alt_icc_bg_hist = self.kde_histogramdd(
-                            np.array([alt_cut_events[bin_name] for bin_name in self.bin_names]).T,
-                            binning=self.output_binning,
-                            coszen_name='reco_coszen',
-                            use_cuda=True,
-                            bw_method='silverman',
-                            alpha=0.3,
-                            oversample=10,
-                            coszen_reflection=0.5,
-                            adaptive=True
-                        )
+                self.alt_icc_bg_hist = self.kde_histogramdd(
+                    np.array([alt_cut_events[bin_name] for bin_name in self.bin_names]).T,
+                    binning=self.output_binning,
+                    coszen_name='reco_coszen',
+                    use_cuda=True,
+                    bw_method='silverman',
+                    alpha=0.3,
+                    oversample=10,
+                    coszen_reflection=0.5,
+                    adaptive=True
+                )
             else:
                 self.alt_icc_bg_hist,_ = np.histogramdd(sample = np.array([alt_cut_events[bin_name] for bin_name in self.bin_names]).T, bins=self.bin_edges)
             # only interested in shape difference, not rate
@@ -227,6 +235,7 @@ class icc(Stage):
         fixed_scale = self.params.atm_muon_scale.nominal_value.m_as('dimensionless')
         scale *= self.params.livetime.value.m_as('common_year')
         fixed_scale *= self.params.livetime.value.m_as('common_year')
+        fixed_scale *= self.params.fixed_scale_factor.value.m_as('dimensionless')
 
         if self.error_method == 'sumw2':
             maps = [Map(name=self.output_names[0], hist=(self.icc_bg_hist * scale), error_hist=(np.sqrt(self.icc_bg_hist) * scale) ,binning=self.output_binning)]
