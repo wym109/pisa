@@ -153,49 +153,37 @@ class param(Stage):
         self.include_attrs_for_hashes('particles')
         self.include_attrs_for_hashes('transform_groups')
 
-    def load_aeff_energy_param(self, aeff_energy_param):
+    def load_aeff_dim_param(self, aeff_dim_param=None, dim=None):
         """
-        Load aeff energy-dependent parameterisation from file or dictionary.
+        Load aeff parameterisation (energy- or coszen-dependent)
+        from file or dictionary.
         """
-        this_hash = hash_obj(aeff_energy_param)
-        if (hasattr(self, '_energy_param_hash') and
-            this_hash == self._energy_param_hash):
-            return
-        if isinstance(aeff_energy_param, basestring):
-            energy_param_dict = from_file(aeff_energy_param)
-        elif isinstance(aeff_energy_param, dict):
-            energy_param_dict = aeff_energy_param
-        else:
-            raise ValueError(
-                "Expecting either a path to a file or a dictionary provided as"
-                " the store of the parameterisations. Got %s. Something is "
-                "wrong."%(type(reco_param))
-            )
-        self.energy_param_dict = energy_param_dict
-        self._energy_param_hash = this_hash
-
-    def load_aeff_coszen_param(self, aeff_coszen_param):
-        """
-        Load aeff coszen-dependent parameterisation from file or dictionary.
-        """
-        if aeff_coszen_param is not None:
-            this_hash = hash_obj(aeff_coszen_param)
-            if (hasattr(self, '_coszen_param_hash') and
-                this_hash == self._coszen_param_hash):
-                return
-            if isinstance(aeff_coszen_param, basestring):
-                coszen_param_dict = from_file(aeff_coszen_param)
-            elif isinstance(aeff_coszen_param, dict):
-                coszen_param_dict = aeff_coszen_param
+        valid_dims = ('energy', 'coszen')
+        if not dim in valid_dims:
+            if isinstance(dim, basestring):
+                raise ValueError("Valid aeff param dimension identifiers are %s."
+                                 " Got '%s' instead."%(str(valid_dims), dim))
             else:
-                raise ValueError("Got type %s for aeff_coszen_param when "
-                                 "either basestring or dict was expected. "
-                                 "Something is wrong."%type(aeff_coszen_param))
-            self.coszen_param_dict = coszen_param_dict
-            self._coszen_param_hash = this_hash
-        else:
+                raise ValueError("Aeff param dimension identifier required as"
+                                 " string!")
+        if dim == 'coszen' and not aeff_dim_param:
             self.coszen_param_dict = None
             self._coszen_param_hash = None
+            return
+        this_hash = hash_obj(aeff_dim_param)
+        if (hasattr(self, '_%s_param_hash'%dim) and
+            this_hash == getattr(self, "_%s_param_hash"%dim)):
+            return
+        if isinstance(aeff_dim_param, basestring):
+            param_dict = from_file(aeff_dim_param)
+        elif isinstance(aeff_dim_param, dict):
+            param_dict = aeff_dim_param
+        else:
+            raise ValueError("Got type '%s' for aeff_%s_param when "
+                             "either basestring or dict was expected. "
+                             "Something is wrong."%(type(aeff_dim_param), dim))
+        setattr(self, "%s_param_dict"%dim, param_dict)
+        setattr(self, "_%s_param_hash"%dim, this_hash)
 
     def find_energy_param(self, flavstr):
         if flavstr not in self.energy_param_dict.keys():
@@ -374,8 +362,10 @@ class param(Stage):
                 "parameterised aeff service."
             )
 
-        self.load_aeff_energy_param(self.params.aeff_energy_paramfile.value)
-        self.load_aeff_coszen_param(self.params.aeff_coszen_paramfile.value)
+        self.load_aeff_dim_param(dim='energy',
+                        aeff_dim_param=self.params.aeff_energy_paramfile.value)
+        self.load_aeff_dim_param(dim='coszen',
+                        aeff_dim_param=self.params.aeff_coszen_paramfile.value)
 
         ecen = self.input_binning.true_energy.weighted_centers.magnitude
         if 'true_coszen' in self.input_binning.names:
