@@ -117,7 +117,8 @@ if FTYPE == np.float32:
     HASH_SIGFIGS = 6
 
 EPSILON = 10**(-HASH_SIGFIGS)
-"""Best precision considering HASH_SIGFIGS (which is chosen by FTYPE)"""
+"""Best precision considering HASH_SIGFIGS (which is chosen kinda ad-hoc but
+based on by FTYPE)"""
 
 
 # Derive #define consts for dynamically-compiled C (and also C++ and CUDA) code

@@ -20,13 +20,21 @@ from pisa import (FTYPE, OMP_NUM_THREADS, NUMBA_AVAIL, NUMBA_CUDA_AVAIL,
                   numba_jit)
 from pisa.utils.log import logging, set_verbosity, tprofile
 from pisa.utils import gaussians_cython
+if FTYPE == np.float32:
+    from pisa.utils.gaussians_cython import gaussian_s as gaussian
+elif FTYPE == np.float64:
+    from pisa.utils.gaussians_cython import gaussian_d as gaussian
+else:
+    raise NotImplementedError('`gaussian` function not implemented for'
+                              ' pisa.FTYPE=%s' % FTYPE)
+
 
 # TODO: if the Numba CUDA functions are defined, then other CUDA (e.g. pycuda)
 # code doesn't run. Need to fix this behavior. (E.g. context that gets
 # destroyed?)
 
 
-__all__ = ['GAUS_IMPLEMENTATIONS', 'gaussians', 'test_gaussians']
+__all__ = ['GAUS_IMPLEMENTATIONS', 'gaussian', 'gaussians', 'test_gaussians']
 
 
 GAUS_IMPLEMENTATIONS = ['singlethreaded', 'multithreaded', 'cython']
