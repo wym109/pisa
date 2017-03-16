@@ -50,6 +50,11 @@ def main():
     args = parse_args()
     set_verbosity(args.v)
 
+    # Set up the lists of strings needed to search the error messages for
+    # things to ignore e.g. cuda stuff and ROOT stuff
+    ROOT_err_strings = ['ROOT', 'Roo', 'root', 'roo']
+    cuda_err_strings = ['cuda']
+
     example_directory = os.path.join(
         'settings', 'pipeline'
     )
@@ -79,12 +84,14 @@ def main():
 
         except ImportError as err:
             exc = sys.exc_info()
-            if 'ROOT' in err.message and args.ignore_root:
+            if any(errstr in err.message for errstr in ROOT_err_strings) and \
+              args.ignore_root:
                 skip_count += 1
                 allow_error = True
                 msg = ('    Skipping pipeline as it has ROOT dependencies'
                        ' (ROOT cannot be imported)')
-            elif 'cuda' in err.message and args.ignore_gpu:
+            elif any(errstr in err.message for errstr in cuda_err_strings) and \
+              args.ignore_gpu:
                 skip_count += 1
                 allow_error = True
                 msg = ('    Skipping pipeline as it has cuda dependencies'
