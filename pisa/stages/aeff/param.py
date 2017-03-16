@@ -202,18 +202,18 @@ class param(Stage):
             if 'nc' in flavstr:
                 if 'bar' in flavstr:
                     if 'nuallbar_nc' in self.energy_param_dict.keys():
-                        logging.warn("Could not find the %s transform group "
-                                     "but did find a nuallbar version. Will "
-                                     "proceed assuming this is to be used for"
-                                     " all nubar_nc transforms."%flavstr)
+                        logging.debug("Could not find the %s transform group "
+                                      "but did find a nuallbar version. Will "
+                                      "proceed assuming this is to be used for"
+                                      " all nubar_nc transforms."%flavstr)
                         energy_param = self.energy_param_dict['nuallbar_nc']
                     elif 'nuall_nc' in self.energy_param_dict.keys():
-                        logging.warn("Could not find the %s transform group "
-                                     "but did find a nuallbar version. Will "
-                                     "proceed assuming this is to be used for"
-                                     " all nubar_nc transforms and that "
-                                     "therefore nu and nubar transform the "
-                                     "same."%flavstr)
+                        logging.debug("Could not find the %s transform group "
+                                      "but did find a nuallbar version. Will "
+                                      "proceed assuming this is to be used for"
+                                      " all nubar_nc transforms and that "
+                                      "therefore nu and nubar transform the "
+                                      "same."%flavstr)
                         energy_param = self.energy_param_dict['nuall_nc']
                         raise ValueError(
                             "Transform group %s not found in energy aeff "
@@ -226,11 +226,11 @@ class param(Stage):
                         )
                 else:
                     if 'nuall_nc' in self.energy_param_dict.keys():
-                        logging.warn("Could not find the %s transform "
-                                     "group but did find a nuall version."
-                                     " Will proceed assuming this is to "
-                                     "be used for all nu_nc transforms."%(
-                                         flavstr))
+                        logging.debug("Could not find the %s transform "
+                                      "group but did find a nuall version."
+                                      " Will proceed assuming this is to "
+                                      "be used for all nu_nc transforms."%(
+                                          flavstr))
                         energy_param = self.energy_param_dict['nuall_nc']
                     else:
                         raise ValueError(
@@ -255,10 +255,10 @@ class param(Stage):
                         )
                     )
                 else:
-                    logging.warn("Could not find the %s transform group but "
-                                 "did find an 'unbarred' version. Will "
-                                 "proceed assuming that nu and nubar "
-                                 "transform the same."%(flavstr))
+                    logging.debug("Could not find the %s transform group but "
+                                  "did find an 'unbarred' version. Will "
+                                  "proceed assuming that nu and nubar "
+                                  "transform the same."%(flavstr))
             else:
                 raise ValueError(
                     "Transform group %s not found in energy aeff "
@@ -278,19 +278,19 @@ class param(Stage):
             if 'nc' in flavstr:
                 if 'bar' in flavstr:
                     if 'nuallbar_nc' in self.coszen_param_dict.keys():
-                        logging.warn("Could not find the %s transform group "
-                                     "but did find a nuallbar version. Will "
-                                     "proceed assuming this is to be used "
-                                     "for all nubar_nc transforms."%(
-                                         flavstr))
+                        logging.debug("Could not find the %s transform group "
+                                      "but did find a nuallbar version. Will "
+                                      "proceed assuming this is to be used "
+                                      "for all nubar_nc transforms."%(
+                                          flavstr))
                         coszen_param = self.coszen_param_dict['nuallbar_nc']
                     elif 'nuall_nc' in self.coszen_param_dict.keys():
-                        logging.warn("Could not find the %s transform group "
-                                     "but did find a nuall version. Will "
-                                     "proceed assuming this is to be used "
-                                     "for all nu_nc transforms and that nu "
-                                     "and nubar transform the same."%(
-                                         flavstr))
+                        logging.debug("Could not find the %s transform group "
+                                      "but did find a nuall version. Will "
+                                      "proceed assuming this is to be used "
+                                      "for all nu_nc transforms and that nu "
+                                      "and nubar transform the same."%(
+                                          flavstr))
                         coszen_param = self.coszen_param_dict['nuall_nc']
                         
                     else:
@@ -305,11 +305,11 @@ class param(Stage):
                         )
                 else:
                     if 'nuall_nc' in self.coszen_param_dict.keys():
-                        logging.warn("Could not find the %s transform group "
-                                     "but did find a nuall version. Will "
-                                     "proceed assuming this is to be used "
-                                     "for all nu_nc transforms."%(
-                                         flavstr))
+                        logging.debug("Could not find the %s transform group "
+                                      "but did find a nuall version. Will "
+                                      "proceed assuming this is to be used "
+                                      "for all nu_nc transforms."%(
+                                          flavstr))
                         coszen_param = self.coszen_param_dict['nuall_nc']
                     else:
                         raise ValueError(
@@ -333,13 +333,13 @@ class param(Stage):
                         )
                     )
                 else:
-                    logging.warn("Could not find the %s transform group but "
-                                 "did find the 'unbarred' version  %s instead."
-                                 " Will proceed assuming this flavour behaves"
-                                 " identical for nu and nubar."%(
-                                     flavstr,
-                                     new_flavints
-                                 ))
+                    logging.debug("Could not find the %s transform group but "
+                                  "did find the 'unbarred' version  %s instead."
+                                  " Will proceed assuming this flavour behaves"
+                                  " identical for nu and nubar."%(
+                                      flavstr,
+                                      new_flavints
+                                  ))
                     coszen_param = self.coszen_param_dict[new_flavints]
             else:
                 raise ValueError(
