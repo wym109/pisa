@@ -1,14 +1,17 @@
 # PISA author: Timothy C. Arlen
 #
-# CAKE author: Thomas Ehrhardt
-#              tehrhardt@icecube.wisc.edu
-# date:        Oct 19, 2016
+# CAKE authors: Thomas Ehrhardt
+#               tehrhardt@icecube.wisc.edu
+#               Steven Wren
+#               steven.wren@icecube.wisc.edu
+# date:         Oct 19, 2016
 """
-This is an effective area service designed for quick studies of how effective
+This is an effective area stage designed for quick studies of how effective
 areas affect experimental observables and sensitivities. In addition, it is
-supposed to be easily reproducible as it solely relies on (phenomenological)
-functions, dependent on energy (and optionally cosine zenith), and which can
-thus be used as reference or benchmark scenarios.
+supposed to be easily reproducible as it may rely on (phenomenological)
+functions or interpolated discrete data points, dependent on energy
+(and optionally cosine zenith), and which can thus be used as reference or
+benchmark scenarios.
 """
 import copy
 from itertools import product
