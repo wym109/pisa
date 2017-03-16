@@ -587,6 +587,9 @@ class OneDimBinning(object):
             self._basename = basename(self.name)
         return self._basename
 
+    # TODO: reimplement just the translate-on-input (or not?), but is this a
+    # performance hit for e.g. iterbins()? That could argue for translate-on-output...
+
     #@property
     #def tex(self):
     #    """string : TeX label"""
@@ -600,6 +603,22 @@ class OneDimBinning(object):
     #    stripped off (and must be added prior to e.g. plotting)"""
     #    assert val is None or isinstance(val, basestring)
     #    self._tex = strip_outer_dollars(text2tex(val))
+
+    @property
+    def label_tex(self):
+        """string : tex label, intended to be placed in math mode (e.g. between
+        matching dollars-signs)"""
+        if self.tex is None or self.tex == '':
+            name_tex = r'{\rm %s}' % self.name
+        else:
+            name_tex = self.tex
+
+        if self.units == ureg.dimensionless:
+            units_tex = ''
+        else:
+            units_tex = r'\;\left({:~L}\right)'.format(self.units)
+
+        return name_tex + units_tex
 
     @property
     def shape(self):
@@ -2230,7 +2249,12 @@ def test_OneDimBinning():
                        bin_names=[str(i) for i in range(40)])
     logging.debug('creating b2')
     b2 = OneDimBinning(name='coszen', num_bins=40, is_lin=True,
-                       domain=[-1, 1], bin_names=None)
+                       domain=[-1, 1], bin_names=None,
+                       tex=r'\cos\theta')
+
+    # Test label_tex
+    _ = b1.label_tex
+    _ = b1.label_tex
 
     logging.debug('len(b1): %s', len(b1))
     logging.debug('b1: %s', b1)
@@ -2322,6 +2346,24 @@ def test_OneDimBinning():
             jsons.to_json(b, b_file, warn=False)
             b_ = OneDimBinning.from_json(b_file)
             assert b_ == b, 'b=\n%s\nb_=\n%s' %(b, b_)
+
+            # Had bug where datastruct containing MultiDimBinning failed to be
+            # saved. # Test tuple containing list containing OrderedDict
+            # containing OneDimBinning here.
+            struct = ([OrderedDict(odb=b)],)
+            jsons.to_json(struct, b_file, warn=False)
+            loaded = jsons.from_json(b_file)
+            b_ = OneDimBinning(**loaded[0][0]['odb'])
+            assert b_ == b
+
+            # Now try with pickle
+            b_file = os.path.join(testdir, 'one_dim_binning.pkl')
+            pickle.dump(struct, file(b_file, 'wb'),
+                        protocol=pickle.HIGHEST_PROTOCOL)
+            loaded = pickle.load(file(b_file, 'r'))
+            b_ = loaded[0][0]['odb']
+            assert b_ == b
+
     except:
         logging.error('b that failed: %s', b)
         raise
@@ -2422,6 +2464,25 @@ def test_MultiDimBinning():
         jsons.to_json(binning, b_file, warn=False)
         b_ = MultiDimBinning.from_json(b_file)
         assert b_ == binning, 'binning=\n%s\nb_=\n%s' %(binning, b_)
+
+        # Had bug where datastruct containing MultiDimBinning failed to be
+        # saved. # Test tuple containing list containing OrderedDict
+        # containing MultiDimBinning here.
+        b = binning
+        struct = ([OrderedDict(mdb=b)],)
+        jsons.to_json(struct, b_file, warn=False)
+        loaded = jsons.from_json(b_file)
+        b_ = MultiDimBinning(**loaded[0][0]['mdb'])
+        assert b_ == b
+
+        # Now try with pickle
+        b_file = os.path.join(testdir, 'multi_dim_binning.pkl')
+        pickle.dump(struct, file(b_file, 'wb'),
+                    protocol=pickle.HIGHEST_PROTOCOL)
+        loaded = pickle.load(file(b_file, 'r'))
+        b_ = loaded[0][0]['mdb']
+        assert b_ == b
+
     finally:
         shutil.rmtree(testdir, ignore_errors=True)
 

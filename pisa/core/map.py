@@ -822,6 +822,12 @@ class Map(object):
         state['full_comparison'] = self.full_comparison
         return state
 
+    def __getstate__(self):
+        return self._serializable_state
+
+    def __setstate__(self, state):
+        self.__init__(**state)
+
     def to_json(self, filename, **kwargs):
         """Serialize the state to a JSON file that can be instantiated as a new
         object later.
@@ -1648,6 +1654,12 @@ class MapSet(object):
         state['collate_by_name'] = self.collate_by_name
         return state
 
+    def __getstate__(self):
+        return self._serializable_state
+
+    def __setstate__(self, state):
+        self.__init__(**state)
+
     def to_json(self, filename, **kwargs):
         """Serialize the state to a JSON file that can be instantiated as a new
         object later.
@@ -1891,9 +1903,10 @@ class MapSet(object):
         resulting_maps = []
         for expr in expressions:
             maps_to_combine = []
-            for m in self:
+            for mapnum, m in enumerate(self):
                 if fnmatch(m.name, expr):
-                    logging.debug('Map "%s" will be added...', m.name)
+                    logging.debug('Map %d, "%s", will be added...',
+                                  mapnum, m.name)
                     maps_to_combine.append(m)
             if len(maps_to_combine) == 0:
                 raise ValueError('No map names match `expr` "%s"' % expr)
@@ -2324,6 +2337,7 @@ class MapSet(object):
 # TODO: add tests for llh, chi2 methods
 def test_Map():
     """Unit tests for Map class"""
+    import cPickle as pickle
     n_ebins = 10
     n_czbins = 5
     n_azbins = 2
@@ -2394,6 +2408,21 @@ def test_Map():
             jsons.to_json(m, m_file, warn=False)
             m_ = Map.from_json(m_file)
             assert m_ == m, 'm=\n%s\nm_=\n%s' %(m, m_)
+            # Had bug where datastruct containing MapSet failed to be saved.
+            # Test tuple containing list containing OrderedDict containing
+            # Map here.
+            struct = ([OrderedDict(map=m)],)
+            jsons.to_json(struct, m_file, warn=False)
+            loaded = jsons.from_json(m_file)
+            m_ = Map(**loaded[0][0]['map'])
+            assert m_ == m
+            # Now try with pickle
+            m_file = os.path.join(testdir, m.name + '.pkl')
+            pickle.dump(struct, file(m_file, 'wb'),
+                        protocol=pickle.HIGHEST_PROTOCOL)
+            loaded = pickle.load(file(m_file, 'r'))
+            m_ = loaded[0][0]['map']
+            assert m_ == m
     finally:
         shutil.rmtree(testdir, ignore_errors=True)
 
@@ -2473,6 +2502,7 @@ def test_Map():
 # TODO: make tests use assert rather than rely on logging.debug(str((!)))
 def test_MapSet():
     """Unit tests for MapSet class"""
+    import cPickle as pickle
     n_ebins = 6
     n_czbins = 3
     e_binning = OneDimBinning(name='energy', tex=r'E_\nu', num_bins=n_ebins,
@@ -2508,10 +2538,12 @@ def test_MapSet():
     logging.debug(str(('hist equal after combining?',
                        np.all(ms1.combine_re(r'^o').hist ==
                               ms1.combine_wildcard(r'o*').hist))))
-    assert np.all(ms1.combine_re(r'^o').hist
-                  == ms1.combine_wildcard('o*').hist)
+    assert np.all(ms1.combine_re(r'^o.*').nominal_values
+                  == ms1.combine_wildcard('o*').nominal_values), \
+            '%s\n%s' % (ms1.combine_re(r'^o.*'), ms1.combine_wildcard('o*'))
     logging.debug(str(('5', ms1.names)))
-    assert np.all(ms1.combine_re(r'^o').hist == ms1.ones.hist)
+    assert np.all(ms1.combine_re(r'^o').nominal_values == ms1.ones.nominal_values)
+    assert np.all(ms1.combine_wildcard(r'o*').nominal_values == ms1.ones.nominal_values)
     logging.debug(str(('6', ms1.names)))
     try:
         ms1.combine_re('three')
@@ -2614,6 +2646,24 @@ def test_MapSet():
             jsons.to_json(ms, ms_file, warn=False)
             ms_ = MapSet.from_json(ms_file)
             assert ms_ == ms, 'ms=\n%s\nms_=\n%s' %(ms, ms_)
+
+            # Had bug where datastruct containing MapSet failed to be saved.
+            # Test tuple containing list containing OrderedDict containing
+            # MapSet.
+            struct = ([OrderedDict(mapset=ms)],)
+            jsons.to_json(struct, ms_file, warn=False)
+            loaded = jsons.from_json(ms_file)
+            ms_ = MapSet(**loaded[0][0]['mapset'])
+            assert ms_ == ms
+
+            # Now try with pickle
+            ms_file = os.path.join(testdir, ms.name + '.pkl')
+            pickle.dump(struct, file(ms_file, 'wb'),
+                        protocol=pickle.HIGHEST_PROTOCOL)
+            loaded = pickle.load(file(ms_file, 'r'))
+            ms_ = loaded[0][0]['mapset']
+            assert ms_ == ms
+
     finally:
         shutil.rmtree(testdir, ignore_errors=True)
 
