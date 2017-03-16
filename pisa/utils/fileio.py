@@ -51,13 +51,14 @@ def expandPath(path, exp_user=True, exp_vars=True, absolute=False):
 
 
 def check_file_exists(fname, overwrite=True, warn=True):
-    fpath = os.path.expandvars(os.path.expanduser(fname))
+    fpath = expandPath(path=fname, exp_user=True, exp_vars=True)
     if os.path.exists(fpath):
         if overwrite:
             if warn:
-                log.logging.warn('Overwriting file at ' + fpath)
+                log.logging.warn("Overwriting file at '%s'"%fpath)
         else:
-            raise Exception('Refusing to overwrite path ' + fpath)
+            raise Exception("Refusing to overwrite path '%s'"%fpath)
+    return fpath
 
 
 def mkdir(d, mode=0750, warn=True):
@@ -147,7 +148,7 @@ def findFiles(root, regex=None, fname=None, recurse=True, dir_sorter=nsort,
     basename : str
     match : re.SRE_Match or None
     """
-    root = os.path.expandvars(os.path.expanduser(root))
+    root = expandPath(path=root, exp_user=True, exp_vars=True)
     if isinstance(regex, basestring):
         regex = re.compile(regex)
 
