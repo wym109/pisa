@@ -232,12 +232,6 @@ class param(Stage):
             energy_param_dict = from_file(pid_energy_param)
         elif isinstance(pid_energy_param, dict):
             energy_param_dict = pid_energy_param
-        else:
-            raise ValueError(
-                "Expecting either a path to a file or a dictionary provided as"
-                " the store of the parameterisations. Got %s. Something is "
-                "wrong."%(type(reco_param))
-            )
         self.energy_param_dict = energy_param_dict
         self._energy_param_hash = this_hash
 
@@ -363,6 +357,11 @@ class param(Stage):
 
     def validate_params(self, params):
         # do some checks on the parameters
-
+        f = params.pid_energy_paramfile.value
         # Check type of pid_energy_paramfile
-        assert isinstance(params.pid_energy_paramfile.value, (basestring, dict))
+        if not isinstance(f, (basestring, dict)):
+            raise ValueError(
+                "Expecting either a path to a file or a dictionary provided as "
+                "the store of the parameterisations. Got '%s'. Something is "
+                "wrong."%type(f)
+            )
