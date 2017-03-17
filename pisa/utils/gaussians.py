@@ -209,7 +209,7 @@ def _gaussians_singlethreaded(outbuf, x, mu, inv_sigma, inv_sigma_sq, weights,
             for j in range(n_gaussians):
                 xlessmu = x[i] - mu[j]
                 tot += (
-                    exp(-0.5 * (xlessmu*xlessmu) * inv_sigma_sq[j])
+                    exp((xlessmu*xlessmu) * inv_sigma_sq[j])
                     * weights[j] * inv_sigma[j]
                 )
             outbuf[i] = tot
