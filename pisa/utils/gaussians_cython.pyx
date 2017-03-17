@@ -55,8 +55,8 @@ def gaussian_d(double[::1] outbuf,
     None
 
     """
+    cdef double norm = 1.0/(fabs(sigma) * sqrt(2*M_PI))
     cdef double twosigma2 = 2*(sigma*sigma)
-    cdef double abssigma = fabs(sigma)
     cdef double xlessmu
     cdef Py_ssize_t i
     for i in prange(outbuf.shape[0],
@@ -64,7 +64,7 @@ def gaussian_d(double[::1] outbuf,
                     num_threads=threads,
                     schedule='dynamic'):
         xlessmu = x[i] - mu
-        outbuf[i] = exp(-(xlessmu * xlessmu) / twosigma2) / abssigma
+        outbuf[i] = exp(-(xlessmu * xlessmu) / twosigma2) * norm
 
 
 @cython.cdivision(True)
@@ -104,8 +104,8 @@ def gaussian_s(float[::1] outbuf,
     None
 
     """
+    cdef float norm = 1.0/(fabs(sigma) * sqrt(2*M_PI))
     cdef float twosigma2 = 2*(sigma*sigma)
-    cdef float abssigma = fabs(sigma)
     cdef float xlessmu
     cdef Py_ssize_t i
     for i in prange(outbuf.shape[0],
@@ -113,7 +113,7 @@ def gaussian_s(float[::1] outbuf,
                     num_threads=threads,
                     schedule='dynamic'):
         xlessmu = x[i] - mu
-        outbuf[i] = exp(-(xlessmu * xlessmu) / twosigma2) / abssigma
+        outbuf[i] = exp(-(xlessmu * xlessmu) / twosigma2) * norm
 
 
 @cython.cdivision(True)
