@@ -61,6 +61,8 @@ See also
 # narrower bandwidths than ISJ dictates) or really-low densities (which should
 # have very wide bandwidths, wider than ISJ dictates)
 
+# TODO : accuracy tests for fbwkde and vbwkde
+
 
 from __future__ import division
 
@@ -73,7 +75,6 @@ from scipy import fftpack, interpolate, optimize
 from pisa import FTYPE, numba_jit
 from pisa.utils.gaussians import gaussians
 from pisa.utils.log import logging, set_verbosity, tprofile
-from pisa.utils.profiler import line_profile
 
 
 __all__ = ['fbwkde', 'vbwkde', 'isj_bandwidth', 'fixed_point',
@@ -81,13 +82,13 @@ __all__ = ['fbwkde', 'vbwkde', 'isj_bandwidth', 'fixed_point',
            'test_fixed_point']
 
 
-PI = (np.pi)
-TWOPI = (2*PI)
-SQRTPI = (sqrt(PI))
-SQRT2PI = (sqrt(TWOPI))
-PISQ = (PI**2)
+PI = np.pi
+TWOPI = 2*PI
+SQRTPI = np.sqrt(PI)
+SQRT2PI = np.sqrt(TWOPI)
+PISQ = PI*PI
 
-@line_profile
+
 def fbwkde(data, weights=None, n_dct=None, min=None, max=None,
            evaluate_dens=True, evaluate_at=None):
     """Fixed-bandwidth (standard) Gaussian KDE using the Improved
@@ -356,7 +357,7 @@ def isj_bandwidth(y, n_datapoints, x_range):
     i_range = np.arange(1, n_dct, dtype=np.float64)**2
 
     dct_data = fftpack.dct(y, norm=None)
-    dct_data_sq = (0.25 * (dct_data * dct_data))[1:]
+    dct_data_sq = 0.25 * (dct_data * dct_data)[1:]
 
     try:
         t_star = optimize.minimize_scalar(
@@ -370,13 +371,14 @@ def isj_bandwidth(y, n_datapoints, x_range):
         logging.error('ISJ root-finding failed.')
         raise
 
+    # Use sqrt and not np.sqrt to ensure failures raise exceptions
     bandwidth = sqrt(t_star)*x_range
 
     return bandwidth, t_star, dct_data
 
 
 @numba_jit('{f:s}({f:s}, int64, {f:s}[:], {f:s}[:])'.format(f='float64'),
-           nopython=True, nogil=True, cache=True)
+           nopython=True, nogil=True, cache=True, fastmath=True)
 def fixed_point(t, data_len, i_range, a2):
     """Fixed point algorithm for Improved Sheather Jones bandwidth
     selection.
@@ -411,8 +413,14 @@ def fixed_point(t, data_len, i_range, a2):
         tot += i_range[idx]**l * a2[idx] * exp(-i_range[idx] * PISQ * t)
     f = 2 * PI**(2*l) * tot
 
-    for s in range((l-1), 1, -1):
-        k0 = np.nanprod(np.arange(1, 2*s, 2)) / SQRT2PI
+    for s in range(l-1, 1, -1):
+        k0 = np.prod(np.arange(1, 2*s, 2)) / SQRT2PI
+        # Note that the np.prod line above appears to be faster than the below
+        # code, but keeping this as a reminder
+        #k0 = 1
+        #for i in range(1, 2*s, 2):
+        #    k0 *= i
+        #k0 /= SQRT2PI
         const = (1 + (0.5)**(s+0.5)) / 3.0
         t_elap = (2 * const * k0 / (data_len * f))**(2.0 / (3.0 + 2.0*s))
 
@@ -427,7 +435,7 @@ def fixed_point(t, data_len, i_range, a2):
 
 
 def test_fbwkde():
-    """Test speed and accuracy of fbwkde implementation"""
+    """Test speed of fbwkde implementation"""
     n_samp = int(1e4)
     n_dct = int(2**14)
     n_eval = int(1e4)

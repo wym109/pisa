@@ -272,7 +272,8 @@ def do_setup():
                 'pycuda'
             ],
             'numba': [
-                'numba>=0.31'
+                'llvmlite>=0.16', # fastmath jit flag
+                'numba>=0.31' # fastmath jit flag
             ],
             'develop': [
                 'sphinx>1.3',

@@ -30,8 +30,9 @@ else:
 
 
 # TODO: if the Numba CUDA functions are defined, then other CUDA (e.g. pycuda)
-# code doesn't run. Need to fix this behavior. (E.g. context that gets
-# destroyed?)
+# code doesn't run (possibly only when Nvidia driver is set to
+# process-exclusive or thread-exclusive mode). Need to fix this behavior. (E.g.
+# context that gets destroyed?)
 
 
 __all__ = ['GAUS_IMPLEMENTATIONS', 'gaussian', 'gaussians', 'test_gaussians']
@@ -170,57 +171,6 @@ def gaussians(x, mu, sigma, weights=None, implementation=None):
     return outbuf * norm
 
 
-#def _gaussians_multithreaded(outbuf, x, mu, sigma, weights, n_gaussians):
-#    """Sum of multiple guassians, optimized to be run in multiple threads. This
-#    dispatches the single-kernel threaded """
-#    n_points = len(x)
-#    chunklen = n_points // OMP_NUM_THREADS
-#    threads = []
-#    start = 0
-#    for i in range(OMP_NUM_THREADS):
-#        stop = n_points if i == (OMP_NUM_THREADS - 1) else start + chunklen
-#        thread = threading.Thread(
-#            target=_gaussians_singlethreaded,
-#            args=(outbuf, x, mu, sigma, weights, n_gaussians, start, stop)
-#        )
-#        thread.start()
-#        threads.append(thread)
-#        start += chunklen
-#
-#    for thread in threads:
-#        thread.join()
-#
-#
-#GAUS_ST_FUNCSIG = (
-#    (
-#        'void({f:s}[:],{f:s}[:],{f:s}[:],{f:s}[:],{f:s}[:],int64,int64,int64)'
-#    ).format(f=FTYPE.__name__)
-#)
-#@numba_jit(GAUS_ST_FUNCSIG, nopython=True, nogil=True, cache=True)
-#def _gaussians_singlethreaded(outbuf, x, mu, sigma, weights, n_gaussians,
-#                              start, stop):
-#    """Sum of multiple guassians, optimized to be run in a single thread"""
-#    if weights[0] != 0:
-#        for i in range(start, stop):
-#            tot = 0.0
-#            for j in range(n_gaussians):
-#                xlessmu = x[i] - mu[j]
-#                tot += (
-#                    exp(-0.5 * (xlessmu*xlessmu) / (sigma[j]*sigma[j]))
-#                    * weights[j] / sigma[j]
-#                )
-#            outbuf[i] = tot
-#    else:
-#        for i in range(start, stop):
-#            tot = 0.0
-#            for j in range(n_gaussians):
-#                xlessmu = x[i] - mu[j]
-#                tot += (
-#                    exp(-0.5*(xlessmu*xlessmu)/(sigma[j]*sigma[j]))/sigma[j]
-#                )
-#            outbuf[i] = tot
-
-
 def _gaussians_multithreaded(outbuf, x, mu, inv_sigma, inv_sigma_sq, weights,
                              n_gaussians):
     """Sum of multiple guassians, optimized to be run in multiple threads. This
@@ -290,26 +240,23 @@ if NUMBA_CUDA_AVAIL:
             (n_points + (threads_per_block - 1)) // threads_per_block
         )
 
-        if use_weights:
-            func = _gaussians_weighted_cuda_kernel[blocks_per_grid,
-                                                   threads_per_block]
-        else:
-            func = _gaussians_cuda_kernel[blocks_per_grid, threads_per_block]
-
-        # Create empty array on GPU
+        # Create empty array on GPU to store result
         d_outbuf = cuda.device_array(shape=n_points, dtype=FTYPE, stream=0)
 
-        # Copy other arguments to GPU
+        # Copy argument arrays to GPU
         d_x = cuda.to_device(x)
         d_mu = cuda.to_device(mu)
         d_inv_sigma = cuda.to_device(inv_sigma)
         d_inv_sigma_sq = cuda.to_device(inv_sigma_sq)
         if use_weights:
             d_weights = cuda.to_device(weights)
+            func = _gaussians_weighted_cuda_kernel[blocks_per_grid,
+                                                   threads_per_block]
             func(d_outbuf, d_x, d_mu, d_inv_sigma, d_inv_sigma_sq, d_weights,
-                 sum_weights, n_gaussians)
+                 n_gaussians)
         else:
             d_weights = None
+            func = _gaussians_cuda_kernel[blocks_per_grid, threads_per_block]
             func(d_outbuf, d_x, d_mu, d_inv_sigma, d_inv_sigma_sq, n_gaussians)
 
         # Copy contents of GPU result to host's outbuf
