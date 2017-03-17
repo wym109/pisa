@@ -18,10 +18,6 @@ from cython.parallel cimport prange
 from libc.math cimport exp, fabs, sqrt, M_PI
 
 
-cdef double sqrt2pi_d = <double>sqrt(2*M_PI)
-cdef float sqrt2pi_s = <float>sqrt(2*M_PI)
-
-
 @cython.cdivision(True)
 @cython.boundscheck(False)
 @cython.wraparound(False)
@@ -60,7 +56,7 @@ def gaussian_d(double[::1] outbuf,
 
     """
     cdef double twosigma2 = 2*(sigma*sigma)
-    cdef double sqrt2pisigma = fabs(sqrt2pi_d * sigma)
+    cdef double abssigma = fabs(sigma)
     cdef double xlessmu
     cdef Py_ssize_t i
     for i in prange(outbuf.shape[0],
@@ -68,7 +64,7 @@ def gaussian_d(double[::1] outbuf,
                     num_threads=threads,
                     schedule='dynamic'):
         xlessmu = x[i] - mu
-        outbuf[i] = exp(-(xlessmu * xlessmu) / twosigma2) / sqrt2pisigma
+        outbuf[i] = exp(-(xlessmu * xlessmu) / twosigma2) / abssigma
 
 
 @cython.cdivision(True)
@@ -109,7 +105,7 @@ def gaussian_s(float[::1] outbuf,
 
     """
     cdef float twosigma2 = 2*(sigma*sigma)
-    cdef float sqrt2pisigma = fabs(sqrt2pi_d * sigma)
+    cdef float abssigma = fabs(sigma)
     cdef float xlessmu
     cdef Py_ssize_t i
     for i in prange(outbuf.shape[0],
@@ -117,7 +113,7 @@ def gaussian_s(float[::1] outbuf,
                     num_threads=threads,
                     schedule='dynamic'):
         xlessmu = x[i] - mu
-        outbuf[i] = exp(-(xlessmu * xlessmu) / twosigma2) / sqrt2pisigma
+        outbuf[i] = exp(-(xlessmu * xlessmu) / twosigma2) / abssigma
 
 
 @cython.cdivision(True)
@@ -126,7 +122,9 @@ def gaussian_s(float[::1] outbuf,
 def gaussians_d(double[::1] outbuf,
                 double[::1] x,
                 double[::1] mu,
-                double[::1] sigma,
+                double[::1] inv_sigma,
+                double[::1] inv_sigma_sq,
+                int n_gaussians,
                 int threads=1):
     """Sum of multiple, normalized Gaussian function at points `x`, given
     a mean `mu` and standard deviation `sigma`.
@@ -144,8 +142,14 @@ def gaussians_d(double[::1] outbuf,
     mu : array of double
         Means of the Gaussians
 
-    sigma : array of non-zero double
-        Standard deviations of the Gaussians
+    inv_sigma : array of non-zero double
+        Inverse of standard deviations of the Gaussians
+
+    inv_sigma_sq : array of non-zero double
+        -0.5 * inverse of standard deviations, squared
+
+    n_gaussians : int
+        Number of gaussians
 
     threads : int
         Number of OpenMP threads (if compiled with support for OpenMP) to use
@@ -153,29 +157,23 @@ def gaussians_d(double[::1] outbuf,
         operation in single-CPU cluster jobs
 
     """
-    cdef double twosigma2
-    cdef double norm
     cdef double xlessmu
     cdef double tmp
-    cdef Py_ssize_t i, gaus_n, n_gaussians
+    cdef Py_ssize_t i, gaus_n
     # NOTE that the order of the loops is important, as
     # updating the outbuf is NOT thread safe!
-    assert outbuf.shape[0] == x.shape[0]
-    assert mu.shape[0] == sigma.shape[0]
-    n_gaussians = mu.shape[0]
     for i in prange(x.shape[0],
                     nogil=True,
                     num_threads=threads,
                     schedule='dynamic'):
         tmp = 0
         for gaus_n in range(mu.shape[0]):
-            twosigma2 = 2*(sigma[gaus_n] * sigma[gaus_n])
-            norm = fabs(sqrt2pi_d * sigma[gaus_n]) * <double>n_gaussians
             xlessmu = x[i] - mu[gaus_n]
             # NOTE: must use the syntax "tmp = tmp + ...", or else Cython
             # compiler assumes tmp is a reduction variable and compilation
             # fails
-            tmp = tmp + exp(-(xlessmu * xlessmu) / twosigma2) / norm
+            tmp = (tmp + exp((xlessmu * xlessmu) * inv_sigma_sq[gaus_n])
+                   * inv_sigma[gaus_n])
         outbuf[i] = tmp
 
 
@@ -185,7 +183,9 @@ def gaussians_d(double[::1] outbuf,
 def gaussians_s(float[::1] outbuf,
                 float[::1] x,
                 float[::1] mu,
-                float[::1] sigma,
+                float[::1] inv_sigma,
+                float[::1] inv_sigma_sq,
+                int n_gaussians,
                 int threads=1):
     """Sum of multiple, normalized Gaussian function at points `x`, given
     a mean `mu` and standard deviation `sigma`.
@@ -203,8 +203,14 @@ def gaussians_s(float[::1] outbuf,
     mu : array of float
         Means of the Gaussians
 
-    sigma : array of non-zero float
-        Standard deviations of the Gaussians
+    inv_sigma : array of non-zero float
+        Inverse of standard deviations of the Gaussians
+
+    inv_sigma_sq : array of non-zero float
+        -0.5 * inverse of standard deviations, squared
+
+    n_gaussians : int
+        Number of gaussians
 
     threads : int
         Number of OpenMP threads (if compiled with support for OpenMP) to use
@@ -212,27 +218,21 @@ def gaussians_s(float[::1] outbuf,
         operation in single-CPU cluster jobs
 
     """
-    cdef float twosigma2
-    cdef float norm
     cdef float xlessmu
     cdef float tmp
-    cdef Py_ssize_t i, gaus_n, n_gaussians
+    cdef Py_ssize_t i, gaus_n
     # NOTE that the order of the loops is important, as
     # updating the outbuf is NOT thread safe!
-    n_gaussians = mu.shape[0]
-    assert outbuf.shape[0] == x.shape[0]
-    assert n_gaussians == sigma.shape[0]
     for i in prange(x.shape[0],
                     nogil=True,
                     num_threads=threads,
                     schedule='dynamic'):
         tmp = 0
         for gaus_n in range(mu.shape[0]):
-            twosigma2 = 2*(sigma[gaus_n] * sigma[gaus_n])
-            norm = fabs(sqrt2pi_s * sigma[gaus_n]) * <float>n_gaussians
             xlessmu = x[i] - mu[gaus_n]
             # NOTE: must use the syntax "tmp = tmp + ...", or else Cython
             # compiler assumes tmp is a reduction variable and compilation
             # fails
-            tmp = tmp + exp(-(xlessmu * xlessmu) / twosigma2) / norm
+            tmp = (tmp + exp((xlessmu * xlessmu) * inv_sigma_sq[gaus_n])
+                   * inv_sigma[gaus_n])
         outbuf[i] = tmp

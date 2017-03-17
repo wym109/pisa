@@ -48,7 +48,7 @@ SQRT2PI = FTYPE(sqrt(TWOPI))
 PISQ = FTYPE(PI**2)
 
 
-def gaussians(x, mu, sigma, implementation=None):
+def gaussians(x, mu, sigma, weights=None, implementation=None):
     """Sum of multiple Gaussian curves, normalized to have area of 1.
 
     Parameters
@@ -56,8 +56,14 @@ def gaussians(x, mu, sigma, implementation=None):
     x : array
         Points at which to evaluate the sum of Gaussians
 
-    mu, sigma : arrays
-        Means and standard deviations of the Gaussians to accumulate
+    mu : arrays
+        Means of the Gaussians to accumulate
+
+    sigma : array
+        Standard deviations of the Gaussians to accumulate
+
+    weights : array or None
+        Weights given to each Gaussian
 
     implementation : None or string
         One of 'singlethreaded', 'multithreaded', or 'cuda'. Passing None, the
@@ -93,11 +99,27 @@ def gaussians(x, mu, sigma, implementation=None):
         mu = [mu]
     if not isinstance(sigma, Iterable):
         sigma = [sigma]
+    if weights is None:
+        use_weights = False
+        weights = [0]
+    else:
+        use_weights = True
+        if not isinstance(weights, Iterable):
+            weights = [weights]
     x = np.asarray(x, dtype=FTYPE)
     mu = np.asarray(mu, dtype=FTYPE)
+    inv_sigma = 1/np.asarray(sigma, dtype=FTYPE)
+    inv_sigma_sq = -0.5 * inv_sigma * inv_sigma
     sigma = np.asarray(sigma, dtype=FTYPE)
+    weights = np.asarray(weights, dtype=FTYPE)
 
     n_points = len(x)
+    n_gaussians = len(mu)
+
+    if use_weights:
+        norm = 1/(SQRT2PI * np.sum(weights))
+    else:
+        norm = 1/(SQRT2PI * n_gaussians)
 
     # Instantiate an empty output buffer
     outbuf = np.empty(shape=n_points, dtype=FTYPE)
@@ -106,7 +128,7 @@ def gaussians(x, mu, sigma, implementation=None):
     if implementation == 'cuda' or (implementation is None
                                     and NUMBA_CUDA_AVAIL):
         logging.trace('Using CUDA Gaussians implementation')
-        _gaussians_cuda(outbuf, x, mu, sigma)
+        _gaussians_cuda(outbuf, x, mu, sigma, weights, n_gaussians)
 
     # Use cython version if Numba isn't available
     elif implementation == 'cython' or (implementation is None
@@ -114,23 +136,28 @@ def gaussians(x, mu, sigma, implementation=None):
         logging.trace('Using cython Gaussians implementation')
         if FTYPE == np.float64:
             gaussians_cython.gaussians_d(
-                outbuf, x, mu, sigma, threads=OMP_NUM_THREADS
+                outbuf, x, mu, inv_sigma, inv_sigma_sq, n_gaussians,
+                threads=OMP_NUM_THREADS
             )
         elif FTYPE == np.float32:
             gaussians_cython.gaussians_s(
-                outbuf, x, mu, sigma, threads=OMP_NUM_THREADS
+                outbuf, x, mu, inv_sigma, inv_sigma_sq, n_gaussians,
+                threads=OMP_NUM_THREADS
             )
 
     # Use singlethreaded version if OMP_NUM_THREADS is 1
     elif implementation == 'singlethreaded' or (implementation is None and
                                                 OMP_NUM_THREADS == 1):
         logging.trace('Using single-threaded Gaussians implementation')
-        _gaussians_singlethreaded(outbuf, x, mu, sigma, start=0, stop=n_points)
+        _gaussians_singlethreaded(outbuf, x, mu, inv_sigma, inv_sigma_sq,
+                                  weights, n_gaussians, start=0, stop=n_points)
 
     # Use multithreaded version otherwise
     elif implementation == 'multithreaded' or OMP_NUM_THREADS > 1:
         logging.trace('Using multi-threaded Gaussians implementation')
-        _gaussians_multithreaded(outbuf, x, mu, sigma)
+        #_gaussians_multithreaded(outbuf, x, mu, sigma, weights, n_gaussians)
+        _gaussians_multithreaded(outbuf, x, mu, inv_sigma, inv_sigma_sq,
+                                 weights, n_gaussians)
 
     else:
         raise ValueError(
@@ -139,10 +166,62 @@ def gaussians(x, mu, sigma, implementation=None):
             % (OMP_NUM_THREADS, NUMBA_CUDA_AVAIL, implementation)
         )
 
-    return outbuf
+    return outbuf * norm
 
 
-def _gaussians_multithreaded(outbuf, x, mu, sigma):
+#def _gaussians_multithreaded(outbuf, x, mu, sigma, weights, n_gaussians):
+#    """Sum of multiple guassians, optimized to be run in multiple threads. This
+#    dispatches the single-kernel threaded """
+#    n_points = len(x)
+#    chunklen = n_points // OMP_NUM_THREADS
+#    threads = []
+#    start = 0
+#    for i in range(OMP_NUM_THREADS):
+#        stop = n_points if i == (OMP_NUM_THREADS - 1) else start + chunklen
+#        thread = threading.Thread(
+#            target=_gaussians_singlethreaded,
+#            args=(outbuf, x, mu, sigma, weights, n_gaussians, start, stop)
+#        )
+#        thread.start()
+#        threads.append(thread)
+#        start += chunklen
+#
+#    for thread in threads:
+#        thread.join()
+#
+#
+#GAUS_ST_FUNCSIG = (
+#    (
+#        'void({f:s}[:],{f:s}[:],{f:s}[:],{f:s}[:],{f:s}[:],int64,int64,int64)'
+#    ).format(f=FTYPE.__name__)
+#)
+#@numba_jit(GAUS_ST_FUNCSIG, nopython=True, nogil=True, cache=True)
+#def _gaussians_singlethreaded(outbuf, x, mu, sigma, weights, n_gaussians,
+#                              start, stop):
+#    """Sum of multiple guassians, optimized to be run in a single thread"""
+#    if weights[0] != 0:
+#        for i in range(start, stop):
+#            tot = 0.0
+#            for j in range(n_gaussians):
+#                xlessmu = x[i] - mu[j]
+#                tot += (
+#                    exp(-0.5 * (xlessmu*xlessmu) / (sigma[j]*sigma[j]))
+#                    * weights[j] / sigma[j]
+#                )
+#            outbuf[i] = tot
+#    else:
+#        for i in range(start, stop):
+#            tot = 0.0
+#            for j in range(n_gaussians):
+#                xlessmu = x[i] - mu[j]
+#                tot += (
+#                    exp(-0.5*(xlessmu*xlessmu)/(sigma[j]*sigma[j]))/sigma[j]
+#                )
+#            outbuf[i] = tot
+
+
+def _gaussians_multithreaded(outbuf, x, mu, inv_sigma, inv_sigma_sq, weights,
+                             n_gaussians):
     """Sum of multiple guassians, optimized to be run in multiple threads. This
     dispatches the single-kernel threaded """
     n_points = len(x)
@@ -153,7 +232,8 @@ def _gaussians_multithreaded(outbuf, x, mu, sigma):
         stop = n_points if i == (OMP_NUM_THREADS - 1) else start + chunklen
         thread = threading.Thread(
             target=_gaussians_singlethreaded,
-            args=(outbuf, x, mu, sigma, start, stop)
+            args=(outbuf, x, mu, inv_sigma, inv_sigma_sq, weights, n_gaussians,
+                  start, stop)
         )
         thread.start()
         threads.append(thread)
@@ -165,34 +245,54 @@ def _gaussians_multithreaded(outbuf, x, mu, sigma):
 
 GAUS_ST_FUNCSIG = (
     (
-        'void({f:s}[:], {f:s}[:], {f:s}[:], {f:s}[:], int64, int64)'
+        'void({f:s}[:],{f:s}[:],{f:s}[:],{f:s}[:],{f:s}[:],{f:s}[:],int64,int64,int64)'
     ).format(f=FTYPE.__name__)
 )
-
 @numba_jit(GAUS_ST_FUNCSIG, nopython=True, nogil=True, cache=True)
-def _gaussians_singlethreaded(outbuf, x, mu, sigma, start, stop):
+def _gaussians_singlethreaded(outbuf, x, mu, inv_sigma, inv_sigma_sq, weights,
+                              n_gaussians, start, stop):
     """Sum of multiple guassians, optimized to be run in a single thread"""
-    factor = 1/(SQRT2PI * len(mu))
-    for i in range(start, stop):
-        tot = 0.0
-        for mu_j, sigma_j in zip(mu, sigma):
-            xlessmu = x[i] - mu_j
-            tot += (
-                exp(-(xlessmu*xlessmu)/(2*(sigma_j*sigma_j))) * factor/sigma_j
-            )
-        outbuf[i] = tot
+    if weights[0] != 0:
+        for i in range(start, stop):
+            tot = 0.0
+            for j in range(n_gaussians):
+                xlessmu = x[i] - mu[j]
+                tot += (
+                    exp(-0.5 * (xlessmu*xlessmu) * inv_sigma_sq[j])
+                    * weights[j] * inv_sigma[j]
+                )
+            outbuf[i] = tot
+    else:
+        for i in range(start, stop):
+            tot = 0.0
+            for j in range(n_gaussians):
+                xlessmu = x[i] - mu[j]
+                tot += (
+                    exp((xlessmu*xlessmu)*inv_sigma_sq[j])*inv_sigma[j]
+                )
+            outbuf[i] = tot
 
 
 if NUMBA_CUDA_AVAIL:
     from numba import cuda
 
-    def _gaussians_cuda(outbuf, x, mu, sigma):
+    def _gaussians_cuda(outbuf, x, mu, sigma, weights, n_gaussians):
         n_points = len(x)
+
+        use_weights = True
+        if weights[0] == 0:
+            use_weights = False
+
         threads_per_block = 32
         blocks_per_grid = (
             (n_points + (threads_per_block - 1)) // threads_per_block
         )
-        func = _gaussians_cuda_kernel[blocks_per_grid, threads_per_block]
+
+        if use_weights:
+            func = _gaussians_weighted_cuda_kernel[blocks_per_grid,
+                                                   threads_per_block]
+        else:
+            func = _gaussians_cuda_kernel[blocks_per_grid, threads_per_block]
 
         # Create empty array on GPU
         d_outbuf = cuda.device_array(shape=n_points, dtype=FTYPE, stream=0)
@@ -201,32 +301,51 @@ if NUMBA_CUDA_AVAIL:
         d_x = cuda.to_device(x)
         d_mu = cuda.to_device(mu)
         d_sigma = cuda.to_device(sigma)
-
-        # Call the function
-        func(d_outbuf, d_x, d_mu, d_sigma)
+        if use_weights:
+            d_weights = cuda.to_device(weights)
+            func(d_outbuf, d_x, d_mu, d_sigma, d_weights, sum_weights,
+                 n_gaussians)
+        else:
+            d_weights = None
+            func(d_outbuf, d_x, d_mu, d_sigma, n_gaussians)
 
         # Copy contents of GPU result to host's outbuf
         d_outbuf.copy_to_host(ary=outbuf, stream=0)
 
-        del d_x, d_mu, d_sigma, d_outbuf
+        del d_x, d_mu, d_sigma, d_weights, d_outbuf
 
 
     GAUS_CUDA_FUNCSIG = (
         (
-            'void({f:s}[:], {f:s}[:], {f:s}[:], {f:s}[:])'
+            'void({f:s}[:], {f:s}[:], {f:s}[:], {f:s}[:], int32)'
         ).format(f=FTYPE.__name__)
     )
     @cuda.jit(GAUS_CUDA_FUNCSIG, inline=True)
-    def _gaussians_cuda_kernel(outbuf, x, mu, sigma):
+    def _gaussians_cuda_kernel(outbuf, x, mu, sigma, n_gaussians):
         pt_idx = cuda.grid(1)
-        n_gaussians = len(mu)
         tot = 0.0
-        factor = 1/(SQRT2PI * n_gaussians)
         for g_idx in range(n_gaussians):
             s = sigma[g_idx]
             m = mu[g_idx]
             xlessmu = x[pt_idx] - m
-            tot += exp(-(xlessmu*xlessmu) / (2*(s*s))) * factor / s
+            tot += exp(-0.5 * (xlessmu*xlessmu) / (s*s)) / s
+        outbuf[pt_idx] = tot
+
+    GAUS_WTD_CUDA_FUNCSIG = (
+        (
+            'void({f:s}[:], {f:s}[:], {f:s}[:], {f:s}[:], {f:s}[:], int32)'
+        ).format(f=FTYPE.__name__)
+    )
+    @cuda.jit(GAUS_WTD_CUDA_FUNCSIG, inline=True)
+    def _gaussians_weighted_cuda_kernel(outbuf, x, mu, sigma, weights,
+                                        n_gaussians):
+        pt_idx = cuda.grid(1)
+        tot = 0.0
+        for g_idx in range(n_gaussians):
+            s = sigma[g_idx]
+            m = mu[g_idx]
+            xlessmu = x[pt_idx] - m
+            tot += exp(-0.5 * (xlessmu*xlessmu) / (s*s)) / s
         outbuf[pt_idx] = tot
 
 

@@ -73,6 +73,7 @@ from scipy import fftpack, interpolate, optimize
 from pisa import FTYPE, numba_jit
 from pisa.utils.gaussians import gaussians
 from pisa.utils.log import logging, set_verbosity, tprofile
+from pisa.utils.profiler import line_profile
 
 
 __all__ = ['fbwkde', 'vbwkde', 'isj_bandwidth', 'fixed_point',
@@ -86,8 +87,9 @@ SQRTPI = (sqrt(PI))
 SQRT2PI = (sqrt(TWOPI))
 PISQ = (PI**2)
 
-def fbwkde(data, n_dct=None, min=None, max=None, evaluate_dens=True,
-           evaluate_at=None):
+@line_profile
+def fbwkde(data, weights=None, n_dct=None, min=None, max=None,
+           evaluate_dens=True, evaluate_at=None):
     """Fixed-bandwidth (standard) Gaussian KDE using the Improved
     Sheather-Jones bandwidth.
 
@@ -99,14 +101,13 @@ def fbwkde(data, n_dct=None, min=None, max=None, evaluate_dens=True,
     Parameters
     ----------
     data : array
-
+    weights : array or None
     n_dct : None or int
         Number of points with which to form a regular grid, from `min` to
         `max`; histogram values at these points are sent through a discrete
         Cosine Transform (DCT), so `n_dct` should be an integer power of 2 for
         speed purposes. If None, uses next-highest-power-of-2 above
         len(data)*10.
-
     min : float or None
     max : float or None
     evaluate_dens : bool
@@ -137,9 +138,14 @@ def fbwkde(data, n_dct=None, min=None, max=None, evaluate_dens=True,
 
     # Histogram the data to get a crude first approximation of the density
     data_hist, bins = np.histogram(
-        data, bins=n_dct, range=(min, max), normed=False
+        data, bins=n_dct, range=(min, max), normed=False, weights=weights
     )
-    data_hist = data_hist.astype(FTYPE) / FTYPE(data_len)
+
+    # Make into a probability mass function
+    if weights is None:
+        data_hist = data_hist / data_len
+    else:
+        data_hist = data_hist / np.sum(weights)
 
     isj_bw, t_star, dct_data = isj_bandwidth(
         y=data_hist, n_datapoints=data_len, x_range=hist_range
@@ -162,13 +168,14 @@ def fbwkde(data, n_dct=None, min=None, max=None, evaluate_dens=True,
     density = gaussians(
         x=evaluate_at,
         mu=data.astype(FTYPE),
-        sigma=np.full(shape=data_len, fill_value=isj_bw, dtype=FTYPE)
+        sigma=np.full(shape=data_len, fill_value=isj_bw, dtype=FTYPE),
+        weights=weights
     )
 
     return isj_bw, evaluate_at, density
 
 
-def vbwkde(data, n_dct=None, min=None, max=None, n_addl_iter=0,
+def vbwkde(data, weights=None, n_dct=None, min=None, max=None, n_addl_iter=0,
            evaluate_dens=True, evaluate_at=None):
     """Variable-bandwidth (standard) Gaussian KDE that uses the function
     `fbwkde` for a pilot density estimate.
@@ -177,6 +184,9 @@ def vbwkde(data, n_dct=None, min=None, max=None, n_addl_iter=0,
     ----------
     data : array
         The data points for which the density estimate is sought
+
+    weights : array or None
+        Weight for each point in `data`
 
     n_dct : None or int
         Number of points with which to form a regular grid, from `min` to
@@ -218,7 +228,6 @@ def vbwkde(data, n_dct=None, min=None, max=None, n_addl_iter=0,
     density : array
         Density estimates
 
-
     Notes
     -----
     Specifying the range:
@@ -247,8 +256,8 @@ def vbwkde(data, n_dct=None, min=None, max=None, n_addl_iter=0,
     # evaluate the points and does so without needing to do a sum of Gaussians
     # (only a freq.-domain multiply and inverse DCT)
     isj_bw, grid, pilot_dens_on_grid = fbwkde(
-        data=data, n_dct=n_dct, min=min, max=max, evaluate_dens=True,
-        evaluate_at=None
+        data=data, weights=weights, n_dct=n_dct, min=min, max=max,
+        evaluate_dens=True, evaluate_at=None
     )
 
     # Include edges (min, max) in the grid and extend the densities to the
@@ -295,7 +304,8 @@ def vbwkde(data, n_dct=None, min=None, max=None, n_addl_iter=0,
         #       Estimates of Probability Densities, Annals of Statistics
         #       Vol. 23, No. 1, 1-10, 1995
         kernel_bandwidths = (
-            isj_bw * np.sqrt(np.max(pilot_dens_at_datapoints)) / np.sqrt(pilot_dens_at_datapoints)
+            isj_bw * np.sqrt(np.max(pilot_dens_at_datapoints))
+            / np.sqrt(pilot_dens_at_datapoints)
         )
 
         if n < n_addl_iter:
@@ -303,6 +313,7 @@ def vbwkde(data, n_dct=None, min=None, max=None, n_addl_iter=0,
                 x=data,
                 mu=data,
                 sigma=kernel_bandwidths,
+                weights=weights
             )
 
         else: # final iteration
@@ -313,6 +324,7 @@ def vbwkde(data, n_dct=None, min=None, max=None, n_addl_iter=0,
                     x=evaluate_at,
                     mu=data,
                     sigma=kernel_bandwidths,
+                    weights=weights
                 )
             else:
                 density = None
