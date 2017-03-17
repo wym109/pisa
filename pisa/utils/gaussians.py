@@ -128,7 +128,8 @@ def gaussians(x, mu, sigma, weights=None, implementation=None):
     if implementation == 'cuda' or (implementation is None
                                     and NUMBA_CUDA_AVAIL):
         logging.trace('Using CUDA Gaussians implementation')
-        _gaussians_cuda(outbuf, x, mu, sigma, weights, n_gaussians)
+        _gaussians_cuda(outbuf, x, mu, inv_sigma, inv_sigma_sq, weights,
+                        n_gaussians)
 
     # Use cython version if Numba isn't available
     elif implementation == 'cython' or (implementation is None
@@ -276,7 +277,8 @@ def _gaussians_singlethreaded(outbuf, x, mu, inv_sigma, inv_sigma_sq, weights,
 if NUMBA_CUDA_AVAIL:
     from numba import cuda
 
-    def _gaussians_cuda(outbuf, x, mu, sigma, weights, n_gaussians):
+    def _gaussians_cuda(outbuf, x, mu, inv_sigma, inv_sigma_sq, weights,
+                        n_gaussians):
         n_points = len(x)
 
         use_weights = True
@@ -300,52 +302,50 @@ if NUMBA_CUDA_AVAIL:
         # Copy other arguments to GPU
         d_x = cuda.to_device(x)
         d_mu = cuda.to_device(mu)
-        d_sigma = cuda.to_device(sigma)
+        d_inv_sigma = cuda.to_device(inv_sigma)
+        d_inv_sigma_sq = cuda.to_device(inv_sigma_sq)
         if use_weights:
             d_weights = cuda.to_device(weights)
-            func(d_outbuf, d_x, d_mu, d_sigma, d_weights, sum_weights,
-                 n_gaussians)
+            func(d_outbuf, d_x, d_mu, d_inv_sigma, d_inv_sigma_sq, d_weights,
+                 sum_weights, n_gaussians)
         else:
             d_weights = None
-            func(d_outbuf, d_x, d_mu, d_sigma, n_gaussians)
+            func(d_outbuf, d_x, d_mu, d_inv_sigma, d_inv_sigma_sq, n_gaussians)
 
         # Copy contents of GPU result to host's outbuf
         d_outbuf.copy_to_host(ary=outbuf, stream=0)
 
-        del d_x, d_mu, d_sigma, d_weights, d_outbuf
+        del d_x, d_mu, d_inv_sigma, d_inv_sigma_sq, d_weights, d_outbuf
 
 
     GAUS_CUDA_FUNCSIG = (
         (
-            'void({f:s}[:], {f:s}[:], {f:s}[:], {f:s}[:], int32)'
+            'void({f:s}[:], {f:s}[:], {f:s}[:], {f:s}[:], {f:s}[:], int32)'
         ).format(f=FTYPE.__name__)
     )
     @cuda.jit(GAUS_CUDA_FUNCSIG, inline=True)
-    def _gaussians_cuda_kernel(outbuf, x, mu, sigma, n_gaussians):
+    def _gaussians_cuda_kernel(outbuf, x, mu, inv_sigma, inv_sigma_sq,
+                               n_gaussians):
         pt_idx = cuda.grid(1)
         tot = 0.0
         for g_idx in range(n_gaussians):
-            s = sigma[g_idx]
-            m = mu[g_idx]
-            xlessmu = x[pt_idx] - m
-            tot += exp(-0.5 * (xlessmu*xlessmu) / (s*s)) / s
+            xlessmu = x[pt_idx] - mu[g_idx]
+            tot += exp((xlessmu*xlessmu) * inv_sigma_sq[g_idx]) * inv_sigma[g_idx]
         outbuf[pt_idx] = tot
 
     GAUS_WTD_CUDA_FUNCSIG = (
         (
-            'void({f:s}[:], {f:s}[:], {f:s}[:], {f:s}[:], {f:s}[:], int32)'
+            'void({f:s}[:], {f:s}[:], {f:s}[:], {f:s}[:], {f:s}[:], {f:s}[:], int32)'
         ).format(f=FTYPE.__name__)
     )
     @cuda.jit(GAUS_WTD_CUDA_FUNCSIG, inline=True)
-    def _gaussians_weighted_cuda_kernel(outbuf, x, mu, sigma, weights,
-                                        n_gaussians):
+    def _gaussians_weighted_cuda_kernel(outbuf, x, mu, inv_sigma, inv_sigma_sq,
+                                        weights, n_gaussians):
         pt_idx = cuda.grid(1)
         tot = 0.0
         for g_idx in range(n_gaussians):
-            s = sigma[g_idx]
-            m = mu[g_idx]
-            xlessmu = x[pt_idx] - m
-            tot += exp(-0.5 * (xlessmu*xlessmu) / (s*s)) / s
+            xlessmu = x[pt_idx] - mu[g_idx]
+            tot += exp((xlessmu*xlessmu) * inv_sigma_sq[g_idx]) * inv_sigma[g_idx]
         outbuf[pt_idx] = tot
 
 
