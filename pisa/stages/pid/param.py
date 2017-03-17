@@ -190,9 +190,35 @@ class param(Stage):
             debug_mode=debug_mode
         )
 
-        # Can do these now that binning has been set up in call to Stage's init
         self.include_attrs_for_hashes('particles')
         self.include_attrs_for_hashes('transform_groups')
+
+    def validate_binning(self):
+        # Must have energy in input binning
+        if 'reco_energy' not in set(self.input_binning.names):
+            raise ValueError(
+                'Input binning must contain "reco_energy".'
+            )
+
+        # Right now this can only deal with 1D energy or 2D energy / coszenith
+        # binning, so if azimuth is present then this will raise an exception.
+        if 'reco_azimuth' in set(self.input_binning.names):
+            raise ValueError(
+                "Input binning cannot have azimuth present for this "
+                "parameterised PID service."
+            )
+
+        if (self.input_binning.names[0] != 'reco_energy' and
+                                  self.input_binning.names[0] != 'reco_coszen'):
+            raise ValueError(
+                            "Got a name for the first binning dimension that"
+                            " was unexpected - '%s'. Something is wrong."
+                            %self.input_binning.names[0]
+            )
+
+        # TODO: not handling rebinning in this stage or within Transform
+        # objects; implement this! (and then this assert statement can go away)
+        assert self.input_binning == self.output_binning
 
     def load_pid_energy_param(self, pid_energy_param):
         """
@@ -253,24 +279,7 @@ class param(Stage):
         """Compute new PID transforms."""
         logging.debug('Updating pid.param PID histograms...')
 
-        # Must have energy in input binning
-        if 'reco_energy' not in set(self.input_binning.names):
-            raise ValueError(
-                'Input binning must contain "reco_energy".'
-            )
         ecen = self.input_binning.reco_energy.weighted_centers.magnitude
-
-        # TODO: not handling rebinning in this stage or within Transform
-        # objects; implement this! (and then this assert statement can go away)
-        assert self.input_binning == self.output_binning
-
-        # Right now this can only deal with 1D energy or 2D energy / coszenith
-        # binning, so if azimuth is present then this will raise an exception.
-        if 'reco_azimuth' in set(self.input_binning.names):
-            raise ValueError(
-                "Input binning cannot have azimuth present for this "
-                "parameterised PID service."
-            )
 
         self.load_pid_energy_param(self.params.pid_energy_paramfile.value)
 
@@ -312,25 +321,16 @@ class param(Stage):
                         )
                     pid_param = eval(pid_param)
                 # Get the PID probabilities for the energy bins in the analysis
-                
                 pid1d = pid_param(ecen)
                 # Make this in to the right dimensionality.
                 if 'reco_coszen' in set(self.input_binning.names):
                     czcen = self.input_binning[
                         'reco_coszen'
                     ].weighted_centers.magnitude
-                    pid2d = np.repeat(pid1d, len(czcen))
-                    if self.input_binning.names[0] == 'reco_energy':
-                        pid2d = np.reshape(pid2d, (len(ecen), len(czcen)))
-                    elif self.input_binning.names[0] == 'reco_coszen':
-                        pid2d = np.reshape(pid2d, (len(ecen), len(czcen))).T
-                    else:
-                        raise ValueError(
-                            "Got a name for the first bins that was unexpected"
-                            " - %s. Something is wrong."%(
-                                self.input_binning.names[0]
-                            )
-                        )
+                    pid2d = np.reshape(np.repeat(pid1d, len(czcen)),
+                                       (len(ecen), len(czcen)))
+                    if self.input_binning.names[0] == 'reco_coszen':
+                        pid2d = pid2d.T
                     xform_array = pid2d
                 else:
                     xform_array = pid1d
