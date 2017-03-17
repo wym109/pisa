@@ -152,9 +152,6 @@ class param(Stage):
             debug_mode=debug_mode
         )
 
-        # Make sure the chosen binning is supported
-        self.check_binning()
-
         # Can do these now that binning has been set up in call to Stage's init
         self.include_attrs_for_hashes('particles')
         self.include_attrs_for_hashes('transform_groups')
@@ -165,15 +162,12 @@ class param(Stage):
                         aeff_dim_param=self.params.aeff_coszen_paramfile.value)
 
 
-    def check_binning(self):
-        """
-        Performs some checks on the input and output binning specific to
-        this stage.
-        """
+    def validate_binning(self):
         # Require at least true energy in input_binning.
         if 'true_energy' not in self.input_binning:
             raise ValueError("Input binning must contain 'true_energy'"
                              " dimension, but does not.")
+
         # TODO: not handling rebinning in this stage or within Transform
         # objects; implement this! (and then this assert statement can go away)
         assert self.input_binning == self.output_binning
@@ -295,8 +289,8 @@ class param(Stage):
             czcen = self.input_binning.true_coszen.weighted_centers.magnitude
         else:
             if self.params.aeff_coszen_paramfile.value is not None:
-                raise ValueError("coszenith was not found in the binning but a"
-                                 " coszenith parameterisation file has been "
+                raise ValueError("coszenith was not found in the binning but a "
+                                 "coszenith parameterisation file has been "
                                  "provided in the configuration file. "
                                  "Something is wrong.")
             czcen = None
