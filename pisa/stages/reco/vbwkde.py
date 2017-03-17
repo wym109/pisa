@@ -58,10 +58,11 @@ from __future__ import division
 
 from collections import OrderedDict, Sequence, namedtuple
 from copy import deepcopy
+from multiprocessing import Pool
 
 import numpy as np
 
-from pisa import EPSILON, FTYPE, ureg
+from pisa import EPSILON, FTYPE, OMP_NUM_THREADS, ureg
 from pisa.core.binning import MultiDimBinning, OneDimBinning
 from pisa.core.events import Events
 from pisa.core.stage import Stage
@@ -77,6 +78,7 @@ from pisa.utils.profiler import line_profile, profile
 __all__ = ['KDE_DIM_DEPENDENCIES', 'KDE_TRUE_BINNING', 'MIN_NUM_EVENTS',
            'TGT_NUM_EVENTS', 'TGT_MAX_BINWIDTH_FACTOR',
            'KDEProfile', 'collect_enough_events', 'fold_coszen_error',
+           'weight_coszen_tails',
            'vbwkde']
 
 
@@ -97,10 +99,11 @@ KDE_TRUE_BINNING = {
              tex=r'E_{\rm true}')
         ]),
     'coszen': MultiDimBinning([
-        dict(name='true_energy', num_bins=10, is_log=True,
+        dict(name='true_energy', num_bins=5, is_log=True,
              domain=[1, 80]*ureg.GeV,
              tex=r'E_{\rm true}'),
-        dict(name='true_coszen', bin_edges=[-1, -0.75, 0.75, 1],
+        dict(name='true_coszen', num_bins=10, is_lin=True,
+             domain=[-1, 1], #bin_edges=[-1, -0.75, 0.5, 0.75, 1],
              tex=r'\cos\,\theta_{\rm true}')
     ])
 }
@@ -322,6 +325,68 @@ def fold_coszen_error(coszen_error, randomize=False):
 
     return folded_coszen_error
 
+
+def weight_coszen_tails(cz_error, cz_bin, input_weights=None):
+    """Calculate weights that compensate for fewer points in the inherent tails
+    of the coszen-error distribution.
+
+    Parameters
+    ----------
+    cz_error : array
+        Cosine-zenith erors. I.e., coszen_reco - coszen_true values
+
+    cz_bin : OneDimBinning in true-coszen
+        The true-coszen bin in which the coszen errors were computed.
+
+    input_weights : None or array of same size as `cz_error`
+        Existing weights that are to be multiplied by the tail weights to
+        arrive at an overall weight for each event. If provided, must have same
+        shape as `cz_error`.
+
+    Returns
+    -------
+    weights : array
+    error_limits : tuple
+        (error_lower_lim, error_upper_lim)
+
+    """
+    if input_weights is None:
+        weights = np.ones_like(cz_error)
+    else:
+        weights = deepcopy(input_weights)
+
+    # Shortcuts for accessing bin edges
+    bin_lower_edge = np.min(cz_bin.bin_edges.m)
+    bin_upper_edge = np.max(cz_bin.bin_edges.m)
+
+    # Identify limits of possible error distribution
+    error_lower_lim = -1 - bin_upper_edge
+    error_upper_lim = +1 - bin_lower_edge
+
+    # Identify inner limits of the tails
+    lower_tail_upper_lim = -1 - bin_lower_edge
+    upper_tail_lower_lim = +1 - bin_upper_edge
+
+    # Identify tail widths
+    lower_tail_width = lower_tail_upper_lim - error_lower_lim
+    upper_tail_width = error_upper_lim - upper_tail_lower_lim
+
+    # Create masks for events in the tails
+    upper_tail_mask = cz_error > upper_tail_lower_lim
+    lower_tail_mask = cz_error < lower_tail_upper_lim
+
+    # Create all-ones weights vector if a weights field
+    # hasn't been specified
+    if not weights_specified:
+        weights = np.ones_like(cz_error)
+    weights[lower_tail_mask] *= (
+        lower_tail_width/(error_upper_lim - cz_error[lower_tail_mask])
+    )
+    weights[upper_tail_mask] *= (
+        upper_tail_width/(cz_error[upper_tail_mask] - error_lower_lim)
+    )
+
+    return weights, (error_lower_lim, error_upper_lim)
 
 # TODO: the below logic does not generalize to muons, but probably should
 # (rather than requiring an almost-identical version just for muons). For
@@ -677,6 +742,8 @@ class vbwkde(Stage):
             where the format of kde_info is defined in `compute_kdes`
 
         """
+        weights_name = self.params.reco_weights_name.value
+
         # TODO: add sourcecode hash for pisa.utils.vbwkde module (entire module
         #       is probably safest, due to all the functions there)
 
@@ -738,13 +805,18 @@ class vbwkde(Stage):
                         )
 
                 for flavintgroup in self.transform_groups:
-                    logging.debug('    > flavintgroup = %s', flavintgroup)
+                    logging.trace('    > flavintgroup = %s', flavintgroup)
                     repr_flavint = flavintgroup[0]
 
                     flav_events = collect_enough_events(
                         events=cut_events[-1], flavint=repr_flavint,
                         bin=bin_dims[-1]
                     )[repr_flavint]
+
+                    weights_specified = False
+                    if weights_name in flav_events:
+                        weights_specified = True
+                        weights = flav_events[weights_name]
 
                     # TODO: adjust `n_dct`, may want to revise down or separate
                     #       out `n_dct` from `n_eval` by manually setting
@@ -778,28 +850,24 @@ class vbwkde(Stage):
                         )
 
                     elif kde_dim == 'coszen':
-                        feature = fold_coszen_error(
-                            flav_events['reco_coszen'] - flav_events['true_coszen'],
-                            randomize=True
+                        feature = (flav_events['reco_coszen']
+                                   - flav_events['true_coszen'])
+                        weights, error_limits = weight_coszen_tails(
+                            cz_error=feature, cz_bin=bin_binning.true_coszen,
+                            input_weights=weights
                         )
-                        # Make mirrored copies above/below +/-1 (such that
-                        # "wraparound" also holds) to minimize KDE edge
-                        # effects. The result will have to have just the center
-                        # section removed and be re-normalized to have an area
-                        # of one.
-                        ltz_mask = feature <= 0
-                        gtz_mask = feature > 0
-                        feature = np.concatenate([
-                            -4 + feature[gtz_mask],
-                            -2 - feature,
-                            feature,
-                            +2 - feature,
-                            +4 + feature[ltz_mask],
-                        ])
+                        error_width = np.diff(error_limits)
+                        error_mid = np.mean(error_limits)
+
+                        # Mirror half the dataset above and half the dataset
+                        # below the error limits to help KDE deal with edges
                         vbwkde_kwargs = dict(
-                            n_dct=int(2**12),
-                            min=-5, max=+5,
-                            evaluate_at=np.linspace(-1, 1, int(5e3))
+                            n_dct=int(2**14),
+                            weights=weights,
+                            min=error_limits[0] - error_width,
+                            max=error_limits[1] + error_width,
+                            evaluate_at=np.linspace(error_lower_lim,
+                                                    error_upper_lim, int(5e3))
                         )
 
                     else:
