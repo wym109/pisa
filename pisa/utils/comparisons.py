@@ -40,7 +40,7 @@ from pisa.utils.log import logging, set_verbosity
 
 
 __all__ = ['FTYPE_PREC', 'EQUALITY_SIGFIGS', 'EQUALITY_PREC', 'ALLCLOSE_KW',
-           'LOG10_2', 'NP_TYPES', 'SEQ_TYPES', 'MAP_TYPES', 'COMPLEX_TYPES',
+           'NP_TYPES', 'SEQ_TYPES', 'MAP_TYPES', 'COMPLEX_TYPES',
            'isvalidname', 'isscalar', 'isbarenumeric',
            'recursiveEquality', 'recursiveAllclose', 'normQuant']
 
@@ -210,6 +210,8 @@ def recursiveEquality(x, y):
 
     # dict
     elif isinstance(x, Mapping):
+        if not isinstance(y, Mapping):
+            return False
         xkeys = sorted(x.keys())
         if xkeys != sorted(y.keys()):
             logging.trace('xkeys: %s' %(xkeys,))
@@ -223,6 +225,8 @@ def recursiveEquality(x, y):
 
     # Non-numpy sequence
     elif isinstance(x, Sequence):
+        if not isinstance(y, Sequence):
+            return False
         if len(x) != len(y):
             logging.trace('len(x): %s' %len(x))
             logging.trace('len(y): %s' %len(y))

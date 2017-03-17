@@ -44,10 +44,10 @@ __all__ = ['NAME_FIXES', 'NAME_SEPCHARS', 'NAME_FIXES_REGEXES',
            'test_OneDimBinning', 'test_MultiDimBinning']
 
 
-NAME_FIXES = ['true', 'truth', 'reco', 'reconstructed']
+NAME_FIXES = ('true', 'truth', 'reco', 'reconstructed')
 NAME_SEPCHARS = r'([_\s-])*'
-NAME_FIXES_REGEXES = [re.compile(p + NAME_SEPCHARS, re.IGNORECASE)
-                      for p in NAME_FIXES]
+NAME_FIXES_REGEXES = tuple(re.compile(p + NAME_SEPCHARS, re.IGNORECASE)
+                           for p in NAME_FIXES)
 
 
 # TODO: move this to a centralized utils location
@@ -89,6 +89,7 @@ def basename(n):
     return n
 
 
+# TODO: generalize to any object and move this to a centralized utils location
 def _new_obj(original_function):
     """Decorator to deepcopy unaltered states into new OneDimBinning object."""
     @wraps(original_function)
@@ -1005,6 +1006,13 @@ class OneDimBinning(object):
             return True
         return False
 
+    @property
+    @_new_obj
+    def basename_binning(self):
+        """Identical binning but named as the basename of this binning. Note
+        that the `tex` property is not carried over into the new binning."""
+        return {'name': self.basename, 'tex': None}
+
     @_new_obj
     def oversample(self, factor):
         """Return a OneDimBinning object oversampled relative to this object's
@@ -1379,6 +1387,13 @@ class MultiDimBinning(object):
         number of possible separator characters removed. See function
         `basename` for detailed specifications."""
         return [b.basename for b in self]
+
+    @property
+    def basename_binning(self):
+        """Identical binning but with dimensions named by their basenames.
+        Note that the `tex` properties for the dimensions are not carried over
+        into the new binning."""
+        return MultiDimBinning([d.basename_binning for d in self])
 
     @property
     def dimensions(self):
@@ -2244,18 +2259,22 @@ def test_OneDimBinning():
     import tempfile
     import dill
 
-    logging.debug('creating b1')
-    b1 = OneDimBinning(name='energy', num_bins=40, is_log=True,
-                       domain=[1, 80]*ureg.GeV,
+    b1 = OneDimBinning(name='true_energy', num_bins=40, is_log=True,
+                       domain=[1, 80]*ureg.GeV, tex=r'E_{\rm true}',
                        bin_names=[str(i) for i in range(40)])
-    logging.debug('creating b2')
     b2 = OneDimBinning(name='coszen', num_bins=40, is_lin=True,
                        domain=[-1, 1], bin_names=None,
                        tex=r'\cos\theta')
-
+    b3 = OneDimBinning(name='reco_energy', num_bins=40, is_log=True,
+                       domain=[1, 80]*ureg.GeV, tex=r'E_{\rm reco}',
+                       bin_names=[str(i) for i in range(40)])
     # Test label_tex
     _ = b1.label_tex
     _ = b1.label_tex
+
+    assert b1.basename_binning == b1.basename_binning
+    assert b1.basename_binning == b3.basename_binning
+    assert b1.basename_binning != b2.basename_binning
 
     logging.debug('len(b1): %s', len(b1))
     logging.debug('b1: %s', b1)
@@ -2411,13 +2430,13 @@ def test_MultiDimBinning():
     mdb2 = dill.loads(s)
     assert mdb2 == mdb
 
-    s = pickle.dumps(mdb[0,0], pickle.HIGHEST_PROTOCOL)
+    s = pickle.dumps(mdb[0, 0], pickle.HIGHEST_PROTOCOL)
     mdb2 = pickle.loads(s)
-    assert mdb2 == mdb[0,0]
+    assert mdb2 == mdb[0, 0]
 
-    s = dill.dumps(mdb[0,0], dill.HIGHEST_PROTOCOL)
+    s = dill.dumps(mdb[0, 0], dill.HIGHEST_PROTOCOL)
     mdb2 = dill.loads(s)
-    assert mdb2 == mdb[0,0]
+    assert mdb2 == mdb[0, 0]
 
     binning = MultiDimBinning([
         dict(name='energy', is_log=True, domain=[1, 80]*ureg.GeV, num_bins=40),
@@ -2489,15 +2508,26 @@ def test_MultiDimBinning():
 
     # Test that reordering dimensions works correctly
     e_binning = OneDimBinning(
-        name='energy', num_bins=80, is_log=True, domain=[1, 80]*ureg.GeV
+        name='true_energy', num_bins=80, is_log=True, domain=[1, 80]*ureg.GeV
+    )
+    reco_e_binning = OneDimBinning(
+        name='reco_energy', num_bins=80, is_log=True, domain=[1, 80]*ureg.GeV
     )
     cz_binning = OneDimBinning(
-        name='coszen', num_bins=40, is_lin=True, domain=[-1, 1]
+        name='true_coszen', num_bins=40, is_lin=True, domain=[-1, 1]
+    )
+    reco_cz_binning = OneDimBinning(
+        name='reco_coszen', num_bins=40, is_lin=True, domain=[-1, 1]
     )
     az_binning = OneDimBinning(
-        name='azimuth', num_bins=10, is_lin=True,
+        name='true_azimuth', num_bins=10, is_lin=True,
         domain=[0*ureg.rad, 2*np.pi*ureg.rad]
     )
+    reco_az_binning = OneDimBinning(
+        name='true_azimuth', num_bins=10, is_lin=True,
+        domain=[0*ureg.rad, 2*np.pi*ureg.rad]
+    )
+
     mdb_2d_orig = MultiDimBinning([e_binning, cz_binning])
     orig_order = mdb_2d_orig.names
 
@@ -2507,7 +2537,7 @@ def test_MultiDimBinning():
     mdb_2d_new = mdb_2d_new.reorder_dimensions(new_order)
 
     assert mdb_2d_new.names == new_order
-    new_order = ['azimuth', 'energy', 'coszen']
+    new_order = ['true_azimuth', 'true_energy', 'true_coszen']
     mdb_2d_new = mdb_2d_new.reorder_dimensions(new_order)
     assert mdb_2d_new == mdb_2d_orig
     _ = MultiDimBinning([e_binning, cz_binning])
@@ -2531,7 +2561,7 @@ def test_MultiDimBinning():
     # Reorder by combination of index, OneDimBinning, and name
     mdb_3d_new = MultiDimBinning(mdb_3d_orig)
     mdb_3d_new = mdb_3d_new.reorder_dimensions(
-        [2, 'energy', mdb_2d_orig.dimensions[1]]
+        [2, 'true_energy', mdb_2d_orig.dimensions[1]]
     )
     assert mdb_3d_new.names == new_order
 
@@ -2548,6 +2578,11 @@ def test_MultiDimBinning():
         pass
     else:
         raise Exception('Should not be able to reorder by subset.')
+
+    # Create a basename-equivalent binning
+    mdb_3d_reco = MultiDimBinning([reco_e_binning, reco_cz_binning,
+                                   reco_az_binning])
+    assert mdb_3d_reco.basename_binning == mdb_3d_orig.basename_binning
 
     logging.info('<< PASSED >> test_MultiDimBinning')
 
