@@ -123,7 +123,7 @@ KDEProfile = namedtuple('KDEProfile', ['x', 'density'])
 # TODO: revisit this heuristic with proper testing
 # TODO: modify this once we have fixed the Events object to be more agnostic to
 #       flavint
-@line_profile
+@profile
 def collect_enough_events(events, flavint, bin,
                           min_num_events=MIN_NUM_EVENTS,
                           tgt_num_events=TGT_NUM_EVENTS,
@@ -346,10 +346,12 @@ def weight_coszen_tails(cz_error, cz_bin, input_weights=None):
     Returns
     -------
     weights : array
-    error_limits : tuple
+    error_limits : tuple of two scalars
         (error_lower_lim, error_upper_lim)
 
     """
+    # Create all-ones weights vector if a weights field
+    # hasn't been specified
     if input_weights is None:
         weights = np.ones_like(cz_error)
     else:
@@ -362,6 +364,7 @@ def weight_coszen_tails(cz_error, cz_bin, input_weights=None):
     # Identify limits of possible error distribution
     error_lower_lim = -1 - bin_upper_edge
     error_upper_lim = +1 - bin_lower_edge
+    error_limits = (error_lower_lim, error_upper_lim)
 
     # Identify inner limits of the tails
     lower_tail_upper_lim = -1 - bin_lower_edge
@@ -375,10 +378,7 @@ def weight_coszen_tails(cz_error, cz_bin, input_weights=None):
     upper_tail_mask = cz_error > upper_tail_lower_lim
     lower_tail_mask = cz_error < lower_tail_upper_lim
 
-    # Create all-ones weights vector if a weights field
-    # hasn't been specified
-    if not weights_specified:
-        weights = np.ones_like(cz_error)
+    # Update the weights for events in the tails
     weights[lower_tail_mask] *= (
         lower_tail_width/(error_upper_lim - cz_error[lower_tail_mask])
     )
@@ -386,7 +386,7 @@ def weight_coszen_tails(cz_error, cz_bin, input_weights=None):
         upper_tail_width/(cz_error[upper_tail_mask] - error_lower_lim)
     )
 
-    return weights, (error_lower_lim, error_upper_lim)
+    return weights, error_limits
 
 # TODO: the below logic does not generalize to muons, but probably should
 # (rather than requiring an almost-identical version just for muons). For
@@ -654,7 +654,6 @@ class vbwkde(Stage):
         for base_d in input_basenames:
             assert base_d in output_basenames
 
-    @line_profile
     def _compute_transforms(self):
         """Generate reconstruction smearing kernels by estimating the
         distribution of reconstructed events corresponding to each bin of true
@@ -722,7 +721,7 @@ class vbwkde(Stage):
 
         return TransformSet(transforms=xforms)
 
-    @line_profile
+    @profile
     def characterize_resolutions(self):
         """Compute the KDEs for each (pid, E) bin. If PID is not present, this
         is just (E). The results are propagated to each (pid, E, cz) bin, as
@@ -817,6 +816,8 @@ class vbwkde(Stage):
                     if weights_name in flav_events:
                         weights_specified = True
                         weights = flav_events[weights_name]
+                    else:
+                        weights = None
 
                     # TODO: adjust `n_dct`, may want to revise down or separate
                     #       out `n_dct` from `n_eval` by manually setting
@@ -830,7 +831,7 @@ class vbwkde(Stage):
                         upperlim = fmax + half_width
                         vbwkde_kwargs = dict(
                             n_dct=int(2**12),
-                            min=lowerlim, max=upperlim,
+                            #min=lowerlim, max=upperlim,
                             evaluate_at=np.linspace(lowerlim, upperlim,
                                                     int(5e3))
                         )
@@ -856,18 +857,17 @@ class vbwkde(Stage):
                             cz_error=feature, cz_bin=bin_binning.true_coszen,
                             input_weights=weights
                         )
-                        error_width = np.diff(error_limits)
-                        error_mid = np.mean(error_limits)
+                        error_width = error_limits[1] - error_limits[0]
 
                         # Mirror half the dataset above and half the dataset
                         # below the error limits to help KDE deal with edges
                         vbwkde_kwargs = dict(
                             n_dct=int(2**14),
-                            weights=weights,
                             min=error_limits[0] - error_width,
                             max=error_limits[1] + error_width,
-                            evaluate_at=np.linspace(error_lower_lim,
-                                                    error_upper_lim, int(5e3))
+                            evaluate_at=np.linspace(error_limits[0],
+                                                    error_limits[1],
+                                                    int(5e3))
                         )
 
                     else:
@@ -875,7 +875,8 @@ class vbwkde(Stage):
                                                   ' "%s" is not implemented.'
                                                   % kde_dim)
 
-                    _, x, density = vbwkde_func(feature, **vbwkde_kwargs)
+                    _, x, density = vbwkde_func(feature, weights=weights,
+                                                **vbwkde_kwargs)
 
                     dx = np.abs((x[-1] - x[0]) / (len(x)-1))
                     normalized_density = density * dx
@@ -890,6 +891,7 @@ class vbwkde(Stage):
             if self.disk_cache is not None:
                 self.disk_cache[new_hash] = self.kde_info[kde_dim]
 
+    @profile
     def generate_smearing_kernel(self, flavintgroup):
         """Construct a smearing kernel for the flavintgroup specified.
 
@@ -968,7 +970,8 @@ class vbwkde(Stage):
         # NOTE: when we get scaling-about-the-mode working, will have to change
         # this.
         reco_e_edges = (
-            np.log(inf2finite(reco_energy.bin_edges.m) - self.params.e_reco_bias.value.m) / e_res_scale
+            np.log(inf2finite(reco_energy.bin_edges.m)
+                   - self.params.e_reco_bias.value.m) / e_res_scale
         )
         reco_cz_edges = inf2finite(reco_coszen.bin_edges.m)
 
