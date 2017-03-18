@@ -218,7 +218,8 @@ class param(Stage):
 
         # TODO: not handling rebinning in this stage or within Transform
         # objects; implement this! (and then this assert statement can go away)
-        assert self.input_binning == self.output_binning
+        assert self.input_binning == self.output_binning, \
+        "input and output binning deviate!"
 
     def load_pid_energy_param(self, pid_energy_param):
         """

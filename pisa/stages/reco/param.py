@@ -205,8 +205,9 @@ class param(Stage):
 
         # Require in- and output binnings to be the same (modulo mapping from
         # truth to reco space)
-        assert (self.input_binning.basename_binning ==
-                self.output_binning.basename_binning)
+        assert self.input_binning.basename_binning == \
+               self.output_binning.basename_binning, \
+               "input and output binning deviate!"
 
     def process_reco_dist_params(self, param_dict):
         """
