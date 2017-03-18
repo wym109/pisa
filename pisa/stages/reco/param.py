@@ -205,7 +205,8 @@ class param(Stage):
 
         # Require in- and output binnings to be the same (modulo mapping from
         # truth to reco space)
-        assert input_binning.basename_binning == output_binning.basename_binning
+        assert (self.input_binning.basename_binning ==
+                self.output_binning.basename_binning)
 
     def process_reco_dist_params(self, param_dict):
         """
@@ -518,13 +519,13 @@ class param(Stage):
         czvals = self.input_binning['true_coszen'].weighted_centers.magnitude
         czbins = self.input_binning['true_coszen'].bin_edges.magnitude
         offset = 0
+        n_e = len(evals)
+        n_cz = len(czvals)
         if self.coszen_flipback:
             coszen_range = self.input_binning['true_coszen'].range.magnitude
             czvals = np.append(czvals-coszen_range, czvals)
             czbins = np.append(czbins[:-1]-coszen_range, czbins)
             offset = n_cz
-        n_e = len(evals)
-        n_cz = len(czvals)
 
         xforms = []
         for xform_flavints in self.transform_groups:
@@ -570,8 +571,8 @@ class param(Stage):
                 # The reconstruction kernel has been set up with energy as its
                 # first dimension, so transpose if it is applied to an input
                 # binning where 'coszen' is the first
-                logging.trace(" Transposing kernel as 'coszen' has been detected
-                              " as the first dimension.")
+                logging.trace(" Transposing kernel, since 'coszen' has been"
+                              " detected as the first dimension.")
                 reco_kernel = reco_kernel.T
 
             if self.sum_grouped_flavints:

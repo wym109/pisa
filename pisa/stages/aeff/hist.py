@@ -158,7 +158,7 @@ class hist(Stage):
             raise ValueError('Input binning must contain "true_energy"'
                              ' dimension, but does not.')
         excess_dims = set(self.input_binning.names).difference(
-            set('true_energy', 'true_coszen', 'true_azimuth')
+            set(('true_energy', 'true_coszen', 'true_azimuth'))
         )
         if len(excess_dims) > 0:
             raise ValueError('Input binning has extra dimension(s): %s'
