@@ -246,6 +246,15 @@ def vbwkde(data, weights=None, n_dct=None, min=None, max=None, n_addl_iter=0,
         modifications that have been proposed in the literature.
 
     """
+    if (min is not None
+            and (len(np.shape(min)) != 0 or not isinstance(min, (float, int)))):
+        raise TypeError('`min` must be a scalar; got %s instead.'
+                        % min.__class__)
+    if (max is not None
+            and (len(np.shape(max)) != 0 or not isinstance(max, (float, int)))):
+        raise TypeError('`max` must be a scalar; got %s instead'
+                        % max.__class__)
+
     if n_dct is None:
         n_dct = int(2**np.ceil(np.log2(len(data)*10)))
     assert n_addl_iter >= 0 and int(n_addl_iter) == n_addl_iter
