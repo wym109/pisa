@@ -1013,6 +1013,17 @@ class OneDimBinning(object):
         that the `tex` property is not carried over into the new binning."""
         return {'name': self.basename, 'tex': None}
 
+    @property
+    @_new_obj
+    def finite_binning(self):
+        """Identical binning but with infinities in bin edges replaced by
+        largest/smallest floating-point numbers representable with the current
+        pisa.FTYPE."""
+        float_info = np.finfo(FTYPE)
+        finite_edges = np.clip(self.bin_edges.m, a_min=float_info.min,
+                               a_max=float_info.max)
+        return {'bin_edges': finite_edges}
+
     @_new_obj
     def oversample(self, factor):
         """Return a OneDimBinning object oversampled relative to this object's
@@ -1394,6 +1405,13 @@ class MultiDimBinning(object):
         Note that the `tex` properties for the dimensions are not carried over
         into the new binning."""
         return MultiDimBinning([d.basename_binning for d in self])
+
+    @property
+    def finite_binning(self):
+        """Identical binning but with infinities in bin edges replaced by
+        largest/smallest floating-point numbers representable with the current
+        pisa.FTYPE."""
+        return MultiDimBinning([d.finite_binning for d in self])
 
     @property
     def dimensions(self):
