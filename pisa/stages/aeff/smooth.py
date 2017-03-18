@@ -152,6 +152,13 @@ class smooth(Stage):
         self.include_attrs_for_hashes('particles')
         self.include_attrs_for_hashes('transform_groups')
 
+    def validate_binning(self):
+        # Only works if only true_energy and true_coszen in input binning
+        if sorted(self.input_binning.names) != ['true_coszen', 'true_energy']:
+            raise ValueError('Input binning must contain both "true_energy"'
+                             ' and "true_coszen" dimension (and no more),'
+                             ' but does not.')
+        # TODO Add support for azimuth
 
     def smooth(self, xform, errors, e_binning, cz_binning):
         """Smooth a 2d array
@@ -279,19 +286,6 @@ class smooth(Stage):
         comp_units = dict(true_energy='GeV', true_coszen=None,
                           true_azimuth='rad')
 
-        # Only works if energy is in input_binning
-        if 'true_energy' not in self.input_binning:
-            raise ValueError('Input binning must contain "true_energy"'
-                             ' dimension, but does not.')
-
-        # coszen and azimuth are both optional, but no further dimensions are
-        excess_dims = set(self.input_binning.names).difference(
-            comp_units.keys()
-        )
-        if len(excess_dims) > 0:
-            raise ValueError('Input binning has extra dimension(s): %s'
-                             %sorted(excess_dims))
-
         # Select only the units in the input/output binning for conversion
         # (can't pass more than what's actually there)
         in_units = {dim: unit for dim, unit in comp_units.items()
@@ -307,16 +301,12 @@ class smooth(Stage):
         # the full range. See IceCube wiki/documentation for OneWeight for
         # more info.
         missing_dims_vol = 1
+        # TODO: currently, azimuth required to *not* be part of input binning
         if 'true_azimuth' not in input_binning:
             missing_dims_vol *= 2*np.pi
+        # TODO: Following is currently never the case, handle?
         if 'true_coszen' not in input_binning:
             missing_dims_vol *= 2
-
-        # Make binning for smoothing
-        # TODO Add support for azimuth
-        assert 'true_coszen' in input_binning.names
-        assert 'true_energy' in input_binning.names
-        assert len(input_binning.names) == 2, 'Does only work for 2d'
 
         transforms = []
 

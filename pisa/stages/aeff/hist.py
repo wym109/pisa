@@ -152,6 +152,18 @@ class hist(Stage):
         self.include_attrs_for_hashes('particles')
         self.include_attrs_for_hashes('transform_groups')
 
+    def validate_binning(self):
+        # Only works if energy is in input_binning
+        if 'true_energy' not in self.input_binning:
+            raise ValueError('Input binning must contain "true_energy"'
+                             ' dimension, but does not.')
+        excess_dims = set(self.input_binning.names).difference(
+            set('true_energy', 'true_coszen', 'true_azimuth')
+        )
+        if len(excess_dims) > 0:
+            raise ValueError('Input binning has extra dimension(s): %s'
+                             %sorted(excess_dims))
+
     def _compute_nominal_transforms(self):
         self.load_events(self.params.aeff_events)
         self.cut_events(self.params.transform_events_keep_criteria)
@@ -160,19 +172,6 @@ class hist(Stage):
         # OneWeights-in-bin to an average effective area across the bin.
         comp_units = dict(true_energy='GeV', true_coszen=None,
                           true_azimuth='rad')
-
-        # Only works if energy is in input_binning
-        if 'true_energy' not in self.input_binning:
-            raise ValueError('Input binning must contain "true_energy"'
-                             ' dimension, but does not.')
-
-        # coszen and azimuth are both optional, but no further dimensions are
-        excess_dims = set(self.input_binning.names).difference(
-            comp_units.keys()
-        )
-        if len(excess_dims) > 0:
-            raise ValueError('Input binning has extra dimension(s): %s'
-                             %sorted(excess_dims))
 
         # Select only the units in the input/output binning for conversion
         # (can't pass more than what's actually there)
