@@ -196,8 +196,7 @@ class param(Stage):
     def validate_binning(self):
         # Right now this can only deal with 2D energy / coszenith binning
         # Code can probably be generalised, but right now is not
-        if sorted(self.input_binning.names) != \
-           sorted(['true_coszen','true_energy']):
+        if set(self.input_binning.names) != set(['true_coszen','true_energy']):
             raise ValueError(
                 "Input binning must be 2D true energy / coszenith binning. "
                 "Got %s."%(self.input_binning.names)
@@ -380,10 +379,10 @@ class param(Stage):
         elif isinstance(reco_param, dict):
             param_func_dict = reco_param
         else:
-            raise ValueError(
-                "Expecting either a path to a file or a dictionary provided as"
-                " the store of the parameterisations. Got %s. Something is "
-                "wrong."%(type(reco_param))
+            raise TypeError(
+                "Expecting either a path to a file or a dictionary provided "
+                "as the store of the parameterisations. Got '%s'."
+                %type(reco_param)
             )
         # Test that there are reco parameterisations for every input dimension.
         for flav in param_func_dict.keys():
@@ -391,10 +390,9 @@ class param(Stage):
             for basename in self.input_binning.basenames:
                 if basename not in dims:
                     raise ValueError(
-                        "A binning dimension, %s, exists in the inputs "
+                        "A binning dimension, '%s', exists in the inputs "
                         "that does not have a corresponding reconstruction "
-                        "parameterisation. That only has %s. Something is "
-                        "wrong."%(basename, dims)
+                        "parameterisation. That only has %s."%(basename, dims)
                     )
         param_dict = self.read_param_string(param_func_dict)
         self.param_dict = param_dict

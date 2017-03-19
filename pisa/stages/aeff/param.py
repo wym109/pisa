@@ -191,7 +191,7 @@ class param(Stage):
                 raise ValueError("Valid aeff param dimension identifiers are %s."
                                  " Got '%s' instead."%(str(valid_dims), dim))
             else:
-                raise ValueError("Aeff param dimension identifier required as"
+                raise TypeError("Aeff param dimension identifier required as"
                                  " string!")
         if dim == 'coszen' and not aeff_dim_param:
             self.coszen_param_dict = None
@@ -206,9 +206,9 @@ class param(Stage):
         elif isinstance(aeff_dim_param, dict):
             param_dict = aeff_dim_param
         else:
-            raise ValueError("Got type '%s' for aeff_%s_param when "
-                             "either basestring or dict was expected. "
-                             "Something is wrong."%(type(aeff_dim_param), dim))
+            raise TypeError("Got type '%s' for aeff_%s_param when "
+                            "either basestring or dict was expected. "
+                            %(type(aeff_dim_param), dim))
         setattr(self, "%s_param_dict"%dim, param_dict)
         setattr(self, "_%s_param_hash"%dim, this_hash)
 
@@ -241,8 +241,7 @@ class param(Stage):
                             "Transform group '%s' not found in %s aeff "
                             "parameterisation dictionary keys - %s, and "
                             "neither was an equivalent 'nuallbar_nc' or "
-                            "'nuall_nc' entry. Something is wrong."
-                            %(flavstr, dim, flav_keys))
+                            "'nuall_nc' entry."%(flavstr, dim, flav_keys))
                 else: # now looking for parameterised *nu* nc aeff
                     if 'nuall_nc' in flav_keys:
                         logging.debug("Could not find the '%s' transform group "
@@ -254,8 +253,8 @@ class param(Stage):
                         raise ValueError(
                             "Transform group '%s' not found in %s aeff "
                             "parameterisation dictionary keys - %s, and "
-                            "neither was an equivalent 'nuall_nc' entry. "
-                            "Something is wrong."%(flavstr, dim, flav_keys))
+                            "neither was an equivalent 'nuall_nc' entry."
+                            %(flavstr, dim, flav_keys))
             elif 'bar' in flavstr:
                 # looking for *nubar* cc aeff parameterisations
                 new_flavstr = flavstr.replace('bar','')
@@ -263,8 +262,8 @@ class param(Stage):
                     raise ValueError(
                         "Transform group '%s' not found in %s aeff "
                         "parameterisation dictionary keys - %s, and neither "
-                        "was an equivalent 'unbarred' one. Something is "
-                        "wrong."%(flavstr, dim, flav_keys))
+                        "was an equivalent 'unbarred' one."
+                        %(flavstr, dim, flav_keys))
                 else:
                     logging.debug("Could not find the '%s' transform group but "
                                   "did find an 'unbarred' version. Will "
@@ -274,8 +273,8 @@ class param(Stage):
             else:
                 raise ValueError(
                     "Transform group '%s' not found in %s aeff "
-                    "parameterisation dictionary keys - %s. Something is "
-                    "wrong."%(flavstr, dim, flav_keys))
+                    "parameterisation dictionary keys - %s."
+                    %(flavstr, dim, flav_keys))
         else:
             dim_param = dim_param_dict[flavstr]
             
@@ -289,10 +288,9 @@ class param(Stage):
             czcen = self.input_binning.true_coszen.weighted_centers.magnitude
         else:
             if self.params.aeff_coszen_paramfile.value is not None:
-                raise ValueError("coszenith was not found in the binning but a "
-                                 "coszenith parameterisation file has been "
-                                 "provided in the configuration file. "
-                                 "Something is wrong.")
+                raise ValueError("coszenith was not found in the binning but a"
+                                 " coszenith parameterisation file has been"
+                                 " provided in the configuration file.")
             czcen = None
 
         nominal_transforms = []
@@ -309,10 +307,10 @@ class param(Stage):
             if isinstance(energy_param, basestring):
                 energy_param = eval(energy_param)
             elif isinstance(energy_param, dict):
-                if sorted(energy_param.keys()) != ['aeff','energy']:
+                if set(energy_param.keys()) != set(['aeff','energy']):
                     raise ValueError("Expected values of energy and aeff from"
-                                     " which to construct a spline. Got %s."%(
-                                         energy_param.keys()))
+                                     " which to construct a spline. Got %s."
+                                     %energy_param.keys())
                 evals = energy_param['energy']
                 avals = energy_param['aeff']
                 # Construct the spline from the values.
@@ -324,20 +322,18 @@ class param(Stage):
                 energy_param = interp1d(evals, avals, kind='linear',
                                         bounds_error=False, fill_value=0)
             else:
-                raise ValueError("Expected energy_param to be either a string"
+                raise TypeError("Expected energy_param to be either a string"
                                  " that can be interpreted by eval or as a "
                                  "dict of values from which to construct a "
-                                 "spline. Got %s. Something is wrong."%(
-                                     type(energy_param)))
+                                 "spline. Got '%s'."%type(energy_param))
             if coszen_param is not None:
                 if isinstance(coszen_param, basestring):
                     coszen_param = eval(coszen_param)
                 else:
-                    raise ValueError("coszen dependence currently only "
-                                     "supported as a lambda function provided"
-                                     " as a string in a json file. Got %s. "
-                                     "Something is wrong."%(
-                                         type(coszen_param)))
+                    raise TypeError("coszen dependence currently only "
+                                    "supported as a lambda function provided "
+                                    "as a string in a json file. Got '%s.'"
+                                    %type(coszen_param))
                 
             # Now calculate the 1D aeff along energy
             aeff1d = energy_param(ecen)
@@ -366,9 +362,7 @@ class param(Stage):
                 else:
                     raise ValueError(
                         "Got a name for the first bins that was unexpected - "
-                        "%s. Something is wrong."%(
-                            self.input_binning.names[0]
-                        )
+                        "'%s'."%self.input_binning.names[0]
                     )
                 xform_array = aeff2d
             else:

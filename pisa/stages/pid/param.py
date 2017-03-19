@@ -209,17 +209,16 @@ class param(Stage):
             )
 
         if (self.input_binning.names[0] != 'reco_energy' and
-                                  self.input_binning.names[0] != 'reco_coszen'):
+                self.input_binning.names[0] != 'reco_coszen'):
             raise ValueError(
-                            "Got a name for the first binning dimension that"
-                            " was unexpected - '%s'. Something is wrong."
-                            %self.input_binning.names[0]
+                "Got a name for the first binning dimension that"
+                " was unexpected - '%s'."%self.input_binning.names[0]
             )
 
         # TODO: not handling rebinning in this stage or within Transform
         # objects; implement this! (and then this assert statement can go away)
         assert self.input_binning == self.output_binning, \
-        "input and output binning deviate!"
+                "input and output binning deviate!"
 
     def load_pid_energy_param(self, pid_energy_param):
         """
@@ -249,21 +248,20 @@ class param(Stage):
                         energy_param = self.energy_param_dict[nu]
                     else:
                         raise ValueError(
-                            "Got flavour %s which is not in the "
-                            "parameterisation dictionary keys - %s. Something"
-                            " is wrong."%(nu,
-                                          self.energy_param_dict.keys())
+                            "Got flavour '%s' which is not in the "
+                            "parameterisation dictionary keys - %s"
+                            %(nu, self.energy_param_dict.keys())
                         )
                 else:
                     raise ValueError(
                         "Expected to get joined flav of nu+nubar but instead "
-                        "got %s. Something is wrong."%flavstr
+                        "got '%s'."%flavstr
                     )
             else:
                 raise ValueError(
-                    "Got flavour %s which is not in the parameterisation "
-                    " dictionary keys - %s or a flavour combination. Something"
-                    " is wrong."%(flavstr,self.energy_param_dict.keys())
+                    "Got flavour '%s' which is not in the parameterisation "
+                    " dictionary keys - %s or a flavour combination."
+                    %(flavstr,self.energy_param_dict.keys())
                 )
         else:
             energy_param = self.energy_param_dict[flavstr]
@@ -288,16 +286,16 @@ class param(Stage):
             energy_param = self.find_energy_param(str(flav_int_group))
             # Should be a dict
             if not isinstance(energy_param, dict):
-                raise ValueError(
+                raise TypeError(
                     "Loaded energy PID parameterisation should be a dictionary"
-                    " but got %s. Something is wrong."%type(energy_param)
+                    " but got '%s.'"%type(energy_param)
                 )
             # ...with the same keys as the output channels
             if list(self.output_channels) != energy_param.keys():
                 raise ValueError(
                     "Expected output channels, %s, does not match the list of"
                     " PID classifications in the energy PID parameterisation "
-                    "- %s. Something is wrong."%(
+                    "- %s."%(
                         list(self.output_channels),
                         energy_param.keys()
                     )
@@ -305,9 +303,9 @@ class param(Stage):
             for sig in self.output_channels:
                 pid_param = energy_param[sig]    
                 if not isinstance(pid_param, basestring):
-                    raise ValueError(
-                        "Got %s for the parameterisation while expected a "
-                        "string. Something is wrong."%type(pid_param)
+                    raise TypeError(
+                        "Got '%s' for the parameterisation while expected a "
+                        "string."%type(pid_param)
                     )
                 else:
                     if 'scipy.stats.norm' in pid_param:
@@ -361,8 +359,7 @@ class param(Stage):
         f = params.pid_energy_paramfile.value
         # Check type of pid_energy_paramfile
         if not isinstance(f, (basestring, dict)):
-            raise ValueError(
-                "Expecting either a path to a file or a dictionary provided as "
-                "the store of the parameterisations. Got '%s'. Something is "
-                "wrong."%type(f)
+            raise TypeError(
+                "Expecting either a path to a file or a dictionary provided "
+                "as the store of the parameterisations. Got '%s'."%type(f)
             )

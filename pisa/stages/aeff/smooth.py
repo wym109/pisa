@@ -154,7 +154,7 @@ class smooth(Stage):
 
     def validate_binning(self):
         # Only works if only true_energy and true_coszen in input binning
-        if sorted(self.input_binning.names) != ['true_coszen', 'true_energy']:
+        if set(self.input_binning.names) != set(['true_coszen', 'true_energy']):
             raise ValueError('Input binning must contain both "true_energy"'
                              ' and "true_coszen" dimension (and no more),'
                              ' but does not.')
