@@ -123,7 +123,7 @@ KDEProfile = namedtuple('KDEProfile', ['x', 'density'])
 # TODO: revisit this heuristic with proper testing
 # TODO: modify this once we have fixed the Events object to be more agnostic to
 #       flavint
-@profile
+@line_profile
 def collect_enough_events(events, flavint, bin,
                           min_num_events=MIN_NUM_EVENTS,
                           tgt_num_events=TGT_NUM_EVENTS,
@@ -721,7 +721,7 @@ class vbwkde(Stage):
 
         return TransformSet(transforms=xforms)
 
-    @profile
+    @line_profile
     def characterize_resolutions(self):
         """Compute the KDEs for each (pid, E) bin. If PID is not present, this
         is just (E). The results are propagated to each (pid, E, cz) bin, as
@@ -831,7 +831,7 @@ class vbwkde(Stage):
                         lowerlim = fmin - half_width
                         upperlim = fmax + half_width
                         vbwkde_kwargs = dict(
-                            n_dct=int(2**12),
+                            n_dct=int(2**6),
                             #min=lowerlim, max=upperlim,
                             evaluate_at=np.linspace(lowerlim, upperlim,
                                                     int(5e3))
@@ -845,7 +845,7 @@ class vbwkde(Stage):
                         lowerlim = fmin - half_width
                         upperlim = fmax + half_width
                         vbwkde_kwargs = dict(
-                            n_dct=int(2**12),
+                            n_dct=int(2**6),
                             min=lowerlim, max=upperlim,
                             evaluate_at=np.linspace(lowerlim, upperlim,
                                                     int(5e3))
@@ -860,13 +860,12 @@ class vbwkde(Stage):
                         )
                         weights = weights * (len(weights)/np.sum(weights))
                         error_width = error_limits[1] - error_limits[0]
+                        error_mid = 0.5*(error_limits[0] + error_limits[1])
 
-                        # Mirror half the dataset above and half the dataset
-                        # below the error limits to help KDE deal with edges
                         vbwkde_kwargs = dict(
-                            n_dct=int(2**14),
-                            min=error_limits[0] - error_width,
-                            max=error_limits[1] + error_width,
+                            n_dct=int(2**4),
+                            min=error_limits[0],
+                            max=error_limits[1],
                             evaluate_at=np.linspace(error_limits[0],
                                                     error_limits[1],
                                                     int(5e3))
@@ -893,7 +892,7 @@ class vbwkde(Stage):
             if self.disk_cache is not None:
                 self.disk_cache[new_hash] = self.kde_info[kde_dim]
 
-    @profile
+    @line_profile
     def generate_smearing_kernel(self, flavintgroup):
         """Construct a smearing kernel for the flavintgroup specified.
 
@@ -949,17 +948,9 @@ class vbwkde(Stage):
         pid_kde_e_centers = inf2finite(
             kde_binning['pid'].true_energy.weighted_centers.m
         )
-
-        e_kde_e_centers = inf2finite(
-            kde_binning['energy'].true_energy.weighted_centers.m
-        )
-
-        cz_kde_e_centers = inf2finite(
-            kde_binning['coszen'].true_energy.weighted_centers.m
-        )
-        cz_kde_cz_centers = inf2finite(
-            kde_binning['coszen'].true_coszen.weighted_centers.m
-        )
+        e_kde_e_centers = kde_binning['energy'].true_energy.weighted_centers.m
+        cz_kde_e_centers = kde_binning['coszen'].true_energy.weighted_centers.m
+        cz_kde_cz_centers = kde_binning['coszen'].true_coszen.weighted_centers.m
 
         num_pid_bins = len(pid_binning)
         num_reco_cz_bins = len(reco_coszen)
@@ -975,7 +966,19 @@ class vbwkde(Stage):
             np.log(inf2finite(reco_energy.bin_edges.m)
                    - self.params.e_reco_bias.value.m) / e_res_scale
         )
-        reco_cz_edges = inf2finite(reco_coszen.bin_edges.m)
+        reco_cz_edges = reco_coszen.bin_edges.m
+        if reco_coszen.is_lin:
+            rcz_min = reco_cz_edges[0]
+            rcz_max = reco_cz_edges[-1]
+            dcz = np.mean(np.diff(reco_cz_edges))
+            def czbinfunc(x, weights):
+                inside_mask = (x >= rcz_min) & (x <= rcz_max)
+                intx = np.int32((x[inside_mask] - reco_cz_edges[0]) / dcz)
+                return np.bincount(intx, weights[inside_mask])
+        else:
+            def czbinfunc(x, weights):
+                out, _ = np.histogram(x, weights=weights, bins=reco_cz_edges)
+                return out
 
         true_e_centers = inf2finite(true_coszen.weighted_centers.m)
         true_cz_centers = inf2finite(true_coszen.weighted_centers.m)
@@ -1060,12 +1063,19 @@ class vbwkde(Stage):
                     # For coszen, it seems easier to shift and scale the
                     # datapoints than the bin edges, due to the morroring at
                     # the edges issues...
-                    shifted_scaled_x = fold_coszen_error(
+                    # TODO: new understanding of cz error handling now; folding
+                    #       must be about reco error extents, not +/-1; must
+                    #       reweight by parts of curve not possible to
+                    #       represent given different-sized input bin; scaling
+                    #       to "better" (narrower) resolution or bias is very
+                    #       problematic, especially if the shift/scale is
+                    #       larger than the tail we have due to larger bin
+                    #       used for characterization vs. input...
+                    shifted_scaled_x = ( #fold_coszen_error(
                         cz_kde_profile.x*cz_res_scale + cz_reco_bias + true_cz_center
                     )
-                    coszen_fractions, _ = np.histogram(
-                        shifted_scaled_x, weights=cz_kde_profile.density,
-                        bins=reco_cz_edges
+                    coszen_fractions = czbinfunc(
+                        x=shifted_scaled_x, weights=cz_kde_profile.density
                     )
 
                     coszen_indexer = kernel_binning.defaults_indexer(

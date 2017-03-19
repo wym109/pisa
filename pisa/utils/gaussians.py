@@ -38,9 +38,9 @@ else:
 __all__ = ['GAUS_IMPLEMENTATIONS', 'gaussian', 'gaussians', 'test_gaussians']
 
 
-GAUS_IMPLEMENTATIONS = ['singlethreaded', 'multithreaded', 'cython']
+GAUS_IMPLEMENTATIONS = ('singlethreaded', 'multithreaded', 'cython')
 if NUMBA_CUDA_AVAIL:
-    GAUS_IMPLEMENTATIONS.append('cuda')
+    GAUS_IMPLEMENTATIONS += ('cuda',)
 
 PI = FTYPE(np.pi)
 TWOPI = FTYPE(2*PI)
