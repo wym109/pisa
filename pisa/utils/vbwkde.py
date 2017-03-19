@@ -83,7 +83,7 @@ __all__ = ['OPT_TYPE', 'FIXED_POINT_IMPL',
            'test_fixed_point']
 
 
-OPT_TYPE = 'root'
+OPT_TYPE = 'minimum'
 FIXED_POINT_IMPL = 'numba_loops'
 
 _PI = np.pi
@@ -138,7 +138,7 @@ def fbwkde(data, weights=None, n_dct=None, min=None, max=None,
         n_dct = int(2**np.ceil(np.log2(len(data)*10)))
     assert int(n_dct) == n_dct
     n_dct = int(n_dct)
-    data_len = len(data)
+    n_datapoints = len(data)
 
     # Parameters to set up the points on which to evaluate the density
     if min is None or max is None:
@@ -157,13 +157,22 @@ def fbwkde(data, weights=None, n_dct=None, min=None, max=None,
 
     # Make into a probability mass function
     if weights is None:
-        data_hist = data_hist / data_len
+        data_hist = data_hist / n_datapoints
     else:
         data_hist = data_hist / np.sum(weights)
 
+    # Define a minimum bandwidth relative to mean of distances between points
+    distances = np.diff(np.sort(data))
+    min_bandwidth = 2*np.pi*np.mean(distances)
+    logging.trace('min_bandwidth, 2pi*mean: %.5e', min_bandwidth)
+
+    # Solve for the ISJ fixed point to obtain the "optimal" bandwidth
     isj_bw, t_star, dct_data = isj_bandwidth(
-        y=data_hist, n_datapoints=data_len, x_range=hist_range
+        y=data_hist, n_datapoints=n_datapoints, x_range=hist_range,
+        min_bandwidth=min_bandwidth
     )
+
+    # TODO: Detect numerical instability issues here, prior to returning!
 
     if not evaluate_dens:
         return isj_bw, evaluate_at, None
@@ -174,15 +183,20 @@ def fbwkde(data, weights=None, n_dct=None, min=None, max=None,
 
         # Inverse DCT to get density
         density = fftpack.idct(sm_dct_data, norm=None)*n_dct/hist_range
-        evaluate_at = (bins[0:-1] + bins[1:]) / 2
-        density = density/np.trapz(density, evaluate_at)
-        return isj_bw, evaluate_at, density
+        if np.any(density < 0):
+            #raise ValueError('ISJ encountered numerical instability. Try reducing n_dct.')
+            evaluate_at = (bins[0:-1] + bins[1:]) / 2
+        else:
+            evaluate_at = (bins[0:-1] + bins[1:]) / 2
+            density = density/np.trapz(density, evaluate_at)
+            return isj_bw, evaluate_at, density
+    else:
+        evaluate_at = np.asarray(evaluate_at, dtype=FTYPE)
 
-    evaluate_at = np.asarray(evaluate_at, dtype=FTYPE)
     density = gaussians(
         x=evaluate_at,
         mu=data.astype(FTYPE),
-        sigma=np.full(shape=data_len, fill_value=isj_bw, dtype=FTYPE),
+        sigma=np.full(shape=n_datapoints, fill_value=isj_bw, dtype=FTYPE),
         weights=weights
     )
 
@@ -282,10 +296,11 @@ def vbwkde(data, weights=None, n_dct=None, min=None, max=None, n_addl_iter=0,
         data=data, weights=weights, n_dct=n_dct, min=min, max=max,
         evaluate_dens=True, evaluate_at=None
     )
+    if np.any(pilot_dens_on_grid < 0):
+        raise ValueError('ISJ')
 
     # Include edges (min, max) in the grid and extend the densities to the
     # left/right, respectively. (Make the profile constant out to the edge).
-
     all_gridpoints = []
     all_dens = []
     if grid[0] != min:
@@ -355,7 +370,7 @@ def vbwkde(data, weights=None, n_dct=None, min=None, max=None, n_addl_iter=0,
     return kernel_bandwidths, evaluate_at, density
 
 
-def isj_bandwidth(y, n_datapoints, x_range):
+def isj_bandwidth(y, n_datapoints, x_range, min_bandwidth):
     """
     Parameters
     ----------
@@ -375,6 +390,8 @@ def isj_bandwidth(y, n_datapoints, x_range):
     x_range = np.float64(x_range)
 
     n_dct = len(y)
+
+    min_tstar = (min_bandwidth/x_range)**2
 
     i_range = np.arange(1, n_dct, dtype=np.float64)**2
     log_i_range = np.log(i_range)
@@ -400,8 +417,8 @@ def isj_bandwidth(y, n_datapoints, x_range):
         if OPT_TYPE == 'root':
             t_star = optimize.brentq(
                 f=func,
-                a=np.finfo(np.float64).eps*4,
-                b=0.1,
+                a=min_tstar,
+                b=2.0,
                 rtol=np.finfo(np.float64).eps*1e2,
                 args=args,
                 full_output=True,
@@ -410,20 +427,27 @@ def isj_bandwidth(y, n_datapoints, x_range):
         elif OPT_TYPE == 'minimum':
             t_star = optimize.minimize_scalar(
                 fun=func,
-                bounds=(np.finfo(np.float64).eps, 0.1),
+                bounds=(min_tstar, 2.0),
                 method='Bounded',
                 args=args,
                 options=dict(maxiter=1e6, xatol=1e-22),
             ).x
         else:
             raise ValueError('Unknown OPT_TYPE "%s"' % OPT_TYPE)
-    except ValueError:
-        logging.error('Improved Sheather-Jones bandwidth %s-finding failed.'
-                      % OPT_TYPE)
-        raise
 
-    # Use sqrt and not np.sqrt to ensure failures raise exceptions
-    bandwidth = sqrt(t_star)*x_range
+        # NOTE: Use sqrt and not np.sqrt to ensure failures raise exceptions
+        bandwidth = sqrt(t_star)*x_range
+
+        if bandwidth < min_bandwidth:
+            raise ValueError(
+                'ISJ bandwidth = %e is less than allowed by Nyquist = %e'
+                % (bandwidth, min_bandwidth)
+            )
+
+    except ValueError:
+        logging.error('Improved Sheather-Jones bandwidth %s-finding failed.',
+                      OPT_TYPE)
+        raise
 
     return bandwidth, t_star, dct_data
 
@@ -432,10 +456,14 @@ def optfunc(opt_type):
     """Decorator to allow either minmization or root finding"""
     if opt_type == 'root':
         def decorator(f):
+            """No-op decorator"""
             return f
     elif opt_type == 'minimum':
         def decorator(f):
+            """Decorator: Return absolute value of function"""
+            return f
             def func(*args, **kw):
+                """Return absolute value of function"""
                 return np.abs(f(*args, **kw))
             return func
     return decorator
@@ -453,26 +481,59 @@ _K0 = np.array([
     '{f:s}({f:s}, int64, {f:s}[:], {f:s}[:], {f:s}[:])'.format(f='float64'),
     nopython=True, nogil=True, cache=True, fastmath=True
 )
-def fixed_point_numba_np(t, data_len, i_range, log_i_range, a2):
+def fixed_point_numba_np(t, n_datapoints, i_range, log_i_range, a2):
+    """ISJ fixed-point calculation as per Botev et al..
+
+    In this implementation, Numba makes calls to Numpy routines.
+
+    Parameters
+    ----------
+    t
+    n_datapoints
+    i_range
+    log_i_range
+    a2
+
+    Returns
+    -------
+    t_star
+
+    """
     exparg = _ELL*log_i_range - i_range*(_PISQ*t)
     ex = np.exp(exparg)
     eff = _TWOPI2ELL * np.dot(a2, ex)
 
     for s in range(_ELL-1, 1, -1):
-        t_elap = (_K0[s] / (data_len * eff))**(2 / (3 + 2*s))
+        t_elap = (_K0[s] / (n_datapoints * eff))**(2 / (3 + 2*s))
         exparg = s*log_i_range - i_range*(_PISQ*t_elap)
         ex = np.exp(exparg)
         dp = np.dot(a2, ex)
         eff = 2*_PI**(2*s) * dp
 
-    rslt = t - (2.0 * data_len * _SQRTPI * eff)**-0.4
-    return rslt
+    return t - (2.0 * n_datapoints * _SQRTPI * eff)**-0.4
 
 
 @optfunc(OPT_TYPE)
 @numba_jit('{f}({f}, int64, {f}[:], {f}[:], {f}[:])'.format(f='float64'),
            nopython=True, nogil=True, cache=True, fastmath=True)
-def fixed_point_numba_loops(t, data_len, i_range, log_i_range, a2):
+def fixed_point_numba_loops(t, n_datapoints, i_range, log_i_range, a2):
+    """ISJ fixed-point calculation as per Botev et al..
+
+    In this implementation, Numba explicitly loops over arrays.
+
+    Parameters
+    ----------
+    t
+    n_datapoints
+    i_range
+    log_i_range
+    a2
+
+    Returns
+    -------
+    t_star
+
+    """
     len_i = len(i_range)
 
     tot = 0.0
@@ -487,7 +548,7 @@ def fixed_point_numba_loops(t, data_len, i_range, log_i_range, a2):
 
     for s in range(_ELL-1, 1, -1):
         k0 = _K0[s]
-        t_elap = (k0 / (data_len * eff))**(2 / (3 + 2*s))
+        t_elap = (k0 / (n_datapoints * eff))**(2 / (3 + 2*s))
 
         tot = 0.0
         for idx in range(len_i):
@@ -499,30 +560,31 @@ def fixed_point_numba_loops(t, data_len, i_range, log_i_range, a2):
             tot += a2_el * exp(exparg)
         eff = 2 * _PI**(2*s) * tot
 
-    return t - (2*data_len*_SQRTPI*eff)**-0.4
+    return t - (2*n_datapoints*_SQRTPI*eff)**-0.4
 
 
 @optfunc(OPT_TYPE)
 @numba_jit('{f:s}({f:s}, int64, {f:s}[:], {f:s}[:])'.format(f='float64'),
            nopython=True, nogil=True, cache=True, fastmath=True)
-def fixed_point_numba_orig(t, data_len, i_range, a2):
+def fixed_point_numba_orig(t, n_datapoints, i_range, a2):
     """Fixed point algorithm for Improved Sheather Jones bandwidth
     selection.
 
     Implements the fixed-point finding for the function
     ``t - zeta * gamma^{[l]}(t)``
+
     See The Annals of Statistics, 38(5):2916-2957, 2010.
 
     Parameters
     ----------
     t : float64
-    data_len : int64
+    n_datapoints : int64
     i_range : array of float64
     a2 : array of float64
 
     Returns
     -------
-    result : float64
+    t_star : float64
 
     NOTES
     -----
@@ -541,7 +603,7 @@ def fixed_point_numba_orig(t, data_len, i_range, a2):
     for s in range(_ELL-1, 1, -1):
         k0 = np.prod(np.arange(1, 2*s, 2)) / _SQRT2PI
         const = (1 + (0.5)**(s+0.5)) / 3.0
-        t_elap = (2 * const * k0 / (data_len * eff))**(2.0 / (3.0 + 2.0*s))
+        t_elap = (2 * const * k0 / (n_datapoints * eff))**(2.0 / (3.0 + 2.0*s))
 
         tot = 0.0
         for idx in range(len_i):
@@ -550,7 +612,7 @@ def fixed_point_numba_orig(t, data_len, i_range, a2):
             )
         eff = 2 * _PI**(2*s) * tot
 
-    return t - (2.0 * data_len * _SQRTPI * eff)**-0.4
+    return t - (2.0 * n_datapoints * _SQRTPI * eff)**-0.4
 
 
 def test_fbwkde():

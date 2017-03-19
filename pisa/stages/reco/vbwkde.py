@@ -863,7 +863,7 @@ class vbwkde(Stage):
                         error_mid = 0.5*(error_limits[0] + error_limits[1])
 
                         vbwkde_kwargs = dict(
-                            n_dct=int(2**4),
+                            n_dct=int(2**6),
                             min=error_limits[0],
                             max=error_limits[1],
                             evaluate_at=np.linspace(error_limits[0],
@@ -879,9 +879,7 @@ class vbwkde(Stage):
                     _, x, density = vbwkde_func(feature, weights=weights,
                                                 **vbwkde_kwargs)
 
-                    dx = np.abs((x[-1] - x[0]) / (len(x)-1))
-                    normalized_density = density * dx
-                    normalized_density /= np.sum(normalized_density)
+                    normalized_density = density / np.sum(density)
 
                     self.kde_info[kde_dim][flavintgroup][bin_coord] = (
                         KDEProfile(x=x, density=normalized_density)
