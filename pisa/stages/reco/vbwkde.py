@@ -113,7 +113,7 @@ TGT_NUM_EVENTS = 1000
 # TODO: figure out a dynamic similarity metric such that this parameter can be
 #       figured out by the software, rather than set by the user. E.g., use
 #       some statistical clustering technique?
-TGT_MAX_BINWIDTH_FACTOR = 0.25
+TGT_MAX_BINWIDTH_FACTOR = 0.1
 
 
 KDEProfile = namedtuple('KDEProfile', ['x', 'density'])
@@ -380,10 +380,10 @@ def weight_coszen_tails(cz_error, cz_bin, input_weights=None):
 
     # Update the weights for events in the tails
     weights[lower_tail_mask] *= (
-        lower_tail_width/(error_upper_lim - cz_error[lower_tail_mask])
+        lower_tail_width/(cz_error[lower_tail_mask] - error_lower_lim)
     )
     weights[upper_tail_mask] *= (
-        upper_tail_width/(cz_error[upper_tail_mask] - error_lower_lim)
+        upper_tail_width/(error_upper_lim - cz_error[upper_tail_mask])
     )
 
     return weights, error_limits
@@ -816,6 +816,7 @@ class vbwkde(Stage):
                     if weights_name in flav_events:
                         weights_specified = True
                         weights = flav_events[weights_name]
+                        weights = weights * (len(weights)/np.sum(weights))
                     else:
                         weights = None
 
@@ -857,6 +858,7 @@ class vbwkde(Stage):
                             cz_error=feature, cz_bin=bin_binning.true_coszen,
                             input_weights=weights
                         )
+                        weights = weights * (len(weights)/np.sum(weights))
                         error_width = error_limits[1] - error_limits[0]
 
                         # Mirror half the dataset above and half the dataset
