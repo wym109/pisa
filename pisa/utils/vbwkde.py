@@ -77,16 +77,20 @@ from pisa.utils.gaussians import gaussians
 from pisa.utils.log import logging, set_verbosity, tprofile
 
 
-__all__ = ['fbwkde', 'vbwkde', 'isj_bandwidth', 'fixed_point',
+__all__ = ['OPT_TYPE', 'FIXED_POINT_IMPL',
+           'fbwkde', 'vbwkde', 'isj_bandwidth', 'fixed_point',
            'test_fbwkde', 'test_vbwkde', 'test_isj_bandwidth',
            'test_fixed_point']
 
 
-PI = np.pi
-TWOPI = 2*PI
-SQRTPI = np.sqrt(PI)
-SQRT2PI = np.sqrt(TWOPI)
-PISQ = PI*PI
+OPT_TYPE = 'root'
+FIXED_POINT_IMPL = 'numba_loops'
+
+_PI = np.pi
+_TWOPI = 2*np.pi
+_SQRTPI = np.sqrt(np.pi)
+_SQRT2PI = np.sqrt(2*np.pi)
+_PISQ = np.pi*np.pi
 
 
 def fbwkde(data, weights=None, n_dct=None, min=None, max=None,
@@ -166,7 +170,7 @@ def fbwkde(data, weights=None, n_dct=None, min=None, max=None,
 
     if evaluate_at is None:
         # Smooth the discrete-cosine-transformed data using t_star
-        sm_dct_data = dct_data*np.exp(-np.arange(n_dct)**2 * PISQ*t_star/2)
+        sm_dct_data = dct_data*np.exp(-np.arange(n_dct)**2 * _PISQ*t_star/2)
 
         # Inverse DCT to get density
         density = fftpack.idct(sm_dct_data, norm=None)*n_dct/hist_range
@@ -373,20 +377,49 @@ def isj_bandwidth(y, n_datapoints, x_range):
     n_dct = len(y)
 
     i_range = np.arange(1, n_dct, dtype=np.float64)**2
+    log_i_range = np.log(i_range)
 
     dct_data = fftpack.dct(y, norm=None)
     dct_data_sq = 0.25 * (dct_data * dct_data)[1:]
 
+    logging.trace('Fixed point implementation = %s', FIXED_POINT_IMPL)
+    logging.trace('Optimization type = %s', OPT_TYPE)
+    if FIXED_POINT_IMPL == 'numba_np':
+        func = fixed_point_numba_np
+        args = n_datapoints, i_range, log_i_range, dct_data_sq
+    elif FIXED_POINT_IMPL == 'numba_loops':
+        func = fixed_point_numba_loops
+        args = n_datapoints, i_range, log_i_range, dct_data_sq
+    elif FIXED_POINT_IMPL == 'numba_orig':
+        func = fixed_point_numba_orig
+        args = n_datapoints, i_range, dct_data_sq
+    else:
+        raise ValueError('Unknown FIXED_POINT_IMPL "%s"' % FIXED_POINT_IMPL)
+
     try:
-        t_star = optimize.minimize_scalar(
-            fun=fixed_point,
-            bounds=(np.finfo(np.float64).eps, 0.1),
-            method='Bounded',
-            args=(n_datapoints, i_range, dct_data_sq),
-            options=dict(maxiter=1e6, xatol=1e-22),
-        ).x
+        if OPT_TYPE == 'root':
+            t_star = optimize.brentq(
+                f=func,
+                a=np.finfo(np.float64).eps*4,
+                b=0.1,
+                rtol=np.finfo(np.float64).eps*1e2,
+                args=args,
+                full_output=True,
+                disp=True
+            )[0]
+        elif OPT_TYPE == 'minimum':
+            t_star = optimize.minimize_scalar(
+                fun=func,
+                bounds=(np.finfo(np.float64).eps, 0.1),
+                method='Bounded',
+                args=args,
+                options=dict(maxiter=1e6, xatol=1e-22),
+            ).x
+        else:
+            raise ValueError('Unknown OPT_TYPE "%s"' % OPT_TYPE)
     except ValueError:
-        logging.error('ISJ root-finding failed.')
+        logging.error('Improved Sheather-Jones bandwidth %s-finding failed.'
+                      % OPT_TYPE)
         raise
 
     # Use sqrt and not np.sqrt to ensure failures raise exceptions
@@ -395,9 +428,84 @@ def isj_bandwidth(y, n_datapoints, x_range):
     return bandwidth, t_star, dct_data
 
 
+def optfunc(opt_type):
+    """Decorator to allow either minmization or root finding"""
+    if opt_type == 'root':
+        def decorator(f):
+            return f
+    elif opt_type == 'minimum':
+        def decorator(f):
+            def func(*args, **kw):
+                return np.abs(f(*args, **kw))
+            return func
+    return decorator
+
+
+_ELL = 7
+_TWOPI2ELL = 2 * _PI**(2*_ELL)
+_K0 = np.array([
+    (1 + 0.5**(_S + 0.5)) * np.prod(np.arange(1, 2*_S, 2)) * 2/(3*_SQRT2PI)
+    for _S in range(_ELL-1, 1, -1)
+])
+
+@optfunc(OPT_TYPE)
+@numba_jit(
+    '{f:s}({f:s}, int64, {f:s}[:], {f:s}[:], {f:s}[:])'.format(f='float64'),
+    nopython=True, nogil=True, cache=True, fastmath=True
+)
+def fixed_point_numba_np(t, data_len, i_range, log_i_range, a2):
+    exparg = _ELL*log_i_range - i_range*(_PISQ*t)
+    ex = np.exp(exparg)
+    eff = _TWOPI2ELL * np.dot(a2, ex)
+
+    for s in range(_ELL-1, 1, -1):
+        t_elap = (_K0[s] / (data_len * eff))**(2 / (3 + 2*s))
+        exparg = s*log_i_range - i_range*(_PISQ*t_elap)
+        ex = np.exp(exparg)
+        dp = np.dot(a2, ex)
+        eff = 2*_PI**(2*s) * dp
+
+    rslt = t - (2.0 * data_len * _SQRTPI * eff)**-0.4
+    return rslt
+
+
+@optfunc(OPT_TYPE)
+@numba_jit('{f}({f}, int64, {f}[:], {f}[:], {f}[:])'.format(f='float64'),
+           nopython=True, nogil=True, cache=True, fastmath=True)
+def fixed_point_numba_loops(t, data_len, i_range, log_i_range, a2):
+    len_i = len(i_range)
+
+    tot = 0.0
+    for idx in range(len_i):
+        a2_el = a2[idx]
+        log_i_range_el = log_i_range[idx]
+        i_range_el = i_range[idx]
+
+        exparg = _ELL*log_i_range_el - i_range_el * _PISQ * t
+        tot += a2_el * exp(exparg)
+    eff = _TWOPI2ELL * tot
+
+    for s in range(_ELL-1, 1, -1):
+        k0 = _K0[s]
+        t_elap = (k0 / (data_len * eff))**(2 / (3 + 2*s))
+
+        tot = 0.0
+        for idx in range(len_i):
+            a2_el = a2[idx]
+            log_i_range_el = log_i_range[idx]
+            i_range_el = i_range[idx]
+
+            exparg = s*log_i_range_el - i_range_el*_PISQ*t_elap
+            tot += a2_el * exp(exparg)
+        eff = 2 * _PI**(2*s) * tot
+
+    return t - (2*data_len*_SQRTPI*eff)**-0.4
+
+
+@optfunc(OPT_TYPE)
 @numba_jit('{f:s}({f:s}, int64, {f:s}[:], {f:s}[:])'.format(f='float64'),
            nopython=True, nogil=True, cache=True, fastmath=True)
-def fixed_point(t, data_len, i_range, a2):
+def fixed_point_numba_orig(t, data_len, i_range, a2):
     """Fixed point algorithm for Improved Sheather Jones bandwidth
     selection.
 
@@ -424,32 +532,25 @@ def fixed_point(t, data_len, i_range, a2):
 
     """
     len_i = len(i_range)
-    l = 7
 
     tot = 0.0
     for idx in range(len_i):
-        tot += i_range[idx]**l * a2[idx] * exp(-i_range[idx] * PISQ * t)
-    f = 2 * PI**(2*l) * tot
+        tot += i_range[idx]**_ELL * a2[idx] * exp(-i_range[idx] * _PISQ * t)
+    eff = 2 * _PI**(2*_ELL) * tot
 
-    for s in range(l-1, 1, -1):
-        k0 = np.prod(np.arange(1, 2*s, 2)) / SQRT2PI
-        # Note that the np.prod line above appears to be faster than the below
-        # code, but keeping this as a reminder
-        #k0 = 1
-        #for i in range(1, 2*s, 2):
-        #    k0 *= i
-        #k0 /= SQRT2PI
+    for s in range(_ELL-1, 1, -1):
+        k0 = np.prod(np.arange(1, 2*s, 2)) / _SQRT2PI
         const = (1 + (0.5)**(s+0.5)) / 3.0
-        t_elap = (2 * const * k0 / (data_len * f))**(2.0 / (3.0 + 2.0*s))
+        t_elap = (2 * const * k0 / (data_len * eff))**(2.0 / (3.0 + 2.0*s))
 
         tot = 0.0
         for idx in range(len_i):
             tot += (
-                i_range[idx]**s * a2[idx] * exp(-i_range[idx] * PISQ * t_elap)
+                i_range[idx]**s * a2[idx] * exp(-i_range[idx] * _PISQ * t_elap)
             )
-        f = 2 * PI**(2*s) * tot
+        eff = 2 * _PI**(2*s) * tot
 
-    return abs(t - (2.0 * data_len * SQRTPI * f)**(-0.4))
+    return t - (2.0 * data_len * _SQRTPI * eff)**-0.4
 
 
 def test_fbwkde():

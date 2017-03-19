@@ -49,7 +49,7 @@ SQRT2PI = FTYPE(sqrt(TWOPI))
 PISQ = FTYPE(PI**2)
 
 
-def gaussians(x, mu, sigma, weights=None, implementation=None):
+def gaussians(x, mu, sigma, weights=None, implementation=None, **kwargs):
     """Sum of multiple Gaussian curves, normalized to have area of 1.
 
     Parameters
@@ -70,6 +70,9 @@ def gaussians(x, mu, sigma, weights=None, implementation=None):
         One of 'singlethreaded', 'multithreaded', or 'cuda'. Passing None, the
         function will try to determine which of the implementations is best to
         call.
+
+    kwargs
+        Passed on to the underlying implementation
 
     Returns
     -------
@@ -92,6 +95,12 @@ def gaussians(x, mu, sigma, weights=None, implementation=None):
         if not implementation in GAUS_IMPLEMENTATIONS:
             raise ValueError('`implementation` must be one of %s'
                              % GAUS_IMPLEMENTATIONS)
+
+    # Extract a 'threads' kwarg if it's present, or default to OMP_NUM_THREADS
+    if 'threads' in kwargs:
+        threads = kwargs.pop('threads')
+    else:
+        threads = OMP_NUM_THREADS
 
     # Convert all inputs to arrays of correct datatype
     if not isinstance(x, Iterable):
@@ -117,6 +126,7 @@ def gaussians(x, mu, sigma, weights=None, implementation=None):
     n_points = len(x)
     n_gaussians = len(mu)
 
+    # Normalization is computed here regardless of implementation
     if use_weights:
         norm = 1/(SQRT2PI * np.sum(weights))
     else:
@@ -130,49 +140,56 @@ def gaussians(x, mu, sigma, weights=None, implementation=None):
                                     and NUMBA_CUDA_AVAIL):
         logging.trace('Using CUDA Gaussians implementation')
         _gaussians_cuda(outbuf, x, mu, inv_sigma, inv_sigma_sq, weights,
-                        n_gaussians)
+                        n_gaussians, **kwargs)
 
     # Use cython version if Numba isn't available
     elif implementation == 'cython' or (implementation is None
                                         and not NUMBA_AVAIL):
         logging.trace('Using cython Gaussians implementation')
+
         if FTYPE == np.float64:
             gaussians_cython.gaussians_d(
                 outbuf, x, mu, inv_sigma, inv_sigma_sq, n_gaussians,
-                threads=OMP_NUM_THREADS
+                threads=threads, **kwargs
             )
         elif FTYPE == np.float32:
             gaussians_cython.gaussians_s(
                 outbuf, x, mu, inv_sigma, inv_sigma_sq, n_gaussians,
-                threads=OMP_NUM_THREADS
+                threads=threads, **kwargs
             )
 
-    # Use singlethreaded version if OMP_NUM_THREADS is 1
-    elif implementation == 'singlethreaded' or (implementation is None and
-                                                OMP_NUM_THREADS == 1):
+    # Use singlethreaded version if `threads` is 1
+    elif (implementation == 'singlethreaded'
+          or implementation is None and threads == 1):
         logging.trace('Using single-threaded Gaussians implementation')
-        _gaussians_singlethreaded(outbuf, x, mu, inv_sigma, inv_sigma_sq,
-                                  weights, n_gaussians, start=0, stop=n_points)
+        _gaussians_singlethreaded(
+            outbuf=outbuf, x=x, mu=mu, inv_sigma=inv_sigma,
+            inv_sigma_sq=inv_sigma_sq, weights=weights,
+            n_gaussians=n_gaussians, start=0, stop=n_points, **kwargs
+        )
 
     # Use multithreaded version otherwise
-    elif implementation == 'multithreaded' or OMP_NUM_THREADS > 1:
+    elif implementation == 'multithreaded' or threads > 1:
         logging.trace('Using multi-threaded Gaussians implementation')
-        #_gaussians_multithreaded(outbuf, x, mu, sigma, weights, n_gaussians)
-        _gaussians_multithreaded(outbuf, x, mu, inv_sigma, inv_sigma_sq,
-                                 weights, n_gaussians)
+        _gaussians_multithreaded(
+            outbuf=outbuf, x=x, mu=mu, inv_sigma=inv_sigma,
+            inv_sigma_sq=inv_sigma_sq, weights=weights,
+            n_gaussians=n_gaussians, threads=threads, **kwargs
+        )
 
     else:
         raise ValueError(
-            'Unhandled value(s): OMP_NUM_THREADS="%s",'
-            ' NUMBA_CUDA_AVAIL="%s", `implementation`="%s"'
-            % (OMP_NUM_THREADS, NUMBA_CUDA_AVAIL, implementation)
+            'Unhandled value(s): `implementation`="%s"; note: threads="%s"'
+            ' and NUMBA_CUDA_AVAIL="%s"'
+            % (implementation, threads, NUMBA_CUDA_AVAIL)
         )
 
+    # Now apply the normalization
     return outbuf * norm
 
 
 def _gaussians_multithreaded(outbuf, x, mu, inv_sigma, inv_sigma_sq, weights,
-                             n_gaussians):
+                             n_gaussians, threads=OMP_NUM_THREADS):
     """Sum of multiple guassians, optimized to be run in multiple threads. This
     dispatches the single-kernel threaded """
     n_points = len(x)
@@ -194,12 +211,11 @@ def _gaussians_multithreaded(outbuf, x, mu, inv_sigma, inv_sigma_sq, weights,
         thread.join()
 
 
-GAUS_ST_FUNCSIG = (
-    (
-        'void({f:s}[:],{f:s}[:],{f:s}[:],{f:s}[:],{f:s}[:],{f:s}[:],int64,int64,int64)'
-    ).format(f=FTYPE.__name__)
-)
-@numba_jit(GAUS_ST_FUNCSIG, nopython=True, nogil=True, cache=True)
+GAUS_ST_NUMBA_FUNCSIG = (
+    'void({f}[:], {f}[:], {f}[:], {f}[:], {f}[:], {f}[:], int64, int64, int64)'
+).format(f=FTYPE.__name__)
+@numba_jit(GAUS_ST_NUMBA_FUNCSIG,
+           nopython=True, nogil=True, cache=True, fastmath=True)
 def _gaussians_singlethreaded(outbuf, x, mu, inv_sigma, inv_sigma_sq, weights,
                               n_gaussians, start, stop):
     """Sum of multiple guassians, optimized to be run in a single thread"""
