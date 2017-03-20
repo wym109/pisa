@@ -72,7 +72,6 @@ from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup
 from pisa.utils.hash import hash_obj
 from pisa.utils.vbwkde import vbwkde as vbwkde_func
 from pisa.utils.log import logging
-from pisa.utils.profiler import line_profile, profile
 
 
 __all__ = ['KDE_DIM_DEPENDENCIES', 'KDE_TRUE_BINNING', 'MIN_NUM_EVENTS',
@@ -123,7 +122,7 @@ KDEProfile = namedtuple('KDEProfile', ['x', 'density'])
 # TODO: revisit this heuristic with proper testing
 # TODO: modify this once we have fixed the Events object to be more agnostic to
 #       flavint
-@line_profile
+
 def collect_enough_events(events, flavint, bin,
                           min_num_events=MIN_NUM_EVENTS,
                           tgt_num_events=TGT_NUM_EVENTS,
@@ -721,7 +720,6 @@ class vbwkde(Stage):
 
         return TransformSet(transforms=xforms)
 
-    @line_profile
     def characterize_resolutions(self):
         """Compute the KDEs for each (pid, E) bin. If PID is not present, this
         is just (E). The results are propagated to each (pid, E, cz) bin, as
@@ -890,7 +888,6 @@ class vbwkde(Stage):
             if self.disk_cache is not None:
                 self.disk_cache[new_hash] = self.kde_info[kde_dim]
 
-    @line_profile
     def generate_smearing_kernel(self, flavintgroup):
         """Construct a smearing kernel for the flavintgroup specified.
 
@@ -971,7 +968,7 @@ class vbwkde(Stage):
             dcz = np.mean(np.diff(reco_cz_edges))
             def czbinfunc(x, weights):
                 inside_mask = (x >= rcz_min) & (x <= rcz_max)
-                intx = np.int32((x[inside_mask] - reco_cz_edges[0]) / dcz)
+                intx = np.int64((x[inside_mask] - reco_cz_edges[0]) / dcz)
                 return np.bincount(intx, weights[inside_mask])
         else:
             def czbinfunc(x, weights):
@@ -986,6 +983,16 @@ class vbwkde(Stage):
                                                - true_cz_center)))
             for true_cz_center in true_cz_centers
         ]
+
+        # Define only what needs to be done to coszen KDE profile based on
+        # systematics that actually have an effect
+        op_scale_shift_cz_kde = 'cz_kde_profile.x'
+        if cz_res_scale != 1:
+            op_scale_shift_cz_kde += ' * cz_res_scale'
+        if cz_reco_bias != 0:
+            op_scale_shift_cz_kde += ' + (cz_reco_bias + true_cz_center)'
+        else:
+            op_scale_shift_cz_kde += ' + true_cz_center'
 
         for true_e_bin_num, true_e_center in enumerate(true_e_centers):
             logging.debug('  > Working on true_e_bin_num %d of %d',
@@ -1069,9 +1076,7 @@ class vbwkde(Stage):
                     #       problematic, especially if the shift/scale is
                     #       larger than the tail we have due to larger bin
                     #       used for characterization vs. input...
-                    shifted_scaled_x = ( #fold_coszen_error(
-                        cz_kde_profile.x*cz_res_scale + cz_reco_bias + true_cz_center
-                    )
+                    shifted_scaled_x = eval(op_scale_shift_cz_kde)
                     coszen_fractions = czbinfunc(
                         x=shifted_scaled_x, weights=cz_kde_profile.density
                     )
