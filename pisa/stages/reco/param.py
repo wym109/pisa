@@ -560,8 +560,9 @@ class param(Stage):
                 reco_kernel[i,j] = np.outer(e_kern_cdf, cz_kern_cdf)
 
             # Sanity check of reco kernels - intolerable negative values?
+            logging.trace(" Ensuring reco kernel sanity...")
             kern_neg_invalid = reco_kernel < -EQUALITY_PREC*np.abs(reco_kernel)
-            if np.any(kernel_neg_invalid):
+            if np.any(kern_neg_invalid):
                 raise ValueError("Detected intolerable negative entries in"
                                  " reco kernel! Min.: %s"
                                  %np.min(kern_neg_invalid))
