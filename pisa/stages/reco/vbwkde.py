@@ -58,6 +58,7 @@ from __future__ import division
 
 from collections import OrderedDict, Sequence, namedtuple
 from copy import deepcopy
+from itertools import izip
 from multiprocessing import Pool
 
 import numpy as np
@@ -72,13 +73,12 @@ from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup
 from pisa.utils.hash import hash_obj
 from pisa.utils.vbwkde import vbwkde as vbwkde_func
 from pisa.utils.log import logging
-from pisa.utils.profiler import line_profile, profile
 
 
 __all__ = ['KDE_DIM_DEPENDENCIES', 'KDE_TRUE_BINNING', 'MIN_NUM_EVENTS',
            'TGT_NUM_EVENTS', 'TGT_MAX_BINWIDTH_FACTOR',
            'KDEProfile', 'collect_enough_events', 'fold_coszen_error',
-           'weight_coszen_tails',
+           'weight_coszen_tails', 'coszen_error_edges',
            'vbwkde']
 
 
@@ -123,7 +123,7 @@ KDEProfile = namedtuple('KDEProfile', ['x', 'density'])
 # TODO: revisit this heuristic with proper testing
 # TODO: modify this once we have fixed the Events object to be more agnostic to
 #       flavint
-@line_profile
+
 def collect_enough_events(events, flavint, bin,
                           min_num_events=MIN_NUM_EVENTS,
                           tgt_num_events=TGT_NUM_EVENTS,
@@ -387,6 +387,74 @@ def weight_coszen_tails(cz_error, cz_bin, input_weights=None):
     )
 
     return weights, error_limits
+
+
+def coszen_error_edges(true_edges, reco_edges):
+    """Return a list of edges in coszen-error space given 2 true-coszen edges
+    and reco-coszen edges. Systematics are not implemented at thistime.
+
+    Parameters
+    ----------
+    true_edges : sequence of 2 scalars
+    reco_edges : sequence of scalars
+    bias : scalar // NOT IMPLEMENTED YET!
+    scale : scalar > 0 // NOT IMPLEMENTED YET!
+
+    Returns
+    -------
+    all_dcz_binedges : list of scalars
+        The interleaved coszen-error (delta-cz) bin edges found both from the
+        full reco range possible (given by `true_edges` and assuming reco can
+        be from -1 to +1), and from the spans due to `reco_edges`.
+
+    reco_indices : tuple with 2 lists of scalars
+        Each list contains `len(reco_edges - 1)` scalars. Thesea are the
+        indices for locating the edge in `all_binedges`, corresponding to
+        `(reco_edges[:-1], reco_dges[1:])`.
+
+    """
+    reco_lower_binedges = reco_edges[:-1]
+    reco_upper_binedges = reco_edges[1:]
+    t_lower_binedge, t_upper_binedge = true_edges
+    full_reco_range_lower_binedge = -1 - true_edges[0]
+    full_reco_range_upper_binedge = +1 - true_edges[1]
+
+    czerr_lower_binedges = []
+    czerr_upper_binedges = []
+    for reco_lower_binedge, reco_upper_binedge in zip(reco_lower_binedges,
+                                                      reco_upper_binedges):
+        czerr_lower_binedges.append(reco_lower_binedge - true_upper_binedge)
+        czerr_upper_binedges.append(reco_upper_binedge - true_lower_binedge)
+
+    all_dcz_binedges = czerr_lower_binedges + czerr_upper_binedges
+    all_dcz_binedges.sort()
+
+    # Make sure the full-reco-range edges are included in "all" bin edges
+    if full_reco_range_lower_binedge != all_dcz_binedges[0]:
+        all_dcz_binedges.insert(0, full_reco_range_lower_binedge)
+    if full_reco_range_upper_binedge != all_dcz_binedges[-1]:
+        all_dcz_binedges.insert(-1, full_reco_range_upper_binedge)
+
+    # We know the indices of the full-range edges since they're the extrema
+    full_reco_range_lower_binedge_idx = 0
+    full_reco_range_upper_binedge_idx = len(all_dcz_binedges) - 1
+
+    # Find the indices corresponding to the lower and upper bin edges
+    czerr_lower_binedge_indices, czerr_upper_binedge_indices = [], []
+    for lower_binedge, upper_binedge in zip(czerr_lower_binedges,
+                                            czerr_upper_binedges):
+        czerr_lower_binedge_indices.append(
+            all_dcz_binedges.index(lower_binedge)
+        )
+        czerr_upper_binedge_indices.append(
+            all_dcz_binedges.index(upper_binedge)
+        )
+
+    reco_indices = (czerr_lower_binedge_indices, czerr_upper_binedge_indices)
+
+    return all_dcz_binedges, reco_indices
+
+
 
 # TODO: the below logic does not generalize to muons, but probably should
 # (rather than requiring an almost-identical version just for muons). For
@@ -721,7 +789,6 @@ class vbwkde(Stage):
 
         return TransformSet(transforms=xforms)
 
-    @line_profile
     def characterize_resolutions(self):
         """Compute the KDEs for each (pid, E) bin. If PID is not present, this
         is just (E). The results are propagated to each (pid, E, cz) bin, as
@@ -890,7 +957,6 @@ class vbwkde(Stage):
             if self.disk_cache is not None:
                 self.disk_cache[new_hash] = self.kde_info[kde_dim]
 
-    @line_profile
     def generate_smearing_kernel(self, flavintgroup):
         """Construct a smearing kernel for the flavintgroup specified.
 
@@ -923,7 +989,7 @@ class vbwkde(Stage):
 
         pid_kde_profiles = self.kde_info['pid'][flavintgroup]
         e_kde_profiles = self.kde_info['energy'][flavintgroup]
-        cz_kde_profiles = self.kde_info['coszen'][flavintgroup]
+        dcz_kde_profiles = self.kde_info['coszen'][flavintgroup]
 
         kde_binning = self.kde_binning
 
@@ -965,27 +1031,68 @@ class vbwkde(Stage):
                    - self.params.e_reco_bias.value.m) / e_res_scale
         )
         reco_cz_edges = reco_coszen.bin_edges.m
-        if reco_coszen.is_lin:
-            rcz_min = reco_cz_edges[0]
-            rcz_max = reco_cz_edges[-1]
-            dcz = np.mean(np.diff(reco_cz_edges))
-            def czbinfunc(x, weights):
-                inside_mask = (x >= rcz_min) & (x <= rcz_max)
-                intx = np.int32((x[inside_mask] - reco_cz_edges[0]) / dcz)
-                return np.bincount(intx, weights[inside_mask])
-        else:
-            def czbinfunc(x, weights):
-                out, _ = np.histogram(x, weights=weights, bins=reco_cz_edges)
-                return out
+        reco_cz_lower_edges = reco_cz_edges[:-1]
+        reco_cz_upper_edges = reco_cz_edges[1:]
+
+        # Compute info for the delta-coszen bin edges, for each true-coszen
+        # input bin and each reco-coszen output bin; also get the bin edges
+        # across the entire _possible_ reco-coszen range, for purposes of
+        # normalization.
+
+        # NOTE: reco-coszen systematics will be applied to the reco-coszen
+        # bin edges, but (for proper treatment) must know the mode location of
+        # the coszen KDE profile (which is only known in the innermost loop).
+        # The bias isn't costly to do, but scaling will require shifting the
+        # mode to 0, applying the scale factor, and then shifting back (or
+        # shifting by the bias). So we need to compute as much here as possible
+        # (since it's relatively cheap) but we may still need to do some of the
+        # work within the innermost loop (yuck).
+
+        #if reco_coszen.is_lin:
+        #    rcz_min = reco_cz_edges[0]
+        #    rcz_max = reco_cz_edges[-1]
+        #    dcz = np.mean(np.diff(reco_cz_edges))
+        #    def czbinfunc(x, weights):
+        #        inside_mask = (x >= rcz_min) & (x <= rcz_max)
+        #        intx = np.int64((x[inside_mask] - reco_cz_edges[0]) / dcz)
+        #        return np.bincount(intx, weights[inside_mask])
+        #else:
+        #    def czbinfunc(x, weights):
+        #        out, _ = np.histogram(x, weights=weights, bins=reco_cz_edges)
+        #        return out
 
         true_e_centers = inf2finite(true_coszen.weighted_centers.m)
-        true_cz_centers = inf2finite(true_coszen.weighted_centers.m)
+        true_cz_centers = true_coszen.weighted_centers.m
+        true_cz_edges = true_coszen.bin_edges.m
+        true_cz_edge_pairs = [(e0, e1) for e0, e1 in zip(true_cz_edges[:-1],
+                                                         true_cz_edges[1:])]
+
+        allbins_dcz_edge_info = []
+        for true_cz_binedges in izip(true_cz_centers,
+                                     true_coszen.iteredgetuples()):
+            all_dcz_binedges, cz_reco_indices = coszen_error_edges(
+                true_cz_edges, reco_cz_edges
+            )
+            allbins_dcz_edge_info.append(
+                dict(all_dcz_binedges=all_dcz_binedges,
+                     cz_reco_indices=cz_reco_indices)
+            )
 
         cz_closest_cz_indices = [
             np.argmin(np.abs(fold_coszen_error(cz_kde_cz_centers
                                                - true_cz_center)))
             for true_cz_center in true_cz_centers
         ]
+
+        # Define only what needs to be done to coszen KDE profile based on
+        # systematics that actually have an effect
+        op_scale_shift_cz_kde = 'cz_kde_profile.x'
+        if cz_res_scale != 1:
+            op_scale_shift_cz_kde += ' * cz_res_scale'
+        if cz_reco_bias != 0:
+            op_scale_shift_cz_kde += ' + (cz_reco_bias + true_cz_center)'
+        else:
+            op_scale_shift_cz_kde += ' + true_cz_center'
 
         for true_e_bin_num, true_e_center in enumerate(true_e_centers):
             logging.debug('  > Working on true_e_bin_num %d of %d',
@@ -1045,36 +1152,38 @@ class vbwkde(Stage):
                     np.log(true_e_center / cz_kde_e_centers)
                 ))
 
+                # TODO: implement `res_scale_ref` and `cz_reco_bias`!
+
                 # Get the closest coszen smearing for this
                 # (PID, true-coszen, true-energy) bin
-                for true_cz_bin_num, true_cz_center in enumerate(true_cz_centers):
+                for true_cz_bin_num, (true_cz_lower_edge, true_cz_upper_edge) \
+                        in enumerate(true_cz_edge_pairs):
                     cz_closest_cz_idx = cz_closest_cz_indices[true_cz_bin_num]
                     cz_closest_kde_coord = kde_binning['coszen'].Coord(
                         pid=pid_bin_num,
                         true_coszen=cz_closest_cz_idx,
                         true_energy=cz_closest_e_idx
                     )
-                    cz_kde_profile = cz_kde_profiles[cz_closest_kde_coord]
 
-                    # TODO: implement `res_scale_ref`!
+                    # Get KDE profile (in "delta-cz" space)
+                    dcz_kde_profile = dcz_kde_profiles[cz_closest_kde_coord]
 
-                    # For coszen, it seems easier to shift and scale the
-                    # datapoints than the bin edges, due to the morroring at
-                    # the edges issues...
-                    # TODO: new understanding of cz error handling now; folding
-                    #       must be about reco error extents, not +/-1; must
-                    #       reweight by parts of curve not possible to
-                    #       represent given different-sized input bin; scaling
-                    #       to "better" (narrower) resolution or bias is very
-                    #       problematic, especially if the shift/scale is
-                    #       larger than the tail we have due to larger bin
-                    #       used for characterization vs. input...
-                    shifted_scaled_x = ( #fold_coszen_error(
-                        cz_kde_profile.x*cz_res_scale + cz_reco_bias + true_cz_center
+                    dcz_edge_info = allbins_dcz_edge_info[true_cz_bin_num]
+
+                    hist, _ = np.histogram(
+                        cz_kde_profile.x, weights=cz_kde_profile.weights,
+                        bins=dcz_edge_info['all_dcz_binedges'], density=False
                     )
-                    coszen_fractions = czbinfunc(
-                        x=shifted_scaled_x, weights=cz_kde_profile.density
-                    )
+
+                    # Collect the relevant hist sections to describe each
+                    # quantity of interest, starting with normalization
+                    norm = 1/np.sum(hist)
+                    reco_indices = dcz_edge_info['cz_reco_indices']
+                    reco_cz_fractions = []
+                    for reco_lower, reco_upper in izip(reco_indices):
+                        reco_cz_fractions.append(
+                            norm * np.sum(hist[reco_lower:reco_upper])
+                        )
 
                     coszen_indexer = kernel_binning.defaults_indexer(
                         true_energy=true_e_bin_num,
