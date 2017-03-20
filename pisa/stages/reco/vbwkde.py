@@ -33,7 +33,7 @@ The algorithm is roughly as follows:
             * Use `log(reco_energy/true_energy)`
             * Yields (N_flavints * N_pid_bins * N_ebins) energy res KDEs
         * KDE 'reco_coszen' distribution for events; store in cache
-            * Use `fold_coszen_error(reco_coszen - true_coszen)`
+            * Use `fold_coszen_diff(reco_coszen - true_coszen)`
             * Yields (N_flavints * N_pid_bins * N_ebins) coszen res KDEs
 
 2. GENERATE SMEARING KERNELS: (assumes all energy binning is
@@ -74,11 +74,11 @@ from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup
 from pisa.utils.hash import hash_obj
 from pisa.utils.vbwkde import vbwkde as vbwkde_func
 from pisa.utils.log import logging
-
+from pisa.utils.profiler import line_profile, profile
 
 __all__ = ['KDE_DIM_DEPENDENCIES', 'KDE_TRUE_BINNING', 'MIN_NUM_EVENTS',
            'TGT_NUM_EVENTS', 'TGT_MAX_BINWIDTH_FACTOR',
-           'KDEProfile', 'collect_enough_events', 'fold_coszen_error',
+           'KDEProfile', 'collect_enough_events', 'fold_coszen_diff',
            'weight_coszen_tails', 'coszen_error_edges',
            'vbwkde']
 
@@ -294,70 +294,70 @@ def inf2finite(x):
     return np.clip(x, a_min=FTYPE_MIN, a_max=FTYPE_MAX)
 
 
-def fold_coszen_error(coszen_error, randomize=False):
-    """Fold coszen error above 1 down, and below -1 up.
+def fold_coszen_diff(coszen_diff, randomize=False):
+    """Fold coszen difference above 1 down, and below -1 up.
 
     Parameters
     ----------
-    coszen_error
-        Cosine-zenith errors, found by (coszen_reco - coszen_true).
+    coszen_diff
+        Cosine-zenith difference, e.g. `reco_coszen - true_coszen`
 
     randomize : bool
-        Randomizes the errors about 0, such that the full distribution of
-        coszen errors looks good to the eye when plotted against true coszen.
+        Randomizes the differences about 0, such that the full distribution of
+        coszen diffs looks good to the eye when plotted against true coszen.
         This is not necessary, though, as a computational step (the underlying
-        distribution of coszen error is the same with or without
+        distribution of coszen diffs is the same with or without
         randomization).
 
     Returns
     -------
-    folded_coszen_error
+    folded_coszen_diffs
 
     """
     if randomize:
         rnd = np.random.RandomState()
-        random_sign = rnd.choice((-1, +1), size=coszen_error.shape)
-        coszen_error = coszen_error * random_sign
-        folded_coszen_error = coszen_error
+        random_sign = rnd.choice((-1, +1), size=coszen_diff.shape)
+        coszen_diff = coszen_diff * random_sign
+        folded_coszen_diff = coszen_diff
     else:
-        folded_coszen_error = deepcopy(coszen_error)
+        folded_coszen_diff = deepcopy(coszen_diff)
 
-    mask = coszen_error > 1
-    folded_coszen_error[mask] = 2 - coszen_error[mask]
-    mask = coszen_error < -1
-    folded_coszen_error[mask] = -2 - coszen_error[mask]
+    mask = coszen_diff > 1
+    folded_coszen_diff[mask] = 2 - coszen_diff[mask]
+    mask = coszen_diff < -1
+    folded_coszen_diff[mask] = -2 - coszen_diff[mask]
 
-    return folded_coszen_error
+    return folded_coszen_diff
 
 
-def weight_coszen_tails(cz_error, cz_bin, input_weights=None):
+def weight_coszen_tails(cz_diff, cz_bin, input_weights=None):
     """Calculate weights that compensate for fewer points in the inherent tails
-    of the coszen-error distribution.
+    of the coszen-difference (usually coszen-error) distribution.
 
     Parameters
     ----------
-    cz_error : array
-        Cosine-zenith erors. I.e., coszen_reco - coszen_true values
+    cz_diff : array
+        Cosine-zenith differences. E.g., `coszen_reco - coszen_true`
 
     cz_bin : OneDimBinning in true-coszen
-        The true-coszen bin in which the coszen errors were computed.
+        The true-coszen bin in which the coszen differences were computed.
 
-    input_weights : None or array of same size as `cz_error`
+    input_weights : None or array of same size as `cz_diff`
         Existing weights that are to be multiplied by the tail weights to
         arrive at an overall weight for each event. If provided, must have same
-        shape as `cz_error`.
+        shape as `cz_diff`.
 
     Returns
     -------
     weights : array
-    error_limits : tuple of two scalars
-        (error_lower_lim, error_upper_lim)
+    diff_limits : tuple of two scalars
+        (diff_lower_lim, diff_upper_lim)
 
     """
     # Create all-ones weights vector if a weights field
     # hasn't been specified
     if input_weights is None:
-        weights = np.ones_like(cz_error)
+        weights = np.ones_like(cz_diff)
     else:
         weights = deepcopy(input_weights)
 
@@ -365,37 +365,37 @@ def weight_coszen_tails(cz_error, cz_bin, input_weights=None):
     bin_lower_edge = np.min(cz_bin.bin_edges.m)
     bin_upper_edge = np.max(cz_bin.bin_edges.m)
 
-    # Identify limits of possible error distribution
-    error_lower_lim = -1 - bin_upper_edge
-    error_upper_lim = +1 - bin_lower_edge
-    error_limits = (error_lower_lim, error_upper_lim)
+    # Identify limits of possible diff distribution
+    diff_lower_lim = -1 - bin_upper_edge
+    diff_upper_lim = +1 - bin_lower_edge
+    diff_limits = (diff_lower_lim, diff_upper_lim)
 
     # Identify inner limits of the tails
     lower_tail_upper_lim = -1 - bin_lower_edge
     upper_tail_lower_lim = +1 - bin_upper_edge
 
     # Identify tail widths
-    lower_tail_width = lower_tail_upper_lim - error_lower_lim
-    upper_tail_width = error_upper_lim - upper_tail_lower_lim
+    lower_tail_width = lower_tail_upper_lim - diff_lower_lim
+    upper_tail_width = diff_upper_lim - upper_tail_lower_lim
 
     # Create masks for events in the tails
-    upper_tail_mask = cz_error > upper_tail_lower_lim
-    lower_tail_mask = cz_error < lower_tail_upper_lim
+    upper_tail_mask = cz_diff > upper_tail_lower_lim
+    lower_tail_mask = cz_diff < lower_tail_upper_lim
 
     # Update the weights for events in the tails
     weights[lower_tail_mask] *= (
-        lower_tail_width/(cz_error[lower_tail_mask] - error_lower_lim)
+        lower_tail_width/(cz_diff[lower_tail_mask] - diff_lower_lim)
     )
     weights[upper_tail_mask] *= (
-        upper_tail_width/(error_upper_lim - cz_error[upper_tail_mask])
+        upper_tail_width/(diff_upper_lim - cz_diff[upper_tail_mask])
     )
 
-    return weights, error_limits
+    return weights, diff_limits
 
 
 def coszen_error_edges(true_edges, reco_edges):
-    """Return a list of edges in coszen-error space given 2 true-coszen edges
-    and reco-coszen edges. Systematics are not implemented at thistime.
+    """Return a list of edges in coszen-error space given 2 true-coszen
+    edges and reco-coszen edges. Systematics are not implemented at thistime.
 
     Parameters
     ----------
@@ -417,44 +417,49 @@ def coszen_error_edges(true_edges, reco_edges):
         `(reco_edges[:-1], reco_dges[1:])`.
 
     """
+    n_reco_edges = len(reco_edges)
     reco_lower_binedges = reco_edges[:-1]
     reco_upper_binedges = reco_edges[1:]
-    t_lower_binedge, t_upper_binedge = true_edges
-    full_reco_range_lower_binedge = -1 - true_edges[0]
-    full_reco_range_upper_binedge = +1 - true_edges[1]
+    true_lower_binedge, true_upper_binedge = true_edges
 
-    czerr_lower_binedges = []
-    czerr_upper_binedges = []
+    full_reco_range_lower_binedge = -1 - true_upper_binedge
+    full_reco_range_upper_binedge = +1 - true_lower_binedge
+
+    dcz_lower_binedges = []
+    dcz_upper_binedges = []
     for reco_lower_binedge, reco_upper_binedge in zip(reco_lower_binedges,
                                                       reco_upper_binedges):
-        czerr_lower_binedges.append(reco_lower_binedge - true_upper_binedge)
-        czerr_upper_binedges.append(reco_upper_binedge - true_lower_binedge)
+        dcz_lower_binedges.append(reco_lower_binedge - true_upper_binedge)
+        dcz_upper_binedges.append(reco_upper_binedge - true_lower_binedge)
 
-    all_dcz_binedges = czerr_lower_binedges + czerr_upper_binedges
-    all_dcz_binedges.sort()
+    all_dcz_binedges = sorted(dcz_lower_binedges + dcz_upper_binedges)
 
     # Make sure the full-reco-range edges are included in "all" bin edges
     if full_reco_range_lower_binedge != all_dcz_binedges[0]:
         all_dcz_binedges.insert(0, full_reco_range_lower_binedge)
     if full_reco_range_upper_binedge != all_dcz_binedges[-1]:
-        all_dcz_binedges.insert(-1, full_reco_range_upper_binedge)
+        all_dcz_binedges.append(full_reco_range_upper_binedge)
 
-    # We know the indices of the full-range edges since they're the extrema
-    full_reco_range_lower_binedge_idx = 0
-    full_reco_range_upper_binedge_idx = len(all_dcz_binedges) - 1
+    if sorted(all_dcz_binedges) != all_dcz_binedges:
+        print '='*80
+        print 'all_dcz_binedges:\n', all_dcz_binedges
+        print ''
+        print 'true edges:', true_lower_binedge, true_upper_binedge
+        print ''
+        print 'full-reco-range dcz edges:', full_reco_range_lower_binedge, full_reco_range_upper_binedge
 
     # Find the indices corresponding to the lower and upper bin edges
-    czerr_lower_binedge_indices, czerr_upper_binedge_indices = [], []
-    for lower_binedge, upper_binedge in zip(czerr_lower_binedges,
-                                            czerr_upper_binedges):
-        czerr_lower_binedge_indices.append(
+    dcz_lower_binedge_indices, dcz_upper_binedge_indices = [], []
+    for lower_binedge, upper_binedge in zip(dcz_lower_binedges,
+                                            dcz_upper_binedges):
+        dcz_lower_binedge_indices.append(
             all_dcz_binedges.index(lower_binedge)
         )
-        czerr_upper_binedge_indices.append(
+        dcz_upper_binedge_indices.append(
             all_dcz_binedges.index(upper_binedge)
         )
 
-    reco_indices = (czerr_lower_binedge_indices, czerr_upper_binedge_indices)
+    reco_indices = (dcz_lower_binedge_indices, dcz_upper_binedge_indices)
 
     return all_dcz_binedges, reco_indices
 
@@ -926,7 +931,7 @@ class vbwkde(Stage):
                         feature = (flav_events['reco_coszen']
                                    - flav_events['true_coszen'])
                         weights, error_limits = weight_coszen_tails(
-                            cz_error=feature, cz_bin=bin_binning.true_coszen,
+                            cz_diff=feature, cz_bin=bin_binning.true_coszen,
                             input_weights=weights
                         )
                         weights = weights * (len(weights)/np.sum(weights))
@@ -960,7 +965,7 @@ class vbwkde(Stage):
 
             if self.disk_cache is not None:
                 self.disk_cache[new_hash] = self.kde_info[kde_dim]
-
+    @line_profile
     def generate_smearing_kernel(self, flavintgroup):
         """Construct a smearing kernel for the flavintgroup specified.
 
@@ -1053,28 +1058,29 @@ class vbwkde(Stage):
         # (since it's relatively cheap) but we may still need to do some of the
         # work within the innermost loop (yuck).
 
-        true_e_centers = inf2finite(true_coszen.weighted_centers.m)
+        true_e_centers = true_energy.weighted_centers.m
         true_cz_centers = true_coszen.weighted_centers.m
         true_cz_edges = true_coszen.bin_edges.m
         true_cz_edge_pairs = [(e0, e1) for e0, e1 in zip(true_cz_edges[:-1],
                                                          true_cz_edges[1:])]
 
         allbins_dcz_edge_info = []
-        for true_cz_binedges in izip(true_cz_centers,
-                                     true_coszen.iteredgetuples()):
+        cz_closest_cz_indices = []
+        for center, true_edgetuple in izip(true_cz_centers,
+                                           true_coszen.iteredgetuples()):
             all_dcz_binedges, cz_reco_indices = coszen_error_edges(
-                true_cz_edges, reco_cz_edges
+                true_edges=true_edgetuple, reco_edges=reco_cz_edges
             )
             allbins_dcz_edge_info.append(
                 dict(all_dcz_binedges=all_dcz_binedges,
                      cz_reco_indices=cz_reco_indices)
             )
 
-        cz_closest_cz_indices = [
-            np.argmin(np.abs(fold_coszen_error(cz_kde_cz_centers
-                                               - true_cz_center)))
-            for true_cz_center in true_cz_centers
-        ]
+            cz_closest_cz_indices.append(
+                np.argmin(np.abs(
+                    fold_coszen_diff(cz_kde_cz_centers - center)
+                ))
+            )
 
         # Define only what needs to be done to coszen KDE profile based on
         # systematics that actually have an effect
@@ -1163,7 +1169,7 @@ class vbwkde(Stage):
                     dcz_edge_info = allbins_dcz_edge_info[true_cz_bin_num]
 
                     hist, _ = np.histogram(
-                        cz_kde_profile.x, weights=cz_kde_profile.weights,
+                        dcz_kde_profile.x, weights=dcz_kde_profile.density,
                         bins=dcz_edge_info['all_dcz_binedges'], density=False
                     )
 
@@ -1172,7 +1178,7 @@ class vbwkde(Stage):
                     norm = 1/np.sum(hist)
                     reco_indices = dcz_edge_info['cz_reco_indices']
                     reco_cz_fractions = []
-                    for reco_lower, reco_upper in izip(reco_indices):
+                    for reco_lower, reco_upper in izip(*reco_indices):
                         reco_cz_fractions.append(
                             norm * np.sum(hist[reco_lower:reco_upper])
                         )
@@ -1182,6 +1188,6 @@ class vbwkde(Stage):
                         true_coszen=true_cz_bin_num,
                         pid=pid_bin_num
                     )
-                    kernel.hist[coszen_indexer] *= coszen_fractions
+                    kernel.hist[coszen_indexer] *= np.array(reco_cz_fractions)
 
         return kernel

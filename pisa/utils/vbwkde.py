@@ -186,9 +186,9 @@ def fbwkde(data, weights=None, n_dct=None, min=None, max=None,
         # Inverse DCT to get density
         density = fftpack.idct(sm_dct_data, norm=None)*n_dct/hist_range
         if np.any(density < 0):
-            logging.warn(
-                'ISJ encountered numerical instability in IDCT. Result will be'
-                ' computed without the IDCT.'
+            logging.trace(
+                'ISJ encountered numerical instability in IDCT (resulting in a'
+                ' negative density). Result will be computed without the IDCT.'
             )
             evaluate_at = (bins[0:-1] + bins[1:]) / 2
         else:
@@ -441,8 +441,8 @@ def isj_bandwidth(y, n_datapoints, x_range, min_bandwidth):
             raise ValueError('Unknown OPT_TYPE "%s"' % OPT_TYPE)
 
         if t_star < min_t_star:
-            logging.warn('t_star = %.4e < min_t_star = %.4e;'
-                         ' setting to min_t_star', t_star, min_t_star)
+            logging.trace('t_star = %.4e < min_t_star = %.4e;'
+                          ' setting to min_t_star', t_star, min_t_star)
             t_star = min_t_star
 
         # NOTE: Use `math.sqrt` _not_ `numpy.sqrt` to ensure failures raise
