@@ -28,6 +28,7 @@ from pisa.utils.fileio import from_file
 from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
+from pisa.utils.comparisons import recursiveEquality, EQUALITY_PREC
 
 
 __all__ = ['param']
@@ -303,7 +304,7 @@ class param(Stage):
         for dist_type in dist_dicts:
             for dist_dict in dist_type:
                 frac_sum += dist_dict['fraction']
-        if not np.all(np.isclose(frac_sum, np.ones_like(frac_sum))):
+        if not recursiveEquality(frac_sum, np.ones_like(frac_sum)):
             err_msg = ("Total normalisation of resolution function is off"
                        " (fractions do not add up to 1).")
             raise ValueError(err_msg)
@@ -558,13 +559,24 @@ class param(Stage):
 
                 reco_kernel[i,j] = np.outer(e_kern_cdf, cz_kern_cdf)
 
-            # sanity check of reco kernels, copied from reco.hist stage
-            assert np.all(reco_kernel >= 0), \
-                    'number of elements less than 0 = %d' \
-                    % np.sum(reco_kernel < 0)
+            # Sanity check of reco kernels - intolerable negative values?
+            kern_neg_invalid = reco_kernel < -EQUALITY_PREC*np.abs(reco_kernel)
+            if np.any(kernel_neg_invalid):
+                raise ValueError("Detected intolerable negative entries in"
+                                 " reco kernel! Min.: %s"
+                                 %np.min(kern_neg_invalid))
+            # Set values numerically compatible with zero to zero
+            np.where(
+                (reco_kernel >= -EQUALITY_PREC*np.abs(reco_kernel)) &
+                (reco_kernel <= EQUALITY_PREC*np.abs(reco_kernel)),
+                reco_kernel, 0.
+            )
             sum_over_axes = tuple(range(-len(self.output_binning), 0))
             totals = np.sum(reco_kernel, axis=sum_over_axes)
-            assert np.all(totals <= 1+1e-14), 'max = ' + str(np.max(totals)-1)
+            totals_large = (totals >= 1 + EQUALITY_PREC)
+            if np.any(totals_large):
+                raise ValueError("Detected overflow in reco kernel! Max.: %s"
+                                 %str(np.max(totals_large)-1))
 
             if self.input_binning.basenames[0] == "coszen":
                 # The reconstruction kernel has been set up with energy as its
