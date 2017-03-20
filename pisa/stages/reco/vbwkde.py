@@ -54,6 +54,7 @@ The algorithm is roughly as follows:
 #         `np.clip(edges, a_min=np.ftype(FTYPE).min, a_max=np.ftype(FTYPE).max`
 #       would do the trick...)
 
+
 from __future__ import division
 
 from collections import OrderedDict, Sequence, namedtuple
@@ -87,6 +88,7 @@ KDE_DIM_DEPENDENCIES = OrderedDict([
     ('energy', ['pid', 'true_energy']),
     ('coszen', ['pid', 'true_coszen', 'true_energy'])
 ])
+
 KDE_TRUE_BINNING = {
     'pid': MultiDimBinning([
         dict(name='true_energy', num_bins=20, is_log=True,
@@ -107,7 +109,9 @@ KDE_TRUE_BINNING = {
              tex=r'\cos\,\theta_{\rm true}')
     ])
 }
+
 MIN_NUM_EVENTS = 50
+
 TGT_NUM_EVENTS = 1000
 
 # TODO: figure out a dynamic similarity metric such that this parameter can be
@@ -1031,6 +1035,7 @@ class vbwkde(Stage):
                    - self.params.e_reco_bias.value.m) / e_res_scale
         )
         reco_cz_edges = reco_coszen.bin_edges.m
+
         reco_cz_lower_edges = reco_cz_edges[:-1]
         reco_cz_upper_edges = reco_cz_edges[1:]
 
@@ -1047,19 +1052,6 @@ class vbwkde(Stage):
         # shifting by the bias). So we need to compute as much here as possible
         # (since it's relatively cheap) but we may still need to do some of the
         # work within the innermost loop (yuck).
-
-        #if reco_coszen.is_lin:
-        #    rcz_min = reco_cz_edges[0]
-        #    rcz_max = reco_cz_edges[-1]
-        #    dcz = np.mean(np.diff(reco_cz_edges))
-        #    def czbinfunc(x, weights):
-        #        inside_mask = (x >= rcz_min) & (x <= rcz_max)
-        #        intx = np.int64((x[inside_mask] - reco_cz_edges[0]) / dcz)
-        #        return np.bincount(intx, weights[inside_mask])
-        #else:
-        #    def czbinfunc(x, weights):
-        #        out, _ = np.histogram(x, weights=weights, bins=reco_cz_edges)
-        #        return out
 
         true_e_centers = inf2finite(true_coszen.weighted_centers.m)
         true_cz_centers = true_coszen.weighted_centers.m
