@@ -94,7 +94,7 @@ def reduceToHist(obj):
     elif isinstance(obj, Iterable):
         hist = sum([reduceToHist(x) for x in obj])
     else:
-        raise TypeError('Unhandled type for `obj`: %s' %type(obj))
+        raise TypeError('Unhandled type for `obj`: %s' % type(obj))
     return hist
 
 
@@ -136,7 +136,7 @@ def rebin(hist, orig_binning, new_binning, normalize_values=True):
             "`new_binning` dimensions' basenames %s do not have 1:1"
             " correspondence (modulo pre/suffixes) to original binning"
             " dimensions' basenames %s"
-            %(new_binning.basenames, orig_binning.binning.basenames)
+            % (new_binning.basenames, orig_binning.binning.basenames)
         )
 
     if orig_binning.edges_hash == new_binning.edges_hash:
@@ -270,7 +270,7 @@ class Map(object):
 
     """
     _slots = ('name', 'hist', 'binning', 'hash', '_hash', 'tex',
-              'full_comparison', 'parent_indexer', 'normalize_values')
+              'full_comparison', 'parent_indexer', '_normalize_values')
     _state_attrs = ('name', 'hist', 'binning', 'hash', 'tex',
                     'full_comparison')
 
@@ -301,19 +301,19 @@ class Map(object):
         )
         if error_hist is not None:
             self.set_errors(error_hist)
-        self.normalize_values = True
+        self._normalize_values = True
 
     def __repr__(self):
         previous_precision = np.get_printoptions()['precision']
         np.set_printoptions(precision=18)
         try:
-            state = self._serializable_state
+            state = self.serializable_state
             state['hist'] = np.array_repr(state['hist'])
             if state['error_hist'] is not None:
                 state['error_hist'] = np.array_repr(state['error_hist'])
-            argstrs = [('%s=%r' %item) for item in
-                       self._serializable_state.items()]
-            r = '%s(%s)' %(self.__class__.__name__, ',\n    '.join(argstrs))
+            argstrs = [('%s=%r' % item) for item in
+                       self.serializable_state.items()]
+            r = '%s(%s)' % (self.__class__.__name__, ',\n    '.join(argstrs))
         finally:
             np.set_printoptions(precision=previous_precision)
         return r
@@ -325,17 +325,17 @@ class Map(object):
         state['name'] = repr(state['name'])
         state['tex'] = repr(state['tex'])
         state['hist'] = np.array_repr(state['hist'])
-        argstrs = [('%s=%s' %(a, state[a])) for a in attrs]
-        s = '%s(%s)' %(self.__class__.__name__, ',\n    '.join(argstrs))
+        argstrs = [('%s=%s' % (a, state[a])) for a in attrs]
+        s = '%s(%s)' % (self.__class__.__name__, ',\n    '.join(argstrs))
         return s
 
     def __pretty__(self, p, cycle):
         """Method used by the `pretty` library for formatting"""
         myname = self.__class__.__name__
         if cycle:
-            p.text('%s(...)' %myname)
+            p.text('%s(...)' % myname)
         else:
-            p.begin_group(4, '%s(' %myname)
+            p.begin_group(4, '%s(' % myname)
             attrs = ['name', 'tex', 'full_comparison', 'hash',
                      'parent_indexer', 'binning', 'hist']
             for n, attr in enumerate(attrs):
@@ -534,7 +534,7 @@ class Map(object):
         cbar.ax.tick_params(labelsize='large')
         if clabel is not None:
             if clabelsize is not None:
-                cbar.set_label(label=clabel,size=clabelsize)
+                cbar.set_label(label=clabel, size=clabelsize)
             else:
                 cbar.set_label(label=clabel)
 
@@ -772,7 +772,7 @@ class Map(object):
             return {}
 
         else:
-            raise ValueError('unhandled `method` = %s' %orig)
+            raise ValueError('unhandled `method` = %s' % orig)
 
     @property
     def shape(self):
@@ -785,11 +785,11 @@ class Map(object):
         return self.hist.size
 
     @property
-    def _serializable_state(self):
+    def serializable_state(self):
         state = OrderedDict()
         state['name'] = self.name
         state['hist'] = self.nominal_values
-        state['binning'] = self.binning._serializable_state
+        state['binning'] = self.binning.serializable_state
         stddevs = self.std_devs
         stddevs = None if np.all(stddevs == 0) else stddevs
         state['error_hist'] = stddevs
@@ -799,7 +799,7 @@ class Map(object):
         return state
 
     @property
-    def _hashable_state(self):
+    def hashable_state(self):
         state = OrderedDict()
         state['name'] = self.name
         if self.normalize_values:
@@ -809,7 +809,7 @@ class Map(object):
         else:
             state['hist'] = self.nominal_values
             stddevs = self.std_devs
-        state['binning'] = self.binning._hashable_state
+        state['binning'] = self.binning.hashable_state
         # TODO: better check here to see if the contained datatype is unp, as
         # opposed to 0 stddev (which could be the case but the user wants for
         # uncertainties to propagate)
@@ -822,8 +822,17 @@ class Map(object):
         state['full_comparison'] = self.full_comparison
         return state
 
+    @property
+    def normalize_values(self):
+        return self._normalize_values
+
+    @normalize_values.setter
+    def normalize_values(self, b):
+        assert isinstance(b, bool)
+        self._normalize_values = b
+
     def __getstate__(self):
-        return self._serializable_state
+        return self.serializable_state
 
     def __setstate__(self, state):
         self.__init__(**state)
@@ -846,7 +855,7 @@ class Map(object):
         pisa.utils.jsons.to_json
 
         """
-        jsons.to_json(self._serializable_state, filename=filename, **kwargs)
+        jsons.to_json(self.serializable_state, filename=filename, **kwargs)
 
     @classmethod
     def from_json(cls, resource):
@@ -880,7 +889,7 @@ class Map(object):
         elif isinstance(other, Map):
             self.binning.assert_compat(other.binning)
         else:
-            raise TypeError('Unhandled type %s' %type(other))
+            raise TypeError('Unhandled type %s' % type(other))
 
     def iterbins(self):
         """Returns a bin iterator which yields a map containing a single bin
@@ -1063,9 +1072,9 @@ class Map(object):
             mapset_name = 'split_on__%s' % spliton_dim.name
 
         if self.tex is not None and len(self.tex) > 0:
-            mapset_tex = r'%s, \; %s' %(self.tex, spliton_dim.tex)
+            mapset_tex = r'%s, \; %s' % (self.tex, spliton_dim.tex)
         else:
-            mapset_tex = r'%s' %spliton_dim.tex
+            mapset_tex = r'%s' % spliton_dim.tex
 
         return MapSet(maps=maps, name=mapset_name, tex=mapset_tex)
 
@@ -1166,7 +1175,7 @@ class Map(object):
         else:
             return np.sum(stats.mod_chi2(actual_values=self.hist,
                                          expected_values=expected_values))
-    
+
     def chi2(self, expected_values, binned=False):
         """Calculate the total chi-squared value between this map and the map
         described by `expected_values`; self is taken to be the "actual values"
@@ -1196,7 +1205,7 @@ class Map(object):
             return getattr(self, metric)(expected_values)
         else:
             raise ValueError('`metric` "%s" not recognized; use one of %s.'
-                             %(metric, stats.ALL_METRICS))
+                             % (metric, stats.ALL_METRICS))
 
     def __setitem__(self, idx, val):
         return setitem(self.hist, idx, val)
@@ -1361,8 +1370,8 @@ class Map(object):
         if isinstance(other, Map):
             if (self.full_comparison or other.full_comparison
                     or self.hash is None or other.hash is None):
-                return recursiveEquality(self._hashable_state,
-                                         other._hashable_state)
+                return recursiveEquality(self.hashable_state,
+                                         other.hashable_state)
             return self.hash == other.hash
 
         type_error(other)
@@ -1606,9 +1615,9 @@ class MapSet(object):
         previous_precision = np.get_printoptions()['precision']
         np.set_printoptions(precision=18)
         try:
-            argstrs = [('%s=%r' %item) for item in
-                       self._serializable_state.items()]
-            r = '%s(%s)' %(self.__class__.__name__, ',\n    '.join(argstrs))
+            argstrs = [('%s=%r' % item) for item in
+                       self.serializable_state.items()]
+            r = '%s(%s)' % (self.__class__.__name__, ',\n    '.join(argstrs))
         finally:
             np.set_printoptions(precision=previous_precision)
         return r
@@ -1620,18 +1629,18 @@ class MapSet(object):
         state['tex'] = repr(self.tex)
         state['hash'] = repr(self.hash)
         state['maps'] = ('[\n' + ' '*8 + '%s    \n]'
-                         %',\n        '.join([str(m) for m in self]))
-        argstrs = [('%s=%s' %(a, state[a])) for a in attrs]
-        s = '%s(%s)' %(self.__class__.__name__, ',\n    '.join(argstrs))
+                         % ',\n        '.join([str(m) for m in self]))
+        argstrs = [('%s=%s' % (a, state[a])) for a in attrs]
+        s = '%s(%s)' % (self.__class__.__name__, ',\n    '.join(argstrs))
         return s
 
     def __pretty__(self, p, cycle):
         """Method used by the `pretty` library for formatting"""
         myname = self.__class__.__name__
         if cycle:
-            p.text('%s(...)' %myname)
+            p.text('%s(...)' % myname)
         else:
-            p.begin_group(4, '%s(' %myname)
+            p.begin_group(4, '%s(' % myname)
             attrs = ['name', 'hash', 'maps']
             for n, attr in enumerate(attrs):
                 p.breakable()
@@ -1646,16 +1655,16 @@ class MapSet(object):
         return self.__pretty__(p, cycle)
 
     @property
-    def _serializable_state(self):
+    def serializable_state(self):
         state = OrderedDict()
-        state['maps'] = [m._serializable_state for m in self]
+        state['maps'] = [m.serializable_state for m in self]
         state['name'] = self.name
         state['tex'] = self.tex
         state['collate_by_name'] = self.collate_by_name
         return state
 
     def __getstate__(self):
-        return self._serializable_state
+        return self.serializable_state
 
     def __setstate__(self, state):
         self.__init__(**state)
@@ -1678,7 +1687,7 @@ class MapSet(object):
         pisa.utils.jsons.to_json
 
         """
-        jsons.to_json(self._serializable_state, filename=filename, **kwargs)
+        jsons.to_json(self.serializable_state, filename=filename, **kwargs)
 
     @classmethod
     def from_json(cls, resource):
@@ -1727,11 +1736,11 @@ class MapSet(object):
             elif isinstance(x, basestring):
                 x = self.names.index(x)
             else:
-                raise TypeError('Unhandled type "%s" for `x`' %type(x))
+                raise TypeError('Unhandled type "%s" for `x`' % type(x))
         except (AssertionError, ValueError):
             raise ValueError(
                 "A map corresponding to '%s' cannot be found in the set."
-                " Valid maps are %s" %(x, self.names)
+                " Valid maps are %s" % (x, self.names)
             )
         return x
 
@@ -1761,7 +1770,7 @@ class MapSet(object):
             m = self.maps.pop(idx)
         else:
             raise ValueError('`pop` takes 0 or 1 argument; %d passed instead.'
-                             %len(args))
+                             % len(args))
         return m
 
     # TODO: add different aggregation options OR rename to sum_{wildcard|re}
@@ -1950,7 +1959,7 @@ class MapSet(object):
         return rslt
 
     def __eq__(self, other):
-        return recursiveEquality(self._hashable_state, other._hashable_state)
+        return recursiveEquality(self.hashable_state, other.hashable_state)
 
     @property
     def name(self):
@@ -2018,8 +2027,8 @@ class MapSet(object):
             except ValueError:
                 pass
         if idx is None:
-            raise ValueError('Could not find map name "%s" in %s' %
-                             (value, self))
+            raise ValueError('Could not find map name "%s" in %s'
+                             % (value, self))
         return self[idx]
 
     def apply_to_maps(self, attr, *args, **kwargs):
@@ -2039,7 +2048,7 @@ class MapSet(object):
             num_total = len(do_not_have_attr)
             raise AttributeError(
                 'Maps %s (%d of %d maps in set) do not have attribute "%s"'
-                %(missing_in_names, num_missing, num_total, attrname)
+                % (missing_in_names, num_missing, num_total, attrname)
             )
 
         # Retrieve the corresponding callables from contained maps
@@ -2087,8 +2096,8 @@ class MapSet(object):
                                 list_arg.append(item[map_num])
                     this_map_args.append(list_arg)
                 else:
-                    raise TypeError('Unhandled arg %s / type %s' %
-                                    (arg, type(arg)))
+                    raise TypeError('Unhandled arg %s / type %s'
+                                    % (arg, type(arg)))
             args_per_map.append(this_map_args)
 
         # Make the method calls and collect returned values
@@ -2265,15 +2274,15 @@ class MapSet(object):
         if isinstance(metric, basestring):
             metric = metric.lower()
             if 'binned_' in metric:
-                metric = metric.replace('binned_','')
-                binned=True
+                metric = metric.replace('binned_', '')
+                binned = True
             else:
-                binned=False
+                binned = False
         if metric in stats.ALL_METRICS:
             return self.apply_to_maps(metric, expected_values, binned)
         else:
             raise ValueError('`metric` "%s" not recognized; use one of %s.'
-                             %(metric, stats.ALL_METRICS))
+                             % (metric, stats.ALL_METRICS))
 
     def metric_total(self, expected_values, metric):
         return np.sum(self.metric_per_map(expected_values, metric).values())
@@ -2397,17 +2406,17 @@ def test_Map():
     m3 = Map(name='z', hist=4*np.ones((n_ebins, n_czbins, n_azbins)),
              binning=(e_binning, cz_binning, az_binning))
 
-    assert m3[0, 0, 0] == 4, 'm3[0, 0, 0] = %s' %m3[0, 0, 0]
+    assert m3[0, 0, 0] == 4, 'm3[0, 0, 0] = %s' % m3[0, 0, 0]
     testdir = tempfile.mkdtemp()
     try:
         for m in [m1, m2, m1+m2, m1-m2, m1/m2, m1*m2]:
             m_file = os.path.join(testdir, m.name + '.json')
             m.to_json(m_file, warn=False)
             m_ = Map.from_json(m_file)
-            assert m_ == m, 'm=\n%s\nm_=\n%s' %(m, m_)
+            assert m_ == m, 'm=\n%s\nm_=\n%s' % (m, m_)
             jsons.to_json(m, m_file, warn=False)
             m_ = Map.from_json(m_file)
-            assert m_ == m, 'm=\n%s\nm_=\n%s' %(m, m_)
+            assert m_ == m, 'm=\n%s\nm_=\n%s' % (m, m_)
             # Had bug where datastruct containing MapSet failed to be saved.
             # Test tuple containing list containing OrderedDict containing
             # Map here.
@@ -2642,10 +2651,10 @@ def test_MapSet():
             ms_file = os.path.join(testdir, ms.name + '.json')
             ms.to_json(ms_file, warn=False)
             ms_ = MapSet.from_json(ms_file)
-            assert ms_ == ms, 'ms=\n%s\nms_=\n%s' %(ms, ms_)
+            assert ms_ == ms, 'ms=\n%s\nms_=\n%s' % (ms, ms_)
             jsons.to_json(ms, ms_file, warn=False)
             ms_ = MapSet.from_json(ms_file)
-            assert ms_ == ms, 'ms=\n%s\nms_=\n%s' %(ms, ms_)
+            assert ms_ == ms, 'ms=\n%s\nms_=\n%s' % (ms, ms_)
 
             # Had bug where datastruct containing MapSet failed to be saved.
             # Test tuple containing list containing OrderedDict containing

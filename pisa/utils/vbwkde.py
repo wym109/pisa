@@ -671,7 +671,7 @@ def test_fixed_point():
 
 
 if __name__ == "__main__":
-    set_verbosity(2)
+    set_verbosity(1)
     test_fixed_point()
     test_isj_bandwidth()
     test_fbwkde()

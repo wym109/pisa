@@ -117,6 +117,7 @@ def to_json(content, filename, indent=2, overwrite=True, warn=True,
         return content.to_json(filename, indent=indent, overwrite=overwrite,
                                warn=warn, sort_keys=sort_keys)
     from pisa.utils.fileio import check_file_exists
+    from pisa.utils.log import logging
     check_file_exists(fname=filename, overwrite=overwrite, warn=warn)
 
     _, ext = os.path.splitext(filename)
@@ -145,6 +146,7 @@ def to_json(content, filename, indent=2, overwrite=True, warn=True,
 class NumpyEncoder(json.JSONEncoder):
     """Encode special objects to be representable as JSON."""
     def default(self, obj):
+        from pisa.utils.log import logging
         if isinstance(obj, np.ndarray):
             return obj.tolist()
         # TODO: poor form to have a way to get this into a JSON file but no way
@@ -156,8 +158,8 @@ class NumpyEncoder(json.JSONEncoder):
         # Python bool type, hence this conversion
         elif isinstance(obj, np.bool_):
             return bool(obj)
-        elif hasattr(obj, '_serializable_state'):
-            return obj._serializable_state
+        elif hasattr(obj, 'serializable_state'):
+            return obj.serializable_state
         try:
             return json.JSONEncoder.default(self, obj)
         except:

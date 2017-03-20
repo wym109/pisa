@@ -466,7 +466,7 @@ class ParamSet(Sequence):
         self.normalize_values = False
 
     @property
-    def _serializable_state(self):
+    def serializable_state(self):
         state = OrderedDict()
         for p in self._params:
             state[p.name] = p.state
@@ -858,7 +858,8 @@ class ParamSet(Sequence):
     @values.setter
     def values(self, values):
         assert len(values) == len(self._params)
-        [setattr(self._params[i], 'value', val) for i, val in enumerate(values)]
+        for i, val in enumerate(values):
+            setattr(self._params[i], 'value', val)
 
     @property
     def name_val_dict(self):
@@ -907,7 +908,8 @@ class ParamSet(Sequence):
     @ranges.setter
     def ranges(self, values):
         assert len(values) == len(self._params)
-        [setattr(self._params[i], 'range', val) for i, val in enumerate(values)]
+        for i, val in enumerate(values):
+            setattr(self._params[i], 'range', val)
 
     @property
     def state(self):
@@ -935,7 +937,7 @@ class ParamSet(Sequence):
         """Serialize the state to a JSON file that can be instantiated as a new
         object later.
         """
-        jsons.to_json(self._serializable_state, filename=filename, **kwargs)
+        jsons.to_json(self.serializable_state, filename=filename, **kwargs)
 
 class ParamSelector(object):
     """

@@ -147,14 +147,13 @@ class Analysis(object):
                                  'are incompatible.')
 
             logging.info('Performing fits in both orderings.')
-            extra_param_selections = ['nh','ih']
+            extra_param_selections = ['nh', 'ih']
         else:
             extra_param_selections = [None]
 
         alternate_fits = []
 
         for extra_param_selection in extra_param_selections:
-            
             if extra_param_selection is not None:
                 full_param_selections = hypo_param_selections
                 full_param_selections.append(extra_param_selection)
@@ -279,8 +278,8 @@ class Analysis(object):
             epsilon = minimizer_kind['epsilon']
         bounds = [(0+epsilon, 1-epsilon)]*len(x0)
 
-        logging.debug('Running the %s minimizer.'
-                      %minimizer_settings['method']['value'])
+        logging.debug('Running the %s minimizer.',
+                      minimizer_settings['method']['value'])
 
         # Using scipy.optimize.minimize allows a whole host of minimizers to be
         # used.
@@ -337,9 +336,9 @@ class Analysis(object):
 
         logging.info('Total time to optimize: %8.4f s;'
                      ' # of dists generated: %6d;'
-                     ' avg dist gen time: %10.4f ms'
-                     %(minimizer_time, counter.count,
-                       minimizer_time*1000./counter.count))
+                     ' avg dist gen time: %10.4f ms',
+                     minimizer_time, counter.count,
+                     minimizer_time*1000./counter.count)
 
         # Will not assume that the minimizer left the hypo maker in the
         # minimized state, so set the values now (also does conversion of
@@ -451,7 +450,8 @@ class Analysis(object):
             for asimov_map, metric_hist in zip(hypo_asimov_dist, metric_hists):
                 map_binned = Map(
                     name=asimov_map.name,
-                    hist=np.reshape(metric_hists[metric_hist],asimov_map.shape),
+                    hist=np.reshape(metric_hists[metric_hist],
+                                    asimov_map.shape),
                     binning=asimov_map.binning
                 )
                 maps_binned.append(map_binned)
@@ -516,7 +516,7 @@ class Analysis(object):
             if not blind:
                 logging.error(
                     'Failed to generate Asimov distribution with free'
-                    ' params %s' %(hypo_maker.params.free,)
+                    ' params %s', hypo_maker.params.free
                 )
             raise
 
@@ -530,8 +530,8 @@ class Analysis(object):
         except:
             if not blind:
                 logging.error(
-                    'Failed when computing metric with free params %s'
-                    %hypo_maker.params.free
+                    'Failed when computing metric with free params %s',
+                    hypo_maker.params.free
                 )
             raise
 
@@ -817,9 +817,9 @@ class Analysis(object):
                         del best_fit['minimizer_metadata'][k]
 
             best_fit['params'] = \
-                    deepcopy(best_fit['params']._serializable_state)
+                    deepcopy(best_fit['params'].serializable_state)
             best_fit['hypo_asimov_dist'] = \
-                    deepcopy(best_fit['hypo_asimov_dist']._serializable_state)
+                    deepcopy(best_fit['hypo_asimov_dist'].serializable_state)
 
             # decide which information to retain based on chosen debug mode
             if debug_mode == 0 or debug_mode == 1:

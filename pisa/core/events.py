@@ -1035,4 +1035,5 @@ def test_Data():
 if __name__ == "__main__":
     set_verbosity(1)
     test_Events()
-    test_Data()
+    # TODO: following is removed until a test dataset can be introduced
+    #test_Data()

@@ -238,10 +238,10 @@ def recursiveEquality(x, y):
                     logging.trace('ys: %s' %ys)
                     return False
 
-    elif hasattr(x, '_hashable_state'):
-        if not hasattr(y, '_hashable_state'):
+    elif hasattr(x, 'hashable_state'):
+        if not hasattr(y, 'hashable_state'):
             return False
-        return recursiveEquality(x._hashable_state, y._hashable_state)
+        return recursiveEquality(x.hashable_state, y.hashable_state)
 
     # Unhandled
     else:
@@ -486,9 +486,8 @@ def normQuant(obj, sigfigs=None, full_norm=True):
     # Store kwargs for easily passing to recursive calls of this function
     kwargs = dict(sigfigs=sigfigs, full_norm=full_norm)
 
-    if hasattr(obj, '_normalize'):
-        #logging.trace('calling _normalize')
-        return obj._normalize()
+    if hasattr(obj, 'normalized_state'):
+        return obj.normalized_state
 
     # Recurse into dict by its (sorted) keys (or into OrderedDict using keys in
     # their defined order) and return an OrderedDict in either case.

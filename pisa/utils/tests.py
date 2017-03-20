@@ -151,7 +151,7 @@ def validate_map_objs(amap, bmap):
         raise ValueError(
             "Maps' binnings do not match! Got first map as \n%s \nand second "
             " map as \n%s"
-            % (amap.binning._hashable_state, bmap.binning._hashable_state)
+            % (amap.binning.hashable_state, bmap.binning.hashable_state)
         )
 
 
