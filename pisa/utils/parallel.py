@@ -4,8 +4,12 @@ multiple processes.
 """
 
 
+# TODO: handle keyboard interrupt e.g. http://stackoverflow.com/a/11436603
+
+
 from __future__ import division
 
+from copy import copy
 from itertools import izip
 import Queue
 import threading
@@ -238,13 +242,18 @@ def parallel_run(func, kind, num_parallel, scalar_func, divided_args_mask,
                     kwargs=dict(func=func, retvals_queue=return_values,
                                 chunk=chunk)
                 )
+                thread.daemon = True
                 threads.append(thread)
 
             for thread in threads:
                 thread.start()
 
-            for thread in threads:
-                thread.join()
+            while len(threads) > 0:
+                time.sleep(0.5)
+                for thread in copy(threads):
+                    if not thread.isAlive():
+                        threads.remove(thread)
+                    time.sleep(0.01)
 
         elif kind == 'processes':
             raise NotImplementedError()
