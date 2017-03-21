@@ -54,6 +54,8 @@ The algorithm is roughly as follows:
 #         `np.clip(edges, a_min=np.ftype(FTYPE).min, a_max=np.ftype(FTYPE).max`
 #       would do the trick...)
 # TODO: muons
+# TODO: hash on whatever is appropriate so that the smearing kernel doesn't get
+#       recomputed each time!!!!!!!
 
 
 from __future__ import division
@@ -771,7 +773,7 @@ class vbwkde(Stage):
                     output_name=output_name,
                     input_binning=self.input_binning,
                     output_binning=self.output_binning,
-                    xform_array=self.xform_kernels[xform_flavints],
+                    xform_array=self.xform_kernels[xform_flavints].hist,
                     sum_inputs=self.sum_grouped_flavints
                 )
                 xforms.append(xform)
