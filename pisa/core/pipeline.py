@@ -403,9 +403,9 @@ def parse_args():
         help='File containing settings for the pipeline.'
     )
     parser.add_argument(
-        '--select', metavar='PARAM_SELECTIONS', type=str, required=False,
-        help='''Comma-separated list of param selectors to use (overriding any
-        defaults in the config file).'''
+        '--select', metavar='PARAM_SELECTIONS', nargs='*',
+        help='''Param selectors (separated by spaces) to use to override any
+        defaults in the config file.'''
     )
     parser.add_argument(
         '--only-stage', metavar='STAGE', type=str,
@@ -495,7 +495,7 @@ def main(return_outputs=False):
     # Instantiate the pipeline
     pipeline = Pipeline(args.pipeline)
     if args.select is not None:
-        pipeline.select_params([s.strip() for s in ','.split(args.select)])
+        pipeline.select_params(args.select, error_on_missing=True)
 
     if args.only_stage is None:
         stop_idx = args.stop_after_stage

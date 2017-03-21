@@ -310,9 +310,9 @@ def parse_args():
         help='''Settings file for each pipeline (repeat for multiple).'''
     )
     parser.add_argument(
-        '--select', metavar='PARAM_SELECTIONS', type=str, required=False,
-        help='''Comma-separated list of param selectors to use (overriding any
-        defaults in the config file).'''
+        '--select', metavar='PARAM_SELECTIONS', nargs='*',
+        help='''Param selectors (separated by spaces) to use to override any
+        defaults in the config file.'''
     )
     parser.add_argument(
         '--return-sum', action='store_true',
@@ -352,8 +352,7 @@ def main(return_outputs=False):
 
     distribution_maker = DistributionMaker(pipelines=args.pipeline)
     if args.select is not None:
-        selectors = [s.strip() for s in args.select.split(',')]
-        distribution_maker.select_params(selectors)
+        distribution_maker.select_params(args.select)
 
     outputs = distribution_maker.get_outputs(return_sum=args.return_sum)
     if args.dir:
