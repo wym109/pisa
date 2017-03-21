@@ -49,10 +49,11 @@ The algorithm is roughly as follows:
 
 
 # TODO: nutau needn't be treated below 3.5 GeV! ...
-# TODO: write "closest bin" function
+# TODO: write "closest bin" as a function
 # TODO: handle "closest bin" logic when infinities are involved (seems like
 #         `np.clip(edges, a_min=np.ftype(FTYPE).min, a_max=np.ftype(FTYPE).max`
 #       would do the trick...)
+# TODO: muons
 
 
 from __future__ import division
@@ -61,10 +62,11 @@ from collections import OrderedDict, Sequence, namedtuple
 from copy import deepcopy
 from itertools import izip
 from multiprocessing import Pool
+import threading
 
 import numpy as np
 
-from pisa import EPSILON, FTYPE, OMP_NUM_THREADS, ureg
+from pisa import EPSILON, FTYPE, NUMBA_AVAIL, OMP_NUM_THREADS, numba_jit, ureg
 from pisa.core.binning import MultiDimBinning, OneDimBinning
 from pisa.core.events import Events
 from pisa.core.stage import Stage
@@ -72,9 +74,10 @@ from pisa.core.transform import BinnedTensorTransform, TransformSet
 
 from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup
 from pisa.utils.hash import hash_obj
+from pisa.utils.parallel import parallel_run
 from pisa.utils.vbwkde import vbwkde as vbwkde_func
 from pisa.utils.log import logging
-from pisa.utils.profiler import line_profile, profile
+
 
 __all__ = ['KDE_DIM_DEPENDENCIES', 'KDE_TRUE_BINNING', 'MIN_NUM_EVENTS',
            'TGT_NUM_EVENTS', 'TGT_MAX_BINWIDTH_FACTOR',
@@ -111,13 +114,21 @@ KDE_TRUE_BINNING = {
 }
 
 MIN_NUM_EVENTS = 50
+"""For KDEs, each bin is expanded up and down in true-energy as much as
+necessary to collect this many events. See `collect_enough_events` for more
+details."""
 
 TGT_NUM_EVENTS = 1000
+"""Ideally each bin will have `TGT_NUM_EVENTS`. Allow the bin to expand a
+little bit (`TGT_MAX_BINWIDTH_FACTOR`) to try to hit this number. See
+`collect_enough_events` for more details."""
 
 # TODO: figure out a dynamic similarity metric such that this parameter can be
 #       figured out by the software, rather than set by the user. E.g., use
 #       some statistical clustering technique?
 TGT_MAX_BINWIDTH_FACTOR = 0.1
+"""Expand by up to `TGT_MAX_BINWIDTH_FACTOR` in order to collect
+`TGT_NUM_EVENTS`. See `collect_enough_events` for more details."""
 
 
 KDEProfile = namedtuple('KDEProfile', ['x', 'density'])
@@ -288,10 +299,8 @@ def collect_enough_events(events, flavint, bin,
     return events_subset
 
 
-FTYPE_MIN = np.finfo(FTYPE).min
-FTYPE_MAX = np.finfo(FTYPE).max
 def inf2finite(x):
-    return np.clip(x, a_min=FTYPE_MIN, a_max=FTYPE_MAX)
+    return np.clip(x, a_min=np.finfo(FTYPE).min, a_max=np.finfo(FTYPE).max)
 
 
 def fold_coszen_diff(coszen_diff, randomize=False):
@@ -440,14 +449,6 @@ def coszen_error_edges(true_edges, reco_edges):
     if full_reco_range_upper_binedge != all_dcz_binedges[-1]:
         all_dcz_binedges.append(full_reco_range_upper_binedge)
 
-    if sorted(all_dcz_binedges) != all_dcz_binedges:
-        print '='*80
-        print 'all_dcz_binedges:\n', all_dcz_binedges
-        print ''
-        print 'true edges:', true_lower_binedge, true_upper_binedge
-        print ''
-        print 'full-reco-range dcz edges:', full_reco_range_lower_binedge, full_reco_range_upper_binedge
-
     # Find the indices corresponding to the lower and upper bin edges
     dcz_lower_binedge_indices, dcz_upper_binedge_indices = [], []
     for lower_binedge, upper_binedge in zip(dcz_lower_binedges,
@@ -463,12 +464,6 @@ def coszen_error_edges(true_edges, reco_edges):
 
     return all_dcz_binedges, reco_indices
 
-
-
-# TODO: the below logic does not generalize to muons, but probably should
-# (rather than requiring an almost-identical version just for muons). For
-# example, an input arg can dictate neutrino or muon, which then sets the
-# input_names and output_names.
 
 class vbwkde(Stage):
     """
@@ -682,9 +677,10 @@ class vbwkde(Stage):
         self.include_attrs_for_hashes('kde_binning')
         self.include_attrs_for_hashes('sum_grouped_flavints')
 
-        self.kde_info = OrderedDict()
-        """OrderedDict containing KDEProfile's. Structure is:
+        self.kde_profiles = OrderedDict()
+        """OrderedDict containing `KDEProfile`s. Structure is:
             {dim_basename: {flavintgroup: {(Coord): (KDEProfile)}}}
+
         For example:
             {'pid': {
                 numu_cc: {
@@ -707,7 +703,14 @@ class vbwkde(Stage):
             }}
         """
 
+        self._kde_profiles_lock = threading.Lock()
+
         self._kde_hashes = OrderedDict()
+
+        self.xform_kernels = dict()
+        """Storage of the N-dim smearing kernels, one per flavintgroup"""
+
+        self._xform_kernels_lock = threading.Lock()
 
     def validate_binning(self):
         """Require input dimensions of "true_energy" and "true_coszen" (in any
@@ -749,52 +752,29 @@ class vbwkde(Stage):
         """
         self.load_events(self.params.reco_events)
         self.cut_events(self.params.transform_events_keep_criteria)
-
-        # Compute the KDEs for each (pid, E) bin (this is then propagated to
-        # each (pid, E, cz) bin, as the transform is assumed to not be
-        # cz-dependent)
         self.characterize_resolutions()
+        self.generate_all_kernels()
 
-
-        # Apply scaling factors and figure out the area per bin for each KDE
         xforms = []
         for xform_flavints in self.transform_groups:
-            # Generate the kernel just once for all flavints grouped together
-            # for computing the transform
-            reco_kernel = self.generate_smearing_kernel(xform_flavints)
+            xform_input_names = []
+            for input_name in self.input_names:
+                input_flavs = NuFlavIntGroup(input_name)
+                if len(set(xform_flavints).intersection(input_flavs)) > 0:
+                    xform_input_names.append(input_name)
 
-            if self.sum_grouped_flavints:
-                xform_input_names = []
-                for input_name in self.input_names:
-                    input_flavs = NuFlavIntGroup(input_name)
-                    if len(set(xform_flavints).intersection(input_flavs)) > 0:
-                        xform_input_names.append(input_name)
-
-                for output_name in self.output_names:
-                    if output_name not in xform_flavints:
-                        continue
-                    xform = BinnedTensorTransform(
-                        input_names=xform_input_names,
-                        output_name=output_name,
-                        input_binning=self.input_binning,
-                        output_binning=self.output_binning,
-                        xform_array=reco_kernel.hist,
-                        sum_inputs=self.sum_grouped_flavints
-                    )
-                    xforms.append(xform)
-            else:
-                for input_name in self.input_names:
-                    if input_name not in xform_flavints:
-                        continue
-                    xform = BinnedTensorTransform(
-                        input_names=input_name,
-                        output_name=input_name,
-                        input_binning=self.input_binning,
-                        output_binning=self.output_binning,
-                        xform_array=reco_kernel.hist,
-                        sum_inputs=self.sum_grouped_flavints
-                    )
-                    xforms.append(xform)
+            for output_name in self.output_names:
+                if output_name not in xform_flavints:
+                    continue
+                xform = BinnedTensorTransform(
+                    input_names=xform_input_names,
+                    output_name=output_name,
+                    input_binning=self.input_binning,
+                    output_binning=self.output_binning,
+                    xform_array=self.xform_kernels[xform_flavints],
+                    sum_inputs=self.sum_grouped_flavints
+                )
+                xforms.append(xform)
 
         return TransformSet(transforms=xforms)
 
@@ -805,16 +785,6 @@ class vbwkde(Stage):
 
         The results are cached to disk and simply loaded from that cache to
         avoid re-computation.
-
-        Returns
-        -------
-        all_kde_info : OrderedDict with format:
-            {
-                '<flavint group 1>': kde_info,
-                '<flavint group 2>': kde_info,
-                ...
-            }
-            where the format of kde_info is defined in `compute_kdes`
 
         """
         weights_name = self.params.reco_weights_name.value
@@ -828,7 +798,7 @@ class vbwkde(Stage):
             logging.debug('Working on KDE dimension "%s"', kde_dim)
             new_hash = hash_obj(deepcopy(hash_items) + [dep_dims_binning.hash])
 
-            # See if we already have correct kde_info for this dim
+            # See if we already have correct kde_profiles for this dim
             if (kde_dim in self._kde_hashes
                     and new_hash == self._kde_hashes[kde_dim]):
                 logging.debug('  > Already have KDEs for "%s"', kde_dim)
@@ -838,7 +808,7 @@ class vbwkde(Stage):
             if self.disk_cache is not None and new_hash in self.disk_cache:
                 logging.debug('  > Loading KDEs for "%s" from disk cache',
                               kde_dim)
-                self.kde_info[kde_dim] = self.disk_cache[new_hash]
+                self.kde_profiles[kde_dim] = self.disk_cache[new_hash]
                 self._kde_hashes[kde_dim] = new_hash
                 continue
 
@@ -847,9 +817,9 @@ class vbwkde(Stage):
             self._kde_hashes[kde_dim] = None
 
             # Clear out all previous kde info
-            self.kde_info[kde_dim] = OrderedDict()
+            self.kde_profiles[kde_dim] = OrderedDict()
             for flavintgroup in self.transform_groups:
-                self.kde_info[kde_dim][flavintgroup] = OrderedDict()
+                self.kde_profiles[kde_dim][flavintgroup] = OrderedDict()
 
             # First element in the list is the full set of events. Then the
             # next element is the previous element's events but with inbounds
@@ -955,18 +925,43 @@ class vbwkde(Stage):
                     _, x, density = vbwkde_func(feature, weights=weights,
                                                 **vbwkde_kwargs)
 
-                    normalized_density = density / np.sum(density)
+                    # Note that normalization is not useful here, since norm
+                    # must be computed for each input_binning bin anyway.
 
-                    self.kde_info[kde_dim][flavintgroup][bin_coord] = (
-                        KDEProfile(x=x, density=normalized_density)
+                    # Sort according to ascending weight to improve numerical
+                    # precision of "poor-man's" histogram
+                    sortind = density.argsort()
+                    x = x[sortind]
+                    density = density[sortind]
+
+                    self.kde_profiles[kde_dim][flavintgroup][bin_coord] = (
+                        KDEProfile(x=x, density=density)
                     )
 
             self._kde_hashes[kde_dim] = new_hash
 
             if self.disk_cache is not None:
-                self.disk_cache[new_hash] = self.kde_info[kde_dim]
-    @line_profile
-    def generate_smearing_kernel(self, flavintgroup):
+                self.disk_cache[new_hash] = self.kde_profiles[kde_dim]
+
+    def generate_all_kernels(self):
+        """Dispatches `generate_single_kernel` for all specified transform
+        flavintgroups, in parallel if that is possible."""
+        if not NUMBA_AVAIL or OMP_NUM_THREADS == 1:
+            for flavintgroup in self.transform_groups:
+                self.generate_single_kernel(flavintgroup)
+            return
+
+        parallel_run(
+            func=self.generate_single_kernel,
+            kind='threads',
+            num_parallel=OMP_NUM_THREADS,
+            scalar_func=True,
+            divided_args_mask=None,
+            divided_kwargs_names=['flavintgroup'],
+            flavintgroup=self.transform_groups
+        )
+
+    def generate_single_kernel(self, flavintgroup):
         """Construct a smearing kernel for the flavintgroup specified.
 
         The resulting array can be indexed for clarity using two indexes,
@@ -996,9 +991,9 @@ class vbwkde(Stage):
         """
         logging.debug('Generating smearing kernel for %s', flavintgroup)
 
-        pid_kde_profiles = self.kde_info['pid'][flavintgroup]
-        e_kde_profiles = self.kde_info['energy'][flavintgroup]
-        dcz_kde_profiles = self.kde_info['coszen'][flavintgroup]
+        pid_kde_profiles = self.kde_profiles['pid'][flavintgroup]
+        e_kde_profiles = self.kde_profiles['energy'][flavintgroup]
+        dcz_kde_profiles = self.kde_profiles['coszen'][flavintgroup]
 
         kde_binning = self.kde_binning
 
@@ -1021,7 +1016,9 @@ class vbwkde(Stage):
         pid_kde_e_centers = inf2finite(
             kde_binning['pid'].true_energy.weighted_centers.m
         )
-        e_kde_e_centers = kde_binning['energy'].true_energy.weighted_centers.m
+        e_kde_e_centers = inf2finite(
+            kde_binning['energy'].true_energy.weighted_centers.m
+        )
         cz_kde_e_centers = kde_binning['coszen'].true_energy.weighted_centers.m
         cz_kde_cz_centers = kde_binning['coszen'].true_coszen.weighted_centers.m
 
@@ -1081,16 +1078,6 @@ class vbwkde(Stage):
                     fold_coszen_diff(cz_kde_cz_centers - center)
                 ))
             )
-
-        # Define only what needs to be done to coszen KDE profile based on
-        # systematics that actually have an effect
-        op_scale_shift_cz_kde = 'cz_kde_profile.x'
-        if cz_res_scale != 1:
-            op_scale_shift_cz_kde += ' * cz_res_scale'
-        if cz_reco_bias != 0:
-            op_scale_shift_cz_kde += ' + (cz_reco_bias + true_cz_center)'
-        else:
-            op_scale_shift_cz_kde += ' + true_cz_center'
 
         for true_e_bin_num, true_e_center in enumerate(true_e_centers):
             logging.debug('  > Working on true_e_bin_num %d of %d',
@@ -1190,4 +1177,5 @@ class vbwkde(Stage):
                     )
                     kernel.hist[coszen_indexer] *= np.array(reco_cz_fractions)
 
-        return kernel
+        with self._xform_kernels_lock:
+            self.xform_kernels[flavintgroup] = kernel
