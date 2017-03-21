@@ -421,15 +421,37 @@ def purge_failed_jobs(data, trial_nums, thresh=5.0):
                     data[fitkey][param]['vals'] = new_vals
 
 
+def make_fit_information_plot(fit_info, xlabel, title):
+    '''
+    Makes the actual histogram of the fit_info given with the appropriate axis
+    label and title
+    '''
+    plt.grid(axis='y',zorder=0)
+    plt.hist(
+        fit_info,
+        bins=10,
+        histtype='bar',
+        color='darkblue',
+        alpha=0.9,
+        zorder=3
+    )
+    plt.xlabel(xlabel, size='24')
+    plt.ylabel('Number of Trials', size='24')
+    plt.title(title, fontsize=16)
+
+
 def plot_fit_information(minimiser_info, labels, detector, selection, outdir):
-    '''Makes plots of the number of iterations and time taken with the 
-    minimiser. This is a good cross-check that the minimiser did not end 
-    abruptly since you would see significant pile-up if it did.'''
+    '''
+    Makes plots of the number of iterations and time taken with the
+    minimiser. This is a good cross-check that the minimiser did not end
+    abruptly since you would see significant pile-up if it did.
+    '''
     outdir = os.path.join(outdir,'MinimiserPlots')
     if not os.path.exists(outdir):
         logging.info('Making output directory %s'%outdir)
         os.makedirs(outdir)
-    MainTitle = '%s %s Event Selection Minimiser Information'%(detector,
+    MainTitle = r'\begin{center}'+\
+                '%s %s Event Selection Minimiser Information'%(detector,
                                                                selection)
     for fhkey in minimiser_info.keys():
         if minimiser_info[fhkey] is not None:
@@ -461,11 +483,13 @@ def plot_fit_information(minimiser_info, labels, detector, selection, outdir):
                         %(labels['data_name'],
                           labels['%s_name'%fid],
                           labels['%s_name'%hypo],
-                          len(minimiser_times)))
-            plt.hist(minimiser_times, bins=10)
-            plt.xlabel('Minimiser Time (seconds)')
-            plt.ylabel('Number of Trials')
-            plt.title(MainTitle+r'\\'+FitTitle, fontsize=16)
+                          len(minimiser_times))+r"\end{center}")
+            # Minimiser times
+            make_fit_information_plot(
+                fit_info=minimiser_times,
+                xlabel='Minimiser Time (seconds)',
+                title=MainTitle+r'\\'+FitTitle
+            )
             SaveName = ("true_%s_%s_%s_fid_%s_hypo_%s_minimiser_times.png"
                         %(labels['data_name'],
                           detector,
@@ -474,10 +498,12 @@ def plot_fit_information(minimiser_info, labels, detector, selection, outdir):
                           labels['%s_name'%hypo]))
             plt.savefig(os.path.join(outdir,SaveName))
             plt.close()
-            plt.hist(minimiser_iterations, bins=10)
-            plt.xlabel('Minimiser Iterations')
-            plt.ylabel('Number of Trials')
-            plt.title(MainTitle+r'\\'+FitTitle, fontsize=16)
+            # Minimiser iterations
+            make_fit_information_plot(
+                fit_info=minimiser_iterations,
+                xlabel='Minimiser Iterations',
+                title=MainTitle+r'\\'+FitTitle
+            )
             SaveName = ("true_%s_%s_%s_fid_%s_hypo_%s_minimiser_iterations.png"
                         %(labels['data_name'],
                           detector,
@@ -486,10 +512,12 @@ def plot_fit_information(minimiser_info, labels, detector, selection, outdir):
                           labels['%s_name'%hypo]))
             plt.savefig(os.path.join(outdir,SaveName))
             plt.close()
-            plt.hist(minimiser_funcevals, bins=10)
-            plt.xlabel('Minimiser Function Evaluations')
-            plt.ylabel('Number of Trials')
-            plt.title(MainTitle+r'\\'+FitTitle, fontsize=16)
+            # Minimiser function evaluations
+            make_fit_information_plot(
+                fit_info=minimiser_funcevals,
+                xlabel='Minimiser Function Evaluations',
+                title=MainTitle+r'\\'+FitTitle
+            )
             SaveName = ("true_%s_%s_%s_fid_%s_hypo_%s_minimiser_funcevals.png"
                         %(labels['data_name'],
                           detector,
@@ -498,10 +526,12 @@ def plot_fit_information(minimiser_info, labels, detector, selection, outdir):
                           labels['%s_name'%hypo]))
             plt.savefig(os.path.join(outdir,SaveName))
             plt.close()
-            plt.hist(minimiser_status, bins=10)
-            plt.xlabel('Minimiser Status')
-            plt.ylabel('Number of Trials')
-            plt.title(MainTitle+r'\\'+FitTitle, fontsize=16)
+            # Minimiser status
+            make_fit_information_plot(
+                fit_info=minimiser_status,
+                xlabel='Minimiser Status',
+                title=MainTitle+r'\\'+FitTitle
+            )
             SaveName = ("true_%s_%s_%s_fid_%s_hypo_%s_minimiser_status.png"
                         %(labels['data_name'],
                           detector,
@@ -541,6 +571,7 @@ def add_extra_points(points, labels, ymax):
         )
         linelist.append(label)
     return linelist
+
 
 def calc_p_value(LLRdist, critical_value, num_trials, greater=True,
                  median_p_value=False,LLRbest=None):
@@ -587,6 +618,7 @@ def calc_p_value(LLRdist, critical_value, num_trials, greater=True,
     else:
         unc_p_value = np.sqrt(misid_trials*(1-p_value))/num_trials
         return p_value, unc_p_value
+
 
 def plot_LLR_histograms(LLRarrays, LLRhistmax, binning, colors, labels,
                         best_name, alt_name, critical_value, critical_label,
@@ -662,6 +694,7 @@ def plot_LLR_histograms(LLRarrays, LLRhistmax, binning, colors, labels,
     )
 
     plt.subplots_adjust(left=0.10, right=0.90, top=0.9, bottom=0.15)
+
 
 def make_llr_plots(data, fid_data, labels, detector, selection, outdir,
                    extra_points = None, extra_points_labels = None):
