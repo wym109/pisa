@@ -125,8 +125,9 @@ class DistributionMaker(object):
 
             if error_on_missing and successes == 0:
                 raise KeyError(
-                    'None of the selections %s found in any pipeline in this'
-                    ' distribution maker' %(selections,)
+                    'None of the stages from any pipeline in this distribution'
+                    ' maker has all of the selections %s available.'
+                    %(selections,)
                 )
         else:
             for pipeline in self:
@@ -310,7 +311,7 @@ def parse_args():
         help='''Settings file for each pipeline (repeat for multiple).'''
     )
     parser.add_argument(
-        '--select', metavar='PARAM_SELECTIONS', nargs='*',
+        '--select', metavar='PARAM_SELECTIONS', nargs='+', default=None,
         help='''Param selectors (separated by spaces) to use to override any
         defaults in the config file.'''
     )

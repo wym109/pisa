@@ -277,8 +277,8 @@ class Pipeline(object):
 
         if error_on_missing and successes == 0:
             raise KeyError(
-                'None of the selections %s was found in any stage in this'
-                ' pipeline.' %(selections,)
+                'None of the stages in this pipeline has all of the'
+                ' selections %s available.' %(selections,)
             )
 
     @property
@@ -403,7 +403,7 @@ def parse_args():
         help='File containing settings for the pipeline.'
     )
     parser.add_argument(
-        '--select', metavar='PARAM_SELECTIONS', nargs='*',
+        '--select', metavar='PARAM_SELECTIONS', nargs='+', default=None,
         help='''Param selectors (separated by spaces) to use to override any
         defaults in the config file.'''
     )
