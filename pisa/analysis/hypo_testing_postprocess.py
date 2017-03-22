@@ -420,6 +420,57 @@ def purge_failed_jobs(data, trial_nums, thresh=5.0):
                     )
                     data[fitkey][param]['vals'] = new_vals
 
+def save_plot(labels, fid, hypo, detector, selection, outdir, formats, end):
+    '''
+    Does the actual saving of every type specified as True in formats
+    '''
+    SaveName = ""
+    if 'data_name' in labels.keys():
+        SaveName += "true_%s_"%labels['data_name']
+    if detector is not None:
+        SaveName += "%s_"%detector
+    if selection is not None:
+        SaveName += "%s_"%selection
+    if fid is not None:
+        SaveName += "fid_%s_"%labels['%s_name'%fid]
+    if hypo is not None:
+        SaveName += "hypo_%s_"%labels['%s_name'%hypo]
+    SaveName += end
+    for fileformat in formats.keys():
+        if formats[fileformat]:
+            FullSaveName = SaveName + '.%s'%fileformat
+            plt.savefig(os.path.join(outdir,FullSaveName))
+
+
+def make_main_title(detector, selection, end):
+    '''
+    Makes the main title accounting for detector and selection provided by user.
+    '''
+    MainTitle = r"\begin{center}"
+    if detector is not None:
+        MainTitle += "%s "%detector
+    if selection is not None:
+        MainTitle += "%s Event Selection "%selection
+    MainTitle += end
+    return MainTitle
+
+
+def make_fit_title(labels, fid, hypo, trials):
+    '''
+    Makes the fit title to go with the main title
+    '''
+    FitTitle = ""
+    if 'data_name' in labels.keys():
+        FitTitle += "True %s, "%labels['data_name']
+    if fid is not None:
+        FitTitle += "Fiducial Fit %s, "%labels['%s_name'%fid]
+    if hypo is not None:
+        FitTitle += "Hypothesis %s "%labels['%s_name'%hypo]
+    if trials is not None:
+        FitTitle += "(%i Trials)"%trials
+    FitTitle += r"\end{center}"
+    return FitTitle
+
 
 def make_fit_information_plot(fit_info, xlabel, title):
     '''
@@ -438,9 +489,11 @@ def make_fit_information_plot(fit_info, xlabel, title):
     plt.xlabel(xlabel, size='24')
     plt.ylabel('Number of Trials', size='24')
     plt.title(title, fontsize=16)
+    plt.subplots_adjust(left=0.10, right=0.90, top=0.9, bottom=0.11)
 
 
-def plot_fit_information(minimiser_info, labels, detector, selection, outdir):
+def plot_fit_information(minimiser_info, labels, detector,
+                         selection, outdir, formats):
     '''
     Makes plots of the number of iterations and time taken with the
     minimiser. This is a good cross-check that the minimiser did not end
@@ -450,9 +503,7 @@ def plot_fit_information(minimiser_info, labels, detector, selection, outdir):
     if not os.path.exists(outdir):
         logging.info('Making output directory %s'%outdir)
         os.makedirs(outdir)
-    MainTitle = r'\begin{center}'+\
-                '%s %s Event Selection Minimiser Information'%(detector,
-                                                               selection)
+    MainTitle = make_main_title(detector, selection, 'Minimiser Information')
     for fhkey in minimiser_info.keys():
         if minimiser_info[fhkey] is not None:
             hypo = fhkey.split('_')[0]
@@ -479,24 +530,28 @@ def plot_fit_information(minimiser_info, labels, detector, selection, outdir):
                         'minimizer_metadata']['status'])
                 )
                 minimiser_units = bits[1]
-            FitTitle = ("True %s, Fiducial Fit %s, Hypothesis %s (%i Trials)"
-                        %(labels['data_name'],
-                          labels['%s_name'%fid],
-                          labels['%s_name'%hypo],
-                          len(minimiser_times))+r"\end{center}")
+            FitTitle = make_fit_title(
+                labels=labels,
+                fid=fid,
+                hypo=hypo,
+                trials=len(minimiser_times)
+            )
             # Minimiser times
             make_fit_information_plot(
                 fit_info=minimiser_times,
                 xlabel='Minimiser Time (seconds)',
                 title=MainTitle+r'\\'+FitTitle
             )
-            SaveName = ("true_%s_%s_%s_fid_%s_hypo_%s_minimiser_times.png"
-                        %(labels['data_name'],
-                          detector,
-                          selection,
-                          labels['%s_name'%fid],
-                          labels['%s_name'%hypo]))
-            plt.savefig(os.path.join(outdir,SaveName))
+            save_plot(
+                labels=labels,
+                fid=fid,
+                hypo=hypo,
+                detector=detector,
+                selection=selection,
+                outdir=outdir,
+                formats=formats,
+                end='minimiser_times'
+            )
             plt.close()
             # Minimiser iterations
             make_fit_information_plot(
@@ -504,13 +559,16 @@ def plot_fit_information(minimiser_info, labels, detector, selection, outdir):
                 xlabel='Minimiser Iterations',
                 title=MainTitle+r'\\'+FitTitle
             )
-            SaveName = ("true_%s_%s_%s_fid_%s_hypo_%s_minimiser_iterations.png"
-                        %(labels['data_name'],
-                          detector,
-                          selection,
-                          labels['%s_name'%fid],
-                          labels['%s_name'%hypo]))
-            plt.savefig(os.path.join(outdir,SaveName))
+            save_plot(
+                labels=labels,
+                fid=fid,
+                hypo=hypo,
+                detector=detector,
+                selection=selection,
+                outdir=outdir,
+                formats=formats,
+                end='minimiser_iterations'
+            )
             plt.close()
             # Minimiser function evaluations
             make_fit_information_plot(
@@ -518,13 +576,16 @@ def plot_fit_information(minimiser_info, labels, detector, selection, outdir):
                 xlabel='Minimiser Function Evaluations',
                 title=MainTitle+r'\\'+FitTitle
             )
-            SaveName = ("true_%s_%s_%s_fid_%s_hypo_%s_minimiser_funcevals.png"
-                        %(labels['data_name'],
-                          detector,
-                          selection,
-                          labels['%s_name'%fid],
-                          labels['%s_name'%hypo]))
-            plt.savefig(os.path.join(outdir,SaveName))
+            save_plot(
+                labels=labels,
+                fid=fid,
+                hypo=hypo,
+                detector=detector,
+                selection=selection,
+                outdir=outdir,
+                formats=formats,
+                end='minimiser_funcevals'
+            )
             plt.close()
             # Minimiser status
             make_fit_information_plot(
@@ -532,13 +593,16 @@ def plot_fit_information(minimiser_info, labels, detector, selection, outdir):
                 xlabel='Minimiser Status',
                 title=MainTitle+r'\\'+FitTitle
             )
-            SaveName = ("true_%s_%s_%s_fid_%s_hypo_%s_minimiser_status.png"
-                        %(labels['data_name'],
-                          detector,
-                          selection,
-                          labels['%s_name'%fid],
-                          labels['%s_name'%hypo]))
-            plt.savefig(os.path.join(outdir,SaveName))
+            save_plot(
+                labels=labels,
+                fid=fid,
+                hypo=hypo,
+                detector=detector,
+                selection=selection,
+                outdir=outdir,
+                formats=formats,
+                end='minimiser_status'
+            )
             plt.close()
 
 
@@ -722,7 +786,7 @@ def plot_LLR_histograms(LLRarrays, LLRhistmax, binning, colors, labels,
     plt.subplots_adjust(left=0.10, right=0.90, top=0.9, bottom=0.15)
 
 
-def make_llr_plots(data, fid_data, labels, detector, selection, outdir,
+def make_llr_plots(data, fid_data, labels, detector, selection, outdir, formats,
                    extra_points = None, extra_points_labels = None):
     '''
     Does what you think. Takes the data and makes LLR distributions. These are 
@@ -922,10 +986,16 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir,
         color='k',
         size='xx-large'
     )
-    filename = 'true_%s_%s_%s_%s_LLRDistribution_median_%i_Trials.png'%(
-        inj_name, detector, selection, metric_type, num_trials
+    save_plot(
+        labels=labels,
+        fid=None,
+        hypo=None,
+        detector=detector,
+        selection=selection,
+        outdir=outdir,
+        formats=formats,
+        end='%s_LLRDistribution_median_%i_Trials'%(metric_type, num_trials)
     )
-    plt.savefig(os.path.join(outdir,filename))
     # Add the extra points if they exist
     if extra_points is not None:
         curleg = plt.gca().get_legend()
@@ -949,10 +1019,17 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir,
             newleg = plt.legend(handles=newhandles, loc='upper right')
         plt.gca().add_artist(newleg)
         plt.gca().add_artist(curleg)
-        filename = 'true_%s_%s_%s_%s_LLRDistribution_median'%(
-            inj_name, detector, selection, metric_type
-        )+'_w_extra_points_%i_Trials.png'%(num_trials)
-        plt.savefig(os.path.join(outdir,filename))
+        save_plot(
+            labels=labels,
+            fid=None,
+            hypo=None,
+            detector=detector,
+            selection=selection,
+            outdir=outdir,
+            formats=formats,
+            end='%s_LLRDistribution_median_w_extra_points_%i_Trials'%(
+                metric_type, num_trials)
+        )
     plt.close()
 
     # In case of critical plot, draw just alt histograms
@@ -989,10 +1066,16 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir,
         color='k',
         size='xx-large'
     )
-    filename = 'true_%s_%s_%s_%s_LLRDistribution_critical_%i_Trials.png'%(
-        inj_name, detector, selection, metric_type, num_trials
+    save_plot(
+        labels=labels,
+        fid=None,
+        hypo=None,
+        detector=detector,
+        selection=selection,
+        outdir=outdir,
+        formats=formats,
+        end='%s_LLRDistribution_critical_%i_Trials'%(metric_type, num_trials)
     )
-    plt.savefig(os.path.join(outdir,filename))
     plt.close()
 
     # Make a second critical plot for the alt hypothesis, so we draw the
@@ -1030,10 +1113,17 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir,
         color='k',
         size='xx-large'
     )
-    filename = 'true_%s_%s_%s_%s_LLRDistribution_critical_alt_%i_Trials.png'%(
-        inj_name, detector, selection, metric_type, num_trials
+    save_plot(
+        labels=labels,
+        fid=None,
+        hypo=None,
+        detector=detector,
+        selection=selection,
+        outdir=outdir,
+        formats=formats,
+        end='%s_LLRDistribution_critical_alt_%i_Trials'%(
+            metric_type, num_trials)
     )
-    plt.savefig(os.path.join(outdir,filename))
     plt.close()
 
     # Lastly, show both exclusion regions and then the joined CLs value
@@ -1095,10 +1185,17 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir,
         color='k',
         size='x-large'
     )
-    filename = 'true_%s_%s_%s_%s_LLRDistribution_CLs_%i_Trials.png'%(
-        inj_name, detector, selection, metric_type, num_trials
+    save_plot(
+        labels=labels,
+        fid=None,
+        hypo=None,
+        detector=detector,
+        selection=selection,
+        outdir=outdir,
+        formats=formats,
+        end='%s_LLRDistribution_CLs_%i_Trials'%(metric_type, num_trials)
     )
-    plt.savefig(os.path.join(outdir,filename))
+    plt.close()
 
 
 def write_latex_preamble(texfile):
@@ -1217,8 +1314,8 @@ def format_table_line(val, dataval, stddev=None, maximum=None, last=False):
     return line
 
 
-def make_fiducial_plots(data, fid_data, labels, all_params, detector,
-                        selection, outdir):
+def make_fiducial_fits(data, fid_data, labels, all_params, detector,
+                       selection, outdir):
     '''
     This function will make tex files which can be then be compiled in to 
     tables showing the two fiducial fits and, if applicable, how they compare 
@@ -1573,7 +1670,7 @@ def plot_individual_posterior(data, data_params, h0_params, h1_params,
     
 
 def plot_individual_posteriors(data, fid_data, labels, all_params, detector,
-                               selection, outdir):
+                               selection, outdir, formats):
     '''
     This function will make use of plot_individual_posterior and 
     save every time.
@@ -1584,7 +1681,7 @@ def plot_individual_posteriors(data, fid_data, labels, all_params, detector,
         logging.info('Making output directory %s'%outdir)
         os.makedirs(outdir)
 
-    MainTitle = '%s %s Event Selection Posterior'%(detector, selection)
+    MainTitle = make_main_title(detector, selection, 'Posterior')
 
     h0_params = fid_data[
         ('h0_fit_to_toy_%s_asimov'%labels['data_name'])
@@ -1605,12 +1702,12 @@ def plot_individual_posteriors(data, fid_data, labels, all_params, detector,
 
             hypo = fhkey.split('_')[0]
             fid = fhkey.split('_')[-2]
-            FitTitle = ("True %s, Fiducial Fit %s, Hypothesis %s (%i Trials)"
-                        %(labels['data_name'],
-                          labels['%s_name'%fid],
-                          labels['%s_name'%hypo],
-                          len(data[fhkey][systkey]['vals'])))
-
+            FitTitle = make_fit_title(
+                labels=labels,
+                fid=fid,
+                hypo=hypo,
+                trials=len(data[fhkey][systkey]['vals'])
+            )
             plot_individual_posterior(
                 data = data[fhkey][systkey],
                 data_params = data_params,
@@ -1625,19 +1722,21 @@ def plot_individual_posteriors(data, fid_data, labels, all_params, detector,
             )
 
             plt.title(MainTitle+r'\\'+FitTitle, fontsize=16)
-            SaveName = ("true_%s_%s_%s_fid_%s_hypo_%s_%s_posterior.png"
-                        %(labels['data_name'],
-                          detector,
-                          selection,
-                          labels['%s_name'%fid],
-                          labels['%s_name'%hypo],
-                          systkey))
-            plt.savefig(os.path.join(outdir,SaveName))
+            save_plot(
+                labels=labels,
+                fid=fid,
+                hypo=hypo,
+                detector=detector,
+                selection=selection,
+                outdir=outdir,
+                formats=formats,
+                end='%s_posterior'%(systkey)
+            )
             plt.close()
 
 
 def plot_combined_posteriors(data, fid_data, labels, all_params,
-                             detector, selection, outdir):
+                             detector, selection, outdir, formats):
     '''
     This function will make use of plot_individual_posterior but just save
     once all of the posteriors for a given combination of h0 and h1 have
@@ -1649,7 +1748,7 @@ def plot_combined_posteriors(data, fid_data, labels, all_params,
         logging.info('Making output directory %s'%outdir)
         os.makedirs(outdir)
 
-    MainTitle = '%s %s Event Selection Posteriors'%(detector, selection)
+    MainTitle = make_main_title(detector, selection, 'Posteriors')
 
     h0_params = fid_data[
         ('h0_fit_to_toy_%s_asimov'%labels['data_name'])
@@ -1678,12 +1777,12 @@ def plot_combined_posteriors(data, fid_data, labels, all_params,
 
             hypo = fhkey.split('_')[0]
             fid = fhkey.split('_')[-2]
-            FitTitle = ("True %s, Fiducial Fit %s, Hypothesis %s (%i Trials)"
-                        %(labels['data_name'],
-                          labels['%s_name'%fid],
-                          labels['%s_name'%hypo],
-                          len(data[fhkey][systkey]['vals'])))
-
+            FitTitle = make_fit_title(
+                labels=labels,
+                fid=fid,
+                hypo=hypo,
+                trials=len(data[fhkey][systkey]['vals'])
+            )
             plt.subplot(num_rows,4,subplotnum)
 
             plot_individual_posterior(
@@ -1705,13 +1804,16 @@ def plot_combined_posteriors(data, fid_data, labels, all_params,
         plt.suptitle(MainTitle+r'\\'+FitTitle, fontsize=36)
         plt.tight_layout()
         plt.subplots_adjust(top=0.9)
-        SaveName = ("true_%s_%s_%s_fid_%s_hypo_%s_posteriors.png"
-                    %(labels['data_name'],
-                      detector,
-                      selection,
-                      labels['%s_name'%fid],
-                      labels['%s_name'%hypo]))
-        plt.savefig(os.path.join(outdir,SaveName))
+        save_plot(
+            labels=labels,
+            fid=fid,
+            hypo=hypo,
+            detector=detector,
+            selection=selection,
+            outdir=outdir,
+            formats=formats,
+            end='posteriors'
+        )
         plt.close()
 
 
@@ -1788,7 +1890,8 @@ def plot_individual_scatter(xdata, ydata, labels, xsystkey, ysystkey,
     plt.ylabel(ysystname)
     
     
-def plot_individual_scatters(data, labels, detector, selection, outdir):
+def plot_individual_scatters(data, labels, detector, selection,
+                             outdir, formats):
     '''
     This function will make use of plot_individual_scatter and save every time.
     '''
@@ -1798,7 +1901,7 @@ def plot_individual_scatters(data, labels, detector, selection, outdir):
         logging.info('Making output directory %s'%outdir)
         os.makedirs(outdir)
 
-    MainTitle = '%s %s Event Selection Correlation Plot'%(detector, selection)
+    MainTitle = make_main_title(detector, selection, 'Correlation Plot')
 
     for fhkey in data.keys():
         for xsystkey in data[fhkey].keys():
@@ -1808,12 +1911,12 @@ def plot_individual_scatters(data, labels, detector, selection, outdir):
 
                         hypo = fhkey.split('_')[0]
                         fid = fhkey.split('_')[-2]
-                        FitTitle = ("True %s, Fiducial Fit %s, Hypothesis %s "
-                                    "(%i Trials)"
-                                    %(labels['data_name'],
-                                      labels['%s_name'%fid],
-                                      labels['%s_name'%hypo],
-                                      len(data[fhkey][xsystkey]['vals'])))
+                        FitTitle = make_fit_title(
+                            labels=labels,
+                            fid=fid,
+                            hypo=hypo,
+                            trials=len(data[fhkey][xsystkey]['vals'])
+                        )
 
                         plot_individual_scatter(
                             xdata = data[fhkey][xsystkey],
@@ -1824,21 +1927,21 @@ def plot_individual_scatters(data, labels, detector, selection, outdir):
                         )
 
                         plt.title(MainTitle+r'\\'+FitTitle, fontsize=16)
-                        SaveName = (("true_%s_%s_%s_fid_%s_hypo_%s_%s_%s"
-                                     "_scatter_plot.png"
-                                     %(labels['data_name'],
-                                      detector,
-                                      selection,
-                                      labels['%s_name'%fid],
-                                      labels['%s_name'%hypo],
-                                      xsystkey,
-                                      ysystkey)))
-                        plt.savefig(os.path.join(outdir,SaveName))
+                        save_plot(
+                            labels=labels,
+                            fid=fid,
+                            hypo=hypo,
+                            detector=detector,
+                            selection=selection,
+                            outdir=outdir,
+                            formats=formats,
+                            end='%s_%s_scatter_plot'%(xsystkey, ysystkey)
+                        )
                         plt.close()
 
 
 def plot_combined_individual_scatters(data, labels, detector,
-                                      selection, outdir):
+                                      selection, outdir, formats):
     '''
     This function will make use of plot_individual_scatter and save once all of 
     the scatter plots for a single systematic with every other systematic have 
@@ -1850,7 +1953,7 @@ def plot_combined_individual_scatters(data, labels, detector,
         logging.info('Making output directory %s'%outdir)
         os.makedirs(outdir)
 
-    MainTitle = '%s %s Event Selection Correlation Plot'%(detector, selection)
+    MainTitle = make_main_title(detector, selection, 'Correlation Plot')
 
     for fhkey in data.keys():
         for xsystkey in data[fhkey].keys():
@@ -1866,12 +1969,12 @@ def plot_combined_individual_scatters(data, labels, detector,
 
                         hypo = fhkey.split('_')[0]
                         fid = fhkey.split('_')[-2]
-                        FitTitle = ("True %s, Fiducial Fit %s, Hypothesis %s "
-                                    "(%i Trials)"
-                                    %(labels['data_name'],
-                                      labels['%s_name'%fid],
-                                      labels['%s_name'%hypo],
-                                      len(data[fhkey][xsystkey]['vals'])))
+                        FitTitle = make_fit_title(
+                            labels=labels,
+                            fid=fid,
+                            hypo=hypo,
+                            trials=len(data[fhkey][xsystkey]['vals'])
+                        )
 
                         plt.subplot(num_rows,4,subplotnum)
 
@@ -1890,19 +1993,20 @@ def plot_combined_individual_scatters(data, labels, detector,
                 plt.suptitle(MainTitle+r'\\'+FitTitle, fontsize=36)
                 plt.tight_layout()
                 plt.subplots_adjust(top=0.9)
-                SaveName = (("true_%s_%s_%s_fid_%s_hypo_%s_%s"
-                             "_scatter_plot.png"
-                             %(labels['data_name'],
-                               detector,
-                               selection,
-                               labels['%s_name'%fid],
-                               labels['%s_name'%hypo],
-                               xsystkey)))
-                plt.savefig(os.path.join(outdir,SaveName))
+                save_plot(
+                    labels=labels,
+                    fid=fid,
+                    hypo=hypo,
+                    detector=detector,
+                    selection=selection,
+                    outdir=outdir,
+                    formats=formats,
+                    end='%s_scatter_plot'%(xsystkey)
+                )
                 plt.close()
 
 
-def plot_combined_scatters(data, labels, detector, selection, outdir):
+def plot_combined_scatters(data, labels, detector, selection, outdir, formats):
     '''
     This function will make use of plot_individual_scatter and save once every 
     scatter plot has been plotted on a single canvas for each of the h0 and h1 
@@ -1914,7 +2018,7 @@ def plot_combined_scatters(data, labels, detector, selection, outdir):
         logging.info('Making output directory %s'%outdir)
         os.makedirs(outdir)
 
-    MainTitle = '%s %s Event Selection Correlation Plot'%(detector, selection)
+    MainTitle = make_main_title(detector, selection, 'Correlation Plot')
 
     for fhkey in data.keys():
         # Systematic number is one less than number of keys since this also
@@ -1935,12 +2039,12 @@ def plot_combined_scatters(data, labels, detector, selection, outdir):
 
                             hypo = fhkey.split('_')[0]
                             fid = fhkey.split('_')[-2]
-                            FitTitle = ("True %s, Fiducial Fit %s, Hypothesis "
-                                        "%s (%i Trials)"
-                                        %(labels['data_name'],
-                                          labels['%s_name'%fid],
-                                          labels['%s_name'%hypo],
-                                          len(data[fhkey][xsystkey]['vals'])))
+                            FitTitle = make_fit_title(
+                                labels=labels,
+                                fid=fid,
+                                hypo=hypo,
+                                trials=len(data[fhkey][xsystkey]['vals'])
+                            )
                             
                             plt.subplot(SystNum-1,SystNum-1,subplotnum)
 
@@ -1956,18 +2060,21 @@ def plot_combined_scatters(data, labels, detector, selection, outdir):
         plt.suptitle(MainTitle+r'\\'+FitTitle, fontsize=120)
         plt.tight_layout()
         plt.subplots_adjust(top=0.9)
-        SaveName = (("true_%s_%s_%s_fid_%s_hypo_%s_all"
-                     "_scatter_plots.png"
-                     %(labels['data_name'],
-                       detector,
-                       selection,
-                       labels['%s_name'%fid],
-                       labels['%s_name'%hypo])))
-        plt.savefig(os.path.join(outdir,SaveName))
+        save_plot(
+            labels=labels,
+            fid=fid,
+            hypo=hypo,
+            detector=detector,
+            selection=selection,
+            outdir=outdir,
+            formats=formats,
+            end='all_scatter_plots'%(systkey)
+        )
         plt.close()
 
 
-def plot_correlation_matrices(data, labels, detector, selection, outdir):
+def plot_correlation_matrices(data, labels, detector, selection,
+                              outdir, formats):
     '''
     This will plot the correlation matrices since the individual scatter plots 
     are a pain to interpret on their own. This will plot them with a colour 
@@ -1989,8 +2096,7 @@ def plot_correlation_matrices(data, labels, detector, selection, outdir):
         logging.info('Making output directory %s'%outdir)
         os.makedirs(outdir)
 
-    MainTitle = ("%s %s Event Selection Correlation Coefficients"
-                 %(detector, selection))
+    MainTitle = make_main_title(detector, selection, 'Correlation Coefficients')
     Systs = []
 
     for fhkey in data.keys():
@@ -2008,13 +2114,12 @@ def plot_correlation_matrices(data, labels, detector, selection, outdir):
                     if (ysystkey != 'metric_val'):
                         hypo = fhkey.split('_')[0]
                         fid = fhkey.split('_')[-2]
-                        FitTitle = ("True %s, Fiducial Fit %s, Hypothesis "
-                                    "%s (%i Trials)"
-                                    %(labels['data_name'],
-                                      labels['%s_name'%fid],
-                                      labels['%s_name'%hypo],
-                                      len(data[fhkey][xsystkey]['vals'])))
-
+                        FitTitle = make_fit_title(
+                            labels=labels,
+                            fid=fid,
+                            hypo=hypo,
+                            trials=len(data[fhkey][xsystkey]['vals'])
+                        )
                         # Calculate correlation
                         xvals = np.array(data[fhkey][xsystkey]['vals'])
                         yvals = np.array(data[fhkey][ysystkey]['vals'])
@@ -2066,13 +2171,16 @@ def plot_correlation_matrices(data, labels, detector, selection, outdir):
         plt.tight_layout()
         plt.subplots_adjust(bottom=0.30,left=-0.30,right=1.05,top=0.9)
         plt.title(MainTitle+r'\\'+FitTitle, fontsize=16)
-        SaveName = (("true_%s_%s_%s_fid_%s_hypo_%s_correlation_matrix.png"
-                     %(labels['data_name'],
-                       detector,
-                       selection,
-                       labels['%s_name'%fid],
-                       labels['%s_name'%hypo])))
-        plt.savefig(os.path.join(outdir,SaveName))
+        save_plot(
+            labels=labels,
+            fid=fid,
+            hypo=hypo,
+            detector=detector,
+            selection=selection,
+            outdir=outdir,
+            formats=formats,
+            end='correlation_matrix'
+        )
         if pe:
             for i in range(0,len(all_corr_nparray)):
                 for j in range(0,len(all_corr_nparray[0])):
@@ -2087,14 +2195,16 @@ def plot_correlation_matrices(data, labels, detector, selection, outdir):
                                      foreground='k'
                                  )
                              ])
-        SaveName = (("true_%s_%s_%s_fid_%s_hypo_%s_correlation_matrix_"
-                     "values.png"
-                     %(labels['data_name'],
-                       detector,
-                       selection,
-                       labels['%s_name'%fid],
-                       labels['%s_name'%hypo])))
-        plt.savefig(os.path.join(outdir,SaveName))
+        save_plot(
+            labels=labels,
+            fid=fid,
+            hypo=hypo,
+            detector=detector,
+            selection=selection,
+            outdir=outdir,
+            formats=formats,
+            end='correlation_matrix_values'
+        )
         plt.close()
 
     
@@ -2185,6 +2295,14 @@ def parse_args():
         further subdirectories, if needed, to organise the output plots.'''
     )
     parser.add_argument(
+        '--pdf', action='store_true',
+        help='''Produce pdf plot(s).'''
+    )
+    parser.add_argument(
+        '--png', action='store_true',
+        help='''Produce png plot(s).'''
+    )
+    parser.add_argument(
         '-v', action='count', default=None,
         help='''set verbosity level'''
     )
@@ -2228,6 +2346,19 @@ def main():
                              "but no set(s) of extra points."%len(
                                  extra_points_labels))
     outdir = init_args_d.pop('outdir')
+    formats = {}
+    formats['png'] = init_args_d.pop('png')
+    formats['pdf'] = init_args_d.pop('pdf')
+    Save = False
+    for fileformat in formats:
+        Save = Save or formats[fileformat]
+        if formats[fileformat]:
+            logging.info("Files will be saved in %s format"%fileformat)
+    if not Save:
+        raise ValueError(
+            "You have not specified a format for the files to be saved in. " 
+            "Please specify either png, pdf or both in the arguments."
+        )
 
     if args.asimov:
         data_sets, all_params, labels, minimiser_info = extract_trials(
@@ -2277,10 +2408,11 @@ def main():
                     selection = selection,
                     extra_points = extra_points,
                     extra_points_labels = extra_points_labels,
-                    outdir = outdir
+                    outdir = outdir,
+                    formats = formats
                 )
 
-            make_fiducial_plots(
+            make_fiducial_fits(
                 data = values[injkey],
                 fid_data = fid_values[injkey],
                 labels = labels.dict,
@@ -2297,7 +2429,8 @@ def main():
                     labels = labels.dict,
                     detector = detector,
                     selection = selection,
-                    outdir=outdir
+                    outdir=outdir,
+                    formats = formats
                 )
 
             if iposteriors:
@@ -2309,7 +2442,8 @@ def main():
                     all_params = all_params,
                     detector = detector,
                     selection = selection,
-                    outdir = outdir
+                    outdir = outdir,
+                    formats = formats
                 )
 
             if cposteriors:
@@ -2321,7 +2455,8 @@ def main():
                     all_params = all_params,
                     detector = detector,
                     selection = selection,
-                    outdir = outdir
+                    outdir = outdir,
+                    formats = formats
                 )
 
             if iscatter:
@@ -2331,7 +2466,8 @@ def main():
                     labels = labels.dict,
                     detector = detector,
                     selection = selection,
-                    outdir = outdir
+                    outdir = outdir,
+                    formats = formats
                 )
 
             if ciscatter:
@@ -2341,7 +2477,8 @@ def main():
                     labels = labels.dict,
                     detector = detector,
                     selection = selection,
-                    outdir = outdir
+                    outdir = outdir,
+                    formats = formats
                 )
 
             if cscatter:
@@ -2351,7 +2488,8 @@ def main():
                     labels = labels.dict,
                     detector = detector,
                     selection = selection,
-                    outdir = outdir
+                    outdir = outdir,
+                    formats = formats
                 )
 
             if cmatrix:
@@ -2361,7 +2499,8 @@ def main():
                     labels = labels.dict,
                     detector = detector,
                     selection = selection,
-                    outdir = outdir
+                    outdir = outdir,
+                    formats = formats
                 )
                 
         
