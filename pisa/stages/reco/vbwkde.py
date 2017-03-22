@@ -62,7 +62,6 @@ from __future__ import division
 
 from collections import OrderedDict, Sequence, namedtuple
 from copy import deepcopy
-from itertools import izip
 from multiprocessing import Pool
 import threading
 
@@ -408,7 +407,6 @@ def weight_coszen_tails(cz_diff, cz_bin_edges, input_weights=None):
     return weights, diff_limits
 
 
-@numba_jit(nogil=True, nopython=False, fastmath=True)
 def coszen_error_edges(true_edges, reco_edges):
     """Return a list of edges in coszen-error space given 2 true-coszen
     edges and reco-coszen edges. Systematics are not implemented at thistime.
@@ -438,34 +436,32 @@ def coszen_error_edges(true_edges, reco_edges):
     reco_upper_binedges = reco_edges[1:]
     true_lower_binedge, true_upper_binedge = true_edges
 
-    full_reco_range_lower_binedge = np.round(-1 - true_upper_binedge, EQUALITY_SIGFIGS)
-    full_reco_range_upper_binedge = np.round(+1 - true_lower_binedge, EQUALITY_SIGFIGS)
+    full_reco_range_lower_binedge = np.round(
+        -1 - true_upper_binedge, EQUALITY_SIGFIGS
+    )
+    full_reco_range_upper_binedge = np.round(
+        +1 - true_lower_binedge, EQUALITY_SIGFIGS
+    )
 
-    dcz_lower_binedges = []
-    dcz_upper_binedges = []
-    for reco_lower_binedge, reco_upper_binedge in zip(reco_lower_binedges,
-                                                      reco_upper_binedges):
-        dcz_lower_binedges.append(np.round(reco_lower_binedge - true_upper_binedge, EQUALITY_SIGFIGS))
-        dcz_upper_binedges.append(np.round(reco_upper_binedge - true_lower_binedge, EQUALITY_SIGFIGS))
+    dcz_lower_binedges = np.round(
+        reco_lower_binedges - true_upper_binedge, EQUALITY_SIGFIGS
+    )
+    dcz_upper_binedges = np.round(
+        reco_upper_binedges - true_lower_binedge, EQUALITY_SIGFIGS
+    )
 
-    all_dcz_binedges = sorted(set(dcz_lower_binedges + dcz_upper_binedges))
+    all_dcz_binedges, indices = np.unique(
+        np.concatenate([
+            [full_reco_range_lower_binedge],
+            dcz_lower_binedges,
+            dcz_upper_binedges,
+            [full_reco_range_upper_binedge]
+        ]),
+        return_inverse=True
+    )
 
-    # Make sure the full-reco-range edges are included in "all" bin edges
-    if full_reco_range_lower_binedge != all_dcz_binedges[0]:
-        all_dcz_binedges.insert(0, full_reco_range_lower_binedge)
-    if full_reco_range_upper_binedge != all_dcz_binedges[-1]:
-        all_dcz_binedges.append(full_reco_range_upper_binedge)
-
-    # Find the indices corresponding to the lower and upper bin edges
-    dcz_lower_binedge_indices, dcz_upper_binedge_indices = [], []
-    for lower_binedge, upper_binedge in zip(dcz_lower_binedges,
-                                            dcz_upper_binedges):
-        dcz_lower_binedge_indices.append(
-            all_dcz_binedges.index(lower_binedge)
-        )
-        dcz_upper_binedge_indices.append(
-            all_dcz_binedges.index(upper_binedge)
-        )
+    dcz_lower_binedge_indices = indices[1:n_reco_edges]
+    dcz_upper_binedge_indices = indices[n_reco_edges:-1]
 
     reco_indices = (dcz_lower_binedge_indices, dcz_upper_binedge_indices)
 
@@ -1183,7 +1179,7 @@ class vbwkde(Stage):
                     coszen_norm = 1/np.sum(hist)
                     reco_indices = dcz_edge_info['cz_reco_indices']
                     reco_cz_fractions = []
-                    for reco_lower, reco_upper in izip(*reco_indices):
+                    for reco_lower, reco_upper in zip(*reco_indices):
                         reco_cz_fractions.append(
                             coszen_norm * np.sum(hist[reco_lower:reco_upper])
                         )
