@@ -2068,7 +2068,7 @@ def plot_combined_scatters(data, labels, detector, selection, outdir, formats):
             selection=selection,
             outdir=outdir,
             formats=formats,
-            end='all_scatter_plots'%(systkey)
+            end='all_scatter_plots'
         )
         plt.close()
 
