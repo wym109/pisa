@@ -623,7 +623,7 @@ def calc_p_value(LLRdist, critical_value, num_trials, greater=True,
 def plot_LLR_histograms(LLRarrays, LLRhistmax, binning, colors, labels,
                         best_name, alt_name, critical_value, critical_label,
                         critical_height, LLRhist, critical_color='k',
-                        plot_scaling_factor=1.55, greater=True):
+                        plot_scaling_factor=1.55, greater=True, CLs=False):
     """
     Does the actual plotting of the LLR histograms. The greater argument is
     intended to be used the same as in the p value function above.
@@ -666,32 +666,58 @@ def plot_LLR_histograms(LLRarrays, LLRhistmax, binning, colors, labels,
         lw=2,
         label=critical_label
     )
-    # Create an object so that a hatch can be drawn over the region of
-    # interest to the p-value.
-    finehist = np.repeat(LLRhist,100)
-    finebinning = np.linspace(binning[0],binning[-1],(len(binning)-1)*100+1)
-    finebinwidth = finebinning[1]-finebinning[0]
-    finebincens = np.linspace(finebinning[0]+finebinwidth/2.0,
-                              finebinning[-1]-finebinwidth/2.0,
-                              len(finebinning)-1)
-    # Draw the hatch. This is between the x-axis (0) and the finehist object
-    # made above. The "where" tells is to only draw above the critical value.
-    # To make it just the hatch, color is set to none and hatch is set to X.
-    # Also, so that it doesn't have a border we set linewidth to zero.
-    if greater:
-        where = (finebincens>critical_value)
+    if CLs:
+        for hist, color in zip(LLRhist, colors):
+            finehist = np.repeat(hist,100)
+            finebinning = np.linspace(binning[0],
+                                      binning[-1],
+                                      (len(binning)-1)*100+1)
+            finebinwidth = finebinning[1]-finebinning[0]
+            finebincens = np.linspace(finebinning[0]+finebinwidth/2.0,
+                                      finebinning[-1]-finebinwidth/2.0,
+                                      len(finebinning)-1)
+            if color == 'r':
+                where = (finebincens<critical_value)
+            elif color == 'b':
+                where = (finebincens>critical_value)
+            plt.fill_between(
+                finebincens,
+                0,
+                finehist,
+                where=where,
+                color='none',
+                hatch='X',
+                edgecolor=color,
+                lw=0
+            )
     else:
-        where = (finebincens<critical_value)
-    plt.fill_between(
-        finebincens,
-        0,
-        finehist,
-        where=where,
-        color='none',
-        hatch='X',
-        edgecolor="k",
-        lw=0
-    )
+        # Create an object so that a hatch can be drawn over the region of
+        # interest to the p-value.
+        finehist = np.repeat(LLRhist,100)
+        finebinning = np.linspace(binning[0],binning[-1],(len(binning)-1)*100+1)
+        finebinwidth = finebinning[1]-finebinning[0]
+        finebincens = np.linspace(finebinning[0]+finebinwidth/2.0,
+                                  finebinning[-1]-finebinwidth/2.0,
+                                  len(finebinning)-1)
+        # Draw the hatch. This is between the x-axis (0) and the finehist
+        # object made above. The "where" tells is to only draw above the
+        # critical value. To make it just the hatch, color is set to none and
+        # hatch is set to X.
+        # Also, so that it doesn't have a border we set linewidth to zero.
+        if greater:
+            where = (finebincens>critical_value)
+        else:
+            where = (finebincens<critical_value)
+        plt.fill_between(
+            finebincens,
+            0,
+            finehist,
+            where=where,
+            color='none',
+            hatch='X',
+            edgecolor="k",
+            lw=0
+        )
 
     plt.subplots_adjust(left=0.10, right=0.90, top=0.9, bottom=0.15)
 
@@ -818,6 +844,12 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir,
         num_trials=num_trials,
         greater=False
     )
+    ## Combine these to give a CLs value based on arXiv:1407.5052
+    cls_value = (1 - alt_crit_p_value) / (1 - crit_p_value)
+    unc_cls_value = cls_value * np.sqrt(
+        np.power(alt_unc_crit_p_value/alt_crit_p_value, 2.0) + \
+        np.power(unc_crit_p_value/crit_p_value, 2.0)
+    )
     ## Then for the preferred hypothesis based on the median. That is, the case
     ## of a median experiment from the distribution under the preferred
     ## hypothesis.
@@ -885,7 +917,8 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir,
     plt.figtext(
         0.15,
         0.66,
-        r"p-value = $%.4f\pm%.4f$"%(med_p_value,unc_med_p_value),
+        r"$\mathrm{p}\left(\mathcal{H}_{%s}\right) = %.4f\pm%.4f$"%(
+            best_name,med_p_value,unc_med_p_value),
         color='k',
         size='xx-large'
     )
@@ -951,7 +984,8 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir,
     plt.figtext(
         0.15,
         0.70,
-        r"p-value = $%.4f\pm%.4f$"%(crit_p_value,unc_crit_p_value),
+        r"$\mathrm{p}\left(\mathcal{H}_{%s}\right) = %.4f\pm%.4f$"%(
+            best_name,crit_p_value,unc_crit_p_value),
         color='k',
         size='xx-large'
     )
@@ -991,7 +1025,8 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir,
     plt.figtext(
         0.15,
         0.70,
-        r"p-value = $%.4f\pm%.4f$"%(alt_crit_p_value,alt_unc_crit_p_value),
+        r"$\mathrm{p}\left(\mathcal{H}_{%s}\right) = %.4f\pm%.4f$"%(
+            alt_name,alt_crit_p_value,alt_unc_crit_p_value),
         color='k',
         size='xx-large'
     )
@@ -1000,6 +1035,70 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir,
     )
     plt.savefig(os.path.join(outdir,filename))
     plt.close()
+
+    # Lastly, show both exclusion regions and then the joined CLs value
+    ## Set up the labels for the histograms
+    LLR_labels = [
+        r"%s Best Fit - $\log\left[\mathcal{L}\left(\mathcal{H}_"%(
+            tex_axis_label(best_name)) + \
+        r"{%s}\right)/\mathcal{L}\left(\mathcal{H}_{%s}\right)\right]$"%(
+            best_name, alt_name),
+        r"%s Best Fit - $\log\left[\mathcal{L}\left(\mathcal{H}_"%(
+                  tex_axis_label(alt_name)) + \
+        r"{%s}\right)/\mathcal{L}\left(\mathcal{H}_{%s}\right)\right]$"%(
+            best_name, alt_name)
+    ]
+    plot_LLR_histograms(
+        LLRarrays=[LLRbest,LLRalt],
+        LLRhistmax=LLRhistmax,
+        binning=binning,
+        colors=['r','b'],
+        labels=LLR_labels,
+        best_name=best_name,
+        alt_name=alt_name,
+        critical_value=critical_value,
+        critical_label=r"Critical Value = %.4f"%(critical_value),
+        critical_height=float(max(LLRbesthist))/float(
+            plot_scaling_factor*LLRhistmax),
+        LLRhist=[LLRbesthist,LLRalthist],
+        CLs=True,
+    )
+    plt.legend(loc='upper left')
+    plt.title(plot_title)
+    # Write the p-values on the plot
+    plt.figtext(
+        0.50,
+        0.66,
+        r"$\mathrm{CL}_{s}\left(\mathcal{H}_{%s}\right) = %.4f\pm%.4f$"%(
+            best_name,cls_value,unc_cls_value),
+        horizontalalignment='center',
+        color='k',
+        size='xx-large'
+    )
+    plt.figtext(
+        0.12,
+        0.55,
+        r"$\mathrm{p}\left(\mathcal{H}_{%s}\right) = %.2f\pm%.2f$"%(
+            alt_name,alt_crit_p_value,alt_unc_crit_p_value),
+        bbox=dict(facecolor='none', edgecolor='red', boxstyle='round'),
+        horizontalalignment='left',
+        color='k',
+        size='x-large'
+    )
+    plt.figtext(
+        0.88,
+        0.55,
+        r"$\mathrm{p}\left(\mathcal{H}_{%s}\right) = %.2f\pm%.2f$"%(
+            best_name,crit_p_value,unc_crit_p_value),
+        horizontalalignment='right',
+        bbox=dict(facecolor='none', edgecolor='blue', boxstyle='round'),
+        color='k',
+        size='x-large'
+    )
+    filename = 'true_%s_%s_%s_%s_LLRDistribution_CLs_%i_Trials.png'%(
+        inj_name, detector, selection, metric_type, num_trials
+    )
+    plt.savefig(os.path.join(outdir,filename))
 
 
 def write_latex_preamble(texfile):
