@@ -81,7 +81,7 @@ class smooth(Stage):
 
     Notes
     -----
-    See Conventions section in the documentation for more informaton on
+    See Conventions section in the documentation for more information on
     particle naming scheme in PISA.
 
     """
@@ -228,7 +228,7 @@ class smooth(Stage):
         # what's the stat. situation here?
         rel_error = errors/xform
         rel_error = np.median(rel_error[xform != 0])
-        logging.debug('Found relarive errors to be arounf %.2f'%rel_error)
+        logging.debug('Relative errors are ~ %.2f' % rel_error)
 
         # now use gaussian smoothing on those
         # some black magic sigma values
