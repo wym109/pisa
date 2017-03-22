@@ -1450,8 +1450,16 @@ def plot_individual_posterior(data, data_params, h0_params, h1_params,
 
     hypo = fhkey.split('_')[0]
     fid = fhkey.split('_')[-2]
-                
-    plt.hist(systvals, bins=10)
+
+    plt.grid(axis='y',zorder=0)
+    plt.hist(
+        systvals,
+        bins=10,
+        histtype='bar',
+        color='darkblue',
+        alpha=0.9,
+        zorder=3
+    )
 
     # Add injected and hypothesis fit lines
     if not systkey == 'metric_val':
@@ -1468,7 +1476,8 @@ def plot_individual_posterior(data, data_params, h0_params, h1_params,
                     injval,
                     color='r',
                     linewidth=2,
-                    label=injlabelproper
+                    label=injlabelproper,
+                    zorder=5
                 )
             else:
                 injval = None
@@ -1499,14 +1508,16 @@ def plot_individual_posterior(data, data_params, h0_params, h1_params,
                     fitval,
                     color='g',
                     linewidth=2,
-                    label=fitlabelproper
+                    label=fitlabelproper,
+                    zorder=5
                 )
         else:
             plt.axvline(
                 fitval,
                 color='g',
                 linewidth=2,
-                label=fitlabelproper
+                label=fitlabelproper,
+                zorder=5
             )
     # Add shaded region for prior, if appropriate
     # TODO - Deal with non-gaussian priors
@@ -1531,7 +1542,8 @@ def plot_individual_posterior(data, data_params, h0_params, h1_params,
                     color='k',
                     label=priorlabel,
                     ymax=0.1,
-                    alpha=0.5
+                    alpha=0.5,
+                    zorder=5
                 )
                 # Reset xlimits if prior makes it go far off
                 if plt.xlim()[0] < currentxlim[0]:
@@ -1547,15 +1559,17 @@ def plot_individual_posterior(data, data_params, h0_params, h1_params,
     if not units == 'dimensionless':
         systname += r' (%s)'%tex_axis_label(units)
                 
-    plt.xlabel(systname)
+    plt.xlabel(systname, size='24')
     if subplotnum is not None:
         if (subplotnum-1)%4 == 0:
-            plt.ylabel(r'Number of Trials')
+            plt.ylabel(r'Number of Trials', size='24')
     else:
-        plt.ylabel(r'Number of Trials')
+        plt.ylabel(r'Number of Trials', size='24')
     plt.ylim(0,1.35*plt.ylim()[1])
     if not systkey == 'metric_val':
         plt.legend(loc='upper left')
+
+    plt.subplots_adjust(left=0.10, right=0.90, top=0.9, bottom=0.11)
     
 
 def plot_individual_posteriors(data, fid_data, labels, all_params, detector,
