@@ -74,6 +74,7 @@ from pisa.core.events import Events
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
 
+from pisa.utils.comparisons import EQUALITY_SIGFIGS
 from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup
 from pisa.utils.hash import hash_obj
 from pisa.utils.parallel import parallel_run
@@ -110,7 +111,7 @@ KDE_TRUE_BINNING = {
              domain=[1, 80]*ureg.GeV,
              tex=r'E_{\rm true}'),
         dict(name='true_coszen', num_bins=10, is_lin=True,
-             domain=[-1, 1], #bin_edges=[-1, -0.75, 0.5, 0.75, 1],
+             domain=[-1, 1],
              tex=r'\cos\,\theta_{\rm true}')
     ])
 }
@@ -133,8 +134,8 @@ TGT_MAX_BINWIDTH_FACTOR = 0.1
 `TGT_NUM_EVENTS`. See `collect_enough_events` for more details."""
 
 
-KDEProfile = namedtuple('KDEProfile', ['x', 'density'])
-"""namedtuple type for storing the normalized KDE profile: (x, density)"""
+KDEProfile = namedtuple('KDEProfile', ['x', 'counts'])
+"""namedtuple type for storing the normalized KDE profile: (x, counts)"""
 
 
 # TODO: revisit this heuristic with proper testing
@@ -302,6 +303,8 @@ def collect_enough_events(events, flavint, bin,
 
 
 def inf2finite(x):
+    """Convert +/- infinities to largest/smallest representable numbers
+    according to the current pisa.FTYPE"""
     return np.clip(x, a_min=np.finfo(FTYPE).min, a_max=np.finfo(FTYPE).max)
 
 
@@ -341,7 +344,8 @@ def fold_coszen_diff(coszen_diff, randomize=False):
     return folded_coszen_diff
 
 
-def weight_coszen_tails(cz_diff, cz_bin, input_weights=None):
+@numba_jit(nogil=True, nopython=True, fastmath=True)
+def weight_coszen_tails(cz_diff, cz_bin_edges, input_weights=None):
     """Calculate weights that compensate for fewer points in the inherent tails
     of the coszen-difference (usually coszen-error) distribution.
 
@@ -370,11 +374,11 @@ def weight_coszen_tails(cz_diff, cz_bin, input_weights=None):
     if input_weights is None:
         weights = np.ones_like(cz_diff)
     else:
-        weights = deepcopy(input_weights)
+        weights = input_weights #deepcopy(input_weights)
 
     # Shortcuts for accessing bin edges
-    bin_lower_edge = np.min(cz_bin.bin_edges.m)
-    bin_upper_edge = np.max(cz_bin.bin_edges.m)
+    bin_lower_edge = np.min(cz_bin_edges)
+    bin_upper_edge = np.max(cz_bin_edges)
 
     # Identify limits of possible diff distribution
     diff_lower_lim = -1 - bin_upper_edge
@@ -404,6 +408,7 @@ def weight_coszen_tails(cz_diff, cz_bin, input_weights=None):
     return weights, diff_limits
 
 
+@numba_jit(nogil=True, nopython=False, fastmath=True)
 def coszen_error_edges(true_edges, reco_edges):
     """Return a list of edges in coszen-error space given 2 true-coszen
     edges and reco-coszen edges. Systematics are not implemented at thistime.
@@ -433,17 +438,17 @@ def coszen_error_edges(true_edges, reco_edges):
     reco_upper_binedges = reco_edges[1:]
     true_lower_binedge, true_upper_binedge = true_edges
 
-    full_reco_range_lower_binedge = -1 - true_upper_binedge
-    full_reco_range_upper_binedge = +1 - true_lower_binedge
+    full_reco_range_lower_binedge = np.round(-1 - true_upper_binedge, EQUALITY_SIGFIGS)
+    full_reco_range_upper_binedge = np.round(+1 - true_lower_binedge, EQUALITY_SIGFIGS)
 
     dcz_lower_binedges = []
     dcz_upper_binedges = []
     for reco_lower_binedge, reco_upper_binedge in zip(reco_lower_binedges,
                                                       reco_upper_binedges):
-        dcz_lower_binedges.append(reco_lower_binedge - true_upper_binedge)
-        dcz_upper_binedges.append(reco_upper_binedge - true_lower_binedge)
+        dcz_lower_binedges.append(np.round(reco_lower_binedge - true_upper_binedge, EQUALITY_SIGFIGS))
+        dcz_upper_binedges.append(np.round(reco_upper_binedge - true_lower_binedge, EQUALITY_SIGFIGS))
 
-    all_dcz_binedges = sorted(dcz_lower_binedges + dcz_upper_binedges)
+    all_dcz_binedges = sorted(set(dcz_lower_binedges + dcz_upper_binedges))
 
     # Make sure the full-reco-range edges are included in "all" bin edges
     if full_reco_range_lower_binedge != all_dcz_binedges[0]:
@@ -686,21 +691,21 @@ class vbwkde(Stage):
         For example:
             {'pid': {
                 numu_cc: {
-                    (true_energy=0): (x=[...], density=[...]),
-                    (true_energy=1): (x=[...], density=[...])
+                    (true_energy=0): (x=[...], counts=[...]),
+                    (true_energy=1): (x=[...], counts=[...])
                 },
                 numubar_cc: {
-                    (true_energy=0): (x=[...], density=[...]),
-                    (true_energy=1): (x=[...], density=[...])
+                    (true_energy=0): (x=[...], counts=[...]),
+                    (true_energy=1): (x=[...], counts=[...])
                 },
              'energy': {
                 numu_cc: {
-                    (true_energy=0): (x=[...], density=[...]),
-                    (true_energy=1): (x=[...], density=[...])
+                    (true_energy=0): (x=[...], counts=[...]),
+                    (true_energy=1): (x=[...], counts=[...])
                 },
                 numubar_cc: {
-                    (true_energy=0): (x=[...], density=[...]),
-                    (true_energy=1): (x=[...], density=[...])}
+                    (true_energy=0): (x=[...], counts=[...]),
+                    (true_energy=1): (x=[...], counts=[...])}
                 },
             }}
         """
@@ -774,7 +779,7 @@ class vbwkde(Stage):
                     input_binning=self.input_binning,
                     output_binning=self.output_binning,
                     xform_array=self.xform_kernels[xform_flavints].hist,
-                    sum_inputs=self.sum_grouped_flavints
+                    sum_inputs=True
                 )
                 xforms.append(xform)
 
@@ -794,7 +799,9 @@ class vbwkde(Stage):
         # TODO: add sourcecode hash for pisa.utils.vbwkde module (entire module
         #       is probably safest, due to all the functions there)
 
-        hash_items = [self.source_code_hash, self.events.hash]
+        hash_items = [self.source_code_hash, self.events.hash,
+                      self.transform_groups, self.particles,
+                      self.sum_grouped_flavints]
 
         for kde_dim, dep_dims_binning in self.kde_binning.items():
             logging.debug('Working on KDE dimension "%s"', kde_dim)
@@ -903,7 +910,8 @@ class vbwkde(Stage):
                         feature = (flav_events['reco_coszen']
                                    - flav_events['true_coszen'])
                         weights, error_limits = weight_coszen_tails(
-                            cz_diff=feature, cz_bin=bin_binning.true_coszen,
+                            cz_diff=feature,
+                            cz_bin_edges=bin_binning.true_coszen.bin_edges.m,
                             input_weights=weights
                         )
                         weights = weights * (len(weights)/np.sum(weights))
@@ -924,20 +932,20 @@ class vbwkde(Stage):
                                                   ' "%s" is not implemented.'
                                                   % kde_dim)
 
-                    _, x, density = vbwkde_func(feature, weights=weights,
-                                                **vbwkde_kwargs)
+                    _, x, counts = vbwkde_func(feature, weights=weights,
+                                               **vbwkde_kwargs)
 
                     # Note that normalization is not useful here, since norm
                     # must be computed for each input_binning bin anyway.
 
                     # Sort according to ascending weight to improve numerical
                     # precision of "poor-man's" histogram
-                    sortind = density.argsort()
+                    sortind = counts.argsort()
                     x = x[sortind]
-                    density = density[sortind]
+                    counts = counts[sortind]
 
                     self.kde_profiles[kde_dim][flavintgroup][bin_coord] = (
-                        KDEProfile(x=x, density=density)
+                        KDEProfile(x=x, counts=counts)
                     )
 
             self._kde_hashes[kde_dim] = new_hash
@@ -1065,8 +1073,8 @@ class vbwkde(Stage):
 
         allbins_dcz_edge_info = []
         cz_closest_cz_indices = []
-        for center, true_edgetuple in izip(true_cz_centers,
-                                           true_coszen.iteredgetuples()):
+        for center, true_edgetuple in zip(true_cz_centers,
+                                          true_coszen.iteredgetuples()):
             all_dcz_binedges, cz_reco_indices = coszen_error_edges(
                 true_edges=true_edgetuple, reco_edges=reco_cz_edges
             )
@@ -1090,12 +1098,16 @@ class vbwkde(Stage):
 
             # Figure out PID fractions
             pid_kde_profile = pid_kde_profiles[pid_closest_kde_coord]
-            pid_fractions, _ = np.histogram(
-                pid_kde_profile.x, weights=pid_kde_profile.density,
+
+            pid_norm = 1/np.sum(pid_kde_profile.counts)
+            pid_counts, _ = np.histogram(
+                pid_kde_profile.x, weights=pid_kde_profile.counts,
                 bins=pid_edges, density=False
             )
+            pid_fractions = pid_norm * pid_counts
+            assert np.all(pid_fractions <= 1), str(pid_fractions)
 
-            for pid_bin_num in xrange(num_pid_bins):
+            for pid_bin_num in range(num_pid_bins):
                 pid_fraction = pid_fractions[pid_bin_num]
 
                 energy_indexer = kernel_binning.defaults_indexer(
@@ -1126,10 +1138,14 @@ class vbwkde(Stage):
                 # where we characterized the energy resolutions
                 e_edges = reco_e_edges - np.log(true_e_center)/e_res_scale
 
-                energy_fractions, _ = np.histogram(
-                    e_kde_profile.x, weights=e_kde_profile.density,
+                energy_norm = 1/np.sum(e_kde_profile.counts)
+
+                energy_counts, _ = np.histogram(
+                    e_kde_profile.x, weights=e_kde_profile.counts,
                     bins=e_edges, density=False
                 )
+                energy_fractions = energy_norm * energy_counts
+                assert np.all(energy_fractions <= 1), str(energy_fractions)
 
                 kernel[energy_indexer] = pid_fraction * energy_fractions
 
@@ -1158,18 +1174,18 @@ class vbwkde(Stage):
                     dcz_edge_info = allbins_dcz_edge_info[true_cz_bin_num]
 
                     hist, _ = np.histogram(
-                        dcz_kde_profile.x, weights=dcz_kde_profile.density,
+                        dcz_kde_profile.x, weights=dcz_kde_profile.counts,
                         bins=dcz_edge_info['all_dcz_binedges'], density=False
                     )
 
                     # Collect the relevant hist sections to describe each
                     # quantity of interest, starting with normalization
-                    norm = 1/np.sum(hist)
+                    coszen_norm = 1/np.sum(hist)
                     reco_indices = dcz_edge_info['cz_reco_indices']
                     reco_cz_fractions = []
                     for reco_lower, reco_upper in izip(*reco_indices):
                         reco_cz_fractions.append(
-                            norm * np.sum(hist[reco_lower:reco_upper])
+                            coszen_norm * np.sum(hist[reco_lower:reco_upper])
                         )
 
                     coszen_indexer = kernel_binning.defaults_indexer(
@@ -1177,7 +1193,12 @@ class vbwkde(Stage):
                         true_coszen=true_cz_bin_num,
                         pid=pid_bin_num
                     )
-                    kernel.hist[coszen_indexer] *= np.array(reco_cz_fractions)
+                    reco_cz_fractions = kernel_binning.broadcast(
+                        a=np.array(reco_cz_fractions),
+                        from_dim='reco_coszen',
+                        to_dims=['reco_energy']
+                    )
+                    kernel.hist[coszen_indexer] *= reco_cz_fractions
 
         with self._xform_kernels_lock:
             self.xform_kernels[flavintgroup] = kernel
