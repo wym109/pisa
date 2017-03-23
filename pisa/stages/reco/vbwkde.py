@@ -468,6 +468,107 @@ def coszen_error_edges(true_edges, reco_edges):
     return all_dcz_binedges, reco_indices
 
 
+@numba_jit(nogil=True, nopython=True, fastmath=True)
+def sorted_fast_histogram(a, bins, weights):
+    """Fast but less precise histogramming of a sorted array with weights.
+
+    Parameters
+    ----------
+    a : sorted array
+    bins : sequence
+    weights : array
+
+    Returns
+    -------
+    hist, bin_edges
+
+    """
+    nbins = len(bins) - 1
+    ndata = len(a)
+    bin_min = bins[0]
+    bin_max = bins[nbins]
+    hist = np.zeros(nbins, np.float64)
+
+    # Note that initialization of first bin is here, since set is monotonic
+    lo = 0
+    #for view_a, view_weights in zip(np.nditer(a), np.nditer(weights)):
+    for idx in range(ndata):
+        v_a = a[idx]
+        if not bin_min <= v_a <= bin_max:
+            # Value is out of bounds, ignore (this also catches NaNs)
+            continue
+        # Bisect in bins[:-1]
+        hi = nbins - 1
+        while lo < hi:
+            # Note the `+ 1` is necessary to avoid an infinite
+            # loop where mid = lo => lo = mid
+            mid = (lo + hi + 1) >> 1
+            if v_a < bins[mid]:
+                hi = mid - 1
+            else:
+                lo = mid
+        lo_start = lo
+        hist[lo] += weights[idx]
+    return hist, bins
+
+
+@numba_jit(nogil=True, nopython=True, fastmath=True)
+def fast_histogram(a, bins, weights):
+    """Fast but less precise histogramming of an array with weights.
+
+    It is recommended that `a` and `weights` be sorted according to ascending
+    `weights` to achieve the best numerical precision. This is due to the
+    finite-precision effect whereby a small number added to a large number can
+    have no effect. Therefore adding a sequence of small numbers, one at a
+    time, to a large number also has no effect. However, adding the sequence of
+    small numbers together before being added to the large number is more
+    likely to account for all of the small numbers.
+
+    Parameters
+    ----------
+    a : array
+    bins : sequence
+    weights : array
+
+    Returns
+    -------
+    hist, bin_edges
+
+    See Also
+    --------
+    sorted_fast_histogram
+        Small speedup if `a` is sorted
+
+    """
+    nbins = len(bins) - 1
+    ndata = len(a)
+    bin_min = bins[0]
+    bin_max = bins[nbins]
+    hist = np.zeros(nbins, np.float64)
+
+    # Note that initialization of first bin is here, since set is monotonic
+    #for view_a, view_weights in zip(np.nditer(a), np.nditer(weights)):
+    for idx in range(ndata):
+        v_a = a[idx]
+        if not bin_min <= v_a <= bin_max:
+            # Value is out of bounds, ignore (this also catches NaNs)
+            continue
+        # Bisect in bins[:-1]
+        lo = 0
+        hi = nbins - 1
+        while lo < hi:
+            # Note the `+ 1` is necessary to avoid an infinite
+            # loop where mid = lo => lo = mid
+            mid = (lo + hi + 1) >> 1
+            if v_a < bins[mid]:
+                hi = mid - 1
+            else:
+                lo = mid
+        lo_start = lo
+        hist[lo] += weights[idx]
+    return hist, bins
+
+
 class vbwkde(Stage):
     """
     From simulated events, a set of transforms are created which map
@@ -924,12 +1025,14 @@ class vbwkde(Stage):
                         )
 
                     else:
-                        raise NotImplementedError('Applying KDEs to dimension'
-                                                  ' "%s" is not implemented.'
-                                                  % kde_dim)
+                        raise NotImplementedError(
+                            'Applying KDEs to dimension "%s" is not'
+                            ' implemented.' % kde_dim
+                        )
 
-                    _, x, counts = vbwkde_func(feature, weights=weights,
-                                               **vbwkde_kwargs)
+                    _, x, counts = vbwkde_func(
+                        feature, weights=weights, **vbwkde_kwargs
+                    )
 
                     # Note that normalization is not useful here, since norm
                     # must be computed for each input_binning bin anyway.
@@ -1040,9 +1143,11 @@ class vbwkde(Stage):
         # this.
         reco_e_edges = (
             np.log(inf2finite(reco_energy.bin_edges.m)
-                   - self.params.e_reco_bias.value.m) / e_res_scale
+                   - self.params.e_reco_bias.value.m)
+            / e_res_scale
         )
         reco_cz_edges = reco_coszen.bin_edges.m
+        assert np.all(np.isfinite(reco_cz_edges)), str(reco_cz_edges)
 
         reco_cz_lower_edges = reco_cz_edges[:-1]
         reco_cz_upper_edges = reco_cz_edges[1:]
@@ -1074,14 +1179,27 @@ class vbwkde(Stage):
             all_dcz_binedges, cz_reco_indices = coszen_error_edges(
                 true_edges=true_edgetuple, reco_edges=reco_cz_edges
             )
+            edge_counts = []
+            for idx in range(len(all_dcz_binedges)):
+                count = 0
+                for rng in zip(*cz_reco_indices):
+                    if idx >= rng[0] and idx < rng[1]:
+                        count += 1
+                edge_counts.append(count)
+
             allbins_dcz_edge_info.append(
                 dict(all_dcz_binedges=all_dcz_binedges,
-                     cz_reco_indices=cz_reco_indices)
+                     cz_reco_indices=cz_reco_indices,
+                     edge_counts=np.array(edge_counts))
             )
 
+            # TODO: check this logic! Seems like the general case should
+            # include account for anything here, not just in range +/- 2...
+            # or not fold at all
             cz_closest_cz_indices.append(
                 np.argmin(np.abs(
-                    fold_coszen_diff(cz_kde_cz_centers - center)
+                    #fold_coszen_diff(center - cz_kde_cz_centers)
+                    center - cz_kde_cz_centers
                 ))
             )
 
@@ -1096,12 +1214,15 @@ class vbwkde(Stage):
             pid_kde_profile = pid_kde_profiles[pid_closest_kde_coord]
 
             pid_norm = 1/np.sum(pid_kde_profile.counts)
+            assert pid_norm < 1 + EPSILON, str(pid_norm)
             pid_counts, _ = np.histogram(
                 pid_kde_profile.x, weights=pid_kde_profile.counts,
                 bins=pid_edges, density=False
             )
             pid_fractions = pid_norm * pid_counts
+            assert np.all(pid_fractions >= 0), str(pid_fractions)
             assert np.all(pid_fractions <= 1), str(pid_fractions)
+            assert np.sum(pid_fractions) < 1 + 10*EPSILON, str(pid_fractions)
 
             for pid_bin_num in range(num_pid_bins):
                 pid_fraction = pid_fractions[pid_bin_num]
@@ -1136,14 +1257,19 @@ class vbwkde(Stage):
 
                 energy_norm = 1/np.sum(e_kde_profile.counts)
 
-                energy_counts, _ = np.histogram(
+                reco_energy_counts, _ = np.histogram(
                     e_kde_profile.x, weights=e_kde_profile.counts,
                     bins=e_edges, density=False
                 )
-                energy_fractions = energy_norm * energy_counts
-                assert np.all(energy_fractions <= 1), str(energy_fractions)
+                reco_energy_fractions = energy_norm * reco_energy_counts
+                assert np.all(reco_energy_fractions >= 0), \
+                        str(reco_energy_fractions)
+                assert np.all(reco_energy_fractions <= 1), \
+                        str(reco_energy_fractions)
+                assert np.sum(reco_energy_fractions < 1 + 10*EPSILON), \
+                        str(reco_energy_fractions)
 
-                kernel[energy_indexer] = pid_fraction * energy_fractions
+                kernel[energy_indexer] = pid_fraction * reco_energy_fractions
 
                 # Do this just once for the energy bin, prior to looping over
                 # coszen
@@ -1169,32 +1295,44 @@ class vbwkde(Stage):
 
                     dcz_edge_info = allbins_dcz_edge_info[true_cz_bin_num]
 
-                    hist, _ = np.histogram(
+                    reco_coszen_counts, _ = fast_histogram(
                         dcz_kde_profile.x, weights=dcz_kde_profile.counts,
-                        bins=dcz_edge_info['all_dcz_binedges'], density=False
+                        bins=dcz_edge_info['all_dcz_binedges']
                     )
 
                     # Collect the relevant hist sections to describe each
                     # quantity of interest, starting with normalization
-                    coszen_norm = 1/np.sum(hist)
+                    coszen_norm = 1/np.sum(reco_coszen_counts)
+                    assert coszen_norm <= 1, str(coszen_norm)
                     reco_indices = dcz_edge_info['cz_reco_indices']
-                    reco_cz_fractions = []
+                    edge_counts = dcz_edge_info['edge_counts']
+                    reco_coszen_fractions = []
                     for reco_lower, reco_upper in zip(*reco_indices):
-                        reco_cz_fractions.append(
-                            coszen_norm * np.sum(hist[reco_lower:reco_upper])
+                        reco_coszen_fractions.append(
+                            coszen_norm * np.sum(
+                                reco_coszen_counts[reco_lower:reco_upper]
+                                / edge_counts[reco_lower:reco_upper]
+                            )
                         )
+                    reco_coszen_fractions = np.array(reco_coszen_fractions)
+                    assert np.all(reco_coszen_fractions <= 1), \
+                            str(reco_coszen_fractions)
+                    assert np.all(reco_coszen_fractions >= 0), \
+                            str(reco_coszen_fractions)
+                    assert np.sum(reco_coszen_fractions) < 1 + 10*EPSILON, \
+                            str(reco_coszen_fractions)
 
                     coszen_indexer = kernel_binning.defaults_indexer(
                         true_energy=true_e_bin_num,
                         true_coszen=true_cz_bin_num,
                         pid=pid_bin_num
                     )
-                    reco_cz_fractions = kernel_binning.broadcast(
-                        a=np.array(reco_cz_fractions),
+                    reco_coszen_fractions = kernel_binning.broadcast(
+                        a=reco_coszen_fractions,
                         from_dim='reco_coszen',
                         to_dims=['reco_energy']
                     )
-                    kernel.hist[coszen_indexer] *= reco_cz_fractions
+                    kernel.hist[coszen_indexer] *= reco_coszen_fractions
 
         with self._xform_kernels_lock:
             self.xform_kernels[flavintgroup] = kernel
