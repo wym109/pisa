@@ -60,9 +60,8 @@ The algorithm is roughly as follows:
 
 from __future__ import division
 
-from collections import OrderedDict, Sequence, namedtuple
+from collections import OrderedDict, namedtuple
 from copy import deepcopy
-from multiprocessing import Pool
 import threading
 
 import numpy as np
@@ -333,7 +332,7 @@ def fold_coszen_diff(coszen_diff, randomize=False):
         coszen_diff = coszen_diff * random_sign
         folded_coszen_diff = coszen_diff
     else:
-        folded_coszen_diff = deepcopy(coszen_diff)
+        folded_coszen_diff = np.copy(coszen_diff)
 
     mask = coszen_diff > 1
     folded_coszen_diff[mask] = 2 - coszen_diff[mask]
@@ -343,7 +342,7 @@ def fold_coszen_diff(coszen_diff, randomize=False):
     return folded_coszen_diff
 
 
-@numba_jit(nogil=True, nopython=True, fastmath=True)
+@numba_jit(nogil=True, fastmath=True)
 def weight_coszen_tails(cz_diff, cz_bin_edges, input_weights=None):
     """Calculate weights that compensate for fewer points in the inherent tails
     of the coszen-difference (usually coszen-error) distribution.
@@ -353,8 +352,9 @@ def weight_coszen_tails(cz_diff, cz_bin_edges, input_weights=None):
     cz_diff : array
         Cosine-zenith differences. E.g., `coszen_reco - coszen_true`
 
-    cz_bin : OneDimBinning in true-coszen
-        The true-coszen bin in which the coszen differences were computed.
+    cz_bin_edges : sequnce of two scalars
+        Edges from the true-coszen bin in which the coszen differences were
+        computed.
 
     input_weights : None or array of same size as `cz_diff`
         Existing weights that are to be multiplied by the tail weights to
@@ -373,7 +373,7 @@ def weight_coszen_tails(cz_diff, cz_bin_edges, input_weights=None):
     if input_weights is None:
         weights = np.ones_like(cz_diff)
     else:
-        weights = input_weights #deepcopy(input_weights)
+        weights = np.copy(input_weights)
 
     # Shortcuts for accessing bin edges
     bin_lower_edge = np.min(cz_bin_edges)
@@ -460,6 +460,10 @@ def coszen_error_edges(true_edges, reco_edges):
         return_inverse=True
     )
 
+    # Note: first index will be for `full_reco_range_lower_binedge`;
+    # next `n_reco_edges - 1` edges correspond to `dcz_lower_binedges`
+    # next `n_reco_edges - 1` edges correspond to `dcz_upper_binedges`, and
+    # last index will be for `full_reco_range_upper_binedge`.
     dcz_lower_binedge_indices = indices[1:n_reco_edges]
     dcz_upper_binedge_indices = indices[n_reco_edges:-1]
 
@@ -507,7 +511,6 @@ def sorted_fast_histogram(a, bins, weights):
                 hi = mid - 1
             else:
                 lo = mid
-        lo_start = lo
         hist[lo] += weights[idx]
     return hist, bins
 
@@ -564,7 +567,6 @@ def fast_histogram(a, bins, weights):
                 hi = mid - 1
             else:
                 lo = mid
-        lo_start = lo
         hist[lo] += weights[idx]
     return hist, bins
 
@@ -656,8 +658,8 @@ class vbwkde(Stage):
 
     memcache_deepcopy : bool
 
-    debug_mode : None, bool, or string
-        Whether to store extra debug info for this service.
+    debug_mode : None or bool
+        Whether to run extra checks and store extra debug info
 
     Notes
     -----
@@ -964,9 +966,7 @@ class vbwkde(Stage):
                         bin=bin_dims[-1]
                     )[repr_flavint]
 
-                    weights_specified = False
                     if weights_name in flav_events:
-                        weights_specified = True
                         weights = flav_events[weights_name]
                         weights = weights * (len(weights)/np.sum(weights))
                     else:
@@ -1132,9 +1132,10 @@ class vbwkde(Stage):
         cz_kde_cz_centers = kde_binning['coszen'].true_coszen.weighted_centers.m
 
         num_pid_bins = len(pid_binning)
-        num_reco_cz_bins = len(reco_coszen)
 
         e_res_scale = self.params.e_res_scale.value.m
+
+        # TODO: implement these systematics
         cz_res_scale = self.params.cz_res_scale.value.m
         cz_reco_bias = self.params.cz_reco_bias.value.m
 
@@ -1148,9 +1149,6 @@ class vbwkde(Stage):
         )
         reco_cz_edges = reco_coszen.bin_edges.m
         assert np.all(np.isfinite(reco_cz_edges)), str(reco_cz_edges)
-
-        reco_cz_lower_edges = reco_cz_edges[:-1]
-        reco_cz_upper_edges = reco_cz_edges[1:]
 
         # Compute info for the delta-coszen bin edges, for each true-coszen
         # input bin and each reco-coszen output bin; also get the bin edges
@@ -1214,15 +1212,18 @@ class vbwkde(Stage):
             pid_kde_profile = pid_kde_profiles[pid_closest_kde_coord]
 
             pid_norm = 1/np.sum(pid_kde_profile.counts)
-            assert pid_norm < 1 + EPSILON, str(pid_norm)
             pid_counts, _ = np.histogram(
                 pid_kde_profile.x, weights=pid_kde_profile.counts,
                 bins=pid_edges, density=False
             )
             pid_fractions = pid_norm * pid_counts
-            assert np.all(pid_fractions >= 0), str(pid_fractions)
-            assert np.all(pid_fractions <= 1), str(pid_fractions)
-            assert np.sum(pid_fractions) < 1 + 10*EPSILON, str(pid_fractions)
+
+            if self.debug_mode:
+                assert pid_norm < 1 + EPSILON, str(pid_norm)
+                assert np.all(pid_fractions >= 0), str(pid_fractions)
+                assert np.all(pid_fractions <= 1), str(pid_fractions)
+                assert np.sum(pid_fractions) < 1 + 10*EPSILON, \
+                        str(pid_fractions)
 
             for pid_bin_num in range(num_pid_bins):
                 pid_fraction = pid_fractions[pid_bin_num]
@@ -1262,12 +1263,15 @@ class vbwkde(Stage):
                     bins=e_edges, density=False
                 )
                 reco_energy_fractions = energy_norm * reco_energy_counts
-                assert np.all(reco_energy_fractions >= 0), \
-                        str(reco_energy_fractions)
-                assert np.all(reco_energy_fractions <= 1), \
-                        str(reco_energy_fractions)
-                assert np.sum(reco_energy_fractions < 1 + 10*EPSILON), \
-                        str(reco_energy_fractions)
+
+                if self.debug_mode:
+                    assert energy_norm < 1 + EPSILON, str(energy_norm)
+                    assert np.all(reco_energy_fractions >= 0), \
+                            str(reco_energy_fractions)
+                    assert np.all(reco_energy_fractions <= 1), \
+                            str(reco_energy_fractions)
+                    assert np.sum(reco_energy_fractions < 1 + 10*EPSILON), \
+                            str(reco_energy_fractions)
 
                 kernel[energy_indexer] = pid_fraction * reco_energy_fractions
 
@@ -1277,7 +1281,10 @@ class vbwkde(Stage):
                     np.log(true_e_center / cz_kde_e_centers)
                 ))
 
-                # TODO: implement `res_scale_ref` and `cz_reco_bias`!
+                # TODO: implement `res_scale_ref` and `cz_reco_bias`! Note that
+                # this is why `true_cz_lower_edge` and `true_cz_upper_edge` are
+                # enumerated over in the below loop, since these will be
+                # necessary to implement the systamtic(s).
 
                 # Get the closest coszen smearing for this
                 # (PID, true-coszen, true-energy) bin
@@ -1303,7 +1310,6 @@ class vbwkde(Stage):
                     # Collect the relevant hist sections to describe each
                     # quantity of interest, starting with normalization
                     coszen_norm = 1/np.sum(reco_coszen_counts)
-                    assert coszen_norm <= 1, str(coszen_norm)
                     reco_indices = dcz_edge_info['cz_reco_indices']
                     edge_counts = dcz_edge_info['edge_counts']
                     reco_coszen_fractions = []
@@ -1315,12 +1321,15 @@ class vbwkde(Stage):
                             )
                         )
                     reco_coszen_fractions = np.array(reco_coszen_fractions)
-                    assert np.all(reco_coszen_fractions <= 1), \
-                            str(reco_coszen_fractions)
-                    assert np.all(reco_coszen_fractions >= 0), \
-                            str(reco_coszen_fractions)
-                    assert np.sum(reco_coszen_fractions) < 1 + 10*EPSILON, \
-                            str(reco_coszen_fractions)
+
+                    if self.debug_mode:
+                        assert coszen_norm <= 1, str(coszen_norm)
+                        assert np.all(reco_coszen_fractions <= 1), \
+                                str(reco_coszen_fractions)
+                        assert np.all(reco_coszen_fractions >= 0), \
+                                str(reco_coszen_fractions)
+                        assert np.sum(reco_coszen_fractions) < 1 + 10*EPSILON, \
+                                str(reco_coszen_fractions)
 
                     coszen_indexer = kernel_binning.defaults_indexer(
                         true_energy=true_e_bin_num,
