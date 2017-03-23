@@ -1658,6 +1658,73 @@ class MultiDimBinning(object):
                 indexer.append(slice(None))
         return tuple(indexer)
 
+    def broadcast(self, a, from_dim, to_dims):
+        """Take a one-dimensional array representing one input dimension and
+        broadcast it across some number of output dimensions.
+
+        Parameters
+        ----------
+        a : 1D array
+            Data from the `from_dim` dimension. `a` must have same length as
+            the dimension it comes from (or Numpy must be able to automatically
+            cast it into this dimension).
+
+        from_dim : string
+            Name of dimension that the data in `a` comes from.
+
+        to_dims : string or iterable of strings
+            Dimension(s) to cast `a` into.
+
+        Returns
+        -------
+        a_broadcast : array
+            Broadcast version of `a`
+
+        See Also
+        --------
+        broadcaster
+            The method used internally to derive the tuple used to broadcast
+            the array. This can be used directly to return the broadcaster for
+            use on other Maps or Numpy arrays.
+
+        """
+        assert isinstance(a, np.ndarray)
+        a_shape = a.shape
+        assert len(a_shape) == 1
+        return a[self.broadcaster(from_dim=from_dim, to_dims=to_dims)]
+
+    def broadcaster(self, from_dim, to_dims):
+        """Generate an indexder that, if applied to a one-dimensional array
+        representing data from one dimension, broadcasts that array into some
+        number of other dimensions.
+
+        Parameters
+        ----------
+        from_dim : string
+            Name of dimension that the data in comes from.
+
+        to_dims : string or iterable of strings
+            Dimension(s) to cast into.
+
+        Returns
+        -------
+        bcast : tuple
+            Tuple that can be applied to a Numpy array for purposes of
+            broadcasting it. E.g. use as `np.array([0,1,2])[bcast]`.
+
+        """
+        if isinstance(to_dims, basestring):
+            to_dims = [to_dims]
+
+        bcast = []
+        for name in self.names:
+            if name == from_dim:
+                bcast.append(slice(None))
+            elif name in to_dims:
+                bcast.append(np.newaxis)
+
+        return tuple(bcast)
+
     def iterbins(self):
         """Return an iterator over each N-dimensional bin. The elments returned
         by the iterator are each a MultiDimBinning, just containing a single

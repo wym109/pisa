@@ -350,8 +350,74 @@ class Map(object):
         """Method used by e.g. ipython/Jupyter for formatting"""
         return self.__pretty__(p, cycle)
 
-    def defaults_indexer(self, **kwargs):
-        return self.binning.defaults_indexer(**kwargs)
+    def slice(self, **kwargs):
+        """Slice the map, where each argument is the name of a dimension.
+        Dimensions not named are included in full (i.e., via `np.slice(None)`).
+
+        Note that the resulting map maintains the same number of dimensions as
+        its parent, including the ordering of the dimensions. The size of each
+        dimension, however, is reduced by slicing.
+
+        Note also that modifications to the returned object's `hist` will
+        modify the parent's `hist`.
+
+
+        Examples
+        --------
+        Indexing can be done as in the following examples:
+
+        >>> mdb = MultiDimBinning([
+        ...     dict(name='x', domain=[0,1], is_lin=True, num_bins=5),
+        ...     dict(name='y', domain=[1,2], is_lin=True, num_bins=10)
+        ... ])
+        >>> ones = mdb.ones(name='ones')
+        >>> print ones.slice(x=0,)
+        Map(name='ones',
+                tex='{\\rm ones}',
+                full_comparison=False,
+                hash=None,
+                parent_indexer=(0, slice(None, None, None)),
+                binning=MultiDimBinning([
+                            OneDimBinning(name=OneDimBinning('x', 1 bin with edges at [0.0, 0.2] (behavior is linear))),
+                            OneDimBinning(name=OneDimBinning('y', 10 equally-sized bins spanning [1.0, 2.0]))]),
+                hist=array([[ 1.,  1.,  1.,  1.,  1.,  1.,  1.,  1.,  1.,  1.]]))
+        >>> print ones.slice(x=0, y=slice(None)).hist
+        [[ 1.  1.  1.  1.  1.  1.  1.  1.  1.  1.]]
+        >>> print ones.slice(x=0, y=0).hist
+        [[ 1.]]
+
+        Modifications to the slice modifies the original:
+
+        >>> mdb = MultiDimBinning([
+        ...     dict(name='x', domain=[0,1], is_lin=True, num_bins=5),
+        ...     dict(name='y', domain=[1,2], is_lin=True, num_bins=10)
+        ... ])
+        >>> ones = mdb.ones(name='ones')
+        >>> sl = ones.slice(x=2)
+        >>> sl.hist[...] = 0
+        >>> print sl.hist
+        >>> print ones.hist
+        [[ 1.  1.  1.  1.  1.  1.  1.  1.  1.  1.]
+         [ 1.  1.  1.  1.  1.  1.  1.  1.  1.  1.]
+         [ 0.  0.  0.  0.  0.  0.  0.  0.  0.  0.]
+         [ 1.  1.  1.  1.  1.  1.  1.  1.  1.  1.]
+         [ 1.  1.  1.  1.  1.  1.  1.  1.  1.  1.]]
+
+
+        See Also
+        --------
+        pisa.core.binning.MultiDimBinning.defaults_indexer
+            Method used to generate a raw indexer (that can be used to
+            index into a map or a Numpy array of same dimensionality).
+            This method is accessible from a Map `map_x` object via its
+            `binning` attribute: `map_x.binning.defaults_indexer(...)`
+
+        pisa.core.binning.MultiDimBinning.broadcast
+            Broadcast a 1D Numpy array to dimensionality with reference to this
+            object's dimensionality.
+
+        """
+        return self[self.binning.defaults_indexer(**kwargs)]
 
     def set_poisson_errors(self):
         """Approximate poisson errors using sqrt(n)."""
