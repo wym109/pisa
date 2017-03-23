@@ -5,6 +5,7 @@ Plotter class for doing plots easily
 
 
 import itertools
+import os
 
 import numpy as np
 from uncertainties import unumpy as unp
@@ -138,9 +139,12 @@ class Plotter(object):
 
     def dump(self, fname):
         """dump figure to file"""
-        logging.info('Writing %s to file'%fname)
+        basepath = os.path.join(self.outdir, fname)
         for fmt in self.fmt:
-            plt.savefig(self.outdir+'/'+fname+'.'+fmt, dpi=150,
+            filepath = basepath +  '.' + fmt
+            logging.info('Writing plot %s to file %s',
+                         fname, os.path.abspath(filepath))
+            plt.savefig(filepath, dpi=150,
                         edgecolor='none', facecolor=self.fig.get_facecolor())
 
     # --- 2d plots ---
@@ -155,7 +159,7 @@ class Plotter(object):
             self.add_stamp(map.tex)
             self.dump(map.name)
 
-    def plot_2d_array(self, map_set, n_rows=None, n_cols=None, fname=None, 
+    def plot_2d_array(self, map_set, n_rows=None, n_cols=None, fname=None,
                       **kwargs):
         """plot all maps or transforms in a single plot"""
         if fname is None:
@@ -171,8 +175,8 @@ class Plotter(object):
                     idx = l.index(min(l))
                     split_axis_ = map.binning.names[idx]
                     logging.warning(
-                        'Plotter automatically splitting map %s along %s axis'
-                        % (map.name, split_axis_)
+                        'Plotter automatically splitting map %s along %s axis',
+                        map.name, split_axis_
                     )
                 new_maps.extend(map.split(split_axis_))
             elif len(map.binning) == 2:
@@ -232,8 +236,8 @@ class Plotter(object):
         for i in range(len(map_sets[0])):
             maps = [map_set[i] for map_set in map_sets]
             self.stamp = maps[0].tex
-            for k in range(len(map_sets)):
-                maps[k].tex = map_sets[k].tex
+            for k, map_set in enumerate(map_sets):
+                maps[k].tex = map_set.tex
             self.init_fig()
             if self.ratio:
                 ax1 = plt.subplot2grid((4, 1), (0, 0), rowspan=3)
@@ -288,7 +292,6 @@ class Plotter(object):
     def slices_array(self, map_sets, plot_axis, *args, **kwargs):
         """plot map_set in array using a function fun"""
         n_cols = len(map_sets[0])
-        plt_binning = map_sets[0][0].binning[plot_axis]
         plt_axis_n = map_sets[0][0].binning.names.index(plot_axis)
         # determine how many slices we need accoring to map_set[0]
         n_rows = 0
@@ -366,24 +369,28 @@ class Plotter(object):
                        - np.min(np.ma.masked_invalid(zmap)))
             vmin = -vmax
         else:
-            if vmax == None:
+            if vmax is None:
                 vmax = np.max(zmap[np.isfinite(zmap)])
-            if vmin == None:
+            if vmin is None:
                 vmin = np.min(zmap[np.isfinite(zmap)])
         extent = [np.min(bin_edges[0].m), np.max(bin_edges[0].m),
                   np.min(bin_edges[1].m), np.max(bin_edges[1].m)]
 
         # Only lin or log can be handled by imshow...otherise use colormesh
-        if linlog:
+
+        # TODO: fix imshow for log-scaled energy vs. lin-scaled coszen, or
+        # remove this code altogether
+        if False: #linlog:
             # Needs to be transposed for imshow
-            img = plt.imshow(
+            _ = plt.imshow(
                 zmap.T, origin='lower', interpolation='nearest', extent=extent,
                 aspect='auto', cmap=cmap, vmin=vmin, vmax=vmax, **kwargs
             )
         else:
             x, y = np.meshgrid(bin_edges[0], bin_edges[1])
-            img = plt.pcolormesh(x, y, zmap.T, vmin=vmin, vmax=vmax, cmap=cmap,
-                                 **kwargs)
+            _ = plt.pcolormesh(x, y, zmap.T, vmin=vmin, vmax=vmax, cmap=cmap,
+                               **kwargs)
+
         if self.annotate:
             for i in range(len(bin_centers[0])):
                 for j in range(len(bin_centers[1])):
@@ -462,7 +469,7 @@ class Plotter(object):
         hist = map.hist
         plt_axis_n = map.binning.names.index(plot_axis)
         hist = np.swapaxes(hist, plt_axis_n, 0)
-        for i in range(1, len(map.binning)):
+        for _ in range(1, len(map.binning)):
             hist = np.sum(hist, 1)
         return hist
 
@@ -473,30 +480,31 @@ class Plotter(object):
         plt_binning = map0.binning[plot_axis]
         hist = self.project_1d(map0, plot_axis)
         hist0 = unp.nominal_values(hist)
+        # TODO: should this be used somewhere?
         err0 = unp.std_devs(hist)
 
         axis.set_xlim(plt_binning.bin_edges.m[0], plt_binning.bin_edges.m[-1])
         maximum = 1.0
         minimum = 1.0
         self.reset_colors()
-        for j, map in enumerate(maps):
+        for map in maps:
             self.next_color()
             hist = self.project_1d(map, plot_axis)
             hist1 = unp.nominal_values(hist)
             err1 = unp.std_devs(hist)
             ratio = np.zeros_like(hist0)
             ratio_error = np.zeros_like(hist0)
-            for i in range(len(hist0)):
-                if hist1[i]==0 and hist0[i]==0:
+            for i, hist0i in enumerate(hist0):
+                if hist1[i] == 0 and hist0i == 0:
                     ratio[i] = 1.
                     ratio_error[i] = 1.
-                elif hist1[i]!=0 and hist0[i]==0:
+                elif hist1[i] != 0 and hist0i == 0:
                     logging.warning('deviding non 0 by 0 for ratio')
                     ratio[i] = 0.
                     ratio_error[i] = 1.
                 else:
-                    ratio[i] = hist1[i]/hist0[i]
-                    ratio_error[i] = err1[i]/hist0[i]
+                    ratio[i] = hist1[i]/hist0i
+                    ratio_error[i] = err1[i]/hist0i
                     minimum = min(minimum, ratio[i])
                     maximum = max(maximum, ratio[i])
 
@@ -507,7 +515,7 @@ class Plotter(object):
                     color='k', ecolor='k', mec='k'
                 )
             else:
-                h, b, p = axis.hist(
+                _ = axis.hist(
                     plt_binning.weighted_centers, weights=ratio,
                     bins=plt_binning.bin_edges, histtype='step', lw=1.5,
                     label=dollars(text2tex(map.tex)), color=self.color)
@@ -525,7 +533,7 @@ class Plotter(object):
         axis.set_xlabel(dollars(text2tex(plt_binning.label)))
         # Calculate nice scale:
         off = max(maximum-1, 1-minimum)
-        axis.set_ylim(1 - 1.2 * off, 1 + 1.2 * off )
+        axis.set_ylim(1 - 1.2 * off, 1 + 1.2 * off)
 
     def plot_xsec(self, map_set, ylim=None, logx=True):
         from pisa.utils import fileio
