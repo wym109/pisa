@@ -503,7 +503,7 @@ def main():
         plotter.plot_2d_array(
             test - ref,
             fname='diff__%s__%s' % (test_plot_label, ref_plot_label),
-            cmap='RdBu',
+            cmap='RdBu_r',
             #vmin=args.diff_min, vmax=args.diff_max
         )
 
@@ -517,7 +517,7 @@ def main():
         plotter.plot_2d_array(
             (test-ref)/(test+ref),
             fname='fract_diff__%s__%s' % (test_plot_label, ref_plot_label),
-            cmap='RdBu',
+            cmap='RdBu_r',
             #vmin=args.fract_diff_min, vmax=args.fract_diff_max
         )
 
@@ -532,7 +532,7 @@ def main():
         plotter.plot_2d_array(
             (test-ref)/(test+ref)**0.5,
             fname='asymm__%s__%s' % (test_plot_label, ref_plot_label),
-            cmap='RdBu',
+            cmap='RdBu_r',
             #vmin=args.asymm_min, vmax=args.asymm_max
         )
 
