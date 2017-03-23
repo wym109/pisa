@@ -682,7 +682,7 @@ class Stage(object):
                 selections, error_on_missing=True
             )
         except KeyError:
-            msg = 'None of the selections %s found in this pipeline.' \
+            msg = 'Not all of the selections %s found in this stage.' \
                     %(selections,)
             if error_on_missing:
                 #logging.error(msg)
