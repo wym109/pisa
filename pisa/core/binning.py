@@ -2374,9 +2374,9 @@ def test_OneDimBinning():
     b3 = OneDimBinning(name='reco_energy', num_bins=40, is_log=True,
                        domain=[1, 80]*ureg.GeV, tex=r'E_{\rm reco}',
                        bin_names=[str(i) for i in range(40)])
-    # Test label_tex
-    _ = b1.label_tex
-    _ = b1.label_tex
+    # Test axis_label
+    _ = b1.axis_label
+    _ = b1.axis_label
 
     assert b1.basename_binning == b1.basename_binning
     assert b1.basename_binning == b3.basename_binning
