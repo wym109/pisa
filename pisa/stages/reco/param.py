@@ -585,7 +585,9 @@ class param(Stage):
                 # binning where 'coszen' is the first
                 logging.trace(" Transposing kernel, since 'coszen' has been"
                               " detected as the first dimension.")
-                reco_kernel = reco_kernel.T
+                reco_kernel = np.swapaxes(reco_kernel, 0, 1)
+                reco_kernel = np.swapaxes(reco_kernel, 2, 3)
+
 
             if self.sum_grouped_flavints:
                 xform_input_names = []
