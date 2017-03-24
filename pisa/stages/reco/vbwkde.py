@@ -1012,16 +1012,29 @@ class vbwkde(Stage):
                             input_weights=weights
                         )
                         weights = weights * (len(weights)/np.sum(weights))
+
+                        # TODO: try the following to fix the tails:
+                        # 1. Simply mirror half the points about the error
+                        #    limits, KDE, then take the central portion
+                        # 2. Mirror about mode (but only place "new" datapoints
+                        #    *outside* the current error limits)
+                        # 3. Evaluate KDE as now, but evaluate a range outside
+                        #    the allowed limits; fold the shapes in by
+                        #    reflecting at the limits and adding this in.
+
+                        # Trying method 2 first...
                         error_width = error_limits[1] - error_limits[0]
-                        error_mid = 0.5*(error_limits[0] + error_limits[1])
+
+                        extended_lower_lim = error_limits[0] - 0.55*error_width
+                        extended_upper_lim = error_limits[1] + 0.55*error_width
 
                         vbwkde_kwargs = dict(
                             n_dct=int(2**6),
-                            min=error_limits[0],
-                            max=error_limits[1],
-                            evaluate_at=np.linspace(error_limits[0],
-                                                    error_limits[1],
-                                                    int(5e3))
+                            min=extended_lower_lim,
+                            max=extended_upper_lim,
+                            evaluate_at=np.linspace(extended_lower_lim,
+                                                    extended_upper_lim,
+                                                    int(1e4))
                         )
 
                     else:
@@ -1033,6 +1046,26 @@ class vbwkde(Stage):
                     _, x, counts = vbwkde_func(
                         feature, weights=weights, **vbwkde_kwargs
                     )
+
+                    if kde_dim == 'coszen':
+                        length = len(x)
+                        mirrored_length = length // 2
+                        below_range_mask = x < error_limits[0]
+                        above_range_mask = x > error_limits[1]
+                        in_range_mask = ~(below_range_mask | above_range_mask)
+
+                        x_in_range = x[in_range_mask]
+                        counts_in_range = counts[in_range_mask]
+
+                        counts_in_range[:mirrored_length] += np.fliplr(
+                            counts[below_range_mask][-mirrored_length:]
+                        )
+                        counts_in_range[-mirrored_length:] += np.fliplr(
+                            counts[above_range_mask][mirrored_length:]
+                        )
+
+                        x = x_in_range
+                        counts = counts_in_range
 
                     # Note that normalization is not useful here, since norm
                     # must be computed for each input_binning bin anyway.
@@ -1222,7 +1255,6 @@ class vbwkde(Stage):
             pid_fractions = pid_norm * pid_counts
 
             if self.debug_mode:
-                assert pid_norm < 1 + EPSILON, str(pid_norm)
                 assert np.all(pid_fractions >= 0), str(pid_fractions)
                 assert np.all(pid_fractions <= 1), str(pid_fractions)
                 assert np.sum(pid_fractions) < 1 + 10*EPSILON, \
@@ -1268,7 +1300,6 @@ class vbwkde(Stage):
                 reco_energy_fractions = energy_norm * reco_energy_counts
 
                 if self.debug_mode:
-                    assert energy_norm < 1 + EPSILON, str(energy_norm)
                     assert np.all(reco_energy_fractions >= 0), \
                             str(reco_energy_fractions)
                     assert np.all(reco_energy_fractions <= 1), \
@@ -1291,13 +1322,13 @@ class vbwkde(Stage):
                     np.log(true_e_center / cz_kde_e_centers)
                 ))
 
+                # Get the closest coszen smearing for this
+                # (PID, true-coszen, true-energy) bin
+
                 # TODO: implement `res_scale_ref` and `cz_reco_bias`! Note that
                 # this is why `true_cz_lower_edge` and `true_cz_upper_edge` are
                 # enumerated over in the below loop, since these will be
                 # necessary to implement the systamtic(s).
-
-                # Get the closest coszen smearing for this
-                # (PID, true-coszen, true-energy) bin
                 for true_cz_bin_num, (true_cz_lower_edge, true_cz_upper_edge) \
                         in enumerate(true_cz_edge_pairs):
                     cz_closest_cz_idx = cz_closest_cz_indices[true_cz_bin_num]
@@ -1335,7 +1366,6 @@ class vbwkde(Stage):
                     reco_coszen_fractions = np.array(reco_coszen_fractions)
 
                     if self.debug_mode:
-                        assert coszen_norm <= 1, str(coszen_norm)
                         assert np.all(reco_coszen_fractions <= 1), \
                                 str(reco_coszen_fractions)
                         assert np.all(reco_coszen_fractions >= 0), \
@@ -1343,17 +1373,23 @@ class vbwkde(Stage):
                         assert np.sum(reco_coszen_fractions) < 1 + 10*EPSILON, \
                                 str(reco_coszen_fractions)
 
+                    # Here we index directly into (i.e. the smearing profile
+                    # applies direclty to) a single
+                    # `(true_energy, true_coszen, pid)` coordinate.
                     coszen_indexer = kernel_binning.defaults_indexer(
                         true_energy=true_e_bin_num,
                         true_coszen=true_cz_bin_num,
                         pid=pid_bin_num
                     )
-                    reco_coszen_fractions = kernel_binning.broadcast(
-                        a=reco_coszen_fractions,
+
+                    # At that coordinate, we broadcast the information from
+                    # the `reco_coszen` dimension into the entire `reco_energy`
+                    # dimension.
+                    kernel.hist[coszen_indexer] *= kernel_binning.broadcast(
+                        reco_coszen_fractions,
                         from_dim='reco_coszen',
-                        to_dims=['reco_energy']
+                        to_dims='reco_energy'
                     )
-                    kernel.hist[coszen_indexer] *= reco_coszen_fractions
 
         with self._xform_kernels_lock:
             self.xform_kernels[flavintgroup] = kernel
