@@ -421,6 +421,52 @@ class OneDimBinning(object):
         """Method used by e.g. ipython/Jupyter for formatting"""
         return self.__pretty__(p, cycle)
 
+    def __getstate__(self):
+        """Method invoked during pickling"""
+        return self.serializable_state
+
+    def __setstate__(self, state):
+        """Method invoked during unpickling"""
+        self.__init__(**state)
+
+    def to_json(self, filename, **kwargs):
+        """Serialize the state to a JSON file that can be instantiated as a new
+        object later.
+
+        Parameters
+        ----------
+        filename : str
+            Filename; must be either a relative or absolute path (*not
+            interpreted as a PISA resource specification*)
+        **kwargs
+            Further keyword args are sent to `pisa.utils.jsons.to_json()`
+
+        See Also
+        --------
+        from_json : Instantiate new OneDimBinning object from the file written
+            by this method
+
+        """
+        jsons.to_json(self.serializable_state, filename=filename, **kwargs)
+
+    @classmethod
+    def from_json(cls, resource):
+        """Instantiate a new object from the contents of a JSON file as
+        formatted by the `to_json` method.
+
+        Parameters
+        ----------
+        resource : str
+            A PISA resource specification (see pisa.utils.resources)
+
+        See Also
+        --------
+        to_json
+
+        """
+        state = jsons.from_json(resource)
+        return cls(**state)
+
     def __contains__(self, x):
         try:
             self.index(x)
@@ -466,44 +512,6 @@ class OneDimBinning(object):
                              " Specify an int in %s%s."
                              %(x, valid_range, valid_names))
 
-    def to_json(self, filename, **kwargs):
-        """Serialize the state to a JSON file that can be instantiated as a new
-        object later.
-
-        Parameters
-        ----------
-        filename : str
-            Filename; must be either a relative or absolute path (*not
-            interpreted as a PISA resource specification*)
-        **kwargs
-            Further keyword args are sent to `pisa.utils.jsons.to_json()`
-
-        See Also
-        --------
-        from_json : Instantiate new OneDimBinning object from the file written
-            by this method
-
-        """
-        jsons.to_json(self.serializable_state, filename=filename, **kwargs)
-
-    @classmethod
-    def from_json(cls, resource):
-        """Instantiate a new object from the contents of a JSON file as
-        formatted by the `to_json` method.
-
-        Parameters
-        ----------
-        resource : str
-            A PISA resource specification (see pisa.utils.resources)
-
-        See Also
-        --------
-        to_json
-
-        """
-        state = jsons.from_json(resource)
-        return cls(**state)
-
     def iterbins(self):
         """Return an iterator over each bin. The elments returned by the
         iterator are each a OneDimBinning object, just containing a single bin.
@@ -545,6 +553,7 @@ class OneDimBinning(object):
 
     @property
     def serializable_state(self):
+        """OrderedDict containing savable state attributes"""
         if self._serializable_state is None:
             state = OrderedDict()
             state['name'] = self.name
@@ -561,6 +570,13 @@ class OneDimBinning(object):
 
     @property
     def hashable_state(self):
+        """OrderedDict containing simplified state attributes (i.e. some state
+        attributes are represented by their hashes) used for testing equality
+        between two objects.
+
+        Use `hashable_state` for faster equality checks and `normalized_state`
+        for inspecting the contents of each state attribute pre-hashing
+        """
         if self._hashable_state is None:
             state = OrderedDict()
             state['name'] = self.name
@@ -573,6 +589,13 @@ class OneDimBinning(object):
 
     @property
     def normalized_state(self):
+        """OrderedDict containing normalized (base units, and rounded to
+        appropriate precision) state attributes used for testing equality
+        between two objects.
+
+        Use `hashable_state` for faster equality checks and `normalized_state`
+        for inspecting the contents of each state attribute pre-hashing
+        """
         if self._normalized_state is None:
             state = OrderedDict()
             state['name'] = self.name
@@ -586,15 +609,10 @@ class OneDimBinning(object):
 
     @property
     def edge_magnitudes(self):
+        """Bin edges' magnitudes"""
         if self._edge_magnitudes is None:
             self._edge_magnitudes = self.bin_edges.magnitude
         return self._edge_magnitudes
-
-    def __getstate__(self):
-        return self.serializable_state
-
-    def __setstate__(self, state):
-        self.__init__(**state)
 
     @property
     def name(self):
@@ -626,9 +644,10 @@ class OneDimBinning(object):
         self._tex = strip_outer_dollars(text2tex(val))
 
     @property
-    def label_tex(self):
-        """string : tex label, intended to be placed in math mode (e.g. between
-        matching dollars-signs)"""
+    def axis_label(self):
+        r"""string : tex label, intended to be placed in math mode (e.g.
+        between matching dollars-signs) for axes labeling, including units (if
+        not dimensionless). E.g.: r'E_{\rm true} \; ({\rm GeV})'"""
         self_tex = self.tex
         if self_tex is None or self_tex == '':
             name_tex = r'{\rm %s}' % self.name
@@ -1319,9 +1338,11 @@ class MultiDimBinning(object):
         return self.__pretty__(p, cycle)
 
     def __getstate__(self):
+        """Method invoked during pickling"""
         return self.serializable_state
 
     def __setstate__(self, state):
+        """Method invoked during unpickling"""
         self.__init__(**state)
 
     def to_json(self, filename, **kwargs):
@@ -1450,10 +1471,10 @@ class MultiDimBinning(object):
 
     @property
     def serializable_state(self):
-        """Everything necessary to fully describe this object's state. Note
-        that objects may be returned by reference, so to prevent external
-        modification, the user must call deepcopy() separately on the returned
-        dict.
+        """Attributes of the object that are stored to disk. Note that
+        attributes may be returned as references to other objects, so to
+        prevent external modification of those objects, the user must call
+        deepcopy() separately on the returned OrderedDict.
 
         Returns
         -------
@@ -1488,6 +1509,13 @@ class MultiDimBinning(object):
 
     @property
     def normalized_state(self):
+        """OrderedDict containing normalized (base units, and rounded to
+        appropriate precision) state attributes used for testing equality
+        between two objects.
+
+        Use `hashable_state` for faster equality checks and `normalized_state`
+        for inspecting the contents of each state attribute pre-hashing
+        """
         state = OrderedDict()
         state['dimensions'] = [d.normalized_state() for d in self]
         return state
@@ -2666,7 +2694,7 @@ def test_MultiDimBinning():
     t0 = time.time()
     _ = [tup for tup in mdb_3d_reco.iteredgetuples()]
     tprofile.info('Time to iterate over %d edge tuples: %.6f sec',
-                   mdb_3d_reco.size, time.time() - t0)
+                  mdb_3d_reco.size, time.time() - t0)
 
     sub_binning = mdb_3d_reco[:10, :10, :10]
     t0 = time.time()
