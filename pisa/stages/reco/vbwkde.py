@@ -108,7 +108,7 @@ KDE_TRUE_BINNING = {
         dict(name='true_energy', num_bins=5, is_log=True,
              domain=[1, 80]*ureg.GeV,
              tex=r'E_{\rm true}'),
-        dict(name='true_coszen', num_bins=10, is_lin=True,
+        dict(name='true_coszen', num_bins=40, is_lin=True,
              domain=[-1, 1],
              tex=r'\cos\,\theta_{\rm true}')
     ])
@@ -1177,8 +1177,11 @@ class vbwkde(Stage):
             all_dcz_binedges, cz_reco_indices = coszen_error_edges(
                 true_edges=true_edgetuple, reco_edges=reco_cz_edges
             )
+
+            # Note that the final (uppermost) edge doesn't matter as it does
+            # not define the *start* of a range.
             edge_counts = []
-            for idx in range(len(all_dcz_binedges)):
+            for idx in range(len(all_dcz_binedges) - 1):
                 count = 0
                 for rng in zip(*cz_reco_indices):
                     if idx >= rng[0] and idx < rng[1]:
@@ -1273,7 +1276,14 @@ class vbwkde(Stage):
                     assert np.sum(reco_energy_fractions < 1 + 10*EPSILON), \
                             str(reco_energy_fractions)
 
-                kernel[energy_indexer] = pid_fraction * reco_energy_fractions
+                # pid and true_energy are covered by the `energy_indexer`;
+                # then we broadcast reco_energy to
+                # (true_coszen, reco_coszen, reco_energy)
+                kernel[energy_indexer] = kernel_binning.broadcast(
+                    reco_energy_fractions,
+                    from_dim='reco_energy',
+                    to_dims=['true_coszen', 'reco_coszen']
+                )
 
                 # Do this just once for the energy bin, prior to looping over
                 # coszen
@@ -1309,15 +1319,17 @@ class vbwkde(Stage):
 
                     # Collect the relevant hist sections to describe each
                     # quantity of interest, starting with normalization
-                    coszen_norm = 1/np.sum(reco_coszen_counts)
                     reco_indices = dcz_edge_info['cz_reco_indices']
-                    edge_counts = dcz_edge_info['edge_counts']
+
+                    coszen_norm = 1 / np.sum(
+                        reco_coszen_counts * dcz_edge_info['edge_counts']
+                    )
+
                     reco_coszen_fractions = []
                     for reco_lower, reco_upper in zip(*reco_indices):
                         reco_coszen_fractions.append(
                             coszen_norm * np.sum(
                                 reco_coszen_counts[reco_lower:reco_upper]
-                                / edge_counts[reco_lower:reco_upper]
                             )
                         )
                     reco_coszen_fractions = np.array(reco_coszen_fractions)
