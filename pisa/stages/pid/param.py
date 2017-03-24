@@ -39,6 +39,7 @@ from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
+from pisa.core.map import Map, MapSet
 
 
 __all__ = ['hist']
@@ -172,15 +173,15 @@ class param(Stage):
 
         # Define the names of objects that get produced by this stage
         self.output_channels = ('trck', 'cscd')
-        output_names = [self.suffix_channel(in_name, out_chan) for in_name,
-                        out_chan in product(input_names, self.output_channels)]
+        #output_names = [self.suffix_channel(in_name, out_chan) for in_name,
+        #                out_chan in product(input_names, self.output_channels)]
 
         super(self.__class__, self).__init__(
             use_transforms=True,
             params=params,
             expected_params=expected_params,
             input_names=input_names,
-            output_names=output_names,
+            output_names=input_names,
             error_method=error_method,
             outputs_cache_depth=outputs_cache_depth,
             transforms_cache_depth=transforms_cache_depth,
@@ -217,8 +218,8 @@ class param(Stage):
 
         # TODO: not handling rebinning in this stage or within Transform
         # objects; implement this! (and then this assert statement can go away)
-        assert self.input_binning == self.output_binning, \
-                "input and output binning deviate!"
+        #assert self.input_binning == self.output_binning, \
+        #        "input and output binning deviate!"
 
     def load_pid_energy_param(self, pid_energy_param):
         """
@@ -336,12 +337,33 @@ class param(Stage):
                         input_names=input_name,
                         output_name=self.suffix_channel(input_name, sig),
                         input_binning=self.input_binning,
-                        output_binning=self.output_binning,
+                        output_binning=self.input_binning,
                         xform_array=xform_array
                     )
                     nominal_transforms.append(xform)
 
         return TransformSet(transforms=nominal_transforms)
+
+    def get_outputs(self, inputs=None):
+        orig_output_binning = self.output_binning
+        self.output_binning = self.input_binning
+        outputs = super(self.__class__, self).get_outputs(inputs)
+        self.output_binning = orig_output_binning
+        # put together pid bins
+        new_maps = []
+        for name in self.output_names:
+            hist = np.array([outputs[name+'_cscd'].hist, outputs[name+'_trck'].hist])
+            # put that pid dimension last
+            hist = np.rollaxis(hist, 0, 3)
+            new_maps.append(Map(name, hist, self.output_binning))
+        new_outputs = MapSet(new_maps, outputs.name, outputs.tex)
+        return new_outputs
+
+    def check_transforms(self, transforms):
+        pass
+
+    def check_outputs(self, outputs):
+        pass
 
     def _compute_transforms(self):
         """There are no systematics in this stage, so the transforms are just

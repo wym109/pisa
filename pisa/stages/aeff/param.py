@@ -170,7 +170,7 @@ class param(Stage):
 
         # TODO: not handling rebinning in this stage or within Transform
         # objects; implement this! (and then this assert statement can go away)
-        assert self.input_binning == self.output_binning
+        #assert self.input_binning == self.output_binning
 
         # Right now this can only deal with 1D energy or 2D energy / coszenith
         # binning, so if azimuth is present then this will raise an exception.
@@ -388,7 +388,7 @@ class param(Stage):
                         input_names=xform_input_names,
                         output_name=output_name,
                         input_binning=self.input_binning,
-                        output_binning=self.output_binning,
+                        output_binning=self.input_binning,
                         xform_array=xform_array,
                         sum_inputs=self.sum_grouped_flavints
                     )
@@ -412,7 +412,7 @@ class param(Stage):
                             input_names=input_name,
                             output_name=output_name,
                             input_binning=self.input_binning,
-                            output_binning=self.output_binning,
+                            output_binning=self.input_binning,
                             xform_array=xform_array,
                             sum_inputs=self.sum_grouped_flavints
                         )
