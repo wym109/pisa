@@ -190,9 +190,35 @@ class param(Stage):
             debug_mode=debug_mode
         )
 
-        # Can do these now that binning has been set up in call to Stage's init
         self.include_attrs_for_hashes('particles')
         self.include_attrs_for_hashes('transform_groups')
+
+    def validate_binning(self):
+        # Must have energy in input binning
+        if 'reco_energy' not in set(self.input_binning.names):
+            raise ValueError(
+                'Input binning must contain "reco_energy".'
+            )
+
+        # Right now this can only deal with 1D energy or 2D energy / coszenith
+        # binning, so if azimuth is present then this will raise an exception.
+        if 'reco_azimuth' in set(self.input_binning.names):
+            raise ValueError(
+                "Input binning cannot have azimuth present for this "
+                "parameterised PID service."
+            )
+
+        if (self.input_binning.names[0] != 'reco_energy' and
+                self.input_binning.names[0] != 'reco_coszen'):
+            raise ValueError(
+                "Got a name for the first binning dimension that"
+                " was unexpected - '%s'."%self.input_binning.names[0]
+            )
+
+        # TODO: not handling rebinning in this stage or within Transform
+        # objects; implement this! (and then this assert statement can go away)
+        assert self.input_binning == self.output_binning, \
+                "input and output binning deviate!"
 
     def load_pid_energy_param(self, pid_energy_param):
         """
@@ -206,12 +232,6 @@ class param(Stage):
             energy_param_dict = from_file(pid_energy_param)
         elif isinstance(pid_energy_param, dict):
             energy_param_dict = pid_energy_param
-        else:
-            raise ValueError(
-                "Expecting either a path to a file or a dictionary provided as"
-                " the store of the parameterisations. Got %s. Something is "
-                "wrong."%(type(reco_param))
-            )
         self.energy_param_dict = energy_param_dict
         self._energy_param_hash = this_hash
 
@@ -228,21 +248,20 @@ class param(Stage):
                         energy_param = self.energy_param_dict[nu]
                     else:
                         raise ValueError(
-                            "Got flavour %s which is not in the "
-                            "parameterisation dictionary keys - %s. Something"
-                            " is wrong."%(nu,
-                                          self.energy_param_dict.keys())
+                            "Got flavour '%s' which is not in the "
+                            "parameterisation dictionary keys - %s"
+                            %(nu, self.energy_param_dict.keys())
                         )
                 else:
                     raise ValueError(
                         "Expected to get joined flav of nu+nubar but instead "
-                        "got %s. Something is wrong."%flavstr
+                        "got '%s'."%flavstr
                     )
             else:
                 raise ValueError(
-                    "Got flavour %s which is not in the parameterisation "
-                    " dictionary keys - %s or a flavour combination. Something"
-                    " is wrong."%(flavstr,self.energy_param_dict.keys())
+                    "Got flavour '%s' which is not in the parameterisation "
+                    " dictionary keys - %s or a flavour combination."
+                    %(flavstr,self.energy_param_dict.keys())
                 )
         else:
             energy_param = self.energy_param_dict[flavstr]
@@ -253,24 +272,7 @@ class param(Stage):
         """Compute new PID transforms."""
         logging.debug('Updating pid.param PID histograms...')
 
-        # Must have energy in input binning
-        if 'reco_energy' not in set(self.input_binning.names):
-            raise ValueError(
-                'Input binning must contain "reco_energy".'
-            )
         ecen = self.input_binning.reco_energy.weighted_centers.magnitude
-
-        # TODO: not handling rebinning in this stage or within Transform
-        # objects; implement this! (and then this assert statement can go away)
-        assert self.input_binning == self.output_binning
-
-        # Right now this can only deal with 1D energy or 2D energy / coszenith
-        # binning, so if azimuth is present then this will raise an exception.
-        if 'reco_azimuth' in set(self.input_binning.names):
-            raise ValueError(
-                "Input binning cannot have azimuth present for this "
-                "parameterised PID service."
-            )
 
         self.load_pid_energy_param(self.params.pid_energy_paramfile.value)
 
@@ -284,16 +286,16 @@ class param(Stage):
             energy_param = self.find_energy_param(str(flav_int_group))
             # Should be a dict
             if not isinstance(energy_param, dict):
-                raise ValueError(
+                raise TypeError(
                     "Loaded energy PID parameterisation should be a dictionary"
-                    " but got %s. Something is wrong."%type(energy_param)
+                    " but got '%s.'"%type(energy_param)
                 )
             # ...with the same keys as the output channels
             if list(self.output_channels) != energy_param.keys():
                 raise ValueError(
                     "Expected output channels, %s, does not match the list of"
                     " PID classifications in the energy PID parameterisation "
-                    "- %s. Something is wrong."%(
+                    "- %s."%(
                         list(self.output_channels),
                         energy_param.keys()
                     )
@@ -301,9 +303,9 @@ class param(Stage):
             for sig in self.output_channels:
                 pid_param = energy_param[sig]    
                 if not isinstance(pid_param, basestring):
-                    raise ValueError(
-                        "Got %s for the parameterisation while expected a "
-                        "string. Something is wrong."%type(pid_param)
+                    raise TypeError(
+                        "Got '%s' for the parameterisation while expected a "
+                        "string."%type(pid_param)
                     )
                 else:
                     if 'scipy.stats.norm' in pid_param:
@@ -312,25 +314,16 @@ class param(Stage):
                         )
                     pid_param = eval(pid_param)
                 # Get the PID probabilities for the energy bins in the analysis
-                
                 pid1d = pid_param(ecen)
                 # Make this in to the right dimensionality.
                 if 'reco_coszen' in set(self.input_binning.names):
                     czcen = self.input_binning[
                         'reco_coszen'
                     ].weighted_centers.magnitude
-                    pid2d = np.repeat(pid1d, len(czcen))
-                    if self.input_binning.names[0] == 'reco_energy':
-                        pid2d = np.reshape(pid2d, (len(ecen), len(czcen)))
-                    elif self.input_binning.names[0] == 'reco_coszen':
-                        pid2d = np.reshape(pid2d, (len(ecen), len(czcen))).T
-                    else:
-                        raise ValueError(
-                            "Got a name for the first bins that was unexpected"
-                            " - %s. Something is wrong."%(
-                                self.input_binning.names[0]
-                            )
-                        )
+                    pid2d = np.reshape(np.repeat(pid1d, len(czcen)),
+                                       (len(ecen), len(czcen)))
+                    if self.input_binning.names[0] == 'reco_coszen':
+                        pid2d = pid2d.T
                     xform_array = pid2d
                 else:
                     xform_array = pid1d
@@ -363,6 +356,10 @@ class param(Stage):
 
     def validate_params(self, params):
         # do some checks on the parameters
-
+        f = params.pid_energy_paramfile.value
         # Check type of pid_energy_paramfile
-        assert isinstance(params.pid_energy_paramfile.value, (basestring, dict))
+        if not isinstance(f, (basestring, dict)):
+            raise TypeError(
+                "Expecting either a path to a file or a dictionary provided "
+                "as the store of the parameterisations. Got '%s'."%type(f)
+            )
