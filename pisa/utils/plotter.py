@@ -422,6 +422,8 @@ class Plotter(object):
 
     def plot_1d_projection(self, map, plot_axis, **kwargs):
         """plot map projected on plot_axis"""
+        r_vmin = kwargs.pop('r_vmin', None)
+        r_vmax = kwargs.pop('r_vmax', None)
         axis = plt.gca()
         plt_binning = map.binning[plot_axis]
         hist = self.project_1d(map, plot_axis)
@@ -466,7 +468,9 @@ class Plotter(object):
             hist = np.sum(hist, 1)
         return hist
 
-    def plot_1d_ratio(self, maps, plot_axis):
+    def plot_1d_ratio(self, maps, plot_axis, **kwargs):
+        r_vmin = kwargs.pop('r_vmin', None)
+        r_vmax = kwargs.pop('r_vmax', None)
         """make a ratio plot for a 1d projection"""
         axis = plt.gca()
         map0 = maps[0]
@@ -524,8 +528,11 @@ class Plotter(object):
         axis.set_ylabel(dollars(text2tex('ratio')))
         axis.set_xlabel(dollars(text2tex(plt_binning.label)))
         # Calculate nice scale:
-        off = max(maximum-1, 1-minimum)
-        axis.set_ylim(1 - 1.2 * off, 1 + 1.2 * off )
+        if r_vmin is not None and r_vmax is not None:
+            axis.set_ylim(1 - r_vmin, 1 + r_vmax)
+        else:
+            off = max(maximum-1, 1-minimum)
+            axis.set_ylim(1 - 1.2 * off, 1 + 1.2 * off )
 
     def plot_xsec(self, map_set, ylim=None, logx=True):
         from pisa.utils import fileio
