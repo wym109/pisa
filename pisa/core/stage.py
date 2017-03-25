@@ -198,6 +198,7 @@ class Stage(object):
 
         self.input_binning = input_binning
         self.output_binning = output_binning
+        self.validate_binning()
         self._source_code_hash = None
 
         # Storage of latest transforms and outputs; default to empty
@@ -1061,4 +1062,10 @@ class Stage(object):
     def validate_params(self, params):
         """Override this method to test if params are valid; e.g., check range
         and dimensionality."""
+        return
+
+    def validate_binning(self):
+        """Override this method to test if the input and output binning
+        (e.g., dimensionality, domains, separately or in combination)
+        conform to the transform applied by the stage."""
         return

@@ -249,14 +249,7 @@ class hist(Stage):
         self.include_attrs_for_hashes('particles')
         self.include_attrs_for_hashes('transform_groups')
 
-    @profile
-    def _compute_nominal_transforms(self):
-        """Compute new PID transforms."""
-        logging.debug('Updating pid.hist PID histograms...')
-
-        # TODO(shivesh): As of now, events do not have units as far as PISA
-        # is concerned
-
+    def validate_binning(self):
         # Works only if either energy, coszen or azimuth is in input_binning
         dim_names = ('reco_energy', 'reco_coszen', 'reco_azimuth')
         if set(self.input_binning.names).isdisjoint(dim_names):
@@ -268,6 +261,14 @@ class hist(Stage):
         # TODO: not handling rebinning in this stage or within Transform
         # objects; implement this! (and then this assert statement can go away)
         assert self.input_binning == self.output_binning
+
+    @profile
+    def _compute_nominal_transforms(self):
+        """Compute new PID transforms."""
+        logging.debug('Updating pid.hist PID histograms...')
+
+        # TODO(shivesh): As of now, events do not have units as far as PISA
+        # is concerned
 
         self.load_events(self.params.pid_events)
         self.cut_events(self.params.transform_events_keep_criteria)

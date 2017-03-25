@@ -28,6 +28,7 @@ from pisa.utils.fileio import from_file
 from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging
+from pisa.utils.comparisons import recursiveEquality, EQUALITY_PREC
 
 
 __all__ = ['param']
@@ -189,18 +190,24 @@ class param(Stage):
             debug_mode=debug_mode
         )
 
-        # Can do these now that binning has been set up in call to Stage's init
-        self.validate_binning()
         self.include_attrs_for_hashes('particles')
         self.include_attrs_for_hashes('transform_groups')
         self.include_attrs_for_hashes('sum_grouped_flavints')
 
     def validate_binning(self):
-        input_basenames = set(self.input_binning.basenames)
-        output_basenames = set(self.output_binning.basenames)
-        #assert set(['energy', 'coszen']) == input_basenames
-        for base_d in input_basenames:
-            assert base_d in output_basenames
+        # Right now this can only deal with 2D energy / coszenith binning
+        # Code can probably be generalised, but right now is not
+        if set(self.input_binning.names) != set(['true_coszen','true_energy']):
+            raise ValueError(
+                "Input binning must be 2D true energy / coszenith binning. "
+                "Got %s."%(self.input_binning.names)
+            )
+
+        # Require in- and output binnings to be the same (modulo mapping from
+        # truth to reco space)
+        assert self.input_binning.basename_binning == \
+               self.output_binning.basename_binning, \
+               "input and output binning deviate!"
 
     def process_reco_dist_params(self, param_dict):
         """
@@ -297,7 +304,7 @@ class param(Stage):
         for dist_type in dist_dicts:
             for dist_dict in dist_type:
                 frac_sum += dist_dict['fraction']
-        if not np.all(np.isclose(frac_sum, np.ones_like(frac_sum))):
+        if not recursiveEquality(frac_sum, np.ones_like(frac_sum)):
             err_msg = ("Total normalisation of resolution function is off"
                        " (fractions do not add up to 1).")
             raise ValueError(err_msg)
@@ -373,28 +380,22 @@ class param(Stage):
         elif isinstance(reco_param, dict):
             param_func_dict = reco_param
         else:
-            raise ValueError(
-                "Expecting either a path to a file or a dictionary provided as"
-                " the store of the parameterisations. Got %s. Something is "
-                "wrong."%(type(reco_param))
+            raise TypeError(
+                "Expecting either a path to a file or a dictionary provided "
+                "as the store of the parameterisations. Got '%s'."
+                %type(reco_param)
             )
         # Test that there are reco parameterisations for every input dimension.
-        # Need to strip the true_ from the input binning.
-        stripped_bin_names = []
-        for bin_name in self.input_binning.names:
-            stripped_bin_names.append(bin_name.split('true_')[-1])
         for flav in param_func_dict.keys():
             dims = param_func_dict[flav].keys()
-            for stripped_bin_name in stripped_bin_names:
-                if stripped_bin_name not in dims:
+            for basename in self.input_binning.basenames:
+                if basename not in dims:
                     raise ValueError(
-                        "A binning dimension, %s, exists in the inputs "
-                        "that does not have a corresponding reconstruction"
-                        " parameterisation. That only has %s. Something is"
-                        " wrong."%(stripped_bin_name, dims)
+                        "A binning dimension, '%s', exists in the inputs "
+                        "that does not have a corresponding reconstruction "
+                        "parameterisation. That only has %s."%(basename, dims)
                     )
         param_dict = self.read_param_string(param_func_dict)
-        self.stripped_bin_names = stripped_bin_names
         self.param_dict = param_dict
         self._param_hash = this_hash
 
@@ -490,16 +491,6 @@ class param(Stage):
 
         Any superposition of distributions from scipy.stats is supported.
         """
-
-        # Right now this can only deal with 2D energy / coszenith binning
-        # Code can probably be generalised, but right now is not
-        if sorted(self.input_binning.names) != \
-           sorted(['true_coszen','true_energy']):
-            raise ValueError(
-                "Input binning must be 2D energy / coszenith binning. "
-                "Got %s."%(self.input_binning.names)
-            )
-        
         res_scale_ref = self.params.res_scale_ref.value.strip().lower()
         assert res_scale_ref in ['zero'] # TODO: , 'mean', 'median']
 
@@ -523,27 +514,27 @@ class param(Stage):
         # These binnings will be in the computational units defined above
         input_binning = self.input_binning.to(**in_units)
         output_binning = self.output_binning.to(**out_units)
+        evals = self.input_binning['true_energy'].weighted_centers.magnitude
+        ebins = self.input_binning['true_energy'].bin_edges.magnitude
+        czvals = self.input_binning['true_coszen'].weighted_centers.magnitude
+        czbins = self.input_binning['true_coszen'].bin_edges.magnitude
+        offset = 0
+        n_e = len(evals)
+        n_cz = len(czvals)
+        if self.coszen_flipback:
+            coszen_range = self.input_binning['true_coszen'].range.magnitude
+            czvals = np.append(czvals-coszen_range, czvals)
+            czbins = np.append(czbins[:-1]-coszen_range, czbins)
+            offset = n_cz
 
         xforms = []
         for xform_flavints in self.transform_groups:
-            logging.debug("Working on %s reco kernels" %xform_flavints)
+            logging.debug("Working on %s reco kernel..." %xform_flavints)
             repr_flavint = xform_flavints[0]
             if 'nc' in str(repr_flavint):
                 this_params = self.param_dict['nuall_nc']
             else:
                 this_params = self.param_dict[str(repr_flavint)]
-            evals = self.input_binning[
-                'true_energy'].weighted_centers.magnitude
-            ebins = self.input_binning['true_energy'].bin_edges.magnitude
-            czvals = self.input_binning[
-                'true_coszen'].weighted_centers.magnitude
-            czbins = self.input_binning['true_coszen'].bin_edges.magnitude
-            n_e = len(evals)
-            n_cz = len(czvals)
-            if self.coszen_flipback:
-                coszen_range = self.input_binning['true_coszen'].range.magnitude
-                czvals = np.append(czvals-coszen_range, czvals)
-                czbins = np.append(czbins[:-1]-coszen_range, czbins)
             reco_kernel = np.zeros((n_e, n_cz, n_e, n_cz))
             for (i,j) in itertools.product(range(n_e), range(n_cz)):
                 e_kern_cdf = self.make_cdf(
@@ -554,10 +545,6 @@ class param(Stage):
                     czindex=j,
                     dist_params=this_params['energy']
                 )
-                if self.coszen_flipback:
-                    offset = n_cz
-                else:
-                    offset = 0
                 cz_kern_cdf = self.make_cdf(
                     bin_edges=czbins,
                     enval=evals[i],
@@ -571,6 +558,36 @@ class param(Stage):
                         cz_kern_cdf[int(len(czbins)/2):]
 
                 reco_kernel[i,j] = np.outer(e_kern_cdf, cz_kern_cdf)
+
+            # Sanity check of reco kernels - intolerable negative values?
+            logging.trace(" Ensuring reco kernel sanity...")
+            kern_neg_invalid = reco_kernel < -EQUALITY_PREC*np.abs(reco_kernel)
+            if np.any(kern_neg_invalid):
+                raise ValueError("Detected intolerable negative entries in"
+                                 " reco kernel! Min.: %s"
+                                 %np.min(kern_neg_invalid))
+            # Set values numerically compatible with zero to zero
+            np.where(
+                (reco_kernel >= -EQUALITY_PREC*np.abs(reco_kernel)) &
+                (reco_kernel <= EQUALITY_PREC*np.abs(reco_kernel)),
+                reco_kernel, 0.
+            )
+            sum_over_axes = tuple(range(-len(self.output_binning), 0))
+            totals = np.sum(reco_kernel, axis=sum_over_axes)
+            totals_large = (totals >= 1 + EQUALITY_PREC)
+            if np.any(totals_large):
+                raise ValueError("Detected overflow in reco kernel! Max.: %s"
+                                 %str(np.max(totals_large)-1))
+
+            if self.input_binning.basenames[0] == "coszen":
+                # The reconstruction kernel has been set up with energy as its
+                # first dimension, so transpose if it is applied to an input
+                # binning where 'coszen' is the first
+                logging.trace(" Transposing kernel, since 'coszen' has been"
+                              " detected as the first dimension.")
+                reco_kernel = np.swapaxes(reco_kernel, 0, 1)
+                reco_kernel = np.swapaxes(reco_kernel, 2, 3)
+
 
             if self.sum_grouped_flavints:
                 xform_input_names = []

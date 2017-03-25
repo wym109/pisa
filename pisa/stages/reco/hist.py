@@ -169,7 +169,6 @@ class hist(Stage):
         )
 
         # Can do these now that binning has been set up in call to Stage's init
-        self.validate_binning()
         self.include_attrs_for_hashes('particles')
         self.include_attrs_for_hashes('transform_groups')
         self.include_attrs_for_hashes('sum_grouped_flavints')
@@ -177,9 +176,9 @@ class hist(Stage):
     def validate_binning(self):
         input_basenames = set(self.input_binning.basenames)
         output_basenames = set(self.output_binning.basenames)
-        #assert set(['energy', 'coszen']) == input_basenames
         for base_d in input_basenames:
-            assert base_d in output_basenames
+            assert base_d in output_basenames, \
+                   "'%s' in input but not in output binning!"%base_d
 
     def _compute_transforms(self):
         """Generate reconstruction "smearing kernels" by histogramming true and
