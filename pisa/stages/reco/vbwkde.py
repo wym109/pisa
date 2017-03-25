@@ -50,12 +50,7 @@ The algorithm is roughly as follows:
 
 # TODO: nutau needn't be treated below 3.5 GeV! ...
 # TODO: write "closest bin" as a function
-# TODO: handle "closest bin" logic when infinities are involved (seems like
-#         `np.clip(edges, a_min=np.ftype(FTYPE).min, a_max=np.ftype(FTYPE).max`
-#       would do the trick...)
 # TODO: muons
-# TODO: hash on whatever is appropriate so that the smearing kernel doesn't get
-#       recomputed each time!!!!!!!
 
 
 from __future__ import division
@@ -87,18 +82,21 @@ __all__ = ['KDE_DIM_DEPENDENCIES', 'KDE_TRUE_BINNING', 'MIN_NUM_EVENTS',
            'vbwkde']
 
 
+# !!NOTE/WARNING!! The procedure below allows for `collect_enough_events` to
+# grab events _outside_ the last listed dimension. So that dimension should be
+# the _least_ correlated with the dimension being characterized!
+#
+# E.g., reco-coszen is strongly dependent upon true-coszen, so the final
+# dimension for 'coszen' charactherization is chosen to be 'true_energy'.
 KDE_DIM_DEPENDENCIES = OrderedDict([
     ('pid', ['true_energy']),
     ('energy', ['pid', 'true_energy']),
     ('coszen', ['pid', 'true_coszen', 'true_energy'])
 ])
 
-# !!NOTE/WARNING!! The procedure below allows for `collect_enough_events` to
-# grab events _outside_ the last listed dimension. So that dimension should be
-# the _least_ correlated with the dimension being characterized!
 KDE_TRUE_BINNING = {
     'pid': MultiDimBinning([
-        dict(name='true_energy', num_bins=20, is_log=True,
+        dict(name='true_energy', num_bins=40, is_log=True,
              domain=[1, 80]*ureg.GeV,
              tex=r'E_{\rm true}')
         ]),
@@ -111,7 +109,7 @@ KDE_TRUE_BINNING = {
         dict(name='true_coszen', num_bins=40, is_lin=True,
              domain=[-1, 1],
              tex=r'\cos\,\theta_{\rm true}'),
-        dict(name='true_energy', num_bins=5, is_log=True,
+        dict(name='true_energy', num_bins=10, is_log=True,
              domain=[1, 80]*ureg.GeV,
              tex=r'E_{\rm true}')
     ])
@@ -1175,6 +1173,7 @@ class vbwkde(Stage):
         cz_reco_bias = self.params.cz_reco_bias.value.m
 
         pid_edges = inf2finite(pid_binning.bin_edges.m)
+
         # NOTE: when we get scaling-about-the-mode working, will have to change
         # this.
         reco_e_edges = (
@@ -1182,6 +1181,7 @@ class vbwkde(Stage):
                    - self.params.e_reco_bias.value.m)
             / e_res_scale
         )
+
         reco_cz_edges = reco_coszen.bin_edges.m
         if self.debug_mode:
             assert np.all(np.isfinite(reco_cz_edges)), str(reco_cz_edges)
