@@ -1183,7 +1183,8 @@ class vbwkde(Stage):
             / e_res_scale
         )
         reco_cz_edges = reco_coszen.bin_edges.m
-        assert np.all(np.isfinite(reco_cz_edges)), str(reco_cz_edges)
+        if self.debug_mode:
+            assert np.all(np.isfinite(reco_cz_edges)), str(reco_cz_edges)
 
         # Compute info for the delta-coszen bin edges, for each true-coszen
         # input bin and each reco-coszen output bin; also get the bin edges
@@ -1313,7 +1314,7 @@ class vbwkde(Stage):
                 # then we broadcast reco_energy to
                 # (true_coszen, reco_coszen, reco_energy)
                 kernel[energy_indexer] = kernel_binning.broadcast(
-                    reco_energy_fractions,
+                    pid_fraction * reco_energy_fractions,
                     from_dim='reco_energy',
                     to_dims=['true_coszen', 'reco_coszen']
                 )
