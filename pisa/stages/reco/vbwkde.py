@@ -93,6 +93,9 @@ KDE_DIM_DEPENDENCIES = OrderedDict([
     ('coszen', ['pid', 'true_coszen', 'true_energy'])
 ])
 
+# !!NOTE/WARNING!! The procedure below allows for `collect_enough_events` to
+# grab events _outside_ the last listed dimension. So that dimension should be
+# the _least_ correlated with the dimension being characterized!
 KDE_TRUE_BINNING = {
     'pid': MultiDimBinning([
         dict(name='true_energy', num_bins=20, is_log=True,
@@ -105,12 +108,12 @@ KDE_TRUE_BINNING = {
              tex=r'E_{\rm true}')
         ]),
     'coszen': MultiDimBinning([
-        dict(name='true_energy', num_bins=5, is_log=True,
-             domain=[1, 80]*ureg.GeV,
-             tex=r'E_{\rm true}'),
         dict(name='true_coszen', num_bins=40, is_lin=True,
              domain=[-1, 1],
-             tex=r'\cos\,\theta_{\rm true}')
+             tex=r'\cos\,\theta_{\rm true}'),
+        dict(name='true_energy', num_bins=5, is_log=True,
+             domain=[1, 80]*ureg.GeV,
+             tex=r'E_{\rm true}')
     ])
 }
 
@@ -1013,7 +1016,8 @@ class vbwkde(Stage):
                         )
                         weights = weights * (len(weights)/np.sum(weights))
 
-                        # TODO: try the following to fix the tails:
+                        # TODO: try the following to fix the tails falling off
+                        # too abruptly:
                         # 1. Simply mirror half the points about the error
                         #    limits, KDE, then take the central portion
                         # 2. Mirror about mode (but only place "new" datapoints
@@ -1022,11 +1026,11 @@ class vbwkde(Stage):
                         #    the allowed limits; fold the shapes in by
                         #    reflecting at the limits and adding this in.
 
-                        # Trying method 2 first...
+                        # Trying method 3 first...
                         error_width = error_limits[1] - error_limits[0]
 
-                        extended_lower_lim = error_limits[0] - 0.55*error_width
-                        extended_upper_lim = error_limits[1] + 0.55*error_width
+                        extended_lower_lim = error_limits[0] - 0.5*error_width
+                        extended_upper_lim = error_limits[1] + 0.5*error_width
 
                         vbwkde_kwargs = dict(
                             n_dct=int(2**6),
@@ -1048,8 +1052,7 @@ class vbwkde(Stage):
                     )
 
                     if kde_dim == 'coszen':
-                        length = len(x)
-                        mirrored_length = length // 2
+                        mirrored_length = len(x) // 4
                         below_range_mask = x < error_limits[0]
                         above_range_mask = x > error_limits[1]
                         in_range_mask = ~(below_range_mask | above_range_mask)
@@ -1057,18 +1060,17 @@ class vbwkde(Stage):
                         x_in_range = x[in_range_mask]
                         counts_in_range = counts[in_range_mask]
 
-                        counts_in_range[:mirrored_length] += np.fliplr(
-                            counts[below_range_mask][-mirrored_length:]
+                        counts_in_range[:mirrored_length] += (
+                            counts[below_range_mask][-mirrored_length:][::-1]
                         )
-                        counts_in_range[-mirrored_length:] += np.fliplr(
-                            counts[above_range_mask][mirrored_length:]
+                        counts_in_range[-mirrored_length:] += (
+                            counts[above_range_mask][:mirrored_length][::-1]
                         )
 
                         x = x_in_range
                         counts = counts_in_range
 
-                    # Note that normalization is not useful here, since norm
-                    # must be computed for each input_binning bin anyway.
+                    norm = 1/np.sum(counts)
 
                     # Sort according to ascending weight to improve numerical
                     # precision of "poor-man's" histogram
@@ -1077,7 +1079,7 @@ class vbwkde(Stage):
                     counts = counts[sortind]
 
                     self.kde_profiles[kde_dim][flavintgroup][bin_coord] = (
-                        KDEProfile(x=x, counts=counts)
+                        KDEProfile(x=x, counts=counts*norm)
                     )
 
             self._kde_hashes[kde_dim] = new_hash
@@ -1388,7 +1390,7 @@ class vbwkde(Stage):
                     kernel.hist[coszen_indexer] *= kernel_binning.broadcast(
                         reco_coszen_fractions,
                         from_dim='reco_coszen',
-                        to_dims='reco_energy'
+                        to_dims=['reco_energy']
                     )
 
         with self._xform_kernels_lock:
