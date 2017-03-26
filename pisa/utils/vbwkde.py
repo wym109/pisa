@@ -453,7 +453,12 @@ def isj_bandwidth(y, n_datapoints, x_range, min_bandwidth):
     except ValueError:
         logging.error('Improved Sheather-Jones bandwidth %s-finding failed.',
                       OPT_TYPE)
-        raise
+        if min_bandwidth is not None:
+            logging.error('Using supplied `min_bandwidth` instead.')
+            bandwidth = min_bandwidth
+            t_star = min_t_star
+        else:
+            raise
 
     return bandwidth, t_star, dct_data
 
