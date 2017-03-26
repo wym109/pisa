@@ -13,6 +13,7 @@ events.
 """
 
 
+# TODO/BUG: setting any tgt_max_binwidth_factors to 0 can result in no events!
 # TODO: nutau needn't be treated below 3.5 GeV! ...
 # TODO: write "closest bin" as a function
 # TODO: muons
@@ -22,14 +23,15 @@ events.
 #       figured out by the software, rather than set by the user. E.g., use
 #       some statistical clustering technique?
 # TODO: Move (most/all) functions defined here into module(s) in utils dir
-# TODO: n_dct as a class instantiation argument?
+# TODO: Add n_dct as a class instantiation argument?
 # TODO: Separate VBWKDE parameters for each dimension, specified either in
-#       char_dim_dependencies or as a separate arg?
+#       char_deps_downsampling or as a separate arg?
 
 
 from __future__ import division
 
-from collections import OrderedDict, namedtuple
+from ast import literal_eval
+from collections import Mapping, namedtuple, OrderedDict, Sequence
 from copy import deepcopy
 import threading
 
@@ -41,7 +43,7 @@ from pisa.core.events import Events
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
 
-from pisa.utils.comparisons import EQUALITY_SIGFIGS
+from pisa.utils.comparisons import EQUALITY_SIGFIGS, isbarenumeric, isscalar
 from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup
 from pisa.utils.hash import hash_obj
 from pisa.utils.parallel import parallel_run
@@ -49,57 +51,9 @@ from pisa.utils.vbwkde import vbwkde as vbwkde_func
 from pisa.utils.log import logging
 
 
-__all__ = ['CHAR_DIM_DEPENDENCIES', 'CHAR_BINNING', 'MIN_NUM_EVENTS',
-           'TGT_NUM_EVENTS', 'TGT_MAX_BINWIDTH_FACTOR',
-           'KDEProfile', 'collect_enough_events', 'fold_coszen_diff',
-           'weight_coszen_tails', 'coszen_error_edges',
-           'vbwkde']
+__all__ = ['KDEProfile', 'collect_enough_events', 'fold_coszen_diff',
+           'weight_coszen_tails', 'coszen_error_edges', 'vbwkde']
 
-
-CHAR_DIM_DEPENDENCIES = OrderedDict([
-    ('pid', ['true_energy']),
-    ('energy', ['pid', 'true_energy']),
-    ('coszen', ['pid', 'true_coszen', 'true_energy'])
-])
-"""Default characterization-dimension dependencies. Note that the final
-dimension upon which there's a dependency is not a strict binning, so this
-should be the _least_ correlated with the dimension being characterized"""
-
-CHAR_BINNING = {
-    'pid': MultiDimBinning([
-        dict(name='true_energy', num_bins=80, is_log=True,
-             domain=[1, 80]*ureg.GeV,
-             tex=r'E_{\rm true}')
-        ]),
-    'energy': MultiDimBinning([
-        dict(name='true_energy', num_bins=40, is_log=True,
-             domain=[1, 80]*ureg.GeV,
-             tex=r'E_{\rm true}')
-        ]),
-    'coszen': MultiDimBinning([
-        dict(name='true_coszen', num_bins=80, is_lin=True,
-             domain=[-1, 1],
-             tex=r'\cos\,\theta_{\rm true}'),
-        dict(name='true_energy', num_bins=20, is_log=True,
-             domain=[1, 80]*ureg.GeV,
-             tex=r'E_{\rm true}')
-    ])
-}
-"""Binning used by default for characterizing PID and resolutions"""
-
-MIN_NUM_EVENTS = 50
-"""For KDEs, each bin is expanded up and down in true-energy as much as
-necessary to collect this many events. See `collect_enough_events` for more
-details."""
-
-TGT_NUM_EVENTS = 1000
-"""Ideally each bin will have `TGT_NUM_EVENTS`. Allow the bin to expand a
-little bit (`TGT_MAX_BINWIDTH_FACTOR`) to try to hit this number. See
-`collect_enough_events` for more details."""
-
-TGT_MAX_BINWIDTH_FACTOR = 0.1
-"""Expand by up to `TGT_MAX_BINWIDTH_FACTOR` in order to collect
-`TGT_NUM_EVENTS`. See `collect_enough_events` for more details."""
 
 KDEProfile = namedtuple('KDEProfile', ['x', 'counts'])
 """namedtuple type for storing the normalized KDE profile: (x, counts)"""
@@ -110,10 +64,8 @@ KDEProfile = namedtuple('KDEProfile', ['x', 'counts'])
 # TODO: When running w/ GPU, this function (specifically `applyCut` method of
 #       Events object) is the bottleneck. Make that faster!
 
-def collect_enough_events(events, flavint, bin,
-                          min_num_events=MIN_NUM_EVENTS,
-                          tgt_num_events=TGT_NUM_EVENTS,
-                          tgt_max_binwidth_factor=TGT_MAX_BINWIDTH_FACTOR):
+def collect_enough_events(events, flavint, bin, min_num_events, tgt_num_events,
+                          tgt_max_binwidth_factor):
     """Heuristic to collect enough events close to the provided bin such
     that KDEs can be applied and achieve robust results.
 
@@ -207,8 +159,8 @@ def collect_enough_events(events, flavint, bin,
     # If either min_num_events or tgt_num_events is greater than the total
     # number of events we have to work with, force to be equal to the number
     # of events we have.
-    min_num_evts = min_num_events if min_num_events < n_events else n_events
-    tgt_num_evts = tgt_num_events if tgt_num_events < n_events else n_events
+    min_num_events = min_num_events if min_num_events < n_events else n_events
+    tgt_num_events = tgt_num_events if tgt_num_events < n_events else n_events
 
     # Absolute distance from these events to the center of the bin, sorted in
     # ascending order (so events closest to bin center come first)
@@ -218,17 +170,17 @@ def collect_enough_events(events, flavint, bin,
         sorted_abs_dist = np.sort(np.abs(field_values - bin_wtd_center))
 
     # Distance from the bin center you have to go to obtain `tgt_num_events`
-    tgt_num_events_dist = np.exp(sorted_abs_dist[tgt_num_evts-1])
+    tgt_num_events_dist = np.exp(sorted_abs_dist[tgt_num_events-1])
 
     # Maximum distance the  tgt_max_binwidth_factor` allows us to go in order
-    # to obtain `tgt_num_evts` events
+    # to obtain `tgt_num_events` events
     if bin.is_log:
         tgt_max_dist = bin_half_width * (1 + tgt_max_binwidth_factor)**2
     else:
         tgt_max_dist = bin_half_width + bin_width*tgt_max_binwidth_factor
 
     # Define a single "target" distance taking into consideration that we
-    # should neither exceed `tgt_max_dist` nor `tgt_num_evts`
+    # should neither exceed `tgt_max_dist` nor `tgt_num_events`
     if tgt_num_events_dist < tgt_max_dist:
         tgt_dist = tgt_num_events_dist
     else:
@@ -241,7 +193,7 @@ def collect_enough_events(events, flavint, bin,
 
     else:
         # Figure out how far out we have to go to get `min_num_events`
-        min_num_events_dist = np.exp(sorted_abs_dist[min_num_evts-1])
+        min_num_events_dist = np.exp(sorted_abs_dist[min_num_events-1])
 
         # If this is _further_ than `tgt_dist`, then we have to suck it up
         # and go `min_num_events_dist` away to ensure we collect enough events
@@ -249,7 +201,7 @@ def collect_enough_events(events, flavint, bin,
             thresh_dist = min_num_events_dist
 
         # But if we can stop at tgt_dist away and get more events than
-        # min_num_evts, we should do that to maximize our statistics
+        # min_num_events, we should do that to maximize our statistics
         else:
             thresh_dist = tgt_dist
 
@@ -265,11 +217,11 @@ def collect_enough_events(events, flavint, bin,
             field=bin.name, lower=lower_edge, upper=upper_edge)
     )
     events_subset = events.applyCut(keep_criteria=keep_criteria)
-    logging.trace('cut criteria:                  %s', keep_criteria)
+    logging.trace('keep criteria:                 %s', keep_criteria)
     logging.trace('total events in that group:    %s',
-                  len(events[repr_flavint]['true_energy']))
+                  len(events[repr_flavint][bin.name]))
     logging.trace('events in that group selected: %s',
-                  len(events_subset[repr_flavint]['true_energy']))
+                  len(events_subset[repr_flavint][bin.name]))
 
     return events_subset
 
@@ -622,21 +574,21 @@ class vbwkde(Stage):
     output_binning : MultiDimBinning or convertible thereto
         Output binning is in reconstructed variables, which can include pid.
 
-    min_num_events : int
+    min_num_events : int or mapping
         For KDEs, each bin is expanded up and down in true-energy as much as
         necessary to collect this many events. See `collect_enough_events` for
         more details.
 
-    tgt_num_events : int
-        Ideally each bin will have `TGT_NUM_EVENTS`. Allow the bin to expand a
-        fraction (`tgt_max_binwidth_factor`) to try to hit this number. See
-        `collect_enough_events` for more details.
+    tgt_num_events : int or mapping
+        Ideally each bin will have `tgt_num_events`. Allow the bin to expand up
+        to a fraction times the bin's width (`tgt_max_binwidth_factors`) to try
+        to hit this number. See `collect_enough_events` for more details.
 
-    tgt_max_binwidth_factor : float
+    tgt_max_binwidth_factors : float
         Expand bin by up to this fraction in order to collect
         `tgt_num_events`. See `collect_enough_events` for more details.
 
-    char_dim_dependencies : mapping
+    char_deps_downsampling : mapping
         For each dimension to be characterized, define the dimensions it
         depends upon. I.e., events will be collected in bins with dimensions of
         the defined dependencies. Note that the final dimension upon which
@@ -646,13 +598,18 @@ class vbwkde(Stage):
         this should be the _least_ correlated with the dimension being
         characterized.
 
-        E.g.: `{'coszen': ['pid', 'true_cozen', 'true_energy']}`
-
         Dimension names in either `char_binning` or `output_binning` may be
         included as dependencies, but if a binning is defined in both places,
         the binning in `char_binning` will be used.
 
-        See `CHAR_DIM_DEPENDENCIES` for the default, and use this an example.
+        E.g.:
+        ```
+            {
+                'pid': 'true_energy',
+                'energy': ['pid', 'true_energy'],
+                'coszen': ['pid', 'true_coszen', 'true_energy']
+            }
+        ```
 
     char_binning : mapping
         Binning used for characterizing each dimension. E.g.
@@ -681,7 +638,7 @@ class vbwkde(Stage):
         `output_binning`, but a different definition here takes precedence over
         `output_binning`.
 
-        As for `char_dim_dependencies`, specify characterization dimensions by
+        As for `char_deps_downsampling`, specify characterization dimensions by
         their basenames.
 
         See `CHAR_BINNING` for the default, and use this an example.
@@ -725,25 +682,14 @@ class vbwkde(Stage):
     """
     def __init__(self, params, particles, input_names, transform_groups,
                  sum_grouped_flavints, input_binning, output_binning,
-                 min_num_events=MIN_NUM_EVENTS,
-                 tgt_num_events=TGT_NUM_EVENTS,
-                 tgt_max_binwidth_factor=TGT_MAX_BINWIDTH_FACTOR,
-                 char_dim_dependencies=deepcopy(CHAR_DIM_DEPENDENCIES),
-                 char_binning=deepcopy(CHAR_BINNING),
+                 char_deps_downsampling, min_num_events, tgt_num_events,
+                 tgt_max_binwidth_factors,
                  error_method=None,
                  disk_cache=True,
                  transforms_cache_depth=1,
                  outputs_cache_depth=20,
                  memcache_deepcopy=False,
                  debug_mode=None):
-        assert particles in ['neutrinos', 'muons']
-        self.particles = particles
-        if isinstance(transform_groups, basestring):
-            self.transform_groups = flavintGroupsFromString(transform_groups)
-        else:
-            self.transform_groups = transform_groups
-        self.sum_grouped_flavints = sum_grouped_flavints
-
         # All of the following params (and no more) must be passed via the
         # `params` argument.
         expected_params = (
@@ -752,6 +698,115 @@ class vbwkde(Stage):
             'res_scale_ref', 'e_res_scale', 'cz_res_scale',
             'e_reco_bias', 'cz_reco_bias'
         )
+
+        #============================================================
+        # Parse, translate, normalize, and/or validate init args...
+        #============================================================
+
+        # `particles` ...
+
+        assert isinstance(particles, basestring)
+        particles = particles.strip().lower()
+        assert particles in ['neutrinos']
+        self.particles = particles
+
+        # `transform_groups` ...
+
+        if isinstance(transform_groups, basestring):
+            transform_groups = flavintGroupsFromString(transform_groups)
+        self.transform_groups = transform_groups
+
+        # `sum_grouped_flavints` ...
+
+        assert isinstance(sum_grouped_flavints, bool)
+        if not sum_grouped_flavints:
+            raise NotImplementedError(
+                'Grouped flavints must be summed at this time, as logic for'
+                ' not doing so is not yet implemented.'
+            )
+        self.sum_grouped_flavints = sum_grouped_flavints
+
+        # `char_deps_downsampling` ...
+
+        if isinstance(char_deps_downsampling, basestring):
+            char_deps_downsampling = literal_eval(char_deps_downsampling)
+
+        new_dict = dict()
+        for char_dim_name, deps in char_deps_downsampling.items():
+            assert isinstance(char_dim_name, basestring)
+            new_dict[char_dim_name] = OrderedDict()
+
+            if isinstance(deps, basestring):
+                char_deps_downsampling[char_dim_name] = [deps]
+                new_dict[char_dim_name][deps] = 1
+                continue
+
+            if isinstance(deps, Sequence):
+                if (len(deps) == 2 and isinstance(deps[0], basestring)
+                        and isscalar(deps[1])):
+                    new_dict[char_dim_name][deps[0]] = deps[1]
+                    continue
+
+                for subseq in deps:
+                    if isinstance(subseq, basestring):
+                        new_dict[char_dim_name][subseq] = 1
+                    elif isinstance(subseq, Sequence):
+                        assert isinstance(subseq[0], basestring)
+                        if len(subseq) == 2:
+                            assert isscalar(subseq[1])
+                            new_dict[char_dim_name][subseq[0]] = subseq[1]
+                        else:
+                            new_dict[char_dim_name][subseq[0]] = 1
+        char_deps_downsampling = new_dict
+
+        # Until `collect_enough_events` is fixed to work with dimensions other
+        # than `true_energy` as the final dimension, have to enforce this
+        for dim_name, dependencies in char_deps_downsampling.iteritems():
+            if dependencies.keys()[-1] != 'true_energy':
+                raise NotImplementedError(
+                    "Only 'true_energy' can come last in the list of"
+                    " dependencies at this time."
+                    " (Dimension: %s, dependencies supplied = %s)"
+                    % (dim_name, dependencies.keys())
+                )
+
+        # `min_num_events` ...
+
+        if isinstance(min_num_events, basestring):
+            min_num_events = literal_eval(min_num_events)
+
+        if isscalar(min_num_events):
+            min_num_events = {d: int(min_num_events)
+                              for d in char_deps_downsampling.keys()}
+
+        assert isinstance(min_num_events, Mapping), str(min_num_events)
+
+        # `tgt_num_events` ...
+
+        if isinstance(tgt_num_events, basestring):
+            tgt_num_events = literal_eval(tgt_num_events)
+
+        if isscalar(tgt_num_events):
+            tgt_num_events = {d: int(tgt_num_events)
+                              for d in char_deps_downsampling.keys()}
+
+        assert isinstance(tgt_num_events, Mapping), str(tgt_num_events)
+
+        # `tgt_max_binwidth_factors` ...
+
+        if isinstance(tgt_max_binwidth_factors, basestring):
+            tgt_max_binwidth_factors = literal_eval(tgt_max_binwidth_factors)
+
+        if isscalar(tgt_max_binwidth_factors):
+            tgt_max_binwidth_factors = {
+                d: float(tgt_max_binwidth_factors)
+                for d in char_deps_downsampling.keys()
+            }
+
+        assert isinstance(tgt_max_binwidth_factors, Mapping), \
+                str(max_binwidth_factor)
+
+        # `input_names` ...
 
         if isinstance(input_names, basestring):
             input_names = (''.join(input_names.split(' '))).split(',')
@@ -797,48 +852,63 @@ class vbwkde(Stage):
         # characterization. (This also means that we can simply use
         # one-dimensional KDE for the characterization.)
 
-        self.char_binning = OrderedDict()
-        """OrderedDict formatted as `{out_dim.basename: MultiDimBinning}`, used
+        self.char_binning = dict()
+        """dict formatted as `{out_dim.basename: MultiDimBinning}`, used
         for binning events for characterizing resolutions (namely via VBWKDE)
         in the output dimensions"""
 
+        self.min_num_events = dict()
+        """min_num_events for each dimension dependency for each dimension
+        being characterized"""
+
+        self.tgt_num_events = dict()
+        """tgt_num_events for each dimension dependency for each dimension
+        being characterized"""
+
+        self.tgt_max_binwidth_factors = dict()
+        """tgt_max_binwidth_factors for each dimension dependency for each
+        dimension being characterized"""
+
         # Only characterize dimensions that are to be output
-        for out_dim in output_binning:
+        for out_dim in output_binning.dims:
+            char_dim_name = out_dim.basename
+
+            # Populate class attrs with info for this char dimension
+            self.min_num_events[char_dim_name] = min_num_events[char_dim_name]
+            self.tgt_num_events[char_dim_name] = tgt_num_events[char_dim_name]
+            self.tgt_max_binwidth_factors[char_dim_name] = (
+                tgt_max_binwidth_factors[char_dim_name]
+            )
+
+            # Construct the binning for this char dimension
             dep_binnings = []
-            for dep_dim_name in char_dim_dependencies[out_dim.basename]:
-                # Use char_binning for KDE binning where possible
-                if dep_dim_name in char_binning[out_dim.basename]:
+            for dep_dim_name, downsamp_factor \
+                    in char_deps_downsampling[char_dim_name].items():
+                if dep_dim_name in input_binning:
                     dep_binnings.append(
-                        char_binning[out_dim.basename][dep_dim_name]
+                        input_binning[dep_dim_name].downsample(downsamp_factor)
                     )
-
-                # Otherwise (e.g. pid) must be the same as output_binning, so
-                # get binning spec from there (and it's probably not a bad
-                # guess to use output binning as the characteriation binning
-                # anyhow)
                 elif dep_dim_name in output_binning:
-                    dep_binnings.append(output_binning[dep_dim_name])
-
+                    dep_binnings.append(
+                        output_binning[dep_dim_name].downsample(downsamp_factor)
+                    )
                 else:
-                    raise ValueError('Dimension "%s" is not handled.'
-                                     % out_dim.name)
+                    raise ValueError('Dimension "%s" was neither found in'
+                                     ' `input_binning` nor in `output_binning`'
+                                     % dep_dim_name)
 
-            self.char_binning[out_dim.basename] = MultiDimBinning(dep_binnings)
-
-        self.min_num_events = min_num_events
-        self.tgt_num_events = tgt_num_events
-        self.tgt_max_binwidth_factor = tgt_max_binwidth_factor
+            self.char_binning[char_dim_name] = MultiDimBinning(dep_binnings)
 
         self.include_attrs_for_hashes('particles')
         self.include_attrs_for_hashes('transform_groups')
+        self.include_attrs_for_hashes('sum_grouped_flavints')
         self.include_attrs_for_hashes('char_binning')
         self.include_attrs_for_hashes('min_num_events')
         self.include_attrs_for_hashes('tgt_num_events')
-        self.include_attrs_for_hashes('tgt_max_binwidth_factor')
-        self.include_attrs_for_hashes('sum_grouped_flavints')
+        self.include_attrs_for_hashes('tgt_max_binwidth_factors')
 
-        self.kde_profiles = OrderedDict()
-        """OrderedDict containing `KDEProfile`s. Structure is:
+        self.kde_profiles = dict()
+        """dict containing `KDEProfile`s. Structure is:
             {dim_basename: {flavintgroup: {(Coord): (KDEProfile)}}}
 
         For example:
@@ -850,22 +920,26 @@ class vbwkde(Stage):
                 numubar_cc: {
                     (true_energy=0): (x=[...], counts=[...]),
                     (true_energy=1): (x=[...], counts=[...])
-                },
+                }},
              'energy': {
                 numu_cc: {
-                    (true_energy=0): (x=[...], counts=[...]),
-                    (true_energy=1): (x=[...], counts=[...])
+                    (pid=0, true_energy=0): (x=[...], counts=[...]),
+                    (pid=0, true_energy=1): (x=[...], counts=[...]),
+                    (pid=1, true_energy=0): (x=[...], counts=[...]),
+                    (pid=1, true_energy=1): (x=[...], counts=[...])
                 },
                 numubar_cc: {
-                    (true_energy=0): (x=[...], counts=[...]),
-                    (true_energy=1): (x=[...], counts=[...])}
-                },
-            }}
+                    (pid=0, true_energy=0): (x=[...], counts=[...]),
+                    (pid=0, true_energy=1): (x=[...], counts=[...]),
+                    (pid=1, true_energy=0): (x=[...], counts=[...]),
+                    (pid=1, true_energy=1): (x=[...], counts=[...])
+                }}
+            }
         """
 
         self._kde_profiles_lock = threading.Lock()
 
-        self._kde_hashes = OrderedDict()
+        self._kde_hashes = dict()
 
         self.xform_kernels = dict()
         """Storage of the N-dim smearing kernels, one per flavintgroup"""
@@ -956,32 +1030,32 @@ class vbwkde(Stage):
                       self.transform_groups, self.particles,
                       self.sum_grouped_flavints]
 
-        for kde_dim, dep_dims_binning in self.char_binning.items():
-            logging.debug('Working on KDE dimension "%s"', kde_dim)
+        for char_dim, dep_dims_binning in self.char_binning.items():
+            logging.debug('Working on KDE dimension "%s"', char_dim)
             new_hash = hash_obj(deepcopy(hash_items) + [dep_dims_binning.hash])
 
             # See if we already have correct kde_profiles for this dim
-            if (kde_dim in self._kde_hashes
-                    and new_hash == self._kde_hashes[kde_dim]):
-                logging.debug('  > Already have KDEs for "%s"', kde_dim)
+            if (char_dim in self._kde_hashes
+                    and new_hash == self._kde_hashes[char_dim]):
+                logging.debug('  > Already have KDEs for "%s"', char_dim)
                 continue
 
             # Try to load from disk cache
             if self.disk_cache is not None and new_hash in self.disk_cache:
                 logging.debug('  > Loading KDEs for "%s" from disk cache',
-                              kde_dim)
-                self.kde_profiles[kde_dim] = self.disk_cache[new_hash]
-                self._kde_hashes[kde_dim] = new_hash
+                              char_dim)
+                self.kde_profiles[char_dim] = self.disk_cache[new_hash]
+                self._kde_hashes[char_dim] = new_hash
                 continue
 
             # Reset the hash for this dim so if anything fails below, the wrong
             # info won't be loaded
-            self._kde_hashes[kde_dim] = None
+            self._kde_hashes[char_dim] = None
 
             # Clear out all previous kde info
-            self.kde_profiles[kde_dim] = OrderedDict()
+            self.kde_profiles[char_dim] = OrderedDict()
             for flavintgroup in self.transform_groups:
-                self.kde_profiles[kde_dim][flavintgroup] = OrderedDict()
+                self.kde_profiles[char_dim][flavintgroup] = OrderedDict()
 
             if FTYPE == np.float64:
                 ftype_bytes = 8
@@ -1026,9 +1100,9 @@ class vbwkde(Stage):
                         events=cut_events[-1],
                         flavint=repr_flavint,
                         bin=bin_dims[-1],
-                        min_num_events=self.min_num_events,
-                        tgt_num_events=self.tgt_num_events,
-                        tgt_max_binwidth_factor=self.tgt_max_binwidth_factor
+                        min_num_events=self.min_num_events[char_dim],
+                        tgt_num_events=self.tgt_num_events[char_dim],
+                        tgt_max_binwidth_factor=self.tgt_max_binwidth_factors[char_dim]
                     )[repr_flavint]
 
                     if weights_name in flav_events:
@@ -1037,7 +1111,7 @@ class vbwkde(Stage):
                     else:
                         weights = None
 
-                    if kde_dim == 'pid':
+                    if char_dim == 'pid':
                         feature = flav_events['pid']
                         fmin, fmax = min(feature), max(feature)
                         half_width = (fmax - fmin)/2
@@ -1050,7 +1124,7 @@ class vbwkde(Stage):
                                                     int(5e3))
                         )
 
-                    elif kde_dim == 'energy':
+                    elif char_dim == 'energy':
                         feature = np.log(flav_events['reco_energy']
                                          / flav_events['true_energy'])
                         fmin, fmax = min(feature), max(feature)
@@ -1064,7 +1138,7 @@ class vbwkde(Stage):
                                                     int(5e3))
                         )
 
-                    elif kde_dim == 'coszen':
+                    elif char_dim == 'coszen':
                         feature = (flav_events['reco_coszen']
                                    - flav_events['true_coszen'])
                         weights, error_limits = weight_coszen_tails(
@@ -1102,14 +1176,14 @@ class vbwkde(Stage):
                     else:
                         raise NotImplementedError(
                             'Applying KDEs to dimension "%s" is not'
-                            ' implemented.' % kde_dim
+                            ' implemented.' % char_dim
                         )
 
                     _, x, counts = vbwkde_func(
                         feature, weights=weights, **vbwkde_kwargs
                     )
 
-                    if kde_dim == 'coszen':
+                    if char_dim == 'coszen':
                         mirrored_length = len(x) // 4
                         below_range_mask = x < error_limits[0]
                         above_range_mask = x > error_limits[1]
@@ -1134,22 +1208,22 @@ class vbwkde(Stage):
                     x = x[sortind]
                     counts = counts[sortind]
 
-                    self.kde_profiles[kde_dim][flavintgroup][bin_coord] = (
+                    self.kde_profiles[char_dim][flavintgroup][bin_coord] = (
                         KDEProfile(x=x, counts=counts)
                     )
 
                     sizeof_kde_profiles += 2*len(x) * ftype_bytes
 
-            self._kde_hashes[kde_dim] = new_hash
+            self._kde_hashes[char_dim] = new_hash
 
             if self.disk_cache is not None:
                 try:
-                    self.disk_cache[new_hash] = self.kde_profiles[kde_dim]
+                    self.disk_cache[new_hash] = self.kde_profiles[char_dim]
                 except:
                     logging.error(
                         'Failed to write KDE profiles for dimension %s'
                         ' (%d bytes) to disk cache; skipping caching.',
-                        kde_dim, sizeof_kde_profiles
+                        char_dim, sizeof_kde_profiles
                     )
 
     def generate_all_kernels(self):
@@ -1229,7 +1303,9 @@ class vbwkde(Stage):
             char_binning['energy'].true_energy.weighted_centers.m
         )
         cz_kde_e_centers = char_binning['coszen'].true_energy.weighted_centers.m
-        cz_kde_cz_centers = char_binning['coszen'].true_coszen.weighted_centers.m
+        cz_kde_cz_centers = (
+            char_binning['coszen'].true_coszen.weighted_centers.m
+        )
 
         num_pid_bins = len(pid_binning)
 
@@ -1355,7 +1431,7 @@ class vbwkde(Stage):
                 # where we characterized the energy resolutions
                 e_edges = reco_e_edges - np.log(true_e_center)/e_res_scale
 
-                energy_norm = 1/np.sum(e_kde_profile.counts)
+                energy_norm = 1 / np.sum(e_kde_profile.counts)
 
                 reco_energy_counts, _ = HIST_FUNC(
                     e_kde_profile.x, weights=e_kde_profile.counts,

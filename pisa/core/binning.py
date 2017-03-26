@@ -1279,11 +1279,16 @@ class MultiDimBinning(object):
 
         if isinstance(dimensions, OneDimBinning):
             dimensions = [dimensions]
-        if not isinstance(dimensions, (Sequence, Iterable)):
+        if not isinstance(dimensions, Sequence):
             if isinstance(dimensions, Mapping):
-                assert len(dimensions) == 1 and 'dimensions' in dimensions
-                dimensions = dimensions['dimensions']
-            dimensions = [dimensions]
+                if len(dimensions) == 1 and hasattr(dimensions, 'dimensions'):
+                    dimensions = dimensions['dimensions']
+                dimensions = [dimensions]
+            elif isinstance(dimensions, Iterable):
+                pass
+            else:
+                raise TypeError('Argument/object #%d unhandled type: %s'
+                                %(obj_num, type(obj)))
         tmp_dimensions = []
         for obj_num, obj in enumerate(dimensions):
             if isinstance(obj, OneDimBinning):
