@@ -14,6 +14,7 @@ events.
 
 
 # TODO/BUG: setting any tgt_max_binwidth_factors to 0 can result in no events!
+# TODO/BUG: Not regenerating KDEs with new cut applied to events...
 # TODO: nutau needn't be treated below 3.5 GeV! ...
 # TODO: write "closest bin" as a function
 # TODO: muons
