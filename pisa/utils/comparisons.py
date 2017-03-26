@@ -68,7 +68,7 @@ LOG10_2 = FTYPE('0.3010299956639811952137388947244930267682')
 NP_TYPES = (np.ndarray, np.matrix)
 SEQ_TYPES = (Sequence, np.ndarray, np.matrix)
 MAP_TYPES = (Mapping,)
-COMPLEX_TYPES = tuple(list(NP_TYPES) + list(SEQ_TYPES) + list(MAP_TYPES))
+COMPLEX_TYPES = NP_TYPES + SEQ_TYPES + MAP_TYPES
 
 
 def isvalidname(x):
