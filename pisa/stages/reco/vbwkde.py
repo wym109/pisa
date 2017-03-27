@@ -46,6 +46,7 @@ from pisa.core.transform import BinnedTensorTransform, TransformSet
 
 from pisa.utils.comparisons import EQUALITY_SIGFIGS, isbarenumeric, isscalar
 from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup
+from pisa.utils.gaussians import gaussians
 from pisa.utils.hash import hash_obj
 from pisa.utils.parallel import parallel_run
 from pisa.utils.vbwkde import vbwkde as vbwkde_func
@@ -1042,12 +1043,18 @@ class vbwkde(Stage):
                 continue
 
             # Try to load from disk cache
-            if self.disk_cache is not None and new_hash in self.disk_cache:
-                logging.debug('  > Loading KDEs for "%s" from disk cache',
-                              char_dim)
-                self.kde_profiles[char_dim] = self.disk_cache[new_hash]
-                self._kde_hashes[char_dim] = new_hash
-                continue
+            if self.disk_cache is not None:
+                try:
+                    if new_hash in self.disk_cache:
+                        logging.debug(
+                            '  > Loading KDEs for "%s" from disk cache',
+                            char_dim
+                        )
+                        self.kde_profiles[char_dim] = self.disk_cache[new_hash]
+                        self._kde_hashes[char_dim] = new_hash
+                        continue
+                except:
+                    logging.error('Loading from disk cache failed.')
 
             # Reset the hash for this dim so if anything fails below, the wrong
             # info won't be loaded
@@ -1120,7 +1127,7 @@ class vbwkde(Stage):
                         upperlim = fmax + half_width
                         vbwkde_kwargs = dict(
                             n_dct=int(2**6),
-                            #min=lowerlim, max=upperlim,
+                            min=lowerlim, max=upperlim,
                             evaluate_at=np.linspace(lowerlim, upperlim,
                                                     int(5e3))
                         )
@@ -1129,9 +1136,10 @@ class vbwkde(Stage):
                         feature = np.log(flav_events['reco_energy']
                                          / flav_events['true_energy'])
                         fmin, fmax = min(feature), max(feature)
-                        half_width = (fmax - fmin)/2
-                        lowerlim = fmin - half_width
-                        upperlim = fmax + half_width
+                        lowerlim = fmin
+                        upperlim = fmax
+                        # Note that this only evaluates the KDE profile within
+                        # the range of datapoints, so as to not extrapolate
                         vbwkde_kwargs = dict(
                             n_dct=int(2**6),
                             min=lowerlim, max=upperlim,
@@ -1159,8 +1167,29 @@ class vbwkde(Stage):
                         #    the allowed limits; fold the shapes in by
                         #    reflecting at the limits and adding this in.
 
-                        # Trying method 3 first...
+                        # Trying combination of methods 1+3 now: compute
+                        # bandwidths with half of dataset mirrored about upper
+                        # limit, and half mirrored about lower limit. Then only
+                        # evaluate gaussians attached datapoints within the
+                        # limits, but fold their tails in at the limits & sum
+
                         error_width = error_limits[1] - error_limits[0]
+                        lower_mask = feature <= error_limits[0] + error_width/2
+                        upper_mask = feature > error_limits[0] + error_width/2
+
+                        orig_feature = feature
+                        orig_weights = weights
+
+                        feature_to_cat = [orig_feature]
+                        weights_to_cat = [orig_weights]
+                        if np.sum(lower_mask) > 0:
+                            feature_to_cat.append(2*error_limits[0] - feature[lower_mask])
+                            weights_to_cat.append(weights[lower_mask])
+                        if np.sum(upper_mask) > 0:
+                            feature_to_cat.append(2*error_limits[1] - feature[upper_mask])
+                            weights_to_cat.append(weights[upper_mask])
+                        feature = np.concatenate(feature_to_cat)
+                        weights = np.concatenate(weights_to_cat)
 
                         extended_lower_lim = error_limits[0] - 0.5*error_width
                         extended_upper_lim = error_limits[1] + 0.5*error_width
@@ -1169,9 +1198,7 @@ class vbwkde(Stage):
                             n_dct=int(2**6),
                             min=extended_lower_lim,
                             max=extended_upper_lim,
-                            evaluate_at=np.linspace(extended_lower_lim,
-                                                    extended_upper_lim,
-                                                    int(1e4))
+                            evaluate_at=None
                         )
 
                     else:
@@ -1180,11 +1207,17 @@ class vbwkde(Stage):
                             ' implemented.' % char_dim
                         )
 
-                    _, x, counts = vbwkde_func(
+                    bw, x, counts = vbwkde_func(
                         feature, weights=weights, **vbwkde_kwargs
                     )
 
                     if char_dim == 'coszen':
+                        x = np.linspace(extended_lower_lim, extended_upper_lim,
+                                        5e4)
+                        counts = gaussians(x=x, mu=orig_feature,
+                                           sigma=bw[:len(orig_feature)],
+                                           weights=orig_weights)
+
                         mirrored_length = len(x) // 4
                         below_range_mask = x < error_limits[0]
                         above_range_mask = x > error_limits[1]
