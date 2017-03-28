@@ -158,6 +158,14 @@ def collect_enough_events(events, flavint, bin, min_num_events, tgt_num_events,
     field_values = events[repr_flavint][bin.name]
     n_events = len(field_values)
 
+    if n_events == 0:
+        raise ValueError(
+            'No events were found for %s! Do you apply a cut that removes all'
+            ' relevant events? E.g. this can occur if you cut away'
+            ' downgoing events but then define true-coszen bins in the'
+            ' downgoing region.' % flavintgroup
+        )
+
     # If either min_num_events or tgt_num_events is greater than the total
     # number of events we have to work with, force to be equal to the number
     # of events we have.
