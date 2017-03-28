@@ -374,8 +374,11 @@ def main():
         # Select the NO (or nh) parameters in the config file
         hypo_testing.h0_maker.select_params(['nh'])
         hypo_testing.h1_maker.select_params(['nh'])
-        if hypo_testing.h0_maker.params[test_name].range[0] > 0:
-            enforce_positive = True
+        if hypo_testing.h0_maker.params[test_name].range is not None:
+            if hypo_testing.h0_maker.params[test_name].range[0] > 0:
+                enforce_positive = True
+            else:
+                enforce_positive = False
         else:
             enforce_positive = False
         if hypo_testing.h0_maker.params[test_name].units != inj_units:
@@ -403,8 +406,11 @@ def main():
         # Select the IO (or ih) parameters in the cofig file
         hypo_testing.h0_maker.select_params(['ih'])
         hypo_testing.h1_maker.select_params(['ih'])
-        if hypo_testing.h0_maker.params[test_name].range[0] > 0:
-            enforce_positive = True
+        if hypo_testing.h0_maker.params[test_name].range is not None:
+            if hypo_testing.h0_maker.params[test_name].range[0] > 0:
+                enforce_positive = True
+            else:
+                enforce_positive = False
         else:
             enforce_positive = False
         if hypo_testing.h0_maker.params[test_name].units != inj_units:
@@ -490,8 +496,11 @@ def main():
                 hypo_testing.data_maker.params[test_name].range = iorangetuple
     # Otherwise it's way simpler...
     else:
-        if hypo_testing.h0_maker.params[test_name].range[0] > 0:
-            enforce_positive = True
+        if hypo_testing.h0_maker.params[test_name].range is not None:
+            if hypo_testing.h0_maker.params[test_name].range[0] > 0:
+                enforce_positive = True
+            else:
+                enforce_positive = False
         else:
             enforce_positive = False
         rangediff = max(inj_vals) - min(inj_vals)
