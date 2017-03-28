@@ -18,6 +18,7 @@ from copy import deepcopy
 from collections import Iterable, OrderedDict, Sequence
 
 import h5py
+from numpy import inf, nan
 import numpy as np
 from uncertainties import unumpy as unp
 
@@ -26,7 +27,8 @@ from pisa.core.binning import MultiDimBinning, OneDimBinning
 from pisa.core.map import Map, MapSet
 from pisa.utils import resources
 from pisa.utils.comparisons import normQuant, recursiveEquality
-from pisa.utils.flavInt import FlavIntData, NuFlavIntGroup, FlavIntDataGroup
+from pisa.utils.flavInt import (FlavIntData, FlavIntDataGroup,
+                                flavintGroupsFromString, NuFlavIntGroup)
 from pisa.utils.format import text2tex
 from pisa.utils.hash import hash_obj
 from pisa.utils.fileio import from_file
@@ -50,7 +52,7 @@ class Events(FlavIntData):
     >>> events = Events('events/pingu_v39/events__pingu__v39__runs_620-622__proc_v5.1__joined_G_nue_cc+nuebar_cc_G_numu_cc+numubar_cc_G_nutau_cc+nutaubar_cc_G_nuall_nc+nuallbar_nc.hdf5')
 
     >>> # Apply a simple cut
-    >>> events.applyCut('(true_coszen <= 0.5) & (true_energy <= 70)')
+    >>> events = events.applyCut('(true_coszen <= 0.5) & (true_energy <= 70)')
     >>> np.max(events[fi]['true_coszen']) <= 0.5
     True
 
@@ -59,7 +61,7 @@ class Events(FlavIntData):
     ...    name='true_energy', num_bins=80, is_log=True,
     ...    domain=[10, 60]*ureg.GeV
     ... )
-    >>> events.keepInbounds(true_e_binning)
+    >>> events = events.keepInbounds(true_e_binning)
     >>> np.min(events[fi]['true_energy']) >= 10
     True
 
@@ -90,14 +92,14 @@ class Events(FlavIntData):
         if isinstance(val, basestring) or isinstance(val, h5py.Group):
             data, meta = self.__load(val)
         elif isinstance(val, Events):
-            self.metadata = val.metadata
-            data = val
+            meta = deepcopy(val.metadata)
+            data = deepcopy(val)
         elif isinstance(val, dict):
-            data = val
+            data = deepcopy(val)
         self.metadata.update(meta)
         self.validate(data)
         self.update(data)
-        self._hash = hash_obj(normQuant(self.metadata))
+        self.update_hash()
 
     def __str__(self):
         meta = [(str(k) + ' : ' + str(v)) for k, v in self.metadata.items()]
@@ -109,7 +111,32 @@ class Events(FlavIntData):
 
     @property
     def hash(self):
+        """Hash value"""
         return self._hash
+
+    def __hash__(self):
+        return self.hash
+
+    def update_hash(self):
+        """Update the cached hash value"""
+        self._hash = hash_obj(normQuant(self.metadata))
+
+    @property
+    def flavint_groups(self):
+        """All flavor/interaction type groups (even singletons) present"""
+        return sorted(flavintGroupsFromString(
+            ','.join(self.metadata['flavints_joined'])
+        ))
+
+    @property
+    def joined_string(self):
+        """Concise string identifying _only_ joined flavints"""
+        joined_groups = sorted(
+            [NuFlavIntGroup(j) for j in self.metadata['flavints_joined']]
+        )
+        if len(joined_groups) == 0:
+            return 'unjoined'
+        return 'joined_G_' + '_G_'.join([str(g) for g in joined_groups])
 
     def meta_eq(self, other):
         """Test whether the metadata for this object matches that of `other`"""
@@ -242,24 +269,22 @@ class Events(FlavIntData):
         be successfully applied to all flav/ints in the events object before
         the changes are kept, otherwise the cuts are reverted.
 
-
         Parameters
         ----------
         keep_criteria : string
             Any string interpretable as numpy boolean expression.
 
-
         Examples
         --------
         Keep events with true energies in [1, 80] GeV (note that units are not
         recognized, so have to be handled outside this method)
-        >>> applyCut("(true_energy >= 1) & (true_energy <= 80)")
+        >>> events = events.applyCut("(true_energy >= 1) & (true_energy <= 80)")
 
         Do the opposite with "~" inverting the criteria
-        >>> applyCut("~((true_energy >= 1) & (true_energy <= 80))")
+        >>> events = events.applyCut("~((true_energy >= 1) & (true_energy <= 80))")
 
         Numpy namespace is available for use via `np` prefix
-        >>> applyCut("np.log10(true_energy) >= 0")
+        >>> events = events.applyCut("np.log10(true_energy) >= 0")
 
         """
         if keep_criteria in self.metadata['cuts']:
@@ -269,59 +294,75 @@ class Events(FlavIntData):
 
         flavints_to_process = self.flavints()
         flavints_processed = []
-        new_data = {}
-        try:
-            for flav_int in flavints_to_process:
-                data_dict = self[flav_int]
-                field_names = data_dict.keys()
+        remaining_data = {}
+        for flavint in flavints_to_process:
+            data_dict = self[flavint]
+            field_names = data_dict.keys()
 
-                # TODO: handle unicode:
-                #  * translate crit to unicode (easiest to hack but could be
-                #    problematic elsewhere)
-                #  * translate field names to ascii (probably should be done at
-                #    the from_hdf stage?)
+            # TODO: handle unicode:
+            #  * translate crit to unicode (easiest to hack but could be
+            #    problematic elsewhere)
+            #  * translate field names to ascii (probably should be done at
+            #    the from_hdf stage?)
 
-                # Replace simple field names with full paths into the data that
-                # lives in this object
-                crit_str = (keep_criteria)
-                for field_name in field_names:
-                    crit_str = crit_str.replace(
-                        field_name, 'self["%s"]["%s"]' %(flav_int, field_name)
-                    )
-                mask = eval(crit_str)
-                new_data[flav_int] = {k: v[mask]
-                                      for k, v in self[flav_int].iteritems()}
-                flavints_processed.append(flav_int)
-        except Exception:
-            if (len(flavints_processed) > 0
-                    and flavints_processed != flavints_to_process):
-                logging.error('Events object is in an inconsistent state.'
-                              ' Reverting cut for all flavInts.')
-            raise
-        else:
-            for flav_int in flavints_to_process:
-                self[flav_int] = new_data[flav_int]
-                new_data[flav_int] = None
-            self.metadata['cuts'].append(keep_criteria)
+            # Replace simple field names with full paths into the data that
+            # lives in this object
+            crit_str = keep_criteria
+            for field_name in field_names:
+                crit_str = crit_str.replace(
+                    field_name, 'self["%s"]["%s"]' %(flavint, field_name)
+                )
+            mask = eval(crit_str)
+            remaining_data[flavint] = (
+                {k: v[mask] for k, v in self[flavint].iteritems()}
+            )
+            flavints_processed.append(flavint)
+
+        remaining_events = Events()
+        remaining_events.metadata.update(deepcopy(self.metadata))
+        remaining_events.metadata['cuts'].append(keep_criteria)
+
+        for flavint in flavints_processed:
+            remaining_events[flavint] = deepcopy(remaining_data[flavint])
+
+        return remaining_events
 
     def keepInbounds(self, binning):
         """Cut out any events that fall outside `binning`. Note that events
-        that fall exactly on the outer edge are kept.
+        that fall exactly on an outer edge are kept.
 
         Parameters
         ----------
         binning : OneDimBinning or MultiDimBinning
 
+        Returns
+        -------
+        remaining_events : Events
+
         """
+        try:
+            binning = OneDimBinning(binning)
+        except:
+            pass
         if isinstance(binning, OneDimBinning):
             binning = [binning]
-        else:
-            assert isinstance(binning, MultiDimBinning)
+        binning = MultiDimBinning(binning)
+
         current_cuts = self.metadata['cuts']
         new_cuts = [dim.inbounds_criteria for dim in binning]
         unapplied_cuts = [c for c in new_cuts if c not in current_cuts]
-        for cut in unapplied_cuts:
-            self.applyCut(keep_criteria=cut)
+        all_cuts = deepcopy(current_cuts) + unapplied_cuts
+
+        # Create a single cut from all unapplied cuts
+        keep_criteria = ' & '.join(['(%s)' % c for c in unapplied_cuts])
+
+        # Do the cutting
+        remaining_events = self.applyCut(keep_criteria=keep_criteria)
+
+        # Replace the combined 'cuts' string with individual cut strings
+        remaining_events.metadata['cuts'] = all_cuts
+
+        return remaining_events
 
 
 class Data(FlavIntDataGroup):
@@ -354,6 +395,7 @@ class Data(FlavIntDataGroup):
         ])
         self.contains_neutrinos = False
         self.contains_muons = False
+        self._muons = None
 
         # Get data and metadata from val
         meta = {}
@@ -421,21 +463,32 @@ class Data(FlavIntDataGroup):
             if self.contains_muons:
                 self.metadata['flavints_joined'] += ['muons']
 
+        self._hash = None
         self.update_hash()
 
     @property
     def hash(self):
+        """Probabilistically unique identifier"""
         return self._hash
 
     @hash.setter
     def hash(self, val):
         self._hash = val
 
+    def __hash__(self):
+        return self.hash
+
     def update_hash(self):
+        """Update the cached hash value"""
         self._hash = hash_obj(normQuant(self.metadata))
 
     @property
     def muons(self):
+        """muon data"""
+        # TODO: it seems more sensible to return None rather than raise
+        # AttributeError, since the attribute `muons` absolutely exists, just
+        # it contains no information... hence, `None` value.
+        # Same for `neutrinos` property.
         if not self.contains_muons:
             raise AttributeError('No muons loaded in Data')
         return self._muons
@@ -448,12 +501,16 @@ class Data(FlavIntDataGroup):
 
     @property
     def neutrinos(self):
+        """neutrino data"""
         if not self.contains_neutrinos:
             raise AttributeError('No neutrinos loaded in Data')
         return dict(zip(self.keys(), self.values()))
 
+    # TODO: make sure this returns all flavints, and not just joined (grouped)
+    # flavints, as is the case for the Events object
     @property
     def names(self):
+        """Names of flavints joined"""
         return self.metadata['flavints_joined']
 
     def meta_eq(self, other):
@@ -469,24 +526,28 @@ class Data(FlavIntDataGroup):
         be successfully applied to all flav/ints in the events object before
         the changes are kept, otherwise the cuts are reverted.
 
-
         Parameters
         ----------
         keep_criteria : string
             Any string interpretable as numpy boolean expression.
 
+        Returns
+        -------
+        remaining_events : Events
+            An Events object with the remaining events (deepcopied) and with
+            updated cut metadata including `keep_criteria`.
 
         Examples
         --------
         Keep events with true energies in [1, 80] GeV (note that units are not
         recognized, so have to be handled outside this method)
-        >>> applyCut("(true_energy >= 1) & (true_energy <= 80)")
+        >>> remaining = applyCut("(true_energy >= 1) & (true_energy <= 80)")
 
         Do the opposite with "~" inverting the criteria
-        >>> applyCut("~((true_energy >= 1) & (true_energy <= 80))")
+        >>> remaining = applyCut("~((true_energy >= 1) & (true_energy <= 80))")
 
         Numpy namespace is available for use via `np` prefix
-        >>> applyCut("np.log10(true_energy) >= 0")
+        >>> remaining = applyCut("np.log10(true_energy) >= 0")
 
         """
         if keep_criteria in self.metadata['cuts']:
@@ -500,38 +561,36 @@ class Data(FlavIntDataGroup):
         if self.contains_muons:
             fig_to_process += ['muons']
         fig_processed = []
-        new_data = {}
-        try:
-            for fig in fig_to_process:
-                data_dict = self[fig]
-                field_names = data_dict.keys()
+        remaining_data = {}
+        for fig in fig_to_process:
+            data_dict = self[fig]
+            field_names = data_dict.keys()
 
-                # TODO: handle unicode:
-                #  * translate crit to unicode (easiest to hack but could be
-                #    problematic elsewhere)
-                #  * translate field names to ascii (probably should be done at
-                #    the from_hdf stage?)
+            # TODO: handle unicode:
+            #  * translate crit to unicode (easiest to hack but could be
+            #    problematic elsewhere)
+            #  * translate field names to ascii (probably should be done at
+            #    the from_hdf stage?)
 
-                # Replace simple field names with full paths into the data that
-                # lives in this object
-                crit_str = (keep_criteria)
-                for field_name in field_names:
-                    crit_str = crit_str.replace(
-                        field_name, 'self["%s"]["%s"]' % (fig, field_name)
-                    )
-                mask = eval(crit_str)
-                new_data[fig] = {k: v[mask] for k, v in self[fig].iteritems()}
-                fig_processed.append(fig)
-        except:
-            if len(fig_processed) > 0 and fig_processed != fig_to_process:
-                logging.error('Data object is in an inconsistent state.'
-                              ' Reverting cut for all flavInts.')
-            raise
-        else:
-            for fig in fig_to_process:
-                self[fig] = new_data[fig]
-                new_data[fig] = None
-            self.metadata['cuts'].append(keep_criteria)
+            # Replace simple field names with full paths into the data that
+            # lives in this object
+            crit_str = (keep_criteria)
+            for field_name in field_names:
+                crit_str = crit_str.replace(
+                    field_name, 'self["%s"]["%s"]' % (fig, field_name)
+                )
+            mask = eval(crit_str)
+            remaining_data[fig] = {k: v[mask]
+                                   for k, v in self[fig].iteritems()}
+            fig_processed.append(fig)
+
+        remaining_events = Events()
+        remaining_events.metadata.update(deepcopy(self.metadata))
+        remaining_events.metadata['cuts'].append(keep_criteria)
+        for fig in fig_to_process:
+            remaining_events[fig] = deepcopy(remaining_data.pop(fig))
+
+        return remaining_events
 
     def keepInbounds(self, binning):
         """Cut out any events that fall outside `binning`. Note that events
@@ -835,7 +894,7 @@ def test_Events():
     events = Events('events/pingu_v39/events__pingu__v39__runs_620-622__proc_v5.1__joined_G_nue_cc+nuebar_cc_G_numu_cc+numubar_cc_G_nutau_cc+nutaubar_cc_G_nuall_nc+nuallbar_nc.hdf5')
 
     # Apply a simple cut
-    events.applyCut('(true_coszen <= 0.5) & (true_energy <= 70)')
+    events = events.applyCut('(true_coszen <= 0.5) & (true_energy <= 70)')
     for fi in events.flavints():
         assert np.max(events[fi]['true_coszen']) <= 0.5
         assert np.max(events[fi]['true_energy']) <= 70
@@ -844,7 +903,7 @@ def test_Events():
     true_e_binning = OneDimBinning(
         name='true_energy', num_bins=80, is_log=True, domain=[10, 60]*ureg.GeV
     )
-    events.keepInbounds(true_e_binning)
+    events = events.keepInbounds(true_e_binning)
     for fi in events.flavints():
         assert np.min(events[fi]['true_energy']) >= 10
         assert np.max(events[fi]['true_energy']) <= 60
@@ -857,7 +916,7 @@ def test_Events():
         name='true_coszen', num_bins=40, is_lin=True, domain=[-0.8, 0]
     )
     mdb = MultiDimBinning([true_e_binning, true_cz_binning])
-    events.keepInbounds(mdb)
+    events = events.keepInbounds(mdb)
     for fi in events.flavints():
         assert np.min(events[fi]['true_energy']) >= 20
         assert np.max(events[fi]['true_energy']) <= 50
@@ -871,7 +930,7 @@ def test_Events():
     sub_evts.pop('true_energy')
     events['nutaunc'] = sub_evts
     try:
-        events.applyCut('(true_energy >= 30) & (true_energy <= 40)')
+        events = events.applyCut('(true_energy >= 30) & (true_energy <= 40)')
     except Exception:
         pass
     else:
@@ -901,8 +960,8 @@ def test_Data():
     logging.debug(str((data.keys())))
 
     muon_file = 'Level7_muongun.12370_15.pckl'
-    m = {'muons': from_file(muon_file)}
-    m = Data(val=m)
+    loaded = from_file(muon_file)
+    m = Data(val={'muons': loaded})
     assert m.contains_muons
     assert not m.contains_neutrinos
     logging.debug(str((m)))
@@ -976,4 +1035,5 @@ def test_Data():
 if __name__ == "__main__":
     set_verbosity(1)
     test_Events()
-    test_Data()
+    # TODO: following is removed until a test dataset can be introduced
+    #test_Data()

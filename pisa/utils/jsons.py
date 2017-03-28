@@ -117,6 +117,7 @@ def to_json(content, filename, indent=2, overwrite=True, warn=True,
         return content.to_json(filename, indent=indent, overwrite=overwrite,
                                warn=warn, sort_keys=sort_keys)
     from pisa.utils.fileio import check_file_exists
+    from pisa.utils.log import logging
     check_file_exists(fname=filename, overwrite=overwrite, warn=warn)
 
     _, ext = os.path.splitext(filename)
@@ -138,13 +139,14 @@ def to_json(content, filename, indent=2, overwrite=True, warn=True,
                 content, outfile, indent=indent, cls=NumpyEncoder,
                 sort_keys=sort_keys, allow_nan=True, ignore_nan=False
             )
-        log.logging.debug('Wrote %.2f kB to %s'
-                          % (outfile.tell()/1024., filename))
+        log.logging.debug('Wrote %.2f kB to %s', outfile.tell()/1024.,
+                          filename)
 
 
 class NumpyEncoder(json.JSONEncoder):
     """Encode special objects to be representable as JSON."""
     def default(self, obj):
+        from pisa.utils.log import logging
         if isinstance(obj, np.ndarray):
             return obj.tolist()
         # TODO: poor form to have a way to get this into a JSON file but no way
@@ -156,11 +158,14 @@ class NumpyEncoder(json.JSONEncoder):
         # Python bool type, hence this conversion
         elif isinstance(obj, np.bool_):
             return bool(obj)
+        elif hasattr(obj, 'serializable_state'):
+            return obj.serializable_state
         try:
             return json.JSONEncoder.default(self, obj)
         except:
-            raise Exception('JSON serialization for %s not implemented'
-                            %type(obj).__name__)
+            logging.error('JSON serialization for %s not implemented',
+                          type(obj).__name__)
+            raise
 
 
 class NumpyDecoder(json.JSONDecoder):
@@ -206,6 +211,7 @@ class NumpyDecoder(json.JSONDecoder):
 # TODO: finish this little bit
 def test_NumpyEncoderDecoder():
     from shutil import rmtree
+    import sys
     from tempfile import mkdtemp
     from pisa.utils.comparisons import recursiveEquality
 
@@ -232,9 +238,8 @@ def test_NumpyEncoderDecoder():
     finally:
         rmtree(temp_dir)
 
-    log.logging.info('<< PASSED : test_NumpyEncoderDecoder >>')
+    sys.stdout.write('<< PASSED : test_NumpyEncoderDecoder >>\n')
 
 
 if __name__ == '__main__':
-    log.set_verbosity(1)
     test_NumpyEncoderDecoder()

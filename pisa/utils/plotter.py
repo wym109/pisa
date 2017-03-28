@@ -373,8 +373,15 @@ class Plotter(object):
         extent = [np.min(bin_edges[0].m), np.max(bin_edges[0].m),
                   np.min(bin_edges[1].m), np.max(bin_edges[1].m)]
 
+        # TODO: use log2 scale & integer tick labels if too few major gridlines
+        # result from default log10 scale
+        if dims[0].is_log:
+            axis.set_xscale('log')
+        if dims[1].is_log:
+            axis.set_yscale('log')
+
         # Only lin or log can be handled by imshow...otherise use colormesh
-        if linlog:
+        if False: #linlog: doesn't work for new matplotlib anymore
             # Needs to be transposed for imshow
             img = plt.imshow(
                 zmap.T, origin='lower', interpolation='nearest', extent=extent,
@@ -405,12 +412,6 @@ class Plotter(object):
         axis.set_xlim(extent[0:2])
         axis.set_ylim(extent[2:4])
 
-        # TODO: use log2 scale & integer tick labels if too few major gridlines
-        # result from default log10 scale
-        if dims[0].is_log:
-            axis.set_xscale('log')
-        if dims[1].is_log:
-            axis.set_yscale('log')
 
         if self.log:
             col_bar = plt.colorbar(format=r'$10^{%.1f}$')

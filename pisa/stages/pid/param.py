@@ -216,10 +216,18 @@ class param(Stage):
                 " was unexpected - '%s'."%self.input_binning.names[0]
             )
 
-        # TODO: not handling rebinning in this stage or within Transform
-        # objects; implement this! (and then this assert statement can go away)
-        #assert self.input_binning == self.output_binning, \
-        #        "input and output binning deviate!"
+        if set(self.output_binning.names) != set(('reco_energy','reco_coszen','pid')):
+            raise ValueError(
+                "Got incompatible output binning, needs to contain "
+                "'reco_energy','reco_coszen' and 'pid' dimensions, "
+                "got %s instead"%self.output_binning.names
+            )
+        if 'pid' != self.output_binning.names[2]:
+            raise ValueError('pid must be third dimension currently')
+
+        if self.input_binning.names != self.output_binning.names[0:2]:
+            raise ValueError('first two dimesnsion of in and output binnings must align')
+            
 
     def load_pid_energy_param(self, pid_energy_param):
         """
