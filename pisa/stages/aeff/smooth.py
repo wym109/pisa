@@ -413,7 +413,7 @@ class smooth(Stage):
         new_transforms = []
         for xform_flavints in self.transform_groups:
             repr_flav_int = xform_flavints[0]
-            flav_names = [str(flav) for flav in xform_flavints.flavs()]
+            flav_names = [str(flav) for flav in xform_flavints.flavs]
             raw_transform = None
             for transform in self.nominal_transforms:
                 if (transform.input_names[0] in flav_names

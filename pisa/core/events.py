@@ -251,7 +251,7 @@ class Events(FlavIntData):
 
         if name is None:
             if tex is None:
-                tex = kinds.tex()
+                tex = kinds.tex
                 if weights_col is not None:
                     tex += r', \; {\rm weights=' + text2tex(weights_col) + r'}'
 
@@ -292,7 +292,7 @@ class Events(FlavIntData):
 
         assert isinstance(keep_criteria, basestring)
 
-        flavints_to_process = self.flavints()
+        flavints_to_process = self.flavints
         flavints_processed = []
         remaining_data = {}
         for flavint in flavints_to_process:
@@ -729,7 +729,7 @@ class Data(FlavIntDataGroup):
         if name is None:
             if tex is None:
                 try:
-                    tex = kinds.tex()
+                    tex = kinds.tex
                 # TODO: specify specific exception(s)
                 except:
                     tex = r'{0}'.format(kinds)
@@ -895,7 +895,7 @@ def test_Events():
 
     # Apply a simple cut
     events = events.applyCut('(true_coszen <= 0.5) & (true_energy <= 70)')
-    for fi in events.flavints():
+    for fi in events.flavints:
         assert np.max(events[fi]['true_coszen']) <= 0.5
         assert np.max(events[fi]['true_energy']) <= 70
 
@@ -904,7 +904,7 @@ def test_Events():
         name='true_energy', num_bins=80, is_log=True, domain=[10, 60]*ureg.GeV
     )
     events = events.keepInbounds(true_e_binning)
-    for fi in events.flavints():
+    for fi in events.flavints:
         assert np.min(events[fi]['true_energy']) >= 10
         assert np.max(events[fi]['true_energy']) <= 60
 
@@ -917,7 +917,7 @@ def test_Events():
     )
     mdb = MultiDimBinning([true_e_binning, true_cz_binning])
     events = events.keepInbounds(mdb)
-    for fi in events.flavints():
+    for fi in events.flavints:
         assert np.min(events[fi]['true_energy']) >= 20
         assert np.max(events[fi]['true_energy']) <= 50
         assert np.min(events[fi]['true_coszen']) >= -0.8
@@ -935,7 +935,7 @@ def test_Events():
         pass
     else:
         raise Exception('Should not have been able to apply the cut!')
-    for fi in events.flavints():
+    for fi in events.flavints:
         if fi == NuFlavInt('nutaunc'):
             continue
         assert np.min(events[fi]['true_energy']) < 30

@@ -35,6 +35,7 @@ from uncertainties import unumpy as unp
 from pisa import ureg, HASH_SIGFIGS
 from pisa.core.binning import OneDimBinning, MultiDimBinning
 from pisa.utils.comparisons import normQuant, recursiveEquality
+from pisa.utils.flavInt import NuFlavIntGroup
 from pisa.utils.hash import hash_obj
 from pisa.utils import jsons
 from pisa.utils.fileio import get_valid_filename, mkdir
@@ -1298,7 +1299,7 @@ class Map(object):
 
     @tex.setter
     def tex(self, value):
-        assert isinstance(value, basestring)
+        assert value is None or isinstance(value, basestring)
         return super(self.__class__, self).__setattr__('_tex', value)
 
     @property
@@ -1916,20 +1917,32 @@ class MapSet(object):
             else:
                 pattern = regex
             maps_to_combine = []
+            names_to_combine = []
             for m in self:
-                if re.match(regex, m.name) is not None:
-                    logging.debug('Map "%s" will be added...', m.name)
+                name = m.name
+                if re.match(regex, name) is not None:
+                    logging.debug('Map "%s" will be added...', name)
                     maps_to_combine.append(m)
+                    names_to_combine.append(name)
             if len(maps_to_combine) == 0:
                 raise ValueError('No map names match `regex` "%s"' % pattern)
             if len(maps_to_combine) > 1:
                 m = reduce(add, maps_to_combine)
+                try:
+                    nufig = NuFlavIntGroup(names_to_combine)
+                    new_name = make_valid_python_name(str(nufig))
+                    new_tex = nufig.tex
+                except:
+                    # Reasonable name for giving user an idea of what the map
+                    # represents
+                    new_name = make_valid_python_name(expr)
+                    new_tex = None
+                if new_name == '':
+                    new_name = 'combined'
+                m.name = new_name
+                m.tex = new_tex
             else:
                 m = copy(maps_to_combine[0])
-            # Attach a "reasonable" name to the map; the caller can do better,
-            # but this at least gives the user an idea of what the map
-            # represents
-            m.name = make_valid_python_name(pattern)
             resulting_maps.append(m)
         if len(resulting_maps) == 1:
             return resulting_maps[0]
@@ -1979,20 +1992,33 @@ class MapSet(object):
         resulting_maps = []
         for expr in expressions:
             maps_to_combine = []
+            names_to_combine = []
             for mapnum, m in enumerate(self):
-                if fnmatch(m.name, expr):
+                name = m.name
+                if fnmatch(name, expr):
                     logging.debug('Map %d, "%s", will be added...',
-                                  mapnum, m.name)
+                                  mapnum, name)
                     maps_to_combine.append(m)
+                    names_to_combine.append(name)
             if len(maps_to_combine) == 0:
                 raise ValueError('No map names match `expr` "%s"' % expr)
             if len(maps_to_combine) > 1:
                 m = reduce(add, maps_to_combine)
+                try:
+                    nufig = NuFlavIntGroup(names_to_combine)
+                    new_name = make_valid_python_name(str(nufig))
+                    new_tex = nufig.tex
+                except:
+                    # Reasonable name for giving user an idea of what the map
+                    # represents
+                    new_name = make_valid_python_name(expr)
+                    new_tex = None
+                if new_name == '':
+                    new_name = 'combined'
+                m.name = new_name
+                m.tex = new_tex
             else:
                 m = copy(maps_to_combine[0])
-            # Reasonable name for giving user an idea of what the map
-            # represents
-            m.name = make_valid_python_name(expr)
             resulting_maps.append(m)
         if len(resulting_maps) == 1:
             return resulting_maps[0]
