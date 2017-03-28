@@ -32,6 +32,7 @@ from itertools import product
 import numpy as np
 from scipy.stats import norm
 
+from pisa.core.binning import OneDimBinning
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
 from pisa.utils.fileio import from_file
@@ -348,11 +349,18 @@ class param(Stage):
         orig_output_binning = self.output_binning
         self.output_binning = self.input_binning
         outputs = super(self.__class__, self).get_outputs(inputs)
-        self.output_binning = orig_output_binning
+        # If PID is not in the original output binning, add in a dummy PID
+        # binning so that the assertion on the output binning does not fail.
+        if 'pid' not in orig_output_binning.names:
+            dummy_pid = OneDimBinning(name='pid', bin_edges=[0,1,2])
+            self.output_binning = orig_output_binning + dummy_pid
+        else:
+            self.output_binning = orig_output_binning
         # put together pid bins
         new_maps = []
         for name in self.output_names:
-            hist = np.array([outputs[name+'_cscd'].hist, outputs[name+'_trck'].hist])
+            hist = np.array([outputs[name+'_cscd'].hist,
+                             outputs[name+'_trck'].hist])
             # put that pid dimension last
             hist = np.rollaxis(hist, 0, 3)
             new_maps.append(Map(name, hist, self.output_binning))
