@@ -197,7 +197,7 @@ class MCSimRunSettings(dict):
                              ' %d non-None args instead.' % nargs)
 
         if flav_or_flavint is not None:
-            is_particle = flavInt.NuFlavInt(flav_or_flavint).isParticle()
+            is_particle = flavInt.NuFlavInt(flav_or_flavint).isParticle
         elif barnobar is not None:
             is_particle = barnobar > 0
 

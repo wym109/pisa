@@ -398,7 +398,7 @@ def text2tex(txt):
 
     nfig = NuFlavIntGroup(txt)
     if len(nfig) > 0:
-        return nfig.tex()
+        return nfig.tex
 
     for c in TEX_BACKSLASH_CHARS:
         txt = txt.replace(c, r'\%s'%c)
