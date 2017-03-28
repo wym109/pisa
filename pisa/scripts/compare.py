@@ -101,6 +101,11 @@ def parse_args():
         --combine option for multiple combine strings.'''
     )
     parser.add_argument(
+        '--sum', nargs='+',
+        help='''Sum over (and hence remove) the specified axis or axes. I.e.,
+        project the map onto remaining (unspecified) axis or axes.'''
+    )
+    parser.add_argument(
         '--json', action='store_true',
         help='''Save output maps in compressed json (json.bz2) format.'''
     )
@@ -308,6 +313,10 @@ def main():
             ref = MapSet([ref])
         if isinstance(test, Map):
             test = MapSet([test])
+
+    if args.sum is not None:
+        ref = ref.sum(args.sum)
+        test = test.sum(args.sum)
 
     # Set the MapSet names according to args passed by user
     ref.name = args.ref_label
