@@ -433,9 +433,6 @@ def compare_pid(config, servicename, pisa2file, outdir, ratio_test_threshold,
     outputs = stage.get_outputs(inputs=MapSet(maps=input_maps, name='ones',
                                               hash=1))
 
-    cake_trck = outputs.combine_wildcard('*_trck')
-    cake_cscd = outputs.combine_wildcard('*_cscd')
-
     pisa2_comparisons = from_file(pisa2file)
     pisa_trck = pisa2_map_to_pisa3_map(
         pisa2_map = pisa2_comparisons['trck'],
@@ -447,6 +444,20 @@ def compare_pid(config, servicename, pisa2file, outdir, ratio_test_threshold,
         ebins_name = 'reco_energy',
         czbins_name = 'reco_coszen'
     )
+
+    # Do check if output is exactly the same as old PISA 2 with track and
+    # cascade separated or is new PISA 3 where PID is a binning dimension.
+    bins_old = [('trck' in s) or ('cscd' in s) for s in outputs.names]
+    if np.all(np.array(bins_old)):
+        # In this case we can get the two PID maps using the wildcard.
+        cake_trck = outputs.combine_wildcard('*_trck')
+        cake_cscd = outputs.combine_wildcard('*_cscd')
+
+    else:
+        # If not we must split along the PID dimension.
+        total_outputs = outputs.combine_wildcard('*')
+        cake_trck = total_outputs.slice(dummy_pid=1).squeeze()
+        cake_cscd = total_outputs.slice(dummy_pid=0).squeeze()
 
     max_diff_ratio, max_diff= plot_map_comparisons(
         ref_map=pisa_cscd,
@@ -462,7 +473,7 @@ def compare_pid(config, servicename, pisa2file, outdir, ratio_test_threshold,
 
     check_agreement(
         testname='PISAV3-PISAV2 pid:%s %s cscd'
-            %(test_service, test_syst),
+        %(test_service, test_syst),
         thresh_ratio=ratio_test_threshold,
         ratio=max_diff_ratio,
         thresh_diff=diff_test_threshold,
@@ -483,7 +494,7 @@ def compare_pid(config, servicename, pisa2file, outdir, ratio_test_threshold,
 
     check_agreement(
         testname='PISAV3-PISAV2 pid:%s %s trck'
-            %(test_service, test_syst),
+        %(test_service, test_syst),
         thresh_ratio=ratio_test_threshold,
         ratio=max_diff_ratio,
         thresh_diff=diff_test_threshold,
@@ -510,7 +521,8 @@ def compare_flux_full(cake_maps, pisa_maps, outdir, ratio_test_threshold,
         pisa_map_to_plot = pisa2_map_to_pisa3_map(
             pisa2_map = pisa_maps[nukey],
             ebins_name = 'true_energy',
-            czbins_name = 'true_coszen'
+            czbins_name = 'true_coszen',
+            is_log=False
         )
 
         if '_' in nukey:
@@ -561,7 +573,8 @@ def compare_osc_full(cake_maps, pisa_maps, outdir, ratio_test_threshold,
         pisa_map_to_plot = pisa2_map_to_pisa3_map(
             pisa2_map = pisa_maps[nukey],
             ebins_name = 'true_energy',
-            czbins_name = 'true_coszen'
+            czbins_name = 'true_coszen',
+            is_log=False
         )
 
         if '_' in nukey:
@@ -621,7 +634,8 @@ def compare_aeff_full(cake_maps, pisa_maps, outdir, ratio_test_threshold,
             pisa_map_to_plot = pisa2_map_to_pisa3_map(
                 pisa2_map = pisa_maps[nukey][intkey],
                 ebins_name = 'true_energy',
-                czbins_name = 'true_coszen'
+                czbins_name = 'true_coszen',
+                is_log=False
             )
 
             cake_map_to_plot = cake_maps[cakekey]
@@ -681,7 +695,8 @@ def compare_reco_full(cake_maps, pisa_maps, outdir, ratio_test_threshold,
         pisa_map_to_plot = pisa2_map_to_pisa3_map(
             pisa2_map = pisa_maps[nukey],
             ebins_name = 'reco_energy',
-            czbins_name = 'reco_coszen'
+            czbins_name = 'reco_coszen',
+            is_log=False
         )
 
         if '_' in nukey:
@@ -744,12 +759,14 @@ def compare_pid_full(cake_maps, pisa_maps, outdir, ratio_test_threshold,
     pisa_trck = pisa2_map_to_pisa3_map(
         pisa2_map = pisa_maps['trck'],
         ebins_name = 'reco_energy',
-        czbins_name = 'reco_coszen'
+        czbins_name = 'reco_coszen',
+        is_log=False
     )
     pisa_cscd = pisa2_map_to_pisa3_map(
         pisa2_map = pisa_maps['cscd'],
         ebins_name = 'reco_energy',
-        czbins_name = 'reco_coszen'
+        czbins_name = 'reco_coszen',
+        is_log=False
     )
 
     max_diff_ratio, max_diff = plot_map_comparisons(
