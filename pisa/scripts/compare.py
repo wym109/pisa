@@ -15,10 +15,14 @@ is unnecessary to reproduce the results.
 
 from argparse import ArgumentParser
 from collections import OrderedDict
+from copy import deepcopy
 import os
 
+import matplotlib as mpl
+mpl.use('agg')
 import numpy as np
 
+from pisa import EPSILON
 from pisa.core.distribution_maker import DistributionMaker
 from pisa.core.map import Map, MapSet
 from pisa.core.pipeline import Pipeline
@@ -31,6 +35,8 @@ __all__ = ['DISTRIBUTIONMAKER_SOURCE_STR', 'PIPELINE_SOURCE_STR',
            'MAP_SOURCE_STR', 'MAPSET_SOURCE_STR',
            'parse_args', 'main']
 
+CMAP = mpl.cm.RdBu_r
+CMAP.set_bad((0.5, 0.9, 0.5))
 
 DISTRIBUTIONMAKER_SOURCE_STR = (
     'DistributionMaker instantiated from multiple pipeline config files'
@@ -326,9 +332,15 @@ def main():
             % (sorted(test.names), sorted(ref.names))
         )
 
-    # Alias to save keystrokes
+    # Aliases to save keystrokes
     def masked(x):
         return np.ma.masked_invalid(x.nominal_values)
+
+    def zero_to_nan(map):
+        newmap = deepcopy(map)
+        mask = np.isclose(newmap.nominal_values, 0, rtol=0, atol=EPSILON)
+        newmap.hist[mask] = np.nan
+        return newmap
 
     reordered_test = []
     new_ref = []
@@ -344,9 +356,8 @@ def main():
             test_map = abs(test_map)
 
         diff_map = test_map - ref_map
-        with np.errstate(divide='ignore', invalid='ignore'):
-            fract_diff_map = (test_map - ref_map)/ref_map
-            asymm_map = (test_map - ref_map)/ref_map**0.5
+        fract_diff_map = (test_map - ref_map)/zero_to_nan(ref_map)
+        asymm_map = (test_map - ref_map)/zero_to_nan(ref_map**0.5)
         abs_fract_diff_map = np.abs(fract_diff_map)
 
         new_ref.append(ref_map)
@@ -425,7 +436,7 @@ def main():
             ('total_asymm', total_asymm),
         ])
 
-        logging.info('Map %s...' % ref_map.name)
+        logging.info('Map %s...', ref_map.name)
         logging.info('  Ref map(s):')
         logging.info('    min   :' + ('%.2f' % min_ref).rjust(12))
         logging.info('    max   :' + ('%.2f' % max_ref).rjust(12))
@@ -437,23 +448,23 @@ def main():
         logging.info('    total :' + ('%.2f' % total_test).rjust(12))
         logging.info('    mean  :' + ('%.2f' % mean_test).rjust(12))
         logging.info('  Absolute fract. diff., abs((Test - Ref) / Ref):')
-        logging.info('    max   : %.4e' %(max_abs_fract_diff))
-        logging.info('    mean  : %.4e' %(mean_abs_fract_diff))
-        logging.info('    median: %.4e' %(median_abs_fract_diff))
+        logging.info('    max   : %.4e', max_abs_fract_diff)
+        logging.info('    mean  : %.4e', mean_abs_fract_diff)
+        logging.info('    median: %.4e', median_abs_fract_diff)
         logging.info('  Fractional difference, (Test - Ref) / Ref:')
-        logging.info('    min   : %.4e' %(min_fract_diff))
-        logging.info('    max   : %.4e' %(max_fract_diff))
-        logging.info('    mean  : %.4e +/- %.4e' %(mean_fract_diff, std_fract_diff))
-        logging.info('    median: %.4e +/- %.4e' %(median_fract_diff, mad_fract_diff))
+        logging.info('    min   : %.4e', min_fract_diff)
+        logging.info('    max   : %.4e', max_fract_diff)
+        logging.info('    mean  : %.4e +/- %.4e', mean_fract_diff, std_fract_diff)
+        logging.info('    median: %.4e +/- %.4e', median_fract_diff, mad_fract_diff)
         logging.info('  Difference, Test - Ref:')
-        logging.info('    min   : %.4e' %(min_diff))
-        logging.info('    max   : %.4e' %(max_diff))
-        logging.info('    mean  : %.4e +/- %.4e' %(mean_diff, std_diff))
-        logging.info('    median: %.4e +/- %.4e' %(median_diff, mad_diff))
+        logging.info('    min   : %.4e', min_diff)
+        logging.info('    max   : %.4e', max_diff)
+        logging.info('    mean  : %.4e +/- %.4e', mean_diff, std_diff)
+        logging.info('    median: %.4e +/- %.4e', median_diff, mad_diff)
         logging.info('  Asymmetry, (Test - Ref) / sqrt(Ref)')
-        logging.info('    min   : %.4e' %(min_asymm))
-        logging.info('    max   : %.4e' %(max_asymm))
-        logging.info('    total : %.4e (sum in quadrature)' %total_asymm)
+        logging.info('    min   : %.4e', min_asymm)
+        logging.info('    max   : %.4e', max_asymm)
+        logging.info('    total : %.4e (sum in quadrature)', total_asymm)
         logging.info('')
 
     ref = MapSet(new_ref)
@@ -503,7 +514,7 @@ def main():
         plotter.plot_2d_array(
             test - ref,
             fname='diff__%s__%s' % (test_plot_label, ref_plot_label),
-            cmap='RdBu_r',
+            cmap=CMAP,
             #vmin=args.diff_min, vmax=args.diff_max
         )
 
@@ -513,11 +524,12 @@ def main():
                           annotate=False,
                           symmetric=fract_diff_symm,
                           ratio=True)
-        plotter.label = '(%s-%s)/(%s+%s)' % (test_plot_label, ref_plot_label, test_plot_label, ref_plot_label)
+        plotter.label = ('(%s-%s)/%s'
+                         % (test_plot_label, ref_plot_label, ref_plot_label))
         plotter.plot_2d_array(
-            (test-ref)/(test+ref),
+            (test-ref)/MapSet([zero_to_nan(r) for r in ref]),
             fname='fract_diff__%s__%s' % (test_plot_label, ref_plot_label),
-            cmap='RdBu_r',
+            cmap=CMAP,
             #vmin=args.fract_diff_min, vmax=args.fract_diff_max
         )
 
@@ -527,12 +539,12 @@ def main():
                           annotate=False,
                           symmetric=asymm_symm,
                           ratio=True)
-        plotter.label = r'$(%s - %s)/\sqrt{%s + %s}$' % (test_plot_label,
-                                                ref_plot_label, test_plot_label, ref_plot_label)
+        plotter.label = (r'$(%s - %s)/\sqrt{%s}$'
+                         % (test_plot_label, ref_plot_label, ref_plot_label))
         plotter.plot_2d_array(
-            (test-ref)/(test+ref)**0.5,
+            (test-ref)/MapSet([zero_to_nan(r**0.5) for r in ref]),
             fname='asymm__%s__%s' % (test_plot_label, ref_plot_label),
-            cmap='RdBu_r',
+            cmap=CMAP,
             #vmin=args.asymm_min, vmax=args.asymm_max
         )
 
