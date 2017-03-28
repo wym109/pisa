@@ -418,7 +418,7 @@ def parse_args():
         arguments.'''
     )
     parser.add_argument(
-        '--stop-after-stage', metavar='STAGE', type=int,
+        '--stop-after-stage', metavar='STAGE',
         help='''Test stage: Instantiate a pipeline up to and including
         STAGE, but stop there.'''
     )
@@ -499,6 +499,10 @@ def main(return_outputs=False):
 
     if args.only_stage is None:
         stop_idx = args.stop_after_stage
+        try:
+            stop_idx = int(stop_idx)
+        except ValueError:
+            pass
         if isinstance(stop_idx, basestring):
             stop_idx = pipeline.index(stop_idx)
         if stop_idx is not None:
