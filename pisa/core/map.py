@@ -1935,7 +1935,7 @@ class MapSet(object):
                 except:
                     # Reasonable name for giving user an idea of what the map
                     # represents
-                    new_name = make_valid_python_name(expr)
+                    new_name = make_valid_python_name(regex)
                     new_tex = None
                 if new_name == '':
                     new_name = 'combined'
