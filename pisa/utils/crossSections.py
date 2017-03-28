@@ -304,7 +304,7 @@ class CrossSections(flavInt.FlavIntData):
         """
         if flavintgroup is None:
             flavintgroups = [flavInt.NuFlavIntGroup(fi)
-                             for fi in self.flavints()]
+                             for fi in self.flavints]
         else:
             flavintgroups = [flavInt.NuFlavIntGroup(flavintgroup)]
 
@@ -336,13 +336,13 @@ class CrossSections(flavInt.FlavIntData):
         """
         flavintgroup = flavInt.NuFlavIntGroup(flavintgroup)
         # Trivial case: nothing to combine
-        if len(flavintgroup.flavints()) == 1:
-            return self[flavintgroup.flavints()[0]]
+        if len(flavintgroup.flavints) == 1:
+            return self[flavintgroup.flavints[0]]
 
-        cc_flavints = flavintgroup.ccFlavInts()
-        nc_flavints = flavintgroup.ncFlavInts()
+        cc_flavints = flavintgroup.ccFlavInts
+        nc_flavints = flavintgroup.ncFlavInts
         if cc_flavints and nc_flavints:
-            assert flavintgroup.ccFlavs() == flavintgroup.ncFlavs(), \
+            assert flavintgroup.ccFlavs == flavintgroup.ncFlavs, \
                     'Combining CC and NC but CC flavors do not match NC flavors'
         cc_avg_xs = 0
         if cc_flavints:
@@ -526,20 +526,20 @@ class CrossSections(flavInt.FlavIntData):
 
         energy = self.energy
         nc_n = cc_n = 0
-        for flavint in list(flavInt.ALL_NUFLAVINTS.particles()) + \
-                list(flavInt.ALL_NUFLAVINTS.antiParticles()):
+        for flavint in list(flavInt.ALL_NUFLAVINTS.particles) + \
+                list(flavInt.ALL_NUFLAVINTS.antiParticles):
             # Convert from [m^2] to [1e-38 cm^2]
             xs = self[flavint] * 1e38 * 1e4
-            if flavint.isCC():
+            if flavint.isCC:
                 ax1.plot(energy, xs/energy,
                          alpha=alpha,
-                         label=flavInt.tex(flavint.flav(), d=1),
+                         label=flavInt.tex(flavint.flav, d=1),
                          **ls[cc_n%len(ls)])
                 cc_n += 1
             else:
                 ax2.plot(energy, xs/energy,
                          alpha=alpha,
-                         label=flavInt.tex(flavint.flav(), d=1),
+                         label=flavInt.tex(flavint.flav, d=1),
                          **ls[nc_n%len(ls)])
                 nc_n += 1
 
