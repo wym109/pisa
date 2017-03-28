@@ -352,7 +352,7 @@ class param(Stage):
         # If PID is not in the original output binning, add in a dummy PID
         # binning so that the assertion on the output binning does not fail.
         if 'pid' not in orig_output_binning.names:
-            dummy_pid = OneDimBinning(name='dummy_pid', bin_edges=[0,1,2])
+            dummy_pid = OneDimBinning(name='pid', bin_edges=[0,1,2])
             self.output_binning = orig_output_binning + dummy_pid
         else:
             self.output_binning = orig_output_binning

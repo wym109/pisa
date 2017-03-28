@@ -456,8 +456,8 @@ def compare_pid(config, servicename, pisa2file, outdir, ratio_test_threshold,
     else:
         # If not we must split along the PID dimension.
         total_outputs = outputs.combine_wildcard('*')
-        cake_trck = total_outputs.slice(dummy_pid=1).squeeze()
-        cake_cscd = total_outputs.slice(dummy_pid=0).squeeze()
+        cake_trck = total_outputs.slice(pid=1).squeeze()
+        cake_cscd = total_outputs.slice(pid=0).squeeze()
 
     max_diff_ratio, max_diff= plot_map_comparisons(
         ref_map=pisa_cscd,
