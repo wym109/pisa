@@ -6,6 +6,7 @@ Utilities for hashing objects.
 
 import base64
 import cPickle as pickle
+#import dill
 import hashlib
 import struct
 

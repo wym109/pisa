@@ -297,6 +297,10 @@ class Stage(object):
             except ValueError():
                 pass
 
+        self.inputs = None
+        self.events = None
+        self.nominal_transforms = None
+
         # Define useful flags and values for debugging behavior after running
 
         self.nominal_transforms_loaded_from_cache = None
@@ -438,10 +442,11 @@ class Stage(object):
         # Compute nominal transforms; if feature is not used, this doesn't
         # actually do much of anything. To do more than this, override the
         # `_compute_nominal_transforms` method.
-        nominal_transforms, nominal_transforms_hash = \
-                self.get_nominal_transforms(
-                    nominal_transforms_hash=nominal_transforms_hash
-                )
+        _, nominal_transforms_hash = (
+            self.get_nominal_transforms(
+                nominal_transforms_hash=nominal_transforms_hash
+            )
+        )
 
         # Generate hash from param values
         if transforms_hash is None:
@@ -494,10 +499,13 @@ class Stage(object):
         nominal_outputs, hash
 
         """
-        if self.nominal_outputs_hash is None \
-           or self.nominal_outputs_hash != self._derive_nominal_outputs_hash():
+        if nominal_outputs_hash is None:
+            nominal_outputs_hash = self._derive_nominal_outputs_hash()
+
+        if (self.nominal_outputs_hash is None
+                or self.nominal_outputs_hash != nominal_outputs_hash):
             self._compute_nominal_outputs()
-            self.nominal_outputs_hash = self._derive_nominal_outputs_hash()
+            self.nominal_outputs_hash = nominal_outputs_hash
 
     @profile
     def get_outputs(self, inputs=None):
@@ -594,12 +602,13 @@ class Stage(object):
                                 "Map/MapSet instance. Got %s. Something is "
                                 "wrong."%type(outputs))
 
+        # TODO: update logic for Data object, generic sideband objects
         # Create a new output container different from `outputs` but copying
         # the contents, for purposes of attaching the sideband objects found.
         if isinstance(outputs, MapSet):
             augmented_outputs = MapSet(outputs)
-            [augmented_outputs.append(inputs[name]) for name in \
-             unused_input_names]
+            for name in unused_input_names:
+                augmented_outputs.append(inputs[name])
 
             return augmented_outputs.rebin(self.output_binning)
         else:
@@ -654,11 +663,21 @@ class Stage(object):
 
     @profile
     def check_outputs(self, outputs):
-        assert set(outputs.names) == set(self.output_names), \
-                "Outputs: " + str(outputs.names) + \
+        if set(outputs.names) != set(self.output_names):
+            raise ValueError(
+                "Outputs: " + str(outputs.names) +
                 "\nStage outputs: " + str(self.output_names)
+            )
 
     def select_params(self, selections, error_on_missing=False):
+        """Apply the `selections` to contained ParamSet.
+
+        Parameters
+        ----------
+        selections : string or iterable
+        error_on_missing : bool
+
+        """
         try:
             self._param_selector.select_params(
                 selections, error_on_missing=True
@@ -675,6 +694,15 @@ class Stage(object):
                           %(selections, self.params))
 
     def load_events(self, events):
+        """Load events from path given by `events`. Stored as `self.events`.
+
+        Parameters
+        ----------
+        events : string or Events object
+            If string, load events from that location. If Events object,
+            deepcopy to obtain `self.events`
+
+        """
         if isinstance(events, Param):
             events = events.value
         elif isinstance(events, basestring):
@@ -683,19 +711,34 @@ class Stage(object):
         if self._events_hash is not None and this_hash == self._events_hash:
             return
         logging.debug('Extracting events from Events obj or file: %s' %events)
-        self.events = Events(events)
-        self._events_hash = this_hash
+        events_obj = Events(events)
+        events_hash = this_hash
+
+        self.events = events_obj
+        self._events_hash = events_hash
 
     def cut_events(self, keep_criteria):
+        """Apply a cut to `self.events`, keeping only events that pass
+        `keep_criteria`.
+
+        Parameters
+        ----------
+        keep_criteria : string
+             See pisa.core.Events.applyCut for more info on specifying this.
+
+        """
         if isinstance(keep_criteria, Param):
             keep_criteria = keep_criteria.value
+
         if keep_criteria is not None:
-            self.remaining_events = deepcopy(self.events)
-            self.remaining_events.applyCut(keep_criteria=keep_criteria)
-        else:
-            self.remaining_events = self.events
+            events = self.events.applyCut(keep_criteria=keep_criteria)
+            events_hash = hash_obj(events, full_hash=self.full_hash)
+
+            self.events = events
+            self._events_hash = events_hash
 
     def instantiate_disk_cache(self):
+        """Instantiate a disk cache for use by the stage."""
         if isinstance(self.disk_cache, DiskCache):
             self.disk_cache_path = self.disk_cache.path
             return
@@ -735,18 +778,22 @@ class Stage(object):
 
     @property
     def params(self):
+        """Params"""
         return self._params
 
     @property
     def param_selections(self):
+        """Param selections"""
         return sorted(deepcopy(self._param_selector.param_selections))
 
     @property
     def input_names(self):
+        """Names of input objects (e.g. names of input maps)"""
         return deepcopy(self._input_names)
 
     @property
     def output_names(self):
+        """Names of output objects (e.g. names of output maps)"""
         return deepcopy(self._output_names)
 
     @property
@@ -803,7 +850,8 @@ class Stage(object):
                                  ' attrs to hash.' %(attr, attrs))
 
         # Include the attribute names
-        [self._attrs_to_hash.add(attr) for attr in attrs]
+        for attr in attrs:
+            self._attrs_to_hash.add(attr)
 
     @property
     def debug_mode(self):
@@ -983,7 +1031,6 @@ class Stage(object):
         else:
             nominal_transforms_hash = hash_obj(id_objects,
                                                full_hash=self.full_hash)
-
         return nominal_transforms_hash
 
     def _derive_nominal_outputs_hash(self):

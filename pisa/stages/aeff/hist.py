@@ -8,13 +8,9 @@ import numpy as np
 
 from pisa.core.stage import Stage
 from pisa.core.transform import BinnedTensorTransform, TransformSet
-from pisa.core.events import Events
-from pisa.utils.flavInt import (ALL_NUFLAVINTS, flavintGroupsFromString,
-                                IntType, NuFlavIntGroup)
+from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup
 from pisa.utils.fileio import mkdir, to_file
-from pisa.utils.hash import hash_obj
-from pisa.utils.log import logging, set_verbosity
-from pisa.utils.profiler import profile
+from pisa.utils.log import logging
 from pisa.utils.resources import find_resource
 
 
@@ -177,8 +173,9 @@ class hist(Stage):
         # (can't pass more than what's actually there)
         in_units = {dim: unit for dim, unit in comp_units.items()
                     if dim in self.input_binning}
-        out_units = {dim: unit for dim, unit in comp_units.items()
-                     if dim in self.output_binning}
+        # TODO: use out_units for some kind of conversion?
+        #out_units = {dim: unit for dim, unit in comp_units.items()
+        #             if dim in self.output_binning}
 
         # These will be in the computational units
         input_binning = self.input_binning.to(**in_units)
@@ -204,7 +201,7 @@ class hist(Stage):
         for xform_flavints in self.transform_groups:
             logging.debug("Working on %s effective areas xform" %xform_flavints)
 
-            aeff_transform = self.remaining_events.histogram(
+            aeff_transform = self.events.histogram(
                 kinds=xform_flavints,
                 binning=input_binning,
                 weights_col='weighted_aeff',

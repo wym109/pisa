@@ -559,7 +559,7 @@ class HypoTesting(Analysis):
             fluctuate_data=self.fluctuate_data,
             fluctuate_fid=self.fluctuate_fid
         )
-        
+
 
     def run_analysis(self):
         """Run the defined analysis.
@@ -588,13 +588,13 @@ class HypoTesting(Analysis):
                 )
                 logging.info(
                     'Working on %s set ID %d (will stop after ID %d).'
-                    ' %0.2f%s of %s sets completed.'
-                    %(self.labels.data_disp,
-                      self.data_ind,
-                      self.data_start_ind+self.num_data_trials-1,
-                      pct_data_complete,
-                      '%',
-                      self.labels.data_disp)
+                    ' %0.2f%s of %s sets completed.',
+                    self.labels.data_disp,
+                    self.data_ind,
+                    self.data_start_ind+self.num_data_trials-1,
+                    pct_data_complete,
+                    '%',
+                    self.labels.data_disp
                 )
 
                 self.generate_data()
@@ -639,7 +639,8 @@ class HypoTesting(Analysis):
             if exc[0] is not None:
                 logging.error('`run_analysis` body failed with exception:')
                 for line in format_exception(*exc):
-                    [logging.error(' '*4 + sl) for sl in line.splitlines()]
+                    for sl in line.splitlines():
+                        logging.error(' '*4 + sl)
 
             try:
                 self.write_run_stop_info(exc=exc)
@@ -651,14 +652,15 @@ class HypoTesting(Analysis):
             if exc_l[0] is not None:
                 logging.error('`write_run_stop_info` failed with exception:')
                 for line in format_exception(*exc_l):
-                    [logging.error(' '*4 + sl) for sl in line.splitlines()]
+                    for sl in line.splitlines():
+                        logging.error(' '*4 + sl)
                 raise exc_l
 
             if exc[0] is not None:
                 raise exc
 
     def generate_data(self):
-        logging.info('Generating %s distributions.' %self.labels.data_disp)
+        logging.info('Generating %s distributions.', self.labels.data_disp)
         # Ambiguous whether we're dealing with Asimov or regular data if the
         # data set is provided for us, so just return it.
         if self.num_data_trials == 1 and self.data_dist is not None:
@@ -723,8 +725,8 @@ class HypoTesting(Analysis):
                 and self.h0_param_selections == self.data_param_selections
                 and not self.fluctuate_data):
             logging.info('Hypo %s will reproduce exactly %s distributions; not'
-                         ' running corresponding fit.'
-                         %(self.labels.h0_name, self.labels.data_disp))
+                         ' running corresponding fit.',
+                         self.labels.h0_name, self.labels.data_disp)
 
             self.data_maker.select_params(self.data_param_selections)
             self.data_maker.reset_free()
@@ -740,8 +742,8 @@ class HypoTesting(Analysis):
 
         # Otherwise, we do have to do the fit.
         else:
-            logging.info('Fitting hypo %s to %s distributions.'
-                         %(self.labels.h0_name, self.labels.data_disp))
+            logging.info('Fitting hypo %s to %s distributions.',
+                         self.labels.h0_name, self.labels.data_disp)
             # Except in the case of no free params
             if len(self.h0_maker.params.free) == 0:
                 logging.info('No free params found. Returning fit value only')
@@ -778,8 +780,8 @@ class HypoTesting(Analysis):
                 and self.h1_param_selections == self.data_param_selections
                 and not self.fluctuate_data):
             logging.info('Hypo %s will reproduce exactly %s distributions; not'
-                         ' running corresponding fit.'
-                         %(self.labels.h1_name, self.labels.data_disp))
+                         ' running corresponding fit.',
+                         self.labels.h1_name, self.labels.data_disp)
 
             self.data_maker.select_params(self.data_param_selections)
             self.data_maker.reset_free()
@@ -796,8 +798,8 @@ class HypoTesting(Analysis):
               and self.h1_param_selections == self.h0_param_selections):
             self.h1_fit_to_data = copy(self.h0_fit_to_data)
         else:
-            logging.info('Fitting hypo %s to %s distributions.'
-                         %(self.labels.h1_name, self.labels.data_disp))
+            logging.info('Fitting hypo %s to %s distributions.',
+                         self.labels.h1_name, self.labels.data_disp)
             # Except in the case of no free params
             if len(self.h1_maker.params.free) == 0:
                 logging.info('No free params found. Returning fit value only')
@@ -831,7 +833,7 @@ class HypoTesting(Analysis):
                      label=self.labels.h1_fit_to_data)
 
     def produce_fid_data(self):
-        logging.info('Generating %s distributions.' %self.labels.fid_disp)
+        logging.info('Generating %s distributions.', self.labels.fid_disp)
         # Retrieve event-rate maps for best fit to data with each hypo
 
         if self.fluctuate_fid:
@@ -869,7 +871,7 @@ class HypoTesting(Analysis):
         self.labels.derive_fid_fits_names(fid_ind=self.fid_ind)
 
         fpath = os.path.join(self.thisdata_dirpath,
-                             self.labels.h0_fit_to_h0_fid + '.json')
+                             self.labels.h0_fit_to_h0_fid + '.json.bz2')
         if not os.path.isfile(fpath):
             # If fid isn't fluctuated, it's redundant to fit a hypo to a dist
             # it generated
@@ -878,9 +880,9 @@ class HypoTesting(Analysis):
             if not self.fluctuate_fid:
                 logging.info(
                     'Hypo %s %s is not fluctuated; fitting this hypo to its'
-                    ' own %s distributions is unnecessary.'
-                    %(self.labels.h0_name, self.labels.fid_disp,
-                      self.labels.fid_disp)
+                    ' own %s distributions is unnecessary.',
+                    self.labels.h0_name, self.labels.fid_disp,
+                    self.labels.fid_disp
                 )
                 self.h0_fit_to_h0_fid = self.nofit_hypo(
                     data_dist=self.h0_fid_dist,
@@ -891,8 +893,8 @@ class HypoTesting(Analysis):
                     blind=self.blind
                 )
             else:
-                logging.info('Fitting hypo %s to its own %s distributions.'
-                             %(self.labels.h0_name, self.labels.fid_disp))
+                logging.info('Fitting hypo %s to its own %s distributions.',
+                             self.labels.h0_name, self.labels.fid_disp)
                 # Except in the case of no free params
                 if len(self.h0_maker.params.free) == 0:
                     logging.info('No free params found. '
@@ -924,16 +926,16 @@ class HypoTesting(Analysis):
                          label=self.labels.h0_fit_to_h0_fid)
 
         fpath = os.path.join(self.thisdata_dirpath,
-                             self.labels.h1_fit_to_h1_fid + '.json')
+                             self.labels.h1_fit_to_h1_fid + '.json.bz2')
         if not os.path.isfile(fpath):
             self.h1_maker.select_params(self.h1_param_selections)
             self.h1_maker.reset_free()
             if not self.fluctuate_fid:
                 logging.info(
                     'Hypo %s %s is not fluctuated; fitting this hypo to its'
-                    ' own %s distributions is unnecessary.'
-                    %(self.labels.h1_name, self.labels.fid_disp,
-                      self.labels.fid_disp)
+                    ' own %s distributions is unnecessary.',
+                    self.labels.h1_name, self.labels.fid_disp,
+                    self.labels.fid_disp
                 )
                 self.h1_fit_to_h1_fid = self.nofit_hypo(
                     data_dist=self.h1_fid_dist,
@@ -944,8 +946,8 @@ class HypoTesting(Analysis):
                     blind=self.blind
                 )
             else:
-                logging.info('Fitting hypo %s to its own %s distributions.'
-                             %(self.labels.h1_name, self.labels.fid_disp))
+                logging.info('Fitting hypo %s to its own %s distributions.',
+                             self.labels.h1_name, self.labels.fid_disp)
                 # Except in the case of no free params
                 if len(self.h0_maker.params.free) == 0:
                     logging.info('No free params found. '
@@ -985,7 +987,7 @@ class HypoTesting(Analysis):
         # Perform fits of one hypo to fid dist produced by other hypo
 
         fpath = os.path.join(self.thisdata_dirpath,
-                             self.labels.h1_fit_to_h0_fid + '.json')
+                             self.labels.h1_fit_to_h0_fid + '.json.bz2')
         if not os.path.isfile(fpath):
             if ((not self.fluctuate_data) and (not self.fluctuate_fid)
                     and self.data_maker_is_h0_maker
@@ -993,15 +995,15 @@ class HypoTesting(Analysis):
                 logging.info(
                     'Fitting hypo %s to hypo %s %s distributions is'
                     ' unnecessary since former was already fit to %s'
-                    ' distributions, which are identical distributions.'
-                    %(self.labels.h1_name, self.labels.h0_name,
-                      self.labels.fid_disp, self.labels.data_disp)
+                    ' distributions, which are identical distributions.',
+                    self.labels.h1_name, self.labels.h0_name,
+                    self.labels.fid_disp, self.labels.data_disp
                 )
                 self.h1_fit_to_h0_fid = copy(self.h1_fit_to_data)
             else:
-                logging.info('Fitting hypo %s to hypo %s %s distributions.'
-                             %(self.labels.h1_name, self.labels.h0_name,
-                               self.labels.fid_disp))
+                logging.info('Fitting hypo %s to hypo %s %s distributions.',
+                             self.labels.h1_name, self.labels.h0_name,
+                             self.labels.fid_disp)
                 self.h1_maker.select_params(self.h1_param_selections)
                 self.h1_maker.reset_free()
                 # Except in the case of no free params
@@ -1036,7 +1038,7 @@ class HypoTesting(Analysis):
                          label=self.labels.h1_fit_to_h0_fid)
 
         fpath = os.path.join(self.thisdata_dirpath,
-                             self.labels.h0_fit_to_h1_fid + '.json')
+                             self.labels.h0_fit_to_h1_fid + '.json.bz2')
         if not os.path.isfile(fpath):
             if ((not self.fluctuate_data) and (not self.fluctuate_fid)
                     and self.data_maker_is_h1_maker
@@ -1044,15 +1046,15 @@ class HypoTesting(Analysis):
                 logging.info(
                     'Fitting hypo %s to hypo %s %s distributions is'
                     ' unnecessary since former was already fit to %s'
-                    ' distributions, which are identical distributions.'
-                    %(self.labels.h0_name, self.labels.h1_name,
-                      self.labels.fid_disp, self.labels.data_disp)
+                    ' distributions, which are identical distributions.',
+                    self.labels.h0_name, self.labels.h1_name,
+                    self.labels.fid_disp, self.labels.data_disp
                 )
                 self.h0_fit_to_h1_fid = copy(self.h0_fit_to_data)
             else:
-                logging.info('Fitting hypo %s to hypo %s %s distributions.'
-                             %(self.labels.h0_name, self.labels.h1_name,
-                               self.labels.fid_disp))
+                logging.info('Fitting hypo %s to hypo %s %s distributions.',
+                             self.labels.h0_name, self.labels.h1_name,
+                             self.labels.fid_disp)
                 self.h0_maker.select_params(self.h0_param_selections)
                 self.h0_maker.reset_free()
                 # Except in the case of no free params
@@ -1081,7 +1083,7 @@ class HypoTesting(Analysis):
                         blind=self.blind,
                         reset_free=self.reset_free
                     )
-                    
+
             self.log_fit(fit_info=self.h0_fit_to_h1_fid,
                          dirpath=self.thisdata_dirpath,
                          label=self.labels.h0_fit_to_h1_fid)
@@ -1197,10 +1199,10 @@ class HypoTesting(Analysis):
 
         Notes
         -----
-        I have added an optional reset_params option here since I want to be 
-        able to use this function when doing systematic tests. Here, the 
-        parameters in the makers may be temporarily changed and this should be 
-        reflected in the logging. Thus, this option allows the parameters to 
+        I have added an optional reset_params option here since I want to be
+        able to use this function when doing systematic tests. Here, the
+        parameters in the makers may be temporarily changed and this should be
+        reflected in the logging. Thus, this option allows the parameters to
         NOT be reset here. This option should be used with caution.
 
         """
@@ -1252,7 +1254,7 @@ class HypoTesting(Analysis):
             else:
                 raise Exception(msg)
 
-        logging.debug('Code version: %s' %self.__version__)
+        logging.debug('Code version: %s', self.__version__)
 
         # Construct root dir name and create dir if necessary
         dirname = '__'.join([self.labels.h0, self.labels.h1,
@@ -1263,7 +1265,7 @@ class HypoTesting(Analysis):
         mkdir(dirpath)
         normpath = find_resource(dirpath)
         self.logroot = normpath
-        logging.info('Output will be saved to dir "%s"' %self.logroot)
+        logging.info('Output will be saved to dir "%s"', self.logroot)
 
         self.data_dirpath = os.path.join(self.logroot, self.labels.data)
 
@@ -1406,9 +1408,9 @@ class HypoTesting(Analysis):
             run_info.append('%s = %s' %(env_var, val))
 
         for prefix in ['PBS_']:
-            [run_info.append('%s = %s' %(env_var, val))
-             for env_var, val in os.environ.iteritems()
-             if env_var.startswith(prefix)]
+            for env_var, val in os.environ.iteritems():
+                if env_var.startswith(prefix):
+                    run_info.append('%s = %s' %(env_var, val))
 
         with file(self.run_info_fpath, 'w') as f:
             f.write('\n'.join(run_info) + '\n')
@@ -1480,7 +1482,8 @@ class HypoTesting(Analysis):
             if isinstance(v, pint.quantity._Quantity):
                 v = str(v)
             info[k] = v
-        to_file(info, os.path.join(dirpath, label + '.json'), sort_keys=False)
+        to_file(info, os.path.join(dirpath, label + '.json.bz2'),
+                sort_keys=False)
 
 
 def parse_args():
@@ -1507,7 +1510,7 @@ def parse_args():
     parser.add_argument(
         '--ordering-check',
         action='store_true',
-        help='''Fit both ordering hypotheses. This should only be flagged if 
+        help='''Fit both ordering hypotheses. This should only be flagged if
         the ordering is NOT the discrete hypothesis being tested'''
     )
     group = parser.add_mutually_exclusive_group(required=True)
@@ -1735,7 +1738,7 @@ def main():
         if len(other_metrics) == 0:
             other_metrics = None
         else:
-            logging.info('Will evaluate other metrics %s' %other_metrics)
+            logging.info('Will evaluate other metrics %s', other_metrics)
         init_args_d['other_metrics'] = other_metrics
 
     # Normalize and convert `*_pipeline` filenames; store to `*_maker`

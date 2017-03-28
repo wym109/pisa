@@ -94,7 +94,7 @@ def reduceToHist(obj):
     elif isinstance(obj, Iterable):
         hist = sum([reduceToHist(x) for x in obj])
     else:
-        raise TypeError('Unhandled type for `obj`: %s' %type(obj))
+        raise TypeError('Unhandled type for `obj`: %s' % type(obj))
     return hist
 
 
@@ -136,7 +136,7 @@ def rebin(hist, orig_binning, new_binning, normalize_values=True):
             "`new_binning` dimensions' basenames %s do not have 1:1"
             " correspondence (modulo pre/suffixes) to original binning"
             " dimensions' basenames %s"
-            %(new_binning.basenames, orig_binning.binning.basenames)
+            % (new_binning.basenames, orig_binning.binning.basenames)
         )
 
     if orig_binning.edges_hash == new_binning.edges_hash:
@@ -270,7 +270,7 @@ class Map(object):
 
     """
     _slots = ('name', 'hist', 'binning', 'hash', '_hash', 'tex',
-              'full_comparison', 'parent_indexer', 'normalize_values')
+              'full_comparison', 'parent_indexer', '_normalize_values')
     _state_attrs = ('name', 'hist', 'binning', 'hash', 'tex',
                     'full_comparison')
 
@@ -301,42 +301,43 @@ class Map(object):
         )
         if error_hist is not None:
             self.set_errors(error_hist)
-        self.normalize_values = True
+        self._normalize_values = True
 
     def __repr__(self):
         previous_precision = np.get_printoptions()['precision']
         np.set_printoptions(precision=18)
         try:
-            state = self._serializable_state
+            state = self.serializable_state
             state['hist'] = np.array_repr(state['hist'])
             if state['error_hist'] is not None:
                 state['error_hist'] = np.array_repr(state['error_hist'])
-            argstrs = [('%s=%r' %item) for item in
-                       self._serializable_state.items()]
-            r = '%s(%s)' %(self.__class__.__name__, ',\n    '.join(argstrs))
+            argstrs = [('%s=%r' % item) for item in
+                       self.serializable_state.items()]
+            r = '%s(%s)' % (self.__class__.__name__, ',\n    '.join(argstrs))
         finally:
             np.set_printoptions(precision=previous_precision)
         return r
 
     def __str__(self):
-        attrs = ['name', 'tex', 'binning', 'full_comparison', 'hash', 'hist']
+        attrs = ['name', 'tex', 'full_comparison', 'hash', 'parent_indexer',
+                 'binning', 'hist']
         state = {a: getattr(self, a) for a in attrs}
         state['name'] = repr(state['name'])
         state['tex'] = repr(state['tex'])
         state['hist'] = np.array_repr(state['hist'])
-        argstrs = [('%s=%s' %(a, state[a])) for a in attrs]
-        s = '%s(%s)' %(self.__class__.__name__, ',\n    '.join(argstrs))
+        argstrs = [('%s=%s' % (a, state[a])) for a in attrs]
+        s = '%s(%s)' % (self.__class__.__name__, ',\n    '.join(argstrs))
         return s
 
     def __pretty__(self, p, cycle):
         """Method used by the `pretty` library for formatting"""
         myname = self.__class__.__name__
         if cycle:
-            p.text('%s(...)' %myname)
+            p.text('%s(...)' % myname)
         else:
-            p.begin_group(4, '%s(' %myname)
-            attrs = ['name', 'tex', 'binning', 'full_comparison', 'hash',
-                     'hist']
+            p.begin_group(4, '%s(' % myname)
+            attrs = ['name', 'tex', 'full_comparison', 'hash',
+                     'parent_indexer', 'binning', 'hist']
             for n, attr in enumerate(attrs):
                 p.breakable()
                 p.text(attr + '=')
@@ -348,6 +349,75 @@ class Map(object):
     def _repr_pretty_(self, p, cycle):
         """Method used by e.g. ipython/Jupyter for formatting"""
         return self.__pretty__(p, cycle)
+
+    def slice(self, **kwargs):
+        """Slice the map, where each argument is the name of a dimension.
+        Dimensions not named are included in full (i.e., via `np.slice(None)`).
+
+        Note that the resulting map maintains the same number of dimensions as
+        its parent, including the ordering of the dimensions. The size of each
+        dimension, however, is reduced by slicing.
+
+        Note also that modifications to the returned object's `hist` will
+        modify the parent's `hist`.
+
+
+        Examples
+        --------
+        Indexing can be done as in the following examples:
+
+        >>> mdb = MultiDimBinning([
+        ...     dict(name='x', domain=[0,1], is_lin=True, num_bins=5),
+        ...     dict(name='y', domain=[1,2], is_lin=True, num_bins=10)
+        ... ])
+        >>> ones = mdb.ones(name='ones')
+        >>> print ones.slice(x=0,)
+        Map(name='ones',
+                tex='{\\rm ones}',
+                full_comparison=False,
+                hash=None,
+                parent_indexer=(0, slice(None, None, None)),
+                binning=MultiDimBinning([
+                            OneDimBinning(name=OneDimBinning('x', 1 bin with edges at [0.0, 0.2] (behavior is linear))),
+                            OneDimBinning(name=OneDimBinning('y', 10 equally-sized bins spanning [1.0, 2.0]))]),
+                hist=array([[ 1.,  1.,  1.,  1.,  1.,  1.,  1.,  1.,  1.,  1.]]))
+        >>> print ones.slice(x=0, y=slice(None)).hist
+        [[ 1.  1.  1.  1.  1.  1.  1.  1.  1.  1.]]
+        >>> print ones.slice(x=0, y=0).hist
+        [[ 1.]]
+
+        Modifications to the slice modifies the original:
+
+        >>> mdb = MultiDimBinning([
+        ...     dict(name='x', domain=[0,1], is_lin=True, num_bins=5),
+        ...     dict(name='y', domain=[1,2], is_lin=True, num_bins=10)
+        ... ])
+        >>> ones = mdb.ones(name='ones')
+        >>> sl = ones.slice(x=2)
+        >>> sl.hist[...] = 0
+        >>> print sl.hist
+        >>> print ones.hist
+        [[ 1.  1.  1.  1.  1.  1.  1.  1.  1.  1.]
+         [ 1.  1.  1.  1.  1.  1.  1.  1.  1.  1.]
+         [ 0.  0.  0.  0.  0.  0.  0.  0.  0.  0.]
+         [ 1.  1.  1.  1.  1.  1.  1.  1.  1.  1.]
+         [ 1.  1.  1.  1.  1.  1.  1.  1.  1.  1.]]
+
+
+        See Also
+        --------
+        pisa.core.binning.MultiDimBinning.defaults_indexer
+            Method used to generate a raw indexer (that can be used to
+            index into a map or a Numpy array of same dimensionality).
+            This method is accessible from a Map `map_x` object via its
+            `binning` attribute: `map_x.binning.defaults_indexer(...)`
+
+        pisa.core.binning.MultiDimBinning.broadcast
+            Broadcast a 1D Numpy array to dimensionality with reference to this
+            object's dimensionality.
+
+        """
+        return self[self.binning.defaults_indexer(**kwargs)]
 
     def set_poisson_errors(self):
         """Approximate poisson errors using sqrt(n)."""
@@ -530,7 +600,7 @@ class Map(object):
         cbar.ax.tick_params(labelsize='large')
         if clabel is not None:
             if clabelsize is not None:
-                cbar.set_label(label=clabel,size=clabelsize)
+                cbar.set_label(label=clabel, size=clabelsize)
             else:
                 cbar.set_label(label=clabel)
 
@@ -574,7 +644,7 @@ class Map(object):
             if fname is None:
                 fname = self.name
             path = os.path.join([outdir, get_valid_filename(fname+'.'+fmt)])
-            logging.debug('>>>> Plot for inspection saved at %s' %path)
+            logging.debug('>>>> Plot for inspection saved at %s', path)
             fig.savefig(os.path.join(*path))
 
         return ax, pcmesh, cbar
@@ -768,18 +838,24 @@ class Map(object):
             return {}
 
         else:
-            raise ValueError('unhandled `method` = %s' %orig)
+            raise ValueError('unhandled `method` = %s' % orig)
 
     @property
     def shape(self):
+        """tuple : shape of the map, akin to `nump.ndarray.shape`"""
         return self.hist.shape
 
     @property
-    def _serializable_state(self):
+    def size(self):
+        """int : total number of elements"""
+        return self.hist.size
+
+    @property
+    def serializable_state(self):
         state = OrderedDict()
         state['name'] = self.name
         state['hist'] = self.nominal_values
-        state['binning'] = self.binning._serializable_state
+        state['binning'] = self.binning.serializable_state
         stddevs = self.std_devs
         stddevs = None if np.all(stddevs == 0) else stddevs
         state['error_hist'] = stddevs
@@ -789,7 +865,7 @@ class Map(object):
         return state
 
     @property
-    def _hashable_state(self):
+    def hashable_state(self):
         state = OrderedDict()
         state['name'] = self.name
         if self.normalize_values:
@@ -799,7 +875,7 @@ class Map(object):
         else:
             state['hist'] = self.nominal_values
             stddevs = self.std_devs
-        state['binning'] = self.binning._hashable_state
+        state['binning'] = self.binning.hashable_state
         # TODO: better check here to see if the contained datatype is unp, as
         # opposed to 0 stddev (which could be the case but the user wants for
         # uncertainties to propagate)
@@ -811,6 +887,21 @@ class Map(object):
         state['tex'] = self.tex
         state['full_comparison'] = self.full_comparison
         return state
+
+    @property
+    def normalize_values(self):
+        return self._normalize_values
+
+    @normalize_values.setter
+    def normalize_values(self, b):
+        assert isinstance(b, bool)
+        self._normalize_values = b
+
+    def __getstate__(self):
+        return self.serializable_state
+
+    def __setstate__(self, state):
+        self.__init__(**state)
 
     def to_json(self, filename, **kwargs):
         """Serialize the state to a JSON file that can be instantiated as a new
@@ -830,7 +921,7 @@ class Map(object):
         pisa.utils.jsons.to_json
 
         """
-        jsons.to_json(self._serializable_state, filename=filename, **kwargs)
+        jsons.to_json(self.serializable_state, filename=filename, **kwargs)
 
     @classmethod
     def from_json(cls, resource):
@@ -864,12 +955,12 @@ class Map(object):
         elif isinstance(other, Map):
             self.binning.assert_compat(other.binning)
         else:
-            raise TypeError('Unhandled type %s' %type(other))
+            raise TypeError('Unhandled type %s' % type(other))
 
     def iterbins(self):
         """Returns a bin iterator which yields a map containing a single bin
-        each time. Modifications to that map will be reflected in this (the
-        parent) map.
+        each time. Note that modifications to that single-bin map will be
+        reflected in this (the parent) map.
 
         Note that the returned map has the attribute `parent_indexer` for
         indexing directly into to the parent map (or to a similar map).
@@ -879,32 +970,21 @@ class Map(object):
         Map object containing one of each bin of this Map
 
         """
-        shape = self.shape
-        for i in xrange(self.hist.size):
-            idx_item = np.unravel_index(i, shape)
-            idx_view = [slice(x, x+1) for x in idx_item]
+        for i in xrange(self.size):
+            idx_coord = self.binning.index2coord(i)
+            idx_view = [slice(x, x+1) for x in idx_coord]
             single_bin_map = Map(
                 name=self.name, hist=self.hist[idx_view],
-                binning=self.binning[idx_item], hash=None, tex=self.tex,
+                binning=self.binning[idx_coord], hash=None, tex=self.tex,
                 full_comparison=self.full_comparison
             )
-            single_bin_map.parent_indexer = idx_item
+            single_bin_map.parent_indexer = idx_coord
             yield single_bin_map
 
     # TODO : example!
-    def iterindices(self):
-        """Iterator that yields the index for accessing each bin in
-        the map.
-
-        Examples
-        --------
-        >>> map = Map('x', binning=[dict('E', )])
-
-        """
-        shape = self.shape
-        for i in xrange(self.hist.size):
-            idx_item = np.unravel_index(i, shape)
-            yield idx_item
+    def itercoords(self):
+        """Iterator that yields the coordinate of each bin in the map."""
+        return self.binning.itercoords()
 
     def __hash__(self):
         if self.hash is not None:
@@ -920,7 +1000,6 @@ class Map(object):
     def __getattr__(self, attr):
         return super(self.__class__, self).__getattribute__(attr)
 
-    @_new_obj
     def _slice_or_index(self, idx):
         """Slice or index into the map. Indexing single element in self.hist
         e.g. hist[1,3] returns a 0D array while hist[1,3:8] returns a 1D array,
@@ -930,8 +1009,15 @@ class Map(object):
 
         """
         new_binning = self.binning[idx]
-        return {'binning': self.binning[idx],
-                'hist': np.reshape(self.hist[idx], new_binning.shape)}
+
+        new_map = Map(name=self.name,
+                      hist=np.reshape(self.hist[idx], new_binning.shape),
+                      binning=self.binning[idx],
+                      hash=self.hash,
+                      tex=self.tex,
+                      full_comparison=self.full_comparison)
+        new_map.parent_indexer = idx
+        return new_map
 
     def __getitem__(self, idx):
         return self._slice_or_index(idx)
@@ -1052,9 +1138,9 @@ class Map(object):
             mapset_name = 'split_on__%s' % spliton_dim.name
 
         if self.tex is not None and len(self.tex) > 0:
-            mapset_tex = r'%s, \; %s' %(self.tex, spliton_dim.tex)
+            mapset_tex = r'%s, \; %s' % (self.tex, spliton_dim.tex)
         else:
-            mapset_tex = r'%s' %spliton_dim.tex
+            mapset_tex = r'%s' % spliton_dim.tex
 
         return MapSet(maps=maps, name=mapset_name, tex=mapset_tex)
 
@@ -1155,7 +1241,7 @@ class Map(object):
         else:
             return np.sum(stats.mod_chi2(actual_values=self.hist,
                                          expected_values=expected_values))
-    
+
     def chi2(self, expected_values, binned=False):
         """Calculate the total chi-squared value between this map and the map
         described by `expected_values`; self is taken to be the "actual values"
@@ -1185,7 +1271,7 @@ class Map(object):
             return getattr(self, metric)(expected_values)
         else:
             raise ValueError('`metric` "%s" not recognized; use one of %s.'
-                             %(metric, stats.ALL_METRICS))
+                             % (metric, stats.ALL_METRICS))
 
     def __setitem__(self, idx, val):
         return setitem(self.hist, idx, val)
@@ -1350,8 +1436,8 @@ class Map(object):
         if isinstance(other, Map):
             if (self.full_comparison or other.full_comparison
                     or self.hash is None or other.hash is None):
-                return recursiveEquality(self._hashable_state,
-                                         other._hashable_state)
+                return recursiveEquality(self.hashable_state,
+                                         other.hashable_state)
             return self.hash == other.hash
 
         type_error(other)
@@ -1595,33 +1681,33 @@ class MapSet(object):
         previous_precision = np.get_printoptions()['precision']
         np.set_printoptions(precision=18)
         try:
-            argstrs = [('%s=%r' %item) for item in
-                       self._serializable_state.items()]
-            r = '%s(%s)' %(self.__class__.__name__, ',\n    '.join(argstrs))
+            argstrs = [('%s=%r' % item) for item in
+                       self.serializable_state.items()]
+            r = '%s(%s)' % (self.__class__.__name__, ',\n    '.join(argstrs))
         finally:
             np.set_printoptions(precision=previous_precision)
         return r
 
     def __str__(self):
-        state = {}
+        state = OrderedDict()
         attrs = ['name', 'tex', 'hash', 'maps']
         state['name'] = repr(self.name)
         state['tex'] = repr(self.tex)
         state['hash'] = repr(self.hash)
         state['maps'] = ('[\n' + ' '*8 + '%s    \n]'
-                         %',\n        '.join([str(m) for m in self]))
-        argstrs = [('%s=%s' %(a, state[a])) for a in attrs]
-        s = '%s(%s)' %(self.__class__.__name__, ',\n    '.join(argstrs))
+                         % ',\n        '.join([str(m) for m in self]))
+        argstrs = [('%s=%s' % (a, state[a])) for a in attrs]
+        s = '%s(%s)' % (self.__class__.__name__, ',\n    '.join(argstrs))
         return s
 
     def __pretty__(self, p, cycle):
         """Method used by the `pretty` library for formatting"""
         myname = self.__class__.__name__
         if cycle:
-            p.text('%s(...)' %myname)
+            p.text('%s(...)' % myname)
         else:
-            p.begin_group(4, '%s(' %myname)
-            attrs = ['name', 'hash', 'maps']
+            p.begin_group(4, '%s(' % myname)
+            attrs = ['name', 'tex', 'hash', 'maps']
             for n, attr in enumerate(attrs):
                 p.breakable()
                 p.text(attr + '=')
@@ -1635,13 +1721,19 @@ class MapSet(object):
         return self.__pretty__(p, cycle)
 
     @property
-    def _serializable_state(self):
+    def serializable_state(self):
         state = OrderedDict()
-        state['maps'] = [m._serializable_state for m in self]
+        state['maps'] = [m.serializable_state for m in self]
         state['name'] = self.name
         state['tex'] = self.tex
         state['collate_by_name'] = self.collate_by_name
         return state
+
+    def __getstate__(self):
+        return self.serializable_state
+
+    def __setstate__(self, state):
+        self.__init__(**state)
 
     def to_json(self, filename, **kwargs):
         """Serialize the state to a JSON file that can be instantiated as a new
@@ -1661,7 +1753,7 @@ class MapSet(object):
         pisa.utils.jsons.to_json
 
         """
-        jsons.to_json(self._serializable_state, filename=filename, **kwargs)
+        jsons.to_json(self.serializable_state, filename=filename, **kwargs)
 
     @classmethod
     def from_json(cls, resource):
@@ -1710,11 +1802,11 @@ class MapSet(object):
             elif isinstance(x, basestring):
                 x = self.names.index(x)
             else:
-                raise TypeError('Unhandled type "%s" for `x`' %type(x))
+                raise TypeError('Unhandled type "%s" for `x`' % type(x))
         except (AssertionError, ValueError):
             raise ValueError(
                 "A map corresponding to '%s' cannot be found in the set."
-                " Valid maps are %s" %(x, self.names)
+                " Valid maps are %s" % (x, self.names)
             )
         return x
 
@@ -1744,7 +1836,7 @@ class MapSet(object):
             m = self.maps.pop(idx)
         else:
             raise ValueError('`pop` takes 0 or 1 argument; %d passed instead.'
-                             %len(args))
+                             % len(args))
         return m
 
     # TODO: add different aggregation options OR rename to sum_{wildcard|re}
@@ -1826,7 +1918,7 @@ class MapSet(object):
             maps_to_combine = []
             for m in self:
                 if re.match(regex, m.name) is not None:
-                    logging.debug('Map "%s" will be added...' %m.name)
+                    logging.debug('Map "%s" will be added...', m.name)
                     maps_to_combine.append(m)
             if len(maps_to_combine) == 0:
                 raise ValueError('No map names match `regex` "%s"' % pattern)
@@ -1841,7 +1933,8 @@ class MapSet(object):
             resulting_maps.append(m)
         if len(resulting_maps) == 1:
             return resulting_maps[0]
-        return MapSet(resulting_maps)
+        return MapSet(maps=resulting_maps, name=self.name, tex=self.tex,
+                      collate_by_name=self.collate_by_name)
 
     def combine_wildcard(self, expressions):
         """For each expression passed, add contained maps whose names match.
@@ -1886,9 +1979,10 @@ class MapSet(object):
         resulting_maps = []
         for expr in expressions:
             maps_to_combine = []
-            for m in self:
+            for mapnum, m in enumerate(self):
                 if fnmatch(m.name, expr):
-                    logging.debug('Map "%s" will be added...' %m.name)
+                    logging.debug('Map %d, "%s", will be added...',
+                                  mapnum, m.name)
                     maps_to_combine.append(m)
             if len(maps_to_combine) == 0:
                 raise ValueError('No map names match `expr` "%s"' % expr)
@@ -1902,7 +1996,8 @@ class MapSet(object):
             resulting_maps.append(m)
         if len(resulting_maps) == 1:
             return resulting_maps[0]
-        return MapSet(resulting_maps)
+        return MapSet(maps=resulting_maps, name=self.name, tex=self.tex,
+                      collate_by_name=self.collate_by_name)
 
     def compare(self, ref):
         """Compare maps in this MapSet against a reference MapSet.
@@ -1932,7 +2027,7 @@ class MapSet(object):
         return rslt
 
     def __eq__(self, other):
-        return recursiveEquality(self._hashable_state, other._hashable_state)
+        return recursiveEquality(self.hashable_state, other.hashable_state)
 
     @property
     def name(self):
@@ -1965,7 +2060,8 @@ class MapSet(object):
         """Setting a hash to `val` for the map set sets the hash values of all
         contained maps to `val`."""
         if val is not None:
-            [setattr(m, 'hash', val) for m in self]
+            for m in self:
+                setattr(m, 'hash', val)
 
     @property
     def names(self):
@@ -1985,7 +2081,8 @@ class MapSet(object):
 
     def collate_with_names(self, vals):
         ret_dict = OrderedDict()
-        [setitem(ret_dict, name, val) for name, val in izip(self.names, vals)]
+        for name, val in izip(self.names, vals):
+            setitem(ret_dict, name, val)
         return ret_dict
 
     def find_map(self, value):
@@ -1998,8 +2095,8 @@ class MapSet(object):
             except ValueError:
                 pass
         if idx is None:
-            raise ValueError('Could not find map name "%s" in %s' %
-                             (value, self))
+            raise ValueError('Could not find map name "%s" in %s'
+                             % (value, self))
         return self[idx]
 
     def apply_to_maps(self, attr, *args, **kwargs):
@@ -2019,7 +2116,7 @@ class MapSet(object):
             num_total = len(do_not_have_attr)
             raise AttributeError(
                 'Maps %s (%d of %d maps in set) do not have attribute "%s"'
-                %(missing_in_names, num_missing, num_total, attrname)
+                % (missing_in_names, num_missing, num_total, attrname)
             )
 
         # Retrieve the corresponding callables from contained maps
@@ -2028,7 +2125,8 @@ class MapSet(object):
         if not all([hasattr(meth, '__call__') for meth in val_per_map]):
             # If all results are maps, populate a new map set & return that
             if all([isinstance(r, Map) for r in val_per_map]):
-                return MapSet(val_per_map)
+                return MapSet(maps=val_per_map, name=self.name, tex=self.tex,
+                              collate_by_name=self.collate_by_name)
 
             # Otherwise put in an ordered dict with <name>: <val> pairs ordered
             # according to the map ordering in this map set
@@ -2067,8 +2165,8 @@ class MapSet(object):
                                 list_arg.append(item[map_num])
                     this_map_args.append(list_arg)
                 else:
-                    raise TypeError('Unhandled arg %s / type %s' %
-                                    (arg, type(arg)))
+                    raise TypeError('Unhandled arg %s / type %s'
+                                    % (arg, type(arg)))
             args_per_map.append(this_map_args)
 
         # Make the method calls and collect returned values
@@ -2077,7 +2175,8 @@ class MapSet(object):
 
         # If all results are maps, put them into a new map set & return
         if all([isinstance(r, Map) for r in returned_vals]):
-            return MapSet(returned_vals)
+            return MapSet(maps=returned_vals, name=self.name, tex=self.tex,
+                          collate_by_name=self.collate_by_name)
 
         # If None returned by all, return a single None
         if all([(r is None) for r in returned_vals]):
@@ -2128,7 +2227,8 @@ class MapSet(object):
         if isinstance(item, (int, slice)):
             rslt = self.maps[item]
             if hasattr(rslt, '__len__') and len(rslt) > 1:
-                return MapSet(rslt)
+                return MapSet(maps=rslt, name=self.name, tex=self.tex,
+                              collate_by_name=self.collate_by_name)
             return rslt
 
         if isinstance(item, Iterable):
@@ -2139,7 +2239,9 @@ class MapSet(object):
                 return self.maps[item]
 
             if len(item) == 2:
-                return MapSet([getitem(m, item) for m in self])
+                return MapSet(maps=[getitem(m, item) for m in self],
+                              name=self.name, tex=self.tex,
+                              collate_by_name=self.collate_by_name)
 
             raise IndexError('too many indices for 2D hist')
 
@@ -2191,6 +2293,11 @@ class MapSet(object):
     def __sub__(self, val):
         return self.apply_to_maps('__sub__', val)
 
+    def sum(self, *args, **kwargs):
+        return MapSet(maps=[m.sum(*args, **kwargs) for m in self],
+                      name=self.name, tex=self.tex,
+                      collate_by_name=self.collate_by_name)
+
     def reorder_dimensions(self, order):
         """Return a new MultiDimBinning object with dimensions ordered
         according to `order`.
@@ -2222,7 +2329,9 @@ class MapSet(object):
         `order`.
 
         """
-        return MapSet([m.reorder_dimensions(order=order) for m in self])
+        return MapSet(maps=[m.reorder_dimensions(order=order) for m in self],
+                      name=self.name, tex=self.tex,
+                      collate_by_name=self.collate_by_name)
 
     def squeeze(self):
         """Remove any singleton dimensions (i.e. that have only a single bin)
@@ -2233,27 +2342,32 @@ class MapSet(object):
         MapSet with equivalent values but singleton Map dimensions removed
 
         """
-        return MapSet([m.squeeze() for m in self])
+        return MapSet(maps=[m.squeeze() for m in self], name=self.name,
+                      tex=self.tex, collate_by_name=self.collate_by_name)
 
     def rebin(self, *args, **kwargs):
-        return MapSet([m.rebin(*args, **kwargs) for m in self])
+        return MapSet(maps=[m.rebin(*args, **kwargs) for m in self],
+                      name=self.name, tex=self.tex,
+                      collate_by_name=self.collate_by_name)
 
     def downsample(self, *args, **kwargs):
-        return MapSet([m.downsample(*args, **kwargs) for m in self])
+        return MapSet(maps=[m.downsample(*args, **kwargs) for m in self],
+                      name=self.name, tex=self.tex,
+                      collate_by_name=self.collate_by_name)
 
     def metric_per_map(self, expected_values, metric):
         if isinstance(metric, basestring):
             metric = metric.lower()
             if 'binned_' in metric:
-                metric = metric.replace('binned_','')
-                binned=True
+                metric = metric.replace('binned_', '')
+                binned = True
             else:
-                binned=False
+                binned = False
         if metric in stats.ALL_METRICS:
             return self.apply_to_maps(metric, expected_values, binned)
         else:
             raise ValueError('`metric` "%s" not recognized; use one of %s.'
-                             %(metric, stats.ALL_METRICS))
+                             % (metric, stats.ALL_METRICS))
 
     def metric_total(self, expected_values, metric):
         return np.sum(self.metric_per_map(expected_values, metric).values())
@@ -2317,6 +2431,7 @@ class MapSet(object):
 # TODO: add tests for llh, chi2 methods
 def test_Map():
     """Unit tests for Map class"""
+    import cPickle as pickle
     n_ebins = 10
     n_czbins = 5
     n_azbins = 2
@@ -2376,17 +2491,32 @@ def test_Map():
     m3 = Map(name='z', hist=4*np.ones((n_ebins, n_czbins, n_azbins)),
              binning=(e_binning, cz_binning, az_binning))
 
-    assert m3[0, 0, 0] == 4, 'm3[0, 0, 0] = %s' %m3[0, 0, 0]
+    assert m3[0, 0, 0] == 4, 'm3[0, 0, 0] = %s' % m3[0, 0, 0]
     testdir = tempfile.mkdtemp()
     try:
         for m in [m1, m2, m1+m2, m1-m2, m1/m2, m1*m2]:
             m_file = os.path.join(testdir, m.name + '.json')
             m.to_json(m_file, warn=False)
             m_ = Map.from_json(m_file)
-            assert m_ == m, 'm=\n%s\nm_=\n%s' %(m, m_)
+            assert m_ == m, 'm=\n%s\nm_=\n%s' % (m, m_)
             jsons.to_json(m, m_file, warn=False)
             m_ = Map.from_json(m_file)
-            assert m_ == m, 'm=\n%s\nm_=\n%s' %(m, m_)
+            assert m_ == m, 'm=\n%s\nm_=\n%s' % (m, m_)
+            # Had bug where datastruct containing MapSet failed to be saved.
+            # Test tuple containing list containing OrderedDict containing
+            # Map here.
+            struct = ([OrderedDict(map=m)],)
+            jsons.to_json(struct, m_file, warn=False)
+            loaded = jsons.from_json(m_file)
+            m_ = Map(**loaded[0][0]['map'])
+            assert m_ == m
+            # Now try with pickle
+            m_file = os.path.join(testdir, m.name + '.pkl')
+            pickle.dump(struct, file(m_file, 'wb'),
+                        protocol=pickle.HIGHEST_PROTOCOL)
+            loaded = pickle.load(file(m_file, 'r'))
+            m_ = loaded[0][0]['map']
+            assert m_ == m
     finally:
         shutil.rmtree(testdir, ignore_errors=True)
 
@@ -2466,6 +2596,7 @@ def test_Map():
 # TODO: make tests use assert rather than rely on logging.debug(str((!)))
 def test_MapSet():
     """Unit tests for MapSet class"""
+    import cPickle as pickle
     n_ebins = 6
     n_czbins = 3
     e_binning = OneDimBinning(name='energy', tex=r'E_\nu', num_bins=n_ebins,
@@ -2501,10 +2632,12 @@ def test_MapSet():
     logging.debug(str(('hist equal after combining?',
                        np.all(ms1.combine_re(r'^o').hist ==
                               ms1.combine_wildcard(r'o*').hist))))
-    assert np.all(ms1.combine_re(r'^o').hist
-                  == ms1.combine_wildcard('o*').hist)
+    assert np.all(ms1.combine_re(r'^o.*').nominal_values
+                  == ms1.combine_wildcard('o*').nominal_values), \
+            '%s\n%s' % (ms1.combine_re(r'^o.*'), ms1.combine_wildcard('o*'))
     logging.debug(str(('5', ms1.names)))
-    assert np.all(ms1.combine_re(r'^o').hist == ms1.ones.hist)
+    assert np.all(ms1.combine_re(r'^o').nominal_values == ms1.ones.nominal_values)
+    assert np.all(ms1.combine_wildcard(r'o*').nominal_values == ms1.ones.nominal_values)
     logging.debug(str(('6', ms1.names)))
     try:
         ms1.combine_re('three')
@@ -2603,10 +2736,28 @@ def test_MapSet():
             ms_file = os.path.join(testdir, ms.name + '.json')
             ms.to_json(ms_file, warn=False)
             ms_ = MapSet.from_json(ms_file)
-            assert ms_ == ms, 'ms=\n%s\nms_=\n%s' %(ms, ms_)
+            assert ms_ == ms, 'ms=\n%s\nms_=\n%s' % (ms, ms_)
             jsons.to_json(ms, ms_file, warn=False)
             ms_ = MapSet.from_json(ms_file)
-            assert ms_ == ms, 'ms=\n%s\nms_=\n%s' %(ms, ms_)
+            assert ms_ == ms, 'ms=\n%s\nms_=\n%s' % (ms, ms_)
+
+            # Had bug where datastruct containing MapSet failed to be saved.
+            # Test tuple containing list containing OrderedDict containing
+            # MapSet.
+            struct = ([OrderedDict(mapset=ms)],)
+            jsons.to_json(struct, ms_file, warn=False)
+            loaded = jsons.from_json(ms_file)
+            ms_ = MapSet(**loaded[0][0]['mapset'])
+            assert ms_ == ms
+
+            # Now try with pickle
+            ms_file = os.path.join(testdir, ms.name + '.pkl')
+            pickle.dump(struct, file(ms_file, 'wb'),
+                        protocol=pickle.HIGHEST_PROTOCOL)
+            loaded = pickle.load(file(ms_file, 'r'))
+            ms_ = loaded[0][0]['mapset']
+            assert ms_ == ms
+
     finally:
         shutil.rmtree(testdir, ignore_errors=True)
 
@@ -2618,7 +2769,7 @@ def test_MapSet():
         for p in permutations(ms[0].binning.dimensions):
             ms.reorder_dimensions(p)
 
-    logging.info(str(('<< PASSED : test_MapSet >>')))
+    logging.info('<< PASSED : test_MapSet >>')
 
 
 if __name__ == "__main__":

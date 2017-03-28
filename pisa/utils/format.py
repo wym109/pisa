@@ -526,6 +526,10 @@ def strip_outer_parens(value):
     return value
 
 
+# TODO: this is relatively slow (and is called in constructors that are used
+# frequently, e.g. OneDimBinning, MultiDimBinning); can we speed it up any?
+RE_INVALID_CHARS = re.compile('[^0-9a-zA-Z_]')
+RE_LEADING_INVALID = re.compile('^[^a-zA-Z_]+')
 def make_valid_python_name(name):
     """Make a name a valid Python identifier.
 
@@ -533,9 +537,9 @@ def make_valid_python_name(name):
 
     """
     # Remove invalid characters
-    name = re.sub('[^0-9a-zA-Z_]', '', name)
+    name = RE_INVALID_CHARS.sub('', name)
     # Remove leading characters until we find a letter or underscore
-    name = re.sub('^[^a-zA-Z_]+', '', name)
+    name = RE_LEADING_INVALID.sub('', name)
     return name
 
 
