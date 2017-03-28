@@ -365,8 +365,7 @@ class Plotter(object):
             zmap = np.log10(zmap)
 
         if self.symmetric:
-            vmax = max(np.max(np.ma.masked_invalid(zmap)),
-                       - np.min(np.ma.masked_invalid(zmap)))
+            vmax = np.max(np.abs(np.ma.masked_invalid(zmap)))
             vmin = -vmax
         else:
             if vmax is None:
@@ -388,8 +387,8 @@ class Plotter(object):
             )
         else:
             x, y = np.meshgrid(bin_edges[0], bin_edges[1])
-            _ = plt.pcolormesh(x, y, zmap.T, vmin=vmin, vmax=vmax, cmap=cmap,
-                               **kwargs)
+            _ = plt.pcolormesh(x, y, np.ma.masked_invalid(zmap.T),
+                               vmin=vmin, vmax=vmax, cmap=cmap, **kwargs)
 
         if self.annotate:
             for i in range(len(bin_centers[0])):

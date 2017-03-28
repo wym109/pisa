@@ -1707,7 +1707,7 @@ class MapSet(object):
             p.text('%s(...)' % myname)
         else:
             p.begin_group(4, '%s(' % myname)
-            attrs = ['name', 'hash', 'maps']
+            attrs = ['name', 'tex', 'hash', 'maps']
             for n, attr in enumerate(attrs):
                 p.breakable()
                 p.text(attr + '=')
@@ -1933,7 +1933,8 @@ class MapSet(object):
             resulting_maps.append(m)
         if len(resulting_maps) == 1:
             return resulting_maps[0]
-        return MapSet(resulting_maps)
+        return MapSet(maps=resulting_maps, name=self.name, tex=self.tex,
+                      collate_by_name=self.collate_by_name)
 
     def combine_wildcard(self, expressions):
         """For each expression passed, add contained maps whose names match.
@@ -1995,7 +1996,8 @@ class MapSet(object):
             resulting_maps.append(m)
         if len(resulting_maps) == 1:
             return resulting_maps[0]
-        return MapSet(resulting_maps)
+        return MapSet(maps=resulting_maps, name=self.name, tex=self.tex,
+                      collate_by_name=self.collate_by_name)
 
     def compare(self, ref):
         """Compare maps in this MapSet against a reference MapSet.
@@ -2123,7 +2125,8 @@ class MapSet(object):
         if not all([hasattr(meth, '__call__') for meth in val_per_map]):
             # If all results are maps, populate a new map set & return that
             if all([isinstance(r, Map) for r in val_per_map]):
-                return MapSet(val_per_map)
+                return MapSet(maps=val_per_map, name=self.name, tex=self.tex,
+                              collate_by_name=self.collate_by_name)
 
             # Otherwise put in an ordered dict with <name>: <val> pairs ordered
             # according to the map ordering in this map set
@@ -2172,7 +2175,8 @@ class MapSet(object):
 
         # If all results are maps, put them into a new map set & return
         if all([isinstance(r, Map) for r in returned_vals]):
-            return MapSet(returned_vals)
+            return MapSet(maps=returned_vals, name=self.name, tex=self.tex,
+                          collate_by_name=self.collate_by_name)
 
         # If None returned by all, return a single None
         if all([(r is None) for r in returned_vals]):
@@ -2223,7 +2227,8 @@ class MapSet(object):
         if isinstance(item, (int, slice)):
             rslt = self.maps[item]
             if hasattr(rslt, '__len__') and len(rslt) > 1:
-                return MapSet(rslt)
+                return MapSet(maps=rslt, name=self.name, tex=self.tex,
+                              collate_by_name=self.collate_by_name)
             return rslt
 
         if isinstance(item, Iterable):
@@ -2234,7 +2239,9 @@ class MapSet(object):
                 return self.maps[item]
 
             if len(item) == 2:
-                return MapSet([getitem(m, item) for m in self])
+                return MapSet(maps=[getitem(m, item) for m in self],
+                              name=self.name, tex=self.tex,
+                              collate_by_name=self.collate_by_name)
 
             raise IndexError('too many indices for 2D hist')
 
@@ -2286,6 +2293,11 @@ class MapSet(object):
     def __sub__(self, val):
         return self.apply_to_maps('__sub__', val)
 
+    def sum(self, *args, **kwargs):
+        return MapSet(maps=[m.sum(*args, **kwargs) for m in self],
+                      name=self.name, tex=self.tex,
+                      collate_by_name=self.collate_by_name)
+
     def reorder_dimensions(self, order):
         """Return a new MultiDimBinning object with dimensions ordered
         according to `order`.
@@ -2317,7 +2329,9 @@ class MapSet(object):
         `order`.
 
         """
-        return MapSet([m.reorder_dimensions(order=order) for m in self])
+        return MapSet(maps=[m.reorder_dimensions(order=order) for m in self],
+                      name=self.name, tex=self.tex,
+                      collate_by_name=self.collate_by_name)
 
     def squeeze(self):
         """Remove any singleton dimensions (i.e. that have only a single bin)
@@ -2328,13 +2342,18 @@ class MapSet(object):
         MapSet with equivalent values but singleton Map dimensions removed
 
         """
-        return MapSet([m.squeeze() for m in self])
+        return MapSet(maps=[m.squeeze() for m in self], name=self.name,
+                      tex=self.tex, collate_by_name=self.collate_by_name)
 
     def rebin(self, *args, **kwargs):
-        return MapSet([m.rebin(*args, **kwargs) for m in self])
+        return MapSet(maps=[m.rebin(*args, **kwargs) for m in self],
+                      name=self.name, tex=self.tex,
+                      collate_by_name=self.collate_by_name)
 
     def downsample(self, *args, **kwargs):
-        return MapSet([m.downsample(*args, **kwargs) for m in self])
+        return MapSet(maps=[m.downsample(*args, **kwargs) for m in self],
+                      name=self.name, tex=self.tex,
+                      collate_by_name=self.collate_by_name)
 
     def metric_per_map(self, expected_values, metric):
         if isinstance(metric, basestring):
