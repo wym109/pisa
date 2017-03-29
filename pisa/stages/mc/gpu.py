@@ -494,7 +494,7 @@ class gpu(Stage):
                 buff = np.full(self.events_dict[flav]['n_evts'],
                                fill_value=np.nan, dtype=FTYPE)
                 cuda.memcpy_dtoh(buff, self.events_dict[flav]['device'][var])
-                assert np.all(np.isvalid(buff))
+                assert np.all(np.isfinite(buff))
                 self.events_dict[flav]['host'][var] = buff
 
     def sum_array(self, x, n_evts):
@@ -654,7 +654,7 @@ class gpu(Stage):
                         coszen_name='reco_coszen',
                         use_cuda=True,
                         bw_method='silverman',
-                        alpha=1.0,
+                        alpha=0.8,
                         oversample=1,
                         coszen_reflection=0.5,
                         adaptive=True
