@@ -41,10 +41,14 @@ def test_gaussian():
 
         gaussian(outbuf, x, mu, sigma, threads)
         refbuf = norm.pdf(x, loc=mu, scale=sigma)
-        assert np.allclose(outbuf, refbuf, rtol=EQUALITY_PREC, atol=0,
-                           equal_nan=True),\
-                str(outbuf) + '\n' + str(refbuf) + \
-                '\nmu=%e, sigma=%e' % (mu, sigma)
+        if not np.allclose(outbuf, refbuf, rtol=EQUALITY_PREC*10, atol=0,
+                           equal_nan=True):
+            raise ValueError(
+                'Max abs fractional diff = %e (EQUALITY_PREC=%e); mu=%e,'
+                ' sigma=%e'
+                % (np.max(np.abs(outbuf/refbuf-1)), EQUALITY_PREC*10, mu,
+                   sigma)
+            )
     logging.info('<< PASSED : test_gaussian >>')
 
 
@@ -65,7 +69,7 @@ def test_gaussians():
     refbuf /= len(mu)
 
     outbuf = gaussians(x, mu, sigma)
-    if not np.allclose(outbuf, refbuf, rtol=EQUALITY_PREC, atol=0,
+    if not np.allclose(outbuf, refbuf, rtol=EQUALITY_PREC*10, atol=0,
                        equal_nan=True):
         maxfractdiff = np.max(np.abs(outbuf/refbuf - 1))
         logging.error(
@@ -75,7 +79,7 @@ def test_gaussians():
         raise ValueError(
             '%s failed: max fractional disagreement is %s, which exceeds'
             ' allowed tolerance of %s.'
-            % (__name__, maxfractdiff, EQUALITY_PREC)
+            % (__name__, maxfractdiff, EQUALITY_PREC*10)
         )
     logging.info('<< PASSED : test_gaussians >>')
 

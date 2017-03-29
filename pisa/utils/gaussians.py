@@ -43,10 +43,10 @@ if NUMBA_CUDA_AVAIL:
     GAUS_IMPLEMENTATIONS += ('cuda',)
 
 PI = FTYPE(np.pi)
-TWOPI = FTYPE(2*PI)
-SQRTPI = FTYPE(sqrt(PI))
-SQRT2PI = FTYPE(sqrt(TWOPI))
-PISQ = FTYPE(PI**2)
+TWOPI = FTYPE(2*np.pi)
+SQRTPI = FTYPE(sqrt(np.pi))
+SQRT2PI = FTYPE(sqrt(2*np.pi))
+PISQ = FTYPE(np.pi*np.pi)
 
 
 def gaussians(x, mu, sigma, weights=None, implementation=None, **kwargs):

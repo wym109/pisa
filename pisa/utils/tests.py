@@ -20,8 +20,8 @@ from pisa.utils.fileio import get_valid_filename, mkdir
 from pisa.utils.log import logging
 
 
-__all__ = ['has_cuda', 'order', 'order_str', 'check_agreement',
-           'print_agreement', 'print_event_rates', 'validate_maps',
+__all__ = ['order', 'order_str', 'check_agreement', 'print_agreement',
+           'print_event_rates', 'validate_maps',
            'make_delta_map', 'make_ratio_map',
            'validate_map_objs',
            'baseplot', 'baseplot2',
@@ -32,17 +32,6 @@ __all__ = ['has_cuda', 'order', 'order_str', 'check_agreement',
 # TODO: make functions work transparently (i.e. autodetect) whether it's a
 # PISA 2 or PISA 3 style map object, convert to PISA 3 maps, and go from
 # there.
-
-
-def has_cuda():
-    # pycuda is present if it can be imported
-    try:
-        import pycuda.driver as cuda
-    except:
-        cuda_present = False
-    else:
-        cuda_present = True
-    return cuda_present
 
 
 def order(x):
