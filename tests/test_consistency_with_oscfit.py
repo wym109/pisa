@@ -209,8 +209,10 @@ def main():
                         plots. If this is not reached the tests will fail. This
                         test is only important if any ratios return inf.''')
     parser.add_argument('-v', action='count', default=None,
-                        help='set verbosity level')
+                        help='''Set verbosity level; default is 1, so only -vv
+                        or -vvv has an effect.''')
     args = parser.parse_args()
+    args.v = min(1, args.v)
     set_verbosity(args.v)
 
     if not PYCUDA_AVAIL:
