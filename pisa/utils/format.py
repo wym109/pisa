@@ -14,7 +14,7 @@ import re
 import numpy as np
 import pint
 
-from pisa import ureg
+from pisa import FTYPE, ureg
 from pisa.utils.flavInt import flavintGroupsFromString, NuFlavIntGroup
 from pisa.utils.log import logging, set_verbosity
 
@@ -144,7 +144,7 @@ def list2hrlist(lst):
     if isinstance(lst, numbers.Number):
         lst = [lst]
     lst = sorted(lst)
-    rtol = np.finfo(float).resolution
+    rtol = np.finfo(FTYPE).resolution
     n = len(lst)
     result = []
     scan = 0
@@ -174,7 +174,7 @@ def hrgroup2list(hrgroup):
     def isint(num):
         """Test whether a number is *functionally* an integer"""
         try:
-            return int(num) == float(num)
+            return int(num) == FTYPE(num)
         except ValueError:
             return False
 
@@ -184,7 +184,7 @@ def hrgroup2list(hrgroup):
                 return int(num)
         except (ValueError, TypeError):
             pass
-        return float(num)
+        return FTYPE(num)
 
     # Strip all whitespace, brackets, parens, and other ignored characters from
     # the group string
@@ -238,7 +238,8 @@ def hrlist2list(hrlst):
     lst = []
     if len(groups) == 0:
         return lst
-    [lst.extend(hrgroup2list(g)) for g in groups]
+    for group in groups:
+        lst.extend(hrgroup2list(group))
     return lst
 
 
@@ -326,8 +327,8 @@ def engfmt(n, sigfigs=3, decimals=None, sign_always=False):
         only negative numbers are prefixed with a sign ("-")
 
     """
-    prefixes = {-18:'a', -15:'f', -12:'p', -9:'n', -6:'u', -3:'m', 0:'',
-                3:'k', 6:'M', 9:'G', 12:'T', 15:'P', 18:'E'}
+    prefixes = {-18: 'a', -15: 'f', -12: 'p', -9: 'n', -6: 'u', -3: 'm', 0: '',
+                3: 'k', 6: 'M', 9: 'G', 12: 'T', 15: 'P', 18: 'E'}
     if isinstance(n, pint.quantity._Quantity):
         units = n.units
         n = n.magnitude
@@ -508,6 +509,8 @@ def hash2hex(hash, bits=64):
 
 
 def strip_outer_dollars(value):
+    if value is None:
+        return '{}'
     value = value.strip()
     m = re.match(r'^\$(.*)\$$', value)
     if m is not None:
@@ -516,6 +519,8 @@ def strip_outer_dollars(value):
 
 
 def strip_outer_parens(value):
+    if value is None:
+        return ''
     value = value.strip()
     m = re.match(r'^\{\((.*)\)\}$', value)
     if m is not None:

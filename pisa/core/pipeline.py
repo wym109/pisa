@@ -101,7 +101,7 @@ class Pipeline(object):
         for stage_num, stage in enumerate(self):
             if stage_id in [stage_num, stage.stage_name]:
                 return stage_num
-        raise ValueError('No stage named "%s" in the pipeline.' % stage.name)
+        raise ValueError('No stage "%s" found in the pipeline.' % stage_id)
 
     def __len__(self):
         return len(self._stages)
@@ -141,12 +141,12 @@ class Pipeline(object):
         for stage_num, ((stage_name, service_name), settings) \
                 in enumerate(self.config.items()):
             try:
-                logging.debug('instantiating stage %s / service %s'
-                              %(stage_name, service_name))
+                logging.debug('instantiating stage %s / service %s',
+                              stage_name, service_name)
 
                 # Import service's module
-                logging.trace('Importing: pisa.stages.%s.%s' %(stage_name,
-                                                               service_name))
+                logging.trace('Importing: pisa.stages.%s.%s',
+                              stage_name, service_name)
                 module = import_module(
                     'pisa.stages.%s.%s' %(stage_name, service_name)
                 )
@@ -170,8 +170,8 @@ class Pipeline(object):
 
             except:
                 logging.error(
-                    'Failed to initialize stage #%d (stage=%s, service=%s).'
-                    %(stage_num, stage_name, service_name)
+                    'Failed to initialize stage #%d (stage=%s, service=%s).',
+                    stage_num, stage_name, service_name
                 )
                 raise
 
@@ -214,16 +214,16 @@ class Pipeline(object):
             idx += 1
         assert len(self) > 0
         for stage in self.stages[:idx]:
-            logging.debug('>> Working on stage "%s" service "%s"'
-                          %(stage.stage_name, stage.service_name))
+            logging.debug('>> Working on stage "%s" service "%s"',
+                          stage.stage_name, stage.service_name)
             try:
                 logging.trace('>>> BEGIN: get_outputs')
                 outputs = stage.get_outputs(inputs=inputs)
                 logging.trace('>>> END  : get_outputs')
             except:
                 logging.error('Error occurred computing outputs in stage %s /'
-                              ' service %s ...' %(stage.stage_name,
-                                                  stage.service_name))
+                              ' service %s ...',
+                              stage.stage_name, stage.service_name)
                 raise
 
             logging.trace('outputs: %s' %(outputs,))
@@ -250,7 +250,8 @@ class Pipeline(object):
             Parameters to be updated
 
         """
-        [stage.params.update_existing(params) for stage in self]
+        for stage in self:
+            stage.params.update_existing(params)
 
     def select_params(self, selections, error_on_missing=False):
         """Select a set of alternate param values/specifications.
@@ -285,14 +286,16 @@ class Pipeline(object):
     def params(self):
         """pisa.core.param.ParamSet : pipeline's parameters"""
         params = ParamSet()
-        [params.extend(stage.params) for stage in self]
+        for stage in self:
+            params.extend(stage.params)
         return params
 
     @property
     def param_selections(self):
         """list of strings : param selections collected from all stages"""
         selections = set()
-        [selections.update(stage.param_selections) for stage in self]
+        for stage in self:
+            selections.update(stage.param_selections)
         return sorted(selections)
 
     @property
@@ -356,7 +359,7 @@ def test_Pipeline():
     current_hier = 'nh'
 
     for new_hier, new_mat in product(hierarchies, materials):
-        new_YeO = YeO[new_mat]
+        _ = YeO[new_mat]
 
         assert pipeline.param_selections == sorted([current_hier, current_mat]), str(pipeline.params.param_selections)
         assert pipeline.params.theta23.value == t23[current_hier], str(pipeline.params.theta23)
@@ -501,7 +504,7 @@ def main(return_outputs=False):
         stop_idx = args.stop_after_stage
         try:
             stop_idx = int(stop_idx)
-        except ValueError:
+        except (TypeError, ValueError):
             pass
         if isinstance(stop_idx, basestring):
             stop_idx = pipeline.index(stop_idx)

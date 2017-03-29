@@ -535,8 +535,10 @@ class Map(object):
             mpl.use(backend)
         import matplotlib.pyplot as plt
 
+        tex = self.name if self.tex is None else self.tex
+
         if title is None:
-            title = '$' + self.tex + '$'
+            title = '$%s$' % tex
         if fname is None:
             fname = get_valid_filename(self.name)
 
@@ -605,19 +607,8 @@ class Map(object):
             else:
                 cbar.set_label(label=clabel)
 
-        xlabel = strip_outer_dollars(self.binning.dims[0].tex)
-        ylabel = strip_outer_dollars(self.binning.dims[1].tex)
-
-        xunits = self.binning.dims[0].units
-        yunits = self.binning.dims[1].units
-
-        if xunits != ureg.dimensionless:
-            xlabel = xlabel + r'\; \left({:~L}\right)'.format(xunits)
-        if yunits != ureg.dimensionless:
-            ylabel = ylabel + r'\; \left({:~L}\right)'.format(yunits)
-
-        xlabel = '$%s$' % xlabel
-        ylabel = '$%s$' % ylabel
+        xlabel = '$%s$' % self.binning.dims[0].axis_label
+        ylabel = '$%s$' % self.binning.dims[1].axis_label
 
         if xlabelsize is not None:
             ax.set_xlabel(xlabel, size=xlabelsize)
@@ -861,7 +852,7 @@ class Map(object):
         stddevs = None if np.all(stddevs == 0) else stddevs
         state['error_hist'] = stddevs
         state['hash'] = self.hash
-        state['tex'] = self.tex
+        state['tex'] = self._tex
         state['full_comparison'] = self.full_comparison
         return state
 
@@ -885,7 +876,6 @@ class Map(object):
         elif self.normalize_values:
             stddevs = normQuant(stddevs, sigfigs=HASH_SIGFIGS)
         state['error_hist'] = stddevs
-        state['tex'] = self.tex
         state['full_comparison'] = self.full_comparison
         return state
 
@@ -1291,15 +1281,15 @@ class Map(object):
     @property
     def tex(self):
         """string : TeX label"""
-        if self._tex is None or len(self._tex) == 0:
-            super(self.__class__, self).__setattr__(
-                '_tex', text2tex(self.name)
-            )
+        if self._tex is None:
+            return text2tex(self.name)
         return self._tex
 
     @tex.setter
     def tex(self, value):
         assert value is None or isinstance(value, basestring)
+        if value is not None:
+            value = strip_outer_dollars(value)
         return super(self.__class__, self).__setattr__('_tex', value)
 
     @property
@@ -1726,7 +1716,7 @@ class MapSet(object):
         state = OrderedDict()
         state['maps'] = [m.serializable_state for m in self]
         state['name'] = self.name
-        state['tex'] = self.tex
+        state['tex'] = self._tex
         state['collate_by_name'] = self.collate_by_name
         return state
 

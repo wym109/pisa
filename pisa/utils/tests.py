@@ -93,7 +93,8 @@ def check_agreement(testname, thresh_ratio, ratio, thresh_diff, diff):
         err_messages += [diff_headline, diff_detail]
 
     if not (ratio_pass and diff_pass):
-        [logging.error(m) for m in err_messages]
+        for m in err_messages:
+            logging.error(m)
         raise ValueError('\n    '.join(err_messages))
 
 
@@ -594,7 +595,7 @@ def plot_cmp(new, ref, new_label, ref_label, plot_label, file_label, outdir,
             elif new.binning.num_dims == 3:
                 n_dims = 3
                 odd_dim_idx = new.binning.shape.index(np.min(new.binning.shape))
-                print odd_dim_idx
+                logging.debug('odd_dim_idx: %s', odd_dim_idx)
                 n_third_dim_bins = new.binning.shape[odd_dim_idx]
 
             gridspec_kw = dict(left=0.03, right=0.968, wspace=0.32)

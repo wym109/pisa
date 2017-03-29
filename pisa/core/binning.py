@@ -93,15 +93,15 @@ def basename(n):
 def _new_obj(original_function):
     """Decorator to deepcopy unaltered states into new OneDimBinning object."""
     @wraps(original_function)
-    def new_function(self, *args, **kwargs):
+    def new_function(cls, *args, **kwargs):
         """<< docstring will be inherited from wrapped function >>"""
         new_state = OrderedDict()
-        state_updates = original_function(self, *args, **kwargs)
-        for attr in self._hash_attrs:
+        state_updates = original_function(cls, *args, **kwargs)
+        for attr in cls._hash_attrs:
             if attr in state_updates:
                 new_state[attr] = state_updates[attr]
             else:
-                new_state[attr] = deepcopy(getattr(self, attr))
+                new_state[attr] = deepcopy(getattr(cls, attr))
         return OneDimBinning(**new_state)
     return new_function
 
@@ -634,6 +634,8 @@ class OneDimBinning(object):
     @property
     def tex(self):
         """string : TeX label"""
+        if self._tex is None:
+            return text2tex(self.name)
         return self._tex
 
     @tex.setter
@@ -641,18 +643,19 @@ class OneDimBinning(object):
         """None or TeX string for dimension; surrounding dollars-signs ($) are
         stripped off (and must be added prior to e.g. plotting)"""
         assert val is None or isinstance(val, basestring)
-        self._tex = strip_outer_dollars(text2tex(val))
+        if val is not None:
+            val = strip_outer_dollars(val)
+        self._tex = val
 
     @property
     def axis_label(self):
         r"""string : tex label, intended to be placed in math mode (e.g.
         between matching dollars-signs) for axes labeling, including units (if
         not dimensionless). E.g.: r'E_{\rm true} \; ({\rm GeV})'"""
-        self_tex = self.tex
-        if self_tex is None or self_tex == '':
+        if self.tex is None or strip_outer_dollars(self.tex) == '':
             name_tex = r'{\rm %s}' % self.name
         else:
-            name_tex = self_tex
+            name_tex = self.tex
 
         if self.units == ureg.dimensionless:
             units_tex = ''
@@ -900,10 +903,13 @@ class OneDimBinning(object):
                              % len(bin_edges))
         if 0 in bin_edges:
             return False
-        try:
-            log_spacing = bin_edges[1:] / bin_edges[:-1]
-        except:
-            return False
+        with np.errstate(divide='raise', over='raise', under='raise',
+                         invalid='raise'):
+            try:
+                log_spacing = bin_edges[1:] / bin_edges[:-1]
+                assert np.all(np.isfinite(log_spacing))
+            except (AssertionError, FloatingPointError, ZeroDivisionError):
+                return False
         if np.any(np.abs(log_spacing - log_spacing[0]) > EPSILON):
             return False
         return True
@@ -1287,8 +1293,8 @@ class MultiDimBinning(object):
             elif isinstance(dimensions, Iterable):
                 pass
             else:
-                raise TypeError('Argument/object #%d unhandled type: %s'
-                                %(obj_num, type(obj)))
+                raise TypeError('`dimensions` unhandled type: %s'
+                                % type(dimensions))
         tmp_dimensions = []
         for obj_num, obj in enumerate(dimensions):
             if isinstance(obj, OneDimBinning):
@@ -2580,7 +2586,7 @@ def test_MultiDimBinning():
 
     _ = binning.meshgrid(entity='bin_edges')
     _ = binning.meshgrid(entity='weighted_centers')
-    mg = binning.meshgrid(entity='midpoints')
+    _ = binning.meshgrid(entity='midpoints')
     _ = binning.bin_volumes(attach_units=False)
     _ = binning.bin_volumes(attach_units=True)
     binning.to('MeV', None)
