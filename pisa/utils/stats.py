@@ -90,18 +90,20 @@ def chi2(actual_values, expected_values):
 
         # TODO: this check (and the same for `actual_values`) should probably
         # be done elsewhere... maybe?
-        if not np.all(actual_values >= 0.0):
-            msg = '`actual_values` must all be >= 0...\n' \
-                    + maperror_logmsg(actual_values)
+        if np.any(actual_values < 0):
+            msg = ('`actual_values` must all be >= 0...\n'
+                   + maperror_logmsg(actual_values))
             raise ValueError(msg)
 
-        if not np.all(expected_values >= 0.0):
-            msg = '`expected_values` must all be >= 0...\n' \
-                    + maperror_logmsg(expected_values)
+        if np.any(expected_values < 0):
+            msg = ('`expected_values` must all be >= 0...\n'
+                   + maperror_logmsg(expected_values))
             raise ValueError(msg)
 
-        # TODO: is this okay to do?
-        # replace 0's with small positive numbers to avoid inf in division
+        # TODO: Is this okay to do? Mathematically suspect at best, and can
+        #       still destroy a minimizer's hopes and dreams...
+
+        # Replace 0's with small positive numbers to avoid inf in division
         np.clip(actual_values, a_min=SMALL_POS, a_max=np.inf, out=actual_values)
         np.clip(expected_values, a_min=SMALL_POS, a_max=np.inf,
                 out=expected_values)
@@ -146,9 +148,9 @@ def llh(actual_values, expected_values):
         expected_values = np.ma.masked_invalid(expected_values)
 
         # Check that new array contains all valid entries
-        if not np.all(actual_values >= 0.0):
-            msg = '`actual_values` must all be >= 0...\n' \
-                    + maperror_logmsg(actual_values)
+        if np.any(actual_values < 0):
+            msg = ('`actual_values` must all be >= 0...\n'
+                   + maperror_logmsg(actual_values))
             raise ValueError(msg)
 
         # TODO: How should we handle nan / masked values in the "data"
@@ -157,14 +159,14 @@ def llh(actual_values, expected_values):
         # Make sure actual values (aka "data") are valid -- no infs, no nans,
         # etc.
         if np.any((actual_values < 0) | ~np.isfinite(actual_values)):
-            msg = '`actual_values` must be >= 0 and neither inf nor nan...\n' \
-                    + maperror_logmsg(actual_values)
+            msg = ('`actual_values` must be >= 0 and neither inf nor nan...\n'
+                   + maperror_logmsg(actual_values))
             raise ValueError(msg)
 
         # Check that new array contains all valid entries
-        if not np.all(expected_values >= 0.0):
-            msg = '`expected_values` must all be >= 0...\n' \
-                    + maperror_logmsg(expected_values)
+        if np.any(expected_values < 0.0):
+            msg = ('`expected_values` must all be >= 0...\n'
+                   + maperror_logmsg(expected_values))
             raise ValueError(msg)
 
         # Replace 0's with small positive numbers to avoid inf in log
@@ -180,8 +182,7 @@ def llh(actual_values, expected_values):
 
 
 def log_poisson(k, l):
-    """
-    calculates the log of a poisson pdf
+    """Calculate the log of a poisson pdf
 
     - poisson pdf as p(k,l) := l^k*exp(-l)/k!
 
@@ -200,9 +201,7 @@ def log_poisson(k, l):
 
 
 def log_smear(x, sigma):
-    """
-
-    Calculates the log of a normal pdf
+    """Calculates the log of a normal pdf
 
     - normal pdf as p(x,sigma) := (sigma*sqrt(2*pi))^-1*exp(-x^2/(2*sigma^2))
 
@@ -217,15 +216,12 @@ def log_smear(x, sigma):
 
     """
     return (
-        -np.log(sigma) - 0.5*np.log(2*np.pi)
-        - x**2 / (2*sigma**2)
+        -np.log(sigma) - 0.5*np.log(2*np.pi) - x**2 / (2*sigma**2)
     )
 
 
 def conv_poisson(k, l, s, nsigma=3, steps=50):
-    """
-
-    poisson pdf as p(k,l) := l^k*exp(-l)/k!
+    """Poisson pdf as p(k,l) := l^k*exp(-l)/k!
 
     Parameters
     ----------
@@ -234,14 +230,14 @@ def conv_poisson(k, l, s, nsigma=3, steps=50):
     s : float
         sigma for smearing term (= the uncertainty to be accounted for)
     nsigma : int
-        the range in sigmas over which to do the convolution, 3 sigmas is > 99%, so should be enough
+        The ange in sigmas over which to do the convolution, 3 sigmas is > 99%,
+        so should be enough
     steps : int
-        number of steps to do the intergration in (actual steps are 2*steps + 1,
-                so this is the steps to each side of the gaussian smearing term)
+        Number of steps to do the intergration in (actual steps are 2*steps + 1,
+        so this is the steps to each side of the gaussian smearing term)
 
     Returns
     -------
-    
     float
         convoluted poissson likelihood
 
@@ -259,11 +255,11 @@ def conv_poisson(k, l, s, nsigma=3, steps=50):
     #f_y = log_poisson(f_x[idx:], l)
     if np.isnan(f_y).any():
         logging.error('`NaN values`:')
-        logging.error('idx = ', idx)
-        logging.error('s = ', s)
-        logging.error('l = ', l)
-        logging.error('f_x = ', f_x)
-        logging.error('f_y = ', f_y)
+        logging.error('idx = %d', idx)
+        logging.error('s = %s', s)
+        logging.error('l = %s', l)
+        logging.error('f_x = %s', f_x)
+        logging.error('f_y = %s', f_y)
     f_y = np.nan_to_num(f_y)
     conv = np.exp(conv_y[idx:] + f_y)
     norm = np.sum(np.exp(conv_y))
@@ -271,7 +267,9 @@ def conv_poisson(k, l, s, nsigma=3, steps=50):
 
 
 def norm_conv_poisson(k, l, s, nsigma=3, steps=50):
-    """
+    """Convoluted poisson likelihood normalized so that the value at k=l
+    (asimov) does not change
+
     Parameters
     ----------
     k : float
@@ -279,15 +277,17 @@ def norm_conv_poisson(k, l, s, nsigma=3, steps=50):
     s : float
         sigma for smearing term (= the uncertainty to be accounted for)
     nsigma : int
-        the range in sigmas over which to do the convolution, 3 sigmas is > 99%, so should be enough
+        The range in sigmas over which to do the convolution, 3 sigmas is >
+        99%, so should be enough
     steps : int
-        number of steps to do the intergration in (actual steps are 2*steps + 1,
-                so this is the steps to each side of the gaussian smearing term)
+        Number of steps to do the intergration in (actual steps are 2*steps + 1,
+        so this is the steps to each side of the gaussian smearing term)
 
     Returns
     -------
-
-    convoluted poisson likelihood normalized so that the value at k=l (asimov) does not change
+    likelihood
+        Convoluted poisson likelihood normalized so that the value at k=l
+        (asimov) does not change
 
     """
     cp = conv_poisson(k, l, s, nsigma=nsigma, steps=steps)
@@ -356,7 +356,7 @@ def mod_chi2(actual_values, expected_values):
     Returns
     -------
     m_chi2 : numpy.ndarray of same shape as inputs
-        modified chi-squared values corresponding to each pair of elements in 
+        Modified chi-squared values corresponding to each pair of elements in
         the inputs
 
     """

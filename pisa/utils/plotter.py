@@ -22,8 +22,14 @@ from pisa.utils.format import dollars, text2tex, tex_join
 from pisa.utils.log import logging
 
 
-__all__ = ['Plotter']
+__all__ = ['CMAP_SEQ', 'CMAP_DIV', 'Plotter']
 
+
+CMAP_SEQ = plt.cm.inferno
+CMAP_SEQ.set_bad(color=(0.0, 0.2, 0.0), alpha=1)
+
+CMAP_DIV = plt.cm.RdBu_r
+CMAP_DIV.set_bad(color=(0.5, 0.9, 0.5), alpha=1)
 
 # set fonts
 mpl.rcParams['mathtext.fontset'] = 'custom'
@@ -342,7 +348,7 @@ class Plotter(object):
                     self.add_stamp(prop=dict(size=8))
         self.stamp = stamp
 
-    def plot_2d_map(self, map, cmap='rainbow', **kwargs):
+    def plot_2d_map(self, map, cmap=None, **kwargs):
         """plot map or transform on current axis in 2d"""
         vmin = kwargs.pop('vmin', None)
         vmax = kwargs.pop('vmax', None)
@@ -367,11 +373,15 @@ class Plotter(object):
         if self.symmetric:
             vmax = np.max(np.abs(np.ma.masked_invalid(zmap)))
             vmin = -vmax
+            if cmap is None:
+                cmap = CMAP_DIV
         else:
             if vmax is None:
                 vmax = np.max(zmap[np.isfinite(zmap)])
             if vmin is None:
                 vmin = np.min(zmap[np.isfinite(zmap)])
+            if cmap is None:
+                cmap = CMAP_SEQ
         extent = [np.min(bin_edges[0].m), np.max(bin_edges[0].m),
                   np.min(bin_edges[1].m), np.max(bin_edges[1].m)]
 
@@ -406,8 +416,8 @@ class Plotter(object):
                         size=7
                     )
 
-        axis.set_xlabel(dollars(text2tex(dims[0].label)))
-        axis.set_ylabel(dollars(text2tex(dims[1].label)))
+        axis.set_xlabel(dollars(dims[0].label))
+        axis.set_ylabel(dollars(dims[1].label))
         axis.set_xlim(extent[0:2])
         axis.set_ylim(extent[2:4])
 

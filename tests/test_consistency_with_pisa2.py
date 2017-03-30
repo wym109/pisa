@@ -24,14 +24,14 @@ import sys
 
 import numpy as np
 
-from pisa import FTYPE
+from pisa import FTYPE, PYCUDA_AVAIL
 from pisa.core.map import Map, MapSet
 from pisa.core.pipeline import Pipeline
 from pisa.utils.fileio import from_file
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.resources import find_resource
 from pisa.utils.config_parser import parse_pipeline_config
-from pisa.utils.tests import has_cuda, check_agreement, plot_map_comparisons, pisa2_map_to_pisa3_map
+from pisa.utils.tests import check_agreement, plot_map_comparisons, pisa2_map_to_pisa3_map
 
 
 __all__ = ['PID_FAIL_MESSAGE', 'PID_PASS_MESSAGE',
@@ -859,8 +859,10 @@ def parse_args():
                         pycuda can be used, however, errors will still be
                         raised as exceptions.''')
     parser.add_argument('-v', action='count', default=None,
-                        help='set verbosity level')
+                        help='''Set verbosity level; default is 1, so only -vv
+                        or -vvv has an effect.''')
     args = parser.parse_args()
+    args.v = min(1, args.v)
     return args
 
 
@@ -941,8 +943,7 @@ def main():
             )
 
     # Test for CUDA being present
-    cuda_present = has_cuda()
-    if not cuda_present:
+    if not PYCUDA_AVAIL:
         msg = 'No CUDA support found, so GPU-based services cannot run.'
         if args.osc_prob3gpu or test_all:
             if args.ignore_cuda_errors:
@@ -951,7 +952,7 @@ def main():
                 raise ImportError(msg)
 
     # Perform GPU-based oscillations tests
-    if (args.osc_prob3gpu or test_all) and cuda_present:
+    if (args.osc_prob3gpu or test_all) and PYCUDA_AVAIL:
         osc_settings = os.path.join(
             'tests', 'settings', 'pisa2_osc_prob3gpu_test.cfg'
         )

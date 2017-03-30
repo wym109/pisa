@@ -46,10 +46,8 @@ from pisa.utils.random_numbers import get_random_state
 from pisa.utils import stats
 
 
-__all__ = ['type_error',
-           'reduceToHist', 'rebin',
-           'Map', 'MapSet',
-           'test_Map', 'test_MapSet']
+__all__ = ['type_error', 'reduceToHist', 'rebin', 'Map', 'MapSet', 'test_Map',
+           'test_MapSet']
 
 
 # TODO: inconsistent treatment of metrics in *chi2*, *llh*, and metric* methods
@@ -534,9 +532,17 @@ class Map(object):
                 and mpl.get_backend().lower() != backend.lower()):
             mpl.use(backend)
         import matplotlib.pyplot as plt
+        cmap_seq = plt.cm.inferno
+        cmap_seq.set_bad(color=(0.0, 0.2, 0.0), alpha=1)
+
+        cmap_div = plt.cm.RdBu_r
+        cmap_div.set_bad(color=(0.5, 0.9, 0.5), alpha=1)
+
+
+        tex = self.name if self.tex is None else self.tex
 
         if title is None:
-            title = '$' + self.tex + '$'
+            title = '$%s$' % tex
         if fname is None:
             fname = get_valid_filename(self.name)
 
@@ -561,20 +567,18 @@ class Map(object):
         islog = False
         if symm:
             if cmap is None:
-                cmap = plt.cm.seismic
+                cmap = cmap_div
             extr = np.nanmax(np.abs(hist))
             vmax_ = extr
             vmin_ = -extr
         else:
             if cmap is None:
-                #cmap = plt.cm.afmhot
-                cmap = plt.cm.bone
+                cmap = cmap_seq
             if evtrate:
                 vmin_ = 0
             else:
                 vmin_ = np.nanmin(hist)
             vmax_ = np.nanmax(hist)
-        cmap.set_bad(color=(0, 1, 0), alpha=1)
 
         x = self.binning.dims[0].bin_edges.magnitude
         y = self.binning.dims[1].bin_edges.magnitude
@@ -605,19 +609,8 @@ class Map(object):
             else:
                 cbar.set_label(label=clabel)
 
-        xlabel = strip_outer_dollars(self.binning.dims[0].tex)
-        ylabel = strip_outer_dollars(self.binning.dims[1].tex)
-
-        xunits = self.binning.dims[0].units
-        yunits = self.binning.dims[1].units
-
-        if xunits != ureg.dimensionless:
-            xlabel = xlabel + r'\; \left({:~L}\right)'.format(xunits)
-        if yunits != ureg.dimensionless:
-            ylabel = ylabel + r'\; \left({:~L}\right)'.format(yunits)
-
-        xlabel = '$%s$' % xlabel
-        ylabel = '$%s$' % ylabel
+        xlabel = '$%s$' % self.binning.dims[0].label
+        ylabel = '$%s$' % self.binning.dims[1].label
 
         if xlabelsize is not None:
             ax.set_xlabel(xlabel, size=xlabelsize)
@@ -861,7 +854,7 @@ class Map(object):
         stddevs = None if np.all(stddevs == 0) else stddevs
         state['error_hist'] = stddevs
         state['hash'] = self.hash
-        state['tex'] = self.tex
+        state['tex'] = self._tex
         state['full_comparison'] = self.full_comparison
         return state
 
@@ -885,7 +878,6 @@ class Map(object):
         elif self.normalize_values:
             stddevs = normQuant(stddevs, sigfigs=HASH_SIGFIGS)
         state['error_hist'] = stddevs
-        state['tex'] = self.tex
         state['full_comparison'] = self.full_comparison
         return state
 
@@ -1291,15 +1283,15 @@ class Map(object):
     @property
     def tex(self):
         """string : TeX label"""
-        if self._tex is None or len(self._tex) == 0:
-            super(self.__class__, self).__setattr__(
-                '_tex', text2tex(self.name)
-            )
+        if self._tex is None:
+            return text2tex(self.name)
         return self._tex
 
     @tex.setter
     def tex(self, value):
         assert value is None or isinstance(value, basestring)
+        if value is not None:
+            value = strip_outer_dollars(value)
         return super(self.__class__, self).__setattr__('_tex', value)
 
     @property
@@ -1726,7 +1718,7 @@ class MapSet(object):
         state = OrderedDict()
         state['maps'] = [m.serializable_state for m in self]
         state['name'] = self.name
-        state['tex'] = self.tex
+        state['tex'] = self._tex
         state['collate_by_name'] = self.collate_by_name
         return state
 
@@ -1842,7 +1834,7 @@ class MapSet(object):
 
     # TODO: add different aggregation options OR rename to sum_{wildcard|re}
     def combine_re(self, regexes):
-        """For each regex passed, add contained maps whose names match.
+        r"""For each regex passed, add contained maps whose names match.
 
         If a single regex is passed, the corresponding maps are combined and
         returned as a Map object. If a *sequence* of regexes is passed, each

@@ -207,11 +207,13 @@ class Analysis(object):
 
                 # Take the one with the best fit
                 if metric in METRICS_TO_MAXIMIZE:
-                    it_got_better = new_fit_info['metric_val'] > \
-                        best_fit_info['metric_val']
+                    it_got_better = (
+                        new_fit_info['metric_val'] > best_fit_info['metric_val']
+                    )
                 else:
-                    it_got_better = new_fit_info['metric_val'] < \
-                        best_fit_info['metric_val']
+                    it_got_better = (
+                        new_fit_info['metric_val'] < best_fit_info['metric_val']
+                    )
 
                 if it_got_better:
                     alternate_fits.append(best_fit_info)
@@ -745,7 +747,7 @@ class Analysis(object):
             steplist = [[(param_names[0], val) for val in values[0]]]
 
         points_acc = []
-        if not only_points is None:
+        if only_points is not None:
             assert len(only_points) == 1 or len(only_points) % 2 == 0
             if len(only_points) == 1:
                 points_acc = only_points
@@ -813,13 +815,15 @@ class Analysis(object):
                 # TODO: serialisation!
                 for k in best_fit['minimizer_metadata']:
                     if k in ['hess', 'hess_inv']:
-                        print "deleting %s"%k
+                        logging.debug("deleting %s", k)
                         del best_fit['minimizer_metadata'][k]
 
-            best_fit['params'] = \
-                    deepcopy(best_fit['params'].serializable_state)
-            best_fit['hypo_asimov_dist'] = \
-                    deepcopy(best_fit['hypo_asimov_dist'].serializable_state)
+            best_fit['params'] = deepcopy(
+                best_fit['params'].serializable_state
+            )
+            best_fit['hypo_asimov_dist'] = deepcopy(
+                best_fit['hypo_asimov_dist'].serializable_state
+            )
 
             # decide which information to retain based on chosen debug mode
             if debug_mode == 0 or debug_mode == 1:
@@ -838,7 +842,7 @@ class Analysis(object):
                     pass
 
             results['results'].append(best_fit)
-            if not outfile is None:
+            if outfile is not None:
                 # store intermediate results
                 to_file(results, outfile)
 
