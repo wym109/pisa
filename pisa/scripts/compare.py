@@ -18,7 +18,6 @@ from collections import OrderedDict
 from copy import deepcopy
 import os
 
-from matplotlib import cm
 import numpy as np
 
 from pisa import EPSILON
