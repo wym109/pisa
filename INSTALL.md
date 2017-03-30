@@ -285,16 +285,9 @@ __Notes:__
 
 ### Reinstall PISA
 
-* To remove any compiled bits to ensure they get recompiled:
-  ```bash
-  cd $PISA
-  python setup.py clean --all
-  pip install --editable $PISA -r $PISA/requirements.txt
-  ```
-* To just reinstall the Python bits (and only build binaries if they don't already exist)
-  ```bash
-  pip install --editable $PISA -r $PISA/requirements.txt --upgrade
-  ```
+```bash
+pip install --editable $PISA -r $PISA/requirements.txt --force-reinstall
+```
 
 ### Compiling the Documentation
 
@@ -316,9 +309,9 @@ cd $PISA/docs && make html
 Throughout the codebase there are `test_*.py` files and `test_*` functions within various `*.py` files that represent unit tests.
 Unit tests are designed to ensure that the basic mechanisms of objects' functionality work.
 
-These are not automatically run, but can be invoked via
+These are all run, plus additional tests (takes about 15-20 minutes on a laptop) with the command
 ```bash
-python <python_file>
+$PISA/tests/test_command_lines.sh
 ```
 
 #### Physics Tests
