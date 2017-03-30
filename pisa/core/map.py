@@ -46,10 +46,8 @@ from pisa.utils.random_numbers import get_random_state
 from pisa.utils import stats
 
 
-__all__ = ['type_error',
-           'reduceToHist', 'rebin',
-           'Map', 'MapSet',
-           'test_Map', 'test_MapSet']
+__all__ = ['type_error', 'reduceToHist', 'rebin', 'Map', 'MapSet', 'test_Map',
+           'test_MapSet']
 
 
 # TODO: inconsistent treatment of metrics in *chi2*, *llh*, and metric* methods
@@ -534,6 +532,12 @@ class Map(object):
                 and mpl.get_backend().lower() != backend.lower()):
             mpl.use(backend)
         import matplotlib.pyplot as plt
+        cmap_seq = plt.cm.inferno
+        cmap_seq.set_bad(color=(0.0, 0.2, 0.0), alpha=1)
+
+        cmap_div = plt.cm.RdBu_r
+        cmap_div.set_bad(color=(0.5, 0.9, 0.5), alpha=1)
+
 
         tex = self.name if self.tex is None else self.tex
 
@@ -563,19 +567,18 @@ class Map(object):
         islog = False
         if symm:
             if cmap is None:
-                cmap = plt.cm.RdBu_r
+                cmap = cmap_div
             extr = np.nanmax(np.abs(hist))
             vmax_ = extr
             vmin_ = -extr
         else:
             if cmap is None:
-                cmap = plt.cm.hot
+                cmap = cmap_seq
             if evtrate:
                 vmin_ = 0
             else:
                 vmin_ = np.nanmin(hist)
             vmax_ = np.nanmax(hist)
-        cmap.set_bad(color=(0.5, 0.9, 0.5), alpha=1)
 
         x = self.binning.dims[0].bin_edges.magnitude
         y = self.binning.dims[1].bin_edges.magnitude
@@ -1831,7 +1834,7 @@ class MapSet(object):
 
     # TODO: add different aggregation options OR rename to sum_{wildcard|re}
     def combine_re(self, regexes):
-        """For each regex passed, add contained maps whose names match.
+        r"""For each regex passed, add contained maps whose names match.
 
         If a single regex is passed, the corresponding maps are combined and
         returned as a Map object. If a *sequence* of regexes is passed, each

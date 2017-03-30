@@ -22,7 +22,7 @@ from pisa.utils.format import dollars, text2tex, tex_join
 from pisa.utils.log import logging
 
 
-__all__ = ['Plotter']
+__all__ = ['CMAP_SEQ', 'CMAP_DIV', 'Plotter']
 
 
 CMAP_SEQ = plt.cm.inferno
