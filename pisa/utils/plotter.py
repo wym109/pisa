@@ -25,8 +25,8 @@ from pisa.utils.log import logging
 __all__ = ['Plotter']
 
 
-CMAP_SEQ = plt.cm.hot
-CMAP_SEQ.set_bad(color=(0.5, 0.9, 0.5), alpha=1)
+CMAP_SEQ = plt.cm.inferno
+CMAP_SEQ.set_bad(color=(0.0, 0.2, 0.0), alpha=1)
 
 CMAP_DIV = plt.cm.RdBu_r
 CMAP_DIV.set_bad(color=(0.5, 0.9, 0.5), alpha=1)
