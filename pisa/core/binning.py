@@ -648,19 +648,17 @@ class OneDimBinning(object):
         self._tex = val
 
     @property
-    def axis_label(self):
-        r"""string : tex label, intended to be placed in math mode (e.g.
-        between matching dollars-signs) for axes labeling, including units (if
-        not dimensionless). E.g.: r'E_{\rm true} \; ({\rm GeV})'"""
-        if self.tex is None or strip_outer_dollars(self.tex) == '':
-            name_tex = r'{\rm %s}' % self.name
+    def label(self):
+        """TeX-formatted axis label, including units (if not dimensionless)"""
+        if self.tex is None:
+            name_tex = r'{\rm %s}' % text2tex(self.name)
         else:
             name_tex = self.tex
 
         if self.units == ureg.dimensionless:
             units_tex = ''
         else:
-            units_tex = r'\;\left({:~L}\right)'.format(self.units)
+            units_tex = r' \; \left( {:~L} \right)'.format(self.units)
 
         return name_tex + units_tex
 
@@ -804,18 +802,6 @@ class OneDimBinning(object):
                 bin_edges = self.bin_edges
             self._edges_hash = hash_obj(bin_edges)
         return self._edges_hash
-
-    @property
-    def label(self):
-        """TeX-friendly label, including units"""
-        units = format(self.units, '~L').strip()
-        if self.tex is None:
-            tex = text2tex(self.name)
-        else:
-            tex = self.tex
-        if units == '':
-            return tex
-        return tex + r' \; ({\rm %s})' % units
 
     @property
     def bin_widths(self):
@@ -2385,9 +2371,9 @@ def test_OneDimBinning():
     b3 = OneDimBinning(name='reco_energy', num_bins=40, is_log=True,
                        domain=[1, 80]*ureg.GeV, tex=r'E_{\rm reco}',
                        bin_names=[str(i) for i in range(40)])
-    # Test axis_label
-    _ = b1.axis_label
-    _ = b1.axis_label
+    # Test label
+    _ = b1.label
+    _ = b1.label
 
     assert b1.basename_binning == b1.basename_binning
     assert b1.basename_binning == b3.basename_binning

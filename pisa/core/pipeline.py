@@ -32,8 +32,7 @@ from pisa.utils.log import logging, set_verbosity
 from pisa.utils.profiler import profile
 
 
-__all__ = ['Pipeline',
-           'test_Pipeline', 'parse_args', 'main']
+__all__ = ['Pipeline', 'test_Pipeline', 'parse_args', 'main']
 
 
 # TODO: should we check that the output binning of a previous stage produces
@@ -51,6 +50,7 @@ __all__ = ['Pipeline',
 # TODO: return an OrderedDict instead of a list if the user requests
 # intermediate results? Or simply use the `outputs` attribute of each stage to
 # dynamically access this?
+
 
 class Pipeline(object):
     """Instantiate stages according to a parsed config object; excecute
@@ -579,7 +579,8 @@ def main(return_outputs=False):
             )
             my_plotter.ratio = True
             my_plotter.plot_2d_array(
-                outputs, fname=stg_svc+'__output', cmap='OrRd'
+                outputs,
+                fname=stg_svc + '__output'
             )
 
     if return_outputs:

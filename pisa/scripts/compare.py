@@ -18,8 +18,7 @@ from collections import OrderedDict
 from copy import deepcopy
 import os
 
-import matplotlib as mpl
-mpl.use('agg')
+from matplotlib import cm
 import numpy as np
 
 from pisa import EPSILON
@@ -35,8 +34,6 @@ __all__ = ['DISTRIBUTIONMAKER_SOURCE_STR', 'PIPELINE_SOURCE_STR',
            'MAP_SOURCE_STR', 'MAPSET_SOURCE_STR',
            'parse_args', 'main']
 
-CMAP = mpl.cm.RdBu_r
-CMAP.set_bad((0.5, 0.9, 0.5))
 
 DISTRIBUTIONMAKER_SOURCE_STR = (
     'DistributionMaker instantiated from multiple pipeline config files'
@@ -523,7 +520,6 @@ def main():
         plotter.plot_2d_array(
             test - ref,
             fname='diff__%s__%s' % (test_plot_label, ref_plot_label),
-            cmap=CMAP,
             #vmin=args.diff_min, vmax=args.diff_max
         )
 
@@ -538,7 +534,6 @@ def main():
         plotter.plot_2d_array(
             (test-ref)/MapSet([zero_to_nan(r) for r in ref]),
             fname='fract_diff__%s__%s' % (test_plot_label, ref_plot_label),
-            cmap=CMAP,
             #vmin=args.fract_diff_min, vmax=args.fract_diff_max
         )
 
@@ -553,7 +548,6 @@ def main():
         plotter.plot_2d_array(
             (test-ref)/MapSet([zero_to_nan(r**0.5) for r in ref]),
             fname='asymm__%s__%s' % (test_plot_label, ref_plot_label),
-            cmap=CMAP,
             #vmin=args.asymm_min, vmax=args.asymm_max
         )
 

@@ -563,20 +563,19 @@ class Map(object):
         islog = False
         if symm:
             if cmap is None:
-                cmap = plt.cm.seismic
+                cmap = plt.cm.RdBu_r
             extr = np.nanmax(np.abs(hist))
             vmax_ = extr
             vmin_ = -extr
         else:
             if cmap is None:
-                #cmap = plt.cm.afmhot
-                cmap = plt.cm.bone
+                cmap = plt.cm.hot
             if evtrate:
                 vmin_ = 0
             else:
                 vmin_ = np.nanmin(hist)
             vmax_ = np.nanmax(hist)
-        cmap.set_bad(color=(0, 1, 0), alpha=1)
+        cmap.set_bad(color=(0.5, 0.9, 0.5), alpha=1)
 
         x = self.binning.dims[0].bin_edges.magnitude
         y = self.binning.dims[1].bin_edges.magnitude
@@ -607,8 +606,8 @@ class Map(object):
             else:
                 cbar.set_label(label=clabel)
 
-        xlabel = '$%s$' % self.binning.dims[0].axis_label
-        ylabel = '$%s$' % self.binning.dims[1].axis_label
+        xlabel = '$%s$' % self.binning.dims[0].label
+        ylabel = '$%s$' % self.binning.dims[1].label
 
         if xlabelsize is not None:
             ax.set_xlabel(xlabel, size=xlabelsize)

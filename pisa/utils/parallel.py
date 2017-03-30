@@ -299,7 +299,7 @@ def test_parallel_run():
 
     relative_speedup = ideal_time / runtime
     logging.trace('speedup/ideal = %.3f', relative_speedup)
-    assert relative_speedup >= 0.5, 'rel speedup = %.4f' % relative_speedup
+    assert relative_speedup >= 0.3, 'rel speedup = %.4f' % relative_speedup
     logging.info('<< PASS : test_parallel_run >>')
 
 
