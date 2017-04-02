@@ -12,8 +12,8 @@ import inspect
 import os
 
 from pisa import CACHE_DIR
-from pisa.core.events import Events, Data
-from pisa.core.map import MapSet
+from pisa.core.events import Events
+from pisa.core.map import Map, MapSet
 from pisa.core.param import Param, ParamSelector
 from pisa.core.transform import TransformSet
 from pisa.utils.cache import DiskCache, MemoryCache
@@ -563,7 +563,6 @@ class Stage(object):
             logging.trace('Loading outputs from cache.')
             outputs = self.outputs_cache[outputs_hash]
         else:
-            self.outputs_computed = True
             logging.trace('Need to compute outputs...')
 
             if self.use_transforms:
@@ -574,8 +573,13 @@ class Stage(object):
 
             logging.trace('... now computing outputs.')
             outputs = self._compute_outputs(inputs=self.inputs)
-            outputs.hash = outputs_hash
             self.check_outputs(outputs)
+
+            if isinstance(outputs, (Map, MapSet)):
+                outputs = outputs.rebin(self.output_binning)
+
+            outputs.hash = outputs_hash
+            self.outputs_computed = True
 
             # Store output to cache
             if self.outputs_cache is not None and outputs_hash is not None:
@@ -593,14 +597,7 @@ class Stage(object):
         unused_input_names = names_in_inputs.difference(self.input_names)
 
         if len(unused_input_names) == 0:
-            if isinstance(outputs, Data):
-                return outputs
-            elif isinstance(outputs, MapSet) or isinstance(outputs, Map):
-                return outputs.rebin(self.output_binning)
-            else:
-                raise TypeError("Outputs are expected to be either a Data or "
-                                "Map/MapSet instance. Got %s. Something is "
-                                "wrong."%type(outputs))
+            return outputs
 
         # TODO: update logic for Data object, generic sideband objects
         # Create a new output container different from `outputs` but copying
@@ -610,11 +607,11 @@ class Stage(object):
             for name in unused_input_names:
                 augmented_outputs.append(inputs[name])
 
-            return augmented_outputs.rebin(self.output_binning)
+            return augmented_outputs
         else:
-            raise TypeError("Outputs are expected to be a MapSet in this case "
-                            "of including sidebands. Got %s. Something is "
-                            "wrong."%type(outputs))
+            raise TypeError('Outputs are %s, but must currently be a MapSet in'
+                            ' the case that the input includes sideband'
+                            ' objects.' % type(outputs))
 
     @profile
     def _check_params(self, params):
@@ -710,7 +707,7 @@ class Stage(object):
         this_hash = hash_obj(events, full_hash=self.full_hash)
         if self._events_hash is not None and this_hash == self._events_hash:
             return
-        logging.debug('Extracting events from Events obj or file: %s' %events)
+        logging.debug('Extracting events from Events obj or file: %s', events)
         events_obj = Events(events)
         events_hash = this_hash
 
