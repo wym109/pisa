@@ -192,7 +192,7 @@ class Pipeline(object):
             Specification of which stage(s) to run. If None is passed, all
             stages will be run. If a string is passed, all stages are run up to
             and including the named stage. If int is passed, all stages are run
-            up to but *not* including `idx`. Numbering follows Python
+            up to and including `idx`. Numbering follows Python
             conventions (i.e., is 0-indexed).
         return_intermediate : bool
             If True,
@@ -207,7 +207,7 @@ class Pipeline(object):
         """
         intermediate = []
         if isinstance(idx, basestring):
-            idx = self.stage_names.index(idx) + 1
+            idx = self.stage_names.index(idx)
         if idx is not None:
             if idx < 0:
                 raise ValueError('Integer `idx` must be >= 0')
@@ -508,10 +508,10 @@ def main(return_outputs=False):
             pass
         if isinstance(stop_idx, basestring):
             stop_idx = pipeline.index(stop_idx)
+        outputs = pipeline.get_outputs(idx=stop_idx)
         if stop_idx is not None:
             stop_idx += 1
         indices = slice(0, stop_idx)
-        outputs = pipeline.get_outputs(idx=args.stop_after_stage)
     else:
         assert args.stop_after_stage is None
         idx = pipeline.index(args.only_stage)
