@@ -182,9 +182,10 @@ def llh(actual_values, expected_values):
 
 
 def log_poisson(k, l):
-    """Calculate the log of a poisson pdf
+    r"""Calculate the log of a poisson pdf
 
-    - poisson pdf as p(k,l) := l^k*exp(-l)/k!
+    .. math::
+        p(k,l) = \log\left( l^k \cdot e^{-l}/k! \right)
 
     Parameters
     ----------
@@ -201,9 +202,10 @@ def log_poisson(k, l):
 
 
 def log_smear(x, sigma):
-    """Calculates the log of a normal pdf
+    r"""Calculate the log of a normal pdf
 
-    - normal pdf as p(x,sigma) := (sigma*sqrt(2*pi))^-1*exp(-x^2/(2*sigma^2))
+    .. math::
+        p(x, \sigma) = \log\left( (\sigma \sqrt{2\pi})^{-1} \exp( -x^2 / 2\sigma^2 ) \right)
 
     Parameters
     ----------
@@ -221,7 +223,10 @@ def log_smear(x, sigma):
 
 
 def conv_poisson(k, l, s, nsigma=3, steps=50):
-    """Poisson pdf as p(k,l) := l^k*exp(-l)/k!
+    """Poisson pdf
+
+    .. math::
+        p(k,l) = l^k \cdot e^{-l}/k!
 
     Parameters
     ----------

@@ -109,16 +109,6 @@ def _new_obj(original_function):
 class OneDimBinning(object):
     """Histogram-oriented binning specialized to a single dimension.
 
-    Either `domain` or `bin_edges` must be specified, but not both. `is_lin`
-    and `is_log` are mutually exclusive and *must* be specified if `domain` is
-    provided (along with `num_bins`), but these are optional if `bin_edges` is
-    specified.
-
-    In the case that `bin_edges` is provided and defines just a single bin, if
-    this bin should be treated logarithmically (e.g. for oversampling),
-    `is_log=True` must be specified (otherwise, `is_lin` will be assumed to be
-    true).
-
     Parameters
     ----------
     name : str, of length > 0
@@ -171,21 +161,32 @@ class OneDimBinning(object):
     Consistency is enforced for all redundant parameters passed to the
     constructor.
 
+    Either `domain` or `bin_edges` must be specified, but not both. `is_lin`
+    and `is_log` are mutually exclusive and *must* be specified if `domain` is
+    provided (along with `num_bins`), but these are optional if `bin_edges` is
+    specified.
+
+    In the case that `bin_edges` is provided and defines just a single bin, if
+    this bin should be treated logarithmically (e.g. for oversampling),
+    `is_log=True` must be specified (otherwise, `is_lin` will be assumed to be
+    true).
+
 
     Examples
     --------
     >>> from pisa import ureg
+    >>> from pisa.core.binning import OneDimBinning
     >>> ebins = OneDimBinning(name='energy', is_log=True,
     ...                       num_bins=40, domain=[1, 80]*ureg.GeV)
     >>> print ebins
-    energy: 40 logarithmically-uniform bins spanning [1.0, 80.0] GeV
+    OneDimBinning('energy', 40 logarithmically-uniform bins spanning [1.0, 80.0] GeV)
     >>> ebins2 = ebins.to('joule')
     >>> print ebins2
-
+    OneDimBinning('energy', 40 logarithmically-uniform bins spanning [1.60217653e-10, 1.281741224e-08] J)
     >>> czbins = OneDimBinning(name='coszen',
     ...                        is_lin=True, num_bins=4, domain=[-1, 0])
     >>> print czbins
-    coszen: 4 equally-sized bins spanning [-1.0, 0.0]
+    OneDimBinning('coszen', 4 equally-sized bins spanning [-1.0, 0.0])
     >>> czbins2 = OneDimBinning(name='coszen',
     ...                         bin_edges=[-1, -0.75, -0.5, -0.25, 0])
     >>> czbins == czbins2
@@ -819,7 +820,7 @@ class OneDimBinning(object):
 
         See Also
         --------
-        pisa.core.events.keepEventsInBins
+        pisa.core.events.keepInbounds
 
         """
         if self._inbounds_criteria is None:
@@ -996,11 +997,11 @@ class OneDimBinning(object):
             return False
 
         if self.normalize_values:
-            my_normed_bin_edges = set(normQuant(self.bin_edges).m)
-            other_normed_bin_edges = set(normQuant(other.bin_edges).m)
+            my_normed_bin_edges = set(normQuant(self.bin_edges).magnitude)
+            other_normed_bin_edges = set(normQuant(other.bin_edges).magnitude)
         else:
-            my_normed_bin_edges = set(self.bin_edges.m)
-            other_normed_bin_edges = set(other.bin_edges.m)
+            my_normed_bin_edges = set(self.bin_edges.magnitude)
+            other_normed_bin_edges = set(other.bin_edges.magnitude)
 
         if my_normed_bin_edges.issubset(other_normed_bin_edges):
             return True
@@ -1267,16 +1268,64 @@ class MultiDimBinning(object):
     OneDimBinning objects, and all subsequent operations (e.g. slicing) will
     act on these in the order they are supplied.
 
+    Note that it is convenient to construct MultiDimBinning objects via the *
+    operator (which implementes the outer product) from multiple OneDimBinning
+    objects. See Examples below for details.
+
+
     Parameters
     ----------
     dimensions : OneDimBinning or sequence convertible thereto
         Dimensions for the binning object. Indexing into the MultiDimBinning
         object follows the order in which dimensions are provided.
 
+
     See Also
     --------
     OneDimBinning : each item that is not a OneDimBinning object is passed to
         this class to be instantiated as such.
+
+
+    Examples
+    --------
+    >>> from pisa import ureg
+    >>> from pisa.core.binning import MultiDimBinning, OneDimBinning
+    >>> ebins = OneDimBinning(name='energy', is_log=True,
+    ...                       num_bins=40, domain=[1, 80]*ureg.GeV)
+    >>> czbins = OneDimBinning(name='coszen',
+    ...                        is_lin=True, num_bins=4, domain=[-1, 0])
+    >>> mdb = ebins * czbins
+    >>> print mdb
+    MultiDimBinning(
+            OneDimBinning('energy', 40 logarithmically-uniform bins spanning [1.0, 80.0] GeV),
+            OneDimBinning('coszen', 4 equally-sized bins spanning [-1.0, 0.0])
+    )
+    >>> print mdb.energy
+    OneDimBinning(name=OneDimBinning('energy', 40 logarithmically-uniform bins spanning [1.0, 80.0] GeV))
+    >>> print mdb[0, 0]
+    MultiDimBinning(
+            OneDimBinning('energy', 1 bin with edges at [1.0, 1.11577660129] GeV (behavior is logarithmic)),
+            OneDimBinning('coszen', 1 bin with edges at [-1.0, -0.75] (behavior is linear))
+    )
+    >>> print mdb.slice(energy=2)
+    MultiDimBinning(
+            OneDimBinning('energy', 1 bin with edges at [1.24495742399, 1.38909436329] GeV (behavior is logarithmic)),
+            OneDimBinning('coszen', 4 equally-sized bins spanning [-1.0, 0.0])
+    )
+    >>> smaller_binning = mdb[0:2, 0:3]
+    >>> map = smaller_binning.ones(name='my_map')
+    >>> print map
+    Map(name='my_map',
+        tex='{\\rm my\\_map}',
+        full_comparison=False,
+        hash=None,
+        parent_indexer=None,
+        binning=MultiDimBinning(
+                OneDimBinning('energy', 2 logarithmically-uniform bins spanning [1.0, 1.24495742399] GeV),
+                OneDimBinning('coszen', 3 equally-sized bins spanning [-1.0, -0.25])
+        ),
+        hist=array([[ 1.,  1.,  1.],
+                    [ 1.,  1.,  1.]]))
 
     """
     def __init__(self, dimensions):
@@ -1681,13 +1730,69 @@ class MultiDimBinning(object):
         keep_dims = [deepcopy(self.dimensions[idx]) for idx in keep_idx]
         return MultiDimBinning(keep_dims)
 
+    # TODO: add *args to handle positional indexing (?) (also would need to
+    # add this to `slice` method if implemented.
     def defaults_indexer(self, **kwargs):
         """Any dimension index/slice not specified by name in kwargs will
         default to ":" (all elements).
 
+        Parameters
+        ---------
+        **kwargs
+            kwargs are names of dimension(s) and assigned to these are either
+            an integer index into that dimension or a Python `slice` object for
+            that dimension. See examples below for details.
+
+
         Returns
         -------
         indexer : tuple
+
+
+        See Also
+        --------
+        broadcast
+            Assignment of a one-dimensional array to a higher-dimensional array
+            is simplified greatly by using `broadcast` in conjunction with
+            `defaults_indexer` or `pisa.core.map.Map.slice`. See examples in
+            docs for `broadcast`.
+        broadcaster
+            Similar to `broadcast`, but returns a tuple that can be applied to
+            broadcast any one-dimensional array.
+        slice
+            Apply the `indexer` returned by this method to this MultiDimBinning
+            object, returning a new MultiDimBinning object.
+        pisa.core.map.Map.slice
+            Same operation, but slices a Map object by dimension-name
+            (internally, calls `defaults_indexer`).
+
+        Examples
+        --------
+        >>> from pisa import ureg
+        >>> from pisa.core.binning import MultiDimBinning, OneDimBinning
+        >>> ebins = OneDimBinning(name='energy', is_log=True,
+        ...                       num_bins=40, domain=[1, 80]*ureg.GeV)
+        >>> czbins = OneDimBinning(name='coszen',
+        ...                        is_lin=True, num_bins=4, domain=[-1, 0])
+        >>> mdb = ebins * czbins
+        >>> print mdb.defaults_indexer(energy=0)
+        (0, slice(None, None, None))
+
+        Omitting a dimension (coszen in the above) is equivalent to slicing
+        with a colon (i.e., `(0, slice(None))`):
+
+        >>> print mdb.defaults_indexer(energy=0, coszen=slice(None))
+        (0, slice(None, None, None))
+
+        >>> print mdb.defaults_indexer(energy=slice(None), coszen=1)
+        (slice(None, None, None), 1)
+
+        Now create an indexer to use on a Numpy array:
+
+        >>> x = np.random.RandomState(0).uniform(size=mdb.shape)
+        >>> indexer = mdb.defaults_indexer(energy=slice(0, 5), coszen=1)
+        >>> print x[indexer]
+        [ 0.71518937  0.64589411  0.38344152  0.92559664  0.83261985]
 
         """
         indexer = []
@@ -1697,6 +1802,19 @@ class MultiDimBinning(object):
             else:
                 indexer.append(slice(None))
         return tuple(indexer)
+
+    def slice(self, **kwargs):
+        """Slice the binning by dimension name. Any dimension/index not
+        specified by name in kwargs will default to ":" (all bins).
+
+        Uses `defaults_indexer` internally to define the indexing tuple.
+
+        Returns
+        -------
+        sliced_binning : MultiDimBinning
+
+        """
+        return self[self.defaults_indexer(**kwargs)]
 
     def broadcast(self, a, from_dim, to_dims):
         """Take a one-dimensional array representing one input dimension and

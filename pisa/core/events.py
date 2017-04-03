@@ -278,12 +278,15 @@ class Events(FlavIntData):
         --------
         Keep events with true energies in [1, 80] GeV (note that units are not
         recognized, so have to be handled outside this method)
+
         >>> events = events.applyCut("(true_energy >= 1) & (true_energy <= 80)")
 
         Do the opposite with "~" inverting the criteria
+
         >>> events = events.applyCut("~((true_energy >= 1) & (true_energy <= 80))")
 
         Numpy namespace is available for use via `np` prefix
+
         >>> events = events.applyCut("np.log10(true_energy) >= 0")
 
         """
@@ -370,17 +373,17 @@ class Data(FlavIntDataGroup):
 
     Examples
     --------
-    TODO(shivesh): docs
-    [('cuts', ['analysis']),
-      ('detector', 'pingu'),
-      ('flavints_joined',
-         ['nue_cc+nuebar_cc',
-             'numu_cc+numubar_cc',
-             'nutau_cc+nutaubar_cc',
-             'nuall_nc+nuallbar_nc']),
-      ('geom', 'v39'),
-      ('proc_ver', '5.1'),
-      ('runs', [620, 621, 622])]
+        [('cuts', ['analysis']),
+         ('detector', 'pingu'),
+         ('flavints_joined',
+            ['nue_cc+nuebar_cc',
+                'numu_cc+numubar_cc',
+                'nutau_cc+nutaubar_cc',
+                'nuall_nc+nuallbar_nc']),
+         ('geom', 'v39'),
+         ('proc_ver', '5.1'),
+         ('runs', [620, 621, 622])]
+
     """
     def __init__(self, val=None, flavint_groups=None, metadata=None):
         # TODO(shivesh): add noise implementation
@@ -541,12 +544,15 @@ class Data(FlavIntDataGroup):
         --------
         Keep events with true energies in [1, 80] GeV (note that units are not
         recognized, so have to be handled outside this method)
+
         >>> remaining = applyCut("(true_energy >= 1) & (true_energy <= 80)")
 
         Do the opposite with "~" inverting the criteria
+
         >>> remaining = applyCut("~((true_energy >= 1) & (true_energy <= 80))")
 
         Numpy namespace is available for use via `np` prefix
+
         >>> remaining = applyCut("np.log10(true_energy) >= 0")
 
         """
