@@ -16,8 +16,8 @@ from time import time
 import numpy as np
 from scipy import stats
 
-from pisa import (FTYPE, OMP_NUM_THREADS, NUMBA_AVAIL, NUMBA_CUDA_AVAIL,
-                  numba_jit)
+from pisa import (EPSILON, FTYPE, OMP_NUM_THREADS, NUMBA_AVAIL,
+                  NUMBA_CUDA_AVAIL, numba_jit)
 from pisa.utils.log import logging, set_verbosity, tprofile
 from pisa.utils import gaussians_cython
 if FTYPE == np.float32:
@@ -120,7 +120,6 @@ def gaussians(x, mu, sigma, weights=None, implementation=None, **kwargs):
     mu = np.asarray(mu, dtype=FTYPE)
     inv_sigma = 1/np.asarray(sigma, dtype=FTYPE)
     inv_sigma_sq = -0.5 * inv_sigma * inv_sigma
-    sigma = np.asarray(sigma, dtype=FTYPE)
     weights = np.asarray(weights, dtype=FTYPE)
 
     n_points = len(x)
@@ -211,11 +210,7 @@ def _gaussians_multithreaded(outbuf, x, mu, inv_sigma, inv_sigma_sq, weights,
         thread.join()
 
 
-GAUS_ST_NUMBA_FUNCSIG = (
-    'void({f}[:], {f}[:], {f}[:], {f}[:], {f}[:], {f}[:], int64, int64, int64)'
-).format(f=FTYPE.__name__)
-@numba_jit(GAUS_ST_NUMBA_FUNCSIG,
-           nopython=True, nogil=True, cache=True, fastmath=True)
+@numba_jit(nopython=True, nogil=True, fastmath=True)
 def _gaussians_singlethreaded(outbuf, x, mu, inv_sigma, inv_sigma_sq, weights,
                               n_gaussians, start, stop):
     """Sum of multiple guassians, optimized to be run in a single thread"""
@@ -280,35 +275,26 @@ if NUMBA_CUDA_AVAIL:
 
         del d_x, d_mu, d_inv_sigma, d_inv_sigma_sq, d_weights, d_outbuf
 
-
-    GAUS_CUDA_FUNCSIG = (
-        (
-            'void({f:s}[:], {f:s}[:], {f:s}[:], {f:s}[:], {f:s}[:], int32)'
-        ).format(f=FTYPE.__name__)
-    )
-    @cuda.jit(GAUS_CUDA_FUNCSIG, inline=True)
+    @cuda.jit(inline=True, fastmath=True)
     def _gaussians_cuda_kernel(outbuf, x, mu, inv_sigma, inv_sigma_sq,
                                n_gaussians):
         pt_idx = cuda.grid(1)
         tot = 0.0
         for g_idx in range(n_gaussians):
             xlessmu = x[pt_idx] - mu[g_idx]
-            tot += exp((xlessmu*xlessmu) * inv_sigma_sq[g_idx]) * inv_sigma[g_idx]
+            tot += (exp((xlessmu*xlessmu) * inv_sigma_sq[g_idx])
+                    * inv_sigma[g_idx])
         outbuf[pt_idx] = tot
 
-    GAUS_WTD_CUDA_FUNCSIG = (
-        (
-            'void({f:s}[:], {f:s}[:], {f:s}[:], {f:s}[:], {f:s}[:], {f:s}[:], int32)'
-        ).format(f=FTYPE.__name__)
-    )
-    @cuda.jit(GAUS_WTD_CUDA_FUNCSIG, inline=True)
+    @cuda.jit(inline=True, fastmath=True)
     def _gaussians_weighted_cuda_kernel(outbuf, x, mu, inv_sigma, inv_sigma_sq,
                                         weights, n_gaussians):
         pt_idx = cuda.grid(1)
         tot = 0.0
         for g_idx in range(n_gaussians):
             xlessmu = x[pt_idx] - mu[g_idx]
-            tot += exp((xlessmu*xlessmu) * inv_sigma_sq[g_idx]) * inv_sigma[g_idx]
+            tot += (exp((xlessmu*xlessmu) * inv_sigma_sq[g_idx])
+                    * inv_sigma[g_idx])
         outbuf[pt_idx] = tot
 
 
@@ -338,7 +324,7 @@ def test_gaussians():
             test = gaussians(x, mu=mus, sigma=sigmas, implementation=impl)
             dt = time() - t0
             timings[impl].append(np.round(dt*1000, decimals=3))
-            if not np.allclose(test, ref):
+            if not np.allclose(test, ref, atol=0, rtol=5*EPSILON):
                 logging.error('BAD RESULT, implementation: %s', impl)
                 logging.error('max abs fract diff: %s',
                               np.max(np.abs((test/ref - 1))))
