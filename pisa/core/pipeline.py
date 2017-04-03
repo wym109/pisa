@@ -137,7 +137,7 @@ class Pipeline(object):
             * `service` cannot be an instantiation argument for a service
 
         """
-        self._stages = []
+        stages = []
         for stage_num, ((stage_name, service_name), settings) \
                 in enumerate(self.config.items()):
             try:
@@ -148,7 +148,7 @@ class Pipeline(object):
                 logging.trace('Importing: pisa.stages.%s.%s',
                               stage_name, service_name)
                 module = import_module(
-                    'pisa.stages.%s.%s' %(stage_name, service_name)
+                    'pisa.stages.%s.%s' % (stage_name, service_name)
                 )
 
                 # Get service class from module
@@ -161,12 +161,12 @@ class Pipeline(object):
                         'Trying to create service "%s" for stage #%d (%s),'
                         ' but object %s instantiated from class %s is not a'
                         ' %s type but instead is of type %s.'
-                        %(service_name, stage_num, stage_name, service, cls,
-                          Stage, type(service))
+                        % (service_name, stage_num, stage_name, service, cls,
+                           Stage, type(service))
                     )
 
                 # Append service to pipeline
-                self._stages.append(service)
+                stages.append(service)
 
             except:
                 logging.error(
@@ -175,8 +175,37 @@ class Pipeline(object):
                 )
                 raise
 
-        for stage in self:
+        previous_stage = None
+        for stage in stages:
             stage.select_params(self.param_selections, error_on_missing=False)
+            if previous_stage is not None:
+                prev_has_binning = hasattr(previous_stage, 'output_binning')
+                this_has_binning = hasattr(stage, 'input_binning')
+                if this_has_binning != prev_has_binning:
+                    raise ValueError(
+                        'hasattr(%s, "output_binning") is %s but'
+                        ' hasattr(%s, "input_binning") is %s.'
+                        % (previous_stage.stage_name, prev_has_binning,
+                           stage.stage_name, this_has_binning)
+                    )
+                if this_has_binning:
+                    is_compat = stage.input_binning.is_compat(
+                        previous_stage.output_binning
+                    )
+                    if not is_compat:
+                        logging.error('Stage %s output binning: %s',
+                                      previous_stage.stage_name,
+                                      previous_stage.output_binning)
+                        logging.error('Stage %s input binning: %s',
+                                      stage.stage_name, stage.input_binning)
+                        raise ValueError(
+                            "%s stage's output binning is incompatible with"
+                            " %s stage's input binning."
+                            % (previous_stage.stage_name, stage.stage_name)
+                        )
+            previous_stage = stage
+
+        self._stages = stages
 
     # TODO: handle other container(s)
     @profile

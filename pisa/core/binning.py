@@ -937,7 +937,7 @@ class OneDimBinning(object):
     @staticmethod
     def is_binning_ok(bin_edges, is_log):
         """Check monotonicity and that bin spacing is logarithmically uniform
-        (if `is_log=True`)
+        (if `is_log == True`)
 
         Parameters
         ----------
@@ -964,13 +964,14 @@ class OneDimBinning(object):
             return OneDimBinning.is_bin_spacing_log(bin_edges)
         return True
 
-    # TODO: refine compatibility test to handle compatible units; as of now,
-    # both upsampling and downsampling are allowed. Is this reasonable
-    # behavior?
+    # TODO: as of now, only downsampling is allowed. Is this reasonable?
     def is_compat(self, other):
         """Compatibility -- for now -- is defined by all of self's bin
-        edges form a subset of other's bin edges, or vice versa, and the units
-        match. This might bear revisiting, or redefining just for special
+        edges form a subset of other's bin edges (i.e. you can downsample to
+        get from the other binning to this binning), and the units must be
+        compatible.
+
+        Note that this might bear revisiting, or redefining just for special
         circumstances.
 
         Parameters
@@ -982,20 +983,34 @@ class OneDimBinning(object):
         bool
 
         """
+        if self.name != other.name:
+            logging.trace('Dimension names do not match')
+            return False
+
         if self.units.dimensionality != other.units.dimensionality:
+            logging.trace('Incompatible units')
+            return False
+
+        if self.bin_names != other.bin_names:
+            logging.trace('Bin names do not match')
             return False
 
         if self.normalize_values:
-            my_normed_bin_edges = set(normQuant(self.bin_edges))
-            other_normed_bin_edges = set(normQuant(other.bin_edges))
+            my_normed_bin_edges = set(normQuant(self.bin_edges).m)
+            other_normed_bin_edges = set(normQuant(other.bin_edges).m)
         else:
-            my_normed_bin_edges = set(self.bin_edges)
-            other_normed_bin_edges = set(other.bin_edges)
+            my_normed_bin_edges = set(self.bin_edges.m)
+            other_normed_bin_edges = set(other.bin_edges.m)
 
-        if len(my_normed_bin_edges.difference(other_normed_bin_edges)) == 0:
+        if my_normed_bin_edges.issubset(other_normed_bin_edges):
             return True
-        if len(other_normed_bin_edges.difference(my_normed_bin_edges)) == 0:
-            return True
+        logging.trace('self.bin_edges  = %s' % self.bin_edges)
+        logging.trace('other.bin_edges = %s' % other.bin_edges)
+        logging.trace('self.bin_edges not a subset of other.bin_edges')
+        #if len(my_normed_bin_edges.difference(other_normed_bin_edges)) == 0:
+        #    return True
+        #if len(other_normed_bin_edges.difference(my_normed_bin_edges)) == 0:
+        #    return True
         return False
 
     @property
@@ -1900,6 +1915,31 @@ class MultiDimBinning(object):
             new_dimensions = [self._dimensions[n] for n in indices]
         new_binning = MultiDimBinning(new_dimensions)
         return new_binning
+
+    def is_compat(self, other):
+        """Check if another binning is compatible with this binning.
+
+        Note that for now, only downsampling is allowed from other to this, and
+        not vice versa.
+
+        Parameters
+        ----------
+        other : MultiDimBinning
+
+        Returns
+        -------
+        is_compat : bool
+
+        """
+        if not set(self.names) == set(other.names):
+            logging.trace('dimension names do not match')
+            return False
+
+        for name in self.names:
+            if not self[name].is_compat(other[name]):
+                return False
+
+        return True
 
     def oversample(self, *args, **kwargs):
         """Return a Binning object oversampled relative to this binning.
