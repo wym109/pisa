@@ -6,53 +6,57 @@
 """
 Hypothesis testing: How do two hypotheses compare for describing MC or data?
 
-This script/module computes significances, etc. from the logfiles recorded by
-the `hypo_testing.py` script.
-
-TODO:
-
-1) Some of the "combined" plots currently make it impossible to read the axis 
-   labels. Come up with a better way of doing this. Could involve making 
-   legends and just labelling the axes alphabetically.
-2) The important one - Figure out if this script generalises to the case of 
-   analysing data. My gut says it doesn't...
-
+This computes significances, etc. from the logfiles recorded by the
+`hypo_testing.py` script, for either Asimov or LLR analysis. Plots and tables
+are produced in the case of LLR analysis.
 """
+
+
+# TODO:
+#
+# 1) Some of the "combined" plots currently make it impossible to read the axis
+#    labels. Come up with a better way of doing this. Could involve making
+#    legends and just labelling the axes alphabetically.
+# 2) The important one - Figure out if this script generalises to the case of
+#    analysing data. My gut says it doesn't...
+
 
 from __future__ import division
 
 from argparse import ArgumentParser
 from collections import OrderedDict
 import os
-import matplotlib.pyplot as plt
-plt.rcParams['text.usetex'] = True
-import numpy as np
 import re
 
+import matplotlib.pyplot as plt
+import numpy as np
 from scipy.stats import spearmanr
 
 from pisa.analysis.hypo_testing import Labels
-from pisa.utils.fileio import from_file, to_file, nsort
+from pisa.utils.fileio import from_file, mkdir, to_file, nsort
 from pisa.utils.log import set_verbosity, logging
-from pisa.utils.postprocess import tex_axis_label, parse_pint_string, get_num_rows, extract_gaussian, plot_colour, plot_style
+from pisa.utils.postprocess import (tex_axis_label, parse_pint_string,
+                                    get_num_rows, extract_gaussian,
+                                    plot_colour, plot_style)
 
 
 __all__ = ['extract_trials', 'extract_fit', 'parse_args', 'main']
 
 
+plt.rcParams['text.usetex'] = True
+
+
 def extract_paramval(injparams, systkey, fid_label=None, hypo_label=None,
                      paramlabel=None):
-    '''
-    Extracts a value from a set of parameters and modifies it based on the 
-    hypothesis/fiducial fit being considered. The label associated with this 
-    is then modified accordingly.
-    '''
+    """Extract a value from a set of parameters and modify it based on the
+    hypothesis/fiducial fit being considered. The label associated with this
+    is then modified accordingly."""
     paramval = float(injparams[systkey].split(' ')[0])
-    if (fid_label == None) or (hypo_label == None) or (paramlabel == None):
-        if not ((fid_label == None) and (hypo_label == None) and
-                (paramlabel == None)):
-            raise ValueError("Either all three labels must be None or they "
-                             " must all be specified.")
+    if (fid_label is None) or (hypo_label is None) or (paramlabel is None):
+        if not ((fid_label is None) and (hypo_label is None) and
+                (paramlabel is None)):
+            raise ValueError('Either all three labels must be None or they '
+                             ' must all be specified.')
         return paramval
     else:
         if systkey == 'deltam31':
@@ -67,11 +71,11 @@ def extract_paramval(injparams, systkey, fid_label=None, hypo_label=None,
 
         if (np.abs(paramval) < 1e-2) and (paramval != 0.0):
             paramlabel += ' = %.3e'%paramval
-        else:    
+        else:
             paramlabel += ' = %.3g'%paramval
 
         return paramval, paramlabel
-    
+
 
 def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
     """Extract and aggregate analysis results.
@@ -192,7 +196,7 @@ def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
             for fnum, fname in enumerate(nsort(os.listdir(subdir))):
                 fpath = os.path.join(subdir, fname)
                 for x in ['0', '1']:
-                    for y in ['0','1']:
+                    for y in ['0', '1']:
                         k = 'h{x}_fit_to_h{y}_fid'.format(x=x, y=y)
                         r = labels.dict[k + '_re']
                         m = r.match(fname)
@@ -227,14 +231,14 @@ def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
                                  %(labels.dict['h{x}_name'.format(x=x)],
                                    dset_label))
                         if fname == ftest:
-                            k = 'h{x}_fit_to_{y}'.format(x=x,y=dset_label)
+                            k = 'h{x}_fit_to_{y}'.format(x=x, y=dset_label)
                             lvl2_fits[k] = extract_fit(
                                 fpath,
                                 ['metric_val', 'params']
                             )
                             break
                     k = 'h{x}_fit_to_{y}'.format(x=x, y=dset_label)
-                    for y in ['0','1']:
+                    for y in ['0', '1']:
                         k = 'h{x}_fit_to_h{y}_fid'.format(x=x, y=y)
                         r = labels.dict[k + '_re']
                         m = r.match(fname)
@@ -250,7 +254,7 @@ def extract_trials(logdir, fluctuate_fid, fluctuate_data=False):
                         if fid_label in set_file_nums:
                             lvl2_fits[k][fid_label] = extract_fit(
                                 fpath,
-                                ['metric', 'metric_val','params']
+                                ['metric', 'metric_val', 'params']
                             )
                             minim_info[k][fid_label] = extract_fit(
                                 fpath,
@@ -302,13 +306,10 @@ def extract_fit(fpath, keys=None):
     return info
 
 
+# TODO (?) - This works in the case of all MC, but I don't know about data.
 def extract_fid_data(data_sets):
-    '''
-    Takes the data sets returned by the extract_trials function and extracts 
-    the data on the fiducial fits.
-
-    TODO (?) - This works in the case of all MC, but I don't know about data.
-    '''
+    """Take the data sets returned by the `extract_trials` and extract the data
+    on the fiducial fits."""
     fid_values = {}
     for injkey in data_sets.keys():
         fid_values[injkey] = {}
@@ -320,10 +321,8 @@ def extract_fid_data(data_sets):
 
 
 def extract_data(data):
-    '''
-    Takes the data sets returned by the extract_trials function and turns 
-    them in to a format used by all of the plotting functions.
-    '''
+    """Take the data sets returned by `extract_trials` and turn them in to a
+    format used by all of the plotting functions."""
     values = {}
     for injkey in data.keys():
         values[injkey] = {}
@@ -359,35 +358,37 @@ def extract_data(data):
 
 
 def purge_failed_jobs(data, trial_nums, thresh=5.0):
-    '''
-    This function looks at the values of the metric and finds any it deems to 
-    be from a failed job. That is, the value of the metric fell very far 
-    outside of the rest of the values.
+    """Look at the values of the metric and find any deemed to be from a failed
+    job. That is, the value of the metric falls very far outside of the rest of
+    the values.
+
+    Notes
+    -----
+    Interestingly, I only saw a need for this with my true NO jobs, where I
+    attempted to run some jobs in fp32 mode. No jobs were needed to be removed
+    for true IO, where everything was run in fp64 mode. So if there's a need
+    for this function in your analysis it probably points at some more serious
+    underlying problem.
 
     References:
     ----------
         Taken from stack overflow:
-        
+
             http://stackoverflow.com/questions/22354094/pythonic-way-\
             of-detecting-outliers-in-one-dimensional-observation-data
 
         which references:
 
-            Boris Iglewicz and David Hoaglin (1993), "Volume 16: How to Detect 
+            Boris Iglewicz and David Hoaglin (1993), "Volume 16: How to Detect
             and Handle Outliers", The ASQC Basic References in Quality Control:
-            Statistical Techniques, Edward F. Mykytka, Ph.D., Editor. 
+            Statistical Techniques, Edward F. Mykytka, Ph.D., Editor.
 
-    Interestingly, I only saw a need for this with my true NO jobs, where I 
-    attempted to run some jobs in fp32 mode. No jobs were needed to be removed 
-    for true IO, where everything was run in fp64 mode. So if there's a need
-    for this function in your analysis it probably points at some more serious
-    underlying problem.
-    '''
-    
+    """
+
     for fit_key in data.keys():
         points = np.array(data[fit_key]['metric_val']['vals'])
         if len(points.shape) == 1:
-            points = points[:,None]
+            points = points[:, None]
         median = np.median(points, axis=0)
         diff = np.sum((points - median)**2, axis=-1)
         diff = np.sqrt(diff)
@@ -395,23 +396,14 @@ def purge_failed_jobs(data, trial_nums, thresh=5.0):
         modified_z_score = 0.6745 * diff / med_abs_deviation
         good_trials = modified_z_score < thresh
         if not np.all(good_trials):
-            bad_trials = np.where(good_trials==False)[0]
-            if len(bad_trials) == 1:
-                logging.warning(
-                    "Outlier detected for %s in trial %s. This will be "
-                    "removed. If you think this should not happen, please "
-                    "change the value of the threshold used for this decision "
-                    "(currently set to %.2f)."
-                    %(fit_key,trial_nums[bad_trials],thresh)
-                )
-            else:
-                logging.warning(
-                    "Outlier detected for %s in trials %s. These will be "
-                    "removed. If you think this should not happen, please "
-                    "change the value of the threshold used for this decision "
-                    "(currently set to %.2f)."
-                    %(fit_key,trial_nums[bad_trials],thresh)
-                )
+            bad_trials = np.where(good_trials == False)[0]
+            logging.warn(
+                'Outlier(s) detected for %s in trial(s) %s. Will be removed.'
+                ' If you think this should not happen, please change the'
+                ' value of the threshold used for the decision (currently set'
+                ' to %.2e).',
+                fit_key, trial_nums[bad_trials], thresh
+            )
             for fitkey in data.keys():
                 for param in data[fitkey].keys():
                     new_vals = np.delete(
@@ -421,31 +413,26 @@ def purge_failed_jobs(data, trial_nums, thresh=5.0):
                     data[fitkey][param]['vals'] = new_vals
 
 def save_plot(labels, fid, hypo, detector, selection, outdir, formats, end):
-    '''
-    Does the actual saving of every type specified as True in formats
-    '''
-    SaveName = ""
+    """Save plot as each type of file format specified in `formats`"""
+    save_name = ""
     if 'data_name' in labels.keys():
-        SaveName += "true_%s_"%labels['data_name']
+        save_name += "true_%s_"%labels['data_name']
     if detector is not None:
-        SaveName += "%s_"%detector
+        save_name += "%s_"%detector
     if selection is not None:
-        SaveName += "%s_"%selection
+        save_name += "%s_"%selection
     if fid is not None:
-        SaveName += "fid_%s_"%labels['%s_name'%fid]
+        save_name += "fid_%s_"%labels['%s_name'%fid]
     if hypo is not None:
-        SaveName += "hypo_%s_"%labels['%s_name'%hypo]
-    SaveName += end
-    for fileformat in formats.keys():
-        if formats[fileformat]:
-            FullSaveName = SaveName + '.%s'%fileformat
-            plt.savefig(os.path.join(outdir,FullSaveName))
+        save_name += "hypo_%s_"%labels['%s_name'%hypo]
+    save_name += end
+    for fileformat in formats:
+        full_save_name = save_name + '.%s'%fileformat
+        plt.savefig(os.path.join(outdir, full_save_name))
 
 
 def make_main_title(detector, selection, end):
-    '''
-    Makes the main title accounting for detector and selection provided by user.
-    '''
+    """Make main title accounting for detector and selection."""
     MainTitle = r"\begin{center}"
     if detector is not None:
         MainTitle += "%s "%detector
@@ -456,9 +443,7 @@ def make_main_title(detector, selection, end):
 
 
 def make_fit_title(labels, fid, hypo, trials):
-    '''
-    Makes the fit title to go with the main title
-    '''
+    """Make fit title to go with the main title"""
     FitTitle = ""
     if 'data_name' in labels.keys():
         FitTitle += "True %s, "%labels['data_name']
@@ -473,11 +458,8 @@ def make_fit_title(labels, fid, hypo, trials):
 
 
 def make_fit_information_plot(fit_info, xlabel, title):
-    '''
-    Makes the actual histogram of the fit_info given with the appropriate axis
-    label and title
-    '''
-    plt.grid(axis='y',zorder=0)
+    """Make histogram of fit_info given with axis label and title"""
+    plt.grid(axis='y', zorder=0)
     plt.hist(
         fit_info,
         bins=10,
@@ -494,15 +476,11 @@ def make_fit_information_plot(fit_info, xlabel, title):
 
 def plot_fit_information(minimiser_info, labels, detector,
                          selection, outdir, formats):
-    '''
-    Makes plots of the number of iterations and time taken with the
+    """Make plots of the number of iterations and time taken with the
     minimiser. This is a good cross-check that the minimiser did not end
-    abruptly since you would see significant pile-up if it did.
-    '''
-    outdir = os.path.join(outdir,'MinimiserPlots')
-    if not os.path.exists(outdir):
-        logging.info('Making output directory %s'%outdir)
-        os.makedirs(outdir)
+    abruptly since you would see significant pile-up if it did."""
+    outdir = os.path.join(outdir, 'MinimiserPlots')
+    mkdir(outdir)
     MainTitle = make_main_title(detector, selection, 'Minimiser Information')
     for fhkey in minimiser_info.keys():
         if minimiser_info[fhkey] is not None:
@@ -607,24 +585,21 @@ def plot_fit_information(minimiser_info, labels, detector,
 
 
 def add_extra_points(points, labels, ymax):
-    '''
-    Adds the extra points specified in points and labels them with the labels 
-    specified in labels.
-    '''
+    """Add extra points specified by `points` and label them with `labels`"""
     linelist = []
-    for point, label in zip(points,labels):
+    for point, label in zip(points, labels):
         if isinstance(point, basestring):
             if os.path.isfile(point):
                 point = np.genfromtxt(point)
             try:
                 point = eval(point)
             except:
-                raise ValueError("Provided point, %s, was not either a "
-                                 "path to a file or a string which could "
-                                 "be parsed by eval()"%point)
+                raise ValueError('Provided point, %s, was not either a '
+                                 'path to a file or a string which could '
+                                 'be parsed by eval()' % point)
         if not isinstance(point, float):
-            raise ValueError("Expecting a single point here to add to the plot"
-                             " and got %s instead."%point)
+            raise ValueError('Expecting a single point here to add to the plot'
+                             ' and got %s instead.' % point)
         line = plt.axvline(
             point,
             color=plot_colour(label),
@@ -638,9 +613,8 @@ def add_extra_points(points, labels, ymax):
 
 
 def calc_p_value(LLRdist, critical_value, num_trials, greater=True,
-                 median_p_value=False,LLRbest=None):
-    '''
-    Calculates the p-value for the given dataset based on the given critical
+                 median_p_value=False, LLRbest=None):
+    """Calculate the p-value for the given dataset based on the given critical
     value with an associated error.
 
     The calculation involves asking in how many trials the test statistic was
@@ -652,7 +626,8 @@ def calc_p_value(LLRdist, critical_value, num_trials, greater=True,
     In the case of median_p_values the error calculation must also account for
     the uncertainty on the median, and so one must pass the distribution from
     which this was calculated so the error can be estimated with bootstrapping.
-    '''
+
+    """
     if greater:
         misid_trials = float(np.sum(LLRdist > critical_value))
     else:
@@ -661,7 +636,7 @@ def calc_p_value(LLRdist, critical_value, num_trials, greater=True,
     if median_p_value:
         # Quantify the uncertainty on the median by bootstrapping
         sampled_medians = []
-        for i in range(0,1000):
+        for i in range(0, 1000):
             sampled_medians.append(
                 np.median(
                     np.random.choice(
@@ -688,10 +663,8 @@ def plot_LLR_histograms(LLRarrays, LLRhistmax, binning, colors, labels,
                         best_name, alt_name, critical_value, critical_label,
                         critical_height, LLRhist, critical_color='k',
                         plot_scaling_factor=1.55, greater=True, CLs=False):
-    """
-    Does the actual plotting of the LLR histograms. The greater argument is
-    intended to be used the same as in the p value function above.
-    """
+    """Plot the LLR histograms. The `greater` argument is intended to be used
+    the same as in the p value function above."""
     for LLRarray, label, color in zip(LLRarrays, labels, colors):
         plt.hist(
             LLRarray,
@@ -701,23 +674,23 @@ def plot_LLR_histograms(LLRarrays, LLRhistmax, binning, colors, labels,
             lw=2,
             label=label
         )
-    plt.xlabel(r'Log-Likelihood Ratio',size='24',labelpad=22)
-    plt.ylabel(r'Number of Trials (per %.2f)'%(binning[1]-binning[0]),size='24')
+    plt.xlabel(r'Log-Likelihood Ratio', size='24', labelpad=22)
+    plt.ylabel(r'Number of Trials (per %.2f)'%(binning[1]-binning[0]), size='24')
     # Nicely scale the plot
-    plt.ylim(0,plot_scaling_factor*LLRhistmax)
+    plt.ylim(0, plot_scaling_factor*LLRhistmax)
     # Add labels to show which side means what...
     xlim = plt.gca().get_xlim()
     plt.text(
         xlim[0]-0.05*(xlim[1]-xlim[0]),
         -0.09*plot_scaling_factor*LLRhistmax,
-        r"\begin{flushleft} $\leftarrow$ Prefers %s\end{flushleft}"%(tex_axis_label(alt_name)),
+        r'\begin{flushleft} $\leftarrow$ Prefers %s\end{flushleft}' % tex_axis_label(alt_name),
         color='k',
         size='large'
     )
     plt.text(
         xlim[1]+0.05*(xlim[1]-xlim[0]),
         -0.09*plot_scaling_factor*LLRhistmax,
-        r"\begin{flushright} Prefers %s $\rightarrow$ \end{flushright}"%(tex_axis_label(best_name)),
+        r'\begin{flushright} Prefers %s $\rightarrow$ \end{flushright}' % tex_axis_label(best_name),
         color='k',
         size='large',
         horizontalalignment='right'
@@ -732,7 +705,7 @@ def plot_LLR_histograms(LLRarrays, LLRhistmax, binning, colors, labels,
     )
     if CLs:
         for hist, color in zip(LLRhist, colors):
-            finehist = np.repeat(hist,100)
+            finehist = np.repeat(hist, 100)
             finebinning = np.linspace(binning[0],
                                       binning[-1],
                                       (len(binning)-1)*100+1)
@@ -741,9 +714,9 @@ def plot_LLR_histograms(LLRarrays, LLRhistmax, binning, colors, labels,
                                       finebinning[-1]-finebinwidth/2.0,
                                       len(finebinning)-1)
             if color == 'r':
-                where = (finebincens<critical_value)
+                where = (finebincens < critical_value)
             elif color == 'b':
-                where = (finebincens>critical_value)
+                where = (finebincens > critical_value)
             plt.fill_between(
                 finebincens,
                 0,
@@ -757,8 +730,8 @@ def plot_LLR_histograms(LLRarrays, LLRhistmax, binning, colors, labels,
     else:
         # Create an object so that a hatch can be drawn over the region of
         # interest to the p-value.
-        finehist = np.repeat(LLRhist,100)
-        finebinning = np.linspace(binning[0],binning[-1],(len(binning)-1)*100+1)
+        finehist = np.repeat(LLRhist, 100)
+        finebinning = np.linspace(binning[0], binning[-1], (len(binning)-1)*100+1)
         finebinwidth = finebinning[1]-finebinning[0]
         finebincens = np.linspace(finebinning[0]+finebinwidth/2.0,
                                   finebinning[-1]-finebinwidth/2.0,
@@ -769,9 +742,9 @@ def plot_LLR_histograms(LLRarrays, LLRhistmax, binning, colors, labels,
         # hatch is set to X.
         # Also, so that it doesn't have a border we set linewidth to zero.
         if greater:
-            where = (finebincens>critical_value)
+            where = (finebincens > critical_value)
         else:
-            where = (finebincens<critical_value)
+            where = (finebincens < critical_value)
         plt.fill_between(
             finebincens,
             0,
@@ -779,33 +752,31 @@ def plot_LLR_histograms(LLRarrays, LLRhistmax, binning, colors, labels,
             where=where,
             color='none',
             hatch='X',
-            edgecolor="k",
+            edgecolor='k',
             lw=0
         )
 
     plt.subplots_adjust(left=0.10, right=0.90, top=0.9, bottom=0.15)
 
 
-def make_llr_plots(data, fid_data, labels, detector, selection, outdir, formats,
-                   extra_points = None, extra_points_labels = None):
-    '''
-    Does what you think. Takes the data and makes LLR distributions. These are 
-    then saved to the requested outdir within a folder labelled 
-    "LLRDistributions". The extra_points and extra_points_labels arguments can 
-    be used to specify extra points to be added to the plot for e.g. other fit
-    LLR values.
+def make_llr_plots(data, fid_data, labels, detector, selection, outdir,
+                   formats, extra_points=None, extra_points_labels=None):
+    """Make LLR plots.
+
+    Takes the data and makes LLR distributions. These are then saved to the
+    requested outdir within a folder labelled "LLRDistributions". The
+    extra_points and extra_points_labels arguments can be used to specify extra
+    points to be added to the plot for e.g. other fit LLR values.
 
     TODO:
 
     1) Currently the p-value is put on the LLR distributions as an annotation.
-       This is probably fine, since the significances can just be calculated 
+       This is probably fine, since the significances can just be calculated
        from this after the fact.
 
-    '''
-    outdir = os.path.join(outdir,'LLRDistributions')
-    if not os.path.exists(outdir):
-        logging.info('Making output directory %s'%outdir)
-        os.makedirs(outdir)
+    """
+    outdir = os.path.join(outdir, 'LLRDistributions')
+    mkdir(outdir)
 
     h0_fid_metric = fid_data[
         'h0_fit_to_toy_%s_asimov'%labels['data_name']
@@ -848,7 +819,7 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir, formats,
     # With chi2 metrics the opposite is true, and so we must multiply
     # everything by -1 in order to apply the same treatment.
     if 'chi2' in metric_type:
-        logging.info("Converting chi2 metric to likelihood equivalent.")
+        logging.info('Converting chi2 metric to likelihood equivalent.')
         h0_fit_to_h0_fid_metrics *= -1
         h1_fit_to_h0_fid_metrics *= -1
         h0_fit_to_h1_fid_metrics *= -1
@@ -881,10 +852,10 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir, formats,
                           binning[-1]-binwidth/2.0,
                           len(binning)-1)
 
-    LLRbesthist, LLRbestbinedges = np.histogram(LLRbest,bins=binning)
-    LLRalthist, LLRaltbinedges = np.histogram(LLRalt,bins=binning)
+    LLRbesthist, LLRbestbinedges = np.histogram(LLRbest, bins=binning)
+    LLRalthist, LLRaltbinedges = np.histogram(LLRalt, bins=binning)
 
-    LLRhistmax = max(max(LLRbesthist),max(LLRalthist))
+    LLRhistmax = max(max(LLRbesthist), max(LLRalthist))
 
     best_median = np.median(LLRbest)
     alt_median = np.median(LLRalt)
@@ -925,17 +896,17 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir, formats,
         median_p_value=True,
         LLRbest=LLRbest
     )
-    
+
     if metric_type == 'llh':
         plot_title = (r"\begin{center}"\
-                      +"%s %s Event Selection "%(detector,selection)\
+                      +"%s %s Event Selection "%(detector, selection)\
                       +r"\\"+" LLR Distributions for true %s (%i trials)"%(
-                          tex_axis_label(inj_name),num_trials)\
+                          tex_axis_label(inj_name), num_trials)\
                       +r"\end{center}")
-                      
+
     else:
         plot_title = (r"\begin{center}"\
-                      +"%s %s Event Selection "%(detector,selection)\
+                      +"%s %s Event Selection "%(detector, selection)\
                       +r"\\"+" %s \"LLR\" Distributions for "
                       %(metric_type_pretty)\
                       +"true %s (%i trials)"%(tex_axis_label(inj_name),
@@ -953,15 +924,15 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir, formats,
         r"{%s}\right)/\mathcal{L}\left(\mathcal{H}_{%s}\right)\right]$"%(
             best_name, alt_name),
         r"%s Best Fit - $\log\left[\mathcal{L}\left(\mathcal{H}_"%(
-                  tex_axis_label(alt_name)) + \
+            tex_axis_label(alt_name)) + \
         r"{%s}\right)/\mathcal{L}\left(\mathcal{H}_{%s}\right)\right]$"%(
             best_name, alt_name)
     ]
     plot_LLR_histograms(
-        LLRarrays=[LLRbest,LLRalt],
+        LLRarrays=[LLRbest, LLRalt],
         LLRhistmax=LLRhistmax,
         binning=binning,
-        colors=['r','b'],
+        colors=['r', 'b'],
         labels=LLR_labels,
         best_name=best_name,
         alt_name=alt_name,
@@ -982,7 +953,7 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir, formats,
         0.15,
         0.66,
         r"$\mathrm{p}\left(\mathcal{H}_{%s}\right) = %.4f\pm%.4f$"%(
-            best_name,med_p_value,unc_med_p_value),
+            best_name, med_p_value, unc_med_p_value),
         color='k',
         size='xx-large'
     )
@@ -1006,7 +977,7 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir, formats,
         )
         handles, labels = plt.gca().get_legend_handles_labels()
         newhandles = []
-        for l,h in zip(labels, handles):
+        for l, h in zip(labels, handles):
             if l in linelist:
                 newhandles.append(h)
         if len(newhandles) > 13:
@@ -1062,7 +1033,7 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir, formats,
         0.15,
         0.70,
         r"$\mathrm{p}\left(\mathcal{H}_{%s}\right) = %.4f\pm%.4f$"%(
-            best_name,crit_p_value,unc_crit_p_value),
+            best_name, crit_p_value, unc_crit_p_value),
         color='k',
         size='xx-large'
     )
@@ -1109,7 +1080,7 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir, formats,
         0.15,
         0.70,
         r"$\mathrm{p}\left(\mathcal{H}_{%s}\right) = %.4f\pm%.4f$"%(
-            alt_name,alt_crit_p_value,alt_unc_crit_p_value),
+            alt_name, alt_crit_p_value, alt_unc_crit_p_value),
         color='k',
         size='xx-large'
     )
@@ -1134,15 +1105,15 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir, formats,
         r"{%s}\right)/\mathcal{L}\left(\mathcal{H}_{%s}\right)\right]$"%(
             best_name, alt_name),
         r"%s Best Fit - $\log\left[\mathcal{L}\left(\mathcal{H}_"%(
-                  tex_axis_label(alt_name)) + \
+            tex_axis_label(alt_name)) + \
         r"{%s}\right)/\mathcal{L}\left(\mathcal{H}_{%s}\right)\right]$"%(
             best_name, alt_name)
     ]
     plot_LLR_histograms(
-        LLRarrays=[LLRbest,LLRalt],
+        LLRarrays=[LLRbest, LLRalt],
         LLRhistmax=LLRhistmax,
         binning=binning,
-        colors=['r','b'],
+        colors=['r', 'b'],
         labels=LLR_labels,
         best_name=best_name,
         alt_name=alt_name,
@@ -1150,7 +1121,7 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir, formats,
         critical_label=r"Critical Value = %.4f"%(critical_value),
         critical_height=float(max(LLRbesthist))/float(
             plot_scaling_factor*LLRhistmax),
-        LLRhist=[LLRbesthist,LLRalthist],
+        LLRhist=[LLRbesthist, LLRalthist],
         CLs=True,
     )
     plt.legend(loc='upper left')
@@ -1160,7 +1131,7 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir, formats,
         0.50,
         0.66,
         r"$\mathrm{CL}_{s}\left(\mathcal{H}_{%s}\right) = %.4f\pm%.4f$"%(
-            best_name,cls_value,unc_cls_value),
+            best_name, cls_value, unc_cls_value),
         horizontalalignment='center',
         color='k',
         size='xx-large'
@@ -1169,7 +1140,7 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir, formats,
         0.12,
         0.55,
         r"$\mathrm{p}\left(\mathcal{H}_{%s}\right) = %.2f\pm%.2f$"%(
-            alt_name,alt_crit_p_value,alt_unc_crit_p_value),
+            alt_name, alt_crit_p_value, alt_unc_crit_p_value),
         bbox=dict(facecolor='none', edgecolor='red', boxstyle='round'),
         horizontalalignment='left',
         color='k',
@@ -1179,7 +1150,7 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir, formats,
         0.88,
         0.55,
         r"$\mathrm{p}\left(\mathcal{H}_{%s}\right) = %.2f\pm%.2f$"%(
-            best_name,crit_p_value,unc_crit_p_value),
+            best_name, crit_p_value, unc_crit_p_value),
         horizontalalignment='right',
         bbox=dict(facecolor='none', edgecolor='blue', boxstyle='round'),
         color='k',
@@ -1199,10 +1170,7 @@ def make_llr_plots(data, fid_data, labels, detector, selection, outdir, formats,
 
 
 def write_latex_preamble(texfile):
-    '''
-    Writes the latex preamble needed to be able to make tex files that look 
-    nice.
-    '''
+    """Write latex preamble needed to make nice-looking tex files."""
     texfile.write("\n")
     texfile.write("\documentclass[a4paper,12pt]{article}\n")
     texfile.write("\usepackage{tabu}\n")
@@ -1222,10 +1190,9 @@ def write_latex_preamble(texfile):
 
 
 def setup_latex_table(texfile, tabletype, injected=False):
-    '''
-    Sets up the beginning of the table for the tex output files. Currently will
-    make tables for the output fiducial fit params and the chi2 values only.
-    '''
+    """Set up the beginning of the table for the tex output files. Currently
+    will make tables for the output fiducial fit params and the chi2 values
+    only."""
     texfile.write("\\renewcommand{\\arraystretch}{1.6}\n")
     texfile.write("\n")
     texfile.write("\\begin{table}[t!]\n")
@@ -1249,19 +1216,18 @@ def setup_latex_table(texfile, tabletype, injected=False):
                          "param tables in LaTeX.")
 
 
-def end_latex_file(texfile, tabletype, detector, selection, h0, h1, truth=None):
-    '''
-    Ends the table and the whole document for the tex output files.
-    '''
+def end_latex_file(texfile, tabletype, detector, selection, h0, h1,
+                   truth=None):
+    """End the table and the whole document for the tex output files."""
     if tabletype == 'fiducial_fit_params':
         texfile.write("    \end{tabu}\n")
         texfile.write("  \end{center}\n")
         texfile.write("  \\vspace{-10pt}\n")
         if truth is not None:
-            texfile.write("  \caption{shows the fiducial fit parameters obtained with the %s %s sample for h0 of %s and h1 of %s. The truth is %s.}\n"%(detector,selection,h0,h1,truth))
+            texfile.write("  \caption{shows the fiducial fit parameters obtained with the %s %s sample for h0 of %s and h1 of %s. The truth is %s.}\n"%(detector, selection, h0, h1, truth))
         else:
-            texfile.write("  \caption{shows the fiducial fit parameters obtained with the %s %s sample for h0 of %s and h1 of %s.}\n"%(detector,selection,h0,h1))
-        texfile.write("  \label{tab:%s%s%stable}\n"%(detector,selection,tabletype))
+            texfile.write("  \caption{shows the fiducial fit parameters obtained with the %s %s sample for h0 of %s and h1 of %s.}\n"%(detector, selection, h0, h1))
+        texfile.write("  \label{tab:%s%s%stable}\n"%(detector, selection, tabletype))
         texfile.write("\end{table}\n")
         texfile.write("\n")
         texfile.write("\end{document}\n")
@@ -1270,25 +1236,24 @@ def end_latex_file(texfile, tabletype, detector, selection, h0, h1, truth=None):
         texfile.write("  \end{center}\n")
         texfile.write("  \\vspace{-10pt}\n")
         if truth is not None:
-            texfile.write("  \caption{shows the fiducial fit metrics obtained with the %s %s sample for h0 of %s and h1 of %s. The truth is %s.}\n"%(detector,selection,h0,h1,truth))
+            texfile.write("  \caption{shows the fiducial fit metrics obtained with the %s %s sample for h0 of %s and h1 of %s. The truth is %s.}\n"%(detector, selection, h0, h1, truth))
         else:
-            texfile.write("  \caption{shows the fiducial fit metrics obtained with the %s %s sample for h0 of %s and h1 of %s.}\n"%(detector,selection,h0,h1))
-        texfile.write("  \label{tab:%s%s%stable}\n"%(detector,selection,tabletype))
+            texfile.write("  \caption{shows the fiducial fit metrics obtained with the %s %s sample for h0 of %s and h1 of %s.}\n"%(detector, selection, h0, h1))
+        texfile.write("  \label{tab:%s%s%stable}\n"%(detector, selection, tabletype))
         texfile.write("\end{table}\n")
         texfile.write("\n")
         texfile.write("\end{document}\n")
 
 
 def format_table_line(val, dataval, stddev=None, maximum=None, last=False):
-    '''
-    Formatting the numbers to look nice is awkard so do it in its' own function
-    '''
+    """Formatting the numbers to look nice is awkard so do it in its own
+    function"""
     line = ""
     if stddev is not None:
         if (np.abs(stddev) < 1e-2) and (stddev != 0.0):
-            line += r'$%.3e\pm%.3e$ &'%(maximum,stddev)
+            line += r'$%.3e\pm%.3e$ &'%(maximum, stddev)
         else:
-            line += r'$%.3g\pm%.3g$ &'%(maximum,stddev)
+            line += r'$%.3g\pm%.3g$ &'%(maximum, stddev)
     else:
         if maximum is not None:
             raise ValueError("Both stddev and maximum should be None or "
@@ -1310,30 +1275,26 @@ def format_table_line(val, dataval, stddev=None, maximum=None, last=False):
             else:
                 line += "%.3g"%delta
     if not last:
-            line += " &"
+        line += " &"
     return line
 
 
 def make_fiducial_fits(data, fid_data, labels, all_params, detector,
                        selection, outdir):
-    '''
-    This function will make tex files which can be then be compiled in to 
-    tables showing the two fiducial fits and, if applicable, how they compare 
-    to what was injected.
-    '''
-    outdir = os.path.join(outdir,'FiducialFits')
-    if not os.path.exists(outdir):
-        logging.info('Making output directory %s'%outdir)
-        os.makedirs(outdir)
+    """Make tex files which can be then be compiled in to tables showing the
+    two fiducial fits and, if applicable, how they compare to what was
+    injected."""
+    outdir = os.path.join(outdir, 'FiducialFits')
+    mkdir(outdir)
 
     # Make output file to write to
     paramfilename = ("true_%s_%s_%s_fiducial_fit_params.tex"
                      %(labels['data_name'],
                        detector,
                        selection))
-    paramfile = os.path.join(outdir,paramfilename)
+    paramfile = os.path.join(outdir, paramfilename)
     pf = open(paramfile, 'w')
-    write_latex_preamble(texfile = pf)
+    write_latex_preamble(texfile=pf)
 
     h0_params = fid_data[
         ('h0_fit_to_toy_%s_asimov'%labels['data_name'])
@@ -1352,8 +1313,8 @@ def make_fiducial_fits(data, fid_data, labels, all_params, detector,
         injected = False
 
     setup_latex_table(
-        texfile = pf,
-        tabletype = 'fiducial_fit_params',
+        texfile=pf,
+        tabletype='fiducial_fit_params',
         injected=injected
     )
 
@@ -1367,15 +1328,15 @@ def make_fiducial_fits(data, fid_data, labels, all_params, detector,
         # Get priors if they exists
         if 'gaussian' in all_params['h0_params'][param]['prior']:
             h0stddev, h0maximum = extract_gaussian(
-                prior_string = all_params['h0_params'][param]['prior'],
-                units = param_units
+                prior_string=all_params['h0_params'][param]['prior'],
+                units=param_units
             )
         else:
             h0stddev = None
         if 'gaussian' in all_params['h1_params'][param]['prior']:
             h1stddev, h1maximum = extract_gaussian(
-                prior_string = all_params['h1_params'][param]['prior'],
-                units = param_units
+                prior_string=all_params['h1_params'][param]['prior'],
+                units=param_units
             )
         else:
             h1stddev = None
@@ -1392,8 +1353,8 @@ def make_fiducial_fits(data, fid_data, labels, all_params, detector,
                 tableline += "&"
             if param in data_params.keys():
                 dataval = extract_paramval(
-                    injparams = data_params,
-                    systkey = param
+                    injparams=data_params,
+                    systkey=param
                 )
                 if param == 'deltam31':
                     dataval *= 1000.0
@@ -1406,8 +1367,8 @@ def make_fiducial_fits(data, fid_data, labels, all_params, detector,
                 dataval = '--'
                 tableline += "%s &"%dataval
             h0val = extract_paramval(
-                injparams = h0_params,
-                systkey = param
+                injparams=h0_params,
+                systkey=param
             )
             if param == 'deltam31':
                 h0val *= 1000.0
@@ -1418,8 +1379,8 @@ def make_fiducial_fits(data, fid_data, labels, all_params, detector,
             else:
                 tableline += format_table_line(val=h0val, dataval=dataval)
             h1val = extract_paramval(
-                injparams = h1_params,
-                systkey = param
+                injparams=h1_params,
+                systkey=param
             )
             if param == 'deltam31':
                 h1val *= 1000.0
@@ -1435,40 +1396,40 @@ def make_fiducial_fits(data, fid_data, labels, all_params, detector,
         # If no injected parameters it's much simpler
         else:
             h0val = extract_paramval(
-                injparams = h0_params,
-                systkey = param
+                injparams=h0_params,
+                systkey=param
             )
             h1val = extract_paramval(
-                injparams = h1_params,
-                systkey = param
+                injparams=h1_params,
+                systkey=param
             )
             if (np.abs(h0val) < 1e-2) and (h0val != 0.0):
-                pf.write("    %s & %.3e & %.3e\n"%(h0val, h1val))
+                pf.write("    %s & %.3e & %.3e\n"
+                         % (tex_axis_label(param), h0val, h1val))
             else:
-                pf.write("    %s & %.3g & %.3g\n"%(h0val, h1val))
+                pf.write("    %s & %.3g & %.3g\n"
+                         % (tex_axis_label(param), h0val, h1val))
 
     end_latex_file(
         texfile=pf,
         tabletype='fiducial_fit_params',
         detector=detector,
         selection=selection,
-        h0 = tex_axis_label(labels['h0_name']),
-        h1 = tex_axis_label(labels['h1_name']),
-        truth = tex_axis_label(labels['data_name'])
+        h0=tex_axis_label(labels['h0_name']),
+        h1=tex_axis_label(labels['h1_name']),
+        truth=tex_axis_label(labels['data_name'])
     )
 
     # Make output file to write to
     metricfilename = ("true_%s_%s_%s_fiducial_fit_metrics.tex"
-                     %(labels['data_name'],
-                       detector,
-                       selection))
-    metricfile = os.path.join(outdir,metricfilename)
+                      %(labels['data_name'], detector, selection))
+    metricfile = os.path.join(outdir, metricfilename)
     mf = open(metricfile, 'w')
-    write_latex_preamble(texfile = mf)
+    write_latex_preamble(texfile=mf)
 
     setup_latex_table(
-        texfile = mf,
-        tabletype = 'fiducial_fit_metrics'
+        texfile=mf,
+        tabletype='fiducial_fit_metrics'
     )
 
     h0_fid_metric = fid_data[
@@ -1522,23 +1483,20 @@ def make_fiducial_fits(data, fid_data, labels, all_params, detector,
         tabletype='fiducial_fit_metrics',
         detector=detector,
         selection=selection,
-        h0 = tex_axis_label(labels['h0_name']),
-        h1 = tex_axis_label(labels['h1_name']),
-        truth = tex_axis_label(labels['data_name'])
+        h0=tex_axis_label(labels['h0_name']),
+        h1=tex_axis_label(labels['h1_name']),
+        truth=tex_axis_label(labels['data_name'])
     )
-    
+
 
 def plot_individual_posterior(data, data_params, h0_params, h1_params,
                               all_params, labels, h0label, h1label, systkey,
                               fhkey, subplotnum=None):
-    '''
-    This function will use matplotlib to make a histogram of the vals contained
-    in data. The injected value will be plotted along with, where appropriate,
-    the "wrong hypothesis" fiducial fit and the prior. The axis labels and the
-    legend are taken care of in here. The optional subplotnum argument can be
-    given in the combined case so that the y-axis label only get put on when 
-    appropriate.
-    '''
+    """Use matplotlib to make a histogram of the vals contained in data. The
+    injected value will be plotted along with, where appropriate, the "wrong
+    hypothesis" fiducial fit and the prior. The axis labels and the legend are
+    taken care of in here. The optional subplotnum argument can be given in the
+    combined case so that the y-axis label only get put on when appropriate."""
 
     if systkey == 'metric_val':
         metric_type = data['type']
@@ -1548,7 +1506,7 @@ def plot_individual_posterior(data, data_params, h0_params, h1_params,
     hypo = fhkey.split('_')[0]
     fid = fhkey.split('_')[-2]
 
-    plt.grid(axis='y',zorder=0)
+    plt.grid(axis='y', zorder=0)
     plt.hist(
         systvals,
         bins=10,
@@ -1563,11 +1521,11 @@ def plot_individual_posterior(data, data_params, h0_params, h1_params,
         if data_params is not None:
             if systkey in data_params.keys():
                 injval, injlabelproper = extract_paramval(
-                    injparams = data_params,
-                    systkey = systkey,
-                    fid_label = labels['%s_name'%fid],
-                    hypo_label = labels['%s_name'%hypo],
-                    paramlabel = 'Injected Value'
+                    injparams=data_params,
+                    systkey=systkey,
+                    fid_label=labels['%s_name'%fid],
+                    hypo_label=labels['%s_name'%hypo],
+                    paramlabel='Injected Value'
                 )
                 plt.axvline(
                     injval,
@@ -1582,19 +1540,19 @@ def plot_individual_posterior(data, data_params, h0_params, h1_params,
             injval = None
         if fid == 'h0':
             fitval, fitlabelproper = extract_paramval(
-                injparams = h0_params,
-                systkey = systkey,
-                fid_label = labels['%s_name'%fid],
-                hypo_label = labels['%s_name'%hypo],
-                paramlabel = h0label
+                injparams=h0_params,
+                systkey=systkey,
+                fid_label=labels['%s_name'%fid],
+                hypo_label=labels['%s_name'%hypo],
+                paramlabel=h0label
             )
         elif fid == 'h1':
             fitval, fitlabelproper = extract_paramval(
-                injparams = h1_params,
-                systkey = systkey,
-                fid_label = labels['%s_name'%fid],
-                hypo_label = labels['%s_name'%hypo],
-                paramlabel = h1label
+                injparams=h1_params,
+                systkey=systkey,
+                fid_label=labels['%s_name'%fid],
+                hypo_label=labels['%s_name'%hypo],
+                paramlabel=h1label
             )
         else:
             raise ValueError("I got a hypothesis %s. Expected h0 or h1 only."
@@ -1623,16 +1581,16 @@ def plot_individual_posterior(data, data_params, h0_params, h1_params,
         if param == systkey:
             if 'gaussian' in wanted_params[param]['prior']:
                 stddev, maximum = extract_gaussian(
-                    prior_string = wanted_params[param]['prior'],
-                    units = units
+                    prior_string=wanted_params[param]['prior'],
+                    units=units
                 )
                 currentxlim = plt.xlim()
                 if (np.abs(stddev) < 1e-2) and (stddev != 0.0):
                     priorlabel = (r'Gaussian Prior '
-                                  '($%.3e\pm%.3e$)'%(maximum,stddev))
+                                  '($%.3e\pm%.3e$)'%(maximum, stddev))
                 else:
                     priorlabel = (r'Gaussian Prior '
-                                  '($%.3g\pm%.3g$)'%(maximum,stddev))
+                                  '($%.3g\pm%.3g$)'%(maximum, stddev))
                 plt.axvspan(
                     maximum-stddev,
                     maximum+stddev,
@@ -1644,9 +1602,9 @@ def plot_individual_posterior(data, data_params, h0_params, h1_params,
                 )
                 # Reset xlimits if prior makes it go far off
                 if plt.xlim()[0] < currentxlim[0]:
-                    plt.xlim(currentxlim[0],plt.xlim()[1])
+                    plt.xlim(currentxlim[0], plt.xlim()[1])
                 if plt.xlim()[1] > currentxlim[1]:
-                    plt.xlim(plt.xlim()[0],currentxlim[1])
+                    plt.xlim(plt.xlim()[0], currentxlim[1])
 
     # Make axis labels look nice
     if systkey == 'metric_val':
@@ -1655,31 +1613,26 @@ def plot_individual_posterior(data, data_params, h0_params, h1_params,
         systname = tex_axis_label(systkey)
     if not units == 'dimensionless':
         systname += r' (%s)'%tex_axis_label(units)
-                
+
     plt.xlabel(systname, size='24')
     if subplotnum is not None:
         if (subplotnum-1)%4 == 0:
             plt.ylabel(r'Number of Trials', size='24')
     else:
         plt.ylabel(r'Number of Trials', size='24')
-    plt.ylim(0,1.35*plt.ylim()[1])
+    plt.ylim(0, 1.35*plt.ylim()[1])
     if not systkey == 'metric_val':
         plt.legend(loc='upper left')
 
     plt.subplots_adjust(left=0.10, right=0.90, top=0.9, bottom=0.11)
-    
+
 
 def plot_individual_posteriors(data, fid_data, labels, all_params, detector,
                                selection, outdir, formats):
-    '''
-    This function will make use of plot_individual_posterior and 
-    save every time.
-    '''
+    """Use `plot_individual_posterior` and save each time."""
 
-    outdir = os.path.join(outdir,'IndividualPosteriors')
-    if not os.path.exists(outdir):
-        logging.info('Making output directory %s'%outdir)
-        os.makedirs(outdir)
+    outdir = os.path.join(outdir, 'IndividualPosteriors')
+    mkdir(outdir)
 
     MainTitle = make_main_title(detector, selection, 'Posterior')
 
@@ -1709,16 +1662,16 @@ def plot_individual_posteriors(data, fid_data, labels, all_params, detector,
                 trials=len(data[fhkey][systkey]['vals'])
             )
             plot_individual_posterior(
-                data = data[fhkey][systkey],
-                data_params = data_params,
-                h0_params = h0_params,
-                h1_params = h1_params,
-                all_params = all_params,
-                labels = labels,
-                h0label = '%s Fiducial Fit'%labels['h0_name'],
-                h1label = '%s Fiducial Fit'%labels['h1_name'],
-                systkey = systkey,
-                fhkey = fhkey
+                data=data[fhkey][systkey],
+                data_params=data_params,
+                h0_params=h0_params,
+                h1_params=h1_params,
+                all_params=all_params,
+                labels=labels,
+                h0label='%s Fiducial Fit'%labels['h0_name'],
+                h1label='%s Fiducial Fit'%labels['h1_name'],
+                systkey=systkey,
+                fhkey=fhkey
             )
 
             plt.title(MainTitle+r'\\'+FitTitle, fontsize=16)
@@ -1737,16 +1690,12 @@ def plot_individual_posteriors(data, fid_data, labels, all_params, detector,
 
 def plot_combined_posteriors(data, fid_data, labels, all_params,
                              detector, selection, outdir, formats):
-    '''
-    This function will make use of plot_individual_posterior but just save
-    once all of the posteriors for a given combination of h0 and h1 have
-    been plotted on the same canvas.
-    '''
+    """Use `plot_individual_posterior` multiple times but just save once all of
+    the posteriors for a given combination of h0 and h1 have been plotted on
+    the same canvas."""
 
-    outdir = os.path.join(outdir,'CombinedPosteriors')
-    if not os.path.exists(outdir):
-        logging.info('Making output directory %s'%outdir)
-        os.makedirs(outdir)
+    outdir = os.path.join(outdir, 'CombinedPosteriors')
+    mkdir(outdir)
 
     MainTitle = make_main_title(detector, selection, 'Posteriors')
 
@@ -1767,12 +1716,12 @@ def plot_combined_posteriors(data, fid_data, labels, all_params,
     labels['MainTitle'] = MainTitle
 
     for fhkey in data.keys():
-        
+
         # Set up multi-plot
         num_rows = get_num_rows(data[fhkey], omit_metric=False)
-        plt.figure(figsize=(20,5*num_rows+2))
-        subplotnum=1
-        
+        plt.figure(figsize=(20, 5*num_rows+2))
+        subplotnum = 1
+
         for systkey in data[fhkey].keys():
 
             hypo = fhkey.split('_')[0]
@@ -1783,20 +1732,20 @@ def plot_combined_posteriors(data, fid_data, labels, all_params,
                 hypo=hypo,
                 trials=len(data[fhkey][systkey]['vals'])
             )
-            plt.subplot(num_rows,4,subplotnum)
+            plt.subplot(num_rows, 4, subplotnum)
 
             plot_individual_posterior(
-                data = data[fhkey][systkey],
-                data_params = data_params,
-                h0_params = h0_params,
-                h1_params = h1_params,
-                all_params = all_params,
-                labels = labels,
-                h0label = '%s Fiducial Fit'%labels['h0_name'],
-                h1label = '%s Fiducial Fit'%labels['h1_name'],
-                systkey = systkey,
-                fhkey = fhkey,
-                subplotnum = subplotnum
+                data=data[fhkey][systkey],
+                data_params=data_params,
+                h0_params=h0_params,
+                h1_params=h1_params,
+                all_params=all_params,
+                labels=labels,
+                h0label='%s Fiducial Fit'%labels['h0_name'],
+                h1label='%s Fiducial Fit'%labels['h1_name'],
+                systkey=systkey,
+                fhkey=fhkey,
+                subplotnum=subplotnum
             )
 
             subplotnum += 1
@@ -1819,13 +1768,11 @@ def plot_combined_posteriors(data, fid_data, labels, all_params,
 
 def plot_individual_scatter(xdata, ydata, labels, xsystkey, ysystkey,
                             subplotnum=None, num_rows=None, plot_cor=True):
-    '''
-    This function will use matplotlib to make a scatter plot of the vals
-    contained in xdata and ydata. The correlation will be calculated and
-    the plot will be annotated with this. Axis labels are done in here too. The 
-    optional subplotnum argument can be given in the combined case so that the 
-    y-axis label only get put on when appropriate.
-    '''
+    """Use matplotlib to make a scatter plot of the vals contained in xdata and
+    ydata. The correlation will be calculated and the plot will be annotated
+    with this. Axis labels are done in here too. The optional subplotnum
+    argument can be given in the combined case so that the y-axis label only
+    get put on when appropriate."""
 
     # Extract data and units
     xvals = np.array(xdata['vals'])
@@ -1839,15 +1786,19 @@ def plot_individual_scatter(xdata, ydata, labels, xsystkey, ysystkey,
     if plot_cor:
         # Calculate correlation and annotate
         if len(set(xvals)) == 1:
-            logging.warn(("Parameter %s appears to not have been varied. i.e. all "
-                          "of the values in the set are the same. This will "
-                          "lead to NaN in the correlation calculation and so it "
-                          "will not be done."%xsystkey))
+            logging.warn(
+                'Parameter %s appears to not have been varied. i.e. all of the'
+                ' values in the set are the same. This will lead to NaN in the'
+                ' correlation calculation and so it will not be done.',
+                xsystkey
+            )
         if len(set(yvals)) == 1:
-            logging.warn(("Parameter %s appears to not have been varied. i.e. all "
-                          "of the values in the set are the same. This will "
-                          "lead to NaN in the correlation calculation and so it "
-                          "will not be done."%ysystkey))
+            logging.warn(
+                'Parameter %s appears to not have been varied. i.e. all of the'
+                ' values in the set are the same. This will lead to NaN in the'
+                ' correlation calculation and so it will not be done.',
+                ysystkey
+            )
         if (len(set(xvals)) != 1) and (len(set(yvals)) != 1):
             rho, pval = spearmanr(xvals, yvals)
             if subplotnum is not None:
@@ -1877,7 +1828,7 @@ def plot_individual_scatter(xdata, ydata, labels, xsystkey, ysystkey,
     if Yrange != 0.0:
         plt.ylim(yvals.min()-0.1*Yrange,
                  yvals.max()+0.3*Yrange)
-    
+
     # Make axis labels look nice
     xsystname = tex_axis_label(xsystkey)
     if not xunits == 'dimensionless':
@@ -1888,18 +1839,14 @@ def plot_individual_scatter(xdata, ydata, labels, xsystkey, ysystkey,
 
     plt.xlabel(xsystname)
     plt.ylabel(ysystname)
-    
-    
+
+
 def plot_individual_scatters(data, labels, detector, selection,
                              outdir, formats):
-    '''
-    This function will make use of plot_individual_scatter and save every time.
-    '''
+    """Use `plot_individual_scatter` and save every time."""
 
-    outdir = os.path.join(outdir,'IndividualScatterPlots')
-    if not os.path.exists(outdir):
-        logging.info('Making output directory %s'%outdir)
-        os.makedirs(outdir)
+    outdir = os.path.join(outdir, 'IndividualScatterPlots')
+    mkdir(outdir)
 
     MainTitle = make_main_title(detector, selection, 'Correlation Plot')
 
@@ -1919,11 +1866,11 @@ def plot_individual_scatters(data, labels, detector, selection,
                         )
 
                         plot_individual_scatter(
-                            xdata = data[fhkey][xsystkey],
-                            ydata = data[fhkey][ysystkey],
-                            labels = labels,
-                            xsystkey = xsystkey,
-                            ysystkey = ysystkey
+                            xdata=data[fhkey][xsystkey],
+                            ydata=data[fhkey][ysystkey],
+                            labels=labels,
+                            xsystkey=xsystkey,
+                            ysystkey=ysystkey
                         )
 
                         plt.title(MainTitle+r'\\'+FitTitle, fontsize=16)
@@ -1942,28 +1889,24 @@ def plot_individual_scatters(data, labels, detector, selection,
 
 def plot_combined_individual_scatters(data, labels, detector,
                                       selection, outdir, formats):
-    '''
-    This function will make use of plot_individual_scatter and save once all of 
-    the scatter plots for a single systematic with every other systematic have 
-    been plotted on the same canvas for each h0 and h1 combination.
-    '''
+    """Use `plot_individual_scatter` and save once all of the scatter plots for
+    a single systematic with every other systematic have been plotted on the
+    same canvas for each h0 and h1 combination."""
 
-    outdir = os.path.join(outdir,'CombinedScatterPlots')
-    if not os.path.exists(outdir):
-        logging.info('Making output directory %s'%outdir)
-        os.makedirs(outdir)
+    outdir = os.path.join(outdir, 'CombinedScatterPlots')
+    mkdir(outdir)
 
     MainTitle = make_main_title(detector, selection, 'Correlation Plot')
 
     for fhkey in data.keys():
         for xsystkey in data[fhkey].keys():
             if not xsystkey == 'metric_val':
-                
+
                 # Set up multi-plot
                 num_rows = get_num_rows(data[fhkey], omit_metric=True)
-                plt.figure(figsize=(20,5*num_rows+2))
-                subplotnum=1
-                
+                plt.figure(figsize=(20, 5*num_rows+2))
+                subplotnum = 1
+
                 for ysystkey in data[fhkey].keys():
                     if (ysystkey != 'metric_val') and (ysystkey != xsystkey):
 
@@ -1976,16 +1919,16 @@ def plot_combined_individual_scatters(data, labels, detector,
                             trials=len(data[fhkey][xsystkey]['vals'])
                         )
 
-                        plt.subplot(num_rows,4,subplotnum)
+                        plt.subplot(num_rows, 4, subplotnum)
 
                         plot_individual_scatter(
-                            xdata = data[fhkey][xsystkey],
-                            ydata = data[fhkey][ysystkey],
-                            labels = labels,
-                            xsystkey = xsystkey,
-                            ysystkey = ysystkey,
-                            subplotnum = subplotnum,
-                            num_rows = num_rows
+                            xdata=data[fhkey][xsystkey],
+                            ydata=data[fhkey][ysystkey],
+                            labels=labels,
+                            xsystkey=xsystkey,
+                            ysystkey=ysystkey,
+                            subplotnum=subplotnum,
+                            num_rows=num_rows
                         )
 
                         subplotnum += 1
@@ -2007,16 +1950,11 @@ def plot_combined_individual_scatters(data, labels, detector,
 
 
 def plot_combined_scatters(data, labels, detector, selection, outdir, formats):
-    '''
-    This function will make use of plot_individual_scatter and save once every 
-    scatter plot has been plotted on a single canvas for each of the h0 and h1 
-    combinations.
-    '''
+    """Use `plot_individual_scatter` and save once every scatter plot has been
+    plotted on a single canvas for each of the h0 and h1 combinations."""
 
-    outdir = os.path.join(outdir,'CombinedScatterPlots')
-    if not os.path.exists(outdir):
-        logging.info('Making output directory %s'%outdir)
-        os.makedirs(outdir)
+    outdir = os.path.join(outdir, 'CombinedScatterPlots')
+    mkdir(outdir)
 
     MainTitle = make_main_title(detector, selection, 'Correlation Plot')
 
@@ -2025,8 +1963,8 @@ def plot_combined_scatters(data, labels, detector, selection, outdir, formats):
         # contains the metric_val entry
         SystNum = len(data[fhkey].keys())-1
         # Set up multi-plot
-        plt.figure(figsize=(3.5*(SystNum-1),3.5*(SystNum-1)))
-        subplotnum=(SystNum-1)*(SystNum-1)+1
+        plt.figure(figsize=(3.5*(SystNum-1), 3.5*(SystNum-1)))
+        subplotnum = (SystNum-1)*(SystNum-1)+1
         # Set up container to know which correlations have already been plotted
         PlottedSysts = []
         for xsystkey in data[fhkey].keys():
@@ -2045,16 +1983,16 @@ def plot_combined_scatters(data, labels, detector, selection, outdir, formats):
                                 hypo=hypo,
                                 trials=len(data[fhkey][xsystkey]['vals'])
                             )
-                            
-                            plt.subplot(SystNum-1,SystNum-1,subplotnum)
+
+                            plt.subplot(SystNum-1, SystNum-1, subplotnum)
 
                             plot_individual_scatter(
-                                xdata = data[fhkey][xsystkey],
-                                ydata = data[fhkey][ysystkey],
-                                labels = labels,
-                                xsystkey = xsystkey,
-                                ysystkey = ysystkey,
-                                plot_cor = False
+                                xdata=data[fhkey][xsystkey],
+                                ydata=data[fhkey][ysystkey],
+                                labels=labels,
+                                xsystkey=xsystkey,
+                                ysystkey=ysystkey,
+                                plot_cor=False
                             )
 
         plt.suptitle(MainTitle+r'\\'+FitTitle, fontsize=120)
@@ -2075,26 +2013,23 @@ def plot_combined_scatters(data, labels, detector, selection, outdir, formats):
 
 def plot_correlation_matrices(data, labels, detector, selection,
                               outdir, formats):
-    '''
-    This will plot the correlation matrices since the individual scatter plots 
-    are a pain to interpret on their own. This will plot them with a colour 
-    scale and, if the user has the PathEffects module then it will also write 
-    the values on the bins. If a number is invalid it will come up bright green.
-    '''
+    """Plot the correlation matrices since the individual scatter plots are a
+    pain to interpret on their own. This will plot them with a colour scale
+    and, if the user has the PathEffects module then it will also write the
+    values on the bins. If a number is invalid it will come up bright green.
+    """
     try:
         import matplotlib.patheffects as PathEffects
-        logging.warn("PathEffects could be imported, so the correlation values"
-                     " will be written on the bins. This is slow.")
+        logging.warn('PathEffects could be imported, so the correlation values'
+                     ' will be written on the bins. This is slow.')
         pe = True
-    except:
-        logging.warn("PathEffects could not be imported, so the correlation" 
-                     " values will not be written on the bins.")
+    except ImportError:
+        logging.warn('PathEffects could not be imported, so the correlation'
+                     ' values will not be written on the bins.')
         pe = False
 
-    outdir = os.path.join(outdir,'CorrelationMatrices')
-    if not os.path.exists(outdir):
-        logging.info('Making output directory %s'%outdir)
-        os.makedirs(outdir)
+    outdir = os.path.join(outdir, 'CorrelationMatrices')
+    mkdir(outdir)
 
     MainTitle = make_main_title(detector, selection, 'Correlation Coefficients')
     Systs = []
@@ -2111,7 +2046,7 @@ def plot_correlation_matrices(data, labels, detector, selection,
                 if tex_axis_label(xsystkey) not in Systs:
                     Systs.append(tex_axis_label(xsystkey))
                 for ysystkey in data[fhkey].keys():
-                    if (ysystkey != 'metric_val'):
+                    if ysystkey != 'metric_val':
                         hypo = fhkey.split('_')[0]
                         fid = fhkey.split('_')[-2]
                         FitTitle = make_fit_title(
@@ -2123,21 +2058,16 @@ def plot_correlation_matrices(data, labels, detector, selection,
                         # Calculate correlation
                         xvals = np.array(data[fhkey][xsystkey]['vals'])
                         yvals = np.array(data[fhkey][ysystkey]['vals'])
+                        msg = ('Parameter %s appears to not have been varied.'
+                               ' i.e. all of the values in the set are the'
+                               ' same. This will lead to NaN in the'
+                               ' correlation calculation and so it will not be'
+                               ' done.')
                         if len(set(xvals)) == 1:
-                            logging.warn(("Parameter %s appears to not have "
-                                          "been varied. i.e. all of the values"
-                                          " in the set are the same. This will"
-                                          " lead to NaN in the correlation "
-                                          "calculation and so it will not be "
-                                          "done."%xsystkey))
+                            logging.warn(msg, xsystkey)
                         if len(set(yvals)) == 1:
-                            logging.warn(("Parameter %s appears to not have "
-                                          "been varied. i.e. all of the values"
-                                          " in the set are the same. This will"
-                                          " lead to NaN in the correlation "
-                                          "calculation and so it will not be "
-                                          "done."%ysystkey))
-                        if (len(set(xvals)) != 1) and (len(set(yvals)) != 1):
+                            logging.warn(msg, ysystkey)
+                        if len(set(xvals)) != 1 and len(set(yvals)) != 1:
                             rho, pval = spearmanr(xvals, yvals)
                         else:
                             rho = np.nan
@@ -2147,7 +2077,7 @@ def plot_correlation_matrices(data, labels, detector, selection,
         all_corr_nparray = np.ma.masked_invalid(np.array(all_corr_lists))
         # Plot it!
         palette = plt.cm.RdBu
-        palette.set_bad('lime',1.0)
+        palette.set_bad('lime', 1.0)
         plt.imshow(
             all_corr_nparray,
             interpolation='none',
@@ -2169,7 +2099,7 @@ def plot_correlation_matrices(data, labels, detector, selection,
             rotation=0
         )
         plt.tight_layout()
-        plt.subplots_adjust(bottom=0.30,left=-0.30,right=1.05,top=0.9)
+        plt.subplots_adjust(bottom=0.30, left=-0.30, right=1.05, top=0.9)
         plt.title(MainTitle+r'\\'+FitTitle, fontsize=16)
         save_plot(
             labels=labels,
@@ -2182,8 +2112,8 @@ def plot_correlation_matrices(data, labels, detector, selection,
             end='correlation_matrix'
         )
         if pe:
-            for i in range(0,len(all_corr_nparray)):
-                for j in range(0,len(all_corr_nparray[0])):
+            for i in range(0, len(all_corr_nparray)):
+                for j in range(0, len(all_corr_nparray[0])):
                     plt.text(i, j, '%.2f'%all_corr_nparray[i][j],
                              fontsize='7',
                              verticalalignment='center',
@@ -2207,9 +2137,10 @@ def plot_correlation_matrices(data, labels, detector, selection,
         )
         plt.close()
 
-    
-def parse_args():
-    parser = ArgumentParser(description=__doc__)
+
+def parse_args(description=__doc__):
+    """Parse command line arguments"""
+    parser = ArgumentParser(description=description)
     parser.add_argument(
         '-d', '--dir', required=True,
         metavar='DIR', type=str,
@@ -2235,7 +2166,7 @@ def parse_args():
     )
     parser.add_argument(
         '-FM', '--fit_information', action='store_true', default=False,
-        help='''Flag to make plots of the minimiser information i.e. status, 
+        help='''Flag to make plots of the minimiser information i.e. status,
         number of iterations, time taken etc.'''
     )
     parser.add_argument(
@@ -2244,7 +2175,7 @@ def parse_args():
     )
     parser.add_argument(
         '-CP', '--combined_posteriors', action='store_true', default=False,
-        help='''Flag to plot combined posteriors for each h0 and h1 
+        help='''Flag to plot combined posteriors for each h0 and h1
         combination.'''
     )
     parser.add_argument(
@@ -2254,35 +2185,35 @@ def parse_args():
     parser.add_argument(
         '-CIS', '--combined_individual_scatter',
         action='store_true', default=False,
-        help='''Flag to plot all 2D scatter plots of one systematic with every 
+        help='''Flag to plot all 2D scatter plots of one systematic with every
         other systematic on one plot for each h0 and h1 combination.'''
     )
     parser.add_argument(
         '-CS', '--combined_scatter', action='store_true', default=False,
-        help='''Flag to plot all 2D scatter plots on one plot for each 
+        help='''Flag to plot all 2D scatter plots on one plot for each
         h0 and h1 combination.'''
     )
     parser.add_argument(
         '-CM', '--correlation_matrix', action='store_true', default=False,
-        help='''Flag to plot the correlation matrices for each h0 and h1 
+        help='''Flag to plot the correlation matrices for each h0 and h1
         combination.'''
     )
     parser.add_argument(
         '--threshold', type=float, default=0.0,
-        help='''Sets the threshold for which to remove 'outlier' trials. 
+        help='''Sets the threshold for which to remove 'outlier' trials.
         Ideally this will not be needed at all, but it is there in case of
-        e.g. failed minimiser. The higher this value, the more outliers will 
-        be included. Do not set this parameter if you want all trials to be 
+        e.g. failed minimiser. The higher this value, the more outliers will
+        be included. Do not set this parameter if you want all trials to be
         included.'''
     )
     parser.add_argument(
         '--extra-point', type=str, action='append',
-        help='''Extra lines to be added to the LLR plots. This is useful, for 
-        example, when you wish to add specific LLR fit values to the plot for 
-        comparison. These should be supplied as a single value e.g. x1 or 
-        as a path to a file with the value provided in one column that can be 
-        intepreted by numpy genfromtxt. Repeat this argument in conjunction 
-        with the extra points label below to specify multiple (and uniquely 
+        help='''Extra lines to be added to the LLR plots. This is useful, for
+        example, when you wish to add specific LLR fit values to the plot for
+        comparison. These should be supplied as a single value e.g. x1 or
+        as a path to a file with the value provided in one column that can be
+        intepreted by numpy genfromtxt. Repeat this argument in conjunction
+        with the extra points label below to specify multiple (and uniquely
         identifiable) sets of extra points.'''
     )
     parser.add_argument(
@@ -2290,7 +2221,7 @@ def parse_args():
         help='''The label(s) for the extra points above.'''
     )
     parser.add_argument(
-        '--outdir', metavar='DIR', type=str, required=True,
+        '--outdir', metavar='DIR', type=str, default=None,
         help='''Store all output plots to this directory. This will make
         further subdirectories, if needed, to organise the output plots.'''
     )
@@ -2310,55 +2241,40 @@ def parse_args():
 
 
 def main():
+    """Main"""
     args = parse_args()
-    init_args_d = vars(args)
 
     # NOTE: Removing extraneous args that won't get passed to instantiate the
     # HypoTesting object via dictionary's `pop()` method.
 
-    set_verbosity(init_args_d.pop('v'))
+    set_verbosity(args.v)
 
-    detector = init_args_d.pop('detector')
-    selection = init_args_d.pop('selection')
-    fitinfo = init_args_d.pop('fit_information')
-    iposteriors = init_args_d.pop('individual_posteriors')
-    cposteriors = init_args_d.pop('combined_posteriors')
-    iscatter = init_args_d.pop('individual_scatter')
-    ciscatter = init_args_d.pop('combined_individual_scatter')
-    cscatter = init_args_d.pop('combined_scatter')
-    cmatrix = init_args_d.pop('correlation_matrix')
-    threshold = init_args_d.pop('threshold')
-    extra_points = init_args_d.pop('extra_point')
-    extra_points_labels = init_args_d.pop('extra_point_label')
+    extra_points = args.extra_point
+    extra_points_labels = args.extra_point_label
     if extra_points is not None:
         if extra_points_labels is not None:
             if len(extra_points) != len(extra_points_labels):
-                raise ValueError("You must specify at least one label for each"
-                                 " set of extra points. Got %i label(s) for %s "
-                                 "set(s) of extra points."%(len(extra_points),
-                                 len(extra_points_labels)))
+                raise ValueError(
+                    'You must specify at least one label for each set of extra'
+                    ' points. Got %i label(s) for %s set(s) of extra points.'
+                    % (len(extra_points), len(extra_points_labels))
+                )
         else:
-            raise ValueError("You have specified %i set(s) of extra points but "
-                             "no labels to go with them."%len(extra_points))
+            raise ValueError(
+                'You have specified %i set(s) of extra points but no labels to'
+                ' go with them.' % len(extra_points)
+            )
     else:
         if extra_points_labels is not None:
-            raise ValueError("You have specified %i label(s) for extra points "
-                             "but no set(s) of extra points."%len(
-                                 extra_points_labels))
-    outdir = init_args_d.pop('outdir')
-    formats = {}
-    formats['png'] = init_args_d.pop('png')
-    formats['pdf'] = init_args_d.pop('pdf')
-    Save = False
-    for fileformat in formats:
-        Save = Save or formats[fileformat]
-        if formats[fileformat]:
-            logging.info("Files will be saved in %s format"%fileformat)
-    if not Save:
-        raise ValueError(
-            "You have not specified a format for the files to be saved in. " 
-            "Please specify either png, pdf or both in the arguments."
-        )
+            raise ValueError(
+                'You have specified %i label(s) for extra points but no set(s)'
+                ' of extra points.' % len(extra_points_labels)
+            )
+    formats = []
+    if args.png:
+        formats.append('png')
+    if args.pdf:
+        formats.append('pdf')
 
     if args.asimov:
         data_sets, all_params, labels, minimiser_info = extract_trials(
@@ -2368,141 +2284,142 @@ def main():
         )
         od = data_sets.values()[0]
         #if od['h1_fit_to_h0_fid']['fid_asimov']['metric_val'] > od['h0_fit_to_h1_fid']['fid_asimov']['metric_val']:
-        print np.sqrt(np.abs(od['h1_fit_to_h0_fid']['fid_asimov']['metric_val'] - od['h0_fit_to_h1_fid']['fid_asimov']['metric_val']))
+        print np.sqrt(np.abs(
+            od['h1_fit_to_h0_fid']['fid_asimov']['metric_val'] -
+            od['h0_fit_to_h1_fid']['fid_asimov']['metric_val']
+        ))
+        return
 
+    # Otherwise: LLR analysis
+    if args.outdir is None:
+        raise ValueError('Must specify --outdir when processing LLR results.')
+
+    if len(formats) > 0:
+        logging.info('Files will be saved in format(s) %s', formats)
     else:
-        data_sets, all_params, labels, minimiser_info = extract_trials(
-            logdir=args.dir,
-            fluctuate_fid=True,
-            fluctuate_data=False
-        )
+        raise ValueError('Must specify a plot file format, either --png or'
+                         ' --pdf, when processing LLR results.')
 
-        trial_nums = data_sets[
-            'toy_%s_asimov'%labels.dict['data_name']
-        ][
-            'h0_fit_to_h1_fid'
-        ].keys()
-        
-        fid_values = extract_fid_data(data_sets)
-        values = extract_data(data_sets)
+    data_sets, all_params, labels, minimiser_info = extract_trials(
+        logdir=args.dir,
+        fluctuate_fid=True,
+        fluctuate_data=False
+    )
 
-        for injkey in values.keys():
+    trial_nums = data_sets['toy_%s_asimov'%labels.dict['data_name']]['h0_fit_to_h1_fid'].keys()
 
-            if threshold != 0.0:
-                logging.info("Outlying trials will be removed with a "
-                             "threshold of %.2f"%threshold)
-                purge_failed_jobs(
-                    data = values[injkey],
-                    trial_nums = np.array(trial_nums),
-                    thresh = threshold
-                )
-            else:
-                logging.info("All trials will be included in the analysis.")
+    fid_values = extract_fid_data(data_sets)
+    values = extract_data(data_sets)
 
-            if len(trial_nums) != 1:
-                make_llr_plots(
-                    data = values[injkey],
-                    fid_data = fid_values[injkey],
-                    labels = labels.dict,
-                    detector = detector,
-                    selection = selection,
-                    extra_points = extra_points,
-                    extra_points_labels = extra_points_labels,
-                    outdir = outdir,
-                    formats = formats
-                )
+    for injkey in values.keys():
+        if args.threshold != 0.0:
+            logging.info('Outlying trials will be removed with a '
+                         'threshold of %.2f', args.threshold)
+            purge_failed_jobs(
+                data=values[injkey],
+                trial_nums=np.array(trial_nums),
+                thresh=args.threshold
+            )
+        else:
+            logging.info('All trials will be included in the analysis.')
 
-            make_fiducial_fits(
-                data = values[injkey],
-                fid_data = fid_values[injkey],
-                labels = labels.dict,
-                all_params = all_params,
-                detector = detector,
-                selection = selection,
-                outdir = outdir
+        if len(trial_nums) != 1:
+            make_llr_plots(
+                data=values[injkey],
+                fid_data=fid_values[injkey],
+                labels=labels.dict,
+                detector=args.detector,
+                selection=args.selection,
+                extra_points=args.extra_points,
+                extra_points_labels=extra_points_labels,
+                outdir=args.outdir,
+                formats=formats
             )
 
-            if fitinfo:
-                
-                plot_fit_information(
-                    minimiser_info=minimiser_info[injkey],
-                    labels = labels.dict,
-                    detector = detector,
-                    selection = selection,
-                    outdir=outdir,
-                    formats = formats
-                )
+        make_fiducial_fits(
+            data=values[injkey],
+            fid_data=fid_values[injkey],
+            labels=labels.dict,
+            all_params=all_params,
+            detector=args.detector,
+            selection=args.selection,
+            outdir=args.outdir
+        )
 
-            if iposteriors:
+        if args.fitinfo:
+            plot_fit_information(
+                minimiser_info=minimiser_info[injkey],
+                labels=labels.dict,
+                detector=args.detector,
+                selection=args.selection,
+                outdir=args.outdir,
+                formats=formats
+            )
 
-                plot_individual_posteriors(
-                    data = values[injkey],
-                    fid_data = fid_values[injkey],
-                    labels = labels.dict,
-                    all_params = all_params,
-                    detector = detector,
-                    selection = selection,
-                    outdir = outdir,
-                    formats = formats
-                )
+        if args.iposteriors:
+            plot_individual_posteriors(
+                data=values[injkey],
+                fid_data=fid_values[injkey],
+                labels=labels.dict,
+                all_params=all_params,
+                detector=args.detector,
+                selection=args.selection,
+                outdir=args.outdir,
+                formats=formats
+            )
 
-            if cposteriors:
+        if args.cposteriors:
+            plot_combined_posteriors(
+                data=values[injkey],
+                fid_data=fid_values[injkey],
+                labels=labels.dict,
+                all_params=all_params,
+                detector=args.detector,
+                selection=args.selection,
+                outdir=args.outdir,
+                formats=formats
+            )
 
-                plot_combined_posteriors(
-                    data = values[injkey],
-                    fid_data = fid_values[injkey],
-                    labels = labels.dict,
-                    all_params = all_params,
-                    detector = detector,
-                    selection = selection,
-                    outdir = outdir,
-                    formats = formats
-                )
+        if args.iscatter:
+            plot_individual_scatters(
+                data=values[injkey],
+                labels=labels.dict,
+                detector=args.detector,
+                selection=args.selection,
+                outdir=args.outdir,
+                formats=formats
+            )
 
-            if iscatter:
+        if args.ciscatter:
+            plot_combined_individual_scatters(
+                data=values[injkey],
+                labels=labels.dict,
+                detector=args.detector,
+                selection=args.selection,
+                outdir=args.outdir,
+                formats=formats
+            )
 
-                plot_individual_scatters(
-                    data = values[injkey],
-                    labels = labels.dict,
-                    detector = detector,
-                    selection = selection,
-                    outdir = outdir,
-                    formats = formats
-                )
+        if args.cscatter:
+            plot_combined_scatters(
+                data=values[injkey],
+                labels=labels.dict,
+                detector=args.detector,
+                selection=args.selection,
+                outdir=args.outdir,
+                formats=formats
+            )
 
-            if ciscatter:
+        if args.cmatrix:
+            plot_correlation_matrices(
+                data=values[injkey],
+                labels=labels.dict,
+                detector=args.detector,
+                selection=args.selection,
+                outdir=args.outdir,
+                formats=formats
+            )
 
-                plot_combined_individual_scatters(
-                    data = values[injkey],
-                    labels = labels.dict,
-                    detector = detector,
-                    selection = selection,
-                    outdir = outdir,
-                    formats = formats
-                )
 
-            if cscatter:
-
-                plot_combined_scatters(
-                    data = values[injkey],
-                    labels = labels.dict,
-                    detector = detector,
-                    selection = selection,
-                    outdir = outdir,
-                    formats = formats
-                )
-
-            if cmatrix:
-
-                plot_correlation_matrices(
-                    data = values[injkey],
-                    labels = labels.dict,
-                    detector = detector,
-                    selection = selection,
-                    outdir = outdir,
-                    formats = formats
-                )
-                
-        
 if __name__ == '__main__':
     main()

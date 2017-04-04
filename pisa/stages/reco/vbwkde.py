@@ -724,6 +724,8 @@ class vbwkde(Stage):
 
         if isinstance(transform_groups, basestring):
             transform_groups = flavintGroupsFromString(transform_groups)
+        elif transform_groups is None:
+            transform_groups = flavintGroupsFromString('')
         self.transform_groups = transform_groups
 
         # `sum_grouped_flavints` ...

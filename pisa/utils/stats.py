@@ -10,8 +10,9 @@ import numpy as np
 from scipy.special import gammaln
 from uncertainties import unumpy as unp
 
+from pisa import FTYPE
 from pisa.utils.barlow import likelihoods
-from pisa.utils.comparisons import isbarenumeric
+from pisa.utils.comparisons import FTYPE_PREC, isbarenumeric
 from pisa.utils.log import logging
 
 
@@ -21,7 +22,7 @@ __all__ = ['SMALL_POS', 'CHI2_METRICS', 'LLH_METRICS', 'ALL_METRICS',
            'norm_conv_poisson', 'conv_llh', 'barlow_llh', 'mod_chi2']
 
 
-SMALL_POS = 1e-10
+SMALL_POS = 1e-10 #if FTYPE == np.float64 else FTYPE_PREC
 """A small positive number with which to replace numbers smaller than it"""
 
 CHI2_METRICS = ['chi2', 'mod_chi2']
@@ -104,13 +105,20 @@ def chi2(actual_values, expected_values):
         #       still destroy a minimizer's hopes and dreams...
 
         # Replace 0's with small positive numbers to avoid inf in division
-        np.clip(actual_values, a_min=SMALL_POS, a_max=np.inf, out=actual_values)
+        np.clip(actual_values, a_min=SMALL_POS, a_max=np.inf,
+                out=actual_values)
         np.clip(expected_values, a_min=SMALL_POS, a_max=np.inf,
                 out=expected_values)
 
         delta = actual_values - expected_values
 
-    return (delta * delta) / actual_values
+    if np.all(np.abs(delta) < 5*FTYPE_PREC):
+        return np.zeros_like(delta, dtype=FTYPE)
+
+    assert np.all(actual_values > 0), str(actual_values)
+    chi2_val = np.square(delta) / actual_values
+    assert np.all(chi2_val > 0), str(chi2_val)
+    return chi2_val
 
 
 def llh(actual_values, expected_values):

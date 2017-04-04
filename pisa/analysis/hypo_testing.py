@@ -9,7 +9,6 @@ Hypothesis testing: How do two hypotheses compare for describing MC or data?
 This script/module can run either Asimov or LLR analyses. See
 `hypo_testing_postprocess.py` to derive significances, etc. from the files
 logged by this script.
-
 """
 
 
@@ -1486,9 +1485,16 @@ class HypoTesting(Analysis):
                 sort_keys=False)
 
 
-def parse_args():
+def parse_args(description=__doc__):
+    """Parse command line args.
+
+    Returns
+    -------
+    init_args_d : dict
+
+    """
     parser = ArgumentParser(
-        description=__doc__,
+        description=description,
         formatter_class=ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
@@ -1497,9 +1503,23 @@ def parse_args():
         help='Directory into which to store results and metadata.'
     )
     parser.add_argument(
-        '-m', '--minimizer-settings',
-        type=str, metavar='MINIMIZER_CFG', required=True,
-        help='''Settings related to the optimizer used in the LLR analysis.'''
+        '--min-settings',
+        type=str, metavar='MINIMIZER_CFG', default=None,
+        help='''Minimizer settings config file.'''
+    )
+    parser.add_argument(
+        '--min-method',
+        type=str, default=None, choices=('l-bfgs-b', 'slsqp'),
+        help='''Name of minimizer to use. Note that this takes precedence over
+        the minimizer method specified via the --min-settings config
+        file.'''
+    )
+    parser.add_argument(
+        '--min-opt',
+        type=str, metavar='OPTION:VALUE', nargs='+', default=None,
+        help='''Minimizer option:value pair(s) (can specify multiple).
+        Values specified here override any of the same name in the config file
+        specified by --min-settings'''
     )
     parser.add_argument(
         '--no-octant-check',
@@ -1675,7 +1695,7 @@ def parse_args():
         complete inability to track provenance of code.)'''
     )
     parser.add_argument(
-        '--no-minimizer-history',
+        '--no-min-history',
         action='store_true',
         help='''Do not store minimizer history (steps). This behavior is also
         enforced if --blind is specified.'''
@@ -1690,7 +1710,65 @@ def parse_args():
         '-v', action='count', default=None,
         help='set verbosity level'
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    assert args.min_settings is not None or args.min_method is not None
+    init_args_d = vars(args)
+
+    set_verbosity(init_args_d.pop('v'))
+
+    min_settings_from_file = init_args_d.pop('min_settings')
+    minimizer = init_args_d.pop('min_method')
+    min_opt = init_args_d.pop('min_opt')
+
+    # TODO: put this datastructure remnant from PISA 2 out of its misery...
+    minimizer_settings = dict(
+        method=dict(value='', desc='no desc'),
+        options=dict(value=dict(), desc=dict())
+    )
+
+    if min_settings_from_file is not None:
+        minimizer_settings.update(from_file(min_settings_from_file))
+
+    if minimizer is not None:
+        minimizer_settings['method'] = dict(value=minimizer, desc='no desc')
+
+    if min_opt is not None:
+        for opt_val_str in min_opt:
+            opt, val_str = [s.strip() for s in opt_val_str.split(':')]
+            try:
+                val = int(val_str)
+            except ValueError:
+                try:
+                    val = float(val_str)
+                except ValueError:
+                    val = val_str
+            minimizer_settings['options']['value'][opt] = val
+            minimizer_settings['options']['desc'][opt] = 'no desc'
+    init_args_d['minimizer_settings'] = minimizer_settings
+
+    init_args_d['check_octant'] = not init_args_d.pop('no_octant_check')
+    init_args_d['check_ordering'] = init_args_d.pop('ordering_check')
+
+    init_args_d['data_is_data'] = not init_args_d.pop('data_is_mc')
+
+    init_args_d['store_minimizer_history'] = (
+        not init_args_d.pop('no_min_history')
+    )
+
+    other_metrics = init_args_d.pop('other_metric')
+    if other_metrics is not None:
+        other_metrics = [s.strip().lower() for s in other_metrics]
+        if 'all' in other_metrics:
+            other_metrics = sorted(ALL_METRICS)
+        if init_args_d['metric'] in other_metrics:
+            other_metrics.remove(init_args_d['metric'])
+        if len(other_metrics) == 0:
+            other_metrics = None
+        else:
+            logging.info('Will evaluate other metrics %s', other_metrics)
+        init_args_d['other_metrics'] = other_metrics
+
+    return init_args_d
 
 
 # TODO: make this work with Python package resources, not merely absolute
@@ -1711,35 +1789,25 @@ def normcheckpath(path, checkdir=False):
     return normpath
 
 
-def main():
-    args = parse_args()
-    init_args_d = vars(args)
+def main(return_outputs=False):
+    """Setup distribution makers and run the hypo_testing process.
 
+    Parameters
+    ----------
+    return_outputs : bool
+        Whether to return the hypo_testing object
+
+    Returns
+    -------
+    None or hypo_testing : HypoTesting
+        If `return_outputs` is True, returns the object used for running the
+        analysis (e.g. for calling this script/function from an interactive
+        shell).
+
+    """
     # NOTE: Removing extraneous args that won't get passed to instantiate the
     # HypoTesting object via dictionary's `pop()` method.
-
-    set_verbosity(init_args_d.pop('v'))
-    init_args_d['check_octant'] = not init_args_d.pop('no_octant_check')
-    init_args_d['check_ordering'] = init_args_d.pop('ordering_check')
-
-    init_args_d['data_is_data'] = not init_args_d.pop('data_is_mc')
-
-    init_args_d['store_minimizer_history'] = (
-        not init_args_d.pop('no_minimizer_history')
-    )
-
-    other_metrics = init_args_d.pop('other_metric')
-    if other_metrics is not None:
-        other_metrics = [s.strip().lower() for s in other_metrics]
-        if 'all' in other_metrics:
-            other_metrics = sorted(ALL_METRICS)
-        if init_args_d['metric'] in other_metrics:
-            other_metrics.remove(init_args_d['metric'])
-        if len(other_metrics) == 0:
-            other_metrics = None
-        else:
-            logging.info('Will evaluate other metrics %s', other_metrics)
-        init_args_d['other_metrics'] = other_metrics
+    init_args_d = parse_args()
 
     # Normalize and convert `*_pipeline` filenames; store to `*_maker`
     # (which is argument naming convention that HypoTesting init accepts).
@@ -1765,6 +1833,9 @@ def main():
     # Run the analysis
     hypo_testing.run_analysis()
 
+    if return_outputs:
+        return hypo_testing
+
 
 if __name__ == '__main__':
-    main()
+    hypo_testing = main(return_outputs=True)

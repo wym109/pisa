@@ -148,23 +148,30 @@ class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
         from pisa.utils.log import logging
         if isinstance(obj, np.ndarray):
-            return obj.tolist()
+            return obj.astype(np.float64).tolist()
+
         # TODO: poor form to have a way to get this into a JSON file but no way
         # to get it out of a JSON file... so either write a deserializer, or
         # remove this and leave it to other objects to do the following.
-        elif isinstance(obj, pint.quantity._Quantity):
+        if isinstance(obj, pint.quantity._Quantity):
             return obj.to_tuple()
+
         # NOTE: np.bool_ is the *Numpy* bool type, while np.bool is alias for
         # Python bool type, hence this conversion
-        elif isinstance(obj, np.bool_):
+        if isinstance(obj, np.bool_):
             return bool(obj)
-        elif hasattr(obj, 'serializable_state'):
+
+        if hasattr(obj, 'serializable_state'):
             return obj.serializable_state
+
+        if isinstance(obj, np.float32):
+            return float(obj)
+
         try:
             return json.JSONEncoder.default(self, obj)
         except:
-            logging.error('JSON serialization for %s not implemented',
-                          type(obj).__name__)
+            logging.error('JSON serialization for %s, type %s not implemented',
+                          obj, type(obj))
             raise
 
 

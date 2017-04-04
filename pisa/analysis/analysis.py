@@ -21,7 +21,7 @@ import numpy as np
 import pint
 import scipy.optimize as optimize
 
-from pisa import ureg
+from pisa import FTYPE, ureg
 from pisa.core.map import Map, MapSet
 from pisa.core.param import ParamSet
 from pisa.utils.log import logging
@@ -29,28 +29,186 @@ from pisa.utils.fileio import to_file
 from pisa.utils.stats import METRICS_TO_MAXIMIZE
 
 
-__all__ = ['Analysis', 'Counter']
+__all__ = ['MINIMIZERS_USING_SYMM_GRAD',
+           'set_minimizer_defaults', 'validate_minimizer_settings',
+           'Counter', 'Analysis']
+
+
+MINIMIZERS_USING_SYMM_GRAD = ('l-bfgs-b',)
+"""Minimizers that use symmetrical steps on either side of a point to compute
+gradients. See https://github.com/scipy/scipy/issues/4916"""
+
+
+# TODO: add Nelder-Mead, as it was used previously...
+def set_minimizer_defaults(minimizer_settings):
+    """Fill in default values for minimizer settings.
+
+    Parameters
+    ----------
+    minimizer_settings : dict
+
+    Returns
+    -------
+    new_minimizer_settings : dict
+
+    """
+    new_minimizer_settings = dict(
+        method=dict(value='', desc=''),
+        options=dict(value=dict(), desc=dict())
+    )
+    new_minimizer_settings.update(minimizer_settings)
+
+    sqrt_ftype_eps = np.sqrt(np.finfo(FTYPE).eps)
+    opt_defaults = {}
+    method = minimizer_settings['method']['value'].lower()
+
+    if method == 'l-bfgs-b' and FTYPE == np.float64:
+        # From `scipy.optimize.lbfgsb._minimize_lbfgsb`
+        opt_defaults.update(dict(
+            maxcor=10, ftol=2.2204460492503131e-09, gtol=1e-5, eps=1e-8,
+            maxfun=15000, maxiter=15000, iprint=-1, maxls=20
+        ))
+    elif method == 'l-bfgs-b' and FTYPE == np.float32:
+        # Adapted to lower precision
+        opt_defaults.update(dict(
+            maxcor=10, ftol=sqrt_ftype_eps, gtol=1e-3, eps=1e-5,
+            maxfun=15000, maxiter=15000, iprint=-1, maxls=20
+        ))
+    elif method == 'slsqp' and FTYPE == np.float64:
+        opt_defaults.update(dict(
+            maxiter=100, ftol=1e-6, iprint=0, eps=sqrt_ftype_eps,
+        ))
+    elif method == 'slsqp' and FTYPE == np.float32:
+        opt_defaults.update(dict(
+            maxiter=100, ftol=1e-4, iprint=0, eps=sqrt_ftype_eps
+        ))
+    else:
+        raise ValueError('Unhandled minimizer "%s" / FTYPE=%s'
+                         % (method, FTYPE))
+
+    opt_defaults.update(new_minimizer_settings['options']['value'])
+
+    new_minimizer_settings['options']['value'] = opt_defaults
+
+    # Populate the descriptions with something
+    for opt_name in new_minimizer_settings['options']['value']:
+        if opt_name not in new_minimizer_settings['options']['desc']:
+            new_minimizer_settings['options']['desc'] = 'no desc'
+
+    return new_minimizer_settings
+
+
+# TODO: add Nelder-Mead, as it was used previously...
+def validate_minimizer_settings(minimizer_settings):
+    """Validate minimizer settings.
+
+    See source for specific thresholds set.
+
+    Parameters
+    ----------
+    minimizer_settings : dict
+
+    Raises
+    ------
+    ValueError
+        If any minimizer settings are deemed to be invalid.
+
+    """
+    ftype_eps = np.finfo(FTYPE).eps
+    method = minimizer_settings['method']['value'].lower()
+    options = minimizer_settings['options']['value']
+    if method == 'l-bfgs-b':
+        must_have = ('maxcor', 'ftol', 'gtol', 'eps', 'maxfun', 'maxiter',
+                     'maxls')
+        may_have = must_have + ('args', 'jac', 'bounds', 'disp', 'iprint',
+                                'callback')
+    elif method == 'slsqp':
+        must_have = ('maxiter', 'ftol', 'eps')
+        may_have = must_have + ('args', 'jac', 'bounds', 'constraints',
+                                'iprint', 'disp', 'callback')
+
+    missing = set(must_have).difference(set(options))
+    excess = set(options).difference(set(may_have))
+    if len(missing) > 0:
+        raise ValueError('Missing the following options to %s minimizer: %s'
+                         % (method, missing))
+    if len(excess) > 0:
+        raise ValueError('Excess options to %s minimizer: %s'
+                         % (method, excess))
+
+    eps_msg = '%s minimizer option %s(=%e) is < %d * FTYPE_EPS(=%e)'
+    scale_msg = '%s minimizer option %s(=%e) is > %d * %s(=%e)'
+
+    if method == 'l-bfgs-b':
+        err_lim, warn_lim = 5, 20
+        for s in ['ftol', 'gtol']:
+            val = options[s]
+            if val < err_lim * ftype_eps:
+                raise ValueError(eps_msg % (method, s, val, err_lim, ftype_eps))
+            if val < warn_lim * ftype_eps:
+                logging.warn(eps_msg, method, s, val, warn_lim, ftype_eps)
+
+        err_lim, warn_lim = 2, 10
+        val = options['eps']
+        if val < err_lim * ftype_eps:
+            raise ValueError(eps_msg % (method, 'eps', val, err_lim, ftype_eps))
+        if val < warn_lim * ftype_eps:
+            logging.warn(eps_msg, method, 'eps', val, warn_lim, ftype_eps)
+
+        err_lim, warn_lim = 4, 1
+        for s in ['ftol', 'gtol']:
+            if options['eps'] > err_lim * options[s]:
+                raise ValueError(scale_msg % (method, 'eps', options['eps'],
+                                              err_lim, s, options[s]))
+            if options['eps'] > warn_lim * options[s]:
+                logging.warn(scale_msg, method, 'eps', options['eps'],
+                             warn_lim, s, options[s])
+
+    if method == 'slsqp':
+        val = options['ftol']
+        if val < 3 * ftype_eps:
+            raise ValueError(eps_msg % (method, 'ftol', val, 3, ftype_eps))
+        if val < 10 * ftype_eps:
+            logging.warn(eps_msg, method, 'ftol', val, 10, ftype_eps)
+
+        val = options['eps']
+        if val < ftype_eps:
+            raise ValueError(eps_msg % (method, 'eps', val, 1, ftype_eps))
+        if val < 2 * ftype_eps:
+            logging.warn(eps_msg, method, 'eps', val, 10, ftype_eps)
+
+        err_lim, warn_lim = 4, 1
+        if options['eps'] > err_lim * options['ftol']:
+            raise ValueError(scale_msg % (method, 'eps', options['eps'],
+                                          err_lim, 'ftol', options['ftol']))
+        if options['eps'] > warn_lim * options['ftol']:
+            logging.warn(scale_msg, method, 'eps', options['eps'], warn_lim,
+                         'ftol', options['ftol'])
+
 
 # TODO: move this to a central location prob. in utils
 class Counter(object):
+    """Simple counter object for use as a minimizer callback."""
     def __init__(self, i=0):
-        self._i = i
+        self._count = i
 
     def __str__(self):
-        return str(self._i)
+        return str(self._count)
 
     def __repr__(self):
         return str(self)
 
     def __iadd__(self, inc):
-        self._i += inc
+        self._count += inc
 
     def reset(self):
-        self._i = 0
+        """Reset counter"""
+        self._count = 0
 
     @property
     def count(self):
-        return self._i
+        """int : Current count"""
+        return self._count
 
 
 class Analysis(object):
@@ -248,7 +406,7 @@ class Analysis(object):
 
         metric : string
 
-        minimizer_settings : string
+        minimizer_settings : dict
 
         other_metrics : None, string, or sequence of strings
 
@@ -265,23 +423,53 @@ class Analysis(object):
             'minimizer_metadata'
 
         """
+        minimizer_settings = set_minimizer_defaults(minimizer_settings)
+        validate_minimizer_settings(minimizer_settings)
+
         sign = -1 if metric in METRICS_TO_MAXIMIZE else +1
 
         # Get starting free parameter values
         x0 = hypo_maker.params.free._rescaled_values
 
-        # TODO: does this break if not using bfgs?
+        minimizer_method = minimizer_settings['method']['value'].lower()
+        if minimizer_method in MINIMIZERS_USING_SYMM_GRAD:
+            logging.warning(
+                'Minimizer %s requires artificial boundaries SMALLER than the'
+                ' user-specified boundaries (so that numerical gradients do'
+                ' not exceed the user-specified boundaries).',
+                minimizer_method
+            )
+            step_size = minimizer_settings['options']['value']['eps']
+            bounds = [(0 + step_size, 1 - step_size)]*len(x0)
+        else:
+            bounds = [(0, 1)]*len(x0)
 
-        # bfgs steps outside of given bounds by 1 epsilon to evaluate gradients
-        minimizer_kind = minimizer_settings['options']['value']
-        try:
-            epsilon = minimizer_kind['eps']
-        except KeyError:
-            epsilon = minimizer_kind['epsilon']
-        bounds = [(0+epsilon, 1-epsilon)]*len(x0)
+        for param, x0_val, bds in zip(hypo_maker.params.free, x0, bounds):
+            if x0_val < bds[0]:
+                raise ValueError(
+                    'Param %s, initial value %e exceeds the lower bound.'
+                    % (param.name, param.value)
+                )
+            if x0_val > bds[1]:
+                raise ValueError(
+                    'Param %s, initial value %e exceeds the upper bound.'
+                    % (param.name, param.value)
+                )
 
-        logging.debug('Running the %s minimizer.',
-                      minimizer_settings['method']['value'])
+            if np.isclose(x0_val, bds[0], atol=np.finfo(FTYPE).eps, rtol=0):
+                logging.warn(
+                    'Param %s, initial value value %e is at the lower bound;'
+                    ' minimization may fail as a result.',
+                    param.name, param.value
+                )
+            if np.isclose(x0_val, bds[1], atol=np.finfo(FTYPE).eps, rtol=0):
+                logging.warn(
+                    'Param %s, initial value value %e is at the upper bound;'
+                    ' minimization may fail as a rsult.',
+                    param.name, param.value
+                )
+
+        logging.debug('Running the %s minimizer...', minimizer_method)
 
         # Using scipy.optimize.minimize allows a whole host of minimizers to be
         # used.
@@ -336,11 +524,11 @@ class Analysis(object):
 
         minimizer_time = end_t - start_t
 
-        logging.info('Total time to optimize: %8.4f s;'
-                     ' # of dists generated: %6d;'
-                     ' avg dist gen time: %10.4f ms',
-                     minimizer_time, counter.count,
-                     minimizer_time*1000./counter.count)
+        logging.info(
+            'Total time to optimize: %8.4f s; # of dists generated: %6d;'
+            ' avg dist gen time: %10.4f ms',
+            minimizer_time, counter.count, minimizer_time*1000./counter.count
+        )
 
         # Will not assume that the minimizer left the hypo maker in the
         # minimized state, so set the values now (also does conversion of
@@ -381,6 +569,11 @@ class Analysis(object):
         if blind:
             hypo_asimov_dist = None
         fit_info['hypo_asimov_dist'] = hypo_asimov_dist
+
+        if not optimize_result.success:
+            if not blind:
+                logging.error(optimize_result.message)
+            raise ValueError('Optimization failed.')
 
         return fit_info
 
@@ -847,6 +1040,3 @@ class Analysis(object):
                 to_file(results, outfile)
 
         return results
-
-def test_Counter():
-    pass
