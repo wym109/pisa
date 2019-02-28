@@ -24,8 +24,7 @@ Some examples are given to facilitate understanding.
     * [Pipeline](/pisa/core/pipeline.py) ...
       * [ParamSet](/pisa/core/param.py)
       * [Stage](/pisa/core/stage.py) s0: flux / service honda (inherits from Stage class)
-      * [Stage](/pisa/core/stage.py) s1: osc / service prob3cpu (inherits from Stage)
-      * [Stage](/pisa/core/stage.py) s2: aeff / service hist (inherits from Stage)
+      * [Stage](/pisa/core/stage.py) s1: aeff / service hist (inherits from Stage)
       * [Stage](/pisa/core/stage.py) ...
         * [ParamSet](/pisa/core/param.py)
           * [Param](/pisa/core/param.py) foo (e.g. energy_scale)

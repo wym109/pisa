@@ -57,9 +57,16 @@ __all__ = [
     'complex64', 'complex128', 'complex256',
 
     # Constants
-    'PYCUDA_AVAIL', 'NUMBA_AVAIL', 'NUMBA_CUDA_AVAIL', 'TARGET',
-    'OMP_NUM_THREADS', 'FTYPE', 'HASH_SIGFIGS', 'EPSILON',
-    'C_FTYPE', 'C_PRECISION_DEF', 'CACHE_DIR'
+    'NUMBA_AVAIL',
+    'NUMBA_CUDA_AVAIL',
+    'TARGET',
+    'OMP_NUM_THREADS',
+    'FTYPE',
+    'HASH_SIGFIGS',
+    'EPSILON',
+    'C_FTYPE',
+    'C_PRECISION_DEF',
+    'CACHE_DIR',
 ]
 
 
@@ -109,15 +116,6 @@ if os.environ.has_key('OMP_NUM_THREADS'):
     OMP_NUM_THREADS = int(os.environ['OMP_NUM_THREADS'])
     assert OMP_NUM_THREADS >= 1
 
-
-PYCUDA_AVAIL = False
-try:
-    from pycuda import driver
-except Exception:
-    pass #logging.debug('Failed to import or use pycuda', exc_info=True)
-else:
-    PYCUDA_AVAIL = True
-    del driver
 
 NUMBA_AVAIL = False
 def dummy_func(x):

@@ -13,7 +13,6 @@ This directory contains example pipeline configuration files for most of the sta
 | `example_cfx.cfg`           | MC-reweighting unfolding pipeline that uses the `roounfold` service and includes treatment of discrete systematics 
 | `example_dummy.cfg`         | Demonstrates a simple pipeline using just the flux/dummy and osc/dummy file
 | `example_gen_lvl.cfg`       | simple MC-reweighting pipeline that processes generator-level events
-| `example_gpu.cfg`           | identical to `example.cfg` but with the oscillations stage employing a GPU-bases service (`prob3gpu`)
 | `example_mceq.cfg`          | Use of MCEq for flux
 | `example_muon_sample.cfg`   | MC-reweighting pipeline for muons
 | `example_cake_nusquids.cfg` | Use NuQuids for neutrino oscillations

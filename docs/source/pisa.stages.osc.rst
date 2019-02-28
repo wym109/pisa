@@ -7,8 +7,6 @@ Subpackages
 .. toctree::
 
     pisa.stages.osc.nusquids
-    pisa.stages.osc.prob3cc
-    pisa.stages.osc.prob3cuda
     pisa.stages.osc.prob3numba
 
 Submodules
@@ -82,22 +80,6 @@ pisa.stages.osc.pi\_prob3 module
 --------------------------------
 
 .. automodule:: pisa.stages.osc.pi_prob3
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-pisa.stages.osc.prob3cpu module
--------------------------------
-
-.. automodule:: pisa.stages.osc.prob3cpu
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-pisa.stages.osc.prob3gpu module
--------------------------------
-
-.. automodule:: pisa.stages.osc.prob3gpu
     :members:
     :undoc-members:
     :show-inheritance:

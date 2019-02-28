@@ -16,17 +16,9 @@ The authors of that software / the paper that it is based upon (A. Fedynitch, R.
 The form of the citation that they request is found in their documentation at
 > http://mceq.readthedocs.io/en/latest/citations.html
 
-## Prob3++
+## prob3numba
 
-Files in the directory `pisa/stages/osc/prob3` were written by members of the Super-Kamiokande collaboration and are offered for public use. The original source code can be found at
-> http://webhome.phy.duke.edu/~raw22/public/Prob3++
-
-and that work is based on the paper
-> V. D. Barger, K. Whisnant, S. Pakvasa, and R. J. N. Phillips, Phys. Rev. D 22, 2718 (1980)
-
-## prob3GPU
-
-Files in the directory `pisa/pisa/stages/osc/prob3cuda` were adapted from the CUDA re-implementation of Prob3++ called prob3GPU
+Files in the directory `pisa/pisa/stages/osc/prob3numba` were adapted from the CUDA re-implementation of Prob3++ called prob3GPU
 > https://github.com/rcalland/probGPU
 
 which is cited by the paper

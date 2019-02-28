@@ -60,16 +60,16 @@ pisa.utils.coords module
     :undoc-members:
     :show-inheritance:
 
-pisa.utils.cross_sections module
--------------------------------
+pisa.utils.cross\_sections module
+---------------------------------
 
 .. automodule:: pisa.utils.cross_sections
     :members:
     :undoc-members:
     :show-inheritance:
 
-pisa.utils.data_proc_params module
---------------------------------
+pisa.utils.data\_proc\_params module
+------------------------------------
 
 .. automodule:: pisa.utils.data_proc_params
     :members:
@@ -124,14 +124,6 @@ pisa.utils.gaussians\_cython module
     :undoc-members:
     :show-inheritance:
 
-pisa.utils.gpu\_hist module
----------------------------
-
-.. automodule:: pisa.utils.gpu_hist
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 pisa.utils.hash module
 ----------------------
 
@@ -144,14 +136,6 @@ pisa.utils.hdf module
 ---------------------
 
 .. automodule:: pisa.utils.hdf
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-pisa.utils.hdf.yapf module
---------------------------
-
-.. automodule:: pisa.utils.hdf.yapf
     :members:
     :undoc-members:
     :show-inheritance:

@@ -28,7 +28,6 @@ See the directory listing below for a brief description of the utilities contain
 | `format.py`                   | Nice formatting for numbers, timestamps, etc.
 | `gaussians.py`                | Sum-of-1D Gaussians functions for use by e.g. KDE tools
 | `gaussians_cython.pyx`        | Cython implementation of sum-of-1D Gaussians
-| `gpu_hist.py`                 | Histogramming for GPU arrays
 | `hash.py`                     | Hashing PISA and other Python objects
 | `hdf.py`                      | Read from and store to HDF5 files in PISA standard format
 | `hdfchain.py`                 | Chain multiple HDF5 files together but read as one file

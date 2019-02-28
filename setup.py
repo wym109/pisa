@@ -17,11 +17,11 @@ and install basic PISA package (in editable mode via -e flag) via
 
 or include optional dependencies by specifying them in brackets
 
-    $ pip install -e ./pisa[cuda,numba,develop] -r ./pisa/requirements.txt
+    $ pip install -e ./pisa[numba,develop] -r ./pisa/requirements.txt
 
 If you wish to upgrade PISA and/or its dependencies:
 
-    $ pip install ./pisa[cuda,numba,develop] -r ./pisa/requirements.txt --upgrade
+    $ pip install ./pisa[numba,develop] -r ./pisa/requirements.txt --upgrade
 """
 
 
@@ -39,8 +39,14 @@ from setuptools import setup, Extension, find_packages
 import versioneer
 
 
-__all__ = ['setup_cc', 'check_cuda', 'OMP_TEST_PROGRAM', 'check_openmp',
-           'CustomBuild', 'CustomBuildExt', 'do_setup']
+__all__ = [
+    'setup_cc',
+    'OMP_TEST_PROGRAM',
+    'check_openmp',
+    'CustomBuild',
+     'CustomBuildExt',
+    'do_setup',
+]
 
 __author__ = 'S. Boeser, J.L. Lanfranchi, P. Eller, M. Hieronymus'
 
@@ -59,10 +65,6 @@ __license__ = '''Copyright (c) 2014-2017, The IceCube Collaboration
  limitations under the License.'''
 
 
-# TODO: Compile CUDA kernel(s) here (since no need for dynamic install yet...
-# unless e.g. datatype becomes optional and therefore compilation of the kernel
-# needs to be done at run-time).
-
 # TODO: address some/all of the following in the `setup()` method?
 # * package_data
 # * exclude_package_data : dict
@@ -75,17 +77,6 @@ def setup_cc():
     """Set env var CC=cc if it is undefined"""
     if 'CC' not in os.environ or os.environ['CC'].strip() == '':
         os.environ['CC'] = 'cc'
-
-
-def check_cuda():
-    """pycuda is considered to be present if it can be imported"""
-    try:
-        import pycuda.driver # pylint: disable=unused-variable
-    except Exception:
-        cuda = False
-    else:
-        cuda = True
-    return cuda
 
 
 # See http://openmp.org/wp/openmp-compilers/
@@ -171,24 +162,6 @@ def do_setup():
     # Collect (build-able) external modules and package_data
     ext_modules = []
 
-    # Prob3 oscillation code (pure C++, no CUDA)
-    prob3cpu_module = Extension(
-        name='pisa.stages.osc.prob3cc._BargerPropagator',
-        sources=[
-            'pisa/stages/osc/prob3cc/BargerPropagator.i',
-            'pisa/stages/osc/prob3cc/BargerPropagator.cc',
-            'pisa/stages/osc/prob3cc/EarthDensity.cc',
-            'pisa/stages/osc/prob3cc/mosc.c',
-            'pisa/stages/osc/prob3cc/mosc3.c'
-        ],
-        include_dirs=[
-            'pisa/stages/osc/prob3cc/'
-        ],
-        extra_compile_args=['-Wall', '-O3', '-fPIC'],
-        swig_opts=['-c++'],
-    )
-    ext_modules.append(prob3cpu_module)
-
     # Include these things in source (and binary?) distributions
     package_data = {}
 
@@ -232,11 +205,6 @@ def do_setup():
     package_data['pisa.utils'] = [
         '*.h',
         '*.pyx'
-    ]
-
-    package_data['pisa.stages.osc.prob3cuda'] = [
-        '*.h',
-        '*.cu'
     ]
 
     extra_compile_args = ['-O3', '-ffast-math', '-msse3']
@@ -293,9 +261,6 @@ def do_setup():
             'decorator',
         ],
         extras_require={
-            'cuda': [
-                'pycuda'
-            ],
             'numba': [
                 'numba>=0.38' # >=0.35: fastmath jit flag; >=0.38: issue #439
             ],
@@ -355,10 +320,6 @@ def do_setup():
             ]
         }
     )
-    if not check_cuda():
-        sys.stderr.write('WARNING: Could not import pycuda; attempt will be '
-                         ' made to install, but if this fails, PISA may not be'
-                         ' able to support CUDA (GPU) accelerations.\n')
 
 
 if __name__ == '__main__':
