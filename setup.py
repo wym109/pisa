@@ -282,7 +282,6 @@ def do_setup():
         install_requires=[
             'configparser',
             'scipy>=0.17',
-            'dill',
             'h5py',
             'line_profiler',
             'matplotlib>=2.0,<3.0', # 1.5: inferno colormap; 2.0: 'C0' colorspec

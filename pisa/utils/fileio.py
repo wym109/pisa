@@ -11,8 +11,6 @@ import operator
 import os
 import re
 
-import dill
-
 from pisa.utils import hdf
 from pisa.utils import jsons
 from pisa.utils import log
@@ -22,10 +20,25 @@ import numpy as np
 
 
 __all__ = [
-    'PKL_EXTS', 'DILL_EXTS', 'CFG_EXTS', 'ZIP_EXTS', 'TXT_EXTS', 'XOR_EXTS',
-    'NSORT_RE', 'UNSIGNED_FSORT_RE', 'SIGNED_FSORT_RE', 'expand', 'mkdir',
-    'get_valid_filename', 'nsort', 'fsort', 'find_files', 'from_cfg',
-    'from_pickle', 'to_pickle', 'from_dill', 'to_dill', 'from_file', 'to_file'
+    'PKL_EXTS',
+    'CFG_EXTS',
+    'ZIP_EXTS',
+    'TXT_EXTS',
+    'XOR_EXTS',
+    'NSORT_RE',
+    'UNSIGNED_FSORT_RE',
+    'SIGNED_FSORT_RE',
+    'expand',
+    'mkdir',
+    'get_valid_filename',
+    'nsort',
+    'fsort',
+    'find_files',
+    'from_cfg',
+    'from_pickle',
+    'to_pickle',
+    'from_file',
+    'to_file',
 ]
 
 __author__ = 'J.L. Lanfranchi'
@@ -46,7 +59,6 @@ __license__ = '''Copyright (c) 2014-2017, The IceCube Collaboration
 
 
 PKL_EXTS = ['pickle', 'pckl', 'pkl', 'p']
-DILL_EXTS = ['dill']
 CFG_EXTS = ['ini', 'cfg']
 ZIP_EXTS = ['bz2']
 TXT_EXTS = ['txt', 'dat']
@@ -424,21 +436,6 @@ def to_txt(obj, fname):
         f.write(obj)
 
 
-def from_dill(fname):
-    """Load from a `dill` file"""
-    try:
-        return dill.load(file(fname, 'rb'))
-    except:
-        log.logging.error('Failed to load dill file, `fname`="%s"', fname)
-        raise
-
-
-def to_dill(obj, fname, overwrite=True, warn=True):
-    """Save an object to a `dill` file."""
-    check_file_exists(fname=fname, overwrite=overwrite, warn=warn)
-    return dill.dump(obj, file(fname, 'wb'), protocol=dill.HIGHEST_PROTOCOL)
-
-
 def from_file(fname, fmt=None, **kwargs):
     """Dispatch correct file reader based on `fmt` (if specified) or guess
     based on file name's extension.
@@ -486,8 +483,6 @@ def from_file(fname, fmt=None, **kwargs):
         return hdf.from_hdf(fname, **kwargs)
     if ext in PKL_EXTS:
         return from_pickle(fname, **kwargs)
-    if ext in DILL_EXTS:
-        return from_dill(fname, **kwargs)
     if ext in CFG_EXTS:
         return from_cfg(fname, **kwargs)
     if ext in TXT_EXTS:
@@ -519,8 +514,6 @@ def to_file(obj, fname, fmt=None, overwrite=True, warn=True, **kwargs):
         return hdf.to_hdf(obj, fname, overwrite=overwrite, warn=warn, **kwargs)
     elif ext in PKL_EXTS:
         return to_pickle(obj, fname, overwrite=overwrite, warn=warn, **kwargs)
-    elif ext in DILL_EXTS:
-        return to_dill(obj, fname, overwrite=overwrite, warn=warn, **kwargs)
     elif ext in TXT_EXTS:
         if kwargs:
             raise ValueError('Following additional keyword arguments not'

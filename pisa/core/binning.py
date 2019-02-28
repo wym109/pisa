@@ -2758,7 +2758,6 @@ def test_OneDimBinning():
     import tempfile
     # needed so that eval(repr(b)) works
     from numpy import array, float32, float64 # pylint: disable=unused-variable
-    import dill
 
     b1 = OneDimBinning(name='true_energy', num_bins=40, is_log=True,
                        domain=[1, 80]*ureg.GeV, tex=r'E_{\rm true}',
@@ -2797,12 +2796,6 @@ def test_OneDimBinning():
     b1_loaded = pickle.loads(s)
     s = pickle.dumps(b1[0], pickle.HIGHEST_PROTOCOL)
     b1_loaded = pickle.loads(s)
-    assert b1_loaded == b1[0]
-    # Dill-pickling
-    s = dill.dumps(b1, dill.HIGHEST_PROTOCOL)
-    b1_loaded = dill.loads(s)
-    s = dill.dumps(b1[0], dill.HIGHEST_PROTOCOL)
-    b1_loaded = dill.loads(s)
     assert b1_loaded == b1[0]
 
     try:
@@ -2854,10 +2847,6 @@ def test_OneDimBinning():
     b3_loaded = pickle.loads(s)
     assert b3_loaded == b3
 
-    s = dill.dumps(b3, dill.HIGHEST_PROTOCOL)
-    b3_loaded = dill.loads(s)
-    assert b3_loaded == b3
-
     testdir = tempfile.mkdtemp()
     try:
         for b in [b1, b2, b3, b4]:
@@ -2905,7 +2894,6 @@ def test_MultiDimBinning():
     import time
     # needed so that eval(repr(mdb)) works
     from numpy import array, float32, float64 # pylint: disable=unused-variable
-    import dill
 
     b1 = OneDimBinning(name='energy', num_bins=40, is_log=True,
                        domain=[1, 80]*ureg.GeV)
@@ -2935,16 +2923,8 @@ def test_MultiDimBinning():
     mdb2 = pickle.loads(s)
     assert mdb2 == mdb
 
-    s = dill.dumps(mdb, dill.HIGHEST_PROTOCOL)
-    mdb2 = dill.loads(s)
-    assert mdb2 == mdb
-
     s = pickle.dumps(mdb[0, 0], pickle.HIGHEST_PROTOCOL)
     mdb2 = pickle.loads(s)
-    assert mdb2 == mdb[0, 0]
-
-    s = dill.dumps(mdb[0, 0], dill.HIGHEST_PROTOCOL)
-    mdb2 = dill.loads(s)
     assert mdb2 == mdb[0, 0]
 
     binning = MultiDimBinning([

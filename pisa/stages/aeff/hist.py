@@ -424,7 +424,7 @@ class hist(Stage):
 
             if self.debug_mode:
                 outfile = os.path.join(
-                    outdir, 'aeff_' + str(xform_flavints) + '.dill'
+                    outdir, 'aeff_' + str(xform_flavints) + '.pkl'
                 )
                 to_file(aeff_transform, outfile)
 

@@ -84,7 +84,6 @@ Required Python modules that are installed automatically when you use the `pip` 
 * [configparser](https://pypi.python.org/pypi/configparser)
 * [cython](http://cython.org)
 * [decorator](https://pypi.python.org/pypi/decorator)
-* [dill](http://trac.mystic.cacr.caltech.edu/project/pathos/wiki/dill.html)
 * [h5py](http://www.h5py.org)
 * [line_profiler](https://pypi.python.org/pypi/line_profiler): detailed profiling output<br>
 * [matplotlib](http://matplotlib.org) >= 2.0 required
