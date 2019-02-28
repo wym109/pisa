@@ -15,18 +15,9 @@ from time import time
 import numpy as np
 from scipy import stats
 
-from pisa import (FTYPE, OMP_NUM_THREADS, NUMBA_AVAIL,
-                  NUMBA_CUDA_AVAIL, numba_jit)
+from pisa import FTYPE, OMP_NUM_THREADS, NUMBA_CUDA_AVAIL, numba_jit
 from pisa.utils.comparisons import recursiveEquality
 from pisa.utils.log import logging, set_verbosity, tprofile
-from pisa.utils import gaussians_cython
-if FTYPE == np.float32:
-    from pisa.utils.gaussians_cython import gaussian_s as gaussian
-elif FTYPE == np.float64:
-    from pisa.utils.gaussians_cython import gaussian_d as gaussian
-else:
-    raise NotImplementedError('`gaussian` function not implemented for'
-                              ' pisa.FTYPE=%s' % FTYPE)
 
 
 # TODO: if the Numba CUDA functions are defined, then other CUDA (e.g. pycuda)
@@ -35,7 +26,7 @@ else:
 # context that gets destroyed?)
 
 
-__all__ = ['GAUS_IMPLEMENTATIONS', 'gaussian', 'gaussians', 'test_gaussians']
+__all__ = ['GAUS_IMPLEMENTATIONS', 'gaussians', 'test_gaussians']
 
 __author__ = 'J.L. Lanfranchi'
 
@@ -54,7 +45,7 @@ __license__ = '''Copyright (c) 2014-2017, The IceCube Collaboration
  limitations under the License.'''
 
 
-GAUS_IMPLEMENTATIONS = ('singlethreaded', 'multithreaded', 'cython')
+GAUS_IMPLEMENTATIONS = ('singlethreaded', 'multithreaded')
 if NUMBA_CUDA_AVAIL:
     GAUS_IMPLEMENTATIONS += ('cuda',)
 
@@ -156,22 +147,6 @@ def gaussians(x, mu, sigma, weights=None, implementation=None, **kwargs):
         logging.trace('Using CUDA Gaussians implementation')
         _gaussians_cuda(outbuf, x, mu, inv_sigma, inv_sigma_sq, weights,
                         n_gaussians, **kwargs)
-
-    # Use cython version if Numba isn't available
-    elif implementation == 'cython' or (implementation is None
-                                        and not NUMBA_AVAIL):
-        logging.trace('Using cython Gaussians implementation')
-
-        if FTYPE == np.float64:
-            gaussians_cython.gaussians_d(
-                outbuf, x, mu, inv_sigma, inv_sigma_sq, weights, n_gaussians,
-                threads=threads, **kwargs
-            )
-        elif FTYPE == np.float32:
-            gaussians_cython.gaussians_s(
-                outbuf, x, mu, inv_sigma, inv_sigma_sq, weights, n_gaussians,
-                threads=threads, **kwargs
-            )
 
     # Use singlethreaded version if `threads` is 1
     elif (implementation == 'singlethreaded'

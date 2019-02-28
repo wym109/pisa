@@ -116,14 +116,6 @@ pisa.utils.gaussians module
     :undoc-members:
     :show-inheritance:
 
-pisa.utils.gaussians\_cython module
------------------------------------
-
-.. automodule:: pisa.utils.gaussians_cython
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 pisa.utils.hash module
 ----------------------
 
@@ -272,14 +264,6 @@ pisa.utils.stats module
 -----------------------
 
 .. automodule:: pisa.utils.stats
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-pisa.utils.test\_gaussians module
----------------------------------
-
-.. automodule:: pisa.utils.test_gaussians
     :members:
     :undoc-members:
     :show-inheritance:

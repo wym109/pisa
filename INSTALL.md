@@ -75,7 +75,6 @@ Also note that Python, HDF5, and pip support come pre-packaged or as `conda`-ins
 
 Required Python modules that are installed automatically when you use the `pip` command detailed later:
 * [configparser](https://pypi.python.org/pypi/configparser)
-* [cython](http://cython.org)
 * [decorator](https://pypi.python.org/pypi/decorator)
 * [h5py](http://www.h5py.org)
 * [line_profiler](https://pypi.python.org/pypi/line_profiler): detailed profiling output<br>
@@ -183,9 +182,6 @@ This file lives at `$PISA/requirements.txt`.
 __Notes:__
 * For PISA pi modules, the optional `numba` dependency is required
 * You can work with your installation using the usual git commands (pull, push, etc.). However, these ***won't recompile*** any of the extension (i.e. pyx, _C/C++_) libraries. See below for how to reinstall PISA when you need these to recompile.
-* To test if your system compiled the gaussins.pyx Cython file with OpenMP threading support (and to see the speedup you can get using multiple cores for this module), you can run the following test script:
-  `python $PISA/pisa/utils/test_gaussians.py --speed`
-  The output should show speedups for increasing numbers of threads; if not, then it's likely that OpenMP did not compile on your system.
 
 
 ### Reinstall PISA

@@ -31,11 +31,10 @@ from distutils.command.build import build
 import os
 import shutil
 import subprocess
-import sys
 import tempfile
 
 from setuptools.command.build_ext import build_ext
-from setuptools import setup, Extension, find_packages
+from setuptools import setup, find_packages
 import versioneer
 
 
@@ -149,15 +148,15 @@ class CustomBuildExt(build_ext):
 
 def do_setup():
     """Perform the setup process"""
-    setup_cc()
-    sys.stdout.write('Using compiler %s\n' %os.environ['CC'])
+    #setup_cc()
+    #sys.stdout.write('Using compiler %s\n' %os.environ['CC'])
 
-    has_openmp = check_openmp()
-    if not has_openmp:
-        sys.stderr.write(
-            'WARNING: Could not compile test program with -fopenmp;'
-            ' installing PISA without OpenMP support.\n'
-        )
+    #has_openmp = check_openmp()
+    #if not has_openmp:
+    #    sys.stderr.write(
+    #        'WARNING: Could not compile test program with -fopenmp;'
+    #        ' installing PISA without OpenMP support.\n'
+    #    )
 
     # Collect (build-able) external modules and package_data
     ext_modules = []
@@ -202,31 +201,6 @@ def do_setup():
         '*.sh'
     ]
 
-    package_data['pisa.utils'] = [
-        '*.h',
-        '*.pyx'
-    ]
-
-    extra_compile_args = ['-O3', '-ffast-math', '-msse3']
-    extra_link_args = ['-ffast-math', '-msse2']
-    if has_openmp:
-        gaussians_cython_module = Extension(
-            'pisa.utils.gaussians_cython',
-            ['pisa/utils/gaussians_cython.pyx'],
-            libraries=['m'],
-            extra_compile_args=extra_compile_args + ['-fopenmp'],
-            extra_link_args=extra_link_args + ['-fopenmp'],
-        )
-    else:
-        gaussians_cython_module = Extension(
-            'pisa.utils.gaussians_cython',
-            ['pisa/utils/gaussians_cython.pyx'],
-            libraries=['m'],
-            extra_compile_args=extra_compile_args,
-            extra_link_args=extra_link_args
-        )
-    ext_modules.append(gaussians_cython_module)
-
     cmdclasses = {'build': CustomBuild, 'build_ext': CustomBuildExt}
     cmdclasses.update(versioneer.get_cmdclass())
 
@@ -244,7 +218,6 @@ def do_setup():
         setup_requires=[
             'pip>=1.8',
             'setuptools>18.5', # versioneer requires >18.5
-            'cython',
             'numpy>=1.11',
         ],
         install_requires=[
@@ -270,7 +243,6 @@ def do_setup():
                 'sphinx>=1.3',
                 'sphinx_rtd_theme',
                 'versioneer',
-                'yapf',
             ],
             # TODO: get mceq install to work... this is non-trivial since that
             # project isn't exactly cleanly instllable via pip already, plus it
