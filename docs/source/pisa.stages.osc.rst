@@ -84,14 +84,6 @@ pisa.stages.osc.pi\_prob3 module
     :undoc-members:
     :show-inheritance:
 
-pisa.stages.osc.test\_numba\_osc module
----------------------------------------
-
-.. automodule:: pisa.stages.osc.test_numba_osc
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 
 Module contents
 ---------------
