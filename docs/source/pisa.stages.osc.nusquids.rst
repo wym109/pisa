@@ -1,13 +1,13 @@
-pisa.stages.osc.prob3 package
-=============================
+pisa.stages.osc.nusquids package
+================================
 
 Submodules
 ----------
 
-pisa.stages.osc.prob3.BargerPropagator module
+pisa.stages.osc.nusquids.nusquids\_osc module
 ---------------------------------------------
 
-.. automodule:: pisa.stages.osc.prob3cc.BargerPropagator
+.. automodule:: pisa.stages.osc.nusquids.nusquids_osc
     :members:
     :undoc-members:
     :show-inheritance:
@@ -16,7 +16,7 @@ pisa.stages.osc.prob3.BargerPropagator module
 Module contents
 ---------------
 
-.. automodule:: pisa.stages.osc.prob3cc
+.. automodule:: pisa.stages.osc.nusquids
     :members:
     :undoc-members:
     :show-inheritance:

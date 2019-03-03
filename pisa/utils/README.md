@@ -27,8 +27,6 @@ See the directory listing below for a brief description of the utilities contain
 | `flux_weights.py`             | Flux calculation utils
 | `format.py`                   | Nice formatting for numbers, timestamps, etc.
 | `gaussians.py`                | Sum-of-1D Gaussians functions for use by e.g. KDE tools
-| `gaussians_cython.pyx`        | Cython implementation of sum-of-1D Gaussians
-| `gpu_hist.py`                 | Histogramming for GPU arrays
 | `hash.py`                     | Hashing PISA and other Python objects
 | `hdf.py`                      | Read from and store to HDF5 files in PISA standard format
 | `hdfchain.py`                 | Chain multiple HDF5 files together but read as one file
@@ -50,6 +48,5 @@ See the directory listing below for a brief description of the utilities contain
 | `stats.md`                    | Detailed description of the stats module
 | `stats.py`                    | Statistics
 | `tests.py`                    | Functions to help compare and plot differences between PISA 2 and PISA 3 maps
-| `test_gaussians.py`           | Unittests for functions that live in the gaussians.pyx Cython module
 | `timing.py`                   | Simple Timer class that can be used as a Python context for timing code blocks
 | `vbwkde.py`                   | 1D variable bandwidth (adaptive) KDE using the Improved Sheather Jones bandwidth criteria (see external `kde` module for multi-dimenional adaptive KDE based on simpler bandwidth criteria)

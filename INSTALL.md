@@ -29,10 +29,8 @@ _Note that terminal commands below are intended for the bash shell. You'll have 
         https://www.anaconda.com/download
     * Miniconda (just the essentials, ~40 MB)<br>
         https://conda.io/miniconda.html
-1. Install required dependencies (include cudatoolkit if you will use Numba with a GPU)<br>
-    `conda install swig cudatoolkit`
-1. Install PISA including optional packages for GPU (`cuda`), PISA pi stages (`numba`) and development tools (`develop`), if desired<br>
-    `pip install -e $PISA[cuda,numba,develop] -r $PISA/requirements.txt -vvv`
+1. Install PISA including optional packages for PISA pi stages (`numba`) and development tools (`develop`), if desired<br>
+    `pip install -e $PISA[numba,develop] -r $PISA/requirements.txt -vvv`
 1. Run a quick test: generate templates in the staged mode<br>
 `$PISA/pisa/core/pipeline.py --pipeline settings/pipeline/example.cfg  --outdir /tmp/pipeline_output --intermediate --pdf -v`
 
@@ -74,17 +72,10 @@ Also note that Python, HDF5, and pip support come pre-packaged or as `conda`-ins
 * [hdf5](http://www.hdfgroup.org/HDF5) — install with `--enable-cxx` option
   * In Ubuntu,<br>
     `sudo apt install libhdf5-10`
-* [swig](http://swig.org)
-  * Using Anaconda/Miniconda:<br>
-    `conda install swig`
-  * In Ubuntu, you can also install via:<br>
-    `sudo apt install swig`
 
 Required Python modules that are installed automatically when you use the `pip` command detailed later:
 * [configparser](https://pypi.python.org/pypi/configparser)
-* [cython](http://cython.org)
 * [decorator](https://pypi.python.org/pypi/decorator)
-* [dill](http://trac.mystic.cacr.caltech.edu/project/pathos/wiki/dill.html)
 * [h5py](http://www.h5py.org)
 * [line_profiler](https://pypi.python.org/pypi/line_profiler): detailed profiling output<br>
 * [matplotlib](http://matplotlib.org) >= 2.0 required
@@ -118,8 +109,6 @@ Optional dependencies. Some of these must be installed manually prior to install
   * Installed alongside PISA if you specify option `['numba']` to `pip`
 * [OpenMP](http://www.openmp.org) Intra-process parallelization to accelerate code on on multi-core/multi-CPU computers.
   * Available from your compiler: gcc supports OpenMP 4.0 and Clang >= 3.8.0 supports OpenMP 3.1. Either version of OpenMP should work, but Clang has yet to be tested for its OpenMP support.
-* [PyCUDA](https://mathema.tician.de/software/pycuda): run certain routines on Nvidia CUDA GPUs (must have compute 2.0 or greater capability)<br>
-  * Installed alongside PISA if you specify option `['cuda']` to `pip`
 * [Pylint](http://www.pylint.org): Static code checker and style analyzer for Python code. Note that our (more or less enforced) coding conventions are codified in the pylintrc file in PISA, which will automatically be found and used by Pylint when running on code within a PISA package.<br>
   * Installed alongside PISA if you specify option `['develop']` to `pip`
 * [recommonmark](http://recommonmark.readthedocs.io/en/latest/) Translator to allow markdown docs/docstrings to be used; plugin for Sphinx. (Required to compile PISA's documentation.)
@@ -178,13 +167,13 @@ This is not quite as clean as a virtual environment, and the issue with coflicti
 ### Install PISA
 
 ```bash
-pip install -e $PISA[cuda,numba,develop] -r $PISA/requirements.txt -vvv
+pip install -e $PISA[numba,develop] -r $PISA/requirements.txt -vvv
 ```
 Explanation:
 * First, note that this is ***not run as administrator***. It is discouraged to do so (and has not been tested this way).
 * `-e $PISA` (or equivalently, `--editable $PISA`): Installs from source located at `$PISA` and  allows for changes to the source code within to be immediately propagated to your Python installation.
 Within the Python library tree, all files under `pisa` are links to your source code, so changes within your source are seen directly by the Python installation. Note that major changes to your source code (file names or directory structure changing) will require re-installation, though, for the links to be updated (see below for the command for re-installing).
-* `[cuda,numba,develop]` Specify optional dependency groups. You can omit any or all of these if your system does not support them or if you do not need them.
+* `[numba,develop]` Specify optional dependency groups. You can omit any or all of these if your system does not support them or if you do not need them.
 * `-r $PISA/requirements.txt`: Specifies the file containing PISA's dependencies for `pip` to install prior to installing PISA.
 This file lives at `$PISA/requirements.txt`.
 * `-vvv` Be maximally verbose during the install. You'll see lots of messages, including warnings that are irrelevant, but if your installation fails, it's easiest to debug if you use `-vvv`.
@@ -193,9 +182,6 @@ This file lives at `$PISA/requirements.txt`.
 __Notes:__
 * For PISA pi modules, the optional `numba` dependency is required
 * You can work with your installation using the usual git commands (pull, push, etc.). However, these ***won't recompile*** any of the extension (i.e. pyx, _C/C++_) libraries. See below for how to reinstall PISA when you need these to recompile.
-* To test if your system compiled the gaussins.pyx Cython file with OpenMP threading support (and to see the speedup you can get using multiple cores for this module), you can run the following test script:
-  `python $PISA/pisa/utils/test_gaussians.py --speed`
-  The output should show speedups for increasing numbers of threads; if not, then it's likely that OpenMP did not compile on your system.
 
 
 ### Reinstall PISA
@@ -203,7 +189,7 @@ __Notes:__
 Sometimes a change within PISA requires re-installation (particularly if a compiled module changes, the below forces re-compilation).
 
 ```bash
-pip install -e $PISA[cuda,numba,develop] -r $PISA/requirements.txt --force-reinstall -vvv
+pip install -e $PISA[numba,develop] -r $PISA/requirements.txt --force-reinstall -vvv
 ```
 
 Note that if files change names or locations, though, the above can still not be enough.
