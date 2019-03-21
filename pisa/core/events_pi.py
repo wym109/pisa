@@ -269,7 +269,7 @@ class EventsPi(OrderedDict):
                     if self.fraction_events_to_keep is not None :
                         rand = np.random.RandomState(123456) # Enforce same sample each time
                         num_events_to_keep = int(np.round(self.fraction_events_to_keep*float(array_data.size)))
-                        array_data = rand.choice(array_data,size=num_events_to_keep)
+                        array_data = rand.choice(array_data,size=num_events_to_keep,replace=False)
 
                     # Add to array
                     self[data_key][var_dst] = array_data
