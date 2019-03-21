@@ -10,7 +10,7 @@ for MC events using simple parameterisations.
 
 from __future__ import absolute_import, print_function, division
 
-import math
+import math, fnmatch, collections
 import numpy as np
 
 from pisa import FTYPE, TARGET
@@ -41,8 +41,21 @@ __license__ = '''Copyright (c) 2014-2017, The IceCube Collaboration
 
 
 def dict_lookup_wildcard(dict_obj,key) :
+    '''
+    Find the object in a dict specified by a key, where the key may include wildcards
 
-    import fnmatch, collections
+    Parameters
+    ----------
+    dict_obj : dict
+        The dict (or dict-like) object to search 
+    key : str
+        The key to search for in the dict (may include wildcards)
+
+    Returns
+    -------
+    value : anything
+        The value found corresponding to the the requested key
+    '''
 
     assert isinstance(dict_obj,collections.Mapping)
     assert isinstance(key,basestring)
