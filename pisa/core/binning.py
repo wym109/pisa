@@ -221,7 +221,7 @@ class OneDimBinning(object):
         if not isinstance(name, basestring):
             raise TypeError('`name` must be a string; got "%s".' %type(name))
         if domain is not None:
-            assert isinstance(domain, Iterable)
+            assert isinstance(domain, Iterable) or ( isinstance(domain,ureg.Quantity) and domain.size > 1 )
         if bin_names is not None:
             if isinstance(bin_names, basestring):
                 bin_names = (bin_names,)
@@ -235,7 +235,7 @@ class OneDimBinning(object):
                     ' nonzero-length strings.'
                 )
         if bin_edges is not None:
-            assert isinstance(bin_edges, Iterable)
+            assert isinstance(bin_edges, Iterable) or ( isinstance(bin_edges,ureg.Quantity) and bin_edges.size > 1 )
         if is_lin is not None:
             assert isinstance(is_lin, bool)
         if is_log is not None:
