@@ -151,21 +151,36 @@ def visible_energy_correction(particle_key) :
 
 
 def energy_dependent_sigma(energy,energy_0,sigma_0,energy_power) :
+    '''
+    Returns an energy dependent sigma (standard deviation) value(s),
+    with energy dependence defined as follows:
 
-    #TODO docs
+        sigma(E) = sigma(E=E0) * (E/E0)^n 
 
-    norm = np.power(energy_0,energy_power)
+    Parameters
+    ----------
+    energy : array or float
+        Energy value to evaluate sigma at 
+    energy_0 : float
+        Energy at which sigma_0 is defined
+    sigma_0 : float 
+        The value of sigma at energy_0
+    energy_power : float
+        Power/index fo the energy dependence
 
-    sigma = ( norm * sigma_0 ) / np.power(energy,energy_power)
-
-    return sigma
+    Returns
+    -------
+    sigma(energy) : array or float
+        The value of sigma at the specified energy (or energies)
+    '''
+    return sigma_0 * np.power(energy/energy_0,energy_power)
 
 
 def simple_reco_energy_parameterization(particle_key,true_energy,params,random_state) :
     '''
     Function to produce a smeared reconstructed energy distribution.
+    Resolution is particle- and energy-dependent
     Use as a placeholder if real reconstructions are not currently available.
-    Uses the true energy of the particle.
 
     Parameters
     ----------
@@ -174,6 +189,11 @@ def simple_reco_energy_parameterization(particle_key,true_energy,params,random_s
 
     true_energy : array
         True energy array.
+
+    params : dict
+        keys   : particle key (wilcards accepted)
+        values : list : [ E0 (reference true_energy), median reco error at E0, index/power of energy dependence ]
+        (example: params = {'nue*_cc':[10.,0.2,0.2],})
 
     random_state : np.random.RandomState
         User must provide the random state, meaning that reproducible results 
@@ -220,14 +240,22 @@ def simple_reco_energy_parameterization(particle_key,true_energy,params,random_s
 def simple_reco_coszen_parameterization(particle_key,true_energy,true_coszen,params,random_state) :
     '''
     Function to produce a smeared reconstructed cos(zenith) distribution.
+    Resolution is particle- and energy-dependent
     Use as a placeholder if real reconstructions are not currently available.
-    Uses the true coszen of the particle as an input.
     Keep within the rotational bounds
 
     Parameters
     ----------
     true_coszen : array
         True cos(zenith angle) array.
+
+    true_energy : array
+        True energy array.
+
+    params : dict
+        keys   : particle key (wilcards accepted)
+        values : list : [ E0 (reference true_energy), median reco error at E0, index/power of energy dependence ]
+        (example: params = {'nue*_cc':[10.,0.2,0.5],})
 
     random_state : np.random.RandomState
         User must provide the random state, meaning that reproducible results 
@@ -238,8 +266,6 @@ def simple_reco_coszen_parameterization(particle_key,true_energy,true_coszen,par
     reco_coszen : array
         Reconstructed cos(zenith angle) array.
     '''
-
-    #TODO Update docs
 
     # Default random state with no fixed seed
     if random_state is None :
@@ -277,7 +303,8 @@ def simple_reco_coszen_parameterization(particle_key,true_energy,true_coszen,par
 
 def simple_pid_parameterization(particle_key,true_energy,params,track_pid,cascade_pid,random_state,) :
     '''
-    Function to assign a (energy-, flavor- and interaction-dependent) PID based on truth information.
+    Function to assign a PID based on truth information.
+    Is particle-, interaction- and energy-dependent
     Approximating energy dependence using a logistic function.
     Can use as a placeholder if real reconstructions are not currently available.
 
@@ -289,7 +316,10 @@ def simple_pid_parameterization(particle_key,true_energy,params,track_pid,cascad
     true_energy : array
         True energy array.
 
-    params : TODO
+    params : dict
+        keys   : particle key (wilcards accepted)
+        values : Logistic function params for track ID (list) : [ normalisation (plateau height), steepness of rise, true_energy at half-height ]
+        (example: params = {'nue*_cc':[0.05,0.2,15.],})
 
     track_pid : float
         A PID value to assign to track-like events
@@ -303,8 +333,8 @@ def simple_pid_parameterization(particle_key,true_energy,params,track_pid,cascad
 
     Returns
     -------
-    reco_energy : array
-        Reconstructed energy array.
+    pid : array
+        PID values.
     '''
 
     # Default random state with no fixed seed
@@ -341,7 +371,19 @@ class simple_param(PiStage):
 
         perfect_reco : bool
             If True, use "perfect reco": reco == true, numu(bar)_cc -> tracks, rest to cascades
-            If False, use the parametrised energy, coszen and pid functions
+            If False, use the parametrised reco energy, coszen and pid functions
+
+        reco_energy_params : dict
+            Dict defining the `params` argument to `simple_reco_energy_parameterization`
+            See `simple_reco_energy_parameterization` documentatio for more details
+
+        reco_coszen_params : dict
+            Dict defining the `params` argument to `simple_reco_coszen_parameterization`
+            See `simple_reco_coszen_parameterization` documentatio for more details
+
+        pid_track_params : dict
+            Dict defining the `params` argument to `simple_pid_parameterization`
+            See `simple_pid_parameterization` documentatio for more details
 
         track_pid : float
             The numerical 'pid' variable value to assign for tracks
