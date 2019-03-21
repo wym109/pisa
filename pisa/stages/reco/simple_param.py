@@ -53,6 +53,8 @@ def dict_lookup_wildcard(dict_obj,key) :
 
     Returns
     -------
+    key : str
+        The str found in the dict matching the wildcard
     value : anything
         The value found corresponding to the the requested key
     '''
@@ -65,7 +67,7 @@ def dict_lookup_wildcard(dict_obj,key) :
     assert len(matches) > 0, "No match for '%s' found in dict" % key
     assert len(matches) < 2, "Multiple matches for '%s' found in dict : %s" % (key,matches.keys())
 
-    return matches.keys()[0],matches.values()[0]
+    return matches.keys()[0], matches.values()[0]
 
 
 def logistic_function(a,b,c,x) :
