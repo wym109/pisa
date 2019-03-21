@@ -39,7 +39,7 @@ from pisa.utils.log import logging, set_verbosity, tprofile
 
 
 __all__ = ['NAME_FIXES', 'NAME_SEPCHARS', 'NAME_FIXES_REGEXES',
-           'basename', '_new_obj',
+           'basename', '_new_obj', 'is_binning',
            'OneDimBinning', 'MultiDimBinning',
            'test_OneDimBinning', 'test_MultiDimBinning']
 
@@ -103,6 +103,14 @@ def basename(n):
     for regex in NAME_FIXES_REGEXES:
         n = regex.sub('', n)
     return n
+
+
+def is_binning(something) :
+    '''
+    Return True if argument is a PISA binning (of any dimension), 
+    False otherwise
+    '''
+    return isinstance(something,(OneDimBinning,MultiDimBinning))
 
 
 # TODO: generalize to any object and move this to a centralized utils location
