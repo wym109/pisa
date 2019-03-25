@@ -128,7 +128,7 @@ def visible_energy_correction(particle_key) :
     Also neglecting fact that different particle types produce differing photon yields.
 
     I've tuned these by eye due to the biases seen in GRECO pegleg, which to first 
-    order I'm assuming are due to this missing energy
+    order I'm assuming are due to this missing energy.
     There is also a bias in numu CC in GRECO, but suspect this is due to containment
     or stochastics, but either way not reproducing this here.
 
@@ -143,8 +143,6 @@ def visible_energy_correction(particle_key) :
         Estimated visible energy in each event
 
     '''
-
-    #TODO update docs
 
     #TODO Add some smearing
 
