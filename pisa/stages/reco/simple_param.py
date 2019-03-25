@@ -10,7 +10,7 @@ for MC events using simple parameterisations.
 
 from __future__ import absolute_import, print_function, division
 
-import math
+import math, fnmatch, collections
 import numpy as np
 
 from pisa import FTYPE, TARGET
@@ -21,7 +21,7 @@ from pisa.utils.numba_tools import WHERE, myjit, ftype
 
 
 
-__all__ = ["simple_param","simple_reco_energy_parameterization","simple_reco_cozen_parameterization","simple_pid_parameterization"]
+__all__ = ["simple_param","simple_reco_energy_parameterization","simple_reco_coszen_parameterization","simple_pid_parameterization"]
 
 __author__ = 'T. Stuttard'
 
@@ -40,158 +40,47 @@ __license__ = '''Copyright (c) 2014-2017, The IceCube Collaboration
  limitations under the License.'''
 
 
-def get_visible_energy(particle_key,true_energy) :
+def dict_lookup_wildcard(dict_obj,key) :
     '''
-    Simple way to estimate the amount of visible energy in the event.
-
-    Right now considering cases with final state neutrinos, such as NC events, 
-    and nutau CC events (where the tau decays to a tau neutrino).
-
-    Neglecting the much lower losses due to muon decay for numu CC.
-    Also neglecting fact that different particle types produce differing photon yields.
-
-    I've tuned these by eye due to the biases seen in GRECO pegleg, which to first 
-    order I'm assuming are due to this missing energy
-    There is also a bias in numu CC in GRECO, but suspect this is due to containment
-    or stochastics, but either way not reproducing this here.
+    Find the object in a dict specified by a key, where the key may include wildcards
 
     Parameters
     ----------
-    particle_key : string
-        Key identifiying the particle type, e.g. numu_cc, nutau_nc, muon, etc.
-
-    true_energy : array
-        True energy array.
-
-    Returns
-    -------
-    visible_energy : array
-        Estimated visible energy in each event
-
-    '''
-
-    #TODO Add some smearing
-
-    visible_energy_mod = np.ones_like(true_energy)
-
-#    nc_mask = interaction.astype(int) == 2
-#    nutau_cc_mask = (np.abs(pdg_code.astype(int)) == 16) & (interaction.astype(int) == 1)
-
-    nc_mask = np.full_like(true_energy, particle_key.endswith("_nc"), dtype=bool)
-    nutau_cc_mask = np.full_like(true_energy, particle_key.startswith("nutau") and particle_key.endswith("_cc"), dtype=bool)
-    atm_muon_mask = np.full_like(true_energy, particle_key == "muons", dtype=bool)
-    visible_energy_mod[nc_mask] = 0.4 #TODO Calculate, for now just eye-balling GRECO
-    visible_energy_mod[nutau_cc_mask] = 0.6 #TODO Calculate, for now just eye-balling GRECO
-    visible_energy_mod[atm_muon_mask] = 0.1 #TODO Calculate, for now just eye-balling GRECO
-    visible_energy = true_energy * visible_energy_mod
-    return visible_energy
-
-
-def simple_reco_energy_parameterization(particle_key,true_energy,random_state) :
-    '''
-    Function to produce a smeared reconstructed energy distribution.
-    Use as a placeholder if real reconstructions are not currently available.
-    Uses the true energy of the particle.
-
-    Parameters
-    ----------
-    particle_key : string
-        Key identifiying the particle type, e.g. numu_cc, nutau_nc, muon, etc.
-
-    true_energy : array
-        True energy array.
-
-    random_state : np.random.RandomState
-        User must provide the random state, meaning that reproducible results 
-        can be obtained when calling multiple times.
+    dict_obj : dict
+        The dict (or dict-like) object to search 
+    key : str
+        The key to search for in the dict (may include wildcards)
 
     Returns
     -------
-    reco_energy : array
-        Reconstructed energy array.
+    key : str
+        The str found in the dict matching the wildcard
+    value : anything
+        The value found corresponding to the the requested key
     '''
 
-    #TODO Make sigma an arg, and a parameter in the stage
+    assert isinstance(dict_obj,collections.Mapping)
+    assert isinstance(key,basestring)
 
-    # Default random state with no fixed seed
-    if random_state is None :
-        random_state = np.random.RandomState()
-        
-    # Define an energy-dependent smearing based on the true energy
-    # Define a different smearing for atmospheric muons, which behave a little differently 
-    if particle_key == "muons" :
-        sigma = true_energy / 8. #TODO Tune this value, just eye-balling something GRECO-like for now
-    else :
-        sigma = true_energy / 4. #TODO Tune this value, just eye-balling something GRECO-like for now
+    matches = collections.OrderedDict([ (k,v) for k,v in dict_obj.items() if fnmatch.fnmatch(key,k) ])
 
-    # Get the visible energy
-    visible_energy = get_visible_energy(particle_key,true_energy)
+    assert len(matches) > 0, "No match for '%s' found in dict" % key
+    assert len(matches) < 2, "Multiple matches for '%s' found in dict : %s" % (key,matches.keys())
 
-    # Now apply the smearing (AFTER the conversion to visible energy so that the smearing isn't suppressed by the bias)
-    reco_energy = random_state.normal(visible_energy,sigma)
-
-    # Ensure physical values
-    reco_energy[reco_energy < 0.] = 0.
-
-    return reco_energy
-
-
-def simple_reco_cozen_parameterization(true_coszen,random_state) :
-    '''
-    Function to produce a smeared reconstructed cos(zenith) distribution.
-    Use as a placeholder if real reconstructions are not currently available.
-    Uses the true coszen of the particle as an input.
-    Keep within the rotational bounds
-
-    Parameters
-    ----------
-    true_coszen : array
-        True cos(zenith angle) array.
-
-    random_state : np.random.RandomState
-        User must provide the random state, meaning that reproducible results 
-        can be obtained when calling multiple times.
-
-    Returns
-    -------
-    reco_coszen : array
-        Reconstructed cos(zenith angle) array.
-    '''
-
-    #TODO Energy and PID dependence
-    #TODO Include neutrino opening angle model: 30. deg / np.sqrt(true_energy)
-    #TODO Make sigma an arg, and a parameter in the stage
-
-    # Default random state with no fixed seed
-    if random_state is None :
-        random_state = np.random.RandomState()
-
-    # Smear the cos(zenith)
-    # Using a Gaussian smearing, indepedent of the true zenith angle
-    sigma = 0.2
-    reco_coszen = random_state.normal(true_coszen,sigma)
-
-    # Enforce rotational bounds
-    out_of_bounds_mask = reco_coszen > 1.
-    reco_coszen[out_of_bounds_mask] = reco_coszen[out_of_bounds_mask] - ( 2. * (reco_coszen[out_of_bounds_mask] - 1.) )
-
-    out_of_bounds_mask = reco_coszen < -1.
-    reco_coszen[out_of_bounds_mask] = reco_coszen[out_of_bounds_mask] - ( 2. * (reco_coszen[out_of_bounds_mask] + 1.) )
-
-    return reco_coszen
+    return matches.keys()[0], matches.values()[0]
 
 
 def logistic_function(a,b,c,x) :
     '''
     Logistic function as defined here: https://en.wikipedia.org/wiki/Logistic_function.
-    Starts off slowly rising, before stteply rising, then plateaus.
+    Starts off slowly rising, before steeply rising, then plateaus.
 
     Parameters
     ----------
     a : float
         Normalisation (e.g. plateau height) 
     b : float
-        Steepness of rise
+        Steepness of rise (larger value means steeper rise)
     c : float 
         x value at half-height of curve
     x : array
@@ -227,14 +116,84 @@ def has_muon(particle_key) :
     return ( (particle_key.startswith("numu") and particle_key.endswith("_cc")) or particle_key.startswith("muon") )
 
 
-def simple_pid_parameterization(particle_key,true_energy,random_state,track_pid=100.,cascade_pid=5.) :
-    '''
-    Function to assign a PID based on truth information.
-    Use as a placeholder if real reconstructions are not currently available.
-    Uses the flavor and interaction type of the particle
 
-    Approximating energy dependence using a logistic function.
-    Tuned to roughly match GRECO (https://wiki.icecube.wisc.edu/index.php/IC86_Tau_Appearance_Analysis#Track_Length_as_Particle_ID)
+def visible_energy_correction(particle_key) :
+    '''
+    Simple way to estimate the amount of visible energy in the event.
+
+    Right now considering cases with final state neutrinos, such as NC events, 
+    and nutau CC events (where the tau decays to a tau neutrino).
+
+    Neglecting the much lower losses due to muon decay for numu CC.
+    Also neglecting fact that different particle types produce differing photon yields.
+
+    I've tuned these by eye due to the biases seen in GRECO pegleg, which to first 
+    order I'm assuming are due to this missing energy.
+    There is also a bias in numu CC in GRECO, but suspect this is due to containment
+    or stochastics, but either way not reproducing this here.
+
+    Parameters
+    ----------
+    particle_key : string
+        Key identifiying the particle type, e.g. numu_cc, nutau_nc, muon, etc.
+
+    Returns
+    -------
+    visible_energy : array
+        Estimated visible energy in each event
+
+    '''
+
+    #TODO Add some smearing
+
+    # NC events have final state neutrino
+    if particle_key.endswith("_nc") :
+        return 0.4 #TODO tune, consider inelasticity numbers vs energy (including nu vs nubar)
+
+    # nutau CC events have final state neutrino, but from a subsequent tau decay
+    elif particle_key.startswith("nutau") and particle_key.endswith("_cc") :
+        return 0.6 #TODO tune, consider decay spectrum vs energy
+
+    # muons are all over the place since their "true_energy" doesn't reflect any real value in the ice (is energy as surface of generation cylinder)
+    elif particle_key == "muons" :
+        return 0.1 #TODO Should really store deposied energy in the frame instead
+
+    # Everything else deposits full energy as visible energy
+    else :
+        return 1.
+
+
+def energy_dependent_sigma(energy,energy_0,sigma_0,energy_power) :
+    '''
+    Returns an energy dependent sigma (standard deviation) value(s),
+    with energy dependence defined as follows:
+
+        sigma(E) = sigma(E=E0) * (E/E0)^n 
+
+    Parameters
+    ----------
+    energy : array or float
+        Energy value to evaluate sigma at 
+    energy_0 : float
+        Energy at which sigma_0 is defined
+    sigma_0 : float 
+        The value of sigma at energy_0
+    energy_power : float
+        Power/index fo the energy dependence
+
+    Returns
+    -------
+    sigma(energy) : array or float
+        The value of sigma at the specified energy (or energies)
+    '''
+    return sigma_0 * np.power(energy/energy_0,energy_power)
+
+
+def simple_reco_energy_parameterization(particle_key,true_energy,params,random_state) :
+    '''
+    Function to produce a smeared reconstructed energy distribution.
+    Resolution is particle- and energy-dependent
+    Use as a placeholder if real reconstructions are not currently available.
 
     Parameters
     ----------
@@ -243,6 +202,137 @@ def simple_pid_parameterization(particle_key,true_energy,random_state,track_pid=
 
     true_energy : array
         True energy array.
+
+    params : dict
+        keys   : particle key (wilcards accepted)
+        values : list : [ E0 (reference true_energy), median reco error at E0, index/power of energy dependence ]
+        (example: params = {'nue*_cc':[10.,0.2,0.2],})
+
+    random_state : np.random.RandomState
+        User must provide the random state, meaning that reproducible results 
+        can be obtained when calling multiple times.
+
+    Returns
+    -------
+    reco_energy : array
+        Reconstructed energy array.
+    '''
+
+    #TODO Update docs
+
+    # Default random state with no fixed seed
+    if random_state is None :
+        random_state = np.random.RandomState()
+
+    # Get the visible energy
+    visible_energy = true_energy * visible_energy_correction(particle_key)
+
+    # Grab the params for this particle type
+    _,energy_dependent_sigma_params = dict_lookup_wildcard(dict_obj=params,key=particle_key)
+
+    # Get the sigma of the "reco error" distribution (energy dependent)
+    # Easier to use this than the "reco energy" directly
+    energy_0 = energy_dependent_sigma_params[0]
+    reco_error_sigma_0 = energy_dependent_sigma_params[1]
+    energy_power = energy_dependent_sigma_params[2]
+    reco_error_sigma = energy_dependent_sigma(visible_energy,energy_0,reco_error_sigma_0,energy_power)
+
+    # Get the reco error
+    reco_error = random_state.normal(np.zeros_like(reco_error_sigma),reco_error_sigma)
+
+    # Compute the corresponding reco energy
+    # Use visible energy since that is what really matters
+    reco_energy = visible_energy * ( reco_error + 1. )
+
+    # Ensure physical values
+    reco_energy[reco_energy < 0.] = 0.
+
+    return reco_energy
+
+
+def simple_reco_coszen_parameterization(particle_key,true_energy,true_coszen,params,random_state) :
+    '''
+    Function to produce a smeared reconstructed cos(zenith) distribution.
+    Resolution is particle- and energy-dependent
+    Use as a placeholder if real reconstructions are not currently available.
+    Keep within the rotational bounds
+
+    Parameters
+    ----------
+    true_coszen : array
+        True cos(zenith angle) array.
+
+    true_energy : array
+        True energy array.
+
+    params : dict
+        keys   : particle key (wilcards accepted)
+        values : list : [ E0 (reference true_energy), median reco error at E0, index/power of energy dependence ]
+        (example: params = {'nue*_cc':[10.,0.2,0.5],})
+
+    random_state : np.random.RandomState
+        User must provide the random state, meaning that reproducible results 
+        can be obtained when calling multiple times.
+
+    Returns
+    -------
+    reco_coszen : array
+        Reconstructed cos(zenith angle) array.
+    '''
+
+    # Default random state with no fixed seed
+    if random_state is None :
+        random_state = np.random.RandomState()
+
+    # Get the visible energy
+    visible_energy = true_energy * visible_energy_correction(particle_key)
+
+    # Grab the params for this particle type
+    _,energy_dependent_sigma_params = dict_lookup_wildcard(dict_obj=params,key=particle_key)
+
+    # Get the sigma of the "reco error" distribution (energy dependent)
+    # Easier to use this than the "reco coszen" directly
+    energy_0 = energy_dependent_sigma_params[0]
+    reco_error_sigma_0 = energy_dependent_sigma_params[1]
+    energy_power = energy_dependent_sigma_params[2]
+    reco_error_sigma = energy_dependent_sigma(visible_energy,energy_0,reco_error_sigma_0,energy_power)
+
+    # Get the reco error
+    reco_error = random_state.normal(np.zeros_like(reco_error_sigma),reco_error_sigma)
+
+    # Compute the corresponding reco coszen
+    # Use visible energy since that is what really matters
+    reco_coszen = true_coszen + reco_error 
+
+    # Enforce rotational bounds
+    out_of_bounds_mask = reco_coszen > 1.
+    reco_coszen[out_of_bounds_mask] = reco_coszen[out_of_bounds_mask] - ( 2. * (reco_coszen[out_of_bounds_mask] - 1.) )
+
+    out_of_bounds_mask = reco_coszen < -1.
+    reco_coszen[out_of_bounds_mask] = reco_coszen[out_of_bounds_mask] - ( 2. * (reco_coszen[out_of_bounds_mask] + 1.) )
+
+    return reco_coszen
+
+
+def simple_pid_parameterization(particle_key,true_energy,params,track_pid,cascade_pid,random_state,) :
+    '''
+    Function to assign a PID based on truth information.
+    Is particle-, interaction- and energy-dependent
+    Approximating energy dependence using a logistic function.
+    Can use as a placeholder if real reconstructions are not currently available.
+
+    Parameters
+    ----------
+    particle_key : string
+        Key identifiying the particle type, e.g. numu_cc, nutau_nc, muon, etc.
+
+    true_energy : array
+        True energy array.
+
+    params : dict
+        keys   : particle key (wilcards accepted)
+        values : Logistic function params for track ID (list) : [ normalisation (plateau height), steepness of rise, true_energy at half-height ]
+        (example: params = {'nue*_cc':[0.05,0.2,15.],})
 
     track_pid : float
         A PID value to assign to track-like events
@@ -256,28 +346,19 @@ def simple_pid_parameterization(particle_key,true_energy,random_state,track_pid=
 
     Returns
     -------
-    reco_energy : array
-        Reconstructed energy array.
+    pid : array
+        PID values.
     '''
 
     # Default random state with no fixed seed
     if random_state is None :
         random_state = np.random.RandomState()
 
-    # Track/cascade ID is energy dependent.
-    # Considering energy-dependence, and assigning one dependence for events with muon 
-    # tracks (numu CC, atmospheric muons) and another for all other events.
+    # Grab the params for this particle type
+    _,logistic_func_params = dict_lookup_wildcard(dict_obj=params,key=particle_key)
 
     # Define whether each particle is a track
-    if ( particle_key.startswith("numu") and particle_key.endswith("_cc") ) :
-        # numu CC, good track ID
-        track_prob = logistic_function(0.9,0.5,5.,true_energy)
-    elif particle_key == "muons" :
-        # Atmospheric muons, totally random #TODO Can probably do better here, but this is broadly consistent with GRECO and given only super weird events survive it isn't so crazy
-        track_prob = 0.5
-    else :
-        # Everything else is a cascade
-        track_prob = logistic_function(0.3,0.05,10.,true_energy)
+    track_prob = logistic_function(logistic_func_params[0],logistic_func_params[1],logistic_func_params[2],true_energy)
     track_mask = random_state.uniform(0.,1.,size=true_energy.size) < track_prob
 
     # Assign PID values
@@ -303,7 +384,19 @@ class simple_param(PiStage):
 
         perfect_reco : bool
             If True, use "perfect reco": reco == true, numu(bar)_cc -> tracks, rest to cascades
-            If False, use the parametrised energy, coszen and pid functions
+            If False, use the parametrised reco energy, coszen and pid functions
+
+        reco_energy_params : dict
+            Dict defining the `params` argument to `simple_reco_energy_parameterization`
+            See `simple_reco_energy_parameterization` documentatio for more details
+
+        reco_coszen_params : dict
+            Dict defining the `params` argument to `simple_reco_coszen_parameterization`
+            See `simple_reco_coszen_parameterization` documentatio for more details
+
+        pid_track_params : dict
+            Dict defining the `params` argument to `simple_pid_parameterization`
+            See `simple_pid_parameterization` documentatio for more details
 
         track_pid : float
             The numerical 'pid' variable value to assign for tracks
@@ -325,7 +418,10 @@ class simple_param(PiStage):
                 ):
 
         expected_params = ( 
-                        "perfect_reco",
+                        "perfect_reco", #TODO move these to constructor args?
+                        "reco_energy_params",
+                        "reco_coszen_params",
+                        "pid_track_params",
                         "track_pid",
                         "cascade_pid",
                         )
@@ -370,15 +466,18 @@ class simple_param(PiStage):
 
         # Get params
         perfect_reco = self.params.perfect_reco.value
+        reco_energy_params = eval(self.params.reco_energy_params.value)
+        reco_coszen_params = eval(self.params.reco_coszen_params.value)
+        pid_track_params = eval(self.params.pid_track_params.value)
         track_pid = self.params.track_pid.value.m_as("dimensionless")
         cascade_pid = self.params.cascade_pid.value.m_as("dimensionless")
 
-        # If using random numbers, use a rando state with a fixed seed to make the 
+        # If using random numbers, use a random state with a fixed seed to make the 
         # same smearing for e.g. template and pseudodata (this achieves the same
         # as we would normally use if we had reco variales in the file).
         # Note that this doesn't affect other random numbers generated by other
         # calls to numpy.random throughout the code.
-        random_state = np.random.RandomState(0)
+        random_state = np.random.RandomState(0) #TODO seed as arg/param
 
         for container in self.data :
 
@@ -400,7 +499,12 @@ class simple_param(PiStage):
             if perfect_reco :
                 reco_energy = true_energy
             else :
-                reco_energy = simple_reco_energy_parameterization(particle_key,true_energy,random_state=random_state)
+                reco_energy = simple_reco_energy_parameterization(
+                    particle_key=particle_key,
+                    true_energy=true_energy,
+                    params=reco_energy_params,
+                    random_state=random_state,
+                )
 
             # Write to the container
             np.copyto( src=reco_energy, dst=container["reco_energy"].get("host") )
@@ -419,7 +523,13 @@ class simple_param(PiStage):
             if perfect_reco :
                 reco_coszen = true_coszen
             else :
-                reco_coszen = simple_reco_cozen_parameterization(true_coszen,random_state=random_state)
+                reco_coszen = simple_reco_coszen_parameterization(
+                    particle_key=particle_key,
+                    true_energy=true_energy,
+                    true_coszen=true_coszen,
+                    params=reco_coszen_params,
+                    random_state=random_state,
+                )
 
             # Write to the container
             np.copyto( src=reco_coszen, dst=container["reco_coszen"].get("host") )
@@ -439,7 +549,14 @@ class simple_param(PiStage):
                 pid_value = track_pid if has_muon(particle_key) else cascade_pid
                 pid = np.full_like(true_energy,pid_value)
             else :
-                pid = simple_pid_parameterization(particle_key,true_energy,track_pid=track_pid,cascade_pid=cascade_pid,random_state=random_state)
+                pid = simple_pid_parameterization(
+                    particle_key=particle_key,
+                    true_energy=true_energy,
+                    params=pid_track_params,
+                    track_pid=track_pid,
+                    cascade_pid=cascade_pid,
+                    random_state=random_state,
+                )
 
             # Write to the container
             np.copyto( src=pid, dst=container["pid"].get("host") )
