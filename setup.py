@@ -13,15 +13,15 @@ Checkout the source code tree in the current directory via
 
 and install basic PISA package (in editable mode via -e flag) via
 
-    $ pip install -e ./pisa -r ./pisa/requirements.txt
+    $ pip install -e ./pisa
 
 or include optional dependencies by specifying them in brackets
 
-    $ pip install -e ./pisa[numba,develop] -r ./pisa/requirements.txt
+    $ pip install -e ./pisa[develop]
 
 If you wish to upgrade PISA and/or its dependencies:
 
-    $ pip install ./pisa[numba,develop] -r ./pisa/requirements.txt --upgrade
+    $ pip install ./pisa[develop] --upgrade
 """
 
 
@@ -232,11 +232,9 @@ def do_setup():
             'tables',
             'uncertainties',
             'decorator',
+            'numba>=0.38', # >=0.35: fastmath jit flag; >=0.38: issue #439
         ],
         extras_require={
-            'numba': [
-                'numba>=0.38' # >=0.35: fastmath jit flag; >=0.38: issue #439
-            ],
             'develop': [
                 'pylint>=1.7',
                 'recommonmark',
@@ -254,9 +252,10 @@ def do_setup():
             #    'MCEq'
             #]
         },
-        #dependency_links=[
-        #    'git+https://github.com/afedynitch/MCEq.git#egg=MCEq'
-        #],
+        dependency_links=[
+            'git+https://github.com/icecubeopensource/kde.git#egg=kde',
+            #'git+https://github.com/afedynitch/MCEq.git#egg=MCEq',
+        ],
         packages=find_packages(),
         ext_modules=ext_modules,
         package_data=package_data,

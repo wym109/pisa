@@ -33,7 +33,6 @@ However, PISA's methods apply equally well to high-MC situations, and PISA also 
 | `MANIFEST.in`             | Extra files to distribute with PISA package
 | `README.md`               | Brief overview of PISA
 | `pylintrc`                | PISA coding conventions for use with pylint
-| `requirements.txt`        | Hard dependencies, use with `pip install -r requirements.txt`
 | `setup.cfg`               | Setup file for `versioneer`
 | `setup.py`                | Python setup file, allowing e.g. `pip` installation
 | `versioneer.py`           | Automatic versioning
