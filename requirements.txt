@@ -9,4 +9,5 @@ line_profiler
 matplotlib>=2.0,<3.0
 uncertainties
 decorator
-svn+http://code.icecube.wisc.edu/svn/sandbox/schoenen/kde/releases/V00-01-01#egg=kde
+numba>=0.38
+git+https://github.com/icecubeopensource/kde.git#egg=kde

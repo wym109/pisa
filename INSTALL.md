@@ -29,8 +29,8 @@ _Note that terminal commands below are intended for the bash shell. You'll have 
         https://www.anaconda.com/download
     * Miniconda (just the essentials, ~40 MB)<br>
         https://conda.io/miniconda.html
-1. Install PISA including optional packages for PISA pi stages (`numba`) and development tools (`develop`), if desired<br>
-    `pip install -e $PISA[numba,develop] -r $PISA/requirements.txt -vvv`
+1. Install PISA including optional packages and development tools (`develop`), if desired<br>
+    `pip install -e $PISA[develop] -r $PISA/requirements.txt -vvv`
 1. Run a quick test: generate templates in the staged mode<br>
 `$PISA/pisa/core/pipeline.py --pipeline settings/pipeline/example.cfg  --outdir /tmp/pipeline_output --intermediate --pdf -v`
 
@@ -72,6 +72,11 @@ Also note that Python, HDF5, and pip support come pre-packaged or as `conda`-ins
 * [hdf5](http://www.hdfgroup.org/HDF5) — install with `--enable-cxx` option
   * In Ubuntu,<br>
     `sudo apt install libhdf5-10`
+* [llvm](http://llvm.org) Compiler needed by Numba. This is automatically installed in Anaconda alongside `numba`, but must be installed manually on your system otherwise.
+  * Anaconda<br>
+    `conda install numba=0.38`
+  * In Ubuntu,<br>
+    `sudo apt install llvm-3.9-dev`
 
 Required Python modules that are installed automatically when you use the `pip` command detailed later:
 * [configparser](https://pypi.python.org/pypi/configparser)
@@ -86,27 +91,21 @@ Required Python modules that are installed automatically when you use the `pip` 
 * [simplejson](https://github.com/simplejson/simplejson) version >= 3.2.0 required
 * [tables](http://www.pytables.org)
 * [uncertainties](https://pythonhosted.org/uncertainties)
-* [kde](svn co http://code.icecube.wisc.edu/svn/sandbox/schoenen/kde/releases/V00-01-01 kde)
+* [numba>=0.38](http://numba.pydata.org) Just-in-time compilation of decorated Python functions to native machine code via LLVM. This package is required to use PISA pi; also in cake it can accelerate certain routines significantly. If not using Anaconda to install, you must have LLVM installed already on your system (see above).
+* [kde](https://github.com/IceCubeOpenSource/kde)
   * You can install the `kde` module manually if it fails to install automatically:
     * Including CUDA support:<br>
-      `pip install svn+http://code.icecube.wisc.edu/svn/sandbox/schoenen/kde/releases/V00-01-01#egg=kde[cuda]`
+      `pip install git+https://github.com/icecubeopensource/kde.git#egg=kde[cuda]`
     * Without CUDA support:<br>
-      `pip install svn+http://code.icecube.wisc.edu/svn/sandbox/schoenen/kde/releases/V00-01-01#egg=kde`
+      `pip install git+https://github.com/icecubeopensource/kde.git#egg=kde`
 
 
 ### Optional Dependencies
 
 Optional dependencies. Some of these must be installed manually prior to installing PISA, and some will be installed automatically by pip, and this seems to vary from system to system. Therefore you can first try to run the installation, and just install whatever pip says it needed, or just use apt, pip, and/or conda to install the below before running the PISA installation.
 
-* [llvm](http://llvm.org) Compiler needed by Numba. This is automatically installed in Anaconda alongside `numba`, but must be installed manually on your system otherwise.
-  * Anaconda<br>
-    `conda install numba=0.38`
-  * In Ubuntu,<br>
-    `sudo apt install llvm-3.9-dev`
 * [MCEq](http://github.com/afedynitch/MCEq) Required for `flux.mceq` service.
-* [numba=0.38](http://numba.pydata.org) Just-in-time compilation of decorated Python functions to native machine code via LLVM. This package is required to use PISA pi; also in cake it can accelerate certain routines significantly. If not using Anaconda to install, you must have LLVM installed already on your system (see above).
 * [nuSQuiDS](https://github.com/arguelles/nuSQuIDS) Required for `osc.nusquids` service.
-  * Installed alongside PISA if you specify option `['numba']` to `pip`
 * [OpenMP](http://www.openmp.org) Intra-process parallelization to accelerate code on on multi-core/multi-CPU computers.
   * Available from your compiler: gcc supports OpenMP 4.0 and Clang >= 3.8.0 supports OpenMP 3.1. Either version of OpenMP should work, but Clang has yet to be tested for its OpenMP support.
 * [Pylint](http://www.pylint.org): Static code checker and style analyzer for Python code. Note that our (more or less enforced) coding conventions are codified in the pylintrc file in PISA, which will automatically be found and used by Pylint when running on code within a PISA package.<br>
@@ -118,7 +117,8 @@ Optional dependencies. Some of these must be installed manually prior to install
   * Installed alongside PISA if you specify option `['develop']` to `pip`
 * [versioneer](https://github.com/warner/python-versioneer) Automatically get versions from git and make these embeddable and usable in code. Note that the install process is unique since it first places `versioneer.py` in the PISA root directory, and then updates source files within the repository to provide static and dynamic version info.
   * Installed alongside PISA if you specify option `['develop']` to `pip`
-* [yapf](https://github.com/google/yapf) Format your Python code, _automatically_, with typically very nice results!
+* [black](https://github.com/ambv/black) Format your Python code, _automatically_, with typically very nice results!
+  * Note this only works in Python3
 
 
 ### Obtain PISA sourcecode
@@ -167,20 +167,19 @@ This is not quite as clean as a virtual environment, and the issue with coflicti
 ### Install PISA
 
 ```bash
-pip install -e $PISA[numba,develop] -r $PISA/requirements.txt -vvv
+pip install -e $PISA[develop] -r $PISA/requirements.txt -vvv
 ```
 Explanation:
 * First, note that this is ***not run as administrator***. It is discouraged to do so (and has not been tested this way).
 * `-e $PISA` (or equivalently, `--editable $PISA`): Installs from source located at `$PISA` and  allows for changes to the source code within to be immediately propagated to your Python installation.
 Within the Python library tree, all files under `pisa` are links to your source code, so changes within your source are seen directly by the Python installation. Note that major changes to your source code (file names or directory structure changing) will require re-installation, though, for the links to be updated (see below for the command for re-installing).
-* `[numba,develop]` Specify optional dependency groups. You can omit any or all of these if your system does not support them or if you do not need them.
+* `[develop]` Specify optional dependency groups. You can omit any or all of these if your system does not support them or if you do not need them.
 * `-r $PISA/requirements.txt`: Specifies the file containing PISA's dependencies for `pip` to install prior to installing PISA.
 This file lives at `$PISA/requirements.txt`.
 * `-vvv` Be maximally verbose during the install. You'll see lots of messages, including warnings that are irrelevant, but if your installation fails, it's easiest to debug if you use `-vvv`.
 * If a specific compiler is set by the `CC` environment variable (`export CC=<path>`), it will be used; otherwise, the `cc` command will be run on the system for compiling C-code.
 
 __Notes:__
-* For PISA pi modules, the optional `numba` dependency is required
 * You can work with your installation using the usual git commands (pull, push, etc.). However, these ***won't recompile*** any of the extension (i.e. pyx, _C/C++_) libraries. See below for how to reinstall PISA when you need these to recompile.
 
 
@@ -189,7 +188,7 @@ __Notes:__
 Sometimes a change within PISA requires re-installation (particularly if a compiled module changes, the below forces re-compilation).
 
 ```bash
-pip install -e $PISA[numba,develop] -r $PISA/requirements.txt --force-reinstall -vvv
+pip install -e $PISA[develop] -r $PISA/requirements.txt --force-reinstall -vvv
 ```
 
 Note that if files change names or locations, though, the above can still not be enough.
