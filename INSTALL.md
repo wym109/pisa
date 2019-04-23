@@ -30,7 +30,7 @@ _Note that terminal commands below are intended for the bash shell. You'll have 
     * Miniconda (just the essentials, ~40 MB)<br>
         https://conda.io/miniconda.html
 1. Install PISA including optional packages and development tools (`develop`), if desired<br>
-    `pip install -e $PISA[develop] -r $PISA/requirements.txt -vvv`
+    `pip install -e $PISA[develop] -vvv`
 1. Run a quick test: generate templates in the staged mode<br>
 `$PISA/pisa/core/pipeline.py --pipeline settings/pipeline/example.cfg  --outdir /tmp/pipeline_output --intermediate --pdf -v`
 
@@ -167,15 +167,13 @@ This is not quite as clean as a virtual environment, and the issue with coflicti
 ### Install PISA
 
 ```bash
-pip install -e $PISA[develop] -r $PISA/requirements.txt -vvv
+pip install -e $PISA[develop] -vvv
 ```
 Explanation:
 * First, note that this is ***not run as administrator***. It is discouraged to do so (and has not been tested this way).
 * `-e $PISA` (or equivalently, `--editable $PISA`): Installs from source located at `$PISA` and  allows for changes to the source code within to be immediately propagated to your Python installation.
 Within the Python library tree, all files under `pisa` are links to your source code, so changes within your source are seen directly by the Python installation. Note that major changes to your source code (file names or directory structure changing) will require re-installation, though, for the links to be updated (see below for the command for re-installing).
 * `[develop]` Specify optional dependency groups. You can omit any or all of these if your system does not support them or if you do not need them.
-* `-r $PISA/requirements.txt`: Specifies the file containing PISA's dependencies for `pip` to install prior to installing PISA.
-This file lives at `$PISA/requirements.txt`.
 * `-vvv` Be maximally verbose during the install. You'll see lots of messages, including warnings that are irrelevant, but if your installation fails, it's easiest to debug if you use `-vvv`.
 * If a specific compiler is set by the `CC` environment variable (`export CC=<path>`), it will be used; otherwise, the `cc` command will be run on the system for compiling C-code.
 
@@ -188,7 +186,7 @@ __Notes:__
 Sometimes a change within PISA requires re-installation (particularly if a compiled module changes, the below forces re-compilation).
 
 ```bash
-pip install -e $PISA[develop] -r $PISA/requirements.txt --force-reinstall -vvv
+pip install -e $PISA[develop] --force-reinstall -vvv
 ```
 
 Note that if files change names or locations, though, the above can still not be enough.

@@ -13,15 +13,15 @@ Checkout the source code tree in the current directory via
 
 and install basic PISA package (in editable mode via -e flag) via
 
-    $ pip install -e ./pisa -r ./pisa/requirements.txt
+    $ pip install -e ./pisa
 
 or include optional dependencies by specifying them in brackets
 
-    $ pip install -e ./pisa[develop] -r ./pisa/requirements.txt
+    $ pip install -e ./pisa[develop]
 
 If you wish to upgrade PISA and/or its dependencies:
 
-    $ pip install ./pisa[develop] -r ./pisa/requirements.txt --upgrade
+    $ pip install ./pisa[develop] --upgrade
 """
 
 
