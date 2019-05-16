@@ -44,6 +44,14 @@ class toy_event_generator(PiStage):
                            'random',
                            'seed',
                            )
+
+        input_apply_keys = ('initial_weights',
+                           'weights',
+                           'weighted_aeff',
+                           'nominal_nu_flux',
+                           'nominal_nubar_flux',
+                           )
+
         # init base class
         super(toy_event_generator, self).__init__(data=data,
                                                   params=params,
@@ -54,6 +62,7 @@ class toy_event_generator(PiStage):
                                                   input_specs=input_specs,
                                                   calc_specs=calc_specs,
                                                   output_specs=output_specs,
+                                                  input_apply_keys=input_apply_keys,
                                                  )
 
         # doesn't calculate anything
@@ -77,36 +86,37 @@ class toy_event_generator(PiStage):
             if 'tau' in name:
                 flav = 2
 
+
+            # Generate some events in the array representation just to have them
+            # here we add those explicitly in the array representation
+            true_energy = np.power(10, self.random_state.rand(n_events).astype(FTYPE) * 3)
+            true_coszen = self.random_state.rand(n_events).astype(FTYPE) * 2 - 1
+            container.add_array_data('true_energy', true_energy)
+            container.add_array_data('true_coszen', true_coszen)
+
             if self.input_mode == 'events':
-
-                # generate events
-                true_energy = np.power(10, self.random_state.rand(n_events).astype(FTYPE) * 3)
-                true_coszen = self.random_state.rand(n_events).astype(FTYPE) * 2 - 1
                 size = n_events
-                container.add_array_data( 'true_energy', true_energy )
-                container.add_array_data( 'true_coszen', true_coszen )
-
             elif self.input_mode == 'binned':
-
-                # create variables using the grid
                 size = self.input_specs.size
-                mesh = self.input_specs.meshgrid(entity="midpoints",attach_units=False) #TODO How to enforce correct units? #TODO Use edges?
-                for var_name,var_vals in zip(self.input_specs.names,mesh) :
-                    container.add_array_data( var_name, var_vals.flatten().astype(FTYPE) )
 
-            # choose initial weights
+            # make some initial weights
             if self.params.random.value:
-                initial_weights = self.random_state.rand(size).astype(FTYPE)
+                container['initial_weights'] = self.random_state.rand(size).astype(FTYPE)
             else:
-                initial_weights = np.ones(size, dtype=FTYPE)
-            weights = np.ones(size, dtype=FTYPE)
+                container['initial_weights'] = np.ones(size, dtype=FTYPE)
 
-            # make container
+            # other necessary info
             container.add_scalar_data('nubar', nubar)
             container.add_scalar_data('flav', flav)
-            container.add_array_data('initial_weights',initial_weights.astype(FTYPE))
-            container.add_array_data('weights',weights.astype(FTYPE))
-            container.add_array_data('weighted_aeff',weights.astype(FTYPE))
+            container['weights'] =  np.ones(size, dtype=FTYPE)
+            container['weighted_aeff'] =  np.ones(size, dtype=FTYPE)
+
+            flux_nue = np.zeros(size, dtype=FTYPE)
+            flux_numu = np.ones(size, dtype=FTYPE)
+            flux = np.stack([flux_nue, flux_numu], axis=1)
+
+            container['nominal_nu_flux'] = flux
+            container['nominal_nubar_flux'] = flux
 
             self.data.add_container(container)
 
