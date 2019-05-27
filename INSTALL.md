@@ -32,9 +32,9 @@ _Note that terminal commands below are intended for the bash shell. You'll have 
 1. Run a quick test: generate templates in the staged mode<br>
 `$PISA/pisa/core/pipeline.py --pipeline settings/pipeline/example.cfg  --outdir /tmp/pipeline_output --intermediate --pdf -v`
 
-See [github.com/jllanfranchi/pisa/wiki/installation_specific_examples](https://github.com/jllanfranchi/pisa/wiki/installation_specific_examples) for users' recipes for installing PISA under various circumstances.
+See [github.com/IceCubeOpenSource/pisa/wiki/installation_specific_examples](https://github.com/IceCubeOpenSource/pisa/wiki/installation_specific_examples) for users' recipes for installing PISA under various circumstances.
 Please add notes there and/or add your own recipe if your encounter a unique installation issue.
-Also, for instructions on running PISA on Open Science Grid (OSG) nodes, see [github.com/jllanfranchi/pisa/wiki/Running-PISA-on-GRID-nodes-with-access-to-CVMFS](https://github.com/jllanfranchi/pisa/wiki/Running-PISA-on-GRID-nodes-with-access-to-CVMFS)
+Also, for instructions on running PISA on Open Science Grid (OSG) nodes, see [github.com/IceCubeOpenSource/pisa/wiki/Running-PISA-on-GRID-nodes-with-access-to-CVMFS](https://github.com/jllanfranchi/pisa/wiki/Running-PISA-on-GRID-nodes-with-access-to-CVMFS)
 
 The following sections delve into deeper detail on installing PISA.
 
