@@ -16,7 +16,7 @@ __all__ = ['pi_shift_scale_pid']
 
 __author__ = 'L. Fischer'
 
-    
+
 class pi_shift_scale_pid(PiStage):
     """
     Shift/scale pid.
@@ -47,7 +47,7 @@ class pi_shift_scale_pid(PiStage):
                  input_specs=None,
                  calc_specs=None,
                  output_specs=None,
-                ):
+                 ):
 
         # register expected parameters
         expected_params = ('bias', 'scale',)
@@ -56,7 +56,7 @@ class pi_shift_scale_pid(PiStage):
         output_names = ()
 
         input_apply_keys = ('pid',)
-                            
+
         output_calc_keys = ('calculated_pid',)
 
         output_apply_keys = ('pid',)
@@ -74,7 +74,7 @@ class pi_shift_scale_pid(PiStage):
                                                  input_apply_keys=input_apply_keys,
                                                  output_apply_keys=output_apply_keys,
                                                  output_calc_keys=output_calc_keys,
-                                                )
+                                                 )
 
         assert self.input_mode is not None
         assert self.calc_mode == 'events'
@@ -82,11 +82,13 @@ class pi_shift_scale_pid(PiStage):
 
     def setup_function(self):
         """Setup the stage"""
-        
+
         # set the correct data mode
         self.data.data_specs = self.calc_specs
         for container in self.data:
             container['calculated_pid'] = np.empty((container.size), dtype=FTYPE)
+            container['original_pid'] = np.empty((container.size), dtype=FTYPE)
+            vectorizer.set(container['pid'], out=container['original_pid'])
 
     def compute_function(self):
         """Perform computation"""
@@ -98,15 +100,14 @@ class pi_shift_scale_pid(PiStage):
         for container in self.data:
             calculate_pid_function(bias,
                                    scale,
-                                   container['pid'].get(WHERE),
+                                   container['original_pid'].get(WHERE),
                                    out=container['calculated_pid'].get(WHERE))
             container['calculated_pid'].mark_changed(WHERE)
 
     def apply_function(self):
         for container in self.data:
             # set the pid value to the calculated one
-            vectorizer.set(container['calculated_pid'], 
-                           out=container['pid'])
+            vectorizer.set(container['calculated_pid'], out=container['pid'])
 
 signatures = [
     '(f4[:], f4[:], f4[:], f4[:])',
@@ -115,11 +116,12 @@ signatures = [
 
 layout = '(),(),()->()'
 
+
 @guvectorize(signatures, layout, target=TARGET)
 def calculate_pid_function(bias_value, scale_factor, pid, out):
-    """This function selects a pid cut by shifting the pid variable so 
+    """This function selects a pid cut by shifting the pid variable so
     the default cut at 1.0 is at the desired cut position.
-    
+
     Parameters
     ----------
     bias_value : scalar
