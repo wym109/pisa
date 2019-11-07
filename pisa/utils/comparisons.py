@@ -219,10 +219,22 @@ def recursiveEquality(x, y):
             logging.trace('shape(x): %s' %np.shape(x))
             logging.trace('shape(y): %s' %np.shape(y))
             return False
-        if not np.allclose(x, y, **ALLCLOSE_KW):
-            logging.trace('x: %s' %x)
-            logging.trace('y: %s' %y)
-            return False
+
+        if isinstance(x, NP_TYPES):
+            dtype = x.dtype.type
+        else:
+            dtype = y.dtype.type
+
+        if issubclass(dtype, np.floating):
+            if not np.allclose(x, y, **ALLCLOSE_KW):
+                logging.trace('x: %s' %x)
+                logging.trace('y: %s' %y)
+                return False
+        else:
+            if not np.all(x == y):
+                logging.trace('x: %s' %x)
+                logging.trace('y: %s' %y)
+                return False
 
     # dict
     elif isinstance(x, Mapping):
