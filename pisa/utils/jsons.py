@@ -12,22 +12,38 @@ from __future__ import absolute_import, division
 
 import bz2
 from collections import OrderedDict
+try:
+    from collections.abc import Iterable
+except ImportError:
+    from collections import Iterable
 import os
 import tempfile
 
 import numpy as np
 import simplejson as json
+from six import string_types
 
 from pisa import ureg
 from pisa.utils.comparisons import isbarenumeric
 
 
-__all__ = ['JSON_EXTS', 'ZIP_EXTS', 'XOR_EXTS',
-           'json_string', 'from_json', 'to_json']
+__all__ = [
+    'JSON_EXTS',
+    'ZIP_EXTS',
+    'XOR_EXTS',
+    'json_string',
+    'dumps',
+    'loads',
+    'from_json',
+    'to_json',
+    'NumpyEncoder',
+    'NumpyDecoder',
+    'test_to_json_from_json',
+]
 
 __author__ = 'S. Boeser, J.L. Lanfranchi'
 
-__license__ = '''Copyright (c) 2014-2017, The IceCube Collaboration
+__license__ = '''Copyright (c) 2014-2019, The IceCube Collaboration
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -99,7 +115,7 @@ def from_json(filename):
             )
             del decompressed
         elif ext == 'xor':
-            
+
             with open(filename, 'rb') as infile:
                 encrypted_bytes = infile.read()
 
@@ -185,7 +201,7 @@ def to_json(content, filename, indent=2, overwrite=True, warn=True,
             )
         elif ext == 'xor':
             json_bytes = json.dumps(
-                content, indent=indent, cls=NumpyEncoder, 
+                content, indent=indent, cls=NumpyEncoder,
                 sort_keys=sort_keys, allow_nan=True, ignore_nan=False
                 ).encode()
 
@@ -211,25 +227,31 @@ class NumpyEncoder(json.JSONEncoder):
         # Import here to avoid circular imports
         from pisa.utils.log import logging
 
-        if isinstance(obj, np.ndarray):
-            return obj.astype(np.float64).tolist()
+        if not isinstance(obj, string_types) and isinstance(obj, Iterable):
+            return [self.default(x) for x in obj]
+
+        #if isinstance(obj, np.ndarray):
+        #    return [self.default(x) for x in obj]
 
         # TODO: poor form to have a way to get this into a JSON file but no way
         # to get it out of a JSON file... so either write a deserializer, or
         # remove this and leave it to other objects to do the following.
         if isinstance(obj, ureg.Quantity):
-            return obj.to_tuple()
+            return tuple(self.default(x) for x in obj.to_tuple())
 
-        # NOTE: np.bool_ is the *Numpy* bool type, while np.bool is alias for
+        # NOTE: np.bool_ is *Numpy* bool type, while np.bool is alias for
         # Python bool type, hence this conversion
+        if isinstance(obj, np.integer):
+            return int(obj)
+
+        if isinstance(obj, np.floating):
+            return float(obj)
+
         if isinstance(obj, np.bool_):
             return bool(obj)
 
         if hasattr(obj, 'serializable_state'):
             return obj.serializable_state
-
-        if isinstance(obj, np.float32):
-            return float(obj)
 
         try:
             return json.JSONEncoder.default(self, obj)
@@ -279,40 +301,90 @@ class NumpyDecoder(json.JSONDecoder):
         return values, end
 
 
-# TODO: finish this little bit
-def test_NumpyEncoderDecoder():
-    """Unit tests for NumpyEncoder and NumpyDecoder"""
+# TODO: include more basic types in testing (strings, etc.)
+def test_to_json_from_json():
+    """Unit tests for writing various types of objects to and reading from JSON
+    files (including bz2-compressed and xor-scrambled files)"""
     from shutil import rmtree
     import sys
     from pisa.utils.comparisons import recursiveEquality
 
-    nda1 = np.array([-np.inf, np.nan, np.inf, -1, 0, 1, ])
+    proto_float_array = np.array(
+        [-np.inf, np.nan, np.inf, -1.1, 0.0, 1.1], dtype=np.float64
+    )
+    proto_int_array = np.array([-2, -1, 0, 1, 2], dtype=np.int64)
+    proto_str_array = np.array(['a', 'ab', 'abc', '', ' '], dtype=str)
+
+    floating_types = [float] + sorted(
+        set(t for _, t in np.typeDict.items() if issubclass(t, np.floating)), key=str,
+    )
+    integer_types = [int] + sorted(
+        set(t for _, t in np.typeDict.items() if issubclass(t, np.integer)), key=str,
+    )
+
+    test_info = [
+        dict(
+            proto_array=proto_float_array,
+            dtypes=floating_types,
+        ),
+        dict(
+            proto_array=proto_int_array,
+            dtypes=integer_types,
+        ),
+        # TODO: strings currently do not work
+        #dict(
+        #    proto_array=proto_str_array,
+        #    dtypes=[str, np.str0, np.str_, np.string_],
+        #),
+    ]
+
+    test_data = OrderedDict()
+    for info in test_info:
+        proto_array = info['proto_array']
+        for dtype in info['dtypes']:
+            typed_array = proto_array.astype(dtype)
+            s_dtype = str(np.dtype(dtype))
+            test_data["array_" + s_dtype] = typed_array
+            test_data["scalar_" + s_dtype] = dtype(typed_array[0])
+
     temp_dir = tempfile.mkdtemp()
     try:
-        fname = os.path.join(temp_dir, 'nda1.json')
-        to_json(nda1, fname)
-        fname2 = os.path.join(temp_dir, 'nda1.json.bz2')
-        to_json(nda1, fname2)
-        for fn in [fname, fname2]:
-            nda2 = from_json(fn)
-            assert np.allclose(nda2, nda1, rtol=1e-12, atol=0, equal_nan=True), \
-                    'nda1=\n%s\nnda2=\n%s\nsee file: %s' %(nda1, nda2, fn)
-        d1 = {'nda1': nda1}
-        fname = os.path.join(temp_dir, 'd1.json')
-        fname2 = os.path.join(temp_dir, 'd1.json.bz2')
-        fname3 = os.path.join(temp_dir, 'd1.json.xor')
-        to_json(d1, fname)
-        to_json(d1, fname2)
-        to_json(d1, fname3)
-        for fn in [fname, fname2, fname3]:
-            d2 = from_json(fn)
-            assert recursiveEquality(d2, d1), \
-                    'd1=\n%s\nd2=\n%s\nsee file: %s' %(d1, d2, fn)
+        for name, obj in test_data.items():
+            # Test that the object can be written / read directly
+            base_fname = os.path.join(temp_dir, name + '.json')
+            for ext in ['', '.bz2', '.xor']:
+                fname = base_fname + ext
+                to_json(obj, fname)
+                loaded_data = from_json(fname)
+                if obj.dtype in floating_types:
+                    assert np.allclose(
+                        loaded_data, obj, rtol=1e-12, atol=0, equal_nan=True
+                    ), '{}=\n{}\nloaded=\n{}\nsee file: {}'.format(
+                        name, obj, loaded_data, fname
+                    )
+                else:
+                    assert np.all(loaded_data == obj), \
+                        '{}=\n{}\nloaded_nda=\n{}\nsee file: {}'.format(
+                            name, obj, loaded_data, fname
+                        )
+
+            # Test that the same object can be written / read as a value in a
+            # dictionary
+            orig = OrderedDict([(name, obj), (name + "x", obj)])
+            base_fname = os.path.join(temp_dir, 'd.{}.json'.format(name))
+            for ext in ['', '.bz2', '.xor']:
+                fname = base_fname + ext
+                to_json(orig, fname)
+                loaded = from_json(fname)
+                assert recursiveEquality(loaded, orig), \
+                    'orig=\n{}\nloaded=\n{}\nsee file: {}'.format(
+                        orig, loaded, fname
+                    )
     finally:
         rmtree(temp_dir)
 
-    sys.stdout.write('<< PASS : test_NumpyEncoderDecoder >>\n')
+    sys.stdout.write('<< PASS : test_to_json_from_json >>\n')
 
 
 if __name__ == '__main__':
-    test_NumpyEncoderDecoder()
+    test_to_json_from_json()
