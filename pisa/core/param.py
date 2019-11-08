@@ -7,7 +7,7 @@ values.
 
 from __future__ import absolute_import, division
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from collections import OrderedDict
 from copy import deepcopy
 from functools import total_ordering
@@ -95,27 +95,28 @@ class Param(object):
     ...           range=[-10, 60]*ureg.foot, is_fixed=False, is_discrete=False)
     >>> x.value
     <Quantity(1.5, 'foot')>
-    >>> print x.prior_llh
+    >>> print(x.prior_llh)
     -45.532515919999994
-    >>> print x.to('m')
+    >>> print(x.to('m'))
 
     >>> x.value = 10*ureg.m
-    >>> print x.value
+    >>> print(x.value)
     <Quantity(32.8083989501, 'foot')>
     >>> x.ito('m')
-    >>> print x.value
+    >>> print(x.value)
 
     >>> x.prior_llh
     -1.5777218104420236e-30
     >>> p.nominal_value
 
     >>> x.reset()
-    >>> print x.value
+    >>> print(x.value)
 
 
     """
+    # pylint: disable=protected-access
     _slots = ('name', 'unique_id', 'value', 'prior', 'range', 'is_fixed',
-              'is_discrete', 'nominal_value', '_rescaled_value',
+              'is_discrete', 'nominal_value', 'tex', '_rescaled_value',
               '_nominal_value', '_tex', 'help', '_value', '_range', '_units',
               'normalize_values')
     _state_attrs = ('name', 'unique_id', 'value', 'prior', 'range', 'is_fixed',
@@ -131,7 +132,7 @@ class Param(object):
         self.value = value
         self.name = name
         self.unique_id = unique_id if unique_id is not None else name
-        self._tex = tex
+        self.tex = tex
         self.help = help
         self.range = range
         self.prior = prior
@@ -283,7 +284,7 @@ class Param(object):
 
     @property
     def tex(self):
-        return '%s=%s' % (self._tex, self.value)
+        return self._tex
 
     @tex.setter
     def tex(self, t):
@@ -307,6 +308,10 @@ class Param(object):
                 val = val.state
             setitem(state, attr, val)
         return state
+
+    @property
+    def serializable_state(self):
+        return self.state
 
     def reset(self):
         """Reset the parameter's value to its nominal value."""
@@ -422,6 +427,18 @@ class Param(object):
     def __hash__(self):
         return self.hash
 
+    def to_json(self, filename, **kwargs):
+        """Serialize the state to a JSON file that can be instantiated as a new
+        object later.
+        """
+        jsons.to_json(self.serializable_state, filename, **kwargs)
+
+    @classmethod
+    def from_json(cls, filename):
+        """Instantiate a new Param from a JSON file"""
+        state = jsons.from_json(filename=filename)
+        return cls(**state)
+
 
 # TODO: temporary modification of parameters via "with" syntax?
 class ParamSet(Sequence):
@@ -447,36 +464,50 @@ class ParamSet(Sequence):
     ...                     range=[-1, 1], is_fixed=True, is_discrete=False,
     ...                     tex=r'\cos\,\theta_Z^{\rm reco}')
     >>> param_set = ParamSet(reco_energy, reco_coszen)
-    >>> print param_set
+    >>> print(param_set)
     reco_coszen=-2.0000e-01 reco_energy=+1.2000e+01 GeV
 
-    >>> print param_set.free
+    >>> print(param_set.free)
     reco_energy=+1.2000e+01 GeV
 
-    >>> print param_set.reco_energy.value
+    >>> print(param_set.reco_energy.value)
     12 gigaelectron_volt
 
-    >>> print [p.prior_llh for p in param_set]
+    >>> print([p.prior_llh for p in param_set])
     [-5.0, -2]
 
-    >>> print param_set.priors_llh
+    >>> print(param_set.priors_llh)
     -7.0
 
-    >>> print param_set.values_hash
+    >>> print(param_set.values_hash)
     3917547535160330856
 
-    >>> print param_set.free.values_hash
+    >>> print(param_set.free.values_hash)
     -7121742559130813936
 
     """
+    # pylint: disable=protected-access
     def __init__(self, *args):
-        param_sequence = []
         # Unpack the input args into a flat list of params
-        for arg in args:
-            try:
-                param_sequence.extend(arg)
-            except TypeError:
-                param_sequence.append(arg)
+        param_sequence_ = []
+        for arg_num, arg in enumerate(args, start=1):
+            if isinstance(arg, (Mapping, Param)):
+                param_sequence_.append(arg)
+            elif isinstance(arg, Iterable):
+                param_sequence_.extend(arg)
+            else:
+                raise TypeError(
+                    "Unhandled type {}, arg #{}: {}".format(type(arg), arg_num, arg)
+                )
+
+        param_sequence = []
+        for param in param_sequence_:
+            if isinstance(param, Mapping):
+                param = Param(**param)
+            if isinstance(param, Param):
+                param_sequence.append(param)
+            else:
+                raise TypeError("Unhandled type {}: {}".format(type(param), param))
 
         # Disallow duplicated params
         all_names = [p.name for p in param_sequence]
@@ -495,10 +526,7 @@ class ParamSet(Sequence):
 
     @property
     def serializable_state(self):
-        state = OrderedDict()
-        for p in self._params:
-            state[p.name] = p.state
-        return state
+        return [p.state for p in self]
 
     @property
     def _by_name(self):
@@ -974,6 +1002,19 @@ class ParamSet(Sequence):
         """
         jsons.to_json(self.serializable_state, filename=filename, **kwargs)
 
+    @classmethod
+    def from_json(cls, filename):
+        """Instantiate a new ParamSet from a JSON file"""
+        state = jsons.from_json(filename=filename)
+        if isinstance(state, Sequence):
+            return cls(*state)
+        if isinstance(state, Mapping):
+            return cls(*tuple(state.values()))
+        raise TypeError(
+            'Unhandled type loaded from "{}": {}'.format(filename, type(state))
+        )
+
+
 class ParamSelector(object):
     """
     Parameters
@@ -1000,6 +1041,7 @@ class ParamSelector(object):
     with params in the param sets specified by `selector_param_sets`.
 
     """
+    # pylint: disable=protected-access
     def __init__(self, regular_params=None, selector_param_sets=None,
                  selections=None):
         self._current_params = ParamSet()
@@ -1109,6 +1151,7 @@ class ParamSelector(object):
 
 def test_Param():
     """Unit tests for Param class"""
+    # pylint: disable=unused-variable
     from scipy.interpolate import splrep
     from pisa.core.prior import Prior
 
@@ -1218,6 +1261,7 @@ def test_Param():
 # TODO: add tests for reset() and reset_all() methods
 def test_ParamSet():
     """Unit tests for ParamSet class"""
+    # pylint: disable=attribute-defined-outside-init
     from pisa.core.prior import Prior
 
     p0 = Param(name='c', value=1.5, prior=None, range=[1, 2],
@@ -1351,6 +1395,7 @@ def test_ParamSet():
 
 def test_ParamSelector():
     """Unit tests for ParamSelector class"""
+    # pylint: disable=attribute-defined-outside-init
     p0 = Param(name='a', value=1.5, prior=None, range=[1, 2],
                is_fixed=False, is_discrete=False, tex=r'\int{\rm c}')
     p1 = Param(name='b', value=2.5, prior=None, range=[1, 5],
