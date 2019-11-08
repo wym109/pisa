@@ -209,7 +209,7 @@ class DiskCache(object):
     >>> disk_cache[13] = x
     >>> disk_cache[14] = x
     >>> y = disk_cache[12]
-    >>> print y == x
+    >>> print(y == x)
     True
     >>> len(disk_cache)
     3

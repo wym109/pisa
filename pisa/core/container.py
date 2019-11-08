@@ -544,7 +544,7 @@ def test_container():
     binning_x = OneDimBinning(name='x', num_bins=10, is_lin=True, domain=[0, 100])
     binning_y = OneDimBinning(name='y', num_bins=10, is_lin=True, domain=[0, 100])
     binning = MultiDimBinning([binning_x, binning_y])
-    #print binning.names
+    #print(binning.names)
     print(container.get_binned_data('x', binning).get('host'))
     print(Container.unroll_binning('x', binning).get('host'))
 

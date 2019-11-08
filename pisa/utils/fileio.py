@@ -198,7 +198,7 @@ def get_valid_filename(s):
 
     Examples
     --------
-    >>> print get_valid_filename(r'A,bCd $%#^#*!()"\' .ext ')
+    >>> print(get_valid_filename(r'A,bCd $%#^#*!()"\' .ext '))
     'a_bcd__.ext'
 
     """

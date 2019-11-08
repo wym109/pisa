@@ -234,13 +234,13 @@ class Analysis(object):
 
         # Assess the fit of the template to the data distribution, and negate
         # if necessary
-        #print [map.name for map in template[0]]
-        #print [map.name for map in self.pseudodata]
+        #print([map.name for map in template[0]])
+        #print([map.name for map in self.pseudodata])
         metric_val = (
             self.pseudodata.metric_total(expected_values=template, metric=self.metric)
             + template_maker.params.priors_penalty(metric=self.metric)
         )
-        #print metric_val
+        #print(metric_val)
 
         mod_chi2_val = (self.pseudodata.metric_total(expected_values=template, metric='mod_chi2')
             + template_maker.params.priors_penalty(metric='mod_chi2'))

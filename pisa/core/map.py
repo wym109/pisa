@@ -10,7 +10,7 @@ containers but that get passed down to operate on the contained data.
 from __future__ import absolute_import, division
 
 from collections.abc import Iterable, Mapping, Sequence
-from collections import OrderedDict 
+from collections import OrderedDict
 from copy import deepcopy, copy
 from fnmatch import fnmatch
 from functools import reduce
@@ -204,7 +204,6 @@ def _new_obj(original_function):
     return decorate(original_function, new_function)
 
 
-
 def valid_nominal_values(data_array):
     """Get the the nominal values that are valid for an array"""
     return np.ma.masked_invalid(unp.nominal_values(data_array))
@@ -281,10 +280,10 @@ class Map(object):
            [ 1.,  0.],
            [ 1.,  0.]])
     >>> for bin in m1.iterbins():
-    ...     print '({0:~.2f}, {1:~.2f}): {2:0.1f}'.format(
+    ...     print('({0:~.2f}, {1:~.2f}): {2:0.1f}'.format(
     ...             bin.binning.energy.midpoints[0],
     ...             bin.binning.coszen.midpoints[0],
-    ...             bin.hist[0, 0])
+    ...             bin.hist[0, 0]))
     (2.00 GeV, -0.90 ): 1.0
     (2.00 GeV, -0.70 ): 0.0
     (5.97 GeV, -0.90 ): 1.0
@@ -413,7 +412,7 @@ class Map(object):
         ...     dict(name='y', domain=[1,2], is_lin=True, num_bins=10)
         ... ])
         >>> ones = mdb.ones(name='ones')
-        >>> print ones.slice(x=0,)
+        >>> print(ones.slice(x=0,))
         Map(name='ones',
                 tex='{\\rm ones}',
                 full_comparison=False,
@@ -423,9 +422,9 @@ class Map(object):
                             OneDimBinning(name=OneDimBinning('x', 1 bin with edges at [0.0, 0.2] (behavior is linear))),
                             OneDimBinning(name=OneDimBinning('y', 10 equally-sized bins spanning [1.0, 2.0]))]),
                 hist=array([[ 1.,  1.,  1.,  1.,  1.,  1.,  1.,  1.,  1.,  1.]]))
-        >>> print ones.slice(x=0, y=slice(None)).hist
+        >>> print(ones.slice(x=0, y=slice(None)).hist)
         [[ 1.  1.  1.  1.  1.  1.  1.  1.  1.  1.]]
-        >>> print ones.slice(x=0, y=0).hist
+        >>> print(ones.slice(x=0, y=0).hist)
         [[ 1.]]
 
         Modifications to the slice modifies the original:
@@ -437,8 +436,8 @@ class Map(object):
         >>> ones = mdb.ones(name='ones')
         >>> sl = ones.slice(x=2)
         >>> sl.hist[...] = 0
-        >>> print sl.hist
-        >>> print ones.hist
+        >>> print(sl.hist)
+        >>> print(ones.hist)
         [[ 1.  1.  1.  1.  1.  1.  1.  1.  1.  1.]
          [ 1.  1.  1.  1.  1.  1.  1.  1.  1.  1.]
          [ 0.  0.  0.  0.  0.  0.  0.  0.  0.  0.]
@@ -633,7 +632,7 @@ class Map(object):
              Custom filename to set for saved figure. If not provided, a name
              is derived from the `name` attribute of the Map. Note that if
              `fmt` is None, then this argument is irrelevant.
-        
+
         binlabel_format : string, optional
             Format string to label the content in each bin. If None (default), the bins will not
             be labeled.
@@ -1161,11 +1160,14 @@ class Map(object):
         """
         for i in range(self.size):
             idx_coord = self.binning.index2coord(i)
-            idx_view = [slice(x, x+1) for x in idx_coord]
+            idx_view = tuple(slice(x, x+1) for x in idx_coord)
             single_bin_map = Map(
-                name=self.name, hist=self.hist[idx_view],
-                binning=self.binning[idx_coord], hash=None, tex=self.tex,
-                full_comparison=self.full_comparison
+                name=self.name,
+                hist=self.hist[idx_view],
+                binning=self.binning[idx_coord],
+                hash=None,
+                tex=self.tex,
+                full_comparison=self.full_comparison,
             )
             single_bin_map.parent_indexer = idx_coord
             yield single_bin_map
@@ -1358,7 +1360,7 @@ class Map(object):
 
         return np.sum(stats.llh(actual_values=self.hist,
                                 expected_values=expected_values))
-    
+
     def mcllh_mean(self, expected_values, binned=False):
         """Calculate the total LMean log-likelihood value between this map and the
         map described by `expected_values`; self is taken to be the "actual
@@ -2547,9 +2549,9 @@ class MapSet(object):
         return name in [m.name for m in self]
 
     #def __setattr__(self, attr, val):
-    #    print '__setattr__ being accessed, attr = %s, val = %s' %(attr, val)
+    #    print('__setattr__ being accessed, attr = %s, val = %s' %(attr, val))
     #    if attr in MapSet.__slots:
-    #        print 'attr "%s" found in MapSet.slots.' %attr
+    #        print('attr "%s" found in MapSet.slots.' %attr)
     #        object.__setattr__(self, attr, val)
     #    else:
     #        returned_vals = [setattr(mp, attr, val) for mp in self]
@@ -2803,7 +2805,7 @@ class MapSet(object):
 #                  '__getitem__', '__eq__', '__ne__', '__str__', '__repr__')
 #    if method_name in disallowed:
 #        continue
-#    print 'adding method "%s" to MapSet as an apply func' % method_name
+#    print('adding method "%s" to MapSet as an apply func' % method_name)
 #    arg_str = ', *args' # if len(args) > 0 else ''
 #    eval(('def {method_name}(self{arg_str}):\n'
 #          '    return self.apply_to_maps({method_name}{arg_str})')
