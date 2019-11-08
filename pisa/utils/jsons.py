@@ -1,21 +1,15 @@
 """
 A set of utilities for reading (and instantiating) objects from and writing
 objects to JSON files.
-
-Import json from this module everywhere (if you need to at all, and can not
-just use from_json, to_json) for... faster JSON serdes?
 """
-# TODO: why the second line above?
 
 
 from __future__ import absolute_import, division
 
 import bz2
 from collections import OrderedDict
-try:
-    from collections.abc import Iterable
-except ImportError:
-    from collections import Iterable
+from collections.abc import Iterable, Mapping, Sequence
+from numbers import Integral, Real
 import os
 import tempfile
 
@@ -79,26 +73,72 @@ def loads(s):
     return json.loads(s, cls=NumpyDecoder)
 
 
-def from_json(filename):
+def from_json(filename, cls=None):
     """Open a file in JSON format (optionally compressed with bz2 or
     xor-scrambled) and parse the content into Python objects.
-
-    Note that this currently only recognizes a bz2-compressed or xor-scrambled
-    file by its extension (i.e., the file must be <base>.json.bz2 if it is
-    compressed or <base>.json.xor if it is scrambled).
 
     Parameters
     ----------
     filename : str
+    cls : class (type) object, optional
+        If provided, the class is attempted to be instantiated as described in
+        Notes section.
 
     Returns
     -------
-    content: OrderedDict with contents of JSON file
+    contents_or_obj : simple Python objects or `cls` instantiated therewith
+
+    Notes
+    -----
+    If `cls` is provided as a class (type) object, this function attempts to
+    instantiate the class with the data loaded from the JSON file, as follows:
+
+        * if `cls` has a `from_json` method, that is called directly: .. ::
+
+                cls.from_json(filename)
+
+        * if the data loaded from the JSON file is a non-string sequence: .. ::
+
+                cls(*data)
+
+        * if the data loaded is a Mapping (dict, OrderedDict, etc.): .. ::
+
+                cls(**data)
+
+        * for all other types loaded from the JSON: .. ::
+
+                cls(data)
+
+    Note that this currently only recognizes files by their extensions. I.e.,
+    the file must be named .. ::
+
+        myfile.json
+        myfile.json.bz2
+        myfile.json.xor
+
+    represent a bsic JSON file, a bzip-compressed JSON, and an xor-scrambled
+    JSON, respectively.
 
     """
     # Import here to avoid circular imports
     from pisa.utils.log import logging
     from pisa.utils.resources import open_resource
+
+    if cls is not None:
+        if not isinstance(cls, type):
+            raise TypeError(
+                "`cls` should be a class object (type); got {} instead".format(
+                    type(cls)
+                )
+            )
+        if hasattr(cls, "from_json"):
+            return cls.from_json(from_json(filename=filename))
+
+        # Otherwise, handle instantiating the class generically (which WILL
+        # surely fail for many types) based on the type of the object loaded
+        # from JSON file: Mapping is passed via cls(**data), non-string
+        # Sequence is passed via cls(*data), and anything else is passed via
+        # cls(data)
 
     _, ext = os.path.splitext(filename)
     ext = ext.replace('.', '').lower()
@@ -134,7 +174,15 @@ def from_json(filename):
     except:
         logging.error('Failed to load JSON, `filename`="%s"', filename)
         raise
-    return content
+
+    if cls is None:
+        return content
+
+    if isinstance(content, Mapping):
+        return cls(**content)
+    if not isinstance(string_types) and isinstance(content, Sequence):
+        return cls(*content)
+    return cls(content)
 
 
 def to_json(content, filename, indent=2, overwrite=True, warn=True,
@@ -176,12 +224,13 @@ def to_json(content, filename, indent=2, overwrite=True, warn=True,
         Default is `False`. Cf. json.dump() or json.dumps().
 
     """
-    if hasattr(content, 'to_json'):
-        return content.to_json(filename, indent=indent, overwrite=overwrite,
-                               warn=warn, sort_keys=sort_keys)
     # Import here to avoid circular imports
     from pisa.utils.fileio import check_file_exists
     from pisa.utils.log import logging
+
+    if hasattr(content, 'to_json'):
+        return content.to_json(filename, indent=indent, overwrite=overwrite,
+                               warn=warn, sort_keys=sort_keys)
 
     check_file_exists(fname=filename, overwrite=overwrite, warn=warn)
 
@@ -218,60 +267,80 @@ def to_json(content, filename, indent=2, overwrite=True, warn=True,
                     sort_keys=sort_keys, allow_nan=True, ignore_nan=False
                 ).encode()
             )
-        logging.debug('Wrote %.2f kB to %s', outfile.tell()/1024., filename)
+        logging.debug('Wrote %.2f kiB to %s', outfile.tell()/1024., filename)
 
 
 class NumpyEncoder(json.JSONEncoder):
-    """Encode special objects to be representable as JSON."""
-    def default(self, obj):
-        # Import here to avoid circular imports
-        from pisa.utils.log import logging
+    """
+    Subclass of ::class::`json.JSONEncoder` that overrides `default` method to
+    allow writing numpy arrays and other special objects PISA uses to JSON
+    files.
+    """
+    def default(self, obj):  # pylint: disable=method-hidden
+        """Encode special objects to be representable as JSON."""
+        if hasattr(obj, 'serializable_state'):
+            return obj.serializable_state
 
         if not isinstance(obj, string_types) and isinstance(obj, Iterable):
             return [self.default(x) for x in obj]
-
-        #if isinstance(obj, np.ndarray):
-        #    return [self.default(x) for x in obj]
 
         # TODO: poor form to have a way to get this into a JSON file but no way
         # to get it out of a JSON file... so either write a deserializer, or
         # remove this and leave it to other objects to do the following.
         if isinstance(obj, ureg.Quantity):
-            return tuple(self.default(x) for x in obj.to_tuple())
+            if obj.dimensionless:
+                return self.default(obj.magnitude)
+            return [self.default(x) for x in obj.to_tuple()]
 
-        # NOTE: np.bool_ is *Numpy* bool type, while np.bool is alias for
-        # Python bool type, hence this conversion
         if isinstance(obj, np.integer):
             return int(obj)
 
         if isinstance(obj, np.floating):
             return float(obj)
 
+        # NOTE: np.bool_ is *Numpy* bool type, while np.bool is alias for
+        # Python bool type, hence this conversion
         if isinstance(obj, np.bool_):
             return bool(obj)
 
-        if hasattr(obj, 'serializable_state'):
-            return obj.serializable_state
+        # NOTE: we check for these more generic types _after_ checking for
+        # np.bool_ since np.bool_ is considered to be both Integral and Real,
+        # but we want a boolean values (True or False) written out as such
+        if isinstance(obj, Integral):
+            return int(obj)
 
-        try:
-            return json.JSONEncoder.default(self, obj)
-        except:
-            logging.error('JSON serialization for %s, type %s not implemented',
-                          obj, type(obj))
-            raise
+        if isinstance(obj, Real):
+            return float(obj)
+
+        if isinstance(obj, string_types):
+            return obj
+
+        # If we get here, we have a type that cannot be serialized. This call
+        # should simply raise an exception.
+        return super().default(obj)
 
 
 class NumpyDecoder(json.JSONDecoder):
-    """Decode JSON array(s) as numpy.ndarray, also returns python strings
+    """Decode JSON array(s) as numpy.ndarray; also returns python strings
     instead of unicode."""
-    def __init__(self, encoding=None, object_hook=None, parse_float=None,
-                 parse_int=None, parse_constant=None, strict=True,
-                 object_pairs_hook=None):
+    def __init__(
+        self,
+        encoding=None,
+        object_hook=None,
+        parse_float=None,
+        parse_int=None,
+        parse_constant=None,
+        strict=True,
+        object_pairs_hook=None,
+    ):
         super().__init__(
-            encoding=encoding, object_hook=object_hook,
-            parse_float=parse_float, parse_int=parse_int,
-            parse_constant=parse_constant, strict=strict,
-            object_pairs_hook=object_pairs_hook
+            encoding=encoding,
+            object_hook=object_hook,
+            parse_float=parse_float,
+            parse_int=parse_int,
+            parse_constant=parse_constant,
+            strict=strict,
+            object_pairs_hook=object_pairs_hook,
         )
         # Only need to override the default array handler
         self.parse_array = self.json_array_numpy
@@ -305,6 +374,7 @@ class NumpyDecoder(json.JSONDecoder):
 def test_to_json_from_json():
     """Unit tests for writing various types of objects to and reading from JSON
     files (including bz2-compressed and xor-scrambled files)"""
+    # pylint: disable=unused-variable
     from shutil import rmtree
     import sys
     from pisa.utils.comparisons import recursiveEquality
