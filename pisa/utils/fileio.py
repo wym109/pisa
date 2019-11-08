@@ -455,7 +455,7 @@ def from_file(fname, fmt=None, **kwargs):
 
     Returns
     -------
-    Object instantiated from the file (string, dictionariy, ...). Each format
+    Object instantiated from the file (string, dictionary, ...). Each format
     is interpreted differently.
 
     Raises
