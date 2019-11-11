@@ -9,7 +9,7 @@ from collections.abc import Iterable
 from collections import OrderedDict
 from numbers import Number
 from operator import setitem
-from os.path import join
+from os.path import isfile, join
 import tempfile
 
 import numpy as np
@@ -220,7 +220,7 @@ class Prior(object):
         assert A.dimensionality == B.dimensionality
         self._state_attrs.extend(['A', 'B'])
         self.units = str(A.units)
-        B = B.to(self.units)
+        B = B.to(A.units)
         self.A = A
         self.B = B
         def llh(x):
@@ -576,12 +576,22 @@ def test_Prior():
 
     with tempfile.TemporaryDirectory() as temp_dir:
         for pri in [uniform, jeffreys, gaussian, linterp, spline]:
-            fname = join(temp_dir, pri.kind + '.json')
-            to_file(pri, fname)
-            loaded = from_file(fname, cls=Prior)
-            assert loaded == pri
+            fpath = join(temp_dir, pri.kind + '.json')
+            try:
+                to_file(pri, fpath)
+                loaded = from_file(fpath, cls=Prior)
+                assert loaded == pri
+            except:
+                logging.error('prior %s failed', pri.kind)
+                if isfile(fpath):
+                    logging.error(
+                        'contents of %s:\n%s',
+                        fpath, open(fpath, 'r').read(),
+                    )
+                raise
 
     logging.info('<< PASS : test_Prior >>')
+
 
 # TODO: FIX ME
 def test_Prior_plot(ts_fname, param_name='theta23'):

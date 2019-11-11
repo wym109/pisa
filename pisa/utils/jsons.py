@@ -281,9 +281,6 @@ class NumpyEncoder(json.JSONEncoder):
         if hasattr(obj, 'serializable_state'):
             return obj.serializable_state
 
-        if not isinstance(obj, string_types) and isinstance(obj, Iterable):
-            return [self.default(x) for x in obj]
-
         # TODO: poor form to have a way to get this into a JSON file but no way
         # to get it out of a JSON file... so either write a deserializer, or
         # remove this and leave it to other objects to do the following.
@@ -291,6 +288,9 @@ class NumpyEncoder(json.JSONEncoder):
             if obj.dimensionless:
                 return self.default(obj.magnitude)
             return [self.default(x) for x in obj.to_tuple()]
+
+        if not isinstance(obj, string_types) and isinstance(obj, Iterable):
+            return [self.default(x) for x in obj]
 
         if isinstance(obj, np.integer):
             return int(obj)

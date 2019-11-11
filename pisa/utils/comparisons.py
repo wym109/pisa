@@ -675,6 +675,8 @@ def interpret_quantity(value, expect_sequence):
         else:
             if isbarenumeric(value):
                 value = value * ureg.dimensionless
+            elif isinstance(value, ureg.Quantity):
+                pass
             else:
                 value = ureg.Quantity.from_tuple(value)
     else:
