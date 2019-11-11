@@ -37,14 +37,30 @@ from pisa import ureg, FTYPE, HASH_SIGFIGS
 from pisa.utils.log import logging, set_verbosity
 
 
-__all__ = ['FTYPE_PREC', 'EQUALITY_SIGFIGS', 'EQUALITY_PREC', 'ALLCLOSE_KW',
-           'NP_TYPES', 'SEQ_TYPES', 'MAP_TYPES', 'COMPLEX_TYPES',
-           'isvalidname', 'isscalar', 'isbarenumeric',
-           'recursiveEquality', 'recursiveAllclose', 'normQuant']
+__all__ = [
+    'FTYPE_PREC',
+    'EQUALITY_SIGFIGS',
+    'EQUALITY_PREC',
+    'ALLCLOSE_KW',
+    'NP_TYPES',
+    'SEQ_TYPES',
+    'MAP_TYPES',
+    'COMPLEX_TYPES',
+    'isvalidname',
+    'isscalar',
+    'isbarenumeric',
+    'recursiveEquality',
+    'recursiveAllclose',
+    'normQuant',
+    'interpret_quantity',
+    'test_isscalar',
+    'test_recursiveEquality',
+    'test_normQuant',
+]
 
 __author__ = 'J.L. Lanfranchi'
 
-__license__ = '''Copyright (c) 2014-2017, The IceCube Collaboration
+__license__ = '''Copyright (c) 2014-2019, The IceCube Collaboration
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -633,6 +649,52 @@ def normQuant(obj, sigfigs=None, full_norm=True):
     return obj
 
 
+def interpret_quantity(value, expect_sequence):
+    """Interpret a value as a pint Quantity via pisa.ureg
+
+    Parameters
+    ----------
+    value : scalar, Quantity, or sequence interpretable as Quantity
+    expect_sequence : bool
+        Specify `True` if you expect a sequence of quantities (or a
+        pint-Quantity containing a numpy array). This allows interpreting each
+        element of a passed sequence as a quantity. Otherwise, specify `False`
+        if you expect a scalar. This allows interpreting a pint.Qauntity tuple
+        as a ascalar (the first element of the tuple is the magnitude and the
+        second element contains the units).
+
+    Returns
+    -------
+    value : Quantity
+
+    """
+    if expect_sequence:
+        if isscalar(value):
+            if isbarenumeric(value):
+                value = [value] * ureg.dimensionless
+        else:
+            if isbarenumeric(value):
+                value = value * ureg.dimensionless
+            else:
+                value = ureg.Quantity.from_tuple(value)
+    else:
+        if isscalar(value):
+            if isbarenumeric(value):
+                value = value * ureg.dimensionless
+        elif isinstance(value, Sequence):
+            if len(value) == 2:
+                value = ureg.Quantity.from_tuple(value)
+            else:
+                raise ValueError(
+                    "Expected a scalar, possibly a 2-sequence passable to"
+                    "ureg.Quantity.from_tuple; got len-{} of type {}"
+                    "instead".format(len(value), type(value))
+                )
+    if not isinstance(value, ureg.Quantity):
+        raise ValueError(str(value))
+    return value
+
+
 def test_isscalar():
     """Unit test for isscalar function"""
     assert isscalar(0)
@@ -664,6 +726,7 @@ def test_isscalar():
 
 def test_recursiveEquality():
     """Unit test for recursiveEquality function"""
+    # pylint: disable=unused-variable
     d1 = {'one': 1, 'two': 2, 'three': None, 'four': 'four'}
     d2 = {'one': 1.0, 'two': 2.0, 'three': None, 'four': 'four'}
     d3 = {'one': np.arange(0, 100),
@@ -726,6 +789,7 @@ def test_recursiveEquality():
 
 def test_normQuant():
     """Unit test for normQuant function"""
+    # pylint: disable=unused-variable
     # TODO: test:
     # * non-numerical
     #   * single non-numerical

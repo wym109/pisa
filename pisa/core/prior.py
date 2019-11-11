@@ -9,6 +9,8 @@ from collections.abc import Iterable
 from collections import OrderedDict
 from numbers import Number
 from operator import setitem
+from os.path import join
+import tempfile
 
 import numpy as np
 from scipy.interpolate import splev, splrep, interp1d
@@ -16,17 +18,18 @@ from scipy.optimize import fminbound
 
 import pint
 from pisa import ureg
-from pisa.utils.comparisons import isbarenumeric, recursiveEquality
-from pisa.utils.fileio import from_file
+from pisa.utils.comparisons import (
+    interpret_quantity, isscalar, recursiveEquality
+)
+from pisa.utils.fileio import from_file, to_file
 from pisa.utils.log import logging, set_verbosity
 
 
-__all__ = ['Prior', 'plot_prior', 'get_prior_bounds', 'test_Prior',
-           'test_Prior_plot']
+__all__ = ['Prior', 'plot_prior', 'get_prior_bounds', 'test_Prior', 'test_Prior_plot']
 
 __author__ = 'J.L. Lanfranchi'
 
-__license__ = '''Copyright (c) 2014-2017, The IceCube Collaboration
+__license__ = '''Copyright (c) 2014-2019, The IceCube Collaboration
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -146,7 +149,7 @@ class Prior(object):
 
     """
     def __init__(self, kind, **kwargs):
-        self._state_attrs = ['kind', 'max_at', 'units', 'valid_range']
+        self._state_attrs = ['kind'] #, 'units', 'valid_range']
         self.units = None
         kind = kind.lower() if isinstance(kind, str) else kind
 
@@ -189,11 +192,15 @@ class Prior(object):
     def state(self):
         state = OrderedDict()
         for attr in self._state_attrs:
-            setitem(state, attr, getattr(self, attr))
+            state[attr] = getattr(self, attr)
         return state
 
+    @property
+    def serializable_state(self):
+        return self.state
+
     def __init_uniform(self, llh_offset=0):
-        self._state_attrs.extend(['llh_offset'])
+        self._state_attrs.append('llh_offset')
         self.kind = 'uniform'
         self.llh_offset = llh_offset
         def llh(x):
@@ -208,16 +215,12 @@ class Prior(object):
     def __init_jeffreys(self, A, B):
         """Calculate jeffreys prior as defined in Sivia p.125"""
         self.kind = 'jeffreys'
-        if isinstance(A, Number):
-            A = A * ureg.dimensionless
-        if isinstance(B, Number):
-            B = B * ureg.dimensionless
+        A = interpret_quantity(A, expect_sequence=False)
+        B = interpret_quantity(B, expect_sequence=False)
         assert A.dimensionality == B.dimensionality
         self._state_attrs.extend(['A', 'B'])
-        if isinstance(A, ureg.Quantity):
-            self.units = str(A.units)
-            assert isinstance(B, ureg.Quantity), '%s' %type(B)
-            B = B.to(self.units)
+        self.units = str(A.units)
+        B = B.to(self.units)
         self.A = A
         self.B = B
         def llh(x):
@@ -233,10 +236,8 @@ class Prior(object):
         self._str = lambda s: "jeffreys' prior, range [%s,%s]"%(self.A, self.B)
 
     def __init_gaussian(self, mean, stddev):
-        if isinstance(mean, Number):
-            mean = mean * ureg.dimensionless
-        if isinstance(stddev, Number):
-            stddev = stddev * ureg.dimensionless
+        mean = interpret_quantity(mean, expect_sequence=False)
+        stddev = interpret_quantity(stddev, expect_sequence=False)
         assert mean.dimensionality == stddev.dimensionality
         self._state_attrs.extend(['mean', 'stddev'])
         self.kind = 'gaussian'
@@ -262,13 +263,12 @@ class Prior(object):
                   self.__stringify(self.mean), self.units_str)
 
     def __init_linterp(self, param_vals, llh_vals):
-        if not isinstance(param_vals, ureg.Quantity):
-            param_vals = param_vals * ureg.dimensionless
+        param_vals = interpret_quantity(param_vals, expect_sequence=True)
         self._state_attrs.extend(['param_vals', 'llh_vals'])
         self.kind = 'linterp'
         if isinstance(param_vals, ureg.Quantity):
             self.units = str(param_vals.units)
-        self.interp = interp1d(param_vals, llh_vals, kind='linear', copy=True,
+        self.interp = interp1d(param_vals.magnitude, llh_vals, kind='linear', copy=True,
                                bounds_error=True, assume_sorted=False)
         self.param_vals = param_vals
         self.llh_vals = llh_vals
@@ -286,11 +286,7 @@ class Prior(object):
                   self.max_at_str, self.units_str)
 
     def __init_spline(self, knots, coeffs, deg, units=None):
-        if not isinstance(knots, ureg.Quantity):
-            if units is None:
-                knots = knots * ureg.dimensionless
-            else:
-                knots = ureg.Quantity(np.asarray(knots), units)
+        knots = interpret_quantity(knots, expect_sequence=True)
         self._state_attrs.extend(['knots', 'coeffs', 'deg', 'units'])
         self.kind = 'spline'
         if isinstance(knots, ureg.Quantity):
@@ -474,7 +470,7 @@ def get_prior_bounds(obj, param=None, stddev=1.0):
         bounds
 
     """
-    if isbarenumeric(stddev):
+    if isscalar(stddev):
         stddev = [stddev]
     elif isinstance(stddev, Iterable):
         stddev = list(stddev)
@@ -516,6 +512,7 @@ def get_prior_bounds(obj, param=None, stddev=1.0):
 def test_Prior():
     """Unit tests for Prior class"""
     uniform = Prior(kind='uniform', llh_offset=1.5)
+    jeffreys = Prior(kind='jeffreys', A=2 * ureg.s, B=3 * ureg.ns)
     gaussian = Prior(kind='gaussian', mean=10, stddev=1)
     x = np.linspace(-10, 10, 100)
     y = x**2
@@ -527,7 +524,7 @@ def test_Prior():
     spline = Prior(kind='spline', knots=knots*ureg.foot, coeffs=coeffs,
                    deg=deg)
     param_upsamp = np.linspace(-10, 10, 1000)*ureg.foot
-    llh_upsamp = splev(param_upsamp, tck=(knots, coeffs, deg), ext=2)
+    llh_upsamp = splev(param_upsamp.magnitude, tck=(knots, coeffs, deg), ext=2)
     assert all(spline.llh(param_upsamp) == llh_upsamp)
 
     # Asking for param value outside of range should fail
@@ -574,6 +571,15 @@ def test_Prior():
         pass
     else:
         assert False
+
+    # -- Test writing to and reading from JSON files -- #
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        for pri in [uniform, jeffreys, gaussian, linterp, spline]:
+            fname = join(temp_dir, pri.kind + '.json')
+            to_file(pri, fname)
+            loaded = from_file(fname, cls=Prior)
+            assert loaded == pri
 
     logging.info('<< PASS : test_Prior >>')
 
