@@ -31,7 +31,7 @@ import re
 import numpy as np
 
 from pisa import FTYPE, HASH_SIGFIGS, ureg
-from pisa.utils.comparisons import isbarenumeric, normQuant, recursiveEquality
+from pisa.utils.comparisons import interpret_quantity, normQuant, recursiveEquality
 from pisa.utils.format import (make_valid_python_name, text2tex,
                                strip_outer_dollars)
 from pisa.utils.hash import hash_obj
@@ -939,17 +939,15 @@ class OneDimBinning(object):
     def __add__(self, other):
         if isinstance(other, OneDimBinning):
             return MultiDimBinning([self, other])
-        elif isinstance(other, MultiDimBinning):
+
+        if isinstance(other, MultiDimBinning):
             return MultiDimBinning(chain([self], other))
 
-        if isbarenumeric(other):
-            other = other * ureg.dimensionless
-        if isinstance(other, ureg.Quantity):
-            new_bin_edges = self.bin_edges + other
-            return OneDimBinning(name=self.name, tex=self.tex,
-                                 bin_edges=new_bin_edges)
-        else:
-            raise TypeError('Unhandled type %s for __add__' %type(other))
+        other = interpret_quantity(other, expect_sequence=True)
+
+        new_bin_edges = self.bin_edges + other
+
+        return OneDimBinning(name=self.name, tex=self.tex, bin_edges=new_bin_edges)
 
     @_new_obj
     def __deepcopy__(self, memo):
@@ -2769,7 +2767,7 @@ def test_OneDimBinning():
     import shutil
     import tempfile
     # needed so that eval(repr(b)) works
-    from numpy import array, float32, float64 # pylint: disable=unused-import
+    from numpy import array, float32, float64 # pylint: disable=unused-variable
 
     b1 = OneDimBinning(name='true_energy', num_bins=40, is_log=True,
                        domain=[1, 80]*ureg.GeV, tex=r'E_{\rm true}',
@@ -2905,7 +2903,7 @@ def test_MultiDimBinning():
     import tempfile
     import time
     # needed so that eval(repr(mdb)) works
-    from numpy import array, float32, float64 # pylint: disable=unused-import
+    from numpy import array, float32, float64 # pylint: disable=unused-variable
 
     b1 = OneDimBinning(name='energy', num_bins=40, is_log=True,
                        domain=[1, 80]*ureg.GeV)
