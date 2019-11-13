@@ -131,7 +131,7 @@ def parallel_run(func, kind, num_parallel, scalar_func, divided_args_mask,
                          % (len(divided_args_mask), len(args)))
 
     if divided_kwargs_names:
-        diff = set(divided_kwargs_names).difference(kwargs.keys())
+        diff = set(divided_kwargs_names).difference(set(kwargs.keys()))
         if len(diff) > 0:
             raise ValueError('Excess names in `divided_kwargs_names`: %s'
                              % ', '.join(['"%s"' % s for s in sorted(diff)]))
@@ -149,7 +149,7 @@ def parallel_run(func, kind, num_parallel, scalar_func, divided_args_mask,
     else:
         pkwarg_lengths = {}
 
-    unique_lengths = set(parg_lengths + pkwarg_lengths.values())
+    unique_lengths = set(parg_lengths + list(pkwarg_lengths.values()))
     if len(unique_lengths) != 1:
         for length in sorted(unique_lengths):
             parglist = []
