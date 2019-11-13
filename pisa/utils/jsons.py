@@ -9,7 +9,7 @@ from __future__ import absolute_import, division
 import bz2
 from collections import OrderedDict
 from collections.abc import Iterable, Mapping, Sequence
-from numbers import Integral, Real
+from numbers import Integral, Number, Real
 import os
 import tempfile
 
@@ -18,7 +18,6 @@ import simplejson as json
 from six import string_types
 
 from pisa import ureg
-from pisa.utils.comparisons import isbarenumeric
 
 
 __all__ = [
@@ -270,6 +269,9 @@ def to_json(content, filename, indent=2, overwrite=True, warn=True,
         logging.debug('Wrote %.2f kiB to %s', outfile.tell()/1024., filename)
 
 
+# TODO: figure out how to serialize / deserialize scalars and arrays with
+# uncertainties
+
 class NumpyEncoder(json.JSONEncoder):
     """
     Subclass of ::class::`json.JSONEncoder` that overrides `default` method to
@@ -281,15 +283,16 @@ class NumpyEncoder(json.JSONEncoder):
         if hasattr(obj, 'serializable_state'):
             return obj.serializable_state
 
-        # TODO: poor form to have a way to get this into a JSON file but no way
-        # to get it out of a JSON file... so either write a deserializer, or
-        # remove this and leave it to other objects to do the following.
-        if isinstance(obj, ureg.Quantity):
-            if obj.dimensionless:
-                return self.default(obj.magnitude)
-            return [self.default(x) for x in obj.to_tuple()]
+        if isinstance(obj, string_types):
+            return obj
 
-        if not isinstance(obj, string_types) and isinstance(obj, Iterable):
+        if isinstance(obj, ureg.Quantity):
+            converted = [self.default(x) for x in obj.to_tuple()]
+            return converted
+
+        # must have checked for & handled strings prior to this or infinite
+        # recursion will result
+        if isinstance(obj, Iterable):
             return [self.default(x) for x in obj]
 
         if isinstance(obj, np.integer):
@@ -344,30 +347,101 @@ class NumpyDecoder(json.JSONDecoder):
         )
         # Only need to override the default array handler
         self.parse_array = self.json_array_numpy
-        self.parse_string = self.json_python_string
         self.scan_once = json.scanner.py_make_scanner(self)
 
     def json_array_numpy(self, s_and_end, scan_once, **kwargs):
+        """Interpret arrays (lists by default) as numpy arrays where this does
+        not yield a string or object array; also handle conversion of
+        particularly-formatted input to pint Quantities."""
+        # Use the default array parser to get list-ified version of the data
         values, end = json.decoder.JSONArray(s_and_end, scan_once, **kwargs)
-        if not values:
+
+        # Assumption for all below logic is the result is a Sequence (i.e., has
+        # attribute `__len__`)
+        assert isinstance(values, Sequence), str(type(values)) + "\n" + str(values)
+
+        if len(values) == 0:
             return values, end
 
-        # TODO: is it faster to convert to numpy array and check if the
-        # resulting dtype is pure numeric?
-        if len(values) <= 1000:
-            check_values = values
+        # -- Check for pint quantity specification (`quantity.to_tuple()`) -- #
+
+        # Quantity tuple (`quantity.to_tuple()`) with a scalar produces from
+        # the raw JSON, e.g.,
+        #
+        #       [9.8, [['meter', 1.0], ['second', -2.0]]]
+        #
+        # or an ndarray (here of shape (2, 3)) produces from the raw JSON,
+        # e.g.,
+        #
+        #       [[[0, 1, 2], [2, 3, 4]], [['meter', 1.0], ['second', -2.0]]]
+        #
+        if (
+            len(values) == 2
+            and isinstance(values[1], Sequence)
+            and all(
+                isinstance(subval, Sequence)
+                and len(subval) == 2
+                and isinstance(subval[0], string_types)
+                and isinstance(subval[1], Number)
+                for subval in values[1]
+            )
+        ):
+            values = ureg.Quantity.from_tuple(values)
+            return values, end
+
+        # Units part of quantity tuple (`quantity.to_tuple()[1]`)
+        # e.g. m / s**2 is represented as .. ::
+        #
+        #       [['meter', 1.0], ['second', -2.0]]
+        #
+        # --> Simply return, don't perform further conversion
+        if (
+            isinstance(values[0], Sequence)
+            and all(
+                len(subval) == 2
+                and isinstance(subval[0], string_types)
+                and isinstance(subval[1], Number)
+                for subval in values
+            )
+        ):
+            return values, end
+
+        # Individual unit (`quantity.to_tuple()[1][0]`)
+        # e.g. s^-2 is represented as .. ::
+        #
+        #     ['second', -2.0]
+        #
+        # --> Simply return, don't perform further conversion
+        if (
+            len(values) == 2
+            and isinstance(values[0], string_types)
+            and isinstance(values[1], Number)
+        ):
+            return values, end
+
+        try:
+            ndarray_values = np.asarray(values)
+        except ValueError:
+            return values, end
         else:
-            check_values = values[::max([len(values)//1000, 1])]
+            # Things like lists of dicts, or mixed types, will result in an
+            # object array; these are handled in PISA as lists, not numpy
+            # arrays, so return the pre-converted (list) version of `values`.
+            #
+            # Similarly, sequences of strings should stay lists of strings, not
+            # become numpy arrays.
+            if issubclass(ndarray_values.dtype.type, (np.object0, np.str0, str)):
+                return values, end
+            else:
+                return ndarray_values, end
 
-        if not all([isbarenumeric(v) for v in check_values]):
-            return values, end
-
-        values = np.array(values)
-        return values, end
-
-    def json_python_string(self, s, end, encoding, strict):
-        values, end = json.decoder.scanstring(s, end, encoding, strict)
-        return values, end
+        # Fail explicitly for unhandled cases to ensure that unknown things
+        # don't pass under the radar
+        raise ValueError(
+            'Unhandled conversion of `values` object of type {}:\n{}'.format(
+                str(type(values)), str(values)
+            )
+        )
 
 
 # TODO: include more basic types in testing (strings, etc.)
