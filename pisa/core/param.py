@@ -19,6 +19,7 @@ import tempfile
 
 import numpy as np
 import pint
+from six import string_types
 
 from pisa import ureg
 from pisa.core.prior import Prior
@@ -226,8 +227,10 @@ class Param:
 
     @value.setter
     def value(self, val):
-        # A number with no units actually has units of "dimensionless"
-        val = interpret_quantity(val, expect_sequence=False)
+        # Strings are simply strings
+        if not isinstance(val, string_types):
+            # A number with no units actually has units of "dimensionless"
+            val = interpret_quantity(val, expect_sequence=False)
         if self._value is not None:
             if hasattr(self._value, 'units'):
                 assert hasattr(val, 'units'), \
@@ -345,7 +348,8 @@ class Param:
 
     @nominal_value.setter
     def nominal_value(self, value):
-        value = interpret_quantity(value, expect_sequence=False)
+        if not isinstance(value, string_types):
+            value = interpret_quantity(value, expect_sequence=False)
         self.validate_value(value)
         self._nominal_value = value
 
@@ -1077,7 +1081,9 @@ class ParamSet(Sequence):
         if isinstance(state, Mapping):
             return cls(*tuple(state.values()))
         raise TypeError(
-            'Unhandled type loaded from "{}": {}'.format(filename, type(state))
+            'Unhandled type loaded from "{}": {}\n{}'.format(
+                filename, type(state), state
+            )
         )
 
 
