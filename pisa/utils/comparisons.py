@@ -26,10 +26,11 @@ from collections.abc import Iterable, Iterator, Mapping, Sequence
 from collections import OrderedDict
 from numbers import Number
 import re
+from six import string_types
 
 import numpy as np
 import pint
-from uncertainties.core import AffineScalarFunc
+from uncertainties.core import AffineScalarFunc, Variable
 from uncertainties import ufloat
 from uncertainties import unumpy as unp
 
@@ -49,11 +50,13 @@ __all__ = [
     'isvalidname',
     'isscalar',
     'isbarenumeric',
+    'isunitless',
     'recursiveEquality',
     'recursiveAllclose',
     'normQuant',
     'interpret_quantity',
     'test_isscalar',
+    'test_isunitless',
     'test_recursiveEquality',
     'test_normQuant',
 ]
@@ -118,9 +121,10 @@ def isscalar(x):
     numpy.isscalar
 
     """
-    return (not (hasattr(x, 'shape')
-                 or isinstance(x, (Iterator, Mapping, Sequence)))
-            or np.isscalar(x))
+    return (
+        not (hasattr(x, 'shape') or isinstance(x, (Iterator, Mapping, Sequence)))
+        or np.isscalar(x)
+    )
 
 
 def isbarenumeric(x):
@@ -130,13 +134,47 @@ def isbarenumeric(x):
 
     """
     is_bare_numeric = False
-    if isinstance(x, np.ndarray):
-        if x.dtype.type not in (np.bool, np.bool_, np.bool8, np.object0,
-                                np.object, np.object_):
+    if isinstance(x, ureg.Quantity):
+        is_bare_numeric = False
+    elif isinstance(x, np.ndarray):
+        if x.dtype.type not in (
+            np.bool, np.bool_, np.bool8, np.object0, np.object, np.object_
+        ):
             is_bare_numeric = True
     elif isinstance(x, Number) and not isinstance(x, bool):
         is_bare_numeric = True
     return is_bare_numeric
+
+
+def isunitless(x):
+    """Check if input is unitless. Only the first scalar element of an Iterable
+    (or arbitrarily nested Iterables) is checked if it has units.
+
+    Strings and bools are considered to be unit-less.
+
+    Parameters
+    ----------
+    x : object
+
+    Returns
+    -------
+    isunitless : bool
+
+    Raises
+    ------
+    TypeError if a Mapping is encountered
+
+    """
+    if isinstance(x, ureg.Quantity):
+        return False
+
+    if isinstance(x, Mapping):
+        raise TypeError("Cannot test a Mapping (`x` is of type {})".format(type(x)))
+
+    if not isinstance(x, string_types) and isinstance(x, Iterable):
+        return isunitless(next(iter(x)))
+
+    return True
 
 
 def recursiveEquality(x, y):
@@ -179,13 +217,19 @@ def recursiveEquality(x, y):
         magnitude prefixes (micro, milli, ..., giga, etc.).
 
     """
+    # pylint: disable=protected-access
+
     # NOTE: The order in which types are compared below matters, so change
     # order carefully.
 
+    if hasattr(x, 'hashable_state'):
+        if not hasattr(y, 'hashable_state'):
+            return False
+        return recursiveEquality(x.hashable_state, y.hashable_state)
+
     # pint units; allow for comparing across different regestries, for
     # pragmatic (but possibly not the most correct) reasons...
-    # pylint: disable=protected-access
-    if isinstance(x, pint.unit._Unit):
+    elif isinstance(x, pint.unit._Unit):
         if not isinstance(y, pint.unit._Unit):
             logging.trace('type(x)=%s but type(y)=%s', type(x), type(y))
         if repr(x) != repr(y):
@@ -198,6 +242,11 @@ def recursiveEquality(x, y):
         if not isinstance(y, pint.quantity._Quantity):
             logging.trace('type(x)=%s but type(y)=%s' %(type(x), type(y)))
             return False
+
+        # use a string for `x`'s units so we can compare across unit
+        # registries; this should do what we want in PISA, but note that in
+        # general this can be problematic since units can be redefined in
+        # different unit registries
         xunit = str(x.units)
         try:
             converted_y = y.to(xunit)
@@ -205,16 +254,15 @@ def recursiveEquality(x, y):
             logging.trace('Incompatible units: x.units=%s, y.units=%s'
                           %(x.units, y.units))
             return False
-        # Check for equality to HASH_SIGFIGS significant figures
-        if not np.allclose(x.magnitude, converted_y.magnitude, **ALLCLOSE_KW):
-            logging.trace('x.magnitude: %s' %x.magnitude)
-            logging.trace('y.magnitude: %s' %y.magnitude)
-            return False
+
+        return recursiveEquality(x.magnitude, converted_y.magnitude)
 
     # Simple things can be compared directly
-    elif (isinstance(x, str) or isinstance(y, str) or
-          not (isinstance(x, COMPLEX_TYPES)
-               or isinstance(y, COMPLEX_TYPES))):
+    elif (
+        isinstance(x, str)
+        or isinstance(y, str)
+        or not (isinstance(x, COMPLEX_TYPES) or isinstance(y, COMPLEX_TYPES))
+    ):
         if x != y:
             is_eq = False
             try:
@@ -238,13 +286,21 @@ def recursiveEquality(x, y):
 
         if isinstance(x, NP_TYPES):
             dtype = x.dtype.type
+            first_element = next(iter(x.flat))
         else:
             dtype = y.dtype.type
+            first_element = next(iter(y.flat))
 
         if issubclass(dtype, np.floating):
             if not np.allclose(x, y, **ALLCLOSE_KW):
                 logging.trace('x: %s' %x)
                 logging.trace('y: %s' %y)
+                return False
+        elif isinstance(first_element, (AffineScalarFunc, Variable)):
+            if not (
+                np.allclose(unp.nominal_values(x), unp.nominal_values(y), **ALLCLOSE_KW)
+                and np.allclose(unp.std_devs(x), unp.std_devs(y), **ALLCLOSE_KW)
+            ):
                 return False
         else:
             if not np.all(x == y):
@@ -281,11 +337,6 @@ def recursiveEquality(x, y):
                     logging.trace('xs: %s' %xs)
                     logging.trace('ys: %s' %ys)
                     return False
-
-    elif hasattr(x, 'hashable_state'):
-        if not hasattr(y, 'hashable_state'):
-            return False
-        return recursiveEquality(x.hashable_state, y.hashable_state)
 
     # Unhandled
     else:
@@ -670,15 +721,18 @@ def interpret_quantity(value, expect_sequence):
     """
     if expect_sequence:
         if isscalar(value):
-            if isbarenumeric(value):
+            if isunitless(value):
                 value = [value] * ureg.dimensionless
         else:
-            if isbarenumeric(value):
+            if isunitless(value):
                 value = value * ureg.dimensionless
             elif isinstance(value, ureg.Quantity):
                 pass
             else:
-                value = ureg.Quantity.from_tuple(value)
+                if len(value) == 2 and isscalar(value[1]):
+                    value = value * ureg.dimensionless
+                else:
+                    value = ureg.Quantity.from_tuple(value)
     else:
         if isscalar(value):
             if isbarenumeric(value):
@@ -724,6 +778,26 @@ def test_isscalar():
     for x in [u_fl, p_fl, p_u_fl]:
         assert isscalar(x), str(x) + ' should evaluate to scalar'
     logging.info('<< PASS : test_isscalar >>')
+
+
+def test_isunitless():
+    """Unit tests for `isunitless` function"""
+    assert isunitless(1)
+    assert isunitless("xyz")
+    assert isunitless(True)
+    assert isunitless([0, 1, 2])
+    assert isunitless(np.array([0, 1, 2]))
+    assert isunitless(np.array([0, 1, 0], dtype=np.bool))
+    assert isunitless(ufloat(1, 2))
+    assert isunitless(unp.uarray([1, 2], [0.01, 0.002]))
+
+    assert not isunitless(1 * ureg.m)
+    assert not isunitless([0, 1, 2] * ureg.s)
+    assert not isunitless(np.array([0, 1, 2]) * ureg.m)
+    assert not isunitless(ufloat(1, 2) * ureg.ns)
+    assert not isunitless(unp.uarray([1, 2], [0.01, 0.002]) * ureg.m)
+
+    logging.info('<< PASS : test_isunitless >>')
 
 
 def test_recursiveEquality():
@@ -846,8 +920,46 @@ def test_normQuant():
     logging.info('<< PASS : test_normQuant >>')
 
 
+def test_interpret_quantity():
+    """Unit tests for function `interpret_quantity`"""
+
+    # -- Scalars and vectors that should be interpreted as vectors -- #
+
+    for val, ref in [
+        (1, [1] * ureg.dimensionless),
+        ([1, 2], [1, 2] * ureg.dimensionless),
+        (
+            unp.uarray([1, 2], [0.5, 0.7]),
+            unp.uarray([1, 2], [0.5, 0.7]) * ureg.dimensionless,
+        ),
+        ([1, 2] * ureg.s, [1, 2] * ureg.s),
+        (
+            unp.uarray([1, 2], [0.5, 0.7]) * ureg.cm,
+            unp.uarray([1, 2], [0.5, 0.7]) * ureg.cm,
+        ),
+    ]:
+        assert recursiveEquality(
+            interpret_quantity(val, expect_sequence=True), ref
+        ), "{} != {}".format(val, ref)
+
+    # -- Scalars that should be interpreted as scalars -- #
+
+    for val, ref in [
+        (1, 1 * ureg.dimensionless),
+        ((1, ()), 1 * ureg.dimensionless),
+        ((1, (("s", -1), )), 1 / ureg.s),
+    ]:
+        assert recursiveEquality(
+            interpret_quantity(val, expect_sequence=False), ref
+        ), "{} != {}".format(val, ref)
+
+    logging.info('<< PASS : test_interpret_quantity >>')
+
+
 if __name__ == '__main__':
     set_verbosity(1)
     test_isscalar()
+    test_isunitless()
     test_recursiveEquality()
     test_normQuant()
+    test_interpret_quantity()
