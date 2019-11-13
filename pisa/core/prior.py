@@ -7,8 +7,6 @@ from __future__ import absolute_import, division
 
 from collections.abc import Iterable
 from collections import OrderedDict
-from numbers import Number
-from operator import setitem
 from os.path import isfile, join
 import tempfile
 
@@ -19,7 +17,7 @@ from scipy.optimize import fminbound
 import pint
 from pisa import ureg
 from pisa.utils.comparisons import (
-    interpret_quantity, isscalar, recursiveEquality
+    interpret_quantity, isscalar, isunitless, recursiveEquality
 )
 from pisa.utils.fileio import from_file, to_file
 from pisa.utils.log import logging, set_verbosity
@@ -287,10 +285,17 @@ class Prior(object):
 
     def __init_spline(self, knots, coeffs, deg, units=None):
         knots = interpret_quantity(knots, expect_sequence=True)
-        self._state_attrs.extend(['knots', 'coeffs', 'deg', 'units'])
+        self._state_attrs.extend(['knots', 'coeffs', 'deg'])
         self.kind = 'spline'
-        if isinstance(knots, ureg.Quantity):
-            self.units = str(knots.units)
+        if isunitless(knots):
+            knots = ureg.Quantity(knots, units)
+        elif units is not None:
+            units = ureg.Unit(units)
+            assert knots.dimensionality == units.dimensionality
+            knots = knots.to(units)
+
+        self.units = str(knots.units)
+
         self.knots = knots
         self.coeffs = coeffs
         self.deg = deg
@@ -516,8 +521,7 @@ def test_Prior():
     gaussian = Prior(kind='gaussian', mean=10, stddev=1)
     x = np.linspace(-10, 10, 100)
     y = x**2
-    linterp = Prior(kind='linterp', param_vals=x*ureg.meter,
-                    llh_vals=y)
+    linterp = Prior(kind='linterp', param_vals=x * ureg.meter / ureg.s, llh_vals=y)
     param_vals = np.linspace(-10, 10, 100)
     llh_vals = x**2
     knots, coeffs, deg = splrep(param_vals, llh_vals)
@@ -529,7 +533,7 @@ def test_Prior():
 
     # Asking for param value outside of range should fail
     try:
-        linterp.llh(-1000*ureg.mile)
+        linterp.llh(-1000*ureg.mile / ureg.s)
     except ValueError:
         pass
     else:
