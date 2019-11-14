@@ -494,14 +494,14 @@ def test_histogram():
     binning_y = OneDimBinning(name='y', num_bins=10, is_lin=True, domain=[0, 100])
     binning = MultiDimBinning([binning_x, binning_y])
 
-    histo = histogram(sample=[x, y], weights=w, binning=binning, averaged=False)
+    histo = histogram(sample=[x, y], weights=w, binning=binning, averaged=False).get()
     assert np.array_equal(
         histo.reshape(10, 10),
         np.diag(np.full(shape=10, fill_value=10))
-    )
+    ), str(histo.reshape(10, 10))
 
-    histo = histogram(sample=[x, y], weights=w, binning=binning, averaged=True)
-    assert np.array_equal(histo.reshape(10, 10), np.diag(np.ones(10)))
+    histo = histogram(sample=[x, y], weights=w, binning=binning, averaged=True).get()
+    assert np.array_equal(histo.reshape(10, 10), np.diag(np.ones(10))), str(histo.reshape(10, 10))
 
     logging.info('<< PASS : test_histogram >>')
 
