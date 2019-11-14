@@ -75,18 +75,22 @@ class Param:
     ----------
     name : string
 
-    unique_id : string
-        set to name if None provided
-
-    value : string or pint Quantity with units
+    value : scalar, bool, pint Quantity (value with units), string, or None
 
     prior : pisa.prior.Prior or instantiable thereto
 
-    range : sequence of two numbers or Pint quantities
+    range : sequence of two scalars or Pint quantities, or None
 
     is_fixed : bool
 
-    is_discrete : bool
+    unique_id : string, optional
+        If None is provided (default), `unique_id` is set to `name`
+
+    is_discrete : bool, optional
+        Default is False
+
+    nominal_value : same type as `value`, optional
+        If None (default), set to same as `value`
 
     tex : None or string
 
@@ -227,10 +231,12 @@ class Param:
 
     @value.setter
     def value(self, val):
-        # Strings are simply strings
-        if not isinstance(val, string_types):
+        # Strings, bools, and `None` are simply used as-is; otherwise, enforce
+        # input have units (or default to units of `dimensionless`)
+        if not (val is None or isinstance(val, string_types) or isinstance(val, bool)):
             # A number with no units actually has units of "dimensionless"
             val = interpret_quantity(val, expect_sequence=False)
+
         if self._value is not None:
             if hasattr(self._value, 'units'):
                 assert hasattr(val, 'units'), \
@@ -348,7 +354,7 @@ class Param:
 
     @nominal_value.setter
     def nominal_value(self, value):
-        if not isinstance(value, string_types):
+        if not (value is None or isinstance(value, bool) or isinstance(value, string_types)):
             value = interpret_quantity(value, expect_sequence=False)
         self.validate_value(value)
         self._nominal_value = value
@@ -1264,13 +1270,15 @@ def test_Param():
 
         # Param with units, prior with compatible units
         p0 = Param(name='c', value=1.5*ureg.foot, prior=gaussian,
-                   range=[1, 2]*ureg.foot, is_fixed=False, is_discrete=False,
+                   range=[-1, 2]*ureg.mile, is_fixed=False, is_discrete=False,
                    tex=r'\int{\rm c}')
         check_json(p0, "p0")
+
         # Param with no units, prior with no units
         p1 = Param(name='c', value=1.5, prior=spline, range=[1, 2],
                    is_fixed=False, is_discrete=False, tex=r'\int{\rm c}')
         check_json(p1, "p1")
+
         # Param with no units, prior with units
         try:
             p2 = Param(name='c', value=1.5, prior=linterp_m,
