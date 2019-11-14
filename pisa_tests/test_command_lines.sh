@@ -18,12 +18,11 @@
 #  limitations under the License
 #
 
-export PISA_RESOURCES=/home/justin/src/fridge/analysis/common
 
 BASEDIR=$(dirname "$0")
 PISA=$BASEDIR/..
 TMP=/tmp/pisa_tests
-export PISA_RESOURCES=${TMP}/pisa_resources
+export PISA_RESOURCES=${TMP}/pisa_resources:/home/justin/src/fridge/analysis/common
 mkdir -p $TMP
 mkdir -p $PISA_RESOURCES
 echo "PISA=$PISA"
