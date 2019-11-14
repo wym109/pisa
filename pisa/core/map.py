@@ -2760,7 +2760,7 @@ class MapSet(object):
                              % (metric, stats.ALL_METRICS))
 
     def metric_total(self, expected_values, metric):
-        return np.sum(self.metric_per_map(expected_values, metric).values())
+        return np.sum(list(self.metric_per_map(expected_values, metric).values()))
 
     def chi2_per_map(self, expected_values):
         return self.apply_to_maps('chi2', expected_values)
