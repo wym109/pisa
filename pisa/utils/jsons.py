@@ -144,7 +144,11 @@ def from_json(filename, cls=None):
     assert ext in JSON_EXTS or ext in ZIP_EXTS + XOR_EXTS
     try:
         if ext == 'bz2':
-            bz2_content = open_resource(filename, 'rb').read()
+            fobj = open_resource(filename, 'rb')
+            try:
+                bz2_content = fobj.read()
+            finally:
+                fobj.close()
             decompressed = bz2.decompress(bz2_content).decode()
             del bz2_content
             content = json.loads(
@@ -167,9 +171,15 @@ def from_json(filename, cls=None):
                                 cls=NumpyDecoder,
                                 object_pairs_hook=OrderedDict)
         else:
-            content = json.load(open_resource(filename),
-                                cls=NumpyDecoder,
-                                object_pairs_hook=OrderedDict)
+            fobj = open_resource(filename)
+            try:
+                content = json.load(
+                    fobj,
+                    cls=NumpyDecoder,
+                    object_pairs_hook=OrderedDict,
+                )
+            finally:
+                fobj.close()
     except:
         logging.error('Failed to load JSON, `filename`="%s"', filename)
         raise
@@ -363,7 +373,13 @@ class NumpyDecoder(json.JSONDecoder):
         if len(values) == 0:
             return values, end
 
-        # -- Check for pint quantity specification (`quantity.to_tuple()`) -- #
+        # -- Check for pint quantity -- #
+
+        if (
+            isinstance(values, ureg.Quantity)
+            or any(isinstance(val, ureg.Quantity) for val in values)
+        ):
+            return values, end
 
         # Quantity tuple (`quantity.to_tuple()`) with a scalar produces from
         # the raw JSON, e.g.,
@@ -423,25 +439,17 @@ class NumpyDecoder(json.JSONDecoder):
             ndarray_values = np.asarray(values)
         except ValueError:
             return values, end
-        else:
-            # Things like lists of dicts, or mixed types, will result in an
-            # object array; these are handled in PISA as lists, not numpy
-            # arrays, so return the pre-converted (list) version of `values`.
-            #
-            # Similarly, sequences of strings should stay lists of strings, not
-            # become numpy arrays.
-            if issubclass(ndarray_values.dtype.type, (np.object0, np.str0, str)):
-                return values, end
-            else:
-                return ndarray_values, end
 
-        # Fail explicitly for unhandled cases to ensure that unknown things
-        # don't pass under the radar
-        raise ValueError(
-            'Unhandled conversion of `values` object of type {}:\n{}'.format(
-                str(type(values)), str(values)
-            )
-        )
+        # Things like lists of dicts, or mixed types, will result in an
+        # object array; these are handled in PISA as lists, not numpy
+        # arrays, so return the pre-converted (list) version of `values`.
+        #
+        # Similarly, sequences of strings should stay lists of strings, not
+        # become numpy arrays.
+        if issubclass(ndarray_values.dtype.type, (np.object0, np.str0, str)):
+            return values, end
+
+        return ndarray_values, end
 
 
 # TODO: include more basic types in testing (strings, etc.)
