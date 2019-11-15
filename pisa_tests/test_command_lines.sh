@@ -22,7 +22,7 @@
 BASEDIR=$(dirname "$0")
 PISA=$BASEDIR/..
 TMP=/tmp/pisa_tests
-export PISA_RESOURCES=${TMP}/pisa_resources:/home/justin/src/fridge/analysis/common
+export PISA_RESOURCES=${TMP}/pisa_resources:$PISA_RESOURCES
 mkdir -p $TMP
 mkdir -p $PISA_RESOURCES
 echo "PISA=$PISA"
@@ -94,8 +94,6 @@ echo "  $OUTDIR_CPU64_NH_PIPELINE"
 echo "=============================================================================="
 PISA_FTYPE=float64 python $PISA/pisa/core/pipeline.py \
 	-p settings/pipeline/example.cfg \
-	-a stage.aeff param.aeff_events=events/events__vlvnt__toy_1_to_80GeV_spidx1.0_cz-1_to_1_1e5evts_set0__unjoined.hdf5 \
-	-a stage.reco param.reco_events=events/events__vlvnt__toy_1_to_80GeV_spidx1.0_cz-1_to_1_1e5evts_set0__unjoined.hdf5 \
 	--select "nh" \
 	--outdir $OUTDIR_CPU64_NH_PIPELINE \
 	--png -v
@@ -116,12 +114,12 @@ PISA_FTYPE=float32 python $PISA/pisa/core/pipeline.py \
 
 OUTDIR_GPU64_NH_PIPELINE=$TMP/gpu64nh_pipeline
 echo "=============================================================================="
-echo "Running pipeline.py with example_gpu.cfg, with GPU & fp64 selected."
+echo "Running pipeline.py with example.cfg, with GPU & fp64 selected."
 echo "Storing results to"
 echo "  $OUTDIR_GPU64_NH_PIPELINE"
 echo "=============================================================================="
 PISA_FTYPE=float64 python $PISA/pisa/core/pipeline.py \
-	-p settings/pipeline/example_gpu.cfg \
+	-p settings/pipeline/example.cfg \
 	-a stage.aeff param.aeff_events=events/events__vlvnt__toy_1_to_80GeV_spidx1.0_cz-1_to_1_1e5evts_set0__unjoined.hdf5 \
 	-a stage.reco param.reco_events=events/events__vlvnt__toy_1_to_80GeV_spidx1.0_cz-1_to_1_1e5evts_set0__unjoined.hdf5 \
 	--select "nh" \
@@ -130,12 +128,12 @@ PISA_FTYPE=float64 python $PISA/pisa/core/pipeline.py \
 
 OUTDIR_GPU32_NH_PIPELINE=$TMP/gpu32nh_pipeline
 echo "=============================================================================="
-echo "Running pipeline.py with example_gpu.cfg, with GPU & fp32 selected."
+echo "Running pipeline.py with example.cfg, with GPU & fp32 selected."
 echo "Storing results to"
 echo "  $OUTDIR_GPU32_NH_PIPELINE"
 echo "=============================================================================="
 PISA_FTYPE=float32 python $PISA/pisa/core/pipeline.py \
-	-p settings/pipeline/example_gpu.cfg \
+	-p settings/pipeline/example.cfg \
 	-a stage.aeff param.aeff_events=events/events__vlvnt__toy_1_to_80GeV_spidx1.0_cz-1_to_1_1e5evts_set0__unjoined.hdf5 \
 	-a stage.reco param.reco_events=events/events__vlvnt__toy_1_to_80GeV_spidx1.0_cz-1_to_1_1e5evts_set0__unjoined.hdf5 \
 	--select "nh" \

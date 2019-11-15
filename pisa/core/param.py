@@ -507,7 +507,7 @@ class Param:
         """Serialize the state to a JSON file that can be instantiated as a new
         object later.
         """
-        jsons.to_json(self.serializable_state, filename, **kwargs)
+        jsons.to_json(self.serializable_state, filename=filename, **kwargs)
 
     @classmethod
     def from_json(cls, filename):
