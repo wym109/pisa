@@ -100,12 +100,12 @@ class BarSep(object):
     Examples
     --------
     >>> nuebar = NuFlav('nuebar')
-    >>> print str(nuebar)
+    >>> print(str(nuebar))
     nuebar
     >>> with BarSep('_'):
-    ...     print nuebar
+    ...     print(nuebar)
     nue_bar
-    >>> print str(nuebar)
+    >>> print(str(nuebar))
     nuebar
 
     """
@@ -1754,8 +1754,8 @@ class CombinedFlavIntData(FlavIntData):
                 groupings_found.append(nfig)
 
             named_g, named_ung = xlateGroupsStr(','.join(val.keys()))
-            #print 'named_g:', named_g
-            #print 'named_ung:', named_ung
+            #print('named_g:', named_g)
+            #print('named_ung:', named_ung)
             # Force keys to standard naming convention (be liberal on input,
             # strict on output)
             for key in val.keys():
@@ -1896,24 +1896,24 @@ class CombinedFlavIntData(FlavIntData):
         """
         #with BarSep('_'):
         all_keys = list(args)
-        #print 'all_keys:', all_keys
+        #print('all_keys:', all_keys)
         tgt_grp = NuFlavIntGroup(all_keys[0])
-        #print 'tgt_grp0:', tgt_grp
-        #print 'flavints_to_keys:', self.flavints_to_keys
+        #print('tgt_grp0:', tgt_grp)
+        #print('flavints_to_keys:', self.flavints_to_keys)
         for (flavints, key) in self.flavints_to_keys:
-            #print 'flavints:', flavints, 'type:', type(flavints)
-            #print 'key:', key, 'type:', type(key)
+            #print('flavints:', flavints, 'type:', type(flavints))
+            #print('key:', key, 'type:', type(key))
             match = False
             # Identical
             if tgt_grp == flavints:
                 all_keys[0] = key
                 match = True
-                #print 'found exact match:', tgt_grp, '==', flavints
+                #print('found exact match:', tgt_grp, '==', flavints)
             # Requested flavints are strict subset
             elif not tgt_grp - flavints:
                 all_keys[0] = key
                 match = True
-                #print 'found subset match:', tgt_grp, 'in', flavints
+                #print('found subset match:', tgt_grp, 'in', flavints)
                 logging.debug('Requesting data for subset (%s) of'
                               ' grouping %s', str(tgt_grp), str(flavints))
             # Get it
@@ -1923,7 +1923,7 @@ class CombinedFlavIntData(FlavIntData):
                 lvl = self
                 for k in branch_keys:
                     lvl = dict.__getitem__(lvl, k)
-                #print 'node_key:', node_key, 'type:', type(node_key)
+                #print('node_key:', node_key, 'type:', type(node_key))
                 return deepcopy(dict.__getitem__(lvl, node_key))
         # If you get this far, no match was found
         raise ValueError('Could not locate data for group %s' % str(tgt_grp))

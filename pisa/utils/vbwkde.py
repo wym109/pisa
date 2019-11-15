@@ -288,6 +288,14 @@ def vbwkde(data, weights=None, n_dct=None, min=None, max=None, n_addl_iter=0,
     assert n_addl_iter >= 0 and int(n_addl_iter) == n_addl_iter
     n_addl_iter = int(n_addl_iter)
 
+    # Parameters to set up the points on which to evaluate the density
+    if min is None or max is None:
+        minimum = data.min()
+        maximum = data.max()
+        data_range = maximum - minimum
+        min = minimum - data_range/2 if min is None else min
+        max = maximum + data_range/2 if max is None else max
+
     # Pilot density estimate for the VBW KDE comes from fixed bandwidth KDE
     # using the Improved Sheather-Jones algorithm. By specifying
     # `evaluate_at` to be None, `fbwkde` derives a regular grid at which to

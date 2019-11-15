@@ -198,7 +198,7 @@ def get_valid_filename(s):
 
     Examples
     --------
-    >>> print get_valid_filename(r'A,bCd $%#^#*!()"\' .ext ')
+    >>> print(get_valid_filename(r'A,bCd $%#^#*!()"\' .ext '))
     'a_bcd__.ext'
 
     """
@@ -455,7 +455,7 @@ def from_file(fname, fmt=None, **kwargs):
 
     Returns
     -------
-    Object instantiated from the file (string, dictionariy, ...). Each format
+    Object instantiated from the file (string, dictionary, ...). Each format
     is interpreted differently.
 
     Raises

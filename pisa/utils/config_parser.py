@@ -270,22 +270,22 @@ def parse_quantity(string):
     Examples
     --------
     >>> quant = parse_quantity('1.2 +/- 0.7 * units.meter')
-    >>> print str(quant)
+    >>> print(str(quant))
     1.2+/-0.7 meter
-    >>> print '{:~}'.format(quant)
+    >>> print('{:~}'.format(quant))
     1.2+/-0.7 m
-    >>> print quant.magnitude
+    >>> print(quant.magnitude)
     1.2+/-0.7
-    >>> print quant.units
+    >>> print(quant.units)
     meter
-    >>> print quant.nominal_value
+    >>> print(quant.nominal_value)
     1.2
-    >>> print quant.std_dev
+    >>> print(quant.std_dev)
     0.7
 
     Also note that spaces and the "*" are optional:
 
-    >>> print parse_quantity('1+/-1units.GeV')
+    >>> print(parse_quantity('1+/-1units.GeV'))
     1.0+/-1.0 gigaelectron_volt
 
     """
@@ -319,16 +319,16 @@ def parse_string_literal(string):
 
     Examples
     --------
-    >>> print parse_string_literal('true')
+    >>> print(parse_string_literal('true'))
     True
 
-    >>> print parse_string_literal('False')
+    >>> print(parse_string_literal('False'))
     False
 
-    >>> print parse_string_literal('none')
+    >>> print(parse_string_literal('none'))
     None
 
-    >>> print parse_string_literal('something else')
+    >>> print(parse_string_literal('something else'))
     'something else'
 
     """
@@ -357,7 +357,7 @@ def interpret_param_subfields(subfields, selector=None, pname=None, attr=None):
 
     Examples
     --------
-    >>> print interpret_param_subfields(subfields=['nh', 'deltam31', 'range'])
+    >>> print(interpret_param_subfields(subfields=['nh', 'deltam31', 'range']))
     {'pname': 'deltam31', 'subfields': [], 'attr': ['range'], 'selector': 'nh'}
 
     """

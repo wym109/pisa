@@ -7,31 +7,44 @@ values.
 
 from __future__ import absolute_import, division
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from collections import OrderedDict
 from copy import deepcopy
 from functools import total_ordering
 from operator import setitem
+from os.path import join
+from shutil import rmtree
 import sys
+import tempfile
 
 import numpy as np
 import pint
+from six import string_types
 
 from pisa import ureg
+from pisa.core.prior import Prior
 from pisa.utils import jsons
-from pisa.utils.comparisons import isbarenumeric, normQuant, recursiveEquality
+from pisa.utils.comparisons import (
+    interpret_quantity, isbarenumeric, normQuant, recursiveEquality
+)
 from pisa.utils.hash import hash_obj
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.random_numbers import get_random_state
 from pisa.utils.stats import ALL_METRICS, CHI2_METRICS, LLH_METRICS
 
 
-__all__ = ['Param', 'ParamSet', 'ParamSelector',
-           'test_Param', 'test_ParamSet', 'test_ParamSelector']
+__all__ = [
+    'Param',
+    'ParamSet',
+    'ParamSelector',
+    'test_Param',
+    'test_ParamSet',
+    'test_ParamSelector',
+]
 
 __author__ = 'J.L. Lanfranchi'
 
-__license__ = '''Copyright (c) 2014-2017, The IceCube Collaboration
+__license__ = '''Copyright (c) 2014-2019, The IceCube Collaboration
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -55,25 +68,29 @@ __license__ = '''Copyright (c) 2014-2017, The IceCube Collaboration
 # when setting the prior, range, and possibly other things (which all need to
 # at least have compatible units)
 @total_ordering
-class Param(object):
+class Param:
     """Parameter class to store any kind of parameters
 
     Parameters
     ----------
     name : string
 
-    unique_id : string
-        set to name if None provided
+    value : scalar, bool, pint Quantity (value with units), string, or None
 
-    value : string or pint Quantity with units
+    prior : pisa.prior.Prior or instantiable thereto
 
-    prior : pisa.prior.Prior
-
-    range : sequence of two numbers or Pint quantities
+    range : sequence of two scalars or Pint quantities, or None
 
     is_fixed : bool
 
-    is_discrete : bool
+    unique_id : string, optional
+        If None is provided (default), `unique_id` is set to `name`
+
+    is_discrete : bool, optional
+        Default is False
+
+    nominal_value : same type as `value`, optional
+        If None (default), set to same as `value`
 
     tex : None or string
 
@@ -95,31 +112,58 @@ class Param(object):
     ...           range=[-10, 60]*ureg.foot, is_fixed=False, is_discrete=False)
     >>> x.value
     <Quantity(1.5, 'foot')>
-    >>> print x.prior_llh
+    >>> print(x.prior_llh)
     -45.532515919999994
-    >>> print x.to('m')
+    >>> print(x.to('m'))
 
     >>> x.value = 10*ureg.m
-    >>> print x.value
+    >>> print(x.value)
     <Quantity(32.8083989501, 'foot')>
     >>> x.ito('m')
-    >>> print x.value
+    >>> print(x.value)
 
     >>> x.prior_llh
     -1.5777218104420236e-30
     >>> p.nominal_value
 
     >>> x.reset()
-    >>> print x.value
+    >>> print(x.value)
 
 
     """
-    _slots = ('name', 'unique_id', 'value', 'prior', 'range', 'is_fixed',
-              'is_discrete', 'nominal_value', '_rescaled_value',
-              '_nominal_value', '_tex', 'help', '_value', '_range', '_units',
-              'normalize_values')
-    _state_attrs = ('name', 'unique_id', 'value', 'prior', 'range', 'is_fixed',
-                    'is_discrete', 'nominal_value', 'tex', 'help')
+    # pylint: disable=protected-access
+    _slots = (
+        'name',
+        'unique_id',
+        'value',
+        'prior',
+        '_prior',
+        'range',
+        'is_fixed',
+        'is_discrete',
+        'nominal_value',
+        'tex',
+        '_rescaled_value',
+        '_nominal_value',
+        '_tex',
+        'help',
+        '_value',
+        '_range',
+        '_units',
+        'normalize_values',
+    )
+    _state_attrs = (
+        'name',
+        'unique_id',
+        'value',
+        'prior',
+        'range',
+        'is_fixed',
+        'is_discrete',
+        'nominal_value',
+        'tex',
+        'help',
+    )
 
     def __init__(self, name, value, prior, range, is_fixed, unique_id=None,
                  is_discrete=False, nominal_value=None, tex=None, help=''):
@@ -127,17 +171,19 @@ class Param(object):
         self._tex = None
         self._value = None
         self._units = None
+        self._nominal_value = None
+        self._prior = None
 
         self.value = value
         self.name = name
         self.unique_id = unique_id if unique_id is not None else name
-        self._tex = tex
+        self.tex = tex
         self.help = help
         self.range = range
         self.prior = prior
         self.is_fixed = is_fixed
         self.is_discrete = is_discrete
-        self._nominal_value = value if nominal_value is None else nominal_value
+        self.nominal_value = value if nominal_value is None else nominal_value
         self.normalize_values = False
 
     def __eq__(self, other):
@@ -185,9 +231,12 @@ class Param(object):
 
     @value.setter
     def value(self, val):
-        # A number with no units actually has units of "dimensionless"
-        if isbarenumeric(val):
-            val = val * ureg.dimensionless
+        # Strings, bools, and `None` are simply used as-is; otherwise, enforce
+        # input have units (or default to units of `dimensionless`)
+        if not (val is None or isinstance(val, string_types) or isinstance(val, bool)):
+            # A number with no units actually has units of "dimensionless"
+            val = interpret_quantity(val, expect_sequence=False)
+
         if self._value is not None:
             if hasattr(self._value, 'units'):
                 assert hasattr(val, 'units'), \
@@ -205,7 +254,7 @@ class Param(object):
         return self._value.magnitude
 
     @property
-    def m(self):
+    def m(self):  # pylint: disable=invalid-name
         return self._value.magnitude
 
     def m_as(self, u):
@@ -220,7 +269,7 @@ class Param(object):
         return self._units
 
     @property
-    def u(self):
+    def u(self):  # pylint: disable=invalid-name
         return self._units
 
     @property
@@ -234,15 +283,24 @@ class Param(object):
         if values is None:
             self._range = None
             return
+
+        if len(values) != 2:
+            raise ValueError(
+                "Must provide a lower and upper bound; got {} value(s)".format(
+                    len(values)
+                )
+            )
+
         new_vals = []
         for val in values:
-            if isbarenumeric(val):
-                val = val * ureg.dimensionless
+            val = interpret_quantity(val, expect_sequence=False)
+
             # NOTE: intentionally using type() instead of isinstance() here.
             # Not sure if this could be converted to isinstance(), though.
             if not type(val) == type(self.value): # pylint: disable=unidiomatic-typecheck
                 raise TypeError('Value "%s" has type %s but must be of type'
                                 ' %s.' % (val, type(val), type(self.value)))
+
             if isinstance(self.value, ureg.Quantity):
                 if self.dimensionality != val.dimensionality:
                     raise ValueError('Value "%s" units "%s" incompatible with'
@@ -250,6 +308,7 @@ class Param(object):
                                      % (val, val.units, self.units))
 
             new_vals.append(val)
+
         self._range = new_vals
 
     # TODO: make discrete values rescale to integers 0, 1, ...
@@ -283,7 +342,7 @@ class Param(object):
 
     @property
     def tex(self):
-        return '%s=%s' % (self._tex, self.value)
+        return self._tex
 
     @tex.setter
     def tex(self, t):
@@ -295,8 +354,26 @@ class Param(object):
 
     @nominal_value.setter
     def nominal_value(self, value):
+        if not (value is None or isinstance(value, bool) or isinstance(value, string_types)):
+            value = interpret_quantity(value, expect_sequence=False)
         self.validate_value(value)
         self._nominal_value = value
+
+    @property
+    def prior(self):
+        return self._prior
+
+    @prior.setter
+    def prior(self, value):
+        if value is None:
+            prior = value
+        elif isinstance(value, Prior):
+            prior = value
+        elif isinstance(value, Mapping):
+            prior = Prior(**value)
+        else:
+            raise TypeError("Unhandled prior type {}".format(type(value)))
+        self._prior = prior
 
     @property
     def state(self):
@@ -307,6 +384,10 @@ class Param(object):
                 val = val.state
             setitem(state, attr, val)
         return state
+
+    @property
+    def serializable_state(self):
+        return self.state
 
     def reset(self):
         """Reset the parameter's value to its nominal value."""
@@ -422,6 +503,18 @@ class Param(object):
     def __hash__(self):
         return self.hash
 
+    def to_json(self, filename, **kwargs):
+        """Serialize the state to a JSON file that can be instantiated as a new
+        object later.
+        """
+        jsons.to_json(self.serializable_state, filename=filename, **kwargs)
+
+    @classmethod
+    def from_json(cls, filename):
+        """Instantiate a new Param from a JSON file"""
+        state = jsons.from_json(filename=filename)
+        return cls(**state)
+
 
 # TODO: temporary modification of parameters via "with" syntax?
 class ParamSet(Sequence):
@@ -447,42 +540,56 @@ class ParamSet(Sequence):
     ...                     range=[-1, 1], is_fixed=True, is_discrete=False,
     ...                     tex=r'\cos\,\theta_Z^{\rm reco}')
     >>> param_set = ParamSet(reco_energy, reco_coszen)
-    >>> print param_set
+    >>> print(param_set)
     reco_coszen=-2.0000e-01 reco_energy=+1.2000e+01 GeV
 
-    >>> print param_set.free
+    >>> print(param_set.free)
     reco_energy=+1.2000e+01 GeV
 
-    >>> print param_set.reco_energy.value
+    >>> print(param_set.reco_energy.value)
     12 gigaelectron_volt
 
-    >>> print [p.prior_llh for p in param_set]
+    >>> print([p.prior_llh for p in param_set])
     [-5.0, -2]
 
-    >>> print param_set.priors_llh
+    >>> print(param_set.priors_llh)
     -7.0
 
-    >>> print param_set.values_hash
+    >>> print(param_set.values_hash)
     3917547535160330856
 
-    >>> print param_set.free.values_hash
+    >>> print(param_set.free.values_hash)
     -7121742559130813936
 
     """
+    # pylint: disable=protected-access
     def __init__(self, *args):
-        param_sequence = []
         # Unpack the input args into a flat list of params
-        for arg in args:
-            try:
-                param_sequence.extend(arg)
-            except TypeError:
-                param_sequence.append(arg)
+        param_sequence_ = []
+        for arg_num, arg in enumerate(args, start=1):
+            if isinstance(arg, (Mapping, Param)):
+                param_sequence_.append(arg)
+            elif isinstance(arg, Iterable):
+                param_sequence_.extend(arg)
+            else:
+                raise TypeError(
+                    "Unhandled type {}, arg #{}: {}".format(type(arg), arg_num, arg)
+                )
+
+        param_sequence = []
+        for param in param_sequence_:
+            if isinstance(param, Mapping):
+                param = Param(**param)
+            if isinstance(param, Param):
+                param_sequence.append(param)
+            else:
+                raise TypeError("Unhandled type {}: {}".format(type(param), param))
 
         # Disallow duplicated params
         all_names = [p.name for p in param_sequence]
         unique_names = set(all_names)
         if len(unique_names) != len(all_names):
-            duplicates = set([x for x in all_names if all_names.count(x) > 1])
+            duplicates = set(x for x in all_names if all_names.count(x) > 1)
             raise ValueError('Duplicate definitions found for param(s): ' +
                              ', '.join(str(e) for e in duplicates))
 
@@ -495,10 +602,7 @@ class ParamSet(Sequence):
 
     @property
     def serializable_state(self):
-        state = OrderedDict()
-        for p in self._params:
-            state[p.name] = p.state
-        return state
+        return [p.state for p in self]
 
     @property
     def _by_name(self):
@@ -840,7 +944,7 @@ class ParamSet(Sequence):
     def _rescaled_values(self):
         """Parameter values rescaled to be in the range [0, 1], based upon
         their defined range."""
-        return tuple([param._rescaled_value for param in self._params])
+        return tuple(param._rescaled_value for param in self._params)
 
     @_rescaled_values.setter
     def _rescaled_values(self, vals):
@@ -870,19 +974,19 @@ class ParamSet(Sequence):
 
     @property
     def are_fixed(self):
-        return tuple([obj.is_fixed for obj in self._params])
+        return tuple(obj.is_fixed for obj in self._params)
 
     @property
     def are_discrete(self):
-        return tuple([obj.is_discrete for obj in self._params])
+        return tuple(obj.is_discrete for obj in self._params)
 
     @property
     def names(self):
-        return tuple([obj.name for obj in self._params])
+        return tuple(obj.name for obj in self._params)
 
     @property
     def values(self):
-        return tuple([obj.value for obj in self._params])
+        return tuple(obj.value for obj in self._params)
 
     @values.setter
     def values(self, values):
@@ -914,7 +1018,7 @@ class ParamSet(Sequence):
 
     @property
     def priors(self):
-        return tuple([obj.prior for obj in self._params])
+        return tuple(obj.prior for obj in self._params)
 
     @priors.setter
     def priors(self, values):
@@ -932,7 +1036,7 @@ class ParamSet(Sequence):
 
     @property
     def ranges(self):
-        return tuple([obj.range for obj in self._params])
+        return tuple(obj.range for obj in self._params)
 
     @ranges.setter
     def ranges(self, values):
@@ -942,7 +1046,7 @@ class ParamSet(Sequence):
 
     @property
     def state(self):
-        return tuple([obj.state for obj in self._params])
+        return tuple(obj.state for obj in self._params)
 
     @property
     def values_hash(self):
@@ -974,7 +1078,22 @@ class ParamSet(Sequence):
         """
         jsons.to_json(self.serializable_state, filename=filename, **kwargs)
 
-class ParamSelector(object):
+    @classmethod
+    def from_json(cls, filename):
+        """Instantiate a new ParamSet from a JSON file"""
+        state = jsons.from_json(filename=filename)
+        if isinstance(state, Sequence):
+            return cls(*state)
+        if isinstance(state, Mapping):
+            return cls(*tuple(state.values()))
+        raise TypeError(
+            'Unhandled type loaded from "{}": {}\n{}'.format(
+                filename, type(state), state
+            )
+        )
+
+
+class ParamSelector:
     """
     Parameters
     ----------
@@ -1000,6 +1119,7 @@ class ParamSelector(object):
     with params in the param sets specified by `selector_param_sets`.
 
     """
+    # pylint: disable=protected-access
     def __init__(self, regular_params=None, selector_param_sets=None,
                  selections=None):
         self._current_params = ParamSet()
@@ -1109,108 +1229,136 @@ class ParamSelector(object):
 
 def test_Param():
     """Unit tests for Param class"""
+    # pylint: disable=unused-variable
     from scipy.interpolate import splrep
-    from pisa.core.prior import Prior
 
-    uniform = Prior(kind='uniform', llh_offset=1.5)
-    gaussian = Prior(kind='gaussian', mean=10*ureg.meter, stddev=1*ureg.meter)
-    param_vals = np.linspace(-10, 10, 100) * ureg.meter
-    llh_vals = (param_vals.magnitude)**2
-    linterp_m = Prior(kind='linterp', param_vals=param_vals, llh_vals=llh_vals)
-    linterp_nounits = Prior(kind='linterp', param_vals=param_vals.m,
-                            llh_vals=llh_vals)
+    temp_dir = tempfile.mkdtemp()
 
-    param_vals = np.linspace(-10, 10, 100)
-    llh_vals = param_vals**2
-    knots, coeffs, deg = splrep(x=param_vals, y=llh_vals)
+    counter = [0]
+    def check_json(param, name=""):
+        fpath = join(temp_dir, "foo{}.json".format(counter[0]))
+        counter[0] += 1
+        param.to_json(fpath)
+        loaded = Param.from_json(fpath)
+        if not (
+            recursiveEquality(param, loaded)
+            and recursiveEquality(param.serializable_state, loaded.serializable_state)
+        ):
+            msg = (
+                "{}: failed to save / load identical param:\n"
+                "original = {:s}\n"
+                "loaded   = {:s}"
+                .format(name, str(param), str(loaded))
+            )
+            logging.error(msg)
+            raise ValueError(msg)
 
-    spline = Prior(kind='spline', knots=knots, coeffs=coeffs, deg=deg)
-
-    # Param with units, prior with compatible units
-    p0 = Param(name='c', value=1.5*ureg.foot, prior=gaussian,
-               range=[1, 2]*ureg.foot, is_fixed=False, is_discrete=False,
-               tex=r'\int{\rm c}')
-    # Param with no units, prior with no units
-    p1 = Param(name='c', value=1.5, prior=spline, range=[1, 2],
-               is_fixed=False, is_discrete=False, tex=r'\int{\rm c}')
-
-    # Param with no units, prior with units
     try:
-        p2 = Param(name='c', value=1.5, prior=linterp_m,
-                   range=[1, 2], is_fixed=False, is_discrete=False,
+        uniform = Prior(kind='uniform', llh_offset=1.5)
+        gaussian = Prior(kind='gaussian', mean=10*ureg.meter, stddev=1*ureg.meter)
+        param_vals = np.linspace(-10, 10, 100) * ureg.meter
+        llh_vals = (param_vals.magnitude)**2
+        linterp_m = Prior(kind='linterp', param_vals=param_vals, llh_vals=llh_vals)
+        linterp_nounits = Prior(kind='linterp', param_vals=param_vals.m,
+                                llh_vals=llh_vals)
+
+        param_vals = np.linspace(-10, 10, 100)
+        llh_vals = param_vals**2
+        knots, coeffs, deg = splrep(x=param_vals, y=llh_vals)
+
+        spline = Prior(kind='spline', knots=knots, coeffs=coeffs, deg=deg)
+
+        # Param with units, prior with compatible units
+        p0 = Param(name='c', value=1.5*ureg.foot, prior=gaussian,
+                   range=[-1, 2]*ureg.mile, is_fixed=False, is_discrete=False,
                    tex=r'\int{\rm c}')
-        _ = p2.prior_llh
-        logging.debug(str(p2))
-        logging.debug(str(linterp_m))
-        logging.debug('p2.units: %s', p2.units)
-        logging.debug('p2.prior.units: %s', p2.prior.units)
-    except (TypeError, pint.DimensionalityError):
-        pass
-    else:
-        assert False
+        check_json(p0, "p0")
 
-    # Param with units, prior with no units
-    try:
-        p2 = Param(name='c', value=1.5*ureg.meter, prior=spline, range=[1, 2],
+        # Param with no units, prior with no units
+        p1 = Param(name='c', value=1.5, prior=spline, range=[1, 2],
                    is_fixed=False, is_discrete=False, tex=r'\int{\rm c}')
-        _ = p2.prior_llh
-    except (ValueError, TypeError, AssertionError):
-        pass
-    else:
-        assert False
-    try:
-        p2 = Param(name='c', value=1.5*ureg.meter, prior=linterp_nounits,
+        check_json(p1, "p1")
+
+        # Param with no units, prior with units
+        try:
+            p2 = Param(name='c', value=1.5, prior=linterp_m,
+                       range=[1, 2], is_fixed=False, is_discrete=False,
+                       tex=r'\int{\rm c}')
+            _ = p2.prior_llh
+            logging.debug(str(p2))
+            logging.debug(str(linterp_m))
+            logging.debug('p2.units: %s', p2.units)
+            logging.debug('p2.prior.units: %s', p2.prior.units)
+        except (TypeError, pint.DimensionalityError):
+            pass
+        else:
+            assert False
+
+        # Param with units, prior with no units
+        try:
+            p2 = Param(name='c', value=1.5*ureg.meter, prior=spline, range=[1, 2],
+                       is_fixed=False, is_discrete=False, tex=r'\int{\rm c}')
+            _ = p2.prior_llh
+        except (ValueError, TypeError, AssertionError):
+            pass
+        else:
+            assert False
+        try:
+            p2 = Param(name='c', value=1.5*ureg.meter, prior=linterp_nounits,
+                       range=[1, 2], is_fixed=False, is_discrete=False,
+                       tex=r'\int{\rm c}')
+            _ = p2.prior_llh
+        except (ValueError, TypeError, AssertionError):
+            pass
+        else:
+            assert False
+
+        # Param, range, prior with no units
+        p2 = Param(name='c', value=1.5, prior=linterp_nounits,
                    range=[1, 2], is_fixed=False, is_discrete=False,
                    tex=r'\int{\rm c}')
         _ = p2.prior_llh
-    except (ValueError, TypeError, AssertionError):
-        pass
-    else:
-        assert False
 
-    # Param, range, prior with no units
-    p2 = Param(name='c', value=1.5, prior=linterp_nounits,
-               range=[1, 2], is_fixed=False, is_discrete=False,
-               tex=r'\int{\rm c}')
-    _ = p2.prior_llh
+        # Param, prior with no units, range with units
+        try:
+            p2 = Param(name='c', value=1.5, prior=linterp_nounits,
+                       range=[1, 2]*ureg.m, is_fixed=False, is_discrete=False,
+                       tex=r'\int{\rm c}')
+            _ = p2.prior_llh
+            logging.debug(str(p2))
+            logging.debug(str(linterp_nounits))
+            logging.debug('p2.units: %s', p2.units)
+            logging.debug('p2.prior.units: %s', p2.prior.units)
+        except (ValueError, TypeError, AssertionError):
+            pass
+        else:
+            assert False
 
-    # Param, prior with no units, range with units
-    try:
-        p2 = Param(name='c', value=1.5, prior=linterp_nounits,
-                   range=[1, 2]*ureg.m, is_fixed=False, is_discrete=False,
-                   tex=r'\int{\rm c}')
-        _ = p2.prior_llh
-        logging.debug(str(p2))
-        logging.debug(str(linterp_nounits))
-        logging.debug('p2.units: %s', p2.units)
-        logging.debug('p2.prior.units: %s', p2.prior.units)
-    except (ValueError, TypeError, AssertionError):
-        pass
-    else:
-        assert False
+        nom0 = p2.nominal_value
+        val0 = p2.value
+        p2.value = p2.value * 1.01
+        val1 = p2.value
+        assert p2.value != val0
+        assert p2.value == val0 * 1.01
+        assert p2.value != nom0
+        assert p2.nominal_value == nom0
 
-    nom0 = p2.nominal_value
-    val0 = p2.value
-    p2.value = p2.value * 1.01
-    val1 = p2.value
-    assert p2.value != val0
-    assert p2.value == val0 * 1.01
-    assert p2.value != nom0
-    assert p2.nominal_value == nom0
+        p2.reset()
+        assert p2.value == nom0
+        assert p2.nominal_value == nom0
 
-    p2.reset()
-    assert p2.value == nom0
-    assert p2.nominal_value == nom0
+        p2.value = val1
+        p2.set_nominal_to_current_value()
+        assert p2.nominal_value == p2.value
+        assert p2.nominal_value == val1, \
+                '%s should be %s' %(p2.nominal_value, val1)
 
-    p2.value = val1
-    p2.set_nominal_to_current_value()
-    assert p2.nominal_value == p2.value
-    assert p2.nominal_value == val1, \
-            '%s should be %s' %(p2.nominal_value, val1)
+        # Test deepcopy
+        param2 = deepcopy(p2)
+        assert param2 == p2
 
-    # Test deepcopy
-    param2 = deepcopy(p2)
-    assert param2 == p2
+    finally:
+        rmtree(temp_dir)
 
     logging.info('<< PASS : test_Param >>')
 
@@ -1218,8 +1366,7 @@ def test_Param():
 # TODO: add tests for reset() and reset_all() methods
 def test_ParamSet():
     """Unit tests for ParamSet class"""
-    from pisa.core.prior import Prior
-
+    # pylint: disable=attribute-defined-outside-init
     p0 = Param(name='c', value=1.5, prior=None, range=[1, 2],
                is_fixed=False, is_discrete=False, tex=r'\int{\rm c}')
     p1 = Param(name='a', value=2.5, prior=None, range=[1, 5],
@@ -1346,11 +1493,63 @@ def test_ParamSet():
     logging.debug(str((param_set2)))
     assert param_set2 == param_set
 
+    # Test case added as a result of issue #543
+    # https://github.com/IceCubeOpenSource/pisa/issues/543
+    param_set = ParamSet(
+        [
+            Param(
+                name="param0",
+                value=1*ureg.dimensionless,
+                prior=None,
+                range=(-1, 2)*ureg.dimensionless,
+                is_fixed=False,
+            ),
+            Param(
+                name="param1",
+                value=1,
+                prior=None,
+                range=(-1, 2),
+                is_fixed=False,
+            ),
+            Param(
+                name="param2",
+                value=1,
+                prior=None,
+                range=(-1.1, 1.1),
+                is_fixed=False,
+            ),
+            Param(
+                name="param3",
+                value=2.0*ureg.m/ureg.s,
+                prior=None,
+                range=(-1, 10)*ureg.cm/ureg.ns,
+                is_fixed=True,
+            ),
+            Param(
+                name="param4",
+                value=2.1*ureg.m/ureg.s,
+                prior=None,
+                range=(-1.1, 1.1)*ureg.cm/ureg.ns,
+                is_fixed=True,
+            ),
+        ]
+    )
+    temp_dir = tempfile.mkdtemp()
+    try:
+        fpath = join(temp_dir, "foo.json")
+        param_set.to_json(fpath)
+        param_set2 = ParamSet.from_json(fpath)
+    finally:
+        rmtree(temp_dir)
+    assert recursiveEquality(param_set, param_set2)
+    assert recursiveEquality(param_set.serializable_state, param_set2.serializable_state)
+
     logging.info('<< PASS : test_ParamSet >>')
 
 
 def test_ParamSelector():
     """Unit tests for ParamSelector class"""
+    # pylint: disable=attribute-defined-outside-init, no-member, invalid-name
     p0 = Param(name='a', value=1.5, prior=None, range=[1, 2],
                is_fixed=False, is_discrete=False, tex=r'\int{\rm c}')
     p1 = Param(name='b', value=2.5, prior=None, range=[1, 5],

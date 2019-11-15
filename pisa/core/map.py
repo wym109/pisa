@@ -10,7 +10,7 @@ containers but that get passed down to operate on the contained data.
 from __future__ import absolute_import, division
 
 from collections.abc import Iterable, Mapping, Sequence
-from collections import OrderedDict 
+from collections import OrderedDict
 from copy import deepcopy, copy
 from fnmatch import fnmatch
 from functools import reduce
@@ -24,6 +24,7 @@ import tempfile
 from decorator import decorate
 import numpy as np
 from scipy.stats import poisson, norm
+from six import string_types
 import uncertainties
 from uncertainties import ufloat
 from uncertainties import unumpy as unp
@@ -204,7 +205,6 @@ def _new_obj(original_function):
     return decorate(original_function, new_function)
 
 
-
 def valid_nominal_values(data_array):
     """Get the the nominal values that are valid for an array"""
     return np.ma.masked_invalid(unp.nominal_values(data_array))
@@ -281,10 +281,10 @@ class Map(object):
            [ 1.,  0.],
            [ 1.,  0.]])
     >>> for bin in m1.iterbins():
-    ...     print '({0:~.2f}, {1:~.2f}): {2:0.1f}'.format(
+    ...     print('({0:~.2f}, {1:~.2f}): {2:0.1f}'.format(
     ...             bin.binning.energy.midpoints[0],
     ...             bin.binning.coszen.midpoints[0],
-    ...             bin.hist[0, 0])
+    ...             bin.hist[0, 0]))
     (2.00 GeV, -0.90 ): 1.0
     (2.00 GeV, -0.70 ): 0.0
     (5.97 GeV, -0.90 ): 1.0
@@ -413,7 +413,7 @@ class Map(object):
         ...     dict(name='y', domain=[1,2], is_lin=True, num_bins=10)
         ... ])
         >>> ones = mdb.ones(name='ones')
-        >>> print ones.slice(x=0,)
+        >>> print(ones.slice(x=0,))
         Map(name='ones',
                 tex='{\\rm ones}',
                 full_comparison=False,
@@ -423,9 +423,9 @@ class Map(object):
                             OneDimBinning(name=OneDimBinning('x', 1 bin with edges at [0.0, 0.2] (behavior is linear))),
                             OneDimBinning(name=OneDimBinning('y', 10 equally-sized bins spanning [1.0, 2.0]))]),
                 hist=array([[ 1.,  1.,  1.,  1.,  1.,  1.,  1.,  1.,  1.,  1.]]))
-        >>> print ones.slice(x=0, y=slice(None)).hist
+        >>> print(ones.slice(x=0, y=slice(None)).hist)
         [[ 1.  1.  1.  1.  1.  1.  1.  1.  1.  1.]]
-        >>> print ones.slice(x=0, y=0).hist
+        >>> print(ones.slice(x=0, y=0).hist)
         [[ 1.]]
 
         Modifications to the slice modifies the original:
@@ -437,8 +437,8 @@ class Map(object):
         >>> ones = mdb.ones(name='ones')
         >>> sl = ones.slice(x=2)
         >>> sl.hist[...] = 0
-        >>> print sl.hist
-        >>> print ones.hist
+        >>> print(sl.hist)
+        >>> print(ones.hist)
         [[ 1.  1.  1.  1.  1.  1.  1.  1.  1.  1.]
          [ 1.  1.  1.  1.  1.  1.  1.  1.  1.  1.]
          [ 0.  0.  0.  0.  0.  0.  0.  0.  0.  0.]
@@ -633,7 +633,7 @@ class Map(object):
              Custom filename to set for saved figure. If not provided, a name
              is derived from the `name` attribute of the Map. Note that if
              `fmt` is None, then this argument is irrelevant.
-        
+
         binlabel_format : string, optional
             Format string to label the content in each bin. If None (default), the bins will not
             be labeled.
@@ -673,7 +673,7 @@ class Map(object):
         pcolormesh_kw = {} if pcolormesh_kw is None else pcolormesh_kw
         colorbar_kw = {} if colorbar_kw is None else colorbar_kw
         if fmt is not None:
-            if isinstance(fmt, str):
+            if isinstance(fmt, string_types):
                 fmt = [fmt]
             fmt = set(f.strip().lower().lstrip('.') for f in fmt)
             if outdir is None:
@@ -707,7 +707,7 @@ class Map(object):
                 vmax_ = np.abs(vmax)
             elif vmin is not None and vmax is None:
                 vmax_ = np.abs(vmin)
-            else:
+            else:  # neither vmax nor vmin are None
                 assert vmax > vmin and vmax == -vmin
                 vmax_ = vmax
             vmin_ = -vmax_
@@ -855,7 +855,7 @@ class Map(object):
         """
         if axis is None:
             axis = self.binning.names
-        if isinstance(axis, (str, int)):
+        if isinstance(axis, (string_types, int)):
             axis = [axis]
         # Note that the tuple is necessary here (I think...)
         sum_indices = tuple([self.binning.index(dim) for dim in axis])
@@ -1161,11 +1161,14 @@ class Map(object):
         """
         for i in range(self.size):
             idx_coord = self.binning.index2coord(i)
-            idx_view = [slice(x, x+1) for x in idx_coord]
+            idx_view = tuple(slice(x, x+1) for x in idx_coord)
             single_bin_map = Map(
-                name=self.name, hist=self.hist[idx_view],
-                binning=self.binning[idx_coord], hash=None, tex=self.tex,
-                full_comparison=self.full_comparison
+                name=self.name,
+                hist=self.hist[idx_view],
+                binning=self.binning[idx_coord],
+                hash=None,
+                tex=self.tex,
+                full_comparison=self.full_comparison,
             )
             single_bin_map.parent_indexer = idx_coord
             yield single_bin_map
@@ -1280,7 +1283,7 @@ class Map(object):
 
         singleton = False
         if bin is not None:
-            if isinstance(bin, (int, str)):
+            if isinstance(bin, (int, string_types)):
                 bin_indices = [spliton_dim.index(bin)]
             elif isinstance(bin, slice):
                 bin_indices = list(range(len(spliton_dim)))[bin]
@@ -1358,7 +1361,7 @@ class Map(object):
 
         return np.sum(stats.llh(actual_values=self.hist,
                                 expected_values=expected_values))
-    
+
     def mcllh_mean(self, expected_values, binned=False):
         """Calculate the total LMean log-likelihood value between this map and the
         map described by `expected_values`; self is taken to be the "actual
@@ -1541,7 +1544,7 @@ class Map(object):
     @name.setter
     def name(self, value):
         """map name"""
-        assert isinstance(value, str)
+        assert isinstance(value, string_types)
         return super().__setattr__('_name', value)
 
     @property
@@ -1553,7 +1556,7 @@ class Map(object):
 
     @tex.setter
     def tex(self, value):
-        assert value is None or isinstance(value, str)
+        assert value is None or isinstance(value, string_types)
         if value is not None:
             value = strip_outer_dollars(value)
         return super().__setattr__('_tex', value)
@@ -2079,7 +2082,7 @@ class MapSet(object):
                 assert x >= -l and x < l
             elif isinstance(x, Map):
                 x = self.names.index(x.name)
-            elif isinstance(x, str):
+            elif isinstance(x, string_types):
                 x = self.names.index(x)
             else:
                 raise TypeError('Unhandled type "%s" for `x`' % type(x))
@@ -2192,7 +2195,7 @@ class MapSet(object):
 
         """
         is_scalar = False
-        if isinstance(regexes, (str, re.Pattern)):
+        if isinstance(regexes, string_types) or hasattr(regexes, 'pattern'):
             is_scalar = True
             regexes = [regexes]
 
@@ -2292,7 +2295,7 @@ class MapSet(object):
 
         """
         is_scalar = False
-        if isinstance(expressions, str):
+        if isinstance(expressions, string_types):
             is_scalar = True
             expressions = [expressions]
 
@@ -2448,7 +2451,7 @@ class MapSet(object):
         idx = None
         if isinstance(value, Map):
             pass
-        elif isinstance(value, str):
+        elif isinstance(value, string_types):
             try:
                 idx = self.names.index(value)
             except ValueError:
@@ -2504,7 +2507,7 @@ class MapSet(object):
             for arg in args:
                 if (np.isscalar(arg) or
                         type(arg) is uncertainties.core.Variable or
-                        isinstance(arg, (str, np.ndarray))):
+                        isinstance(arg, (string_types, np.ndarray))):
                     this_map_args.append(arg)
                 elif isinstance(arg, MapSet):
                     if self.collate_by_name:
@@ -2547,9 +2550,9 @@ class MapSet(object):
         return name in [m.name for m in self]
 
     #def __setattr__(self, attr, val):
-    #    print '__setattr__ being accessed, attr = %s, val = %s' %(attr, val)
+    #    print('__setattr__ being accessed, attr = %s, val = %s' %(attr, val))
     #    if attr in MapSet.__slots:
-    #        print 'attr "%s" found in MapSet.slots.' %attr
+    #        print('attr "%s" found in MapSet.slots.' %attr)
     #        object.__setattr__(self, attr, val)
     #    else:
     #        returned_vals = [setattr(mp, attr, val) for mp in self]
@@ -2579,7 +2582,7 @@ class MapSet(object):
             in an ordered dict with format {<map name>: <values>, ...}
 
         """
-        if isinstance(item, str):
+        if isinstance(item, string_types):
             return self.find_map(item)
 
         if isinstance(item, (int, slice)):
@@ -2743,7 +2746,7 @@ class MapSet(object):
                       collate_by_name=self.collate_by_name)
 
     def metric_per_map(self, expected_values, metric):
-        if isinstance(metric, str):
+        if isinstance(metric, string_types):
             metric = metric.lower()
             if 'binned_' in metric:
                 metric = metric.replace('binned_', '')
@@ -2757,7 +2760,7 @@ class MapSet(object):
                              % (metric, stats.ALL_METRICS))
 
     def metric_total(self, expected_values, metric):
-        return np.sum(self.metric_per_map(expected_values, metric).values())
+        return np.sum(list(self.metric_per_map(expected_values, metric).values()))
 
     def chi2_per_map(self, expected_values):
         return self.apply_to_maps('chi2', expected_values)
@@ -2803,7 +2806,7 @@ class MapSet(object):
 #                  '__getitem__', '__eq__', '__ne__', '__str__', '__repr__')
 #    if method_name in disallowed:
 #        continue
-#    print 'adding method "%s" to MapSet as an apply func' % method_name
+#    print('adding method "%s" to MapSet as an apply func' % method_name)
 #    arg_str = ', *args' # if len(args) > 0 else ''
 #    eval(('def {method_name}(self{arg_str}):\n'
 #          '    return self.apply_to_maps({method_name}{arg_str})')
