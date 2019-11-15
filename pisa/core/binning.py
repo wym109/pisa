@@ -584,7 +584,7 @@ class OneDimBinning(object):
                 assert self.bin_names is not None
                 return self.bin_names.index(x)
             if isinstance(x, int):
-                assert x >= 0 and x < len(self)
+                assert 0 <= x < len(self)
                 return x
             raise TypeError('`x` must be either int or string; got %s instead.'
                             % type(x))
@@ -898,7 +898,7 @@ class OneDimBinning(object):
     def bin_widths(self):
         """Absolute widths of bins."""
         if self._bin_widths is None:
-            self._bin_widths = np.abs(np.diff(self.bin_edges)) * self.units
+            self._bin_widths = np.abs(np.diff(self.bin_edges.m)) * self.units
         return self._bin_widths
 
     @property
@@ -927,7 +927,7 @@ class OneDimBinning(object):
     def __mul__(self, other):
         if isinstance(other, OneDimBinning):
             return MultiDimBinning([self, other])
-        elif isinstance(other, MultiDimBinning):
+        if isinstance(other, MultiDimBinning):
             return MultiDimBinning(chain([self], other))
         return OneDimBinning(name=self.name, tex=self.tex,
                              bin_edges=self.bin_edges * other)
@@ -971,6 +971,8 @@ class OneDimBinning(object):
         bool
 
         """
+        if hasattr(bin_edges, 'magnitude'):
+            bin_edges = bin_edges.magnitude
         bin_edges = np.asarray(bin_edges)
         if len(bin_edges) < 3:
             raise ValueError('%d bin edge(s) passed; require at least 3 to'
@@ -1006,6 +1008,8 @@ class OneDimBinning(object):
         ValueError if fewer than 2 `bin_edges` are specified.
 
         """
+        if hasattr(bin_edges, 'magnitude'):
+            bin_edges = bin_edges.magnitude
         bin_edges = np.array(bin_edges)
         if len(bin_edges) == 1:
             raise ValueError('Single bin edge passed; require at least 2 to'
@@ -1531,7 +1535,7 @@ class MultiDimBinning(object):
     @property
     def _map_class(self):
         if self.__map_class is None:
-            from pisa.core.map import Map
+            from pisa.core.map import Map  # pylint: disable=import-outside-toplevel
             self.__map_class = Map
         return self.__map_class
 
@@ -2477,13 +2481,13 @@ class MultiDimBinning(object):
         """
         entity = entity.lower().strip()
         if entity == 'midpoints':
-            arrays = tuple(d.midpoints for d in self.iterdims())
+            arrays = tuple(d.midpoints.m for d in self.iterdims())
         elif entity == 'weighted_centers':
-            arrays = tuple(d.weighted_centers for d in self.iterdims())
+            arrays = tuple(d.weighted_centers.m for d in self.iterdims())
         elif entity == 'bin_edges':
-            arrays = tuple(d.bin_edges for d in self.iterdims())
+            arrays = tuple(d.bin_edges.m for d in self.iterdims())
         elif entity == 'bin_widths':
-            arrays = tuple(d.bin_widths for d in self.iterdims())
+            arrays = tuple(d.bin_widths.m for d in self.iterdims())
         else:
             raise ValueError('Unrecognized `entity`: "%s"' % entity)
 
@@ -2761,7 +2765,7 @@ class MultiDimBinning(object):
 
 def test_OneDimBinning():
     """Unit tests for OneDimBinning class"""
-    # pylint: disable=line-too-long
+    # pylint: disable=line-too-long, import-outside-toplevel
     import pickle
     import os
     import shutil
@@ -2880,9 +2884,10 @@ def test_OneDimBinning():
 
             # Now try with pickle
             b_file = os.path.join(testdir, 'one_dim_binning.pkl')
-            pickle.dump(struct, open(b_file, 'wb'),
-                        protocol=pickle.HIGHEST_PROTOCOL)
-            loaded = pickle.load(open(b_file, 'rb'))
+            with open(b_file, 'wb') as fobj:
+                pickle.dump(struct, fobj, protocol=pickle.HIGHEST_PROTOCOL)
+            with open(b_file, 'rb') as fobj:
+                loaded = pickle.load(fobj)
             b_ = loaded[0][0]['odb']
             assert b_ == b
 
@@ -2897,6 +2902,7 @@ def test_OneDimBinning():
 
 def test_MultiDimBinning():
     """Unit tests for MultiDimBinning class"""
+    # pylint: disable=import-outside-toplevel
     import pickle
     import os
     import shutil
@@ -2985,8 +2991,9 @@ def test_MultiDimBinning():
         assert b_ == binning, 'binning=\n%s\nb_=\n%s' %(binning, b_)
 
         # Had bug where datastruct containing MultiDimBinning failed to be
-        # saved. # Test tuple containing list containing OrderedDict
-        # containing MultiDimBinning here.
+        # saved. Test tuple containing list containing OrderedDict
+        # containing MultiDimBinning here, just to make sure MultiDimBinning
+        # can be written inside a nested structure.
         b = binning
         struct = ([OrderedDict(mdb=b)],)
         jsons.to_json(struct, b_file, warn=False)
@@ -2996,9 +3003,10 @@ def test_MultiDimBinning():
 
         # Now try with pickle
         b_file = os.path.join(testdir, 'multi_dim_binning.pkl')
-        pickle.dump(struct, open(b_file, 'wb'),
-                    protocol=pickle.HIGHEST_PROTOCOL)
-        loaded = pickle.load(open(b_file, 'rb'))
+        with open(b_file, 'wb') as fobj:
+            pickle.dump(struct, fobj, protocol=pickle.HIGHEST_PROTOCOL)
+        with open(b_file, 'rb') as fobj:
+            loaded = pickle.load(fobj)
         b_ = loaded[0][0]['mdb']
         assert b_ == b
 
