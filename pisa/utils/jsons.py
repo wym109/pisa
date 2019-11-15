@@ -131,7 +131,7 @@ def from_json(filename, cls=None):
                 )
             )
         if hasattr(cls, "from_json"):
-            return cls.from_json(from_json(filename=filename))
+            return cls.from_json(filename)
 
         # Otherwise, handle instantiating the class generically (which WILL
         # surely fail for many types) based on the type of the object loaded
