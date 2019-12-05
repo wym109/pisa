@@ -1,1 +1,2 @@
 pisa/_version.py export-subst
+*.d linguist-detectable=false
