@@ -45,7 +45,7 @@ __all__ = [
 from argparse import ArgumentParser
 from multiprocessing import cpu_count, Process
 import pickle
-import SocketServer
+import socketserver
 import struct
 
 from pisa.core.distribution_maker import DistributionMaker
@@ -59,7 +59,6 @@ DFLT_NUM_SERVERS = cpu_count()
 
 class ConnectionClosed(Exception):
     """Connection closed"""
-    pass
 
 
 def send_obj(obj, sock):
@@ -137,14 +136,14 @@ def serve(config, ref, port=DFLT_PORT):
     ref = MapSet.from_json(ref)
 
     # Define server as a closure such that it captures the above-instantiated objects
-    class MyTCPHandler(SocketServer.BaseRequestHandler):
+    class MyTCPHandler(socketserver.BaseRequestHandler):
         """
         The request handler class for our server.
 
         It is instantiated once per connection to the server, and must override
         the handle() method to implement communication to the client.
 
-        See SocketServer.BaseRequestHandler for documentation of args.
+        See socketserver.BaseRequestHandler for documentation of args.
         """
         def handle(self):
             try:
@@ -159,7 +158,7 @@ def serve(config, ref, port=DFLT_PORT):
             )
             send_obj(llh, self.request)
 
-    server = SocketServer.TCPServer((DFLT_HOST, int(port)), MyTCPHandler)
+    server = socketserver.TCPServer((DFLT_HOST, int(port)), MyTCPHandler)
     print("llh server started on {}:{}".format(DFLT_HOST, port))
     server.serve_forever()
 
@@ -197,11 +196,15 @@ def main(description=__doc__):
     parser = ArgumentParser(description=description)
     parser.add_argument(
         "--config",
+        required=True,
         nargs="+",
-        help="""Resource location of a pipeline config; repeat --config for
-        multiple pipelines"""
+        help="""Resource location of one or more pipeline configs""",
     )
-    parser.add_argument("--ref", help="Resource location of reference (truth) map")
+    parser.add_argument(
+        "--ref",
+        required=True,
+        help="Resource location of reference (truth) map",
+    )
     parser.add_argument("--port", default=DFLT_PORT)
     parser.add_argument(
         "--num",

@@ -121,7 +121,7 @@ class MemoryCache(object):
         self.__cache[key] = value
 
     def __contains__(self, key):
-        return self.has_key(key)
+        return key in self.__cache
 
     def __delitem__(self, key):
         return self.__cache.__delitem__(self, key)
@@ -142,9 +142,6 @@ class MemoryCache(object):
         if key in self.__cache:
             return self[key]
         return dflt
-
-    def has_key(self, k):
-        return self.__cache.has_key(k)
 
     def keys(self):
         return self.__cache.keys()
@@ -212,7 +209,7 @@ class DiskCache(object):
     >>> disk_cache[13] = x
     >>> disk_cache[14] = x
     >>> y = disk_cache[12]
-    >>> print y == x
+    >>> print(y == x)
     True
     >>> len(disk_cache)
     3
@@ -231,7 +228,7 @@ class DiskCache(object):
 
     Demonstrate max_depth (limit on number of entries / cache depth)
 
-    >>> x = [disk_cache.__setitem__(i, 'foo') for i in xrange(10)]
+    >>> x = [disk_cache.__setitem__(i, 'foo') for i in range(10)]
     >>> len(disk_cache)
     5
 
@@ -472,14 +469,11 @@ class DiskCache(object):
         return conn
 
     def __contains__(self, key):
-        return self.has_key(key)
-
-    def has_key(self, key):
         try:
-            self[key]
+            _ = self[key]
+            return True 
         except KeyError:
             return False
-        return True
 
     @property
     def now(self):

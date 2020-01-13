@@ -83,14 +83,12 @@ def test_example_pipelines(ignore_gpu=False, ignore_root=False,
 
         except ImportError as err:
             exc = sys.exc_info()
-            if any(errstr in err.message for errstr in root_err_strings) and \
-              ignore_root:
+            if any(errstr in str(err) for errstr in root_err_strings) and ignore_root:
                 skip_count += 1
                 allow_error = True
                 msg = ('    Skipping pipeline, %s, as it has ROOT dependencies'
                        ' (ROOT cannot be imported)'%settings_file)
-            elif any(errstr in err.message for errstr in cuda_err_strings) and \
-              ignore_gpu:
+            elif any(errstr in str(err) for errstr in cuda_err_strings) and ignore_gpu:
                 skip_count += 1
                 allow_error = True
                 msg = ('    Skipping pipeline, %s, as it has cuda dependencies'
@@ -100,7 +98,7 @@ def test_example_pipelines(ignore_gpu=False, ignore_root=False,
 
         except IOError as err:
             exc = sys.exc_info()
-            match = re.match(missing_data_string, err.message, re.M|re.I)
+            match = re.match(missing_data_string, str(err), re.M|re.I)
             if match is not None and ignore_missing_data:
                 skip_count += 1
                 allow_error = True
@@ -119,7 +117,7 @@ def test_example_pipelines(ignore_gpu=False, ignore_root=False,
         finally:
             if exc is not None:
                 if allow_error:
-                    logging.warn(msg)
+                    logging.warning(msg)
                 else:
                     logging.error(
                         '    FAILURE! %s failed to run. Please review the'
@@ -133,8 +131,10 @@ def test_example_pipelines(ignore_gpu=False, ignore_root=False,
                 logging.info('    Seems fine!')
 
     if skip_count > 0:
-        logging.warn('%d of %d example pipeline config files were skipped',
-                     skip_count, num_configs)
+        logging.warning(
+            '%d of %d example pipeline config files were skipped',
+            skip_count, num_configs
+        )
 
     if failure_count > 0:
         msg = ('<< FAIL : test_example_pipelines : (%d of %d EXAMPLE PIPELINE'

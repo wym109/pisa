@@ -49,11 +49,11 @@ nkg.cc_flavints # -> (numu_cc,)
 
 # Loop over all particle CC flavInts
 for fi in flavInt.NuFlavIntGroup('nuallcc'):
-    print fi
+    print(fi)
 
 # String, TeX
 nkg = flavInt.NuFlavIntGroup('nuallcc')
-print nkg # -> 'nuall_cc'
+print(nkg) # -> 'nuall_cc'
 nkg.tex # -> r'{\nu_{\rm all}} \, {\rm CC}'
 
 ```
@@ -126,12 +126,12 @@ fidat2 = flavInt.FlavIntData('data.json')
 # Comparisons: intelligently recurses through the
 # structure and any nested sub-structures
 # (lists, dicts) when "==" is used
-print fidat == fidat2 # -> True
+print(fidat == fidat2) # -> True
 
 # There is a function for doing this in `pisa.utils.comparisons` that works
 # with (almost) any nested object, including FlavIntData objects::
 from pisa.utils.comparisons import recursiveEquality
-print recursiveEquality(fidat, fidat2) # -> True
+print(recursiveEquality(fidat, fidat2)) # -> True
 ```
 
 ## Examples of using Events container object
@@ -141,7 +141,7 @@ from pisa.core.events import Events
 
 ev = Events('events/events__vlvnt__toy_1_to_80GeV_spidx1.0_cz-1_to_1_1e2evts_set0__unjoined__with_fluxes_honda-2015-spl-solmin-aa.hdf5')
 
-print ev.metadata
+print(ev.metadata)
 ```
 Result:
 ```python

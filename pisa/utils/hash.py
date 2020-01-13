@@ -6,11 +6,12 @@ Utilities for hashing objects.
 from __future__ import absolute_import, division
 
 import base64
-import cPickle as pickle
-from cPickle import PickleError, PicklingError
+from io import IOBase
+import pickle
+from pickle import PickleError, PicklingError
 import hashlib
 import struct
-from collections import Iterable
+from collections.abc import Iterable
 from pkg_resources import resource_filename
 
 import numpy as np
@@ -19,10 +20,15 @@ from pisa.utils.log import logging, set_verbosity
 from pisa.utils.resources import find_resource
 
 
-__all__ = ['FAST_HASH_FILESIZE_BYTES', 'FAST_HASH_NDARRAY_ELEMENTS',
-           'FAST_HASH_STR_BYTES',
-           'hash_obj', 'hash_file',
-           'test_hash_obj', 'test_hash_file']
+__all__ = [
+    'FAST_HASH_FILESIZE_BYTES',
+    'FAST_HASH_NDARRAY_ELEMENTS',
+    'FAST_HASH_STR_CHARS',
+    'hash_obj',
+    'hash_file',
+    'test_hash_obj',
+    'test_hash_file',
+]
 
 __author__ = 'J.L. Lanfranchi'
 
@@ -42,8 +48,16 @@ __license__ = '''Copyright (c) 2014-2017, The IceCube Collaboration
 
 
 FAST_HASH_FILESIZE_BYTES = int(1e4)
+"""For a fast hash on a file object, this many bytes of the file are used"""
+
 FAST_HASH_NDARRAY_ELEMENTS = int(1e3)
-FAST_HASH_STR_BYTES = int(1e3)
+"""For a fast hash on a numpy array or matrix, this many elements of the array
+or matrix are used"""
+
+FAST_HASH_STR_CHARS = int(1e3)
+"""For a fast hash on a string (or object's pickle string representation), this
+many characters are used"""
+
 
 
 # NOTE: adding @line_profile decorator slows down function to order of 10s of
@@ -104,23 +118,20 @@ def hash_obj(obj, hash_to='int', full_hash=True):
     if isinstance(obj, (np.ndarray, np.matrix)):
         if full_hash:
             return hash_obj(obj.tostring(), **pass_on_kw)
-        if isinstance(obj, np.matrix):
-            obj = np.array(obj)
-        flat = obj.ravel()
-        len_flat = len(flat)
+        len_flat = obj.size
         stride = 1 + (len_flat // FAST_HASH_NDARRAY_ELEMENTS)
-        sub_elements = flat[0::stride]
+        sub_elements = obj.flat[0::stride]
         return hash_obj(sub_elements.tostring(), **pass_on_kw)
 
     # Handle an open file object as a special case
-    if isinstance(obj, file):
+    if isinstance(obj, IOBase):
         if full_hash:
             return hash_obj(obj.read(), **pass_on_kw)
         return hash_obj(obj.read(FAST_HASH_FILESIZE_BYTES), **pass_on_kw)
 
     # Convert to string (if not one already) in a fast and generic way: pickle;
     # this creates a binary string, which is fine for sending to hashlib
-    if not isinstance(obj, basestring):
+    if not isinstance(obj, str):
         try:
             pkl = pickle.dumps(obj, pickle.HIGHEST_PROTOCOL)
         except (PickleError, PicklingError, TypeError):
@@ -135,13 +146,19 @@ def hash_obj(obj, hash_to='int', full_hash=True):
         obj = pkl
 
     if full_hash:
-        md5hash = hashlib.md5(obj)
+        try:
+            md5hash = hashlib.md5(obj)
+        except TypeError:
+            md5hash = hashlib.md5(obj.encode())
     else:
         # Grab just a subset of the string by changing the stride taken in the
         # character array (but if the string is less than
         # FAST_HASH_FILESIZE_BYTES, use a stride length of 1)
-        stride = 1 + (len(obj) // FAST_HASH_STR_BYTES)
-        md5hash = hashlib.md5(obj[0::stride])
+        stride = 1 + (len(obj) // FAST_HASH_STR_CHARS)
+        try:
+            md5hash = hashlib.md5(obj[0::stride])
+        except TypeError:
+            md5hash = hashlib.md5(obj[0::stride].encode())
 
     if hash_to in ['i', 'int', 'integer']:
         hash_val, = struct.unpack('<q', md5hash.digest()[:8])
@@ -168,7 +185,6 @@ def test_hash_obj():
     assert hash_obj('x') == 3783177783470249117
     assert hash_obj('x', full_hash=False) == 3783177783470249117
     assert hash_obj('x', hash_to='hex') == '9dd4e461268c8034'
-    assert hash_obj(object) == -591373952375362512
     assert hash_obj(object()) != hash_obj(object)
 
     for nel in [10, 100, 1000]:

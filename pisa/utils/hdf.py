@@ -3,11 +3,13 @@
 
 from __future__ import absolute_import
 
-from collections import Mapping, OrderedDict
+from collections.abc import Mapping
+from collections import OrderedDict
 import os
 
 import numpy as np
 import h5py
+from six import string_types
 
 from pisa.utils.log import logging, set_verbosity
 from pisa.utils.hash import hash_obj
@@ -83,7 +85,7 @@ def from_hdf(val, return_node=None, return_attrs=False):
         """Iteratively parse `obj` to create the dictionary `sdict`"""
         name = obj.name.split('/')[-1]
         if isinstance(obj, h5py.Dataset):
-            sdict[name] = obj.value
+            sdict[name] = obj[()]
         if isinstance(obj, (h5py.Group, h5py.File)):
             sdict[name] = OrderedDict()
             for sobj in obj.values():
@@ -92,7 +94,7 @@ def from_hdf(val, return_node=None, return_attrs=False):
     data = OrderedDict()
     attrs = OrderedDict()
     myfile = False
-    if isinstance(val, basestring):
+    if isinstance(val, str):
         try:
             root = h5py.File(find_resource(val), 'r')
         except:
@@ -163,32 +165,37 @@ def to_hdf(data_dict, tgt, attrs=None, overwrite=True, warn=True):
 
     def store_recursively(fhandle, node, path=None, attrs=None,
                           node_hashes=None):
-        """Function for interatively doing the work"""
+        """Function for iteratively doing the work"""
         path = [] if path is None else path
-        node_hashes = OrderedDict() if node_hashes is None else node_hashes
         full_path = '/' + '/'.join(path)
-        if attrs is not None:
+        node_hashes = OrderedDict() if node_hashes is None else node_hashes
+
+        if attrs is None:
+            sorted_attr_keys = []
+        else:
             if isinstance(attrs, OrderedDict):
                 sorted_attr_keys = attrs.keys()
             else:
                 sorted_attr_keys = sorted(attrs.keys())
+
         if isinstance(node, Mapping):
             logging.trace('  creating Group "%s"', full_path)
             try:
                 dset = fhandle.create_group(full_path)
-                if attrs is not None:
-                    for key in sorted_attr_keys:
-                        dset.attrs[key] = attrs[key]
+                for key in sorted_attr_keys:
+                    dset.attrs[key] = attrs[key]
             except ValueError:
                 pass
 
             for key in sorted(node.keys()):
-                if isinstance(key, basestring):
+                if isinstance(key, str):
                     key_str = key
                 else:
                     key_str = str(key)
-                    logging.warn('Making string from key "%s", %s for use as'
-                                 ' name in HDF5 file', key_str, type(key))
+                    logging.warning(
+                        'Making string from key "%s", %s for use as'
+                        ' name in HDF5 file', key_str, type(key)
+                    )
                 val = node[key]
                 new_path = path + [key_str]
                 store_recursively(fhandle=fhandle, node=val, path=new_path,
@@ -202,12 +209,16 @@ def to_hdf(data_dict, tgt, attrs=None, overwrite=True, warn=True):
                 # Hardlink the matching existing dataset
                 fhandle[full_path] = fhandle[node_hashes[node_hash]]
                 return
+
             # For now, convert None to np.nan since h5py appears to not handle
             # None
             if node is None:
                 node = np.nan
-                logging.warn('  encountered `None` at node "%s"; converting to'
-                             ' np.nan', full_path)
+                logging.warning(
+                    '  encountered `None` at node "%s"; converting to'
+                    ' np.nan', full_path
+                )
+
             # "Scalar datasets don't support chunk/filter options". Shuffling
             # is a good idea otherwise since subsequent compression will
             # generally benefit; shuffling requires chunking. Compression is
@@ -222,19 +233,35 @@ def to_hdf(data_dict, tgt, attrs=None, overwrite=True, warn=True):
                 # Store the node_hash for linking to later if this is more than
                 # a scalar datatype. Assumed that "None" has
                 node_hashes[node_hash] = full_path
-            if isinstance(node, basestring):
-                # TODO: Treat strings as follows? Would this break
-                # compatibility with pytables/Pandas? What are benefits?
-                # Leaving the following two lines out for now...
 
-                #dtype = h5py.special_dtype(vlen=str)
-                #fh.create_dataset(k,data=v,dtype=dtype)
+            # -- Handle special types -- #
 
-                # ... Instead: creating length-1 array out of string; this
-                # seems to be compatible with both h5py and pytables
-                node = np.array(node)
+            # See h5py docs at
+            #
+            #   https://docs.h5py.org/en/stable/strings.html#how-to-store-text-strings
+            #
+            # where using `bytes` objects (i.e., in numpy, np.string_) is
+            # deemed the most compatible way to encode objects, but apparently
+            # we don't have pytables compatibility right now.
+            #
+            # For boolean support, see
+            #
+            #   https://docs.h5py.org/en/stable/faq.html#faq
 
-            logging.trace('  creating dataset at node "%s", hash %s',
+            # TODO: make written hdf5 files compatible with pytables
+            # see docs at https://www.pytables.org/usersguide/datatypes.html
+
+            if isinstance(node, string_types):
+                node = np.string_(node)
+            elif isinstance(node, bool):  # includes np.bool
+                node = np.bool_(node)  # same as np.bool8
+            elif isinstance(node, np.ndarray):
+                if issubclass(node.dtype.type, string_types):
+                    node = node.astype(np.string_)
+                elif node.dtype.type in (bool, np.bool):
+                    node = node.astype(np.bool_)
+
+            logging.trace('  creating dataset at path "%s", hash %s',
                           full_path, node_hash)
             try:
                 dset = fhandle.create_dataset(
@@ -250,18 +277,17 @@ def to_hdf(data_dict, tgt, attrs=None, overwrite=True, warn=True):
                         compression=None, shuffle=shuffle, fletcher32=False
                     )
                 except:
-                    logging.error('  full_path: %s', full_path)
+                    logging.error('  full_path: "%s"', full_path)
                     logging.error('  chunks   : %s', str(chunks))
                     logging.error('  shuffle  : %s', str(shuffle))
-                    logging.error('  node     : %s', str(node))
+                    logging.error('  node     : "%s"', str(node))
                     raise
 
-            if attrs is not None:
-                for key in sorted_attr_keys:
-                    dset.attrs[key] = attrs[key]
+            for key in sorted_attr_keys:
+                dset.attrs[key] = attrs[key]
 
     # Perform the actual operation using the dict passed in by user
-    if isinstance(tgt, basestring):
+    if isinstance(tgt, str):
         from pisa.utils.fileio import check_file_exists
         fpath = check_file_exists(fname=tgt, overwrite=overwrite, warn=warn)
         h5file = h5py.File(fpath, 'w')
@@ -276,7 +302,7 @@ def to_hdf(data_dict, tgt, attrs=None, overwrite=True, warn=True):
         store_recursively(fhandle=tgt, node=data_dict, attrs=attrs)
 
     else:
-        raise TypeError('to_hdf: Invalid `tgt` type: %s', type(tgt))
+        raise TypeError('to_hdf: Invalid `tgt` type: %s' % type(tgt))
 
 
 def test_hdf():
@@ -287,31 +313,45 @@ def test_hdf():
     data = OrderedDict([
         ('top', OrderedDict([
             ('secondlvl1', OrderedDict([
-                ('thirdlvl11', np.linspace(1, 100, 10000)),
-                ('thirdlvl12', "this is a string")
+                ('thirdlvl11', np.linspace(1, 100, 10000).astype(np.float64)),
+                ('thirdlvl12', b"this is a string"),
+                ('thirdlvl13', b"this is another string"),
+                ('thirdlvl14', 1),
+                ('thirdlvl15', 1.1),
+                ('thirdlvl16', np.float32(1.1)),
+                ('thirdlvl17', np.float64(1.1)),
+                ('thirdlvl18', np.int8(1)),
+                ('thirdlvl19', np.int16(1)),
+                ('thirdlvl110', np.int32(1)),
+                ('thirdlvl111', np.int64(1)),
+                ('thirdlvl112', np.uint8(1)),
+                ('thirdlvl113', np.uint16(1)),
+                ('thirdlvl114', np.uint32(1)),
+                ('thirdlvl115', np.uint64(1)),
             ])),
             ('secondlvl2', OrderedDict([
-                ('thirdlvl21', np.linspace(1, 100, 10000)),
-                ('thirdlvl22', "this is a string")
+                ('thirdlvl21', np.linspace(1, 100, 10000).astype(np.float32)),
+                ('thirdlvl22', b"this is a string"),
+                ('thirdlvl23', b"this is another string"),
             ])),
             ('secondlvl3', OrderedDict([
-                ('thirdlvl31', np.linspace(1, 100, 10000)),
-                ('thirdlvl32', "this is a string")
+                ('thirdlvl31', np.array(range(1000)).astype(np.int)),
+                ('thirdlvl32', b"this is a string"),
             ])),
             ('secondlvl4', OrderedDict([
                 ('thirdlvl41', np.linspace(1, 100, 10000)),
-                ('thirdlvl42', "this is a string")
+                ('thirdlvl42', b"this is a string"),
             ])),
             ('secondlvl5', OrderedDict([
                 ('thirdlvl51', np.linspace(1, 100, 10000)),
-                ('thirdlvl52', "this is a string")
+                ('thirdlvl52', b"this is a string"),
             ])),
             ('secondlvl6', OrderedDict([
                 ('thirdlvl61', np.linspace(100, 1000, 10000)),
-                ('thirdlvl62', "this is a string")
+                ('thirdlvl62', b"this is a string"),
             ])),
         ]))
-    ]) # yapf: disable
+    ])
 
     temp_dir = mkdtemp()
     try:
@@ -319,15 +359,57 @@ def test_hdf():
         to_hdf(data, fpath, overwrite=True, warn=False)
         loaded_data1 = from_hdf(fpath)
         assert data.keys() == loaded_data1.keys()
-        assert recursiveEquality(data, loaded_data1)
+        assert recursiveEquality(data, loaded_data1), \
+                str(data) + "\n" + str(loaded_data1)
 
         attrs = OrderedDict([
-            ('float1', 9.98237),
-            ('float2', 1.),
-            ('pi', np.pi),
+            ('float', 9.98237),
+            ('float32', np.float32(1.)),
+            ('float64', np.float64(1.)),
+            ('pi', np.float64(np.pi)),
+
             ('string', "string attribute!"),
-            ('int', 1)
-        ]) # yapf: disable
+
+            ('int', 1),
+            ('int8', np.int8(1)),
+            ('int16', np.int16(1)),
+            ('int32', np.int32(1)),
+            ('int64', np.int64(1)),
+
+            ('uint8', np.uint8(1)),
+            ('uint16', np.uint16(1)),
+            ('uint32', np.uint32(1)),
+            ('uint64', np.uint64(1)),
+
+            ('bool', True),
+            ('bool8', np.bool8(True)),
+            ('bool_', np.bool_(True)),
+        ])
+
+        attr_type_checkers = {
+            "float": lambda x: isinstance(x, float),
+            "float32": lambda x: x.dtype == np.float32,
+            "float64": lambda x: x.dtype == np.float64,
+            "pi": lambda x: x.dtype == np.float64,
+
+            "string": lambda x: isinstance(x, string_types),
+
+            "int": lambda x: isinstance(x, int),
+            "int8": lambda x: x.dtype == np.int8,
+            "int16": lambda x: x.dtype == np.int16,
+            "int32": lambda x: x.dtype == np.int32,
+            "int64": lambda x: x.dtype == np.int64,
+
+            "uint8": lambda x: x.dtype == np.uint8,
+            "uint16": lambda x: x.dtype == np.uint16,
+            "uint32": lambda x: x.dtype == np.uint32,
+            "uint64": lambda x: x.dtype == np.uint64,
+
+            "bool": lambda x: isinstance(x, bool),
+            "bool8": lambda x: x.dtype == np.bool8,
+            "bool_": lambda x: x.dtype == np.bool_,
+        }
+
         fpath = os.path.join(temp_dir, 'to_hdf_withattrs.hdf5')
         to_hdf(data, fpath, attrs=attrs, overwrite=True, warn=False)
         loaded_data2, loaded_attrs = from_hdf(fpath, return_attrs=True)
@@ -337,11 +419,11 @@ def test_hdf():
         assert recursiveEquality(data, loaded_data2)
         assert recursiveEquality(attrs, loaded_attrs)
 
-        for k, v in attrs.items():
-            tgt_type = type(attrs[k])
-            assert isinstance(loaded_attrs[k], tgt_type), \
-                    "key %s: val '%s' is type '%s' but should be '%s'" % \
-                    (k, v, type(loaded_attrs[k]), tgt_type)
+        for key, val in attrs.items():
+            tgt_type_checker = attr_type_checkers[key]
+            assert tgt_type_checker(val), \
+                    "key '%s': val '%s' is type '%s'" % \
+                    (key, val, type(loaded_attrs[key]))
     finally:
         rmtree(temp_dir)
 

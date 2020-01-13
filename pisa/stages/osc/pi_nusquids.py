@@ -170,7 +170,7 @@ class pi_nusquids(PiStage):
 
         # what are the keys used from the inputs during apply
         input_apply_keys = ('weights',
-                            'sys_flux',
+                            'nu_flux',
                            )
         # what are keys added or altered in the calculation used during apply
         output_calc_keys = ('prob_e',
@@ -181,19 +181,20 @@ class pi_nusquids(PiStage):
                       )
 
         # init base class
-        super(pi_nusquids, self).__init__(data=data,
-                                       params=params,
-                                       expected_params=expected_params,
-                                       input_names=input_names,
-                                       output_names=output_names,
-                                       debug_mode=debug_mode,
-                                       input_specs=input_specs,
-                                       calc_specs=calc_specs,
-                                       output_specs=output_specs,
-                                       input_apply_keys=input_apply_keys,
-                                       output_calc_keys=output_calc_keys,
-                                       output_apply_keys=output_apply_keys,
-                                      )
+        super().__init__(
+            data=data,
+            params=params,
+            expected_params=expected_params,
+            input_names=input_names,
+            output_names=output_names,
+            debug_mode=debug_mode,
+            input_specs=input_specs,
+            calc_specs=calc_specs,
+            output_specs=output_specs,
+            input_apply_keys=input_apply_keys,
+            output_calc_keys=output_calc_keys,
+            output_apply_keys=output_apply_keys,
+        )
 
         assert self.num_neutrinos == 3, "Only 3-flavor oscillations implemented right now" # TODO Add interface to nuSQuIDS 3+N handling
         assert self.use_nsi == False, "NSI support not yet implemented" # TODO
@@ -361,7 +362,7 @@ class pi_nusquids(PiStage):
 
         # update the outputted weights
         for container in self.data:
-            apply_probs(container['sys_flux'].get(WHERE),
+            apply_probs(container['nu_flux'].get(WHERE),
                         container['prob_e'].get(WHERE),
                         container['prob_mu'].get(WHERE),
                         out=container['weights'].get(WHERE))
