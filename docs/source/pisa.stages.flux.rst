@@ -47,7 +47,7 @@ pisa.stages.flux.pi\_mceq\_barr module
 pisa.stages.flux.pi\_simple module
 ----------------------------------
 
-.. automodule:: pisa.stages.flux.pi_simple
+.. automodule:: pisa.stages.flux.pi_barr_simple
     :members:
     :undoc-members:
     :show-inheritance:
