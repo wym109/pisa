@@ -56,7 +56,7 @@ class PIDSpec(object):
     Notes
     -----
     All information describing the PID specifications is loaded from a
-    file with the following defined format:
+    file with the following defined format::
 
         {
           "<detector name>": {
