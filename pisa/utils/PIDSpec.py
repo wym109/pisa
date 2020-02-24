@@ -77,6 +77,7 @@ class PIDSpec(object):
             }
           }
         }
+
     """
     def __init__(self, detector, geom, proc_ver, pid_spec_ver=1,
                  pid_specs=None):
