@@ -15,71 +15,13 @@ from pisa.utils.fileio import nsort_key_func
 from pisa.utils.log import Levels, logging, set_verbosity
 
 
+__all__ = ["PISA_PATH", "run_tests", "find_tests", "find_test_funcs_in_file"]
+
+
 PISA_PATH = abspath(join(dirname(dirname(__file__)), "pisa"))
 
 
-def find_test_funcs_in_file(filepath):
-    """Find test functions defined by "def test_*" within a file at `filepath`
-
-    Parameters
-    ----------
-    filepath : str
-         Path to python file
-
-    Returns
-    -------
-    tests : list of str
-
-    """
-    tests = []
-    with open(filepath, "r") as f:
-        for line in f.readlines():
-            tokens = line.split()
-            if tokens and tokens[0] == "def" and tokens[1].startswith("test_"):
-                funcname = tokens[1].split("(")[0].strip()
-                tests.append(funcname)
-    return tests
-
-
-def find_tests(path):
-    """Find tests to run within `path` (within the file at `path` or recusively
-    within all .py files within the directory at `path`).
-
-    Parameters
-    ----------
-    path : str
-        Path to a file or directory
-
-    Returns
-    -------
-    tests : dict
-        Each key is a relative path to the .py file containing "test_*"
-        functions and each value is a list of the "test_*" function names
-        within that file.
-
-    """
-    path = expanduser(expandvars(path))
-
-    tests = {}
-    if isfile(path):
-        return find_test_funcs_in_file(path)
-
-    for dirpath, dirs, files in walk(path, followlinks=True):
-        files.sort(key=nsort_key_func)
-        dirs.sort(key=nsort_key_func)
-
-        for filename in files:
-            if not filename.endswith(".py"):
-                continue
-            filepath = join(dirpath, filename)
-            these_tests = find_test_funcs_in_file(filepath)
-            if these_tests:
-                tests[relpath(filepath, start=PISA_PATH)] = these_tests
-
-    return tests
-
-
-def run_tests(path):
+def run_tests(path=PISA_PATH):
     """Run all tests found at `path` (or recursively below if `path` is a
     directory).
 
@@ -188,5 +130,66 @@ def run_tests(path):
         )
 
 
+def find_tests(path=PISA_PATH):
+    """Find .py file(s) and any tests to run within them, starting at `path`
+    (which can be a single file or a directory, which is recursively searched
+    for .py files)
+
+    Parameters
+    ----------
+    path : str
+        Path to a file or directory
+
+    Returns
+    -------
+    tests : dict
+        Each key is the path to the .py file relative to PISA_PATH and each
+        value is a list of the "test_*" function names within that file (empty
+        if no such functions are found)
+
+    """
+    path = expanduser(expandvars(path))
+
+    tests = {}
+    if isfile(path):
+        return find_test_funcs_in_file(path)
+
+    for dirpath, dirs, files in walk(path, followlinks=True):
+        files.sort(key=nsort_key_func)
+        dirs.sort(key=nsort_key_func)
+
+        for filename in files:
+            if not filename.endswith(".py"):
+                continue
+            filepath = join(dirpath, filename)
+            filerelpath = relpath(filepath, start=PISA_PATH)
+            tests[filerelpath] = find_test_funcs_in_file(filepath)
+
+    return tests
+
+
+def find_test_funcs_in_file(filepath):
+    """Find test functions defined by "def test_*" within a file at `filepath`
+
+    Parameters
+    ----------
+    filepath : str
+         Path to python file
+
+    Returns
+    -------
+    tests : list of str
+
+    """
+    tests = []
+    with open(filepath, "r") as f:
+        for line in f.readlines():
+            tokens = line.split()
+            if tokens and tokens[0] == "def" and tokens[1].startswith("test_"):
+                funcname = tokens[1].split("(")[0].strip()
+                tests.append(funcname)
+    return tests
+
+
 if __name__ == "__main__":
-    run_tests(PISA_PATH)
+    run_tests()
