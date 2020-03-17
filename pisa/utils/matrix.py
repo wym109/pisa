@@ -5,6 +5,8 @@ Utilities for performing some not-so-common matrix tasks.
 import numpy as np
 import scipy.linalg as lin
 
+from pisa.utils.log import logging, set_verbosity
+
 __all__ = [
     'is_psd',
     'fronebius_nearest_psd',
@@ -133,13 +135,13 @@ def test_matrix_random():
     """Unit test producing a number of random matrices and checking if the
     approximated matrix is indeed PSD.
     """
-    import sys
     m_test = np.array([[1, -1], [2, 4]])
     test_frob_psd(m_test)
     for i in range(100):
         m_test = np.random.randn(3, 3)
         test_frob_psd(m_test)
-    sys.stdout.write('<< PASS : test_matrix_random >>\n')
+    logging.info('<< PASS : test_matrix_random >>')
 
 if __name__ == '__main__':
+    set_verbosity(1)
     test_matrix_random()
