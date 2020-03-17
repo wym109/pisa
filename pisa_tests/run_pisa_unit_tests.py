@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# pylint: disable=exec-used, eval-used
 
 
 """
@@ -79,7 +80,13 @@ def find_tests(path):
 
 
 def run_tests(path):
-    """Run all tests found at `path` (or recursively below if `path` is a directory)
+    """Run all tests found at `path` (or recursively below if `path` is a
+    directory).
+
+    Each module is imported and each test function is run initially with
+    `set_verbosity(Levels.WARN)`, but if an exception is caught, the module is
+    re-imported / functio is re-run with `set_verbosity(Levels.TRACE)`, then
+    the traceback from the (original) exception emitted is displayed.
 
     Parameters
     ----------
@@ -105,27 +112,23 @@ def run_tests(path):
         # Don't output anything unless we encounter an error
         set_verbosity(Levels.WARN)
         try:
-            exec(f"from {parent_pypath} import {module}")  # pylint: disable=exec-used
+            exec(f"from {parent_pypath} import {module}")
         except Exception as err:
             module_pypaths_failed.append(module_pypath)
 
-            sys.stdout.write(
-                f"<< FAILURE IMPORTING : {module_pypath}\n\n"
-            )
+            sys.stdout.write(f"<< FAILURE IMPORTING : {module_pypath}\n\n")
 
             # Reproduce the failure with full output
             set_verbosity(Levels.TRACE)
             try:
-                exec(f"from {parent_pypath} import {module}")  # pylint: disable=exec-used
+                exec(f"from {parent_pypath} import {module}")
             except Exception:
                 pass
 
             # Print the exception that occurred
             logging.exception(err)
 
-            sys.stdout.write(
-                f"\n   FAILURE IMPORTING : {module_pypath} >>\n\n\n\n"
-            )
+            sys.stdout.write(f"\n   FAILURE IMPORTING : {module_pypath} >>\n\n\n\n")
             continue
 
         module_pypaths_succeeded.append(module_pypath)
@@ -136,20 +139,18 @@ def run_tests(path):
             # Don't output anything unless we encounter an error
             set_verbosity(Levels.WARN)
             try:
-                test_func = eval(f"{module}.{test_func_name}")  # pylint: disable=eval-used
+                test_func = eval(f"{module}.{test_func_name}")
                 test_func()
 
             except Exception as err:
                 test_pypaths_failed.append(test_pypath)
 
-                sys.stdout.write(
-                    f"<< FAILURE RUNNING : {test_pypath}\n\n"
-                )
+                sys.stdout.write(f"<< FAILURE RUNNING : {test_pypath}\n\n")
 
                 # Reproduce the error with full output
                 set_verbosity(Levels.TRACE)
                 try:
-                    test_func = eval(f"{module}.{test_func_name}")  # pylint: disable=eval-used
+                    test_func = eval(f"{module}.{test_func_name}")
                     test_func()
                 except Exception:
                     pass
@@ -157,9 +158,7 @@ def run_tests(path):
                 # Print the exception that occurred
                 logging.exception(err)
 
-                sys.stdout.write(
-                    f"\n   FAILURE RUNNING : {test_pypath} >>\n\n\n\n"
-                )
+                sys.stdout.write(f"\n   FAILURE RUNNING : {test_pypath} >>\n\n\n\n")
 
             else:
                 test_pypaths_succeeded.append(test_pypath)
