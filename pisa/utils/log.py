@@ -16,6 +16,7 @@ Currently, we have three loggers
 
 from __future__ import absolute_import
 
+import enum
 import json
 import logging as logging_module
 import logging.config as logging_config
@@ -24,7 +25,7 @@ from os.path import expanduser, expandvars, isfile, join
 from pkg_resources import resource_stream
 
 
-__all__ = ['logging', 'physics', 'tprofile', 'set_verbosity']
+__all__ = ['Levels', 'logging', 'physics', 'tprofile', 'set_verbosity']
 
 __author__ = 'S. Boeser'
 
@@ -41,6 +42,14 @@ __license__ = '''Copyright (c) 2014-2017, The IceCube Collaboration
  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  See the License for the specific language governing permissions and
  limitations under the License.'''
+
+
+class Levels(enum.IntEnum):
+    """Logging levels / int values we use in PISA"""
+    WARN = 0
+    INFO = 1
+    DEBUG = 2
+    TRACE = 3
 
 
 def initialize_logging():
@@ -110,21 +119,21 @@ def set_verbosity(verbosity):
     if verbosity is None:
         return
 
-    # define verbosity levels
-    levels = {0: logging_module.WARN,
-              1: logging_module.INFO,
-              2: logging_module.DEBUG,
-              3: logging_module.TRACE}
+    # mapping from our verbisoity int Levels to those of logging module
+    levels_mapping = {
+        int(Levels[x]): getattr(logging_module, x)
+        for x in ["WARN", "INFO", "DEBUG", "TRACE"]
+    }
 
-    if verbosity not in levels:
+    if verbosity not in levels_mapping:
         raise ValueError(
             '`verbosity` specified is %s but must be one of %s.'
-            %(verbosity, levels.keys())
+            %(verbosity, levels_mapping.keys())
         )
 
     # Overwrite the root logger with the verbosity level
-    logging.setLevel(levels[verbosity])
-    tprofile.setLevel(levels[verbosity])
+    logging.setLevel(levels_mapping[verbosity])
+    tprofile.setLevel(levels_mapping[verbosity])
 
 
 # Make the loggers public
