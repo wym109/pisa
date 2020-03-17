@@ -129,16 +129,17 @@ def test_frob_psd(A):
     assert is_psd_after, "did not produce PSD matrix"
     assert np.isclose(xdist, actual_dist), "actual distance differs from expectation"
 
-if __name__ == '__main__':
+def test_matrix_random():
+    """Unit test producing a number of random matrices and checking if the
+    approximated matrix is indeed PSD.
+    """
+    import sys
     m_test = np.array([[1, -1], [2, 4]])
     test_frob_psd(m_test)
-    print('matrix before:')
-    print(m_test)
-    print('matrix after:')
-    print(fronebius_nearest_psd(m_test))
-    print('The result matrix is psd and the Frobenius norm matches the expectation!')
-    print('testing random matrices...')
     for i in range(100):
         m_test = np.random.randn(3, 3)
         test_frob_psd(m_test)
-    print('Test passed!')
+    sys.stdout.write('<< PASS : test_matrix_random >>\n')
+
+if __name__ == '__main__':
+    test_matrix_random()
