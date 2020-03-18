@@ -36,7 +36,8 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test pisa
       run: |
-        ./pisa_tests/test_command_lines.sh
+        ./pisa_tests/test_example_pipelines.py -v
+        ./pisa_tests/run_unit_tests.py -v
         
 #     - name: Test with pytest
 #       run: |
