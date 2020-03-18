@@ -45,11 +45,16 @@ __license__ = '''Copyright (c) 2014-2017, The IceCube Collaboration
 
 
 class Levels(enum.IntEnum):
-    """Logging levels / int values we use in PISA"""
-    WARN = 0
-    INFO = 1
-    DEBUG = 2
-    TRACE = 3
+    """
+    Logging levels / int values we use in PISA in `set_verbosity` (and
+    typically from the command line, where -v/-vv/-vvv/etc. are used)
+    """
+    FATAL = -2
+    ERROR = -1
+    WARN = 0  # default if NO "-v(vvv...)" are passed at command line
+    INFO = 1  # pass "-v" at command line
+    DEBUG = 2  # pass "-vv" at command line
+    TRACE = 3  # pass "-vvv" at command line
 
 
 def initialize_logging():
@@ -112,23 +117,21 @@ def initialize_logging():
 
 
 def set_verbosity(verbosity):
-    """Overwrite the verbosity level for the root logger
-    Verbosity should be an integer with the levels just below.
-    """
+    """Set the verbosity level for the root logger Verbosity should be an
+    integer with the levels defined by `pisa.utils.log.Levels` enum."""
     # Ignore if no verbosity is given
     if verbosity is None:
         return
 
     # mapping from our verbisoity int Levels to those of logging module
     levels_mapping = {
-        int(Levels[x]): getattr(logging_module, x)
-        for x in ["WARN", "INFO", "DEBUG", "TRACE"]
+        int(Levels[n]): getattr(logging_module, n) for n in [l.name for l in Levels]
     }
 
     if verbosity not in levels_mapping:
         raise ValueError(
             '`verbosity` specified is %s but must be one of %s.'
-            %(verbosity, levels_mapping.keys())
+            %(verbosity, list(levels_mapping.keys()))
         )
 
     # Overwrite the root logger with the verbosity level
