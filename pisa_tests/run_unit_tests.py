@@ -41,9 +41,12 @@ __license__ = """Copyright (c) 2020, The IceCube Collaboration
 
 
 PISA_PATH = dirname(pisa.__file__)
+OPTIONAL_DEPS = ("pandas", "emcee", "ROOT", "libPyROOT", "MCEq", "nuSQUIDSpy")
 
 
-def run_unit_tests(path=PISA_PATH, verbosity=Levels.WARN):
+def run_unit_tests(
+    path=PISA_PATH, allowed_missing_modules=OPTIONAL_DEPS, verbosity=Levels.WARN
+):
     """Run all tests found at `path` (or recursively below if `path` is a
     directory).
 
@@ -58,18 +61,27 @@ def run_unit_tests(path=PISA_PATH, verbosity=Levels.WARN):
     path : str
         Path to file or directory
 
+    allowed_missing_modules : None or sequence of str
+
+    verbosity : int in pisa.utils.log.Levels
+
     Raises
     ------
     Exception
-        If any import or test fails
+        If any import or test fails not in `allowed_missing_modules`
 
     """
     path = expanduser(expandvars(path))
+    if allowed_missing_modules is None:
+        allowed_missing_modules = []
+    elif isinstance(allowed_missing_modules, str):
+        allowed_missing_modules = [allowed_missing_modules]
 
     tests = find_unit_tests(path)
 
     module_pypaths_succeeded = []
     module_pypaths_failed = []
+    module_pypaths_failed_ignored = []
     test_pypaths_succeeded = []
     test_pypaths_failed = []
 
@@ -89,6 +101,13 @@ def run_unit_tests(path=PISA_PATH, verbosity=Levels.WARN):
             exec(cmd)
 
         except Exception as err:
+            if (
+                isinstance(err, ImportError)
+                and err.name in allowed_missing_modules  # pylint: disable=no-member
+            ):
+                module_pypaths_failed_ignored.append(module_pypath)
+                continue
+
             module_pypaths_failed.append(module_pypath)
 
             set_verbosity(verbosity)
@@ -164,13 +183,15 @@ def run_unit_tests(path=PISA_PATH, verbosity=Levels.WARN):
 
     n_import_successes = len(module_pypaths_succeeded)
     n_import_failures = len(module_pypaths_failed)
+    n_import_failures_ignored = len(module_pypaths_failed_ignored)
     n_test_successes = len(test_pypaths_succeeded)
     n_test_failures = len(test_pypaths_failed)
 
     set_verbosity(verbosity)
     logging.info(
         f"<< IMPORT TESTS : {n_import_successes} modules loaded,"
-        f" {n_import_failures} modules failed to load >>"
+        f" {n_import_failures} modules failed to load,"
+        f" {n_import_failures_ignored} modules failed to load but were ignored >>"
     )
     logging.info(
         f"<< UNIT TESTS : {n_test_successes} tests succeeded,"
@@ -259,6 +280,9 @@ def main(description=__doc__):
     """Script interface to `run_unit_tests` function"""
     parser = ArgumentParser(description=description)
     parser.add_argument("--path", default=PISA_PATH)
+    parser.add_argument(
+        "--allowed-missing-modules", nargs="+", default=list(OPTIONAL_DEPS)
+    )
     parser.add_argument(
         "-v", action="count", default=Levels.WARN, help="set verbosity level"
     )
