@@ -130,7 +130,7 @@ def run_tests(path=PISA_PATH):
         )
 
 
-def find_tests(path=PISA_PATH):
+def find_tests(path):
     """Find .py file(s) and any tests to run within them, starting at `path`
     (which can be a single file or a directory, which is recursively searched
     for .py files)
