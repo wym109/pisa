@@ -2653,8 +2653,6 @@ def hypersurface_example() :
       - Plotting the results
     '''
     import sys
-    import matplotlib as mpl
-    mpl.use("agg")
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D
     from pisa.core.map import Map, MapSet
