@@ -36,7 +36,7 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test PISA example pipelines
       run: |
-        pisa-test_example_pipelines -v
+        MPLBACKEND=agg ./pisa_tests/test_example_pipelines.py -v
     - name: Test PISA imports and unit tests
       run: |
-        MPLBACKEND=agg pisa-run_unit_tests -v
+        MPLBACKEND=agg ./pisa_tests/run_unit_tests.py -v
