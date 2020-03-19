@@ -7,9 +7,10 @@ Find and run PISA unit test functions
 """
 
 
-from argparse import ArgumentParser
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from os import walk
 from os.path import dirname, expanduser, expandvars, isfile, join, relpath
+import sys
 
 import pisa
 from pisa.utils.fileio import nsort_key_func
@@ -41,7 +42,8 @@ __license__ = """Copyright (c) 2020, The IceCube Collaboration
 
 
 PISA_PATH = dirname(pisa.__file__)
-OPTIONAL_DEPS = ("pandas", "emcee", "ROOT", "libPyROOT", "MCEq", "nuSQUIDSpy")
+OPTIONAL_DEPS = ("pandas", "emcee", "pycuda", "ROOT", "libPyROOT", "MCEq", "nuSQUIDSpy")
+PFX = "[T] "
 
 
 def run_unit_tests(
@@ -84,6 +86,7 @@ def run_unit_tests(
     module_pypaths_failed_ignored = []
     test_pypaths_succeeded = []
     test_pypaths_failed = []
+    test_pypaths_failed_ignored = []
 
     for rel_file_path, test_func_names in tests.items():
         pypath = ["pisa"] + rel_file_path[:-3].split("/")
@@ -95,7 +98,7 @@ def run_unit_tests(
             cmd = f"from {parent_pypath} import {module}"
 
             set_verbosity(verbosity)
-            logging.info(f'exec("{cmd}") ...')
+            logging.info(PFX + f'exec("{cmd}")')
 
             set_verbosity(Levels.WARN)
             exec(cmd)
@@ -112,9 +115,9 @@ def run_unit_tests(
 
             set_verbosity(verbosity)
             msg = f"<< FAILURE IMPORTING : {module_pypath} >>"
-            logging.error("=" * len(msg))
-            logging.error(msg)
-            logging.error("=" * len(msg))
+            logging.error(PFX + "=" * len(msg))
+            logging.error(PFX + msg)
+            logging.error(PFX + "=" * len(msg))
 
             # Reproduce the failure with full output
             set_verbosity(Levels.TRACE)
@@ -127,7 +130,7 @@ def run_unit_tests(
             logging.exception(err)
 
             set_verbosity(verbosity)
-            logging.error("#" * len(msg))
+            logging.error(PFX + "#" * len(msg))
 
             continue
 
@@ -141,25 +144,33 @@ def run_unit_tests(
                 func_pypath = f"{module}.{test_func_name}"
 
                 set_verbosity(verbosity)
-                logging.debug(f"Retrieving function: {func_pypath} ...")
+                logging.debug(PFX + f"eval({func_pypath})")
 
                 set_verbosity(Levels.WARN)
                 test_func = eval(func_pypath)
 
                 set_verbosity(verbosity)
-                logging.debug(f"Running function: {func_pypath}() ...")
+                logging.info(PFX + f"{test_pypath}()")
 
                 set_verbosity(Levels.WARN)
                 test_func()
 
             except Exception as err:
+                if (
+                    isinstance(err, ImportError)
+                    and hasattr(err, "name")
+                    and err.name in allowed_missing_modules  # pylint: disable=no-member
+                ):
+                    test_pypaths_failed_ignored.append(module_pypath)
+                    continue
+
                 test_pypaths_failed.append(test_pypath)
 
                 set_verbosity(verbosity)
                 msg = f"<< FAILURE RUNNING : {test_pypath} >>"
-                logging.error("=" * len(msg))
-                logging.error(msg)
-                logging.error("=" * len(msg))
+                logging.error(PFX + "=" * len(msg))
+                logging.error(PFX + msg)
+                logging.error(PFX + "=" * len(msg))
 
                 # Reproduce the error with full output
 
@@ -174,7 +185,7 @@ def run_unit_tests(
                 logging.exception(err)
 
                 set_verbosity(verbosity)
-                logging.error("#" * len(msg))
+                logging.error(PFX + "#" * len(msg))
 
             else:
                 test_pypaths_succeeded.append(test_pypath)
@@ -186,16 +197,20 @@ def run_unit_tests(
     n_import_failures_ignored = len(module_pypaths_failed_ignored)
     n_test_successes = len(test_pypaths_succeeded)
     n_test_failures = len(test_pypaths_failed)
+    n_test_failures_ignored = len(test_pypaths_failed_ignored)
 
     set_verbosity(verbosity)
     logging.info(
-        f"<< IMPORT TESTS : {n_import_successes} modules loaded,"
-        f" {n_import_failures} modules failed to load,"
-        f" {n_import_failures_ignored} modules failed to load but were ignored >>"
+        PFX +
+        f"<< IMPORT TESTS : {n_import_successes} imported,"
+        f" {n_import_failures} failed,"
+        f" {n_import_failures_ignored} failed to import but ok to ignore >>"
     )
     logging.info(
-        f"<< UNIT TESTS : {n_test_successes} tests succeeded,"
-        f" {n_test_failures} tests failed >>"
+        PFX +
+        f"<< UNIT TESTS : {n_test_successes} succeeded,"
+        f" {n_test_failures} failed,"
+        f" {n_test_failures_ignored} failed but ok to ignore >>"
     )
 
     # Exit with error if any failures (import or unit test)
@@ -212,6 +227,7 @@ def run_unit_tests(
                 f"{n_test_failures} unit test(s) failed:\n  "
                 + ", ".join(test_pypaths_failed)
             )
+        sys.stderr.write("\n\n\n")
         raise Exception("\n".join(msgs))
 
 
@@ -237,7 +253,9 @@ def find_unit_tests(path):
 
     tests = {}
     if isfile(path):
-        return find_unit_tests_in_file(path)
+        filerelpath = relpath(path, start=PISA_PATH)
+        tests[filerelpath] = find_unit_tests_in_file(path)
+        return tests
 
     for dirpath, dirs, files in walk(path, followlinks=True):
         files.sort(key=nsort_key_func)
@@ -278,10 +296,21 @@ def find_unit_tests_in_file(filepath):
 
 def main(description=__doc__):
     """Script interface to `run_unit_tests` function"""
-    parser = ArgumentParser(description=description)
-    parser.add_argument("--path", default=PISA_PATH)
+    parser = ArgumentParser(
+        description=description, formatter_class=ArgumentDefaultsHelpFormatter
+    )
     parser.add_argument(
-        "--allowed-missing-modules", nargs="+", default=list(OPTIONAL_DEPS)
+        "path",
+        nargs="?",
+        default=PISA_PATH,
+        help="""Specify a specific path to a file or directory in which to find
+        and run unit tests""",
+    )
+    parser.add_argument(
+        "--allowed-missing-modules",
+        nargs="+",
+        default=list(OPTIONAL_DEPS),
+        help="""Allow ImportError (or subclasses) for these modules""",
     )
     parser.add_argument(
         "-v", action="count", default=Levels.WARN, help="set verbosity level"
