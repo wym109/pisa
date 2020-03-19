@@ -39,4 +39,4 @@ jobs:
         pisa-test_example_pipelines -v
     - name: Test PISA imports and unit tests
       run: |
-        pisa-run_unit_tests -v
+        MPLBACKEND=agg pisa-run_unit_tests -v
