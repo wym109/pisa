@@ -373,7 +373,6 @@ def lookup(sample, flat_hist, binning):
     Only handles 2d and 3d right now
 
     """
-    #print(binning)
     assert binning.num_dims in [2, 3], 'can only do 2d and 3d at the moment'
     bin_edges = [edges.magnitude for edges in binning.bin_edges]
     # TODO: directly return smart array
@@ -697,7 +696,7 @@ def test_histogram():
     n_evts = 10000
     rand = np.random.RandomState(seed=0)
 
-    weights = SmartArray(rand.random(n_evts).astype(FTYPE))
+    weights = SmartArray(rand.rand(n_evts).astype(FTYPE))
     binning = []
     sample = []
     for num_dims, num_bins in enumerate(all_num_bins, start=1):
@@ -711,7 +710,7 @@ def test_histogram():
         )
 
         sample.append(
-            SmartArray(rand.random(n_evts).astype(FTYPE) * num_bins)
+            SmartArray(rand.rand(n_evts).astype(FTYPE) * num_bins)
         )
 
         bin_edges = [b.edge_magnitudes for b in binning]
