@@ -40,12 +40,21 @@ __author__ = "Philipp Eller (pde3@psu.edu)"
 from argparse import ArgumentParser
 import inspect
 
+# NOTE: Following must be imported to be in the namespace for use by `myjit`
+# when re-compiling modified (external) function code
+import cmath  # pylint: disable=unused-import
+import math  # pylint: disable=unused-import
+
 import numpy as np
-from numba import (
+from numba import (  # pylint: disable=unused-import
     complex64,
     complex128,
     float32,
     float64,
+    int32,
+    int64,
+    uint32,
+    uint64,
     guvectorize,
     jit,
     SmartArray,
@@ -82,12 +91,12 @@ else:
     WHERE = "host"
 
 
-if FTYPE == np.float64:
-    FX = "f8"
-    CX = "c16"
-elif FTYPE == np.float32:
+if FTYPE == np.float32:
     FX = "f4"
     CX = "c8"
+elif FTYPE == np.float64:
+    FX = "f8"
+    CX = "c16"
 
 
 def myjit(func):
