@@ -15,6 +15,7 @@ from pisa.utils.numba_tools import (
     cuda,
     myjit,
     ftype,
+    ctype,
     matrix_dot_matrix,
     matrix_dot_vector,
 )
