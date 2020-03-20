@@ -18,16 +18,16 @@ from pisa.utils.fileio import nsort_key_func
 from pisa.utils.log import Levels, logging, set_verbosity
 
 pycuda, nbcuda = None, None  # pylint: disable=invalid-name
-if pisa.TARGET == 'cuda':
+if pisa.TARGET == "cuda":
     try:
         import pycuda
     except Exception:
         pass
 
     # See TODO below
-    #try:
+    # try:
     #    from numba import cuda as nbcuda
-    #except Exception:
+    # except Exception:
     #    pass
 
 
@@ -52,13 +52,20 @@ __license__ = """Copyright (c) 2020, The IceCube Collaboration
 
 
 PISA_PATH = dirname(pisa.__file__)
-OPTIONAL_DEPS = ("pandas", "emcee", "pycuda", "ROOT", "libPyROOT", "MCEq", "nuSQUIDSpy")
+OPTIONAL_DEPS = (
+    "pandas",
+    "emcee",
+    "pycuda",
+    "pycuda.driver",
+    "ROOT",
+    "libPyROOT",
+    "MCEq",
+    "nuSQUIDSpy",
+)
 PFX = "[T] "
 
 
-def run_unit_tests(
-    path=PISA_PATH, allow_missing=OPTIONAL_DEPS, verbosity=Levels.WARN
-):
+def run_unit_tests(path=PISA_PATH, allow_missing=OPTIONAL_DEPS, verbosity=Levels.WARN):
     """Run all tests found at `path` (or recursively below if `path` is a
     directory).
 
@@ -116,9 +123,14 @@ def run_unit_tests(
         except Exception as err:
             if (
                 isinstance(err, ImportError)
+                and hasattr(err, "name")
                 and err.name in allow_missing  # pylint: disable=no-member
             ):
+                err_name = err.name  # pylint: disable=no-member
                 module_pypaths_failed_ignored.append(module_pypath)
+                logging.warning(
+                    PFX + f"module {err_name} failed to load, but ok to ignore"
+                )
                 continue
 
             module_pypaths_failed.append(module_pypath)
@@ -171,7 +183,13 @@ def run_unit_tests(
                     and hasattr(err, "name")
                     and err.name in allow_missing  # pylint: disable=no-member
                 ):
+                    err_name = err.name  # pylint: disable=no-member
                     test_pypaths_failed_ignored.append(module_pypath)
+                    logging.warning(
+                        PFX
+                        + f"{test_pypath} failed because module {err_name} failed to"
+                        + f" load, but ok to ignore"
+                    )
                     continue
 
                 test_pypaths_failed.append(test_pypath)
@@ -204,7 +222,7 @@ def run_unit_tests(
                 # remove references to the test function, e.g. to remove refs
                 # to pycuda / numba.cuda contexts so these can be closed
                 try:
-                    exec(f"del {test_pypath}")
+                    del test_func
                 except NameError:
                     pass
 
@@ -214,7 +232,7 @@ def run_unit_tests(
         # NOTE: the following causes a traceback to be emitted at the very end
         # of the script, regardless of the exception catching here.
         if (
-            pisa.TARGET == 'cuda'
+            pisa.TARGET == "cuda"
             and pycuda is not None
             and hasattr(pycuda, "autoinit")
             and hasattr(pycuda.autoinit, "context")
@@ -231,7 +249,7 @@ def run_unit_tests(
         exec(f"del {module}")
 
         # TODO: crashes program; subseqeunt calls in same shell crash(!?!?)
-        #if pisa.TARGET == 'cuda' and nbcuda is not None:
+        # if pisa.TARGET == 'cuda' and nbcuda is not None:
         #    try:
         #        nbcuda.close()
         #    except Exception:
@@ -248,14 +266,12 @@ def run_unit_tests(
 
     set_verbosity(verbosity)
     logging.info(
-        PFX +
-        f"<< IMPORT TESTS : {n_import_successes} imported,"
+        PFX + f"<< IMPORT TESTS : {n_import_successes} imported,"
         f" {n_import_failures} failed,"
         f" {n_import_failures_ignored} failed to import but ok to ignore >>"
     )
     logging.info(
-        PFX +
-        f"<< UNIT TESTS : {n_test_successes} succeeded,"
+        PFX + f"<< UNIT TESTS : {n_test_successes} succeeded,"
         f" {n_test_failures} failed,"
         f" {n_test_failures_ignored} failed but ok to ignore >>"
     )
