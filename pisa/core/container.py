@@ -20,6 +20,8 @@ from pisa.core.binning import OneDimBinning, MultiDimBinning
 from pisa.core.map import Map, MapSet
 from pisa.core.translation import histogram, lookup, resample
 from pisa.utils.log import logging
+from pisa.utils.random_numbers import get_random_state
+
 
 
 class ContainerSet(object):
@@ -335,7 +337,7 @@ class Container(object):
                 assert array.shape[:binning.num_dims] == binning.shape
                 #flat_shape = [-1] + [d for d in array.shape[binning.num_dims-1:-1]]
                 flat_shape = [binning.size, -1]
-                #print(flat_shape)
+                #logging.trace(flat_shape)
                 flat_array = array.reshape(flat_shape)
             if not isinstance(flat_array, SmartArray):
                 flat_array = SmartArray(flat_array.astype(FTYPE))
@@ -531,10 +533,9 @@ class Container(object):
 
 def test_container():
     n_evts = 10000
-    x = np.arange(n_evts, dtype=FTYPE)
-    y = np.arange(n_evts, dtype=FTYPE)
+    x = np.linspace(0, 100, n_evts, dtype=FTYPE)
+    y = np.linspace(0, 100, n_evts, dtype=FTYPE)
     w = np.ones(n_evts, dtype=FTYPE)
-    w *= np.random.rand(n_evts)
 
     container = Container('test')
     container.add_array_data('x', x)
@@ -545,24 +546,32 @@ def test_container():
     binning_x = OneDimBinning(name='x', num_bins=10, is_lin=True, domain=[0, 100])
     binning_y = OneDimBinning(name='y', num_bins=10, is_lin=True, domain=[0, 100])
     binning = MultiDimBinning([binning_x, binning_y])
-    #print(binning.names)
-    print(container.get_binned_data('x', binning).get('host'))
-    print(Container.unroll_binning('x', binning).get('host'))
 
-    # array
-    print('original array')
-    print(container.get_array_data('w').get('host'))
+    logging.trace('Testing container amd translation methods')
+
+    bx = container.get_binned_data('x', binning).get('host')
+    m = np.meshgrid(binning.midpoints[0].m,  binning.midpoints[1].m)[1].ravel()
+    assert np.allclose(bx, m)
+
+    # array repr
+    array_weights = container.get_array_data('w').get('host')
+    assert np.allclose(array_weights, w)
+
+    # binned repr
     container.array_to_binned('w', binning)
-    # binned
-    print('binned')
-    print(container.get_binned_data('w').get('host'))
-    print(container.get_hist('w'))
+    diag = np.eye(10)
+    bd = container.get_binned_data('w').get('host')
+    h = container.get_hist('w')
 
-    print('augmented again')
-    # augment
+    assert np.allclose(bd, diag.ravel())
+    assert np.allclose(h[0], diag)
+    assert h[1] == binning
+
+    # augment to array repr again
     container.binned_to_array('w')
-    print(container.get_array_data('w').get('host'))
+    a = container.get_array_data('w').get('host')
 
+    assert np.allclose(a, w)
 
 def test_container_set():
     container1 = Container('test1')
