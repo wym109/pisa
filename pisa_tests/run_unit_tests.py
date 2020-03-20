@@ -1,11 +1,12 @@
 #!/usr/bin/env python
-# pylint: disable=exec-used, eval-used
+# pylint: disable=exec-used, eval-used, logging-format-interpolation, logging-not-lazy
 
 
 """
 Find and run PISA unit test functions
 """
 
+from __future__ import absolute_import
 
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from os import walk
@@ -16,9 +17,18 @@ import pisa
 from pisa.utils.fileio import nsort_key_func
 from pisa.utils.log import Levels, logging, set_verbosity
 
+pycuda, nbcuda = None, None  # pylint: disable=invalid-name
+if pisa.TARGET == 'cuda':
+    try:
+        import pycuda
+    except Exception:
+        pass
 
-# TODO: is it a problem to leave already-imported modules imported? I.e., any
-# issues we might miss from not doing a "fresh" import of a module?
+    # See TODO below
+    #try:
+    #    from numba import cuda as nbcuda
+    #except Exception:
+    #    pass
 
 
 __all__ = ["PISA_PATH", "run_unit_tests", "find_unit_tests", "find_unit_tests_in_file"]
@@ -47,7 +57,7 @@ PFX = "[T] "
 
 
 def run_unit_tests(
-    path=PISA_PATH, allowed_missing_modules=OPTIONAL_DEPS, verbosity=Levels.WARN
+    path=PISA_PATH, allow_missing=OPTIONAL_DEPS, verbosity=Levels.WARN
 ):
     """Run all tests found at `path` (or recursively below if `path` is a
     directory).
@@ -63,21 +73,21 @@ def run_unit_tests(
     path : str
         Path to file or directory
 
-    allowed_missing_modules : None or sequence of str
+    allow_missing : None or sequence of str
 
     verbosity : int in pisa.utils.log.Levels
 
     Raises
     ------
     Exception
-        If any import or test fails not in `allowed_missing_modules`
+        If any import or test fails not in `allow_missing`
 
     """
     path = expanduser(expandvars(path))
-    if allowed_missing_modules is None:
-        allowed_missing_modules = []
-    elif isinstance(allowed_missing_modules, str):
-        allowed_missing_modules = [allowed_missing_modules]
+    if allow_missing is None:
+        allow_missing = []
+    elif isinstance(allow_missing, str):
+        allow_missing = [allow_missing]
 
     tests = find_unit_tests(path)
 
@@ -106,7 +116,7 @@ def run_unit_tests(
         except Exception as err:
             if (
                 isinstance(err, ImportError)
-                and err.name in allowed_missing_modules  # pylint: disable=no-member
+                and err.name in allow_missing  # pylint: disable=no-member
             ):
                 module_pypaths_failed_ignored.append(module_pypath)
                 continue
@@ -159,7 +169,7 @@ def run_unit_tests(
                 if (
                     isinstance(err, ImportError)
                     and hasattr(err, "name")
-                    and err.name in allowed_missing_modules  # pylint: disable=no-member
+                    and err.name in allow_missing  # pylint: disable=no-member
                 ):
                     test_pypaths_failed_ignored.append(module_pypath)
                     continue
@@ -189,6 +199,43 @@ def run_unit_tests(
 
             else:
                 test_pypaths_succeeded.append(test_pypath)
+
+            finally:
+                # remove references to the test function, e.g. to remove refs
+                # to pycuda / numba.cuda contexts so these can be closed
+                try:
+                    exec(f"del {test_pypath}")
+                except NameError:
+                    pass
+
+        # NOTE: Until we get all GPU code into Numba, need to unload pycuda
+        # and/or numba.cuda contexts before a module requiring the other one is
+        # to be imported.
+        # NOTE: the following causes a traceback to be emitted at the very end
+        # of the script, regardless of the exception catching here.
+        if (
+            pisa.TARGET == 'cuda'
+            and pycuda is not None
+            and hasattr(pycuda, "autoinit")
+            and hasattr(pycuda.autoinit, "context")
+        ):
+            try:
+                pycuda.autoinit.context.detach()
+            except Exception:
+                pass
+
+        # Attempt to unload the imported module
+
+        if module in sys.modules:
+            del sys.modules[module]
+        exec(f"del {module}")
+
+        # TODO: crashes program; subseqeunt calls in same shell crash(!?!?)
+        #if pisa.TARGET == 'cuda' and nbcuda is not None:
+        #    try:
+        #        nbcuda.close()
+        #    except Exception:
+        #        pass
 
     # Summarize results
 
@@ -227,8 +274,12 @@ def run_unit_tests(
                 f"{n_test_failures} unit test(s) failed:\n  "
                 + ", ".join(test_pypaths_failed)
             )
+
+        # Note the extra newlines before the exception to make it stand out;
+        # and newlines after the exception are due to the pycuda error message
+        # that is emitted when we call pycuda.autoinit.context.detach()
         sys.stderr.write("\n\n\n")
-        raise Exception("\n".join(msgs))
+        raise Exception("\n".join(msgs) + "\n\n\n")
 
 
 def find_unit_tests(path):
@@ -307,7 +358,7 @@ def main(description=__doc__):
         and run unit tests""",
     )
     parser.add_argument(
-        "--allowed-missing-modules",
+        "--allow-missing",
         nargs="+",
         default=list(OPTIONAL_DEPS),
         help="""Allow ImportError (or subclasses) for these modules""",
