@@ -294,6 +294,7 @@ def run_unit_tests(path=PISA_PATH, allow_missing=OPTIONAL_DEPS, verbosity=Levels
         # Note the extra newlines before the exception to make it stand out;
         # and newlines after the exception are due to the pycuda error message
         # that is emitted when we call pycuda.autoinit.context.detach()
+        sys.stdout.flush()
         sys.stderr.write("\n\n\n")
         raise Exception("\n".join(msgs) + "\n\n\n")
 
