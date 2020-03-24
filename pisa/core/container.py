@@ -19,6 +19,7 @@ from pisa import FTYPE
 from pisa.core.binning import OneDimBinning, MultiDimBinning
 from pisa.core.map import Map, MapSet
 from pisa.core.translation import histogram, lookup, resample
+from pisa.utils.comparisons import ALLCLOSE_KW
 from pisa.utils.log import logging
 from pisa.utils.random_numbers import get_random_state
 
@@ -535,7 +536,7 @@ def test_container():
     n_evts = 10000
     x = np.linspace(0, 100, n_evts, dtype=FTYPE)
     y = np.linspace(0, 100, n_evts, dtype=FTYPE)
-    w = np.ones(n_evts, dtype=FTYPE)
+    w = np.tile(np.arange(100, dtype=FTYPE) + 0.5,(100,1)).T.ravel()
 
     container = Container('test')
     container.add_array_data('x', x)
@@ -543,35 +544,35 @@ def test_container():
     container.add_array_data('w', w)
 
 
-    binning_x = OneDimBinning(name='x', num_bins=10, is_lin=True, domain=[0, 100])
-    binning_y = OneDimBinning(name='y', num_bins=10, is_lin=True, domain=[0, 100])
+    binning_x = OneDimBinning(name='x', num_bins=100, is_lin=True, domain=[0, 100])
+    binning_y = OneDimBinning(name='y', num_bins=100, is_lin=True, domain=[0, 100])
     binning = MultiDimBinning([binning_x, binning_y])
 
-    logging.trace('Testing container amd translation methods')
+    logging.trace('Testing container and translation methods')
 
     bx = container.get_binned_data('x', binning).get('host')
     m = np.meshgrid(binning.midpoints[0].m,  binning.midpoints[1].m)[1].ravel()
-    assert np.allclose(bx, m)
+    assert np.allclose(bx, m, **ALLCLOSE_KW), f'test:\n{bx}\n!= ref:\n{m}'
 
     # array repr
     array_weights = container.get_array_data('w').get('host')
-    assert np.allclose(array_weights, w)
+    assert np.allclose(array_weights, w, **ALLCLOSE_KW), f'test:\n{array_weights}\n!= ref:\n{w}'
 
     # binned repr
     container.array_to_binned('w', binning)
-    diag = np.eye(10)
+    diag = np.diag(np.arange(100) + 0.5)
     bd = container.get_binned_data('w').get('host')
     h = container.get_hist('w')
 
-    assert np.allclose(bd, diag.ravel())
-    assert np.allclose(h[0], diag)
-    assert h[1] == binning
+    assert np.allclose(bd, diag.ravel(), **ALLCLOSE_KW), f'test:\n{bd}\n!= ref:\n{diag.ravel()}'
+    assert np.allclose(h[0], diag, **ALLCLOSE_KW), f'test:\n{h[0]}\n!= ref:\n{diag}'
+    assert h[1] == binning, f'test:\n{h[1]}\n!= ref:\n{binning}'
 
     # augment to array repr again
     container.binned_to_array('w')
     a = container.get_array_data('w').get('host')
 
-    assert np.allclose(a, w)
+    assert np.allclose(a, w, **ALLCLOSE_KW), f'test:\n{a}\n!= ref:\n{w}'
 
 def test_container_set():
     container1 = Container('test1')
