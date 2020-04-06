@@ -22,14 +22,14 @@ class pi_2nu(PiStage):
 
     Parameters
     ----------
-    theta23 : quantity (angle)
+    theta : quantity (angle)
     deltam31 : quantity (mass^2)
 
     Notes
     -----
     For two-neutrino model, there is only one mass-splitting term
-    Atmospheric mixing angle is aproximated by theta23
-    
+    Atmospheric mixing angle is aproximated by theta (sin^2(2*theta))
+
     """
     def __init__(self,
                  data=None,
@@ -43,7 +43,7 @@ class pi_2nu(PiStage):
                 ):
 
         expected_params = (
-                           'theta23',
+                           'theta',
                            'deltam31',
                           )
 
@@ -81,13 +81,13 @@ class pi_2nu(PiStage):
     @profile
     def apply_function(self):
 
-        theta23 = self.params.theta23.value.m_as('rad')
+        theta = self.params.theta.value.m_as('dimensionless')
         deltam31 = self.params.deltam31.value.m_as('eV**2')
 
         for container in self.data:
             if 'numu' in container.name:
               apply_probs_vectorized(container['nu_flux'].get(WHERE),
-                                    FTYPE(theta23),
+                                    FTYPE(theta),
                                     FTYPE(deltam31),
                                     container['true_energy'].get(WHERE),
                                     container['true_coszen'].get(WHERE),
@@ -97,7 +97,7 @@ class pi_2nu(PiStage):
 
             if 'nutau' in container.name:
               apply_probs_vectorized(container['nu_flux'].get(WHERE),
-                                    FTYPE(theta23),
+                                    FTYPE(theta),
                                     FTYPE(deltam31),
                                     container['true_energy'].get(WHERE),
                                     container['true_coszen'].get(WHERE),
@@ -106,7 +106,7 @@ class pi_2nu(PiStage):
                                    )
             if 'nue' in container.name:
               apply_probs_vectorized(container['nu_flux'].get(WHERE),
-                                    FTYPE(theta23),
+                                    FTYPE(theta),
                                     FTYPE(deltam31),
                                     container['true_energy'].get(WHERE),
                                     container['true_coszen'].get(WHERE),
@@ -131,7 +131,6 @@ def calc_probs(t23, dm31, true_energy, true_coszen): #
 if FTYPE == np.float64:
     FX = 'f8'
     IX = 'i8'
-    signature = '(f8[:], f8, f8, f8, f8, i4, f8[:])'
 else:
     FX = 'f4'
     IX = 'i4'
@@ -139,9 +138,9 @@ signature = f'({FX}[:], {FX}, {FX}, {FX}, {FX}, {IX}, {FX}[:])'
 @guvectorize([signature], '(d),(),(),(),(),()->()', target=TARGET)
 def apply_probs_vectorized(flux, t23, dm31, true_energy, true_coszen, nuflav, out):
     if nuflav==1: # numu receive weights dependent on numu survival prob
-        out[0] *= flux[0] + (flux[1] * (1.0-calc_probs(t23, dm31, true_energy, true_coszen)))
+        out[0] *= flux[1] * (1.0-calc_probs(t23, dm31, true_energy, true_coszen))
     elif nuflav==3: # nutau receive weights dependent on nutau appearance prob
-        out[0] *= flux[0] + (flux[1] * calc_probs(t23, dm31, true_energy, true_coszen))
+        out[0] *= flux[1] * calc_probs(t23, dm31, true_energy, true_coszen)
     else:
         assert nuflav==0
         out[0] *= flux[0]
