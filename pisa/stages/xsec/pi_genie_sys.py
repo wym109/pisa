@@ -82,16 +82,16 @@ class pi_genie_sys(PiStage): # pylint: disable=invalid-name
             'quad_fit_maccqe',
             'linear_fit_maccres',
             'quad_fit_maccres',
-            'GENIE_linear_fit_AhtBY',
-            'GENIE_quad_fit_AhtBY',
-            'GENIE_linear_fit_BhtBY',
-            'GENIE_quad_fit_BhtBY',
-            'GENIE_linear_fit_CV1uBY',
-            'GENIE_quad_fit_CV1uBY',
-            'GENIE_linear_fit_CV2uBY',
-            'GENIE_quad_fit_CV2uBY',            
-            'GENIE_x',            
-            'GENIE_y',            
+            'linear_fit_ahtby',
+            'quad_fit_ahtby',
+            'linear_fit_bhtby',
+            'quad_fit_bhtby',
+            'linear_fit_cv1uby',
+            'quad_fit_cv1uby',
+            'linear_fit_cv2uby',
+            'quad_fit_cv2uby',            
+            'bjorken_x',            
+            'bjorken_y',            
             'GENIE_A',            
         )
         # what keys are added or altered for the outputs during apply
@@ -147,17 +147,17 @@ class pi_genie_sys(PiStage): # pylint: disable=invalid-name
                 container['linear_fit_maccres'].get(WHERE),
                 container['quad_fit_maccres'].get(WHERE),
                 genie_ahtby,
-                container['GENIE_linear_fit_AhtBY'].get(WHERE),
-                container['GENIE_quad_fit_AhtBY'].get(WHERE),
+                container['linear_fit_ahtby'].get(WHERE),
+                container['quad_fit_ahtby'].get(WHERE),
                 genie_bhyby,
-                container['GENIE_linear_fit_BhtBY'].get(WHERE),
-                container['GENIE_quad_fit_BhtBY'].get(WHERE),
+                container['linear_fit_bhtby'].get(WHERE),
+                container['quad_fit_bhtby'].get(WHERE),
                 genie_cv1uby,
-                container['GENIE_linear_fit_CV1uBY'].get(WHERE),
-                container['GENIE_quad_fit_CV1uBY'].get(WHERE),
+                container['linear_fit_cv1uby'].get(WHERE),
+                container['quad_fit_cv1uby'].get(WHERE),
                 genie_cv2uby,
-                container['GENIE_linear_fit_CV2uBY'].get(WHERE),
-                container['GENIE_quad_fit_CV2uBY'].get(WHERE),
+                container['linear_fit_cv2uby'].get(WHERE),
+                container['quad_fit_cv2uby'].get(WHERE),
 
                 out=container['weights'].get(WHERE),
             )
@@ -172,21 +172,21 @@ class pi_genie_sys(PiStage): # pylint: disable=invalid-name
 
             apply_diffxsec_sys(diff_dis,
                                diff_norm,
-                               container['GENIE_x'].get(WHERE),
+                               container['bjorken_x'].get(WHERE),
                                out=container['weights'].get(WHERE),
             )                
 
             # High W hadronization systematic
             if hadron_dis != 0.:
                 apply_highW_sys(hadron_dis,
-                                container['GENIE_y'].get(WHERE),
+                                container['bjorken_y'].get(WHERE),
                                 out=container['weights'].get(WHERE),
                 )                
 
             # DIS A-dependent systematic
             if a_scale_dis:
                 apply_Ascale_sys(container['GENIE_A'].get(WHERE),
-                                container['GENIE_x'].get(WHERE),
+                                container['bjorken_x'].get(WHERE),
                                 out=container['weights'].get(WHERE),
                 )                
             
