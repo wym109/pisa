@@ -1,5 +1,3 @@
-# Authors
-
 """
 Stage class designed to be inherited by PISA Pi services, such that all basic
 functionality is built-in.
@@ -8,33 +6,19 @@ functionality is built-in.
 
 from __future__ import absolute_import, division
 
-from collections.abc import Iterable, Sequence
-
 from numba import SmartArray
 
 from pisa.core.base_stage import BaseStage
 from pisa.core.binning import MultiDimBinning
 from pisa.core.container import ContainerSet
 from pisa.utils.log import logging
+from pisa.utils.format import arg_to_tuple
 from pisa.utils.profiler import profile
 
 
 __all__ = ["PiStage"]
 __version__ = "Pi"
 __author__ = "Philipp Eller (pde3@psu.edu)"
-
-
-def arg_to_tuple(arg):
-    """Convert `arg` to a tuple, handling None and isolated strings"""
-    if arg is None:
-        arg = tuple()
-    elif isinstance(arg, str):
-        arg = (arg,)
-    elif isinstance(arg, (Iterable, Sequence)):
-        arg = tuple(arg)
-    else:
-        raise TypeError("Unhandled type {}, arg={}".format(type(arg), arg))
-    return arg
 
 
 class PiStage(BaseStage):
@@ -292,15 +276,19 @@ class PiStage(BaseStage):
         return None
 
     def get_outputs(self):
-        """
-        Get the outputs of the PISA stage
-        Depending on `self.output_mode`, this may be a binned object, or the event container itself
+        """Get the outputs of the PISA stage
+
+        Depending on `self.output_mode`, this may be a binned object, or the
+        event container itself
         """
 
         if self.output_mode == 'binned' and len(self.output_apply_keys) == 1:
             self.outputs = self.data.get_mapset(self.output_apply_keys[0])
         elif len(self.output_apply_keys) == 2 and 'errors' in self.output_apply_keys:
-            other_key = [key for key in self.output_apply_keys if not key == 'errors'][0]
+            other_key = (
+                self.output_apply_keys[0] if self.output_apply_keys[0] != 'errors'
+                else self.output_apply_keys[1]
+            )
             self.outputs = self.data.get_mapset(other_key, error='errors')
         elif self.output_mode == "events":
             self.outputs = self.data
