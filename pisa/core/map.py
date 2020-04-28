@@ -942,8 +942,8 @@ class Map(object):
             Valid strings are '', 'none', 'poisson', 'scaled_poisson', 'gauss', or
             'gauss+poisson'. Strings are case-insensitive and whitespace is
             removed.
-            The 'scaled_poisson' method implements a Scaled Poisson Process, which is 
-            a better approximation than a normal distribution to the true distribution 
+            The 'scaled_poisson' method implements a Scaled Poisson Process, which is
+            a better approximation than a normal distribution to the true distribution
             of bin counts that are the result of a Poisson process with weighted events[1].
             The fluctuated maps are guaranteed to have the same mean and standard
             deviation as the original map.
@@ -958,7 +958,7 @@ class Map(object):
         -------
         fluctuated_map : Map
             New map with entries fluctuated as compared to this map
-        
+
         References
         ----------
         ..  [1] Bohm & Zech, "Statistics of weighted Poisson events and its applications" (2013),
@@ -1031,7 +1031,8 @@ class Map(object):
                 valid_mask = ~nan_at
                 gauss = np.empty_like(orig_hist, dtype=np.float64)
                 gauss[valid_mask] = norm.rvs(
-                    loc=orig_hist[valid_mask], scale=sigma[valid_mask]
+                    loc=orig_hist[valid_mask], scale=sigma[valid_mask],
+                    random_state=random_state
                 )
 
                 hist_vals = np.empty_like(orig_hist, dtype=np.float64)
@@ -1054,8 +1055,10 @@ class Map(object):
                 nan_at = np.isnan(orig_hist)
                 valid_mask = ~nan_at
                 hist_vals = np.empty_like(orig_hist, dtype=np.float64)
-                hist_vals[valid_mask] = norm.rvs(loc=orig_hist[valid_mask],
-                                                 scale=sigma[valid_mask])
+                hist_vals[valid_mask] = norm.rvs(
+                    loc=orig_hist[valid_mask], scale=sigma[valid_mask],
+                    random_state=random_state
+                )
                 hist_vals[nan_at] = np.nan
                 error_vals = np.empty_like(orig_hist, dtype=np.float64)
                 error_vals[valid_mask] = np.sqrt(orig_hist[valid_mask])
