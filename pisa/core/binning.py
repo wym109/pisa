@@ -306,6 +306,7 @@ class OneDimBinning(object):
         self._weighted_centers = None
         self._edge_magnitudes = None
         self._bin_widths = None
+        self._weighted_bin_widths = None
         self._inbounds_criteria = None
 
         # TODO: define hash based upon conversion of things to base units (such
@@ -840,7 +841,14 @@ class OneDimBinning(object):
         """bool"""
         assert isinstance(b, bool)
         if b != self._is_lin:
-            self._is_lin, self._is_log, self._is_irregular = (b, not b, None)
+            # NOTE: use tuple unpacking to help ensure state is consistent
+            (
+                self._is_lin,
+                self._is_log,
+                self._is_irregular,
+                self._weighted_centers,
+                self._weighted_bin_widths,
+            ) = (b, not b, None, None, None)
 
     @property
     def is_log(self):
@@ -852,7 +860,14 @@ class OneDimBinning(object):
         """bool"""
         assert isinstance(b, bool)
         if b != self._is_log:
-            self._is_log, self._is_lin, self._is_irregular = (b, not b, None)
+            # NOTE: use tuple unpacking to help ensure state is consistent
+            (
+                self._is_log,
+                self._is_lin,
+                self._is_irregular,
+                self._weighted_centers,
+                self._weighted_bin_widths,
+            ) = (b, not b, None, None, None)
 
     @property
     def is_irregular(self):
@@ -955,6 +970,18 @@ class OneDimBinning(object):
         if self._bin_widths is None:
             self._bin_widths = np.abs(np.diff(self.bin_edges.m)) * self.units
         return self._bin_widths
+
+    @property
+    def weighted_bin_widths(self):
+        """Absolute widths of bins."""
+        if self._weighted_bin_widths is None:
+            if self.is_log:
+                self._weighted_bin_widths = (
+                    self.edge_magnitudes[1:] / self.edge_magnitudes[:-1]
+                ) * ureg.dimensionless
+            else:
+                self._weighted_bin_widths = self.bin_widths
+        return self._weighted_bin_widths
 
     @property
     def inbounds_criteria(self):
@@ -1081,7 +1108,7 @@ class OneDimBinning(object):
 
     @staticmethod
     def is_binning_ok(bin_edges):
-        """Check that there are at least one bin edge, and that they are
+        """Check that there are 2 or more bin edges, and that they are
         monotonically increasing.
 
         Parameters
@@ -1298,8 +1325,12 @@ class OneDimBinning(object):
 
         # Convert already-defined quantities
         attrs = [
-            '_bin_edges', '_domain', '_midpoints', '_weighted_centers',
-            '_bin_widths', '_edge_magnitudes'
+            '_bin_edges',
+            '_domain',
+            '_midpoints',
+            '_weighted_centers',
+            '_bin_widths',
+            '_edge_magnitudes',
         ]
         for attr in attrs:
             val = getattr(self, attr)
@@ -2514,8 +2545,9 @@ class MultiDimBinning(object):
         Parameters
         ----------
         entity : string
-            One of 'midpoints', 'weighted_centers', 'bin_edges', or
-            'bin_widths'.
+            Can be any attribute of OneDimBinning that returns a 1D array with
+            units. E.g., one of 'midpoints', 'weighted_centers', 'bin_edges',
+            'bin_widths', or 'weighted_bin_widths'
 
         attach_units : bool
             Whether to attach units to the result (can save computation time by
@@ -2533,25 +2565,32 @@ class MultiDimBinning(object):
 
         """
         entity = entity.lower().strip()
-        if entity == 'midpoints':
-            arrays = tuple(d.midpoints.m for d in self.iterdims())
-        elif entity == 'weighted_centers':
-            arrays = tuple(d.weighted_centers.m for d in self.iterdims())
-        elif entity == 'bin_edges':
-            arrays = tuple(d.bin_edges.m for d in self.iterdims())
-        elif entity == 'bin_widths':
-            arrays = tuple(d.bin_widths.m for d in self.iterdims())
-        else:
-            raise ValueError('Unrecognized `entity`: "%s"' % entity)
+
+        arrays = []
+        units = []
+        for dim in self.iterdims():
+            try:
+                quantity_array = getattr(dim, entity)
+            except AttributeError:
+                logging.error(
+                    "Dimension %s does not contain entity '%s'", dim.name, entity
+                )
+                raise
+            if attach_units:
+                units.append(quantity_array.units)
+            arrays.append(quantity_array.magnitude)
 
         # NOTE: numpy versions prior to 1.13.0, meshgrid returned float64 even
         # if inputs are float32 to mesghrid. Use `astype` as a fix. Note that
-        # `astype` creates a copy of the array even if dtype of input is the
-        # same, copy=False is ok in the argument to meshgrid.
+        # since `astype` already creates a copy of the array even if dtype of
+        # input is the same, setting `copy` to False is ok in the argument to
+        # meshgrid; i.e., if a user modifies an element of the returned array,
+        # it should not affect the original `entity` from which the meshgrid
+        # was generated.
         mg = [a.astype(FTYPE) for a in np.meshgrid(*arrays, indexing='ij', copy=False)]
 
         if attach_units:
-            return [m*dim.units for m, dim in zip(mg, self.iterdims())]
+            return [m*u for m, u in zip(mg, units)]
 
         return mg
 
@@ -2572,11 +2611,36 @@ class MultiDimBinning(object):
 
         """
         meshgrid = self.meshgrid(entity='bin_widths', attach_units=False)
-        volumes = reduce(lambda x, y: x*y, meshgrid)
+        volumes = reduce(mul, meshgrid)
         if attach_units:
+            volumes *= reduce(mul, (ureg(str(d.units)) for d in self.iterdims()))
+        return volumes
+
+    def weighted_bin_volumes(self, attach_units=True):
+        """Bin "volumes" defined in `num_dims`-dimensions, but unlike
+        `bin_volumes`, the volume is evaluated in the space of the binning.
+        E.g., logarithmic bins have `weighted_bin_volumes` of equal size in
+        log-space.
+
+        Parameters
+        ----------
+        attach_units : bool
+            Whether to attach pint units to the resulting array
+
+        Returns
+        -------
+        volumes : array
+            Bin volumes
+
+        """
+        meshgrid = self.meshgrid(entity='weighted_bin_widths', attach_units=False)
+        volumes = reduce(mul, meshgrid)
+        if attach_units:
+            # NOTE we use the units from `weighted_bin_widths` because these
+            # can be different from those of the dimension
             volumes *= reduce(
-                lambda x, y: x*y,
-                (ureg(str(d.units)) for d in self.iterdims())
+                mul,
+                (ureg(str(d.weighted_bin_widths.units)) for d in self.iterdims()),
             )
         return volumes
 
@@ -2783,7 +2847,6 @@ class MultiDimBinning(object):
             for d in self.iterdims():
                 if d.name == index:
                     return d
-            raise ValueError(f"index '{index}' not in {self.names}")
 
         # TODO: implement a "linearization" like np.flatten() to iterate
         # through each bin individually without hassle for the user...
@@ -3028,8 +3091,12 @@ def test_MultiDimBinning():
     _ = binning.meshgrid(entity='bin_edges')
     _ = binning.meshgrid(entity='weighted_centers')
     _ = binning.meshgrid(entity='midpoints')
+    _ = binning.meshgrid(entity='bin_widths')
+    _ = binning.meshgrid(entity='weighted_bin_widths')
     _ = binning.bin_volumes(attach_units=False)
     _ = binning.bin_volumes(attach_units=True)
+    _ = binning.weighted_bin_volumes(attach_units=False)
+    _ = binning.weighted_bin_volumes(attach_units=True)
     binning.to('MeV', None)
     binning.to('MeV', '')
     binning.to(ureg.joule, '')
