@@ -241,7 +241,7 @@ class OneDimBinning(object):
     #   backwards compatibility (including for state / hashes), both are kept
     #   (for now) as "state" variables. -JLL, April, 2020
 
-    _hash_attrs = ('name', 'tex', 'bin_edges', 'is_log', 'is_lin', 'bin_names', 'units')
+    _hash_attrs = ('name', 'tex', 'bin_edges', 'is_log', 'is_lin', 'bin_names')
 
     def __init__(self, name, tex=None, bin_edges=None, units=None, domain=None,
                  num_bins=None, is_lin=None, is_log=None, bin_names=None):
@@ -1239,20 +1239,22 @@ class OneDimBinning(object):
 
         old_bin_edges = self.edge_magnitudes
         new_bin_edges = []
-        for lower, upper in zip(old_bin_edges[:-1], old_bin_edges[1:]):
-            thisbin_new_edges = spacing_func(lower, upper, factor + 1)
+        for old_lower, old_upper in zip(old_bin_edges[:-1], old_bin_edges[1:]):
+            thisbin_new_edges = spacing_func(old_lower, old_upper, factor + 1)
 
-            # Omit the upper bin edge, as it is the first bin edge of
-            # the next bin
-            new_bin_edges.extend(thisbin_new_edges[:-1])
+            # Use the original lower bin edge to avoid precision issues with
+            # its version created by `spacing_func`
+            new_bin_edges.append(old_lower)
 
-        # Include the uppermost bin edge
-        new_bin_edges.append(thisbin_new_edges[-1])
-        # Check consistency
-        assert set(old_bin_edges).issubset(set(new_bin_edges))
-        return {'bin_edges': new_bin_edges,
-                'units': self.units,
-                'bin_names': None}
+            # Add the new bin edges we created in between lower and upper; we
+            # omit the upper bin edge because it is the first bin edge of the
+            # next bin
+            new_bin_edges.extend(thisbin_new_edges[1:-1])
+
+        # Include the uppermost bin edge from original binning
+        new_bin_edges.append(old_upper)
+
+        return {'bin_edges': new_bin_edges * self.units, 'bin_names': None}
 
     # TODO: do something cute with bin names, if they exist?
     @_new_obj
