@@ -32,6 +32,7 @@ import numpy as np
 
 from pisa import FTYPE, HASH_SIGFIGS, ureg
 from pisa.utils.comparisons import interpret_quantity, normQuant, recursiveEquality
+from pisa.utils.comparisons import ALLCLOSE_KW
 from pisa.utils.format import (make_valid_python_name, text2tex,
                                strip_outer_dollars)
 from pisa.utils.hash import hash_obj
@@ -240,7 +241,7 @@ class OneDimBinning(object):
     #   backwards compatibility (including for state / hashes), both are kept
     #   (for now) as "state" variables. -JLL, April, 2020
 
-    _hash_attrs = ('name', 'tex', 'bin_edges', 'is_log', 'is_lin', 'bin_names')
+    _hash_attrs = ('name', 'tex', 'bin_edges', 'is_log', 'is_lin', 'bin_names', 'units')
 
     def __init__(self, name, tex=None, bin_edges=None, units=None, domain=None,
                  num_bins=None, is_lin=None, is_log=None, bin_names=None):
@@ -977,7 +978,7 @@ class OneDimBinning(object):
         if self._weighted_bin_widths is None:
             if self.is_log:
                 self._weighted_bin_widths = (
-                    self.edge_magnitudes[1:] / self.edge_magnitudes[:-1]
+                    np.log(self.edge_magnitudes[1:] / self.edge_magnitudes[:-1])
                 ) * ureg.dimensionless
             else:
                 self._weighted_bin_widths = self.bin_widths
@@ -1066,7 +1067,7 @@ class OneDimBinning(object):
                 log_spacing = bin_edges[1:] / bin_edges[:-1]
             except (AssertionError, FloatingPointError, ZeroDivisionError):
                 return False
-        if np.allclose(log_spacing, log_spacing[0]):
+        if np.allclose(log_spacing, log_spacing[0], **ALLCLOSE_KW):
             return True
         return False
 
@@ -1102,7 +1103,7 @@ class OneDimBinning(object):
         if len(bin_edges) == 2:
             return True
         lin_spacing = np.diff(bin_edges)
-        if np.allclose(lin_spacing, lin_spacing[0]):
+        if np.allclose(lin_spacing, lin_spacing[0], **ALLCLOSE_KW):
             return True
         return False
 
@@ -1154,10 +1155,6 @@ class OneDimBinning(object):
 
         if self.units.dimensionality != other.units.dimensionality:
             logging.trace('Incompatible units')
-            return False
-
-        if self.bin_names != other.bin_names:
-            logging.trace('Bin names do not match')
             return False
 
         # TODO: should we force normalization?
@@ -1236,12 +1233,11 @@ class OneDimBinning(object):
             return self
 
         if self.is_log:
-            spacing_func = np.logspace
-            old_bin_edges = np.log10(self.edge_magnitudes)
+            spacing_func = np.geomspace
         else:  # is_lin
             spacing_func = np.linspace
-            old_bin_edges = self.edge_magnitudes
 
+        old_bin_edges = self.edge_magnitudes
         new_bin_edges = []
         for lower, upper in zip(old_bin_edges[:-1], old_bin_edges[1:]):
             thisbin_new_edges = spacing_func(lower, upper, factor + 1)
@@ -1252,7 +1248,8 @@ class OneDimBinning(object):
 
         # Include the uppermost bin edge
         new_bin_edges.append(thisbin_new_edges[-1])
-
+        # Check consistency
+        assert set(old_bin_edges).issubset(set(new_bin_edges))
         return {'bin_edges': new_bin_edges,
                 'units': self.units,
                 'bin_names': None}
@@ -2907,7 +2904,49 @@ def test_OneDimBinning():
     assert b1.basename_binning == b1.basename_binning
     assert b1.basename_binning == b3.basename_binning
     assert b1.basename_binning != b2.basename_binning
-
+    
+    # Oversampling/downsampling
+    b1_over = b1.oversample(2)
+    assert b1_over.is_bin_spacing_log_uniform(b1_over.bin_edges)
+    b1_down = b1.downsample(2)
+    assert b1_down.is_bin_spacing_log_uniform(b1_down.bin_edges)
+    assert b1_down.is_compat(b1)
+    assert b1.is_compat(b1_over)
+    assert b1_down.is_compat(b1_over)
+    
+    # Bin width consistency
+    assert np.isclose(
+        np.sum(b1_over.bin_widths.m),
+        np.sum(b1.bin_widths.m),
+        **ALLCLOSE_KW,
+    )
+    assert np.isclose(
+        np.sum(b1_down.bin_widths.m),
+        np.sum(b1.bin_widths.m),
+        **ALLCLOSE_KW,
+    )
+    assert np.isclose(
+        np.sum(b1_over.bin_widths.m),
+        np.sum(b1_down.bin_widths.m),
+        **ALLCLOSE_KW,
+    )
+    # Weighted bin widths must also sum up to the same total width
+    assert np.isclose(
+        np.sum(b1_over.weighted_bin_widths.m),
+        np.sum(b1.weighted_bin_widths.m),
+        **ALLCLOSE_KW,
+    )
+    assert np.isclose(
+        np.sum(b1_down.weighted_bin_widths.m),
+        np.sum(b1.weighted_bin_widths.m),
+        **ALLCLOSE_KW,
+    )
+    assert np.isclose(
+        np.sum(b1_over.weighted_bin_widths.m),
+        np.sum(b1_down.weighted_bin_widths.m),
+        **ALLCLOSE_KW,
+    )
+    
     logging.debug('len(b1): %s', len(b1))
     logging.debug('b1: %s', b1)
     logging.debug('b2: %s', b2)
@@ -3080,7 +3119,8 @@ def test_MultiDimBinning():
 
     assert binning.oversample(10, 1).shape == (400, 20)
     assert binning.oversample(1, 3).shape == (40, 60)
-
+    assert binning.downsample(4, 2).shape == (10, 10)
+    
     assert binning.oversample(coszen=10, energy=2).shape == (80, 200)
     assert binning.oversample(1, 1) == binning
 
@@ -3100,7 +3140,26 @@ def test_MultiDimBinning():
     binning.to('MeV', None)
     binning.to('MeV', '')
     binning.to(ureg.joule, '')
-
+    
+    oversampled = binning.oversample(10, 3)
+    assert oversampled.shape == (400, 60)
+    downsampled = binning.downsample(4, 2)
+    assert downsampled.shape == (10, 10)
+    
+    over_vols = oversampled.bin_volumes(attach_units=False)
+    down_vols = downsampled.bin_volumes(attach_units=False)
+    norm_vols = binning.bin_volumes(attach_units=False)
+    assert np.isclose(np.sum(over_vols), np.sum(norm_vols), **ALLCLOSE_KW)
+    assert np.isclose(np.sum(down_vols), np.sum(norm_vols), **ALLCLOSE_KW)
+    assert np.isclose(np.sum(down_vols), np.sum(over_vols), **ALLCLOSE_KW)
+    
+    over_vols = oversampled.weighted_bin_volumes(attach_units=False)
+    down_vols = downsampled.weighted_bin_volumes(attach_units=False)
+    norm_vols = binning.weighted_bin_volumes(attach_units=False)
+    assert np.isclose(np.sum(over_vols), np.sum(norm_vols), **ALLCLOSE_KW)
+    assert np.isclose(np.sum(down_vols), np.sum(norm_vols), **ALLCLOSE_KW)
+    assert np.isclose(np.sum(down_vols), np.sum(over_vols), **ALLCLOSE_KW)
+    
     testdir = tempfile.mkdtemp()
     try:
         b_file = os.path.join(testdir, 'multi_dim_binning.json')
