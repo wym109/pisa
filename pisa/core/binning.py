@@ -130,7 +130,7 @@ def _new_obj(original_function):
         """<< docstring will be inherited from wrapped function >>"""
         new_state = OrderedDict()
         state_updates = original_function(cls, *args, **kwargs)
-        for attr in cls._hash_attrs: # pylint: disable=protected-access
+        for attr in cls._attrs_to_create_new:  # pylint: disable=protected-access
             if attr in state_updates:
                 new_state[attr] = state_updates[attr]
             else:
@@ -241,7 +241,7 @@ class OneDimBinning(object):
     #   backwards compatibility (including for state / hashes), both are kept
     #   (for now) as "state" variables. -JLL, April, 2020
 
-    _hash_attrs = ('name', 'tex', 'bin_edges', 'is_log', 'is_lin', 'bin_names')
+    _attrs_to_create_new = ('name', 'tex', 'bin_edges', 'is_log', 'is_lin', 'bin_names')
 
     def __init__(self, name, tex=None, bin_edges=None, units=None, domain=None,
                  num_bins=None, is_lin=None, is_log=None, bin_names=None):
@@ -2823,9 +2823,11 @@ class MultiDimBinning(object):
         Parameters
         ----------
         index : str, int, len-N-sequence of ints, or len-N-sequence of slices
-            If str is passed: Return the binning corresponding to the name
+            If str is passed: Return the binning corresponding to the named
+            dimension
+
             If an integer is passed:
-              * If num_dims is 1, `index` indexes into the bins of the sole
+              * If num_dims is 4, `index` indexes into the bins of the sole
                 OneDimBinning. The bin is returned.
               * If num_dims > 1, `index` indexes which contained OneDimBinning
                 object to return.
@@ -2846,6 +2848,7 @@ class MultiDimBinning(object):
             for d in self.iterdims():
                 if d.name == index:
                     return d
+            raise ValueError(f"index '{index}' not in {self.names}")
 
         # TODO: implement a "linearization" like np.flatten() to iterate
         # through each bin individually without hassle for the user...
@@ -3088,6 +3091,25 @@ def test_MultiDimBinning():
     _ = mdb[0:, 0:]
     _ = mdb[0, 0:]
     _ = mdb[-1, -1]
+    # TODO: following should work as in Numpy:
+    # assert mdb[:] == mdb
+    # assert mdb[0] == b1
+    # assert mdb[1] == b2
+    assert mdb[:, :] == mdb
+
+    # Index by dim names
+    assert mdb["energy"] == b1
+    assert mdb["coszen"] == b2
+    try:
+        mdb["nonexistent"]
+    except Exception:
+        pass
+    else:
+        raise Exception('non-existent name should raise exception')
+
+    # Index by dim number
+    assert MultiDimBinning([b1])[0] == MultiDimBinning([b1[0]])
+
     logging.debug('%s', mdb.energy)
     logging.debug('copy(mdb): %s', copy(mdb))
     logging.debug('deepcopy(mdb): %s', deepcopy(mdb))
@@ -3126,6 +3148,7 @@ def test_MultiDimBinning():
     assert binning.oversample(coszen=10, energy=2).shape == (80, 200)
     assert binning.oversample(1, 1) == binning
 
+    assert binning.to('MeV', '')['energy'].units == ureg.MeV
     assert binning.to('MeV', '') == binning, 'converted=%s\norig=%s' \
             %(binning.to('MeV', ''), binning)
     assert binning.to('MeV', '').hash == binning.hash
