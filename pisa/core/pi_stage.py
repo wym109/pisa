@@ -202,6 +202,7 @@ class PiStage(BaseStage):
 
     @profile
     def compute(self):
+
         if len(self.params) == 0 and len(self.output_calc_keys) == 0:
             return
 
@@ -287,20 +288,32 @@ class PiStage(BaseStage):
         self.apply()
         return None
 
-    def get_outputs(self):
-        """Get the outputs of the PISA stage
 
-        Depending on `self.output_mode`, this may be a binned object, or the
+    def get_outputs(self, output_mode=None):
+        """Get the outputs of the PISA stage
+        Depending on `(self.)output_mode`, this may be a binned object, or the
         event container itself
+
+        Parameters
+        ----------
+        output_mode: None, string
+            Optionally can force the output mode to the stage
         """
+
+        # Handle optional user-overridden `output_mode`
+        if output_mode is None:
+            output_mode = self.output_mode
+        else:
+            assert output_mode in ["binned", "events"], "Unknown `output_mode` specified"
+
         # new behavior with explicitly defined output keys
         if self.map_output_key:
-            if self.output_mode == 'binned':
+            if output_mode == 'binned':
                 self.outputs = self.data.get_mapset(
                     self.map_output_key,
                     error=self.map_output_error_key,
                 )
-            elif self.output_mode == "events":
+            elif output_mode == "events":
                 self.outputs = self.data
             else:
                 self.outputs = None
@@ -309,7 +322,7 @@ class PiStage(BaseStage):
             return self.outputs
 
         # if no output keys are explicitly defined, fall back to previous behavior
-        if self.output_mode == 'binned' and len(self.output_apply_keys) == 1:
+        if output_mode == 'binned' and len(self.output_apply_keys) == 1:
             self.outputs = self.data.get_mapset(self.output_apply_keys[0])
         elif len(self.output_apply_keys) == 2 and 'errors' in self.output_apply_keys:
             other_key = (
@@ -317,7 +330,7 @@ class PiStage(BaseStage):
                 else self.output_apply_keys[1]
             )
             self.outputs = self.data.get_mapset(other_key, error='errors')
-        elif self.output_mode == "events":
+        elif output_mode == "events":
             self.outputs = self.data
         else:
             self.outputs = None
