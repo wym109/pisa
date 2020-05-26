@@ -810,6 +810,10 @@ class ParamSet(Sequence):
         elif isinstance(i, str):
             self._by_name[i].value = val
 
+    def __delitem__(self, i):
+        idx = self.index(i)
+        del self._params[idx]
+
     def __deepcopy__(self, memo):
         cls = self.__class__
         result = cls.__new__(cls)
@@ -1384,10 +1388,31 @@ def test_ParamSet():
     p0 = Param(name='c', value=1.5, prior=None, range=[1, 2],
                is_fixed=False, is_discrete=False, tex=r'\int{\rm c}')
     p1 = Param(name='a', value=2.5, prior=None, range=[1, 5],
-               is_fixed=False, is_discrete=False, tex=r'{\rm a}')
+               is_fixed=True, is_discrete=False, tex=r'{\rm a}')
     p2 = Param(name='b', value=1.5, prior=None, range=[1, 2],
                is_fixed=False, is_discrete=False, tex=r'{\rm b}')
-    param_set = ParamSet(p0, p1, p2)
+    p3 = Param(name='deleteme', value=0.1, prior=None, range=[-1, 1],
+               is_fixed=True, is_discrete=False, tex=r'{\rm dm}')
+
+    param_set = ParamSet(p3, p0, p1, p2)
+    logging.debug(str((param_set.values)))
+    assert len(param_set.fixed) == 2
+    del param_set['deleteme']
+    assert param_set[0].value == 1.5
+    assert len(param_set) == 3
+    assert 'deleteme' not in param_set.names
+    assert len(param_set.fixed) == 1
+    logging.debug(str((param_set.values)))
+
+    param_set = ParamSet(p3, p0, p1, p2)
+    assert len(param_set.fixed) == 2
+    logging.debug(str((param_set.values)))
+    del param_set[0]
+    assert param_set[0].value == 1.5
+    assert len(param_set) == 3
+    assert len(param_set.fixed) == 1
+    assert 'deleteme' not in param_set.names
+
     logging.debug(str((param_set.values)))
     logging.debug(str((param_set[0])))
     param_set[0].value = 1
