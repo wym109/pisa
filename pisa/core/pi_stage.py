@@ -6,6 +6,7 @@ functionality is built-in.
 
 from __future__ import absolute_import, division
 
+from collections import OrderedDict
 from numba import SmartArray
 
 from pisa.core.base_stage import BaseStage
@@ -202,7 +203,7 @@ class PiStage(BaseStage):
 
     @profile
     def compute(self):
-
+        
         if len(self.params) == 0 and len(self.output_calc_keys) == 0:
             return
 
@@ -288,52 +289,63 @@ class PiStage(BaseStage):
         self.apply()
         return None
 
-
-    def get_outputs(self, output_mode=None):
+    def get_outputs(self, output_mode=None, force_standard_output=True):
         """Get the outputs of the PISA stage
-        Depending on `(self.)output_mode`, this may be a binned object, or the
-        event container itself
+        Depending on `self.output_mode`, this may be a binned object, or the event container itself
 
-        Parameters
-        ----------
-        output_mode: None, string
-            Optionally can force the output mode to the stage
+        add option to force an output mode
+
+        force_standard_output: in binned mode, force the return of a single mapset
+
         """
 
-        # Handle optional user-overridden `output_mode`
+        # Figure out if the user has specifiec an output mode
         if output_mode is None:
             output_mode = self.output_mode
         else:
-            assert output_mode in ["binned", "events"], "Unknown `output_mode` specified"
+            assert output_mode == 'binned' or output_mode == 'events', 'ERROR: user-specified output mode is unrecognized'
 
-        # new behavior with explicitly defined output keys
-        if self.map_output_key:
-            if output_mode == 'binned':
-                self.outputs = self.data.get_mapset(
-                    self.map_output_key,
-                    error=self.map_output_error_key,
-                )
-            elif output_mode == "events":
-                self.outputs = self.data
+        # Handle the binned case
+        if output_mode == 'binned':
+
+            if force_standard_output:
+
+                # If we want the error on the map counts to be specified by something
+                # other than something called "error" use the key specified in map_output_key
+                # (see pi_resample for an example)
+                if self.map_output_key:
+                        self.outputs = self.data.get_mapset(
+                            self.map_output_key,
+                            error=self.map_output_error_key,
+                        )
+
+                # Very specific case where the output has two keys and one of them is error (compatibility)
+                elif len(self.output_apply_keys) == 2 and 'errors' in self.output_apply_keys:
+                    other_key = [key for key in self.output_apply_keys if not key == 'errors'][0]
+                    self.outputs = self.data.get_mapset(other_key, error='errors')
+
+                # return the first key in output_apply_key as the map output. add errors to the 
+                # map only if "errors" is part of the list of output keys 
+                else:
+                    if 'errors' in self.output_apply_keys:
+                        self.outputs = self.data.get_mapset(self.output_apply_keys[0], error='errors')
+                    else:
+                        self.outputs = self.data.get_mapset(self.output_apply_keys[0])
+
+
+            # More generally: produce one map per output key desired, in a dict
             else:
-                self.outputs = None
-                logging.warning('Cannot create CAKE style output mapset')
+                self.outputs = OrderedDict()
+                for key in self.output_apply_keys:
+                    self.outputs[key] = self.data.get_mapset(key)
 
-            return self.outputs
-
-        # if no output keys are explicitly defined, fall back to previous behavior
-        if output_mode == 'binned' and len(self.output_apply_keys) == 1:
-            self.outputs = self.data.get_mapset(self.output_apply_keys[0])
-        elif len(self.output_apply_keys) == 2 and 'errors' in self.output_apply_keys:
-            other_key = (
-                self.output_apply_keys[0] if self.output_apply_keys[0] != 'errors'
-                else self.output_apply_keys[1]
-            )
-            self.outputs = self.data.get_mapset(other_key, error='errors')
+        # Handle Events mode
         elif output_mode == "events":
             self.outputs = self.data
+    
+        # Throw warning that output mode failed
         else:
             self.outputs = None
-            logging.warning('Cannot create CAKE style output mapset')
+            logging.warning('pi_stage.py: Cannot create CAKE style output mapset')
 
         return self.outputs

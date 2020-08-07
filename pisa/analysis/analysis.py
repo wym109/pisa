@@ -7,7 +7,7 @@ Common tools for performing an analysis collected into a single class
 from __future__ import absolute_import, division
 
 from collections.abc import Sequence
-from collections import OrderedDict 
+from collections import OrderedDict, Mapping
 from copy import deepcopy
 from itertools import product
 import re
@@ -31,9 +31,9 @@ __all__ = ['MINIMIZERS_USING_SYMM_GRAD',
            'set_minimizer_defaults', 'validate_minimizer_settings',
            'Counter', 'Analysis']
 
-__author__ = 'J.L. Lanfranchi, P. Eller, S. Wren'
+__author__ = 'J.L. Lanfranchi, P. Eller, S. Wren, E. Bourbeau'
 
-__license__ = '''Copyright (c) 2014-2017, The IceCube Collaboration
+__license__ = '''Copyright (c) 2014-2020, The IceCube Collaboration
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -51,6 +51,30 @@ __license__ = '''Copyright (c) 2014-2017, The IceCube Collaboration
 MINIMIZERS_USING_SYMM_GRAD = ('l-bfgs-b', 'slsqp')
 """Minimizers that use symmetrical steps on either side of a point to compute
 gradients. See https://github.com/scipy/scipy/issues/4916"""
+
+def merge_mapsets_together(mapset_list=None):
+    '''Handle merging of multiple MapSets, when they come in
+    the shape of a dict
+
+    '''
+
+    if isinstance(mapset_list[0], Mapping):    
+        new_dict = OrderedDict()
+        for S in mapset_list:
+            for k,v in S.items():
+
+                if k not in new_dict.keys():
+                    new_dict[k] = [m for m in v.maps]
+                else:
+                    new_dict[k] += [m for m in v.maps]
+
+        for k,v in new_dict.items():
+            new_dict[k] = MapSet(v)
+
+    else:
+        raise TypeError('This function only works when mapsets are provided as dicts')
+
+    return new_dict
 
 
 # TODO: add Nelder-Mead, as it was used previously...
@@ -730,6 +754,11 @@ class Analysis(object):
 
         # reset number of iterations before each minimization
         self._nit = 0
+
+        #
+        # From that point on, optimize starts using the metric and 
+        # iterates, no matter what you do 
+        #
         optimize_result = optimize.minimize(
             fun=self._minimizer_callable,
             x0=x0,
@@ -772,6 +801,8 @@ class Analysis(object):
         for k in sorted(optimize_result.keys()):
             if blind and k in ['jac', 'hess', 'hess_inv']:
                 continue
+            if k=='hess_inv':
+                continue
             metadata[k] = optimize_result[k]
 
         fit_info = OrderedDict()
@@ -789,8 +820,15 @@ class Analysis(object):
                 other_metrics=other_metrics, detector_name=hypo_maker.det_names[i]
             ) for i in range(len(data_dist))]
         else: # DistributionMaker object
+
+            if 'generalized_poisson_llh' == metric[0]:
+                generalized_poisson_dist = hypo_maker.get_outputs(return_sum=False, force_standard_output=False)
+                generalized_poisson_dist = merge_mapsets_together(mapset_list=generalized_poisson_dist)
+            else:
+                generalized_poisson_dist = None
+
             fit_info['detailed_metric_info'] = self.get_detailed_metric_info(
-                data_dist=data_dist, hypo_asimov_dist=hypo_asimov_dist,
+                data_dist=data_dist, hypo_asimov_dist=hypo_asimov_dist, generalized_poisson_hypo=generalized_poisson_dist,
                 params=hypo_maker.params, metric=metric[0], other_metrics=other_metrics,
                 detector_name=hypo_maker._detector_name
             )
@@ -860,13 +898,27 @@ class Analysis(object):
                 priors = hypo_maker.params.priors_penalty(metric=metric[0]) # uses just the "first" metric for prior
                 metric_val += priors
             else: # DistributionMaker object
+
+                if 'generalized_poisson_llh' == metric[0]:
+
+                    hypo_asimov_dist = hypo_maker.get_outputs(return_sum=False, output_mode='binned', force_standard_output=False)
+                    hypo_asimov_dist = merge_mapsets_together(mapset_list=hypo_asimov_dist)
+                    data_dist = data_dist.maps[0] # Extract the map from the MapSet
+                    metric_kwargs = {'empty_bins':hypo_maker.empty_bin_indices}
+                else:
+                    hypo_asimov_dist = hypo_maker.get_outputs(return_sum=True)
+                    if isinstance(hypo_asimov_dist, OrderedDict):
+                        hypo_asimov_dist = hypo_asimov_dist['weights']
+                    metric_kwargs = {}
+
                 metric_val = (
                     data_dist.metric_total(expected_values=hypo_asimov_dist,
-                                           metric=metric[0])
+                                           metric=metric[0], metric_kwargs=metric_kwargs)
                     + hypo_maker.params.priors_penalty(metric=metric[0])
                 )
                 if external_priors_penalty is not None:
                     metric_val += external_priors_penalty(hypo_maker=hypo_maker,metric=metric[0])
+                    
         except Exception as e:
             if blind:
                 logging.error('Minimizer failed')
@@ -894,11 +946,19 @@ class Analysis(object):
                 other_metrics=other_metrics, detector_name=hypo_maker.det_names[i]
             ) for i in range(len(data_dist))]
         else: # DistributionMaker object
+
+            if 'generalized_poisson_llh' == metric[0]:
+                generalized_poisson_dist = hypo_maker.get_outputs(return_sum=False, force_standard_output=False)
+                generalized_poisson_dist = merge_mapsets_together(mapset_list=generalized_poisson_dist)
+            else:
+                generalized_poisson_dist = None
+
             fit_info['detailed_metric_info'] = self.get_detailed_metric_info(
-                data_dist=data_dist, hypo_asimov_dist=hypo_asimov_dist,
+                data_dist=data_dist, hypo_asimov_dist=hypo_asimov_dist, generalized_poisson_hypo=generalized_poisson_dist,
                 params=hypo_maker.params, metric=metric[0], other_metrics=other_metrics,
                 detector_name=hypo_maker._detector_name
             )
+
         fit_info['minimizer_time'] = 0 * ureg.sec
         fit_info['num_distributions_generated'] = 0
         fit_info['minimizer_metadata'] = OrderedDict()
@@ -906,7 +966,7 @@ class Analysis(object):
         return fit_info
 
     @staticmethod
-    def get_detailed_metric_info(data_dist, hypo_asimov_dist, params, metric,
+    def get_detailed_metric_info(data_dist, hypo_asimov_dist, params, metric,generalized_poisson_hypo=None,
                                  other_metrics=None, detector_name=None):
         """Get detailed fit information, including e.g. maps that yielded the
         metric.
@@ -934,24 +994,43 @@ class Analysis(object):
             detailed_metric_info['detector_name'] = detector_name
         for m in all_metrics:
             name_vals_d = OrderedDict()
-            name_vals_d['maps'] = data_dist.metric_per_map(
-                expected_values=hypo_asimov_dist, metric=m
-            )
-            metric_hists = data_dist.metric_per_map(
-                expected_values=hypo_asimov_dist, metric='binned_'+m
-            )
-            maps_binned = []
-            for asimov_map, metric_hist in zip(hypo_asimov_dist, metric_hists):
-                map_binned = Map(
-                    name=asimov_map.name,
-                    hist=np.reshape(metric_hists[metric_hist],
-                                    asimov_map.shape),
-                    binning=asimov_map.binning
+
+            # if the metric is not generalized poisson, but the distribution is a dict,
+            # retrieve the 'weights' mapset from the distribution output
+            if m == 'generalized_poisson_llh':
+                name_vals_d['maps'] = data_dist.maps[0].generalized_poisson_llh(expected_values=generalized_poisson_hypo)
+                llh_binned = data_dist.maps[0].generalized_poisson_llh(expected_values=generalized_poisson_hypo, binned=True)
+                map_binned = Map(name=metric,
+                                hist=np.reshape(llh_binned, data_dist.maps[0].shape),
+                                binning=data_dist.maps[0].binning
+                    )
+                name_vals_d['maps_binned'] = MapSet(map_binned)
+                name_vals_d['priors'] = params.priors_penalties(metric=metric)
+                detailed_metric_info[m] = name_vals_d
+
+            else:
+                if isinstance(hypo_asimov_dist,OrderedDict):
+                    hypo_asimov_dist = hypo_asimov_dist['weights']
+
+                name_vals_d['maps'] = data_dist.metric_per_map(
+                    expected_values=hypo_asimov_dist, metric=m
                 )
-                maps_binned.append(map_binned)
-            name_vals_d['maps_binned'] = MapSet(maps_binned)
-            name_vals_d['priors'] = params.priors_penalties(metric=metric)
-            detailed_metric_info[m] = name_vals_d
+                metric_hists = data_dist.metric_per_map(
+                    expected_values=hypo_asimov_dist, metric='binned_'+m
+                )
+            
+                maps_binned = []
+                for asimov_map, metric_hist in zip(hypo_asimov_dist, metric_hists):
+                    map_binned = Map(
+                        name=asimov_map.name,
+                        hist=np.reshape(metric_hists[metric_hist],
+                                        asimov_map.shape),
+                        binning=asimov_map.binning
+                    )
+                    maps_binned.append(map_binned)
+                name_vals_d['maps_binned'] = MapSet(maps_binned)
+                name_vals_d['priors'] = params.priors_penalties(metric=metric)
+                detailed_metric_info[m] = name_vals_d
         return detailed_metric_info
 
     def _minimizer_callable(self, scaled_param_vals, hypo_maker, data_dist,
@@ -1017,7 +1096,17 @@ class Analysis(object):
 
         # Get the Asimov map set
         try:
-            hypo_asimov_dist = hypo_maker.get_outputs(return_sum=True)
+            if metric[0] == 'generalized_poisson_llh':
+                hypo_asimov_dist = hypo_maker.get_outputs(return_sum=False, output_mode='binned', force_standard_output=False)
+                hypo_asimov_dist = merge_mapsets_together(mapset_list=hypo_asimov_dist)
+                data_dist = data_dist.maps[0] # Extract the map from the MapSet
+                metric_kwargs = {'empty_bins':hypo_maker.empty_bin_indices}
+            else:
+                hypo_asimov_dist = hypo_maker.get_outputs(return_sum=True)
+                if isinstance(hypo_asimov_dist, OrderedDict):
+                    hypo_asimov_dist = hypo_asimov_dist['weights']
+                metric_kwargs = {}
+
         except Exception as e:
             if blind:
                 logging.error('Minimizer failed')
@@ -1038,22 +1127,24 @@ class Analysis(object):
         else: # DistributionMaker object
             assert len(metric) == 1
 
+        #
         # Assess the fit: whether the data came from the hypo_asimov_dist
+        #
         try:
             if isinstance(hypo_maker, Detectors):
                 metric_val = 0
                 for i in range(len(hypo_maker._distribution_makers)):
                     data = data_dist[i].metric_total(expected_values=hypo_asimov_dist[i],
-                                                  metric=metric[i])
+                                                  metric=metric[i], metric_kwargs=metric_kwargs)
                     metric_val += data
                 priors = hypo_maker.params.priors_penalty(metric=metric[0]) # uses just the "first" metric for prior
                 metric_val += priors
             else: # DistributionMaker object
                 metric_val = (
                     data_dist.metric_total(expected_values=hypo_asimov_dist,
-                                           metric=metric[0])
-                    + hypo_maker.params.priors_penalty(metric=metric[0])
-                )
+                                               metric=metric[0], metric_kwargs=metric_kwargs)
+                        + hypo_maker.params.priors_penalty(metric=metric[0])
+                    )
         except Exception as e:
             if blind:
                 logging.error('Minimizer failed')
