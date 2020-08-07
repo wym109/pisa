@@ -11,7 +11,7 @@ from __future__ import absolute_import, print_function, division
 import numpy as np
 from numba import guvectorize
 
-from pisa import FTYPE, TARGET
+from pisa import FTYPE, TARGET, ureg
 from pisa.core.pi_stage import PiStage
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
@@ -291,6 +291,12 @@ class pi_prob3(PiStage):
                 self.layers.calcLayers(container['true_coszen'].get('host'))
                 container['densities'] = self.layers.density.reshape((container.size, self.layers.max_layers))
                 container['distances'] = self.layers.distance.reshape((container.size, self.layers.max_layers))
+
+        # some safety checks on units
+        # trying to avoid issue of angles with no dimension being assumed to be radians
+        # here we enforce the user must speficy a valid angle unit
+        for angle_param in [self.params.theta12, self.params.theta13, self.params.theta23, self.params.deltacp] :
+            assert angle_param.value.units != ureg.dimensionless, "Param %s is dimensionless, but should have angle units [rad, degree]" % angle_param.name
 
         # --- update mixing params ---
         self.osc_params.theta12 = self.params.theta12.value.m_as('rad')
