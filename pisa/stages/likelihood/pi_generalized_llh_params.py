@@ -59,8 +59,10 @@ from pisa.utils.profiler import profile, line_profile
 from pisa.utils.log import set_verbosity, Levels
 #set_verbosity(Levels.DEBUG)
 
+PSEUDO_WEIGHT = 0.001
 
-class prepare_generalized_llh_parameters(PiStage):
+
+class pi_generalized_llh_params(PiStage):
 	"""
 	Pisa stage that applies mean adjustment and
 	empty bin filling. Also computes alphas and betas
@@ -70,15 +72,15 @@ class prepare_generalized_llh_parameters(PiStage):
 
 	# this is the constructor with default arguments
 	def __init__(self,
-				 data=None,
-				 params=None,
-				 input_names=None,
-				 output_names=None,
-				 debug_mode=None,
-				 input_specs=None,
-				 calc_specs=None,
-				 output_specs=None,
-				 ):
+		data=None,
+		params=None,
+		input_names=None,
+		output_names=None,
+		debug_mode=None,
+		input_specs=None,
+		calc_specs=None,
+		output_specs=None,
+		):
 		#
 		# A bunch of options we don't need
 		#
@@ -95,19 +97,19 @@ class prepare_generalized_llh_parameters(PiStage):
 							 'llh_betas', 'n_mc_events', 'old_sum')
 
 		# init base class
-		super(prepare_generalized_llh_parameters, self).__init__(data=data,
-																 params=params,
-																 expected_params=expected_params,
-																 input_names=input_names,
-																 output_names=output_names,
-																 debug_mode=debug_mode,
-																 input_specs=input_specs,
-																 calc_specs=calc_specs,
-																 output_specs=output_specs,
-																 input_apply_keys=input_apply_keys,
-																 output_apply_keys=output_apply_keys,
-																 output_calc_keys=output_calc_keys,
-																 )
+		super(pi_generalized_llh_params, self).__init__(data=data,
+												 params=params,
+												 expected_params=expected_params,
+												 input_names=input_names,
+												 output_names=output_names,
+												 debug_mode=debug_mode,
+												 input_specs=input_specs,
+												 calc_specs=calc_specs,
+												 output_specs=output_specs,
+												 input_apply_keys=input_apply_keys,
+												 output_apply_keys=output_apply_keys,
+												 output_calc_keys=output_calc_keys,
+												 )
 
 	def setup_function(self):
 		"""
@@ -159,7 +161,14 @@ class prepare_generalized_llh_parameters(PiStage):
 			container.add_scalar_data(key='mean_adjustment', data=mean_adjustment)
 
 
-
+			#
+			# Add hypersurface containers if they don't exist
+			# (to avoid errors in get_outputs, if we want )
+			# these to be returned when you call get_output
+			#
+			if 'hs_scales' not in container.keys():
+				container['hs_scales'] =  np.empty((container.size), dtype=FTYPE)
+				container['errors'] = np.empty((container.size), dtype=FTYPE)
 
 
 	def apply_function(self):
@@ -187,7 +196,7 @@ class prepare_generalized_llh_parameters(PiStage):
 
 			# for this part we are in events mode
 			# Find the minimum weight of an entire MC set
-			pseudo_weight = 0.001#np.mean(container['weights'].get('host'))
+			pseudo_weight = 0.001
 			container.add_scalar_data(key='pseudo_weight', data=pseudo_weight)
 
 			old_weight_sum = np.zeros(N_bins)
@@ -238,8 +247,12 @@ class prepare_generalized_llh_parameters(PiStage):
 					logging.warn(container.name, var_z)
 					raise Exception
 
-				beta = mean_w/var_z
-				trad_alpha = (mean_w**2)/var_z
+				# if the weights presents have a mean of zero, 
+				# default to alphas values of PSEUDO_WEIGHT and
+				# of beta = 1.0, which mimicks a narrow PDF
+				# close to 0.0 
+				beta = np.divide(mean_w, var_z, out=np.ones(1), where=var_z!=0)
+				trad_alpha = np.divide(mean_w**2, var_z, out=np.ones(1)*PSEUDO_WEIGHT, where=var_z!=0)
 				alpha = (n_weights + mean_adjustment)*trad_alpha
 
 				alphas_vector[index] = alpha
