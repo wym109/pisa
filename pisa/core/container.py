@@ -176,9 +176,19 @@ class VirtualContainer(object):
                 raise ValueError('Cannot link container %s since it is already linked'%container.name)
             container.linked = True
         self.containers = containers
+        # keeping track of what was accessed
+        self.accessed_keys = []
 
     def unlink(self):
-        """Reset link flag"""
+        '''Reset flag and copy all accessed keys'''
+        for key in np.unique(self.accessed_keys):
+            value = self.containers[0][key]
+            for container in self.containers[1:]:
+                if np.isscalar(value):
+                    container.scalar_data[key] = self.containers[0].scalar_data[key]
+                else:
+                    container.binned_data[key] = self.containers[0].binned_data[key]
+        # reset flag
         for container in self:
             container.linked = False
 
@@ -187,6 +197,7 @@ class VirtualContainer(object):
 
     def __getitem__(self, key):
         # should we check they're all the same?
+        self.accessed_keys.append(key)
         return self.containers[0][key]
 
     def __setitem__(self, key, value):
