@@ -11,6 +11,7 @@ from __future__ import absolute_import, print_function
 
 from collections.abc import Sequence
 from collections import OrderedDict
+import copy
 from itertools import chain
 
 import numpy as np
@@ -119,6 +120,10 @@ class ContainerSet(object):
     def __getitem__(self, key):
         if key in self.names:
             return self.containers[self.names.index(key)]
+        if len(self.linked_containers) > 0:
+            linked_names = [c.name for c in self.linked_containers]
+            if key in linked_names:
+                return self.linked_containers[linked_names.index(key)] 
         raise KeyError(f"No name '{key}' in container")
 
     def __iter__(self):
@@ -182,12 +187,17 @@ class VirtualContainer(object):
     def unlink(self):
         '''Reset flag and copy all accessed keys'''
         for key in np.unique(self.accessed_keys):
+            if key in self.containers[0].data_specs.names:
+                continue
             value = self.containers[0][key]
             for container in self.containers[1:]:
                 if np.isscalar(value):
-                    container.scalar_data[key] = self.containers[0].scalar_data[key]
+                    del container.scalar_data[key]
+                    container.scalar_data[key] = copy.deepcopy(self.containers[0].scalar_data[key])
                 else:
-                    container.binned_data[key] = self.containers[0].binned_data[key]
+                    array = container.binned_data[key][1].get('host')
+                    array[:] = self.containers[0].binned_data[key][1].get('host')[:]
+                    container[key].mark_changed('host')
         # reset flag
         for container in self:
             container.linked = False
@@ -204,9 +214,12 @@ class VirtualContainer(object):
         self.containers[0][key] = value
         for container in self.containers[1:]:
             if np.isscalar(value):
-                container.scalar_data[key] = self.containers[0].scalar_data[key]
+                del container.scalar_data[key]
+                container.scalar_data[key] = copy.deepcopy(self.containers[0].scalar_data[key])
             else:
-                container.binned_data[key] = self.containers[0].binned_data[key]
+                array = container.binned_data[key][1].get('host')
+                array[:] = self.containers[0].binned_data[key][1].get('host')[:]
+                container[key].mark_changed('host')
 
     @property
     def size(self):
