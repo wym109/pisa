@@ -214,12 +214,14 @@ class VirtualContainer(object):
         self.containers[0][key] = value
         for container in self.containers[1:]:
             if np.isscalar(value):
-                del container.scalar_data[key]
-                container.scalar_data[key] = copy.deepcopy(self.containers[0].scalar_data[key])
+                container.scalar_data[key] = self.containers[0].scalar_data[key]
             else:
-                array = container.binned_data[key][1].get('host')
-                array[:] = self.containers[0].binned_data[key][1].get('host')[:]
-                container[key].mark_changed('host')
+                if key in container.binned_data.keys():
+                    array = container.binned_data[key][1].get('host')
+                    array[:] = self.containers[0].binned_data[key][1].get('host')[:]
+                    container[key].mark_changed('host')
+                else:
+                    container.binned_data[key] = self.containers[0].binned_data[key]
 
     @property
     def size(self):
