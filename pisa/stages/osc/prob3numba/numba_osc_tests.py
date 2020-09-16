@@ -39,7 +39,7 @@ from inspect import getmodule, signature
 from os.path import join
 
 import numpy as np
-from numba import SmartArray
+from pisa.utils.smartarray import SmartArray
 
 from pisa import FTYPE
 from pisa.utils.comparisons import ALLCLOSE_KW

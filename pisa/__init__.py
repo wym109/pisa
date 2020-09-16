@@ -141,8 +141,8 @@ else:
     NUMBA_CUDA_AVAIL = True
 finally:
     if 'cuda' in globals() or 'cuda' in locals():
-        if NUMBA_CUDA_AVAIL:
-            cuda.close()
+        #if NUMBA_CUDA_AVAIL:
+        #    cuda.close()
         del cuda
 del dummy_func
 

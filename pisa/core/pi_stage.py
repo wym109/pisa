@@ -7,7 +7,7 @@ functionality is built-in.
 from __future__ import absolute_import, division
 
 from collections import OrderedDict
-from numba import SmartArray
+from pisa.utils.smartarray import SmartArray
 
 from pisa.core.base_stage import BaseStage
 from pisa.core.binning import MultiDimBinning
@@ -187,7 +187,7 @@ class PiStage(BaseStage):
                 for key, array in container.array_data.items():
                     if not isinstance(array, SmartArray):
                         raise TypeError(
-                            "Array `%s` in `data` should be a `numba.SmartArray`, but"
+                            "Array `%s` in `data` should be a PISA `SmartArray`, but"
                             " is a %s" % (key, type(array))
                         )
 

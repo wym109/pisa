@@ -17,7 +17,7 @@ from pisa.core.pi_stage import PiStage
 from pisa.utils.profiler import profile
 from pisa.utils import vectorizer
 from pisa.core import translation
-from numba import SmartArray
+from pisa.utils.smartarray import SmartArray
 
 from pisa.utils.log import logging, set_verbosity
 

@@ -15,7 +15,7 @@ import copy
 from itertools import chain
 
 import numpy as np
-from numba import SmartArray
+from pisa.utils.smartarray import SmartArray
 
 from pisa import FTYPE
 from pisa.core.binning import OneDimBinning, MultiDimBinning
