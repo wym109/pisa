@@ -33,6 +33,7 @@ __all__ = [
     "copy_matrix",
     "copy_matrix_guf",
     "test_copy_matrix",
+    "cuda_copy",
 ]
 __version__ = "0.2"
 __author__ = "Philipp Eller (pde3@psu.edu)"
@@ -46,6 +47,9 @@ import cmath  # pylint: disable=unused-import
 import math  # pylint: disable=unused-import
 
 import numpy as np
+
+import numba
+
 from numba import (  # pylint: disable=unused-import
     complex64,
     complex128,
@@ -140,6 +144,18 @@ def myjit(func):
 
 # --------------------------------------------------------------------------- #
 
+
+def cuda_copy(func):
+    ''' Handle copying back device array'''
+    def wrapper(*args, **kwargs):
+        out = kwargs.pop("out")
+        if TARGET == "cuda" and not isinstance(out, numba.cuda.devicearray.DeviceNDArray):
+            d_out = numba.cuda.to_device(out)
+            func(*args, **kwargs, out=d_out)
+            d_out.copy_to_host(out)
+        else:
+            func(*args, **kwargs, out=out)
+    return wrapper
 
 @myjit
 def conjugate_transpose(A, B):
