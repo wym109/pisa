@@ -46,46 +46,34 @@ class ContainerSet(object):
             containers = []
         for container in containers:
             self.add_container(container)
-        self._data_specs = None
-        self.data_specs = data_specs
 
+    def __repr__(self):
+        return f'ContainerSet containing {[c.name for s in self]}'
+
+            
     def add_container(self, container):
         if container.name in self.names:
             raise ValueError('container with name %s already exists'%container.name)
         self.containers.append(container)
 
     @property
-    def data_mode(self):
-        """The data mode can be 'events', 'binned' or None, depending on the
-        set data_specs"""
-        if self.data_specs == 'events':
-            return 'events'
-        elif isinstance(self.data_specs, MultiDimBinning):
-            return 'binned'
-        elif self.data_specs is None:
-            return None
+    def representation(self):
+        return self._representation
 
-    @property
-    def data_specs(self):
-        return self._data_specs
-
-    @data_specs.setter
-    def data_specs(self, data_specs):
+    @representation.setter
+    def representation(self, representation):
         """
         Parameters
         ----------
-        data_specs : str, MultiDimBinning or None
+        representation : str, MultiDimBinning or any hashable object
             Data specs should be set to retreive the right representation
             i.e. the representation one is working in at the moment
 
             This property is meant to be changed while working with a ContainerSet
-
         """
-        if not (data_specs == 'events' or isinstance(data_specs, MultiDimBinning) or data_specs is None):
-            raise ValueError('cannot understand data_specs %s'%data_specs)
-        self._data_specs = data_specs
+        self._representation = representation
         for container in self:
-            container.data_specs = self._data_specs
+            container.representation = representation
 
     @property
     def names(self):
@@ -181,23 +169,12 @@ class VirtualContainer(object):
                 raise ValueError('Cannot link container %s since it is already linked'%container.name)
             container.linked = True
         self.containers = containers
-        # keeping track of what was accessed
-        self.accessed_keys = []
+        
+    def __repr__(self):
+        return f'VirtualContainer containing {[c.name for s in self]}'
 
     def unlink(self):
         '''Reset flag and copy all accessed keys'''
-        for key in np.unique(self.accessed_keys):
-            if key in self.containers[0].data_specs.names:
-                continue
-            value = self.containers[0][key]
-            for container in self.containers[1:]:
-                if np.isscalar(value):
-                    del container.scalar_data[key]
-                    container.scalar_data[key] = copy.deepcopy(self.containers[0].scalar_data[key])
-                else:
-                    array = container.binned_data[key][1].get('host')
-                    array[:] = self.containers[0].binned_data[key][1].get('host')[:]
-                    container[key].mark_changed('host')
         # reset flag
         for container in self:
             container.linked = False
@@ -207,26 +184,39 @@ class VirtualContainer(object):
 
     def __getitem__(self, key):
         # should we check they're all the same?
-        self.accessed_keys.append(key)
         return self.containers[0][key]
 
     def __setitem__(self, key, value):
-        self.containers[0][key] = value
-        for container in self.containers[1:]:
-            if np.isscalar(value):
-                container.scalar_data[key] = self.containers[0].scalar_data[key]
-            else:
-                if key in container.binned_data.keys():
-                    array = container.binned_data[key][1].get('host')
-                    array[:] = self.containers[0].binned_data[key][1].get('host')[:]
-                    container[key].mark_changed('host')
-                else:
-                    container.binned_data[key] = self.containers[0].binned_data[key]
+        for container in self:
+            container[key] = np.copy(value)
 
+    def set_aux_data(self, key, val):
+        for container in self:
+            container.set_aux_data(key, val)
+            
+    def mark_changed(self, key):
+        # copy all
+        for container in self.containers[1:]:
+            container[key] = np.copy(value)
+        for container in self:
+            container.mark_changed(key)
+    
+    def mark_valid(self, key):
+        for container in self:
+            container.mark_valid(key)                    
     @property
-    def size(self):
-        """size of container"""
-        return self.containers[0].size
+    def representation(self):
+        return self.containers[0].representation
+    
+    @representation.setter
+    def representation(self, representation):
+        for container in self:
+            container.representation = representation
+            
+    @property
+    def shape(self):
+        return self.containers[0].shape
+
 
 class Container():
     
@@ -256,7 +246,7 @@ class Container():
         
         # ToDo: simple auxillary data like scalars
         # dict of form [variable]
-        self.aux_data = {}
+        self._aux_data = {}
         
         # validity bit
         # dict of form [variable][representation_hash]
@@ -280,9 +270,20 @@ class Container():
         
         self.representation = representation
     
+    def __repr__(self):
+        return f'Container containing keys {self.all_keys}'
+    
     @property
     def representation(self):
         return self._representation
+
+    
+    def set_aux_data(self, key, val):
+        '''Add any auxillary data, which will not be translated or tied to a specific representation'''
+        if key in self.all_keys:
+            raise KeyError(f'Key {key} already exsits')
+
+        self._aux_data[key] = val
     
     @representation.setter
     def representation(self, representation):
@@ -431,8 +432,8 @@ class Container():
                 self.auto_translate(key)
                 #raise KeyError(f'Data {key} not present in chosen representation')
             else:
-                if key in self.aux_data.keys():
-                    return self.aux_data[key]
+                if key in self._aux_data.keys():
+                    return self._aux_data[key]
                 else:
                     raise KeyError(f'Data {key} not present in Container')
         
