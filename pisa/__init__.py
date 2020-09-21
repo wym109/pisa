@@ -178,10 +178,10 @@ ITYPE = np.int32 if FTYPE == np.float32 else np.int64
 del FLOAT32_STRINGS, FLOAT64_STRINGS
 
 # set default target
-if NUMBA_CUDA_AVAIL:
-    TARGET = 'cuda'
-else:
-    TARGET = 'cpu'
+#if NUMBA_CUDA_AVAIL:
+#    TARGET = 'cuda'
+#else:   
+TARGET = 'cpu'
 
 cpu_targets = ['cpu', 'numba'] # pylint: disable=invalid-name
 parallel_targets = ['parallel', 'multicore'] # pylint: disable=invalid-name
