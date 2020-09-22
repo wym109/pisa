@@ -18,7 +18,7 @@ import numpy as np
 from numba import guvectorize
 
 from pisa import FTYPE, TARGET
-from pisa.core.pi_stage import PiStage
+from pisa.core.stage import PiStage
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
 from pisa.utils.numba_tools import WHERE, myjit
@@ -32,7 +32,7 @@ def antipion_production(barr_var, pion_ratio):
     return ((1 + barr_var) / (1 + pion_ratio)) - 1
 
 
-class pi_mceq_barr(PiStage):
+class mceq_barr(PiStage):
     """
     Stage to generate nominal flux from MCEq and apply Barr style flux uncertainties.
 
@@ -186,7 +186,7 @@ class pi_mceq_barr(PiStage):
 
 
         # init base class
-        super(pi_mceq_barr, self).__init__(
+        super(mceq_barr, self).__init__(
             data=data,
             params=params,
             expected_params=expected_params,

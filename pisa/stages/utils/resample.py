@@ -3,7 +3,7 @@ Stage to transform binned data from one binning to another while also dealing wi
 uncertainty estimates in a reasonable way. In particular, this allows up-sampling from a
 more coarse binning to a finer binning.
 
-The implementation is similar to that of the pi_hist stage, hence the over-writing of
+The implementation is similar to that of the hist stage, hence the over-writing of
 the `apply` method.
 """
 
@@ -13,7 +13,7 @@ import numpy as np
 from enum import Enum, auto
 
 from pisa import FTYPE
-from pisa.core.pi_stage import PiStage
+from pisa.core.stage import PiStage
 from pisa.utils.profiler import profile
 from pisa.utils import vectorizer
 from pisa.core import translation
@@ -22,13 +22,13 @@ from pisa.utils.smartarray import SmartArray
 from pisa.utils.log import logging, set_verbosity
 
 class ResampleMode(Enum):
-    """Enumerates sampling methods of the `pi_resample` stage."""
+    """Enumerates sampling methods of the `resample` stage."""
 
     UP = auto()
     DOWN = auto()
     ARB = auto()
 
-class pi_resample(PiStage):  # pylint: disable=invalid-name
+class resample(PiStage):  # pylint: disable=invalid-name
     """
     Stage to resample weighted MC histograms from one binning to another.
     
@@ -202,7 +202,7 @@ class pi_resample(PiStage):  # pylint: disable=invalid-name
                 )
     
     
-def test_pi_resample():
+def test_resample():
     """Unit test for the resampling stage."""
     from pisa.core.distribution_maker import DistributionMaker
     from pisa.core.map import Map
@@ -213,19 +213,19 @@ def test_pi_resample():
     from copy import deepcopy
     
     example_cfg = parse_pipeline_config('settings/pipeline/example.cfg')
-    reco_binning = example_cfg[('utils', 'pi_hist')]['output_specs']
+    reco_binning = example_cfg[('utils', 'hist')]['output_specs']
     coarse_binning = reco_binning.downsample(reco_energy=2, reco_coszen=2)
     assert coarse_binning.is_compat(reco_binning)
     
     # replace binning of output with coarse binning
-    example_cfg[('utils', 'pi_hist')]['output_specs'] = coarse_binning
+    example_cfg[('utils', 'hist')]['output_specs'] = coarse_binning
     # make another pipeline with an upsampling stage to the original binning
     upsample_cfg = deepcopy(example_cfg)
-    pi_resample_cfg = OrderedDict()
-    pi_resample_cfg['input_specs'] = coarse_binning
-    pi_resample_cfg['output_specs'] = reco_binning
-    pi_resample_cfg['scale_errors'] = True
-    upsample_cfg[('utils', 'pi_resample')] = pi_resample_cfg
+    resample_cfg = OrderedDict()
+    resample_cfg['input_specs'] = coarse_binning
+    resample_cfg['output_specs'] = reco_binning
+    resample_cfg['scale_errors'] = True
+    upsample_cfg[('utils', 'resample')] = resample_cfg
 
     example_maker = DistributionMaker([example_cfg])
     upsampled_maker = DistributionMaker([upsample_cfg])
@@ -298,8 +298,8 @@ def test_pi_resample():
                        random_map_upsampled.mod_chi2(example_map_upsampled),
                        **ALLCLOSE_KW,
                       )
-    logging.info('<< PASS : pi_resample >>')
+    logging.info('<< PASS : resample >>')
 
 if __name__ == "__main__":
     set_verbosity(2)
-    test_pi_resample()
+    test_resample()

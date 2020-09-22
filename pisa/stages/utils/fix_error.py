@@ -10,12 +10,12 @@ from __future__ import absolute_import, print_function, division
 import numpy as np
 
 from pisa import FTYPE
-from pisa.core.pi_stage import PiStage
+from pisa.core.stage import PiStage
 from pisa.utils.profiler import profile
 from pisa.utils import vectorizer
 from pisa.utils.numba_tools import WHERE
 
-class pi_fix_error(PiStage):  # pylint: disable=invalid-name
+class fix_error(PiStage):  # pylint: disable=invalid-name
     """
     stage to fix the error returned by template_maker.
     """

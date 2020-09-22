@@ -25,9 +25,7 @@ from pisa.core.events import Data
 from pisa.core.map import Map, MapSet
 from pisa.core.param import ParamSet
 from pisa.core.base_stage import BaseStage
-from pisa.core.stage import Stage
-from pisa.core.pi_stage import PiStage
-from pisa.core.transform import TransformSet
+from pisa.core.stage import PiStage
 from pisa.core.container import ContainerSet
 from pisa.utils.config_parser import PISAConfigParser, parse_pipeline_config
 from pisa.utils.fileio import mkdir
@@ -181,6 +179,9 @@ class Pipeline(object):
 
                 stage_name, service_name = name
 
+                # old cfgs compatibility
+                service_name = service_name.replace('', '')
+
                 logging.debug(
                     "instantiating stage %s / service %s", stage_name, service_name
                 )
@@ -209,12 +210,10 @@ class Pipeline(object):
                     )
                     raise
 
-                cake_stage = isinstance(service, Stage)
-                pi_stage = isinstance(service, PiStage)
+                stage = isinstance(service, PiStage)
 
-                if not (cake_stage or pi_stage):
+                if not (stage):
                     logging.debug("is BaseStage? %s", isinstance(service, BaseStage))
-                    logging.debug("is Stage (cake)? %s", isinstance(service, Stage))
                     logging.debug("is PiStage? %s", isinstance(service, PiStage))
 
                     raise TypeError(
@@ -231,24 +230,7 @@ class Pipeline(object):
                         )
                     )
 
-                # first stage can determine type of pipeline
-                if self.pisa_version is None:
-                    self.pisa_version = "cake" if cake_stage else "pi"
-
-                elif self.pisa_version == "cake" and pi_stage:
-                    raise TypeError(
-                        "Trying to use the PISA Pi Stage in " "a PISA cake pipeline."
-                    )
-
-                elif self.pisa_version == "pi" and cake_stage:
-                    raise TypeError(
-                        "Trying to use the PISA cake Stage in " "a PISA Pi pipeline."
-                    )
-
-                # Append service to pipeline
-
-                if self.pisa_version == "pi":
-                    service.data = self.data
+                service.data = self.data
                 # add events object
 
                 # run setup on service

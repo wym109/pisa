@@ -7,13 +7,13 @@ from __future__ import absolute_import, print_function, division
 import numpy as np
 
 from pisa import FTYPE, TARGET
-from pisa.core.pi_stage import PiStage
+from pisa.core.stage import PiStage
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
 from pisa.utils import vectorizer
 from pisa.utils.kde_hist import kde_histogramdd
 
-class pi_kde(PiStage):
+class kde(PiStage):
     """stage to KDE-map events
 
     Parameters

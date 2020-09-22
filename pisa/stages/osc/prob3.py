@@ -12,18 +12,18 @@ import numpy as np
 from numba import guvectorize
 
 from pisa import FTYPE, TARGET, ureg
-from pisa.core.pi_stage import PiStage
+from pisa.core.stage import PiStage
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
 from pisa.stages.osc.nsi_params import StdNSIParams, VacuumLikeNSIParams
-from pisa.stages.osc.pi_osc_params import OscParams
+from pisa.stages.osc.osc_params import OscParams
 from pisa.stages.osc.layers import Layers
 from pisa.stages.osc.prob3numba.numba_osc_hostfuncs import propagate_array, fill_probs
 from pisa.utils.numba_tools import WHERE
 from pisa.utils.resources import find_resource
 
 
-class pi_prob3(PiStage):
+class prob3(PiStage):
     """
     Prob3-like oscillation PISA Pi class
 

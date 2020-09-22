@@ -50,7 +50,7 @@ import numpy as np
 import copy
 
 from pisa import FTYPE
-from pisa.core.pi_stage import PiStage
+from pisa.core.stage import PiStage
 
 
 # uncomment this to debug stuff
@@ -62,7 +62,7 @@ from pisa.utils.log import set_verbosity, Levels
 PSEUDO_WEIGHT = 0.001
 
 
-class pi_generalized_llh_params(PiStage):
+class generalized_llh_params(PiStage):
 	"""
 	Pisa stage that applies mean adjustment and
 	empty bin filling. Also computes alphas and betas
@@ -97,7 +97,7 @@ class pi_generalized_llh_params(PiStage):
 							 'llh_betas', 'n_mc_events', 'old_sum')
 
 		# init base class
-		super(pi_generalized_llh_params, self).__init__(data=data,
+		super(generalized_llh_params, self).__init__(data=data,
 												 params=params,
 												 expected_params=expected_params,
 												 input_names=input_names,

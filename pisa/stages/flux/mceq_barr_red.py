@@ -18,14 +18,14 @@ import numpy as np
 from numba import guvectorize
 
 from pisa import FTYPE, TARGET
-from pisa.core.pi_stage import PiStage
+from pisa.core.stage import PiStage
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
 from pisa.utils.numba_tools import WHERE, myjit
 from pisa.utils.resources import find_resource
 
 
-class pi_mceq_barr_red(PiStage):
+class mceq_barr_red(PiStage):
     """
     Stage that uses gradients calculated with MCEq to handle flux uncertainties.
     This stage calculates flux variations relative to a nominal flux that must
@@ -69,7 +69,7 @@ class pi_mceq_barr_red(PiStage):
 
     Notes
     -----
-    The nominal flux is calculated ahead of time using the pi_honda_ip stage,
+    The nominal flux is calculated ahead of time using the honda_ip stage,
     then multiplied with a shift in spectral index, and then modifications due
     to meson production (barr variables) are added.
 
@@ -173,7 +173,7 @@ class pi_mceq_barr_red(PiStage):
         self.table_file = table_file
 
         # init base class
-        super(pi_mceq_barr_red, self).__init__(
+        super(mceq_barr_red, self).__init__(
             data=data,
             params=params,
             expected_params=expected_params,

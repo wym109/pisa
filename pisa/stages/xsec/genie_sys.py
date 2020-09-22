@@ -10,7 +10,7 @@ import numpy as np
 from numba import guvectorize
 
 from pisa import FTYPE, TARGET
-from pisa.core.pi_stage import PiStage
+from pisa.core.stage import PiStage
 from pisa.utils.profiler import profile, line_profile
 from pisa.utils.numba_tools import WHERE
 from pisa.utils.log import logging

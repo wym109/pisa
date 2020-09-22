@@ -14,7 +14,7 @@ import math, fnmatch, collections
 import numpy as np
 
 from pisa import FTYPE, TARGET
-from pisa.core.pi_stage import PiStage
+from pisa.core.stage import PiStage
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
 from pisa.utils.numba_tools import WHERE, myjit, ftype

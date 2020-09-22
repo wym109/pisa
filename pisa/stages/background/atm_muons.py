@@ -8,7 +8,7 @@ from scipy.interpolate import interp1d
 from numba import guvectorize, cuda
 
 from pisa import FTYPE, TARGET
-from pisa.core.pi_stage import PiStage
+from pisa.core.stage import PiStage
 from pisa.utils.resources import open_resource
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
@@ -128,7 +128,7 @@ class atm_muons(PiStage):
 
         #self.data.data_specs = self.calc_specs
 
-        #TODO vectorize this using numba (see e.g. pi_prob3.py or genie_sys.py), which will also give GPU support
+        #TODO vectorize this using numba (see e.g. prob3.py or genie_sys.py), which will also give GPU support
 
         # Apply muon normalisation/scaling
         atm_muon_scale = self.params['atm_muon_scale'].value.m_as("dimensionless")

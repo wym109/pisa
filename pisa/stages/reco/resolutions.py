@@ -7,7 +7,7 @@ Stage for resolution improvement studies
 
 from __future__ import absolute_import, print_function, division
 
-from pisa.core.pi_stage import PiStage
+from pisa.core.stage import PiStage
 from pisa.utils.log import logging
 
 

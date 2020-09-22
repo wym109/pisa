@@ -2,7 +2,7 @@
 Oscillation stage using nuSQuIDS
 '''
 
-# TODO Check if can speed up by linking containers in certain modes (see `pi_prob3`)
+# TODO Check if can speed up by linking containers in certain modes (see `prob3`)
 # TODO Update descriptions/docs
 
 from __future__ import absolute_import, print_function, division
@@ -15,21 +15,21 @@ from numba import guvectorize
 from scipy.interpolate import RectBivariateSpline
 
 from pisa import FTYPE, TARGET
-from pisa.core.pi_stage import PiStage
+from pisa.core.stage import PiStage
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
-from pisa.stages.osc.pi_osc_params import OscParams
+from pisa.stages.osc.osc_params import OscParams
 from pisa.stages.osc.layers import Layers
 from pisa.stages.osc.prob3numba.numba_osc_hostfuncs import propagate_array, fill_probs
 from pisa.utils.numba_tools import WHERE
-from pisa.stages.osc.pi_prob3 import apply_probs
+from pisa.stages.osc.prob3 import apply_probs
 
 from pisa.utils.resources import find_resource
 from pisa.stages.osc.nusquids.nusquids_osc import NSQ_CONST, validate_calc_grid, compute_binning_constants, init_nusquids_prop, evolve_states, osc_probs, earth_model
 from pisa import ureg
 
 
-__all__ = ['pi_nusquids']
+__all__ = ['nusquids']
 
 __author__ = 'T. Stuttard, T. Ehrhardt'
 
@@ -58,7 +58,7 @@ class OscSpline() :
 '''
 
 
-class pi_nusquids(PiStage):
+class nusquids(PiStage):
     """
     PISA Pi stage for weighting events due to the effect of neutrino oscillations,
     using nuSQuIDS as the oscillation probability calculator.
@@ -66,7 +66,7 @@ class pi_nusquids(PiStage):
     Parameters
     ----------
 
-    Uses the standard parameters as required by a PISA pi stage (see `pisa/core/pi_stage.py`)
+    Uses the standard parameters as required by a PISA pi stage (see `pisa/core/stage.py`)
 
     use_decoherence : bool
         set to true to include neutrino decoherence in the oscillation probability calculation

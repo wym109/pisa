@@ -8,7 +8,7 @@ import numpy as np
 from numba import guvectorize
 
 from pisa import FTYPE, ITYPE, TARGET
-from pisa.core.pi_stage import PiStage
+from pisa.core.stage import PiStage
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
 
@@ -16,7 +16,7 @@ from pisa.utils.numba_tools import WHERE, myjit
 from pisa.utils.resources import find_resource
 
 
-class pi_2nu(PiStage):
+class 2nu(PiStage):
     """
     two neutrino osc PISA Pi class
 
@@ -62,7 +62,7 @@ class pi_2nu(PiStage):
                       )
 
         # init base class
-        super(pi_2nu, self).__init__(
+        super(2nu, self).__init__(
             data=data,
             params=params,
             expected_params=expected_params,

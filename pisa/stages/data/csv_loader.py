@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 from pisa import FTYPE
-from pisa.core.pi_stage import PiStage
+from pisa.core.stage import PiStage
 from pisa.utils import vectorizer
 from pisa.utils.profiler import profile
 from pisa.core.container import Container

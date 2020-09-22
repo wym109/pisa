@@ -292,7 +292,7 @@ class OscParams(object):
         return dmVacVac
 
 
-def test_pi_osc_params():
+def test_osc_params():
     """
     # TODO: implement me!
     """
@@ -304,5 +304,5 @@ if __name__=='__main__':
     from pisa.utils.log import set_verbosity, logging
     assert TARGET == 'cpu', "Cannot test functions on GPU, set PISA_TARGET to 'cpu'"
     set_verbosity(1)
-    test_pi_osc_params()
+    test_osc_params()
 

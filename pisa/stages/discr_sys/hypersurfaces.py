@@ -15,7 +15,7 @@ from numba import guvectorize
 import numpy as np
 
 from pisa import FTYPE, TARGET
-from pisa.core.pi_stage import PiStage
+from pisa.core.stage import PiStage
 from pisa.utils.log import logging
 from pisa.utils.numba_tools import WHERE
 from pisa.utils import vectorizer
@@ -24,7 +24,7 @@ from pisa.utils.log import set_verbosity, Levels
 from pisa.utils.profiler import line_profile
 #set_verbosity(Levels.DEBUG)
 
-__all__ = ["pi_hypersurfaces",]
+__all__ = ["hypersurfaces",]
 
 __author__ = "P. Eller, T. Ehrhardt, T. Stuttard, J.L. Lanfranchi, A. Trettin"
 
@@ -43,7 +43,7 @@ __license__ = """Copyright (c) 2014-2018, The IceCube Collaboration
  limitations under the License."""
 
 
-class pi_hypersurfaces(PiStage): # pylint: disable=invalid-name
+class hypersurfaces(PiStage): # pylint: disable=invalid-name
     """
     Service to apply hypersurface parameterisation produced by
     `scripts.fit_discrete_sys_nd`
@@ -117,7 +117,7 @@ class pi_hypersurfaces(PiStage): # pylint: disable=invalid-name
             expected_params = self.hypersurface_param_names
 
         # -- Initialize base class -- #
-        super(pi_hypersurfaces, self).__init__(
+        super(hypersurfaces, self).__init__(
             data=data,
             params=params,
             expected_params=expected_params,

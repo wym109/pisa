@@ -15,9 +15,9 @@ import numpy as np
 from numba import guvectorize
 
 from pisa import FTYPE, TARGET
-from pisa.core.pi_stage import PiStage
+from pisa.core.stage import PiStage
 from pisa.utils.profiler import profile
-from pisa.stages.osc.pi_osc_params import OscParams
+from pisa.stages.osc.osc_params import OscParams
 from pisa.stages.osc.layers import Layers
 from pisa.stages.osc.prob3numba.numba_osc_hostfuncs import fill_probs
 from pisa.utils.numba_tools import WHERE
@@ -30,7 +30,7 @@ __all__ = ['DecoherenceParams', 'calc_decoherence_probs', "decoherence"]
 __author__ = 'T. Stuttard, M. Jensen'
 
 
-class DecoherenceParams(OscParams): #TODO Start using pi_osc_params instead...
+class DecoherenceParams(OscParams): #TODO Start using osc_params instead...
     '''
     Container for decoherence oscillation params
     This includes standard oscillation params plus additional 'Gamma' terms parameterising decoherence

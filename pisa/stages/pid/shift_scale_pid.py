@@ -8,16 +8,16 @@ from numba import guvectorize
 import numpy as np
 
 from pisa import FTYPE, TARGET
-from pisa.core.pi_stage import PiStage
+from pisa.core.stage import PiStage
 from pisa.utils import vectorizer
 from pisa.utils.numba_tools import WHERE
 
-__all__ = ['pi_shift_scale_pid']
+__all__ = ['shift_scale_pid']
 
 __author__ = 'L. Fischer'
 
 
-class pi_shift_scale_pid(PiStage):
+class shift_scale_pid(PiStage):
     """
     Shift/scale pid.
 

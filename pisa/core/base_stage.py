@@ -1,6 +1,6 @@
 """
 Stage base class designed to be inherited by PISA core stages (i.e., the PISA cake base
-class, `stage` , and the PISA pi base class, `pi_stage`) such that all basic
+class, `stage` , and the PISA pi base class, `stage`) such that all basic
 functionality is built-in.
 """
 

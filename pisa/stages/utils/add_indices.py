@@ -16,7 +16,7 @@ __author__ = "Etienne Bourbeau (etienne.bourbeau@icecube.wisc.edu)"
 import numpy as np
 
 from pisa import FTYPE
-from pisa.core.pi_stage import PiStage
+from pisa.core.stage import PiStage
 #from pisa.utils.log import logging
 
 # Load the modified index lookup function

@@ -13,7 +13,7 @@ import numpy as np
 from numba import guvectorize
 
 from pisa import FTYPE, TARGET
-from pisa.core.pi_stage import PiStage
+from pisa.core.stage import PiStage
 from pisa.utils.profiler import profile
 from pisa.utils.fileio import from_file
 from pisa.utils.numba_tools import WHERE

@@ -20,15 +20,15 @@ import numpy as np
 from numba import guvectorize
 
 from pisa import FTYPE, TARGET, ureg
-from pisa.core.pi_stage import PiStage
+from pisa.core.stage import PiStage
 from pisa.stages.osc.layers import Layers
-from pisa.stages.osc.pi_osc_params import OscParams
+from pisa.stages.osc.osc_params import OscParams
 from pisa.utils.numba_tools import WHERE
 from pisa.utils.profiler import profile
 from pisa.utils.resources import find_resource
 
 
-class pi_globes(PiStage):
+class globes(PiStage):
     """
     GLoBES PISA Pi class
 
