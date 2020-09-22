@@ -6,12 +6,12 @@ from __future__ import absolute_import, print_function, division
 import numpy as np
 
 from pisa import FTYPE
-from pisa.core.stage import PiStage
+from pisa.core.stage import Stage
 from pisa.utils import vectorizer
 from pisa.core.container import Container
 
 
-class grid(PiStage):
+class grid(Stage):
     """
     Create a grid of events
 

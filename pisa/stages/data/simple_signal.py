@@ -10,13 +10,13 @@ __author__ = "Etienne Bourbeau (etienne.bourbeau@icecube.wisc.edu)"
 import numpy as np
 
 from pisa.core.container import Container
-from pisa.core.stage import PiStage
+from pisa.core.stage import Stage
 
 # Load the modified index lookup function
 from pisa.core.bin_indexing import lookup_indices
 
 
-class simple_signal(PiStage):
+class simple_signal(Stage):
     """
     random toy event generator PISA Pi class
 

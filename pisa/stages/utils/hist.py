@@ -9,12 +9,12 @@ from __future__ import absolute_import, print_function, division
 import numpy as np
 
 from pisa import FTYPE
-from pisa.core.stage import PiStage
+from pisa.core.stage import Stage
 from pisa.utils.profiler import profile
 from pisa.utils import vectorizer
 
 
-class hist(PiStage):  # pylint: disable=invalid-name
+class hist(Stage):  # pylint: disable=invalid-name
     """
     stage to histogram events
     """

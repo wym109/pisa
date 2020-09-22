@@ -25,7 +25,7 @@ from pisa.core.events import Data
 from pisa.core.map import Map, MapSet
 from pisa.core.param import ParamSet
 from pisa.core.base_stage import BaseStage
-from pisa.core.stage import PiStage
+from pisa.core.stage import Stage
 from pisa.core.container import ContainerSet
 from pisa.utils.config_parser import PISAConfigParser, parse_pipeline_config
 from pisa.utils.fileio import mkdir
@@ -180,7 +180,10 @@ class Pipeline(object):
                 stage_name, service_name = name
 
                 # old cfgs compatibility
-                service_name = service_name.replace('', '')
+                if service_name.startswith('pi_'):
+                    logging.warning(f"Old stage name `{service_name}` is automatically renamed to `{service_name.replace('pi_', '')}`. " +
+                                    "Please change your config in the future!")
+                service_name = service_name.replace('pi_', '')
 
                 logging.debug(
                     "instantiating stage %s / service %s", stage_name, service_name
@@ -210,11 +213,11 @@ class Pipeline(object):
                     )
                     raise
 
-                stage = isinstance(service, PiStage)
+                stage = isinstance(service, Stage)
 
                 if not (stage):
                     logging.debug("is BaseStage? %s", isinstance(service, BaseStage))
-                    logging.debug("is PiStage? %s", isinstance(service, PiStage))
+                    logging.debug("is Stage? %s", isinstance(service, Stage))
 
                     raise TypeError(
                         'Trying to create service "%s" for stage #%d (%s),'

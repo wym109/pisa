@@ -4,12 +4,12 @@ PISA pi stage to apply effective area weights
 
 from __future__ import absolute_import, print_function, division
 
-from pisa.core.stage import PiStage
+from pisa.core.stage import Stage
 from pisa.utils import vectorizer
 from pisa.utils.profiler import profile
 
 
-class aeff(PiStage):  # pylint: disable=invalid-name
+class aeff(Stage):  # pylint: disable=invalid-name
     """
     PISA Pi stage to apply aeff weights.
 

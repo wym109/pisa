@@ -17,14 +17,13 @@ from pisa.utils.format import arg_to_tuple
 from pisa.utils.profiler import profile
 
 
-__all__ = ["PiStage"]
-__version__ = "Pi"
+__all__ = ["Stage"]
 __author__ = "Philipp Eller (pde3@psu.edu)"
 
 
-class PiStage(BaseStage):
+class Stage(BaseStage):
     """
-    PISA Pi stage base class. Should be used to implement PISA Pi stages
+    PISA stage base class. Should be used to implement PISA Pi stages
 
     Specialization should be done via subclasses.
 
@@ -107,7 +106,7 @@ class PiStage(BaseStage):
         self.param_hash = -1
 
     def setup_function(self):
-        """Implement in services (subclasses of PiStage)"""
+        """Implement in services (subclasses of Stage)"""
         pass
 
     @profile
@@ -129,7 +128,7 @@ class PiStage(BaseStage):
         self.param_hash = new_param_hash
 
     def compute_function(self):
-        """Implement in services (subclasses of PiStage)"""
+        """Implement in services (subclasses of Stage)"""
         pass
 
     @profile
@@ -141,7 +140,7 @@ class PiStage(BaseStage):
 
 
     def apply_function(self):
-        """Implement in services (subclasses of PiStage)"""
+        """Implement in services (subclasses of Stage)"""
         pass
 
     def run(self, inputs=None):

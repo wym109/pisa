@@ -15,7 +15,7 @@ from numba import guvectorize
 from scipy.interpolate import RectBivariateSpline
 
 from pisa import FTYPE, TARGET
-from pisa.core.stage import PiStage
+from pisa.core.stage import Stage
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
 from pisa.stages.osc.osc_params import OscParams
@@ -58,7 +58,7 @@ class OscSpline() :
 '''
 
 
-class nusquids(PiStage):
+class nusquids(Stage):
     """
     PISA Pi stage for weighting events due to the effect of neutrino oscillations,
     using nuSQuIDS as the oscillation probability calculator.

@@ -14,7 +14,7 @@ import math, fnmatch, collections
 import numpy as np
 
 from pisa import FTYPE, TARGET
-from pisa.core.stage import PiStage
+from pisa.core.stage import Stage
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
 from pisa.utils.numba_tools import WHERE, myjit, ftype
@@ -369,7 +369,7 @@ def simple_pid_parameterization(particle_key,true_energy,params,track_pid,cascad
     return pid
 
 
-class simple_param(PiStage):
+class simple_param(Stage):
     """
     Stage to generate reconstructed parameters (energy, coszen, pid) using simple parameterizations.
     These are not fit to any input data, but are simple and easily understandable and require no 

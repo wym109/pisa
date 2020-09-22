@@ -8,13 +8,13 @@ import numpy as np
 import pandas as pd
 
 from pisa import FTYPE
-from pisa.core.stage import PiStage
+from pisa.core.stage import Stage
 from pisa.utils import vectorizer
 from pisa.utils.profiler import profile
 from pisa.core.container import Container
 
 
-class csv_icc_hist(PiStage):
+class csv_icc_hist(Stage):
     """
     CSV file loader PISA Pi class
 

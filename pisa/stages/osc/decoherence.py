@@ -15,7 +15,7 @@ import numpy as np
 from numba import guvectorize
 
 from pisa import FTYPE, TARGET
-from pisa.core.stage import PiStage
+from pisa.core.stage import Stage
 from pisa.utils.profiler import profile
 from pisa.stages.osc.osc_params import OscParams
 from pisa.stages.osc.layers import Layers
@@ -246,7 +246,7 @@ def _calc_numu_disappearance_prob_3flav(decoh_params, E, L):
 
 
 
-class decoherence(PiStage):
+class decoherence(Stage):
     """
     PISA Pi stage representing oscillations in the presence of decoherence
 

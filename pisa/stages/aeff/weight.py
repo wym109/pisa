@@ -4,12 +4,12 @@ PISA pi stage to apply weights
 
 from __future__ import absolute_import, print_function, division
 
-from pisa.core.stage import PiStage
+from pisa.core.stage import Stage
 from pisa.utils import vectorizer
 from pisa.utils.profiler import profile
 
 
-class weight(PiStage):  # pylint: disable=invalid-name
+class weight(Stage):  # pylint: disable=invalid-name
     """
     PISA Pi stage to apply weights.
     This assumes a weight has already been calculated.

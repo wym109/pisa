@@ -12,7 +12,7 @@ import numpy as np
 from numba import guvectorize
 
 from pisa import FTYPE, TARGET, ureg
-from pisa.core.stage import PiStage
+from pisa.core.stage import Stage
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
 from pisa.stages.osc.nsi_params import StdNSIParams, VacuumLikeNSIParams
@@ -23,7 +23,7 @@ from pisa.utils.numba_tools import WHERE
 from pisa.utils.resources import find_resource
 
 
-class prob3(PiStage):
+class prob3(Stage):
     """
     Prob3-like oscillation PISA Pi class
 
@@ -63,7 +63,7 @@ class prob3(PiStage):
             eps_tautau : quantity (dimensionless)
 
     **kwargs
-        Other kwargs are handled by PiStage
+        Other kwargs are handled by Stage
     -----
 
     """

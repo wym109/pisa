@@ -17,7 +17,7 @@ from numba import guvectorize
 
 from pisa import FTYPE, TARGET
 from pisa import ureg
-from pisa.core.stage import PiStage
+from pisa.core.stage import Stage
 from pisa.utils.profiler import profile
 from pisa.stages.osc.layers import Layers
 from pisa.utils.numba_tools import WHERE
@@ -54,7 +54,7 @@ the string for this neutrino in the ROOT file.
 """
 
 
-class earth_absorption(PiStage):
+class earth_absorption(Stage):
     """
     earth absorption PISA Pi class
 

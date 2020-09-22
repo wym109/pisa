@@ -9,13 +9,13 @@ from __future__ import absolute_import, print_function, division
 import numpy as np
 
 from pisa import FTYPE
-from pisa.core.stage import PiStage
+from pisa.core.stage import Stage
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
 from pisa.utils.flux_weights import load_2d_table, calculate_2d_flux_weights
 
 
-class honda_ip(PiStage):
+class honda_ip(Stage):
     """
     stage to generate nominal flux
 

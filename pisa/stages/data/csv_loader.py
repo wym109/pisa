@@ -8,13 +8,13 @@ import numpy as np
 import pandas as pd
 
 from pisa import FTYPE
-from pisa.core.stage import PiStage
+from pisa.core.stage import Stage
 from pisa.utils import vectorizer
 from pisa.utils.profiler import profile
 from pisa.core.container import Container
 
 
-class csv_loader(PiStage):
+class csv_loader(Stage):
     """
     CSV file loader PISA Pi class
 
@@ -22,7 +22,7 @@ class csv_loader(PiStage):
     ----------
     events_file : csv file path
     **kwargs
-        Passed to PiStage
+        Passed to Stage
 
     """
     def __init__(

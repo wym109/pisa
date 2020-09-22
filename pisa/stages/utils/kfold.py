@@ -13,7 +13,7 @@ from __future__ import absolute_import, print_function, division
 import numpy as np
 
 from pisa import FTYPE, TARGET
-from pisa.core.stage import PiStage
+from pisa.core.stage import Stage
 from pisa.utils.numba_tools import WHERE
 from pisa.utils import vectorizer
 
@@ -34,7 +34,7 @@ __license__ = """Copyright (c) 2020, The IceCube Collaboration
  limitations under the License."""
 
 
-class kfold(PiStage):
+class kfold(Stage):
     """
     Stage to make splits of the MC set and select one split to make histograms.
     The weight of all indeces not belonging to the selected split are set to 

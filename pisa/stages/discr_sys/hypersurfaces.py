@@ -15,7 +15,7 @@ from numba import guvectorize
 import numpy as np
 
 from pisa import FTYPE, TARGET
-from pisa.core.stage import PiStage
+from pisa.core.stage import Stage
 from pisa.utils.log import logging
 from pisa.utils.numba_tools import WHERE
 from pisa.utils import vectorizer
@@ -43,7 +43,7 @@ __license__ = """Copyright (c) 2014-2018, The IceCube Collaboration
  limitations under the License."""
 
 
-class hypersurfaces(PiStage): # pylint: disable=invalid-name
+class hypersurfaces(Stage): # pylint: disable=invalid-name
     """
     Service to apply hypersurface parameterisation produced by
     `scripts.fit_discrete_sys_nd`

@@ -9,11 +9,11 @@ import numpy as np
 from pisa import FTYPE
 from pisa.core.container import Container
 from pisa.core.binning import MultiDimBinning
-from pisa.core.stage import PiStage
+from pisa.core.stage import Stage
 from pisa.utils import vectorizer
 
 
-class toy_event_generator(PiStage):
+class toy_event_generator(Stage):
     """
     random toy event generator PISA Pi class
 

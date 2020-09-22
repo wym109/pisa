@@ -20,7 +20,7 @@ import numpy as np
 from numba import guvectorize
 
 from pisa import FTYPE, TARGET, ureg
-from pisa.core.stage import PiStage
+from pisa.core.stage import Stage
 from pisa.stages.osc.layers import Layers
 from pisa.stages.osc.osc_params import OscParams
 from pisa.utils.numba_tools import WHERE
@@ -28,7 +28,7 @@ from pisa.utils.profiler import profile
 from pisa.utils.resources import find_resource
 
 
-class globes(PiStage):
+class globes(Stage):
     """
     GLoBES PISA Pi class
 

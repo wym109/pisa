@@ -8,13 +8,13 @@ import numpy as np
 import pandas as pd
 
 from pisa import FTYPE
-from pisa.core.stage import PiStage
+from pisa.core.stage import Stage
 from pisa.utils.profiler import profile
 from pisa.core.container import Container
 from pisa.core.events_pi import EventsPi
 
 
-class csv_data_hist(PiStage):
+class csv_data_hist(Stage):
     """
     CSV file loader PISA Pi class
 

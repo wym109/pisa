@@ -18,14 +18,14 @@ import numpy as np
 from numba import guvectorize
 
 from pisa import FTYPE, TARGET
-from pisa.core.stage import PiStage
+from pisa.core.stage import Stage
 from pisa.utils.log import logging
 from pisa.utils.profiler import profile
 from pisa.utils.numba_tools import WHERE, myjit
 from pisa.utils.resources import find_resource
 
 
-class mceq_barr_red(PiStage):
+class mceq_barr_red(Stage):
     """
     Stage that uses gradients calculated with MCEq to handle flux uncertainties.
     This stage calculates flux variations relative to a nominal flux that must

@@ -6,14 +6,14 @@ import numpy as np
 from numba import guvectorize
 
 from pisa import FTYPE, TARGET
-from pisa.core.stage import PiStage
+from pisa.core.stage import Stage
 from pisa.utils.profiler import profile
 from pisa.utils.log import logging
 from pisa.utils import vectorizer
 from pisa.utils.numba_tools import WHERE
 
 
-class set_variance(PiStage):  # pylint: disable=invalid-name
+class set_variance(Stage):  # pylint: disable=invalid-name
     """
     Override errors and replace with manually chosen variance.
     """

@@ -13,7 +13,7 @@ import numpy as np
 from enum import Enum, auto
 
 from pisa import FTYPE
-from pisa.core.stage import PiStage
+from pisa.core.stage import Stage
 from pisa.utils.profiler import profile
 from pisa.utils import vectorizer
 from pisa.core import translation
@@ -28,7 +28,7 @@ class ResampleMode(Enum):
     DOWN = auto()
     ARB = auto()
 
-class resample(PiStage):  # pylint: disable=invalid-name
+class resample(Stage):  # pylint: disable=invalid-name
     """
     Stage to resample weighted MC histograms from one binning to another.
     

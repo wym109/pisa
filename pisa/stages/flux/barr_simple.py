@@ -14,14 +14,14 @@ import numpy as np
 from numba import guvectorize, cuda
 
 from pisa import FTYPE, TARGET
-from pisa.core.stage import PiStage
+from pisa.core.stage import Stage
 from pisa.utils.profiler import profile
 from pisa.utils.numba_tools import WHERE, myjit, ftype
 from pisa.utils.resources import find_resource
 from pisa.utils.barr_parameterization import modRatioNuBar, modRatioUpHor
 
 
-class barr_simple(PiStage):  # pylint: disable=invalid-name
+class barr_simple(Stage):  # pylint: disable=invalid-name
     """
     stage to apply Barr style flux uncertainties
     uses parameterisations of plots from Barr 2006 paper

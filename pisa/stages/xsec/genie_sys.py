@@ -10,12 +10,12 @@ import numpy as np
 from numba import guvectorize
 
 from pisa import FTYPE, TARGET
-from pisa.core.stage import PiStage
+from pisa.core.stage import Stage
 from pisa.utils.profiler import profile, line_profile
 from pisa.utils.numba_tools import WHERE
 from pisa.utils.log import logging
 
-class genie_sys(PiStage): # pylint: disable=invalid-name
+class genie_sys(Stage): # pylint: disable=invalid-name
     """
     Stage to apply pre-calculated Genie systematics.
 

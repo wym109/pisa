@@ -8,7 +8,7 @@ from numba import guvectorize
 import numpy as np
 
 from pisa import FTYPE, TARGET
-from pisa.core.stage import PiStage
+from pisa.core.stage import Stage
 from pisa.utils import vectorizer
 from pisa.utils.numba_tools import WHERE
 
@@ -17,7 +17,7 @@ __all__ = ['shift_scale_pid']
 __author__ = 'L. Fischer'
 
 
-class shift_scale_pid(PiStage):
+class shift_scale_pid(Stage):
     """
     Shift/scale pid.
 

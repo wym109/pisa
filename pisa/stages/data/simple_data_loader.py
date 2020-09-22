@@ -9,7 +9,7 @@ from __future__ import absolute_import, print_function, division
 import numpy as np
 
 from pisa import FTYPE
-from pisa.core.stage import PiStage
+from pisa.core.stage import Stage
 from pisa.utils import vectorizer
 from pisa.utils.profiler import profile
 from pisa.core.container import Container
@@ -17,7 +17,7 @@ from pisa.core.events_pi import EventsPi
 from pisa.utils.format import arg_str_seq_none, split
 
 
-class simple_data_loader(PiStage):
+class simple_data_loader(Stage):
     """
     HDF5 file loader PISA Pi class
 
@@ -240,16 +240,16 @@ class simple_data_loader(PiStage):
 
     def setup_function(self):
         '''Store event properties from events file at
-        service initialisation. Cf. `PiStage` docs.
+        service initialisation. Cf. `Stage` docs.
         '''
         self.record_event_properties()
 
 
     @profile
     def apply_function(self):
-        '''Cf. `PiStage` docs.'''
+        '''Cf. `Stage` docs.'''
         # TODO: do we need following line? Isn't this handled universally
-        # by the base class (in PiStage's apply)?
+        # by the base class (in Stage's apply)?
         self.data.data_specs = self.output_specs
         # reset weights to initial weights prior to downstream stages running
         for container in self.data:

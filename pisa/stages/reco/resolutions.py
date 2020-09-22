@@ -7,11 +7,11 @@ Stage for resolution improvement studies
 
 from __future__ import absolute_import, print_function, division
 
-from pisa.core.stage import PiStage
+from pisa.core.stage import Stage
 from pisa.utils.log import logging
 
 
-class resolutions(PiStage):
+class resolutions(Stage):
     """
     stage to change the reconstructed information by a given amount
     This can be used to esimate the impact of improved recosntruction
