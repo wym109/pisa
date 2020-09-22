@@ -61,7 +61,6 @@ from numba import (  # pylint: disable=unused-import
     uint64,
     guvectorize,
     jit,
-    SmartArray,
 )
 
 from pisa import FTYPE, TARGET

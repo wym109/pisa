@@ -77,9 +77,8 @@ class pi_prob3(PiStage):
       input_names=None,
       output_names=None,
       debug_mode=None,
-      input_specs=None,
-      calc_specs=None,
-      output_specs=None,
+      calc_mode=None,
+      apply_mode=None,
     ):
 
         expected_params = (
@@ -143,15 +142,6 @@ class pi_prob3(PiStage):
         input_names = ()
         output_names = ()
 
-        # what are the keys used from the inputs during apply
-        input_apply_keys = ('weights', 'nu_flux')
-
-        # what are keys added or altered in the calculation used during apply
-        output_calc_keys = ('prob_e', 'prob_mu')
-
-        # what keys are added or altered for the outputs during apply
-        output_apply_keys = ('weights',)
-
         # init base class
         super().__init__(
             data=data,
@@ -160,17 +150,12 @@ class pi_prob3(PiStage):
             input_names=input_names,
             output_names=output_names,
             debug_mode=debug_mode,
-            input_specs=input_specs,
-            calc_specs=calc_specs,
-            output_specs=output_specs,
-            input_apply_keys=input_apply_keys,
-            output_calc_keys=output_calc_keys,
-            output_apply_keys=output_apply_keys,
+            calc_mode=calc_mode,
+            apply_mode=apply_mode,
         )
 
-        assert self.input_mode is not None
         assert self.calc_mode is not None
-        assert self.output_mode is not None
+        assert self.apply_mode is not None
 
         self.layers = None
         self.osc_params = None
@@ -215,11 +200,8 @@ class pi_prob3(PiStage):
         self.layers = Layers(earth_model, detector_depth, prop_height)
         self.layers.setElecFrac(self.YeI, self.YeO, self.YeM)
 
-        # set the correct data mode
-        self.data.data_specs = self.calc_specs
-
         # --- calculate the layers ---
-        if self.calc_mode == 'binned':
+        if self.is_map:
             # speed up calculation by adding links
             # as layers don't care about flavour
             self.data.link_containers('nu', ['nue_cc', 'numu_cc', 'nutau_cc',
@@ -228,7 +210,7 @@ class pi_prob3(PiStage):
                                              'nuebar_nc', 'numubar_nc', 'nutaubar_nc'])
 
         for container in self.data:
-            self.layers.calcLayers(container['true_coszen'].get('host'))
+            self.layers.calcLayers(container['true_coszen'])
             container['densities'] = self.layers.density.reshape((container.size, self.layers.max_layers))
             container['distances'] = self.layers.distance.reshape((container.size, self.layers.max_layers))
 
@@ -236,7 +218,7 @@ class pi_prob3(PiStage):
         self.data.unlink_containers()
 
         # --- setup empty arrays ---
-        if self.calc_mode == 'binned':
+        if self.is_map:
             self.data.link_containers('nu', ['nue_cc', 'numu_cc', 'nutau_cc',
                                              'nue_nc', 'numu_nc', 'nutau_nc'])
             self.data.link_containers('nubar', ['nuebar_cc', 'numubar_cc', 'nutaubar_cc',
@@ -260,20 +242,15 @@ class pi_prob3(PiStage):
                         mix_matrix,
                         self.gen_mat_pot_matrix_complex,
                         nubar,
-                        e_array.get(WHERE),
-                        rho_array.get(WHERE),
-                        len_array.get(WHERE),
-                        out=out.get(WHERE)
+                        e_array,
+                        rho_array,
+                        len_array,
+                        out=out
                        )
-        out.mark_changed(WHERE)
 
-    @profile
     def compute_function(self):
 
-        # set the correct data mode
-        self.data.data_specs = self.calc_specs
-
-        if self.calc_mode == 'binned':
+        if self.is_map:
             # speed up calculation by adding links
             self.data.link_containers('nu', ['nue_cc', 'numu_cc', 'nutau_cc',
                                              'nue_nc', 'numu_nc', 'nutau_nc'])
@@ -355,46 +332,30 @@ class pi_prob3(PiStage):
                             container['distances'],
                             out=container['probability'],
                            )
+            container.mark_changed('probability')
 
         # the following is flavour specific, hence unlink
         self.data.unlink_containers()
 
         for container in self.data:
             # initial electrons (0)
-            fill_probs(container['probability'].get(WHERE),
+            fill_probs(container['probability'],
                        0,
                        container['flav'],
-                       out=container['prob_e'].get(WHERE),
+                       out=container['prob_e'],
                       )
             # initial muons (1)
-            fill_probs(container['probability'].get(WHERE),
+            fill_probs(container['probability'],
                        1,
                        container['flav'],
-                       out=container['prob_mu'].get(WHERE),
+                       out=container['prob_mu'],
                       )
 
-            container['prob_e'].mark_changed(WHERE)
-            container['prob_mu'].mark_changed(WHERE)
+            container.mark_changed('prob_e')
+            container.mark_changed('prob_mu')
 
-    @profile
     def apply_function(self):
-
         # update the outputted weights
         for container in self.data:
-            apply_probs(container['nu_flux'].get(WHERE),
-                        container['prob_e'].get(WHERE),
-                        container['prob_mu'].get(WHERE),
-                        out=container['weights'].get(WHERE))
-            container['weights'].mark_changed(WHERE)
-
-
-# vectorized function to apply (flux * prob)
-# must be outside class
-if FTYPE == np.float64:
-    signature = '(f8[:], f8, f8, f8[:])'
-else:
-    signature = '(f4[:], f4, f4, f4[:])'
-@guvectorize([signature], '(d),(),()->()', target=TARGET)
-def apply_probs(flux, prob_e, prob_mu, out):
-    out[0] *= (flux[0] * prob_e) + (flux[1] * prob_mu)
+            container['weights'] *= (container['nu_flux'][:,0] * container['prob_e']) + (container['nu_flux'][:,1] * container['prob_mu'])
 

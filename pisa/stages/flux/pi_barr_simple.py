@@ -45,9 +45,8 @@ class pi_barr_simple(PiStage):  # pylint: disable=invalid-name
         input_names=None,
         output_names=None,
         debug_mode=None,
-        input_specs=None,
-        calc_specs=None,
-        output_specs=None,
+        calc_mode=None,
+        apply_mode=None,
     ):
         expected_params = (
             "nue_numu_ratio",
@@ -59,13 +58,6 @@ class pi_barr_simple(PiStage):  # pylint: disable=invalid-name
         input_names = ()
         output_names = ()
 
-        # what are the keys used from the inputs during apply
-        input_calc_keys = ("weights", "nu_flux_nominal", "nubar_flux_nominal")
-        # what are keys added or altered in the calculation used during apply
-        output_calc_keys = ("nu_flux",)
-        # what keys are added or altered for the outputs during apply
-        output_apply_keys = ("nu_flux",)
-
         # init base class
         super(pi_barr_simple, self).__init__(
             data=data,
@@ -74,26 +66,18 @@ class pi_barr_simple(PiStage):  # pylint: disable=invalid-name
             input_names=input_names,
             output_names=output_names,
             debug_mode=debug_mode,
-            input_specs=input_specs,
-            calc_specs=calc_specs,
-            output_specs=output_specs,
-            input_calc_keys=input_calc_keys,
-            output_calc_keys=output_calc_keys,
-            output_apply_keys=output_apply_keys,
+            calc_mode=calc_mode,
+            apply_mode=apply_mode,
         )
 
-        assert self.input_mode is not None
-        assert self.calc_mode is not None
-        assert self.output_mode is not None
-
     def setup_function(self):
-        self.data.data_specs = self.calc_specs
+        self.data.represenatation = self.calc_mode
         for container in self.data:
             container["nu_flux"] = np.empty((container.size, 2), dtype=FTYPE)
 
     @profile
     def compute_function(self):
-        self.data.data_specs = self.calc_specs
+        self.data.represenatation = self.calc_mode
 
         nue_numu_ratio = self.params.nue_numu_ratio.value.m_as("dimensionless")
         nu_nubar_ratio = self.params.nu_nubar_ratio.value.m_as("dimensionless")
@@ -103,19 +87,19 @@ class pi_barr_simple(PiStage):  # pylint: disable=invalid-name
 
         for container in self.data:
             apply_sys_vectorized(
-                container["true_energy"].get(WHERE),
-                container["true_coszen"].get(WHERE),
-                container["nu_flux_nominal"].get(WHERE),
-                container["nubar_flux_nominal"].get(WHERE),
+                container["true_energy"],
+                container["true_coszen"],
+                container["nu_flux_nominal"],
+                container["nubar_flux_nominal"],
                 container["nubar"],
                 nue_numu_ratio,
                 nu_nubar_ratio,
                 delta_index,
                 Barr_uphor_ratio,
                 Barr_nu_nubar_ratio,
-                out=container["nu_flux"].get(WHERE),
+                out=container["nu_flux"],
             )
-            container["nu_flux"].mark_changed(WHERE)
+            container.mark_changed('nu_flux')
 
 
 @myjit

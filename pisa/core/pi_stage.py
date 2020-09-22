@@ -49,35 +49,12 @@ class PiStage(BaseStage):
         If ``bool(error_method)`` is False, run without computing errors.
         Otherwise, specifies a particular method for applying arrors.
 
-    input_specs : pisa.core.binning.MultiDimBinning, str=='events', or None
-        Specify the inputs (i.e. what did the last stage output, or None)
-
-    calc_specs : pisa.core.binning.MultiDimBinning, str=='events', or None
+    calc_mode : pisa.core.binning.MultiDimBinning, str, or None
         Specify in what to do the calculation
 
-    output_specs : pisa.core.binning.MultiDimBinning, str=='events', or None
-        Specify how to generate the outputs
+    apply_mode : pisa.core.binning.MultiDimBinning, str, or None
+        Specify in what to do the application
 
-    input_apply_keys : str, iterable thereof, or None
-        keys needed by the apply function data (usually 'weights')
-
-    output_apply_keys : str, iterable thereof, or None
-        keys of the output data (usually 'weights')
-
-    input_calc_keys : str, iterable thereof, or None
-        external keys of data the compute function needs
-
-    output_calc_keys : str, iterable thereof, or None
-        output keys of the calculation (not intermediate results)
-    
-    map_output_key : str or None
-        When producing outputs as a :obj:`Map`, this key is used to set the nominal
-        values. If `None` (default), no :obj:`Map` output can be produced.
-    
-    map_output_error_key : str or None
-        When producing outputs as a :obj:`Map`, this key is used to set the errors (i.e.
-        standard deviations) in the :obj:`Map`. If `None` (default), maps will have no
-        errors.
     """
 
     def __init__(
@@ -89,15 +66,8 @@ class PiStage(BaseStage):
         output_names=None,
         debug_mode=None,
         error_method=None,
-        input_specs=None,
-        calc_specs=None,
-        output_specs=None,
-        input_apply_keys=None,
-        output_apply_keys=None,
-        input_calc_keys=None,
-        output_calc_keys=None,
-        map_output_key=None,
-        map_output_error_key=None,
+        calc_mode=None,
+        apply_mode=None,
     ):
         super().__init__(
             params=params,
@@ -108,67 +78,17 @@ class PiStage(BaseStage):
             error_method=error_method,
         )
 
-        self.input_specs = input_specs
-        self.calc_specs = calc_specs
-        self.output_specs = output_specs
-        self.map_output_key = map_output_key
-        self.map_output_error_key = map_output_error_key
+        self.calc_mode = calc_mode
+        self.apply_mode = apply_mode
         self.data = data
-
-        if isinstance(self.input_specs, MultiDimBinning):
-            self.input_mode = "binned"
-        elif self.input_specs == "events":
-            self.input_mode = "events"
-        elif self.input_specs is None:
-            self.input_mode = None
-        else:
-            raise ValueError("Cannot understand `input_specs` %s" % input_specs)
-
-        if isinstance(self.calc_specs, MultiDimBinning):
-            self.calc_mode = "binned"
-        elif self.calc_specs == "events":
-            self.calc_mode = "events"
-        elif self.calc_specs is None:
-            self.calc_mode = None
-        else:
-            raise ValueError("Cannot understand `calc_specs` %s" % calc_specs)
-
-        if isinstance(self.output_specs, MultiDimBinning):
-            self.output_mode = "binned"
-        elif self.output_specs == "events":
-            self.output_mode = "events"
-        elif self.output_specs is None:
-            self.output_mode = None
-        else:
-            raise ValueError("Cannot understand `output_specs` %s" % output_specs)
-
-        self.input_calc_keys = arg_to_tuple(input_calc_keys)
-        self.output_calc_keys = arg_to_tuple(output_calc_keys)
-        self.input_apply_keys = arg_to_tuple(input_apply_keys)
-        self.output_apply_keys = arg_to_tuple(output_apply_keys)
-
-        # make a string of the modes for convenience
-        mode = ["N", "N", "N"]
-        if self.input_mode == "binned":
-            mode[0] = "B"
-        elif self.input_mode == "events":
-            mode[0] = "E"
-
-        if self.calc_mode == "binned":
-            mode[1] = "B"
-        elif self.calc_mode == "events":
-            mode[1] = "E"
-
-        if self.output_mode == "binned":
-            mode[2] = "B"
-        elif self.output_mode == "events":
-            mode[2] = "E"
-
-        self.mode = "".join(mode)
 
         self.param_hash = None
         # cake compatibility
         self.outputs = None
+
+    @property
+    def is_map(self):
+        return self.data.is_map
 
     def setup(self):
 
@@ -177,19 +97,8 @@ class PiStage(BaseStage):
             if not isinstance(self.data, ContainerSet):
                 raise TypeError("`data` must be a `pisa.core.container.ContainerSet`")
 
-        # check that the arrays in `data` is stored as numba `SmartArrays`
-        # the downstream stages generally assume this
-        # a common problem is if the user copies data before passing it to th stage then
-        # a bug in SmartArray means the result is a numoy array, rather than a
-        # SmartArray
-        if self.data is not None:
-            for container in self.data:
-                for key, array in container.array_data.items():
-                    if not isinstance(array, SmartArray):
-                        raise TypeError(
-                            "Array `%s` in `data` should be a PISA `SmartArray`, but"
-                            " is a %s" % (key, type(array))
-                        )
+        if self.calc_mode is not None:
+            self.data.representation = self.calc_mode
 
         # call the user-defined setup function
         self.setup_function()
@@ -213,37 +122,11 @@ class PiStage(BaseStage):
             logging.trace("cached output")
             return
 
-        self.data.data_specs = self.input_specs
-        # convert any inputs if necessary:
-        if self.mode[:2] == "EB":
-            for container in self.data:
-                for key in self.input_calc_keys:
-                    container.array_to_binned(key, self.calc_specs)
+        if self.calc_mode is not None:
+            self.data.representation = self.calc_mode
 
-        elif self.mode == "EBE":
-            for container in self.data:
-                for key in self.input_calc_keys:
-                    container.binned_to_array(key)
-
-        #elif self.mode == "BBE":
-        #    for container in self.data:
-        #        for key in self.input_calc_keys:
-        #            container.binned_to_array(key)
-
-        self.data.data_specs = self.calc_specs
         self.compute_function()
         self.param_hash = new_param_hash
-
-        # convert any outputs if necessary:
-        if self.mode[1:] == "EB":
-            for container in self.data:
-                for key in self.output_calc_keys:
-                    container.array_to_binned(key, self.output_specs)
-
-        elif self.mode[1:] == "BE":
-            for container in self.data:
-                for key in self.output_calc_keys:
-                    container.binned_to_array(key)
 
     def compute_function(self):
         """Implement in services (subclasses of PiStage)"""
@@ -252,31 +135,10 @@ class PiStage(BaseStage):
     @profile
     def apply(self):
 
-        self.data.data_specs = self.input_specs
-        # convert any inputs if necessary:
-        if self.mode[0] + self.mode[2] == "EB":
-            for container in self.data:
-                for key in self.input_apply_keys:
-                    container.array_to_binned(key, self.output_specs)
-
-        # elif self.mode == 'BBE':
-        #    pass
-
-        elif self.mode[0] + self.mode[2] == "BE":
-            for container in self.data:
-                for key in self.input_apply_keys:
-                    container.binned_to_array(key)
-
-        # if self.input_specs is not None:
-        #    self.data.data_specs = self.input_specs
-        # else:
-        self.data.data_specs = self.output_specs
+        if self.apply_mode is not None:
+            self.data.representation = self.apply_mode
         self.apply_function()
 
-        if self.mode == "BBE":
-            for container in self.data:
-                for key in self.output_apply_keys:
-                    container.binned_to_array(key)
 
     def apply_function(self):
         """Implement in services (subclasses of PiStage)"""
@@ -289,63 +151,3 @@ class PiStage(BaseStage):
         self.apply()
         return None
 
-    def get_outputs(self, output_mode=None, force_standard_output=True):
-        """Get the outputs of the PISA stage
-        Depending on `self.output_mode`, this may be a binned object, or the event container itself
-
-        add option to force an output mode
-
-        force_standard_output: in binned mode, force the return of a single mapset
-
-        """
-
-        # Figure out if the user has specifiec an output mode
-        if output_mode is None:
-            output_mode = self.output_mode
-        else:
-            assert output_mode == 'binned' or output_mode == 'events', 'ERROR: user-specified output mode is unrecognized'
-
-        # Handle the binned case
-        if output_mode == 'binned':
-
-            if force_standard_output:
-
-                # If we want the error on the map counts to be specified by something
-                # other than something called "error" use the key specified in map_output_key
-                # (see pi_resample for an example)
-                if self.map_output_key:
-                        self.outputs = self.data.get_mapset(
-                            self.map_output_key,
-                            error=self.map_output_error_key,
-                        )
-
-                # Very specific case where the output has two keys and one of them is error (compatibility)
-                elif len(self.output_apply_keys) == 2 and 'errors' in self.output_apply_keys:
-                    other_key = [key for key in self.output_apply_keys if not key == 'errors'][0]
-                    self.outputs = self.data.get_mapset(other_key, error='errors')
-
-                # return the first key in output_apply_key as the map output. add errors to the 
-                # map only if "errors" is part of the list of output keys 
-                else:
-                    if 'errors' in self.output_apply_keys:
-                        self.outputs = self.data.get_mapset(self.output_apply_keys[0], error='errors')
-                    else:
-                        self.outputs = self.data.get_mapset(self.output_apply_keys[0])
-
-
-            # More generally: produce one map per output key desired, in a dict
-            else:
-                self.outputs = OrderedDict()
-                for key in self.output_apply_keys:
-                    self.outputs[key] = self.data.get_mapset(key)
-
-        # Handle Events mode
-        elif output_mode == "events":
-            self.outputs = self.data
-    
-        # Throw warning that output mode failed
-        else:
-            self.outputs = None
-            logging.warning('pi_stage.py: Cannot create CAKE style output mapset')
-
-        return self.outputs

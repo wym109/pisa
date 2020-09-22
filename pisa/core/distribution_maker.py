@@ -166,18 +166,23 @@ class DistributionMaker(object):
         #                           error_on_missing=False)
 
         # Make sure that all the pipelines have the same detector name (or None)
-        self._detector_name = 'no_name'
+        self.detector_name = 'no_name'
         for p in self._pipelines:
-            name = p._detector_name
-            if name != self._detector_name and self._detector_name != 'no_name':
+            name = p.detector_name
+            if name != self.detector_name and self.detector_name != 'no_name':
                 raise NameError(
                     'Different detector names in distribution_maker pipelines'
                 )
 
-            self._detector_name = name
+            self.detector_name = name
 
     def __iter__(self):
         return iter(self._pipelines)
+
+
+    def run(self):
+        for pipeline in self:
+            pipeline.run()
 
     def get_outputs(self, return_sum=False, sum_map_name='total',
                     sum_map_tex_name='Total', **kwargs):

@@ -98,11 +98,16 @@ class Pipeline(object):
 
         self.pisa_version = None
 
+        self.data = ContainerSet(config['pipeline']['name'])
+        self.detector_name = config['pipeline']['detector_name']
+        self.output_binning = config['pipeline']['output_binning']
+        self.output_key = config['pipeline']['output_key']
+
         self._stages = []
-        self._detector_name = config.pop('detector_name', None)
         self._config = config
         self._init_stages()
         self._source_code_hash = None
+
 
     def index(self, stage_id):
         """Return the index in the pipeline of `stage_id`.
@@ -165,11 +170,17 @@ class Pipeline(object):
 
         """
         stages = []
-        data = ContainerSet("events")
-        for stage_num, ((stage_name, service_name), settings) in enumerate(
+        for stage_num, item in enumerate(
             self.config.items()
         ):
             try:
+                name, settings = item
+                
+                if name is 'pipeline':
+                    continue
+
+                stage_name, service_name = name
+
                 logging.debug(
                     "instantiating stage %s / service %s", stage_name, service_name
                 )
@@ -237,7 +248,7 @@ class Pipeline(object):
                 # Append service to pipeline
 
                 if self.pisa_version == "pi":
-                    service.data = data
+                    service.data = self.data
                 # add events object
 
                 # run setup on service
@@ -305,88 +316,36 @@ class Pipeline(object):
 
         self._stages = stages
 
-    # TODO: handle other container(s)
-    @profile
-    def get_outputs(self, inputs=None, idx=None, return_intermediate=False, output_mode=None, force_standard_output=True):
-        """Run the pipeline to compute its outputs.
-
-        Parameters
-        ----------
-        inputs : None or MapSet
-            Optional inputs to send to the first stage of the pipeline.
-
-        idx : None, string, or int
-            Specification of which stage(s) to run. If None is passed, all
-            stages will be run. If a string is passed, all stages are run up to
-            and including the named stage. If int is passed, all stages are run
-            up to and including `idx`. Numbering follows Python
-            conventions (i.e., is 0-indexed).
-
-        return_intermediate : bool
-            Return list containing outputs from each stage in the pipeline.
-
-        output_mode: string
-            force an output mode to the stage
-
-        force_standard_output: bool
-            if requesting a binned output, object returned will be a list of MapSets
-            if set to False, object returned will be a list of Dict. each Dict item is 
-            a MapSet
+    def get_outputs(self, output_binning=None, output_key=None):
+        """Get MapSet output"""
 
 
-        Returns
-        -------
-        outputs : list or pisa.core.map.MapSet
-            If `return_intermediate` is `False`, returns `MapSet` output by
-            final stage. If `return_intermediate` is `True`, returns `list` of
-            `MapSet`s output by each stage.
 
-        """
-        intermediate = []
+        self.run()
 
-        if isinstance(idx, str):
-            idx = self.stage_names.index(idx)
+        if output_binning is None:
+            output_binning = self.output_binning
+            output_key = self.output_key
+        else:
+            assert(isinstance(output_binning, MultiDimBinning))
 
-        if idx is not None:
-            if idx < 0:
-                raise ValueError("Integer `idx` must be >= 0")
-            idx += 1
+        assert output_binning is not None
 
-        if len(self) == 0:
-            raise ValueError("No stages in the pipeline to run")
+        self.data.representation = output_binning
 
-        for stage in self.stages[:idx]:
-            name = "{}.{}".format(stage.stage_name, stage.service_name)
-            logging.debug(
-                '>> Working on stage "%s" service "%s"',
-                stage.stage_name,
-                stage.service_name,
-            )
-            try:
-                logging.trace(">>> BEGIN: {}.run(...)".format(name))
-                outputs = stage.run(inputs=inputs) # pylint: disable=redefined-outer-name
-                if return_intermediate:
-                    if outputs is None:  # e.g. for PISA pi
-                        outputs = stage.get_outputs(output_mode=output_mode, force_standard_output=force_standard_output)
-                    intermediate.append(outputs)
-                logging.trace(">>> END  : {}.run(...)".format(name))
-            except:
-                logging.error(
-                    "Error occurred computing outputs in stage %s /" " service %s ...",
-                    stage.stage_name,
-                    stage.service_name,
-                )
-                raise
-            logging.trace("outputs: %s" % (outputs,))
-            inputs = outputs
-
-        if outputs is None:  # e.g. for PISA pi
-            outputs = stage.get_outputs(output_mode=output_mode, force_standard_output=force_standard_output)
-
-        if return_intermediate:
-            return intermediate
+        if isinstance(output_key, tuple):
+            assert len(output_key) == 2
+            outputs = self.data.get_mapset(output_key[0], errors=output_key[1])
+        else:
+            outputs = self.data.get_mapset(output_key)
 
         return outputs
+
+
+    def run(self):
+        """Run the pipeline to compute"""
+        for stage in self.stages:
+            stage.run()
 
     def update_params(self, params):
         """Update params for the pipeline.

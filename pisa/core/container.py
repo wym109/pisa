@@ -48,8 +48,12 @@ class ContainerSet(object):
             self.add_container(container)
 
     def __repr__(self):
-        return f'ContainerSet containing {[c.name for s in self]}'
+        return f'ContainerSet containing {[c.name for c in self]}'
 
+    @property
+    def is_map(self):
+        if len(self.containers):
+            return self.containers[0].is_map
             
     def add_container(self, container):
         if container.name in self.names:
@@ -171,7 +175,7 @@ class VirtualContainer(object):
         self.containers = containers
         
     def __repr__(self):
-        return f'VirtualContainer containing {[c.name for s in self]}'
+        return f'VirtualContainer containing {[c.name for c in self]}'
 
     def unlink(self):
         '''Reset flag and copy all accessed keys'''
@@ -197,7 +201,7 @@ class VirtualContainer(object):
     def mark_changed(self, key):
         # copy all
         for container in self.containers[1:]:
-            container[key] = np.copy(value)
+            container[key] = np.copy(self.containers[0][key])
         for container in self:
             container.mark_changed(key)
     
@@ -217,6 +221,9 @@ class VirtualContainer(object):
     def shape(self):
         return self.containers[0].shape
 
+    @property
+    def size(self):
+        return np.product(self.shape)
 
 class Container():
     
@@ -305,6 +312,10 @@ class Container():
             return None
         key = self.keys[0]
         return self[key].shape[0:1]    
+
+    @property
+    def size(self):
+        return np.product(self.shape)
     
     @property
     def num_dims(self):
