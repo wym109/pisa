@@ -9,7 +9,7 @@
 [Contributors](CONTRIBUTORS.md) |
 [Others' work](EXTERNAL_ATTRIBUTION.md)
 
-PISA is software written to analyze the results (or expected results) of an experiment based on Monte Carlo simulation.
+PISA is a software written to analyze the results (or expected results) of an experiment based on Monte Carlo simulation.
 
 In particular, PISA was written by and for the IceCube Collaboration for analyses employing the [IceCube Neutrino Observatory](https://icecube.wisc.edu/), including the [DeepCore](https://arxiv.org/abs/1109.6096) and the proposed [PINGU](https://arxiv.org/abs/1401.2046) low-energy in-fill arrays.
 However, any such experiment—or any experiment at all—can make use of PISA for analyzing expected and actual results.
